@@ -40,6 +40,9 @@ platform data go through the hub via the vendored `@kernel/sdk`.
 - **Fresh page text goes to the hub only for draft features** (Reply, Fix, Hi,
   Ping), never for Recap/Review/Coach, and never into the hub archive, money or
   dossiers. Skip queued (`isFromQueue`) and unsent messages.
+- **UI is designed from scratch** and docks to the top of ChatSpace's message
+  input (the composer); see decision X7. Do not copy the old Fansly or desktop
+  look.
 - **Parity bar.** Every feature of the Fansly extension and the desktop carries
   over, including logging, the front-end debug mode, settings, popup and error
   toasts. Dropping one needs the owner's explicit OK. Execution must be
