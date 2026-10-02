@@ -29,11 +29,14 @@ platform data go through the hub via the vendored `@kernel/sdk`.
 ## Things that bite
 
 - **AI lives only in the hub.** No vendor SDKs, keys or prompts here.
-- **The extension never sends.** The human sends with ChatSpace's own button;
-  the extension only inserts a draft through ChatSpace's composer bridge
-  (`__omComposerBridge`). Never auto-retry anything indeterminate.
-- **Quiet mode toward OnlyMonster.** No requests of our own to OnlyMonster:
-  read page memory, insert through their bridge. Writes to OnlyMonster: never.
+- **The extension never sends on its own.** A send happens only on an explicit
+  human click: in an open chat the human presses ChatSpace's own Send (we only
+  insert the draft through `__omComposerBridge`); from a preview (Spenders,
+  "New") a click sends through ChatSpace's own send queue in the page (X8),
+  never through a request of ours. Never auto-retry anything indeterminate.
+- **Quiet mode toward OnlyMonster.** No network requests of our own to
+  OnlyMonster: read page memory and passive events, insert through their bridge.
+  The only write is the human-clicked preview send through their own queue (X8).
 - **Opening a chat in ChatSpace marks it read on OnlyFans** (live-verified).
   Never load the history of a chat the human did not open; other fans' data
   come from the hub only.
