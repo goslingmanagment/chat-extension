@@ -10,7 +10,18 @@
 // saved is never evicted. After an unload the new background restores the
 // index: finished results come back, an operation that was still running is
 // `interrupted` (CG-OP-INTERRUPTED) — its stream is not resumed and no new
-// request is made (§7).
+// request is made (§7). That recovery runs once, on the first successful
+// read of the index, whichever call makes it (start, or a later request
+// when start's read failed); `start` is idempotent.
+//
+// An index that cannot be read or parsed starts over (a 30-minute cache must
+// not block work), and the result keys it named are found by listing the
+// area and removed, so they never sit uncounted in storage.session.
+//
+// Cost: every `put` validates the whole OpView, measures it and writes the
+// view (≤ 512 KiB) and the index (≤ 1 MiB) in one set. Save at phase changes
+// and at the end of an operation (R10), never on every 50 ms `op.update`
+// batch of a stream.
 
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { OP_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
@@ -56,7 +67,13 @@ export interface ResultsRecovery {
 }
 
 export interface ResultsStore {
+  /** Load and recover; the readiness barrier runs it. Idempotent: a second call answers the first report. */
   start(): Promise<ResultsRecovery>;
+  /**
+   * Saves a view (and the index) in ONE set. Heavy (validation, size, up to
+   * ~1.5 MiB written): call it at phase changes and at the end, not per
+   * streamed batch.
+   */
   put(view: OpView, owner: { readonly tabSessionId: string | null }): Promise<ResultsPutResult>;
   get(opId: string): Promise<OpView | null>;
   /** `op.list`: this tab's (≤ 24) or everything (newest first, ≤ 200, `truncated`). */
@@ -108,6 +125,11 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
   let loaded = false;
   /** Result keys an index no longer names but storage may still hold (a failed remove). */
   const orphans = new Set<string>();
+  /** The index started over: result keys it named are still in storage until a listing finds them. */
+  let unlisted = false;
+  /** The recovery of the first successful load (whichever call made it). */
+  let recovery: ResultsRecovery | null = null;
+  let started: Promise<ResultsRecovery> | null = null;
 
   const indexValue = (entries: readonly ResultMeta[]): { v: 1; entries: readonly ResultMeta[] } => ({ v: 1, entries });
   const totalBytes = (entries: readonly ResultMeta[]): number => entries.reduce((sum, entry) => sum + entry.bytes, 0);
@@ -124,14 +146,84 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
     }
   }
 
+  /** The index could not be read or parsed: start over; its result keys are found later by a listing. */
+  function startOver(reason: string, code?: 'CG-STORAGE-READ'): void {
+    log({ level: 'warn', scope: SCOPE, msg: `results index ${reason}: starting empty`, ...(code ? { code } : {}) });
+    index = [];
+    loaded = true;
+    unlisted = true;
+  }
+
+  /** Removes `result.*` keys the index does not name (after it started over); stays pending when the listing fails. */
+  async function sweepUnlisted(): Promise<void> {
+    if (!unlisted) return;
+    const listed = await deps.session.keys();
+    if (!listed.ok) {
+      log({ level: 'warn', scope: SCOPE, msg: 'results keys not listed: orphans swept later', code: listed.code });
+      return;
+    }
+    const named = new Set(index.map((entry) => keyOf(entry.opId)));
+    const stray = listed.value.filter((key) => key.startsWith(SESSION_KEYS.resultPrefix) && !named.has(key));
+    for (const key of stray) orphans.add(key);
+    unlisted = false;
+    if (stray.length > 0) log({ level: 'info', scope: SCOPE, msg: 'results the lost index named are removed', fields: { count: stray.length } });
+    await removeKeys([]);
+  }
+
+  /** What a previous background left: expired results go, running ones become `interrupted` (never resumed). */
+  async function recover(): Promise<ResultsRecovery> {
+    const now = clock.now();
+    const stale = index.filter((entry) => expired(entry, now));
+    const live = index.filter((entry) => !expired(entry, now));
+    const running = live.filter((entry) => !isTerminal(entry.state));
+    const updates: Record<string, unknown> = {};
+    const interrupted: string[] = [];
+    if (running.length > 0) {
+      const read = await deps.session.get(running.map((entry) => keyOf(entry.opId)));
+      for (const entry of running) {
+        const parsed = read.ok ? OpViewSchema.safeParse(read.value[keyOf(entry.opId)]) : null;
+        if (!parsed?.success) continue;
+        const view: OpView = {
+          ...parsed.data,
+          state: 'interrupted',
+          phase: { name: 'settled', since: now },
+          endedAt: now,
+          error: { code: 'CG-OP-INTERRUPTED' },
+        };
+        updates[keyOf(entry.opId)] = view;
+        interrupted.push(entry.opId);
+      }
+    }
+    const next = live
+      .filter((entry) => isTerminal(entry.state) || interrupted.includes(entry.opId))
+      .map((entry) => (interrupted.includes(entry.opId) ? { ...entry, state: 'interrupted' as const, savedAt: now } : entry));
+    const dropped = live.filter((entry) => !next.some((kept) => kept.opId === entry.opId)).map((entry) => entry.opId);
+    if (stale.length > 0 || interrupted.length > 0 || dropped.length > 0) {
+      const saved = await deps.session.set({ ...updates, [INDEX_KEY]: indexValue(next) });
+      if (saved.ok) {
+        index = next;
+        await removeKeys([...stale, ...live.filter((entry) => dropped.includes(entry.opId))].map((entry) => keyOf(entry.opId)));
+      } else log({ level: 'error', scope: SCOPE, msg: 'results recovery not saved', code: saved.code });
+    }
+    if (interrupted.length > 0) log({ level: 'warn', scope: SCOPE, msg: 'running operations interrupted by a restart', code: 'CG-OP-INTERRUPTED', fields: { count: interrupted.length } });
+    return { restored: index.length, interrupted, expired: stale.length, readable: true };
+  }
+
+  /** Reads the index once; the first successful read runs the recovery. False — the read failed. */
   async function ensureLoaded(): Promise<boolean> {
     if (loaded) return true;
     const read = await deps.session.get([INDEX_KEY]);
     if (!read.ok) return false;
     const entries = readIndex(read.value[INDEX_KEY]);
-    if (entries === null) log({ level: 'warn', scope: SCOPE, msg: 'results index unreadable: starting empty' });
-    index = entries ?? [];
+    if (entries === null) {
+      startOver('unreadable');
+      recovery = { restored: 0, interrupted: [], expired: 0, readable: true };
+      await sweepUnlisted();
+      return true;
+    }
+    index = entries;
     loaded = true;
+    recovery = await recover();
     return true;
   }
 
@@ -168,47 +260,14 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
 
   return {
     start() {
-      return chain(async () => {
-        const now = clock.now();
+      started ??= chain(async (): Promise<ResultsRecovery> => {
         if (!(await ensureLoaded())) {
           log({ level: 'error', scope: SCOPE, msg: 'results index read failed', code: 'CG-STORAGE-READ' });
           return { restored: 0, interrupted: [], expired: 0, readable: false };
         }
-        const stale = index.filter((entry) => expired(entry, now));
-        const live = index.filter((entry) => !expired(entry, now));
-        const running = live.filter((entry) => !isTerminal(entry.state));
-        const updates: Record<string, unknown> = {};
-        const interrupted: string[] = [];
-        if (running.length > 0) {
-          const read = await deps.session.get(running.map((entry) => keyOf(entry.opId)));
-          for (const entry of running) {
-            const parsed = read.ok ? OpViewSchema.safeParse(read.value[keyOf(entry.opId)]) : null;
-            if (!parsed?.success) continue;
-            const view: OpView = {
-              ...parsed.data,
-              state: 'interrupted',
-              phase: { name: 'settled', since: now },
-              endedAt: now,
-              error: { code: 'CG-OP-INTERRUPTED' },
-            };
-            updates[keyOf(entry.opId)] = view;
-            interrupted.push(entry.opId);
-          }
-        }
-        const next = live
-          .filter((entry) => isTerminal(entry.state) || interrupted.includes(entry.opId))
-          .map((entry) => (interrupted.includes(entry.opId) ? { ...entry, state: 'interrupted' as const, savedAt: now } : entry));
-        const dropped = live.filter((entry) => !next.some((kept) => kept.opId === entry.opId)).map((entry) => entry.opId);
-        if (stale.length > 0 || interrupted.length > 0 || dropped.length > 0) {
-          const saved = await deps.session.set({ ...updates, [INDEX_KEY]: indexValue(next) });
-          if (saved.ok) {
-            index = next;
-            await removeKeys([...stale, ...live.filter((entry) => dropped.includes(entry.opId))].map((entry) => keyOf(entry.opId)));
-          } else log({ level: 'error', scope: SCOPE, msg: 'results recovery not saved', code: saved.code });
-        }
-        if (interrupted.length > 0) log({ level: 'warn', scope: SCOPE, msg: 'running operations interrupted by a restart', code: 'CG-OP-INTERRUPTED', fields: { count: interrupted.length } });
-        return { restored: index.length, interrupted, expired: stale.length, readable: true };
+        return recovery ?? { restored: index.length, interrupted: [], expired: 0, readable: true };
       });
+      return started;
     },
     put(view, owner) {
       return chain(async (): Promise<ResultsPutResult> => {
@@ -217,12 +276,8 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
         const bytes = jsonUtf8Bytes(checked.data);
         if (bytes === null) return { ok: false, code: 'CG-STORAGE-WRITE', detail: 'results.put: not JSON' };
         if (bytes > RESULT_MAX_BYTES) return { ok: false, code: 'CG-STORAGE-FULL', detail: `results.put: ${bytes} > ${RESULT_MAX_BYTES} bytes` };
-        if (!(await ensureLoaded())) {
-          // Results are a 30-minute cache: an unreadable index starts over rather than blocking the work.
-          log({ level: 'warn', scope: SCOPE, msg: 'results index unreadable: starting empty', code: 'CG-STORAGE-READ' });
-          index = [];
-          loaded = true;
-        }
+        // Results are a 30-minute cache: an index that cannot be read starts over rather than blocking the work.
+        if (!(await ensureLoaded())) startOver('read failed', 'CG-STORAGE-READ');
         const now = clock.now();
         const previous = index.find((entry) => entry.opId === view.opId);
         const meta: ResultMeta = {
@@ -239,6 +294,7 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
         if (!saved.ok) return { ok: false, code: saved.code, detail: saved.detail };
         index = kept;
         await removeKeys(evicted.map(keyOf));
+        await sweepUnlisted();
         return { ok: true, evicted };
       });
     },
@@ -289,12 +345,16 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
     clear() {
       return chain(async () => {
         await ensureLoaded();
-        const keys = [INDEX_KEY, ...index.map((entry) => keyOf(entry.opId)), ...orphans];
+        // Every result key the area holds, not only the ones a (maybe unread) index names.
+        const listed = await deps.session.keys();
+        const stray = listed.ok ? listed.value.filter((key) => key.startsWith(SESSION_KEYS.resultPrefix)) : [];
+        const keys = [...new Set([INDEX_KEY, ...index.map((entry) => keyOf(entry.opId)), ...orphans, ...stray])];
         const removed = await deps.session.remove(keys);
         if (!removed.ok) return false;
         orphans.clear();
         index = [];
         loaded = true;
+        unlisted = !listed.ok;
         return true;
       });
     },
@@ -303,6 +363,7 @@ export function createResultsStore(deps: ResultsStoreDeps): ResultsStore {
         if (!(await ensureLoaded())) return 0;
         const now = clock.now();
         const stale = index.filter((entry) => expired(entry, now));
+        await sweepUnlisted();
         if (stale.length === 0) {
           await removeKeys([]);
           return 0;

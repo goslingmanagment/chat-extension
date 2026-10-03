@@ -177,8 +177,32 @@ describe('[BG-004] results after the background unloads', () => {
     const cut = await second.store.get(uuid(1001));
     expect(cut).toMatchObject({ state: 'interrupted', phase: { name: 'settled', since: T0 + 5000 }, endedAt: T0 + 5000, error: { code: 'CG-OP-INTERRUPTED' } });
     expect(second.logs.find((entry) => entry.code === 'CG-OP-INTERRUPTED')?.fields).toEqual({ count: 1 });
-    // Nothing more happens on a second start of the same store.
-    expect((await second.store.start()).interrupted).toEqual([]);
+    // A second start is the same run: it answers the first report and touches nothing.
+    const writes = first.session.calls.set;
+    expect(await second.store.start()).toBe(recovery);
+    expect(first.session.calls.set).toBe(writes);
+  });
+
+  it('[RB-003] start is idempotent: this background\'s own running operation is never interrupted by a second start', async () => {
+    const { store } = setup();
+    await store.start();
+    await store.put(view(1, 'streaming'), { tabSessionId: 'tab-a' });
+    expect((await store.start()).interrupted).toEqual([]);
+    expect(await store.get(uuid(1001))).toMatchObject({ state: 'streaming' });
+  });
+
+  it('[RB-003] start\'s read failed: the first later read still interrupts what the previous background left running', async () => {
+    const first = setup();
+    await first.store.put(view(1, 'streaming'), { tabSessionId: 'tab-a' });
+    first.port.detach();
+    first.session.failNext('get');
+    const second = setup({ session: first.session, at: T0 + 5000 });
+    expect(await second.store.start()).toEqual({ restored: 0, interrupted: [], expired: 0, readable: false });
+    expect(await second.store.get(uuid(1001))).toMatchObject({ state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
+    // This background's own new operation is not touched by that recovery.
+    await second.store.put(view(2, 'streaming'), { tabSessionId: 'tab-a' });
+    expect(await second.store.get(uuid(1002))).toMatchObject({ state: 'streaming' });
+    expect(second.logs.find((entry) => entry.code === 'CG-OP-INTERRUPTED')?.fields).toEqual({ count: 1 });
   });
 
   it('an unreadable index is reported; the cache starts over on the next save', async () => {
@@ -189,6 +213,49 @@ describe('[BG-004] results after the background unloads', () => {
     session.data.set(SESSION_KEYS.resultsIndex, 'garbage');
     expect(await store.put(view(1), { tabSessionId: 'tab-a' })).toEqual({ ok: true, evicted: [] });
     expect(logs.some((entry) => entry.msg.includes('unreadable'))).toBe(true);
+  });
+
+  const resultKeys = (session: MemoryKv): string[] => [...session.data.keys()].filter((key) => key.startsWith(SESSION_KEYS.resultPrefix)).sort();
+
+  it('an index read that fails on a save: the keys the lost index named are found by a listing and removed', async () => {
+    const first = setup();
+    for (let n = 1; n <= 5; n += 1) await first.store.put(view(n), { tabSessionId: 'tab-a' });
+    first.port.detach();
+    first.session.failNext('get');
+    const second = setup({ session: first.session });
+    expect(await second.store.put(view(6), { tabSessionId: 'tab-a' })).toEqual({ ok: true, evicted: [] });
+    expect(resultKeys(first.session)).toEqual([`${SESSION_KEYS.resultPrefix}${uuid(1006)}`]);
+    expect(second.store.stats().count).toBe(1);
+    expect(second.logs.find((entry) => entry.msg === 'results the lost index named are removed')?.fields).toEqual({ count: 5 });
+  });
+
+  it('an index that cannot be parsed: its result keys go at once; a failed listing is retried by the next sweep', async () => {
+    const session = createMemoryKv();
+    for (let n = 1; n <= 3; n += 1) session.data.set(`${SESSION_KEYS.resultPrefix}${uuid(1000 + n)}`, view(n));
+    session.data.set(SESSION_KEYS.resultsIndex, { v: 9 });
+    const { store } = setup({ session });
+    expect(await store.start()).toEqual({ restored: 0, interrupted: [], expired: 0, readable: true });
+    expect(resultKeys(session)).toEqual([]);
+
+    const later = createMemoryKv();
+    later.data.set(`${SESSION_KEYS.resultPrefix}${uuid(1001)}`, view(1));
+    later.data.set(SESSION_KEYS.resultsIndex, 'garbage');
+    later.failNext('keys');
+    const other = setup({ session: later });
+    await other.store.start();
+    expect(resultKeys(later)).toHaveLength(1);
+    await other.store.sweep();
+    expect(resultKeys(later)).toEqual([]);
+  });
+
+  it('clear removes every result key of the area, even when the index could not be read', async () => {
+    const first = setup();
+    for (let n = 1; n <= 3; n += 1) await first.store.put(view(n), { tabSessionId: 'tab-a' });
+    first.port.detach();
+    first.session.failNext('get');
+    const second = setup({ session: first.session });
+    expect(await second.store.clear()).toBe(true);
+    expect([...first.session.data.keys()]).toEqual([]);
   });
 
   it('after a browser restart storage.session is empty: nothing to restore', async () => {
