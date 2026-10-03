@@ -11,6 +11,10 @@
 //   quickJump = createQuickJumpController({ host, i18n, overlays, clock });
 //   cheatsheet = createCheatsheetController({ catalog });
 //
+// The palette, the quick jump and the cheatsheet open and close in
+// `overlays` (Navigate `surface`): the overlay mount subscribes to it
+// (`overlays.subscribe`) and mounts or unmounts their UI; for every other
+// overlay it calls `overlays.set(surface, open)` itself when it mounts one.
 // HostPort.navigate redeems its token through the composition root's
 // `redeem`; R17 issues every navigation token for NAVIGATION_SURFACE.
 
