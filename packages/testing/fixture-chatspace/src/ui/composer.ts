@@ -17,9 +17,9 @@
 // `data-dismissible-open` while open.
 
 import type { JSONContent } from '@tiptap/core';
-import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref, shallowRef, vShow, watch, withDirectives, type PropType, type VNode } from 'vue';
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref, vShow, watch, withDirectives, type PropType, type VNode } from 'vue';
 
-import { isBroken } from '../env';
+import { env, isBroken } from '../env';
 import { record } from '../journal';
 import { api } from '../net/http';
 import { useQueryCache } from '../query/cache';
@@ -27,14 +27,17 @@ import type { Account, FansMap } from '../query/model';
 import { keys } from '../query/queries';
 import { useComposerTranslator, useOfComposerInsert } from '../stores/composer';
 import { usePendingMessages, type QueueInput } from '../stores/pending-messages';
-import { applyBridge, draftKey, loadDraft, persistDraft, removeBridge, textToParagraph, type DraftBody } from './bridge';
-import type { OmEditor } from './editor';
+import { draftKey, loadDraft, persistDraft, textToParagraph, vComposerBridge, type DraftBody } from './bridge';
+import { createEditorHandle } from './editor-handle';
 import { registerComposer, unregisterComposer } from './registry';
 
 const TYPING_THROTTLE_MS = 3000;
 const TRANSLATE_MS = 60;
 const QUICK_REPLIES = ['(◕‿◕)', 'ok!', '♡'];
 const TEMPLATES = ['Синтетический шаблон: привет!', 'Stand template: how was your day?', 'Тестовый шаблон №3'];
+const PLACEHOLDER = 'Stand message…';
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** The stand's «translation» of a text (clearly synthetic). */
 export const syntheticTranslation = (text: string): string => `[EN] ${text}`;
@@ -60,7 +63,8 @@ export const ConversationComposer = defineComponent({
     const root = ref<HTMLElement | null>(null);
     const slot = ref<HTMLElement | null>(null);
     const editorHost = ref<HTMLElement | null>(null);
-    const editor = shallowRef<OmEditor | null>(null);
+    // The editor component's surface exists from the start; TipTap attaches to it when its chunk has loaded.
+    const editor = createEditorHandle();
     const templatesOpen = ref(false);
     const notice = ref<string | null>(null);
     const key = draftKey(props.accountId, props.chatId);
@@ -101,8 +105,8 @@ export const ConversationComposer = defineComponent({
     const toQueue = (input: Omit<QueueInput, 'isAiGenerated'>) => pending.enqueue(input);
 
     const submit = async (): Promise<void> => {
-      const current = editor.value;
-      if (current === null || current.getText().trim() === '' || templatesOpen.value) return;
+      const current = editor;
+      if (current.tiptap === null || current.getText().trim() === '' || templatesOpen.value) return;
       if (settings.value.enabled && settings.value.autoTranslate) {
         const before = current.getText();
         record('translator-translating', { accountId: props.accountId, chatId: props.chatId });
@@ -137,8 +141,8 @@ export const ConversationComposer = defineComponent({
 
     const insertTemplate = (text: string): void => {
       templatesOpen.value = false;
-      editor.value?.insertContent(textToParagraph(text));
-      editor.value?.focus();
+      editor.insertContent(textToParagraph(text));
+      editor.focus();
     };
 
     const onDocumentKeydown = (event: KeyboardEvent): void => {
@@ -149,10 +153,12 @@ export const ConversationComposer = defineComponent({
       record('composer-mounted', { key: props.composerKey });
       root.value?.addEventListener('keydown', onKeydownCapture, { capture: true });
       document.addEventListener('keydown', onDocumentKeydown);
-      if (root.value !== null) registerComposer(props.composerKey, { root: root.value, accountId: props.accountId, chatId: props.chatId, tabId: props.tabId, editor: () => editor.value, slot: () => slot.value, shown: () => props.shown });
+      if (root.value !== null) registerComposer(props.composerKey, { root: root.value, accountId: props.accountId, chatId: props.chatId, tabId: props.tabId, editor, slot: () => slot.value, shown: () => props.shown });
       const module = await import('./editor');
+      // Tests may stretch the chunk load to reach the window where the bridge exists but does nothing.
+      if (env.editorChunkDelayMs > 0) await delay(env.editorChunkDelayMs);
       if (!alive || editorHost.value === null) return;
-      const created = module.createOmEditor(editorHost.value, {
+      const created = module.createOmEditor(editorHost.value, model.value.json, PLACEHOLDER, {
         onEnter: () => void submit(),
         onUpdate: (json: JSONContent, text: string) => {
           editorText = text;
@@ -162,42 +168,39 @@ export const ConversationComposer = defineComponent({
         onPaste: (text) => {
           lastPaste = text;
         },
-        onTransaction: () => undefined,
         hideHandle: isBroken('editor-handle'),
       });
-      if (model.value.json !== null) {
-        // Draft restore: a programmatic setContent (a transaction like any other).
-        created.setContent(model.value.json);
-        editorText = created.getText();
-      }
-      editor.value = created;
+      editorText = created.getText();
+      editor.attach(created);
       record('composer-editor-ready', { key: props.composerKey });
     });
+
+    // A model changed from elsewhere (not by the editor itself) is pushed into the editor.
+    watch(
+      () => model.value.json,
+      (json) => {
+        const current = editor.tiptap;
+        if (current !== null && JSON.stringify(current.getJSON()) !== JSON.stringify(json)) current.commands.setContent(json ?? '');
+      },
+    );
 
     onBeforeUnmount(() => {
       alive = false;
       root.value?.removeEventListener('keydown', onKeydownCapture, { capture: true });
       document.removeEventListener('keydown', onDocumentKeydown);
-      removeBridge(slot.value);
-      editor.value?.destroy();
+      editor.detach();
       unregisterComposer(props.composerKey);
       record('composer-unmounted', { key: props.composerKey });
-    });
-
-    // The bridge directive: (re)applied when the slot or the editor changes.
-    watch([slot, editor], () => {
-      applyBridge(slot.value, { editor: editor.value, accountId: props.accountId, chatId: props.chatId, setInsertPayload: inserts.setInsertPayload });
     });
 
     // An insert payload REPLACES the draft; only changes count (no initial run).
     watch(
       () => inserts.getInsertPayload(props.accountId, props.chatId),
       (payload) => {
-        const current = editor.value;
-        if (payload === null || current === null) return;
-        current.clear();
-        current.insertContent(payload.html);
-        current.focus();
+        if (payload === null || editor.tiptap === null) return;
+        editor.clear();
+        editor.insertContent(payload.html);
+        editor.focus();
         inserts.clearInsertPayload(props.accountId, props.chatId);
       },
     );
@@ -213,11 +216,13 @@ export const ConversationComposer = defineComponent({
             h(
               'div',
               { class: 'composer-strip__quick' },
-              QUICK_REPLIES.map((text) => h('button', { type: 'button', class: 'chip', onClick: () => editor.value?.insertContent(text) }, text)),
+              QUICK_REPLIES.map((text) => h('button', { type: 'button', class: 'chip', onClick: () => editor.insertContent(text) }, text)),
             ),
             h('div', { class: 'composer-strip__trailing inline-flex' }, [
-              h('div', { ref: slot, ...slotProps }),
-              h('button', { type: 'button', class: 'chip', 'aria-expanded': String(templatesOpen.value), onClick: () => (templatesOpen.value = !templatesOpen.value) }, 'Templates'),
+              withDirectives(h('div', { ref: slot, ...slotProps }), [
+                [vComposerBridge, { editor, accountId: props.accountId, chatId: props.chatId, setInsertPayload: inserts.setInsertPayload }],
+              ]),
+              h('button', { type: 'button', class: 'chip', 'data-stand-templates': '', 'aria-expanded': String(templatesOpen.value), onClick: () => (templatesOpen.value = !templatesOpen.value) }, 'Templates'),
             ]),
           ]),
           h('div', { ref: editorHost, class: 'om-rich-text-editor' }),

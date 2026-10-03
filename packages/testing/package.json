@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@tiptap/core": "3.31.4",
+    "@tiptap/extensions": "3.31.4",
     "@tiptap/pm": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "@types/mocha": "10.0.10",

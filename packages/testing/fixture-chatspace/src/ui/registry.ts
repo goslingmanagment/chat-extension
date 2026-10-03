@@ -3,14 +3,14 @@
 // ChatSpace contract.
 
 import type { ComposerSnapshot, MessageListState } from '../protocol';
-import type { OmEditor } from './editor';
+import type { EditorHandle } from './editor-handle';
 
 export interface MountedComposer {
   readonly root: HTMLElement;
   readonly tabId: string;
   readonly accountId: string;
   readonly chatId: string;
-  readonly editor: () => OmEditor | null;
+  readonly editor: EditorHandle;
   readonly slot: () => HTMLElement | null;
   readonly shown: () => boolean;
 }
@@ -34,7 +34,7 @@ export function composerSnapshots(): ComposerSnapshot[] {
     chatId: composer.chatId,
     shown: composer.shown(),
     hasBridge: composer.slot() !== null && '__omComposerBridge' in (composer.slot() ?? {}),
-    hasEditor: composer.editor() !== null,
+    hasEditor: composer.editor.tiptap !== null,
   }));
 }
 

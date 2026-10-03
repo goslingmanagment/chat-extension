@@ -230,6 +230,8 @@ export interface StandControl {
   releaseQueryObserver(token: number): void;
   pendingMessages(): unknown;
   setQueueTimeoutMs(ms: number): void;
+  /** Composers mounted from now on wait this long for their editor chunk (the bridge exists, TipTap does not). */
+  setEditorDelayMs(ms: number): void;
   injectFanMessage(accountId: string, fanId: string, text?: string): Promise<string>;
   scriptSend(accountId: string, chatId: string, outcomes: readonly SendOutcome[]): Promise<void>;
   setFan(accountId: string, fanId: string, patch: FanPatch): Promise<void>;

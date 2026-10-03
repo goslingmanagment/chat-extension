@@ -33,6 +33,8 @@ export const env = {
   bootId: randomId(),
   /** The send queue's own timeout (ChatSpace: 30 s); tests shorten it to reach the timeout path quickly. */
   queueTimeoutMs: 30_000,
+  /** Extra time the editor chunk takes to load, so tests can act while the bridge exists without TipTap. */
+  editorChunkDelayMs: 0,
 };
 
 export function isBroken(item: StandBreak): boolean {

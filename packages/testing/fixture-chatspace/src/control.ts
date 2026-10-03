@@ -50,7 +50,7 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
     setFixedWidth: (on, align) => setFixedWidth(on, align),
     composers: () => composerSnapshots(),
     composerState: (accountId, chatId) => {
-      const editor = findComposer(accountId, chatId)?.editor() ?? null;
+      const editor = findComposer(accountId, chatId)?.editor.tiptap ?? null;
       if (editor === null) return null;
       return {
         text: editor.getText(),
@@ -81,6 +81,10 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
     setQueueTimeoutMs: (ms) => {
       env.queueTimeoutMs = ms;
       record('stand-queue-timeout', { ms });
+    },
+    setEditorDelayMs: (ms) => {
+      env.editorChunkDelayMs = ms;
+      record('stand-editor-delay', { ms });
     },
     injectFanMessage: async (accountId, fanId, text) => {
       const result = (await control('/__stand/fan-message', { accountId, fanId, ...(text !== undefined ? { text } : {}) })) as { id: string };

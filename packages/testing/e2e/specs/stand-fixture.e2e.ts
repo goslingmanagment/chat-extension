@@ -13,7 +13,7 @@ import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, w
 import { setViewport } from '../support/visual';
 
 const { a: accountA } = STAND_IDS.accounts;
-const { a1, a2, a3, a4 } = STAND_IDS.fans;
+const { a1, a2, a3, a4, a5 } = STAND_IDS.fans;
 /** TipTap's Mod: ⌘ on macOS, Ctrl elsewhere. */
 const MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 const ACTIVE_EDITOR = '.composer-root:not([style*="display: none"]) .ProseMirror';
@@ -220,6 +220,97 @@ describe('the ChatSpace-like stand on its own', () => {
     expect((await callStand('composerState', accountA, a1))?.html).toBe('<p>Draft line<br>second</p>');
     await setComposerText(accountA, a1, '');
     expect(await callStand('draft', accountA, a1)).toBeNull();
+  });
+
+  it('the bridge exists as soon as the composer mounts and does nothing until TipTap loads; every re-render puts a new bridge object', async () => {
+    await callStand('setEditorDelayMs', 2000);
+    try {
+      await callStand('openChat', accountA, a5, { newTab: true });
+      await browser.waitUntil(async () => (await callStand('composers')).some((composer) => composer.chatId === a5 && composer.shown), { timeout: 5000, timeoutMsg: 'no composer for a5' });
+      const early = await browser.execute((account: string, chat: string) => {
+        const slot = slotOf(account, chat);
+        const bridge = slot?.__omComposerBridge;
+        let threw = false;
+        try {
+          bridge?.setText('lost before the editor');
+          bridge?.insertText(' and this');
+        } catch {
+          threw = true;
+        }
+        return { bridge: bridge !== undefined, editor: (slot?.closest('.composer-frame')?.querySelector('.ProseMirror') ?? null) !== null, threw };
+
+        function slotOf(a: string, c: string): (HTMLElement & { __omComposerBridge?: { setText(text: string): void; insertText(text: string): void } }) | null {
+          const root = [...document.querySelectorAll<HTMLElement>('[data-stand-composer]')].find((node) => node.getAttribute('data-stand-composer')?.endsWith(`:${a}:${c}`));
+          return root?.querySelector('[data-id="browser-composer-translator"]') ?? null;
+        }
+      }, accountA, a5);
+      expect(early).toEqual({ bridge: true, editor: false, threw: false });
+    } finally {
+      await callStand('setEditorDelayMs', 0);
+    }
+    await waitForChatReady(accountA, a5);
+    // The early calls were lost, not replayed later.
+    expect((await callStand('composerState', accountA, a5))?.text).toBe('');
+    const renewed = await browser.execute(async (account: string, chat: string) => {
+      const root = [...document.querySelectorAll<HTMLElement>('[data-stand-composer]')].find((node) => node.getAttribute('data-stand-composer')?.endsWith(`:${account}:${chat}`));
+      const slot = root?.querySelector<HTMLElement & { __omComposerBridge?: object }>('[data-id="browser-composer-translator"]');
+      const toggle = root?.querySelector<HTMLElement>('[data-stand-templates]');
+      const first = slot?.__omComposerBridge;
+      toggle?.click();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const second = slot?.__omComposerBridge;
+      toggle?.click();
+      return first !== undefined && second !== undefined && first !== second;
+    }, accountA, a5);
+    expect(renewed).toBe(true);
+    await callStand('closeActiveChatTab');
+    await browser.waitUntil(async () => (await callStand('route')).chatId === a1, { timeout: 5000, timeoutMsg: 'back to a1' });
+  });
+
+  it("bridge.focus() keeps the human's cursor: insertText lands mid-draft, not at the end", async () => {
+    await typeInActiveComposer('Hello world');
+    for (let step = 0; step < 'world'.length + 1; step += 1) await browser.keys(Key.ArrowLeft);
+    await browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
+    await browser.execute(
+      (account: string, chat: string) => {
+        const root = [...document.querySelectorAll<HTMLElement>('[data-stand-composer]')].find((node) => node.getAttribute('data-stand-composer')?.endsWith(`:${account}:${chat}`));
+        const bridge = (root?.querySelector('[data-id="browser-composer-translator"]') as (HTMLElement & { __omComposerBridge?: { focus(): void; insertText(text: string): void } }) | null)?.__omComposerBridge;
+        bridge?.focus();
+        bridge?.insertText(' dear');
+      },
+      accountA,
+      a1,
+    );
+    expect((await callStand('composerState', accountA, a1))?.text).toBe('Hello dear world');
+    await setComposerText(accountA, a1, '');
+  });
+
+  it('the draft key changes a microtask after a bridge call, not inside it', async () => {
+    const timing = await browser.execute(
+      async (account: string, chat: string) => {
+        const key = `chat-space:draft:of:${account}:${chat}`;
+        const root = [...document.querySelectorAll<HTMLElement>('[data-stand-composer]')].find((node) => node.getAttribute('data-stand-composer')?.endsWith(`:${account}:${chat}`));
+        const bridge = (root?.querySelector('[data-id="browser-composer-translator"]') as (HTMLElement & { __omComposerBridge?: { setText(text: string): void } }) | null)?.__omComposerBridge;
+        const before = localStorage.getItem(key);
+        bridge?.setText('written a microtask later');
+        const inTheCall = localStorage.getItem(key);
+        await Promise.resolve();
+        const after = localStorage.getItem(key);
+        return { unchangedInTheCall: inTheCall === before, writtenAfter: after !== null && after.includes('written a microtask later') };
+      },
+      accountA,
+      a1,
+    );
+    expect(timing).toEqual({ unchangedInTheCall: true, writtenAfter: true });
+    await setComposerText(accountA, a1, '');
+  });
+
+  it('the editor is set up as on the host: a placeholder, and a typed URL becomes a link (in the HTML and the draft)', async () => {
+    expect(await browser.execute((selector: string) => document.querySelector(`${selector} p.is-editor-empty`)?.getAttribute('data-placeholder') ?? null, ACTIVE_EDITOR)).toBe('Stand message…');
+    await typeInActiveComposer('see https://example.com/stand ');
+    expect((await callStand('composerState', accountA, a1))?.html).toMatch(/<a [^>]*href="https:\/\/example\.com\/stand"/);
+    expect(JSON.stringify(await callStand('draft', accountA, a1))).toContain('"type":"link"');
+    await setComposerText(accountA, a1, '');
   });
 
   it('the message list keeps the bottom when the box above the composer grows, and its anchor when scrolled up', async () => {

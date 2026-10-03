@@ -2,38 +2,46 @@
 // ChatSpace loads its editor chunk when the first composer mounts), so
 // `.ProseMirror`, `view.dom.editor`, transaction/update events and the
 // ⌘B/⌘I/⌘E/⌘⇧S marks behave like the real thing (metadata.ts «editor»).
+// Extensions as on the host: StarterKit without headings, code blocks,
+// quotes, rules, lists and underline — so Link stays, with autolink and
+// link-on-paste — plus class-based colour and size marks and a placeholder.
 // Enter without Shift sends (also with Ctrl/⌘/Alt); Shift+Enter is a hard break.
 
-import { Editor, type Content, type JSONContent } from '@tiptap/core';
+import { Editor, Mark, mergeAttributes, type JSONContent } from '@tiptap/core';
+import { Placeholder } from '@tiptap/extensions';
 import StarterKit from '@tiptap/starter-kit';
-
-export interface OmEditor {
-  readonly tiptap: Editor;
-  clear(): void;
-  insertContent(content: Content): void;
-  setContent(content: JSONContent): void;
-  focus(position?: 'start' | 'end'): void;
-  blur(): void;
-  getText(): string;
-  getHTML(): string;
-  getJSON(): JSONContent;
-  isEmpty(): boolean;
-  isActive(mark: string): boolean;
-  destroy(): void;
-}
 
 export interface EditorHooks {
   readonly onEnter: () => void;
   readonly onUpdate: (json: JSONContent, text: string) => void;
   readonly onPaste: (text: string) => void;
-  readonly onTransaction: () => void;
   /** A «build» without the editor handle on its DOM node (§6.2). */
   readonly hideHandle: boolean;
 }
 
-export function createOmEditor(host: HTMLElement, hooks: EditorHooks): OmEditor {
+/** A mark that only carries a class name, rendered as `span[<attribute>]`. */
+function classMark(name: string, attribute: string): Mark {
+  return Mark.create({
+    name,
+    addAttributes: () => ({
+      class: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute(attribute),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const value = attributes['class'];
+          return typeof value === 'string' && value !== '' ? { class: value, [attribute]: value } : {};
+        },
+      },
+    }),
+    parseHTML: () => [{ tag: `span[${attribute}]` }],
+    renderHTML: ({ HTMLAttributes }) => ['span', mergeAttributes(HTMLAttributes), 0],
+  });
+}
+
+export function createOmEditor(host: HTMLElement, content: JSONContent | null, placeholder: string, hooks: EditorHooks): Editor {
   const tiptap = new Editor({
     element: host,
+    ...(content !== null ? { content } : {}),
     extensions: [
       StarterKit.configure({
         heading: false,
@@ -43,17 +51,16 @@ export function createOmEditor(host: HTMLElement, hooks: EditorHooks): OmEditor 
         bulletList: false,
         orderedList: false,
         listItem: false,
-        listKeymap: false,
         underline: false,
-        link: false,
-        dropcursor: false,
-        trailingNode: false,
       }),
+      classMark('textColorClass', 'data-color-class'),
+      classMark('textSizeClass', 'data-size-class'),
+      Placeholder.configure({ placeholder }),
     ],
     editorProps: {
-      attributes: { class: 'om-rich-text-editor__content', 'aria-label': 'Message', spellcheck: 'false' },
+      attributes: { class: 'om-rich-text-editor__content' },
       handleKeyDown: (_view, event) => {
-        if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return false;
+        if (event.key !== 'Enter' || event.shiftKey) return false;
         hooks.onEnter();
         return true;
       },
@@ -64,32 +71,7 @@ export function createOmEditor(host: HTMLElement, hooks: EditorHooks): OmEditor 
       },
     },
     onUpdate: ({ editor }) => hooks.onUpdate(editor.getJSON(), editor.getText()),
-    onTransaction: () => hooks.onTransaction(),
   });
   if (hooks.hideHandle) Reflect.deleteProperty(tiptap.view.dom, 'editor');
-
-  return {
-    tiptap,
-    clear: () => {
-      tiptap.commands.clearContent(true);
-    },
-    insertContent: (content) => {
-      tiptap.chain().insertContent(content).run();
-    },
-    setContent: (content) => {
-      tiptap.commands.setContent(content, { emitUpdate: false });
-    },
-    focus: (position = 'end') => {
-      tiptap.commands.focus(position);
-    },
-    blur: () => {
-      tiptap.commands.blur();
-    },
-    getText: () => tiptap.getText(),
-    getHTML: () => tiptap.getHTML(),
-    getJSON: () => tiptap.getJSON(),
-    isEmpty: () => tiptap.isEmpty,
-    isActive: (mark) => tiptap.isActive(mark),
-    destroy: () => tiptap.destroy(),
-  };
+  return tiptap;
 }

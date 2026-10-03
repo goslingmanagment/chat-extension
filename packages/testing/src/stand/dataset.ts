@@ -61,7 +61,7 @@ export const STAND_IDS = {
   accounts: { a: '910101', b: '910202', c: '910303' },
   platformAccounts: { a: '830000101', b: '830000202', c: '830000303' },
   /** Fans of account a; `a1` has the longest history, `a3` is blocked on start. */
-  fans: { a1: '74001001', a2: '74001002', a3: '74001003', a4: '74001004', b1: '74002001', c1: '74003001' },
+  fans: { a1: '74001001', a2: '74001002', a3: '74001003', a4: '74001004', a5: '74001005', a6: '74001006', a7: '74001007', a8: '74001008', b1: '74002001', c1: '74003001' },
 } as const;
 
 const BASE_TIME = Date.UTC(2026, 8, 1, 9, 0, 0);
