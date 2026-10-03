@@ -9,7 +9,8 @@
     "./app-client": "./src/scenarios/app-client/index.ts",
     "./hub": "./src/scenarios/hub/index.ts",
     "./fake-hub": "./src/fake-hub/index.ts",
-    "./host": "./src/scenarios/host/index.ts"
+    "./host": "./src/scenarios/host/index.ts",
+    "./stand": "./src/stand/index.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",

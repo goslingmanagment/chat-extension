@@ -7,6 +7,9 @@
 // and the lockfile may name those libraries (perf traces come with tools/perf).
 
 import { createHash } from 'node:crypto';
+import { posix } from 'node:path';
+
+import ts from 'typescript';
 
 import { isStandSource } from '../../apps/extension/build/sources-archive.ts';
 import type { ZipEntry } from '../lib/zip.ts';
@@ -134,6 +137,112 @@ export function checkArchive(
     for (const [pattern, what] of REAL_DATA_MARKERS) if (pattern.test(text)) add(entry.name, 'real-data', what);
     const realIds = new Set([...text.matchAll(NUMERIC_TOKEN)].map((match) => sha256(match[0])).filter((hash) => realIdHashes.has(hash)));
     for (const hash of realIds) add(entry.name, 'real-data', `a real id (sha256 ${hash.slice(0, 12)}…, decision X9)`);
+  }
+  if (kind === 'sources') problems.push(...danglingReferences(archive, entries));
+  return problems;
+}
+
+// ── dangling imports in the sources archive ────────────────────────────────
+
+const CODE_FILE = /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/;
+const TSCONFIG_FILE = /(?:^|\/)tsconfig[^/]*\.json$/;
+const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.d.ts', '.js', '.mjs', '.cjs', '.json'];
+
+/** Archive paths a relative module specifier may resolve to (moduleResolution «bundler»). */
+function moduleCandidates(path: string): string[] {
+  const swapped = /\.[mc]?js$/.test(path) ? [path.replace(/\.js$/, '.ts'), path.replace(/\.js$/, '.tsx'), path.replace(/\.mjs$/, '.mts'), path.replace(/\.cjs$/, '.cts')] : [];
+  return [path, ...swapped, ...RESOLVE_EXTENSIONS.map((ext) => `${path}${ext}`), ...RESOLVE_EXTENSIONS.map((ext) => `${path}/index${ext}`)];
+}
+
+interface WorkspacePackage {
+  readonly dir: string;
+  readonly exports: Readonly<Record<string, unknown>> | null;
+}
+
+function workspacePackages(entries: readonly ZipEntry[]): Map<string, WorkspacePackage> {
+  const packages = new Map<string, WorkspacePackage>();
+  for (const entry of entries) {
+    if (!/(?:^|\/)package\.json$/.test(entry.name) || entry.name.includes('node_modules/')) continue;
+    try {
+      const manifest = JSON.parse(entry.data.toString('utf8')) as { name?: unknown; exports?: unknown };
+      if (typeof manifest.name !== 'string') continue;
+      const exports = typeof manifest.exports === 'string' ? { '.': manifest.exports } : typeof manifest.exports === 'object' && manifest.exports !== null ? (manifest.exports as Record<string, unknown>) : null;
+      packages.set(manifest.name, { dir: posix.dirname(entry.name), exports });
+    } catch {
+      // Not ours to judge here.
+    }
+  }
+  return packages;
+}
+
+/** The file an export target names (a string, or the import/default/types condition). */
+function exportTarget(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null) {
+    for (const condition of ['import', 'default', 'types']) {
+      const inner = exportTarget((value as Record<string, unknown>)[condition]);
+      if (inner !== null) return inner;
+    }
+  }
+  return null;
+}
+
+/** null: not a workspace package (an installed dependency); [] — the package does not export it. */
+function workspaceCandidates(specifier: string, packages: ReadonlyMap<string, WorkspacePackage>): string[] | null {
+  for (const [name, pkg] of packages) {
+    if (specifier !== name && !specifier.startsWith(`${name}/`)) continue;
+    if (pkg.exports === null) return null;
+    const subpath = specifier === name ? '.' : `.${specifier.slice(name.length)}`;
+    let target = exportTarget(pkg.exports[subpath]);
+    if (target === null) {
+      for (const [pattern, value] of Object.entries(pkg.exports)) {
+        const star = pattern.indexOf('*');
+        if (star < 0 || !subpath.startsWith(pattern.slice(0, star)) || !subpath.endsWith(pattern.slice(star + 1))) continue;
+        const inner = exportTarget(value);
+        if (inner !== null) target = inner.replace('*', subpath.slice(star, subpath.length - (pattern.length - star - 1)));
+      }
+    }
+    return target === null ? [] : moduleCandidates(posix.normalize(posix.join(pkg.dir, target)));
+  }
+  return null;
+}
+
+/**
+ * Every relative import (static, dynamic, re-export, triple-slash), every
+ * import of a workspace package's export, and every tsconfig `extends` and
+ * project reference in the sources archive must point at a file that is in
+ * the archive: a file left in it must not need one that was left out.
+ */
+export function danglingReferences(archive: string, entries: readonly ZipEntry[]): ArchiveProblem[] {
+  const names = new Set(entries.map((entry) => entry.name));
+  const packages = workspacePackages(entries);
+  const problems: ArchiveProblem[] = [];
+  const dangling = (file: string, specifier: string, what: string): void => {
+    problems.push({ archive, file, rule: 'dangling-import', detail: `${what} «${specifier}» is not in the archive` });
+  };
+  for (const entry of entries) {
+    if (entry.name.includes('node_modules/')) continue;
+    const dir = posix.dirname(entry.name);
+    if (CODE_FILE.test(entry.name)) {
+      const info = ts.preProcessFile(entry.data.toString('utf8'), true, true);
+      for (const { fileName } of [...info.importedFiles, ...info.referencedFiles]) {
+        const specifier = fileName.replace(/[?#].*$/, '');
+        const candidates = specifier.startsWith('.') ? moduleCandidates(posix.normalize(posix.join(dir, specifier))) : workspaceCandidates(specifier, packages);
+        if (candidates !== null && !candidates.some((candidate) => names.has(candidate))) dangling(entry.name, fileName, 'import');
+      }
+    } else if (TSCONFIG_FILE.test(entry.name)) {
+      const parsed = ts.parseConfigFileTextToJson(entry.name, entry.data.toString('utf8')).config as { extends?: unknown; references?: unknown } | undefined;
+      for (const extended of typeof parsed?.extends === 'string' ? [parsed.extends] : Array.isArray(parsed?.extends) ? (parsed.extends as unknown[]) : []) {
+        if (typeof extended !== 'string' || !extended.startsWith('.')) continue;
+        const path = posix.normalize(posix.join(dir, extended));
+        if (!names.has(path) && !names.has(`${path}.json`)) dangling(entry.name, extended, 'tsconfig extends');
+      }
+      for (const reference of Array.isArray(parsed?.references) ? (parsed.references as Array<{ path?: unknown }>) : []) {
+        if (typeof reference.path !== 'string') continue;
+        const path = posix.normalize(posix.join(dir, reference.path));
+        if (!names.has(path.endsWith('.json') ? path : `${path}/tsconfig.json`)) dangling(entry.name, reference.path, 'tsconfig reference');
+      }
+    }
   }
   return problems;
 }
