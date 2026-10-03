@@ -182,7 +182,11 @@ export class LogService {
         await this.pruneAge(true);
       }
     });
-    return work.then(() => this.session ?? 1);
+    return work.then(() => {
+      // What was logged while the store opened goes out now.
+      if (this.pending.length > 0) void this.flush();
+      return this.session ?? 1;
+    });
   }
 
   private push(record: LogRecord): void {
@@ -335,7 +339,8 @@ export class LogService {
       const session = this.session;
       const stored = this.available && session !== null ? await this.readTail(session, limit) : [];
       // Records still waiting for the store are the newest of all.
-      return [...stored, ...this.pending].slice(-Math.max(0, limit));
+      const take = Math.max(0, Math.floor(limit));
+      return take === 0 ? [] : [...stored, ...this.pending].slice(-take);
     });
   }
 

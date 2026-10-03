@@ -129,10 +129,10 @@ describe('[LG-004] the persistent log', () => {
     const store = new MemoryLogStore();
     const logs = new LogService({ store, scheduler: c.scheduler });
     logs.sink(record(1));
-    const opening = logs.open(null);
-    await c.tick(LOG_WRITE_POLICY.flushDelayMs);
-    expect(await opening).toBe(1);
+    expect(await logs.open(null)).toBe(1);
+    await settle();
     expect((await store.tail(1, 10)).map((r) => r.record.seq)).toEqual([1]);
+    expect(await logs.recent(0)).toEqual([]);
   });
 });
 

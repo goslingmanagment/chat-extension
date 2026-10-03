@@ -148,8 +148,8 @@ export class TelemetryQueue {
   /** The sign-in a 401/403 came under: delivery waits for another one. */
   private paused: TelemetryBinding | null = null;
   private attempt = 0;
-  /** No new cycle before this moment (the fifth pause). */
-  private restUntil = 0;
+  /** No send before this moment: the pause after a failed attempt, or the rest after the fifth. */
+  private notBefore = 0;
   private nextAttemptAt: number | null = null;
   private cancelTimer: (() => void) | null = null;
   private sent = 0;
@@ -226,7 +226,7 @@ export class TelemetryQueue {
     if (this.paused !== null && !sameBinding(this.paused, session)) this.paused = null;
     this.discardForeign();
     this.attempt = 0;
-    this.restUntil = 0;
+    this.notBefore = 0;
     this.persist();
     if (session !== null) this.schedule(0);
   }
@@ -248,7 +248,7 @@ export class TelemetryQueue {
     this.entries = [];
     this.dropped.consent += purged;
     this.attempt = 0;
-    this.restUntil = 0;
+    this.notBefore = 0;
     if (purged > 0) this.persist();
     return purged;
   }
@@ -291,8 +291,8 @@ export class TelemetryQueue {
       this.discardForeign();
       if (!this.safe(this.deps.healthSupported)) this.dropHealth();
       const now = this.deps.scheduler.now();
-      if (now < this.restUntil) {
-        this.schedule(this.restUntil - now);
+      if (now < this.notBefore) {
+        this.schedule(this.notBefore - now);
         return;
       }
       const acceptance = this.entries.filter((entry) => !isHealth(entry.event));
@@ -308,6 +308,7 @@ export class TelemetryQueue {
         this.duplicates += Math.max(0, result.duplicates);
         this.lastSentAt = this.deps.scheduler.now();
         this.attempt = 0;
+        this.notBefore = 0;
         this.nextAttemptAt = null;
         this.persist();
       } catch (error) {
@@ -337,10 +338,13 @@ export class TelemetryQueue {
           // Five attempts: the cycle ends; the events stay (bounded) for the next trigger, not before the last pause.
           this.cyclesExhausted += 1;
           this.attempt = 0;
-          this.restUntil = this.deps.scheduler.now() + pause;
+          this.notBefore = this.deps.scheduler.now() + pause;
           this.nextAttemptAt = null;
           return;
         }
+        // A new event does not cut the pause short.
+        this.notBefore = this.deps.scheduler.now() + pause;
+        this.cancel();
         this.schedule(pause);
         return;
       }

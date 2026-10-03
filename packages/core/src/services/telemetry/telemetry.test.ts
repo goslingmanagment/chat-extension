@@ -200,6 +200,28 @@ describe('[TL-009] the telemetry queue', () => {
     expect(h.queue.stats()).toMatchObject({ queued: 0, sent: 1, duplicates: 1 });
   });
 
+  it('[TL-009] a new event does not cut a retry pause short', async () => {
+    const h = harness();
+    await h.queue.start();
+    h.answerWith(() => Promise.reject(hubError(503)));
+    h.queue.add(acceptance());
+    await h.c.tick(1000);
+    expect(h.calls).toHaveLength(1);
+    // Fails at t+1 s: the next attempt is due at t+2 s. An event at t+1.5 s schedules a send at t+2.5 s at the earliest.
+    h.answerWith(() => Promise.reject(hubError(503)));
+    await h.c.tick(500);
+    h.queue.add(acceptance());
+    await h.c.tick(499);
+    expect(h.calls).toHaveLength(1);
+    await h.c.tick(1);
+    expect(h.calls).toHaveLength(2);
+    // Attempt 2 failed: the pause is 2 s, the debounce of the new event (1 s) waits for it.
+    await h.c.tick(1999);
+    expect(h.calls).toHaveLength(2);
+    await h.c.tick(1);
+    expect(h.calls).toHaveLength(3);
+  });
+
   it('[TL-009] a 429 waits at least its Retry-After', async () => {
     const h = harness();
     await h.queue.start();
