@@ -166,6 +166,25 @@ describe('[BG-002] state from MAIN', () => {
     expect(seen).toEqual(['composer', 'route', 'composer']);
   });
 
+  it('[BG-002] MAIN injected after document_start (an update under an open tab): reloadNeeded, also for a late subscriber', async () => {
+    const bridge = fakeBridge({ snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [] });
+    bridge.client.probe = () => Promise.resolve({ v: 1, readyStateAtStart: 'complete', installMs: 0, wsTap: false });
+    const { mounts } = fakeMounts();
+    const diagnostics: HostDiagnostic[] = [];
+    const host = createChatSpaceHostPort({ win: window, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme: themeStub, onDiagnostic: (d) => diagnostics.push(d) });
+    await host.ready;
+    const seen: string[] = [];
+    host.subscribe((event) => seen.push(event.type));
+    await Promise.resolve();
+    expect(seen).toEqual(['reloadNeeded']);
+    expect(diagnostics).toContainEqual({ event: 'late-start', detail: { readyStateAtStart: 'complete' } });
+    const normal = await port();
+    const quiet: string[] = [];
+    normal.host.subscribe((event) => quiet.push(event.type));
+    await Promise.resolve();
+    expect(quiet).toEqual([]);
+  });
+
   it('[DB-031] [NEW-09] [RB-008] contract changes reach onContract once per change, with the build fingerprint', async () => {
     const { host, bridge, diagnostics, setFrame } = await port();
     const reports: unknown[] = [];

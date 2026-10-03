@@ -275,7 +275,24 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const unsubscribeBridge = bridge?.onEvent(onBridgeEvent) ?? (() => undefined);
   const unsubscribeTheme = theme.onChange(() => recompute());
   const unsubscribeMounts = mounts.onChange(() => recompute());
-  const ready = bridge ? snapshot().catch((error: unknown) => diag({ event: 'snapshot-failed', detail: { failure: error instanceof BridgeCallError ? error.failure : 'error' } })) : Promise.resolve();
+  /**
+   * MAIN came after document_start (the extension was installed or updated
+   * under an open tab): ChatSpace started without us, so the person is asked
+   * to reload. Sticky: a subscriber that comes later still hears it.
+   */
+  let reloadNeeded = false;
+  const noteLateStart = async (): Promise<void> => {
+    const probe = await (bridge as MainBridgeClient).probe().catch(() => null);
+    if (!probe || probe.readyStateAtStart === 'loading' || reloadNeeded) return;
+    reloadNeeded = true;
+    diag({ event: 'late-start', detail: { readyStateAtStart: probe.readyStateAtStart } });
+    emit({ type: 'reloadNeeded' });
+  };
+  const ready = bridge
+    ? snapshot()
+        .catch((error: unknown) => diag({ event: 'snapshot-failed', detail: { failure: error instanceof BridgeCallError ? error.failure : 'error' } }))
+        .then(noteLateStart)
+    : Promise.resolve();
 
   // ── the draft key (NEW-06) ──
 
@@ -324,6 +341,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     },
     subscribe(cb): Unsubscribe {
       eventListeners.add(cb);
+      if (reloadNeeded) queueMicrotask(() => eventListeners.has(cb) && cb({ type: 'reloadNeeded' }));
       return () => {
         eventListeners.delete(cb);
       };

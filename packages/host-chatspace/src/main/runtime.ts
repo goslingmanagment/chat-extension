@@ -360,7 +360,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     const acc = payload['acc'] as string;
     const fan = payload['fan'] as string;
     const expected = payload['expected'] as Identity;
-    const composer = expected ? composerOf(expected) : null;
+    const composer = t === 'readDraft' || t === 'focus' ? composerOf(expected) : null;
     switch (t) {
       case 'chatWindow':
         return reader.chatWindow(acc, fan, payload['max'] as number);
