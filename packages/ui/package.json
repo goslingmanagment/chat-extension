@@ -7,6 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./kit": "./src/kit/index.ts",
+    "./dock": "./src/dock/index.ts",
+    "./dock/analysis": "./src/dock/analysis/index.tsx",
+    "./dock/debug": "./src/dock/debug/index.tsx",
     "./spike": "./src/spike/index.ts"
   },
   "dependencies": {
