@@ -449,6 +449,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...startReply, fresh: undefined, variantCount: 3 },
       { ...startReply, window: 0 },
       { ...startReply, fresh: undefined, checkpoint },
+      { feature: 'ping', surface: 'dock', target, cause, tone: 'casual', split: false, window: 100 },
     ],
   ),
   fixture('ActiveOpSummary', C.ActiveOpSummarySchema, [activeOp], [{ ...activeOp, fanLabel: undefined }]),

@@ -126,6 +126,7 @@ export const StartOpSchema = z
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),
     z.refine((op) => op.feature !== 'fix' || op.draft !== undefined, { message: 'fix needs the draft' }),
     z.refine((op) => op.variantCount === undefined || op.feature === 'hi', { message: 'variantCount only for hi' }),
+    z.refine((op) => op.tone === null || op.feature === 'reply', { message: 'a tone belongs to reply only (§8.4 replyTone)' }),
     z.refine((op) => op.checkpoint === undefined || op.surface === 'preview' || op.surface === 'newcomers', {
       message: 'a freshness checkpoint belongs to a preview',
     }),

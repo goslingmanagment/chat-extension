@@ -7,8 +7,8 @@
 
 import * as z from 'zod/mini';
 
-import { CgCodeSchema } from './errors';
-import { HumanCauseSchema, PartRefSchema, PlatformSchema, TargetSchema } from './ids';
+import { CgCodeSchema, type CgCode } from './errors';
+import { HumanCauseSchema, PartRefSchema, PlatformSchema, TargetSchema, type HumanCause } from './ids';
 import { SEND_LIMITS } from './limits';
 import {
   CountSchema,
@@ -21,6 +21,7 @@ import {
   UuidSchema,
   boundedText,
   displayText,
+  type NativeId,
 } from './primitives';
 
 /**
@@ -141,14 +142,17 @@ export const SEND_ATTEMPT_CUSTODY_STATES = ['preparing', 'nativeEnqueued', 'nati
 
 /** Inputs of the attempt machine; R10 implements the reducer over SEND_ATTEMPT_TRANSITIONS. */
 export type SendAttemptInput =
-  | { readonly type: 'click'; readonly cause: z.infer<typeof HumanCauseSchema> }
-  | { readonly type: 'held'; readonly code: z.infer<typeof CgCodeSchema> }
+  | { readonly type: 'click'; readonly cause: HumanCause }
+  | { readonly type: 'held'; readonly code: CgCode }
   | { readonly type: 'notEnqueued' }
   | { readonly type: 'nativeEnqueued'; readonly pendingId: string }
-  | { readonly type: 'receipt'; readonly httpStatus: number; readonly platformMessageId: string | null }
-  | { readonly type: 'echo'; readonly platformMessageId: string }
-  | { readonly type: 'nativeRejected'; readonly httpStatus: number; readonly code: z.infer<typeof CgCodeSchema>; readonly guardTopics?: readonly string[] }
-  | { readonly type: 'lost'; readonly code: z.infer<typeof CgCodeSchema> };
+  /** The intercepted response of exactly this attempt; a 401 is not an outcome (§6.7.6). */
+  | { readonly type: 'receipt'; readonly httpStatus: number; readonly platformMessageId: NativeId | null }
+  /** The outgoing echo with the same id, account and fan. */
+  | { readonly type: 'echo'; readonly platformMessageId: NativeId }
+  | { readonly type: 'nativeRejected'; readonly httpStatus: number; readonly code: CgCode; readonly guardTopics?: readonly string[] }
+  /** Timeout, reload, lost answer, observer failure or ambiguity after a possible queue call. */
+  | { readonly type: 'lost'; readonly code: CgCode };
 
 export const SendAttemptViewSchema = z.strictObject({
   attemptId: UuidSchema,

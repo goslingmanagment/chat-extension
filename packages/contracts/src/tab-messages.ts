@@ -9,7 +9,7 @@ import { CgCodeSchema, CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, HumanCauseSchema } from './ids';
-import { DEBUG_LIMITS, LOG_LIMITS } from './limits';
+import { DEBUG_LIMITS, LOG_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
 import {
@@ -197,7 +197,7 @@ export const TAB_REQUESTS = {
   'op.cancel': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ state: OpStateSchema }), from: ANY },
   'op.list': {
     req: z.strictObject({ scope: z.enum(['tab', 'all']), chatKey: z.optional(ChatKeySchema) }),
-    res: z.strictObject({ ops: z.array(OpViewSchema).check(z.maxLength(24)) }),
+    res: z.strictObject({ ops: z.array(OpViewSchema).check(z.maxLength(STORAGE_LIMITS.resultsPerTab)) }),
     from: ANY,
   },
   /** The result was really visible (telemetry `shown`). */
