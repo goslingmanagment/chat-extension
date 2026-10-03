@@ -257,6 +257,8 @@ describe('the part row (ui-design §4.3)', () => {
     ));
     const [copyOnly, failed, blocked] = kit.$$('.cg-part');
     expect(copyOnly?.querySelector('.cg-ins')).toBeNull();
+    // «Копировать» replaces both «Вставить» and the quiet icon (final-7b).
+    expect(copyOnly?.querySelector('.cg-part__copy')).toBeNull();
     const main = copyOnly?.querySelector('.cg-copy-main') as HTMLElement;
     expect(main.querySelector('.cg-btn__t')?.textContent).toBe('Копировать');
     expect(main.classList.contains('cg-btn--line')).toBe(true);

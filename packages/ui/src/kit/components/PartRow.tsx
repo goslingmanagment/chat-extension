@@ -84,11 +84,12 @@ export function PartRow(props: PartRowProps): JSX.Element {
   let main: JSX.Element | null = null;
   if (!collapsed) {
     if (mode === 'copy-only') {
+      // «Копировать» takes the place of «Вставить» and of the quiet icon (final-7b): a line with ↵ on the next part.
       main = (
         <Button
-          label={i18n.t('common.copy')}
-          icon="copy"
-          variant={part.next ? 'line' : 'plain'}
+          label={part.copy === 'done' ? i18n.t('common.copied') : i18n.t('common.copy')}
+          icon={part.copy === 'done' ? 'check' : 'copy'}
+          variant={part.next ? 'line' : 'quiet'}
           class="cg-copy-main"
           hotkey={part.next ? insertKey : null}
           onClick={() => props.onCopy(part)}
@@ -155,7 +156,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
           </>
         ) : (
           <>
-            {copyIcon}
+            {mode === 'copy-only' ? null : copyIcon}
             {main}
           </>
         )}

@@ -37,6 +37,8 @@ export interface MenuProps {
   readonly onClose: (reason: 'escape' | 'select' | 'outside' | 'tab') => void;
   /** The trigger, to give focus back. */
   readonly returnFocusTo: () => HTMLElement | null;
+  /** Focus the checked (or first) item on open (default); off for a menu shown without being opened by a person (the stand's gallery). */
+  readonly autoFocus?: boolean;
 }
 
 export function Menu(props: MenuProps): JSX.Element | null {
@@ -44,10 +46,11 @@ export function Menu(props: MenuProps): JSX.Element | null {
   const listRef = useRef<HTMLDivElement>(null);
   const id = useId();
   const { open, items: entries, onClose, returnFocusTo } = props;
+  const autoFocus = props.autoFocus ?? true;
 
   // Before paint: the menu never shows with focus still on its button.
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || !autoFocus) return;
     const list = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-cg-menuitem]') ?? [])];
     const checked = entries.findIndex((item) => item.checked === true);
     focusQuietly(list[checked >= 0 ? checked : 0]);
