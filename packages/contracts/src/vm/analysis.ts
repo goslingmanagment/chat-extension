@@ -7,19 +7,23 @@
 import { type CgErrorView } from '../errors';
 import { type COACH_BLOCK_KINDS, type OpState, type REVIEW_SECTION_KINDS } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
-import { type RecapLength } from './actions';
+import { type RecapLength, type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
 import { type Msg } from './i18n';
 import { type PartVM, type PhaseVM, type ResultDebugVM } from './result';
 import { type ArtifactHandle } from './selectors';
 import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 
-/** Saving a full Recap as the fan's dossier (H-5): «✓ сохранено в хаб» or CG-RECAP-SAVE. */
+/**
+ * Saving a full Recap as the fan's dossier (H-5): «✓ сохранено в хаб», or
+ * CG-RECAP-SAVE with «Сохранить ещё раз» — only the idempotent reference
+ * write repeats, never the AI.
+ */
 export type HubSaveVM =
   | { readonly s: 'not-applicable' }
   | { readonly s: 'saving' }
   | { readonly s: 'saved'; readonly at: IsoTimestamp | null }
-  | { readonly s: 'failed'; readonly error: CgErrorView };
+  | { readonly s: 'failed'; readonly error: CgErrorView; readonly retry: UiAction };
 
 /** A shared Recap of the page, fan and persona (H-13); local slots are copies with its id and revision. */
 export interface RecapSlotVM {
@@ -35,7 +39,7 @@ export interface RecapSlotVM {
 export interface RecapPickerVM {
   /** `loading` — «Проверяю сохранённые рекапы…»; `empty` — nothing saved, only the build buttons. */
   readonly view: VmView;
-  readonly fanLabel: string | null;
+  readonly targetName: string | null;
   readonly slots: { readonly short: RecapSlotVM | null; readonly full: RecapSlotVM | null };
   /** Enter builds the full one. */
   readonly build: { readonly short: ActionButtonVM; readonly full: ActionButtonVM };
@@ -48,7 +52,8 @@ export interface RecapViewVM {
   readonly length: RecapLength;
   /** «Коротко | Полностью»: which slot exists or can be built. */
   readonly lengths: { readonly short: boolean; readonly full: boolean };
-  readonly fanLabel: string | null;
+  /** «для Hubert». */
+  readonly targetName: string | null;
   readonly opId: Uuid | null;
   readonly state: OpState | null;
   readonly phase: PhaseVM | null;
@@ -78,6 +83,11 @@ export interface ReviewItemVM {
   readonly afterExample: string | null;
 }
 
+/**
+ * Review blocks follow parity AI-053 and the hub's output format («Вердикт /
+ * Деньги / Персона / Ошибки» with «Как надо было:», then the recommendations),
+ * not the mockup's «Хорошо / Можно лучше / Следующий шаг» (ui-design §12 п. 6).
+ */
 export interface ReviewSectionVM {
   readonly kind: (typeof REVIEW_SECTION_KINDS)[number] | 'recommendations';
   readonly title: Msg;
@@ -93,7 +103,9 @@ export interface ReviewVM {
   readonly streamText: string | null;
   /** N/10; null when the model gave none. */
   readonly rating: number | null;
-  /** «последние 40 сообщений с Hubert». */
+  /** «последние 40 сообщений с Hubert»: the window and the fan; null while unknown. */
+  readonly window: { readonly messages: number } | null;
+  readonly targetName: string | null;
   readonly meta: readonly Msg[];
   readonly lead: string | null;
   readonly sections: readonly ReviewSectionVM[];
@@ -103,7 +115,7 @@ export interface ReviewVM {
   readonly copyHandle: ArtifactHandle | null;
   /** «Ещё раз ⌘⇧B» — «Оценить заново». */
   readonly regenerate: ActionButtonVM;
-  /** Footer facts: «архив на 09:18» and the visibility line. */
+  /** Footer facts: «Сделан только что», «архив на 09:18». */
   readonly facts: readonly Msg[];
   readonly stamp: DataStamp;
   readonly splitReason: ReasonVM;
@@ -137,7 +149,8 @@ export interface CoachTurnVM {
 export interface CoachVM {
   /** `empty` — «Новый диалог» with chips; `partial` — the archive lags the chat. */
   readonly view: VmView;
-  readonly fanLabel: string | null;
+  /** «по чату с Hubert». */
+  readonly targetName: string | null;
   /** «Переписка на 09:20», «↻ Обновить переписку»; the lag line turns the button into a line button. */
   readonly freshness: {
     readonly asOf: IsoTimestamp | null;

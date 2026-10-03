@@ -110,8 +110,8 @@ export interface VariantVM {
 
 /** Fix (ui-design §4.5, AI-020…AI-025). */
 export interface FixVM {
-  /** «Ваш текст» before the replacement. */
-  readonly original: string;
+  /** «Ваш текст»: the draft the Fix was made from. */
+  readonly sourceDraft: string;
   /** False without a verified editor: «Заменить мой черновик» is off with a reason, Copy becomes primary. */
   readonly canReplace: boolean;
   readonly replaceReason: ReasonVM | null;
@@ -158,6 +158,7 @@ export interface ResultVM {
   readonly surface: Surface;
   /** admitted/requesting/streaming → stage line; done → parts; failed → error card; canceled → closes; interrupted → CG-OP-INTERRUPTED with «Ещё раз». */
   readonly state: OpState;
+  /** Epoch ms of the click: the «0:03» timer of the stage line. */
   readonly startedAt: number;
   readonly phase: PhaseVM | null;
   /** Preliminary text while streaming; never actionable. */
@@ -166,8 +167,12 @@ export interface ResultVM {
   readonly parts: readonly PartVM[] | null;
   /** Hi with three variants (columns on a wide composer, a column below 680 px). */
   readonly variants: readonly VariantVM[] | null;
-  /** Header meta: «тон: Флирт», «3 части», «вставлено 1 из 3», «одним сообщением», «получилась одна часть», «по вашему черновику»… */
+  /** Header meta: «тон: Flirt», «3 части», «вставлено 1 из 3», «3 варианта по 2 части», «по вашему черновику»… */
   readonly meta: readonly Msg[];
+  /** Split was on at the start (Б7): one part reads «получилась одна часть» instead of «одним сообщением» (AI-011). */
+  readonly splitRequested: boolean;
+  /** «для Tomasz»: the fan's display name; null — unknown, no meta. */
+  readonly targetName: string | null;
   /** «черновик · не отправлено» until a part starts sending. */
   readonly draftNotSent: boolean;
   /** Previews: «отправлено 1 из 3». */

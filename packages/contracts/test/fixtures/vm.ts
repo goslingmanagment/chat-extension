@@ -34,6 +34,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ShowRecap: { type: 'ShowRecap', length: 'full' },
   RefreshRecap: { type: 'RefreshRecap', length: 'short' },
   NewCoachDialog: { type: 'NewCoachDialog' },
+  RetryRecapSave: { type: 'RetryRecapSave', length: 'full' },
   SetSpendersPeriod: { type: 'SetSpendersPeriod', period: '30d' },
   SetSpendersFilter: { type: 'SetSpendersFilter', filter: 'waiting' },
   SetSpendersSort: { type: 'SetSpendersSort', sort: 'fan-age' },

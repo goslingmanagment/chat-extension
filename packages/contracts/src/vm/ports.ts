@@ -18,18 +18,31 @@ import { type ToastKind } from './panels';
 export type Unmount = () => void;
 
 /**
- * Where a surface may draw. `feedHeight` is H of the result limit — the
- * feed window as if our sheet were absent (ui-design §3.2):
- * cap = max(112, floor(min(360, 0.45 × viewportHeight, H − 160))), written
- * into `--cg-cap`; `cap` is that value precomputed by the host side.
+ * Where a surface may draw. `feedHeight` is H of the result limit: the feed
+ * window as if our sheet and its gap were absent (ui-design §3.2), measured
+ * by the host side with a ResizeObserver. The mount also sets the scheme
+ * attribute on the host element (SCHEME_ATTRIBUTE).
  */
 export interface SurfaceGeometry {
   readonly width: number | null;
   readonly feedHeight: number | null;
   readonly viewportHeight: number;
-  readonly cap: number | null;
   /** Side surfaces align to ChatSpace's fixed-width container when it is on. */
   readonly container: { readonly left: number; readonly top: number; readonly width: number; readonly height: number } | null;
+}
+
+export const RESULT_CAP = { maxPx: 360, viewportShare: 0.45, feedReservePx: 160, minPx: 112, sheetGapPx: 2 } as const;
+
+/**
+ * The sheet's outer height limit, written into `--cg-cap` (owner's ruling,
+ * ui-design §3.2, §9.1): max(112, floor(min(360, 0.45 × innerHeight, H − 160 − g)))
+ * with g = 2 px «на подложке», 0 «без подложки». Unknown H drops that term.
+ */
+export function resultCap(geometry: Pick<SurfaceGeometry, 'feedHeight' | 'viewportHeight'>, style: 'bare' | 'sheet'): number {
+  const gap = style === 'sheet' ? RESULT_CAP.sheetGapPx : 0;
+  const byFeed = geometry.feedHeight === null ? Infinity : geometry.feedHeight - RESULT_CAP.feedReservePx - gap;
+  const cap = Math.floor(Math.min(RESULT_CAP.maxPx, RESULT_CAP.viewportShare * geometry.viewportHeight, byFeed));
+  return Math.max(RESULT_CAP.minPx, cap);
 }
 export type GeometrySignal = ValueSignal<SurfaceGeometry>;
 

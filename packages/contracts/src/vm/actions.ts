@@ -14,7 +14,7 @@ import { COACH_LIMITS } from '../ops';
 import { UuidSchema, boundedText, displayText } from '../primitives';
 import { SettingsV1Schema } from '../settings';
 import { SEND_LIMITS } from '../limits';
-import { SpendersPeriodSchema } from '../tab-messages';
+import { type SpendersPeriodSchema } from '../tab-messages';
 import { HandleSchema, JOURNAL_KINDS, MOUNT_SURFACES, OVERLAY_SURFACES, ViewSelectorSchema } from './selectors';
 
 const ui = SettingsV1Schema.shape.ui.shape;
@@ -97,6 +97,8 @@ export const NavigationTargetSchema = z.discriminatedUnion('kind', [
 export type NavigationTarget = z.infer<typeof NavigationTargetSchema>;
 
 export type SpendersPeriod = z.infer<typeof SpendersPeriodSchema>;
+/** The board periods (same list as the `spenders.board` request, pinned by a test); kept local so actions do not load the tab registry. */
+const SpendersPeriodChoiceSchema = z.enum(['lifetime', '30d', 'mtd', '7d', 'today'] as const satisfies readonly SpendersPeriod[]);
 /** Board filters (SP-008…SP-010): one pressed at a time per group, the controller decides the grouping. */
 export const SPENDERS_FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history'] as const;
 export type SpendersFilter = (typeof SPENDERS_FILTERS)[number];
@@ -178,9 +180,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** «↻ Обновить»: a new Recap from the fresh archive, bypassing the cache. */
   act('RefreshRecap', { length: z.enum(RECAP_LENGTHS) }),
   act('NewCoachDialog', {}),
+  /** CG-RECAP-SAVE «Сохранить ещё раз»: the idempotent dossier reference write only, never a new generation. */
+  act('RetryRecapSave', { length: z.enum(RECAP_LENGTHS) }),
 
   // ── lists ──
-  act('SetSpendersPeriod', { period: SpendersPeriodSchema }),
+  act('SetSpendersPeriod', { period: SpendersPeriodChoiceSchema }),
   act('SetSpendersFilter', { filter: z.enum(SPENDERS_FILTERS) }),
   act('SetSpendersSort', { sort: z.enum(SPENDERS_SORTS) }),
   /** «Сбросить фильтры». */

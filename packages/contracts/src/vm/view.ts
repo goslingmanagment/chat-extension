@@ -33,7 +33,7 @@ export type VmView =
   | { readonly s: 'empty'; readonly why: Msg }
   | { readonly s: 'partial'; readonly gaps: readonly PartialGap[] }
   | { readonly s: 'error'; readonly error: CgErrorView; readonly retry: UiAction | null }
-  | { readonly s: 'forbidden'; readonly error: CgErrorView; readonly fix: UiAction | null }
+  | { readonly s: 'forbidden'; readonly error: CgErrorView; readonly remedy: UiAction | null }
   | { readonly s: 'offline'; readonly error: CgErrorView; readonly retry: UiAction | null; readonly lastGoodAt: number | null };
 
 /** Why a view is `partial`; each gap is shown, none is hidden behind a full-looking list. */

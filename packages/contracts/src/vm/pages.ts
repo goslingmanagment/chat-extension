@@ -26,8 +26,8 @@ export interface PopupVM {
   };
   readonly problems: readonly CgErrorView[];
   readonly persona:
-    | { readonly s: 'set'; readonly label: string; readonly pageLabel: string }
-    | { readonly s: 'no-persona'; readonly pageLabel: string }
+    | { readonly s: 'set'; readonly label: string; readonly pageName: string }
+    | { readonly s: 'no-persona'; readonly pageName: string }
     | { readonly s: 'not-connected' };
   readonly account: { readonly login: string; readonly signOut: ActionButtonVM } | null;
   /** «Открыт диалог»; a click copies the OnlyMonster account and OnlyFans creator ids (PU-007). */
@@ -38,7 +38,7 @@ export interface PopupVM {
     readonly copyIds: { readonly hostAccountId: string; readonly creatorId: string | null };
   } | null;
   /** «осталось 12 — обновится в 03:00»; monochrome, no amber (ui-design §9.2 п. 12). */
-  readonly quota: { readonly remaining: number | null; readonly resetsAt: number | null; readonly low: boolean } | null;
+  readonly quota: { readonly remaining: number | null; readonly resetsAt: IsoTimestamp | null; readonly low: boolean } | null;
   /** «AI сегодня $» — debug only, «только этот браузер» until H-15 (§9.3). */
   readonly aiTodayLine: string | null;
   readonly newcomersCount: number | null;
@@ -117,7 +117,7 @@ export interface AccountBodyVM {
   readonly hub: { readonly origin: string; readonly hostPermission: 'granted' | 'missing'; readonly requestPermission: ActionButtonVM | null };
   readonly connection: { readonly s: 'ok' | 'down' | 'unknown'; readonly latencyMs: number | null; readonly checkedAt: number | null };
   readonly user: { readonly login: string; readonly role: Role; readonly deviceSince: IsoTimestamp | null } | null;
-  readonly pages: readonly { readonly label: string; readonly platform: string; readonly persona: string | null }[];
+  readonly pages: readonly { readonly pageName: string; readonly platform: string; readonly persona: string | null }[];
   readonly sdk: { readonly contractHash: string | null; readonly compatible: boolean | null };
   readonly hubErrorsToday: readonly { readonly code: CgCode; readonly count: number }[];
   readonly lastDossierSave: IsoTimestamp | null;
@@ -131,7 +131,7 @@ export interface PersonasBodyVM {
   readonly catalog: readonly { readonly key: string; readonly label: string; readonly archived: boolean }[];
   readonly pages: readonly {
     readonly pageHandle: PageHandle;
-    readonly pageLabel: string;
+    readonly pageName: string;
     readonly persona: string | null;
     readonly replacementNeeded: boolean;
     readonly choices: readonly { readonly key: string; readonly label: string; readonly choose: UiAction }[];
@@ -148,7 +148,7 @@ export interface AccountsBodyVM {
     /** Local label up to 60 characters. */
     readonly localLabel: string | null;
     readonly status: 'working' | 'seen' | 'no-sessions';
-    readonly pageLabel: string | null;
+    readonly pageName: string | null;
     readonly persona: string | null;
     readonly muted: boolean;
     /** «к вкладке» (Б13). */

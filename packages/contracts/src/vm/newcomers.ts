@@ -18,8 +18,11 @@ export type NewcomerKind = (typeof NEWCOMER_KINDS)[number];
 export type GreetingStatusVM =
   | { readonly s: 'none' }
   | { readonly s: 'claim-mine' }
-  /** «бронь: Анна, ещё 1:24» — the lease countdown from `until`. */
-  | { readonly s: 'claim-other'; readonly by: string | null; readonly until: number | null }
+  /**
+   * «бронь: Анна». No countdown (ui-design §12 п. 5): the colleague's 120 s lease renews
+   * every 40 s while they work with the fan and has no overall cap.
+   */
+  | { readonly s: 'claim-other'; readonly by: string | null }
   | { readonly s: 'sending'; readonly sent: number; readonly total: number }
   /** «отправлено 1 из 3, остановлено»: part `part` is uncertain. */
   | { readonly s: 'stopped'; readonly sent: number; readonly total: number; readonly part: number }
@@ -31,8 +34,8 @@ export const GREETING_STATES = ['none', 'claim-mine', 'claim-other', 'sending', 
 export type ClaimVM =
   | { readonly s: 'none' }
   | { readonly s: 'mine'; readonly until: number; readonly renew: ActionButtonVM; readonly release: ActionButtonVM }
-  /** CG-CLAIM-BUSY: «Анна уже здоровается с Leo», Hi off until the lease ends. */
-  | { readonly s: 'other'; readonly by: string | null; readonly until: number | null; readonly error: CgErrorView }
+  /** CG-CLAIM-BUSY: «Фана сейчас ведёт Анна…», Hi off while the colleague holds the lease; no countdown. */
+  | { readonly s: 'other'; readonly by: string | null; readonly error: CgErrorView }
   /** CG-CLAIM-EXPIRED: «бронь истекла — нажмите Hi ещё раз». */
   | { readonly s: 'expired'; readonly error: CgErrorView }
   /** An uncertain part keeps the fan held (CG-SEND-UNCERTAIN); only a hub `resolve` releases it. */
@@ -58,7 +61,7 @@ export interface NewcomerRowVM {
 export interface NewcomersVM {
   /** `loading` with scan stages; `partial` — «Результат неполный» or coverage; `empty` — nobody in the window. */
   readonly view: VmView;
-  readonly pageLabel: string | null;
+  readonly pageName: string | null;
   /** «Hi здоровается от имени Лора · VIP». */
   readonly personaLabel: string | null;
   readonly tab: NewcomersTab;

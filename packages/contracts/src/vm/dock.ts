@@ -5,6 +5,7 @@
 
 import { type CgErrorView } from '../errors';
 import { type Tone } from '../features';
+import { type IsoTimestamp } from '../primitives';
 import { type ReasonVM, type HotkeyLabel } from './catalog';
 import { type RefusalVM, type ResultVM } from './result';
 import { type TargetHandle } from './selectors';
@@ -16,10 +17,13 @@ export type DockActionId = (typeof DOCK_ACTION_IDS)[number];
 
 /**
  * Dock status → banner (ui-design §4.10). `ready` has no banner; the rest map
- * to one code each: CG-AUTH-REQUIRED, CG-BINDING-MISSING (or -NOT-GRANTED),
- * CG-PERSONA-UNASSIGNED, CG-HOST-CONTRACT / CG-HOST-COMPOSER-MISSING,
- * CG-HUB-UNAVAILABLE, CG-GATE-FAN-BLOCKED, CG-RUNTIME-RELOADED (a card, not
- * a banner); `loading-chat` shows only the «Чат загружается…» words.
+ * to their code in `statusError`: CG-AUTH-REQUIRED, CG-BINDING-MISSING (or
+ * -NOT-GRANTED), CG-PERSONA-UNASSIGNED, CG-HUB-UNAVAILABLE,
+ * CG-GATE-FAN-BLOCKED, CG-RUNTIME-RELOADED (a card, not a banner).
+ * `host-degraded` covers both «cannot insert» cases and the code picks the
+ * banner: CG-HOST-CONTRACT (ChatSpace's contract broke) or
+ * CG-HOST-COMPOSER-MISSING (the visible composer has no bridge), both with
+ * `mode: 'copy-only'`. `loading-chat` shows only the «Чат загружается…» words.
  */
 export const DOCK_STATUSES = [
   'ready',
@@ -59,19 +63,23 @@ export interface DockVM {
   readonly statusError: CgErrorView | null;
   /** The open chat as a target; null while no chat is open or it is not ready. */
   readonly targetHandle: TargetHandle | null;
-  /** «Лора · VIP» and the page it is for («Персона для LoraVie VIP»); null — no label (without sign-in «вход не выполнен»). */
-  readonly persona: { readonly label: string; readonly pageLabel: string } | null;
+  /**
+   * «Лора · VIP» and the page name of the tooltip «Персона для LoraVie VIP»; null — no label
+   * (no binding or no persona; without sign-in the UI writes «вход не выполнен»).
+   */
+  readonly persona: { readonly label: string; readonly pageName: string } | null;
   /** The goose mark is faint when everything is off (no sign-in, hub down, chat loading, reload needed, quota 0). */
   readonly mark: 'normal' | 'faint';
   /**
    * Shown only when low or zero (UI-031): `low` — «AI: осталось N», `remaining === 0` —
    * «Квота AI: 0» and every AI button dimmed with the quota reason; null — nothing.
+   * `resetsAt` gives «Обновится в 03:00» and the CG-QUOTA-DAILY countdown; null — unknown.
    */
-  readonly quota: { readonly remaining: number | null; readonly low: boolean; readonly resetsAt: number | null } | null;
+  readonly quota: { readonly remaining: number | null; readonly low: boolean; readonly resetsAt: IsoTimestamp | null } | null;
   readonly options: {
     /** The one-off tone of the next Reply (Б1); null — «Тон». */
     readonly tone: Tone | null;
-    /** Tones offered in the menu, in order; the last menu item «Без тона» is the UI's. */
+    /** Tones of the menu in order — the parity set Casual, Flirt, Sell, Spice (AI-002); the last item «Без тона» is the UI's. */
     readonly tones: readonly Tone[];
     readonly split: boolean;
     /** Tone and Split are locked while a generation runs (AI-009). */

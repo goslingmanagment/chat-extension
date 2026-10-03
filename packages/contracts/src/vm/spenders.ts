@@ -46,7 +46,8 @@ export interface ShelfVM {
 export interface SpendersBoardVM {
   /** `empty` — «Не настроено» or nothing after a filter («Никого не нашли…»); `partial` — coverage or the 1000-row cut. */
   readonly view: VmView;
-  readonly pageLabel: string | null;
+  /** The page's display name («LoraVie VIP»), not the hub's pageLabel key. */
+  readonly pageName: string | null;
   readonly period: SpendersPeriod;
   readonly periods: readonly SpendersPeriod[];
   readonly query: string;

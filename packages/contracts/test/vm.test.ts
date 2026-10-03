@@ -136,3 +136,24 @@ describe('views', () => {
     expect(C.PREVIEW_SEND_STATES).toHaveLength(9);
   });
 });
+
+describe('result cap (ui-design §3.2)', () => {
+  it('matches the measured examples in both result styles', () => {
+    expect(C.resultCap({ feedHeight: 574, viewportHeight: 900 }, 'bare')).toBe(360);
+    expect(C.resultCap({ feedHeight: 574, viewportHeight: 900 }, 'sheet')).toBe(360);
+    expect(C.resultCap({ feedHeight: 474, viewportHeight: 800 }, 'bare')).toBe(314);
+    expect(C.resultCap({ feedHeight: 474, viewportHeight: 800 }, 'sheet')).toBe(312);
+  });
+
+  it('never goes below 112 px and ignores an unknown feed height', () => {
+    expect(C.resultCap({ feedHeight: 200, viewportHeight: 800 }, 'bare')).toBe(112);
+    expect(C.resultCap({ feedHeight: null, viewportHeight: 600 }, 'sheet')).toBe(270);
+  });
+});
+
+describe('lists', () => {
+  it('the board periods of SetSpendersPeriod are the spenders.board request periods', () => {
+    for (const period of C.SPENDERS_PERIODS) expect(C.UiActionSchema.safeParse({ type: 'SetSpendersPeriod', period }).success).toBe(true);
+    expect(C.UiActionSchema.safeParse({ type: 'SetSpendersPeriod', period: '90d' }).success).toBe(false);
+  });
+});

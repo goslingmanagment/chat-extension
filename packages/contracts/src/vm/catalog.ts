@@ -95,8 +95,7 @@ export const UNAVAILABLE_REASONS = {
   'reload-needed': { key: 'dock.reason.reloadNeeded', code: 'CG-RUNTIME-RELOADED' },
   'quota-zero': { key: 'dock.reason.quotaZero', code: 'CG-QUOTA-DAILY' },
   'feature-disabled': { key: 'dock.reason.featureDisabled', code: 'CG-FEATURE-DISABLED' },
-  /** Another generation of this chat runs: only its own button works (UI-008). */
-  'generation-running': { key: 'dock.reason.generationRunning', code: null },
+  /** A generation runs in this chat (here or in another tab): only its own button works (UI-008). */
   'chat-busy': { key: 'dock.reason.chatBusy', code: 'CG-OP-CHAT-BUSY' },
   'coach-busy': { key: 'dock.reason.coachBusy', code: 'CG-OP-COACH-BUSY' },
   'needs-draft': { key: 'dock.reason.needsDraft', code: 'CG-GATE-DRAFT' },
@@ -115,8 +114,12 @@ export const UNAVAILABLE_REASONS = {
   'locked-during-generation': { key: 'dock.reason.lockedDuringGeneration', code: null },
   /** Split for Recap and Review: «это не сообщение фану». */
   'not-a-message': { key: 'dock.option.splitNotMessage', code: null },
-  /** «Ещё раз» in a preview while parts are being sent. */
+  /** «Ещё раз» in a preview while a part is queued, sending or accepted. */
   'parts-sending': { key: 'result.againBlocked', code: null },
+  /** «Ещё раз» while a part's outcome is unknown: «Нельзя, пока неясен исход части {n}». */
+  'part-uncertain': { key: 'result.againBlockedUncertain', code: 'CG-SEND-UNCERTAIN' },
+  /** The answer did not parse: one copy-only part (UI-032). */
+  unparsed: { key: 'result.meta.unparsed', code: null },
   /** «Заменить мой черновик» without a verified editor (`fix.canReplace = false`, §6.4). */
   'draft-unverifiable': { key: 'fix.cannotCheck', code: null },
   'help-removed': { key: 'dock.helpRemoved', code: null },
