@@ -110,6 +110,14 @@ describe('gate: send queue scope', () => {
     expect(violations).toHaveLength(2);
     expect(gates(violations)).toEqual(['send-queue-scope', 'send-queue-scope']);
   });
+
+  it('reads strings by whole identifier: a hub wire token is not the method', () => {
+    const violations = checkSendQueueReferences([
+      file('packages/contracts/src/hub/newcomers.ts', "const reasons = ['not_enqueued', 'native_rejected'] as const;"),
+      file('packages/host-chatspace/src/isolated/x.ts', "const path = 'pendingMessages.enqueue'; const t = `${a}.enqueue(`;"),
+    ]);
+    expect(violations.map((v) => v.path)).toEqual(['packages/host-chatspace/src/isolated/x.ts', 'packages/host-chatspace/src/isolated/x.ts']);
+  });
 });
 
 describe('gate: stand-only hooks', () => {

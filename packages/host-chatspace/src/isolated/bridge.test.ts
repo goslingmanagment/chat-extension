@@ -64,19 +64,44 @@ describe('MAIN ↔ isolated handshake (§5.3)', () => {
     main.dispose();
   });
 
-  it('rejects a forged probe answer', async () => {
-    const win = fakeWindow();
-    // A page script pretending to be MAIN: answers with an invalid shape.
+  /** A page script pretending to be MAIN, answering every request with `answer(request)`. */
+  function forgeMain(win: ReturnType<typeof fakeWindow>, answer: (request: { id: number; t: string }) => unknown): void {
     win.addEventListener('message', ((event: { data: { cg?: string }; ports: readonly MessagePort[] }) => {
       if (event.data.cg === 'iso-hello') win.postMessage({ cg: 'main-ready', v: 1 }, '*');
       const port = event.ports[0];
       if (event.data.cg === 'connect' && port) {
-        port.onmessage = (message: MessageEvent<{ id: number }>) => port.postMessage({ v: 1, kind: 'res', id: message.data.id, ok: true, data: { v: 1, evil: true } });
+        port.onmessage = (message: MessageEvent<{ id: number; t: string }>) => port.postMessage(answer(message.data));
       }
     }) as unknown as EventListener);
+  }
+
+  const envelope = (request: { id: number; t: string }) => ({ v: 1, kind: 'res', id: request.id, t: request.t, documentEpoch: 'forged', seq: 0 });
+
+  it('rejects a forged probe answer with a valid envelope but invalid data', async () => {
+    const win = fakeWindow();
+    forgeMain(win, (request) => ({ ...envelope(request), ok: true, data: { v: 1, evil: true } }));
     const client = await connectMainBridge(win, 1000);
     await expect(client.probe()).rejects.toThrow('main-probe-invalid');
     client.close();
+  });
+
+  it('drops answers that break the envelope, the frame limits or the request type', async () => {
+    const probe = { v: 1, readyStateAtStart: 'loading', installMs: 0, wsTap: false };
+    const forgeries: Array<(request: { id: number; t: string }) => unknown> = [
+      // no documentEpoch / seq: the R00 shape
+      (request) => ({ v: 1, kind: 'res', id: request.id, ok: true, data: probe }),
+      // a prototype key
+      (request) => JSON.parse(JSON.stringify({ ...envelope(request), ok: true, data: probe }).replace('"ok":true', '"ok":true,"__proto__":{}')) as unknown,
+      // an answer of another request type
+      (request) => ({ ...envelope(request), t: 'snapshot', ok: true, data: probe }),
+    ];
+    for (const forge of forgeries) {
+      const win = fakeWindow();
+      forgeMain(win, forge);
+      const client = await connectMainBridge(win, 100);
+      await expect(client.probe()).rejects.toThrow('main-call-timeout');
+      client.close();
+    }
   });
 
   it('times out instead of hanging when there is no MAIN bridge', async () => {

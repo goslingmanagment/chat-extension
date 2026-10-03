@@ -1,0 +1,72 @@
+// Which schema checks each route's request and success answer, by operation
+// key. The facade parses raw answers of routes the vendored SDK does not know
+// yet with these; the fake hub checks what it receives and serves. Error
+// answers of every route are HubErrorBodySchema. `aiFeatureStream` answers
+// with SSE: `response` checks each frame.
+
+import type * as z from 'zod/mini';
+
+import { HubFrameSchema, HubStreamRequestSchema, PersonaCatalogSchema } from './ai';
+import { DeviceTokenIssueRequestSchema, DeviceTokenIssueResponseSchema, DeviceTokenRevokeResponseSchema, HubAuthStateSchema, HubHealthSchema } from './auth';
+import { BootstrapSchema } from './bootstrap';
+import { FeedPageSchema, FeedQuerySchema } from './feed';
+import { AudienceNewPageSchema, AudienceNewQuerySchema, ClaimOpSchema, ClaimStateSchema } from './newcomers';
+import {
+  DossierQuerySchema,
+  DossierSchema,
+  ProfileFromGenerationRequestSchema,
+  ProfileFromGenerationResponseSchema,
+  RecapStatusQuerySchema,
+  RecapStatusSchema,
+  SharedRecapsQuerySchema,
+  SharedRecapsSchema,
+} from './recaps';
+import { type HubRouteKey } from './routes';
+import {
+  AutoListsSchema,
+  QueuePageSchema,
+  QueueQuerySchema,
+  SpenderBatchQuerySchema,
+  SpenderBatchSchema,
+  SpenderDetailQuerySchema,
+  SpenderDetailSchema,
+  SpendersPageSchema,
+  SpendersQuerySchema,
+  SpendersStatsSchema,
+  StatsQuerySchema,
+} from './spenders';
+import { AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
+import { PageFanParamsSchema, PageParamsSchema } from './wire';
+
+export interface HubRouteSchemas {
+  /** Path params + query or body as the facade takes them; null = the route takes nothing. */
+  readonly request: z.ZodMiniType | null;
+  readonly response: z.ZodMiniType;
+}
+
+export const HUB_ROUTE_SCHEMAS = {
+  authIssueDeviceTokenWithPassword: { request: DeviceTokenIssueRequestSchema, response: DeviceTokenIssueResponseSchema },
+  authRevokeCurrentDeviceToken: { request: null, response: DeviceTokenRevokeResponseSchema },
+  health: { request: null, response: HubHealthSchema },
+  me: { request: null, response: HubAuthStateSchema },
+  clientBootstrap: { request: null, response: BootstrapSchema },
+  aiPersonaCatalog: { request: null, response: PersonaCatalogSchema },
+  aiFeatureStream: { request: HubStreamRequestSchema, response: HubFrameSchema },
+  aiRecapStatus: { request: RecapStatusQuerySchema, response: RecapStatusSchema },
+  pageConversationProfile: { request: DossierQuerySchema, response: DossierSchema },
+  pageFanProfile: { request: DossierQuerySchema, response: DossierSchema },
+  spenders: { request: SpendersQuerySchema, response: SpendersPageSchema },
+  spenderDetail: { request: SpenderDetailQuerySchema, response: SpenderDetailSchema },
+  spenderBatch: { request: SpenderBatchQuerySchema, response: SpenderBatchSchema },
+  pageSpenderAutoLists: { request: PageParamsSchema, response: AutoListsSchema },
+  ingestObservations: { request: IngestBatchSchema, response: IngestResultSchema },
+  clientConversationRecaps: { request: SharedRecapsQuerySchema, response: SharedRecapsSchema },
+  clientFanProfileFromGeneration: { request: ProfileFromGenerationRequestSchema, response: ProfileFromGenerationResponseSchema },
+  clientConversationFeed: { request: FeedQuerySchema, response: FeedPageSchema },
+  clientSpenderStats: { request: StatsQuerySchema, response: SpendersStatsSchema },
+  clientSpenderAwaitingReply: { request: QueueQuerySchema, response: QueuePageSchema },
+  clientFanClaim: { request: ClaimOpSchema, response: ClaimStateSchema },
+  clientFanClaimStatus: { request: PageFanParamsSchema, response: ClaimStateSchema },
+  clientAudienceNew: { request: AudienceNewQuerySchema, response: AudienceNewPageSchema },
+  clientAiUsageDaily: { request: AiUsageQuerySchema, response: AiUsageReportSchema },
+} as const satisfies Record<HubRouteKey, HubRouteSchemas>;

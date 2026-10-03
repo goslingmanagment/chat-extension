@@ -5,7 +5,31 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./primitives": "./src/primitives.ts",
+    "./features": "./src/features.ts",
+    "./ids": "./src/ids.ts",
+    "./limits": "./src/limits.ts",
+    "./errors": "./src/errors.ts",
+    "./settings": "./src/settings.ts",
+    "./send-rules": "./src/send-rules.ts",
+    "./send": "./src/send.ts",
+    "./host": "./src/host.ts",
+    "./ops": "./src/ops.ts",
+    "./telemetry": "./src/telemetry.ts",
+    "./logs": "./src/logs.ts",
+    "./bridge": "./src/bridge.ts",
+    "./bridge-messages": "./src/bridge-messages.ts",
+    "./tab-protocol": "./src/tab-protocol.ts",
+    "./tab-messages": "./src/tab-messages.ts",
+    "./tab-liveness": "./src/tab-liveness.ts",
+    "./errors/registry": "./src/errors/registry.ts",
+    "./i18n/keys": "./src/i18n/keys.ts",
+    "./i18n/catalog": "./src/i18n/catalog.ts",
+    "./parity/exceptions": "./src/parity/exceptions.ts",
+    "./vm": "./src/vm/index.ts",
+    "./hub": "./src/hub/index.ts",
+    "./fixtures": "./test/fixtures/index.ts"
   },
   "dependencies": {
     "zod": "4.6.5"

@@ -29,6 +29,7 @@
     "@kernel/sdk": "workspace:*",
     "@types/node": "26.6.4",
     "dependency-cruiser": "18.5.0",
+    "esbuild": "0.28.2",
     "eslint": "10.12.0",
     "fake-indexeddb": "6.2.5",
     "globals": "17.13.0",
