@@ -358,7 +358,7 @@ export const EN: I18nCatalog<'en'> = {
   'preview.ping.segmentNoDays': 'Segment {segment}',
   'preview.ping.active': 'The fan wrote recently',
   'preview.ping.unknown': 'Ping segment unknown',
-  'preview.draft.placeholder': 'Draft for Fix. Stays in the preview and never goes to the chat',
+  'preview.draft.placeholder': 'Draft for Fix. Stays in the preview, not in the chat',
   'preview.draft.aria': 'Draft for Fix',
   'preview.empty': 'Press Reply, Hi or Ping — the answer appears here. Sending happens only with the button on each part.',
 
