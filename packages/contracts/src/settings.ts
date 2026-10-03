@@ -16,6 +16,8 @@ export type ToneId = z.infer<typeof ToneIdSchema>;
 
 export const UI_THEMES = ['host', 'system', 'light', 'dark'] as const;
 export const UI_LOCALES = ['system', 'ru', 'en'] as const;
+/** «Вид ответа» (ui-design §7, X10): the dock result printed on the feed, or on a sheet. */
+export const UI_RESULT_STYLES = ['bare', 'sheet'] as const;
 export const COACH_AUTO_RECAP = ['off', 'short', 'full'] as const;
 
 /** Inclusive ranges of the numeric settings (ST-090…ST-096, ST-130). */
@@ -59,6 +61,7 @@ export const SettingsV1Schema = z.strictObject({
     theme: z.enum(UI_THEMES),
     locale: z.enum(UI_LOCALES),
     hints: z.boolean(),
+    resultStyle: z.enum(UI_RESULT_STYLES),
   }),
   generation: z.strictObject({
     /** Б7: snapshot of this flag is taken when an operation starts. */
@@ -97,6 +100,8 @@ export const SettingsV1Schema = z.strictObject({
   onboarding: z.strictObject({
     checklistDismissed: z.boolean(),
     lastSeenVersion: z.nullable(displayText(32)),
+    /** The keys footer under a result: shown on the first five results until dismissed (ui-design §4.3). */
+    keysFooter: z.strictObject({ shown: CountSchema, dismissed: z.boolean() }),
   }),
 });
 export type SettingsV1 = z.infer<typeof SettingsV1Schema>;
@@ -114,7 +119,7 @@ export const DEFAULT_HUB_ORIGIN = 'https://gosling-agency.ru';
 export const DEFAULT_SETTINGS: SettingsV1 = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
   hub: { baseUrl: DEFAULT_HUB_ORIGIN },
-  ui: { theme: 'host', locale: 'system', hints: true },
+  ui: { theme: 'host', locale: 'system', hints: true, resultStyle: 'bare' },
   generation: {
     split: false,
     windows: { quick: 100, ping: 100, improve: 25, deep: 3000 },
@@ -129,7 +134,7 @@ export const DEFAULT_SETTINGS: SettingsV1 = {
   personas: { byPageId: {} },
   accounts: { labels: {} },
   debug: { enabled: false, renderTrace: false },
-  onboarding: { checklistDismissed: false, lastSeenVersion: null },
+  onboarding: { checklistDismissed: false, lastSeenVersion: null, keysFooter: { shown: 0, dismissed: false } },
 };
 
 /**

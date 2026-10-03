@@ -239,9 +239,9 @@ export const logRecord: LogRecord = {
 
 export const customSettings: SettingsV1 = {
   ...DEFAULT_SETTINGS,
-  ui: { theme: 'dark', locale: 'ru', hints: false },
+  ui: { theme: 'dark', locale: 'ru', hints: false, resultStyle: 'sheet' },
   sound: { ...DEFAULT_SETTINGS.sound, volume: 35, mutedAccounts: [IDS.otherAcc] },
   personas: { byPageId: { '11': { key: 'lora', definitionId: 'def-1' } } },
   accounts: { labels: { [IDS.acc]: 'Main model' } },
-  onboarding: { checklistDismissed: true, lastSeenVersion: '0.1.0' },
+  onboarding: { checklistDismissed: true, lastSeenVersion: '0.1.0', keysFooter: { shown: 5, dismissed: false } },
 };
