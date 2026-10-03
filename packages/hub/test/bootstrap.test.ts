@@ -85,6 +85,19 @@ describe('[HB-011] [AU-022] the bootstrap and its cache', () => {
     expect(h.facade.cachedBootstrap()).toBeNull();
   });
 
+  it('[AU-022] a stored bootstrap of an older sign-in epoch is ignored at start', async () => {
+    await signIn(h, WORLD_PILOT);
+    const stored = h.local.data.get(STORAGE_KEYS.cacheBootstrap) as Record<string, unknown>;
+    h.local.data.set(STORAGE_KEYS.cacheBootstrap, { ...stored, epoch: 0 });
+    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
+    h.hub.on('clientBootstrap', () => 'hang');
+    await restarted.facade.ready;
+    expect(restarted.facade.session()?.epoch).toBe(1);
+    expect(restarted.facade.cachedBootstrap()).toBeNull();
+    expect(restarted.facade.status().state).toBe('connecting');
+    restarted.facade.dispose();
+  });
+
   it('[HB-011] two refreshes of one sign-in share one request', async () => {
     await signIn(h, WORLD_PILOT);
     const [a, b] = await Promise.all([h.facade.bootstrap({ force: true }), h.facade.bootstrap({ force: true })]);
@@ -238,6 +251,12 @@ describe('[AU-023] [AU-024] [AU-025] binding a host account to a hub page', () =
     expect(resolveBinding(dangling, session, account())).toEqual({ state: 'refused', check: 'bindingMissing' });
     const crossPlatform: Bootstrap = { ...BOOTSTRAP_ALL_OFF, bindingsByHost: { 'onlymonster:1001': WORLD.pages.fansly.pageId } };
     expect(resolveBinding(crossPlatform, session, account())).toEqual({ state: 'refused', check: 'bindingAmbiguous' });
+    // …even when that page of the other platform carries the very creator id the host knows.
+    const crossSameAccount: Bootstrap = {
+      ...crossPlatform,
+      pages: crossPlatform.pages.map((page) => (page.pageId === WORLD.pages.fansly.pageId ? { ...page, platformAccountId: one.platformAccountId } : page)),
+    };
+    expect(resolveBinding(crossSameAccount, session, account())).toEqual({ state: 'refused', check: 'bindingAmbiguous' });
     const noAccount: Bootstrap = { ...BOOTSTRAP_ALL_OFF, bindingsByHost: { 'onlymonster:1001': one.pageId }, pages: BOOTSTRAP_ALL_OFF.pages.map((page) => ({ ...page, platformAccountId: null })) };
     expect(resolveBinding(noAccount, session, account())).toEqual({ state: 'refused', check: 'bindingMissing' });
   });

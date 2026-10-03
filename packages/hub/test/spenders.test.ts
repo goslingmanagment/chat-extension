@@ -90,6 +90,15 @@ describe('[SP-004] [SP-006] [SP-022] [SP-007] the board: hub ranking, up to 1000
     expect(h.hub.unexpected).toEqual([]);
   });
 
+  it('[SP-004] a first page shorter than 200 rows is the whole ranking: no further page is asked', async () => {
+    const first = pageOf(0) as { items: unknown[] };
+    serveBoard(h, () => json(200, { ...first, items: first.items.slice(0, 150) }));
+    const result = await board(h, { pageLabel: PAGE, period: '30d' });
+    expect(h.hub.of('spenders')).toHaveLength(1);
+    expect(result).toMatchObject({ complete: true, total: BOARD_TOTAL });
+    expect(result.items).toHaveLength(150);
+  });
+
   it('[SP-004] never more than two pages in flight', async () => {
     serveBoard(h);
     await board(h, { pageLabel: PAGE, period: '30d' });

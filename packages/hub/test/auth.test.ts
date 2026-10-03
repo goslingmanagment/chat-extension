@@ -350,6 +350,29 @@ describe('[AU-014] an answer to an old token never touches a newer sign-in', () 
   });
 });
 
+describe('[AU-014] a late bootstrap of an older sign-in', () => {
+  it('[AU-014] a refresh that lands after sign-out and a new sign-in is not adopted; the new sign-in keeps its own', async () => {
+    await signIn(h, WORLD_PILOT);
+    const late = deferred<Response>();
+    const tokenB = 'cgx_synthetic_token_0002';
+    const newer = { ...BOOTSTRAP_PILOT_ON, configRevision: BOOTSTRAP_PILOT_ON.configRevision + 1 };
+    const older = { ...BOOTSTRAP_PILOT_ON, configRevision: BOOTSTRAP_PILOT_ON.configRevision + 7 };
+    h.hub
+      .on('clientBootstrap', (request) => (request.headers['authorization'] === `Bearer ${TOKEN}` ? late.promise : json(200, newer)))
+      .on('authIssueDeviceTokenWithPassword', () => json(200, { ...WORLD_PILOT.issued, token: tokenB, keyPrefix: 'cgx_syn2' }));
+    const oldRefresh = h.facade.bootstrap({ force: true }).catch((error: unknown) => error);
+    await flush();
+    await h.facade.signOut();
+    await h.facade.signIn(WORLD.user.username, PASSWORD);
+    expect(h.facade.cachedBootstrap()?.bootstrap.configRevision).toBe(newer.configRevision);
+    late.resolve(json(200, older));
+    await oldRefresh;
+    await flush(20);
+    expect(h.facade.cachedBootstrap()?.bootstrap.configRevision).toBe(newer.configRevision);
+    expect(h.facade.status().state).toBe('live');
+  });
+});
+
 describe('[AU-013] sign-out: erase → revoke (5 s) → erase again', () => {
   it('[AU-013] [ST-051] the local sign-in is gone before the revoke is asked; the revoke carries the old token', async () => {
     await signIn(h, WORLD_PILOT);
