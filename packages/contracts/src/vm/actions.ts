@@ -26,6 +26,8 @@ const onboarding = SettingsV1Schema.shape.onboarding.shape;
  * SettingsV1, each with the value schema of that setting. Maps (account
  * labels, muted accounts, persona per page) have their own actions; the
  * background owns the write and answers with a revision (ST-013…ST-015).
+ * `hub.*` and `debug.*` are written only from the options page
+ * (`settings.patchRestricted`); a tab's controller refuses them.
  */
 export const PREFERENCE_VALUE_SCHEMAS = {
   'hub.baseUrl': SettingsV1Schema.shape.hub.shape.baseUrl,

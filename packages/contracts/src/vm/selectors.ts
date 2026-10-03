@@ -27,7 +27,7 @@ export type ToastId = string;
 export const PREVIEW_SOURCES = ['spenders', 'newcomers', 'palette'] as const;
 export type PreviewSource = (typeof PREVIEW_SOURCES)[number];
 
-/** Journals of the debug mode (§9.3, NF-029). */
+/** Journals of the debug mode (§9.2, §9.3, NF-029), read by `journal.read`. */
 export const JOURNAL_KINDS = ['operations', 'hub-calls', 'send-attempts', 'newcomers-check'] as const;
 export type JournalKind = (typeof JOURNAL_KINDS)[number];
 

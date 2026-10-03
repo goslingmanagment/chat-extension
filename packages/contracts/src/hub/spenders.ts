@@ -187,6 +187,26 @@ export const SpendersPageSchema = z.object({
 });
 export type SpendersPage = z.infer<typeof SpendersPageSchema>;
 
+/** `pageSpenderAutoLists`: the hub's tier buckets (§8.5 «Тиры»). */
+export const AutoListsSchema = z.object({
+  page: HubPageRefSchema,
+  currency: z.literal('USD'),
+  metric: z.enum(['grossAmountMills', 'lifetimeGrossAmountMills']),
+  period: SpenderPeriodMetaSchema,
+  asOf: z.nullable(IsoTimestampSchema),
+  totalEntries: CountSchema,
+  lists: z.array(
+    z.object({
+      key: z.string(),
+      label: z.string(),
+      minAmountMills: z.int().check(z.gte(0)),
+      maxAmountMillsExclusive: z.nullable(z.int().check(z.gte(1))),
+      entryCount: CountSchema,
+    }),
+  ),
+});
+export type AutoLists = z.infer<typeof AutoListsSchema>;
+
 /**
  * The board the background assembles for a tab (`spenders.board`): up to
  * 1000 rows from up to five hub pages of one scope, period and sign-in
@@ -204,6 +224,12 @@ export const SpendersBoardSchema = z.object({
   /** Every page within the cap arrived inside the budget. */
   complete: z.boolean(),
   fetchedAt: IsoTimestampSchema,
+  /**
+   * The shelves: the hub's tier buckets (`pageSpenderAutoLists`, §8.5 «Тиры»)
+   * read with the board; null when that read failed — the board still shows,
+   * without shelves.
+   */
+  tiers: z.nullable(AutoListsSchema),
 });
 export type SpendersBoard = z.infer<typeof SpendersBoardSchema>;
 
@@ -298,26 +324,6 @@ export const SpenderBatchSchema = z.object({
   ),
 });
 export type SpenderBatch = z.infer<typeof SpenderBatchSchema>;
-
-/** `pageSpenderAutoLists`: the hub's tier buckets (§8.5 «Тиры»). */
-export const AutoListsSchema = z.object({
-  page: HubPageRefSchema,
-  currency: z.literal('USD'),
-  metric: z.enum(['grossAmountMills', 'lifetimeGrossAmountMills']),
-  period: SpenderPeriodMetaSchema,
-  asOf: z.nullable(IsoTimestampSchema),
-  totalEntries: CountSchema,
-  lists: z.array(
-    z.object({
-      key: z.string(),
-      label: z.string(),
-      minAmountMills: z.int().check(z.gte(0)),
-      maxAmountMillsExclusive: z.nullable(z.int().check(z.gte(1))),
-      entryCount: CountSchema,
-    }),
-  ),
-});
-export type AutoLists = z.infer<typeof AutoListsSchema>;
 
 // ── H-8b statistics (`spenders-stats-v1`) ──────────────────────────────────
 

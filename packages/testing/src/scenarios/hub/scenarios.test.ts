@@ -15,6 +15,7 @@ import {
   isCustodyTransition,
   isFlagOn,
   narrowPlatform,
+  type AutoLists,
   type Bootstrap,
   type BootstrapPage,
   type ClaimAction,
@@ -174,9 +175,12 @@ describe('fake hub: HTTP scenarios', () => {
   });
 
   it('the Spenders board: five pages fill exactly the 1000-row cap, ranked, no duplicates', () => {
-    const exchanges = scenario('spenders-board-1000').exchanges;
+    const all = scenario('spenders-board-1000').exchanges;
+    const exchanges = all.filter((e) => e.route === 'spenders');
     expect(exchanges.map((e) => requestOf(e)['offset'])).toEqual([0, 200, 400, 600, 800]);
     const pages = bodies<SpendersPage>(exchanges);
+    const tiers = bodies<AutoLists>(all.filter((e) => e.route === 'pageSpenderAutoLists'))[0] ?? null;
+    expect(tiers).not.toBeNull();
     expect(pages.length).toBe(SPENDERS_BOARD.maxPages);
     const items = pages.flatMap((page) => page.items);
     expect(items.length).toBe(SPENDERS_BOARD.maxRows);
@@ -195,6 +199,7 @@ describe('fake hub: HTTP scenarios', () => {
       total: first.total,
       complete: true,
       fetchedAt: NOW,
+      tiers,
     };
     expect(SpendersBoardSchema.safeParse(board).success).toBe(true);
     expect(board.total).toBe(BOARD_TOTAL);

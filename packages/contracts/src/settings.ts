@@ -143,6 +143,9 @@ export const DEFAULT_SETTINGS: SettingsV1 = {
   onboarding: { checklistDismissed: false, lastSeenVersion: null, keysFooter: { shown: 0, dismissed: false } },
 };
 
+/** Sections only the options page may change (`settings.patchRestricted`, §14): the hub address and debug. */
+export const SETTINGS_OPTIONS_ONLY_SECTIONS = ['hub', 'debug'] as const;
+
 /**
  * A change request. Sections merge shallowly; in the two maps a `null` value
  * removes the key. `mutedAccounts` is replaced as a whole.

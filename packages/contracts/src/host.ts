@@ -21,7 +21,7 @@ import {
   type HostKind,
   type Platform,
 } from './ids';
-import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from './limits';
+import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, STORAGE_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -440,6 +440,17 @@ export const CoverageEventSchema = z.strictObject({
   reason: boundedText(64),
 });
 export type CoverageEvent = z.infer<typeof CoverageEventSchema>;
+
+/** A host account this browser has seen in a ChatSpace tab, and when (§9.9 «Аккаунты, которые видел этот браузер»). */
+export const SeenHostAccountSchema = z.strictObject({ account: HostAccountSchema, lastSeenAt: IsoTimestampSchema });
+export type SeenHostAccount = z.infer<typeof SeenHostAccountSchema>;
+
+/** `presence` in storage.local (STORAGE_KEYS.presence): the background writes it from tabs' `tab.presence` reports, newest first. */
+export const PresenceStoreSchema = z.strictObject({
+  v: z.literal(1),
+  accounts: z.array(SeenHostAccountSchema).check(z.maxLength(STORAGE_LIMITS.seenAccountsMax)),
+});
+export type PresenceStore = z.infer<typeof PresenceStoreSchema>;
 
 /** Everything `current()` returns in one read. */
 export interface HostSnapshot {

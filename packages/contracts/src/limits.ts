@@ -69,6 +69,8 @@ export const STORAGE_LIMITS = {
   previewDrafts: 100,
   previewDraftsTotalBytes: 1 * MiB,
   previewDraftTtlMs: 24 * 60 * MINUTE,
+  /** Host accounts kept in the `presence` store. */
+  seenAccountsMax: 500,
 } as const;
 
 /** X8 preview send (§6.7). */

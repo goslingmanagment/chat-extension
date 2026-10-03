@@ -232,7 +232,7 @@ const diagnostics = {
   unattributedCreatorNetAmountMills: 0,
 };
 const spendersPage: C.SpendersPage = { scope, period: periodMeta, diagnostics, items: [listItem], limit: 200, offset: 0, total: 1 };
-const spendersBoard: C.SpendersBoard = { pageLabel: PAGE, period: '30d', scope, periodMeta, diagnostics, items: [listItem], total: 1, complete: true, fetchedAt: ISO };
+const spendersBoard: C.SpendersBoard = { pageLabel: PAGE, period: '30d', scope, periodMeta, diagnostics, items: [listItem], total: 1, complete: true, fetchedAt: ISO, tiers: null };
 const typeBreakdown = [{ canonicalType: 'tip', grossAmountMills: 25_000, creatorNetAmountMills: 20_000, transactionCount: 1 }] as const;
 const spenderDetail: C.SpenderDetail = {
   scope,
@@ -691,9 +691,12 @@ export const HUB_SCHEMA_FIXTURES = [
   fixture('SpenderListItem', C.SpenderListItemSchema, [listItem], [{ ...listItem, retentionStatus: 'all' }, { ...listItem, metrics: { ...metrics, window: { ...metrics.window, grossAmountMills: 1.5 } } }]),
   fixture('SpenderDiagnostics', C.SpenderDiagnosticsSchema, [diagnostics], [{ ...diagnostics, totalGrossAmountMills: '125' }]),
   fixture('SpendersPage', C.SpendersPageSchema, [spendersPage, { ...spendersPage, items: [], total: 0 }], [{ ...spendersPage, total: undefined }]),
-  fixture('SpendersBoard', C.SpendersBoardSchema, [spendersBoard], [
+  fixture('SpendersBoard', C.SpendersBoardSchema, [spendersBoard, { ...spendersBoard, tiers: autoLists }], [
     { ...spendersBoard, items: Array.from({ length: 1001 }, () => listItem) },
     { ...spendersBoard, period: 'year' },
+    // The shelves come with the board: null when the bucket read failed, never absent.
+    { ...spendersBoard, tiers: undefined },
+    { ...spendersBoard, tiers: { ...autoLists, currency: 'EUR' } },
   ]),
   fixture('SpenderDetailQuery', C.SpenderDetailQuerySchema, [{ platform: 'onlyfans', platformUserId: IDS.fan, scope: 'page', pageLabel: PAGE, period: 'lifetime' }], [
     { platform: 'onlyfans', platformUserId: 'fan_two', scope: 'page', pageLabel: PAGE, period: 'lifetime' },

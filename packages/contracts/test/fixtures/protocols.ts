@@ -40,6 +40,7 @@ import {
   ourDraft,
   probe,
   promptSnapshot,
+  quota,
   routeState,
   sendBegin,
   tabHealth,
@@ -71,8 +72,19 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: { valid: [{ tabSessionId: uuid(4), contractsVersion: '1.0.0', testBuild: false }], invalid: [{ tabSessionId: 'tab-1', contractsVersion: '1.0.0', testBuild: false }] },
   },
   'tab.presence': {
-    req: { valid: [{ chat, routeEpoch: 5, visible: true, focused: true }, { chat: null, routeEpoch: 0, visible: false, focused: false }], invalid: [{ chat, visible: true, focused: true }] },
+    req: {
+      valid: [{ chat, routeEpoch: 5, visible: true, focused: true }, { chat: null, routeEpoch: 0, visible: false, focused: false, accounts: [account] }],
+      invalid: [{ chat, visible: true, focused: true }, { chat: null, routeEpoch: 0, visible: false, focused: false, accounts: [{ ...account, hostAccountId: 'acc' }] }],
+    },
     res: ack,
+  },
+  'quota.get': {
+    req: { valid: [{ pageId: 11 }], invalid: [{ pageId: 0 }] },
+    res: { valid: [{ quota }, { quota: null }], invalid: [{ quota: { ...quota, resetsAt: T0 } }] },
+  },
+  'accounts.seen': {
+    req: empty,
+    res: { valid: [{ accounts: [{ account, lastSeenAt: ISO, openTabs: 2 }] }, { accounts: [] }], invalid: [{ accounts: [{ account, lastSeenAt: ISO }] }] },
   },
   'session.get': {
     req: empty,
@@ -191,12 +203,19 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: dto(H.queuePage, { ...H.queuePage, nextCursor: '' }),
   },
   'feed.read': {
-    req: { valid: [{ ...pageFan, cursor: null, limit: 50 }], invalid: [{ ...pageFan, cursor: '', limit: 50 }] },
+    req: {
+      valid: [{ ...pageFan, cursor: null, limit: 50 }, { ...pageFan, cursor: null, limit: 50, summaryWindow: 200 }],
+      invalid: [{ ...pageFan, cursor: '', limit: 50 }, { ...pageFan, cursor: null, limit: 50, summaryWindow: 4 }],
+    },
     res: dto(H.feedPage, { ...H.feedPage, items: [{ ...H.feedItem, deleted: null }] }),
   },
   'fan.card': {
-    req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
+    req: { valid: [{ ...pageFan, period: '30d' }], invalid: [pageFan, { ...pageFan, period: 'year' }] },
     res: dto(H.spenderDetail, { ...H.spenderDetail, fan: null }),
+  },
+  'fan.dossier': {
+    req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
+    res: { valid: [{ dossier: H.dossier }, { dossier: null }], invalid: [{}, { dossier: { ...H.dossier, fan: null } }] },
   },
   'newcomers.list': {
     req: { valid: [{ pageId: 11, windowHours: 48, cursor: null }], invalid: [{ pageId: 11, windowHours: 721, cursor: null }] },
@@ -211,7 +230,18 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: { valid: [settingsState], invalid: [{ ...settingsState, readOnly: 'no' }] },
   },
   'settings.patch': {
-    req: { valid: [{ patch: { ui: { locale: 'en' } }, baseRevision: 3 }, { patch: {}, baseRevision: null }], invalid: [{ patch: { ui: { locale: 'de' } }, baseRevision: 3 }] },
+    req: {
+      valid: [{ patch: { ui: { locale: 'en' } }, baseRevision: 3 }, { patch: {}, baseRevision: null }],
+      // A tab cannot move the hub address or switch debug on (§14): those go through settings.patchRestricted.
+      invalid: [{ patch: { ui: { locale: 'de' } }, baseRevision: 3 }, { patch: { hub: { baseUrl: 'https://evil.example.test' } }, baseRevision: 3 }, { patch: { debug: { enabled: true } }, baseRevision: 3 }],
+    },
+    res: { valid: [settingsState], invalid: [{ settings: DEFAULT_SETTINGS }] },
+  },
+  'settings.patchRestricted': {
+    req: {
+      valid: [{ patch: { hub: { baseUrl: 'https://hub.example.test' } }, baseRevision: 3 }, { patch: { debug: { enabled: true }, ui: { hints: false } }, baseRevision: null }],
+      invalid: [{ patch: { hub: { baseUrl: 'ftp://hub.example.test' } }, baseRevision: 3 }],
+    },
     res: { valid: [settingsState], invalid: [{ settings: DEFAULT_SETTINGS }] },
   },
   'log.write': {
@@ -221,6 +251,17 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'diagnostics.get': {
     req: empty,
     res: { valid: [diagnostics], invalid: [{ ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } }] },
+  },
+  'journal.read': {
+    req: { valid: [{ journal: 'send-attempts', limit: 200 }], invalid: [{ journal: 'prompts', limit: 200 }, { journal: 'operations', limit: 501 }] },
+    res: {
+      valid: [{ records: [logRecord], truncated: false, runs: null }, { records: [], truncated: true, runs: [{ runId: uuid(30), startedAt: ISO, events: 120 }] }],
+      invalid: [{ records: [logRecord], truncated: false }, { records: [{ ...logRecord, level: 'trace' }], truncated: false, runs: null }],
+    },
+  },
+  'usage.get': {
+    req: { valid: [{ pageId: 11, date: '2026-10-03' }, { pageId: 11, date: '2026-10-03', days: 7 }], invalid: [{ pageId: 11, date: '2026-10-03', days: 8 }, { pageId: 11, date: '2026-02-30' }] },
+    res: { valid: [{ report: H.usageReport }, { report: null }], invalid: [{ report: { ...H.usageReport, moneyUnit: 'USD-mills' } }] },
   },
   'diagnostics.export': {
     req: { valid: [{ format: 'json' }, { format: 'txt' }], invalid: [{ format: 'zip' }] },
@@ -275,6 +316,7 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   'bootstrap.changed': { valid: [{ configRevision: 9, issuedAt: ISO }], invalid: [{ configRevision: 9 }] },
   'catalog.changed': empty,
   'newcomers.changed': { valid: [{ pageId: 11 }], invalid: [{ pageId: '11' }] },
+  'quota.changed': { valid: [{ quota }], invalid: [{ quota: { ...quota, observedAt: null } }, {}] },
   'flags.changed': {
     valid: [{ flags: { previewSend: false, someFutureFlag: true }, configRevision: 9 }],
     invalid: [{ flags: { previewSend: 'off' }, configRevision: 9 }],

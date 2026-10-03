@@ -20,6 +20,7 @@ import {
   HubIntIdSchema,
   HubOriginSchema,
   IsoTimestampSchema,
+  MicroUsdSchema,
   NativeIdSchema,
   OpenTokenSchema,
   PersonaDefinitionIdSchema,
@@ -30,14 +31,18 @@ import {
   displayText,
 } from './primitives';
 import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup } from './send';
+import { CONTRACT_HASH_PATTERN } from './hub/auth';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
-import { FeedPageSchema } from './hub/feed';
+import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
-import { RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
+import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
+import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
+import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
-import { SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
+import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
 import { TabRegisterRequestSchema, TabRegisterResponseSchema, type ExtensionPage, type TabSender } from './tab-protocol';
+import { JOURNAL_KINDS } from './vm/selectors';
 import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
 
 // ── Shared payload pieces ──────────────────────────────────────────────────
@@ -74,6 +79,20 @@ export const BackgroundToastSchema = z.strictObject({
 });
 export type BackgroundToast = z.infer<typeof BackgroundToastSchema>;
 
+/** The page's AI quota as the last generation's `meta` reported it (§8.4): the dock and the popup show it (UI-031, §9.9). */
+export const AiQuotaSnapshotSchema = z.strictObject({
+  pageId: HubIntIdSchema,
+  remainingRequestsToday: z.nullable(CountSchema),
+  /** Debug surfaces only (Б4). */
+  remainingMicroUsdToday: z.nullable(MicroUsdSchema),
+  /** The next 00:00 UTC after `observedAt`: the quota's day boundary (CG-QUOTA-DAILY). */
+  resetsAt: IsoTimestampSchema,
+  observedAt: IsoTimestampSchema,
+});
+export type AiQuotaSnapshot = z.infer<typeof AiQuotaSnapshotSchema>;
+
+const ContractHashSchema = z.string().check(z.regex(CONTRACT_HASH_PATTERN));
+
 /** `diagnostics.get`: versions, flags and states without secrets or texts (LG-020…LG-025, SN-015). */
 export const DiagnosticsSnapshotSchema = z.strictObject({
   generatedAt: IsoTimestampSchema,
@@ -86,6 +105,13 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
     lastCheckedAt: z.nullable(IsoTimestampSchema),
     lastError: z.nullable(CgErrorWireSchema),
     flags: z.record(OpenTokenSchema, z.boolean()),
+    /** The vendored SDK's contract hash against `health` (H-1): the «Совместимость» line of «Аккаунт». */
+    sdk: z.strictObject({
+      vendoredHash: ContractHashSchema,
+      hubHash: z.nullable(ContractHashSchema),
+      /** vendoredHash ∈ health.compatibleClientSdks; null — health not read or the hub lists none. */
+      compatible: z.nullable(z.boolean()),
+    }),
   }),
   tabs: z
     .array(
@@ -174,7 +200,14 @@ export const TAB_REQUESTS = {
   'tab.register': { req: TabRegisterRequestSchema, res: TabRegisterResponseSchema, from: TAB },
   /** Which chat the tab shows and whether it is visible and focused (sound, «AI готово» toasts). */
   'tab.presence': {
-    req: z.strictObject({ chat: z.nullable(ChatRefSchema), routeEpoch: CountSchema, visible: z.boolean(), focused: z.boolean() }),
+    req: z.strictObject({
+      chat: z.nullable(ChatRefSchema),
+      routeEpoch: CountSchema,
+      visible: z.boolean(),
+      focused: z.boolean(),
+      /** The host accounts this tab's ChatSpace has loaded, when they changed: the `presence` store (§9.9). */
+      accounts: z.optional(z.array(HostAccountSchema).check(z.maxLength(200))),
+    }),
     res: Ack,
     from: TAB,
   },
@@ -194,6 +227,19 @@ export const TAB_REQUESTS = {
   /** Binds a host account to exactly one page by platformAccountId; CG-BINDING-* on failure. */
   'binding.resolve': { req: z.strictObject({ account: HostAccountSchema }), res: z.strictObject({ binding: HubBindingSchema }), from: ANY },
   'catalog.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: PersonaCatalogSchema, from: ANY },
+  /** The quota of a page as last seen; null — no generation on it since the background started (unknown). */
+  'quota.get': { req: z.strictObject({ pageId: HubIntIdSchema }), res: z.strictObject({ quota: z.nullable(AiQuotaSnapshotSchema) }), from: ANY },
+  /** Options «Аккаунты»: the host accounts this browser has seen, and how many tabs show each now. */
+  'accounts.seen': {
+    req: Empty,
+    res: z.strictObject({
+      accounts: z
+        .array(z.strictObject({ account: HostAccountSchema, lastSeenAt: IsoTimestampSchema, openTabs: CountSchema }))
+        .check(z.maxLength(STORAGE_LIMITS.seenAccountsMax)),
+    }),
+    from: PAGE,
+    pages: ['options', 'popup'],
+  },
   'persona.set': {
     req: z.strictObject({ pageId: HubIntIdSchema, key: PersonaKeySchema, definitionId: PersonaDefinitionIdSchema }),
     res: z.strictObject({ revision: CountSchema }),
@@ -277,15 +323,26 @@ export const TAB_REQUESTS = {
     from: TAB,
   },
   'feed.read': {
-    req: z.strictObject({ ...PageFan, cursor: CursorSchema, limit: z.int().check(z.gte(1), z.lte(100)) }),
+    req: z.strictObject({
+      ...PageFan,
+      cursor: CursorSchema,
+      limit: z.int().check(z.gte(1), z.lte(FEED_LIMITS.maxLimit)),
+      /** The Ping chip's window (settings `generation.windows.ping`); the hub's default 100 when absent. */
+      summaryWindow: z.optional(z.int().check(z.gte(FEED_LIMITS.summaryWindowMin), z.lte(FEED_LIMITS.summaryWindowMax))),
+    }),
     res: FeedPageSchema,
     from: TAB,
   },
-  'fan.card': { req: z.strictObject(PageFan), res: SpenderDetailSchema, from: TAB },
+  /** The fan panel's money (D-29): `period` '30d' gives the window and the lifetime in one read. */
+  'fan.card': { req: z.strictObject({ ...PageFan, period: SpendersPeriodSchema }), res: SpenderDetailSchema, from: TAB },
+  /** The fan panel's dossier (D-29: `pageConversationProfile` / `pageFanProfile`); null — the hub knows no profile. */
+  'fan.dossier': { req: z.strictObject(PageFan), res: z.strictObject({ dossier: z.nullable(DossierSchema) }), from: TAB },
+  /** Tabs, and the popup for its newcomer count (§9.9). */
   'newcomers.list': {
     req: z.strictObject({ pageId: HubIntIdSchema, windowHours: z.int().check(z.gte(1), z.lte(720)), cursor: CursorSchema }),
     res: AudienceNewPageSchema,
-    from: TAB,
+    from: ANY,
+    pages: ['popup'],
   },
   'newcomers.claim': {
     req: z.strictObject({ ...PageFan, action: z.enum(['claim', 'renew', 'release']) }),
@@ -295,11 +352,30 @@ export const TAB_REQUESTS = {
 
   // ── service ──
   'settings.get': { req: Empty, res: SettingsStateSchema, from: ANY },
-  /** «Сохранено» is shown only on this confirmation with its revision (ST-013…ST-015). */
+  /**
+   * «Сохранено» is shown only on this confirmation with its revision
+   * (ST-013…ST-015). Not the hub address nor debug: those only from the
+   * options page (`settings.patchRestricted`), so a tab cannot point the
+   * next sign-in elsewhere or switch debug output on.
+   */
   'settings.patch': {
-    req: z.strictObject({ patch: SettingsPatchSchema, baseRevision: z.nullable(CountSchema) }),
+    req: z.strictObject({
+      patch: SettingsPatchSchema.check(
+        z.refine((p) => SETTINGS_OPTIONS_ONLY_SECTIONS.every((section) => p[section] === undefined), {
+          message: 'hub and debug change only from the options page',
+        }),
+      ),
+      baseRevision: z.nullable(CountSchema),
+    }),
     res: SettingsStateSchema,
     from: ANY,
+  },
+  /** Any section, the hub address and debug included; the options page only. */
+  'settings.patchRestricted': {
+    req: z.strictObject({ patch: SettingsPatchSchema, baseRevision: z.nullable(CountSchema) }),
+    res: SettingsStateSchema,
+    from: PAGE,
+    pages: ['options'],
   },
   'log.write': {
     req: z.strictObject({ records: z.array(LogRecordSchema).check(z.minLength(1), z.maxLength(LOG_LIMITS.maxRecordsPerWrite)) }),
@@ -307,6 +383,31 @@ export const TAB_REQUESTS = {
     from: ANY,
   },
   'diagnostics.get': { req: Empty, res: DiagnosticsSnapshotSchema, from: PAGE },
+  /** The debug journals (§9.2, NF-029): records without any message or prompt text, newest last. */
+  'journal.read': {
+    req: z.strictObject({ journal: z.enum(JOURNAL_KINDS), limit: z.int().check(z.gte(1), z.lte(LOG_LIMITS.exportRecentRecords)) }),
+    res: z.strictObject({
+      records: z.array(LogRecordSchema).check(z.maxLength(LOG_LIMITS.exportRecentRecords)),
+      /** The journal hit its cap («обрезано»). */
+      truncated: z.boolean(),
+      /** «Новые» check runs only. */
+      runs: z.nullable(
+        z.array(z.strictObject({ runId: UuidSchema, startedAt: IsoTimestampSchema, events: CountSchema })).check(z.maxLength(LOG_LIMITS.newcomersJournalRuns)),
+      ),
+    }),
+    from: PAGE,
+    pages: ['debug-journal', 'options'],
+  },
+  /**
+   * The person's own AI spend (H-15; DB-022, PU-016), debug only (Б4): null
+   * while debug is off or the hub lacks `ai-usage-v1`.
+   */
+  'usage.get': {
+    req: z.strictObject({ pageId: HubIntIdSchema, date: BusinessDateSchema, days: z.optional(z.int().check(z.gte(1), z.lte(AI_USAGE_LIMITS.maxDays))) }),
+    res: z.strictObject({ report: z.nullable(AiUsageReportSchema) }),
+    from: PAGE,
+    pages: ['popup', 'options', 'debug-journal'],
+  },
   /** The page saves it through a Blob; no `downloads` permission (§3). */
   'diagnostics.export': {
     req: z.strictObject({ format: z.enum(['json', 'txt']) }),
@@ -393,6 +494,8 @@ export const TAB_EVENTS = {
   'bootstrap.changed': { payload: z.strictObject({ configRevision: CountSchema, issuedAt: IsoTimestampSchema }), to: ANY },
   'catalog.changed': { payload: Empty, to: ANY },
   'newcomers.changed': { payload: z.strictObject({ pageId: HubIntIdSchema }), to: TAB },
+  /** A generation's `meta` moved a page's quota. */
+  'quota.changed': { payload: z.strictObject({ quota: AiQuotaSnapshotSchema }), to: ANY },
   /** Owner kill switches; unknown flag names mean "off" (open tokens, critic item 14). */
   'flags.changed': { payload: z.strictObject({ flags: z.record(OpenTokenSchema, z.boolean()), configRevision: CountSchema }), to: ANY },
 } as const satisfies Record<string, EventSpec>;

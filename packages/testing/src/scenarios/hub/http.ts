@@ -360,6 +360,20 @@ const custody = (attemptId: string, s: NonNullable<ClaimState['custody']>['state
 });
 const greeted = (messageRef: string, source: string) => ({ state: 'confirmed', at: at(5), messageRef, source }) as const;
 
+/** The hub's tier buckets (`pageSpenderAutoLists`): the board's shelves. */
+const tierBuckets = {
+  page: scope.page,
+  currency: 'USD',
+  metric: 'lifetimeGrossAmountMills',
+  period,
+  asOf: NOW,
+  totalEntries: 1131,
+  lists: [
+    { key: '0-25', label: '$0–25', minAmountMills: 10, maxAmountMillsExclusive: 25_000, entryCount: 1100 },
+    { key: '600-plus', label: '$600+', minAmountMills: 600_000, maxAmountMillsExclusive: null, entryCount: 31 },
+  ],
+} as const;
+
 export const HTTP_SCENARIOS: readonly HttpScenario[] = [
   {
     name: 'sign-in-and-bootstrap-all-off',
@@ -391,10 +405,11 @@ export const HTTP_SCENARIOS: readonly HttpScenario[] = [
   },
   {
     name: 'spenders-board-1000',
-    description: '1240 payers: five pages of 200 (offsets 0…800) fill the 1000-row cap; the board says the scope has more.',
-    exchanges: [0, 200, 400, 600, 800].map((offset) =>
-      ok('spenders', { scope: 'page', pageLabel: PAGE, period: '30d', limit: 200, offset }, boardPage(offset)),
-    ),
+    description: '1240 payers: five pages of 200 (offsets 0…800) fill the 1000-row cap; the board says the scope has more. The shelves are the tier buckets read with it.',
+    exchanges: [
+      ...[0, 200, 400, 600, 800].map((offset) => ok('spenders', { scope: 'page', pageLabel: PAGE, period: '30d', limit: 200, offset }, boardPage(offset))),
+      ok('pageSpenderAutoLists', { pageLabel: PAGE }, tierBuckets),
+    ],
   },
   {
     name: 'spenders-stats-and-queue',
@@ -403,18 +418,7 @@ export const HTTP_SCENARIOS: readonly HttpScenario[] = [
       ok('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'Europe/Moscow' }, stats),
       ok('clientSpenderAwaitingReply', { pageLabel: PAGE, limit: 2 }, { ...queuePage(2, 'queue-2'), total: 3 }),
       ok('clientSpenderAwaitingReply', { pageLabel: PAGE, cursor: 'queue-2', limit: 2 }, { ...queuePage(1, null), items: queuePage(3, null).items.slice(2) }),
-      ok('pageSpenderAutoLists', { pageLabel: PAGE }, {
-        page: scope.page,
-        currency: 'USD',
-        metric: 'lifetimeGrossAmountMills',
-        period,
-        asOf: NOW,
-        totalEntries: 1131,
-        lists: [
-          { key: '0-25', label: '$0–25', minAmountMills: 10, maxAmountMillsExclusive: 25_000, entryCount: 1100 },
-          { key: '600-plus', label: '$600+', minAmountMills: 600_000, maxAmountMillsExclusive: null, entryCount: 31 },
-        ],
-      }),
+      ok('pageSpenderAutoLists', { pageLabel: PAGE }, tierBuckets),
       refused('clientSpenderStats', { pageLabel: pages.vip.pageLabel, windowDays: 30, timeZone: 'Europe/Moscow' }, 'client_feature_disabled', { cg: 'CG-FEATURE-DISABLED', disposition: 'refresh-bootstrap' }, { reason: 'flag_off' }),
     ],
   },

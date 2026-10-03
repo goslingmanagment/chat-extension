@@ -149,7 +149,13 @@ export const diagnostics = {
   browser: { name: 'firefox', major: 157 },
   os: 'windows',
   session: { signedIn: true, hubOrigin: HUB, role: 'chatter' },
-  hub: { reachable: true, lastCheckedAt: ISO, lastError: null, flags: { previewSend: false, wsTap: true } },
+  hub: {
+    reachable: true,
+    lastCheckedAt: ISO,
+    lastError: null,
+    flags: { previewSend: false, wsTap: true },
+    sdk: { vendoredHash: 'a'.repeat(64), hubHash: 'b'.repeat(64), compatible: true },
+  },
   tabs: [{ tabSessionId: uuid(4), host: contractReport, chatKey: 'chatspace:1001:2002' }],
   counters: { 'CG-HUB-TIMEOUT': 2 },
   logs: { records: 1200, bytes: 300_000, dropped: 0 },
@@ -158,6 +164,7 @@ export const diagnostics = {
   ops: { active: 1 },
   sends: { open: 0, uncertain: 0 },
 } as const;
+export const quota = { pageId: 11, remainingRequestsToday: 12, remainingMicroUsdToday: 1_500_000, resetsAt: '2026-10-04T00:00:00Z', observedAt: ISO } as const;
 export const promptSnapshot = {
   state: 'ok',
   fromCache: false,
@@ -793,7 +800,20 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   // ── tab protocol ──
   fixture('SpendersPeriod', C.SpendersPeriodSchema, ['mtd', 'lifetime'], ['year']),
   fixture('BackgroundToast', C.BackgroundToastSchema, [toast, { toastId: uuid(21), kind: 'error', scope: 'hub', error: { code: 'CG-HUB-TIMEOUT' }, fanLabel: null }], [{ ...toast, kind: 'fatal' }]),
-  fixture('DiagnosticsSnapshot', C.DiagnosticsSnapshotSchema, [diagnostics], [{ ...diagnostics, os: 'beos' }]),
+  fixture(
+    'DiagnosticsSnapshot',
+    C.DiagnosticsSnapshotSchema,
+    [diagnostics, { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'a'.repeat(64), hubHash: null, compatible: null } } }],
+    [{ ...diagnostics, os: 'beos' }, { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'x', hubHash: null, compatible: null } } }],
+  ),
+  fixture('AiQuotaSnapshot', C.AiQuotaSnapshotSchema, [quota, { ...quota, remainingRequestsToday: null, remainingMicroUsdToday: null }], [{ ...quota, remainingRequestsToday: -1 }, { ...quota, pageId: 0 }]),
+  fixture('SeenHostAccount', C.SeenHostAccountSchema, [{ account, lastSeenAt: ISO }], [{ account, lastSeenAt: T0 }]),
+  fixture(
+    'PresenceStore',
+    C.PresenceStoreSchema,
+    [{ v: 1, accounts: [{ account, lastSeenAt: ISO }] }, { v: 1, accounts: [] }],
+    [{ v: 2, accounts: [] }, { v: 1, accounts: Array.from({ length: 501 }, () => ({ account, lastSeenAt: ISO })) }],
+  ),
   fixture('PromptSnapshotView', C.PromptSnapshotViewSchema, [promptSnapshot, { ...promptSnapshot, state: 'expired', capturedAt: null, manifest: null, blocks: [] }], [{ ...promptSnapshot, state: 'gone' }]),
   fixture(
     'SendBegin',
