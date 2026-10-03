@@ -23,16 +23,22 @@ export function useRenderAfter(delay: number | null): void {
 }
 
 /**
- * Until the text of a countdown to `until` changes: whole seconds under an
- * hour (counted up: «через 24 с» never shows 0 while time is left), whole
- * minutes above (ui-design §4.8: «17 ч 39 мин» once a minute, «39 мин 12 с»
- * once a second). null when the deadline passed.
+ * Until the text of a countdown to `until` changes. The text counts whole
+ * seconds rounded up (`countdownParts`: «через 24 с» never shows 0 while
+ * time is left), so it changes when the remaining time drops to a whole
+ * second: every second under an hour, and above it when the rounded-up
+ * seconds cross a whole minute (ui-design §4.8: «17 ч 39 мин» once a minute,
+ * «39 мин 12 с» once a second). null when the deadline passed.
  */
 export function countdownDelay(until: number, now: number): number | null {
   const remaining = until - now;
   if (remaining <= 0) return null;
-  const step = remaining > HOUR ? MINUTE : SECOND;
-  return ((remaining - 1) % step) + 1;
+  const shown = Math.ceil(remaining / SECOND);
+  // The last remaining ms that still shows the current text: one second below the shown one…
+  let next = shown - 1;
+  // …or, while hours are shown, one second below the shown whole minute.
+  if (remaining > HOUR) next = Math.floor(shown / 60) * 60 - 1;
+  return remaining - next * SECOND;
 }
 
 /** Until the m:ss of a timer started at `since` changes. */
