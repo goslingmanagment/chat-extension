@@ -9,8 +9,9 @@
 // The boot owns the port: the envelope check, write deduplication by request
 // id, the answer frames and the event throttle (≤ 50 per second per type,
 // latest wins; an unchanged state — route, composer, contract — is not
-// repeated, a signal — accounts, chatCache — always goes out). It answers `probe` and `flags`
-// itself; everything else goes to the runtime (runtime.ts) once one is
+// repeated, a signal — accounts, chatCache — always goes out; freshness and
+// receipt events bypass the throttle). It answers `probe` itself;
+// everything else goes to the runtime (runtime.ts) once one is
 // attached — before that the answer is `not-ready`. The runtime reads and
 // writes ChatSpace; keeping it out of the boot keeps the document_start
 // bundle within its 5 KiB budget (§11): the runtime comes in the same bundle
@@ -21,17 +22,15 @@
 // isolated side checks every frame from MAIN; MAIN checks every request by
 // hand and holds no secrets.
 
-import { isPlain, isRequestEnvelope, type Plain } from './check';
+import { count, int, is, isPlain, isToken, orNull, shape, type Plain } from './check';
 import {
   ERR_BAD_REQUEST,
-  ERR_DISABLED,
   ERR_INTERNAL,
   ERR_NOT_READY,
   ERR_STALE_DOCUMENT,
   FRAME_FALLBACK_MS,
   KIND_EVT,
   KIND_RES,
-  NOT_YET_REQUESTS,
   PROTOCOL_VERSION,
   RUNTIME_KEY,
   STATE_EVENTS,
@@ -59,6 +58,12 @@ export interface MainContext {
    * (`accounts`, `chatCache`: «something changed, read again») always goes out.
    */
   readonly emit: (t: string, build: () => Plain) => void;
+  /**
+   * An event that is never throttled, coalesced or dropped (§5.3 «события
+   * свежести и квитанций не отбрасываются никогда»): incoming facts,
+   * coverage, human sends and the states of a preview send.
+   */
+  readonly post: (t: string, payload: Plain) => void;
 }
 
 /** The runtime answers a request: data, a promise of data, or a BRIDGE_ERRORS string. */
@@ -91,6 +96,9 @@ export interface MainBridgeOptions {
    */
   readonly exposeRuntimeHook?: boolean;
 }
+
+/** The request envelope (contracts BridgeRequestSchema minus the payload). */
+export const isRequestEnvelope = shape({ v: is(1), kind: is('req'), id: int(1), t: (value) => typeof value === 'string', documentEpoch: orNull(isToken), seq: count, payload: () => true });
 
 const HEX = '0123456789abcdef';
 
@@ -168,6 +176,7 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
       if (wait > 0) setTimer(flush, wait);
       else flush();
     },
+    post: (t, payload) => send({ kind: KIND_EVT, t, payload }),
   };
 
   const onPortMessage = (event: MessageEvent): void => {
@@ -176,7 +185,6 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
     const { id, t, payload, documentEpoch: theirs } = data as { id: number; t: string; payload: unknown; documentEpoch: string | null };
     let outcome: unknown;
     if (theirs !== null && theirs !== documentEpoch()) outcome = ERR_STALE_DOCUMENT;
-    else if (NOT_YET_REQUESTS.includes(t)) outcome = ERR_DISABLED;
     else if (writes.has(id)) outcome = writes.get(id);
     else if (t === 'probe') outcome = isPlain(payload) && !Object.keys(payload).length ? { v: PROTOCOL_VERSION, readyStateAtStart, installMs, wsTap: hasOwn.call(win, tapKey) } : ERR_BAD_REQUEST;
     else {

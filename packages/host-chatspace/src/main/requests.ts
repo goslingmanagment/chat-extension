@@ -3,7 +3,8 @@
 // carries none of them.
 
 import { count, int, is, isDigest, isId, isToken, isUuid, orNull, shape, type Check, type Plain } from './check';
-import { MAX_PARTS, MAX_SNAPSHOT, MAX_STRING, MAX_VARIANTS } from './protocol';
+import { type Checkpoint } from './live';
+import { KNOWN_FAN_MESSAGES, MAX_PARTS, MAX_SNAPSHOT, MAX_STRING, MAX_VARIANTS, SEND_MAX_CHARS } from './protocol';
 
 const isChat = shape({ host: is('chatspace', 'fansly-web'), hostAccountId: isId, platformFanId: isId });
 
@@ -51,10 +52,12 @@ export interface NavigationWire {
   readonly thenInsert?: InsertWire;
 }
 
+const isPart = shape({ index: int(0, MAX_PARTS - 1), 'variant?': int(0, MAX_VARIANTS - 1) });
+
 const insertKeys = shape({
   intentId: isUuid,
   operationId: isUuid,
-  part: shape({ index: int(0, MAX_PARTS - 1), 'variant?': int(0, MAX_VARIANTS - 1) }),
+  part: isPart,
   target: isChat,
   expected: (value) =>
     shape({ kind: is('open'), documentEpoch: isToken, routeEpoch: count, composerInstanceId: isToken, draftRevision: count, draftDigest: isDigest })(value) ||
@@ -73,6 +76,51 @@ const isInsert: Check = (value) => {
   return insert.expiresAt > insert.createdAt && (insert.expected.kind === 'open' || (insert.confirmationId === null && insert.mode === 'replace'));
 };
 
+/** The preview send as MAIN gets it (contracts MainSendRequestSchema): no hub binding, no ticket, no token. */
+export interface SendRequest {
+  readonly attemptId: string;
+  readonly acc: string;
+  readonly fan: string;
+  readonly platformAccountId: string;
+  readonly plainText: string;
+  readonly isAiGenerated: boolean;
+  readonly checkpoint: Checkpoint;
+  /** The hub ticket's deadline on the local clock: later is `held`, never a late send (§6.7.11). */
+  readonly expiresAt: number;
+}
+
+const sendKeys = shape({
+  attemptId: isUuid,
+  acc: isId,
+  fan: isId,
+  platformAccountId: isId,
+  part: isPart,
+  previewRevision: count,
+  plainText: (value) => typeof value === 'string' && value.length > 0 && value.length <= SEND_MAX_CHARS,
+  isAiGenerated: is(true, false),
+  // contracts FreshnessCheckpointSchema; its refinements and the request's are below.
+  checkpoint: shape({
+    documentEpoch: isToken,
+    socketEpoch: count,
+    subscriptionEpoch: count,
+    hostAccountId: isId,
+    platformFanId: isId,
+    fanSequence: count,
+    lastFanMessageId: orNull(isId),
+    knownFanMessageIds: (value) => Array.isArray(value) && value.length <= KNOWN_FAN_MESSAGES && value.every(isId) && new Set(value).size === value.length,
+    observedAt: count,
+    coverage: is('ok', 'unknown'),
+  }),
+  expiresAt: count,
+});
+
+/** The checkpoint is the target chat's and its newest known id is its last one. */
+const isSend: Check = (value) => {
+  if (!shape({ req: sendKeys })(value)) return false;
+  const { acc, fan, checkpoint } = (value as { req: SendRequest }).req;
+  return checkpoint.hostAccountId === acc && checkpoint.platformFanId === fan && (checkpoint.knownFanMessageIds[0] ?? null) === checkpoint.lastFanMessageId;
+};
+
 const accFan = { acc: isId, fan: isId };
 const max = int(1, MAX_SNAPSHOT);
 const empty = shape({});
@@ -80,8 +128,8 @@ const byExpected = shape({ expected: isIdentity });
 
 /**
  * Payload check per request type (contracts TO_MAIN[t].payload); a type that
- * is not here is unknown to the runtime. `probe` is the boot's; the part B
- * requests (NOT_YET_REQUESTS) are refused before their payload is looked at.
+ * is not here is unknown to the runtime. `probe` is the boot's; the last four
+ * (LIVE_REQUESTS) are answered by the tap script's live port, after the check.
  */
 export const PAYLOAD: Record<string, Check> = {
   snapshot: empty,
@@ -100,5 +148,8 @@ export const PAYLOAD: Record<string, Check> = {
     return !then || (fan !== null && then.expected.kind === 'deferred' && then.target.hostAccountId === acc && then.target.platformFanId === fan);
   },
   cancelInsert: shape({ intentId: isUuid }),
+  checkpoint: shape(accFan),
+  previewSendPreflight: isSend,
+  previewSendCommit: isSend,
   flags: shape({ wsTap: is(true, false), previewSend: is(true, false) }),
 };

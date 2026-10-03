@@ -109,15 +109,15 @@ describe('[EX-008] the boot routes requests to the runtime', () => {
     expect(await client.request('listAccounts', {})).toEqual([]);
   });
 
-  it('part B requests get the typed «not yet» before execution', async () => {
-    const { client, calls } = await connected();
+  it('the live requests go to the runtime like any other; its `disabled` (no tap script) is a refusal before execution', async () => {
+    const { client, calls } = await connected(() => 'disabled');
     for (const t of ['checkpoint', 'previewSendPreflight', 'previewSendCommit'] as const) {
       const payload = t === 'checkpoint' ? { acc: '1001', fan: '2002' } : ({} as never);
       const error = (await client.request(t, payload).catch((e: unknown) => e)) as BridgeCallError;
       expect(error.failure).toBe('disabled');
       expect(error.executed).toBe('no');
     }
-    expect(calls).toEqual([]);
+    expect(calls.map((call) => call.t)).toEqual(['checkpoint', 'previewSendPreflight', 'previewSendCommit']);
   });
 
   it('a write is executed once per request id; its answer is checked against the contract', async () => {

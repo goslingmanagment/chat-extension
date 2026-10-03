@@ -10,7 +10,7 @@
 // happy-dom has no layout: visibility and boxes are stubbed per element.
 
 type Listener = (payload: { transaction?: { docChanged?: boolean } }) => void;
-type ActionContext = { name: string; args: unknown[]; after: (cb: () => void) => void };
+type ActionContext = { name: string; args: unknown[]; after: (cb: (result: unknown) => void) => void; onError: (cb: () => void) => void };
 
 /** A Tiptap-like editor: one paragraph per line break run, transactions on every change. */
 export class FakeEditor {
@@ -89,27 +89,51 @@ export interface FakeComposer {
 export interface FakeStore {
   readonly $id: string;
   $onAction(listener: (context: ActionContext) => void, detached?: boolean): () => void;
+  /** State subscribers, called by `$changed()` (Pinia's `flush: 'sync'`: once per state change). */
+  $subscribe(listener: () => void, options?: unknown): () => void;
+  /** Test side: the store's state changed. */
+  $changed(): void;
   [member: string]: unknown;
 }
 
-/** A Pinia-like store: methods listed in `actions` notify $onAction subscribers before they run. */
+/**
+ * A Pinia-like store: methods listed in `actions` notify $onAction
+ * subscribers before they run, then `after` with the result (or `onError`
+ * when the action throws); `$changed()` plays a state change for
+ * `$subscribe` listeners.
+ */
 export function fakeStore(id: string, members: Record<string, unknown>, actions: readonly string[] = []): FakeStore {
   const listeners = new Set<(context: ActionContext) => void>();
+  const subscribers = new Set<() => void>();
   const store: FakeStore = {
     $id: id,
     $onAction(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    $subscribe(listener) {
+      subscribers.add(listener);
+      return () => subscribers.delete(listener);
+    },
+    $changed() {
+      for (const subscriber of [...subscribers]) subscriber();
+    },
     ...members,
   };
   for (const name of actions) {
     const original = members[name] as (...args: unknown[]) => unknown;
     store[name] = (...args: unknown[]) => {
-      const afters: Array<() => void> = [];
-      for (const listener of [...listeners]) listener({ name, args, after: (cb) => afters.push(cb) });
-      const result = original(...args);
-      for (const after of afters) after();
+      const afters: Array<(result: unknown) => void> = [];
+      const errors: Array<() => void> = [];
+      for (const listener of [...listeners]) listener({ name, args, after: (cb) => afters.push(cb), onError: (cb) => errors.push(cb) });
+      let result: unknown;
+      try {
+        result = original(...args);
+      } catch (error) {
+        for (const onError of errors) onError();
+        throw error;
+      }
+      for (const after of afters) after(result);
       return result;
     };
   }

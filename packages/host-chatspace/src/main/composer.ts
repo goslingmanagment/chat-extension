@@ -48,6 +48,12 @@ export interface Composer {
   provenance: Provenance;
   /** The insert intent of our unchanged insert; null once anything else changed the draft. */
   ours: string | null;
+  /**
+   * The insert of ours the draft descends from, with the revision right after
+   * it (§6.6: a later revision means the person edited it). The chain ends
+   * when the draft is emptied — a send, or the person clearing the field.
+   */
+  from: { readonly id: string; readonly revision: number } | null;
   /** Without an editor: the last text digest read, to notice changes we could not observe. */
   seen: string | null;
 }
@@ -136,6 +142,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
     }
     composer.editor = null;
     composer.off = null;
+    composer.from = null;
   };
 
   const onTransaction = (composer: Composer, payload: { transaction?: { docChanged?: boolean } }): void => {
@@ -147,6 +154,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
     } else {
       composer.ours = null;
       composer.provenance = composer.editor?.isEmpty ? 'empty' : 'human-or-unknown';
+      if (composer.provenance === 'empty') composer.from = null;
     }
     changed(composer);
   };
@@ -233,7 +241,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
     bind(slot: Element, acc: string, fan: string): Composer | null {
       let composer = bySlot.get(slot);
       if (!composer) {
-        composer = { id: `c${next++}`, slot, acc, fan, editor: null, off: null, revision: 0, provenance: 'empty', ours: null, seen: null };
+        composer = { id: `c${next++}`, slot, acc, fan, editor: null, off: null, revision: 0, provenance: 'empty', ours: null, from: null, seen: null };
         bySlot.set(slot, composer);
       }
       if (composer.acc !== acc || composer.fan !== fan) return null;
@@ -284,6 +292,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
       if (composer.editor && composer.revision !== before) {
         composer.provenance = wholeOurs ? 'our-insert' : 'human-or-unknown';
         composer.ours = wholeOurs ? intent.intentId : null;
+        composer.from = { id: intent.intentId, revision: composer.revision };
       }
       const wanted = normalize(intent.text);
       return Promise.resolve().then(

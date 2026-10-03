@@ -42,6 +42,7 @@ async function start(setup?: (page: FakePage) => void): Promise<Harness> {
     setTimer: (callback, ms) => setTimeout(callback, ms),
     frame: (callback) => frames.push(callback),
     emit: (t, build) => events.push({ t, payload: build() }),
+    post: (t, payload) => events.push({ t, payload }),
   };
   const runtime = createMainRuntime(context);
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -127,7 +128,8 @@ describe('MAIN runtime — reads (§6.1)', () => {
     expect(snapshot.hostLoginEpoch).toBe('L1');
     expect(snapshot.composer).toMatchObject({ chat: { platformFanId: FAN }, ready: true, hidden: false, draft: { revision: 0, provenance: 'empty' } });
     expect(snapshot.accounts).toEqual([{ host: 'chatspace', hostAccountId: ACC, platform: 'onlyfans', platformAccountId: '3003', username: 'model_one', displayName: 'Model One' }]);
-    expect(snapshot.contract).toMatchObject({ missing: ['pendingMessages', 'composerTranslator'], shape: [] });
+    // No tap script here: `wsFrames` is missing with it.
+    expect(snapshot.contract).toMatchObject({ missing: ['pendingMessages', 'composerTranslator', 'wsFrames'], shape: [] });
     expect(h.events.map((event) => event.t)).toEqual(expect.arrayContaining(['route', 'accounts', 'contract', 'composer']));
   });
 
@@ -823,7 +825,7 @@ describe('MAIN runtime — requests', () => {
     h.dispose();
     document.body.replaceChildren();
     const events: string[] = [];
-    const bare = createMainRuntime({ win: window, documentEpoch: 'doc2', now: () => 0, setTimer: (cb, ms) => setTimeout(cb, ms), frame: (cb) => cb(), emit: (t) => events.push(t) });
+    const bare = createMainRuntime({ win: window, documentEpoch: 'doc2', now: () => 0, setTimer: (cb, ms) => setTimeout(cb, ms), frame: (cb) => cb(), emit: (t) => events.push(t), post: (t) => events.push(t) });
     expect(bare.handle('fan', { acc: ACC, fan: FAN })).toBe('not-ready');
     expect(bare.handle('listAccounts', {})).toEqual([]);
     // While #app is not there (still searching or given up), only `app` is reported, as missing.

@@ -42,6 +42,24 @@ export const KEY_PERMISSIONS = 'userPermissions';
 export const KEY_BUYING_POWERS = 'onlyfansBuyingPowers';
 export const KEY_INSIGHTS = 'fanInsights';
 
+/** The accounts store: `subscribedAccountIds` — the accounts ChatSpace asked its socket to subscribe (§6.7.5). */
+export const STORE_ACCOUNTS = 'accounts';
+/**
+ * Path of ChatSpace's own socket URL (its config's `onlyMonsterWSUrl`); the
+ * tap listens on that socket only (§6.8 п. 2). The path, not the origin: MAIN
+ * names no origin.
+ */
+export const WS_PATH = '/api/chat-space/ws';
+/** Socket events the tap parses; any other frame only tells its account (§6.8 п. 4). */
+export const WS_NEW_MESSAGE = 'account_new_message';
+export const WS_AUTHENTICATED = 'authenticated';
+/** The native send request, `POST api/v0/accounts/{acc}/chats/{chat}/messages` (§6.7.2): account and chat of a URL's path. */
+export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messages$/;
+/** The role permission that takes the Send button away (§6.7.4 п. 8). */
+export const PERMISSION_NO_SEND = 'of_block_message_sending';
+/** Server code of a Message Guard refusal (§6.7.4 п. 16). */
+export const GUARD_CODE = 'MESSAGE_GUARD_VIOLATION';
+
 /** `localStorage['chat-space:draft:of:{acc}:{fan}']` = `{ body: { json: <Tiptap JSON>, … }, updatedAt }` (§6.1). */
 export const DRAFT_KEY_PREFIX = 'chat-space:draft:of:';
 export const draftKey = (hostAccountId: string, platformFanId: string): string => `${DRAFT_KEY_PREFIX}${hostAccountId}:${platformFanId}`;
@@ -50,3 +68,52 @@ export const draftKey = (hostAccountId: string, platformFanId: string): string =
 export const THEME_DARK_CLASS = 'dark';
 export const THEME_TOKEN_PREFIX = '--color-om-';
 export const FIXED_WIDTH_VARIABLE = '--app-content-max-width';
+
+/**
+ * A built module of ChatSpace: `/assets/<role>-<hash>.js`, the hash being
+ * Vite's 8-character content hash (so a changed module is another file).
+ */
+export const MODULE_PATTERN = /\/assets\/([\w.-]+?)-([\w-]{8})\.js$/;
+/**
+ * The modules the X8 send path and its receipt live in (§6.2 «профиль пути
+ * отправки и квитанции»), by the name before the hash, with what each
+ * carries in 0.172.0:
+ * - `notificationEntry` — the send queue store and its sequence, the request body;
+ * - `composables` — the HTTP client (where `fetch` is captured), the 401
+ *   handler, the socket bus, the query cache, the role permissions;
+ * - `messages` — the echo handler of the open chat, the composer and its
+ *   translator;
+ * - `accounts` — the accounts store and its socket subscriptions, the chat
+ *   list's echo handling, the fans map;
+ * - `inbox` — Mimic's settings and chats.
+ * The entry module (`index-*`) is not one of them: it is the build
+ * fingerprint, a diagnostic.
+ */
+export const RECEIPT_MODULE_ROLES: readonly string[] = ['notificationEntry', 'composables', 'messages', 'accounts', 'inbox'];
+
+/**
+ * The adapter's own version, reported in the contract check; a receipt
+ * profile names the version it was approved for (§6.2). It changes when the
+ * adapter's reading of the send path changes.
+ */
+export const ADAPTER_VERSION = '0.2.0';
+
+/**
+ * Member names of ChatSpace's own objects that the MAIN side reads or calls
+ * (MAIN names them inline: it cannot import this file). Listed here for
+ * `tools/host-contract-check`, which looks for every string of this file in a
+ * local copy of the bundles; the send queue's action name is the send port's
+ * own (tools/gates keeps it in one file).
+ */
+export const HOST_MEMBERS = {
+  app: ['__vue_app__'],
+  composerBridge: ['__omComposerBridge', 'setText', 'insertText'],
+  queue: ['messagesByAccountId', 'processingByAccountId', 'composerContent', 'platformMetadata', 'isAiGenerated', 'isCopied', 'hasAttachments'],
+  chatTabs: ['stateByAccountId', 'activeEntryId'],
+  accounts: ['subscribedAccountIds', 'platformAccountId'],
+  fans: ['isBlocked', 'canReceiveMessages', 'isRestricted'],
+  mimic: ['isActive'],
+  translator: ['getAccountSettings', 'autoTranslate'],
+  socketFrames: ['account_id', 'is_from_fan', 'chatId', 'isFromQueue', 'isTip', 'sentAt'],
+  guard: ['topic_matches'],
+} as const;

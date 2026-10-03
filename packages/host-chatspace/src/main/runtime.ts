@@ -8,7 +8,11 @@
 //   queue are watched with $onAction (passive; the queue only for sign-out).
 // - Writes (D-07): the guarded insert through ChatSpace's composer bridge and
 //   router.push on a human action (the isolated side redeemed the token).
-//   Part B adds the X8 queue call in send-port.ts.
+//   The third write, the X8 queue call, is the tap script's (send-port.ts).
+// - The tap script (chatspace-ws), when the background registered it, hands
+//   over its live port (live.ts): the freshness checkpoint, the X8 send port,
+//   the flags and the `wsFrames` anchor. Without it those requests are
+//   `disabled` and nothing of §6.6–§6.8 runs.
 // Never (§6.10): requests of its own, history loads, store/cache writes,
 // resend/cancel/confirmEchoedMessage/reset*, ensure*/refresh*/fetch/
 // invalidate*, insertMessage/setInsertPayload, synthetic paste, body
@@ -17,7 +21,8 @@
 
 import { type MainContext, type MainRuntime } from './bridge';
 import { isPlain, type Plain } from './check';
-import { createComposers, rejected, type Composer, type Composers, type Receipt } from './composer';
+import { createComposers, digest, normalize, rejected, type Composer, type Composers, type Receipt } from './composer';
+import { type LiveHost, type LivePort, type WsTapHandle } from './live';
 import { chatRef, createReader, findApp, hasChatRoute, readRoute, type ActionListener, type App, type PageStore, type Reader, type Route } from './page';
 import {
   APP_SEARCH,
@@ -29,6 +34,7 @@ import {
   CG_NAV_TIMEOUT,
   EDITOR_WATCH_MS,
   ERR_BAD_REQUEST,
+  ERR_DISABLED,
   ERR_IDENTITY,
   ERR_NOT_READY,
   ERR_UNKNOWN_REQUEST,
@@ -40,17 +46,21 @@ import {
   KEY_MIMIC_CHATS,
   KEY_MIMIC_SETTINGS,
   KEY_PERMISSIONS,
+  LIVE_REQUESTS,
   ROUTE_CHAT,
+  STORE_ACCOUNTS,
   STORE_CACHE,
   STORE_QUEUE,
   STORE_TABS,
+  WS_TAP_KEY,
 } from './protocol';
 import { PAYLOAD, type Identity, type InsertWire, type NavigationWire } from './requests';
+import { QUEUE_SEND, queueShape } from './send-port';
 
 type NavReceipt = { readonly state: 'navigated'; readonly routeEpoch: number; readonly insert: Receipt | null } | { readonly state: 'failed'; readonly code: string; readonly insert: Receipt | null };
 
-/** Anchors MAIN reports (contracts ANCHOR_IDS minus the DOM ones of the isolated side and the part B ones). */
-const MAIN_ANCHORS = ['app', 'router', 'accounts', 'composerBridge', 'chatMessages', 'fansMap', 'pendingMessages', 'chatList', 'composerTranslator', 'mimic', 'userPermissions'];
+/** Anchors MAIN reports (contracts ANCHOR_IDS minus the ones the isolated side checks: the DOM ones and the receipt profile). */
+const MAIN_ANCHORS = ['app', 'router', 'accounts', 'composerBridge', 'chatMessages', 'fansMap', 'pendingMessages', 'chatList', 'composerTranslator', 'mimic', 'userPermissions', 'wsFrames'];
 /** Cache reads of the bridge itself, ignored by its cache observer. */
 const CACHE_READS = ['get', 'getQueryData', 'getEntries'];
 /** Cache keys whose change can mount, unmount or hide the open chat's composer. */
@@ -92,6 +102,10 @@ export function createMainRuntime(context: MainContext): MainRuntime {
    * clears it. Writes and reads for the isolated side always search afresh.
    */
   let typing: { readonly epoch: number; readonly composer: Composer } | null = null;
+  /** The tap script's live port (live.ts), taken once; null — no tap script, or the page took it first. */
+  let live: LivePort | null | undefined;
+  /** The accounts store is watched: only then its subscription set means anything. */
+  let subscriptions: PageStore | null = null;
 
   // ── reads ──
 
@@ -213,7 +227,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       app: app && findApp(doc)?.app === app.app ? 'ok' : 'missing',
       router: !app?.router ? 'missing' : hasChatRoute(app.router) ? 'ok' : 'shape',
     };
-    if (app) Object.assign(found, Object.assign(sticky, reader.anchors(read.acc, read.fan)));
+    if (app) Object.assign(found, Object.assign(sticky, reader.anchors(read.acc, read.fan)), { wsFrames: livePort()?.anchor() ?? 'missing' });
     const listed = (state: string): string[] => MAIN_ANCHORS.filter((key) => (found[key] ?? 'ok') === state);
     // Without #app (still searching, or given up after 60 s) the host is simply not ready: nothing else is judged.
     return { build: reader.build(), missing: app ? listed('missing') : ['app'], shape: app ? listed('shape') : [], receiptModules: {} };
@@ -236,6 +250,57 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   const composerOf = (expected: Identity): Composer | null => {
     const composer = identityMatches(expected) && expected.chat ? activeComposer() : null;
     return composer && composer.id === expected.composerInstanceId ? composer : null;
+  };
+
+  // ── the tap script's live port ──
+
+  const liveHost: LiveHost = {
+    epoch: () => context.documentEpoch,
+    post: context.post,
+    route,
+    store: (id) => reader.store(id),
+    data: (...key) => reader.data(...key),
+    entry: (...key) => reader.entry(...key),
+    queue: () => {
+      const queue = reader.store(STORE_QUEUE);
+      return queue && queueShape(queue) === 'ok' ? queue : null;
+    },
+    entries: (acc) => {
+      const all = reader.store(STORE_QUEUE)?.['messagesByAccountId'];
+      const list = isPlain(all) ? all[acc] : null;
+      return Array.isArray(list) ? (list as unknown[]).filter(isPlain) : [];
+    },
+    members: () => {
+      const set = subscriptions?.['subscribedAccountIds'] as Set<unknown> | undefined;
+      if (typeof set?.forEach !== 'function') return null;
+      const ids: string[] = [];
+      set.forEach((id) => ids.push(String(id)));
+      return { has: (acc) => ids.includes(acc) };
+    },
+    /** §6.6 п. 1–2: called inside the queue action, before the native send clears the field. */
+    draft: (acc, fan) => {
+      const read = route();
+      const composer = read.acc === acc && read.fan === fan ? activeComposer() : null;
+      if (!composer || !composers || !composer.editor) return null;
+      const now = composers.read(composer);
+      const from = now.empty ? null : composer.from;
+      const ours = !!from && composer.provenance === 'our-insert' && composer.revision === from.revision;
+      const provenance = now.empty ? 'empty' : ours ? 'our-insert' : 'human-or-unknown';
+      return { digest: digest(normalize(now.text)), draft: { revision: composer.revision, provenance, insertIntentId: from?.id ?? null, editedSinceInsert: from ? !ours : null } };
+    },
+    changed: () => emit('contract', contractPayload),
+  };
+  /** Taken on first need: the tap script may run before or after this one, both at document_start. */
+  const livePort = (): LivePort | null => {
+    if (live === undefined && !disposed) {
+      live = null;
+      try {
+        live = (Reflect.get(win, Symbol.for(WS_TAP_KEY)) as WsTapHandle | undefined)?.attach(liveHost) ?? null;
+      } catch {
+        // Not our handle, or the page took the port: no live port.
+      }
+    }
+    return live ?? null;
   };
 
   // ── writes ──
@@ -386,13 +451,36 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       if (store.$id === STORE_CACHE) store.$onAction(onCacheAction, true);
       // A chat tab activated, closed or given another chat: ChatSpace shows another composer, maybe before the route follows.
       if (store.$id === STORE_TABS) store.$onAction(({ after }) => after(composerSoon), true);
-      // A sign-out resets ChatSpace's send queue: a new host login epoch (identities from before no longer match).
       if (store.$id === STORE_QUEUE)
-        store.$onAction(({ name }) => {
-          if (name !== 'resetAll' || disposed) return;
+        store.$onAction(({ name, args, after, onError }) => {
+          if (disposed) return;
+          // A send, ours or the person's: the live port hears of it before the queue acts (§6.6).
+          // Pinia calls us inside ChatSpace's own action: a failure of ours must never reach its send.
+          try {
+            if (name === QUEUE_SEND) livePort()?.sent(args[0], after, onError);
+          } catch {
+            // The send goes on unobserved.
+          }
+          // A sign-out resets ChatSpace's send queue: a new host login epoch (identities from before no longer match).
+          if (name !== 'resetAll') return;
           login += 1;
           emit('route', routePayload);
         }, true);
+      // Only with a tap: its freshness needs every change of ChatSpace's subscription set (§6.7.5).
+      if (store.$id === STORE_ACCOUNTS && store.$subscribe && livePort()) {
+        store.$subscribe(
+          () => {
+            try {
+              live?.sync();
+            } catch {
+              // Inside ChatSpace's own state change: a failure of ours stays here.
+            }
+          },
+          { detached: true, flush: 'sync' },
+        );
+        subscriptions = store;
+        live?.sync();
+      }
     } catch {
       // Not shaped as expected; the contract check reports it.
     }
@@ -442,8 +530,6 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   // ── requests ──
 
   const handle = (t: string, payload: Plain): unknown => {
-    // Part B wires the tap and the send port; until then both flags read back as off.
-    if (t === 'flags') return { wsTap: false, previewSend: false };
     if (t === 'snapshot') return { ...routePayload(), composer: composerState(), accounts: reader.accounts(), contract: contractPayload() };
     if (t === 'listAccounts') return reader.accounts();
     if (!app) return ERR_NOT_READY;
@@ -484,7 +570,10 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     handle(t, payload) {
       const check = PAYLOAD[t];
       if (!check) return ERR_UNKNOWN_REQUEST;
-      return check(payload) ? handle(t, payload as Plain) : ERR_BAD_REQUEST;
+      if (!check(payload)) return ERR_BAD_REQUEST;
+      // Without the tap script nothing of these runs: a send is `held`, there is no checkpoint, both flags read back off.
+      if (LIVE_REQUESTS.includes(t)) return livePort()?.handle(t, payload as Plain) ?? (t === 'flags' ? { wsTap: false, previewSend: false } : ERR_DISABLED);
+      return handle(t, payload as Plain);
     },
     dispose() {
       pending?.cancel(CG_CANCELED);
