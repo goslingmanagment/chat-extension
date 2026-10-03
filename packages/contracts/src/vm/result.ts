@@ -182,6 +182,7 @@ export interface PartVM {
   readonly label: Msg;
   /** A single message (Split off) has no number. */
   readonly numbered: boolean;
+  /** The parsed AI part; not editable in v1 (what «Отправить» sends, what «Вставить» inserts). */
   readonly text: string;
   /** The next part to insert: «Вставить ↵» as a line button. */
   readonly next: boolean;

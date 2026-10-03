@@ -162,7 +162,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('RestoreMyDraft', { operationId: UuidSchema }),
   act('AnswerConfirm', { confirmationId: UuidSchema, choice: z.enum(['replace', 'append', 'cancel']) }),
   act('OpenAndInsertPart', { operationId: UuidSchema, variant, part }),
-  /** X8: a button click only; never a hotkey, never «send all», never the next part by itself. */
+  /**
+   * X8: a button click only; never a hotkey, never «send all», never the next
+   * part by itself. No revision: parts are not editable in v1, the part sent
+   * is the parsed AI part the PartVM shows.
+   */
   act('SendPart', { operationId: UuidSchema, variant, part }),
   act('OpenChatToVerify', { attemptId: UuidSchema }),
   /** Writes `copied` only after the clipboard write succeeded. */

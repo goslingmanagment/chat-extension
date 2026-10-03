@@ -41,6 +41,7 @@ export const GREETING_STATUSES = ['none', 'claim-mine', 'claim-other', 'claim-el
 /** The greeting lease of the open card (H-7: 120 s, renewed every 40 s while the person works). */
 export type ClaimVM =
   | { readonly s: 'none' }
+  /** `until`: the lease deadline on the local clock (send-rules localDeadline of `lease.expiresAt` and `serverNow`). */
   | { readonly s: 'mine'; readonly until: number; readonly renew: ActionButtonVM; readonly release: ActionButtonVM }
   /** CG-CLAIM-BUSY: a colleague holds the lease (never named, H-7); Hi off while they do; no countdown. */
   | { readonly s: 'other'; readonly error: CgErrorView }

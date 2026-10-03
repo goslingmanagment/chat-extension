@@ -14,14 +14,15 @@
 | `catalog.ts` | `ActionCatalog`, `HotkeyLabel` (подпись, `aria-keyshortcuts`, доставка, запасная клавиша), причины недоступности с ключом i18n и кодом CG |
 | `i18n.ts` | порт `I18n`: `t`, `plural`, `formatMoneyMills`, `formatAge`, `formatTime`, `formatDuration`; `Msg` — ключ с параметрами |
 | `theme.ts` | имена токенов `--cg-*` (ровно список ui-design §2.2), сигнал схемы, атрибут `data-cg-scheme` |
-| `result.ts`, `dock.ts` | `ResultVM`, `PartVM`, `PreviewSendView` (девять состояний), `DockVM` |
+| `result.ts`, `dock.ts` | `ResultVM`, `PartVM`, `PreviewSendView` (девять состояний) и `previewSendStateOf` (попытка и preflight → состояние), `DockVM` |
 | `analysis.ts` | `RecapPickerVM`, `RecapViewVM`, `ReviewVM`, `CoachVM` |
 | `spenders.ts`, `preview.ts`, `newcomers.ts` | доска и статистика, превью, «Новые» с бронью |
 | `panels.ts`, `pages.ts` | панель фана, палитра, быстрый переход, шпаргалка, тосты; popup, настройки по разделам, эхо промпта, журналы |
 | `app-client.ts`, `ports.ts` | `AppClient`, `ViewOf`, `ActionReceipt`; `MountPort`, `ToastPort`, `ClipboardPort`, `DialogPort`, метки отрисовки, `resultCap` |
 
 Поддельный клиент и сценарии — `packages/testing/src/scenarios/app-client/`, подпуть
-`@cg/testing/app-client`.
+`@cg/testing/app-client`. Поддельный `HostPort` для контроллеров —
+`@cg/testing/host` (`packages/testing/src/scenarios/host/`).
 
 ## Решения
 
@@ -47,6 +48,13 @@
    `CoverageLevel` из `ops`; причина «Отправить» берёт текст из `SEND_REASON_KEYS`;
    статусы приветствия — `GREETING_STATUSES`. Поддельный клиент строит ошибки через
    настоящий реестр CG и каталог ru/en.
+10. **Ревью R01.** Строку «Отправить» строит `previewSendStateOf` — одна таблица
+    для контроллеров превью и «Новых». Хаб не называет держателя брони: у
+    приветствия и брони есть «коллега» (`claim-other`, `other`) и «вы в другой
+    вкладке» (`claim-elsewhere`, `elsewhere`, Hi выключен), имени нет — тексты без
+    `{name}`. `FeedItemVM.at` и `.automatic` бывают `null` («неизвестно»). У панели
+    фана названы источники: деньги и подписка — `fan.card`, «был N назад», био,
+    списки и оценки ChatSpace — `HostFan`, риск ухода — статус удержания строки доски.
 
 ## Сценарии
 
