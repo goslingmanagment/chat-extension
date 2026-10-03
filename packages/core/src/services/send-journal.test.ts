@@ -52,7 +52,7 @@ describe('[X8-07] the send journal: written before the command, never retried wh
     local.failNext('set', 'full');
     expect(await journal.begin(entry(1))).toMatchObject({ ok: false, code: 'CG-STORAGE-FULL' });
     expect(journal.open()).toEqual([]);
-    expect(logs.filter((item) => item.msg === 'send journal record not saved: no enqueue')).toHaveLength(2);
+    expect(logs.filter((item) => item.msg === 'send journal record not saved: no queue call')).toHaveLength(2);
     // The next click journals normally.
     expect((await journal.begin(entry(2))).ok).toBe(true);
   });

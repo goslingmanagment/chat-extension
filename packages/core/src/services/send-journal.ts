@@ -263,7 +263,7 @@ export function createSendJournal(deps: SendJournalDeps): SendJournal {
         const next = bounded([...entries, entry], clock.now());
         const saved = await persist(next);
         if (!saved.ok) {
-          log({ level: 'error', scope: SCOPE, msg: 'send journal record not saved: no enqueue', code: saved.code });
+          log({ level: 'error', scope: SCOPE, msg: 'send journal record not saved: no queue call', code: saved.code });
           return { ok: false, code: saved.code, detail: saved.detail };
         }
         entries = next;
