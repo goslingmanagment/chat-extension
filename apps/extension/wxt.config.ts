@@ -39,6 +39,11 @@ export default defineConfig({
     define: { __CG_TEST_HOSTS__: JSON.stringify(flavor === 'test') },
     oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
     build: { target: 'firefox142', sourcemap: false },
+    // WXT imports each entry point in Node (its `inline` environment) to read
+    // its options. Node cannot resolve the vendored SDK's extensionless ESM
+    // imports, so the first `@cg/hub` import in the background (R08) failed
+    // `wxt build`; inline the SDK there instead of loading it natively.
+    environments: { inline: { resolve: { noExternal: ['@kernel/sdk'] } } },
   }),
   hooks: {
     // After WXT cleaned the output dir, before entry points are built.
