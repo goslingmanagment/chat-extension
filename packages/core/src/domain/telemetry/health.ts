@@ -18,8 +18,10 @@ import {
   HEALTH_CODE_PATTERN,
   P1_COUNTERS,
   PERF_METRIC_NAMES,
+  PerfHistogramSchema,
   SAFETY_COUNTERS,
   type ClientHealthV1,
+  type PerfHistogram,
   type PerfMetric,
   type TabHealthReport,
 } from '@cg/contracts/telemetry';
@@ -90,6 +92,31 @@ function boundedList(values: Iterable<string>): string[] {
   return out;
 }
 
+/** A window as the background stores it (storage.session), so an unloaded event page does not lose it. Machine values only. */
+export interface HealthWindowSnapshot {
+  readonly v: 1;
+  readonly from: number;
+  readonly perf: readonly PerfHistogram[];
+  readonly counters: Readonly<Record<string, number>>;
+  readonly host: HostSummary | null;
+  readonly disabled: readonly string[];
+  readonly domNodesMax: number;
+  readonly tabCachesKB: Readonly<Record<string, number>>;
+}
+
+const TAB_KEY = /^[A-Za-z0-9-]{1,64}$/;
+const TABS_KEPT = 32;
+const HOST_BUILD_MAX = 80;
+
+function readHostSummary(value: unknown): HostSummary | null {
+  if (value === null || typeof value !== 'object') return null;
+  const raw = value as Partial<Record<keyof HostSummary, unknown>>;
+  if (raw.build !== null && (typeof raw.build !== 'string' || raw.build.length > HOST_BUILD_MAX)) return null;
+  if (typeof raw.contractOk !== 'boolean' || !Array.isArray(raw.missing) || !Array.isArray(raw.degraded)) return null;
+  const strings = (list: unknown[]): string[] => boundedList(list.filter((item): item is string => typeof item === 'string'));
+  return { build: raw.build ?? null, contractOk: raw.contractOk, missing: strings(raw.missing as unknown[]), degraded: strings(raw.degraded as unknown[]) };
+}
+
 export class HealthWindow {
   private readonly perf = new Map<PerfMetric, Histogram>();
   private readonly counters = new Map<string, number>();
@@ -148,15 +175,17 @@ export class HealthWindow {
     this.disabled = new Set(names);
   }
 
+  private mergeHistogram(histogram: PerfHistogram): void {
+    const own = this.perf.get(histogram.metric) ?? new Histogram(histogram.metric);
+    if (own.merge(histogram)) {
+      this.perf.set(histogram.metric, own);
+      this.samples += histogram.count;
+    } else this.count('perf.rejected');
+  }
+
   /** A tab's deltas since its last report (`health.report`). */
   mergeTab(tabSessionId: string, report: TabHealthReport): void {
-    for (const histogram of report.perf) {
-      const own = this.perf.get(histogram.metric) ?? new Histogram(histogram.metric);
-      if (own.merge(histogram)) {
-        this.perf.set(histogram.metric, own);
-        this.samples += histogram.count;
-      } else this.count('perf.rejected');
-    }
+    for (const histogram of report.perf) this.mergeHistogram(histogram);
     for (const [name, value] of Object.entries(report.counters)) this.count(name, value);
     if (report.host !== null) this.setHost(report.host);
     this.domNodesMax = Math.max(this.domNodesMax, report.footprint.domNodes);
@@ -211,6 +240,63 @@ export class HealthWindow {
       counters,
       footprint: { kind: 'owned-estimate', cachesKB: Math.max(0, Math.round(footprint.cachesKB + this.tabsCachesKB)), logsKB: Math.max(0, Math.round(footprint.logsKB)) },
     };
+  }
+
+  snapshot(): HealthWindowSnapshot {
+    return {
+      v: 1,
+      from: this.from,
+      perf: PERF_METRIC_NAMES.flatMap((metric) => {
+        const histogram = this.perf.get(metric);
+        return histogram === undefined || histogram.count === 0 ? [] : [histogram.toWire()];
+      }),
+      counters: Object.fromEntries(this.counters),
+      host: this.host === null ? null : { ...this.host, missing: [...this.host.missing], degraded: [...this.host.degraded] },
+      disabled: [...this.disabled],
+      domNodesMax: this.domNodesMax,
+      tabCachesKB: Object.fromEntries(this.tabCachesKB),
+    };
+  }
+
+  /**
+   * Adds a stored window to this one: histograms and counters add up, the
+   * host and the tabs' caches of the snapshot replace these (absorb the
+   * older first). Junk is skipped or counted as from a tab. Never throws.
+   */
+  absorb(value: unknown): void {
+    if (value === null || typeof value !== 'object') return;
+    const raw = value as Partial<Record<keyof HealthWindowSnapshot, unknown>>;
+    if (Array.isArray(raw.perf)) {
+      for (const item of raw.perf as unknown[]) {
+        const parsed = PerfHistogramSchema.safeParse(item);
+        if (parsed.success) this.mergeHistogram(parsed.data);
+        else this.count('perf.rejected');
+      }
+    }
+    if (raw.counters !== null && typeof raw.counters === 'object') {
+      for (const [name, count] of Object.entries(raw.counters)) if (typeof count === 'number') this.count(name, count);
+    }
+    const host = readHostSummary(raw.host);
+    if (host !== null) this.host = host;
+    if (Array.isArray(raw.disabled)) {
+      for (const name of boundedList((raw.disabled as unknown[]).filter((item): item is string => typeof item === 'string'))) this.disabled.add(name);
+    }
+    if (typeof raw.domNodesMax === 'number' && Number.isFinite(raw.domNodesMax) && raw.domNodesMax > 0) this.domNodesMax = Math.max(this.domNodesMax, Math.floor(raw.domNodesMax));
+    if (raw.tabCachesKB !== null && typeof raw.tabCachesKB === 'object') {
+      for (const [tab, kb] of Object.entries(raw.tabCachesKB).slice(0, TABS_KEPT)) {
+        if (TAB_KEY.test(tab) && typeof kb === 'number' && Number.isFinite(kb) && kb >= 0) this.tabCachesKB.set(tab, kb);
+      }
+    }
+  }
+
+  /** A stored window back as it was, or null when the value is not one. */
+  static fromSnapshot(value: unknown, maxSamplesPerMetric: number = HEALTH_SAMPLES_PER_METRIC_MAX): HealthWindow | null {
+    if (value === null || typeof value !== 'object') return null;
+    const raw = value as { v?: unknown; from?: unknown };
+    if (raw.v !== 1 || typeof raw.from !== 'number' || !Number.isFinite(raw.from) || raw.from < 0) return null;
+    const window = new HealthWindow(raw.from, maxSamplesPerMetric);
+    window.absorb(value);
+    return window;
   }
 
   /** A tab's report of this window's deltas (`health.report`). */

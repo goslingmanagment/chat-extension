@@ -9,6 +9,7 @@ export {
   AcceptanceTracker,
   type AcceptanceDeps,
   type AcceptanceOutcome,
+  type AcceptanceSnapshot,
   type GenerationLink,
   type PartPosition,
   type SentProof,
@@ -23,5 +24,6 @@ export {
   hostSummary,
   type HealthClient,
   type HealthFootprint,
+  type HealthWindowSnapshot,
   type HostSummary,
 } from './health';

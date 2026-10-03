@@ -548,8 +548,7 @@ function contract(missing: readonly (typeof ANCHOR_IDS)[number][] = [], build = 
   } as HostContractReport;
 }
 
-function reporterHarness() {
-  const c = clock();
+function reporterHarness(store?: KeyValuePort, c = clock()) {
   const queued: TelemetryEvent[] = [];
   const state = { consent: true, supported: true, open: true, accept: true };
   const reporter = new HealthReporter({
@@ -565,6 +564,7 @@ function reporterHarness() {
     client: () => CLIENT,
     footprint: () => ({ cachesKB: 10, logsKB: 200 }),
     disabled: () => ['flag:previewSend'],
+    ...(store === undefined ? {} : { store }),
   });
   return { c, queued, state, reporter };
 }
@@ -659,6 +659,93 @@ describe('[NEW-03] [DB-031] the client_health reporter', () => {
     expect((h.queued[1] as ClientHealthV1).host.missing).toEqual(['app']);
     await h.c.tick(120_000);
     expect(h.queued).toHaveLength(2);
+  });
+
+  it('[NEW-03] the window survives an event-page unload through storage.session', async () => {
+    const kv = new MemoryKv();
+    const h = reporterHarness(kv);
+    await h.reporter.start();
+    h.reporter.onHost(contract(['fansMap']));
+    h.reporter.recordPerf('insertMs', 40);
+    h.reporter.countCode('CG-INSERT-MISPLACED');
+    const tab = new TabHealthCollector(() => h.c.now);
+    tab.record('routeToDockMs', 9);
+    h.reporter.mergeTab(TAB, tab.takeReport(contract(['fansMap']), { cachesKB: 300, domNodes: 900 }));
+    await h.reporter.saved();
+    expect(h.reporter.stats().earlyPending).toBe(false);
+
+    // A new event page: one measurement before start(), then the stored window joins it.
+    await h.c.tick(60_000);
+    const woken = reporterHarness(kv, h.c);
+    woken.reporter.recordPerf('insertMs', 60);
+    await woken.reporter.start();
+    await woken.reporter.start();
+    expect(woken.reporter.stats().windowFrom).toBe(T0);
+    await woken.c.tick(TELEMETRY_LIMITS.healthWindowMs - 60_000);
+    expect(woken.reporter.tick()).toBe(true);
+    const report = woken.queued[0] as ClientHealthV1;
+    expect(ClientHealthV1Schema.safeParse(report).success).toBe(true);
+    expect(report.window.from).toBe('2026-10-03T12:00:00.000Z');
+    expect(report.perf.find((p) => p.metric === 'insertMs')?.count).toBe(2);
+    expect(report.perf.find((p) => p.metric === 'routeToDockMs')?.count).toBe(1);
+    expect(report.counters).toMatchObject({ 'CG-INSERT-MISPLACED': 1, 'p1.insert-misplaced': 1, 'footprint.dom-nodes-max': 900 });
+    expect(report.host.missing).toEqual(['fansMap']);
+    expect(report.footprint.cachesKB).toBe(310);
+    // The time of the last report is stored too: the 60 s limit of early sends holds across a wake.
+    await woken.reporter.saved();
+    const again = reporterHarness(kv, woken.c);
+    await again.reporter.start();
+    expect(again.reporter.stats().lastSentAt).toBe(woken.c.now);
+    again.reporter.onHost(contract(['app']));
+    await again.c.tick(59_999);
+    expect(again.queued).toHaveLength(0);
+    await again.c.tick(1);
+    expect(again.queued).toHaveLength(1);
+    // A reset (consent revoked, signed out) stores an empty window.
+    again.reporter.recordPerf('insertMs', 1);
+    again.reporter.reset();
+    await again.reporter.saved();
+    const empty = reporterHarness(kv, again.c);
+    await empty.reporter.start();
+    expect(empty.reporter.currentWindow().isEmpty()).toBe(true);
+  });
+
+  it('[NEW-03] a stored window that is not one is ignored; junk inside it is counted, never trusted', async () => {
+    const kv = new MemoryKv();
+    for (const junk of [null, 'junk', { v: 1, window: { v: 2, from: T0 } }, { v: 1, window: { v: 1, from: -1 } }]) {
+      kv.value = junk;
+      const h = reporterHarness(kv);
+      await h.reporter.start();
+      expect(h.reporter.currentWindow().isEmpty()).toBe(true);
+    }
+    kv.value = {
+      v: 1,
+      window: {
+        v: 1,
+        from: T0 - 1000,
+        perf: [{ metric: 'insertMs', unit: 'ms', schemaVersion: 99, bounds: [1], counts: [1, 0], count: 1, sum: 1, max: 1 }, 'x'],
+        counters: { 'CG-NETWORK': 2, 'bad name with spaces': 3, n: 'x' },
+        host: { build: 'x'.repeat(200), contractOk: true, missing: [], degraded: [] },
+        disabled: ['flag:recap', 5],
+        domNodesMax: -3,
+        tabCachesKB: { [TAB]: 12, 'bad tab id!': 5, other: -1 },
+      },
+      lastSentAt: 'x',
+      lastSignature: 5,
+    };
+    const h = reporterHarness(kv);
+    await h.reporter.start();
+    const window = h.reporter.currentWindow().snapshot();
+    expect(window).toMatchObject({ from: T0 - 1000, perf: [], host: null, disabled: ['flag:recap'], domNodesMax: 0, tabCachesKB: { [TAB]: 12 } });
+    expect(window.counters).toEqual({ 'perf.rejected': 2, 'CG-NETWORK': 2, 'health.bad-counter': 3 });
+    expect(h.reporter.stats().lastSentAt).toBeNull();
+    // A store that fails to load or save never breaks the reporter.
+    const broken: KeyValuePort = { load: () => Promise.reject(new Error('x')), save: () => Promise.reject(new Error('y')) };
+    const b = reporterHarness(broken);
+    await b.reporter.start();
+    b.reporter.recordPerf('insertMs', 1);
+    await b.reporter.saved();
+    expect(b.reporter.currentWindow().isEmpty()).toBe(false);
   });
 
   it('[NEW-03] a tab measures, samples handlers 1 in 20 and reports deltas', () => {

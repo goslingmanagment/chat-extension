@@ -7,14 +7,19 @@
 // contract sends the window early, at most once per 60 s. Nothing is
 // measured or kept without consent, and nothing is built at all until
 // bootstrap advertises `client-health-perf-v1`.
+//
+// An event page may be unloaded between the tabs' minute reports: the window
+// (numbers and machine tokens only), the time of the last report and the
+// contract fingerprint are saved to storage.session after each change and
+// restored by `start()`.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type HostContractReport } from '@cg/contracts/host';
 import { TELEMETRY_LIMITS } from '@cg/contracts/limits';
 import { type PerfMetric, type TabHealthReport } from '@cg/contracts/telemetry';
 
-import { HealthWindow, hostSignature, hostSummary, type HealthClient, type HealthFootprint } from '../../domain/telemetry';
-import { type Scheduler } from '../ports';
+import { HealthWindow, hostSignature, hostSummary, type HealthClient, type HealthFootprint, type HealthWindowSnapshot } from '../../domain/telemetry';
+import { type KeyValuePort, type Scheduler } from '../ports';
 import { type QueueOutcome, type TelemetryEvent } from './queue';
 
 export interface HealthReporterDeps {
@@ -31,6 +36,15 @@ export interface HealthReporterDeps {
   readonly footprint: () => HealthFootprint;
   /** Flags and page features that are off. */
   readonly disabled: () => Iterable<string>;
+  /** storage.session `telemetry.healthWindow`; without it the window lives in memory only. */
+  readonly store?: KeyValuePort;
+}
+
+interface StoredHealth {
+  readonly v: 1;
+  readonly window: HealthWindowSnapshot;
+  readonly lastSentAt: number | null;
+  readonly lastSignature: string | null;
 }
 
 export interface HealthReporterStats {
@@ -51,9 +65,59 @@ export class HealthReporter {
   private sent = 0;
   private skipped = 0;
   private cancelEarly: (() => void) | null = null;
+  private starting: Promise<void> | null = null;
+  private saveQueued = false;
+  private saving: Promise<void> = Promise.resolve();
 
   constructor(private readonly deps: HealthReporterDeps) {
     this.window = new HealthWindow(deps.scheduler.now());
+  }
+
+  /** Restores the stored window (an event-page wake); what was measured since joins it. Runs once; never rejects. */
+  start(): Promise<void> {
+    this.starting ??= this.restore();
+    return this.starting;
+  }
+
+  private async restore(): Promise<void> {
+    if (this.deps.store === undefined) return;
+    let stored: unknown;
+    try {
+      stored = await this.deps.store.load();
+    } catch {
+      return;
+    }
+    if (stored === null || typeof stored !== 'object') return;
+    const record = stored as Partial<Record<keyof StoredHealth, unknown>>;
+    const window = HealthWindow.fromSnapshot(record.window);
+    if (window === null) return;
+    // What was stored was measured with consent (a revocation saves an empty window); what came since is newer.
+    window.absorb(this.window.snapshot());
+    this.window = window;
+    if (typeof record.lastSentAt === 'number' && Number.isFinite(record.lastSentAt)) this.lastSentAt = Math.max(this.lastSentAt ?? 0, record.lastSentAt);
+    if (typeof record.lastSignature === 'string' && this.lastSignature === null) this.lastSignature = record.lastSignature;
+    this.persist();
+  }
+
+  /** One save per turn of the event loop, in order; a failed save only costs the window on the next unload. */
+  private persist(): void {
+    const store = this.deps.store;
+    if (store === undefined || this.saveQueued) return;
+    this.saveQueued = true;
+    this.saving = this.saving.then(async () => {
+      this.saveQueued = false;
+      const value: StoredHealth = { v: 1, window: this.window.snapshot(), lastSentAt: this.lastSentAt, lastSignature: this.lastSignature };
+      try {
+        await store.save(value);
+      } catch {
+        // The window stays in memory.
+      }
+    });
+  }
+
+  /** Resolves when the last save finished (tests, suspend). */
+  saved(): Promise<void> {
+    return this.saving;
   }
 
   private on(): boolean {
@@ -66,15 +130,21 @@ export class HealthReporter {
 
   /** A background measurement (handlers only when sampled by the caller). */
   recordPerf(metric: PerfMetric, ms: number): void {
-    if (this.on()) this.window.recordPerf(metric, ms);
+    if (!this.on()) return;
+    this.window.recordPerf(metric, ms);
+    this.persist();
   }
 
   count(name: string, by = 1): void {
-    if (this.on()) this.window.count(name, by);
+    if (!this.on()) return;
+    this.window.count(name, by);
+    this.persist();
   }
 
   countCode(code: CgCode, by = 1): void {
-    if (this.on()) this.window.countCode(code, by);
+    if (!this.on()) return;
+    this.window.countCode(code, by);
+    this.persist();
   }
 
   /** `health.report` from a tab: its deltas join the window; a changed contract sends early. */
@@ -82,6 +152,7 @@ export class HealthReporter {
     if (!this.on()) return;
     this.window.mergeTab(tabSessionId, report);
     if (report.host !== null) this.onHost(report.host);
+    this.persist();
   }
 
   /** The host contract as a tab saw it (also without a report). */
@@ -91,6 +162,7 @@ export class HealthReporter {
     const signature = hostSignature(hostSummary(report));
     if (this.lastSignature !== null && signature !== this.lastSignature) this.sendEarly();
     this.lastSignature ??= signature;
+    this.persist();
   }
 
   private sendEarly(): void {
@@ -114,6 +186,7 @@ export class HealthReporter {
     const now = this.deps.scheduler.now();
     const window = this.window;
     this.window = new HealthWindow(now);
+    this.persist();
     const host = window.hostSummary;
     try {
       // A report names the contract even when nothing was measured; an empty window with no host says nothing.
@@ -134,6 +207,7 @@ export class HealthReporter {
       if (host !== null) this.lastSignature = hostSignature(host);
       // The host stays known in the next window: the report always names the contract.
       if (host !== null) this.window.setHostSummary(host);
+      this.persist();
       return true;
     } catch {
       this.skipped += 1;
@@ -145,6 +219,7 @@ export class HealthReporter {
   reset(): void {
     this.cancelEarlySend();
     this.window = new HealthWindow(this.deps.scheduler.now());
+    this.persist();
   }
 
   private cancelEarlySend(): void {

@@ -16,15 +16,21 @@
 //
 // Each event gets its `clientEventId` once, here; the queue keeps it across
 // retries and the hub deduplicates by it.
+//
+// An event page may be unloaded between `meta` and the person's click: the
+// links and the dedupe keys (ids only) are a snapshot the composition root
+// keeps in storage.session (`onChange` says when), restored on wake.
 
-import { type FeatureId, type Surface } from '@cg/contracts/features';
-import { type NativeId, type Uuid } from '@cg/contracts/primitives';
+import { FeatureIdSchema, SurfaceSchema, type FeatureId, type Surface } from '@cg/contracts/features';
+import { GenerationRefSchema, UuidSchema, type NativeId, type Uuid } from '@cg/contracts/primitives';
 import { AcceptanceEventSchema, type AcceptanceEvent } from '@cg/contracts/telemetry';
 
 /** Links kept in memory (TL-008). */
 export const ACCEPTANCE_LINKS_MAX = 50;
 /** Remembered `shown`/`sent` keys, for deduplication. */
 const DEDUPE_KEYS_MAX = 2000;
+const DEDUPE_KEY = /^(?:shown|sent)\|[A-Za-z0-9|-]{1,160}$/;
+const PAGE_LABEL_MAX = 120;
 
 export interface GenerationLink {
   readonly opId: Uuid;
@@ -59,6 +65,27 @@ export interface AcceptanceDeps {
   readonly now: () => number;
   readonly uuid: () => string;
   readonly capacity?: number;
+  /** The links or the dedupe keys changed: time to save `snapshot()` (storage.session). Must not throw; it is guarded anyway. */
+  readonly onChange?: () => void;
+}
+
+/** What survives an event-page restart: ids, labels and dedupe keys, never text. */
+export interface AcceptanceSnapshot {
+  readonly v: 1;
+  readonly links: readonly GenerationLink[];
+  readonly seen: readonly string[];
+}
+
+function readLink(value: unknown): GenerationLink | null {
+  if (value === null || typeof value !== 'object') return null;
+  const raw = value as Partial<Record<keyof GenerationLink, unknown>>;
+  const opId = UuidSchema.safeParse(raw.opId);
+  const generationRef = GenerationRefSchema.safeParse(raw.generationRef);
+  const feature = FeatureIdSchema.safeParse(raw.feature);
+  const surface = SurfaceSchema.safeParse(raw.surface);
+  if (!opId.success || !generationRef.success || !feature.success || !surface.success) return null;
+  if (typeof raw.pageLabel !== 'string' || raw.pageLabel.length === 0 || raw.pageLabel.length > PAGE_LABEL_MAX) return null;
+  return { opId: opId.data, generationRef: generationRef.data, feature: feature.data, surface: surface.data, pageLabel: raw.pageLabel };
 }
 
 export class AcceptanceTracker {
@@ -72,6 +99,11 @@ export class AcceptanceTracker {
 
   /** On `meta`: remembers the generation of the operation (the newest 50). */
   link(link: GenerationLink): void {
+    this.put(link);
+    this.changed();
+  }
+
+  private put(link: GenerationLink): void {
     this.links.delete(link.opId);
     this.links.set(link.opId, link);
     while (this.links.size > this.capacity) {
@@ -81,18 +113,68 @@ export class AcceptanceTracker {
     }
   }
 
+  private remember(key: string): void {
+    this.seen.add(key);
+    if (this.seen.size > DEDUPE_KEYS_MAX) {
+      const oldest = this.seen.values().next().value;
+      if (oldest !== undefined) this.seen.delete(oldest);
+    }
+  }
+
+  private changed(): void {
+    try {
+      this.deps.onChange?.();
+    } catch {
+      // Saving is the composition root's business; a failure never breaks an event.
+    }
+  }
+
+  /** The links (oldest first) and the dedupe keys, for storage.session. */
+  snapshot(): AcceptanceSnapshot {
+    return { v: 1, links: [...this.links.values()].map((link) => ({ ...link })), seen: [...this.seen] };
+  }
+
+  /**
+   * After an event-page restart: what was stored comes back under what was
+   * linked since (newer wins); junk is skipped. Returns the links restored.
+   */
+  restore(value: unknown): number {
+    if (value === null || typeof value !== 'object') return 0;
+    const stored = value as { links?: unknown; seen?: unknown };
+    const live = [...this.links.values()];
+    const liveSeen = [...this.seen];
+    this.links.clear();
+    this.seen.clear();
+    let restored = 0;
+    if (Array.isArray(stored.links)) {
+      for (const raw of (stored.links as unknown[]).slice(-this.capacity)) {
+        const link = readLink(raw);
+        if (link === null) continue;
+        this.put(link);
+        restored += 1;
+      }
+    }
+    if (Array.isArray(stored.seen)) {
+      for (const key of (stored.seen as unknown[]).slice(-DEDUPE_KEYS_MAX)) if (typeof key === 'string' && DEDUPE_KEY.test(key)) this.remember(key);
+    }
+    for (const link of live) this.put(link);
+    for (const key of liveSeen) this.remember(key);
+    return restored;
+  }
+
   linkOf(opId: string): GenerationLink | null {
     return this.links.get(opId) ?? null;
   }
 
   forget(opId: string): void {
-    this.links.delete(opId);
+    if (this.links.delete(opId)) this.changed();
   }
 
   /** Sign-out and consent revocation drop everything. */
   clear(): void {
     this.links.clear();
     this.seen.clear();
+    this.changed();
   }
 
   get size(): number {
@@ -149,11 +231,8 @@ export class AcceptanceTracker {
     });
     if (!parsed.success) return { ok: false, reason: 'invalid' };
     if (dedupeKey !== null) {
-      this.seen.add(dedupeKey);
-      if (this.seen.size > DEDUPE_KEYS_MAX) {
-        const oldest = this.seen.values().next().value;
-        if (oldest !== undefined) this.seen.delete(oldest);
-      }
+      this.remember(dedupeKey);
+      this.changed();
     }
     return { ok: true, event: parsed.data };
   }

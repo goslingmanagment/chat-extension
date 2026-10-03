@@ -116,6 +116,48 @@ describe('ai_acceptance events', () => {
     broken.link(link);
     expect(broken.shown(OP)).toEqual({ ok: false, reason: 'invalid' });
   });
+
+  it('[TL-008] links and dedupe keys survive an event-page restart; junk is skipped, newer links win', () => {
+    let changes = 0;
+    const before = new AcceptanceTracker({ now: () => T0, uuid: () => OP2, onChange: () => (changes += 1) });
+    before.link(link);
+    expect(before.shown(OP, { part: 0 }).ok).toBe(true);
+    expect(before.copied(OP).ok).toBe(true);
+    expect(changes).toBe(2);
+    const stored = JSON.parse(JSON.stringify(before.snapshot())) as { links: unknown[]; seen: unknown[] };
+    expect(JSON.stringify(stored)).not.toMatch(/text|draft/);
+    stored.links.push({ opId: 'x' }, 'junk', { ...link, opId: OP2, pageLabel: '' });
+    stored.seen.push('junk key', 5);
+
+    const after = tracker();
+    // Linked after the wake, before the restore: kept, and newer than the stored one.
+    after.link({ ...link, feature: 'fix' });
+    expect(after.restore(stored)).toBe(1);
+    expect(after.linkOf(OP)?.feature).toBe('fix');
+    expect(after.shown(OP, { part: 0 })).toEqual({ ok: false, reason: 'duplicate' });
+    expect(after.shown(OP, { part: 1 }).ok).toBe(true);
+    expect(after.snapshot().seen).toHaveLength(2);
+    expect(after.restore(null)).toBe(0);
+    expect(after.restore({ links: 'x', seen: {} })).toBe(0);
+    expect(after.linkOf(OP)).not.toBeNull();
+
+    // A throwing saver never breaks an event; forget/clear report a change too.
+    let calls = 0;
+    const loud = new AcceptanceTracker({
+      now: () => T0,
+      uuid: () => OP2,
+      onChange: () => {
+        calls += 1;
+        throw new Error('save');
+      },
+    });
+    loud.link(link);
+    expect(loud.shown(OP).ok).toBe(true);
+    loud.forget(OP2);
+    loud.forget(OP);
+    loud.clear();
+    expect(calls).toBe(4);
+  });
 });
 
 describe('[NEW-03] client_health histograms', () => {
