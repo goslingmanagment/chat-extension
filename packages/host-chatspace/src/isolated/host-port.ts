@@ -381,7 +381,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     async readVisibleTail(expected: HostIdentity, max: number): Promise<LiveTextTail | null> {
       if (!bridge || report.capabilities.freshText.state !== 'on' || max < 1) return null;
       try {
-        const tail = await bridge.request('readTail', { expected, max: Math.min(Math.floor(max), BRIDGE_LIMITS.maxSnapshotMessages) });
+        // Never more than the hub takes (60): MAIN builds less and the answer stays far below the frame limit.
+        const tail = await bridge.request('readTail', { expected, max: Math.min(Math.floor(max), LIVE_TEXT_LIMITS.maxItems) });
         const messages = tail?.messages.slice(-Math.min(Math.floor(max), LIVE_TEXT_LIMITS.maxItems)) ?? [];
         return tail && messages.length > 0 ? { capturedAt: tail.capturedAt, messages } : null;
       } catch {
@@ -460,7 +461,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       // Copy only (the insert capability is off): the chat still opens, the insert is refused now instead of waiting out its deadline in MAIN.
       const insertCapability = report.capabilities.insert;
       const insertOff = insertCapability.state === 'off' || insertCapability.state === 'contractBroken' ? (insertCapability.code ?? 'CG-HOST-COMPOSER-MISSING') : null;
-      const thenInsert = then && !insertOff ? then : undefined;
+      // MAIN waits for the composer until the insert's own deadline: never later than this side waits for MAIN's answer, or the
+      // insert could land after the person was told it timed out.
+      const thenInsert = then && !insertOff ? { ...then, expiresAt: Math.max(then.createdAt + 1, Math.min(then.expiresAt, clock() + navTimeoutMs)) } : undefined;
       const timeoutMs = thenInsert ? Math.min(Math.max(0, thenInsert.expiresAt - clock()), navTimeoutMs) + NAV_GRACE_MS : navTimeoutMs;
       let receipt: NavigationReceipt;
       try {

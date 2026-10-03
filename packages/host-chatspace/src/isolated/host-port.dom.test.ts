@@ -271,6 +271,8 @@ describe('[BG-002] state from MAIN', () => {
     const { host, bridge } = await port({ readTail: () => ({ capturedAt: '2026-10-03T10:00:00.000Z', messages }) });
     const tail = LiveTextTailSchema.parse(await host.readVisibleTail(host.identity() as never, 100));
     expect(tail.messages).toHaveLength(60);
+    // MAIN is never asked for more than the hub takes.
+    expect(bridge.calls.find((call) => call.t === 'readTail')?.payload['max']).toBe(60);
     expect(tail.messages.at(-1)?.platformMessageId).toBe('5079');
     expect((await host.readVisibleTail(host.identity() as never, 5))?.messages).toHaveLength(5);
     bridge.emit({ t: 'contract', payload: wire({ shape: ['chatMessages'] }) });
@@ -375,6 +377,19 @@ describe('navigation (§6.5, §6.9)', () => {
     const timeout = bridge.calls.find((call) => call.t === 'navigate')?.timeoutMs ?? 0;
     expect(timeout).toBeGreaterThan(5000);
     expect(timeout).toBeLessThanOrEqual(6100);
+  });
+
+  it('[NEW-01] MAIN’s deadline is never later than this side’s: a far insert deadline is lowered to the navigation timeout', async () => {
+    const { host, bridge } = await port({ navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: { state: 'rejected', code: 'CG-NAV-TIMEOUT' } }) });
+    const far = { ...thenInsert, expiresAt: Date.now() + 120_000 };
+    const started = Date.now();
+    await host.navigate(nav({ thenInsert: far as never }));
+    const call = bridge.calls.find((item) => item.t === 'navigate');
+    const sent = (call?.payload['intent'] as { thenInsert: { expiresAt: number } }).thenInsert;
+    expect(sent.expiresAt).toBeLessThanOrEqual(Date.now() + 20_000);
+    expect(sent.expiresAt).toBeGreaterThanOrEqual(started + 20_000);
+    expect(call?.timeoutMs).toBeLessThanOrEqual(21_000);
+    expect(call?.timeoutMs).toBeGreaterThanOrEqual(sent.expiresAt - Date.now());
   });
 
   it('[NEW-01] the deferred insert’s applied receipt is checked against the target’s draft key too', async () => {

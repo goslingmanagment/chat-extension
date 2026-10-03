@@ -5,6 +5,7 @@
 
 import { ChatWindowSchema, HostFanSchema, InsertReceiptSchema, NavigationItemSchema, NavigationReceiptSchema, TailSnapshotSchema } from '@cg/contracts/host';
 import { DraftWireSchema, MainSnapshotSchema } from '@cg/contracts/bridge-messages';
+import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakePage } from '../testing/fake-page';
@@ -145,6 +146,53 @@ describe('MAIN runtime — reads (§6.1)', () => {
     expect(h.events.some((event) => event.t === 'accounts')).toBe(true);
   });
 
+  it('[AU-034] [AU-035] one odd account (no or a numeric platformAccountId, another platform) leaves only itself unbound', () => {
+    const h = harness as Harness;
+    h.page.cache.set(['accounts'], [
+      { id: 1001, platformAccountId: 3003, platform: 'onlyfans', username: 'one' },
+      { id: 1002, platformAccountId: null, platform: 'onlyfans', username: 'two' },
+      { id: 1003, platform: 'fansly', username: 'three' },
+    ]);
+    const snapshot = h.runtime.handle('snapshot', {}) as { contract: { shape: string[]; missing: string[] }; accounts: Array<{ hostAccountId: string; platformAccountId: string | null }> };
+    expect(snapshot.contract.shape).not.toContain('accounts');
+    expect(snapshot.contract.missing).not.toContain('accounts');
+    expect(snapshot.accounts.map((account) => [account.hostAccountId, account.platformAccountId])).toEqual([
+      ['1001', '3003'],
+      ['1002', null],
+    ]);
+  });
+
+  it('online as ChatSpace decides it: its presence map, else the fan’s lastSeen', async () => {
+    const h = harness as Harness;
+    const asked: unknown[][] = [];
+    h.page.addStore(fakeStore('chats', { isFanOnline: (...args: unknown[]) => (asked.push(args), args[1] !== null) }));
+    expect(HostFanSchema.parse(await h.call('fan', { acc: ACC, fan: FAN })).isOnline).toBe(true);
+    expect(HostFanSchema.parse(await h.call('fan', { acc: ACC, fan: OTHER })).isOnline).toBe(false);
+    expect(asked.slice(0, 2)).toEqual([
+      [FAN, '2026-10-03T09:59:00.000Z'],
+      [OTHER, null],
+    ]);
+  });
+
+  it('a fresh tail or a chat list never outgrows one frame: MAIN stops before the byte budget', async () => {
+    const h = harness as Harness;
+    const long = 'я'.repeat(5000);
+    const items = Array.from({ length: 60 }, (_, i) => ({ id: String(5000 + i), text: long, createdAt: new Date(Date.UTC(2026, 9, 3, 10, 0, i)).toISOString(), isOutgoing: false, platformMetadata: {} }));
+    h.page.cache.set(['chatMessages', ACC, FAN], { pages: [{ items, hasMore: false }], pageParams: [null] });
+    const tail = TailSnapshotSchema.parse(await h.call('readTail', { expected: identity(h), max: 60 }));
+    expect(tail.messages.length).toBeGreaterThan(0);
+    expect(tail.messages.length).toBeLessThan(60);
+    expect(tail.messages.at(-1)?.platformMessageId).toBe('5059');
+    expect(new TextEncoder().encode(JSON.stringify(tail)).length).toBeLessThan(BRIDGE_LIMITS.maxFrameBytes - 1024);
+    const fans = Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [String(3000 + i), { id: String(3000 + i), name: 'ж'.repeat(256), username: 'u'.repeat(128) }]));
+    h.page.cache.set(['fansMap', ACC], fans);
+    h.page.cache.set(['chatList', ACC, 'all'], { pages: [{ items: Object.keys(fans).map((id) => ({ id, unreadMessagesCount: 1 })) }] });
+    const rows = (await h.call('listChats', { acc: ACC, limit: 1000 })) as unknown[];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(1000);
+    expect(new TextEncoder().encode(JSON.stringify(rows)).length).toBeLessThan(BRIDGE_LIMITS.maxFrameBytes - 1024);
+  });
+
   it('chat window: confirmed messages only, newest first, counts and older history (prechecks)', async () => {
     const window = ChatWindowSchema.parse(await (harness as Harness).call('chatWindow', { acc: ACC, fan: FAN, max: 200 }));
     expect(window).toEqual({
@@ -200,7 +248,8 @@ describe('MAIN runtime — reads (§6.1)', () => {
 
   it('[RB-008] the contract reports missing and misshaped anchors; a late store arrives through pinia.use', () => {
     const h = harness as Harness;
-    h.page.cache.set(['accounts'], [{ id: 1001, platformAccountId: 3003 }]);
+    // No OnlyFans account can be bound any more (the field changed its meaning in a new build): the anchor is broken.
+    h.page.cache.set(['accounts'], [{ id: 1001, platformAccountId: 'acct_3003' }]);
     let contract = (h.runtime.handle('snapshot', {}) as { contract: { missing: string[]; shape: string[] } }).contract;
     expect(contract.shape).toContain('accounts');
     expect(contract.missing).toContain('pendingMessages');

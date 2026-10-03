@@ -44,6 +44,8 @@ describe('[EX-008] MAIN bridge literals', () => {
     expect(protocol.MAX_ARRAY).toBe(BRIDGE_LIMITS.maxArrayLength);
     expect(protocol.UI_EVENT_GAP_MS).toBe(1000 / BRIDGE_LIMITS.uiEventsPerSecond);
     expect(protocol.LIVE_TEXT_MAX_CHARS).toBe(LIVE_TEXT_LIMITS.maxChars);
+    // MAIN's data budget per answer leaves room for the envelope within the frame limit.
+    expect(protocol.FRAME_DATA_BUDGET).toBeLessThanOrEqual(BRIDGE_LIMITS.maxFrameBytes - 32 * 1024);
     expect(protocol.MAX_PARTS).toBe(PART_LIMITS.maxParts);
     expect(protocol.MAX_VARIANTS).toBe(PART_LIMITS.maxVariants);
     const codes = Object.entries(protocol).filter(([name]) => name.startsWith('CG_')).map(([, value]) => value);

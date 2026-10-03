@@ -18,6 +18,7 @@ import {
   KEY_MIMIC_CHATS,
   KEY_MIMIC_SETTINGS,
   KEY_PERMISSIONS,
+  FRAME_DATA_BUDGET,
   LIVE_TEXT_MAX_CHARS,
   MAX_ACCOUNTS,
   ROUTE_CHAT,
@@ -65,6 +66,15 @@ const flag = (value: unknown): boolean | null => (typeof value === 'boolean' ? v
 const idOf = (value: unknown): string | null => {
   const id = typeof value === 'number' ? String(value) : value;
   return isId(id) ? id : null;
+};
+/** UTF-8 bytes of a text (a frame's limit counts the bytes of its JSON). */
+export const utf8Bytes = (text: string): number => {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    bytes += code < 0x80 ? 1 : code < 0x800 || (code >= 0xd800 && code < 0xe000) ? 2 : 3;
+  }
+  return bytes;
 };
 /** Any date string → ISO 8601 UTC; null when unparseable. */
 export const iso = (value: unknown): string | null => {
@@ -167,7 +177,8 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
     const raw = record(KEY_FANS, acc)?.[fan];
     return isPlain(raw) ? raw : null;
   };
-  const online = (fan: string): boolean | null => flag(call(STORE_CHATS, 'isFanOnline', fan));
+  /** ChatSpace's own online rule: its presence map, else the fan's lastSeen (its callers pass it too). */
+  const online = (fan: string, raw: unknown): boolean | null => flag(call(STORE_CHATS, 'isFanOnline', fan, (isPlain(raw) ? raw['lastSeen'] : null) ?? null));
   const name = (raw: Plain | null): string | null => text(raw?.['customName'] ?? raw?.['name'], 256);
 
   /** Messages of a chat's cache, newest first: only confirmed ones — a numeric id, not from the queue (D-14). */
@@ -228,7 +239,7 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
         isBlocked: flag(raw['isBlocked']),
         canReceiveMessages: flag(raw['canReceiveMessages']),
         isRestricted: flag(raw['isRestricted']),
-        isOnline: online(fan),
+        isOnline: online(fan, raw),
         lastSeenAt: iso(raw['lastSeen']),
         buyingPowerLabel: typeof power === 'number' || typeof power === 'string' ? String(power).slice(0, 64) : null,
         insights: isPlain(insights)
@@ -258,13 +269,18 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
         hasOlder: read.hasOlder,
       };
     },
-    /** The newest `max` confirmed text messages of the open chat, oldest first (D-14). */
+    /** The newest `max` confirmed text messages of the open chat, oldest first (D-14), within one frame's byte budget. */
     tail(acc: string, fan: string, max: number) {
       const out = [];
+      let bytes = 0;
       for (const item of messages(acc, fan)?.items ?? []) {
         if (out.length >= max) break;
         const value = plain(item.html);
-        if (value !== '') out.unshift({ platformMessageId: item.id, direction: item.fromFan ? 'fan' : 'model', sentAt: item.at, text: value });
+        if (value === '') continue;
+        const message = { platformMessageId: item.id, direction: item.fromFan ? 'fan' : 'model', sentAt: item.at, text: value };
+        bytes += utf8Bytes(JSON.stringify(message));
+        if (bytes > FRAME_DATA_BUDGET) break;
+        out.unshift(message);
       }
       return out.length === 0 ? null : { capturedAt: new Date().toISOString(), messages: out };
     },
@@ -276,20 +292,25 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
         if (found?.active === true && (best === null || (found.when ?? 0) > (best.when ?? 0))) best = found;
       }
       const fans = record(KEY_FANS, acc);
-      const out = [];
+      const out: Plain[] = [];
+      let bytes = 0;
       for (const chat of rows(best?.state?.value?.data)) {
         const fan = isPlain(chat) ? idOf(chat['id']) : null;
-        if (fan === null || out.length >= limit) continue;
+        if (fan === null) continue;
+        if (out.length >= limit) break;
         const raw = fans?.[fan];
         const unread = (chat as Plain)['unreadMessagesCount'];
-        out.push({
+        const row = {
           chat: chatRef(acc, fan),
           position: out.length,
           displayName: name(isPlain(raw) ? raw : null),
           username: text(isPlain(raw) ? raw['username'] : null, 128),
           unreadCount: Number.isSafeInteger(unread) && (unread as number) >= 0 ? (unread as number) : null,
-          isOnline: online(fan),
-        });
+          isOnline: online(fan, raw),
+        };
+        bytes += utf8Bytes(JSON.stringify(row));
+        if (bytes > FRAME_DATA_BUDGET) break;
+        out.push(row);
       }
       return out;
     },
@@ -327,8 +348,16 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
       const accounts = data(KEY_ACCOUNTS);
       const queue = store(STORE_QUEUE);
       const permissions = data(KEY_PERMISSIONS);
+      // One odd account (no or a numeric platformAccountId, another platform) leaves only that account unbound; the anchor is
+      // broken when the list is not a list of accounts with ids, or when no OnlyFans account has a usable platformAccountId.
+      const onlyfans = list(accounts).filter((item) => isPlain(item) && (item['platform'] ?? 'onlyfans') === 'onlyfans') as Plain[];
       const result: Record<string, string> = {
-        accounts: state(accounts, Array.isArray(accounts) && list(accounts).every((item) => isPlain(item) && idOf(item['id']) !== null && isId(item['platformAccountId']))),
+        accounts: state(
+          accounts,
+          Array.isArray(accounts) &&
+            list(accounts).every((item) => isPlain(item) && idOf(item['id']) !== null) &&
+            (onlyfans.length === 0 || onlyfans.some((item) => idOf(item['platformAccountId']) !== null)),
+        ),
         pendingMessages: queue === undefined ? 'missing' : queueShape(queue),
         composerTranslator: state(store(STORE_TRANSLATOR), true),
         mimic: state(data(KEY_MIMIC_SETTINGS) === undefined ? undefined : data(KEY_MIMIC_CHATS), true),

@@ -83,6 +83,8 @@ export const MAX_SNAPSHOT = 200;
 export const MAX_ARRAY = 1000;
 export const MAX_ACCOUNTS = 200;
 export const LIVE_TEXT_MAX_CHARS = 5000;
+/** Bytes of data MAIN puts into one answer: the frame limit (256 KiB of UTF-8 JSON) minus room for the envelope. */
+export const FRAME_DATA_BUDGET = 192 * 1024;
 export const MAX_PARTS = 10;
 export const MAX_VARIANTS = 3;
 
