@@ -116,6 +116,13 @@ describe('[HB-011] [AU-022] the bootstrap and its cache', () => {
     const cached = h.facade.cachedBootstrap();
     expect(cached).toMatchObject({ source: 'hub', fresh: false });
     expect(h.facade.status().state).toBe('degraded');
+    // Insertion and navigation are gated too: the owner may have switched them off since.
+    expect(h.facade.flagState('insertion', one.pageLabel)).toEqual({ usable: false, reason: 'bootstrap_expired' });
+    expect(h.facade.flagState('navigation', null)).toEqual({ usable: false, reason: 'bootstrap_expired' });
+    // A switch that is off says so, expired or not.
+    expect(h.facade.flagState('previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
+    // The binding still resolves: it is identity, not an action.
+    expect(h.facade.resolveBinding(account())).toMatchObject({ state: 'bound' });
     const dispatch = {
       pageLabel: one.pageLabel,
       fanRef: WORLD.fan,
@@ -135,6 +142,10 @@ describe('[HB-011] [AU-022] the bootstrap and its cache', () => {
     // A read still runs on the expired bootstrap.
     h.hub.on('clientFanClaimStatus', () => json(200, { greeting: { state: 'none', at: null, messageRef: null, source: null }, lease: { state: 'none', leaseToken: null, expiresAt: null, heldBy: null }, group: null, custody: null, serverNow: '2026-10-03T10:05:00.000Z', flagRevision: 4 }));
     await expect(h.facade.claimStatus(one.pageLabel, WORLD.fan)).resolves.toMatchObject({ flagRevision: 4 });
+    // The refresh lands: usable again.
+    h.hub.on('clientBootstrap', () => json(200, BOOTSTRAP_PILOT_ON));
+    await h.facade.bootstrap();
+    expect(h.facade.flagState('insertion', one.pageLabel)).toEqual({ usable: true, reason: null });
   });
 
   it('[HB-006] an answer that fails its schema is a hub failure (CG-HUB-REQUEST), never data', async () => {

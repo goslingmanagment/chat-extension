@@ -25,7 +25,11 @@ import {
 
 export interface FlagState {
   readonly usable: boolean;
-  /** Why not: `flag_off`, `not_granted`, a page feature's reason (open token), or `hub_not_ready` for a capability the hub has not declared. */
+  /**
+   * Why not: `flag_off`, `not_granted`, a page feature's reason (open token), `hub_not_ready` for a
+   * capability the hub has not declared (or no bootstrap yet), `bootstrap_expired` (the facade's
+   * gate: the bootstrap's ttl ran out and no refresh has landed).
+   */
   readonly reason: string | null;
 }
 

@@ -517,7 +517,11 @@ export class ChatExtensionHub implements HubFacade {
     return entry === null ? null : { bootstrap: entry.bootstrap, source: entry.source, fresh: this.bootstrapService.isFresh(entry) };
   }
 
-  /** `binding.resolve`: by platformAccountId or the owner's explicit entry, never by name. */
+  /**
+   * `binding.resolve`: by platformAccountId or the owner's explicit entry, never by name.
+   * Identity only: it keeps resolving on an expired bootstrap (results stay readable, §8.3);
+   * acting on the binding is gated by `flagState`, which requires a fresh one.
+   */
   resolveBinding(account: HostAccount): BindingResolution | { readonly state: 'signed-out' } {
     const session = this.custody.session();
     const entry = this.bootstrapService.cached();
@@ -531,9 +535,17 @@ export class ChatExtensionHub implements HubFacade {
     return bindingStillHolds(binding, this.custody.session(), this.bootstrapService.cached()?.bootstrap ?? null);
   }
 
+  /**
+   * The gate of a sensitive action (insertion, navigation, X8 and the rest):
+   * usable only on a FRESH bootstrap — an expired one reads `bootstrap_expired`
+   * until a refresh lands (§8.3: the owner may have switched it off since).
+   * `await bootstrap()` first refreshes an expired one (or rejects with why not).
+   */
   flagState(flag: ClientFeatureFlag, pageLabel: string | null): FlagState {
     const entry = this.bootstrapService.cached();
-    return entry === null ? { usable: false, reason: 'hub_not_ready' } : flagState(entry.bootstrap, flag, pageLabel);
+    if (entry === null) return { usable: false, reason: 'hub_not_ready' };
+    const state = flagState(entry.bootstrap, flag, pageLabel);
+    return state.usable && !this.bootstrapService.isFresh(entry) ? { usable: false, reason: 'bootstrap_expired' } : state;
   }
 
   async catalog(): Promise<PersonaCatalog> {
