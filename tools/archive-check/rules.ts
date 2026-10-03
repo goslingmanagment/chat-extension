@@ -1,8 +1,9 @@
 // What must never ship (architecture.md §12 п. 7, §3 «pnpm check» п. 9): no
 // OnlyMonster code, CSS, fonts or images, no real messages, tokens or prod
 // HTML — in the XPI and in the sources archive that goes to AMO for signing.
-// A .gitignore alone is not enough. R02 extends these rules (perf traces,
-// fixture provenance); R00 checks everything that can be checked today.
+// A .gitignore alone is not enough. R02 adds the stand's place in the sources
+// archive: its own Vue/TipTap sources may name those libraries, nothing else may
+// (perf traces come with tools/perf).
 
 import { createHash } from 'node:crypto';
 
@@ -19,12 +20,26 @@ export interface ArchiveProblem {
 export const ONLYMONSTER_BUNDLE_MARKERS: readonly RegExp[] = [
   /\b(?:messages-DlBZ5e81|composables-BUNn3xEu|notificationEntry-DgqI6Vgc|accounts-BWN_jVY3|ChatView-DOQWEL72|inbox-SRJHz93Z|onlyfans-CaxZc4_R|MainLayout-DBvnSRX2|index-DEVowLko)\b/,
   /chatspace-bundles/,
-  // Library code that only their app carries (we ship Preact, never Vue/PrimeVue/TipTap).
-  /__VUE_PROD_DEVTOOLS__|__VUE_OPTIONS_API__|__VUE_PROD_HYDRATION_MISMATCH_DETAILS__/,
-  /@tiptap\/|prosemirror-(?:model|view|state)/i,
   // Vue scoped-style attributes: the fingerprint of a saved prod page or CSS.
   /\bdata-v-[0-9a-f]{8}\b/,
 ];
+
+/** Library code that only their app carries (we ship Preact, never Vue/PrimeVue/TipTap). */
+export const HOST_LIBRARY_MARKERS: readonly RegExp[] = [
+  /__VUE_PROD_DEVTOOLS__|__VUE_OPTIONS_API__|__VUE_PROD_HYDRATION_MISMATCH_DETAILS__/,
+  /@tiptap\/|prosemirror-(?:model|view|state)/i,
+];
+
+/**
+ * The test stand (packages/testing/fixture-chatspace, R02) is our own small
+ * Vue + TipTap app imitating the host. In the SOURCES archive (AMO rebuilds
+ * the whole workspace) its source files, the testing package manifest and the
+ * lockfile may name those libraries. The XPI never may.
+ */
+export const STAND_FIXTURE_DIR = 'packages/testing/fixture-chatspace/';
+const STAND_LIBRARY_ALLOWED: readonly RegExp[] = [/^packages\/testing\/fixture-chatspace\/.+\.(?:ts|html|css)$/, /^packages\/testing\/package\.json$/, /^pnpm-lock\.yaml$/];
+/** Fixture provenance: only hand-written sources live in the stand folder — no built or saved bundles. */
+const STAND_SOURCE_FILE = /\.(?:ts|html|css|json|md)$/;
 
 /**
  * Real ids that must never ship, as sha256 of the decimal string: the archive
@@ -91,10 +106,14 @@ export function checkArchive(
     if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > MAX_JS_BYTES) {
       add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${MAX_JS_BYTES}`);
     }
+    if (entry.name.startsWith(STAND_FIXTURE_DIR) && !STAND_SOURCE_FILE.test(entry.name)) {
+      add(entry.name, 'fixture-provenance', 'the stand folder holds hand-written sources only (ts, html, css, json, md)');
+    }
     if (!TEXT_FILE.test(entry.name)) continue;
     const text = entry.data.toString('utf8');
     if (!SELF.test(entry.name)) {
-      for (const pattern of ONLYMONSTER_BUNDLE_MARKERS) {
+      const libraryAllowed = kind === 'sources' && STAND_LIBRARY_ALLOWED.some((pattern) => pattern.test(entry.name));
+      for (const pattern of [...ONLYMONSTER_BUNDLE_MARKERS, ...(libraryAllowed ? [] : HOST_LIBRARY_MARKERS)]) {
         const match = pattern.exec(text);
         if (match) add(entry.name, 'onlymonster-code', `marker «${match[0]}»`);
       }

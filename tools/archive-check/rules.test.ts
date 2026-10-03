@@ -36,6 +36,21 @@ describe('archive check', () => {
     );
   });
 
+  it('lets the stand fixture name Vue/TipTap in the sources archive only, and keeps its folder to hand-written sources', () => {
+    const tiptap = "import { Editor } from '@tiptap/core';";
+    const rules = (name: string, kind: 'xpi' | 'sources', text = tiptap): string[] => checkArchive('a.zip', [entry(name, text)], kind).map((problem) => problem.rule);
+    expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'sources')).toEqual([]);
+    expect(rules('packages/testing/package.json', 'sources', '{"@tiptap/core": "3.31.4"}')).toEqual([]);
+    expect(rules('pnpm-lock.yaml', 'sources', "'@tiptap/core@3.31.4':")).toEqual([]);
+    // Anywhere else, and in the XPI even for the same path, it is foreign library code.
+    expect(rules('packages/ui/src/editor.ts', 'sources')).toEqual(['onlymonster-code']);
+    expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'xpi')).toEqual(['onlymonster-code']);
+    // The stand never carries their bundles or a saved page, nor any built file.
+    expect(rules('packages/testing/fixture-chatspace/src/x.ts', 'sources', '// from messages-DlBZ5e81.js')).toEqual(['onlymonster-code']);
+    expect(rules('packages/testing/fixture-chatspace/src/x.css', 'sources', '.a[data-v-1a2b3c4d]{}')).toEqual(['onlymonster-code']);
+    expect(rules('packages/testing/fixture-chatspace/assets/index-abc.js', 'sources', 'export {}')).toEqual(['fixture-provenance']);
+  });
+
   it('finds a real id by hash anywhere a number stands alone, not inside longer numbers', () => {
     const scan = (text: string): string[] =>
       checkArchive('s.zip', [entry('a.ts', text)], 'sources', { realIdHashes: syntheticHashes }).map((problem) => problem.rule);
