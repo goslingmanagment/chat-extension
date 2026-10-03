@@ -28,6 +28,12 @@ import {
   displayText,
 } from './primitives';
 import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendGroupSchema, SendPurposeSchema } from './send';
+import { PersonaCatalogSchema } from './hub/ai';
+import { BootstrapSchema } from './hub/bootstrap';
+import { FeedPageSchema } from './hub/feed';
+import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
+import { RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
+import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema } from './hub/spenders';
 import { SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
 import { type ExtensionPage, type TabSender } from './tab-protocol';
 import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
@@ -138,14 +144,7 @@ interface RequestSpec {
   readonly from: readonly TabSender[];
   /** Only these pages may send it (when the sender is a page). */
   readonly pages?: readonly ExtensionPage[];
-  /** The response is a hub DTO that part 2b still has to freeze; until then `res` accepts anything. */
-  readonly pendingHubDto?: string;
 }
-
-// TODO(R01-2b): hub.ts (HubFacade + hub DTOs, §5.8, hub-pr-plan.md §4) replaces
-// every `hubDto(...)` response below with its DTO schema and drops the
-// `pendingHubDto` mark; the contract tests then require invalid fixtures too.
-const hubDto = (name: string) => ({ res: z.unknown(), pendingHubDto: name }) as const;
 
 const TAB = ['tab'] as const satisfies readonly TabSender[];
 const PAGE = ['page'] as const satisfies readonly TabSender[];
@@ -182,10 +181,10 @@ export const TAB_REQUESTS = {
   },
   /** `serverRevoked: null` — the hub did not answer; the local sign-in is cleared anyway. */
   'session.signOut': { req: Empty, res: z.strictObject({ serverRevoked: z.nullable(z.boolean()) }), from: PAGE },
-  'bootstrap.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), ...hubDto('Bootstrap'), from: ANY },
+  'bootstrap.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: BootstrapSchema, from: ANY },
   /** Binds a host account to exactly one page by platformAccountId; CG-BINDING-* on failure. */
   'binding.resolve': { req: z.strictObject({ account: HostAccountSchema }), res: z.strictObject({ binding: HubBindingSchema }), from: ANY },
-  'catalog.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), ...hubDto('PersonaCatalog'), from: ANY },
+  'catalog.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: PersonaCatalogSchema, from: ANY },
   'persona.set': {
     req: z.strictObject({ pageId: HubIntIdSchema, key: boundedText(64), definitionId: boundedText(128) }),
     res: z.strictObject({ revision: CountSchema }),
@@ -242,40 +241,40 @@ export const TAB_REQUESTS = {
   },
 
   // ── recaps ──
-  'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), ...hubDto('RecapStatus'), from: ANY },
-  'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), ...hubDto('SharedRecaps'), from: ANY },
+  'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), res: RecapStatusSchema, from: ANY },
+  'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), res: SharedRecapsSchema, from: ANY },
 
   // ── hub data ──
   /** The whole board up to 1000 rows; the background pages through the hub (§8.5). */
   'spenders.board': {
     req: z.strictObject({ pageId: HubIntIdSchema, period: SpendersPeriodSchema, force: z.optional(z.boolean()) }),
-    ...hubDto('SpendersPage'),
+    res: SpendersBoardSchema,
     from: TAB,
   },
   'spenders.stats': {
     req: z.strictObject({ pageId: HubIntIdSchema, windowDays: z.int().check(z.gte(1), z.lte(90)), timeZone: TimeZoneSchema }),
-    ...hubDto('SpendersStats'),
+    res: SpendersStatsSchema,
     from: TAB,
   },
   'spenders.queue': {
     req: z.strictObject({ pageId: HubIntIdSchema, cursor: CursorSchema, limit: z.int().check(z.gte(1), z.lte(100)) }),
-    ...hubDto('QueuePage'),
+    res: QueuePageSchema,
     from: TAB,
   },
   'feed.read': {
     req: z.strictObject({ ...PageFan, cursor: CursorSchema, limit: z.int().check(z.gte(1), z.lte(100)) }),
-    ...hubDto('FeedPage'),
+    res: FeedPageSchema,
     from: TAB,
   },
-  'fan.card': { req: z.strictObject(PageFan), ...hubDto('SpenderDetail'), from: TAB },
+  'fan.card': { req: z.strictObject(PageFan), res: SpenderDetailSchema, from: TAB },
   'newcomers.list': {
     req: z.strictObject({ pageId: HubIntIdSchema, windowHours: z.int().check(z.gte(1), z.lte(720)), cursor: CursorSchema }),
-    ...hubDto('AudienceNewPage'),
+    res: AudienceNewPageSchema,
     from: TAB,
   },
   'newcomers.claim': {
     req: z.strictObject({ ...PageFan, action: z.enum(['claim', 'renew', 'release']) }),
-    ...hubDto('ClaimState'),
+    res: ClaimStateSchema,
     from: TAB,
   },
 

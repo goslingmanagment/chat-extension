@@ -21,7 +21,7 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
       expect(fixtures.req.valid.length).toBeGreaterThan(0);
       expect(fixtures.req.invalid.length).toBeGreaterThan(0);
       expect(fixtures.res.valid.length).toBeGreaterThan(0);
-      if (!('pendingHubDto' in spec)) expect(fixtures.res.invalid.length, `${type} needs an invalid response fixture`).toBeGreaterThan(0);
+      expect(fixtures.res.invalid.length, `${type} needs an invalid response fixture`).toBeGreaterThan(0);
       expectVerdicts(`${type} req`, spec.req, fixtures.req);
       expectVerdicts(`${type} res`, spec.res, fixtures.res);
     });
@@ -34,23 +34,6 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
       expectVerdicts(`${type} evt`, C.TAB_EVENTS[type].payload, fixtures);
     });
   }
-
-  it('lists the responses still waiting for hub DTOs (part 2b)', () => {
-    const pending = C.TAB_REQUEST_TYPES.filter((type) => 'pendingHubDto' in C.TAB_REQUESTS[type]);
-    expect(pending).toEqual([
-      'bootstrap.get',
-      'catalog.get',
-      'recap.status',
-      'recap.read',
-      'spenders.board',
-      'spenders.stats',
-      'spenders.queue',
-      'feed.read',
-      'fan.card',
-      'newcomers.list',
-      'newcomers.claim',
-    ]);
-  });
 
   it('sender rules: every type has senders; page lists only on page-sendable types', () => {
     for (const type of C.TAB_REQUEST_TYPES) {
