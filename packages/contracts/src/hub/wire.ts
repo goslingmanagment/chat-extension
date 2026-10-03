@@ -1,0 +1,135 @@
+// Hub wire building blocks (architecture.md §8, hub-pr-plan.md §4.0–4.1,
+// critic item 14). Rules of the hub's client routes, mirrored here:
+// - request bodies and queries are strict (we build them; an extra key is our bug);
+// - response objects are NOT strict: the hub may add optional keys, which we drop;
+// - growing vocabularies (flags, features, capabilities, reasons, sources,
+//   coverage, kinds, platform, role) are open tokens: the known values are the
+//   constants below, an unknown value means "off" or "unknown", never a failed parse;
+// - closed enums only for claim/custody automaton states and operation outcomes.
+// Schemas of operations the vendored SDK already has mirror the SDK exactly
+// (it validates them first; a looser mirror would accept what it rejects).
+// No hub URL paths live in contracts: they are SDK markers, and a content
+// script that bundled one would fail the sdk-custody gate. The background's
+// hub package and the fake hub own the paths.
+
+import * as z from 'zod/mini';
+
+import { type HostKind } from '../ids';
+import { boundedText, type NativeId } from '../primitives';
+
+/** Hub local business date `YYYY-MM-DD` (hub `businessDate`): a real calendar date. */
+export const BUSINESS_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function isCalendarDate(value: string): boolean {
+  const match = BUSINESS_DATE_PATTERN.exec(value);
+  if (match === null) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+export const BusinessDateSchema = z.string().check(z.refine(isCalendarDate, { message: 'not a YYYY-MM-DD calendar date' }));
+
+/** Hub page label (`pageLabelSchema`, 1–120); the hub's page key in paths and queries. */
+export const PageLabelSchema = boundedText(120);
+
+/** Opaque signed cursor of the hub's client lists (feed, awaiting reply, audience-new). */
+export const HubCursorSchema = boundedText(2048);
+
+/** Persona definition identity (`definitionId`, opaque, 16–100). Compared, never parsed. */
+export const PersonaDefinitionIdSchema = z.string().check(z.minLength(16), z.maxLength(100));
+
+/** The hub's error body (`errorResponseSchema`): exactly code, message, status, plus the documented `reason`/`statusUrl`. */
+export const HubErrorBodySchema = z.object({
+  error: z.string(),
+  message: z.string(),
+  statusCode: z.int(),
+  /** Machine reason, only where the hub's error canon names one (token_revoked, client_feature_disabled reasons…). */
+  reason: z.optional(z.string()),
+  statusUrl: z.optional(z.string()),
+});
+export type HubErrorBody = z.infer<typeof HubErrorBodySchema>;
+
+// ── Known values of the open vocabularies (hub-pr-plan.md §4.1) ────────────
+
+/** Owner kill switches (`chatExtensionFeatures`); on the wire an open record. */
+export const CLIENT_FEATURE_FLAG_NAMES = [
+  'insertion',
+  'freshText',
+  'newcomers',
+  'spenders',
+  'stats',
+  'preview',
+  'previewSend',
+  'previewSendMarkAiGenerated',
+  'fanPanel',
+  'navigation',
+  'wsTap',
+  'sound',
+  'coach',
+  'recap',
+  'review',
+  'splitAll',
+] as const;
+export type ClientFeatureFlag = (typeof CLIENT_FEATURE_FLAG_NAMES)[number];
+
+/** Capabilities the hub declares in bootstrap (critic: + live-text-v1, recap-profile-v1, awaiting-reply-v1, ai-usage-v1). */
+export const CLIENT_HUB_CAPABILITY_NAMES = [
+  'context-v1',
+  'live-text-v1',
+  'split-all-v1',
+  'shared-recaps-v1',
+  'recap-profile-v1',
+  'archive-feed-v1',
+  'spenders-stats-v1',
+  'awaiting-reply-v1',
+  'audience-new-v1',
+  'preview-send-custody-v1',
+  'client-health-perf-v1',
+  'ai-usage-v1',
+] as const;
+export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
+
+/** Why a page feature is unavailable (`features.*.reason`, `client_feature_disabled.reason`); critic item 6 adds `client_outdated`. */
+export const CLIENT_FEATURE_UNAVAILABLE_REASONS = [
+  'disabled',
+  'flag_off',
+  'platform_unsupported',
+  'binding_missing',
+  'hub_not_ready',
+  'not_granted',
+  'client_outdated',
+] as const;
+export type ClientFeatureUnavailableReason = (typeof CLIENT_FEATURE_UNAVAILABLE_REASONS)[number];
+
+/** Capabilities that travel only in the AI request header `x-kernel-ai-capabilities` (comma list). */
+export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1'] as const;
+export const AiStreamCapabilitySchema = z.enum(AI_STREAM_CAPABILITIES);
+export type AiStreamCapability = z.infer<typeof AiStreamCapabilitySchema>;
+
+/** Coverage words of the hub's client routes (feed, stats, audience-new, context_v1). */
+export const HUB_COVERAGE_LEVELS = ['complete', 'partial', 'unknown'] as const;
+
+/** An unknown flag name, or a known one missing from the record, is off. */
+export function isFlagOn(flags: Readonly<Record<string, boolean>>, flag: ClientFeatureFlag): boolean {
+  return Object.prototype.hasOwnProperty.call(flags, flag) && flags[flag] === true;
+}
+
+export function hasCapability(capabilities: readonly string[], capability: ClientHubCapability | AiStreamCapability): boolean {
+  return capabilities.includes(capability);
+}
+
+/** Narrows an open token against a known list; unknown → null (the caller treats it as off/unknown). */
+export function narrowToken<const T extends string>(known: readonly T[], token: string): T | null {
+  return (known as readonly string[]).includes(token) ? (token as T) : null;
+}
+
+// ── Host account → page binding keys (bootstrap `bindingsByHost`) ──────────
+
+/** Namespace of each host's accounts in `bindingsByHost` keys; `fansly` is confirmed by R20. */
+export const HOST_BINDING_NAMESPACES = { chatspace: 'onlymonster', 'fansly-web': 'fansly' } as const satisfies Record<HostKind, string>;
+
+/** `onlymonster:<accountId>` — the owner's explicit binding key for a host account (§8.3, critic item 3). */
+export function hostBindingKey(host: HostKind, hostAccountId: NativeId): string {
+  return `${HOST_BINDING_NAMESPACES[host]}:${hostAccountId}`;
+}
