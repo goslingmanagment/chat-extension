@@ -86,6 +86,8 @@ export interface MainBridgeOptions {
   readonly exposeRuntimeHook?: boolean;
 }
 
+const HEX = '0123456789abcdef';
+
 export function installMainBridge(win: Window = window, options: MainBridgeOptions = {}): MainBridgeHandle {
   const now = win.performance.now.bind(win.performance);
   const startedAt = now();
@@ -99,7 +101,12 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
   // eslint-disable-next-line @typescript-eslint/unbound-method -- native captured at load, always invoked with .call
   const hasOwn = Object.prototype.hasOwnProperty;
   const tapKey = Symbol.for(WS_TAP_KEY);
-  const documentEpoch = Array.from(win.crypto.getRandomValues(new Uint8Array(12)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  // Minted on first use, not at install: the first crypto call of a fresh page realm costs ~0.15 ms (§11).
+  let epoch = '';
+  const documentEpoch = (): string => {
+    if (!epoch) for (const byte of win.crypto.getRandomValues(new Uint8Array(12))) epoch += HEX.charAt(byte >> 4) + HEX.charAt(byte & 15);
+    return epoch;
+  };
   const targetOrigin = win.location.origin === 'null' ? '*' : win.location.origin;
 
   let port: MessagePort | null = null;
@@ -113,12 +120,14 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
   const queued: Record<string, () => Plain> = {};
 
   const send = (frame: Plain): void => {
-    if (!disposed) port?.postMessage({ v: PROTOCOL_VERSION, ...frame, documentEpoch, seq: seq++ });
+    if (!disposed) port?.postMessage({ v: PROTOCOL_VERSION, ...frame, documentEpoch: documentEpoch(), seq: seq++ });
   };
 
   const context: MainContext = {
     win,
-    documentEpoch,
+    get documentEpoch() {
+      return documentEpoch();
+    },
     now,
     setTimer,
     frame: (callback) => {
@@ -158,7 +167,7 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
     if (!isRequestEnvelope(data)) return;
     const { id, t, payload, documentEpoch: theirs } = data as { id: number; t: string; payload: unknown; documentEpoch: string | null };
     let outcome: unknown;
-    if (theirs !== null && theirs !== documentEpoch) outcome = ERR_STALE_DOCUMENT;
+    if (theirs !== null && theirs !== documentEpoch()) outcome = ERR_STALE_DOCUMENT;
     else if (NOT_YET_REQUESTS.includes(t)) outcome = ERR_DISABLED;
     else if (writes.has(id)) outcome = writes.get(id);
     else if (t === 'probe') outcome = isPlain(payload) && !Object.keys(payload).length ? { v: PROTOCOL_VERSION, readyStateAtStart, installMs, wsTap: hasOwn.call(win, tapKey) } : ERR_BAD_REQUEST;
@@ -210,7 +219,9 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
 
   return {
     installMs,
-    documentEpoch,
+    get documentEpoch() {
+      return documentEpoch();
+    },
     isConnected: () => port !== null,
     attach,
     dispose: () => {

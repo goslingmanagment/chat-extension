@@ -55,7 +55,8 @@ const CACHE_READS = ['get', 'getQueryData', 'getEntries'];
 /** Cache keys whose change can mount, unmount or hide the open chat's composer. */
 const COMPOSER_KEYS = [KEY_FANS, KEY_MESSAGES, KEY_MIMIC_CHATS, KEY_MIMIC_SETTINGS, KEY_PERMISSIONS];
 
-export function createMainRuntime({ win, documentEpoch, now, setTimer, frame, emit }: MainContext): MainRuntime {
+export function createMainRuntime(context: MainContext): MainRuntime {
+  const { win, now, setTimer, frame, emit } = context;
   const doc = win.document;
   const clock = Date.now;
   let app: App | null = null;
@@ -152,7 +153,7 @@ export function createMainRuntime({ win, documentEpoch, now, setTimer, frame, em
     const read = route();
     const chat = expected.chat;
     return (
-      expected.documentEpoch === documentEpoch &&
+      expected.documentEpoch === context.documentEpoch &&
       expected.hostLoginEpoch === loginEpoch() &&
       expected.routeEpoch === routeEpoch &&
       expected.hostAccountId === read.acc &&
@@ -175,7 +176,7 @@ export function createMainRuntime({ win, documentEpoch, now, setTimer, frame, em
     usedIntents.add(intent.intentId);
     pending?.cancel(CG_CANCELED);
     const read = route();
-    if (expected.documentEpoch !== documentEpoch || read.acc !== intent.target.hostAccountId || read.fan !== intent.target.platformFanId || expected.routeEpoch !== routeEpoch) {
+    if (expected.documentEpoch !== context.documentEpoch || read.acc !== intent.target.hostAccountId || read.fan !== intent.target.platformFanId || expected.routeEpoch !== routeEpoch) {
       return rejected(CG_CHAT_CHANGED);
     }
     if (blocked(read)) return rejected(CG_FAN_BLOCKED);
@@ -232,7 +233,7 @@ export function createMainRuntime({ win, documentEpoch, now, setTimer, frame, em
     usedIntents.add(intent.intentId);
     if (then) usedIntents.add(then.intentId);
     pending?.cancel(CG_CANCELED);
-    if (!router || (then && (then.expected.documentEpoch !== documentEpoch || clock() > then.expiresAt))) return fail(CG_NAV_FAILED);
+    if (!router || (then && (then.expected.documentEpoch !== context.documentEpoch || clock() > then.expiresAt))) return fail(CG_NAV_FAILED);
     const before = route();
     const already = !!intent.fan && before.acc === intent.acc && before.fan === intent.fan;
     const sinceEpoch = already ? routeEpoch - 1 : routeEpoch;
