@@ -32,6 +32,8 @@ Agency Hub (`hub`).
 - [docs/hub-layer.md](docs/hub-layer.md) — слой хаба (`@cg/hub`): транспорты,
   поток AI, вход, режим совместимости для хаба без новых маршрутов (только
   разработка) и что подключает интегратор.
+- [docs/hotkeys-delivery.md](docs/hotkeys-delivery.md) — какие сочетания клавиш Firefox
+  отдаёт странице на Mac и Windows, что ещё не проверено руками, запасные сочетания.
 - [docs/decisions.md](docs/decisions.md) — журнал решений.
 - [AGENTS.md](AGENTS.md) — правила для агентов.
 
