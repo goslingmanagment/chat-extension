@@ -17,7 +17,8 @@
   },
   "include": [
     "src",
-    "e2e"
+    "e2e",
+    "fixture-chatspace.vite.config.ts"
   ],
   "references": [
     {
@@ -37,6 +38,9 @@
     },
     {
       "path": "../ui"
+    },
+    {
+      "path": "./fixture-chatspace"
     }
   ]
 }

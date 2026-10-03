@@ -199,11 +199,12 @@ export function checkSendQueueReferences(files: readonly SourceFile[]): Violatio
   return violations;
 }
 
-/** 6. The release bundle carries nothing test-only: no loopback hosts, no spike probe. */
+/** 6. The release bundle carries nothing test-only: no loopback hosts, no spike or egress probe. */
 export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
   const markers: Array<[RegExp, string]> = [
     [/127\.0\.0\.1|\blocalhost\b/, 'loopback stand / fake hub host'],
     [/data-cg-spike|lazy\/spike\.js/, 'spike M0 probe'],
+    [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
     [/chat-extension-test@/, 'test gecko id'],
     [/__cgBundleMarks/, 'spike timing marks'],
   ];
@@ -357,6 +358,26 @@ export function checkMainWorldBundles(files: readonly SourceFile[]): Violation[]
   return violations;
 }
 
+/** The test stand's own package: the only code that may name its hooks. */
+export const STAND_PACKAGE = /^packages\/testing\//;
+/** Stand-only hooks: `data-stand-*` attributes, `window.__stand`, the `x-stand-*` headers. None exist on ChatSpace. */
+const STAND_HOOK = /data-stand-|__stand\b|x-stand-/;
+
+/** 9. Our code never leans on the stand's own hooks (they pass on the stand and find nothing on ChatSpace). */
+export function checkStandHooks(files: readonly SourceFile[]): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (STAND_PACKAGE.test(file.path)) continue;
+    const source = parse(file);
+    walk(source, (node) => {
+      const text = isTextNode(node) || ts.isRegularExpressionLiteral(node) ? node.text : ts.isIdentifier(node) ? node.text : null;
+      if (text === null || !STAND_HOOK.test(text)) return;
+      violations.push({ gate: 'stand-hooks', path: file.path, line: lineOf(source, node), message: `«${STAND_HOOK.exec(text)?.[0] ?? ''}» is a stand-only hook, absent on ChatSpace (§12 п. 3).` });
+    });
+  }
+  return violations;
+}
+
 export function runSourceGates(files: readonly SourceFile[]): Violation[] {
   return [
     ...checkOnlyMonsterReferences(files),
@@ -364,5 +385,6 @@ export function runSourceGates(files: readonly SourceFile[]): Violation[] {
     ...checkBrowserApiScope(files),
     ...checkUiTexts(files),
     ...checkSendQueueReferences(files),
+    ...checkStandHooks(files),
   ];
 }

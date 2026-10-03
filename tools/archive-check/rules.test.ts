@@ -36,6 +36,38 @@ describe('archive check', () => {
     );
   });
 
+  it('lets the stand fixture name Vue/TipTap in the sources archive only, and keeps its folder to hand-written sources', () => {
+    const tiptap = "import { Editor } from '@tiptap/core';";
+    const rules = (name: string, kind: 'xpi' | 'sources', text = tiptap): string[] => checkArchive('a.zip', [entry(name, text)], kind).map((problem) => problem.rule);
+    expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'sources')).toEqual([]);
+    expect(rules('packages/testing/package.json', 'sources', '{"@tiptap/core": "3.31.4"}')).toEqual([]);
+    expect(rules('pnpm-lock.yaml', 'sources', "'@tiptap/core@3.31.4':")).toEqual([]);
+    // Anywhere else, and in the XPI even for the same path, it is foreign library code.
+    expect(rules('packages/ui/src/editor.ts', 'sources')).toEqual(['onlymonster-code']);
+    expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'xpi')).toEqual(['onlymonster-code']);
+    // The stand never carries their bundles or a saved page, nor any built file.
+    expect(rules('packages/testing/fixture-chatspace/src/x.ts', 'sources', '// from messages-DlBZ5e81.js')).toEqual(['onlymonster-code']);
+    expect(rules('packages/testing/fixture-chatspace/src/x.css', 'sources', '.a[data-v-1a2b3c4d]{}')).toEqual(['onlymonster-code']);
+    expect(rules('packages/testing/fixture-chatspace/assets/index-abc.js', 'sources', 'export {}')).toEqual(['fixture-provenance']);
+  });
+
+  it('keeps every stand folder to hand-written sources: no saved API answers, pages or notes', () => {
+    const rules = (name: string, text = '{}'): string[] => checkArchive('a.zip', [entry(name, text)], 'sources').map((problem) => problem.rule);
+    expect(rules('packages/testing/fixture-chatspace/tsconfig.json')).toEqual([]);
+    expect(rules('packages/testing/stand/stand.js', '(function () {})();')).toEqual([]);
+    expect(rules('packages/testing/src/stand/api.ts', 'export {};')).toEqual([]);
+    for (const saved of [
+      'packages/testing/fixture-chatspace/src/chats.json',
+      'packages/testing/fixture-chatspace/notes.md',
+      'packages/testing/stand/chat-list.json',
+      'packages/testing/stand/page.md',
+      'packages/testing/src/stand/answer.json',
+      'packages/testing/src/stand/history.html',
+    ]) {
+      expect(rules(saved), saved).toEqual(['fixture-provenance']);
+    }
+  });
+
   it('finds a real id by hash anywhere a number stands alone, not inside longer numbers', () => {
     const scan = (text: string): string[] =>
       checkArchive('s.zip', [entry('a.ts', text)], 'sources', { realIdHashes: syntheticHashes }).map((problem) => problem.rule);

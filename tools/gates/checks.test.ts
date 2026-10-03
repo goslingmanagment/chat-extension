@@ -12,6 +12,7 @@ import {
   checkReleaseBundle,
   checkSdkCustody,
   checkSendQueueReferences,
+  checkStandHooks,
   checkUiTexts,
   deriveSdkMarkers,
   missingSdkMarkerKinds,
@@ -119,6 +120,23 @@ describe('gate: send queue scope', () => {
   });
 });
 
+describe('gate: stand-only hooks', () => {
+  it('flags data-stand-*, __stand and x-stand-* in our code, not in the stand package or in comments', () => {
+    const violations = checkStandHooks([
+      file('packages/host-chatspace/src/isolated/dock.ts', "// unlike the stand's data-stand-composer, ChatSpace has no such hook\nconst slot = root.querySelector('[data-stand-composer-slot]');"),
+      file('packages/core/src/x.ts', 'const s = window.__stand; const h = { [`x-stand-native`]: 1 };'),
+      file('packages/testing/src/stand/control.ts', "const hook = '[data-stand-composer]';"),
+      file('packages/ui/src/y.tsx', "const id = 'data-standalone';"),
+    ]);
+    expect(violations.map((violation) => [violation.path, violation.line])).toEqual([
+      ['packages/host-chatspace/src/isolated/dock.ts', 2],
+      ['packages/core/src/x.ts', 1],
+      ['packages/core/src/x.ts', 1],
+    ]);
+    expect(gates(violations)).toEqual(['stand-hooks', 'stand-hooks', 'stand-hooks']);
+  });
+});
+
 describe('gate: release bundle', () => {
   it('flags loopback hosts, the spike probe and the test id', () => {
     const violations = checkReleaseBundle([
@@ -128,6 +146,10 @@ describe('gate: release bundle', () => {
       file('lazy/dock.js', 'export{}'),
     ]);
     expect(violations.map((violation) => violation.path)).toEqual(['background.js', 'content-scripts/chatspace.js', 'manifest.json']);
+  });
+
+  it('flags the background egress probe', () => {
+    expect(gates(checkReleaseBundle([file('background.js', 'fetch("https://cg-bg-probe.invalid/probe")')]))).toEqual(['release-bundle']);
   });
 
   it('flags the spike timing marks', () => {
