@@ -607,6 +607,11 @@ describe('[X8-07] [X8-08] [NF-022] reports: from the owning tab, once, durable',
     await h.coordinator.reconcileFan(sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: previewTarget.fanRef }));
     await h.coordinator.idle();
     expect(actions(h)).toEqual(['dispatch', 'sent']);
+    // Nor does a dispatch answer that still names A's custody: the hub already answered A's report.
+    h.hub.claimScript.push({ kind: 'ok', state: claim({ attemptId: A, state: 'dispatching' }) });
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501), part: { index: 1 } }))).toMatchObject({ ok: false, view: { code: 'CG-SEND-UNCERTAIN' } });
+    await h.coordinator.idle();
+    expect(actions(h)).toEqual(['dispatch', 'sent', 'dispatch']);
   });
 
   it('[X8-08] a report the hub does not answer repeats with the same attemptId: `sent` for long, `failed` only within the ticket', async () => {
