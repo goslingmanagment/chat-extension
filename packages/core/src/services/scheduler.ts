@@ -10,7 +10,11 @@
 // Stream text reaches the owning tab in 50 ms batches. The only automatic
 // repeat is the one 503-before-first-frame retry, and an environment that
 // went away interrupts it. After an unload a running operation is
-// `interrupted` and never POSTed again. Results live 30 minutes.
+// `interrupted` and never POSTed again. Results live 30 minutes. A tab that
+// re-attaches to a running operation (reload, palette «Перейти», a mirror's
+// gap) gets the text so far in the view and the batches start again at seq 1
+// for it (mirrorFromView). Usage goes to the log always (no text), to the
+// screen only in debug mode (§8.4).
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
@@ -47,10 +51,13 @@ import {
   requestKeyOf,
   resultExpired,
   retryDecision,
+  showsStream,
   staleMarkFor,
   startPrecondition,
+  timeoutsOf,
   type ActiveOpEntry,
   type BuildResult,
+  type Deadline,
   type EnvironmentChange,
   type OpEnvTag,
   type OpsEnvironment,
@@ -71,6 +78,8 @@ export const OPS_STORE_KEY = 'ops.v1';
 const DAY_MS = 86_400_000;
 const UPDATE_APPEND_MAX = 64_000;
 const DEBUG_STAGES_MAX = 32;
+/** OpView.text (contracts `displayText(64_000)`): a longer stream travels only in batches and the result. */
+const VIEW_TEXT_MAX = 64_000;
 
 /** A feature's request builder and result parser; R11 plugs its own, the defaults are the domain's. */
 export interface OpDriver {
@@ -285,7 +294,11 @@ export class OpScheduler {
 
     // Atomic: decide and take the slot in one synchronous step (the single writer).
     const decision = decideAdmission(this.activeEntries(), { tabSessionId, chatKey, requestKey });
-    if (decision.kind === 'reopen') return { kind: 'admission', admission: { ok: true, opId: decision.opId }, reopened: true };
+    if (decision.kind === 'reopen') {
+      // A run whose tab went away (reload, closed tab) follows the tab that asked for it again.
+      if (this.runs.get(decision.opId)?.ownerTab === null) this.attachTab(decision.opId, tabSessionId);
+      return { kind: 'admission', admission: { ok: true, opId: decision.opId }, reopened: true };
+    }
     if (decision.kind === 'refuse') return { kind: 'admission', admission: decision.refusal, reopened: false };
 
     const opId = this.deps.ids.uuid();
@@ -393,16 +406,24 @@ export class OpScheduler {
     this.move(run, 'requesting', { name: 'connecting', since: this.deps.clock.now() });
 
     for (;;) {
-      const again = await this.attempt(run);
-      if (!again || run.ended) return;
+      const retryIn = await this.attempt(run);
+      if (retryIn === null || run.ended) return;
+      const go = await this.waitForRetry(run, retryIn);
+      if (run.ended) return;
+      if (!go) {
+        // RB-001: the environment went away during the wait (no change event reached us): never POSTed later.
+        this.log.write({ level: 'warn', scope: 'bg.ops', msg: 'retry interrupted', code: 'CG-OP-INTERRUPTED', ctx: { opId: run.view.opId } });
+        this.settle(run, { state: 'interrupted', code: 'CG-OP-INTERRUPTED', toast: false });
+        return;
+      }
     }
   }
 
-  /** One POST of the stream. Resolves true when the single transparent retry should follow. */
-  private async attempt(run: Run): Promise<boolean> {
+  /** One POST of the stream. Resolves with the pause before the single transparent retry, or null when it ended. */
+  private async attempt(run: Run): Promise<number | null> {
     const { clock, hub } = this.deps;
     const request = run.request;
-    if (request === null) return false;
+    if (request === null) return null;
     run.attempt += 1;
     run.stream = INITIAL_STREAM_STATE;
     run.times = { ...run.times, attemptAt: clock.now(), metaAt: null, firstChunkAt: run.times.firstChunkAt, lastFrameAt: null };
@@ -412,26 +433,26 @@ export class OpScheduler {
     this.armDeadline(run);
     try {
       await hub.stream(request, (frame) => this.onFrame(run, frame), abort.signal);
-      if (run.ended) return false;
+      if (run.ended) return null;
       const terminal = run.stream.terminal;
       if (terminal?.kind === 'done') {
         this.finishDone(run);
-        return false;
+        return null;
       }
       // Resolved without `done`: EOF by another name.
       this.failWith(run, { kind: 'transport', failure: 'truncated' });
-      return false;
+      return null;
     } catch (error) {
-      if (run.ended) return false;
+      if (run.ended) return null;
       const terminal = run.stream.terminal;
       // RB-005: an error frame is terminal and wins over the abort or EOF that follows it.
       if (terminal?.kind === 'error') {
         this.failWith(run, { kind: 'sse-error', code: terminal.code, retryAfterMs: terminal.retryAfterMs });
-        return false;
+        return null;
       }
       if (terminal?.kind === 'done') {
         this.finishDone(run);
-        return false;
+        return null;
       }
       const failure: HubFailure = isHubCallError(error) ? error.failure : { kind: 'transport', failure: 'network' };
       if (!isHubCallError(error)) this.log.write({ level: 'error', scope: 'bg.ops', msg: 'stream failed outside the facade contract', ctx: { opId: run.view.opId } });
@@ -443,22 +464,28 @@ export class OpScheduler {
         outputSeen: run.stream.outputSeen || run.times.firstChunkAt !== null,
         environmentLost: this.environmentLost(run),
       });
-      if (retry.retry) return this.waitForRetry(run, retry.delayMs);
+      if (retry.retry) return retry.delayMs;
       this.failResolved(run, resolution);
-      return false;
+      return null;
     } finally {
       this.clearDeadline(run);
       run.abort = null;
     }
   }
 
-  /** «Сервис недоступен, повтор через 5 с…»: resolves true to retry, false when canceled or interrupted meanwhile. */
+  /**
+   * «Сервис недоступен, повтор через 5 с…»: resolves true to retry, false
+   * when canceled or interrupted meanwhile. The operation's whole-time
+   * maximum keeps running across the wait.
+   */
   private waitForRetry(run: Run, delayMs: number): Promise<boolean> {
     const now = this.deps.clock.now();
     this.setPhase(run, { name: 'retry-wait', since: now, retryAt: now + delayMs });
+    this.armDeadline(run, { at: run.times.opRequestAt + timeoutsOf(run.view.feature).maxMs, kind: 'max' });
     return new Promise<boolean>((resolve) => {
       const timer = this.deps.clock.setTimer(delayMs, () => {
         run.wait = null;
+        this.clearDeadline(run);
         resolve(!run.ended && !this.environmentLost(run));
       });
       run.wait = { timer, resume: resolve };
@@ -497,9 +524,28 @@ export class OpScheduler {
           this.setPhase(run, { name: 'streaming', since: now });
         } else this.scheduleFlush(run);
         break;
-      case 'usage':
+      case 'usage': {
         this.stage(run, 'usage', now);
+        // §8.4, DB-018, DB-022: the spend goes to the log always (numbers only), to the screen only in debug mode.
+        const usage = effect.usage;
+        this.log.write({
+          level: 'info',
+          scope: 'bg.ops.usage',
+          msg: 'ai usage',
+          fields: {
+            feature: run.view.feature,
+            surface: run.view.surface,
+            pageId: run.tag.pageId,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cacheReadTokens: usage.cacheReadTokens,
+            cacheWriteTokens: usage.cacheWriteTokens,
+            costMicroUsd: usage.costMicroUsd,
+          },
+          ctx: { opId: run.view.opId },
+        });
         break;
+      }
       case 'reasoning':
         break;
       case 'debug-input':
@@ -537,7 +583,7 @@ export class OpScheduler {
       this.settle(run, { state: 'failed', code: parsed.code, toast: true });
       return;
     }
-    run.view = { ...run.view, text };
+    run.view = text.length <= VIEW_TEXT_MAX ? { ...run.view, text } : withoutText(run.view);
     this.settle(run, { state: 'done', result: parsed.result, toast: true });
   }
 
@@ -641,12 +687,23 @@ export class OpScheduler {
     return detached;
   }
 
-  /** A tab re-attaches to an operation it shows (after a reload or from the palette). */
+  /**
+   * A tab (re-)attaches to an operation it shows: after a reload, from the
+   * palette «Перейти», or to resync its mirror after a gap. The view carries
+   * the text so far (Fix excepted); the batches start again at seq 1 for
+   * this tab, so a mirror seeded from the view (mirrorFromView) continues
+   * without a gap. What was pending for the old owner is in that text.
+   */
   attachTab(opId: string, tabSessionId: string): OpView | null {
     const run = this.runs.get(opId);
     if (run === undefined) return null;
     if (!run.ended) {
-      this.flush(run);
+      if (run.flushTimer !== null) {
+        this.deps.clock.clearTimer(run.flushTimer);
+        run.flushTimer = null;
+      }
+      run.pending = '';
+      run.seq = 0;
       run.ownerTab = tabSessionId;
     }
     return this.publicView(run);
@@ -790,10 +847,10 @@ export class OpScheduler {
     } while (pending.length > 0);
   }
 
-  private armDeadline(run: Run): void {
+  private armDeadline(run: Run, at?: Deadline): void {
     this.clearDeadline(run);
     if (run.ended) return;
-    const deadline = nextDeadline(run.view.feature, run.times);
+    const deadline = at ?? nextDeadline(run.view.feature, run.times);
     const delay = Math.max(0, deadline.at - this.deps.clock.now());
     run.deadline = this.deps.clock.setTimer(delay, () => {
       run.deadline = null;
@@ -926,16 +983,23 @@ export class OpScheduler {
     };
   }
 
-  /** The view a tab sees: while running, the text so far stays with the stream batches. */
+  /** The view a tab sees: while running, with the text so far (never Fix's: its stream is not shown, AI-138). */
   private publicView(run: Run): OpView {
-    return run.view;
+    if (run.ended || !showsStream(run.view.feature)) return run.view;
+    const text = run.stream.text;
+    if (text.length === 0 || text.length > VIEW_TEXT_MAX) return run.view;
+    return { ...run.view, text };
   }
 
   private async persist(): Promise<void> {
     const now = this.deps.clock.now();
     const items = pruned([...this.runs.values()], now);
     const kept = new Set(items.map((run) => run.view.opId));
-    for (const [opId, run] of this.runs) if (!kept.has(opId) && run.ended) this.runs.delete(opId);
+    for (const [opId, run] of this.runs) {
+      if (kept.has(opId) || !run.ended) continue;
+      this.runs.delete(opId);
+      this.cache.forgetOp(opId);
+    }
     const value = {
       v: 1,
       ops: items.map((run) => ({

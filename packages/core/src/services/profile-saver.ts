@@ -34,6 +34,9 @@ interface Pending {
 
 export type SaveOutcome = 'saved' | 'failed' | 'gave-up' | 'tab-closed' | 'replaced';
 
+/** Outcomes kept for outcome() (newest); older ones are dropped. */
+export const SAVE_OUTCOMES_KEPT = 64;
+
 /** The delay before attempt `n` (n ≥ 1 is the first repeat). */
 export function profileSaveDelay(n: number): number {
   const fixed = HUB_FACADE_TIMING.profileSaveDelaysMs;
@@ -110,7 +113,12 @@ export class RecapProfileSaver {
     if (entry.timer !== null) this.deps.clock.clearTimer(entry.timer);
     entry.timer = null;
     if (this.pending.get(chat) === entry) this.pending.delete(chat);
+    this.outcomes.delete(entry.opId);
     this.outcomes.set(entry.opId, outcome);
+    for (const opId of this.outcomes.keys()) {
+      if (this.outcomes.size <= SAVE_OUTCOMES_KEPT) break;
+      this.outcomes.delete(opId);
+    }
     this.log.write({ level: outcome === 'saved' ? 'info' : 'warn', scope: 'bg.recap', msg: 'dossier save ended', fields: { outcome, attempts: entry.attempt }, ctx: { opId: entry.opId } });
   }
 

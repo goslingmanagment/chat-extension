@@ -7,12 +7,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { OpViewSchema, TAB_EVENTS, chatKeyOf, type HubFrame, type IncomingFact, type OpView, type StartOp } from '@cg/contracts';
-import { type OpsEnvironment } from '@cg/core/domain/ops';
-import { ActionTokens, OPS_STORE_KEY, OpScheduler, RecapProfileSaver, profileSaveDelay, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
+import { applyOpDone, applyOpUpdate, mirrorFromView, type OpsEnvironment } from '@cg/core/domain/ops';
+import { ActionTokens, OPS_STORE_KEY, OpScheduler, RecapProfileSaver, SAVE_OUTCOMES_KEPT, profileSaveDelay, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
 import { BOOTSTRAP_PILOT_ON, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
-import { FakeHub, type ScriptResponse, type ScriptStep } from './support/fake-hub';
+import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
 import { NOW_MS, WORLD, chatOf, checkpointFor, persona, session, startOf, targetOf, uuid } from './support/world';
 
 const TAB = uuid(0xa1);
@@ -323,6 +323,24 @@ describe('[AI-133] [RB-001] the single retry and nothing else', () => {
     }
   });
 
+  it('[RB-001] the environment went away during the wait without a change event: interrupted, never POSTed again', async () => {
+    const h = harness();
+    h.hub.streamScript.push(...scenario('unavailable-503-then-stream'));
+    const op = opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(1000);
+    expect(h.scheduler.view(op)?.phase.name).toBe('retry-wait');
+    // The persona is gone for a moment (a catalog refresh) and nobody told the scheduler.
+    h.env = { ...h.env, persona: () => null };
+    await h.clock.advance(10_000);
+    expect(h.hub.streams).toHaveLength(1);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
+    expect(h.scheduler.active()).toHaveLength(0);
+    // The chat is free again.
+    h.env = { ...h.env, persona: () => persona };
+    h.hub.streamScript.push({ kind: 'hang' });
+    expect((await h.start(TAB, startOf({ tone: 'casual' }))).kind).toBe('admission');
+  });
+
   it('[RB-001] a 503 after a frame, a 502, an EOF, a timeout and a network failure are not retried', async () => {
     for (const responses of [
       [{ kind: 'stream', steps: [metaStep(), { kind: 'eof' }] }],
@@ -374,6 +392,19 @@ describe('[RB-002] [RB-003] [RB-004] [RB-005] [RB-006] [AI-132] how an operation
     expect(view).toMatchObject({ state: 'failed', error: { code: 'CG-PROVIDER-RATE-LIMIT', retryAt: NOW_MS + 20 + 30_000 } });
     expect(view?.text).toBeUndefined();
     expect(view?.result).toBeUndefined();
+  });
+
+  it('[RB-005] an error frame wins over the abort the stream then rejects with', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    h.hub.stream = (_request, sink) => {
+      sink(meta('fast-reply', { clientRequestId: op }));
+      sink({ type: 'error', code: 'provider_rate_limited', message: 'synthetic', retryAfterMs: 30_000 });
+      return Promise.reject(hubError('aiFeatureStream', { kind: 'transport', failure: 'aborted' }, h.hub.epoch));
+    };
+    opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(1000);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'failed', error: { code: 'CG-PROVIDER-RATE-LIMIT' } });
   });
 
   it('[RB-004] EOF without done is CG-STREAM-TRUNCATED and the partial text is never a result', async () => {
@@ -443,6 +474,62 @@ describe('[AI-124] [AI-126] [AI-130] [AI-131] [BG-006] the run lives in the back
     expect(h.scheduler.detachTab(TAB)).toEqual([]);
     expect(h.scheduler.attachTab(op, OTHER_TAB)?.state).toBe('done');
     expect(h.scheduler.attachTab(uuid(0xdead), OTHER_TAB)).toBeNull();
+  });
+
+  it('[AI-124] [RB-016] a tab that re-attaches mid-stream gets the text so far and the batches restart at seq 1', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    h.hub.streamScript.push({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply', { clientRequestId: op }) }, deltaStep('Hello ', 10), deltaStep('there ', 10), deltaStep('friend', 500), doneStep] });
+    opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(100);
+    expect(h.events.of('op.update').filter((u) => u.to === TAB).map((u) => u.payload.append).join('')).toBe('Hello there ');
+    expect(h.scheduler.detachTab(TAB)).toEqual([op]);
+    // op.list shows the text so far too (the palette).
+    expect(h.scheduler.list(OTHER_TAB, 'all').ops[0]?.text).toBe('Hello there ');
+    const view = h.scheduler.attachTab(op, OTHER_TAB);
+    expect(view?.text).toBe('Hello there ');
+    expect(OpViewSchema.safeParse(view).success).toBe(true);
+    if (view === null) return;
+    let mirror = mirrorFromView(view);
+    await h.clock.advance(1000);
+    const updates = h.events.of('op.update').filter((u) => u.to === OTHER_TAB);
+    expect(updates[0]?.payload.seq).toBe(1);
+    for (const u of updates) {
+      const next = applyOpUpdate(mirror, u.payload);
+      expect(next.outcome).toBe('applied');
+      mirror = next.mirror;
+    }
+    expect(mirror.text).toBe('Hello there friend');
+    const done = h.events.of('op.done')[0]?.payload.view;
+    if (done !== undefined) expect(applyOpDone(mirror, done).mirror.text).toBe('Hello there friend');
+  });
+
+  it('[AI-138] a running Fix never shows its stream in a view', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    h.hub.streamScript.push({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('improve-draft', { clientRequestId: op }) }, deltaStep('Fixed ', 10), { kind: 'stall' }] });
+    opIdOf(await h.start(TAB, startOf({ feature: 'fix', draft: { text: 'my draft', revision: 1, digest: 'feedbeef00000001' } })));
+    await h.clock.advance(100);
+    expect(h.scheduler.view(op)?.state).toBe('streaming');
+    expect(h.scheduler.view(op)?.text).toBeUndefined();
+    expect(h.scheduler.attachTab(op, OTHER_TAB)?.text).toBeUndefined();
+  });
+
+  it('[AI-127] [AI-124] after a reload the same request from the new tab session reopens the running operation and follows it', async () => {
+    const h = harness();
+    h.hub.streamScript.push({ kind: 'hang' });
+    const op = opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(10);
+    h.scheduler.detachTab(TAB);
+    const RELOADED = uuid(0xa3);
+    expect(await h.start(RELOADED, startOf())).toEqual({ kind: 'admission', admission: { ok: true, opId: op }, reopened: true });
+    expect(h.hub.streams).toHaveLength(1);
+    // A different request on that chat is still one too many.
+    expect(await h.start(RELOADED, startOf({ tone: 'casual' }))).toMatchObject({ kind: 'admission', admission: { ok: false, code: 'CG-OP-CHAT-BUSY' } });
+    h.events.clear();
+    h.scheduler.cancel(op);
+    expect(h.events.of('op.done')).toHaveLength(1);
+    expect(h.scheduler.list(RELOADED, 'tab').ops.map((v) => v.opId)).toEqual([op]);
   });
 
   it('[AI-131] [AI-130] only an explicit cancel stops it; late frames after a cancel change nothing', async () => {
@@ -543,6 +630,23 @@ describe('[RB-019] [AI-128] stale results and lists', () => {
     expect(h.events.of('op.done')).toHaveLength(1);
   });
 
+  it('[AI-128] failed, canceled and interrupted operations are never marked stale', async () => {
+    const h = harness();
+    h.hub.streamScript.push({ kind: 'network' });
+    const failed = opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(100);
+    h.hub.streamScript.push({ kind: 'hang' });
+    const canceled = opIdOf(await h.start(TAB, startOf({ target: targetOf(WORLD.otherFan) })));
+    h.scheduler.cancel(canceled);
+    expect(h.scheduler.view(failed)?.state).toBe('failed');
+    h.events.clear();
+    expect(h.scheduler.incoming(fact())).toEqual([]);
+    expect(h.scheduler.incoming(fact({ platformFanId: WORLD.otherFan }))).toEqual([]);
+    expect(h.scheduler.view(failed)?.stale).toBeUndefined();
+    expect(h.scheduler.view(canceled)?.stale).toBeUndefined();
+    expect(h.events.of('op.done')).toHaveLength(0);
+  });
+
   it('[RB-019] op.list: this tab or this chat, newest first, capped; all tabs capped at 200 with truncated', async () => {
     const h = harness();
     for (let i = 0; i < 3; i += 1) h.hub.streamScript.push({ kind: 'hang' });
@@ -613,6 +717,22 @@ describe('[BG-004] [RB-003] restore after an unload', () => {
     await second.scheduler.restore();
     expect(second.scheduler.forSend(op)?.checkpoint).toEqual(checkpoint);
     expect(second.scheduler.forSend(uuid(0xdead))).toBeNull();
+  });
+});
+
+describe('[DB-018] [DB-022] AI spend in the log', () => {
+  it('[DB-022] [DB-018] every usage frame is logged with its feature, tokens and cost, debug on or off, and no text', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    h.hub.streamScript.push(...forOp(scenario('debug-input-and-reasoning'), op));
+    opIdOf(await h.start(TAB, startOf({ feature: 'recap', window: 3000 })));
+    await h.clock.advance(1000);
+    const usage = h.log.entries.filter((e) => e.msg === 'ai usage');
+    expect(usage).toHaveLength(1);
+    expect(usage[0]).toMatchObject({ level: 'info', scope: 'bg.ops.usage', fields: { feature: 'recap', surface: 'dock', pageId: WORLD.pages.one.pageId, costMicroUsd: 3100 }, ctx: { opId: op } });
+    expect(typeof usage[0]?.fields?.['inputTokens']).toBe('number');
+    expect(h.scheduler.view(op)?.debug).toBeUndefined();
+    expect(JSON.stringify(usage)).not.toMatch(/Looking at spend/);
   });
 });
 
@@ -707,5 +827,20 @@ describe('[RB-018] the dossier save of a full recap (H-5)', () => {
     saver.save({ ...recapView(uuid(0x105)), feature: 'review' }, TAB);
     saver.save(recapView(uuid(0x106)), null);
     expect(saver.scheduled).toBe(0);
+  });
+
+  it('[RB-018] the outcomes kept for the dock are bounded: the oldest go first', async () => {
+    const clock = new FakeClock(NOW_MS);
+    const h = harness({ clock });
+    const saver = new RecapProfileSaver({ clock, ids: sequentialIds(0x700), hub: h.hub, events: h.events, tabOpen: () => true });
+    for (let i = 0; i < SAVE_OUTCOMES_KEPT + 6; i += 1) {
+      h.hub.profileScript.push({ state: 'saved', response: { outcome: 'created', profile: { version: 1, createdAt: '2026-10-03T10:05:00.000Z', sourceGeneratedAt: null } } });
+      saver.save({ ...recapView(uuid(0x1000 + i)), target: targetOf(String(3000 + i)) }, TAB);
+      await clock.advance(1);
+    }
+    expect(saver.outcome(uuid(0x1000))).toBeNull();
+    expect(saver.outcome(uuid(0x1000 + 5))).toBeNull();
+    expect(saver.outcome(uuid(0x1000 + 6))).toBe('saved');
+    expect(saver.outcome(uuid(0x1000 + SAVE_OUTCOMES_KEPT + 5))).toBe('saved');
   });
 });

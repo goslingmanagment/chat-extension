@@ -4,7 +4,10 @@
 // text appended since the previous one, then one terminal `op.done`. The
 // mirror applies a batch only when it is the next one of its own operation:
 // an older or repeated `seq` changes nothing (newer state wins), a gap asks
-// for a resync (`op.list`), and nothing moves after `op.done`. A render the
+// for a resync, and nothing moves after `op.done`. A resync, a reload or the
+// palette's «Перейти» re-attaches the tab: the background answers the view
+// with the text so far and restarts the batches at seq 1 for this tab, and
+// the tab seeds a fresh mirror from that view (mirrorFromView). A render the
 // tab deferred to its next frame is dropped when the chat changed meanwhile.
 
 import { type FeatureId } from '@cg/contracts/features';
@@ -32,6 +35,19 @@ export type MirrorOutcome = 'applied' | 'stale' | 'gap' | 'foreign' | 'after-don
 
 export function newMirror(opId: string, phase: Phase): OpMirror {
   return { opId, seq: 0, state: 'admitted', phase, text: '', firstChunkAt: null, done: null };
+}
+
+/** A mirror seeded from the view a (re-)attach answered: the text so far, the next batch is seq 1. */
+export function mirrorFromView(view: OpView): OpMirror {
+  return {
+    opId: view.opId,
+    seq: 0,
+    state: view.state,
+    phase: view.phase,
+    text: view.text ?? '',
+    firstChunkAt: view.firstChunkAt ?? null,
+    done: isTerminalOpState(view.state) ? view : null,
+  };
 }
 
 /** Applies one `op.update` batch. */

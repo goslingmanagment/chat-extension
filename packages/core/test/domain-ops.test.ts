@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { AdmissionSchema, OP_STATES, OP_TIMEOUTS, chatKeyOf, type HubFrame, type IncomingFact, type OpState } from '@cg/contracts';
+import { AdmissionSchema, OP_STATES, OP_TIMEOUTS, chatKeyOf, type HubFrame, type IncomingFact, type OpState, type OpView } from '@cg/contracts';
 import {
   INITIAL_STREAM_STATE,
   MAX_STREAM_ATTEMPTS,
@@ -42,6 +42,7 @@ import {
   DeferredRender,
   applyOpDone,
   applyOpUpdate,
+  mirrorFromView,
   newMirror,
   panelOpens,
   showsStream,
@@ -109,9 +110,15 @@ describe('[RB-021] [NEW-11] [AI-123] admission: one per chat across the extensio
     expect(decideAdmission([entry(1, WORLD.fan, TAB, 'same')], { tabSessionId: TAB, chatKey: chatKeyOf(target.chat), requestKey: 'same' })).toEqual({ kind: 'reopen', opId: uuid(1) });
   });
 
+  it('[AI-127] [AI-124] after its tab went away (a reload mints a new session) the same request from any tab reopens it, not CG-OP-CHAT-BUSY', () => {
+    expect(decideAdmission([entry(1, WORLD.fan, null, 'same')], { tabSessionId: OTHER_TAB, chatKey: chatKeyOf(target.chat), requestKey: 'same' })).toEqual({ kind: 'reopen', opId: uuid(1) });
+    // While its tab is still there, another tab is told it runs elsewhere.
+    expect(decideAdmission([entry(1, WORLD.fan, TAB, 'same')], { tabSessionId: OTHER_TAB, chatKey: chatKeyOf(target.chat), requestKey: 'same' })).toMatchObject({ kind: 'refuse', refusal: { code: 'CG-OP-CHAT-BUSY' } });
+  });
+
   it('[BG-006] an operation whose tab closed still holds its chat, but not the tab slot of anyone', () => {
     const orphan = entry(1, WORLD.fan, null);
-    expect(decideAdmission([orphan], { tabSessionId: TAB, chatKey: chatKeyOf(target.chat), requestKey: 'key-1' }).kind).toBe('refuse');
+    expect(decideAdmission([orphan], { tabSessionId: TAB, chatKey: chatKeyOf(target.chat), requestKey: 'another-request' })).toMatchObject({ kind: 'refuse', refusal: { code: 'CG-OP-CHAT-BUSY' } });
     expect(decideAdmission([orphan, entry(2, '2102', TAB), entry(3, '2103', TAB)], { tabSessionId: TAB, chatKey: chatKeyOf(targetOf('2104').chat), requestKey: 'k' }).kind).toBe('admit');
   });
 
@@ -622,6 +629,23 @@ describe('[RB-020] [RB-017] [AI-138] the tab mirror of an operation', () => {
     expect(applyOpDone(marked.mirror, { ...doneView('Hello'), stale: { reason: 'fan-wrote', at: null } }).outcome).toBe('stale');
     expect(applyOpDone(mirror, { ...doneView('x'), opId: uuid(0x101) }).outcome).toBe('foreign');
     expect(applyOpDone(mirror, { ...doneView('x'), state: 'streaming' }).outcome).toBe('stale');
+  });
+
+  it('[RB-016] [AI-124] a mirror seeded from a re-attach view continues with the restarted batches; a finished view is done', () => {
+    const running = { ...doneView('Hello there '), state: 'streaming' as const, phase, firstChunkAt: NOW_MS + 3 };
+    delete (running as { endedAt?: number }).endedAt;
+    delete (running as { result?: unknown }).result;
+    const seeded = mirrorFromView(running);
+    expect(seeded).toMatchObject({ seq: 0, text: 'Hello there ', state: 'streaming', firstChunkAt: NOW_MS + 3, done: null });
+    const next = applyOpUpdate(seeded, update(1, 'friend'));
+    expect(next.outcome).toBe('applied');
+    expect(next.mirror.text).toBe('Hello there friend');
+    const finished = mirrorFromView(doneView('All of it'));
+    expect(finished.done?.state).toBe('done');
+    expect(applyOpUpdate(finished, update(1, 'late')).outcome).toBe('after-done');
+    const noText: OpView = { ...running };
+    delete (noText as { text?: string }).text;
+    expect(mirrorFromView(noText).text).toBe('');
   });
 
   it('[RB-020] an older state in a later batch does not move the mirror back', () => {

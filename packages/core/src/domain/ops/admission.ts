@@ -2,7 +2,9 @@
 // one operation per chat across the whole extension (any feature, any
 // surface), at most three per tab, and no queue — a refusal names the
 // running operations instead. A repeated click on the chat that is already
-// running the same request reopens it (AI-127). The decision is pure; the
+// running the same request reopens it (AI-127) — from the tab that owns it,
+// or from any tab once its own tab went away (a reload mints a new session;
+// §7: a repeated click on a running chat opens its state). The decision is pure; the
 // scheduler is its single writer, so it is atomic.
 
 import { type ChatKey } from '@cg/contracts/ids';
@@ -30,7 +32,7 @@ export type AdmissionRefusal = Extract<Admission, { ok: false }>;
 
 export type AdmissionDecision =
   | { readonly kind: 'admit' }
-  /** The same chat is running the same request from this tab: show it again (AI-127). */
+  /** The same chat is running the same request from this tab, or detached from a tab that went away: show it again (AI-127). */
   | { readonly kind: 'reopen'; readonly opId: string }
   | { readonly kind: 'refuse'; readonly refusal: AdmissionRefusal };
 
@@ -46,7 +48,7 @@ export function decideAdmission(active: readonly ActiveOpEntry[], request: Admis
   const sameChat = active.filter((entry) => entry.chatKey === request.chatKey).sort(byStart);
   const first = sameChat[0];
   if (first !== undefined) {
-    if (first.ownerTab === request.tabSessionId && first.requestKey === request.requestKey) return { kind: 'reopen', opId: first.opId };
+    if ((first.ownerTab === request.tabSessionId || first.ownerTab === null) && first.requestKey === request.requestKey) return { kind: 'reopen', opId: first.opId };
     return {
       kind: 'refuse',
       refusal: {
