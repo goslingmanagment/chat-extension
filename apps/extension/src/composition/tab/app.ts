@@ -8,10 +8,10 @@
 // What R11/R12/R14/R15/R17 plug in later, without touching this file's
 // wiring: their controllers go to `router.register(...)`, their surfaces are
 // mounted with the same `deps` (MountDeps), and writes spend action tokens
-// issued through `tokens.issue`.
+// asked for through `tokens.issue` while the click or the key press is still
+// in flight (tab/action-gate.ts).
 
 import type { CgCode, CgErrorView } from '@cg/contracts/errors';
-import type { Surface } from '@cg/contracts/features';
 import type { HostContractReport } from '@cg/contracts/host';
 import type { HostAccount, SessionIdentity } from '@cg/contracts/ids';
 import type { Locale } from '@cg/contracts/i18n/keys';
@@ -27,7 +27,10 @@ import type { ChatSpaceHostPort, HostDiagnostic, MountDiagnostic, MountManager, 
 import type { TabRpcClient } from '@cg/platform';
 
 import type * as DockChunk from '../../../lazy/entries/dock';
+import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
 import type { TabProbe } from './probe';
+
+export type { TabActionTokens } from './action-gate';
 
 export interface TabAppEnv {
   readonly win: Window;
@@ -49,16 +52,10 @@ export interface TabAppEnv {
   readonly probe: TabProbe | null;
 }
 
-/** Action tokens of this tab (§14): one per trusted event of one surface, spent once by the background. */
-export interface TabActionTokens {
-  /** null — the background refused or did not answer: nothing may be written. */
-  issue(kind: 'generate' | 'insert' | 'navigate' | 'send', surface: Surface): Promise<string | null>;
-}
-
 export interface TabApp {
   /** `token.redeem` for HostPort: the token of a click is spent before a write reaches MAIN (§14). */
   readonly redeem: TokenRedeemer;
-  /** For the controllers of R11/R12: the token of a click, issued before the action it allows. */
+  /** For the controllers of R11/R12: the token of the human action in flight, asked for before the action it allows. */
   readonly tokens: TabActionTokens;
   dispose(): void;
 }
@@ -162,25 +159,21 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   const dock = createTempDockStatus({ errorOf });
   offs.push(router.register(dock));
 
-  // ── action tokens (§14): issued for a trusted click of one surface, spent once ──
-  const surfaceOfToken = new Map<string, Surface>();
-  const tokens: TabActionTokens = {
-    async issue(kind, surface) {
+  // ── action tokens (§14): only for a trusted click or key press in flight, spent once ──
+  const gate = createGestureGate(win, { doc: win.document, mounts });
+  offs.push(() => gate.dispose());
+  const { tokens, redeem } = createActionTokens({
+    gate,
+    async request(kind, surface) {
       const answer = await rpc.request('token.issue', { kind, surface });
-      if (!answer.ok) return null;
-      surfaceOfToken.set(answer.payload.actionToken, surface);
-      if (surfaceOfToken.size > 64) surfaceOfToken.delete(surfaceOfToken.keys().next().value ?? '');
-      return answer.payload.actionToken;
+      return answer.ok ? answer.payload.actionToken : null;
     },
-  };
-  const redeem: TokenRedeemer = async (request) => {
-    const surface = surfaceOfToken.get(request.actionToken);
-    surfaceOfToken.delete(request.actionToken);
-    // A token this tab did not issue is not spent on the background's behalf.
-    if (surface === undefined) return false;
-    const answer = await rpc.request('token.redeem', { kind: request.kind, surface, actionToken: request.actionToken, intentId: request.intentId });
-    return answer.ok && answer.payload.redeemed;
-  };
+    async spend(request) {
+      const answer = await rpc.request('token.redeem', request);
+      return answer.ok && answer.payload.redeemed;
+    },
+    onRefused: (facts) => logger.warn('tab.tokens', 'no action token: not a human action in flight', { fields: { ...facts } }),
+  });
 
   // ── the scheme and the geometry our surfaces draw in ───────────────────────
   const darkQuery = win.matchMedia('(prefers-color-scheme: dark)');
