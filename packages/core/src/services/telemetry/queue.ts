@@ -2,12 +2,20 @@
 // LG-014). Events wait in storage.local (`telemetry.queue`), at most 500 —
 // the oldest go and are counted — and leave in batches of up to 100, a
 // second after the first one arrived, and at once on start. A failed batch
-// is tried again after 1/2/4/8 s, five attempts in all; after the fifth the
-// queue rests until the next event, sign-in or start, but not sooner than
-// 16 s. A 400 drops the batch with a log record and a counter; 401/403 pause
-// delivery until the sign-in changes. Every event is bound to the hub origin
-// and the sign-in epoch it was observed under: after a sign-out or a new
-// sign-in the old ones are dropped, never sent with another token.
+// is tried again after 1/2/4/8 s, five attempts in all; after the fifth
+// failure the batch is dropped with a log record and a counter (as both
+// predecessors did), and the rest of the queue waits 16 s. A 400 drops the
+// batch the same way; 401/403 pause delivery until the sign-in changes (the
+// pause is stored with the queue). Every event is bound to the hub origin,
+// the user and the sign-in epoch it was observed under: after a sign-out or
+// a new sign-in the old ones are dropped, never sent with another token. A
+// failure that comes back after the sign-in changed counts against nothing.
+//
+// Start-up order: the sign-in and the consent are read from callbacks that
+// may not know yet (the event page restores them asynchronously). A null
+// sign-in before the first `onSessionChanged()` means «not restored yet»:
+// stored events stay. A `null` consent means «not read yet»: nothing is
+// queued or sent, nothing is purged; only a definite `false` purges.
 //
 // Consent: nothing is queued or sent without `technicalAndInteraction`;
 // revoking it stops delivery and purges the queue at once (local diagnostics
@@ -25,9 +33,11 @@ import { type KeyValuePort, type Scheduler } from '../ports';
 
 export type TelemetryEvent = AcceptanceEvent | ClientHealthV1;
 
-/** Who may receive an event: the hub origin and the sign-in epoch it was observed under (TL-012). */
+/** Who may receive an event: the hub origin, the user and the sign-in epoch it was observed under (TL-012, §6.7.4). */
 export interface TelemetryBinding {
   readonly hubOrigin: string;
+  /** SessionIdentity.userId. */
+  readonly userId: number;
   readonly epoch: number;
 }
 
@@ -38,14 +48,14 @@ export const TELEMETRY_POLICY = {
   queueMax: TELEMETRY_LIMITS.queueMaxEvents,
   batchMax: TELEMETRY_LIMITS.batchMaxEvents,
   debounceMs: TELEMETRY_LIMITS.batchDebounceMs,
-  /** Pauses after failed attempts 1–4; the fifth is the rest before the next cycle. */
+  /** Pauses after failed attempts 1–4; after the fifth the batch is dropped and the rest waits the last one. */
   retryDelaysMs: TELEMETRY_LIMITS.retryDelaysMs,
   attempts: TELEMETRY_LIMITS.retryDelaysMs.length,
   /** An overflow is logged at most this often. */
   overflowLogEveryMs: 60_000,
 } as const;
 
-export type DropReason = 'overflow' | 'rejected' | 'stale-binding' | 'consent' | 'unsupported' | 'invalid';
+export type DropReason = 'overflow' | 'rejected' | 'exhausted' | 'stale-binding' | 'consent' | 'unsupported' | 'invalid';
 
 export type QueueOutcome = 'queued' | 'no-consent' | 'signed-out' | 'unsupported';
 
@@ -63,6 +73,7 @@ export interface TelemetryQueueStats {
   readonly dropped: Readonly<Record<DropReason, number>>;
   /** All drops together (`diagnostics.get` telemetry.dropped). */
   readonly droppedTotal: number;
+  /** Batches dropped after five failed attempts. */
   readonly cyclesExhausted: number;
   /** The last failure, by its facts only. */
   readonly lastFailure: { readonly at: number; readonly status: number | null; readonly kind: string } | null;
@@ -76,10 +87,10 @@ export interface TelemetryQueueDeps {
   /** HubFacade.ingest. */
   readonly ingest: (events: readonly TelemetryEvent[]) => Promise<IngestResult>;
   readonly logger: Logger;
-  /** The current sign-in, or null. */
+  /** The current sign-in, or null (signed out, or not restored yet before the first `onSessionChanged()`). */
   readonly session: () => TelemetryBinding | null;
-  /** `permissions.getAll().data_collection` includes `technicalAndInteraction`. */
-  readonly consent: () => boolean;
+  /** `permissions.getAll().data_collection` includes `technicalAndInteraction`; `null` while not read yet. */
+  readonly consent: () => boolean | null;
   /** Bootstrap advertises `client-health-perf-v1`. */
   readonly healthSupported: () => boolean;
 }
@@ -94,13 +105,16 @@ interface Persisted {
   readonly v: 1;
   readonly entries: readonly Entry[];
   readonly dropped: Readonly<Record<DropReason, number>>;
+  /** The sign-in a 401/403 came under, so a restarted event page does not try it again. */
+  readonly paused: TelemetryBinding | null;
 }
 
 const isHealth = (event: TelemetryEvent): event is ClientHealthV1 => event.kind === 'client_health';
-const sameBinding = (a: TelemetryBinding, b: TelemetryBinding | null): boolean => b !== null && a.hubOrigin === b.hubOrigin && a.epoch === b.epoch;
+const sameBinding = (a: TelemetryBinding, b: TelemetryBinding | null): boolean =>
+  b !== null && a.hubOrigin === b.hubOrigin && a.userId === b.userId && a.epoch === b.epoch;
 
 function emptyDrops(): Record<DropReason, number> {
-  return { overflow: 0, rejected: 0, 'stale-binding': 0, consent: 0, unsupported: 0, invalid: 0 };
+  return { overflow: 0, rejected: 0, exhausted: 0, 'stale-binding': 0, consent: 0, unsupported: 0, invalid: 0 };
 }
 
 /** How a failed ingest call is treated, by the HubCallError facts only (never its message). */
@@ -126,10 +140,11 @@ export function classifyIngestFailure(error: unknown): IngestFailure {
 
 function readBinding(value: unknown): TelemetryBinding | null {
   if (value === null || typeof value !== 'object') return null;
-  const record = value as { hubOrigin?: unknown; epoch?: unknown };
+  const record = value as { hubOrigin?: unknown; userId?: unknown; epoch?: unknown };
   if (typeof record.hubOrigin !== 'string' || !HUB_ORIGIN_PATTERN.test(record.hubOrigin)) return null;
+  if (typeof record.userId !== 'number' || !Number.isInteger(record.userId) || record.userId < 1) return null;
   if (typeof record.epoch !== 'number' || !Number.isInteger(record.epoch) || record.epoch < 0) return null;
-  return { hubOrigin: record.hubOrigin, epoch: record.epoch };
+  return { hubOrigin: record.hubOrigin, userId: record.userId, epoch: record.epoch };
 }
 
 function readEvent(value: unknown): TelemetryEvent | null {
@@ -143,12 +158,15 @@ export class TelemetryQueue {
   private entries: Entry[] = [];
   private dropped = emptyDrops();
   private started = false;
+  private starting: Promise<void> | null = null;
+  /** The sign-in state is known: `onSessionChanged()` ran or `session()` named one. Before, a null sign-in is «not restored yet». */
+  private sessionKnown = false;
   private flushing: Promise<void> | null = null;
   private again = false;
   /** The sign-in a 401/403 came under: delivery waits for another one. */
   private paused: TelemetryBinding | null = null;
   private attempt = 0;
-  /** No send before this moment: the pause after a failed attempt, or the rest after the fifth. */
+  /** No send before this moment: the pause after a failed attempt, or the rest after a dropped batch. */
   private notBefore = 0;
   private nextAttemptAt: number | null = null;
   private cancelTimer: (() => void) | null = null;
@@ -163,9 +181,13 @@ export class TelemetryQueue {
 
   constructor(private readonly deps: TelemetryQueueDeps) {}
 
-  /** Loads the stored queue, drops what no longer belongs to this sign-in, and sends at once (TL-010). */
-  async start(): Promise<void> {
-    if (this.started) return;
+  /** Loads the stored queue, drops what no longer belongs to this sign-in, and sends at once (TL-010). Runs once, however often it is called. */
+  start(): Promise<void> {
+    this.starting ??= this.load();
+    return this.starting;
+  }
+
+  private async load(): Promise<void> {
     let stored: unknown;
     try {
       stored = await this.deps.store.load();
@@ -173,8 +195,10 @@ export class TelemetryQueue {
       stored = null;
     }
     const restored: Entry[] = [];
+    let paused: TelemetryBinding | null = null;
     if (stored !== null && typeof stored === 'object') {
-      const record = stored as { entries?: unknown; dropped?: unknown };
+      const record = stored as { entries?: unknown; dropped?: unknown; paused?: unknown };
+      paused = readBinding(record.paused);
       if (Array.isArray(record.entries)) {
         for (const raw of record.entries as unknown[]) {
           const item = raw !== null && typeof raw === 'object' ? (raw as { event?: unknown; binding?: unknown; queuedAt?: unknown }) : {};
@@ -196,6 +220,8 @@ export class TelemetryQueue {
     }
     // Events queued while start() was loading are newer than the stored ones.
     this.entries = [...restored, ...this.entries];
+    // A pause set while loading is newer than the stored one.
+    this.paused ??= paused;
     this.started = true;
     this.trim();
     this.discardForeign();
@@ -206,7 +232,7 @@ export class TelemetryQueue {
   /** Queues one event under the current sign-in (consent and support checked here and again at send). */
   add(event: TelemetryEvent): QueueOutcome {
     try {
-      if (!this.safe(this.deps.consent)) return 'no-consent';
+      if (this.consent() !== true) return 'no-consent';
       const binding = this.safeSession();
       if (binding === null) return 'signed-out';
       if (isHealth(event) && !this.safe(this.deps.healthSupported)) return 'unsupported';
@@ -222,6 +248,7 @@ export class TelemetryQueue {
 
   /** Sign-in changed (a new epoch or origin) or signed out: old bindings are dropped, a pause lifts. */
   onSessionChanged(): void {
+    this.sessionKnown = true;
     const session = this.safeSession();
     if (this.paused !== null && !sameBinding(this.paused, session)) this.paused = null;
     this.discardForeign();
@@ -231,9 +258,11 @@ export class TelemetryQueue {
     if (session !== null) this.schedule(0);
   }
 
-  /** Consent changed. Revoked: stop and purge at once (§9.6); granted: deliver what comes next. */
+  /** Consent changed. Revoked: stop and purge at once (§9.6); granted: deliver what waits; still unknown: nothing. */
   onConsentChanged(): void {
-    if (this.safe(this.deps.consent)) {
+    const consent = this.consent();
+    if (consent === null) return;
+    if (consent) {
       this.schedule(0);
       return;
     }
@@ -281,12 +310,20 @@ export class TelemetryQueue {
   private async drain(): Promise<void> {
     if (!this.started) return;
     for (;;) {
-      if (this.paused !== null) return;
-      if (!this.safe(this.deps.consent)) {
+      const consent = this.consent();
+      // Not read yet: wait for onConsentChanged(), purge nothing.
+      if (consent === null) return;
+      if (!consent) {
         this.purge();
         return;
       }
       const session = this.safeSession();
+      // A pause of another sign-in is over (onSessionChanged may have run before the 401 came back).
+      if (this.paused !== null && session !== null && !sameBinding(this.paused, session)) {
+        this.paused = null;
+        this.persist();
+      }
+      if (this.paused !== null) return;
       if (session === null) return;
       this.discardForeign();
       if (!this.safe(this.deps.healthSupported)) this.dropHealth();
@@ -314,17 +351,16 @@ export class TelemetryQueue {
       } catch (error) {
         const failure = classifyIngestFailure(error);
         this.lastFailure = { at: this.deps.scheduler.now(), status: failure.status, kind: failure.kind === 'transient' ? (failure.transport ?? 'http') : failure.kind };
+        // The sign-in changed while the batch was on its way: its events belong to the old one and go
+        // on the next turn; the failure counts against nothing (no pause, no attempt of the new sign-in).
+        if (!sameBinding(session, this.safeSession())) continue;
         if (failure.kind === 'rejected') {
-          this.remove(batch);
-          this.dropped.rejected += batch.length;
-          this.persist();
-          const first = batch[0];
-          const kind = first !== undefined && isHealth(first.event) ? 'client_health' : 'ai_acceptance';
-          logEvent(this.deps.logger, 'telemetryBatchDropped', { fields: { status: failure.status, count: batch.length, kind } });
+          this.dropBatch(batch, 'rejected', failure.status);
           continue;
         }
         if (failure.kind === 'auth') {
           this.paused = session;
+          this.persist();
           logEvent(this.deps.logger, 'telemetryPaused', { fields: { status: failure.status, queued: this.entries.length } });
           return;
         }
@@ -335,11 +371,13 @@ export class TelemetryQueue {
           fields: { status: failure.status, failure: failure.transport, attempt: this.attempt, queued: this.entries.length },
         });
         if (this.attempt >= TELEMETRY_POLICY.attempts) {
-          // Five attempts: the cycle ends; the events stay (bounded) for the next trigger, not before the last pause.
+          // Five attempts: the batch goes (TL-009); the rest of the queue waits the last pause.
           this.cyclesExhausted += 1;
           this.attempt = 0;
+          this.dropBatch(batch, 'exhausted', failure.status);
           this.notBefore = this.deps.scheduler.now() + pause;
-          this.nextAttemptAt = null;
+          this.cancel();
+          if (this.entries.length > 0) this.schedule(pause);
           return;
         }
         // A new event does not cut the pause short.
@@ -380,6 +418,16 @@ export class TelemetryQueue {
     this.entries = this.entries.filter((entry) => !gone.has(entry));
   }
 
+  /** A batch given up (400, or five failed attempts): counted and logged by its kind, never by its content. */
+  private dropBatch(batch: readonly Entry[], reason: 'rejected' | 'exhausted', status: number | null): void {
+    this.remove(batch);
+    this.dropped[reason] += batch.length;
+    this.persist();
+    const first = batch[0];
+    const kind = first !== undefined && isHealth(first.event) ? 'client_health' : 'ai_acceptance';
+    logEvent(this.deps.logger, 'telemetryBatchDropped', { fields: { status, count: batch.length, kind, reason } });
+  }
+
   /** Oldest out beyond 500 events, and beyond 8 health reports. */
   private trim(): void {
     let overflow = 0;
@@ -403,9 +451,11 @@ export class TelemetryQueue {
     }
   }
 
-  /** Events of another sign-in are never sent with this one's token (TL-012). */
+  /** Events of another sign-in are never sent with this one's token (TL-012). Before the sign-in is known, nothing is judged. */
   private discardForeign(): void {
     const session = this.safeSession();
+    if (session !== null) this.sessionKnown = true;
+    if (!this.sessionKnown) return;
     const keep = this.entries.filter((entry) => sameBinding(entry.binding, session));
     const stale = this.entries.length - keep.length;
     if (stale === 0) return;
@@ -428,7 +478,7 @@ export class TelemetryQueue {
     this.saveQueued = true;
     this.saving = this.saving.then(async () => {
       this.saveQueued = false;
-      const value: Persisted = { v: 1, entries: this.entries.map((entry) => ({ ...entry })), dropped: { ...this.dropped } };
+      const value: Persisted = { v: 1, entries: this.entries.map((entry) => ({ ...entry })), dropped: { ...this.dropped }, paused: this.paused };
       try {
         await this.deps.store.save(value);
       } catch {
@@ -450,6 +500,16 @@ export class TelemetryQueue {
     }
   }
 
+  /** true / false, or null while not read yet; a throwing reader is a «no». */
+  private consent(): boolean | null {
+    try {
+      const value = this.deps.consent();
+      return value === null ? null : value === true;
+    } catch {
+      return false;
+    }
+  }
+
   private safeSession(): TelemetryBinding | null {
     try {
       return this.deps.session();
@@ -462,7 +522,7 @@ export class TelemetryQueue {
   stats(): TelemetryQueueStats {
     const dropped = { ...this.dropped };
     return {
-      consent: this.safe(this.deps.consent),
+      consent: this.consent() === true,
       queued: this.entries.length,
       queuedHealth: this.entries.filter((entry) => isHealth(entry.event)).length,
       inFlight: this.flushing !== null,

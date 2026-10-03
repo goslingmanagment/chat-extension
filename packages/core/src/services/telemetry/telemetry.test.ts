@@ -21,6 +21,8 @@ import {
 
 const T0 = Date.UTC(2026, 9, 3, 12, 0, 0);
 const HUB = 'https://hub.example.test';
+const USER = 7;
+const SIGNED_IN: TelemetryBinding = { hubOrigin: HUB, userId: USER, epoch: 1 };
 const OP = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const GEN = '2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e';
 const TAB = '7d0a1c2e-3f4b-4c5d-8e6f-708192a3b4c5';
@@ -113,15 +115,15 @@ function health(at = T0): ClientHealthV1 {
   return new HealthWindow(at).build(at + 1000, CLIENT, { cachesKB: 1, logsKB: 1 });
 }
 
-function harness(options: { consent?: boolean; supported?: boolean; session?: TelemetryBinding | null } = {}) {
+function harness(options: { consent?: boolean | null; supported?: boolean; session?: TelemetryBinding | null } = {}) {
   const c = clock();
   const kv = new MemoryKv();
   const records: LogRecord[] = [];
   const logger = createLogger({ now: () => c.now, debugEnabled: () => false, sinks: [(r) => records.push(r)] });
-  const state = {
-    consent: options.consent ?? true,
+  const state: { consent: boolean | null; supported: boolean; session: TelemetryBinding | null } = {
+    consent: options.consent === undefined ? true : options.consent,
     supported: options.supported ?? true,
-    session: options.session === undefined ? ({ hubOrigin: HUB, epoch: 1 } as TelemetryBinding | null) : options.session,
+    session: options.session === undefined ? SIGNED_IN : options.session,
   };
   const calls: TelemetryEvent[][] = [];
   let answer: (events: readonly TelemetryEvent[]) => Promise<IngestResult> = (events) => Promise.resolve({ accepted: events.length, duplicates: 0 });
@@ -174,11 +176,11 @@ describe('[TL-009] the telemetry queue', () => {
     expect(TELEMETRY_POLICY.queueMax).toBe(TELEMETRY_LIMITS.queueMaxEvents);
   });
 
-  it('[TL-009] five attempts with pauses 1/2/4/8 s, then a 16 s rest; events stay; failures logged (LG-014)', async () => {
+  it('[TL-009] five attempts with pauses 1/2/4/8 s, then the batch is dropped and the rest waits 16 s; failures logged (LG-014)', async () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(new FakeHubCallError({ kind: 'transport', failure: 'network' })));
-    h.queue.add(acceptance());
+    for (let i = 0; i < 101; i += 1) h.queue.add(acceptance(i));
     await h.c.tick(1000);
     expect(h.calls).toHaveLength(1);
     for (const pause of [1000, 2000, 4000, 8000]) {
@@ -187,17 +189,18 @@ describe('[TL-009] the telemetry queue', () => {
       await h.c.tick(1);
       expect(h.calls.length).toBe(before + 1);
     }
-    expect(h.calls).toHaveLength(5);
-    expect(h.queue.stats()).toMatchObject({ queued: 1, cyclesExhausted: 1, attempt: 0, lastFailure: { kind: 'network', status: null } });
+    expect(h.calls.map((b) => b.length)).toEqual([100, 100, 100, 100, 100]);
+    expect(h.queue.stats()).toMatchObject({ queued: 1, cyclesExhausted: 1, attempt: 0, dropped: { exhausted: 100 }, lastFailure: { kind: 'network', status: null } });
     expect(h.messages().filter((m) => m === 'telemetry delivery failed')).toHaveLength(5);
-    // The next event starts a new cycle, but not before the 16 s rest.
-    h.answerWith((events) => Promise.resolve({ accepted: events.length - 1, duplicates: 1 }));
+    expect(h.records.find((r) => r.msg === 'telemetry batch dropped')?.fields).toEqual({ status: null, count: 100, kind: 'ai_acceptance', reason: 'exhausted' });
+    // The rest goes after the 16 s rest by itself; a new event does not cut the rest short.
+    h.answerWith((events) => Promise.resolve({ accepted: events.length, duplicates: 1 }));
     h.queue.add(acceptance());
-    await h.c.tick(15_000);
+    await h.c.tick(15_999);
     expect(h.calls).toHaveLength(5);
-    await h.c.tick(1000);
-    expect(h.calls).toHaveLength(6);
-    expect(h.queue.stats()).toMatchObject({ queued: 0, sent: 1, duplicates: 1 });
+    await h.c.tick(1);
+    expect(h.calls.map((b) => b.length)).toEqual([100, 100, 100, 100, 100, 2]);
+    expect(h.queue.stats()).toMatchObject({ queued: 0, sent: 2, duplicates: 1 });
   });
 
   it('[TL-009] a new event does not cut a retry pause short', async () => {
@@ -220,6 +223,22 @@ describe('[TL-009] the telemetry queue', () => {
     expect(h.calls).toHaveLength(2);
     await h.c.tick(1);
     expect(h.calls).toHaveLength(3);
+  });
+
+  it('[TL-009] a new event during the 8 s pause after the fourth attempt waits for all of it', async () => {
+    const h = harness();
+    await h.queue.start();
+    h.answerWith(() => Promise.reject(hubError(503)));
+    h.queue.add(acceptance());
+    await h.c.tick(1000 + 1000 + 2000 + 4000);
+    expect(h.calls).toHaveLength(4);
+    expect(h.queue.stats()).toMatchObject({ attempt: 4, nextAttemptAt: h.c.now + 8000 });
+    await h.c.tick(500);
+    h.queue.add(acceptance());
+    await h.c.tick(7499);
+    expect(h.calls).toHaveLength(4);
+    await h.c.tick(1);
+    expect(h.calls).toHaveLength(5);
   });
 
   it('[TL-009] a 429 waits at least its Retry-After', async () => {
@@ -249,7 +268,7 @@ describe('[TL-009] the telemetry queue', () => {
     expect(h.calls.map((b) => b.length)).toEqual([100, 30]);
     expect(h.queue.stats()).toMatchObject({ queued: 0, sent: 30, dropped: { rejected: 100 } });
     const dropped = h.records.find((r) => r.msg === 'telemetry batch dropped');
-    expect(dropped?.fields).toEqual({ status: 400, count: 100, kind: 'ai_acceptance' });
+    expect(dropped?.fields).toEqual({ status: 400, count: 100, kind: 'ai_acceptance', reason: 'rejected' });
   });
 
   it('[TL-009] the queue survives a restart in storage.local; junk is dropped and counted', async () => {
@@ -262,7 +281,7 @@ describe('[TL-009] the telemetry queue', () => {
     const stored = h.kv.value as { entries: unknown[] };
     expect(stored.entries).toHaveLength(2);
     const again = harness();
-    again.kv.value = { v: 1, entries: [...stored.entries, { event: { kind: 'ai_acceptance' }, binding: { hubOrigin: HUB, epoch: 1 } }, 'junk'], dropped: { overflow: 3, bogus: 9 } };
+    again.kv.value = { v: 1, entries: [...stored.entries, { event: { kind: 'ai_acceptance' }, binding: SIGNED_IN }, 'junk'], dropped: { overflow: 3, bogus: 9 } };
     await again.queue.start();
     expect(again.calls.map((b) => b.length)).toEqual([2]);
     expect(again.queue.stats().dropped).toMatchObject({ invalid: 2, overflow: 3 });
@@ -280,7 +299,7 @@ describe('[TL-009] the telemetry queue', () => {
 describe('[TL-010] [TL-011] start and stats', () => {
   it('[TL-010] what was stored is sent at once on start', async () => {
     const h = harness();
-    h.kv.value = { v: 1, entries: [{ event: acceptance(), binding: { hubOrigin: HUB, epoch: 1 }, queuedAt: T0 - 5000 }] };
+    h.kv.value = { v: 1, entries: [{ event: acceptance(), binding: SIGNED_IN, queuedAt: T0 - 5000 }] };
     await h.queue.start();
     expect(h.calls).toHaveLength(1);
     expect(h.queue.stats().queued).toBe(0);
@@ -295,6 +314,37 @@ describe('[TL-010] [TL-011] start and stats', () => {
     expect(h.calls).toHaveLength(0);
     await h.queue.start();
     expect(h.calls).toHaveLength(1);
+  });
+
+  it('[TL-010] a restart before the sign-in is restored keeps the stored events', async () => {
+    const h = harness({ session: null });
+    h.kv.value = { v: 1, entries: [{ event: acceptance(), binding: SIGNED_IN, queuedAt: T0 - 5000 }] };
+    await h.queue.start();
+    await h.queue.saved();
+    expect(h.queue.stats()).toMatchObject({ queued: 1, dropped: { 'stale-binding': 0 } });
+    expect((h.kv.value as { entries: unknown[] }).entries).toHaveLength(1);
+    // The sign-in comes back: the stored event goes with it.
+    h.state.session = SIGNED_IN;
+    h.queue.onSessionChanged();
+    await h.c.tick(0);
+    expect(h.calls).toHaveLength(1);
+    expect(h.queue.stats()).toMatchObject({ queued: 0, sent: 1 });
+    // Restored as signed out: the old events go, never sent.
+    const out = harness({ session: null });
+    out.kv.value = { v: 1, entries: [{ event: acceptance(), binding: SIGNED_IN, queuedAt: T0 - 5000 }] };
+    await out.queue.start();
+    out.queue.onSessionChanged();
+    expect(out.queue.stats()).toMatchObject({ queued: 0, dropped: { 'stale-binding': 1 } });
+    expect(out.calls).toHaveLength(0);
+  });
+
+  it('[TL-010] start() called twice at once loads the stored queue once', async () => {
+    const h = harness();
+    h.answerWith(() => Promise.reject(hubError(503)));
+    h.kv.value = { v: 1, entries: [{ event: health(), binding: SIGNED_IN, queuedAt: T0 - 5000 }] };
+    await Promise.all([h.queue.start(), h.queue.start()]);
+    expect(h.queue.stats().queued).toBe(1);
+    expect(h.calls.map((b) => b.length)).toEqual([1]);
   });
 
   it('[TL-011] stats are metadata only: counts, states, the last status', async () => {
@@ -329,7 +379,7 @@ describe('[TL-012] events belong to one sign-in', () => {
     expect(h.queue.stats().paused).toBe('auth');
     // A new sign-in: the old events are dropped, never sent with the new token.
     h.answerWith((events) => Promise.resolve({ accepted: events.length, duplicates: 0 }));
-    h.state.session = { hubOrigin: HUB, epoch: 2 };
+    h.state.session = { hubOrigin: HUB, userId: USER, epoch: 2 };
     h.queue.onSessionChanged();
     await h.c.tick(0);
     expect(h.queue.stats()).toMatchObject({ paused: null, queued: 0, dropped: { 'stale-binding': 2 } });
@@ -337,6 +387,61 @@ describe('[TL-012] events belong to one sign-in', () => {
     await h.c.tick(1000);
     expect(h.calls).toHaveLength(2);
     expect(classifyIngestFailure(hubError(403))).toEqual({ kind: 'auth', status: 403 });
+  });
+
+  it('[TL-012] a 401 that comes back after the sign-in changed does not pause the new sign-in', async () => {
+    const h = harness();
+    await h.queue.start();
+    const late: { fail: () => void } = { fail: () => undefined };
+    h.answerWith(
+      () =>
+        new Promise((_resolve, reject) => {
+          late.fail = () => reject(hubError(401));
+        }),
+    );
+    h.queue.add(acceptance());
+    await h.c.tick(1000);
+    expect(h.queue.stats().inFlight).toBe(true);
+    // The token is revoked, the person signs out and in again while the old request is on its way.
+    h.state.session = null;
+    h.queue.onSessionChanged();
+    h.state.session = { hubOrigin: HUB, userId: USER, epoch: 2 };
+    h.queue.onSessionChanged();
+    h.answerWith((events) => Promise.resolve({ accepted: events.length, duplicates: 0 }));
+    late.fail();
+    await h.c.tick(0);
+    expect(h.queue.stats()).toMatchObject({ paused: null, attempt: 0, dropped: { 'stale-binding': 1 } });
+    expect(h.messages()).not.toContain('telemetry paused until sign-in');
+    h.queue.add(acceptance());
+    await h.c.tick(60_000);
+    expect(h.calls).toHaveLength(2);
+    expect(h.queue.stats()).toMatchObject({ queued: 0, sent: 1 });
+  });
+
+  it('[TL-012] an event of another user with the same epoch is never sent', async () => {
+    const h = harness();
+    h.kv.value = { v: 1, entries: [{ event: acceptance(), binding: { hubOrigin: HUB, userId: USER + 1, epoch: 1 }, queuedAt: T0 }] };
+    await h.queue.start();
+    expect(h.calls).toHaveLength(0);
+    expect(h.queue.stats()).toMatchObject({ queued: 0, dropped: { 'stale-binding': 1 } });
+  });
+
+  it('[TL-012] the 401/403 pause survives an event-page restart', async () => {
+    const h = harness();
+    await h.queue.start();
+    h.answerWith(() => Promise.reject(hubError(403)));
+    h.queue.add(acceptance());
+    await h.c.tick(1000);
+    await h.queue.saved();
+    const again = harness();
+    again.kv.value = h.kv.value;
+    await again.queue.start();
+    expect(again.queue.stats()).toMatchObject({ paused: 'auth', queued: 1 });
+    expect(again.calls).toHaveLength(0);
+    // A new sign-in lifts it.
+    again.state.session = { hubOrigin: HUB, userId: USER, epoch: 2 };
+    again.queue.onSessionChanged();
+    expect(again.queue.stats().paused).toBeNull();
   });
 
   it('[TL-012] sign-out drops the queue; nothing is queued while signed out', async () => {
@@ -348,7 +453,7 @@ describe('[TL-012] events belong to one sign-in', () => {
     h.queue.onSessionChanged();
     expect(h.queue.stats().queued).toBe(0);
     expect(h.queue.add(acceptance())).toBe('signed-out');
-    h.state.session = { hubOrigin: 'https://other.example.test', epoch: 1 };
+    h.state.session = { hubOrigin: 'https://other.example.test', userId: USER, epoch: 1 };
     expect(h.queue.add(acceptance())).toBe('queued');
   });
 });
@@ -371,6 +476,27 @@ describe('§9.6 consent', () => {
     expect(h.calls).toHaveLength(0);
     await h.queue.saved();
     expect((h.kv.value as { entries: unknown[] }).entries).toEqual([]);
+  });
+
+  it('[TL-009] consent not read yet: nothing is purged or sent; a definite «no» purges', async () => {
+    const h = harness({ consent: null });
+    h.kv.value = { v: 1, entries: [{ event: acceptance(), binding: SIGNED_IN, queuedAt: T0 - 5000 }] };
+    await h.queue.start();
+    expect(h.queue.stats()).toMatchObject({ consent: false, queued: 1, dropped: { consent: 0 } });
+    expect(h.calls).toHaveLength(0);
+    expect(h.queue.add(acceptance())).toBe('no-consent');
+    h.queue.onConsentChanged();
+    expect(h.queue.stats().queued).toBe(1);
+    h.state.consent = true;
+    h.queue.onConsentChanged();
+    await h.c.tick(0);
+    expect(h.calls).toHaveLength(1);
+    const no = harness({ consent: null });
+    no.kv.value = { v: 1, entries: [{ event: acceptance(), binding: SIGNED_IN, queuedAt: T0 - 5000 }] };
+    await no.queue.start();
+    no.state.consent = false;
+    no.queue.onConsentChanged();
+    expect(no.queue.stats()).toMatchObject({ queued: 0, dropped: { consent: 1 } });
   });
 
   it('[TL-009] consent revoked while a batch waits for its retry: the retry never happens', async () => {

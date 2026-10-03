@@ -58,7 +58,7 @@ const telemetryStats: TelemetryQueueStats = {
   nextAttemptAt: null,
   sent: 40,
   duplicates: 1,
-  dropped: { overflow: 2, rejected: 0, 'stale-binding': 1, consent: 0, unsupported: 0, invalid: 0 },
+  dropped: { overflow: 2, rejected: 0, exhausted: 0, 'stale-binding': 1, consent: 0, unsupported: 0, invalid: 0 },
   droppedTotal: 3,
   cyclesExhausted: 0,
   lastFailure: { at: T0 - 1000, status: 503, kind: 'http' },
