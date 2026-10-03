@@ -218,6 +218,21 @@ describe('chat navigation', () => {
     for (const w of [broken, noRouter, off]) expect([w.host.calls.navigations, w.rpc.of('token.issue')]).toEqual([[], []]);
   });
 
+  it('[HK-037] with no account on screen there is nothing to walk; a router that throws is a failed navigation; the owner\'s switch covers «перейти» too', async () => {
+    const nowhere = world({ snapshot: { route: { epoch: 1, name: 'other', account: null, chat: null }, identity: null, composer: null } });
+    expect(await nowhere.go(step('next'))).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(nowhere.navigation.currentAccountId()).toBeNull();
+    const throwing = world();
+    throwing.host.navigate = () => Promise.reject(new Error('bridge gone'));
+    expect(failed(await throwing.go(step('next')))).toBe('CG-NAV-FAILED');
+    // The guard is released: the next key navigates.
+    const off = world({ ownerSwitch: false });
+    expect(failed(await off.go({ type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(chat('2004')) } }))).toBe('CG-FEATURE-DISABLED');
+    expect(off.rpc.of('token.issue')).toEqual([]);
+    expect(off.navigation.getSnapshot({ of: 'palette' })).toBeUndefined();
+    expect(off.navigation.subscribe({ of: 'palette' }, () => undefined)()).toBeUndefined();
+  });
+
   it('[HK-037] a cold list is asked once more; a second key while the router still moves is not queued', async () => {
     let reads = 0;
     const w = world();
@@ -581,6 +596,34 @@ describe('the palette', () => {
     expect(seen.length).toBe(atDispose);
   });
 
+  it('[HK-036] the palette is rebuilt when the route or the accounts change and when the language switches; a failed list of generations leaves the old one', async () => {
+    const p = paletteWorld();
+    const seen: PaletteVM[] = [];
+    p.controller.subscribe({ of: 'palette' }, (view) => seen.push(view as PaletteVM));
+    // Closed: host events move nothing.
+    p.host.subscribe(() => undefined);
+    await p.open();
+    const base = seen.length;
+    const emit = p.host as unknown as { script: { timeline: unknown[] } };
+    emit.script.timeline.push({ kind: 'event', at: 1, event: { type: 'accounts', accounts: [hostAccount] } }, { kind: 'event', at: 2, event: { type: 'composer', composer: null } });
+    p.host.run();
+    await settle();
+    // The accounts event rebuilt it (the other account is gone); the composer event did not.
+    expect(seen.length).toBe(base + 1);
+    expect(p.group('accounts')).toEqual([]);
+    p.i18n.setLanguage('en');
+    expect(seen.length).toBe(base + 2);
+    expect(labels(p.group('actions')).slice(7, 9)).toEqual(['Tone for one answer', 'Split']);
+    p.rpc.answers.set('op.list', () => ({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }));
+    p.rpc.emit('op.done', {});
+    await settle();
+    expect(seen.length).toBe(base + 2);
+    // A chat is open but the dock is not there yet (no sign-in card, the first chunk still loading): only the windows.
+    const noDock = paletteWorld({ dock: dock(CTX, 'loading-chat') });
+    await noDock.open();
+    expect(noDock.view().groups[0]).toMatchObject({ id: 'navigation' });
+  });
+
   it('[CS-006] the default hub port: the page of the account, then «Ждут ответа» on open and the board with «Новые» on the first query', async () => {
     const rpc = new FakeRpc();
     rpc.answers.set('binding.resolve', () => ({ ok: true, payload: { binding: { pageId: WORLD.pages.one.pageId } } }));
@@ -591,6 +634,7 @@ describe('the palette', () => {
     rpc.answers.set('spenders.board', () => ({ ok: true, payload: { items: [{ fan: { platformUserId: '2040', displayName: 'Theo Brandt', username: 'tbrandt' }, metrics: { lifetime: { scopeGrossAmountMills: 640_000 } } }] } }));
     rpc.answers.set('newcomers.list', () => ({ ok: false, error: { code: 'CG-FEATURE-DISABLED' } }));
     const hub = createPaletteHub(rpc);
+    const listed = (): Promise<unknown> => hub.fans(hostAccount).then((sources) => sources.newcomers);
     expect(await hub.waiting(hostAccount)).toEqual({ ok: true, rows: [{ fanRef: '2003', name: 'Theodore', username: 'theo_w', lifetimeMills: 5000, waitingSince: '2026-10-03T09:53:00.000Z' }] });
     expect(await hub.fans(hostAccount)).toEqual({
       spenders: { ok: true, rows: [{ fanRef: '2040', name: 'Theo Brandt', username: 'tbrandt', lifetimeMills: 640_000 }] },
@@ -599,6 +643,8 @@ describe('the palette', () => {
     expect(rpc.of('spenders.queue')).toEqual([{ pageId: 11, cursor: null, limit: 20 }]);
     expect(rpc.of('spenders.board')).toEqual([{ pageId: 11, period: 'lifetime' }]);
     expect(rpc.of('newcomers.list')).toEqual([{ pageId: 11, windowHours: 48, cursor: null }]);
+    rpc.answers.set('newcomers.list', () => ({ ok: true, payload: { items: [{ fanRef: '2050', displayName: 'Theodora', username: null }] } }));
+    expect(await listed()).toEqual({ ok: true, rows: [{ fanRef: '2050', name: 'Theodora', username: null, lifetimeMills: null }] });
     // No page for the account (not signed in, not bound): every source says why.
     rpc.answers.set('binding.resolve', () => ({ ok: false, error: { code: 'CG-BINDING-MISSING' } }));
     expect(await hub.waiting(hostAccount)).toEqual({ ok: false, code: 'CG-BINDING-MISSING' });

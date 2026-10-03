@@ -43,6 +43,6 @@ export {
   type OverlayKind,
   type RouteKind,
 } from './policy';
-export { DELIVERY, DELIVERY_KEYS, deliveryOf, isUsable, type DeliveryKey, type DeliveryOverrides } from './delivery';
+export { DELIVERY, DELIVERY_KEYS, deliveryOf, type DeliveryKey, type DeliveryOverrides } from './delivery';
 export { createActionCatalog, isOutsideScheme, printableHotkey, type CatalogOptions } from './catalog';
 export { cheatsheetGroups, cheatsheetView, hotkeyReferenceRows } from './cheatsheet';

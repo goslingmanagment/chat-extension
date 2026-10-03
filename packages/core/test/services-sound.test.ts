@@ -407,6 +407,36 @@ describe('the sound arbiter: state, diagnostics and the protocol', () => {
     for (const entry of failing.log.entries) expect(entry.fields).toBeUndefined();
   });
 
+  it('[SN-010] the arbiter works without session storage; a subscription event is decided once whatever page reports it; the per-tab memory is bounded', async () => {
+    const clock = new FakeClock(NOW);
+    const played: number[] = [];
+    const bare = new SoundArbiter({
+      clock,
+      audio: { play: () => (played.push(clock.now()), Promise.resolve({ played: true })) },
+      presence: { listeningTabs: () => 1, isChatInFocus: () => false, accounts: () => [ACCOUNT] },
+      settings: () => DEFAULT_SETTINGS.sound,
+      ownerSwitch: () => null,
+      hostPermission: () => Promise.reject(new Error('permissions API failed')),
+    });
+    await bare.restore();
+    // A permission check that throws is «no permission», never a crash and never a sound.
+    expect(await bare.handleIncoming('tab-1', fact())).toBe('no-permission');
+    await bare.flush();
+    bare.forgetSubscribers();
+    expect(clock.pending).toBe(0);
+
+    const w = world();
+    await w.arbiter.handleSubscribers(batch([]));
+    await w.arbiter.handleSubscribers(batch([], { pageKey: '12' }));
+    expect(await w.arbiter.handleSubscribers(batch([sub('e1')]))).toEqual(['played']);
+    // The same hub event under another page key of the same creator: already decided.
+    expect(await w.arbiter.handleSubscribers(batch([sub('e1')], { pageKey: '12' }))).toEqual(['duplicate']);
+    // Six hundred tabs' worth of sources: the oldest are forgotten (their next store fact is a first snapshot again).
+    for (let i = 0; i < 600; i += 1) await w.arbiter.handleIncoming(`tab-${i}`, fact({ fromFan: false }));
+    await w.clock.advance(60_000);
+    expect(await w.arbiter.handleIncoming('tab-0', fact({ source: 'store', sentAt: new Date(w.clock.now() - 60_000).toISOString() }, w))).toBe('first-snapshot');
+  });
+
   it('[SN-015] [ST-133] diagnostics: how many tabs listen, the last incoming, the outcome counters of both sounds', async () => {
     const w = world();
     w.page.tabs = 3;

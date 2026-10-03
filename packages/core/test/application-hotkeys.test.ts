@@ -6,7 +6,7 @@
 // packages/testing/e2e/specs/hotkeys.e2e.ts. Test titles carry the parity rows.
 
 import { type UiAction, type UiActionType } from '@cg/contracts';
-import { KEPT_KEY_TTL_MS, QUICK_JUMP_HOLD_MS, createEarlyKeyDispatcher, createHotkeyRunner, createTabKeyState, nextTone, type EarlyNotice } from '@cg/core/application/hotkeys';
+import { KEPT_KEY_TTL_MS, QUICK_JUMP_HOLD_MS, createEarlyKeyDispatcher, createEarlyNotices, createHotkeyRunner, createTabKeyState, nextTone, type EarlyNotice } from '@cg/core/application/hotkeys';
 import { createCauseHint, createOverlayState, mirrorDismissible } from '@cg/core/application/navigation';
 import { DISPATCHER_COMMAND_IDS, createActionCatalog, createKeyResolver, type HotkeyPlatform, type KeyCommand, type OverlayKind, type RouteKind } from '@cg/core/domain/hotkeys';
 import { createI18n } from '@cg/core/domain/i18n';
@@ -204,6 +204,42 @@ describe('the early dispatcher', () => {
     const early = rig('mac', false);
     chord(early, 'KeyH', { shiftKey: true });
     expect(early.notices).toEqual([{ kind: 'refused', command: 'help', refusal: 'help-removed' }]);
+  });
+
+  it('[HK-024] what was pressed before anything could draw is shown the moment the toasts exist: «загрузка» for a kept key, the reason for a refused one', () => {
+    const toasts = new FakeToasts();
+    const refusedLater: string[] = [];
+    const presenter = { toasts, refuse: (command: string, refusal: string) => refusedLater.push(`${command}:${refusal}`) };
+    const early = createEarlyNotices();
+    early.onEarly({ kind: 'queued', command: 'reply' });
+    early.onEarly({ kind: 'refused', command: 'help', refusal: 'help-removed' });
+    expect(toasts.shown).toEqual([]);
+    early.attach(presenter);
+    expect(toasts.shown.map((item) => item.toast)).toEqual([{ kind: 'info', code: null, scope: 'hotkey.early', title: { key: 'common.loading' }, body: null }]);
+    expect(refusedLater).toEqual(['help:help-removed']);
+    // A newer key replaced the kept one: still waiting, one toast. The lazy part took it over: the toast goes.
+    early.onEarly({ kind: 'dropped', command: 'reply', why: 'replaced' });
+    early.onEarly({ kind: 'queued', command: 'ping' });
+    expect(toasts.shown).toHaveLength(1);
+    early.settled();
+    expect(toasts.shown).toEqual([]);
+    // After the toasts exist notices show at once; a dropped key takes its «загрузка» away.
+    early.onEarly({ kind: 'queued', command: 'fix' });
+    expect(toasts.shown).toHaveLength(1);
+    early.onEarly({ kind: 'dropped', command: 'fix', why: 'route-changed' });
+    expect(toasts.shown).toEqual([]);
+    early.onEarly({ kind: 'refused', command: 'reply', refusal: 'overlay-open' });
+    expect(refusedLater).toEqual(['help:help-removed', 'reply:overlay-open']);
+
+    // The key was dropped before anything could draw: nothing to show any more; only the newest refusals are kept.
+    const quiet = createEarlyNotices();
+    const laterToasts = new FakeToasts();
+    const reasons: string[] = [];
+    quiet.onEarly({ kind: 'queued', command: 'reply' });
+    quiet.onEarly({ kind: 'dropped', command: 'reply', why: 'expired' });
+    for (const command of ['reply', 'fix', 'hi', 'ping'] as const) quiet.onEarly({ kind: 'refused', command, refusal: 'overlay-open' });
+    quiet.attach({ toasts: laterToasts, refuse: (command) => reasons.push(command) });
+    expect([laterToasts.shown, reasons]).toEqual([[], ['fix', 'hi', 'ping']]);
   });
 
   it('[HK-025] the kept key runs only in the chat it was pressed in, only the newest one, and only while fresh', () => {
@@ -652,6 +688,36 @@ describe('the hotkey runner', () => {
     await settle();
     expect(all.client.dispatched.length).toBeGreaterThan(20);
     for (const action of all.client.dispatched) expect(forbidden).not.toContain(action.type);
+  });
+
+  it('[HK-042] [HK-026] in a preview a busy action\'s key does nothing, a gated one says why; Tone and Split without a target say why too', async () => {
+    const r = runnerRig();
+    r.overlays.setPreview('spenders');
+    const busy = { enabled: false, busy: true, active: true, reason: null, hotkey: null, badge: null } as const;
+    const gated = { enabled: false, busy: false, active: false, reason: reason('ping-gate'), hotkey: null, badge: null } as const;
+    const locked = preview(CTX, 'spenders', views.ready(), { barPatch: { reply: busy, ping: gated } });
+    r.client.set({ of: 'preview', from: 'spenders' }, { ...locked, bar: { ...locked.bar, locked: true, splitReason: reason('locked-during-generation') } });
+    expect(await r.run('reply', 'preview')).toBeUndefined();
+    expect(r.toasts.shown).toEqual([]);
+    expect(await r.run('ping', 'preview')).toBeUndefined();
+    expect(await r.run('split', 'preview')).toBeUndefined();
+    expect(r.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-GATE-PING', null]);
+    expect(toastTitles(r.toasts, r.i18n)[1]).toBe('Split: ответ частями недоступен: нельзя менять, пока идёт генерация');
+    // The preview closed in between: its keys have nothing to act on.
+    r.overlays.setPreview(null);
+    for (const id of ['tone', 'split', 'reply'] as const) expect(await r.run(id, 'preview')).toBeUndefined();
+    expect(r.toasts.shown.slice(2).map((item) => item.toast.code)).toEqual(['CG-FEATURE-DISABLED', 'CG-FEATURE-DISABLED', 'CG-FEATURE-DISABLED']);
+    // In a chat that is still loading Tone says «чат ещё загружается».
+    const loading = runnerRig({}, 'loading-chat');
+    expect(await loading.run('tone')).toBeUndefined();
+    expect(loading.toasts.shown[0]?.toast.code).toBe('CG-GATE-CHAT-LOADING');
+    // A dispatch that throws is a failed surface, said once, never a silent key.
+    const broken = runnerRig();
+    broken.client.dispatch = () => Promise.reject(new Error('controller crashed'));
+    broken.runner.run({ id: 'reply', slot: null, target: 'dock' });
+    broken.runner.run({ id: 'split', slot: null, target: 'dock' });
+    await settle();
+    expect(broken.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-UI-FAILED']);
   });
 
   it('[HK-029] Esc closes in turn: the newest window of ours first, the dock\'s sheet last', async () => {

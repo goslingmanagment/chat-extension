@@ -106,8 +106,3 @@ export type DeliveryOverrides = Readonly<Partial<Record<DeliveryKey, HotkeyDeliv
 export function deliveryOf(key: DeliveryKey, platform: HotkeyPlatform, overrides: DeliveryOverrides = {}): HotkeyDelivery {
   return overrides[key] ?? DELIVERY[platform][key];
 }
-
-/** A combination the cheatsheet may print as working: the browser hands it over, or nobody has shown it does not. */
-export function isUsable(delivery: HotkeyDelivery): boolean {
-  return delivery !== 'reserved';
-}

@@ -305,6 +305,15 @@ describe('whose key is it', () => {
     expect(decideKey({ kind: 'swallow', reason: 'legacy' }, ctx({ route: 'other' }))).toEqual({ act: 'pass' });
   });
 
+  it('[HK-006] Cancel is ours wherever something of ours can run — an open chat or a window of ours — and the browser\'s elsewhere', () => {
+    expect(ran(decideKey(cmd('cancel'), ctx()))).toBe('cancel@dock');
+    expect(ran(decideKey(cmd('cancel'), ctx({ route: 'account', overlays: ['newcomers'] })))).toBe('cancel@dock');
+    expect(decideKey(cmd('cancel'), ctx({ route: 'other' }))).toEqual({ act: 'pass' });
+    // A key no command matched goes the same way through decideKey as through decideUnmatched.
+    expect(decideKey(null, ctx({ focus: 'ours' }))).toEqual({ act: 'isolate', otherwise: null });
+    expect(decideKey(null, ctx({ focus: 'composer' }))).toEqual({ act: 'pass' });
+  });
+
   it('[HK-026] ⌘⇧H is claimed in a chat and answers «пока убран»; it never runs (NEG-HELP)', () => {
     expect(decideKey(cmd('help'), ctx())).toEqual({ act: 'claim', run: null, refusal: 'help-removed', command: 'help' });
     expect(decideKey(cmd('help'), ctx({ route: 'other' }))).toEqual({ act: 'pass' });
