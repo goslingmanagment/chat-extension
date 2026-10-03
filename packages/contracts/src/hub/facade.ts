@@ -44,6 +44,21 @@ import {
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
 
+/** Fixed timings of the facade (§7, §8.2, §8.3); the board and «Новые» ones are SPENDERS_BOARD and AUDIENCE_LIMITS. */
+export const HUB_FACADE_TIMING = {
+  signInTimeoutMs: 20_000,
+  /** Sign-out revokes within this, then wipes again whatever the answer. */
+  signOutRevokeTimeoutMs: 5_000,
+  /** Pauses between failed bootstrap refreshes. */
+  bootstrapRetryPausesMs: [5_000, 15_000, 60_000],
+  /** A focus refresh at most this often. */
+  bootstrapFocusRefreshMinMs: 60_000,
+  /** H-5 `not-ready`: idempotent link writes after these delays, then every 3 min up to 30 min while the tab is open. */
+  profileSaveDelaysMs: [5_000, 15_000, 60_000],
+  profileSaveThenEveryMs: 180_000,
+  profileSaveGiveUpMs: 1_800_000,
+} as const;
+
 /** What a facade call rejects with: the route and the facts, never the token or a hub message shown as text. */
 export interface HubCallError {
   readonly name: 'HubCallError';
