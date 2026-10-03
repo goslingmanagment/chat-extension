@@ -78,6 +78,7 @@ export function chatMessagesQuery(accountId: string, fanId: string, cache: Query
     key: keys.chatMessages(accountId, fanId),
     staleTime: 60_000,
     gcTime: 600_000,
+    refetchOnWindowFocus: false,
     query: async ({ signal }) => {
       const account = cache.getQueryData<Account[]>(keys.accounts())?.find((item) => String(item.id) === accountId);
       const body = await api

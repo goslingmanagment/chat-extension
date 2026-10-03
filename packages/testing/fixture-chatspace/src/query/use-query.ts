@@ -1,10 +1,15 @@
 // Observing a query from a component (or a test-held observer): the entry is
 // ACTIVE while at least one observer tracks it; a stale entry refetches when an
 // observer arrives. This is what makes "a history load would happen" visible.
+// Like Colada, every observer also listens to the window: when the tab becomes
+// visible (refetchOnWindowFocus) or the network comes back (`online`,
+// refetchOnReconnect), an active, enabled, stale query refreshes — the waves
+// the extension must never cause (architecture.md §6.10).
 
 import { computed, onScopeDispose, shallowRef, watch, type ComputedRef, type ShallowRef } from 'vue';
 
-import { keyHash, useQueryCache, type QueryEntry, type QueryKey, type QueryOptions } from './cache';
+import { record } from '../journal';
+import { keyHash, useQueryCache, type QueryEntry, type QueryKey, type QueryOptions, type RefetchTrigger } from './cache';
 
 export interface QueryHandle<T> {
   readonly entry: ShallowRef<QueryEntry<T> | null>;
@@ -36,7 +41,24 @@ export function useQuery<T>(options: () => QueryOptions<T> | null): QueryHandle<
     },
     { immediate: true },
   );
+  const onWindowSignal = (cause: 'focus' | 'online', trigger: (options: QueryOptions<T>) => RefetchTrigger | undefined): void => {
+    const current = entry.value;
+    const options = current?.options ?? null;
+    if (current === null || options === null || !current.active || !(options.enabled?.() ?? true)) return;
+    const mode = trigger(options) ?? true;
+    if (mode === false) return;
+    record('query-window-refetch', { key: [...current.key], cause, mode });
+    void (mode === 'always' ? cache.fetch(current) : cache.refresh(current));
+  };
+  const onVisibility = (): void => {
+    if (document.visibilityState === 'visible') onWindowSignal('focus', (options) => options.refetchOnWindowFocus);
+  };
+  const onOnline = (): void => onWindowSignal('online', (options) => options.refetchOnReconnect);
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('online', onOnline);
   onScopeDispose(() => {
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('online', onOnline);
     if (entry.value !== null) cache.untrack(entry.value, observer);
   });
   return {

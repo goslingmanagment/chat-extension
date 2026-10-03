@@ -3,7 +3,10 @@
 // sets onopen/onmessage/onclose as properties; a bus that parses each frame's
 // top-level `event` and calls private listeners (not store actions); and a
 // per-store helper that authenticates ('auth' → 'authenticated', 10 s × 3)
-// and then calls onConnect / onReconnect.
+// and then calls onConnect / onReconnect. Like ChatSpace's manager, it also
+// forces a NEW socket on the window's `online` and `offline` events, and when
+// the tab becomes visible while the socket is neither open nor connecting —
+// the reconnect waves the extension must never cause (architecture.md §6.10).
 
 import { shallowRef, watch, type ShallowRef } from 'vue';
 
@@ -34,13 +37,45 @@ class SocketManager {
   private socket: WebSocket | null = null;
   private attempts = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Connected at least once and not closed on purpose (sign-out). */
+  private active = false;
 
   constructor(
     private readonly url: string,
     private readonly onFrame: (text: string) => void,
-  ) {}
+  ) {
+    if (typeof window === 'undefined') return;
+    window.addEventListener('online', () => this.recover('online'));
+    window.addEventListener('offline', () => this.recover('offline'));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      const state = this.socket?.readyState;
+      if (state !== WebSocket.CONNECTING && state !== WebSocket.OPEN) this.recover('visible');
+    });
+  }
+
+  /** Forced reconnect on a window signal; skipped while connecting or when the app is not connected at all. */
+  private recover(cause: 'online' | 'offline' | 'visible'): void {
+    if (!this.active || this.socket?.readyState === WebSocket.CONNECTING) {
+      record('ws-recover-skipped', { cause });
+      return;
+    }
+    record('ws-recover', { cause });
+    this.reconnect();
+  }
+
+  /** Closes on purpose (sign-out): no reconnect, no recovery. */
+  close(): void {
+    this.active = false;
+    clearTimeout(this.timer);
+    const old = this.socket;
+    this.socket = null;
+    this.status.value = 'CLOSED';
+    old?.close(1000, 'signed-out');
+  }
 
   connect(): void {
+    this.active = true;
     if (this.socket !== null && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) return;
     clearTimeout(this.timer);
     const socket = new WebSocket(this.url);
