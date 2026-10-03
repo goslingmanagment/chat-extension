@@ -119,6 +119,50 @@ describe('[SN-014] one AudioContext in the event page, resumed within 1.5 s', ()
   });
 });
 
+describe('[SN-011] [SN-013] what the sound arbiter needs from the player', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('[SN-011] prepare() wakes the context without a sound; a context that stays suspended is not ready', async () => {
+    const { ctx, calls } = fakeContext('suspended');
+    const player = createAudioPlayer({ createContext: () => ctx });
+    expect(await player.prepare()).toBe(true);
+    expect(calls).toEqual([]);
+    expect(player.stats()).toEqual({ played: 0, blocked: 0, contextState: 'running' });
+    // Already running: nothing to wait for, and play starts at once.
+    expect(await player.prepare()).toBe(true);
+    expect(await player.play(chime, 0.06)).toEqual({ played: true });
+
+    vi.useFakeTimers();
+    const stuck = createAudioPlayer({ createContext: () => fakeContext('suspended', () => new Promise(() => undefined)).ctx });
+    const waking = stuck.prepare();
+    await vi.advanceTimersByTimeAsync(AUDIO_RESUME_TIMEOUT_MS);
+    expect(await waking).toBe(false);
+    const missing = createAudioPlayer({
+      createContext: () => {
+        throw new Error('no audio');
+      },
+    });
+    expect(await missing.prepare()).toBe(false);
+  });
+
+  it('[SN-013] a note may glide faster than it rings: the pitch is reached at glideMs and stays', async () => {
+    const { ctx, calls } = fakeContext('running');
+    const player = createAudioPlayer({ createContext: () => ctx });
+    // The OnlyFans blip: 880 → 1320 Hz in 80 ms of a 180 ms note.
+    await player.play({ notes: [{ frequencyHz: 880, endFrequencyHz: 1320, glideMs: 80, startMs: 0, durationMs: 180, attackMs: 20 }] }, 0.06);
+    const glide = calls.find((c) => c.node === 'freq' && c.method === 'exp');
+    expect(glide?.args[0]).toBe(1320);
+    expect(glide?.args[1]).toBeCloseTo(2.01 + 0.08, 5);
+    // Without glideMs the glide takes the whole note; a glide longer than the note is cut to it.
+    calls.length = 0;
+    await player.play({ notes: [{ frequencyHz: 880, endFrequencyHz: 1320, startMs: 0, durationMs: 180 }, { frequencyHz: 880, endFrequencyHz: 1320, glideMs: 9000, startMs: 0, durationMs: 180 }] }, 0.06);
+    const glides = calls.filter((c) => c.node === 'freq' && c.method === 'exp');
+    expect(glides.map((c) => c.args[1] as number).map((at) => Math.round((at - 2.01) * 1000))).toEqual([180, 180]);
+  });
+});
+
 describe('clipboard (§14: only on a gesture)', () => {
   it('writes inside a gesture, refuses outside one, maps failures to CG-CLIPBOARD', async () => {
     const writes: string[] = [];
