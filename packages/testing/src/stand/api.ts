@@ -6,7 +6,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { CallOrigin, SendOutcome } from '../../fixture-chatspace/src/protocol';
-import { plainText, type StandMessage } from './dataset';
+import { plainText, type StandChat, type StandMessage } from './dataset';
 import type { ServerJournal } from './journal';
 import type { SocketHub } from './socket-hub';
 import type { StandState } from './state';
@@ -119,10 +119,22 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     const limit = Number(url.searchParams.get('limit') ?? DEFAULT_PAGE);
     const offset = Number(url.searchParams.get('offset') ?? 0);
     const filter = url.searchParams.get('filter');
+    const listId = url.searchParams.get('list_id');
+    const query = (url.searchParams.get('query') ?? '').toLowerCase();
+    const oldFirst = url.searchParams.get('order') === 'old';
+    const byFilter: Record<string, (chat: StandChat) => boolean> = {
+      unread: (chat) => chat.unread > 0,
+      pinned: (chat) => chat.fan.pinnedChat,
+      who_tipped: (chat) => chat.fan.tipped,
+      priority: (chat) => chat.fan.priority,
+    };
+    const lastAt = (chat: StandChat): string => chat.messages.at(-1)?.sentAt ?? '';
     const chats = state
       .chatsOf(accountId)
-      .filter((chat) => filter !== 'unread' || chat.unread > 0)
-      .sort((x, y) => (y.messages.at(-1)?.sentAt ?? '').localeCompare(x.messages.at(-1)?.sentAt ?? ''));
+      .filter((chat) => filter === null || (byFilter[filter]?.(chat) ?? false))
+      .filter((chat) => listId === null || chat.fan.lists.includes(listId))
+      .filter((chat) => query === '' || chat.fan.name.toLowerCase().includes(query) || chat.fan.username.toLowerCase().includes(query))
+      .sort((x, y) => (oldFirst ? lastAt(x).localeCompare(lastAt(y)) : lastAt(y).localeCompare(lastAt(x))));
     const page = chats.slice(offset, offset + limit);
     sendJson(response, 200, { items: page.map((chat) => rawChat(chat, account)), has_more: offset + limit < chats.length, next_offset: offset + page.length });
     return log(200);
@@ -144,16 +156,30 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
       // Loading a chat's history marks it read on the platform (live-verified on
       // ChatSpace, docs/research/onlymonster-chatspace/facts.md): the journal
       // keeps every such load so tests can prove none happened unasked.
+      // Pages run newest first; `cursor` = the oldest id already loaded, `first_id` = an anchor
+      // (that message and older), `filter=pinned` = pinned messages only.
       const limit = Number(url.searchParams.get('limit') ?? DEFAULT_PAGE);
       const cursor = url.searchParams.get('cursor');
-      const end = cursor === null ? chat.messages.length : chat.messages.findIndex((message) => message.id === cursor);
-      const upTo = end === -1 ? chat.messages.length : end;
+      const anchor = url.searchParams.get('first_id');
+      const filter = url.searchParams.get('filter');
+      const source = filter === 'pinned' ? chat.messages.filter((message) => message.isPinned === true) : chat.messages;
+      const indexOf = (id: string | null): number => (id === null ? -1 : source.findIndex((message) => message.id === id));
+      const upTo = cursor !== null && indexOf(cursor) !== -1 ? indexOf(cursor) : anchor !== null && indexOf(anchor) !== -1 ? indexOf(anchor) + 1 : source.length;
       const start = Math.max(0, upTo - limit);
-      const items = chat.messages.slice(start, upTo).reverse();
+      const items = source.slice(start, upTo).reverse();
       const unreadBefore = chat.unread;
       chat.unread = 0;
       sendJson(response, 200, { items: items.map(rawMessage), platform_fan_id: fanId, has_more: start > 0 });
-      journal.record({ kind: 'history-load', origin, method, path: `${path}${url.search}`, status: 200, accountId, chatId: fanId, detail: { unreadBefore, ...replay } });
+      journal.record({
+        kind: 'history-load',
+        origin,
+        method,
+        path: `${path}${url.search}`,
+        status: 200,
+        accountId,
+        chatId: fanId,
+        detail: { unreadBefore, ...(filter !== null ? { filter } : {}), ...(anchor !== null ? { anchor } : {}), ...replay },
+      });
       return log(200, { accountId, chatId: fanId });
     }
     if (method === 'POST') return handleSend(context, request, response, { accountId, fanId, origin, path });

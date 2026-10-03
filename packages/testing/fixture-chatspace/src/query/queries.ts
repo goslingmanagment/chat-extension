@@ -9,24 +9,72 @@ import type { QueryCache, QueryKey, QueryOptions } from './cache';
 import { mapAccount, mapChat, mapFan, mapRestMessage, type Account, type ChatList, type FansMap, type History, type MimicChat } from './model';
 
 const HISTORY_PAGE = 10;
+const PINNED_PAGE = 20;
 const LIST_PAGE = 10;
 const FAN_BATCH = 20;
 
 type Raw = Record<string, unknown>;
 type Items = { readonly items: Raw[] };
 
+/** Server-side chat-list filters (the key carries them as `filter:<name>`). */
+export const CHAT_LIST_FILTERS = ['unread', 'pinned', 'who_tipped', 'priority'] as const;
+export type ChatListFilter = (typeof CHAT_LIST_FILTERS)[number];
+
+/**
+ * Which list the human looks at. Key: ['chatList', acc, 'all' | 'filter:<name>' | 'list:<id>',
+ * optional 'search:<q>', optional 'order:old'] — the same layout as ChatSpace's.
+ */
+export interface ChatListView {
+  readonly scope: 'all' | `filter:${ChatListFilter}` | `list:${string}`;
+  readonly search: string;
+  readonly order: 'recent' | 'old';
+}
+
+export const ALL_CHATS: ChatListView = { scope: 'all', search: '', order: 'recent' };
+const SEARCH_PREFIX = 'search:';
+const ORDER_OLD = 'order:old';
+/** Index of the scope part in a chat-list key. */
+const SCOPE_INDEX = 2;
+
 export const keys = {
   accounts: (): QueryKey => [keyName('accounts')],
   userPermissions: (): QueryKey => [keyName('userPermissions')],
   mimicSettings: (): QueryKey => [keyName('mimicSettings')],
   mimicChats: (): QueryKey => [keyName('mimicChats')],
-  chatMessages: (accountId: string, fanId: string): QueryKey => [keyName('chatMessages'), accountId, fanId],
-  chatList: (accountId: string, filter = 'all'): QueryKey => [keyName('chatList'), accountId, filter],
+  /** The chat's history; with an anchor (`?firstId=` on the route) a separate entry ['chatMessages', acc, fan, firstId]. */
+  chatMessages: (accountId: string, fanId: string, anchor?: string | null): QueryKey =>
+    anchor ? [keyName('chatMessages'), accountId, fanId, anchor] : [keyName('chatMessages'), accountId, fanId],
+  /** The pinned-messages dialog: ['chatMessages', acc, fan, 'pinned']. */
+  pinnedMessages: (accountId: string, fanId: string): QueryKey => [keyName('chatMessages'), accountId, fanId, 'pinned'],
+  chatList: (accountId: string, view: ChatListView = ALL_CHATS): QueryKey => [
+    keyName('chatList'),
+    accountId,
+    view.scope,
+    ...(view.search !== '' ? [`${SEARCH_PREFIX}${view.search}`] : []),
+    ...(view.order === 'old' ? [ORDER_OLD] : []),
+  ],
   fansMap: (accountId: string): QueryKey => [keyName('fansMap'), accountId],
   buyingPowers: (): QueryKey => [keyName('onlyfansBuyingPowers')],
   lastPayments: (accountId: string): QueryKey => [keyName('onlyfansLastPayments'), accountId],
   fanInsights: (accountId: string): QueryKey => [keyName('fanInsights'), accountId],
 };
+
+/** The view a chat-list key stands for (null for another key). */
+export function chatListViewOf(key: QueryKey): ChatListView | null {
+  const scope = key[SCOPE_INDEX];
+  if (key[0] !== keyName('chatList') || scope === undefined) return null;
+  const rest = key.slice(SCOPE_INDEX + 1);
+  const search = rest.find((part) => part.startsWith(SEARCH_PREFIX))?.slice(SEARCH_PREFIX.length) ?? '';
+  return { scope: scope as ChatListView['scope'], search, order: rest.includes(ORDER_OLD) ? 'old' : 'recent' };
+}
+
+/** A search or old-first list: ChatSpace patches its rows in place (while active) instead of reordering it. */
+export const isSearchOrOldFirst = (key: QueryKey): boolean => {
+  const view = chatListViewOf(key);
+  return view !== null && (view.search !== '' || view.order === 'old');
+};
+
+export const isAllChatsScope = (key: QueryKey): boolean => key[SCOPE_INDEX] === 'all';
 
 export function accountsQuery(): QueryOptions<Account[]> {
   return {
@@ -73,44 +121,71 @@ export function mimicChatsQuery(): QueryOptions<Record<string, MimicChat>> {
   };
 }
 
-export function chatMessagesQuery(accountId: string, fanId: string, cache: QueryCache): QueryOptions<History> {
+type HistoryParams = Record<string, string>;
+
+async function fetchHistoryPage(accountId: string, fanId: string, cache: QueryCache, params: HistoryParams, signal?: AbortSignal): Promise<History['pages'][number]> {
+  const account = cache.getQueryData<Account[]>(keys.accounts())?.find((item) => String(item.id) === accountId);
+  const body = await api
+    .get(`api/v0/accounts/${accountId}/chats/${fanId}/messages`, { ...(signal ? { signal } : {}), searchParams: new URLSearchParams(params) })
+    .json<Items & { has_more?: unknown }>();
+  const items = body.items.map((raw) => mapRestMessage(raw, 'onlyfans', { fanId, platformAccountId: account?.platformAccountId ?? '' }));
+  return { items, hasMore: body.has_more === true, cursor: items.at(-1)?.id ?? null };
+}
+
+/** The open chat's history (or, with an anchor, the history around that message). */
+export function chatMessagesQuery(accountId: string, fanId: string, cache: QueryCache, anchor: string | null = null): QueryOptions<History> {
   return {
-    key: keys.chatMessages(accountId, fanId),
+    key: keys.chatMessages(accountId, fanId, anchor),
     staleTime: 60_000,
     gcTime: 600_000,
     refetchOnWindowFocus: false,
     query: async ({ signal }) => {
-      const account = cache.getQueryData<Account[]>(keys.accounts())?.find((item) => String(item.id) === accountId);
-      const body = await api
-        .get(`api/v0/accounts/${accountId}/chats/${fanId}/messages`, { signal, searchParams: new URLSearchParams({ limit: String(HISTORY_PAGE) }) })
-        .json<Items & { has_more?: unknown }>();
-      const items = body.items.map((raw) => mapRestMessage(raw, 'onlyfans', { fanId, platformAccountId: account?.platformAccountId ?? '' }));
-      return { pages: [{ items, hasMore: body.has_more === true, cursor: items.at(-1)?.id ?? null }], pageParams: [null] };
+      const page = await fetchHistoryPage(accountId, fanId, cache, { limit: String(HISTORY_PAGE), ...(anchor !== null ? { first_id: anchor } : {}) }, signal);
+      return { pages: [page], pageParams: [null] };
+    },
+  };
+}
+
+/** Pinned messages of the open chat (only while its dialog is open). */
+export function pinnedMessagesQuery(accountId: string, fanId: string, cache: QueryCache): QueryOptions<History> {
+  return {
+    key: keys.pinnedMessages(accountId, fanId),
+    staleTime: 60_000,
+    gcTime: 600_000,
+    refetchOnWindowFocus: false,
+    query: async ({ signal }) => {
+      const page = await fetchHistoryPage(accountId, fanId, cache, { filter: 'pinned', limit: String(PINNED_PAGE) }, signal);
+      return { pages: [page], pageParams: [null] };
     },
   };
 }
 
 /** Loads one older history page into the cache (scrolling up in the open chat). */
-export async function loadOlderHistory(cache: QueryCache, accountId: string, fanId: string): Promise<void> {
-  const key = keys.chatMessages(accountId, fanId);
+export async function loadOlderHistory(cache: QueryCache, accountId: string, fanId: string, anchor: string | null = null): Promise<void> {
+  const key = keys.chatMessages(accountId, fanId, anchor);
   const history = cache.getQueryData<History>(key);
   const last = history?.pages.at(-1);
   if (history === undefined || last === undefined || !last.hasMore || last.cursor === null) return;
-  const account = cache.getQueryData<Account[]>(keys.accounts())?.find((item) => String(item.id) === accountId);
-  const body = await api
-    .get(`api/v0/accounts/${accountId}/chats/${fanId}/messages`, { searchParams: new URLSearchParams({ limit: String(HISTORY_PAGE), cursor: last.cursor }) })
-    .json<Items & { has_more?: unknown }>();
-  const items = body.items.map((raw) => mapRestMessage(raw, 'onlyfans', { fanId, platformAccountId: account?.platformAccountId ?? '' }));
+  const page = await fetchHistoryPage(accountId, fanId, cache, { limit: String(HISTORY_PAGE), cursor: last.cursor });
   cache.setQueryData<History>(key, (previous) => ({
-    pages: [...(previous?.pages ?? []), { items, hasMore: body.has_more === true, cursor: items.at(-1)?.id ?? null }],
+    pages: [...(previous?.pages ?? []), page],
     pageParams: [...(previous?.pageParams ?? []), last.cursor],
   }));
 }
 
-async function fetchListPage(accountId: string, filter: string, offset: number, platformAccountId: string, signal?: AbortSignal): Promise<ChatList['pages'][number]> {
+function listParams(view: ChatListView, offset: number): URLSearchParams {
   const params = new URLSearchParams({ limit: String(LIST_PAGE), offset: String(offset) });
-  if (filter !== 'all') params.set('filter', filter);
-  const body = await api.get(`api/v0/accounts/${accountId}/chats`, { ...(signal ? { signal } : {}), searchParams: params }).json<Items & { has_more?: unknown; next_offset?: unknown }>();
+  if (view.scope.startsWith('filter:')) params.set('filter', view.scope.slice('filter:'.length));
+  if (view.scope.startsWith('list:')) params.set('list_id', view.scope.slice('list:'.length));
+  if (view.search !== '') params.set('query', view.search);
+  if (view.order === 'old') params.set('order', 'old');
+  return params;
+}
+
+async function fetchListPage(accountId: string, view: ChatListView, offset: number, platformAccountId: string, signal?: AbortSignal): Promise<ChatList['pages'][number]> {
+  const body = await api
+    .get(`api/v0/accounts/${accountId}/chats`, { ...(signal ? { signal } : {}), searchParams: listParams(view, offset) })
+    .json<Items & { has_more?: unknown; next_offset?: unknown }>();
   return {
     items: body.items.map((raw) => mapChat(raw, accountId, platformAccountId)),
     hasMore: body.has_more === true,
@@ -118,19 +193,20 @@ async function fetchListPage(accountId: string, filter: string, offset: number, 
   };
 }
 
-export function chatListQuery(accountId: string, cache: QueryCache, filter = 'all'): QueryOptions<ChatList> {
+export function chatListQuery(accountId: string, cache: QueryCache, view: ChatListView = ALL_CHATS): QueryOptions<ChatList> {
+  const key = keys.chatList(accountId, view);
   return {
-    key: keys.chatList(accountId, filter),
+    key,
     staleTime: 60_000,
     gcTime: 600_000,
     query: async ({ signal }) => {
       const account = cache.getQueryData<Account[]>(keys.accounts())?.find((item) => String(item.id) === accountId);
       // An infinite query refetches every page it had loaded, in order.
-      const loaded = Math.max(1, cache.getQueryData<ChatList>(keys.chatList(accountId, filter))?.pages.length ?? 1);
+      const loaded = Math.max(1, cache.getQueryData<ChatList>(key)?.pages.length ?? 1);
       const pages: ChatList['pages'][number][] = [];
       let offset = 0;
       for (let index = 0; index < loaded; index += 1) {
-        const page = await fetchListPage(accountId, filter, offset, account?.platformAccountId ?? '', signal);
+        const page = await fetchListPage(accountId, view, offset, account?.platformAccountId ?? '', signal);
         pages.push(page);
         offset = page.nextOffset;
         if (!page.hasMore) break;
@@ -140,13 +216,13 @@ export function chatListQuery(accountId: string, cache: QueryCache, filter = 'al
   };
 }
 
-export async function loadNextListPage(cache: QueryCache, accountId: string, filter = 'all'): Promise<void> {
-  const key = keys.chatList(accountId, filter);
+export async function loadNextListPage(cache: QueryCache, accountId: string, view: ChatListView = ALL_CHATS): Promise<void> {
+  const key = keys.chatList(accountId, view);
   const list = cache.getQueryData<ChatList>(key);
   const last = list?.pages.at(-1);
   if (list === undefined || last === undefined || !last.hasMore) return;
   const account = cache.getQueryData<Account[]>(keys.accounts())?.find((item) => String(item.id) === accountId);
-  const page = await fetchListPage(accountId, filter, last.nextOffset, account?.platformAccountId ?? '');
+  const page = await fetchListPage(accountId, view, last.nextOffset, account?.platformAccountId ?? '');
   cache.setQueryData<ChatList>(key, (previous) => ({ pages: [...(previous?.pages ?? []), page], pageParams: [...(previous?.pageParams ?? []), last.nextOffset] }));
 }
 
@@ -213,8 +289,12 @@ export async function ensureInsights(cache: QueryCache, accountId: string, fanId
 
 /** The app's options for a key, so a test-held observer refetches like the app would. */
 export function optionsForKey(key: QueryKey, cache: QueryCache): QueryOptions<unknown> | null {
-  const [name, accountId, third] = key;
-  if (name === keys.chatMessages('', '')[0] && accountId !== undefined && third !== undefined) return chatMessagesQuery(accountId, third, cache);
-  if (name === keys.chatList('')[0] && accountId !== undefined) return chatListQuery(accountId, cache, third ?? 'all');
+  const [name, accountId, third, fourth] = key;
+  if (name === keyName('chatMessages') && accountId !== undefined && third !== undefined) {
+    if (fourth === 'pinned') return pinnedMessagesQuery(accountId, third, cache);
+    return chatMessagesQuery(accountId, third, cache, fourth ?? null);
+  }
+  const view = chatListViewOf(key);
+  if (view !== null && accountId !== undefined) return chatListQuery(accountId, cache, view);
   return null;
 }

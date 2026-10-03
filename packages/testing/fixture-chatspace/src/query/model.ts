@@ -91,7 +91,7 @@ export interface Chat {
   readonly lastMessage: Message | null;
   readonly canSendMessage: boolean;
   readonly isMutedNotifications: boolean;
-  readonly isMarkedAsUnread?: boolean;
+  readonly isMarkedAsUnread?: boolean | undefined;
 }
 
 export interface ChatListPage {

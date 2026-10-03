@@ -1,8 +1,10 @@
 // Chat stores (metadata.ts «chats», «chat-list», «chat-messages»):
 // - chats: chatsById, online statuses (isFanOnline by fan id), typing;
-// - chatList: socket updates of every loaded ["chatList", acc, …] entry
-//   (chat to the top, unread +1 from the fan, 0 on outgoing; unknown chat →
-//   that list is invalidated); markChatAsRead touches only the cache;
+// - chatList: socket updates of every loaded ["chatList", acc, …] entry by
+//   kind: a plain list (all, a filter, a fan list) moves the chat to the top
+//   (unread +1 from the fan, 0 on outgoing), or is invalidated when it does not
+//   hold the chat; a search or old-first list is patched in place, and only
+//   while someone observes it; markChatAsRead touches only the cache;
 // - chatMessages: socket upsert into ["chatMessages", acc, fan] — no cache →
 //   nothing (an existing but empty entry is invalidated); outgoing echoes go
 //   to pendingMessages.confirmEchoedMessage first.
@@ -15,7 +17,7 @@ import { record } from '../journal';
 import { useSocket, type Frame } from '../net/socket';
 import { useQueryCache } from '../query/cache';
 import { hasMessage, mapSocketMessage, upsertMessage, type Chat, type ChatList, type History } from '../query/model';
-import { keys } from '../query/queries';
+import { isAllChatsScope, isSearchOrOldFirst, keys } from '../query/queries';
 import { usePendingMessages } from './pending-messages';
 
 const TYPING_MS = 5000;
@@ -87,6 +89,15 @@ export const useChatsStore = defineStore(storeId('chats'), () => {
 });
 
 const mapList = (list: ChatList, update: (chat: Chat) => Chat): ChatList => ({ ...list, pages: list.pages.map((page) => ({ ...page, items: page.items.map(update) })) });
+const findChat = (list: ChatList, chatId: string): Chat | undefined => list.pages.flatMap((page) => page.items).find((chat) => chat.id === chatId);
+const moveToTop = (list: ChatList, chat: Chat): ChatList => ({
+  ...list,
+  pages: list.pages.map((page, index) => {
+    const rest = page.items.filter((item) => item.id !== chat.id);
+    return index === 0 ? { ...page, items: [chat, ...rest] } : { ...page, items: rest };
+  }),
+});
+const replaceInPlace = (list: ChatList, chat: Chat): ChatList => mapList(list, (item) => (item.id === chat.id ? chat : item));
 
 export const useChatListStore = defineStore(storeId('chatList'), () => {
   const cache = useQueryCache();
@@ -102,29 +113,31 @@ export const useChatListStore = defineStore(storeId('chatList'), () => {
           const parsed = asNewMessage(frame);
           if (parsed === null) return;
           const { account, message } = parsed;
+          const touched = (chat: Chat): Chat => ({
+            ...chat,
+            lastMessage: mapSocketMessage(message, account, 'onlyfans'),
+            unreadMessagesCount: message.is_from_fan ? chat.unreadMessagesCount + 1 : 0,
+            ...(message.is_from_fan ? {} : { isMarkedAsUnread: undefined }),
+          });
           let updated: Chat | null = null;
           for (const entry of listEntries(account.account_id)) {
             const data = entry.state.value.data as ChatList | undefined;
             if (data === undefined) continue;
-            const known = data.pages.flatMap((page) => page.items).find((chat) => chat.id === message.chatId) ?? (entry.key[2] === 'all' ? chats.getChat(message.chatId) : undefined);
+            if (isSearchOrOldFirst(entry.key)) {
+              const known = entry.active ? findChat(data, message.chatId) : undefined;
+              if (known === undefined) continue;
+              const next = touched(known);
+              cache.setQueryData<ChatList>(entry.key, (previous) => replaceInPlace(previous ?? data, next));
+              updated = next;
+              continue;
+            }
+            const known = findChat(data, message.chatId) ?? (isAllChatsScope(entry.key) ? chats.getChat(message.chatId) : undefined);
             if (known === undefined) {
               void cache.invalidateQueries({ key: entry.key, exact: true });
               continue;
             }
-            const next: Chat = {
-              ...known,
-              lastMessage: mapSocketMessage(message, account, 'onlyfans'),
-              unreadMessagesCount: message.is_from_fan ? known.unreadMessagesCount + 1 : 0,
-              ...(message.is_from_fan ? {} : { isMarkedAsUnread: false }),
-            };
-            cache.setQueryData<ChatList>(entry.key, (previous) => {
-              const base = previous ?? data;
-              const pages = base.pages.map((page, index) => {
-                const rest = page.items.filter((chat) => chat.id !== next.id);
-                return index === 0 ? { ...page, items: [next, ...rest] } : { ...page, items: rest };
-              });
-              return { ...base, pages };
-            });
+            const next = touched(known);
+            cache.setQueryData<ChatList>(entry.key, (previous) => moveToTop(previous ?? data, next));
             updated = next;
           }
           if (updated !== null) chats.upsertChats([updated]);

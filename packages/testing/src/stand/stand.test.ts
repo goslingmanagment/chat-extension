@@ -213,6 +213,33 @@ describe('stand server: native API', () => {
     expect(stand.state.chat(accountA, a1)?.unread).toBe(0);
   });
 
+  it('serves the chat-list scopes: filters, a fan list, search and old-first order', async () => {
+    const ids = async (query: string): Promise<string[]> =>
+      ((await json(`/api/v0/accounts/${accountA}/chats?limit=50&offset=0${query}`, { headers: native() })).body as { items: Array<{ platform_fan_id: string }> }).items.map((item) => item.platform_fan_id);
+    const fans = [...createDataset().chats.values()].filter((chat) => chat.accountId === accountA);
+    const recent = await ids('');
+    expect(recent).toHaveLength(fans.length);
+    expect(await ids('&order=old')).toEqual([...recent].reverse());
+    expect(new Set(await ids('&filter=priority'))).toEqual(new Set(fans.filter((chat) => chat.fan.priority).map((chat) => chat.fan.id)));
+    expect(new Set(await ids('&list_id=501'))).toEqual(new Set(fans.filter((chat) => chat.fan.lists.includes('501')).map((chat) => chat.fan.id)));
+    expect(await ids('&query=fern')).toEqual(fans.filter((chat) => chat.fan.name.toLowerCase().includes('fern')).map((chat) => chat.fan.id));
+  });
+
+  it('serves anchored and pinned history, journalled as loads (each reads the chat)', async () => {
+    const since = stand.journal.read().next;
+    const chat = createDataset().chats.get(`${accountA}:${a1}`);
+    const anchor = chat?.messages[20]?.id ?? '';
+    const anchored = (await json(`/api/v0/accounts/${accountA}/chats/${a1}/messages?limit=10&first_id=${anchor}`, { headers: native() })).body as { items: Array<{ id: string }> };
+    expect(anchored.items[0]?.id).toBe(anchor);
+    const pinned = (await json(`/api/v0/accounts/${accountA}/chats/${a1}/messages?filter=pinned&limit=20`, { headers: native() })).body as { items: Array<{ platform_metadata: { isPinned: boolean } }> };
+    expect(pinned.items.length).toBeGreaterThan(0);
+    expect(pinned.items.every((item) => item.platform_metadata.isPinned)).toBe(true);
+    expect(journalSince(since).filter((entry) => entry.kind === 'history-load').map((entry) => entry.detail)).toEqual([
+      { unreadBefore: expect.any(Number) as number, anchor },
+      { unreadBefore: 0, filter: 'pinned' },
+    ]);
+  });
+
   it('lists chats by last message and fans in the raw platform shape', async () => {
     const list = (await json(`/api/v0/accounts/${accountA}/chats?limit=5&offset=0`, { headers: native() })).body as { items: Array<{ platform_fan_id: string }>; has_more: boolean; next_offset: number };
     expect(list.items).toHaveLength(5);

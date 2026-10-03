@@ -25,6 +25,11 @@ export interface StandFan {
   readonly totalSpent: number;
   readonly buyingPower: number;
   readonly lastPaymentAt: string | null;
+  /** What the server-side chat-list filters see (pinned, who_tipped, priority, fan lists). */
+  readonly pinnedChat: boolean;
+  readonly tipped: boolean;
+  readonly priority: boolean;
+  readonly lists: readonly string[];
 }
 
 export interface StandMessage {
@@ -60,6 +65,8 @@ export const STAND_IDS = {
 } as const;
 
 const BASE_TIME = Date.UTC(2026, 8, 1, 9, 0, 0);
+/** The one synthetic fan list (chat-list scope `list:<id>`). */
+export const STAND_FAN_LIST_ID = '501';
 const FAN_NAMES = ['Alder', 'Birch', 'Cedar', 'Dune', 'Elm', 'Fern', 'Grove', 'Heath', 'Iris', 'Juniper', 'Kestrel', 'Linden'];
 const FAN_LINES = [
   'Синтетический привет #{n}',
@@ -101,6 +108,10 @@ export function createDataset(): StandDataset {
         totalSpent: (index * 37) % 400,
         buyingPower: index % 6,
         lastPaymentAt: index % 3 === 0 ? null : new Date(BASE_TIME - index * 86_400_000).toISOString(),
+        pinnedChat: index % 5 === 1,
+        tipped: (index * 37) % 400 > 0 && index % 2 === 0,
+        priority: index % 3 === 0,
+        lists: index % 2 === 1 ? [STAND_FAN_LIST_ID] : [],
       };
       // Fan 1 of account a has a long history (scrolling, keep-bottom tests).
       const length = accountIndex === 0 && index === 0 ? 40 : 4 + ((index * 3) % 9);
