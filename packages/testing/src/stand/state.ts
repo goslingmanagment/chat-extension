@@ -2,7 +2,7 @@
 // session tokens, permissions, Mimic, and the scripted answers of the native
 // send endpoint. Tests reset it between scenarios.
 
-import type { FanPatch, MimicState, SendOutcome } from '../../fixture-chatspace/src/protocol';
+import { DEFAULT_SOCKET_TRAFFIC, type FanPatch, type MimicState, type SendOutcome, type SocketTraffic } from '../../fixture-chatspace/src/protocol';
 import { chatKey, createDataset, type StandAccount, type StandChat, type StandDataset, type StandMessage } from './dataset';
 
 /** What the synthetic chatter may do (names as ChatSpace's permission strings). */
@@ -23,6 +23,8 @@ export class StandState {
   mimic: MimicState = { isActive: false, chats: {} };
   /** While true, the socket never answers `auth` with `authenticated`. */
   withholdAuth = false;
+  /** What the socket sends on its own (summaries, typing). */
+  traffic: SocketTraffic = DEFAULT_SOCKET_TRAFFIC;
   private readonly tokens = new Set<string>();
   private tokenSeq = 0;
   private messageSeq = 5_900_000_000;
@@ -33,6 +35,7 @@ export class StandState {
     this.permissions = [...DEFAULT_PERMISSIONS];
     this.mimic = { isActive: false, chats: {} };
     this.withholdAuth = false;
+    this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.scripts.clear();
     // Issued tokens stay valid: an open page keeps its session across a reset.
   }

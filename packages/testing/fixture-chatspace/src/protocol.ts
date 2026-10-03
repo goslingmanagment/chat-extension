@@ -63,6 +63,39 @@ export type SendOutcome =
   /** Destroys the connection without a response (network error). */
   | { readonly kind: 'drop' };
 
+/**
+ * What the stand's socket sends on its own, like ChatSpace's server: an
+ * `account_notifications_summary` per subscribed account shortly after the
+ * subscription and then about once a minute, `account_messages_summary` after
+ * each new message (and optionally on a timer), `account_fan_typing` repeated
+ * every few seconds while a fan types, and optionally frames for an account the
+ * socket never subscribed (they must be ignored).
+ */
+export interface SocketTraffic {
+  readonly enabled: boolean;
+  /** First notifications summary after a subscription, ms (ChatSpace: ~7 s). */
+  readonly firstSummaryMs: number;
+  /** Then every …, ms (ChatSpace: ~61 s). */
+  readonly summaryEveryMs: number;
+  /** Messages summary on a timer per subscribed account, ms; 0 = only after new messages. */
+  readonly messagesSummaryEveryMs: number;
+  /** Fans that keep typing: `account_fan_typing` every `typingEveryMs`. */
+  readonly typing: readonly { readonly accountId: string; readonly fanId: string }[];
+  readonly typingEveryMs: number;
+  /** Notifications summaries for this account to every authenticated socket, subscribed or not. */
+  readonly strayAccountId: string | null;
+}
+
+export const DEFAULT_SOCKET_TRAFFIC: SocketTraffic = {
+  enabled: true,
+  firstSummaryMs: 7000,
+  summaryEveryMs: 61_000,
+  messagesSummaryEveryMs: 0,
+  typing: [],
+  typingEveryMs: 3500,
+  strayAccountId: null,
+};
+
 /** Things a «new ChatSpace build» can lose or rename, for degradation tests (§6.2). */
 export type StandBreak =
   | 'vue-app'

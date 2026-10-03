@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
 import { FIXTURE_CONTRACTS } from '../../fixture-chatspace/src/metadata';
-import { CONTROL_REQUEST_HEADER, NATIVE_REQUEST_HEADER, STAND_API_ORIGIN_META, STAND_TOKEN_PATH, STAND_WS_PATH, type ServerJournalEntry } from '../../fixture-chatspace/src/protocol';
+import { CONTROL_REQUEST_HEADER, DEFAULT_SOCKET_TRAFFIC, NATIVE_REQUEST_HEADER, STAND_API_ORIGIN_META, STAND_TOKEN_PATH, STAND_WS_PATH, type ServerJournalEntry } from '../../fixture-chatspace/src/protocol';
 import viteConfig, { FIXTURE_BUILD_DIR as VITE_OUT_DIR } from '../../fixture-chatspace.vite.config';
 import { startStandServer, type StandServer } from '../stand-server';
 import { createDataset, plainText, STAND_IDS } from './dataset';
@@ -109,6 +109,7 @@ afterAll(async () => {
 
 afterEach(() => {
   stand.state.reset();
+  stand.hub.restartTraffic();
 });
 
 describe('stand server: who called', () => {
@@ -328,6 +329,27 @@ describe('stand server: socket protocol', () => {
     expect(stand.hub.summary().find((item) => item.id === socketId)).toMatchObject({ label: 'native', authenticated: false, accounts: [accountA] });
     expect(stand.hub.broadcast({ event: 'probe' }, accountA)).toBe(0);
     expect(framesSentTo(socketId, since)).toEqual([]);
+    socket.close();
+  });
+
+  it('sends traffic on its own: summaries per subscribed account, typing storms, stray-account frames; unsubscribe stops them', async () => {
+    stand.state.traffic = { ...DEFAULT_SOCKET_TRAFFIC, firstSummaryMs: 20, summaryEveryMs: 60, typing: [{ accountId: accountA, fanId: a2 }], typingEveryMs: 40, strayAccountId: STAND_IDS.accounts.c };
+    stand.hub.restartTraffic();
+    const socket = await nativeSocket([accountA]);
+    const count = (event: string, accountId: string): number =>
+      socket.frames.filter((frame) => frame['event'] === event && (frame['account'] as { account_id?: string } | undefined)?.account_id === accountId).length;
+    await waitFor(() => count('account_notifications_summary', accountA) >= 2 && count('account_fan_typing', accountA) >= 2 && count('account_notifications_summary', STAND_IDS.accounts.c) >= 1, 'summaries, typing and stray frames');
+    expect(socket.frames.find((frame) => frame['event'] === 'account_fan_typing')).toMatchObject({ account: { account_id: accountA }, typing: { platform_fan_id: a2 } });
+    expect(socket.frames.find((frame) => frame['event'] === 'account_notifications_summary')).toMatchObject({ notifications_count: expect.any(Number) as number });
+    // A new message is followed by the account's messages summary.
+    await json('/__stand/fan-message', { method: 'POST', headers: control, body: JSON.stringify({ accountId: accountA, fanId: a2 }) });
+    await waitFor(() => count('account_messages_summary', accountA) === 1, 'messages summary after a new message');
+    expect(socket.frames.find((frame) => frame['event'] === 'account_messages_summary')).toMatchObject({ messages_count: expect.any(Number) as number, priority_count: 0, unread_tips_count: 0 });
+    const since = stand.journal.read().next;
+    socket.send({ action: 'unsubscribe_account', token, account: { account_id: accountA } });
+    await waitFor(() => journalSince(since).some((entry) => entry.kind === 'ws-in' && entry.detail?.['action'] === 'unsubscribe_account'), 'unsubscribe handled');
+    // Its timers are gone with the subscription (structural, not «nothing arrived in N ms»).
+    expect(stand.hub.summary().find((item) => item.accounts.length === 0 && item.label === 'native')?.traffic).toEqual([]);
     socket.close();
   });
 

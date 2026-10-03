@@ -10,6 +10,7 @@ import {
   type MimicState,
   type SendOutcome,
   type ServerJournalEntry,
+  type SocketTraffic,
   type ServerJournalPage,
   type StandBreak,
   type StandControl,
@@ -120,6 +121,10 @@ export const standServer = {
   wsClose: async (code = 4000): Promise<number> => ((await control('/__stand/ws/close', { body: { code } })) as { closed: number }).closed,
   withholdAuth: async (withhold: boolean): Promise<void> => {
     await control('/__stand/ws/auth', { body: { withhold } });
+  },
+  /** What the socket sends on its own (summaries, typing storms, stray accounts); `reset` restores the defaults. */
+  traffic: async (patch: Partial<SocketTraffic>): Promise<void> => {
+    await control('/__stand/ws/traffic', { body: patch });
   },
   setMimic: async (mimic: MimicState): Promise<void> => {
     await control('/__stand/state', { body: { mimic } });

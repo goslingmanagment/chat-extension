@@ -246,7 +246,7 @@ async function handleSend(context: ApiContext, request: IncomingMessage, respons
       const message: StandMessage = { id: outcome.id ?? state.nextMessageId(), content: text, sentAt: new Date().toISOString(), isFromFan: false };
       state.appendMessage(accountId, fanId, message);
       const echo = (): void => {
-        if (account) hub.broadcast(newMessageFrame(account, fanId, message), accountId);
+        if (account) hub.deliverNewMessage(newMessageFrame(account, fanId, message), accountId);
       };
       const gap = outcome.gapMs ?? DEFAULT_ECHO_GAP_MS;
       const mode = outcome.echo ?? 'after';

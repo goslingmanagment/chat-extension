@@ -4,7 +4,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { CallOrigin, MimicState, SendOutcome } from '../../fixture-chatspace/src/protocol';
+import type { CallOrigin, MimicState, SendOutcome, SocketTraffic } from '../../fixture-chatspace/src/protocol';
 import { STAND_TOKEN_PATH } from '../../fixture-chatspace/src/protocol';
 import type { StandMessage } from './dataset';
 import type { ApiContext } from './api';
@@ -21,6 +21,29 @@ export interface ControlContext extends ApiContext {
 
 const asRecord = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {});
 const asString = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null);
+
+const isMs = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+/** The valid fields of a traffic patch (anything else is ignored). */
+function trafficPatch(body: Record<string, unknown>): Partial<SocketTraffic> {
+  const typing = Array.isArray(body['typing'])
+    ? body['typing'].flatMap((item) => {
+        const pair = asRecord(item);
+        const accountId = asString(pair['accountId']);
+        const fanId = asString(pair['fanId']);
+        return accountId !== null && fanId !== null ? [{ accountId, fanId }] : [];
+      })
+    : undefined;
+  return {
+    ...(typeof body['enabled'] === 'boolean' ? { enabled: body['enabled'] } : {}),
+    ...(isMs(body['firstSummaryMs']) ? { firstSummaryMs: body['firstSummaryMs'] } : {}),
+    ...(isMs(body['summaryEveryMs']) && body['summaryEveryMs'] > 0 ? { summaryEveryMs: body['summaryEveryMs'] } : {}),
+    ...(isMs(body['messagesSummaryEveryMs']) ? { messagesSummaryEveryMs: body['messagesSummaryEveryMs'] } : {}),
+    ...(isMs(body['typingEveryMs']) && body['typingEveryMs'] > 0 ? { typingEveryMs: body['typingEveryMs'] } : {}),
+    ...(typing !== undefined ? { typing } : {}),
+    ...('strayAccountId' in body ? { strayAccountId: asString(body['strayAccountId']) } : {}),
+  };
+}
 
 export async function handleControl(context: ControlContext, request: IncomingMessage, response: ServerResponse, url: URL, origin: CallOrigin): Promise<void> {
   const { state, journal, hub } = context;
@@ -45,11 +68,12 @@ export async function handleControl(context: ControlContext, request: IncomingMe
   }
   if (path === '/__stand/reset' && method === 'POST') {
     state.reset();
+    hub.restartTraffic();
     ok();
     return;
   }
   if (path === '/__stand/state' && method === 'GET') {
-    ok({ sockets: hub.summary(), scripts: state.pendingScripts(), permissions: state.permissions, mimic: state.mimic, withholdAuth: state.withholdAuth });
+    ok({ sockets: hub.summary(), scripts: state.pendingScripts(), permissions: state.permissions, mimic: state.mimic, withholdAuth: state.withholdAuth, traffic: state.traffic });
     return;
   }
   if (path === '/__stand/egress' && method === 'GET') {
@@ -78,7 +102,7 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     const text = asString(body['text']) ?? 'Синтетическое новое сообщение';
     const message: StandMessage = { id: asString(body['id']) ?? state.nextMessageId(), content: `<p>${text}</p>`, sentAt: new Date().toISOString(), isFromFan: true };
     state.appendMessage(accountId, fanId, message);
-    const delivered = hub.broadcast(newMessageFrame(account, fanId, message), accountId);
+    const delivered = hub.deliverNewMessage(newMessageFrame(account, fanId, message), accountId);
     ok({ id: message.id, delivered });
     return;
   }
@@ -90,6 +114,12 @@ export async function handleControl(context: ControlContext, request: IncomingMe
   if (path === '/__stand/ws/close' && method === 'POST') {
     const code = typeof body['code'] === 'number' ? body['code'] : 4000;
     ok({ closed: hub.closeAll(code) });
+    return;
+  }
+  if (path === '/__stand/ws/traffic' && method === 'POST') {
+    state.traffic = { ...state.traffic, ...trafficPatch(body) };
+    hub.restartTraffic();
+    ok({ traffic: state.traffic });
     return;
   }
   if (path === '/__stand/ws/auth' && method === 'POST') {
