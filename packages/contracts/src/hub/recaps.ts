@@ -6,7 +6,17 @@
 
 import * as z from 'zod/mini';
 
-import { CountSchema, HubIntIdSchema, IsoTimestampSchema, NativeIdSchema, OpenTokenSchema, PersonaDefinitionIdSchema, UuidSchema, boundedText } from '../primitives';
+import {
+  CountSchema,
+  GenerationRefSchema,
+  HubIntIdSchema,
+  IsoTimestampSchema,
+  NativeIdSchema,
+  OpenTokenSchema,
+  PersonaDefinitionIdSchema,
+  UuidSchema,
+  boundedText,
+} from '../primitives';
 import { HUB_PLATFORMS } from './auth';
 import { PageLabelSchema } from './wire';
 
@@ -78,7 +88,7 @@ export type SharedRecaps = z.infer<typeof SharedRecapsSchema>;
 export const ProfileFromGenerationRequestSchema = z.strictObject({
   pageLabel: PageLabelSchema,
   fanRef: NativeIdSchema,
-  generationRef: boundedText(100),
+  generationRef: GenerationRefSchema,
   /** Tells "in flight" from "unknown" on the hub. */
   clientRequestId: z.optional(UuidSchema),
 });

@@ -10,7 +10,8 @@
 
 import * as z from 'zod/mini';
 
-import { CountSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText } from '../primitives';
+import { PART_LIMITS } from '../limits';
+import { CountSchema, GenerationRefSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema } from '../primitives';
 import { SendPurposeSchema } from '../send';
 import { HubCursorSchema, PageLabelSchema } from './wire';
 
@@ -51,15 +52,15 @@ export function isCustodyTransition(from: CustodyState | null, to: CustodyState)
 export const GREETING_SOURCES = ['preview-send', 'native-register', 'resolve', 'desktop-outbox'] as const;
 export const SEND_FAILURE_REASONS = ['not_enqueued', 'native_rejected'] as const;
 
-/** One generation's parts form one group (§6.7.9); `partIndex < partCount`. */
+/** One generation's parts form one group (§6.7.9); `partIndex < partCount`; variant 0 outside Hi. */
 export const ClaimGroupSchema = z.strictObject({
-  generationRef: boundedText(100),
-  variant: z.int().check(z.gte(0), z.lte(2)),
-  partCount: z.int().check(z.gte(1), z.lte(10)),
+  generationRef: GenerationRefSchema,
+  variant: z.int().check(z.gte(0), z.lte(PART_LIMITS.maxVariants - 1)),
+  partCount: z.int().check(z.gte(1), z.lte(PART_LIMITS.maxParts)),
 });
 export type ClaimGroup = z.infer<typeof ClaimGroupSchema>;
 
-const PartIndexSchema = z.int().check(z.gte(0), z.lte(9));
+const PartIndexSchema = z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1));
 /** Lease actions carry the lease token and the client install id (`instanceId`, a UUID per install). */
 const leaseAction = <A extends 'claim' | 'renew' | 'release'>(action: A) =>
   z.strictObject({ action: z.literal(action), leaseToken: UuidSchema, instanceId: UuidSchema });

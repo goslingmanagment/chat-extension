@@ -34,7 +34,14 @@ export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 export const UuidSchema = z.string().check(z.regex(UUID_PATTERN));
 export type Uuid = z.infer<typeof UuidSchema>;
 
-/** Opaque refs we receive and pass back unchanged (generationRef, ChatSpace's local pending id). */
+/**
+ * One generation's identity everywhere we keep or send it: the hub's
+ * `meta.requestId`, a UUID (the hub's request bodies take ≤ 100 characters,
+ * the UUID form fits). Hub answers that echo it are read as the hub sends them.
+ */
+export const GenerationRefSchema = UuidSchema;
+
+/** Opaque refs we receive and pass back unchanged (ChatSpace's local pending id). */
 export const REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const RefSchema = z.string().check(z.regex(REF_PATTERN));
 

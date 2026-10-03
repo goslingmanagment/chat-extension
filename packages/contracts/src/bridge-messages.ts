@@ -14,7 +14,7 @@ import { AnchorIdSchema, ChatWindowSchema, ComposerStateSchema, HostFanSchema, I
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
 import { BRIDGE_LIMITS, SEND_LIMITS } from './limits';
 import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
-import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema } from './send';
+import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema, checkpointMatches } from './send';
 
 const EmptySchema = z.strictObject({});
 
@@ -66,19 +66,22 @@ export type NavigationWire = z.infer<typeof NavigationWireSchema>;
  * action token — only the host target, the text, the one-time attempt id and
  * the ticket's deadline (a later call is `held`, never a late send, §6.7.11).
  */
-export const MainSendRequestSchema = z.strictObject({
-  attemptId: UuidSchema,
-  acc: NativeIdSchema,
-  fan: NativeIdSchema,
-  /** Checked against the loaded `accounts` store (condition 5). */
-  platformAccountId: NativeIdSchema,
-  part: PartRefSchema,
-  previewRevision: CountSchema,
-  plainText: boundedText(SEND_LIMITS.previewDraftMaxChars),
-  isAiGenerated: z.boolean(),
-  checkpoint: FreshnessCheckpointSchema,
-  expiresAt: EpochMsSchema,
-});
+export const MainSendRequestSchema = z
+  .strictObject({
+    attemptId: UuidSchema,
+    acc: NativeIdSchema,
+    fan: NativeIdSchema,
+    /** = target.binding.platformAccountId (the page's), checked against the loaded `accounts` store (condition 5). */
+    platformAccountId: NativeIdSchema,
+    part: PartRefSchema,
+    previewRevision: CountSchema,
+    plainText: boundedText(SEND_LIMITS.previewDraftMaxChars),
+    isAiGenerated: z.boolean(),
+    checkpoint: FreshnessCheckpointSchema,
+    /** The ticket's deadline on the local clock (send-rules localDeadline). */
+    expiresAt: EpochMsSchema,
+  })
+  .check(z.refine((r) => checkpointMatches(r.checkpoint, r.acc, r.fan), { message: 'the checkpoint belongs to acc/fan' }));
 export type MainSendRequest = z.infer<typeof MainSendRequestSchema>;
 
 const AccFan = { acc: NativeIdSchema, fan: NativeIdSchema };

@@ -9,13 +9,14 @@
 import * as z from 'zod/mini';
 
 import { CgCodeSchema, type CgCode } from './errors';
-import { HumanCauseSchema, PartRefSchema, PlatformSchema, TargetSchema, type HumanCause } from './ids';
-import { SEND_LIMITS } from './limits';
+import { HumanCauseSchema, PartRefSchema, PlatformSchema, TargetSchema, type HumanCause, type PartRef } from './ids';
+import { PART_LIMITS, SEND_LIMITS } from './limits';
 import { PREVIEW_SEND_CONDITION_CODES, SEND_ATTEMPT_STATES, isNativeRefusalStatus } from './send-rules';
 import {
   CountSchema,
   EpochMsSchema,
   EpochTokenSchema,
+  GenerationRefSchema,
   HubIntIdSchema,
   HubOriginSchema,
   NativeIdSchema,
@@ -47,21 +48,40 @@ export const FreshnessCheckpointSchema = z.strictObject({
 });
 export type FreshnessCheckpoint = z.infer<typeof FreshnessCheckpointSchema>;
 
-/** What the human asked to send: one part of one finished generation. */
-export const PreviewSendRequestSchema = z.strictObject({
-  attemptId: UuidSchema,
-  target: TargetSchema,
-  /** Hub `meta.requestId` of the generation. */
-  generationRef: RefSchema,
-  part: PartRefSchema,
-  /** Revision of the preview's local draft field; a change voids the attempt (CG-SEND-PART). */
-  previewRevision: CountSchema,
-  plainText: boundedText(SEND_LIMITS.previewDraftMaxChars),
-  /** ChatSpace's own "text from AI" mark, by its rule against the ORIGINAL chosen AI part (§6.7.1). */
-  isAiGenerated: z.boolean(),
-  checkpoint: FreshnessCheckpointSchema,
-  cause: HumanCauseSchema,
-});
+/** The checkpoint was taken for exactly this chat (account and fan as strings). */
+export function checkpointMatches(checkpoint: FreshnessCheckpoint, hostAccountId: string, platformFanId: string): boolean {
+  return checkpoint.hostAccountId === hostAccountId && checkpoint.platformFanId === platformFanId;
+}
+
+const CHECKPOINT_OF_TARGET = { message: 'the checkpoint belongs to the target chat' } as const;
+
+/**
+ * What the human asked to send: one part of one finished generation. Parts
+ * are not editable in v1 (ui-design §4.13, §4.16 have no part editor):
+ * `plainText` is the parsed AI part as shown, so `isAiGenerated` compares it
+ * with itself; a future part editor is a new contract version.
+ */
+export const PreviewSendRequestSchema = z
+  .strictObject({
+    attemptId: UuidSchema,
+    target: TargetSchema,
+    /** Hub `meta.requestId` of the generation. */
+    generationRef: GenerationRefSchema,
+    part: PartRefSchema,
+    /**
+     * Revision of the preview's local draft field (the Fix source, a greeting
+     * draft) the result was made from; a newer revision voids the attempt
+     * (CG-SEND-PART). Results not made from the draft carry the revision current at Generate.
+     */
+    previewRevision: CountSchema,
+    plainText: boundedText(SEND_LIMITS.previewDraftMaxChars),
+    /** ChatSpace's own "text from AI" mark, by its rule against the ORIGINAL chosen AI part (§6.7.1). */
+    isAiGenerated: z.boolean(),
+    /** The operation's checkpoint, taken at Generate and never retaken for a send. */
+    checkpoint: FreshnessCheckpointSchema,
+    cause: HumanCauseSchema,
+  })
+  .check(z.refine((r) => checkpointMatches(r.checkpoint, r.target.chat.hostAccountId, r.target.chat.platformFanId), CHECKPOINT_OF_TARGET));
 export type PreviewSendRequest = z.infer<typeof PreviewSendRequestSchema>;
 
 /** The hub's one-time permission for exactly one attempt (H-7 `dispatch`); short-lived, never batched. */
@@ -162,20 +182,31 @@ export type SendAttemptView = z.infer<typeof SendAttemptViewSchema>;
 export const SEND_PURPOSES = ['greeting', 'preview-reply'] as const;
 export const SendPurposeSchema = z.enum(SEND_PURPOSES);
 
-/** The parts of one generation form one group: same generationRef, chosen variant, part order (§6.7.9). */
+/**
+ * The parts of one generation form one group: same generationRef, chosen
+ * variant, part order (§6.7.9). `variant` is the Hi variant; every other
+ * feature has one variant, 0 — a PartRef without `variant` means 0 in the
+ * group and in the hub custody key.
+ */
 export const SendGroupSchema = z.strictObject({
-  generationRef: RefSchema,
-  variant: z.int().check(z.gte(0), z.lte(2)),
-  partCount: z.int().check(z.gte(1), z.lte(10)),
+  generationRef: GenerationRefSchema,
+  variant: z.int().check(z.gte(0), z.lte(PART_LIMITS.maxVariants - 1)),
+  partCount: z.int().check(z.gte(1), z.lte(PART_LIMITS.maxParts)),
 });
 export type SendGroup = z.infer<typeof SendGroupSchema>;
+
+/** The part is a member of the group: same variant (absent = 0), index below the part count. */
+export function partInGroup(part: PartRef, group: SendGroup): boolean {
+  return (part.variant ?? 0) === group.variant && part.index < group.partCount;
+}
 
 /**
  * One record of `send.journal` in storage.local, written BEFORE the command
  * goes to MAIN; no text. An unwritten record means no queue call. Uncertain
  * records live until resolved, independent of the 30-minute result TTL.
  */
-export const SendJournalEntrySchema = z.strictObject({
+export const SendJournalEntrySchema = z
+  .strictObject({
   attemptId: UuidSchema,
   /** The lock key's parts: one attempt at a time per (hubOrigin, pageId, platform, fanRef). */
   hubOrigin: HubOriginSchema,
@@ -186,7 +217,7 @@ export const SendJournalEntrySchema = z.strictObject({
   purpose: SendPurposeSchema,
   opId: UuidSchema,
   group: SendGroupSchema,
-  partIndex: z.int().check(z.gte(0), z.lte(9)),
+  partIndex: z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1)),
   previewRevision: CountSchema,
   documentEpoch: EpochTokenSchema,
   state: SendAttemptStateSchema,
@@ -195,7 +226,8 @@ export const SendJournalEntrySchema = z.strictObject({
   platformMessageId: z.optional(NativeIdSchema),
   createdAt: EpochMsSchema,
   updatedAt: EpochMsSchema,
-});
+  })
+  .check(z.refine((e) => e.partIndex < e.group.partCount, { message: 'partIndex must be below the group part count' }));
 export type SendJournalEntry = z.infer<typeof SendJournalEntrySchema>;
 
 /** `${hubOrigin}|${pageId}|${platform}|${fanRef}` — the background serializes attempts per this key. */

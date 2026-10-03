@@ -13,9 +13,9 @@ import { TELEMETRY_LIMITS } from './limits';
 import {
   CountSchema,
   EpochMsSchema,
+  GenerationRefSchema,
   IsoTimestampSchema,
   NativeIdSchema,
-  RefSchema,
   UuidSchema,
   boundedText,
   displayText,
@@ -36,7 +36,7 @@ export const AcceptanceEventSchema = z.strictObject({
   payload: z
     .strictObject({
       /** Hub `meta.requestId` (TL-007, TL-008). */
-      generationRef: RefSchema,
+      generationRef: GenerationRefSchema,
       lifecycle: z.enum(ACCEPTANCE_LIFECYCLE),
       /** By draft revision and provenance, never by text similarity. */
       edited: z.optional(z.boolean()),

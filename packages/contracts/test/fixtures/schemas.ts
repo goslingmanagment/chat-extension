@@ -299,6 +299,9 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [
       { ...previewSendRequest, plainText: '' },
       { ...previewSendRequest, plainText: repeat('x', 5001) },
+      // A checkpoint of another fan would compare the wrong counters.
+      { ...previewSendRequest, checkpoint: { ...checkpoint, platformFanId: '2099' } },
+      { ...previewSendRequest, generationRef: 'gen-1' },
     ],
   ),
   fixture('DispatchTicket', C.DispatchTicketSchema, [dispatchTicket], [{ ...dispatchTicket, ticket: '' }]),
@@ -355,9 +358,15 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [
       { generationRef: uuid(6), variant: 0, partCount: 0 },
       { generationRef: uuid(6), variant: 3, partCount: 1 },
+      { generationRef: 'gen-1', variant: 0, partCount: 1 },
     ],
   ),
-  fixture('SendJournalEntry', C.SendJournalEntrySchema, [journalEntry, { ...journalEntry, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', pendingId: uuid(7) }], [{ ...journalEntry, text: 'hey' }]),
+  fixture(
+    'SendJournalEntry',
+    C.SendJournalEntrySchema,
+    [journalEntry, { ...journalEntry, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', pendingId: uuid(7) }],
+    [{ ...journalEntry, text: 'hey' }, { ...journalEntry, partIndex: 2 }],
+  ),
 
   // ── host ──
   fixture('HostCapability', C.HostCapabilitySchema, ['previewSend'], ['send']),
@@ -486,6 +495,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...startReply, window: 3001 },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: repeat('q', 2001), history: [] } },
       { ...startReply, fresh: undefined, checkpoint },
+      { feature: 'hi', surface: 'newcomers', target, cause, tone: null, split: true, window: 25, variantCount: 1, checkpoint: { ...checkpoint, platformFanId: '2099' } },
       { feature: 'ping', surface: 'dock', target, cause, tone: 'casual', split: false, window: 100 },
     ],
   ),
@@ -629,7 +639,12 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, thenInsert: insertIntent }, { intentId: uuid(9), acc: IDS.acc, fan: null }],
     [{ intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, cause }],
   ),
-  fixture('MainSendRequest', C.MainSendRequestSchema, [mainSend], [{ ...mainSend, plainText: repeat('x', 5001) }, { ...mainSend, target }]),
+  fixture(
+    'MainSendRequest',
+    C.MainSendRequestSchema,
+    [mainSend],
+    [{ ...mainSend, plainText: repeat('x', 5001) }, { ...mainSend, target }, { ...mainSend, fan: '2099' }, { ...mainSend, acc: '1099' }],
+  ),
   fixture('BridgeError', C.BridgeErrorSchema, ['identity-mismatch'], ['oops']),
   fixture(
     'BridgeRequest',
@@ -709,7 +724,22 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture('BackgroundToast', C.BackgroundToastSchema, [toast, { toastId: uuid(21), kind: 'error', scope: 'hub', error: { code: 'CG-HUB-TIMEOUT' }, fanLabel: null }], [{ ...toast, kind: 'fatal' }]),
   fixture('DiagnosticsSnapshot', C.DiagnosticsSnapshotSchema, [diagnostics], [{ ...diagnostics, os: 'beos' }]),
   fixture('PromptSnapshotView', C.PromptSnapshotViewSchema, [promptSnapshot, { ...promptSnapshot, state: 'expired', capturedAt: null, manifest: null, blocks: [] }], [{ ...promptSnapshot, state: 'gone' }]),
-  fixture('SendBegin', C.SendBeginSchema, [sendBegin], [{ ...sendBegin, cause: undefined }, { ...sendBegin, part: { index: 10 } }]),
+  fixture(
+    'SendBegin',
+    C.SendBeginSchema,
+    [sendBegin, { ...sendBegin, part: { index: 1 } }, { ...sendBegin, group: { ...sendBegin.group, variant: 2 }, part: { variant: 2, index: 0 } }],
+    [
+      { ...sendBegin, cause: undefined },
+      { ...sendBegin, part: { index: 10 } },
+      // The part must belong to the group: same variant (absent = 0), index below partCount.
+      { ...sendBegin, part: { variant: 1, index: 0 } },
+      { ...sendBegin, group: { ...sendBegin.group, variant: 1 }, part: { index: 0 } },
+      { ...sendBegin, part: { variant: 0, index: 2 } },
+      // The checkpoint is the target chat's and this document's.
+      { ...sendBegin, checkpoint: { ...checkpoint, hostAccountId: '1099' } },
+      { ...sendBegin, documentEpoch: 'doc2' },
+    ],
+  ),
   fixture(
     'TabRegisterRequest',
     C.TabRegisterRequestSchema,

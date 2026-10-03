@@ -29,7 +29,7 @@ import {
   boundedText,
   displayText,
 } from './primitives';
-import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendGroupSchema, SendPurposeSchema } from './send';
+import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup } from './send';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
 import { FeedPageSchema } from './hub/feed';
@@ -120,23 +120,36 @@ export const PromptSnapshotViewSchema = z.strictObject({
 });
 export type PromptSnapshotView = z.infer<typeof PromptSnapshotViewSchema>;
 
-/** X8 `send.begin`: what the background needs to journal the attempt and ask the hub for `dispatch`. */
-export const SendBeginSchema = z.strictObject({
-  attemptId: UuidSchema,
-  opId: UuidSchema,
-  target: TargetSchema,
-  purpose: SendPurposeSchema,
-  group: SendGroupSchema,
-  part: PartRefSchema,
-  previewRevision: CountSchema,
-  /** Revision of this part's text; the hub keys custody by it (H-7 `textRevision`). */
-  textRevision: CountSchema,
-  checkpoint: FreshnessCheckpointSchema,
-  documentEpoch: EpochTokenSchema,
-  cause: HumanCauseSchema,
-  /** «Новые»: the lease this greeting is sent under. */
-  leaseToken: z.optional(UuidSchema),
-});
+/**
+ * X8 `send.begin`: what the background needs to journal the attempt and ask
+ * the hub for `dispatch`. The background holds with CG-SEND-FRESHNESS when
+ * `checkpoint` is not the one the operation started with (StartOp, kept
+ * with the opId) or when that operation had none: a checkpoint taken at
+ * send time would hide what the fan wrote after Generate (§6.7.5).
+ */
+export const SendBeginSchema = z
+  .strictObject({
+    attemptId: UuidSchema,
+    opId: UuidSchema,
+    target: TargetSchema,
+    purpose: SendPurposeSchema,
+    group: SendGroupSchema,
+    part: PartRefSchema,
+    previewRevision: CountSchema,
+    /** Revision of this part's text, the hub's custody key (H-7 `textRevision`); 0 while parts are not editable (v1). */
+    textRevision: CountSchema,
+    checkpoint: FreshnessCheckpointSchema,
+    /** The MAIN document the command will go to; equals the checkpoint's. */
+    documentEpoch: EpochTokenSchema,
+    cause: HumanCauseSchema,
+    /** «Новые»: the lease this greeting is sent under. */
+    leaseToken: z.optional(UuidSchema),
+  })
+  .check(
+    z.refine((b) => partInGroup(b.part, b.group), { message: 'the part belongs to the group: same variant (absent = 0), index below partCount' }),
+    z.refine((b) => checkpointMatches(b.checkpoint, b.target.chat.hostAccountId, b.target.chat.platformFanId), { message: 'the checkpoint belongs to the target chat' }),
+    z.refine((b) => b.checkpoint.documentEpoch === b.documentEpoch, { message: 'the checkpoint was taken in this document' }),
+  );
 export type SendBegin = z.infer<typeof SendBeginSchema>;
 
 // ── Requests ───────────────────────────────────────────────────────────────

@@ -14,15 +14,15 @@ import {
   CountSchema,
   DigestSchema,
   EpochMsSchema,
+  GenerationRefSchema,
   IsoTimestampSchema,
   MicroUsdSchema,
   NativeIdSchema,
-  RefSchema,
   UuidSchema,
   boundedText,
   displayText,
 } from './primitives';
-import { FreshnessCheckpointSchema } from './send';
+import { FreshnessCheckpointSchema, checkpointMatches } from './send';
 
 export const OP_STATES = ['admitted', 'requesting', 'streaming', 'done', 'failed', 'canceled', 'interrupted'] as const;
 export const OpStateSchema = z.enum(OP_STATES);
@@ -104,7 +104,11 @@ export const StartOpSchema = z
     ),
     /** Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14). */
     fresh: z.optional(LiveTextTailSchema),
-    /** Previews: the freshness checkpoint of the Generate click (X8). */
+    /**
+     * Previews: the freshness checkpoint of the Generate click (X8), kept with
+     * the opId. Optional so that a preview still generates when MAIN cannot
+     * give one; such a result can be inserted, never sent (CG-SEND-FRESHNESS).
+     */
     checkpoint: z.optional(FreshnessCheckpointSchema),
     regenerateOf: z.optional(UuidSchema),
     /** Bypass the result cache (Regenerate, Refresh). */
@@ -120,6 +124,9 @@ export const StartOpSchema = z
     z.refine((op) => op.tone === null || op.feature === 'reply', { message: 'a tone belongs to reply only (§8.4 replyTone)' }),
     z.refine((op) => op.checkpoint === undefined || op.surface === 'preview' || op.surface === 'newcomers', {
       message: 'a freshness checkpoint belongs to a preview',
+    }),
+    z.refine((op) => op.checkpoint === undefined || checkpointMatches(op.checkpoint, op.target.chat.hostAccountId, op.target.chat.platformFanId), {
+      message: 'the checkpoint belongs to the target chat',
     }),
   );
 export type StartOp = z.infer<typeof StartOpSchema>;
@@ -232,7 +239,7 @@ export const OpResultSchema = z.discriminatedUnion('kind', [
     markdown: displayText(64_000),
     coverage: z.nullable(CoverageSchema),
     /** Recaps are shared by every granted chatter of the page (H-13, D-31). */
-    shared: z.strictObject({ generationRef: RefSchema }),
+    shared: z.strictObject({ generationRef: GenerationRefSchema }),
   }),
   z.strictObject({ kind: z.literal('coach'), answer: CoachAnswerSchema }),
 ]);
@@ -306,7 +313,7 @@ export const OpViewSchema = z.strictObject({
    * it into a CgErrorView in the current locale (I18-001 switches on the fly).
    */
   error: z.optional(CgErrorWireSchema),
-  generationRef: z.optional(RefSchema),
+  generationRef: z.optional(GenerationRefSchema),
   /** The tone the result was generated with; Regenerate repeats it (AI-007). */
   toneUsed: z.nullable(ToneSchema),
   servedContext: z.optional(z.nullable(ServedContextSchema)),

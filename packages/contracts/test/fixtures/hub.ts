@@ -741,7 +741,7 @@ export const HUB_SCHEMA_FIXTURES = [
   ]),
 
   // ── newcomers, claim, custody ──
-  fixture('ClaimGroup', C.ClaimGroupSchema, [group, { ...group, variant: 2, partCount: 10 }], [{ ...group, variant: 3 }, { ...group, partCount: 0 }]),
+  fixture('ClaimGroup', C.ClaimGroupSchema, [group, { ...group, variant: 2, partCount: 10 }], [{ ...group, variant: 3 }, { ...group, partCount: 0 }, { ...group, generationRef: 'gen-1' }]),
   fixture('ClaimBody', C.ClaimBodySchema, Object.values(claimBodies), [
     { ...claimBodies.dispatch, partIndex: 2 },
     { action: 'failed', attemptId: uuid(5), instanceId: INSTANCE, reason: 'native_rejected' },
