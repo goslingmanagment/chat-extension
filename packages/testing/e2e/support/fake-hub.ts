@@ -24,8 +24,14 @@ export function fakeHub(): FakeHubControlClient {
   return fakeHubControl(fakeHubOrigin());
 }
 
-/** An extension page of the TEST build (its loopback host permission and storage). */
-export const testBuildPage = (path = 'popup.html'): string => `moz-extension://${E2E_ADDON_UUID}/${path}`;
+/**
+ * An extension page of the TEST build (its loopback host permission and
+ * storage). The default is a page that asks the background nothing by itself:
+ * the popup and the options page read the status when they open — the hub's
+ * health included — and the build's default hub is the real one.
+ */
+export const QUIET_PAGE = 'debug-journal.html';
+export const testBuildPage = (path = QUIET_PAGE): string => `moz-extension://${E2E_ADDON_UUID}/${path}`;
 
 /**
  * Writes the fake hub's origin as the hub address of the installed TEST build
