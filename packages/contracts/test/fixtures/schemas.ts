@@ -5,6 +5,7 @@
 import type * as z from 'zod/mini';
 
 import * as C from '../../src/index';
+import { HUB_SCHEMA_FIXTURES } from './hub';
 import {
   ACTION_TOKEN,
   DIGEST,
@@ -681,5 +682,8 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   // ── scaffold liveness ──
   fixture('TabHello', C.TabHelloSchema, [{ t: 'hello', v: 1 }], [{ t: 'hello', v: 2 }]),
   fixture('BackgroundStatus', C.BackgroundStatusSchema, [{ t: 'status', v: 1, wsTapRegistered: false, testBuild: false }], [{ t: 'status', v: 1, wsTapRegistered: false }]),
+
+  // ── hub facade DTOs (part 2b) ──
+  ...HUB_SCHEMA_FIXTURES,
 ];
 
