@@ -7,6 +7,10 @@
 // It never throws and never blocks its caller's work: a database that will
 // not open, a failed write or an oversized record is counted in `stats()`
 // (losses visible in diagnostics, LG-012), never raised.
+//
+// Writes (append, prune, clear) run one at a time: each prune counts from
+// totals no other write is changing, so concurrent appends never evict more
+// than the bounds require.
 
 import { jsonBytes } from './storage';
 
@@ -189,6 +193,17 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
     }
   }
 
+  /** Serializes the writes (append + its prune, prune, clear): a failure of one never blocks the next. */
+  let tail: Promise<unknown> = Promise.resolve();
+  const serial = <T>(task: () => Promise<T>): Promise<T> => {
+    const run = tail.then(task, task);
+    tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
+
   /** Deletes rows the cursor visits while `pick` says so; stops when it says stop. */
   async function sweep(open: (store: IDBObjectStore) => IDBRequest<IDBCursorWithValue | null>, pick: (row: StoredRow) => 'delete' | 'skip' | 'stop'): Promise<number> {
     const t = transaction('readwrite');
@@ -216,7 +231,7 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
     return removed;
   }
 
-  async function prune(): Promise<void> {
+  async function pruneNow(): Promise<void> {
     if (!db) return;
     const cutoff = now() - options.maxAgeMs;
     expired += await sweep((store) => store.index('at').openCursor(), (row) => (row.at < cutoff ? 'delete' : 'stop'));
@@ -241,36 +256,38 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
     }
   }
 
+  async function appendNow(input: readonly BoundedRecordInput[]): Promise<{ readonly stored: number; readonly rejected: number }> {
+    const rows: Omit<StoredRow, 'id'>[] = [];
+    let refused = 0;
+    for (const record of input) {
+      const size = jsonBytes(record.value);
+      if (size === null || size + RECORD_OVERHEAD_BYTES > maxRecordBytes) {
+        refused += 1;
+        continue;
+      }
+      rows.push({ at: record.at, group: record.group, bytes: size + RECORD_OVERHEAD_BYTES, value: record.value });
+    }
+    rejected += refused;
+    if (rows.length === 0) return { stored: 0, rejected: refused };
+    const t = transaction('readwrite');
+    if (!t) {
+      failed += rows.length;
+      return { stored: 0, rejected: refused };
+    }
+    try {
+      for (const row of rows) t.store.add(row);
+      await t.finished;
+    } catch {
+      failed += rows.length;
+      return { stored: 0, rejected: refused };
+    }
+    for (const row of rows) account(row, 1);
+    await pruneNow();
+    return { stored: rows.length, rejected: refused };
+  }
+
   return {
-    async append(input) {
-      const rows: Omit<StoredRow, 'id'>[] = [];
-      let refused = 0;
-      for (const record of input) {
-        const size = jsonBytes(record.value);
-        if (size === null || size + RECORD_OVERHEAD_BYTES > maxRecordBytes) {
-          refused += 1;
-          continue;
-        }
-        rows.push({ at: record.at, group: record.group, bytes: size + RECORD_OVERHEAD_BYTES, value: record.value });
-      }
-      rejected += refused;
-      if (rows.length === 0) return { stored: 0, rejected: refused };
-      const t = transaction('readwrite');
-      if (!t) {
-        failed += rows.length;
-        return { stored: 0, rejected: refused };
-      }
-      try {
-        for (const row of rows) t.store.add(row);
-        await t.finished;
-      } catch {
-        failed += rows.length;
-        return { stored: 0, rejected: refused };
-      }
-      for (const row of rows) account(row, 1);
-      await prune();
-      return { stored: rows.length, rejected: refused };
-    },
+    append: (input) => serial(() => appendNow(input)),
     async latest(limit, query) {
       const t = transaction('readonly');
       if (!t || limit <= 0) return [];
@@ -299,22 +316,23 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
         failed,
       };
     },
-    prune,
-    async clear() {
-      const t = transaction('readwrite');
-      if (!t) return false;
-      try {
-        await done(t.store.clear());
-        await t.finished;
-      } catch {
-        failed += 1;
-        return false;
-      }
-      groups.clear();
-      records = 0;
-      bytes = 0;
-      return true;
-    },
+    prune: () => serial(pruneNow),
+    clear: () =>
+      serial(async () => {
+        const t = transaction('readwrite');
+        if (!t) return false;
+        try {
+          await done(t.store.clear());
+          await t.finished;
+        } catch {
+          failed += 1;
+          return false;
+        }
+        groups.clear();
+        records = 0;
+        bytes = 0;
+        return true;
+      }),
     close() {
       db?.close();
       db = null;

@@ -41,6 +41,25 @@ describe('bounded IndexedDB store (§9.2)', () => {
     second.close();
   });
 
+  it('[LG-005] appends at the same time never evict more than the bounds require', async () => {
+    const idb = new IDBFactory();
+    const clock = { now: 10 * MINUTE };
+    const store = await openBoundedStore(options(idb, clock, { maxRecords: 10, maxBytes: 1_000_000, maxAgeMs: 60 * MINUTE }));
+    await store.append(Array.from({ length: 10 }, (_, i) => record(clock.now, 1, i)));
+    const results = await Promise.all([
+      store.append([record(clock.now, 1, 10), record(clock.now, 1, 11)]),
+      store.append([record(clock.now, 1, 12), record(clock.now, 1, 13)]),
+      store.prune(),
+    ]);
+    expect(results.slice(0, 2)).toEqual([
+      { stored: 2, rejected: 0 },
+      { stored: 2, rejected: 0 },
+    ]);
+    expect(store.stats()).toMatchObject({ records: 10, evicted: 4 });
+    expect((await store.latest(20)).map((r) => (r.value as { seq: number }).seq)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    store.close();
+  });
+
   it('[LG-005] rotates by record count, by bytes and by age — whichever comes first', async () => {
     const idb = new IDBFactory();
     const clock = { now: 10 * MINUTE };
