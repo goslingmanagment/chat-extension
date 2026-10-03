@@ -198,3 +198,67 @@ export const SPOKEN_MONEY_SAMPLES: { readonly valid: readonly SpokenMoney[]; rea
     ((mills: number | null) => mills ?? 0) satisfies SpokenMoney,
   ],
 };
+
+/**
+ * RefusalVM (a type, no schema), 1.2.0: `at` tells one refused start from the
+ * next, so a refusal hidden with «Скрыть» shows again when a start is refused
+ * anew — by a key as well as by a click.
+ */
+const REFUSAL_BASE: C.RefusalVM = {
+  feature: 'reply',
+  error: { code: 'CG-OP-TAB-LIMIT', title: 'Уже идут три генерации', body: 'Очереди нет.', tone: 'state' },
+  running: [],
+};
+
+export const REFUSAL_VM_SAMPLES: { readonly valid: readonly C.RefusalVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [REFUSAL_BASE, { ...REFUSAL_BASE, at: 1_790_000_000_000 }],
+  invalid: [
+    // @ts-expect-error the moment of the refused start is epoch ms, not an ISO string
+    { ...REFUSAL_BASE, at: '2026-10-04T00:00:00.000Z' } satisfies C.RefusalVM,
+  ],
+};
+
+/**
+ * CoachTurnVM (a type, no schema), 1.2.0: a turn may carry the Б2 question of
+ * one of its draft parts (AI-086) and its debug footer (DB-019).
+ */
+const COACH_TURN_BASE: C.CoachTurnVM = {
+  id: 'turn-1',
+  opId: OP,
+  question: 'how do I bring him back?',
+  askedAt: 1_790_000_000_000,
+  state: 'done',
+  phase: null,
+  sentToCoach: false,
+  streamText: null,
+  attachedDraft: false,
+  outsideMemory: false,
+  answer: { prose: 'Warm up first.', blocks: null, drafts: [] },
+  error: null,
+  errorActions: [],
+};
+
+const COACH_TURN_DEBUG: C.ResultDebugVM = {
+  costLine: 'in 3 412 tok • out 286 tok',
+  stages: [{ name: 'request', ms: 38 }],
+  totalMs: 38,
+  hubStages: [],
+  prompt: null,
+  reasoning: null,
+  context: null,
+  liveTimer: false,
+};
+
+export const COACH_TURN_VM_SAMPLES: { readonly valid: readonly C.CoachTurnVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    COACH_TURN_BASE,
+    { ...COACH_TURN_BASE, confirm: null, debug: null },
+    { ...COACH_TURN_BASE, confirm: { confirmationId: CONFIRMATION, kind: 'human-draft', part: { index: 0 }, formatLoss: false }, debug: COACH_TURN_DEBUG },
+  ],
+  invalid: [
+    // @ts-expect-error a confirmation is the whole ConfirmVM, not its id
+    { ...COACH_TURN_BASE, confirm: CONFIRMATION } satisfies C.CoachTurnVM,
+    // @ts-expect-error the debug footer is a ResultDebugVM, not a cost line
+    { ...COACH_TURN_BASE, debug: '$0.0143' } satisfies C.CoachTurnVM,
+  ],
+};

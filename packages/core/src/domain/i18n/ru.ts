@@ -168,6 +168,15 @@ export const RU: I18nCatalog<'ru'> = {
   'result.keys.hideTooltip': 'Подсказка видна первые 5 ответов',
   'result.expand': 'Развернуть',
   'result.collapse': 'Свернуть',
+  'result.announce.stage': '{action}: {stage}',
+  'result.announce.ready': { one: 'Ответ готов: {n} часть', few: 'Ответ готов: {n} части', many: 'Ответ готов: {n} частей', other: 'Ответ готов: {n} части' },
+  'result.announce.retryIn': {
+    one: 'Повторить можно через {n} секунду',
+    few: 'Повторить можно через {n} секунды',
+    many: 'Повторить можно через {n} секунд',
+    other: 'Повторить можно через {n} секунды',
+  },
+  'result.announce.canRetry': 'Можно повторить',
 
   // ── Parts, Б2 confirmation, Fix ──
   'part.aria': 'Часть {n}',
@@ -213,6 +222,9 @@ export const RU: I18nCatalog<'ru'> = {
   'cg.uiFailed.reload': 'Перезагрузить панель',
   'cg.uiFailed.export': 'Выгрузить диагностику',
   'cg.aiFailedToast': 'AI: не получилось · {fan}',
+  'cg.recapSave.line': 'не сохранено в хаб',
+  'cg.recapSave.action': 'Сохранить ещё раз',
+  'cg.recapSave.actionTooltip': 'Записать в хаб ещё раз; AI не запускается',
 
   // ── Recap, Review, debug ──
   'recap.lengthLabel': 'Длина',

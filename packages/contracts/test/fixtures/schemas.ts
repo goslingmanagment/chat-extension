@@ -282,7 +282,20 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ code: 'CG-HUB-RATE-LIMIT', detail: 'HTTP 429 • rate_limit_exceeded', retryAt: T0, httpStatus: 429 }, { code: 'CG-UNKNOWN' }],
     [{ code: 'CG-HUB-RATE-LIMIT', detail: repeat('x', 401) }, { code: 'CG-NOPE' }, { code: 'CG-HUB-REQUEST', httpStatus: 99 }],
   ),
-  fixture('CgErrorView', C.CgErrorViewSchema, [{ code: 'CG-NETWORK', title: 'Нет связи', body: 'Проверьте подключение.' }], [{ code: 'CG-NETWORK', title: 'Нет связи' }]),
+  fixture(
+    'CgErrorView',
+    C.CgErrorViewSchema,
+    [
+      { code: 'CG-NETWORK', title: 'Нет связи', body: 'Проверьте подключение.' },
+      // 1.2.0: the card's dot travels with the view (ui-design §4.8).
+      { code: 'CG-QUOTA-DAILY', title: 'Дневная квота AI исчерпана', body: 'Квота обновится в 03:00 по Москве.', tone: 'state' },
+      { code: 'CG-OP-INTERRUPTED', title: 'Генерация прервалась', body: 'Ответ не сохранился.', tone: 'failure' },
+    ],
+    [
+      { code: 'CG-NETWORK', title: 'Нет связи' },
+      { code: 'CG-NETWORK', title: 'Нет связи', body: 'Проверьте подключение.', tone: 'warning' },
+    ],
+  ),
 
   // ── settings ──
   fixture('SettingsSection', C.SettingsSectionSchema, ['status', 'diagnostics'], ['advanced']),

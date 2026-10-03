@@ -162,6 +162,10 @@ export const EN: I18nCatalog<'en'> = {
   'result.keys.hideTooltip': 'This hint shows for the first 5 answers',
   'result.expand': 'Expand',
   'result.collapse': 'Collapse',
+  'result.announce.stage': '{action}: {stage}',
+  'result.announce.ready': { one: 'Answer ready: {n} part', other: 'Answer ready: {n} parts' },
+  'result.announce.retryIn': { one: 'You can retry in {n} second', other: 'You can retry in {n} seconds' },
+  'result.announce.canRetry': 'You can retry now',
 
   // ── Parts, Б2 confirmation, Fix ──
   'part.aria': 'Part {n}',
@@ -207,6 +211,9 @@ export const EN: I18nCatalog<'en'> = {
   'cg.uiFailed.reload': 'Reload panel',
   'cg.uiFailed.export': 'Export diagnostics',
   'cg.aiFailedToast': 'AI: failed · {fan}',
+  'cg.recapSave.line': 'not saved to the hub',
+  'cg.recapSave.action': 'Save again',
+  'cg.recapSave.actionTooltip': 'Write to the hub again; AI does not run',
 
   // ── Recap, Review, debug ──
   'recap.lengthLabel': 'Length',

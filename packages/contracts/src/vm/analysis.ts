@@ -10,7 +10,7 @@ import { type IsoTimestamp, type Uuid } from '../primitives';
 import { type RecapLength, type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
 import { type Msg } from './i18n';
-import { type PartVM, type PhaseVM, type ResultDebugVM } from './result';
+import { type ConfirmVM, type PartVM, type PhaseVM, type ResultDebugVM } from './result';
 import { type ArtifactHandle } from './selectors';
 import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 
@@ -144,6 +144,15 @@ export interface CoachTurnVM {
   } | null;
   readonly error: CgErrorView | null;
   readonly errorActions: readonly ActionButtonVM[];
+  /**
+   * Б2 for a draft part of this turn (1.2.0, AI-086): the composer already has
+   * the person's text, or it changed. `part` names the part as its PartVM does
+   * (`variant` — the draft, when a turn has two). The dock's own
+   * `ResultVM.confirm` belongs to the dock's operation and cannot carry it.
+   */
+  readonly confirm?: ConfirmVM | null;
+  /** The debug footer of the turn, in debug mode only (1.2.0, DB-019): time, tokens, cost, «Промпт», the stage profile. */
+  readonly debug?: ResultDebugVM | null;
 }
 
 export interface CoachVM {
