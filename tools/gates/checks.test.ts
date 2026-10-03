@@ -12,6 +12,7 @@ import {
   checkReleaseBundle,
   checkSdkCustody,
   checkSendQueueReferences,
+  checkStandHooks,
   checkUiTexts,
   deriveSdkMarkers,
   missingSdkMarkerKinds,
@@ -108,6 +109,23 @@ describe('gate: send queue scope', () => {
     ]);
     expect(violations).toHaveLength(2);
     expect(gates(violations)).toEqual(['send-queue-scope', 'send-queue-scope']);
+  });
+});
+
+describe('gate: stand-only hooks', () => {
+  it('flags data-stand-*, __stand and x-stand-* in our code, not in the stand package or in comments', () => {
+    const violations = checkStandHooks([
+      file('packages/host-chatspace/src/isolated/dock.ts', "// unlike the stand's data-stand-composer, ChatSpace has no such hook\nconst slot = root.querySelector('[data-stand-composer-slot]');"),
+      file('packages/core/src/x.ts', 'const s = window.__stand; const h = { [`x-stand-native`]: 1 };'),
+      file('packages/testing/src/stand/control.ts', "const hook = '[data-stand-composer]';"),
+      file('packages/ui/src/y.tsx', "const id = 'data-standalone';"),
+    ]);
+    expect(violations.map((violation) => [violation.path, violation.line])).toEqual([
+      ['packages/host-chatspace/src/isolated/dock.ts', 2],
+      ['packages/core/src/x.ts', 1],
+      ['packages/core/src/x.ts', 1],
+    ]);
+    expect(gates(violations)).toEqual(['stand-hooks', 'stand-hooks', 'stand-hooks']);
   });
 });
 
