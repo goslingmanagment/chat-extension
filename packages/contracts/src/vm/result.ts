@@ -95,6 +95,13 @@ export type PreviewSendState =
   | { readonly s: 'rejected'; readonly code: CgCode; readonly canRetry: boolean }
   | { readonly s: 'uncertain'; readonly attemptId: Uuid };
 
+/**
+ * Holds only the background can see end: the hub's rate-limit deadline, a
+ * greeting lease taken again. MAIN's preflight knows neither, so the row stays
+ * off until the controller drops the attempt.
+ */
+const HOLDS_THE_BACKGROUND_CLEARS: readonly CgCode[] = ['CG-HUB-RATE-LIMIT', 'CG-CLAIM-EXPIRED'];
+
 function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
   if (preflight.ok) return { s: 'available' };
   if (preflight.code === 'CG-SEND-STALE') return { s: 'held-stale' };
@@ -111,8 +118,9 @@ function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
  * - `rejected` (proven native refusal) → rejected without retry;
  * - `notEnqueued` (the queue's null, CG-SEND-QUEUE) → rejected with «Отправить ещё раз»;
  * - `held`: CG-SEND-STALE → held-stale; a code another click cannot lift
- *   (SEND_HOLD_CODES_WITHOUT_RETRY) or the hub's rate limit → unavailable with it
- *   (the controller drops the attempt once the rate-limit deadline passes);
+ *   (SEND_HOLD_CODES_WITHOUT_RETRY), the hub's rate limit or an expired lease →
+ *   unavailable with it (the controller drops the attempt once the deadline
+ *   passes or the lease is taken again);
  *   any other §6.7.4 condition → the current preflight decides (the condition
  *   may have cleared); anything else — a transport failure of `dispatch`, an
  *   expired ticket (CG-TIMEOUT) — nothing reached ChatSpace → rejected with retry.
@@ -139,7 +147,7 @@ export function previewSendStateOf(attempt: SendAttemptView | null, preflight: P
       return { s: 'rejected', code: code ?? 'CG-SEND-QUEUE', canRetry: isRetryableEnd('notEnqueued', code) };
     case 'held':
       if (code === 'CG-SEND-STALE') return { s: 'held-stale' };
-      if (code !== undefined && isSendReasonCode(code) && (code === 'CG-HUB-RATE-LIMIT' || !isRetryableEnd('held', code))) {
+      if (code !== undefined && isSendReasonCode(code) && (HOLDS_THE_BACKGROUND_CLEARS.includes(code) || !isRetryableEnd('held', code))) {
         return { s: 'unavailable', code };
       }
       if (code !== undefined && (PREVIEW_SEND_CONDITION_CODES as readonly CgCode[]).includes(code)) return fromPreflight(preflight);
