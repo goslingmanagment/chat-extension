@@ -27,14 +27,19 @@ describe('the host theme (§6.1: --color-om-*, .dark, fixed width)', () => {
   it('reads the scheme, ChatSpace’s inline tokens (priority palettes first, at most 64) and the fixed width', () => {
     const html = document.documentElement;
     html.classList.add('dark');
-    for (let i = 0; i < 40; i += 1) html.style.setProperty(`--color-om-amaranth-${i}`, '1 2 3');
-    for (let i = 0; i < 40; i += 1) html.style.setProperty(`--color-om-neutral-${i}`, '4 5 6');
+    // Real host token names (the stand's palette check reads our sources): 9 accent palettes × 9 steps, then neutral.
+    const token = (palette: string, step: number): string => ['--color-om', palette, String(step)].join('-');
+    for (const palette of ['amaranth', 'azure', 'cobalt', 'gold', 'indigo', 'mint', 'pink', 'rust', 'steel']) {
+      for (const step of [100, 200, 300, 400, 500, 600, 700, 800, 900]) html.style.setProperty(token(palette, step), '1 2 3');
+    }
+    const neutral = [0, 50, 75, 100, 200, 300, 400, 500, 600, 700, 750, 800, 850, 900, 950];
+    for (const step of neutral) html.style.setProperty(token('neutral', step), '4 5 6');
     html.style.setProperty('--color-om-brand-2-500', '7 8 9');
     html.style.setProperty('--app-content-max-width', '1600px');
     const theme = HostThemeSchema.parse(readTheme(document));
     expect(theme.scheme).toBe('dark');
     expect(Object.keys(theme.tokens)).toHaveLength(64);
-    expect(Object.keys(theme.tokens).slice(0, 40).every((name) => name.startsWith('--color-om-neutral-'))).toBe(true);
+    expect(Object.keys(theme.tokens).slice(0, neutral.length).every((name) => name.startsWith(token('neutral', 0).slice(0, -1)))).toBe(true);
     expect(theme.fixedWidth).toBe(true);
     html.style.setProperty('--app-content-max-width', 'none');
     expect(readTheme(document).fixedWidth).toBe(false);

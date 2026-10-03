@@ -292,7 +292,7 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
       }
       return out;
     },
-    /** The hashed name of ChatSpace's entry module, e.g. `index-DEVowLko` (NEW-09): diagnostics only. */
+    /** The hashed name of ChatSpace's entry module, e.g. `index-0000fake` (NEW-09): diagnostics only. */
     build: (): string | null => BUILD_PATTERN.exec(doc.querySelector(BUILD_SELECTOR)?.getAttribute('src') ?? '')?.[1] ?? null,
     /**
      * Store and cache anchors of §6.2 that MAIN sees (the DOM ones are the
