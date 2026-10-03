@@ -582,17 +582,34 @@ describe('the ChatSpace-like stand on its own', () => {
     await openStand(chatPath(accountA, a1));
   });
 
-  it('theme and fixed width: .dark/.light on <html>, --app-content-max-width 1600px', async () => {
+  it('theme and fixed width: .dark/.light on <html>; fixed width narrows the content frame only, align-self values', async () => {
     await callStand('setTheme', 'light');
     expect(await browser.execute(() => [document.documentElement.classList.contains('light'), document.documentElement.classList.contains('dark')])).toEqual([true, false]);
     await setViewport({ width: 1920, height: 1000 });
+    const measure = async () =>
+      browser.execute(() => {
+        const box = (selector: string): DOMRect | undefined => document.querySelector(selector)?.getBoundingClientRect();
+        const frame = box('[data-stand-content-frame]');
+        const column = box('.app-column');
+        const bar = box('.chat-tab-bar');
+        const style = document.documentElement.style;
+        return {
+          maxWidth: style.getPropertyValue('--app-content-max-width'),
+          align: style.getPropertyValue('--app-content-align'),
+          frameWidth: frame?.width ?? -1,
+          frameLeftInColumn: (frame?.left ?? -1) - (column?.left ?? 0),
+          frameRightGap: (column?.right ?? 0) - (frame?.right ?? 0),
+          barFullWidth: bar !== undefined && column !== undefined && Math.abs(bar.width - column.width) < 1,
+          sidebarLeft: box('.account-sidebar')?.left ?? -1,
+        };
+      });
     try {
       await callStand('setFixedWidth', true, 'left');
-      const box = await browser.execute(() => {
-        const content = document.querySelector('.app-content')?.getBoundingClientRect();
-        return { left: content?.left ?? -1, width: content?.width ?? -1, variable: document.documentElement.style.getPropertyValue('--app-content-max-width') };
-      });
-      expect(box).toEqual({ left: 0, width: 1600, variable: '1600px' });
+      expect(await measure()).toMatchObject({ maxWidth: '1600px', align: 'flex-start', frameWidth: 1600, frameLeftInColumn: 0, barFullWidth: true, sidebarLeft: 0 });
+      await callStand('setFixedWidth', true, 'right');
+      expect(await measure()).toMatchObject({ align: 'flex-end', frameWidth: 1600, frameRightGap: 8, barFullWidth: true });
+      await callStand('setFixedWidth', true, 'center');
+      expect((await measure()).align).toBe('center');
     } finally {
       await callStand('setFixedWidth', false);
       await callStand('setTheme', 'dark');

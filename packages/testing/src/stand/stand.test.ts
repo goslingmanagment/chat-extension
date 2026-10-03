@@ -2,7 +2,7 @@
 // scripted sends with their socket echo, socket protocol, control guard,
 // egress sink, synthetic dataset, and the fixture build location.
 
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,12 +11,23 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
 import { FIXTURE_CONTRACTS } from '../../fixture-chatspace/src/metadata';
+import { PALETTE, PALETTE_VARIABLES } from '../../fixture-chatspace/src/palette';
 import { CONTROL_REQUEST_HEADER, DEFAULT_SOCKET_TRAFFIC, NATIVE_REQUEST_HEADER, STAND_API_ORIGIN_META, STAND_TOKEN_PATH, STAND_WS_PATH, type ServerJournalEntry } from '../../fixture-chatspace/src/protocol';
 import viteConfig, { FIXTURE_BUILD_DIR as VITE_OUT_DIR } from '../../fixture-chatspace.vite.config';
 import { startStandServer, type StandServer } from '../stand-server';
 import { createDataset, plainText, STAND_IDS } from './dataset';
 import { startEgressSink } from './egress-sink';
-import { FIXTURE_BUILD_DIR, FIXTURE_SOURCE_DIR } from './paths';
+import { FIXTURE_BUILD_DIR, FIXTURE_SOURCE_DIR, REPO_ROOT } from './paths';
+
+/** Source files under a folder (no build output or dependencies). */
+function sourceFiles(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return entry.name === 'node_modules' || entry.name.startsWith('.') ? [] : sourceFiles(path);
+    return /\.(?:ts|tsx|css)$/.test(entry.name) ? [path] : [];
+  });
+}
 
 const fixtureDir = mkdtempSync(join(tmpdir(), 'cg-stand-'));
 writeFileSync(join(fixtureDir, 'index.html'), '<!doctype html><title>stand test</title><meta name="stand-api-origin" content="" />');
@@ -434,6 +445,23 @@ describe('synthetic data and fixture files', () => {
     expect(VITE_OUT_DIR).toBe(FIXTURE_BUILD_DIR);
     expect(viteConfig.root).toBe(FIXTURE_SOURCE_DIR);
     expect(FIXTURE_BUILD_DIR).toMatch(/\/\.cache\/fixture-chatspace\/$/);
+  });
+
+  it('the palette has the host token names (own values): no made-up steps, none missing', () => {
+    for (const name of ['--color-om-white', '--color-om-neutral-75', '--color-om-neutral-750', '--color-om-brand-50', '--color-om-brand-900', '--color-om-error-50', '--color-om-warning-900', '--color-om-brand-2-100', '--color-om-steel-500']) {
+      expect(PALETTE_VARIABLES.has(name), name).toBe(true);
+    }
+    expect(PALETTE_VARIABLES.has('--color-om-neutral-150')).toBe(false);
+    for (const triplet of Object.values(PALETTE)) expect(triplet).toMatch(/^\d{1,3} \d{1,3} \d{1,3}$/);
+  });
+
+  it("the extension's own sources reference only palette variables the host defines", () => {
+    const roots = ['packages/ui/src', 'packages/host-chatspace/src', 'packages/core/src', 'apps/extension/src', 'apps/extension/lazy'].map((dir) => join(REPO_ROOT, dir));
+    const used = new Map<string, string>();
+    for (const file of roots.flatMap((root) => sourceFiles(root))) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/--color-om-[a-z0-9-]+/g)) used.set(match[0], file.slice(REPO_ROOT.length));
+    }
+    expect([...used].filter(([name]) => !PALETTE_VARIABLES.has(name))).toEqual([]);
   });
 
   it('fixture metadata names only files that exist', () => {

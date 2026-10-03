@@ -157,9 +157,9 @@ export const FIXTURE_CONTRACTS: readonly FixtureContract[] = [
   {
     id: 'theme',
     contract: '--color-om-* RGB triplets inline on <html>, .dark/.light class, --app-content-max-width/align for fixed width (§6.1, §6.3)',
-    stand: ['ui/theme.ts', 'styles.css'],
+    stand: ['ui/theme.ts', 'palette.ts', 'styles.css'],
     basis: 'observed',
-    observedAt: ['index:886-898', 'fanCardSettings:1368-1372, 1437, 1623-1624', 'MainLayout:303'],
+    observedAt: ['index:886-898', 'composables:1131-1353 (palette token names)', 'fanCardSettings:1368-1372, 1437-1439, 1623-1624', 'MainLayout:303'],
   },
   {
     id: 'socket',

@@ -1,8 +1,9 @@
-// Layout of the stand: account tabs on the left, chat tabs on top, the route
-// below, all inside the (optionally fixed-width) workspace container. The
-// global hotkeys are registered when the layout mounts.
+// Layout of the stand: account tabs on the left, chat tabs on top (both full
+// width), the route below in the content frame — the one box «fixed width»
+// narrows and aligns (`--app-content-max-width`, `--app-content-align`), as on
+// the host. The global hotkeys are registered when the layout mounts.
 
-import { computed, defineComponent, h, onBeforeUnmount, onMounted, type VNode } from 'vue';
+import { defineComponent, h, onBeforeUnmount, onMounted, type VNode } from 'vue';
 import { RouterView } from 'vue-router';
 
 import { useQueryCache } from '../query/cache';
@@ -11,7 +12,6 @@ import { keys } from '../query/queries';
 import { useChatTabEntries, useTabEntries } from '../stores/accounts';
 import { installGlobalHotkeys } from './hotkeys';
 import { useNavigation } from './navigation';
-import { theme } from './theme';
 
 const initials = (name: string): string =>
   name
@@ -90,17 +90,10 @@ export const MainLayout = defineComponent({
       });
     });
     onBeforeUnmount(() => uninstall?.());
-    const contentStyle = computed(() => ({
-      maxWidth: 'var(--app-content-max-width, none)',
-      marginLeft: theme.align === 'left' ? '0' : 'auto',
-      marginRight: theme.align === 'right' ? '0' : 'auto',
-    }));
     return (): VNode =>
       h('main', { class: 'main-layout' }, [
-        h('div', { class: 'app-content', style: contentStyle.value }, [
-          h(AccountTabSideBar),
-          h('div', { class: 'app-column' }, [h(ChatTabBar), h('div', { class: 'content-frame' }, [h(RouterView)])]),
-        ]),
+        h(AccountTabSideBar),
+        h('div', { class: 'app-column' }, [h(ChatTabBar), h('div', { class: 'content-frame', 'data-stand-content-frame': '' }, [h(RouterView)])]),
       ]);
   },
 });

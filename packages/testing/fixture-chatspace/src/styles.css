@@ -6,7 +6,7 @@
 :root {
   --stand-bg: rgb(var(--color-om-neutral-50));
   --stand-surface: rgb(var(--color-om-neutral-0));
-  --stand-border: rgb(var(--color-om-neutral-150));
+  --stand-border: rgb(var(--color-om-neutral-100));
   --stand-text: rgb(var(--color-om-neutral-900));
   --stand-muted: rgb(var(--color-om-neutral-500));
   --stand-incoming: rgb(var(--color-om-neutral-100));
@@ -41,9 +41,9 @@ button { font: inherit; color: inherit; }
 .items-center { align-items: center; }
 
 .main-layout { height: 100vh; display: flex; }
-.app-content { display: flex; flex: 1 1 auto; min-width: 0; width: 100%; }
 .app-column { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
-.content-frame { flex: 1 1 auto; min-height: 0; display: flex; margin: 0 8px 8px; border: 1px solid var(--stand-border); border-radius: 10px; overflow: hidden; background: var(--stand-surface); }
+/* Fixed width narrows only the content frame under the tab bar; the sidebar and the bar stay full width. */
+.content-frame { flex: 1 1 auto; min-height: 0; display: flex; width: calc(100% - 8px); max-width: var(--app-content-max-width, none); align-self: var(--app-content-align, center); margin: 0 8px 8px 0; border: 1px solid var(--stand-border); border-radius: 10px; overflow: hidden; background: var(--stand-surface); }
 
 .account-sidebar { width: 64px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; border-right: 1px solid var(--stand-border); }
 .account-tab { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--stand-border); background: var(--stand-surface); cursor: pointer; font-weight: 600; }
