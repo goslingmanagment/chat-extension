@@ -1,0 +1,156 @@
+// The Spenders board as one model (architecture.md §8.5; SP-004…SP-021):
+// the background's assembled board (up to 1000 rows of `/api/v2/spenders`
+// with the hub's tier buckets) turned into shelves, then narrowed by the
+// search and the filters. Built in two steps so a keystroke never redoes the
+// shelving: `indexBoard` once per board, `viewBoard` per search, filter,
+// sort or reveal. The hub's total is shown next to what is loaded; a board
+// cut at the visible limit says so.
+
+import { type AutoLists, type HubSpenderPeriod, type SpendersBoard } from '@cg/contracts/hub';
+import { STORAGE_LIMITS } from '@cg/contracts/limits';
+import { type CoverageLevel } from '@cg/contracts/ops';
+import { type IsoTimestamp } from '@cg/contracts/primitives';
+import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
+
+import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, type BoardFilters } from './filters';
+import { spenderRows, type SpenderRow } from './rows';
+import { buildShelves, needsCents, shelfPreviewCount, shelfTotals, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
+
+export interface BoardIndex {
+  readonly pageLabel: string;
+  readonly period: HubSpenderPeriod;
+  readonly rows: readonly SpenderRow[];
+  readonly shelves: readonly Shelf[];
+  /** Rows on the board. */
+  readonly loaded: number;
+  /** The hub's total of the scope. */
+  readonly total: number;
+  /** The scope has more payers than the board shows (the 1000-row cut). */
+  readonly truncated: boolean;
+  /** Every page within the cap arrived. */
+  readonly complete: boolean;
+  /** Every payer of the scope is on the board: sums over rows are the scope's sums. */
+  readonly wholeScope: boolean;
+  /** The hub's tier buckets; null — their read failed and there are no shelves. */
+  readonly tiers: AutoLists | null;
+  readonly asOf: IsoTimestamp | null;
+  readonly fetchedAt: IsoTimestamp;
+  readonly timeZone: string | null;
+  readonly coverage: CoverageLevel;
+  readonly byFan: ReadonlyMap<string, SpenderRow>;
+}
+
+/** Shelves and rows of a board; rows beyond the visible limit are dropped and counted as cut. */
+export function indexBoard(board: SpendersBoard): BoardIndex {
+  const rows = spenderRows(board.items.slice(0, STORAGE_LIMITS.listVisibleRows), board.period);
+  const total = Math.max(board.total, rows.length);
+  const truncated = total > rows.length;
+  const wholeScope = board.complete && !truncated;
+  return {
+    pageLabel: board.pageLabel,
+    period: board.period,
+    rows,
+    shelves: buildShelves(rows, board.tiers),
+    loaded: rows.length,
+    total,
+    truncated,
+    complete: board.complete,
+    wholeScope,
+    tiers: board.tiers,
+    asOf: board.periodMeta.asOf,
+    fetchedAt: board.fetchedAt,
+    timeZone: board.periodMeta.timeZone.length > 0 ? board.periodMeta.timeZone : null,
+    coverage: wholeScope ? 'complete' : 'partial',
+    byFan: new Map(rows.map((row) => [row.fanRef, row])),
+  };
+}
+
+export interface BoardQuery {
+  /** The search as typed (normalized here). */
+  readonly query: string;
+  readonly filters: BoardFilters;
+  readonly sort: SpendersSort;
+  /** Shelves the person opened with «ещё N · показать». */
+  readonly revealed: ReadonlySet<string>;
+}
+
+export interface ShelfView {
+  readonly id: string;
+  readonly range: ShelfRange;
+  readonly totals: ShelfTotals;
+  /** Rows shown now. */
+  readonly rows: readonly SpenderRow[];
+  /** Matching rows not shown (a collapsed shelf); 0 — nothing hidden. */
+  readonly hidden: number;
+  /** Rows of this shelf whose lifetime prints cents (SP-013). */
+  readonly cents: ReadonlySet<string>;
+}
+
+export interface BoardView {
+  readonly shelves: readonly ShelfView[];
+  /** Rows passing the search and the filters; null while neither narrows the list. */
+  readonly shown: number | null;
+  /** The search or a filter is on. */
+  readonly narrowed: boolean;
+  /** Fan ids in the order the list shows them: keyboard movement and the preview's neighbours. */
+  readonly order: readonly string[];
+}
+
+/**
+ * The visible list. Plain view (no search, no filter): each shelf previews
+ * its first rows (SP-010) until revealed. A search or a filter shows every
+ * match and drops shelves without one; an empty shelf is never drawn.
+ * `source` — rows from another read placed on the board's shelves (the
+ * server's «ждут ответа» queue): the shelf headers keep the board's numbers.
+ */
+export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonly SpenderRow[]): BoardView {
+  const needle = searchNeedle(query.query);
+  const narrowed = needle.length > 0 || filtersActive(query.filters) || source !== undefined;
+  const shelves: ShelfView[] = [];
+  const order: string[] = [];
+  let shown = 0;
+  let position = 0;
+  const own = new Map(index.shelves.map((shelf) => [shelf.id, shelf]));
+  // A sourced row is shelved by the same buckets; its shelf's totals stay those of the board's own shelf.
+  const placed: readonly Shelf[] = source === undefined ? index.shelves : buildShelves(source, index.tiers);
+  for (const shelf of placed) {
+    if (shelf.rows.length === 0) continue;
+    const matching = narrowed ? shelf.rows.filter((row) => rowMatches(row, query.filters, needle)) : shelf.rows;
+    shown += matching.length;
+    if (matching.length === 0) continue;
+    const sorted = sortRows(matching, query.sort);
+    const visible = narrowed || query.revealed.has(shelf.id) ? sorted.length : shelfPreviewCount(position, sorted.length);
+    position += 1;
+    const rows = sorted.slice(0, visible);
+    for (const row of rows) order.push(row.fanRef);
+    shelves.push({
+      id: shelf.id,
+      range: shelf.range,
+      totals: shelfTotals(own.get(shelf.id) ?? shelf, index.wholeScope),
+      rows,
+      hidden: sorted.length - rows.length,
+      cents: new Set(rows.filter((row) => needsCents(row.lifetime, shelf.range)).map((row) => row.fanRef)),
+    });
+  }
+  return { shelves, shown: narrowed ? shown : null, narrowed, order };
+}
+
+/** Counters of the filter buttons over the loaded rows («Все 40», «Ждут ответа 12», «Новые 3»). */
+export function boardFilterCounts(index: BoardIndex, ids: readonly SpendersFilter[]): Record<SpendersFilter, number> {
+  return filterCounts(index.rows, ids);
+}
+
+/** The fan before and after `fanRef` in the visible order (SP-056); null at either end or when it is not listed. */
+export function neighbours(order: readonly string[], fanRef: string): { readonly previous: string | null; readonly next: string | null } {
+  const at = order.indexOf(fanRef);
+  if (at < 0) return { previous: null, next: null };
+  return { previous: order[at - 1] ?? null, next: order[at + 1] ?? null };
+}
+
+/** The shelf a fan sits on, to reveal it when the fan is opened from outside the list (the stats' queue, the palette). */
+export function shelfOfFan(index: BoardIndex, fanRef: string): string | null {
+  for (const shelf of index.shelves) {
+    if (shelf.rows.some((row) => row.fanRef === fanRef)) return shelf.id;
+  }
+  return null;
+}
