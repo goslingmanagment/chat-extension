@@ -119,8 +119,14 @@ export function toastKindOf(code: CgCode): Exclude<ToastKind, 'success'> {
 /** 4.5 s; errors 6.5 s; up to three on screen. */
 export const TOAST_TIMING = { lifetimeMs: 4500, errorLifetimeMs: 6500, maxVisible: 3 } as const;
 
-export function toastLifetimeMs(kind: ToastKind): number {
-  return kind === 'error' ? TOAST_TIMING.errorLifetimeMs : TOAST_TIMING.lifetimeMs;
+/**
+ * Warnings the person must not miss stay as long as errors: the shared
+ * recap that did not reach the hub (ER-012, the old CG-HUB-08 at 6.5 s).
+ */
+export const LONG_TOASTS: readonly CgCode[] = ['CG-RECAP-SAVE'];
+
+export function toastLifetimeMs(kind: ToastKind, code: CgCode | null = null): number {
+  return kind === 'error' || (code !== null && LONG_TOASTS.includes(code)) ? TOAST_TIMING.errorLifetimeMs : TOAST_TIMING.lifetimeMs;
 }
 
 /** Toasts with the same code and scope replace each other. */

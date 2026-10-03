@@ -363,6 +363,31 @@ describe('[DB-011] [DB-016] [DB-017] one operation’s debug view', () => {
   });
 });
 
+describe('[DB-003] [DB-019] echo silence and Coach turns', () => {
+  it('[DB-003] no echo from the hub is not an error: the view simply has no prompt token', () => {
+    const builder = new OpDebugBuilder(T0);
+    builder.onFrame(usageFrame(), T0 + 10);
+    builder.onFrame({ type: 'done', stopReason: null }, T0 + 20);
+    const view = builder.view();
+    expect(view.promptToken).toBeNull();
+    expect(view.hubStages).toEqual([]);
+    expect(OpDebugViewSchema.safeParse(view).success).toBe(true);
+  });
+
+  it('[DB-019] a Coach exchange has its own timing, first chunk, tokens and cost', () => {
+    const exchange = new OpDebugBuilder(T0);
+    exchange.mark('request', T0 + 15);
+    exchange.onFrame({ type: 'content_delta', text: 'answer' }, T0 + 900);
+    exchange.onFrame(usageFrame({ costMicroUsd: 2100 }), T0 + 1500);
+    exchange.onFrame({ type: 'done', stopReason: 'end_turn' }, T0 + 1600);
+    const view = exchange.view();
+    const profile = profileOf(view.stages, 'done', T0 + 2000);
+    expect(profile.totalMs).toBe(1600);
+    expect(exchange.markOf('firstChunk')! - T0).toBe(900);
+    expect(formatCostLine({ usage: view.usage, totalMs: profile.totalMs, model: view.model ?? null }, en)).toBe('in 3,412 tok • out 286 tok • cache r 3,000 / w 0 • $0.0021 • 1.6 s');
+  });
+});
+
 describe('[DB-020] debug blocks only after expanding', () => {
   it('[DB-020] hidden in the collapsed dock and outside debug mode', () => {
     expect(showDebugBlock(true, true)).toBe(true);

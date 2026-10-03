@@ -527,6 +527,24 @@ describe('mandatory events', () => {
     expect(h.sunk[0]?.fields).toMatchObject({ password: REDACTED, token: REDACTED, epoch: 4 });
   });
 
+  it('[LG-017] the P1 journal: route, inserts and refusals, X8 states — ids and codes only', () => {
+    const h = harness();
+    logEvent(h.logger, 'routeChanged', { fields: { routeEpoch: 7, kind: 'chat' }, ctx: { routeEpoch: 7 } });
+    logEvent(h.logger, 'insertApplied', { fields: { insertMs: 38, draftDigest: 'd1', text: 'hello babe' }, ctx: { opId: OP, routeEpoch: 7 } });
+    logEvent(h.logger, 'insertRefused', { code: 'CG-INSERT-CHAT-CHANGED', fields: { reason: 'chat-changed' }, ctx: { opId: OP } });
+    logEvent(h.logger, 'insertUncertain', { code: 'CG-INSERT-UNCERTAIN', ctx: { opId: OP } });
+    logEvent(h.logger, 'sendAttemptState', { fields: { state: 'held', reason: 'CG-SEND-STALE' }, ctx: { attemptId: OP } });
+    expect(h.sunk.map((r) => [r.level, r.scope, r.code ?? null])).toEqual([
+      ['info', 'tab.route', null],
+      ['info', 'tab.insert', null],
+      ['warn', 'tab.insert', 'CG-INSERT-CHAT-CHANGED'],
+      ['error', 'tab.insert', 'CG-INSERT-UNCERTAIN'],
+      ['info', 'bg.send', null],
+    ]);
+    expect(h.sunk[1]?.fields).toEqual({ insertMs: 38, draftDigest: 'd1', text: '[text len=10]' });
+    expect(everywhere(h)).not.toContain('hello babe');
+  });
+
   it('[LG-015] [DB-018] usage numbers are logged, never text', () => {
     const h = harness();
     logUsage(h.logger, { feature: 'reply', generationRef: OP, inputTokens: 3412, outputTokens: 286, cacheWriteTokens: 0, cacheReadTokens: 3000, costMicroUsd: 14_300, costApproximate: false, cacheHit: true }, { opId: OP });

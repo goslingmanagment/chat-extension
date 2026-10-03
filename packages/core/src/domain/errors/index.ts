@@ -23,6 +23,7 @@ export {
   type ErrorFacts,
 } from './view';
 export {
+  LONG_TOASTS,
   TOAST_TIMING,
   errorTone,
   isP1,

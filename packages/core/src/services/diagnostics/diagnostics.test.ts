@@ -1,13 +1,16 @@
 import { ANCHOR_IDS, HOST_CAPABILITIES, type HostContractReport } from '@cg/contracts/host';
 import { DEBUG_LIMITS, LOG_LIMITS } from '@cg/contracts/limits';
-import { LogRecordSchema, type LogRecord } from '@cg/contracts/logs';
+import { LogRecordFromUiSchema, LogRecordSchema, type LogRecord } from '@cg/contracts/logs';
+import { OpDebugViewSchema } from '@cg/contracts/ops';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { DiagnosticsSnapshotSchema, PromptSnapshotViewSchema } from '@cg/contracts/tab-messages';
+import { AcceptanceEventSchema, ClientHealthV1Schema, TabHealthReportSchema } from '@cg/contracts/telemetry';
 import { describe, expect, it } from 'vitest';
 
-import { snapshotFromFrame, type DebugInputFrame, type UsageNumbers } from '../../domain/debug';
+import { OpDebugBuilder, snapshotFromFrame, type DebugInputFrame, type UsageNumbers } from '../../domain/debug';
 import { CodeCounters, createLogger, createRedactor, utf8Length } from '../../domain/logging';
-import { DebugJournals, LogService, MemoryLogStore } from '../logs';
+import { AcceptanceTracker, HealthWindow, TabHealthCollector } from '../../domain/telemetry';
+import { DebugJournals, LogService, MemoryLogStore, acceptUiRecords } from '../logs';
 import { type KeyValuePort, type Scheduler } from '../ports';
 import { type TelemetryQueueStats } from '../telemetry';
 import {
@@ -415,5 +418,32 @@ describe('[DB-001] debug off and sign-out clear the debug data', () => {
     clearDebugData({ prompts: p.store, journals, spend }, 'sign-out');
     expect(spend.report(T0).total.runs).toBe(0);
     await spend.saved();
+  });
+});
+
+describe('[DB-029] what crosses a runtime boundary passes its contract schema', () => {
+  it('[DB-029] tab records, stored records, snapshots, prompt views, op debug views, health and acceptance', () => {
+    const r = redactor();
+    const tabLogger = createLogger({ now: () => T0, debugEnabled: () => true, maxRecordBytes: LOG_LIMITS.maxRecordBytesFromUi });
+    const fromTab = tabLogger.error('tab.dock', 'surface failed', { code: 'CG-UI-FAILED', error: new Error('x'.repeat(30_000)), fields: { list: Array.from({ length: 300 }, (_, i) => i) } });
+    expect(LogRecordFromUiSchema.safeParse(fromTab).success).toBe(true);
+    const stored: LogRecord[] = [];
+    acceptUiRecords(fromTab === null ? [] : [fromTab], { tabSessionId: TAB }, { redactor: r, sinks: [(rec) => stored.push(rec)], debugEnabled: () => false });
+    expect(stored.every((rec) => LogRecordSchema.safeParse(rec).success)).toBe(true);
+    expect(DiagnosticsSnapshotSchema.safeParse(diagnosticsSnapshot(facts())).success).toBe(true);
+    const p = promptStore();
+    const token = p.store.put(snapshotFromFrame(frame('p'), { feature: 'reply', capturedAt: T0 })) ?? '';
+    for (const t of [token, 'tok-missing-1', '!']) expect(PromptSnapshotViewSchema.safeParse(p.store.view(t)).success).toBe(true);
+    const builder = new OpDebugBuilder(T0);
+    builder.setPromptToken(token);
+    expect(OpDebugViewSchema.safeParse(builder.view()).success).toBe(true);
+    const window = new HealthWindow(T0);
+    window.recordPerf('ttfcMs', 1200);
+    expect(ClientHealthV1Schema.safeParse(window.build(T0 + 1, { version: '0.1.0', browserMajor: 157, os: 'linux' }, { cachesKB: 0, logsKB: 0 })).success).toBe(true);
+    expect(TabHealthReportSchema.safeParse(new TabHealthCollector(() => T0).takeReport(null, { cachesKB: 0, domNodes: 0 })).success).toBe(true);
+    const tracker = new AcceptanceTracker({ now: () => T0, uuid: () => '00000000-0000-4000-8000-000000000001' });
+    tracker.link({ opId: OP, generationRef: OP, feature: 'hi', surface: 'newcomers', pageLabel: 'lora-of' });
+    const shown = tracker.shown(OP, { variant: 1 });
+    expect(shown.ok && AcceptanceEventSchema.safeParse(shown.event).success).toBe(true);
   });
 });

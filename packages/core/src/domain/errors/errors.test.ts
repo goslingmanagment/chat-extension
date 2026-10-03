@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { RU, createTranslator } from '../i18n';
 import {
   COUNTDOWN_TICK_MS,
+  LONG_TOASTS,
   TOAST_TIMING,
   cgError,
   codeAndTitle,
@@ -370,6 +371,54 @@ describe('toasts, the card’s dot and P1', () => {
     expect(parseSettingsHash('#status:CG-NOPE')).toBeNull();
     expect(parseSettingsHash('#status:CG-NETWORK:x')).toBeNull();
     expect(settingsRouteOf('CG-GATE-DRAFT')).toBeNull();
+  });
+
+  it('[ER-010] the error toast carries the code, the explanation, the countdown and the technical line', () => {
+    const retryAt = NOW + 24_000;
+    const view = viewOfCode('CG-PROVIDER-RATE-LIMIT', ru, { retryAt, httpStatus: 429, detail: 'provider_rate_limited' });
+    expect(toastKindOf(view.code)).toBe('warning');
+    expect(codeAndTitle(view)).toMatch(/^CG-PROVIDER-RATE-LIMIT: \S/);
+    expect(view.body.length).toBeGreaterThan(0);
+    expect(view.detail).toBe('HTTP 429 • provider_rate_limited');
+    expect(view.retryAt).toBe(retryAt);
+    expect(retryInText(countdown(retryAt, NOW), ru)).toBe(ru.text('cg.retryIn', { n: 24 }));
+    expect(CgErrorViewSchema.safeParse(view).success).toBe(true);
+  });
+
+  it('[ER-012] the unsynced shared recap is a warning that stays as long as an error', () => {
+    expect(toastKindOf('CG-RECAP-SAVE')).toBe('warning');
+    expect(LONG_TOASTS).toContain('CG-RECAP-SAVE');
+    expect(toastLifetimeMs('warning', 'CG-RECAP-SAVE')).toBe(TOAST_TIMING.errorLifetimeMs);
+    expect(toastLifetimeMs('warning', 'CG-HOST-CONTRACT')).toBe(TOAST_TIMING.lifetimeMs);
+    expect(recoveryActions(cgError('CG-RECAP-SAVE'), NOW)[0]?.kind).toBe('retry');
+  });
+
+  it('[ER-013] the old toasts outside the registry are registry codes now, in Russian', () => {
+    for (const code of ['CG-GATE-OVERLAY', 'CG-GATE-DRAFT', 'CG-OP-COACH-BUSY'] as const) {
+      expect(toastKindOf(code)).toBe('info');
+      expect(viewOfCode(code, ru).title).toMatch(CYRILLIC);
+      expect(recoveryActions(cgError(code), NOW).map((a) => a.kind)).toEqual(['copy-code']);
+    }
+  });
+
+  it('[ER-014] background generation toasts: «AI готово · фан», each its own, at most three on screen', () => {
+    expect(ru.text('toast.aiReady', { fan: 'fan 1' })).toBe('AI готово · fan 1');
+    expect(TOAST_TIMING.maxVisible).toBe(3);
+    expect(toastKey(null, 'ai-ready:op-1')).not.toBe(toastKey(null, 'ai-ready:op-2'));
+    expect(toastKindOf('CG-OP-TAB-LIMIT')).toBe('info');
+  });
+
+  it('[ER-020] the surface failure card: retry, the diagnostics section for the export, the code', () => {
+    const actions = recoveryActions(cgError('CG-UI-FAILED'), NOW);
+    expect(actions.map((a) => a.kind)).toEqual(['retry', 'open-settings', 'copy-code']);
+    expect(actions[1]?.settings).toEqual({ section: 'diagnostics', code: 'CG-UI-FAILED' });
+    expect(viewOfCode('CG-UI-FAILED', ru).title).toMatch(CYRILLIC);
+  });
+
+  it('[TL-013] the AI quota day ends at 00:00 UTC, whatever the local zone', () => {
+    expect(nextUtcMidnight(Date.UTC(2026, 9, 3, 23, 59, 59))).toBe(Date.UTC(2026, 9, 4));
+    expect(nextUtcMidnight(Date.UTC(2026, 9, 4))).toBe(Date.UTC(2026, 9, 5));
+    expect(retryVerdict(cgError('CG-QUOTA-DAILY', { retryAt: Date.UTC(2026, 9, 4) }), NOW)).toEqual({ allowed: false, why: 'wait', at: Date.UTC(2026, 9, 4) });
   });
 
   it('a failure has a red dot, a state a ring; P1 is the misplaced insert', () => {
