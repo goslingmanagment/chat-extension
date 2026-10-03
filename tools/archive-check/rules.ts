@@ -38,8 +38,17 @@ export const HOST_LIBRARY_MARKERS: readonly RegExp[] = [
  */
 export const STAND_FIXTURE_DIR = 'packages/testing/fixture-chatspace/';
 const STAND_LIBRARY_ALLOWED: readonly RegExp[] = [/^packages\/testing\/fixture-chatspace\/.+\.(?:ts|html|css)$/, /^packages\/testing\/package\.json$/, /^pnpm-lock\.yaml$/];
-/** Fixture provenance: only hand-written sources live in the stand folder — no built or saved bundles. */
-const STAND_SOURCE_FILE = /\.(?:ts|html|css|json|md)$/;
+/**
+ * Fixture provenance: the stand's folders hold hand-written sources only — no
+ * built or saved bundles, pages or API answers (a saved JSON or Markdown
+ * capture included). Per folder: the file kinds it may hold.
+ */
+const STAND_SOURCE_DIRS: ReadonlyArray<readonly [string, RegExp, string]> = [
+  [STAND_FIXTURE_DIR, /^packages\/testing\/fixture-chatspace\/(?:tsconfig\.json|.+\.(?:ts|html|css))$/, 'ts, html, css and its tsconfig.json'],
+  // The M0 spike page is plain hand-written HTML, CSS and JS.
+  ['packages/testing/stand/', /\.(?:html|css|js)$/, 'html, css, js'],
+  ['packages/testing/src/stand/', /\.ts$/, 'ts'],
+];
 
 /**
  * Real ids that must never ship, as sha256 of the decimal string: the archive
@@ -106,8 +115,8 @@ export function checkArchive(
     if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > MAX_JS_BYTES) {
       add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${MAX_JS_BYTES}`);
     }
-    if (entry.name.startsWith(STAND_FIXTURE_DIR) && !STAND_SOURCE_FILE.test(entry.name)) {
-      add(entry.name, 'fixture-provenance', 'the stand folder holds hand-written sources only (ts, html, css, json, md)');
+    for (const [dir, allowed, kinds] of STAND_SOURCE_DIRS) {
+      if (entry.name.startsWith(dir) && !allowed.test(entry.name)) add(entry.name, 'fixture-provenance', `${dir} holds hand-written sources only (${kinds})`);
     }
     if (!TEXT_FILE.test(entry.name)) continue;
     const text = entry.data.toString('utf8');

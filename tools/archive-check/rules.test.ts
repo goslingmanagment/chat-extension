@@ -51,6 +51,23 @@ describe('archive check', () => {
     expect(rules('packages/testing/fixture-chatspace/assets/index-abc.js', 'sources', 'export {}')).toEqual(['fixture-provenance']);
   });
 
+  it('keeps every stand folder to hand-written sources: no saved API answers, pages or notes', () => {
+    const rules = (name: string, text = '{}'): string[] => checkArchive('a.zip', [entry(name, text)], 'sources').map((problem) => problem.rule);
+    expect(rules('packages/testing/fixture-chatspace/tsconfig.json')).toEqual([]);
+    expect(rules('packages/testing/stand/stand.js', '(function () {})();')).toEqual([]);
+    expect(rules('packages/testing/src/stand/api.ts', 'export {};')).toEqual([]);
+    for (const saved of [
+      'packages/testing/fixture-chatspace/src/chats.json',
+      'packages/testing/fixture-chatspace/notes.md',
+      'packages/testing/stand/chat-list.json',
+      'packages/testing/stand/page.md',
+      'packages/testing/src/stand/answer.json',
+      'packages/testing/src/stand/history.html',
+    ]) {
+      expect(rules(saved), saved).toEqual(['fixture-provenance']);
+    }
+  });
+
   it('finds a real id by hash anywhere a number stands alone, not inside longer numbers', () => {
     const scan = (text: string): string[] =>
       checkArchive('s.zip', [entry('a.ts', text)], 'sources', { realIdHashes: syntheticHashes }).map((problem) => problem.rule);
