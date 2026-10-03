@@ -6,7 +6,7 @@
 //   on resize, or the anchor message when scrolled up (metadata.ts «message-list»).
 // - Opening a chat marks it read in the cache only, once the first load settled.
 
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, type PropType, type VNode } from 'vue';
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type PropType, type VNode } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { record } from '../journal';
@@ -45,7 +45,7 @@ const ChatsPanel = defineComponent({
     const nav = useNavigation();
     const list = useQuery(() => chatListQuery(props.accountId, cache));
     useQuery(() => ({ key: keys.fansMap(props.accountId), staleTime: Number.POSITIVE_INFINITY, query: () => Promise.resolve(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)) ?? {}) }));
-    const rows = computed(() => (list.data.value)?.pages.flatMap((page) => page.items) ?? []);
+    const rows = computed(() => list.data.value?.pages.flatMap((page) => page.items) ?? []);
     const fans = computed(() => cache.getQueryData<FansMap>(keys.fansMap(props.accountId)));
     watch(
       rows,
@@ -59,7 +59,7 @@ const ChatsPanel = defineComponent({
       { immediate: true },
     );
     return (): VNode => {
-      const hasMore = (list.data.value)?.pages.at(-1)?.hasMore === true;
+      const hasMore = list.data.value?.pages.at(-1)?.hasMore === true;
       return h('aside', { class: 'chats-panel', 'data-testid': 'chats-panel' }, [
         h('div', { class: 'chats-panel__title' }, list.loading.value && rows.value.length === 0 ? 'Loading chats…' : 'Chats'),
         h(
@@ -109,39 +109,43 @@ const MessagesList = defineComponent({
     const history = useQuery(() => chatMessagesQuery(props.accountId, props.chatId, cache));
     const scroller = ref<HTMLElement | null>(null);
     const content = ref<HTMLElement | null>(null);
-    const view = reactive({ atBottom: true, anchorId: null as string | null, anchorOffset: 0 });
+    // Geometry as of the last real scroll (or our own adjustment): a resize is judged against it,
+    // never against a scroll event fired by the resize itself.
+    let last = { scrollTop: 0, scrollHeight: 0, clientHeight: 0, anchorId: null as string | null, anchorOffset: 0 };
     let loadingOlder = false;
 
-    const messages = computed(() => [...((history.data.value)?.pages.flatMap((page) => page.items) ?? [])].reverse());
+    const messages = computed(() => [...(history.data.value?.pages.flatMap((page) => page.items) ?? [])].reverse());
     const queued = computed<PendingEntry[]>(() => (pending.messagesByAccountId[props.accountId] ?? []).filter((entry) => entry.chatId === props.chatId && entry.status !== 'confirmed'));
 
-    const scrollToBottom = (): void => {
-      const element = scroller.value;
-      if (element !== null) element.scrollTop = element.scrollHeight;
-    };
-    const rememberAnchor = (): void => {
-      const element = scroller.value;
-      if (element === null) return;
-      view.atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_SLACK_PX;
+    const snapshot = (element: HTMLElement): void => {
       const first = [...element.querySelectorAll<HTMLElement>('[data-message-id]')].find((node) => node.offsetTop + node.offsetHeight > element.scrollTop);
-      view.anchorId = first?.dataset['messageId'] ?? null;
-      view.anchorOffset = first === undefined ? 0 : first.offsetTop - element.scrollTop;
+      last = {
+        scrollTop: element.scrollTop,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        anchorId: first?.dataset['messageId'] ?? null,
+        anchorOffset: first === undefined ? 0 : first.offsetTop - element.scrollTop,
+      };
     };
+    const wasAtBottom = (): boolean => last.scrollHeight - last.scrollTop - last.clientHeight <= BOTTOM_SLACK_PX;
     const keepPosition = (): void => {
       const element = scroller.value;
       if (element === null) return;
-      if (view.atBottom) {
-        scrollToBottom();
-        return;
+      if (wasAtBottom()) {
+        element.scrollTop = element.scrollHeight;
+      } else {
+        const anchor = last.anchorId === null ? null : element.querySelector<HTMLElement>(`[data-message-id="${last.anchorId}"]`);
+        if (anchor !== null) element.scrollTop = anchor.offsetTop - last.anchorOffset;
       }
-      const anchor = view.anchorId === null ? null : element.querySelector<HTMLElement>(`[data-message-id="${view.anchorId}"]`);
-      if (anchor !== null) element.scrollTop = anchor.offsetTop - view.anchorOffset;
+      snapshot(element);
     };
     const onScroll = (): void => {
-      rememberAnchor();
       const element = scroller.value;
-      const last = (history.data.value)?.pages.at(-1);
-      if (element !== null && element.scrollTop < LOAD_OLDER_AT_PX && last?.hasMore === true && !loadingOlder) {
+      // Only a moved scroll position is a scroll; a resize alone keeps the old judgement.
+      if (element === null || Math.abs(element.scrollTop - last.scrollTop) < 0.5) return;
+      snapshot(element);
+      const oldest = history.data.value?.pages.at(-1);
+      if (element.scrollTop < LOAD_OLDER_AT_PX && oldest?.hasMore === true && !loadingOlder) {
         loadingOlder = true;
         void loadOlderHistory(cache, props.accountId, props.chatId).finally(() => {
           loadingOlder = false;
@@ -169,13 +173,6 @@ const MessagesList = defineComponent({
       registerMessageList(null);
     });
     watch([() => messages.value.length, () => queued.value.length], () => void nextTick(keepPosition));
-    watch(
-      () => [props.accountId, props.chatId] as const,
-      () => {
-        view.atBottom = true;
-        void nextTick(scrollToBottom);
-      },
-    );
     // Opening a chat: the local unread goes to 0 once the first load settled without error.
     watch(
       () => [props.accountId, props.chatId, history.settled.value, history.entry.value?.state.value.status] as const,

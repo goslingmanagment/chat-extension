@@ -242,7 +242,19 @@ describe('the ChatSpace-like stand on its own', () => {
     expect((await callStand('messageList'))?.atBottom).toBe(true);
     await insertBlock();
     // The list reacts in its ResizeObserver callback; give it a few frames.
-    await browser.waitUntil(async () => (await callStand('messageList'))?.atBottom === true, { timeout: 2000, interval: 50, timeoutMsg: 'the list lost the bottom when the box above the composer grew' });
+    let state = await callStand('messageList');
+    await browser
+      .waitUntil(
+        async () => {
+          state = await callStand('messageList');
+          return state?.atBottom === true;
+        },
+        { timeout: 2000, interval: 50 },
+      )
+      .catch(async () => {
+        const debug = await browser.execute(() => ({ w: innerWidth, h: innerHeight, blocks: document.querySelectorAll('[data-stand-test-block]').length, roots: [...document.querySelectorAll('.composer-root')].map((r) => (r as HTMLElement).style.display) }));
+        throw new Error(`the list lost the bottom when the box above the composer grew: ${JSON.stringify(state)} ${JSON.stringify(debug)} ${JSON.stringify((await callStand('journal')).slice(-15))}`);
+      });
     await removeBlock();
 
     const anchor = async (): Promise<{ id: string | null; offset: number }> =>
