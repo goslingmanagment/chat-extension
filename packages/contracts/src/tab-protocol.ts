@@ -24,6 +24,7 @@
 import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
+import { type HostKind } from './ids';
 import { UuidSchema } from './primitives';
 
 export const TAB_PROTOCOL_VERSION = 1;
@@ -86,3 +87,24 @@ export const TabEnvelopeSchema = z.discriminatedUnion('kind', [
 ]);
 export type TabEnvelope = z.infer<typeof TabEnvelopeSchema>;
 
+
+// ── tab.register (light) ───────────────────────────────────────────────────
+// The first request of a tab document, sent from the early isolated bundle;
+// its schemas live here so that bundle does not load the request registry
+// (tab-messages.ts uses these same objects).
+
+/** HOST_KINDS of ids.ts, repeated so this module stays light (a test pins them equal). */
+const TAB_HOST_KINDS = ['chatspace', 'fansly-web'] as const satisfies readonly HostKind[];
+const ContractsVersionSchema = z.string().check(z.minLength(1), z.maxLength(32));
+
+export const TabRegisterRequestSchema = z.strictObject({
+  host: z.enum(TAB_HOST_KINDS),
+  /** The script arrived after document_start: the tab predates this extension instance (UP-009). */
+  lateInjection: z.boolean(),
+  contractsVersion: ContractsVersionSchema,
+});
+export type TabRegisterRequest = z.infer<typeof TabRegisterRequestSchema>;
+
+/** The background mints the tab session (§5.1). */
+export const TabRegisterResponseSchema = z.strictObject({ tabSessionId: UuidSchema, contractsVersion: ContractsVersionSchema, testBuild: z.boolean() });
+export type TabRegisterResponse = z.infer<typeof TabRegisterResponseSchema>;

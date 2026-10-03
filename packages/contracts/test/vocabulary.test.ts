@@ -36,6 +36,14 @@ describe('CG codes (Appendix A)', () => {
   });
 });
 
+describe('light copies', () => {
+  it('tab.register takes exactly the host kinds of ids.ts', () => {
+    for (const host of C.HOST_KINDS) expect(C.TabRegisterRequestSchema.safeParse({ host, lateInjection: false, contractsVersion: '1.0.0' }).success).toBe(true);
+    expect(C.TabRegisterRequestSchema.shape.host.options).toEqual([...C.HOST_KINDS]);
+    expect(C.TAB_REQUESTS['tab.register'].req).toBe(C.TabRegisterRequestSchema);
+  });
+});
+
 describe('X8 attempt machine (§6.7.7)', () => {
   const T = C.SEND_ATTEMPT_TRANSITIONS as Record<C.SendAttemptState, readonly C.SendAttemptState[]>;
 

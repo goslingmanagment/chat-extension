@@ -686,6 +686,18 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture('PromptSnapshotView', C.PromptSnapshotViewSchema, [promptSnapshot, { ...promptSnapshot, state: 'expired', capturedAt: null, manifest: null, blocks: [] }], [{ ...promptSnapshot, state: 'gone' }]),
   fixture('SendBegin', C.SendBeginSchema, [sendBegin], [{ ...sendBegin, cause: undefined }, { ...sendBegin, part: { index: 10 } }]),
   fixture(
+    'TabRegisterRequest',
+    C.TabRegisterRequestSchema,
+    [{ host: 'chatspace', lateInjection: false, contractsVersion: '1.0.0' }, { host: 'fansly-web', lateInjection: true, contractsVersion: '1.1.0' }],
+    [{ host: 'chatspace', lateInjection: false }, { host: 'onlyfans-web', lateInjection: false, contractsVersion: '1.0.0' }],
+  ),
+  fixture(
+    'TabRegisterResponse',
+    C.TabRegisterResponseSchema,
+    [{ tabSessionId: uuid(4), contractsVersion: '1.0.0', testBuild: false }],
+    [{ tabSessionId: 'tab-1', contractsVersion: '1.0.0', testBuild: false }, { tabSessionId: uuid(4), contractsVersion: '', testBuild: false }],
+  ),
+  fixture(
     'TabEnvelope',
     C.TabEnvelopeSchema,
     [

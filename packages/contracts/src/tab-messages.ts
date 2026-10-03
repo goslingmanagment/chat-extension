@@ -8,7 +8,7 @@ import * as z from 'zod/mini';
 import { CgCodeSchema, CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
-import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, HumanCauseSchema } from './ids';
+import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
@@ -37,7 +37,7 @@ import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
 import { SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
-import { type ExtensionPage, type TabSender } from './tab-protocol';
+import { TabRegisterRequestSchema, TabRegisterResponseSchema, type ExtensionPage, type TabSender } from './tab-protocol';
 import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
 
 // ── Shared payload pieces ──────────────────────────────────────────────────
@@ -156,16 +156,7 @@ const ANY = ['tab', 'page'] as const satisfies readonly TabSender[];
 export const TAB_REQUESTS = {
   // ── tab lifecycle ──
   /** First request of a tab document: the background mints the tab session (§5.1). */
-  'tab.register': {
-    req: z.strictObject({
-      host: HostKindSchema,
-      /** The script arrived after document_start: the tab predates this extension instance (UP-009). */
-      lateInjection: z.boolean(),
-      contractsVersion: boundedText(32),
-    }),
-    res: z.strictObject({ tabSessionId: UuidSchema, contractsVersion: boundedText(32), testBuild: z.boolean() }),
-    from: TAB,
-  },
+  'tab.register': { req: TabRegisterRequestSchema, res: TabRegisterResponseSchema, from: TAB },
   /** Which chat the tab shows and whether it is visible and focused (sound, «AI готово» toasts). */
   'tab.presence': {
     req: z.strictObject({ chat: z.nullable(ChatRefSchema), routeEpoch: CountSchema, visible: z.boolean(), focused: z.boolean() }),
