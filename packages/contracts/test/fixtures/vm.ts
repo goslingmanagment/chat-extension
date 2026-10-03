@@ -181,3 +181,16 @@ export const TOAST_VM_SAMPLES: { readonly valid: readonly C.ToastVM[]; readonly 
     { ...TOAST_BASE, retryAt: '2026-10-03T06:21:00.000Z' } satisfies C.ToastVM,
   ],
 };
+
+/**
+ * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
+ * without it still is an I18n; when present it returns words, not a number.
+ */
+type SpokenMoney = NonNullable<C.I18n['formatMoneySpoken']>;
+export const SPOKEN_MONEY_SAMPLES: { readonly valid: readonly SpokenMoney[]; readonly invalid: readonly unknown[] } = {
+  valid: [(mills, format) => (mills === null ? 'неизвестно' : `${format?.sign === 'plus' ? 'плюс ' : ''}${Math.round(mills / 1000)} долларов`)],
+  invalid: [
+    // @ts-expect-error the spoken form is words for aria-label, not the amount
+    ((mills: number | null) => mills ?? 0) satisfies SpokenMoney,
+  ],
+};

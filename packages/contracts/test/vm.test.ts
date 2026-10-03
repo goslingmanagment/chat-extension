@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -235,5 +235,16 @@ describe('toasts (1.1.0)', () => {
     expect(detailed?.detail).toMatch(/^HTTP 429/);
     expect(detailed?.detail?.length ?? 0).toBeLessThanOrEqual(C.CG_DETAIL_MAX_CHARS);
     expect(TOAST_VM_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('spoken money (1.1.0)', () => {
+  it('the I18n port may say an amount in words; the catalog has the words', () => {
+    expectTypeOf<C.I18n['formatMoneySpoken']>().toEqualTypeOf<((mills: C.MoneyMills | null, format?: C.MoneyFormat) => string) | undefined>();
+    expect(C.UI_TEXT_KEYS).toContain('common.money.plus');
+    expect(C.UI_TEXT_KEYS).toContain('common.money.minus');
+    expect(C.isPluralKey('common.money.dollars')).toBe(true);
+    expect(SPOKEN_MONEY_SAMPLES.valid[0]?.(320_000, { sign: 'plus' })).toBe('плюс 320 долларов');
+    expect(SPOKEN_MONEY_SAMPLES.invalid).toHaveLength(1);
   });
 });

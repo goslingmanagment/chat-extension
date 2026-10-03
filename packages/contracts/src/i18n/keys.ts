@@ -32,6 +32,7 @@ export const UI_TEXT_KEYS = [
   'common.saved', 'common.signIn', 'common.signOut', 'common.reloadTab', 'common.loading', 'common.empty', 'common.unknown', 'common.errorSource',
   'common.agoSuffix', 'common.dataAsOf', 'common.dataAsOfCap', 'common.archiveAsOf', 'common.coverage.complete', 'common.coverage.partial',
   'common.coverage.unknown', 'common.seconds', 'common.key.esc', 'common.age.now', 'common.age.minutes', 'common.age.hours', 'common.age.days',
+  'common.money.plus', 'common.money.minus',
   'dock.label', 'dock.mark.tooltip', 'dock.action.reply', 'dock.action.fix', 'dock.action.hi', 'dock.action.ping', 'dock.action.review',
   'dock.action.recap', 'dock.action.coach', 'dock.action.more', 'dock.action.tooltip', 'dock.action.unavailable', 'dock.action.busy',
   'dock.action.moreTooltip', 'dock.action.moreUnavailable', 'dock.badge.recapReady', 'dock.reason.quotaZero', 'dock.reason.notSignedIn',
@@ -163,7 +164,7 @@ export type UiTextKey = (typeof UI_TEXT_KEYS)[number];
 
 /** Plural messages (`PluralMessage`): the form is chosen by `Intl.PluralRules` on `{n}`. */
 export const UI_PLURAL_KEYS = [
-  'common.minutes', 'common.hours', 'common.days', 'common.messages', 'common.fans',
+  'common.minutes', 'common.hours', 'common.days', 'common.messages', 'common.fans', 'common.money.dollars',
   'dock.quota.lowTooltip',
   'result.meta.parts', 'result.meta.variants', 'result.meta.partsEach',
   'recap.archiveLag',

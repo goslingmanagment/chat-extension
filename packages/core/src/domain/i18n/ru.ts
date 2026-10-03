@@ -46,11 +46,14 @@ export const RU: I18nCatalog<'ru'> = {
   'common.age.minutes': '{n} мин',
   'common.age.hours': '{n} ч',
   'common.age.days': '{n} д',
+  'common.money.plus': 'плюс {amount}',
+  'common.money.minus': 'минус {amount}',
   'common.minutes': { one: '{n} минута', few: '{n} минуты', many: '{n} минут', other: '{n} минуты' },
   'common.hours': { one: '{n} час', few: '{n} часа', many: '{n} часов', other: '{n} часа' },
   'common.days': { one: '{n} день', few: '{n} дня', many: '{n} дней', other: '{n} дня' },
   'common.messages': { one: '{n} сообщение', few: '{n} сообщения', many: '{n} сообщений', other: '{n} сообщения' },
   'common.fans': { one: '{n} фан', few: '{n} фана', many: '{n} фанов', other: '{n} фана' },
+  'common.money.dollars': { one: '{n} доллар', few: '{n} доллара', many: '{n} долларов', other: '{n} доллара' },
 
   // ── Dock strip ──
   'dock.label': 'ChatGoose',
