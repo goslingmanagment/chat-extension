@@ -6,7 +6,20 @@
 import { signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import { useEffect, useMemo } from 'preact/hooks';
 
-import { selectorKey, type AppClient, type ValueSignal, type ViewOf, type ViewSelector } from '@cg/contracts/vm';
+import { type AppClient, type ValueSignal, type ViewOf, type ViewSelector } from '@cg/contracts/vm';
+
+/**
+ * The same string per selector as the contract's `selectorKey` (pinned by a
+ * test over every selector). Kept here because the contract's module builds
+ * zod schemas at load, and zod has no place in the first dock chunk (§11).
+ */
+export function viewKey(selector: ViewSelector): string {
+  if (selector.of === 'preview') return `preview:${selector.from}`;
+  if (selector.of === 'options') return `options:${selector.section}`;
+  if (selector.of === 'debug-prompt') return `debug-prompt:${selector.token}`;
+  if (selector.of === 'journal') return `journal:${selector.journal}`;
+  return selector.of;
+}
 
 export interface OwnedReadonlySignal<T> {
   readonly signal: ReadonlySignal<T>;
@@ -36,7 +49,7 @@ export function fromValueSignal<T>(source: ValueSignal<T>): OwnedReadonlySignal<
  * subscription follows the selector's key and ends with the component.
  */
 export function useViewFrom<S extends ViewSelector>(client: AppClient, selector: S): ReadonlySignal<Readonly<ViewOf<S>>> {
-  const key = selectorKey(selector);
+  const key = viewKey(selector);
   // Keyed by the selector key, not its object identity: a fresh literal each render is the same view.
   const owned = useMemo(() => viewSignal(client, selector), [client, key]);
   useEffect(() => () => owned.dispose(), [owned]);

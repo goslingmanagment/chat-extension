@@ -58,7 +58,7 @@ export {
   type KitFailure,
   type KitProviderProps,
 } from './context';
-export { fromValueSignal, useValueSignal, useViewFrom, viewSignal, type OwnedReadonlySignal } from './signals';
+export { fromValueSignal, useValueSignal, useViewFrom, viewKey, viewSignal, type OwnedReadonlySignal } from './signals';
 export { KitRoot, LiveRegion, useResultCap, type KitRootProps } from './root';
 export {
   capturePageErrors,
@@ -117,6 +117,7 @@ export { ToastItem, ToastStack, type ToastItemProps } from './components/Toast';
 export {
   CodeLine,
   CopyCodeButton,
+  DETAIL_MAX_CHARS,
   ErrorCard,
   StatusBanner,
   type ErrorCardProps,

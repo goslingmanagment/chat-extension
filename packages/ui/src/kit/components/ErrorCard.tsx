@@ -10,7 +10,7 @@
 import { type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
-import { CG_DETAIL_MAX_CHARS, type CgErrorView } from '@cg/contracts/errors';
+import { type CgErrorView } from '@cg/contracts/errors';
 import { type ActionButtonVM } from '@cg/contracts/vm';
 
 import { useAnnounce, useI18n, useKit } from '../context';
@@ -19,6 +19,13 @@ import { Dot } from './Indicators';
 import { useCountdownText } from './Values';
 
 export type ErrorTone = 'failure' | 'state';
+
+/**
+ * The technical line's limit, the contract's CG_DETAIL_MAX_CHARS (pinned by a
+ * test): read from there it would carry the error schemas, and zod with them,
+ * into the first dock chunk (§11).
+ */
+export const DETAIL_MAX_CHARS = 400;
 
 /** «ChatGoose · CG-QUOTA-DAILY». */
 export function CodeLine({ code, dot, class: extra }: { readonly code: string; readonly dot?: 'danger' | 'ring' | null; readonly class?: string }): JSX.Element {
@@ -62,7 +69,7 @@ export function CopyCodeButton({ code }: { readonly code: string }): JSX.Element
 
 function technicalLine(detail: string | undefined): string | null {
   if (detail === undefined || detail.trim() === '') return null;
-  return detail.length > CG_DETAIL_MAX_CHARS ? `${detail.slice(0, CG_DETAIL_MAX_CHARS - 1)}…` : detail;
+  return detail.length > DETAIL_MAX_CHARS ? `${detail.slice(0, DETAIL_MAX_CHARS - 1)}…` : detail;
 }
 
 export interface ErrorCardProps {
