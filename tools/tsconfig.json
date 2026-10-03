@@ -36,6 +36,9 @@
     },
     {
       "path": "../packages/core"
+    },
+    {
+      "path": "../packages/host-chatspace"
     }
   ]
 }
