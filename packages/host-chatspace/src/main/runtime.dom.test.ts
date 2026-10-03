@@ -386,6 +386,28 @@ describe('MAIN runtime — degraded composers', () => {
     expect(await h.call('insertGuarded', { intent: await openIntent(h, {}, 'next') })).toMatchObject({ state: 'rejected', needs: 'confirm-human-draft' });
   });
 
+  it('[RB-008] without the frame the editor is found next to the slot; typing (input events) moves the revision when the editor is not observed', async () => {
+    const h = await start((page) => {
+      composer = page.addComposer(ACC, FAN, { frame: false, editor: false });
+      let text = '';
+      Object.defineProperty(composer.prose, 'innerText', { configurable: true, get: () => text });
+      Object.defineProperty(composer.slot, '__omComposerBridge', {
+        configurable: true,
+        value: { setText: (value: string) => (text = value), insertText: (value: string) => (text += value), focus: () => undefined },
+      });
+    });
+    const before = await draft(h);
+    expect(before.provenance).toBe('empty');
+    composer.prose.textContent = 'x';
+    Object.defineProperty(composer.prose, 'innerText', { configurable: true, get: () => 'typed' });
+    composer.frame.className = 'composer-frame';
+    composer.prose.dispatchEvent(new Event('input', { bubbles: true }));
+    composer.frame.className = 'composer-shell';
+    const after = await draft(h);
+    expect(after.revision).toBeGreaterThan(before.revision);
+    expect(after.provenance).toBe('human-or-unknown');
+  });
+
   it('[RB-008] without the bridge the composer is not ready and the anchor is missing', async () => {
     const h = await start((page) => {
       composer = page.addComposer(ACC, FAN, { bridge: false });

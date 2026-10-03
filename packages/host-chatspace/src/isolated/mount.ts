@@ -212,8 +212,6 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     notify();
   });
   let firstSearch: MutationObserver | null = new MutationObserver(schedule);
-  firstSearch.observe(doc, { childList: true, subtree: true });
-  const firstSearchTimer = setTimeout(() => stopFirstSearch(), options.firstSearchMs ?? 30_000);
   const stopFirstSearch = (): void => {
     firstSearch?.disconnect();
     firstSearch = null;
@@ -222,7 +220,6 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   const onWindowResize = (): void => {
     if (kind === 'fixed-overlay') positionFixed();
   };
-  win.addEventListener('resize', onWindowResize);
 
   /** childList observers (no subtree) on `from` and its ancestors up to ANCESTOR_DEPTH or #app. */
   const watchFrom = (from: Element | null): void => {
@@ -387,6 +384,11 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     }
     return found;
   };
+
+  // Everything above is defined: only now may an observer call back into it.
+  firstSearch.observe(doc, { childList: true, subtree: true });
+  const firstSearchTimer = setTimeout(stopFirstSearch, options.firstSearchMs ?? 30_000);
+  win.addEventListener('resize', onWindowResize);
 
   return {
     dock,

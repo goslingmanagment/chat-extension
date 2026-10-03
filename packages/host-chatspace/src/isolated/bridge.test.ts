@@ -248,6 +248,24 @@ describe('a page script pretending to be MAIN (§14)', () => {
     }
   });
 
+  it('[RB-008] an event of an unknown type or a broken envelope is dropped and counted by reason', async () => {
+    const win = fakeWindow();
+    let port: MessagePort | null = null;
+    win.addEventListener('message', ((event: { data: { cg?: string }; ports: readonly MessagePort[] }) => {
+      if (event.data.cg === 'iso-hello') win.postMessage({ cg: 'main-ready', v: 1 }, '*');
+      if (event.data.cg === 'connect') port = event.ports[0] ?? null;
+    }) as unknown as EventListener);
+    const client = await connectMainBridge(win, 100);
+    cleanups.push(() => client.close());
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const send = (frame: unknown): void => (port as unknown as MessagePort).postMessage(frame);
+    send({ v: 1, kind: 'evt', t: 'gossip', documentEpoch: 'doc', seq: 1, payload: {} });
+    send({ v: 1, kind: 'evt', t: 'route', documentEpoch: 'doc', seq: 2 });
+    send({ v: 1, kind: 'other', t: 'route', documentEpoch: 'doc', seq: 3, payload: {} });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(client.stats().rejected).toEqual({ 'unknown-type': 1, envelope: 2 });
+  });
+
   it('a frame of another document epoch or an old sequence number is dropped', async () => {
     const win = fakeWindow();
     let n = 0;
