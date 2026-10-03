@@ -190,6 +190,19 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }], invalid: [{ ...pageFan, fanRef: 2002, personaDefinitionId: 'pdef_0123456789abcdef' }] },
     res: dto(H.sharedRecaps, { ...H.sharedRecaps, fullSavedToProfile: 'no' }),
   },
+  'recap.save': {
+    req: {
+      valid: [
+        { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200' },
+        { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200', opId: '00000000-0000-4000-8000-000000000100' },
+      ],
+      invalid: [pageFan, { ...pageFan, generationRef: 'not-a-ref' }, { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200', text: 'never the recap text' }],
+    },
+    res: {
+      valid: [{ state: 'saved', savedAt: '2026-10-03T10:00:00.000Z' }, { state: 'not-ready', savedAt: null }, { state: 'rejected', savedAt: null }],
+      invalid: [{ state: 'saved' }, { state: 'pending', savedAt: null }],
+    },
+  },
   'spenders.board': {
     req: { valid: [{ pageId: 11, period: '30d' }, { pageId: 11, period: 'lifetime', force: true }], invalid: [{ pageId: 11, period: 'year' }] },
     res: dto(H.spendersBoard, { ...H.spendersBoard, complete: undefined }),

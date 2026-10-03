@@ -225,6 +225,9 @@ export const EN: I18nCatalog<'en'> = {
   'recap.savedToast': 'Recap saved to the hub',
   'recap.unsavedToast': 'Recap is not saved to the hub yet',
   'recap.forFan': 'Recap for {name}',
+  'recap.checking': 'Checking saved recaps…',
+  'recap.build.short': 'Build short',
+  'recap.build.full': 'Build full',
   'review.meta': { one: 'last {n} message with {name}', other: 'last {n} messages with {name}' },
   'review.copy': 'Copy Review',
   'review.againTooltip': 'Review again',
@@ -471,6 +474,13 @@ export const EN: I18nCatalog<'en'> = {
   'coach.draft': 'Draft {n}',
   'coach.chip.situation': 'What is going on in the chat?',
   'coach.chip.offer': 'What to offer?',
+  'coach.chip.another': 'Another option',
+  'coach.chip.shorter': 'Make it shorter',
+  'coach.chip.refusal': 'What if he says no?',
+  'coach.block.situation': 'Situation',
+  'coach.block.missed': 'What was missed',
+  'coach.block.move': 'Next move',
+  'coach.block.risk': 'Risk',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Command palette',

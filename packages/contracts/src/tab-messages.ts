@@ -17,6 +17,7 @@ import {
   CountSchema,
   EpochMsSchema,
   EpochTokenSchema,
+  GenerationRefSchema,
   HubIntIdSchema,
   HubOriginSchema,
   IsoTimestampSchema,
@@ -303,6 +304,19 @@ export const TAB_REQUESTS = {
   // ── recaps ──
   'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: RecapStatusSchema, from: ANY },
   'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: SharedRecapsSchema, from: ANY },
+  /**
+   * 1.2.0 — «Сохранить ещё раз» (CG-RECAP-SAVE, UiAction RetryRecapSave) and
+   * the late save of a full recap opened from the hub (AI-068): one
+   * idempotent `profile/from-generation` link write (H-5), never a new
+   * generation. `not-ready` — the tab repeats by the §7 schedule while it is
+   * open; `rejected` — for good (CG-RECAP-SAVE). `opId` is the hub's
+   * `clientRequestId` when the tab knows the operation.
+   */
+  'recap.save': {
+    req: z.strictObject({ ...PageFan, generationRef: GenerationRefSchema, opId: z.optional(UuidSchema) }),
+    res: z.strictObject({ state: z.enum(['saved', 'not-ready', 'rejected']), savedAt: z.nullable(IsoTimestampSchema) }),
+    from: TAB,
+  },
 
   // ── hub data ──
   /** The whole board up to 1000 rows; the background pages through the hub (§8.5). */

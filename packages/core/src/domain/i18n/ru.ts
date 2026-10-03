@@ -233,6 +233,9 @@ export const RU: I18nCatalog<'ru'> = {
   'recap.savedToast': 'Recap сохранён в хаб',
   'recap.unsavedToast': 'Recap пока не сохранён в хаб',
   'recap.forFan': 'Recap для {name}',
+  'recap.checking': 'Проверяю сохранённые Recap…',
+  'recap.build.short': 'Собрать коротко',
+  'recap.build.full': 'Собрать полностью',
   'review.meta': {
     one: 'последнее {n} сообщение с {name}',
     few: 'последние {n} сообщения с {name}',
@@ -496,6 +499,13 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.draft': 'Черновик {n}',
   'coach.chip.situation': 'Что сейчас в чате?',
   'coach.chip.offer': 'Что предложить?',
+  'coach.chip.another': 'Другой вариант',
+  'coach.chip.shorter': 'Сделай короче',
+  'coach.chip.refusal': 'А если откажет?',
+  'coach.block.situation': 'Ситуация',
+  'coach.block.missed': 'Что упущено',
+  'coach.block.move': 'Следующий ход',
+  'coach.block.risk': 'Риск',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Палитра команд',
