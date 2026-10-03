@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./kit": "./src/kit/index.ts",
+    "./pages": "./src/pages/index.ts",
     "./spike": "./src/spike/index.ts"
   },
   "dependencies": {
