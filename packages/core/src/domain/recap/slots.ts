@@ -53,9 +53,29 @@ export interface RecapCopy {
 
 const slotKey = (key: RecapSlotKey, length: RecapLength): string => [key.hubOrigin, key.pageId, key.fanRef, key.personaDefinitionId, length].join('\u0000');
 
-/** A copy is replaced only by the same artifact or a newer revision of the slot. */
-export function supersedes(incoming: Pick<RecapCopy, 'id' | 'revision'>, current: Pick<RecapCopy, 'id' | 'revision'>): boolean {
+/**
+ * How long a recap this tab generated holds its slot against another
+ * artifact the hub lists: the hub may not list ours yet. After that the
+ * hub's listing is the truth (a copy never overrides the hub's).
+ */
+export const GENERATED_GRACE_MS = 5 * 60_000;
+
+type Comparable = Pick<RecapCopy, 'id' | 'revision'> & Partial<Pick<RecapCopy, 'source' | 'storedAt'>>;
+
+/**
+ * Whether `incoming` takes the slot `current` holds. The same artifact
+ * always does (its dossier state or text was read again). Revisions order
+ * only two copies read from the hub — both stamps are the hub's. A recap
+ * this tab has just generated is stamped by this computer's clock, which
+ * may be minutes off the hub's: it is the newest by the order of events and
+ * takes the slot whatever the stamps say; while it is fresh, a different
+ * artifact read from the hub (an older one — ours is not listed yet) does
+ * not push it out.
+ */
+export function supersedes(incoming: Comparable, current: Comparable): boolean {
   if (incoming.id === current.id) return true;
+  if (incoming.source === 'generated') return true;
+  if (current.source === 'generated') return (incoming.storedAt ?? 0) - (current.storedAt ?? 0) >= GENERATED_GRACE_MS;
   const a = Date.parse(incoming.revision);
   const b = Date.parse(current.revision);
   return Number.isNaN(a) || Number.isNaN(b) ? true : a >= b;

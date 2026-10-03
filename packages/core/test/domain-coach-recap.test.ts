@@ -23,6 +23,7 @@ import {
 } from '@cg/core/domain/coach';
 import {
   RECAP_SLOT_LIMITS,
+  GENERATED_GRACE_MS,
   RecapSlots,
   archiveLag,
   copiesOfShared,
@@ -380,6 +381,32 @@ describe('[REC-01] [AI-063] [AI-066] shared recaps as local copies', () => {
     expect(again.savedToProfile).toBe(true);
     expect(slots.put(slotKey, newer).markdown).toBe('new');
     expect(supersedes({ id: 'a', revision: 'not a date' }, { id: 'b', revision: '2026-10-03T10:00:00.000Z' })).toBe(true);
+  });
+
+  it('a recap generated here takes its slot by the order of events, not by two clocks that may disagree', () => {
+    const slots = new RecapSlots();
+    // The hub's saved recap is stamped a minute ahead of this computer's clock.
+    const hubCopy = copyOfShared(body(uuid(0x201), new Date(NOW_MS + 60_000).toISOString(), 'old'), 'full', true, { newLocalId: () => uuid(0x500), now: NOW_MS }) as RecapCopy;
+    slots.put(slotKey, hubCopy);
+    const generated = copyOfResult({ opId: uuid(0x100), feature: 'recap', endedAt: NOW_MS + 5_000, result: { kind: 'recap', markdown: 'new', coverage: null, shared: { generationRef: uuid(0x300) } } }, { newLocalId: () => uuid(0x501), now: NOW_MS + 5_000 }) as RecapCopy;
+    expect(Date.parse(generated.revision)).toBeLessThan(Date.parse(hubCopy.revision));
+    expect(slots.put(slotKey, generated).markdown).toBe('new');
+    // The hub does not list it yet and answers the older one again: ours stays…
+    expect(slots.put(slotKey, { ...hubCopy, storedAt: NOW_MS + 10_000 }).markdown).toBe('new');
+    // …and once the hub lists ours, the copy is the hub's, with the hub's stamp and our handle.
+    const listed = copyOfShared(body(uuid(0x300), new Date(NOW_MS + 66_000).toISOString(), 'new'), 'full', true, { newLocalId: () => uuid(0x502), now: NOW_MS + 20_000 }) as RecapCopy;
+    expect(slots.put(slotKey, listed)).toMatchObject({ source: 'hub', localId: uuid(0x501), opId: uuid(0x100), revision: new Date(NOW_MS + 66_000).toISOString() });
+    // Two hub copies: the hub's own stamps order them.
+    const another = copyOfShared(body(uuid(0x400), new Date(NOW_MS + 30_000).toISOString(), 'by someone else, earlier'), 'full', true, { newLocalId: () => uuid(0x503), now: NOW_MS + 30_000 }) as RecapCopy;
+    expect(slots.put(slotKey, another).markdown).toBe('new');
+
+    // A generated copy the hub never came to list yields to the hub's listing after its grace.
+    const other = new RecapSlots();
+    other.put(slotKey, generated);
+    expect(other.put(slotKey, { ...hubCopy, storedAt: generated.storedAt + GENERATED_GRACE_MS - 1 }).markdown).toBe('new');
+    expect(other.put(slotKey, { ...hubCopy, storedAt: generated.storedAt + GENERATED_GRACE_MS }).markdown).toBe('old');
+    // With this computer's clock ahead, a newer recap of another chatter is not held back for ever either.
+    expect(supersedes({ id: 'b', revision: '2026-10-03T10:00:00.000Z', source: 'hub', storedAt: GENERATED_GRACE_MS }, { id: 'a', revision: '2026-10-03T12:00:00.000Z', source: 'generated', storedAt: 0 })).toBe(true);
   });
 
   it('[AI-066] when the store is full the ten oldest entries go', () => {

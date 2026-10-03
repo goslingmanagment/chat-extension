@@ -839,6 +839,28 @@ describe('review', () => {
   });
 });
 
+describe('recap: a fresh build and the hub\'s clock', () => {
+  it('«Обновить» shows the recap it has just built even when this computer\'s clock is behind the hub\'s stamp of the saved one', async () => {
+    const ahead = new Date(NOW_MS + 60_000).toISOString();
+    const h = await start({ background: (bg) => (bg.sharedRecaps = { full: body({ generatedAt: ahead, text: 'Старый рекап.' }), short: null, fullSavedToProfile: true }) });
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    expect(h.recapView()).toMatchObject({ markdown: 'Старый рекап.', generatedAt: ahead });
+    h.script(recapStream(FULL_TEXT));
+    expect(await h.dispatch(h.recapView().refresh.action)).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(h.bg.hub.streams).toHaveLength(1);
+    // The paid result is what the sheet shows — not the older text under a «done».
+    expect(h.recapView()).toMatchObject({ state: 'done', markdown: FULL_TEXT });
+    expect(h.recapView().generatedAt).not.toBe(ahead);
+    // The hub does not list it yet and answers the older recap once more: the new one stays.
+    await h.dispatch({ type: 'ReloadView', selector: { of: 'recap.view' } });
+    await h.settle();
+    expect(h.bg.callsOf('recap.read')).toHaveLength(2);
+    expect(h.recapView().markdown).toBe(FULL_TEXT);
+  });
+});
+
 describe('recap: a build belongs to its chat', () => {
   it('«Ещё раз» of another chat\'s recap builds nothing for the chat that is open', async () => {
     const h = await start();
