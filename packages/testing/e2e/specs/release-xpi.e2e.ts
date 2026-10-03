@@ -28,8 +28,10 @@ describe('release XPI', () => {
     // From our own extension page (sender id = ours, top frame): the same
     // hello a content script sends; the event page wakes up and answers.
     const status = await browser.execute(async (portName) => {
-      const api = (globalThis as unknown as { browser: ExtensionApi }).browser;
+      const api = (globalThis as unknown as { browser?: ExtensionApi }).browser;
+      if (api?.runtime === undefined) return 'no extension API on this page';
       return new Promise<unknown>((resolve) => {
+        setTimeout(() => resolve('no answer from the background in 5 s'), 5000);
         const port = api.runtime.connect({ name: portName });
         port.onMessage.addListener((message) => {
           resolve(message);
