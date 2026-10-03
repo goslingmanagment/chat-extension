@@ -109,7 +109,7 @@ export function Button(props: ButtonProps): JSX.Element {
       >
         {props.icon === undefined ? null : <Icon name={props.icon} size={props.size === 'sm' ? 14 : 16} />}
         {props.iconOnly === true ? null : <span class="cg-btn__t">{props.label}</span>}
-        {busy ? <Spinner /> : keys === null || props.iconOnly === true ? null : <Kbd>{keys.display}</Kbd>}
+        {busy ? <Spinner /> : keys === null || unavailable || props.iconOnly === true ? null : <Kbd>{keys.display}</Kbd>}
         {props.trailing}
       </button>
       {tip.description}
@@ -210,7 +210,7 @@ export function StripButton(props: StripButtonProps): JSX.Element {
         {props.leading}
         <span class="cg-act__t">{props.label}</span>
         {props.trailing}
-        {keys === null ? null : <Kbd>{keys.display}</Kbd>}
+        {keys === null || unavailable ? null : <Kbd>{keys.display}</Kbd>}
         {props.ready === true ? <ReadyBadge /> : null}
       </button>
       {tip.description}

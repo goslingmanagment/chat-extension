@@ -6,7 +6,7 @@
 // sits above its button (z 5 inside the dock), aligned to its left or right.
 
 import { type ComponentChildren, type JSX, type TargetedFocusEvent, type TargetedKeyboardEvent } from 'preact';
-import { useEffect, useId, useRef } from 'preact/hooks';
+import { useEffect, useId, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { useKit } from '../context';
 import { focusQuietly, rovingIndex } from '../focus';
@@ -45,7 +45,8 @@ export function Menu(props: MenuProps): JSX.Element | null {
   const id = useId();
   const { open, items: entries, onClose, returnFocusTo } = props;
 
-  useEffect(() => {
+  // Before paint: the menu never shows with focus still on its button.
+  useLayoutEffect(() => {
     if (!open) return;
     const list = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-cg-menuitem]') ?? [])];
     const checked = entries.findIndex((item) => item.checked === true);
