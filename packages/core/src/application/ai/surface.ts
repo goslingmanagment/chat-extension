@@ -2,7 +2,10 @@
 // built from the workspace on demand, kept until the workspace changes, and
 // handed out as the same object while it reads the same — so a subscriber is
 // told only when something it shows really changed, and `getSnapshot` is
-// stable between changes.
+// stable between changes. «Reads the same» is decided by walking the two
+// views, not by serialising them: a part a controller handed out again as
+// the very same object (a finished Coach exchange) is equal at once, so a
+// stream batch does not pay for the whole dialog (§11).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type HumanCause } from '@cg/contracts/ids';
@@ -37,8 +40,40 @@ function route(handlers: ActionHandlers, action: UiAction, cause: CauseKind): Pr
 
 interface Cached {
   version: number;
-  json: string;
   view: unknown;
+}
+
+const defined = (record: Record<string, unknown>): number => {
+  let count = 0;
+  for (const key in record) if (record[key] !== undefined) count += 1;
+  return count;
+};
+
+/**
+ * Whether two view models read the same. Views are plain data (strings,
+ * numbers, booleans, null, arrays, records); a key holding `undefined`
+ * counts as absent, as it does on the wire. The same object is equal
+ * without a walk.
+ */
+export function sameView(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const aList = Array.isArray(a);
+  if (aList !== Array.isArray(b)) return false;
+  if (aList) {
+    const other = b as readonly unknown[];
+    if (a.length !== other.length) return false;
+    for (let i = 0; i < a.length; i += 1) if (!sameView(a[i], other[i])) return false;
+    return true;
+  }
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  if (defined(left) !== defined(right)) return false;
+  for (const key in left) {
+    const value = left[key];
+    if (value !== undefined && !sameView(value, right[key])) return false;
+  }
+  return true;
 }
 
 export function createSurface(ws: AiWorkspace, spec: SurfaceSpec): AiController {
@@ -50,12 +85,11 @@ export function createSurface(ws: AiWorkspace, spec: SurfaceSpec): AiController 
     const cached = cache.get(key);
     if (cached !== undefined && cached.version === ws.version) return { view: cached.view, changed: false };
     const view = spec.build(selector);
-    const json = JSON.stringify(view);
-    if (cached !== undefined && cached.json === json) {
+    if (cached !== undefined && sameView(cached.view, view)) {
       cached.version = ws.version;
       return { view: cached.view, changed: false };
     }
-    cache.set(key, { version: ws.version, json, view });
+    cache.set(key, { version: ws.version, view });
     return { view, changed: cached !== undefined };
   };
 

@@ -6,8 +6,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { OP_LIMITS, STORAGE_LIMITS, chatKeyOf, type AiQuotaSnapshot, type OpView, type RecapBody } from '@cg/contracts';
-import { CHAT_UI_MAX, RECAP_UI_CHATS_MAX, RESYNC_RETRY_MS, WATCHED_CHATS_MAX } from '@cg/core/application/ai';
+import { OP_LIMITS, STORAGE_LIMITS, chatKeyOf, type AiQuotaSnapshot, type CoachVM, type OpView, type RecapBody } from '@cg/contracts';
+import { CHAT_UI_MAX, RECAP_UI_CHATS_MAX, RESYNC_RETRY_MS, WATCHED_CHATS_MAX, sameView } from '@cg/core/application/ai';
 import { RECAP_SLOT_LIMITS } from '@cg/core/domain/recap';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
@@ -434,3 +434,85 @@ describe('answers that arrive after their sign-in or their revision is gone', ()
     expect(HOST_IDS.fan).not.toBe(previewChat.platformFanId);
   });
 });
+
+describe('the cost of a change (§11)', () => {
+  it('a keystroke that changes nothing a view reads rebuilds no view; the first and the last one do', async () => {
+    const h = await start();
+    h.mount({ of: 'coach' });
+    await h.settle();
+    const ws = h.ai.workspace;
+    const empty = ws.version;
+    h.host.type('h');
+    // Empty → the person's draft: Fix and «приложить мой ответ» depend on it.
+    expect(ws.version).toBe(empty + 1);
+    await h.settle();
+    expect(h.dock().actions.fix.enabled).toBe(true);
+    const typing = ws.version;
+    for (const text of ['he', 'hey', 'hey ', 'hey y', 'hey yo', 'hey you']) h.host.type(text);
+    await h.settle();
+    expect(ws.version).toBe(typing);
+    // What a click reads is still the field as it is now.
+    h.script(h.streamOf('improve-draft', ['Hey you']));
+    await h.generate('fix');
+    expect((h.bg.callsOf('op.start')[0] as { draft: { text: string } }).draft.text).toBe('hey you');
+    await h.finish();
+    const before = ws.version;
+    h.host.type('');
+    expect(ws.version).toBe(before + 1);
+    await h.settle();
+    expect(h.dock().actions.fix.enabled).toBe(false);
+  });
+
+  it('views are compared as data, and the same object is equal without a walk', () => {
+    const part = { text: 'hey', insert: 'idle', error: null };
+    expect(sameView({ a: 1, parts: [part], when: null }, { a: 1, parts: [{ ...part }], when: null })).toBe(true);
+    expect(sameView({ a: 1, parts: [part] }, { a: 1, parts: [{ ...part, insert: 'done' }] })).toBe(false);
+    expect(sameView({ a: 1, parts: [part] }, { a: 1, parts: [part, part] })).toBe(false);
+    expect(sameView({ a: 1 }, { a: 1, b: 2 })).toBe(false);
+    expect(sameView({ a: 1, b: 2 }, { a: 1 })).toBe(false);
+    // A key holding `undefined` is absent, as it is on the wire.
+    expect(sameView({ a: 1, b: undefined }, { a: 1 })).toBe(true);
+    expect(sameView({ a: 1 }, { a: 1, b: undefined })).toBe(true);
+    expect(sameView({ a: null }, { a: undefined })).toBe(false);
+    expect(sameView([1, 2], { 0: 1, 1: 2 })).toBe(false);
+    expect(sameView('a', 'a')).toBe(true);
+    expect(sameView(0, false)).toBe(false);
+    expect(sameView(null, {})).toBe(false);
+    // A getter that would throw is never read when both sides are the very same object.
+    const trap = Object.defineProperty({}, 'x', { enumerable: true, get: () => { throw new Error('walked'); } });
+    expect(sameView({ big: trap }, { big: trap })).toBe(true);
+  });
+
+  it('a finished Coach exchange is built once: an unrelated change hands the same object out, a change of its own parts a new one', async () => {
+    const h = await start();
+    h.mount({ of: 'coach' });
+    const fence = (body: string): string => ['```draft', body, '```'].join('\n');
+    const coach = (): CoachVM => h.ai.coach.getSnapshot({ of: 'coach' }) as CoachVM;
+    for (const question of ['first', 'second']) {
+      h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('coach-chat') }, delta(['Совет.', fence('hey you [NEXT] how are you')].join('\n')), doneStep] });
+      await h.generate('coach', { question });
+      await h.finish();
+    }
+    const [first, second] = coach().turns;
+    // A stream in the dock, a redraw, typing: the dialog is not rebuilt.
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply') }, delta('a', 100), delta('b', 100), doneStep] });
+    await h.generate('reply');
+    await h.clock.advance(100);
+    h.host.type('typing');
+    await h.settle();
+    expect(coach().turns[0]).toBe(first);
+    expect(coach().turns[1]).toBe(second);
+    await h.finish();
+    // A part of the second answer is copied: that exchange reads differently, the first is the same object.
+    await h.dispatch({ type: 'Copy', artifactHandle: second?.answer?.drafts[0]?.parts[1]?.copyHandle as string });
+    expect(coach().turns[0]).toBe(first);
+    expect(coach().turns[1]).not.toBe(second);
+    expect(coach().turns[1]?.answer?.drafts[0]?.parts[1]?.copy).toBe('done');
+    // Copy-only mode changes every part.
+    h.host.setComposer({ hidden: true });
+    await h.settle();
+    expect(coach().turns[0]).not.toBe(first);
+    expect(coach().turns[0]?.answer?.drafts[0]?.parts[0]?.insertBlocked?.id).toBe('fan-blocked');
+  });
+});
+

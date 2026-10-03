@@ -15,7 +15,7 @@ import { type ChatKey } from '@cg/contracts/ids';
 import { STORAGE_LIMITS } from '@cg/contracts/limits';
 import { type CoachAnswer, type CoachTurn } from '@cg/contracts/ops';
 
-import { serializeCoachHistory } from './history';
+import { replayedCount, serializeCoachHistory } from './history';
 
 export interface CoachSessionLimits {
   readonly sessions: number;
@@ -310,6 +310,6 @@ export function historyFor(session: CoachSession, limit: number): CoachTurn[] {
 /** AI-094: turns above the memory boundary — finished exchanges that are no longer replayed. */
 export function outsideMemory(session: CoachSession, limit: number): ReadonlySet<string> {
   const exchanges = exchangesOf(session);
-  const kept = historyFor(session, limit).length;
+  const kept = replayedCount(exchanges, limit);
   return new Set(exchanges.slice(0, Math.max(0, exchanges.length - kept)).map((exchange) => exchange.turnId));
 }

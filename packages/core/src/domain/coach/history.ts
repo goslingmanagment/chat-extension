@@ -38,10 +38,22 @@ export interface ReplayableExchange {
   readonly answerRaw: string;
 }
 
+/** The exchanges that would be replayed: the last `limit` ones that have both a question and an answer. */
+function replayed<T extends ReplayableExchange>(exchanges: readonly T[], limit: number): T[] {
+  return exchanges
+    .slice(-clampHistoryLimit(limit))
+    .slice(-COACH_LIMITS.historyMaxTurns)
+    .filter((exchange) => exchange.question.trim().length > 0 && exchange.answerRaw.length > 0);
+}
+
+/** How many exchanges `serializeCoachHistory` would send — without projecting a single answer (a view asks this on every redraw). */
+export function replayedCount(exchanges: readonly ReplayableExchange[], limit: number): number {
+  return replayed(exchanges, limit).length;
+}
+
 /** The last `limit` exchanges for `coachHistory`, each within the hub body's bounds. */
 export function serializeCoachHistory(exchanges: readonly ReplayableExchange[], limit: number): CoachTurn[] {
-  const kept = exchanges.slice(-clampHistoryLimit(limit)).slice(-COACH_LIMITS.historyMaxTurns);
-  return kept.flatMap((exchange) => {
+  return replayed(exchanges, limit).flatMap((exchange) => {
     const question = exchange.question.trim().slice(0, COACH_LIMITS.questionMaxChars);
     const answer = projectCoachAnswer(exchange.answerRaw).slice(0, COACH_LIMITS.answerMaxChars);
     return question.length === 0 || answer.length === 0 ? [] : [{ question, answer }];

@@ -517,7 +517,7 @@ describe('recap: the status line of the hub and the archive lag', () => {
     expect(h.dock().actions.recap.badge).toBeNull();
     // Minutes with the dock mounted and redrawn (within the ten the answer is kept): still the one read.
     for (let i = 0; i < 9; i += 1) {
-      h.host.type(`typing ${i}`);
+      h.ai.workspace.bump();
       await h.clock.advance(60_000);
     }
     expect(h.bg.callsOf('recap.status')).toHaveLength(1);

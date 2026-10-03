@@ -61,6 +61,8 @@ const OPENING_CHIPS: readonly { readonly key: I18nKey; readonly preset: 'situati
   { key: 'coach.chip.situation', preset: 'situation' },
   { key: 'coach.chip.offer', preset: null },
 ];
+/** Built views of exchanges of other dialogs are dropped once this many pile up beyond the shown feed. */
+const COACH_BUILT_SLACK = 50;
 /** AI-094: follow-ups under the latest answer. */
 const FOLLOW_UP_CHIPS: readonly I18nKey[] = ['coach.chip.another', 'coach.chip.shorter', 'coach.chip.refusal'];
 
@@ -294,8 +296,39 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     return { type: 'Generate', targetHandle: handle, feature: 'coach', options: turn.preset === null ? { question: turn.question } : { preset: turn.preset } };
   }
 
-  function exchangeVm(exchange: CoachExchange, outside: ReadonlySet<string>): CoachTurnVM {
+  /**
+   * A finished exchange reads the same until something its parts show
+   * changes: an insert or a copy of one of them, the copy-only mode, the
+   * fan's script (the language gate), the memory boundary, the language. Its
+   * view is built once per such state and handed out again as the same
+   * object, so a stream batch or a redraw does not rebuild — or compare —
+   * a long dialog (§11).
+   */
+  const built = new Map<string, { readonly state: string; readonly vm: CoachTurnVM }>();
+
+  function exchangeState(exchange: CoachExchange, outside: boolean, record: OpRecord | null, situation: Situation): string {
+    const state: unknown[] = [outside, record !== null, i18n.language, situation.copyOnly?.code ?? '', situation.chat === null ? '' : ws.fanScript(situation.chat.key)];
+    for (const draft of exchange.answer.drafts) {
+      for (let index = 0; index < draft.parts.length; index += 1) {
+        const part = { variant: draft.index, index };
+        const insert = ws.inserts.partState(exchange.opId, part);
+        state.push(insert.insert, insert.insertError?.code ?? '', ws.copyState(ws.partHandle(exchange.opId, part)));
+      }
+    }
+    return state.join('|');
+  }
+
+  function exchangeVm(exchange: CoachExchange, outside: ReadonlySet<string>, situation: Situation): CoachTurnVM {
     const record = ws.ops.get(exchange.opId);
+    const state = exchangeState(exchange, outside.has(exchange.turnId), record, situation);
+    const known = built.get(exchange.turnId);
+    if (known !== undefined && known.state === state) return known.vm;
+    const vm = buildExchange(exchange, outside, record);
+    built.set(exchange.turnId, { state, vm });
+    return vm;
+  }
+
+  function buildExchange(exchange: CoachExchange, outside: ReadonlySet<string>, record: OpRecord | null): CoachTurnVM {
     const answer = exchange.answer;
     return {
       id: exchange.turnId,
@@ -407,8 +440,14 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const canAsk = askReason === null;
 
     const outside = session === null ? new Set<string>() : outsideMemory(session, historyLimit);
-    const turns: CoachTurnVM[] = (session?.feed ?? []).map((item) => (item.kind === 'exchange' ? exchangeVm(item, outside) : failedVm(item, chat?.handle ?? null, canAsk)));
+    const feed = session?.feed ?? [];
+    const turns: CoachTurnVM[] = feed.map((item) => (item.kind === 'exchange' ? exchangeVm(item, outside, situation) : failedVm(item, chat?.handle ?? null, canAsk)));
     if (pending !== null) turns.push(pendingVm(pending));
+    // Views of exchanges no dialog shows any more are not kept.
+    if (built.size > feed.length + COACH_BUILT_SLACK) {
+      const shown = new Set(feed.map((item) => item.turnId));
+      for (const turnId of [...built.keys()]) if (!shown.has(turnId)) built.delete(turnId);
+    }
 
     // AI-095: the recap the Coach stands on — the fresher of the two shared slots.
     const slots = ready === null ? { short: null, full: null } : ws.recaps.both(ws.slotKey(ready));

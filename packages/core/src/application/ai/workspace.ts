@@ -147,7 +147,9 @@ export class AiWorkspace {
   private readonly expanded = new Set<string>();
   private readonly copies = new Map<string, Exclude<CopyState, 'idle'>>();
   private readonly shown = new Set<string>();
-  private readonly tails = new Map<ChatKey, { tail: LiveTextTail | null; dirty: boolean; reading: boolean; known: boolean }>();
+  private readonly tails = new Map<ChatKey, { tail: LiveTextTail | null; dirty: boolean; reading: boolean; known: boolean; script: FanScript | null }>();
+  /** What the views read of the composer: a keystroke that changes none of it rebuilds nothing. */
+  private composerSeen = '';
   private readonly listeners = new Set<() => void>();
   private readonly opListeners = new Set<(event: OpStoreEvent) => void>();
   private readonly startListeners = new Set<(record: OpRecord) => void>();
@@ -217,7 +219,19 @@ export class AiWorkspace {
             this.hostReload = true;
             this.bump();
             break;
-          case 'composer':
+          case 'composer': {
+            // Views read whether there is a composer for the chat, whether it is ready and shown, and whether
+            // the draft is empty, human or ours — never its text or revision. A keystroke that changes none of
+            // that rebuilds no view (§11: typing must not cost a redraw of our panels).
+            const composer = event.composer;
+            const seen = composer === null ? 'none' : [chatKeyOf(composer.chat), composer.instanceId, composer.ready, composer.hidden, composer.draft.provenance].join('|');
+            // The next look at the situation still reads the host afresh.
+            this.situationCache = null;
+            if (seen === this.composerSeen) break;
+            this.composerSeen = seen;
+            this.bump();
+            break;
+          }
           case 'accounts':
           case 'incoming':
           case 'coverage':
@@ -598,7 +612,7 @@ export class AiWorkspace {
     if (chat === null || chat.key !== key) return null;
     let entry = this.tails.get(key);
     if (entry === undefined) {
-      entry = { tail: null, dirty: true, reading: false, known: false };
+      entry = { tail: null, dirty: true, reading: false, known: false, script: null };
       this.tails.set(key, entry);
     }
     if (entry.dirty && !entry.reading && chat.identity !== null) {
@@ -612,14 +626,20 @@ export class AiWorkspace {
           slot.reading = false;
           slot.known = true;
           slot.tail = tail;
+          slot.script = null;
           this.bump();
         });
     }
     return entry.tail;
   }
 
+  /** The script the fan writes in, told from the page tail once per read of it. */
   fanScript(key: ChatKey): FanScript {
-    return fanScriptOf(this.pageTail(key));
+    const tail = this.pageTail(key);
+    const entry = this.tails.get(key);
+    if (entry === undefined) return fanScriptOf(tail);
+    entry.script ??= fanScriptOf(tail);
+    return entry.script;
   }
 
   /**
