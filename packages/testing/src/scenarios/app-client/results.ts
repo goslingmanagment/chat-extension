@@ -5,6 +5,7 @@ import {
   type ActionButtonVM,
   type CgErrorView,
   type FeatureId,
+  type I18nKey,
   type Msg,
   type OpState,
   type PartVM,
@@ -18,7 +19,7 @@ import {
 
 import { FANS, handles, msg, type ScenarioCtx } from './base';
 
-const STAGE_KEYS: Record<StageId, string> = {
+const STAGE_KEYS: Record<StageId, I18nKey> = {
   context: 'result.stage.context',
   thinking: 'result.stage.thinking',
   writing: 'result.stage.writing',
@@ -130,7 +131,8 @@ export const meta = {
   single: (): Msg => msg('result.meta.single'),
   onePart: (): Msg => msg('result.meta.onePart'),
   forFan: (name: string): Msg => msg('result.meta.forFan', { name }),
-  variants: (n: number, m: number): Msg => msg('result.meta.variants', { n, m }),
+  variants: (n: number): Msg => msg('result.meta.variants', { n }),
+  partsEach: (n: number): Msg => msg('result.meta.partsEach', { n }),
   byDraft: (): Msg => msg('result.meta.byYourDraft'),
   unparsed: (): Msg => msg('result.meta.unparsed'),
   sent: (sent: number, total: number): Msg => msg('result.meta.sentProgress', { sent, total }),

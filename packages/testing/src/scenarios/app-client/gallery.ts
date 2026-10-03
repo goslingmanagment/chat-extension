@@ -10,6 +10,7 @@ import {
   VM_STATE_SUPPORT,
   type CgCode,
   type DockStatus,
+  type I18nKey,
   type PartialGap,
   type UiAction,
   type ViewSelector,
@@ -54,23 +55,23 @@ const ERROR_CODE: Partial<Record<ViewSelector['of'], CgCode>> = {
   journal: 'CG-STORAGE-READ',
 };
 
-const EMPTY_KEY: Partial<Record<ViewSelector['of'], string>> = {
-  'recap.picker': 'recap.empty',
+const EMPTY_KEY: Partial<Record<ViewSelector['of'], I18nKey>> = {
+  'recap.picker': 'common.empty',
   'recap.view': 'cg.recapNotFound.title',
   review: 'cg.gateHistory.title',
-  coach: 'coach.empty',
-  'spenders.board': 'spenders.notConfigured',
-  'spenders.stats': 'stats.empty',
+  coach: 'coach.empty.title',
+  'spenders.board': 'spenders.empty',
+  'spenders.stats': 'stats.noData',
   preview: 'preview.feed.empty',
-  newcomers: 'newcomers.empty',
-  'fan-panel': 'fanPanel.chooseChat',
-  palette: 'palette.empty',
+  newcomers: 'common.empty',
+  'fan-panel': 'fanPanel.empty.title',
+  palette: 'common.empty',
   'quick-jump': 'quickJump.empty',
-  toasts: 'toasts.none',
-  popup: 'popup.noChatSpace',
-  options: 'options.empty',
-  'debug-prompt': 'debugPrompt.echoOff',
-  journal: 'journal.empty',
+  toasts: 'common.empty',
+  popup: 'popup.pill.chatspace.closed',
+  options: 'common.empty',
+  'debug-prompt': 'common.empty',
+  journal: 'common.empty',
 };
 
 const COVERAGE_GAPS = (ctx: ScenarioCtx): PartialGap[] => [
@@ -99,7 +100,7 @@ export function viewState(ctx: ScenarioCtx, selector: ViewSelector, state: VmVie
   const reload: UiAction = { type: 'ReloadView', selector };
   switch (state) {
     case 'loading':
-      return views.loading(ctx.now - 400, selector.of === 'newcomers' ? msg('newcomers.scan.reading') : selector.of === 'recap.picker' ? msg('recap.checking') : null);
+      return views.loading(ctx.now - 400, selector.of === 'newcomers' ? msg('common.loading') : selector.of === 'recap.picker' ? msg('common.loading') : null);
     case 'ready':
       return views.ready();
     case 'empty':
@@ -140,7 +141,7 @@ export function galleryEntry(ctx: ScenarioCtx, selector: ViewSelector, state: Vm
     case 'preview':
       return entry(selector, preview(ctx, selector.from, view));
     case 'newcomers':
-      return entry(selector, newcomers(ctx, view, state === 'ready' || state === 'partial' || state === 'offline' ? defaultNewcomerRows(ctx) : [], state === 'partial' ? { incomplete: msg('newcomers.incomplete') } : {}));
+      return entry(selector, newcomers(ctx, view, state === 'ready' || state === 'partial' || state === 'offline' ? defaultNewcomerRows(ctx) : [], state === 'partial' ? { incomplete: msg('common.coverage.partial') } : {}));
     case 'fan-panel':
       return entry(selector, fanPanel(ctx, view));
     case 'palette':

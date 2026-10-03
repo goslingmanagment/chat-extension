@@ -131,7 +131,7 @@ export function dock(ctx: ScenarioCtx, status: DockStatus = 'ready', options: Do
 
 /** Outside a chat: no strip at all (UI-012). */
 export function dockOutsideChat(ctx: ScenarioCtx): DockVM {
-  return { ...dock(ctx), view: views.empty({ key: 'dock.empty.noChat' }), visible: false, targetHandle: null };
+  return { ...dock(ctx), view: views.empty({ key: 'common.empty' }), visible: false, targetHandle: null };
 }
 
 export function running(ctx: ScenarioCtx, fan: FanFixture, feature: RunningOpVM['feature'], secondsAgo: number, opId: string, inThisTab = true): RunningOpVM {

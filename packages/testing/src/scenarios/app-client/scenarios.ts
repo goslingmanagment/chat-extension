@@ -7,7 +7,7 @@
 // uncertain), short and full Recap, variants and parts, every X8 state, debug
 // on and off, RU/EN, light and dark.
 
-import { type PartVM, type PreviewSendView, type ResultVM, type UiLanguage, type HotkeyPlatform, type ColorScheme } from '@cg/contracts';
+import { type PartVM, type PreviewSendView, type ResultVM, type Locale, type HotkeyPlatform, type ColorScheme } from '@cg/contracts';
 
 import { button, cgError, ctxOf, FANS, handles, iso, MIN, msg, NOW, PERSONA, reason, uuid, views, type ScenarioCtx } from './base';
 import { dock, dockActions, running } from './dock';
@@ -22,7 +22,7 @@ interface Meta {
   readonly id: string;
   readonly title: string;
   readonly covers: readonly ScenarioTopic[];
-  readonly lang?: UiLanguage;
+  readonly lang?: Locale;
   readonly platform?: HotkeyPlatform;
   readonly scheme?: ColorScheme;
   readonly theme?: AppClientScenario['theme'];
@@ -206,7 +206,7 @@ const GENERATION: AppClientScenario[] = [
   make({ id: 'late-result', title: 'A result arrives for another chat: «AI готово · fan»', covers: ['late-result', 'toasts'] }, (ctx) => ({
     views: [
       entry(DOCK, dock(ctx, 'ready', { runningElsewhere: [running(ctx, FANS.theodore, 'reply', 14, OP.late)] })),
-      entry({ of: 'toasts' }, toasts(views.empty(msg('toasts.none')), [])),
+      entry({ of: 'toasts' }, toasts(views.empty(msg('common.empty')), [])),
     ],
     steps: [
       {
@@ -280,7 +280,7 @@ const GENERATION: AppClientScenario[] = [
             feature: 'hi',
             state: 'done',
             variants: variants(OP.hi, HI_TEXTS, (v, i) => (v === 0 && i === 0 ? { insert: 'done', collapsed: true, next: false } : v === 0 && i === 1 ? { next: true } : { next: false })),
-            meta: [meta.variants(3, 2), meta.inserted(1, 2)],
+            meta: [meta.variants(3), meta.partsEach(2), meta.inserted(1, 2)],
           }),
         }),
       ),
@@ -371,7 +371,7 @@ const GENERATION: AppClientScenario[] = [
 
 const NINE: readonly PreviewSendView[] = [
   { s: 'available' },
-  { s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.CG-SEND-HOST') },
+  { s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.host') },
   { s: 'held-stale', at: iso(NOW - MIN) },
   { s: 'queued' },
   { s: 'sending' },
@@ -495,8 +495,8 @@ const LEASE: AppClientScenario[] = [
         withResult(
           preview(ctx, 'newcomers', views.ready(), { claim: { s: 'expired', error: cgError(ctx, 'CG-CLAIM-EXPIRED') } }),
           previewResult(ctx, OP.greet, 'hi', HI_TEXTS[0] ?? [], [
-            { s: 'unavailable', code: 'CG-CLAIM-EXPIRED', reason: msg('send.reason.CG-CLAIM-EXPIRED') },
-            { s: 'unavailable', code: 'CG-CLAIM-EXPIRED', reason: msg('send.reason.CG-CLAIM-EXPIRED') },
+            { s: 'unavailable', code: 'CG-CLAIM-EXPIRED', reason: msg('send.reason.claimExpired') },
+            { s: 'unavailable', code: 'CG-CLAIM-EXPIRED', reason: msg('send.reason.claimExpired') },
           ]),
         ),
       ),
@@ -539,7 +539,7 @@ const LEASE: AppClientScenario[] = [
         withResult(
           preview(ctx, 'newcomers', views.ready(), { claim: claimMine(ctx, FANS.tomasz), greeting: { s: 'sending', sent: 1, total: 3 } }),
           previewResult(ctx, OP.greet, 'hi', ['Hi Tomasz, welcome!', 'So happy you are here', 'I have a little gift for you'], [{ s: 'sent', at: iso(NOW - MIN) }, { s: 'queued' }, { s: 'available' }], {
-            meta: [msg('result.meta.oneVariant', { n: 1, m: 3 }), meta.sent(1, 3)],
+            meta: [meta.variants(1), meta.parts(3), meta.sent(1, 3)],
           }),
           { unread: 'read-after-send' },
         ),
@@ -679,8 +679,8 @@ const LOOKS: AppClientScenario[] = [
             save: { s: 'saved', revision: 7 },
             checklist: {
               steps: [
-                { id: 'sign-in', label: msg('onboarding.signIn'), done: true, action: null },
-                { id: 'consent', label: msg('onboarding.consent'), done: false, action: button('onboarding.consent.request', { type: 'RequestPermission', kind: 'data-collection' }) },
+                { id: 'sign-in', label: msg('settings.onboarding.signIn'), done: true, action: null },
+                { id: 'consent', label: msg('settings.onboarding.consent'), done: false, action: button('settings.status.consentAsk', { type: 'RequestPermission', kind: 'data-collection' }) },
               ],
               dismiss: { type: 'SetPreference', key: 'onboarding.checklistDismissed', value: true },
             },

@@ -5,8 +5,10 @@
 import {
   CLAIM_STATES,
   CgErrorViewSchema,
+  LOCALES,
+  cgEntry,
   DOCK_STATUSES,
-  GREETING_STATES,
+  GREETING_STATUSES,
   PREVIEW_SEND_STATES,
   REVIEW_SECTION_KINDS,
   UI_ACTION_TYPES,
@@ -21,6 +23,7 @@ import {
   type ViewName,
   type ViewSelector,
 } from '@cg/contracts';
+import { createTranslator } from '@cg/core/domain/i18n';
 import { describe, expect, it } from 'vitest';
 
 import { ctxOf } from './base';
@@ -87,7 +90,15 @@ describe('AppClient scenarios', () => {
     for (const e of ALL)
       walk(e.vm, (node) => {
         if (typeof node['code'] === 'string' && typeof node['title'] === 'string' && typeof node['body'] === 'string') {
-          if (!CgErrorViewSchema.safeParse(node).success || node['title'] === node['code']) bad.push(`${e.selector.of}: ${String(node['code'])}`);
+          const view = CgErrorViewSchema.safeParse(node);
+          const entry = view.success ? cgEntry(view.data.code) : null;
+          const fromCatalog =
+            entry !== null &&
+            LOCALES.some((locale) => {
+              const t = createTranslator(locale);
+              return node['title'] === t.text(entry.title) && node['body'] === t.text(entry.body);
+            });
+          if (!fromCatalog) bad.push(`${e.selector.of}: ${String(node['code'])}`);
         }
       });
     expect(bad).toEqual([]);
@@ -197,7 +208,7 @@ describe('preview sends (X8)', () => {
       if (p.claim !== null) claims.add(p.claim.s);
     }
     for (const e of of('newcomers')) for (const row of (e.vm as { rows: { greeting: { s: string } }[] }).rows) greetings.add(row.greeting.s);
-    expect(GREETING_STATES.filter((s) => !greetings.has(s))).toEqual([]);
+    expect(GREETING_STATUSES.filter((s) => !greetings.has(s))).toEqual([]);
     const required = CLAIM_STATES.filter((s) => s !== 'row-changed');
     expect(required.filter((s) => !claims.has(s))).toEqual([]);
   });

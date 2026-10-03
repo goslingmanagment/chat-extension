@@ -14,7 +14,8 @@ import {
   type HotkeyPlatform,
   type UiAction,
   type UiActionType,
-  type UiLanguage,
+  type Locale,
+  type UiTheme,
   type ViewOf,
   type ViewSelector,
 } from '@cg/contracts';
@@ -104,12 +105,12 @@ export interface AppClientScenario {
   readonly id: string;
   readonly title: string;
   readonly covers: readonly ScenarioTopic[];
-  readonly language: UiLanguage;
+  readonly language: Locale;
   readonly platform: HotkeyPlatform;
   /** The resolved scheme our surfaces render in. */
   readonly scheme: ColorScheme;
   /** The `ui.theme` setting behind it. */
-  readonly theme: 'host' | 'system' | 'light' | 'dark';
+  readonly theme: UiTheme;
   readonly debug: boolean;
   readonly now: number;
   readonly views: readonly ScenarioViewEntry[];

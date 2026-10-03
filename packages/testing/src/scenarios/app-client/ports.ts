@@ -15,6 +15,7 @@ import {
   type DurationStyle,
   type FocusReturn,
   type I18n,
+  type I18nKey,
   type I18nParam,
   type I18nParams,
   type MoneyFormat,
@@ -24,7 +25,7 @@ import {
   type TimeStyle,
   type ToastPort,
   type ToastRequest,
-  type UiLanguage,
+  type Locale,
   type UiPaintMetric,
   type ValueSignal,
   CATALOG_ACTION_IDS,
@@ -45,14 +46,14 @@ export function formatMoneyMills(mills: number | null, format: MoneyFormat = {})
   return `${format.sign === 'plus' ? '+' : ''}$${digits}`;
 }
 
-const AGE_UNITS: Record<UiLanguage, { now: string; min: string; h: string; d: string }> = {
+const AGE_UNITS: Record<Locale, { now: string; min: string; h: string; d: string }> = {
   ru: { now: 'сейчас', min: 'мин', h: 'ч', d: 'д' },
   en: { now: 'now', min: 'min', h: 'h', d: 'd' },
 };
 
 const toMs = (at: number | string): number => (typeof at === 'number' ? at : Date.parse(at));
 
-export function formatAge(language: UiLanguage, from: number | string, now: number): string {
+export function formatAge(language: Locale, from: number | string, now: number): string {
   const units = AGE_UNITS[language];
   const minutes = Math.floor(Math.max(0, now - toMs(from)) / 60_000);
   if (minutes < 1) return units.now;
@@ -70,7 +71,7 @@ export function formatDuration(ms: number, style: DurationStyle): string {
 }
 
 /** UTC formatting keeps fixtures deterministic across machines. */
-export function formatTime(language: UiLanguage, at: number | string, style: TimeStyle = 'time'): string {
+export function formatTime(language: Locale, at: number | string, style: TimeStyle = 'time'): string {
   const locale = language === 'ru' ? 'ru-RU' : 'en-GB';
   const date = new Date(toMs(at));
   const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
@@ -81,12 +82,12 @@ export function formatTime(language: UiLanguage, at: number | string, style: Tim
 }
 
 export interface FakeI18n extends I18n {
-  setLanguage(language: UiLanguage): void;
+  setLanguage(language: Locale): void;
 }
 
-export function createFakeI18n(initial: UiLanguage, clock: () => number): FakeI18n {
+export function createFakeI18n(initial: Locale, clock: () => number): FakeI18n {
   let language = initial;
-  const listeners = new Set<(language: UiLanguage) => void>();
+  const listeners = new Set<(language: Locale) => void>();
   const param = (value: I18nParam): string => {
     if (typeof value === 'string' || typeof value === 'number') return String(value);
     if ('money' in value) return formatMoneyMills(value.money, value.sign === undefined ? {} : { sign: value.sign });
@@ -201,13 +202,45 @@ const CATALOG_KEYS: Partial<Record<CatalogActionId, HotkeyName>> = {
   'next-unread': 'nextUnread',
 };
 
+/** Labels as the palette and the cheatsheet print them; a tooltip only where the catalog has one. */
+const CATALOG_LABELS: Record<CatalogActionId, { readonly label: I18nKey; readonly tooltip: I18nKey | null }> = {
+  reply: { label: 'dock.action.reply', tooltip: null },
+  fix: { label: 'dock.action.fix', tooltip: null },
+  hi: { label: 'dock.action.hi', tooltip: null },
+  ping: { label: 'dock.action.ping', tooltip: null },
+  review: { label: 'dock.action.review', tooltip: 'review.againTooltip' },
+  recap: { label: 'dock.action.recap', tooltip: 'recap.refreshTooltip' },
+  coach: { label: 'dock.action.coach', tooltip: null },
+  cancel: { label: 'cheatsheet.row.cancel', tooltip: null },
+  help: { label: 'cheatsheet.row.help', tooltip: 'dock.helpRemoved' },
+  tone: { label: 'cheatsheet.row.tone', tooltip: 'dock.option.toneMenuTitle' },
+  split: { label: 'cheatsheet.row.split', tooltip: null },
+  spenders: { label: 'cheatsheet.row.spenders', tooltip: null },
+  newcomers: { label: 'palette.item.newcomers', tooltip: null },
+  palette: { label: 'cheatsheet.row.palette', tooltip: 'dock.paletteHint.tooltip' },
+  cheatsheet: { label: 'palette.item.cheatsheet', tooltip: null },
+  settings: { label: 'palette.item.settings', tooltip: null },
+  close: { label: 'common.close', tooltip: null },
+  'part-step': { label: 'cheatsheet.row.nextPart', tooltip: null },
+  'variant-step': { label: 'result.keys.variant', tooltip: null },
+  'insert-part': { label: 'cheatsheet.row.insert', tooltip: 'part.insertTooltip' },
+  'copy-part': { label: 'cheatsheet.row.copy', tooltip: null },
+  'open-and-insert': { label: 'send.openAndInsert', tooltip: 'send.openAndInsertTooltip' },
+  send: { label: 'send.button', tooltip: 'send.buttonTooltip' },
+  'chat-next': { label: 'cheatsheet.row.chatNext', tooltip: null },
+  'chat-previous': { label: 'cheatsheet.row.chatPrevious', tooltip: null },
+  'fan-panel': { label: 'fanPanel.label', tooltip: null },
+  'next-unread': { label: 'cheatsheet.row.nextUnread', tooltip: null },
+  'quick-jump': { label: 'quickJump.title', tooltip: null },
+  search: { label: 'cheatsheet.row.search', tooltip: null },
+};
+
 export function createFakeCatalog(ctx: ScenarioCtx): ActionCatalog {
   const entries = CATALOG_ACTION_IDS.map((id): ActionCatalogEntry => {
     const name = CATALOG_KEYS[id];
     return {
       id,
-      label: `catalog.${id}`,
-      tooltip: `catalog.${id}.tooltip`,
+      ...CATALOG_LABELS[id],
       hotkey: name === undefined ? null : hotkey(ctx, name),
       scope: id === 'spenders' || id === 'palette' || id === 'cheatsheet' ? 'global' : id === 'send' || id === 'open-and-insert' ? 'preview' : 'chat',
       status: id === 'help' ? 'removed' : 'active',

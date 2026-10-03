@@ -3,10 +3,12 @@
 
 import {
   GREETING_FILTERS,
-  GREETING_STATES,
+  GREETING_STATUSES,
   type GreetingFilter,
   NEWCOMERS_WINDOW_HOURS,
   SPENDERS_FILTERS,
+  type I18nKey,
+  type SpendersFilter,
   TONES,
   type ClaimVM,
   type DataStamp,
@@ -27,6 +29,16 @@ import {
 } from '@cg/contracts';
 
 import { button, DAY, FANS, handles, hotkey, HOUR, iso, MIN, msg, PERSONA, reason, usd, views, type FanFixture, type ScenarioCtx } from './base';
+
+const SPENDERS_FILTER_KEYS: Record<SpendersFilter, I18nKey> = {
+  all: 'spenders.filter.all',
+  waiting: 'spenders.filter.waiting',
+  new: 'spenders.filter.new',
+  'we-wrote': 'spenders.filter.weWrote',
+  'fan-wrote': 'spenders.filter.fanWrote',
+  history: 'spenders.filter.history',
+  'no-history': 'spenders.filter.noHistory',
+};
 
 export const stamp = (ctx: ScenarioCtx, coverage: DataStamp['coverage'] = 'complete', ageMs = 2 * MIN): DataStamp => ({ asOf: iso(ctx.now - ageMs), coverage });
 
@@ -76,7 +88,7 @@ function shelves(ctx: ScenarioCtx, selected: FanFixture | null): ShelfVM[] {
         spenderRow(ctx, FANS.jake, usd(540), 0, { isNew: true, weWroteAt: null }),
         spenderRow(ctx, FANS.leo, usd(400), null, { deleted: true, fanWroteAt: null }),
       ],
-      collapsed: { hidden: 4, reveal: button('spenders.shelf.more', { type: 'RevealShelf', shelfId: 'shelf-350' }) },
+      collapsed: { hidden: 4, reveal: button('spenders.shelfMore', { type: 'RevealShelf', shelfId: 'shelf-350' }) },
     },
   ];
 }
@@ -89,7 +101,7 @@ export function board(ctx: ScenarioCtx, view: VmView, patch: Partial<SpendersBoa
     period: '30d',
     periods: ['lifetime', '30d', 'mtd', '7d', 'today'],
     query: '',
-    filters: SPENDERS_FILTERS.map((id) => ({ id, label: msg(`spenders.filter.${id}`), count: id === 'all' ? 40 : id === 'waiting' ? 12 : 3, pressed: id === 'all' })),
+    filters: SPENDERS_FILTERS.map((id) => ({ id, label: msg(SPENDERS_FILTER_KEYS[id]), count: id === 'all' ? 40 : id === 'waiting' ? 12 : 3, pressed: id === 'all' })),
     sort: 'sum',
     shelves: rows,
     footer: { loaded: rows.length === 0 ? 0 : 40, total: rows.length === 0 ? null : 40, shown: null, stamp: stamp(ctx) },
@@ -97,8 +109,8 @@ export function board(ctx: ScenarioCtx, view: VmView, patch: Partial<SpendersBoa
     reset: null,
     previewOpen: false,
     keys: [
-      { label: msg('spenders.keys.search'), hotkey: { display: '/', aria: '/', delivery: 'delivered', fallback: null } },
-      { label: msg('spenders.keys.close'), hotkey: hotkey(ctx, 'close') },
+      { label: msg('spenders.search.placeholder'), hotkey: { display: '/', aria: '/', delivery: 'delivered', fallback: null } },
+      { label: msg('spenders.closeTooltip'), hotkey: hotkey(ctx, 'close') },
     ],
     ...patch,
   };
@@ -243,7 +255,7 @@ export function newcomerRow(ctx: ScenarioCtx, fan: FanFixture, kind: NewcomerRow
 }
 
 const FILTER_STATES: Record<GreetingFilter, readonly GreetingStatusVM['s'][]> = {
-  any: GREETING_STATES,
+  any: GREETING_STATUSES,
   none: ['none'],
   claimed: ['claim-mine', 'claim-other'],
   sending: ['sending'],

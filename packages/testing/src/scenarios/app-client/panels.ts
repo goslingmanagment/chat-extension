@@ -2,6 +2,7 @@
 // cheatsheet and toasts for the scenarios.
 
 import {
+  DOCK_ACTION_IDS,
   type CheatsheetVM,
   type CoachTurnVM,
   type CoachVM,
@@ -20,7 +21,7 @@ import {
   type VmView,
 } from '@cg/contracts';
 
-import { button, DAY, FANS, handles, hotkey, iso, MIN, msg, openChat, PERSONA, reason, usd, uuid, type HotkeyName, type ScenarioCtx } from './base';
+import { button, DAY, FANS, handles, hotkey, iso, MIN, msg, openChat, PERSONA, reason, usd, uuid, type ScenarioCtx } from './base';
 import { parts } from './results';
 import { stamp } from './lists';
 
@@ -34,7 +35,7 @@ export function recapPicker(ctx: ScenarioCtx, view: VmView, patch: Partial<Recap
     generatedAt: iso(ctx.now - DAY),
     stamp: stamp(ctx),
     saved: length === 'full' ? saved(ctx) : ({ s: 'not-applicable' } as const),
-    open: button(`recap.openLast.${length}`, { type: 'ShowRecap', length }),
+    open: button('recap.openLast', { type: 'ShowRecap', length }),
   });
   const hasSlots = view.s === 'ready' || view.s === 'partial' || view.s === 'offline';
   return {
@@ -42,8 +43,8 @@ export function recapPicker(ctx: ScenarioCtx, view: VmView, patch: Partial<Recap
     targetName: FANS.hubert.name,
     slots: { short: hasSlots ? slot('short') : null, full: hasSlots && view.s !== 'partial' ? slot('full') : null },
     build: {
-      short: button('recap.build.short', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'recap-short', options: {} }),
-      full: button('recap.build.full', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'recap', options: {} }),
+      short: button('recap.short', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'recap-short', options: {} }),
+      full: button('recap.full', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'recap', options: {} }),
     },
     splitReason: reason('not-a-message'),
     ...patch,
@@ -118,7 +119,7 @@ export function review(ctx: ScenarioCtx, view: VmView, patch: Partial<ReviewVM> 
     unparsed: false,
     copyHandle: hasText ? handles.artifact('review', 1) : null,
     regenerate: button('common.again', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'review', options: {} }, { hotkey: hotkey(ctx, 'review') }),
-    facts: [msg('review.madeAgo', { age: { age: ctx.now } }), msg('review.archiveAsOf', { time: { time: ctx.now - 2 * MIN } })],
+    facts: [msg('review.madeNow', { age: { age: ctx.now } }), msg('review.archiveAsOf', { time: { time: ctx.now - 2 * MIN } })],
     stamp: stamp(ctx, view.s === 'partial' ? 'partial' : 'complete'),
     splitReason: reason('not-a-message'),
     expanded: false,
@@ -160,7 +161,7 @@ export function coach(ctx: ScenarioCtx, view: VmView, turns: readonly CoachTurnV
     freshness: {
       asOf: iso(ctx.now),
       lag: view.s === 'partial' ? { messages: 2 } : null,
-      refresh: button('coach.refreshArchive', { type: 'RefreshArchive', targetHandle: handles.dock(FANS.hubert) }),
+      refresh: button('coach.refresh', { type: 'RefreshArchive', targetHandle: handles.dock(FANS.hubert) }),
     },
     recap: turns.length > 0 ? { length: 'short', generatedAt: iso(ctx.now - DAY), summary: RECAP_SHORT } : null,
     turns,
@@ -236,7 +237,7 @@ export function palette(ctx: ScenarioCtx, view: VmView, patch: Partial<PaletteVM
             items: [
               item('reply', 'Reply', { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'reply', options: {} }, { hotkey: hotkey(ctx, 'reply') }),
               item('spenders', 'Spenders', { type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } }, { hotkey: hotkey(ctx, 'spenders') }),
-              item('settings', msg('palette.settings'), { type: 'OpenSettings', route: { section: 'status' } }),
+              item('settings', msg('palette.item.settings'), { type: 'OpenSettings', route: { section: 'status' } }),
             ],
           },
           {
@@ -255,7 +256,7 @@ export function palette(ctx: ScenarioCtx, view: VmView, patch: Partial<PaletteVM
               ]),
         ]
       : [],
-    footer: has ? msg('palette.footer', { n: 43 }) : null,
+    footer: has ? msg('palette.foot.chats', { n: 43 }) : null,
     ...patch,
   };
 }
@@ -270,22 +271,21 @@ export function quickJump(ctx: ScenarioCtx, view: VmView): QuickJumpVM {
 
 export function cheatsheet(ctx: ScenarioCtx, view: VmView): CheatsheetVM {
   const has = view.s === 'ready' || view.s === 'partial';
-  const ai: readonly HotkeyName[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach'];
   return {
     view,
     platform: ctx.platform,
     groups: has
       ? [
-          { id: 'ai', title: msg('cheatsheet.group.ai'), rows: ai.map((name) => ({ label: msg(`dock.action.${name}`), hotkey: hotkey(ctx, name), note: null })) },
+          { id: 'ai', title: msg('cheatsheet.group.ai'), rows: DOCK_ACTION_IDS.map((id) => ({ label: msg(`dock.action.${id}`), hotkey: hotkey(ctx, id), note: null })) },
           {
             id: 'windows',
             title: msg('cheatsheet.group.windows'),
             rows: [
-              { label: msg('cheatsheet.palette'), hotkey: hotkey(ctx, 'palette'), note: null },
-              { label: msg('cheatsheet.spenders'), hotkey: hotkey(ctx, 'spenders'), note: null },
-              { label: msg('cheatsheet.nextUnread'), hotkey: hotkey(ctx, 'nextUnread'), note: view.s === 'partial' ? msg('cheatsheet.reserved') : null },
-              { label: msg('cheatsheet.help'), hotkey: hotkey(ctx, 'help'), note: msg('dock.helpRemoved') },
-              { label: msg('cheatsheet.send'), hotkey: null, note: msg('cheatsheet.sendNoKey') },
+              { label: msg('cheatsheet.row.palette'), hotkey: hotkey(ctx, 'palette'), note: null },
+              { label: msg('cheatsheet.row.spenders'), hotkey: hotkey(ctx, 'spenders'), note: null },
+              { label: msg('cheatsheet.row.nextUnread'), hotkey: hotkey(ctx, 'nextUnread'), note: view.s === 'partial' ? msg('dock.reason.hotkeyReserved') : null },
+              { label: msg('cheatsheet.row.help'), hotkey: hotkey(ctx, 'help'), note: msg('dock.helpRemoved') },
+              { label: msg('send.button'), hotkey: null, note: msg('cheatsheet.row.sendNote') },
             ],
           },
         ]
