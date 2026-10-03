@@ -13,6 +13,7 @@ import { AI_REQUEST_LIMITS, COACH_LIMITS, OP_LIMITS, SEND_LIMITS } from './limit
 import {
   CountSchema,
   DigestSchema,
+  DurationMsSchema,
   EpochMsSchema,
   GenerationRefSchema,
   IsoTimestampSchema,
@@ -295,6 +296,14 @@ export const OpDebugViewSchema = z.strictObject({
       liveRejected: CountSchema,
     }),
   ),
+  /** The model `meta` named: the end of the cost line (DB-017); null — unknown. Added in 1.1.0. */
+  model: z.optional(z.nullable(displayText(80))),
+  /**
+   * The hub's own stages from the prompt manifest, as durations (DB-016:
+   * summary-cache-check, prompt-build, llm-ttfb, llm-stream); `stages` above
+   * are the client's marks. Added in 1.1.0.
+   */
+  hubStages: z.optional(z.array(z.strictObject({ name: boundedText(48), ms: DurationMsSchema })).check(z.maxLength(16))),
 });
 export type OpDebugView = z.infer<typeof OpDebugViewSchema>;
 

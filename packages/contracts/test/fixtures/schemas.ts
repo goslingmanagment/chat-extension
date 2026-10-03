@@ -636,7 +636,16 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { source: 'archive', servedHead: null, live: { status: 'served', accepted: -1, rejected: 0 } },
     ],
   ),
-  fixture('OpDebugView', C.OpDebugViewSchema, [debugView], [{ ...debugView, usage: { ...debugView.usage, costMicroUsd: -1 } }]),
+  fixture(
+    'OpDebugView',
+    C.OpDebugViewSchema,
+    [debugView, { ...debugView, model: 'model-synthetic', hubStages: [{ name: 'prompt-build', ms: 182 }] }, { ...debugView, model: null, hubStages: [] }],
+    [
+      { ...debugView, usage: { ...debugView.usage, costMicroUsd: -1 } },
+      { ...debugView, hubStages: [{ name: 'llm-ttfb', ms: -1 }] },
+      { ...debugView, hubStages: [{ name: '', ms: 5 }] },
+    ],
+  ),
   fixture('OpView', C.OpViewSchema, [opView, { ...opView, state: 'failed', result: undefined, error: { code: 'CG-STREAM-TRUNCATED' } }], [{ ...opView, state: 'queued' }]),
 
   // ── telemetry ──
