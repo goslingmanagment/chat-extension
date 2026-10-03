@@ -61,7 +61,7 @@ pnpm install --frozen-lockfile
 | `pnpm build` | выпускная сборка: `wxt zip -b firefox --mv3` (из корня репозитория) → `apps/extension/.output/firefox-mv3/`, XPI и архив исходников для AMO; архивы прошлых версий удаляет |
 | `pnpm build:test` | тестовая сборка (`CG_TEST_HOSTS=1`) → `.output/firefox-mv3-test/` |
 | `pnpm webext-lint` | `web-ext lint --self-hosted` по выпускной сборке |
-| `pnpm size` | бюджеты размера из architecture.md §11 (gzip) |
+| `pnpm size` | бюджеты размера из architecture.md §11 (gzip); доля `ui/kit` в первом чанке дока (то, что док берёт из кита, с Preact) — не больше 27 КиБ, на код самого дока остаётся не меньше 18 КиБ из 45 (`packages/testing/src/kit/size.test.ts`) |
 | `pnpm gates` | статические инварианты: нет `onlymonster.ai` вне списка (строки, шаблоны, регулярки), нет `innerHTML`, `browser.*` только в `platform`, нет слов token/key/API/bearer в текстах UI, очередь отправки только из порта отправки, выпускной манифест и бандл без тестовых адресов, код SDK только в `background.js` (маркеры — имя класса ошибки, заголовки `x-kernel-*`, пути API хаба, хеш контракта — берутся из `vendor/kernel-sdk` при запуске), мост MAIN и тап без API расширения и zod |
 | `pnpm parity` | манифест паритета `docs/parity/parity-manifest.json`: у каждой строки владелец и проверка, у строк «не нужно» / «убрано владельцем» — отрицательная проверка из реестра исключений; манифест должен совпадать с выводом из карты (`node tools/parity/generate.ts`). Контракты заморожены (версия `1.0.0`), поэтому без манифеста — ошибка |
 | `pnpm archive-check` | архивы последней сборки (по версии в её манифесте): XPI совпадает с папкой сборки байт в байт; в XPI и архиве исходников нет кода/шрифтов/картинок OnlyMonster, реальных id (сверка по sha256) и секретов |
