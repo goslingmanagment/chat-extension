@@ -4,7 +4,7 @@
 // `.value`, so a streamed chunk re-renders only what reads it.
 
 import { signal, type ReadonlySignal, type Signal } from '@preact/signals';
-import { useEffect, useMemo } from 'preact/hooks';
+import { useLayoutEffect, useMemo, useRef } from 'preact/hooks';
 
 import { type AppClient, type ValueSignal, type ViewOf, type ViewSelector } from '@cg/contracts/vm';
 
@@ -46,19 +46,35 @@ export function fromValueSignal<T>(source: ValueSignal<T>): OwnedReadonlySignal<
 
 /**
  * The hook of §10.2: `useView(selector)` → a signal of that view model. The
- * subscription follows the selector's key and ends with the component.
+ * signal starts from the snapshot during render; the subscription is taken
+ * only once the component has committed (a render that throws, caught by a
+ * Boundary, leaves none behind) and ends with it. It follows the selector's
+ * key, not the identity of the selector object.
  */
 export function useViewFrom<S extends ViewSelector>(client: AppClient, selector: S): ReadonlySignal<Readonly<ViewOf<S>>> {
   const key = viewKey(selector);
-  // Keyed by the selector key, not its object identity: a fresh literal each render is the same view.
-  const owned = useMemo(() => viewSignal(client, selector), [client, key]);
-  useEffect(() => () => owned.dispose(), [owned]);
-  return owned.signal;
+  const latest = useRef(selector);
+  latest.current = selector;
+  const view = useMemo((): Signal<Readonly<ViewOf<S>>> => signal(client.getSnapshot(selector)), [client, key]);
+  useLayoutEffect(() => {
+    // Whatever changed between the render and this commit.
+    const now = client.getSnapshot(latest.current);
+    if (!Object.is(now, view.peek())) view.value = now;
+    return client.subscribe(latest.current, (next) => {
+      view.value = next;
+    });
+  }, [client, view]);
+  return view;
 }
 
-/** A ValueSignal as a Preact signal for the component's lifetime. */
+/** A ValueSignal as a Preact signal for the component's lifetime; subscribed on commit, as useViewFrom. */
 export function useValueSignal<T>(source: ValueSignal<T>): ReadonlySignal<T> {
-  const owned = useMemo(() => fromValueSignal(source), [source]);
-  useEffect(() => () => owned.dispose(), [owned]);
-  return owned.signal;
+  const value = useMemo((): Signal<T> => signal(source.value), [source]);
+  useLayoutEffect(() => {
+    if (!Object.is(source.value, value.peek())) value.value = source.value;
+    return source.subscribe((next) => {
+      value.value = next;
+    });
+  }, [source, value]);
+  return value;
 }

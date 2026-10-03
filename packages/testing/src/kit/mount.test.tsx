@@ -17,6 +17,7 @@ import {
   createMountPort,
   minuteListenerCount,
   mountKitPage,
+  mountKitSurface,
   useAnnounce,
   useDispatch,
   useI18n,
@@ -174,6 +175,55 @@ describe('useView: AppClient subscriptions become signals inside ui/ only', () =
     expect(kit.$('[data-count]')?.getAttribute('data-count')).toBe('0');
     await flush(() => kit.client.advance());
     expect(kit.$('[data-count]')?.textContent).toBe('Recap сохранён в хаб');
+  });
+});
+
+describe('[EX-011] useView subscribes only for a committed component', () => {
+  it('a render that throws after useView (caught by the boundary) leaves no subscription behind', async () => {
+    const world = kitWorld();
+    let live = 0;
+    const subscribe = world.client.subscribe.bind(world.client);
+    Object.assign(world.client, {
+      subscribe: (...args: Parameters<typeof subscribe>) => {
+        live += 1;
+        const off = subscribe(...args);
+        let done = false;
+        return () => {
+          if (!done) live -= 1;
+          done = true;
+          off();
+        };
+      },
+    });
+    function Broken(): null {
+      useView({ of: 'toasts' });
+      throw new TypeError('render failed');
+    }
+    function Fine() {
+      const view = useView({ of: 'toasts' }).value;
+      return <span class="cg-count">{view.toasts.length}</span>;
+    }
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = host.attachShadow({ mode: 'closed' });
+    const failures: unknown[] = [];
+    let mount: ReturnType<typeof mountKitSurface> | null = null;
+    await act(() => {
+      mount = mountKitSurface('dock', root, world.deps, { view: Broken }, { report: (failure) => failures.push(failure) });
+    });
+    expect(failures).toEqual([{ kind: 'render', surface: 'dock', code: 'CG-UI-FAILED', name: 'TypeError' }]);
+    expect(live).toBe(0);
+    (mount as ReturnType<typeof mountKitSurface> | null)?.unmount();
+    expect(live).toBe(0);
+    // A component that commits subscribes once and lets go with the surface.
+    let fine: ReturnType<typeof mountKitSurface> | null = null;
+    await act(() => {
+      fine = mountKitSurface('dock', root, world.deps, { view: Fine });
+    });
+    expect(live).toBe(1);
+    expect(root.querySelector('.cg-count')?.textContent).toBe(String(world.client.getSnapshot({ of: 'toasts' }).toasts.length));
+    (fine as ReturnType<typeof mountKitSurface> | null)?.unmount();
+    expect(live).toBe(0);
   });
 });
 
