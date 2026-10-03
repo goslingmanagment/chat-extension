@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { UI_ACTION_SAMPLES } from './fixtures/vm';
+import { SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -223,5 +223,28 @@ describe('lists', () => {
   it('the board periods of SetSpendersPeriod are the spenders.board request periods', () => {
     for (const period of C.SPENDERS_PERIODS) expect(C.UiActionSchema.safeParse({ type: 'SetSpendersPeriod', period }).success).toBe(true);
     expect(C.UiActionSchema.safeParse({ type: 'SetSpendersPeriod', period: '90d' }).success).toBe(false);
+  });
+});
+
+describe('toasts (1.1.0)', () => {
+  it('[ER-010] an error toast may carry the technical line and the fixed retry deadline', () => {
+    expectTypeOf<C.ToastVM['detail']>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<C.ToastVM['retryAt']>().toEqualTypeOf<number | undefined>();
+    const [plain, detailed] = TOAST_VM_SAMPLES.valid;
+    expect(plain?.detail).toBeUndefined();
+    expect(detailed?.detail).toMatch(/^HTTP 429/);
+    expect(detailed?.detail?.length ?? 0).toBeLessThanOrEqual(C.CG_DETAIL_MAX_CHARS);
+    expect(TOAST_VM_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('spoken money (1.1.0)', () => {
+  it('the I18n port may say an amount in words; the catalog has the words', () => {
+    expectTypeOf<C.I18n['formatMoneySpoken']>().toEqualTypeOf<((mills: C.MoneyMills | null, format?: C.MoneyFormat) => string) | undefined>();
+    expect(C.UI_TEXT_KEYS).toContain('common.money.plus');
+    expect(C.UI_TEXT_KEYS).toContain('common.money.minus');
+    expect(C.isPluralKey('common.money.dollars')).toBe(true);
+    expect(SPOKEN_MONEY_SAMPLES.valid[0]?.(320_000, { sign: 'plus' })).toBe('плюс 320 долларов');
+    expect(SPOKEN_MONEY_SAMPLES.invalid).toHaveLength(1);
   });
 });

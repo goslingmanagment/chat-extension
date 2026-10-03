@@ -1,0 +1,50 @@
+/* The gallery page plays ChatSpace: the --color-om-* triplets of 0.172.0 on
+   <html> (identical in both themes), its font, its conversation background
+   (neutral-50 light, black dark) and the `dark` class. Our surface reads only
+   the triplets; the scheme reaches it as data-cg-scheme on its host. */
+:root {
+  --color-om-white: 255 255 255;
+  --color-om-neutral-0: 255 255 255;
+  --color-om-neutral-50: 246 245 244;
+  --color-om-neutral-75: 241 241 238;
+  --color-om-neutral-100: 234 233 229;
+  --color-om-neutral-200: 225 224 218;
+  --color-om-neutral-300: 203 202 195;
+  --color-om-neutral-400: 171 168 156;
+  --color-om-neutral-500: 114 112 100;
+  --color-om-neutral-600: 83 81 70;
+  --color-om-neutral-700: 61 59 50;
+  --color-om-neutral-750: 51 49 41;
+  --color-om-neutral-800: 42 40 32;
+  --color-om-neutral-850: 34 32 25;
+  --color-om-neutral-900: 26 24 19;
+  --color-om-neutral-950: 19 18 15;
+  --color-om-brand-50: 235 243 255;
+  --color-om-brand-75: 200 223 255;
+  --color-om-brand-300: 71 145 255;
+  --color-om-brand-400: 10 109 255;
+  --color-om-brand-500: 0 82 204;
+  --color-om-brand-600: 0 57 143;
+  --color-om-brand-800: 0 24 61;
+  --color-om-success-400: 97 189 100;
+  --color-om-success-600: 53 129 58;
+  --color-om-error-400: 234 95 93;
+  --color-om-error-500: 217 32 28;
+  --gal-bg: rgb(var(--color-om-neutral-50));
+  --gal-ink: rgb(var(--color-om-neutral-500));
+  color-scheme: light;
+}
+html.dark {
+  --gal-bg: rgb(0 0 0);
+  --gal-ink: rgb(var(--color-om-neutral-400));
+  color-scheme: dark;
+}
+html, body { margin: 0; background: var(--gal-bg); }
+body {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  padding: 16px 20px 40px;
+}
+.gal-top { display: flex; gap: 12px; align-items: baseline; margin-bottom: 16px; font-size: 12px; color: var(--gal-ink); }
+.gal-top b { font-weight: 600; }
+#gallery { max-width: 1400px; }
+html[data-gal-col] #gallery { width: var(--gal-col); }

@@ -18,7 +18,8 @@
   "include": [
     "src",
     "e2e",
-    "fixture-chatspace.vite.config.ts"
+    "fixture-chatspace.vite.config.ts",
+    "kit-gallery.vite.config.ts"
   ],
   "references": [
     {

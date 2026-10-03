@@ -42,11 +42,14 @@ export const EN: I18nCatalog<'en'> = {
   'common.age.minutes': '{n} min',
   'common.age.hours': '{n} h',
   'common.age.days': '{n} d',
+  'common.money.plus': 'plus {amount}',
+  'common.money.minus': 'minus {amount}',
   'common.minutes': { one: '{n} minute', other: '{n} minutes' },
   'common.hours': { one: '{n} hour', other: '{n} hours' },
   'common.days': { one: '{n} day', other: '{n} days' },
   'common.messages': { one: '{n} message', other: '{n} messages' },
   'common.fans': { one: '{n} fan', other: '{n} fans' },
+  'common.money.dollars': { one: '{n} dollar', other: '{n} dollars' },
 
   // ── Dock strip ──
   'dock.label': 'ChatGoose',
