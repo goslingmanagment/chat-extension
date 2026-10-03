@@ -54,6 +54,7 @@ const REASONS = {
   'locked-during-generation': { key: 'dock.reason.lockedDuringGeneration', code: null },
   'parts-sending': { key: 'result.againBlocked', code: null },
   'part-uncertain': { key: 'result.againBlockedUncertain', code: 'CG-SEND-UNCERTAIN' },
+  unparsed: { key: 'result.meta.unparsed', code: null },
   'draft-unverifiable': { key: 'fix.cannotCheck', code: null },
   'send-unavailable': { key: 'send.unavailable', code: null },
 } as const satisfies Partial<Record<ReasonVM['id'], { readonly key: I18nKey; readonly code: CgCode | null }>>;
@@ -63,6 +64,14 @@ export type BoardReasonId = keyof typeof REASONS;
 export function reason(id: BoardReasonId, params?: I18nParams): ReasonVM {
   const entry = REASONS[id];
   return { id, code: entry.code, text: msg(entry.key, params) };
+}
+
+/** The code a click refused for `why` answers with: the reason's own, or the one its id stands for. */
+export function reasonCode(why: ReasonVM): CgCode {
+  if (why.code !== null) return why.code;
+  if (why.id === 'parts-sending') return 'CG-SEND-BUSY';
+  if (why.id === 'unparsed') return 'CG-OUTPUT-UNUSABLE';
+  return 'CG-FEATURE-DISABLED';
 }
 
 export type FailureClass = 'forbidden' | 'offline' | 'error';

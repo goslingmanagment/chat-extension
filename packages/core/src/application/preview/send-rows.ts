@@ -23,6 +23,8 @@ export interface PartAttempt {
   readonly sentAt: IsoTimestamp | null;
   /** Since when the outcome is unknown. */
   readonly uncertainSince: IsoTimestamp | null;
+  /** The hub resolved the attempt as sent (H-7 `resolve`, learned from `send.list`): the part counts as delivered, whatever the view says. */
+  readonly resolved?: 'sent';
 }
 
 export const partKey = (variant: number | null, index: number): string => `${variant ?? 0}:${index}`;
@@ -55,6 +57,7 @@ export interface SendRowInput {
 /** The row of one part: the contract's state table plus its texts and times. */
 export function sendRow(input: SendRowInput): PreviewSendView {
   if (input.clicked && input.attempt === null) return { s: 'queued' };
+  if (input.attempt?.resolved === 'sent') return { s: 'sent', at: input.attempt.sentAt ?? input.nowIso };
   const state = previewSendStateOf(input.attempt?.view ?? null, input.gate);
   switch (state.s) {
     case 'available':
@@ -90,7 +93,7 @@ export function fanAttempts(attempts: ReadonlyMap<string, PartAttempt>, purpose:
   for (const [key, attempt] of attempts) {
     const [variant, index] = key.split(':').map(Number) as [number, number];
     if (variant !== group.variant) continue;
-    out.push({ attemptId: attempt.attemptId, purpose, group, partIndex: index, state: attempt.view.state });
+    out.push({ attemptId: attempt.attemptId, purpose, group, partIndex: index, state: attempt.view.state, ...(attempt.resolved === undefined ? {} : { resolved: attempt.resolved }) });
   }
   for (const key of clicked) {
     const [variant, index] = key.split(':').map(Number) as [number, number];
@@ -135,4 +138,58 @@ export function openInsertRow(input: OpenInsertInput): OpenInsertVM {
   if (input.waitingUntil !== null) return { s: 'waiting', until: input.waitingUntil };
   if (input.blocked !== null) return { s: 'unavailable', reason: input.blocked };
   return { s: 'available' };
+}
+
+// ── the fan, over every result ─────────────────────────────────────────────
+
+/** One attempt to a fan as the preview knows it: its own (tracked by a result of this tab) or one the background's journal lists. */
+export interface FanSendFact {
+  readonly opId: string;
+  readonly attemptId: string;
+  /** 0-based part and the group's part count. */
+  readonly part: number;
+  readonly total: number;
+  readonly state: SendAttemptState;
+  /** The hub resolved it: it no longer holds the fan. */
+  readonly resolved?: 'sent' | 'not-sent';
+  /** A result of this tab tracks it (the others come from `send.list`). */
+  readonly tracked: boolean;
+}
+
+export interface FanSends {
+  /** A part to this fan whose outcome is unknown: it holds the fan and its group (§6.7.8, §6.7.9). */
+  readonly uncertain: { readonly opId: string; readonly attemptId: string; readonly part: number; readonly total: number } | null;
+  /** A part to this fan is on its way. */
+  readonly inFlight: boolean;
+  /** A send to this fan started: ChatSpace shows the chat read after an outgoing message (§6.7.12). */
+  readonly started: boolean;
+}
+
+export const NO_FAN_SENDS: FanSends = { uncertain: null, inFlight: false, started: false };
+
+/**
+ * What holds a fan, over every result made for the fan — not only the one
+ * on the card: one uncertain part holds the fan, one part is in work at a
+ * time. `preferOp` — the result on the card: its own uncertain part is the
+ * one named.
+ */
+export function fanSendsOf(facts: readonly FanSendFact[], preferOp: string | null = null): FanSends {
+  let uncertain: FanSends['uncertain'] = null;
+  let inWork = false;
+  let started = false;
+  for (const fact of facts) {
+    if (fact.resolved !== undefined) {
+      if (fact.resolved === 'sent' && fact.tracked) started = true;
+      continue;
+    }
+    const open = inFlight(fact.state);
+    if (open) inWork = true;
+    if (fact.state === 'uncertain') {
+      const better = uncertain === null || (fact.opId === preferOp && uncertain.opId !== preferOp) || ((fact.opId === preferOp) === (uncertain.opId === preferOp) && fact.part < uncertain.part);
+      if (better) uncertain = { opId: fact.opId, attemptId: fact.attemptId, part: fact.part, total: fact.total };
+    }
+    // An attempt only the journal lists says «a send started» while it may still be on its way; an ended one of an older result does not.
+    if (fact.tracked ? fact.state !== 'ready' && fact.state !== 'held' : open || fact.state === 'uncertain') started = true;
+  }
+  return { uncertain, inFlight: inWork, started };
 }

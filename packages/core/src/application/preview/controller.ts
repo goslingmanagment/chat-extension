@@ -9,6 +9,12 @@
 // «Открыть и вставить» — one navigation with one deferred insert that has a
 // deadline and can be canceled. Nothing is sent, inserted or repeated by
 // itself; an unknown outcome offers only «Открыть чат для проверки».
+//
+// What holds a send holds the FAN, not one result (§6.7.8, §6.7.9): while a
+// part to the fan is on its way or its outcome is unknown, no feature
+// generates for the fan, «Ещё раз» is off and no part is offered for
+// «Открыть и вставить» — whichever result is on the card, and after a tab
+// reload too (the background's journal is read back with `send.list`).
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { TONES, type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
@@ -18,7 +24,7 @@ import { chatKeyOf, type PartRef, type Target } from '@cg/contracts/ids';
 import { OP_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
 import { type OpView, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint, type PreviewSendPreflight, type PreviewSendRequest, type SendAttemptView, type SendGroup } from '@cg/contracts/send';
-import { type TabEventPayload } from '@cg/contracts/tab-messages';
+import { type SendListItem, type TabEventPayload } from '@cg/contracts/tab-messages';
 import {
   type ActionReceipt,
   type DockActionVM,
@@ -30,6 +36,7 @@ import {
   type PreviewVM,
   type ReasonVM,
   type RunningOpVM,
+  SEND_REASON_KEYS,
   type TargetHandle,
   type UiAction,
   type UiActionType,
@@ -56,9 +63,9 @@ import { issueCause, type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
-import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, stamp, type BoardReasonId } from '../boards/views';
+import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
 import { partsOfResult, previewResult, type PartRows } from './result';
-import { clickable, fanAttempts, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type PartAttempt } from './send-rows';
+import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
 
 /** Rows of one feed page (the hub's default; never above `limits.feedMax`). */
 export const FEED_PAGE_SIZE = 50;
@@ -213,6 +220,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const attemptOwner = new Map<string, { readonly opId: string; readonly key: string }>();
   /** Views of attempts whose id the click has not learned yet. */
   const unclaimed = new Map<string, SendAttemptView>();
+  /**
+   * What the background's journal knows of the sends to a fan (`send.list`),
+   * by page and fan: attempts another result made, or this tab before a reload.
+   */
+  const listed = new Map<string, { readonly pageId: number; readonly fanRef: string; readonly items: Map<string, SendListItem> }>();
+  const fanKey = (pageId: number, fanRef: string): string => `${pageId}|${fanRef}`;
+  let pruneTimer: number | null = null;
   let drafts: DraftStore = EMPTY_DRAFTS;
   const draftListeners = new Set<() => void>();
   const draftsChanged = (): void => {
@@ -472,10 +486,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       rows: null,
     };
     targets.set(handle, state);
-    deps.greeting?.touch(info.fanRef, false);
+    // Opening the card is the person working with the fan (the lease of «Новые» renews only while they do).
+    if (source === 'newcomers') deps.greeting?.touch(info.fanRef, busyOf(info.pageId, info.fanRef));
     void loadFeed(state);
     void loadCard(state);
     void restoreOp(state);
+    // The page conditions may have moved while the card was closed: its result asks MAIN again.
+    const shown = tracks.get(currentOp.get(handle) ?? '');
+    if (shown !== undefined) void refreshPreflight(shown);
   }
 
   function closeTarget(handle: TargetHandle): void {
@@ -486,27 +504,64 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     targets.delete(handle);
     // The person closed the preview before the chat opened: the pending insert is given up (§6.5).
     if (pendingInsert !== null && pendingInsert.track.handle === handle && !closingForNavigation) cancelInsert('preview-closed');
+    // What the journal listed for the fan is read again when a card of the fan opens.
+    if (![...targets.values()].some((other) => other.pageId === state.pageId && other.fanRef === state.fanRef)) listed.delete(fanKey(state.pageId, state.fanRef));
+    pruneTracks();
   }
 
   // ── operations ──
 
+  /** A part of this result is on its way or its outcome is unknown: the result holds its fan and is neither hidden nor dropped. */
+  function holdsFan(track: OpTrack): boolean {
+    if (track.clicked.size > 0) return true;
+    return [...track.attempts.values()].some((attempt) => attempt.resolved === undefined && (attempt.view.state === 'uncertain' || inFlight(attempt.view.state)));
+  }
+
+  function dropTrack(track: OpTrack): void {
+    clearHoldTimers(track);
+    tracks.delete(track.opId);
+    if (currentOp.get(track.handle) === track.opId) currentOp.delete(track.handle);
+    for (const attempt of track.attempts.values()) if (attemptOwner.get(attempt.attemptId)?.opId === track.opId) attemptOwner.delete(attempt.attemptId);
+  }
+
+  /**
+   * §9.4: at most `resultsPerTab` results, each for `resultTtlMs` after it
+   * ended. A result on an open card stays while the card is open, one that
+   * holds its fan stays until the hold ends; a closed card's result ages out
+   * like any other (the background keeps its text for a reopen).
+   */
   function pruneTracks(): void {
     const now = clock.now();
-    for (const [opId, track] of tracks) {
+    const kept = (track: OpTrack): boolean => holdsFan(track) || (currentOp.get(track.handle) === track.opId && targets.has(track.handle)) || pendingInsert?.track === track;
+    for (const track of [...tracks.values()]) {
       const ended = track.mirror.done?.endedAt ?? null;
-      const held = [...track.attempts.values()].some((attempt) => attempt.view.state === 'uncertain' || inFlight(attempt.view.state));
-      if (held || currentOp.get(track.handle) === opId) continue;
-      if (ended !== null && now - ended > OP_LIMITS.resultTtlMs) {
-        clearHoldTimers(track);
-        tracks.delete(opId);
-      }
+      if (!kept(track) && ended !== null && now - ended > OP_LIMITS.resultTtlMs) dropTrack(track);
     }
     while (tracks.size > TRACKS_MAX) {
-      const oldest = [...tracks.values()].filter((track) => currentOp.get(track.handle) !== track.opId).sort((a, b) => a.startedAt - b.startedAt)[0];
+      const oldest = [...tracks.values()].filter((track) => !kept(track) && isTerminalOpState(track.mirror.state)).sort((a, b) => a.startedAt - b.startedAt)[0];
       if (oldest === undefined) break;
-      clearHoldTimers(oldest);
-      tracks.delete(oldest.opId);
+      dropTrack(oldest);
     }
+    // A draft's revision is kept only while the draft or its removal mark is.
+    for (const key of [...revisions.keys()]) if (!drafts.drafts.some((d) => d.key === key) && !(drafts.removed ?? []).some((mark) => mark.key === key)) revisions.delete(key);
+    schedulePrune();
+  }
+
+  /** One timer: when the next closed result runs out of its time. */
+  function schedulePrune(): void {
+    if (pruneTimer !== null) clock.clearTimer(pruneTimer);
+    pruneTimer = null;
+    if (disposed) return;
+    let next: number | null = null;
+    for (const track of tracks.values()) {
+      const ended = track.mirror.done?.endedAt ?? null;
+      if (ended !== null) next = Math.min(next ?? Infinity, ended + OP_LIMITS.resultTtlMs + 1);
+    }
+    if (next === null) return;
+    pruneTimer = clock.setTimer(Math.max(1000, next - clock.now()), () => {
+      pruneTimer = null;
+      pruneTracks();
+    });
   }
 
   function trackOf(view: OpView, state: TargetState, extra: Partial<Pick<OpTrack, 'checkpoint' | 'previewRevision' | 'fixSource' | 'splitRequested' | 'personaDefinitionId'>> = {}): OpTrack {
@@ -543,12 +598,141 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     };
   }
 
-  /** The newest result of this chat that a preview made, after a reopen or a tab reload. */
+  // ── the fan's sends, over every result ──
+
+  /** Every attempt to a fan this tab knows: those its results track, and those only the background's journal lists. */
+  function fanFacts(pageId: number, fanRef: string): FanSendFact[] {
+    const facts: FanSendFact[] = [];
+    const tracked = new Set<string>();
+    for (const track of tracks.values()) {
+      if (track.pageId !== pageId || track.fanRef !== fanRef) continue;
+      const total = (variant: number, index: number): number => groupOf(track, variant)?.partCount ?? index + 1;
+      for (const [key, attempt] of track.attempts) {
+        const [variant, index] = key.split(':').map(Number) as [number, number];
+        tracked.add(attempt.attemptId);
+        facts.push({ opId: track.opId, attemptId: attempt.attemptId, part: index, total: total(variant, index), state: attempt.view.state, tracked: true, ...(attempt.resolved === undefined ? {} : { resolved: attempt.resolved }) });
+      }
+      for (const key of track.clicked) {
+        if (track.attempts.has(key)) continue;
+        const [variant, index] = key.split(':').map(Number) as [number, number];
+        facts.push({ opId: track.opId, attemptId: `click:${key}`, part: index, total: total(variant, index), state: 'preparing', tracked: true });
+      }
+    }
+    for (const item of listed.get(fanKey(pageId, fanRef))?.items.values() ?? []) {
+      if (tracked.has(item.view.attemptId)) continue;
+      facts.push({ opId: item.opId, attemptId: item.view.attemptId, part: item.partIndex, total: item.group.partCount, state: item.view.state, tracked: false, ...(item.resolved === undefined ? {} : { resolved: item.resolved }) });
+    }
+    return facts;
+  }
+
+  const fanSends = (pageId: number, fanRef: string, preferOp: string | null = null): FanSends => fanSendsOf(fanFacts(pageId, fanRef), preferOp);
+
+  /** Something of this fan is in flight: a generation, a part on its way, a pending «Открыть и вставить». */
+  function busyOf(pageId: number, fanRef: string): boolean {
+    if (pendingInsert !== null && pendingInsert.track.pageId === pageId && pendingInsert.track.fanRef === fanRef) return true;
+    for (const track of tracks.values()) {
+      if (track.pageId === pageId && track.fanRef === fanRef && !isTerminalOpState(track.mirror.state)) return true;
+    }
+    return fanSends(pageId, fanRef).inFlight;
+  }
+
+  /** «Новые»: the person did something with the fan, and whether something of the fan is in flight (the lease renews only then). */
+  function touchDesk(of: Pick<OpTrack, 'source' | 'pageId' | 'fanRef'>): void {
+    if (of.source === 'newcomers') deps.greeting?.touch(of.fanRef, busyOf(of.pageId, of.fanRef));
+  }
+
+  const isoOf = (ms: number): string => new Date(ms).toISOString();
+  /** Which of two attempts of one part stands: one that holds the fan, then a delivered one, then any other. */
+  const weight = (state: SendAttemptView['state'], resolved: 'sent' | undefined): number => (resolved === 'sent' || state === 'sentObserved' ? 2 : state === 'uncertain' || inFlight(state) ? 3 : 1);
+
+  /**
+   * The listed attempts of a fan become the attempts of the results that
+   * made them: a part with an unknown outcome is shown as such again after a
+   * reload, a sent part stays sent, and a hub resolve is taken (§6.7.8).
+   * `settled` — attempts this tab held as uncertain when the list was asked
+   * for and that a whole list no longer names: the hub resolved them.
+   */
+  function adoptSends(pageId: number, fanRef: string, settled: ReadonlySet<string>): void {
+    const entry = listed.get(fanKey(pageId, fanRef));
+    if (entry === undefined) return;
+    const touched = new Set<OpTrack>();
+    for (const item of entry.items.values()) {
+      const track = tracks.get(item.opId);
+      if (track === undefined || track.pageId !== pageId || track.fanRef !== fanRef) continue;
+      const key = partKey(item.group.variant, item.partIndex);
+      const id = item.view.attemptId;
+      const current = track.attempts.get(key);
+      if (item.resolved === 'not-sent') {
+        // Resolved «не ушло»: the part is free again, for a new click.
+        if (current?.attemptId === id) {
+          track.attempts.delete(key);
+          attemptOwner.delete(id);
+          touched.add(track);
+        }
+        continue;
+      }
+      const resolved = item.resolved === 'sent' ? ('sent' as const) : undefined;
+      const sameAttempt = current?.attemptId === id;
+      if (current !== undefined && sameAttempt && current.resolved === resolved && !attemptReachable(current.view.state, item.view.state)) continue;
+      if (current !== undefined && !sameAttempt && weight(item.view.state, resolved) <= weight(current.view.state, current.resolved)) continue;
+      const at = isoOf(item.updatedAt);
+      track.attempts.set(key, {
+        attemptId: id,
+        view: item.view,
+        sentAt: resolved === 'sent' || item.view.state === 'sentObserved' ? ((sameAttempt ? current?.sentAt : null) ?? at) : null,
+        uncertainSince: item.view.state === 'uncertain' ? ((sameAttempt ? current?.uncertainSince : null) ?? at) : null,
+        ...(resolved === undefined ? {} : { resolved }),
+      });
+      if (current !== undefined && !sameAttempt) attemptOwner.delete(current.attemptId);
+      attemptOwner.set(id, { opId: track.opId, key });
+      touched.add(track);
+    }
+    for (const track of tracks.values()) {
+      if (track.pageId !== pageId || track.fanRef !== fanRef) continue;
+      for (const [key, attempt] of track.attempts) {
+        if (!settled.has(attempt.attemptId) || entry.items.has(attempt.attemptId) || attempt.view.state !== 'uncertain') continue;
+        track.attempts.delete(key);
+        attemptOwner.delete(attempt.attemptId);
+        touched.add(track);
+      }
+    }
+    for (const track of touched) reportProgress(track);
+  }
+
+  /** Reads what the background's journal knows of the sends to a fan; false — it did not answer. */
+  async function loadSends(pageId: number, fanRef: string): Promise<boolean> {
+    const atEpoch = epoch;
+    const uncertainNow = new Set<string>();
+    for (const track of tracks.values()) {
+      if (track.pageId !== pageId || track.fanRef !== fanRef) continue;
+      for (const attempt of track.attempts.values()) if (attempt.view.state === 'uncertain' && attempt.resolved === undefined) uncertainNow.add(attempt.attemptId);
+    }
+    const answer = await rpc.request('send.list', { pageId, fanRef });
+    if (disposed || atEpoch !== epoch || !answer.ok) return false;
+    const before = listed.get(fanKey(pageId, fanRef))?.items;
+    const items = new Map<string, SendListItem>();
+    for (const item of answer.payload.attempts) {
+      const held = before?.get(item.view.attemptId);
+      // A state this tab already saw further along stays: a late answer never moves an attempt back.
+      items.set(item.view.attemptId, held !== undefined && item.resolved === undefined && attemptReachable(item.view.state, held.view.state) ? { ...item, view: held.view, updatedAt: held.updatedAt } : item);
+    }
+    listed.set(fanKey(pageId, fanRef), { pageId, fanRef, items });
+    adoptSends(pageId, fanRef, answer.payload.truncated ? new Set() : uncertainNow);
+    changed();
+    return true;
+  }
+
+  /**
+   * The newest result of this chat that a preview made, after a reopen or a
+   * tab reload. The fan's sends are read first: a result comes back with the
+   * state of its parts, or not at all.
+   */
   async function restoreOp(state: TargetState): Promise<void> {
-    if (currentOp.has(state.handle)) return;
+    const atEpoch = epoch;
+    const known = await loadSends(state.pageId, state.fanRef);
+    if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state || currentOp.has(state.handle) || !known) return;
     const binding = context.current().binding;
     if (binding === null) return;
-    const atEpoch = epoch;
     const chatKey = chatKeyOf({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: state.fanRef });
     const answer = await rpc.request('op.list', { scope: 'tab', chatKey });
     if (disposed || atEpoch !== epoch || !answer.ok || currentOp.has(state.handle) || targets.get(state.handle) !== state) return;
@@ -558,6 +742,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const track = tracks.get(view.opId) ?? trackOf(view, state);
     tracks.set(view.opId, track);
     currentOp.set(state.handle, view.opId);
+    adoptSends(state.pageId, state.fanRef, new Set());
+    schedulePrune();
     changedFor(state.handle);
   }
 
@@ -594,8 +780,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       track.mirror = step.mirror;
       track.toneUsed = view.toneUsed;
       if (view.result?.kind === 'parts') track.splitRequested = view.result.splitRequested;
-      deps.greeting?.touch(track.fanRef, false);
+      touchDesk(track);
       if (view.stale?.reason === 'fan-wrote') markFanWrote(track, view.stale.at);
+      schedulePrune();
       changedFor(track.handle);
     };
     if (view.state !== 'done' || track.mirror.done !== null || localGate(track, view).ok === false) return apply();
@@ -730,13 +917,23 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   // ── part rows ──
 
-  function openInsertBlock(track: OpTrack): ReasonVM | null {
+  /**
+   * Why a part of this result cannot be opened and inserted. §6.7.8, §6.7.9:
+   * one uncertain part holds the fan — nothing of the fan is offered for
+   * insertion while it stands, whichever result made it; one part is in work
+   * at a time. NF-017: an answer that cannot be a message is copy-only.
+   */
+  function openInsertBlock(track: OpTrack, variant: number, sends: FanSends): ReasonVM | null {
     const ctx = context.current();
     if (ctx.phase !== 'ready' || !pageFlag(ctx, 'insertion')) return reason('feature-disabled');
     const capabilities = host.current().contract.capabilities;
     if (capabilities.navigate.state !== 'on' || capabilities.insert.state !== 'on') return reason('host-degraded');
+    if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
+    if (sends.inFlight) return reason('parts-sending');
+    const texts = partsOfResult(track.mirror.done?.result, variant);
+    if (texts === null || greetingOutputProblem(texts) !== null) return reason('unparsed');
     if (track.source === 'newcomers' && deps.greeting !== null && deps.greeting.leaseToken(track.fanRef) === null) {
-      const greeted = [...track.attempts.values()].some((attempt) => attempt.view.state === 'sentObserved');
+      const greeted = [...track.attempts.values()].some((attempt) => attempt.view.state === 'sentObserved' || attempt.resolved === 'sent');
       // §6.5: in «Новые» the insert needs a live lease (the greeting is not confirmed yet).
       if (!greeted) return reason(deps.greeting.claim(track.fanRef).s === 'other' ? 'claim-busy' : 'claim-expired');
     }
@@ -748,13 +945,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const key = partKey(v, index);
     const group = groupOf(track, v);
     const attempts = group === null ? [] : fanAttempts(track.attempts, purposeOf(track.source), group, track.clicked);
-    const row = sendRow({ attempt: track.attempts.get(key) ?? null, clicked: track.clicked.has(key), gate: gateOf(track, v), staleAt: track.fanWroteAt ?? track.mirror.done?.stale?.at ?? null, nowIso: nowIso() });
+    const sends = fanSends(track.pageId, track.fanRef, track.opId);
+    let row = sendRow({ attempt: track.attempts.get(key) ?? null, clicked: track.clicked.has(key), gate: gateOf(track, v), staleAt: track.fanWroteAt ?? track.mirror.done?.stale?.at ?? null, nowIso: nowIso() });
+    // A send of ANOTHER result holds the fan: this result's unsent parts say so before any click (the background would refuse them).
+    const unsent = row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'rejected';
+    if (unsent && sends.uncertain !== null && sends.uncertain.opId !== track.opId) row = { s: 'unavailable', code: 'CG-SEND-UNCERTAIN', reason: msg(SEND_REASON_KEYS['CG-SEND-UNCERTAIN']) };
+    else if (row.s === 'available' && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
     const settled = row.s === 'sent' || row.s === 'uncertain' || row.s === 'queued' || row.s === 'sending' || row.s === 'accepted';
     const order = group === null || settled ? null : partOrder(group, index, attempts);
     return {
       send: row,
       order,
-      openInsert: openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track) }),
+      openInsert: openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track, v, sends) }),
     };
   }
 
@@ -765,22 +967,32 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (group === null) return null;
     const attempts = fanAttempts(track.attempts, purposeOf(track.source), group, track.clicked);
     const counts = progressOf(group, attempts);
-    const uncertain = attempts.filter((attempt) => attempt.state === 'uncertain').map((attempt) => attempt.partIndex).sort((a, b) => a - b)[0];
+    const uncertain = attempts.filter((attempt) => attempt.state === 'uncertain' && attempt.resolved === undefined).map((attempt) => attempt.partIndex).sort((a, b) => a - b)[0];
     const sentAt = [...track.attempts.values()].map((attempt) => attempt.sentAt).filter((at): at is string => at !== null).sort()[0] ?? null;
-    return { variant, sent: counts.sent, total: counts.total, uncertainPart: uncertain ?? null, inFlight: attempts.some((attempt) => inFlight(attempt.state)), sentAt };
+    return { variant, sent: counts.sent, total: counts.total, uncertainPart: uncertain ?? null, inFlight: attempts.some((attempt) => attempt.resolved === undefined && inFlight(attempt.state)), sentAt };
   }
 
   function reportProgress(track: OpTrack): void {
     if (track.source !== 'newcomers' || deps.greeting === null) return;
     const p = progress(track);
     deps.greeting.noteProgress(track.fanRef, p === null ? null : { sent: p.sent, total: p.total, uncertainPart: p.uncertainPart, inFlight: p.inFlight, sentAt: p.sentAt });
-    deps.greeting.touch(track.fanRef, p?.inFlight ?? false);
+    touchDesk(track);
   }
 
   /** A state of an attempt, from the click's answer, the driver or the background. */
   function onAttemptView(view: SendAttemptView): void {
     const owner = attemptOwner.get(view.attemptId);
     if (owner === undefined) {
+      // An attempt this tab knows only from the journal's list (another result's, or its own before a reload) moves on.
+      for (const entry of listed.values()) {
+        const item = entry.items.get(view.attemptId);
+        if (item === undefined) continue;
+        if (attemptReachable(item.view.state, view.state)) {
+          entry.items.set(view.attemptId, { ...item, view, updatedAt: clock.now() });
+          changed();
+        } else if (item.view.state === view.state && view.state === 'uncertain') void loadSends(entry.pageId, entry.fanRef);
+        return;
+      }
       if (unclaimed.size > 64) unclaimed.clear();
       const before = unclaimed.get(view.attemptId);
       if (before === undefined || attemptReachable(before.state, view.state)) unclaimed.set(view.attemptId, view);
@@ -790,8 +1002,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const current = track?.attempts.get(owner.key);
     if (track === undefined || current === undefined || current.attemptId !== view.attemptId) return;
     const moved = attemptReachable(current.view.state, view.state);
+    const sameWithId = current.view.state === view.state && view.platformMessageId !== undefined && current.view.platformMessageId === undefined;
     // The same state again may bring the receipt's message id; anything else that is not ahead is late (RB-020).
-    if (!moved && !(current.view.state === view.state && view.platformMessageId !== undefined && current.view.platformMessageId === undefined)) return;
+    if (!moved && !sameWithId) {
+      // An unknown outcome told again, unchanged: the background says so when the hub resolved it — the journal knows how.
+      if (current.view.state === 'uncertain' && view.state === 'uncertain' && current.resolved === undefined) void loadSends(track.pageId, track.fanRef);
+      return;
+    }
     track.attempts.set(owner.key, {
       attemptId: view.attemptId,
       view,
@@ -812,7 +1029,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (attempt === undefined || attempt.view.state !== 'held' || attempt.view.code !== code) return;
     track.attempts.delete(key);
     reportProgress(track);
-    changedFor(track.handle);
+    changed();
     void refreshPreflight(track);
   }
 
@@ -846,7 +1063,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       }
     }
     reportProgress(track);
-    changedFor(track.handle);
+    // A send holds the fan on every card of the fan, not only on the one of this result.
+    changed();
     if (!inFlight(view.state)) void refreshPreflight(track);
   }
 
@@ -882,6 +1100,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (!pageFlag(ctx, 'preview')) return reason('feature-disabled');
     if (ctx.persona === null) return reason('no-persona');
     if (otherRunning) return reason('chat-busy');
+    // §6.7.8, §6.7.9: an unknown outcome holds the fan, and one part is in work at a time — for every feature of the strip,
+    // not only «Ещё раз»: a new generation would take the held result, its notice and its «Открыть чат для проверки» off the card.
+    const sends = fanSends(state.pageId, state.fanRef, currentOp.get(state.handle) ?? null);
+    if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
+    if (sends.inFlight) return reason('parts-sending');
     if (feature === 'fix' && draftText(state).trim().length === 0) return reason('needs-draft');
     if (feature === 'hi') {
       if (state.source === 'newcomers') {
@@ -985,8 +1208,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
             copy: (variant, index) => shown.copy.get(partKey(variant, index)) ?? 'idle',
             progress: p !== null && p.sent > 0 ? { sent: p.sent, total: p.total } : null,
             sendStarted,
-            regenerate: regenerateRule(shown, p),
+            regenerate: regenerateRule(shown),
           });
+    // The fan's sends over every result made for the fan, not only the one on the card.
+    const sends = fanSends(state.pageId, state.fanRef, shown?.opId ?? null);
+    const held = sends.uncertain;
 
     const around = deps.directories[source]?.neighbours(handle) ?? { previous: null, next: null };
     const openChat: UiAction = { type: 'Navigate', to: { kind: 'chat', targetHandle: handle } };
@@ -1005,7 +1231,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       },
       openChat: button('common.openChat', openChat),
       close: CLOSE_PREVIEW,
-      unread: sendStarted ? 'read-after-send' : 'kept',
+      unread: sendStarted || sends.started ? 'read-after-send' : 'kept',
       archive: {
         stamp: stamp(feed?.asOf ?? null, feed?.coverage ?? 'unknown'),
         lagMinutes: lag?.minutes ?? null,
@@ -1030,7 +1256,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       },
       claim: source === 'newcomers' && deps.greeting !== null ? deps.greeting.claim(state.fanRef) : null,
       greeting: source === 'newcomers' && deps.greeting !== null ? deps.greeting.greeting(state.fanRef) : null,
-      stoppedNote: p !== null && p.uncertainPart !== null && p.uncertainPart + 1 < p.total ? msg('newcomers.stopped', { n: p.uncertainPart + 1 }) : null,
+      // Under the parts while a later part waits behind the unknown one; and whenever the unknown part is not on the card at all.
+      stoppedNote: held !== null && (held.opId !== shown?.opId || held.part + 1 < held.total) ? msg('newcomers.stopped', { n: held.part + 1 }) : null,
     };
   }
 
@@ -1043,9 +1270,20 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return false;
   }
 
-  function regenerateRule(track: OpTrack, p: ReturnType<typeof progress>): { readonly allowed: boolean; readonly reason: ReasonVM | null } {
-    if (p !== null && p.uncertainPart !== null) return { allowed: false, reason: reason('part-uncertain', { n: p.uncertainPart + 1 }) };
-    if (p !== null && p.inFlight) return { allowed: false, reason: reason('parts-sending') };
+  /**
+   * «Ещё раз» (ui-design §4.2): off while a part to the fan is on its way or
+   * its outcome is unknown — by any result of the fan — and, in «Новые»,
+   * once a part of the greeting is confirmed: another generation would be a
+   * second greeting (§6.7.9).
+   */
+  function regenerateRule(track: OpTrack): { readonly allowed: boolean; readonly reason: ReasonVM | null } {
+    const sends = fanSends(track.pageId, track.fanRef, track.opId);
+    if (sends.uncertain !== null) return { allowed: false, reason: reason('part-uncertain', { n: sends.uncertain.part + 1 }) };
+    if (sends.inFlight) return { allowed: false, reason: reason('parts-sending') };
+    if (track.source === 'newcomers') {
+      const blocked = deps.greeting?.hiBlocked(track.fanRef) ?? null;
+      if (blocked !== null) return { allowed: false, reason: blocked };
+    }
     return { allowed: true, reason: null };
   }
 
@@ -1085,7 +1323,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       return refused(type, localError('CG-OP-CHAT-BUSY', i18n));
     }
     const why = gateReason(state, known, false);
-    if (why !== null) return refused(type, localError(why.code ?? 'CG-FEATURE-DISABLED', i18n));
+    if (why !== null) return refused(type, localError(reasonCode(why), i18n));
     const binding = ctx.binding;
     const settings = ctx.settings;
     const bootstrap = ctx.bootstrap;
@@ -1094,16 +1332,27 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const chat = { host: 'chatspace' as const, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef };
     const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef: state.fanRef };
     const atEpoch = epoch;
-    deps.greeting?.touch(state.fanRef, true);
+    // The click is the person working with the fan. «Something is in flight» is said only once an operation
+    // really started: a refused Generate must not keep the greeting lease renewing with nobody at the card (NF-021).
+    touchDesk(state);
+    let leaseTaken = false;
+    /** The Generate was refused after the lease: a lease this very click took goes back, and nothing is left «in flight». */
+    const refusedAfterLease = (receipt: ActionReceipt): ActionReceipt => {
+      if (leaseTaken) deps.greeting?.giveBack(state.fanRef);
+      touchDesk(state);
+      return receipt;
+    };
     // §6.7.5: the checkpoint is taken at the click — before the lease and before the hub request.
     const checkpoint: FreshnessCheckpoint | null = await host.checkpoint(chat).catch(() => null);
     if (state.source === 'newcomers' && deps.greeting !== null) {
       const lease = await deps.greeting.claimForGenerate(state.fanRef);
       if (!lease.ok) return refused(type, lease.error);
+      leaseTaken = lease.taken;
     }
     const issued = await issueCause(rpc, 'generate', surfaceOf(state.source));
-    if (!issued.ok) return refused(type, localError(issued.code, i18n));
+    // Another sign-in, hub or account meanwhile: the leases of the old identity are already dropped.
     if (disposed || atEpoch !== epoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    if (!issued.ok) return refusedAfterLease(refused(type, localError(issued.code, i18n)));
 
     const source = draftText(state);
     const tone = feature === 'reply' ? (regenerateOf !== null ? regenerateOf.toneUsed : options.tone !== undefined ? options.tone : state.tone) : null;
@@ -1123,9 +1372,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     };
     const admission = await rpc.request('op.start', start);
     if (disposed || atEpoch !== epoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
-    if (!admission.ok) return refused(type, errorOf(admission.error, i18n));
+    if (!admission.ok) return refusedAfterLease(refused(type, errorOf(admission.error, i18n)));
     if (!admission.payload.ok) {
-      return { ok: false, type, code: admission.payload.code, error: localError(admission.payload.code, i18n), running: runningVMs(admission.payload.active) };
+      return refusedAfterLease({ ok: false, type, code: admission.payload.code, error: localError(admission.payload.code, i18n), running: runningVMs(admission.payload.active) });
     }
     const opId = admission.payload.opId;
     // The tone was for this one Reply (Б1).
@@ -1151,6 +1400,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       track.cachedAt = track.mirror.done?.endedAt ?? null;
     }
     currentOp.set(state.handle, opId);
+    // An operation runs now: the lease of «Новые» renews for as long as it does.
+    touchDesk(state);
     pruneTracks();
     changedFor(state.handle);
     return done(type, 'started', { opId });
@@ -1176,7 +1427,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // The button is off from the first click, before anything answers (§6.7.7, lock 1).
     track.clicked.add(key);
     reportProgress(track);
-    changedFor(track.handle);
+    changed();
     const settle = (): void => {
       track.clicked.delete(key);
     };
@@ -1184,7 +1435,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (!issued.ok) {
       settle();
       reportProgress(track);
-      changedFor(track.handle);
+      changed();
       return refused(type, localError(issued.code, i18n));
     }
     const leaseToken = track.source === 'newcomers' ? (deps.greeting?.leaseToken(track.fanRef) ?? null) : null;
@@ -1209,7 +1460,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     } catch {
       settle();
       reportProgress(track);
-      changedFor(track.handle);
+      changed();
       // The click never reached the coordinator's journal: nothing was sent.
       return refused(type, localError('CG-SEND-HOST', i18n));
     }
@@ -1237,6 +1488,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     pendingInsert = null;
     if (pending.timer !== null) clock.clearTimer(pending.timer);
     pending.track.openInsert = null;
+    touchDesk(pending.track);
     changedFor(pending.track.handle);
     if (outcome.kind === 'inserted') return done('OpenAndInsertPart', 'opened', { opId: pending.track.opId });
     if (outcome.kind === 'needs-confirm') return done('OpenAndInsertPart', 'needs-confirm', { opId: pending.track.opId });
@@ -1264,7 +1516,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (text === undefined) return refused(type, localError('CG-INSERT-FAILED', i18n));
     const rows = rowsOf(track, variant, index);
     if (rows.openInsert.s !== 'available') {
-      const code: CgCode = rows.openInsert.s === 'unavailable' ? (rows.openInsert.reason.code ?? 'CG-FEATURE-DISABLED') : rows.send.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-INSERT-FAILED';
+      const code: CgCode = rows.openInsert.s === 'unavailable' ? reasonCode(rows.openInsert.reason) : rows.send.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-INSERT-FAILED';
       return refused(type, localError(code, i18n));
     }
     // The text was written for another sign-in, binding or persona: it is not put into a chat (the click says why).
@@ -1300,7 +1552,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       finishInsert(slot.expire(clock.now()));
     });
     track.openInsert = { key: pending.key, until: insert.intent.expiresAt };
-    deps.greeting?.touch(track.fanRef, true);
+    touchDesk(track);
     changedFor(track.handle);
 
     // A bridge failure of a write may have run: the navigation failed, the insert's outcome is unknown and is never repeated.
@@ -1308,7 +1560,6 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (receipt.state === 'navigated') closeForNavigation();
     const applied = receipt.insert;
     if (applied !== null) void rpc.request('op.reportInsert', { opId: track.opId, part, receipt: applied });
-    deps.greeting?.touch(track.fanRef, false);
     return finishInsert(slot.settle(navigation.intent.intentId, receipt)) ?? refused(type, localError('CG-INSERT-CANCELED', i18n));
   }
 
@@ -1347,7 +1598,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const put = putDraft(drafts, key, text, clock.now(), state.source === 'newcomers' ? (deps.greeting?.threadRevision(state.fanRef) ?? null) : null);
     drafts = put.store;
     revisions.set(key, Math.max(before + 1, put.revision));
-    deps.greeting?.touch(state.fanRef, false);
+    touchDesk(state);
     saveDrafts();
     changedFor(state.handle);
     draftsChanged();
@@ -1388,7 +1639,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (state === null) return Promise.resolve(refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n)));
       if (action.type === 'RefreshArchive') {
         const reads = context.current().phase === 'ready' ? Promise.resolve() : context.refresh();
-        return reads.then(() => Promise.all([loadFeed(state), loadCard(state)])).then(() => done(type));
+        return reads.then(() => Promise.all([loadFeed(state), loadCard(state), loadSends(state.pageId, state.fanRef)])).then(() => done(type));
       }
       if (action.type === 'LoadOlder') return loadOlder(state).then(() => done(type));
       if (action.type === 'SetPreviewDraft') {
@@ -1420,6 +1671,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         return rpc.request('op.cancel', { opId: track.opId }).then((answer) => (answer.ok ? done(type) : refused(type, errorOf(answer.error, i18n))));
       }
       if (action.type === 'HideResult') {
+        // A result whose part is on its way or has an unknown outcome stays on the card: its row is the only place that says so (§6.7.8).
+        if (holdsFan(track)) {
+          const uncertain = [...track.attempts.values()].some((attempt) => attempt.view.state === 'uncertain' && attempt.resolved === undefined);
+          return Promise.resolve(refused(type, localError(uncertain ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY', i18n)));
+        }
         track.hidden = true;
         changedFor(track.handle);
         return Promise.resolve(done(type));
@@ -1432,8 +1688,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (action.type === 'Regenerate') {
         const state = stateOf(track.handle);
         if (state === null) return Promise.resolve(refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n)));
-        const rule = regenerateRule(track, progress(track));
-        if (!rule.allowed) return Promise.resolve(refused(type, localError(rule.reason?.code ?? 'CG-SEND-BUSY', i18n)));
+        const rule = regenerateRule(track);
+        if (!rule.allowed) return Promise.resolve(refused(type, localError(rule.reason === null ? 'CG-SEND-BUSY' : reasonCode(rule.reason), i18n)));
         return generate(type, state, track.feature, {}, track);
       }
       if (action.type === 'SendPart') return sendPart(type, track, action.variant ?? 0, action.part);
@@ -1444,7 +1700,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const handle = surfaces.current().preview[action.selector.from];
       const state = handle === null ? null : stateOf(handle);
       return context.refresh().then(async () => {
-        if (state !== null) await Promise.all([loadFeed(state), loadCard(state)]);
+        if (state !== null) await Promise.all([loadFeed(state), loadCard(state), loadSends(state.pageId, state.fanRef)]);
         return done(type);
       });
     }
@@ -1478,6 +1734,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         currentOp.clear();
         attemptOwner.clear();
         unclaimed.clear();
+        listed.clear();
         for (const s of SOURCES) surfaces.setPreview(s, null);
       } else if (pendingInsert !== null && pendingInsert.track.personaDefinitionId !== null && state.persona?.definitionId !== pendingInsert.track.personaDefinitionId) {
         cancelInsert('persona');
@@ -1503,7 +1760,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
           if (chatKeyOf(event.route.chat) === chatKeyOf(pending.track.target.chat)) closeForNavigation();
           else cancelInsert('human-navigation');
         }
-        for (const track of tracks.values()) if (track.mirror.done !== null && currentOp.get(track.handle) === track.opId) void refreshPreflight(track);
+        // Only a result on an open card asks MAIN again: a closed card costs no bridge call.
+        for (const track of tracks.values()) if (track.mirror.done !== null && currentOp.get(track.handle) === track.opId && targets.has(track.handle)) void refreshPreflight(track);
         changed();
         return;
       }
@@ -1520,7 +1778,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         return;
       }
       if (event.type === 'coverage' || event.type === 'accounts') {
-        for (const track of tracks.values()) if (track.mirror.done !== null && currentOp.get(track.handle) === track.opId) void refreshPreflight(track);
+        for (const track of tracks.values()) if (track.mirror.done !== null && currentOp.get(track.handle) === track.opId && targets.has(track.handle)) void refreshPreflight(track);
       }
     }),
   );
@@ -1567,6 +1825,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       for (const off of offs) off();
       for (const target of targets.values()) stopPoll(target);
       for (const track of tracks.values()) clearHoldTimers(track);
+      if (pruneTimer !== null) clock.clearTimer(pruneTimer);
+      pruneTimer = null;
       if (pendingInsert !== null) {
         pendingInsert.abort.abort();
         if (pendingInsert.timer !== null) clock.clearTimer(pendingInsert.timer);

@@ -8,7 +8,9 @@
 // real background could not send.
 
 import {
+  PlatformSchema,
   TAB_REQUESTS,
+  sendLockKey,
   type AutoLists,
   type Bootstrap,
   type CgErrorWire,
@@ -332,6 +334,13 @@ export class BoardsBackground {
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
       const limit = this.options.audiencePageSize ?? 100;
       return this.read('clientAudienceNew', cursor === null ? { pageLabel, windowHours, limit } : { pageLabel, windowHours, cursor, limit });
+    },
+    'send.list': ({ pageId, fanRef }) => {
+      const page = this.bootstrap.pages.find((candidate) => candidate.pageId === pageId);
+      const platform = PlatformSchema.safeParse(page?.platform);
+      if (!platform.success || this.session === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
+      // The fan's lock key, as the coordinator builds it for a send.
+      return Promise.resolve(ok(this.coordinator.attemptsOf(sendLockKey({ hubOrigin: this.session.hubOrigin, pageId, platform: platform.data, fanRef }))));
     },
     'newcomers.claim': async ({ pageId, fanRef, action }) => {
       const pageLabel = this.pageLabel(pageId);
