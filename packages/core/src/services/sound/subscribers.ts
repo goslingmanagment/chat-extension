@@ -4,6 +4,11 @@
 // on. The first poll of a page only sets the baseline; a renewal is not in
 // the list at all (the hub lists `new` and `returning`). One poll per page
 // at a time, nothing retried before the next tick.
+//
+// §8.5 «с разбросом и паузами офлайн»: every pause is the period ±10 %, so
+// browsers do not ask the hub in step; nothing is asked while the browser is
+// offline; and after a round in which the hub answered nothing the pause
+// doubles (up to eight periods) until it answers again.
 
 import { type HostAccount, type Platform } from '@cg/contracts/ids';
 import { AUDIENCE_KINDS, AUDIENCE_LIMITS, type AudienceNewPage } from '@cg/contracts/hub';
@@ -29,10 +34,19 @@ export interface SubscriberPollerDeps {
   /** `settings.sound.subscribers.on` and the owner's switch: off — no polling at all. */
   readonly enabled: () => boolean;
   readonly sink: { handleSubscribers(batch: SubscriberBatch): Promise<unknown> };
+  /** The browser has a network (`navigator.onLine`); false — nothing is asked until it is back. Omitted — always. */
+  readonly online?: () => boolean;
+  /** 0 ≤ x < 1, for the spread of the pause. Omitted — `Math.random`. */
+  readonly random?: () => number;
   readonly log?: LogSink;
   readonly intervalMs?: number;
   readonly windowHours?: number;
 }
+
+/** Each pause is the period ± this share of it. */
+export const SUBSCRIBER_POLL_JITTER = 0.1;
+/** After rounds in which the hub answered nothing the pause doubles, up to this many periods. */
+export const SUBSCRIBER_POLL_BACKOFF_MAX = 8;
 
 export interface SubscriberPoller {
   /** Starts the timer; the first poll runs at once. */
@@ -50,18 +64,27 @@ export function createSubscriberPoller(deps: SubscriberPollerDeps): SubscriberPo
   const log = deps.log ?? NO_LOG;
   const intervalMs = deps.intervalMs ?? AUDIENCE_LIMITS.pollSoundMs;
   const windowHours = deps.windowHours ?? AUDIENCE_LIMITS.defaultWindowHours;
+  const random = deps.random ?? Math.random;
   let timer: TimerHandle | null = null;
   let running = false;
+  /** Changes with every start() and stop(): what an earlier start left behind — a timer, a round still in flight — schedules nothing. */
+  let generation = 0;
+  /** Rounds in a row in which every page asked failed. */
+  let failures = 0;
   let inFlight: Promise<void> | null = null;
 
   const round = async (): Promise<void> => {
-    // Only for a person at work, and only pages whose creator this browser has open somewhere.
-    if (!deps.enabled() || deps.presence.listeningTabs() === 0) return;
+    // Only for a person at work, with a network, and only pages whose creator this browser has open somewhere.
+    if (!deps.enabled() || deps.presence.listeningTabs() === 0 || deps.online?.() === false) return;
     const accounts = deps.presence.accounts();
+    let asked = 0;
+    let answered = 0;
     for (const page of deps.pages()) {
       if (page.platformAccountId === null || !accounts.some((account) => account.platform === page.platform && account.platformAccountId === page.platformAccountId)) continue;
+      asked += 1;
       try {
         const answer = await deps.read(page, windowHours);
+        answered += 1;
         await deps.sink.handleSubscribers({
           pageKey: String(page.pageId),
           platform: page.platform,
@@ -74,6 +97,7 @@ export function createSubscriberPoller(deps: SubscriberPollerDeps): SubscriberPo
         log.write({ level: 'warn', scope: 'bg.sound', msg: 'subscriber poll failed', fields: { pageId: page.pageId } });
       }
     }
+    if (asked > 0) failures = answered === 0 ? failures + 1 : 0;
   };
 
   const tick = (): Promise<void> => {
@@ -83,11 +107,19 @@ export function createSubscriberPoller(deps: SubscriberPollerDeps): SubscriberPo
     return inFlight;
   };
 
-  const schedule = (): void => {
-    if (!running) return;
-    timer = deps.clock.setTimer(intervalMs, () => {
+  /** The period, longer after silent rounds, ± the spread. */
+  const pause = (): number => {
+    const base = Math.min(intervalMs * 2 ** failures, intervalMs * SUBSCRIBER_POLL_BACKOFF_MAX);
+    return Math.round(base * (1 + (random() * 2 - 1) * SUBSCRIBER_POLL_JITTER));
+  };
+
+  /** The one place a timer is set: only for the start that is still the current one. */
+  const schedule = (mine: number): void => {
+    if (mine !== generation) return;
+    timer = deps.clock.setTimer(pause(), () => {
       timer = null;
-      void tick().finally(schedule);
+      if (mine !== generation) return;
+      void tick().finally(() => schedule(mine));
     });
   };
 
@@ -95,10 +127,14 @@ export function createSubscriberPoller(deps: SubscriberPollerDeps): SubscriberPo
     start() {
       if (running) return;
       running = true;
-      void tick().finally(schedule);
+      generation += 1;
+      const mine = generation;
+      void tick().finally(() => schedule(mine));
     },
     stop() {
       running = false;
+      generation += 1;
+      failures = 0;
       if (timer !== null) {
         deps.clock.clearTimer(timer);
         timer = null;

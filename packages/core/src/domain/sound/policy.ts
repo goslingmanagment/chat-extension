@@ -56,8 +56,8 @@ export type SoundOutcome = (typeof SOUND_OUTCOMES)[number];
 
 /** SN-005: older than this is not news. */
 export const STALE_MESSAGE_MS = 180_000;
-/** A subscription seen by a poll may be a poll period old already; beyond this it is history. */
-export const STALE_SUBSCRIBER_MS = 300_000;
+/** §9.8 «событие старше 180 с»: the same line for a subscription; a poll period (60 s) and the hub's own delay fit in it. */
+export const STALE_SUBSCRIBER_MS = 180_000;
 /** SN-009: at most one message sound per 2 s. */
 export const MESSAGE_THROTTLE_MS = 2000;
 /** SN-012: a wave of subscriptions must not ring non-stop. */

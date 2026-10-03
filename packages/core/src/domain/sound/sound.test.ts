@@ -247,8 +247,11 @@ describe('[SN-012] which subscribers ring', () => {
 
   it('the first poll of a page is its baseline; an old subscription and one without a time are history', () => {
     expect(gateSubscriber(subscriber({ firstSnapshot: true }))).toBe('first-snapshot');
-    const old = { eventRef: 'evt_2', platform: 'onlyfans' as const, platformAccountId: '3003', subscribedAt: iso(STALE_SUBSCRIBER_MS + 1) };
+    // §9.8 «событие старше 180 с»: one line for messages and subscriptions.
+    expect(STALE_SUBSCRIBER_MS).toBe(STALE_MESSAGE_MS);
+    const old = { eventRef: 'evt_2', platform: 'onlyfans' as const, platformAccountId: '3003', subscribedAt: iso(180_001) };
     expect(gateSubscriber(subscriber({ event: old }))).toBe('stale');
+    expect(gateSubscriber(subscriber({ event: { ...old, subscribedAt: iso(180_000) } }))).toBeNull();
     expect(gateSubscriber(subscriber({ event: { ...old, subscribedAt: 'x' } }))).toBe('no-time');
   });
 

@@ -3,7 +3,7 @@
 // titles carry the parity rows; ids are synthetic.
 
 import { DEFAULT_SETTINGS, TAB_REQUESTS, type AudienceNewPage, type HostAccount, type IncomingFact, type SettingsV1 } from '@cg/contracts';
-import { MESSAGE_THROTTLE_MS, SEEN_TTL_MS, STALE_SUBSCRIBER_MS, SUBSCRIBER_THROTTLE_MS, TONES, volumeToGain, type SoundTone } from '@cg/core/domain/sound';
+import { MESSAGE_THROTTLE_MS, SEEN_TTL_MS, SUBSCRIBER_THROTTLE_MS, TONES, volumeToGain, type SoundTone } from '@cg/core/domain/sound';
 import {
   SOUND_COUNTER_NAMES,
   SOUND_SESSION_KEY,
@@ -340,7 +340,8 @@ describe('the sound arbiter: subscribers', () => {
     w.page.tabs = 0;
     expect(await w.arbiter.handleSubscribers(batch([sub('e2')]))).toEqual(['tab-closed']);
     w.page.tabs = 1;
-    expect(await w.arbiter.handleSubscribers(batch([sub('e3', STALE_SUBSCRIBER_MS + 1)]))).toEqual(['stale']);
+    // §9.8: older than 180 s is history — 181 s is, three minutes sharp is not.
+    expect(await w.arbiter.handleSubscribers(batch([sub('e3', 181_000)]))).toEqual(['stale']);
     expect(await w.arbiter.handleSubscribers(batch([sub('e4')], { pageKey: '12', platformAccountId: '3999' }))).toEqual(['first-snapshot']);
     expect(await w.arbiter.handleSubscribers(batch([sub('e5')], { pageKey: '12', platformAccountId: '3999' }))).toEqual(['account-unknown']);
     expect(await w.arbiter.handleSubscribers(batch([sub('e6')], { pageKey: '13', platformAccountId: null }))).toEqual(['first-snapshot']);
@@ -538,29 +539,44 @@ const audience = (items: { ref: string; kind?: string; msAgo?: number }[], now: 
 describe('the subscriber poll', () => {
   function poll(options: { pages?: SubscriberPage[] } = {}) {
     const w = world();
-    const state = { enabled: true, answers: [] as (AudienceNewPage | Error)[], reads: [] as { label: string; hours: number }[] };
+    const state = {
+      enabled: true,
+      online: true,
+      /** 0.5 is the middle of the spread: the pause is exactly the period. */
+      random: 0.5,
+      answers: [] as (AudienceNewPage | Error)[],
+      reads: [] as { label: string; hours: number; at: number }[],
+      /** Set to hold the next read open until the test lets it go. */
+      hold: null as Promise<void> | null,
+    };
     const poller = createSubscriberPoller({
       clock: w.clock,
       pages: () => options.pages ?? [PAGE],
-      read: (page, hours) => {
-        state.reads.push({ label: page.pageLabel, hours });
+      read: async (page, hours) => {
+        state.reads.push({ label: page.pageLabel, hours, at: w.clock.now() - NOW });
         const answer = state.answers.shift() ?? audience([], w.clock.now());
-        return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
+        if (state.hold !== null) await state.hold;
+        if (answer instanceof Error) throw answer;
+        return answer;
       },
       presence: { listeningTabs: () => w.page.tabs, accounts: () => w.page.accounts },
       enabled: () => state.enabled,
+      online: () => state.online,
+      random: () => state.random,
       sink: w.arbiter,
       log: w.log,
     });
-    return { w, state, poller };
+    const asked = (): { label: string; hours: number }[] => state.reads.map(({ label, hours }) => ({ label, hours }));
+    const times = (): number[] => state.reads.map((read) => read.at);
+    return { w, state, poller, asked, times };
   }
 
   it('[SN-012] «Новые» of the hub is asked once a minute while a ChatSpace tab works; a new row rings, a renewal is not in the list at all', async () => {
-    const { w, state, poller } = poll();
+    const { w, state, poller, asked } = poll();
     state.answers.push(audience([{ ref: 'e1' }], NOW));
     poller.start();
     await settle();
-    expect(state.reads).toEqual([{ label: 'model-one', hours: 48 }]);
+    expect(asked()).toEqual([{ label: 'model-one', hours: 48 }]);
     expect(w.played).toEqual([]);
     state.answers.push(audience([{ ref: 'e2' }, { ref: 'e3', kind: 'renewed' }, { ref: 'e1' }], NOW + 60_000));
     await w.clock.advance(59_999);
@@ -578,7 +594,7 @@ describe('the subscriber poll', () => {
   });
 
   it('[SN-012] nothing is asked with no tab, with the sound off, or for a creator this browser does not have open; a failed poll rings nothing and is asked again', async () => {
-    const { w, state, poller } = poll({ pages: [PAGE, { pageId: 12, pageLabel: 'stranger', platform: 'onlyfans', platformAccountId: '3999' }, { pageId: 13, pageLabel: 'no-id', platform: 'fansly', platformAccountId: null }] });
+    const { w, state, poller, asked } = poll({ pages: [PAGE, { pageId: 12, pageLabel: 'stranger', platform: 'onlyfans', platformAccountId: '3999' }, { pageId: 13, pageLabel: 'no-id', platform: 'fansly', platformAccountId: null }] });
     w.page.tabs = 0;
     await poller.tick();
     state.enabled = false;
@@ -588,7 +604,7 @@ describe('the subscriber poll', () => {
     state.enabled = true;
     state.answers.push(new Error('hub down'));
     await poller.tick();
-    expect(state.reads).toEqual([{ label: 'model-one', hours: 48 }]);
+    expect(asked()).toEqual([{ label: 'model-one', hours: 48 }]);
     expect(w.log.entries).toEqual([{ level: 'warn', scope: 'bg.sound', msg: 'subscriber poll failed', fields: { pageId: 11 } }]);
     // The failed poll set no baseline: the next one is the first snapshot.
     state.answers.push(audience([{ ref: 'e1' }], NOW));
@@ -604,6 +620,90 @@ describe('the subscriber poll', () => {
     await settle();
     await w.clock.advance(60_000);
     expect(state.reads).toHaveLength(before + 3);
+    poller.stop();
+  });
+
+  it('[SN-012] one chain of timers whatever start and stop do: a restart during a poll in flight neither doubles the polls nor leaves one running after stop', async () => {
+    const { w, state, poller, times } = poll();
+    let release = (): void => undefined;
+    state.hold = new Promise<void>((resolve) => (release = resolve));
+    poller.start();
+    await settle();
+    // The first poll is still in flight: the sound is switched off and on again (settings saved twice).
+    poller.stop();
+    poller.start();
+    state.hold = null;
+    release();
+    await w.clock.advance(30_000);
+    expect([times(), w.clock.pending]).toEqual([[0], 1]);
+    poller.stop();
+    expect(w.clock.pending).toBe(0);
+    await w.clock.advance(300_000);
+    // Nothing after stop().
+    expect(times()).toEqual([0]);
+    poller.start();
+    await w.clock.advance(180_000);
+    // One poll at the start and then one a minute — not two.
+    expect(times()).toEqual([0, 330_000, 390_000, 450_000, 510_000]);
+    expect(w.clock.pending).toBe(1);
+    poller.stop();
+    // A timer that fires for a start already stopped does nothing (stop() between the timer and its poll).
+    poller.start();
+    await settle();
+    const polls = state.reads.length;
+    state.hold = new Promise<void>((resolve) => (release = resolve));
+    await w.clock.advance(60_000);
+    expect(state.reads).toHaveLength(polls + 1);
+    poller.stop();
+    state.hold = null;
+    release();
+    await w.clock.advance(600_000);
+    expect([state.reads.length, w.clock.pending]).toEqual([polls + 1, 0]);
+  });
+
+  it('[SN-012] §8.5 «с разбросом»: each pause is the period ±10 %', async () => {
+    const { w, state, poller, times } = poll();
+    state.random = 0;
+    poller.start();
+    await w.clock.advance(53_999);
+    expect(times()).toEqual([0]);
+    await w.clock.advance(1);
+    expect(times()).toEqual([0, 54_000]);
+    state.random = 0.999_999;
+    // The pause after the 54 s poll was drawn at random = 0 too; the next one is the long end.
+    await w.clock.advance(54_000);
+    expect(times()).toEqual([0, 54_000, 108_000]);
+    await w.clock.advance(65_999);
+    expect(times()).toHaveLength(3);
+    await w.clock.advance(1);
+    expect(times()).toEqual([0, 54_000, 108_000, 174_000]);
+    poller.stop();
+  });
+
+  it('[SN-012] §8.5 «паузы офлайн»: nothing is asked while the browser is offline, and a hub that does not answer is asked less and less often', async () => {
+    const { w, state, poller, times } = poll();
+    state.online = false;
+    poller.start();
+    await w.clock.advance(180_000);
+    expect(state.reads).toEqual([]);
+    state.online = true;
+    await w.clock.advance(60_000);
+    expect(times()).toEqual([240_000]);
+    // The hub stops answering: 1, 2, 4, 8, 8 periods between the polls.
+    for (let i = 0; i < 5; i += 1) state.answers.push(new Error('hub down'));
+    await w.clock.advance(60_000 * (1 + 2 + 4 + 8 + 8));
+    expect(times().map((at) => (at - 240_000) / 60_000)).toEqual([0, 1, 3, 7, 15, 23]);
+    // It answers again: back to once a minute.
+    await w.clock.advance(60_000 * 8);
+    await w.clock.advance(120_000);
+    expect(times().slice(-3).map((at) => (at - 240_000) / 60_000)).toEqual([31, 32, 33]);
+    // Offline rounds ask nothing and are not failures: the pause stays the period.
+    state.online = false;
+    await w.clock.advance(300_000);
+    state.online = true;
+    const before = state.reads.length;
+    await w.clock.advance(60_000);
+    expect(state.reads).toHaveLength(before + 1);
     poller.stop();
   });
 });

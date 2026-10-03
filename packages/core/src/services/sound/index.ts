@@ -15,9 +15,10 @@
 //    of soundRequestHandlers(arbiter); onTabGone → arbiter.tabGone(id).
 // 3. poller = createSubscriberPoller({ clock, pages, read: (page, hours) =>
 //    hub.audienceNew({ pageLabel: page.pageLabel, windowHours: hours }),
-//    presence, enabled, sink: arbiter }); start it when the first tab
-//    registers, stop it when the last one is gone; `arbiter.forgetSubscribers()`
-//    on sign-out. R12's own «Новые» poll may feed `handleSubscribers` instead.
+//    presence, enabled, online: () => navigator.onLine, sink: arbiter });
+//    start it when the first tab registers, stop it when the last one is
+//    gone; `arbiter.forgetSubscribers()` on sign-out. R12's own «Новые» poll
+//    may feed `handleSubscribers` instead.
 // 4. `diagnostics.get`: sound = arbiter.diagnostics() (listeningTabs,
 //    lastIncomingAt, outcomes).
 // 5. Tab side: every HostPort `incoming` event goes to the background as it
@@ -36,5 +37,5 @@ export {
   type SoundPresencePort,
   type SubscriberBatch,
 } from './arbiter';
-export { createSubscriberPoller, type SubscriberPage, type SubscriberPoller, type SubscriberPollerDeps } from './subscribers';
+export { SUBSCRIBER_POLL_BACKOFF_MAX, SUBSCRIBER_POLL_JITTER, createSubscriberPoller, type SubscriberPage, type SubscriberPoller, type SubscriberPollerDeps } from './subscribers';
 export { soundRequestHandlers } from './handlers';
