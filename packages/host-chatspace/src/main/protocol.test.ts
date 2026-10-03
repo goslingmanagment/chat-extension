@@ -73,6 +73,7 @@ describe('[EX-008] MAIN bridge literals', () => {
       'STORE_CHATS',
       'STORE_QUEUE',
       'STORE_TRANSLATOR',
+      'STORE_TABS',
       'KEY_ACCOUNTS',
       'KEY_MESSAGES',
       'KEY_FANS',

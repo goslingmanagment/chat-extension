@@ -70,6 +70,32 @@ describe('[UI-001] the dock docks in flow above the active composer (§6.3)', ()
     expect(seen).toEqual(['in-flow:c-2002', 'in-flow:c-2003']);
   });
 
+  it('a draft revision (one per keystroke) does not re-place the dock; a new composer or «Проверить» does', async () => {
+    const mounts = setup();
+    const a = page.addComposer(ACC, '2002');
+    mounts.update(state('2002'));
+    await tick();
+    expect(a.root.firstChild).toBe(mounts.dock.host);
+    let searches = 0;
+    const original = document.querySelectorAll.bind(document);
+    Object.defineProperty(document, 'querySelectorAll', { configurable: true, value: (selector: string) => ((searches += selector === COMPOSER_SLOT_SELECTOR ? 1 : 0), original(selector)) });
+    try {
+      for (let revision = 1; revision <= 5; revision += 1) mounts.update(state('2002', { draft: { revision, provenance: 'human-or-unknown' } }));
+      await tick();
+      expect(searches).toBe(0);
+      mounts.refresh();
+      await tick();
+      expect(searches).toBeGreaterThan(0);
+      searches = 0;
+      mounts.update(state('2002', { instanceId: 'c-new' }));
+      await tick();
+      expect(searches).toBeGreaterThan(0);
+      expect(mounts.points().dock.composerInstanceId).toBe('c-new');
+    } finally {
+      Reflect.deleteProperty(document, 'querySelectorAll');
+    }
+  });
+
   it('comes back when Vue re-creates the frame root (childList observer, no subtree)', async () => {
     const mounts = setup();
     const a = page.addComposer(ACC, '2002');

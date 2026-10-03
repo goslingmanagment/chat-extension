@@ -229,11 +229,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     const moved = next.epoch !== route.epoch || !sameChat(next.chat, route.chat);
     route = next;
     hostLoginEpoch = loginEpoch;
-    if (composer && !sameChat(composer.chat, route.chat)) {
-      // The composer state belongs to the chat we left; MAIN reports the new one a frame later.
-      composer = null;
-      emit({ type: 'composer', composer: null });
-    }
+    // The composer state belongs to the chat we left (the dock leaves it too); MAIN reports the new one a frame later.
+    if (composer && !sameChat(composer.chat, route.chat)) setComposer(null);
     if (moved) emit({ type: 'route', route });
     recompute();
     refreshOpenChat();
@@ -369,7 +366,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     },
     async recheck() {
       if (bridge) await snapshot().catch(() => undefined);
-      mounts.update(composer);
+      mounts.refresh();
       recompute();
       return report;
     },
@@ -460,18 +457,23 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       const failed = (code: CgCode): NavigationReceipt => ({ state: 'failed', code, insert: then ? rejected(code) : null });
       if (!bridge || !capability('navigate')) return failed('CG-NAV-FAILED');
       if (!(await redeem({ kind: 'navigate', actionToken: intent.cause.actionToken, intentId: intent.intentId }))) return failed('CG-NAV-FAILED');
-      const timeoutMs = then ? Math.min(Math.max(0, then.expiresAt - clock()), navTimeoutMs) + NAV_GRACE_MS : navTimeoutMs;
+      // Copy only (the insert capability is off): the chat still opens, the insert is refused now instead of waiting out its deadline in MAIN.
+      const insertCapability = report.capabilities.insert;
+      const insertOff = insertCapability.state === 'off' || insertCapability.state === 'contractBroken' ? (insertCapability.code ?? 'CG-HOST-COMPOSER-MISSING') : null;
+      const thenInsert = then && !insertOff ? then : undefined;
+      const timeoutMs = thenInsert ? Math.min(Math.max(0, thenInsert.expiresAt - clock()), navTimeoutMs) + NAV_GRACE_MS : navTimeoutMs;
       let receipt: NavigationReceipt;
       try {
         receipt = await bridge.request(
           'navigate',
-          { intent: { intentId: intent.intentId, acc: intent.target.hostAccountId, fan: intent.target.platformFanId, ...(then ? { thenInsert: then } : {}) } },
+          { intent: { intentId: intent.intentId, acc: intent.target.hostAccountId, fan: intent.target.platformFanId, ...(thenInsert ? { thenInsert } : {}) } },
           timeoutMs,
         );
       } catch (error) {
         if (error instanceof BridgeCallError && error.executed === 'no') return failed('CG-NAV-FAILED');
-        return { ...WRITE_FAILURES.navigate, insert: then ? WRITE_FAILURES.navigate.insert : null };
+        return { ...WRITE_FAILURES.navigate, insert: then ? (insertOff ? rejected(insertOff) : WRITE_FAILURES.navigate.insert) : null };
       }
+      if (then && insertOff) return { ...receipt, insert: rejected(insertOff) };
       if (then && receipt.insert && intent.target.platformFanId) {
         const target: ChatRef = { host: 'chatspace', hostAccountId: intent.target.hostAccountId, platformFanId: intent.target.platformFanId };
         return { ...receipt, insert: verifyAgainstKey(receipt.insert, target, then.text, then.mode) };

@@ -152,8 +152,14 @@ export interface MountManager {
   overlay(layer: OverlayLayer): ClosedHost;
   points(): MountPoints;
   onChange(listener: (points: MountPoints) => void): () => void;
-  /** Re-evaluates the dock's place for the open chat's composer as MAIN reports it (null — none). */
+  /**
+   * The open chat's composer as MAIN reports it (null — none). The dock's
+   * place is re-evaluated only when the composer, its chat or its hidden
+   * state changed — not for a draft revision (MAIN reports one per keystroke).
+   */
   update(composer: ComposerState | null): void;
+  /** Re-evaluates the dock's place now («Проверить»). */
+  refresh(): void;
   /** `data-dismissible-open` on a host while any owner keeps one of our windows open there (§6.3, §9.1). */
   setDismissibleOpen(target: 'dock' | OverlayLayer, owner: string, open: boolean): void;
   /** Our hosts and their closed roots, for the hotkey dispatcher (§9.1). */
@@ -401,9 +407,18 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
       };
     },
     update(next) {
+      const same =
+        next === composer ||
+        (next !== null &&
+          composer !== null &&
+          next.instanceId === composer.instanceId &&
+          next.hidden === composer.hidden &&
+          next.chat.hostAccountId === composer.chat.hostAccountId &&
+          next.chat.platformFanId === composer.chat.platformFanId);
       composer = next;
-      schedule();
+      if (!same) schedule();
     },
+    refresh: schedule,
     setDismissibleOpen(target, owner, open) {
       const owners = dismissible.get(target) ?? new Set<string>();
       dismissible.set(target, owners);

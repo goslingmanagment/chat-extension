@@ -5,7 +5,7 @@
 
 import { ChatWindowSchema, HostFanSchema, InsertReceiptSchema, NavigationItemSchema, NavigationReceiptSchema, TailSnapshotSchema } from '@cg/contracts/host';
 import { DraftWireSchema, MainSnapshotSchema } from '@cg/contracts/bridge-messages';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from './bridge';
@@ -81,16 +81,17 @@ const identity = (h: Harness, over: Record<string, unknown> = {}) => {
   };
 };
 
-const draft = async (h: Harness) => DraftWireSchema.parse(await h.call('readDraft', { expected: identity(h) }));
+const chatOf = (fan: string) => ({ host: 'chatspace', hostAccountId: ACC, platformFanId: fan });
+const draft = async (h: Harness, fan = FAN) => DraftWireSchema.parse(await h.call('readDraft', { expected: identity(h, { chat: chatOf(fan) }) }));
 
-async function openIntent(h: Harness, over: Record<string, unknown> = {}, text = 'Hello there') {
-  const id = identity(h);
-  const current = await draft(h);
+async function openIntent(h: Harness, over: Record<string, unknown> = {}, text = 'Hello there', fan = FAN) {
+  const id = identity(h, { chat: chatOf(fan) });
+  const current = await draft(h, fan);
   return {
     intentId: uuid(Math.floor(Math.random() * 1e9)),
     operationId: uuid(7),
     part: { index: 0 },
-    target: { host: 'chatspace', hostAccountId: ACC, platformFanId: FAN },
+    target: chatOf(fan),
     expected: { kind: 'open', documentEpoch: 'doc1', routeEpoch: id.routeEpoch, composerInstanceId: id.composerInstanceId, draftRevision: current.revision, draftDigest: current.digest },
     mode: 'replace',
     text,
@@ -379,6 +380,76 @@ describe('MAIN runtime — guarded insert (§6.4)', () => {
     expect((h.runtime.handle('snapshot', {}) as { composer: { hidden: boolean } }).composer.hidden).toBe(true);
     expect(await h.call('insertGuarded', { intent })).toEqual({ state: 'rejected', code: 'CG-GATE-FAN-BLOCKED' });
     expect(h.events.filter((event) => event.t === 'chatCache').length).toBeGreaterThan(0);
+  });
+
+  it('[RB-014] [RB-015] a tab switch the route has not followed yet: the new tab’s composer is never taken for the old chat', async () => {
+    const h = harness as Harness;
+    const other = h.page.all.find((item) => item.fan === OTHER) as FakeComposer;
+    // A tab restored from storage and activated for the first time: its composer appears with the click.
+    const restored = h.page.addComposer(ACC, '2004', { shown: false });
+    const before = identity(h);
+    const intent = await openIntent(h);
+    for (const [fan, target] of [
+      [OTHER, other],
+      ['2004', restored],
+    ] as const) {
+      // ChatSpace activates the tab and shows its composer; the route waits on async router guards (still FAN).
+      h.page.showOnly(ACC, fan);
+      h.frame();
+      expect((h.events.filter((event) => event.t === 'composer').at(-1)?.payload as { state: unknown }).state).toBeNull();
+      expect((h.runtime.handle('snapshot', {}) as { composer: unknown }).composer).toBeNull();
+      expect(await h.call('readDraft', { expected: before })).toBe('identity-mismatch');
+      expect(await h.call('focus', { expected: before })).toBe('identity-mismatch');
+      expect(await h.call('insertGuarded', { intent: { ...intent, intentId: uuid(60 + Number(fan.slice(-1))) } })).toEqual({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
+      expect(target.calls).toEqual([]);
+      expect(target.editor?.text).toBe('');
+      h.page.showOnly(ACC, FAN);
+      h.frame();
+    }
+    // The route follows: the composer serves its own chat, with an id of its own.
+    h.page.showOnly(ACC, OTHER);
+    h.page.go(ACC, OTHER);
+    h.frame();
+    const snapshot = h.runtime.handle('snapshot', {}) as { composer: { chat: { platformFanId: string }; instanceId: string; ready: boolean } };
+    expect(snapshot.composer).toMatchObject({ chat: { platformFanId: OTHER }, ready: true });
+    expect(snapshot.composer.instanceId).not.toBe(before.composerInstanceId);
+    const receipt = await settleWrite(h, h.call('insertGuarded', { intent: await openIntent(h, {}, 'for other', OTHER) }));
+    expect(receipt).toMatchObject({ state: 'applied' });
+    expect(other.editor?.text).toBe('for other');
+    expect(composer.editor?.text).toBe('');
+  });
+
+  it('[RB-008] [UI-027] ChatSpace’s chat tabs unreadable (a new build): copy only — the dock may sit there, nothing reads or writes', async () => {
+    const h = await start((page) => {
+      composer = page.addComposer(ACC, FAN);
+      page.stores.delete('chatTabEntries');
+    });
+    const snapshot = h.runtime.handle('snapshot', {}) as { composer: { instanceId: string; ready: boolean; hidden: boolean }; contract: { missing: string[] } };
+    expect(snapshot.composer).toMatchObject({ ready: false, hidden: false });
+    expect(snapshot.contract.missing).toContain('composerBridge');
+    const expected = identity(h);
+    expect(await h.call('readDraft', { expected })).toBe('identity-mismatch');
+    const intent = { intentId: uuid(80), operationId: uuid(7), part: { index: 0 }, target: chatOf(FAN), expected: { kind: 'open', documentEpoch: 'doc1', routeEpoch: expected.routeEpoch, composerInstanceId: snapshot.composer.instanceId, draftRevision: 0, draftDigest: '0000000000000000' }, mode: 'replace', text: 'x', confirmationId: null, createdAt: Date.now() - 1, expiresAt: Date.now() + 5000 };
+    expect(await h.call('insertGuarded', { intent })).toEqual({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
+    expect(composer.calls).toEqual([]);
+  });
+
+  it('typing re-reads the draft of the composer last found without searching the page again; a tab action searches again', () => {
+    const h = harness as Harness;
+    h.frame();
+    h.runtime.handle('snapshot', {});
+    const searches = vi.spyOn(document, 'querySelectorAll');
+    const slotSearches = (): number => searches.mock.calls.filter(([selector]) => selector === '[data-id="browser-composer-translator"]').length;
+    composer.editor?.type('a');
+    composer.editor?.type('ab');
+    h.frame();
+    const last = h.events.filter((event) => event.t === 'composer').at(-1)?.payload as { state: { draft: { revision: number; provenance: string } } };
+    expect(last.state.draft).toEqual({ revision: 2, provenance: 'human-or-unknown' });
+    expect(slotSearches()).toBe(0);
+    h.page.showOnly(ACC, FAN);
+    h.frame();
+    expect(slotSearches()).toBeGreaterThan(0);
+    searches.mockRestore();
   });
 
   it('two visible composers are ambiguous: no composer state, no write', async () => {

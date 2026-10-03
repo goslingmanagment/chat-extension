@@ -35,6 +35,8 @@ export const env = {
   queueTimeoutMs: 30_000,
   /** Extra time the editor chunk takes to load, so tests can act while the bridge exists without TipTap. */
   editorChunkDelayMs: 0,
+  /** Time every navigation waits in an async router guard (ChatSpace: sign-in and flag checks before the route changes). */
+  routeDelayMs: 0,
 };
 
 export function isBroken(item: StandBreak): boolean {

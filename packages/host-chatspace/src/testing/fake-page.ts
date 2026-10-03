@@ -1,7 +1,8 @@
 // A minimal ChatSpace-shaped page for the package's happy-dom tests: the
 // contracts the adapter reads (architecture.md §6.1, §6.3) and nothing else —
 // `#app.__vue_app__` with a router and Pinia, a Colada-like `_pc_query`
-// store with $onAction, v-show composers with `__omComposerBridge` and a
+// store with $onAction, `chatTabEntries` (one tab per composer; the active
+// tab is the one shown), v-show composers with `__omComposerBridge` and a
 // Tiptap-like editor on `.ProseMirror` (`view.dom.editor`). Test-only: no
 // bundle imports this file. The real-browser contract is proven on the R02
 // stand (packages/testing/fixture-chatspace) by the e2e.
@@ -204,10 +205,12 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
     },
     hasRoute: (name: string) => (options.withRouterName ?? true) && name === 'chat',
   };
+  /** The route moves (its afterEach guards run), then the tabs follow it, as ChatSpace's route watcher does. */
   const go = (accountId: string, chatId?: string, name = 'chat'): void => {
     const from = current;
     current = { name, params: { accountId, chatId } };
     for (const guard of [...guards]) guard(current, from, undefined);
+    if (name === 'chat') followRoute(accountId, chatId ?? null);
   };
 
   const stores = new Map<string, FakeStore>();
@@ -224,6 +227,31 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
   };
   const cache = fakeCache();
   addStore(cache.store);
+
+  // `chatTabEntries`: per account `{entries: [{id, chatId}], activeEntryId}`; actions observed through $onAction.
+  type TabState = { entries: Array<{ id: string; chatId: string | null }>; activeEntryId: string };
+  const stateByAccountId: Record<string, TabState> = {};
+  const tabsOf = (accountId: string): TabState => (stateByAccountId[accountId] ??= { entries: [], activeEntryId: '' });
+  const tabs = fakeStore(
+    'chatTabEntries',
+    {
+      stateByAccountId,
+      setActiveEntry: (accountId: string, entryId: string) => {
+        tabsOf(accountId).activeEntryId = entryId;
+      },
+    },
+    ['setActiveEntry'],
+  );
+  addStore(tabs);
+  /** Activates the tab with the chat, else puts the chat into the active tab. */
+  function followRoute(accountId: string, chatId: string | null): void {
+    const state = tabsOf(accountId);
+    const active = state.entries.find((entry) => entry.id === state.activeEntryId);
+    if (active?.chatId === chatId) return;
+    const other = state.entries.find((entry) => entry.chatId === chatId);
+    if (other) state.activeEntryId = other.id;
+    else if (active) active.chatId = chatId;
+  }
 
   Object.defineProperty(app, '__vue_app__', { configurable: true, value: { config: { globalProperties: { $router: router, $pinia: pinia } } } });
 
@@ -249,6 +277,9 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
     composers.append(tab);
     for (const element of [tab, root, frame, strip, slot, prose]) stubLayout(element);
     const composer: FakeComposer = { key: `${acc}:${fan}`, acc, fan, tab, root, frame, slot, prose, editor: null, calls: [] };
+    const entry = { id: `tab-${all.length + 1}`, chatId: fan };
+    tabsOf(acc).entries.push(entry);
+    if (opts.shown ?? true) tabsOf(acc).activeEntryId = entry.id;
     if (opts.editor !== false) attachEditor(composer);
     if (opts.bridge !== false) {
       Object.defineProperty(slot, '__omComposerBridge', {
@@ -291,12 +322,14 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
   function show(composer: FakeComposer, shown: boolean): void {
     composer.tab.style.display = shown ? '' : 'none';
   }
-  /** Shows only the composer of acc/fan (v-show), like switching chat tabs. */
+  /** A click on the chat tab of acc/fan: ChatSpace activates the tab (its composer shows at once); the route follows only with go(). */
   const showOnly = (acc: string, fan: string): void => {
+    const entry = tabsOf(acc).entries.find((item) => item.chatId === fan);
+    if (entry) (tabs['setActiveEntry'] as (accountId: string, entryId: string) => void)(acc, entry.id);
     for (const composer of all) show(composer, composer.acc === acc && composer.fan === fan);
   };
 
-  return { app, composers, router, pinia, cache, stores, addStore, addComposer, attachEditor, show, showOnly, go, pushes, all, setPush: (impl: typeof pushImpl) => (pushImpl = impl) };
+  return { app, composers, router, pinia, cache, stores, tabs: stateByAccountId, addStore, addComposer, attachEditor, show, showOnly, go, pushes, all, setPush: (impl: typeof pushImpl) => (pushImpl = impl) };
 }
 
 export type FakePage = ReturnType<typeof createFakePage>;

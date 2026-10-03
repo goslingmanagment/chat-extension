@@ -3,8 +3,9 @@
 //   connected, visible along the whole chain and has a non-zero box — exactly
 //   one, or none (two visible ones are ambiguous and count as none).
 // - Each composer node gets its own composerInstanceId; a replaced node is a
-//   new composer with a new id. A node is bound to the route's chat when it is
-//   first seen active, and never to another chat.
+//   new composer with a new id. A node is bound to the chat ChatSpace rendered
+//   it for (its account's active chat tab, read by the runtime when the tab
+//   and the route agree) when it is first seen active, and never to another chat.
 // - The draft revision comes from the editor's own document stream: MAIN
 //   listens passively to `transaction` of the Tiptap object behind
 //   `.ProseMirror` (`view.dom.editor`). Our transactions are those that happen
@@ -89,10 +90,12 @@ export const normalize = (value: string): string =>
 export type Composers = ReturnType<typeof createComposers>;
 
 /**
- * `changed` — a draft or an editor changed (the bridge re-reads the
- * composer state on the next frame); `frame` — one frame, or the fallback timer.
+ * `changed` — a draft or an editor changed (the bridge re-reads the composer
+ * state on the next frame); `draftOf` names the composer whose document
+ * changed when nothing else did (typing), so the runtime may skip the layout
+ * reads of a full search. `frame` — one frame, or the fallback timer.
  */
-export function createComposers(win: Window, changed: () => void, frame: (callback: () => void) => void) {
+export function createComposers(win: Window, changed: (draftOf?: Composer) => void, frame: (callback: () => void) => void) {
   const doc = win.document;
   const bySlot = new WeakMap<Element, Composer>();
   let next = 1;
@@ -145,7 +148,7 @@ export function createComposers(win: Window, changed: () => void, frame: (callba
       composer.ours = null;
       composer.provenance = composer.editor?.isEmpty ? 'empty' : 'human-or-unknown';
     }
-    changed();
+    changed(composer);
   };
 
   /** Listens to the editor behind `view.dom.editor` once it exists (TipTap loads after the composer). */
@@ -226,7 +229,7 @@ export function createComposers(win: Window, changed: () => void, frame: (callba
       }
       return found;
     },
-    /** The composer of a slot, bound to `acc`/`fan` on first sight; null when the node belongs to another chat. */
+    /** The composer of a slot, bound on first sight to the chat ChatSpace rendered it for; null when the node belongs to another chat. */
     bind(slot: Element, acc: string, fan: string): Composer | null {
       let composer = bySlot.get(slot);
       if (!composer) {

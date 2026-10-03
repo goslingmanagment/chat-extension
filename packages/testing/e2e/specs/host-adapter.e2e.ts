@@ -356,6 +356,49 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
     });
   });
 
+  describe('[RB-014] a chat tab whose route follows late (async router guards)', () => {
+    it('[RB-014] [RB-015] [NEW-06] a restored tab activated for the first time: its composer is never taken for the old chat, then serves its own', async () => {
+      // Two chat tabs, then a reload: the tabs come back from storage, only the active one (a1) has a composer.
+      await open(chatPath(ACC, a1));
+      await callStand('openChat', ACC, a2, { newTab: true });
+      await waitForChatReady(ACC, a2);
+      await callStand('openChat', ACC, a1);
+      await settledOn(a1);
+      await openStand(chatPath(ACC, a1));
+      await waitForHarness();
+      await settledOn(a1);
+      expect((await callStand('composers')).map((composer) => composer.chatId)).toEqual([a1]);
+      const since = (await callStand('journal')).at(-1)?.seq ?? 0;
+      type Step = { routeChat: string | null; composer: string | null; read: string; receipt: Receipt | null };
+      let result: { before: string; steps: Step[] } = { before: '', steps: [] };
+      await callStand('setRouteDelayMs', 400);
+      try {
+        result = await harness<typeof result>('tabSwitchWindow', { fan: a2, text: 'aimed', maxSteps: 40 });
+      } finally {
+        await callStand('setRouteDelayMs', 0);
+      }
+      evidence['lateRoute'] = result;
+      const inWindow = result.steps.filter((step) => step.routeChat === a1);
+      // The window was real: several steps while ChatSpace showed a2's composer under a1's route.
+      expect(inWindow.length).toBeGreaterThanOrEqual(2);
+      for (const step of inWindow) {
+        expect(step.composer).toBeNull();
+        expect(step.read).toBe('refused:identity-mismatch');
+        expect(step.receipt).toBeNull();
+      }
+      const s = await settledOn(a2);
+      expect(s.composer?.instanceId).not.toBe(result.before);
+      // Every write ChatSpace saw in a2 was aimed at a2 (none at all while the route named a1).
+      const writes = (await callStand('journal', since)).filter((entry) => entry.type === 'bridge-call' && entry['method'] === 'setText');
+      const aimedAtA2 = result.steps.filter((step) => step.routeChat === a2 && step.receipt?.state === 'applied').length;
+      expect(writes.map((entry) => entry['chatId'])).toEqual(Array.from({ length: aimedAtA2 }, () => a2));
+      expect(await composerText(a2)).not.toContain(`@${a1}`);
+      expect(await composerText(a1)).toBe('');
+      expect(await harness<Receipt>('insert', { text: 'own text', confirm: true })).toMatchObject({ state: 'applied' });
+      expect(await composerText(a2)).toBe('own text');
+    });
+  });
+
   describe('navigation and «Открыть и вставить» (§6.5, §6.9)', () => {
     before(async () => {
       await open(chatPath(ACC, a1));

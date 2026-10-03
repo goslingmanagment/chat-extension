@@ -43,6 +43,7 @@ import {
   ROUTE_CHAT,
   STORE_CACHE,
   STORE_QUEUE,
+  STORE_TABS,
 } from './protocol';
 import { PAYLOAD, type Identity, type InsertWire, type NavigationWire } from './requests';
 
@@ -79,6 +80,14 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   let pending: { cancel(code: string): void } | null = null;
   const observed = new WeakSet<object>();
   let editorWatch: MutationObserver | null = null;
+  /**
+   * The composer last found by a full search, in its route epoch: while the
+   * person types into it, the composer state is re-read without the layout
+   * reads of the search. Anything that can change which composer is shown
+   * (route, chat tabs, the cache keys behind the composer, a new editor)
+   * clears it. Writes and reads for the isolated side always search afresh.
+   */
+  let typing: { readonly epoch: number; readonly composer: Composer } | null = null;
 
   // ── reads ──
 
@@ -95,12 +104,45 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     };
   };
 
-  /** The open chat's composer: null — none (yet), false — ambiguous or bound to another chat. */
-  const activeComposer = (): Composer | null | false => {
+  /**
+   * The open chat's visible composer slot (§6.3, §6.4). `confirmed` — the
+   * route's account shows the route's chat in its active chat tab, the tab
+   * ChatSpace rendered that composer for (its `chatId` prop comes from the
+   * tab; prod Vue keeps no props on DOM nodes). null — none (yet), or the tab
+   * and the route disagree: a switch in flight (ChatSpace shows the new tab's
+   * composer first and the route follows after its async router guards, or
+   * the route moves first and the tab follows). false — ambiguous.
+   * Unconfirmed — the chat tabs are unreadable (a new build): the dock may sit
+   * on that composer, nothing reads or writes it.
+   */
+  const locate = (): { readonly slot: Element; readonly confirmed: boolean } | null | false => {
     const read = route();
     if (!settled || !composers || !read.fan) return null;
     const slot = composers.activeSlot();
-    return slot ? (composers.bind(slot, read.acc as string, read.fan) ?? false) : slot;
+    if (!slot) return slot;
+    const tab = reader.tabChat(read.acc as string);
+    if (tab === undefined) return { slot, confirmed: false };
+    return tab === read.fan ? { slot, confirmed: true } : null;
+  };
+
+  /**
+   * The open chat's composer, searched afresh: bound on first sight to the
+   * chat ChatSpace rendered it for, and used only while the route shows that
+   * chat. null — none (yet); false — ambiguous, or a node of another chat.
+   */
+  const activeComposer = (): Composer | null | false => {
+    const found = locate();
+    if (found === false) return false;
+    if (!found?.confirmed || !composers) return null;
+    const read = route();
+    return composers.bind(found.slot, read.acc as string, read.fan as string) ?? false;
+  };
+
+  /** Sets a per-chat anchor; a change is reported to the isolated side (the contract event is coalesced). */
+  const mark = (anchor: string, state: string): void => {
+    if (sticky[anchor] === state) return;
+    sticky[anchor] = state;
+    emit('contract', contractPayload);
   };
 
   /** While the active composer has no editor yet, a short narrow observer on its frame waits for TipTap (never on body, §6.10). */
@@ -120,24 +162,46 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     setTimer(stop, EDITOR_WATCH_MS);
   };
 
-  const composerState = (): Plain | null => {
+  /** `typed` — only the draft of the composer last found changed: reuse it while it is still in the document and the route epoch holds. */
+  const composerState = (typed = false): Plain | null => {
     const read = route();
-    if (!read.fan) return null;
+    if (!read.fan || !composers) return null;
     const chat = chatRef(read.acc as string, read.fan);
-    if (blocked(read)) return { chat, instanceId: `b${routeEpoch}`, ready: false, hidden: true, draft: { revision: 0, provenance: 'empty' } };
-    const composer = activeComposer();
-    if (!composer || !composers) return null;
+    const placeholder = (prefix: string, hidden: boolean): Plain => ({ chat, instanceId: `${prefix}${routeEpoch}`, ready: false, hidden, draft: { revision: 0, provenance: 'empty' } });
+    if (blocked(read)) return placeholder('b', true);
+    let composer: Composer | null = typed && typing?.epoch === routeEpoch && typing.composer.slot.isConnected ? typing.composer : null;
+    if (!composer) {
+      typing = null;
+      const found = locate();
+      if (!found) return null;
+      // Which chat this composer serves cannot be told: copy only — the dock may sit there, nothing is written (CG-HOST-COMPOSER-MISSING).
+      if (!found.confirmed) {
+        mark('composerBridge', 'missing');
+        return placeholder('u', false);
+      }
+      composer = composers.bind(found.slot, read.acc as string, read.fan);
+      if (!composer) return null;
+      typing = { epoch: routeEpoch, composer };
+    }
     const bridge = composers.bridgeOf(composer);
     const editor = composers.editorElement(composer.slot);
     // `shape` — the bridge is there but the editor behind it is not observable (no CAS promise, §6.4).
-    if (editor) sticky['composerBridge'] = !bridge ? 'missing' : composer.editor ? 'ok' : 'shape';
+    if (editor) mark('composerBridge', !bridge ? 'missing' : composer.editor ? 'ok' : 'shape');
     if (!composer.editor) watchEditor(composer);
     const draft = composers.read(composer);
     return { chat, instanceId: composer.id, ready: !!bridge && !!editor, hidden: false, draft: { revision: composer.revision, provenance: composers.provenance(composer, draft) } };
   };
-  const composerNow = (): void => emit('composer', () => ({ state: composerState() }));
+  const composerNow = (typed = false): void => emit('composer', () => ({ state: composerState(typed) }));
   /** Re-read a frame later: Vue renders after the store change that triggered us. */
-  const composerSoon = (): void => frame(composerNow);
+  const composerSoon = (): void => {
+    typing = null;
+    frame(() => composerNow());
+  };
+  /** A draft changed: the composer it belongs to, when it is the one last found, is re-read without a new search. */
+  const onComposerChange = (draftOf?: Composer): void => {
+    if (draftOf && draftOf === typing?.composer) frame(() => composerNow(true));
+    else composerSoon();
+  };
 
   const contractPayload = (): Plain => {
     const read = route();
@@ -270,6 +334,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   const onRouteChange = (_to: unknown, _from: unknown, failure?: unknown): void => {
     if (failure || disposed) return;
     routeEpoch += 1;
+    typing = null;
     if (!pushing) pending?.cancel(CG_CANCELED);
     emit('route', routePayload);
     settle();
@@ -307,6 +372,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     observed.add(store);
     try {
       if (store.$id === STORE_CACHE) store.$onAction(onCacheAction, true);
+      // A chat tab activated, closed or given another chat: ChatSpace shows another composer, maybe before the route follows.
+      if (store.$id === STORE_TABS) store.$onAction(({ after }) => after(composerSoon), true);
       // A sign-out resets ChatSpace's send queue: a new host login epoch (identities from before no longer match).
       if (store.$id === STORE_QUEUE)
         store.$onAction(({ name }) => {
@@ -323,7 +390,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   const attachApp = (found: App): void => {
     app = found;
     reader = createReader(doc, found.pinia);
-    composers = createComposers(win, composerSoon, frame);
+    composers = createComposers(win, onComposerChange, frame);
     routeEpoch = 1;
     try {
       found.router?.afterEach(onRouteChange);

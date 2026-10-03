@@ -29,6 +29,8 @@ export const STORE_CACHE = '_pc_query';
 export const STORE_CHATS = 'chats';
 export const STORE_QUEUE = 'pendingMessages';
 export const STORE_TRANSLATOR = 'composerTranslator';
+/** Chat tabs per account: the active tab's chat is the chat the visible composer was rendered for (§6.4 «props»). */
+export const STORE_TABS = 'chatTabEntries';
 
 export const KEY_ACCOUNTS = 'accounts';
 export const KEY_MESSAGES = 'chatMessages';

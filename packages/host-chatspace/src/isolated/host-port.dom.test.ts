@@ -59,6 +59,7 @@ function fakeMounts() {
   const points: MountPoints = { dock: { kind: 'in-flow', composerInstanceId: 'c1', width: 700 }, overlay: { ready: true, container: null } };
   const mounts = {
     update: (state: ComposerState | null) => updates.push(state),
+    refresh: () => undefined,
     points: () => points,
     onChange: () => () => undefined,
     frameAnchor: () => frame,
@@ -160,6 +161,8 @@ describe('[BG-002] state from MAIN', () => {
     bridge.emit({ t: 'route', payload: { route: { epoch: 5, name: 'chat', account, chat: chat(OTHER) }, hostLoginEpoch: 'L1' } });
     expect(host.identity()).toMatchObject({ routeEpoch: 5, chat: chat(OTHER), composerInstanceId: null });
     expect(host.current().composer).toBeNull();
+    // The dock leaves the composer of the chat we left at once, not when MAIN reports the next one.
+    expect(updates.at(-1)).toBeNull();
     bridge.emit({ t: 'composer', payload: { state: composer({ chat: chat(OTHER), instanceId: 'c2' }) } });
     expect(host.identity()?.composerInstanceId).toBe('c2');
     expect(updates.at(-1)).toMatchObject({ instanceId: 'c2' });
@@ -378,6 +381,14 @@ describe('navigation (§6.5, §6.9)', () => {
     const drafts = storage({ [`chat-space:draft:of:${ACC}:${OTHER}`]: storedDraft('other text') });
     const { host } = await port({ navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: { state: 'applied', draftRevision: 2, draftDigest: '00000000000000cc', ms: 3 } }) }, { drafts });
     expect(await host.navigate(nav({ thenInsert: thenInsert as never }))).toEqual({ state: 'navigated', routeEpoch: 5, insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } });
+  });
+
+  it('[NEW-01] [UI-027] copy only (insert off): the chat still opens, the insert is refused at once and never reaches MAIN', async () => {
+    const { host, bridge } = await port({ snapshot: () => snapshot({ contract: wire({ missing: ['composerBridge'] }) }), navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: null }) });
+    expect(await host.navigate(nav({ thenInsert: thenInsert as never }))).toEqual({ state: 'navigated', routeEpoch: 5, insert: { state: 'rejected', code: 'CG-HOST-COMPOSER-MISSING' } });
+    const sent = bridge.calls.find((call) => call.t === 'navigate');
+    expect(sent?.payload['intent']).not.toHaveProperty('thenInsert');
+    expect(sent?.timeoutMs).toBe(20_000);
   });
 
   it('a refusal before execution is CG-NAV-FAILED', async () => {

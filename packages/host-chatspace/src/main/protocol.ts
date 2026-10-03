@@ -49,6 +49,7 @@ export const STORE_CACHE = '_pc_query';
 export const STORE_CHATS = 'chats';
 export const STORE_QUEUE = 'pendingMessages';
 export const STORE_TRANSLATOR = 'composerTranslator';
+export const STORE_TABS = 'chatTabEntries';
 export const KEY_ACCOUNTS = 'accounts';
 export const KEY_MESSAGES = 'chatMessages';
 export const KEY_FANS = 'fansMap';

@@ -25,6 +25,7 @@ import {
   STORE_CACHE,
   STORE_CHATS,
   STORE_QUEUE,
+  STORE_TABS,
   STORE_TRANSLATOR,
 } from './protocol';
 import { queueShape } from './send-port';
@@ -291,6 +292,28 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
         });
       }
       return out;
+    },
+    /**
+     * The chat ChatSpace renders the visible composer for: the active chat tab
+     * of `acc` in `chatTabEntries` (`stateByAccountId[acc] = {entries: [{id,
+     * chatId}], activeEntryId}`). Each composer's `chatId` comes from its tab,
+     * and the active tab is the one shown (v-show). null — no chat in the
+     * active tab (or no tabs for the account yet); undefined — not readable
+     * as expected (a new build).
+     */
+    tabChat(acc: string): string | null | undefined {
+      try {
+        const byAccount = store(STORE_TABS)?.['stateByAccountId'];
+        if (!isPlain(byAccount)) return undefined;
+        const state = byAccount[acc];
+        if (state === undefined) return null;
+        if (!isPlain(state) || !Array.isArray(state['entries'])) return undefined;
+        const active = (state['entries'] as unknown[]).find((entry) => isPlain(entry) && entry['id'] === state['activeEntryId']);
+        if (!isPlain(active) || active['chatId'] === null || active['chatId'] === undefined) return null;
+        return idOf(active['chatId']) ?? undefined;
+      } catch {
+        return undefined;
+      }
     },
     /** The hashed name of ChatSpace's entry module, e.g. `index-0000fake` (NEW-09): diagnostics only. */
     build: (): string | null => BUILD_PATTERN.exec(doc.querySelector(BUILD_SELECTOR)?.getAttribute('src') ?? '')?.[1] ?? null,

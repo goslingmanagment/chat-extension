@@ -196,6 +196,39 @@ const api = {
     return true;
   },
   raceSkipped: () => racesSkipped,
+  /**
+   * A chat tab clicked while the route follows late (the stand's async router
+   * guard): ChatSpace shows the new tab's composer at once, the route still
+   * names the old chat. Every frame of that window does what a consumer
+   * would — read the draft, «Проверить», aim an insert at the chat the
+   * identity names — and records what it got.
+   */
+  async tabSwitchWindow(options: { readonly fan: string; readonly text: string; readonly maxSteps: number }) {
+    const before = identity();
+    document.querySelector<HTMLElement>(`[data-chat-tab="${options.fan}"] .chat-tab__label`)?.click();
+    const steps: Array<{ routeChat: string | null; composer: string | null; read: string; receipt: InsertReceipt | null }> = [];
+    for (let step = 0; step < options.maxSteps; step += 1) {
+      const read = await need()
+        .readDraft(before)
+        .then(
+          (draft) => `read:${draft.identity.composerInstanceId ?? 'none'}`,
+          (error: unknown) => `refused:${(error as { failure?: string }).failure ?? 'error'}`,
+        );
+      await need().recheck();
+      const now = need().identity();
+      let receipt: InsertReceipt | null = null;
+      if (now?.chat && now.composerInstanceId) {
+        const draft = await need()
+          .readDraft(now)
+          .catch(() => null);
+        if (draft) receipt = await need().insert(buildIntent(now, draft, { text: `${options.text}@${now.chat.platformFanId}` }));
+      }
+      steps.push({ routeChat: now?.chat?.platformFanId ?? null, composer: now?.composerInstanceId ?? null, read, receipt });
+      if (now?.chat?.platformFanId === options.fan) break;
+      await frame();
+    }
+    return { before: before.composerInstanceId, steps };
+  },
   dockMarker() {
     return started.mounts.dock.root.querySelector('[data-e2e="dock-marker"]') !== null;
   },
