@@ -276,13 +276,15 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
       // After the write the document is ours only if all of it came from us: a replace, or an append to our own unchanged insert.
       // An append to a human draft keeps the human's text in it — a later plain «Вставить» must ask again (Б2).
       const wholeOurs = !append || ours;
+      // ChatSpace's bridge turns only \n into a line break: a \r would stay in the text as a stray character.
+      const text = intent.text.replace(/\r\n?/g, '\n');
       writing = composer;
       stray = false;
       try {
         if (append && composer.editor) {
           composer.editor.commands.focus('end');
-          bridge.insertText(`\n${intent.text}`);
-        } else bridge.setText(append ? `${draft.text}\n${intent.text}` : intent.text);
+          bridge.insertText(`\n${text}`);
+        } else bridge.setText(append ? `${draft.text}\n${text}` : text);
       } catch {
         return { state: 'uncertain', code: CG_UNCERTAIN };
       } finally {
@@ -294,7 +296,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
         composer.ours = wholeOurs ? intent.intentId : null;
         composer.from = { id: intent.intentId, revision: composer.revision };
       }
-      const wanted = normalize(intent.text);
+      const wanted = normalize(text);
       return Promise.resolve().then(
         () =>
           new Promise<Receipt>((resolve) =>

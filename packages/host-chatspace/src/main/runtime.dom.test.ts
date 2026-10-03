@@ -330,6 +330,13 @@ describe('MAIN runtime — guarded insert (§6.4)', () => {
     expect(receipt.state === 'applied' && receipt.draftDigest).toBe(after.digest);
   });
 
+  it('[UI-019] a text with Windows line ends is written with plain ones: ChatSpace’s bridge turns only \\n into a line break', async () => {
+    const h = harness as Harness;
+    const intent = await openIntent(h, {}, 'first line\r\nsecond line\rthird');
+    expect(await settleWrite(h, h.call('insertGuarded', { intent }))).toMatchObject({ state: 'applied' });
+    expect(composer.editor?.text).toBe('first line\nsecond line\nthird');
+  });
+
   it('[NEW-05] [UI-020] a human draft needs one-time consent for its revision; replace and append', async () => {
     const h = harness as Harness;
     composer.editor?.type('my words');
