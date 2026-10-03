@@ -8,10 +8,10 @@
 import { BASE_CSS } from './base';
 import { BOUNDARY_CSS } from './components/Boundary';
 import { BUTTON_CSS } from './components/Button';
-import { CHOICE_CSS } from './components/Choice';
-import { DIALOG_CSS } from './components/Dialog';
+import { CHOICE_CSS } from './components/choice.css';
+import { DIALOG_CSS } from './components/dialog.css';
 import { ERROR_CSS } from './components/ErrorCard';
-import { FIELD_CSS } from './components/Field';
+import { FIELD_CSS } from './components/field.css';
 import { ICON_CSS } from './components/Icon';
 import { INDICATORS_CSS } from './components/Indicators';
 import { KEYS_FOOTER_CSS } from './components/KeysFooter';
@@ -23,7 +23,7 @@ import { TOOLTIP_CSS } from './components/Tooltip';
 import { VALUES_CSS } from './components/Values';
 import { VIEW_STATE_CSS } from './components/ViewState';
 import { VIRTUAL_LIST_CSS } from './components/VirtualList';
-import { MARKDOWN_CSS } from './markdown/Markdown';
+import { MARKDOWN_CSS } from './markdown/markdown.css';
 import { adoptSheets, dropSheets, type StyleMode, type StyleSource } from './styles';
 import { THEME_CSS } from './tokens';
 
