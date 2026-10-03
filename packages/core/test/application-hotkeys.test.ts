@@ -1,0 +1,697 @@
+// The early dispatcher and the hotkey runner (architecture.md §9.1): what the
+// tab does with a key before ChatSpace sees it, and which UiAction a command
+// becomes. The DOM is faked here (core has none); the same dispatcher runs
+// against a real document and closed shadow roots in
+// packages/testing/src/input/dispatcher.dom.test.ts and in Firefox in
+// packages/testing/e2e/specs/hotkeys.e2e.ts. Test titles carry the parity rows.
+
+import { type UiAction, type UiActionType } from '@cg/contracts';
+import { KEPT_KEY_TTL_MS, QUICK_JUMP_HOLD_MS, createEarlyKeyDispatcher, createHotkeyRunner, createTabKeyState, nextTone, type EarlyNotice } from '@cg/core/application/hotkeys';
+import { createCauseHint, createOverlayState, mirrorDismissible } from '@cg/core/application/navigation';
+import { DISPATCHER_COMMAND_IDS, createActionCatalog, createKeyResolver, type HotkeyPlatform, type KeyCommand, type OverlayKind, type RouteKind } from '@cg/core/domain/hotkeys';
+import { createI18n } from '@cg/core/domain/i18n';
+import { FakeToasts, coach, coachTurn, ctxOf, dock, handles, FANS, preview, reason, recapPicker, recapView, result, review, uuid, views } from '@cg/testing/app-client';
+import { describe, expect, it, vi } from 'vitest';
+
+import { FakeClock, settle } from './support/clock';
+import { FakeKey, FakeOwnership, FakeWindow, RecordingSink, StubClient } from './support/keys';
+
+const NOW = Date.parse('2026-10-03T10:00:00.000Z');
+const CHAT = '/accounts/1001/chats/2002';
+
+interface Rig {
+  readonly win: FakeWindow;
+  readonly doc: FakeWindow;
+  readonly own: FakeOwnership;
+  readonly clock: FakeClock;
+  readonly sink: RecordingSink;
+  readonly notices: EarlyNotice[];
+  /** Keys that reached ChatSpace's own capture listener on `window` (registered after ours). */
+  readonly native: FakeKey[];
+  readonly page: { route: RouteKind; epoch: string; overlays: OverlayKind[]; sheet: boolean; hidden: boolean };
+  readonly dispatcher: ReturnType<typeof createEarlyKeyDispatcher>;
+  readonly platform: HotkeyPlatform;
+  readonly handlerMs: number[];
+}
+
+function rig(platform: HotkeyPlatform = 'mac', connect = true): Rig {
+  const win = new FakeWindow();
+  const doc = new FakeWindow();
+  const own = new FakeOwnership();
+  const clock = new FakeClock(NOW);
+  const sink = new RecordingSink();
+  const notices: EarlyNotice[] = [];
+  const native: FakeKey[] = [];
+  const handlerMs: number[] = [];
+  const page = { route: 'chat' as RouteKind, epoch: CHAT, overlays: [] as OverlayKind[], sheet: false, hidden: false };
+  let tick = 0;
+  const dispatcher = createEarlyKeyDispatcher({
+    platform,
+    window: win,
+    document: { source: doc, hidden: () => page.hidden },
+    ownership: own,
+    state: { route: () => ({ kind: page.route, epoch: page.epoch }), overlays: () => page.overlays, dockSheet: () => page.sheet },
+    timers: clock,
+    now: () => clock.now(),
+    perfNow: () => (tick += 0.25),
+    onHandlerMs: (ms) => handlerMs.push(ms),
+    sampleEvery: 2,
+    onEarly: (notice) => notices.push(notice),
+  });
+  // ChatSpace registers its global listener when its layout mounts: after ours, on the same `window`, in capture.
+  win.addEventListener('keydown', (event) => native.push(event as FakeKey), { capture: true });
+  if (connect) dispatcher.connect(sink);
+  return { win, doc, own, clock, sink, notices, native, page, dispatcher, platform, handlerMs };
+}
+
+type Mods = ConstructorParameters<typeof FakeKey>[1];
+const primaryMods = (platform: HotkeyPlatform): Mods => (platform === 'mac' ? { metaKey: true } : { ctrlKey: true });
+const primaryKey = (platform: HotkeyPlatform, down: boolean): FakeKey =>
+  platform === 'mac' ? new FakeKey('MetaLeft', { key: 'Meta', metaKey: down }) : new FakeKey('ControlLeft', { key: 'Control', ctrlKey: down });
+
+/** A key by itself. */
+function tap(r: Rig, code: string, mods: Mods = {}): FakeKey {
+  const event = new FakeKey(code, mods);
+  r.win.fire('keydown', event);
+  r.win.fire('keyup', new FakeKey(code, { ...mods, isTrusted: mods?.isTrusted ?? true }));
+  return event;
+}
+
+/** ⌘/Ctrl pressed freshly, the key under it, both released: what a person does. */
+function chord(r: Rig, code: string, mods: Mods = {}): FakeKey {
+  r.win.fire('keydown', primaryKey(r.platform, true));
+  const event = new FakeKey(code, { ...primaryMods(r.platform), ...mods });
+  r.win.fire('keydown', event);
+  r.win.fire('keyup', new FakeKey(code, { ...primaryMods(r.platform), ...mods }));
+  r.win.fire('keyup', primaryKey(r.platform, false));
+  return event;
+}
+
+const panel = (platform: HotkeyPlatform): Mods => (platform === 'mac' ? { shiftKey: true } : { altKey: true });
+
+describe('the early dispatcher', () => {
+  it.each(['mac', 'win'] as const)('[HK-026] %s: a key of ours is taken synchronously — preventDefault and stopImmediatePropagation before ChatSpace\'s listener', (platform) => {
+    const r = rig(platform);
+    // ⌘E / Ctrl+E is TipTap's inline code, ⌘I its italic, ⌘P the browser's print, Ctrl+Alt+S OnlyMonster's translator.
+    for (const [code, mods, id] of [
+      ['KeyE', {}, 'reply@dock'],
+      ['KeyI', {}, 'fix@dock'],
+      ['KeyG', {}, 'hi@dock'],
+      ['KeyP', {}, 'ping@dock'],
+      ['KeyS', panel(platform), 'recap@dock'],
+      ['KeyK', {}, 'palette@global'],
+    ] as const) {
+      const event = chord(r, code, mods);
+      expect([code, event.defaultPrevented, event.stopped]).toEqual([code, true, true]);
+      expect(r.sink.ids[r.sink.ids.length - 1]).toBe(id);
+    }
+    // ChatSpace's listener saw the modifiers go down and nothing else.
+    expect(r.native.filter((event) => event.key !== 'Meta' && event.key !== 'Control')).toEqual([]);
+    expect(r.dispatcher.stats()).toMatchObject({ claimed: 6, isolated: 0, untrusted: 0 });
+  });
+
+  it('[HK-026] negative: a key that is not ours is never touched — not prevented, not stopped, ChatSpace gets it', () => {
+    const r = rig('mac');
+    r.own.kind = 'composer';
+    const foreign = [
+      tap(r, 'KeyA'),
+      tap(r, 'Enter'),
+      tap(r, 'Escape'),
+      tap(r, 'KeyS', { altKey: true }),
+      tap(r, 'Tab', { ctrlKey: true }),
+      chord(r, 'KeyB'),
+      chord(r, 'KeyC'),
+      chord(r, 'KeyV'),
+      chord(r, 'KeyZ'),
+      chord(r, 'Enter'),
+      tap(r, 'KeyJ'),
+      tap(r, 'KeyK'),
+      tap(r, 'BracketRight', { key: ']' }),
+      tap(r, 'Slash', { shiftKey: true, key: '?' }),
+      chord(r, 'KeyU'),
+      chord(r, 'Digit3'),
+      tap(r, 'KeyU', { altKey: true }),
+      tap(r, 'Digit3', { altKey: true }),
+    ];
+    for (const event of foreign) expect([event.code, event.defaultPrevented, event.stopped]).toEqual([event.code, false, false]);
+    for (const event of foreign) expect(r.native).toContain(event);
+    expect(r.sink.ran).toEqual([]);
+    expect(r.sink.refused).toEqual([]);
+    expect(r.own.delivered).toEqual([]);
+    // Outside a chat the scheme's combinations are the browser's again.
+    r.page.route = 'other';
+    r.own.kind = 'page';
+    const outside = chord(r, 'KeyP');
+    expect([outside.defaultPrevented, outside.stopped]).toEqual([false, false]);
+    expect(r.sink.ran).toEqual([]);
+  });
+
+  it('[HK-023] one engine per tab: every trusted keydown and keyup goes through the single resolver, the lazy part gets commands, never keys', () => {
+    const resolver = createKeyResolver('mac');
+    const keydown = vi.spyOn(resolver, 'keydown');
+    const keyup = vi.spyOn(resolver, 'keyup');
+    const win = new FakeWindow();
+    const own = new FakeOwnership();
+    const clock = new FakeClock(NOW);
+    const sink = new RecordingSink();
+    const dispatcher = createEarlyKeyDispatcher({ platform: 'mac', window: win, ownership: own, state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now(), resolver });
+    dispatcher.connect(sink);
+    // One listener of each kind on `window`, in capture: nothing else of ours listens for keys there.
+    expect([win.count('keydown'), win.count('keyup'), win.count('blur')]).toEqual([1, 1, 1]);
+    win.fire('keydown', new FakeKey('MetaLeft', { key: 'Meta', metaKey: true }));
+    win.fire('keydown', new FakeKey('KeyE', { metaKey: true }));
+    win.fire('keydown', new FakeKey('KeyA'));
+    win.fire('keyup', new FakeKey('KeyE', { metaKey: true }));
+    expect(keydown).toHaveBeenCalledTimes(3);
+    expect(keyup).toHaveBeenCalledTimes(1);
+    expect(sink.ran).toEqual([{ id: 'reply', slot: null, target: 'dock' }]);
+    dispatcher.dispose();
+    expect([win.count('keydown'), win.count('keyup'), win.count('blur')]).toEqual([0, 0, 0]);
+    win.fire('keydown', new FakeKey('KeyA'));
+    expect(keydown).toHaveBeenCalledTimes(3);
+  });
+
+  it('a synthetic event of the page never starts anything and never moves the engine (§14)', () => {
+    const r = rig('mac');
+    r.win.fire('keydown', new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, isTrusted: false }));
+    const forged = new FakeKey('KeyE', { metaKey: true, isTrusted: false });
+    r.win.fire('keydown', forged);
+    const esc = new FakeKey('Escape', { isTrusted: false });
+    r.page.overlays = ['palette'];
+    r.win.fire('keydown', esc);
+    expect([forged.defaultPrevented, forged.stopped, esc.stopped]).toEqual([false, false, false]);
+    expect(r.sink.ran).toEqual([]);
+    expect(r.dispatcher.stats().untrusted).toBe(3);
+    // A forged ⌘ did not arm the fresh-press guard: a real E under no real ⌘ press is a roll-over, swallowed.
+    r.page.overlays = [];
+    const real = new FakeKey('KeyE', { metaKey: true });
+    r.win.fire('keydown', real);
+    expect(real.stopped).toBe(true);
+    expect(r.sink.ran).toEqual([]);
+  });
+
+  it('[HK-024] a key pressed before the lazy part loaded is taken at once, kept, announced, and runs when the part arrives', () => {
+    const r = rig('mac', false);
+    const event = chord(r, 'KeyE');
+    // The browser's and TipTap's own action is already off, although nothing of ours can run yet.
+    expect([event.defaultPrevented, event.stopped]).toEqual([true, true]);
+    expect(r.notices).toEqual([{ kind: 'queued', command: 'reply' }]);
+    expect(r.sink.ran).toEqual([]);
+    r.dispatcher.connect(r.sink);
+    expect(r.sink.ids).toEqual(['reply@dock']);
+    expect(r.dispatcher.stats()).toMatchObject({ queued: 1, dropped: 0 });
+    // A refusal before the lazy part has nobody to show it yet: it is reported the same early way.
+    const early = rig('mac', false);
+    chord(early, 'KeyH', { shiftKey: true });
+    expect(early.notices).toEqual([{ kind: 'refused', command: 'help', refusal: 'help-removed' }]);
+  });
+
+  it('[HK-025] the kept key runs only in the chat it was pressed in, only the newest one, and only while fresh', () => {
+    const moved = rig('mac', false);
+    chord(moved, 'KeyE');
+    moved.page.epoch = '/accounts/1001/chats/2003';
+    moved.dispatcher.connect(moved.sink);
+    expect(moved.sink.ran).toEqual([]);
+    expect(moved.notices[moved.notices.length - 1]).toEqual({ kind: 'dropped', command: 'reply', why: 'route-changed' });
+
+    const newest = rig('mac', false);
+    chord(newest, 'KeyE');
+    chord(newest, 'KeyP');
+    newest.dispatcher.connect(newest.sink);
+    expect(newest.sink.ids).toEqual(['ping@dock']);
+    expect(newest.notices).toContainEqual({ kind: 'dropped', command: 'reply', why: 'replaced' });
+
+    const late = rig('mac', false);
+    chord(late, 'KeyE');
+    late.clock.t += KEPT_KEY_TTL_MS + 1;
+    late.dispatcher.connect(late.sink);
+    expect(late.sink.ran).toEqual([]);
+    expect(late.notices[late.notices.length - 1]).toEqual({ kind: 'dropped', command: 'reply', why: 'expired' });
+    expect(late.dispatcher.stats()).toMatchObject({ queued: 1, dropped: 1 });
+  });
+
+  it('[HK-022] window blur and a hidden tab reset the engine: a modifier held across them fires nothing', () => {
+    const r = rig('mac');
+    r.win.fire('keydown', primaryKey('mac', true));
+    r.win.fire('blur');
+    const afterBlur = new FakeKey('KeyE', { metaKey: true });
+    r.win.fire('keydown', afterBlur);
+    // Still ours in a chat (no find-in-page), but it runs nothing.
+    expect(afterBlur.stopped).toBe(true);
+    expect(r.sink.ran).toEqual([]);
+    r.win.fire('keyup', primaryKey('mac', false));
+    r.win.fire('keydown', primaryKey('mac', true));
+    r.page.hidden = true;
+    r.doc.fire('visibilitychange');
+    r.win.fire('keydown', new FakeKey('KeyP', { metaKey: true }));
+    expect(r.sink.ran).toEqual([]);
+    // A visibility change that leaves the tab visible resets nothing.
+    r.win.fire('keyup', primaryKey('mac', false));
+    r.page.hidden = false;
+    r.win.fire('keydown', primaryKey('mac', true));
+    r.doc.fire('visibilitychange');
+    r.win.fire('keydown', new FakeKey('KeyP', { metaKey: true }));
+    expect(r.sink.ids).toEqual(['ping@dock']);
+  });
+
+  it('[HK-019] a held key repeats: still ours, the action does not run again', () => {
+    const r = rig('win');
+    r.win.fire('keydown', primaryKey('win', true));
+    r.win.fire('keydown', new FakeKey('KeyE', { ctrlKey: true }));
+    const repeats = [1, 2, 3].map(() => new FakeKey('KeyE', { ctrlKey: true, repeat: true }));
+    for (const event of repeats) r.win.fire('keydown', event);
+    expect(repeats.map((event) => event.defaultPrevented && event.stopped)).toEqual([true, true, true]);
+    expect(r.sink.ids).toEqual(['reply@dock']);
+  });
+
+  it('[HK-020] IME: a composing key is left alone everywhere, in our own fields too', () => {
+    const r = rig('mac');
+    for (const focus of ['composer', 'ours-field', 'ours', 'page'] as const) {
+      r.own.kind = focus;
+      const keys = [tap(r, 'KeyJ', { isComposing: true }), tap(r, 'Enter', { isComposing: true }), tap(r, 'Escape', { keyCode: 229 }), tap(r, 'KeyE', { metaKey: true, isComposing: true })];
+      for (const event of keys) expect([focus, event.code, event.defaultPrevented, event.stopped]).toEqual([focus, event.code, false, false]);
+    }
+    expect(r.sink.ran).toEqual([]);
+    expect(r.own.delivered).toEqual([]);
+  });
+
+  it('[HK-028] J, K, ] and ? work on the page and on our cards, never while a person types; AI keys work from the message field', () => {
+    const r = rig('win');
+    for (const focus of ['composer', 'field', 'ours-field'] as const) {
+      r.own.kind = focus;
+      for (const event of [tap(r, 'KeyJ'), tap(r, 'KeyK'), tap(r, 'BracketRight', { key: ']' }), tap(r, 'Slash', { shiftKey: true, key: '?' })]) {
+        expect([focus, event.code, event.defaultPrevented, event.stopped]).toEqual([focus, event.code, false, false]);
+      }
+    }
+    expect(r.sink.ran).toEqual([]);
+    r.own.kind = 'page';
+    for (const event of [tap(r, 'KeyJ'), tap(r, 'KeyK'), tap(r, 'BracketRight', { key: ']' }), tap(r, 'Slash', { shiftKey: true, key: '?' })]) expect(event.stopped).toBe(true);
+    expect(r.sink.ids).toEqual(['chat-next@global', 'chat-previous@global', 'fan-panel@dock', 'cheatsheet@global']);
+    r.own.kind = 'composer';
+    chord(r, 'KeyE');
+    chord(r, 'KeyS', { altKey: true });
+    expect(r.sink.ids.slice(4)).toEqual(['reply@dock', 'recap@dock']);
+  });
+
+  it('[HK-027] under the cheatsheet or a board a paid generation is refused with the reason; the windows\' own keys and Cancel work', () => {
+    const r = rig('mac');
+    r.page.overlays = ['cheatsheet'];
+    const reply = chord(r, 'KeyE');
+    expect([reply.defaultPrevented, reply.stopped]).toEqual([true, true]);
+    expect(r.sink.refused).toEqual([{ command: 'reply', refusal: 'overlay-open' }]);
+    chord(r, 'Period');
+    tap(r, 'Slash', { shiftKey: true, key: '?' });
+    chord(r, 'KeyM', { shiftKey: true });
+    expect(r.sink.ids).toEqual(['cancel@dock', 'cheatsheet@global', 'spenders@global']);
+    chord(r, 'KeyH', { shiftKey: true });
+    expect(r.sink.refused[1]).toEqual({ command: 'help', refusal: 'help-removed' });
+  });
+
+  it('[HK-029] Esc: nothing of ours open — ChatSpace\'s; ours open — the top of ours closes and ChatSpace does not see the key', () => {
+    const r = rig('mac');
+    r.own.kind = 'composer';
+    const theirs = tap(r, 'Escape');
+    expect([theirs.defaultPrevented, theirs.stopped]).toEqual([false, false]);
+    expect(r.native).toContain(theirs);
+    r.page.overlays = ['spenders', 'preview'];
+    const ours = tap(r, 'Escape');
+    expect([ours.defaultPrevented, ours.stopped]).toEqual([true, true]);
+    expect(r.native).not.toContain(ours);
+    expect(r.sink.ids).toEqual(['close@global']);
+    // Only the dock's sheet is open, the cursor is in the message field: the sheet closes, the chat tab stays.
+    r.page.overlays = [];
+    r.page.sheet = true;
+    const sheet = tap(r, 'Escape');
+    expect(sheet.stopped).toBe(true);
+    expect(r.sink.ids).toEqual(['close@global', 'close@global']);
+    // A modal window of ChatSpace itself comes first.
+    r.own.modal = true;
+    const modal = tap(r, 'Escape');
+    expect([modal.defaultPrevented, modal.stopped]).toEqual([false, false]);
+  });
+
+  it('[HK-029] [HK-030] focus inside our UI: the key is kept from ChatSpace and handed to our element; Esc falls back to closing the window', () => {
+    const r = rig('mac');
+    r.own.kind = 'ours-field';
+    r.page.overlays = ['palette'];
+    // Our field took Esc (a menu closed, a search cleared): the window stays.
+    r.own.takes = true;
+    const taken = tap(r, 'Escape');
+    expect([taken.stopped, taken.defaultPrevented]).toEqual([true, true]);
+    expect(r.own.delivered).toEqual([taken]);
+    expect(r.sink.ran).toEqual([]);
+    // Nothing inside took it: the window closes.
+    r.own.takes = false;
+    const fallback = tap(r, 'Escape');
+    expect([fallback.stopped, fallback.defaultPrevented]).toEqual([true, true]);
+    expect(r.sink.ids).toEqual(['close@global']);
+    // Enter in the Coach question or on a card, Shift+Enter, arrows, Tab, ⌘C: ours to handle, never ChatSpace's.
+    r.own.kind = 'ours';
+    const keys = [tap(r, 'Enter'), tap(r, 'Enter', { shiftKey: true }), tap(r, 'ArrowDown'), tap(r, 'Tab'), chord(r, 'KeyC'), chord(r, 'Enter')];
+    for (const event of keys) {
+      // Stopped for ChatSpace, not prevented: the browser's own action (a new line, the caret, the copy) still happens.
+      expect([event.code, event.stopped, event.defaultPrevented]).toEqual([event.code, true, false]);
+      expect(r.native).not.toContain(event);
+      expect(r.own.delivered).toContain(event);
+    }
+    // Plain typing in our field passes untouched and is not even looked at.
+    r.own.kind = 'ours-field';
+    const reads = r.own.focusReads;
+    const typed = tap(r, 'KeyA');
+    expect([typed.stopped, typed.defaultPrevented, r.own.focusReads]).toEqual([false, false, reads]);
+    expect(r.dispatcher.stats().isolated).toBe(8);
+  });
+
+  it('[SP-033] under a board its own keys stay its own: J/K, arrows, Enter, / and Esc go to the board, chat navigation does not run', () => {
+    const r = rig('mac');
+    r.page.route = 'account';
+    r.page.overlays = ['spenders'];
+    r.own.kind = 'ours';
+    r.own.takes = true;
+    const letters = [tap(r, 'KeyJ'), tap(r, 'KeyK'), tap(r, 'KeyO'), tap(r, 'KeyS'), tap(r, 'Slash', { key: '/' })];
+    // Letters reach the board natively (plain keys are not taken from anybody).
+    for (const event of letters) expect([event.code, event.stopped, event.defaultPrevented]).toEqual([event.code, false, false]);
+    for (const event of [tap(r, 'ArrowDown'), tap(r, 'Enter'), tap(r, 'Escape')]) expect(r.own.delivered).toContain(event);
+    expect(r.sink.ran).toEqual([]);
+  });
+
+  it('[NEW-07] ⌘/Ctrl held alone for 400 ms opens the quick jump; a digit under it jumps; letting go closes it', async () => {
+    const r = rig('win');
+    r.win.fire('keydown', primaryKey('win', true));
+    await r.clock.advance(QUICK_JUMP_HOLD_MS - 1);
+    expect(r.sink.quick).toEqual([]);
+    await r.clock.advance(1);
+    expect(r.sink.quick).toEqual([true]);
+    const digit = new FakeKey('Digit3', { ctrlKey: true });
+    r.win.fire('keydown', digit);
+    expect([digit.defaultPrevented, digit.stopped]).toEqual([true, true]);
+    expect(r.sink.quick).toEqual([true, false]);
+    expect(r.sink.ids).toEqual(['quick-jump:3@global']);
+    r.win.fire('keyup', primaryKey('win', false));
+    expect(r.sink.quick).toEqual([true, false]);
+
+    // Released before 400 ms, or another key under it: no popup.
+    r.win.fire('keydown', primaryKey('win', true));
+    await r.clock.advance(200);
+    r.win.fire('keyup', primaryKey('win', false));
+    await r.clock.advance(1000);
+    r.win.fire('keydown', primaryKey('win', true));
+    r.win.fire('keydown', new FakeKey('KeyC', { ctrlKey: true }));
+    await r.clock.advance(1000);
+    expect(r.sink.quick).toEqual([true, false]);
+    r.win.fire('keyup', primaryKey('win', false));
+
+    // Open, then let go: it closes. Open, then the window loses focus: it closes too.
+    r.win.fire('keydown', primaryKey('win', true));
+    await r.clock.advance(QUICK_JUMP_HOLD_MS);
+    r.win.fire('keyup', primaryKey('win', false));
+    expect(r.sink.quick).toEqual([true, false, true, false]);
+    r.win.fire('keydown', primaryKey('win', true));
+    await r.clock.advance(QUICK_JUMP_HOLD_MS);
+    r.win.fire('blur');
+    expect(r.sink.quick).toEqual([true, false, true, false, true, false]);
+  });
+
+  it('[NEW-07] no quick jump while typing, without a chat list, under a window, or before the lazy part', async () => {
+    for (const arrange of [
+      (r: Rig) => (r.own.kind = 'composer'),
+      (r: Rig) => (r.own.kind = 'ours-field'),
+      (r: Rig) => (r.page.route = 'other'),
+      (r: Rig) => (r.page.overlays = ['spenders']),
+      (r: Rig) => (r.own.modal = true),
+      (r: Rig) => r.dispatcher.disconnect(),
+    ]) {
+      const r = rig('mac');
+      arrange(r);
+      r.win.fire('keydown', primaryKey('mac', true));
+      await r.clock.advance(1000);
+      expect(r.sink.quick).toEqual([]);
+    }
+    // ⌘ pressed with Shift already down is the start of a panel combination, not a lone hold.
+    const r = rig('mac');
+    r.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true }));
+    r.win.fire('keydown', new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, shiftKey: true }));
+    await r.clock.advance(1000);
+    expect(r.sink.quick).toEqual([]);
+  });
+
+  it('the handler does no page work for plain typing and reports one handler time in N (§11: ≤ 2 ms)', () => {
+    const r = rig('mac');
+    r.own.kind = 'composer';
+    for (const code of ['KeyH', 'KeyE', 'KeyL', 'KeyL', 'KeyO', 'Space']) tap(r, code, code === 'Space' ? { key: ' ' } : {});
+    expect([r.own.focusReads, r.own.modalReads]).toEqual([0, 0]);
+    // A named key in ChatSpace's field costs one focus read and nothing else.
+    tap(r, 'Backspace');
+    tap(r, 'ArrowLeft');
+    expect([r.own.focusReads, r.own.modalReads]).toEqual([2, 0]);
+    expect(r.handlerMs).toHaveLength(4);
+    expect(r.dispatcher.stats().maxHandlerMs).toBeCloseTo(0.25, 5);
+    expect(r.dispatcher.stats().keydowns).toBe(8);
+  });
+
+  it('the tab key state reads the route and the overlays synchronously and carries the dock sheet flag', () => {
+    const overlays = createOverlayState();
+    const state = createTabKeyState({ overlays, route: () => ({ kind: 'chat', epoch: CHAT }) });
+    expect([state.route(), state.overlays(), state.dockSheet()]).toEqual([{ kind: 'chat', epoch: CHAT }, [], false]);
+    overlays.set('spenders', true);
+    overlays.setPreview('spenders');
+    state.setDockSheet(true);
+    expect([state.overlays(), state.dockSheet(), overlays.top(), overlays.previewFrom()]).toEqual([['spenders', 'preview'], true, 'preview', 'spenders']);
+    overlays.setPreview(null);
+    expect(state.overlays()).toEqual(['spenders']);
+  });
+});
+
+// ── the runner ──
+
+const CTX = ctxOf({ platform: 'mac' });
+
+function runnerRig(dockPatch: Parameters<typeof dock>[2] = {}, status: Parameters<typeof dock>[1] = 'ready') {
+  const client = new StubClient();
+  client.set({ of: 'dock' }, dock(CTX, status, dockPatch));
+  client.set({ of: 'recap.picker' }, recapPicker(CTX, views.ready()));
+  client.set({ of: 'recap.view' }, recapView(CTX, views.ready(), 'short'));
+  client.set({ of: 'review' }, review(CTX, views.ready()));
+  client.set({ of: 'coach' }, coach(CTX, views.ready(), []));
+  const toasts = new FakeToasts();
+  const overlays = createOverlayState();
+  const cause = createCauseHint();
+  const sheet: boolean[] = [];
+  const i18n = createI18n({ language: 'ru', now: () => CTX.now });
+  const runner = createHotkeyRunner({ client, catalog: createActionCatalog('mac'), i18n, toasts, overlays, cause, onDockSheet: (open) => sheet.push(open) });
+  const run = async (id: KeyCommand['id'], target: KeyCommand['target'] = 'dock', slot: number | null = null): Promise<UiAction | undefined> => {
+    const before = client.dispatched.length;
+    runner.run({ id, slot, target });
+    await settle();
+    return client.dispatched[before];
+  };
+  return { client, toasts, overlays, cause, sheet, runner, run, i18n };
+}
+
+const DOCK_HANDLE = handles.dock(FANS.hubert);
+const toastTitles = (toasts: FakeToasts, i18n: { text(msg: { key: never }): string }): string[] => toasts.shown.map((item) => i18n.text(item.toast.title as { key: never }));
+
+describe('the hotkey runner', () => {
+  it.each([
+    ['[HK-002] Reply', 'reply'],
+    ['[HK-003] Fix', 'fix'],
+    ['[HK-004] Hi', 'hi'],
+    ['[HK-005] Ping', 'ping'],
+    ['[HK-010] Review', 'review'],
+  ] as const)('%s: the key is the button — a Generate for the open chat, with no options of its own', async (_title, id) => {
+    const r = runnerRig();
+    expect(await r.run(id)).toEqual({ type: 'Generate', targetHandle: DOCK_HANDLE, feature: id, options: {} });
+    expect(r.toasts.shown).toEqual([]);
+  });
+
+  it('[HK-026] the key of an action that cannot run toasts the reason of its button; a busy action\'s own key does nothing', async () => {
+    const gated = runnerRig({ actionsOptions: { gates: { fix: reason('needs-draft') } } });
+    expect(await gated.run('fix')).toBeUndefined();
+    expect(gated.toasts.shown[0]?.toast).toMatchObject({ kind: 'warning', code: 'CG-GATE-DRAFT', scope: 'hotkey.fix' });
+    expect(toastTitles(gated.toasts, gated.i18n)).toEqual(['Fix недоступен: сначала напишите черновик в поле ввода']);
+
+    const signedOut = runnerRig({}, 'not-signed-in');
+    expect(await signedOut.run('reply')).toBeUndefined();
+    expect(signedOut.toasts.shown[0]?.toast.code).toBe('CG-AUTH-REQUIRED');
+
+    const loading = runnerRig({}, 'loading-chat');
+    expect(await loading.run('ping')).toBeUndefined();
+    expect(loading.toasts.shown[0]?.toast.code).toBe('CG-GATE-CHAT-LOADING');
+
+    const busy = runnerRig({ actionsOptions: { busy: 'reply' } });
+    expect(await busy.run('reply')).toBeUndefined();
+    expect(busy.toasts.shown).toEqual([]);
+    // The other six say «в этом чате уже идёт генерация».
+    expect(await busy.run('ping')).toBeUndefined();
+    expect(busy.toasts.shown[0]?.toast.code).toBe('CG-OP-CHAT-BUSY');
+  });
+
+  it('[HK-027] a refused key says «сначала закройте открытое окно»; ⌘⇧H says «пока убран»', () => {
+    const r = runnerRig();
+    r.runner.refuse('reply', 'overlay-open');
+    r.runner.refuse('help', 'help-removed');
+    expect(r.toasts.shown[0]?.toast).toMatchObject({ kind: 'warning', code: 'CG-GATE-OVERLAY', scope: 'hotkey.reply' });
+    expect(toastTitles(r.toasts, r.i18n)).toEqual(['Reply недоступен: сначала закройте открытое окно', 'Help пока убран']);
+    expect(r.client.dispatched).toEqual([]);
+  });
+
+  it('[HK-008] Recap opens the saved Recap (full first); with the Recap sheet open the key is its «Обновить»', async () => {
+    const r = runnerRig();
+    expect(await r.run('recap')).toEqual({ type: 'ShowRecap', length: 'full' });
+    r.client.set({ of: 'recap.picker' }, recapPicker(CTX, views.partial()));
+    expect(await r.run('recap')).toEqual({ type: 'ShowRecap', length: 'short' });
+    r.client.set({ of: 'dock' }, dock(CTX, 'ready', { analysis: 'recap' }));
+    expect(await r.run('recap')).toEqual({ type: 'RefreshRecap', length: 'short' });
+  });
+
+  it('[HK-009] Tone walks the tones round and starts nothing; while a generation runs it says why not', async () => {
+    const r = runnerRig();
+    expect(await r.run('tone')).toEqual({ type: 'SetTone', targetHandle: DOCK_HANDLE, tone: 'casual' });
+    expect(nextTone('casual', ['casual', 'flirty', 'upsell', 'spicy'])).toBe('flirty');
+    expect(nextTone('spicy', ['casual', 'flirty', 'upsell', 'spicy'])).toBeNull();
+    expect(r.client.dispatched.map((action) => action.type)).toEqual(['SetTone']);
+    const locked = runnerRig({ actionsOptions: { busy: 'reply' } });
+    expect(await locked.run('tone')).toBeUndefined();
+    expect(toastTitles(locked.toasts, locked.i18n)).toEqual(['Тон на один ответ недоступен: нельзя менять, пока идёт генерация']);
+  });
+
+  it('[HK-011] Split is a switch with a toast', async () => {
+    const r = runnerRig();
+    expect(await r.run('split')).toEqual({ type: 'SetPreference', key: 'generation.split', value: true });
+    expect(toastTitles(r.toasts, r.i18n)).toEqual(['Split включён: ответ придёт частями']);
+    const on = dock(CTX, 'ready');
+    r.client.set({ of: 'dock' }, { ...on, options: { ...on.options, split: true } });
+    expect(await r.run('split')).toEqual({ type: 'SetPreference', key: 'generation.split', value: false });
+    expect(toastTitles(r.toasts, r.i18n)[1]).toBe('Split выключен: ответ одним сообщением');
+    // The write failed: the reason, not «включён».
+    r.client.answer = (action) => ({ ok: false, type: action.type, code: 'CG-STORAGE-WRITE', error: { code: 'CG-STORAGE-WRITE', title: 't', body: 'b' } });
+    await r.run('split');
+    expect(r.toasts.shown[2]?.toast).toMatchObject({ kind: 'warning', code: 'CG-STORAGE-WRITE' });
+  });
+
+  it('[HK-012] [SP-001] Spenders opens and closes the board from anywhere; [HK-013] Coach, [HK-036] the palette and [HK-034] the cheatsheet toggle too', async () => {
+    const r = runnerRig();
+    for (const [id, surface] of [['spenders', 'spenders'], ['palette', 'palette'], ['cheatsheet', 'cheatsheet'], ['fan-panel', 'fan-panel'], ['coach', 'coach']] as const) {
+      expect(await r.run(id, 'global')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface, open: true } });
+      r.overlays.set(surface, true);
+      expect(await r.run(id, 'global')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface, open: false } });
+      r.overlays.set(surface, false);
+    }
+    // Coach that cannot open says why; a Coach already open still closes.
+    const off = runnerRig({ actionsOptions: { gates: { coach: reason('feature-disabled') } } });
+    expect(await off.run('coach')).toBeUndefined();
+    expect(off.toasts.shown[0]?.toast.code).toBe('CG-FEATURE-DISABLED');
+    off.overlays.set('coach', true);
+    expect(await off.run('coach')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } });
+  });
+
+  it('[HK-041] ⌘, opens the settings; [HK-037] [HK-039] navigation keys become Navigate with a key as the cause', async () => {
+    const r = runnerRig();
+    expect(await r.run('settings', 'global')).toEqual({ type: 'OpenSettings', route: { section: 'status' } });
+    expect(r.cause.take()).toBe('click');
+    expect(await r.run('chat-next', 'global')).toEqual({ type: 'Navigate', to: { kind: 'chat-step', direction: 'next' } });
+    expect(r.cause.take()).toBe('key');
+    expect(await r.run('chat-previous', 'global')).toEqual({ type: 'Navigate', to: { kind: 'chat-step', direction: 'previous' } });
+    expect(await r.run('next-unread', 'global')).toEqual({ type: 'Navigate', to: { kind: 'next-unread' } });
+    expect(await r.run('quick-jump', 'global', 4)).toEqual({ type: 'Navigate', to: { kind: 'chat-slot', slot: 4 } });
+    expect(await r.run('quick-jump', 'global', null)).toBeUndefined();
+    r.runner.quickJump(true);
+    r.runner.quickJump(false);
+    await settle();
+    expect(r.client.dispatched.slice(-2)).toEqual([
+      { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: true } },
+      { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: false } },
+    ]);
+    // A failed navigation is said in a toast (a refused generation shows in the dock itself).
+    r.client.answer = (action) => ({ ok: false, type: action.type, code: 'CG-NAV-FAILED', error: { code: 'CG-NAV-FAILED', title: 't', body: 'b' } });
+    await r.run('chat-next', 'global');
+    await r.run('reply');
+    expect(r.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-NAV-FAILED']);
+  });
+
+  it('[HK-006] Cancel stops the generation that runs where the person looks', async () => {
+    const opId = uuid(0x51);
+    const streaming = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'streaming' }) });
+    expect(await streaming.run('cancel')).toEqual({ type: 'CancelGeneration', operationId: opId });
+    const done = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'done' }) });
+    expect(await done.run('cancel')).toBeUndefined();
+    const recap = runnerRig({ analysis: 'recap' });
+    recap.client.set({ of: 'recap.view' }, recapView(CTX, views.loading(), 'full', { opId, state: 'streaming' }));
+    expect(await recap.run('cancel')).toEqual({ type: 'CancelGeneration', operationId: opId });
+    const coaching = runnerRig();
+    coaching.overlays.set('coach', true);
+    coaching.client.set({ of: 'coach' }, coach(CTX, views.ready(), [coachTurn(CTX, 1), coachTurn(CTX, 2, { opId, state: 'streaming', answer: null })]));
+    expect(await coaching.run('cancel')).toEqual({ type: 'CancelGeneration', operationId: opId });
+    expect(await runnerRig().run('cancel')).toBeUndefined();
+  });
+
+  it('[HK-042] in a preview the same keys generate for the preview\'s fan and ⌘. cancels there; no key ever sends or inserts', async () => {
+    const r = runnerRig();
+    r.overlays.set('spenders', true);
+    r.overlays.setPreview('spenders');
+    const opId = uuid(0x61);
+    r.client.set({ of: 'preview', from: 'spenders' }, preview(CTX, 'spenders', views.ready()));
+    const handle = handles.spenders(FANS.hubert);
+    for (const id of ['reply', 'fix', 'hi', 'ping'] as const) expect(await r.run(id, 'preview')).toEqual({ type: 'Generate', targetHandle: handle, feature: id, options: {} });
+    expect(await r.run('tone', 'preview')).toEqual({ type: 'SetTone', targetHandle: handle, tone: 'casual' });
+    r.client.set({ of: 'preview', from: 'spenders' }, preview(CTX, 'spenders', views.ready(), { result: result(CTX, { opId, feature: 'reply', state: 'streaming', surface: 'preview' }) }));
+    expect(await r.run('cancel', 'preview')).toEqual({ type: 'CancelGeneration', operationId: opId });
+    // «Новые» has only Hi: Reply there says why not.
+    r.overlays.setPreview('newcomers');
+    r.client.set({ of: 'preview', from: 'newcomers' }, preview(CTX, 'newcomers', views.ready()));
+    expect(await r.run('reply', 'preview')).toBeUndefined();
+    expect(r.toasts.shown[0]?.toast.code).toBe('CG-FEATURE-DISABLED');
+
+    // Every command the dispatcher can hand over, on every target, with results on screen: never a send, never an insert.
+    const forbidden: readonly UiActionType[] = ['SendPart', 'InsertPart', 'OpenAndInsertPart', 'ReplaceMyDraft', 'AnswerConfirm'];
+    const all = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'done' }) });
+    all.overlays.setPreview('spenders');
+    all.client.set({ of: 'preview', from: 'spenders' }, preview(CTX, 'spenders', views.ready(), { result: result(CTX, { opId, feature: 'reply', state: 'done', surface: 'preview' }) }));
+    for (const id of DISPATCHER_COMMAND_IDS) for (const target of ['dock', 'preview', 'global'] as const) all.runner.run({ id, slot: id === 'quick-jump' ? 1 : null, target });
+    all.runner.quickJump(true);
+    await settle();
+    expect(all.client.dispatched.length).toBeGreaterThan(20);
+    for (const action of all.client.dispatched) expect(forbidden).not.toContain(action.type);
+  });
+
+  it('[HK-029] Esc closes in turn: the newest window of ours first, the dock\'s sheet last', async () => {
+    const opId = uuid(0x71);
+    const r = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'done' }) });
+    r.overlays.set('spenders', true);
+    r.overlays.setPreview('spenders');
+    r.overlays.set('cheatsheet', true);
+    r.client.set({ of: 'preview', from: 'spenders' }, preview(CTX, 'spenders', views.ready()));
+    expect(await r.run('close', 'global')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'cheatsheet', open: false } });
+    r.overlays.set('cheatsheet', false);
+    expect(await r.run('close', 'global')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
+    r.overlays.setPreview(null);
+    expect(await r.run('close', 'global')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } });
+    r.overlays.set('spenders', false);
+    expect(await r.run('close', 'global')).toEqual({ type: 'HideResult', operationId: opId });
+    r.overlays.set('result-expanded', true);
+    expect(await r.run('close', 'global')).toEqual({ type: 'ExpandResult', operationId: opId, expanded: false });
+    // A confirmation of ours answers its own Esc: nothing is dispatched from here.
+    r.overlays.set('dialog', true);
+    expect(await r.run('close', 'global')).toBeUndefined();
+  });
+
+  it('the dock\'s sheet is reported as it opens and closes; open overlays are mirrored as data-dismissible-open', () => {
+    const r = runnerRig();
+    expect(r.runner.dockSheet()).toBe(false);
+    r.client.set({ of: 'dock' }, dock(CTX, 'ready', { result: result(CTX, { opId: uuid(1), feature: 'reply', state: 'done' }) }));
+    r.client.set({ of: 'dock' }, dock(CTX, 'ready', { analysis: 'review' }));
+    r.client.set({ of: 'dock' }, dock(CTX, 'ready'));
+    expect(r.sheet).toEqual([true, false]);
+    const calls: string[] = [];
+    const mirror = mirrorDismissible(r.overlays, (target, owner, open) => calls.push(`${target}:${owner}:${String(open)}`));
+    r.overlays.set('spenders', true);
+    r.overlays.set('fan-panel', true);
+    r.overlays.set('spenders', false);
+    mirror.dockSheet(true);
+    mirror.dispose();
+    expect(calls).toEqual(['modal:spenders:true', 'panel:fan-panel:true', 'modal:spenders:false', 'dock:sheet:true', 'panel:fan-panel:false']);
+    r.runner.dispose();
+    r.client.set({ of: 'dock' }, dock(CTX, 'ready', { analysis: 'recap' }));
+    expect(r.sheet).toEqual([true, false]);
+  });
+});
