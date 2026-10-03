@@ -51,7 +51,7 @@ const CYRILLIC_TERMS: ReadonlyArray<readonly [string, RegExp]> = [
   ['Mimic', /(?<!\p{L})мимик/iu],
 ];
 
-describe('i18n catalogs: keys', () => {
+describe('[I18-003] i18n catalogs: keys', () => {
   it('ru and en carry exactly the keys of the contract catalog', () => {
     const expected = [...I18N_KEYS].sort();
     expect(Object.keys(RU).sort()).toEqual(expected);
@@ -123,7 +123,7 @@ describe('i18n catalogs: plural rules (Intl.PluralRules)', () => {
 });
 
 describe('i18n catalogs: vocabulary', () => {
-  it('no token / key / API / bearer words in any UI text (AU-019)', () => {
+  it('[AU-019] no token / key / API / bearer words in any UI text', () => {
     for (const locale of LOCALES) {
       for (const [key, text] of allTexts(locale)) {
         const found = FORBIDDEN_WORDS.filter(([, pattern]) => pattern.test(text)).map(([word]) => word);
@@ -132,13 +132,13 @@ describe('i18n catalogs: vocabulary', () => {
     }
   });
 
-  it('the vocabulary check itself catches the words and spares look-alikes', () => {
+  it('[AU-019] the vocabulary check itself catches the words and spares look-alikes', () => {
     const hits = (text: string) => FORBIDDEN_WORDS.some(([, pattern]) => pattern.test(text));
     for (const bad of ['Ключ устройства', 'API недоступен', 'token expired', 'Bearer x', 'paste your key', 'токен']) expect(hits(bad), bad).toBe(true);
     for (const fine of ['выключено', 'включён', 'переключить', 'Hotkeys', 'Keyboard', 'keystroke']) expect(hits(fine), fine).toBe(false);
   });
 
-  it('product terms stay in Latin (I18-002)', () => {
+  it('[I18-002] product terms stay in Latin', () => {
     for (const [key, text] of allTexts('ru')) {
       const found = CYRILLIC_TERMS.filter(([, pattern]) => pattern.test(text)).map(([term]) => term);
       expect(found, `ru ${key}: «${text}»`).toEqual([]);
