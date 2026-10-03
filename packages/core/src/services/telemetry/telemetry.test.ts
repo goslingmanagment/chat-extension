@@ -645,6 +645,22 @@ describe('[NEW-03] [DB-031] the client_health reporter', () => {
     expect(h.reporter.stats().earlyPending).toBe(false);
   });
 
+  it('[DB-031] the 15-minute tick takes over a pending early send: no second report seconds later', async () => {
+    const h = reporterHarness();
+    h.reporter.onHost(contract());
+    h.reporter.recordPerf('insertMs', 5);
+    expect(h.reporter.tick()).toBe(true);
+    await h.c.tick(30_000);
+    h.reporter.onHost(contract(['app']));
+    expect(h.reporter.stats().earlyPending).toBe(true);
+    await h.c.tick(10_000);
+    expect(h.reporter.tick()).toBe(true);
+    expect(h.reporter.stats().earlyPending).toBe(false);
+    expect((h.queued[1] as ClientHealthV1).host.missing).toEqual(['app']);
+    await h.c.tick(120_000);
+    expect(h.queued).toHaveLength(2);
+  });
+
   it('[NEW-03] a tab measures, samples handlers 1 in 20 and reports deltas', () => {
     let now = T0;
     const tab = new TabHealthCollector(() => now);

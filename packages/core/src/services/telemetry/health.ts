@@ -109,6 +109,8 @@ export class HealthReporter {
   }
 
   private close(reason: HealthSendReason): boolean {
+    // The window closes now: a pending early send would only report an empty one (the closed window names the new contract).
+    this.cancelEarlySend();
     const now = this.deps.scheduler.now();
     const window = this.window;
     this.window = new HealthWindow(now);
@@ -141,15 +143,18 @@ export class HealthReporter {
 
   /** Consent revoked or signed out: what was measured goes at once. */
   reset(): void {
-    if (this.cancelEarly !== null) {
-      try {
-        this.cancelEarly();
-      } catch {
-        // Already fired.
-      }
-      this.cancelEarly = null;
-    }
+    this.cancelEarlySend();
     this.window = new HealthWindow(this.deps.scheduler.now());
+  }
+
+  private cancelEarlySend(): void {
+    if (this.cancelEarly === null) return;
+    try {
+      this.cancelEarly();
+    } catch {
+      // Already fired.
+    }
+    this.cancelEarly = null;
   }
 
   stats(): HealthReporterStats {
