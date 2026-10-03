@@ -559,6 +559,17 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       expect(await harness<Receipt>('insert', { text: 'x' })).toEqual({ state: 'rejected', code: 'CG-HOST-COMPOSER-MISSING' });
     });
 
+    it('[RB-008] [UI-027] ChatSpace’s chat tabs renamed: which chat a composer serves cannot be told — copy only, the dock stays', async () => {
+      await open(chatPath(ACC, a1), ['store:chatTabEntries']);
+      const caps = await waitForHarnessState(capabilities, (c) => c['insert']?.state === 'off', 'insert off');
+      expect(caps['insert']).toEqual({ state: 'off', reason: 'composerBridge', code: 'CG-HOST-COMPOSER-MISSING' });
+      const s = await waitForHarnessState(state, (x) => x.mounts.dock.kind === 'in-flow', 'dock in flow');
+      expect(s.composer).toMatchObject({ ready: false, hidden: false });
+      await expect(harness('draft')).rejects.toThrow();
+      // A fresh page: its journal holds no call of ChatSpace's composer bridge.
+      expect((await callStand('journal')).filter((entry) => entry.type === 'bridge-call')).toEqual([]);
+    });
+
     it('[RB-008] without the frame root the dock floats over the composer and does not push the list', async () => {
       await open(chatPath(ACC, a1), ['composer-frame']);
       const s = await waitForHarnessState(state, (x) => x.mounts.dock.kind === 'fixed-overlay', 'fixed overlay');
