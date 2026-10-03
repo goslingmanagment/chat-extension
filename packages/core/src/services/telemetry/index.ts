@@ -9,7 +9,7 @@ export {
   TelemetryQueue,
   classifyIngestFailure,
   type DropReason,
-  type EnqueueOutcome,
+  type QueueOutcome,
   type IngestFailure,
   type TelemetryBinding,
   type TelemetryEvent,

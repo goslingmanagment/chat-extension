@@ -15,12 +15,12 @@ import { type PerfMetric, type TabHealthReport } from '@cg/contracts/telemetry';
 
 import { HealthWindow, hostSignature, hostSummary, type HealthClient, type HealthFootprint } from '../../domain/telemetry';
 import { type Scheduler } from '../ports';
-import { type EnqueueOutcome, type TelemetryEvent } from './queue';
+import { type QueueOutcome, type TelemetryEvent } from './queue';
 
 export interface HealthReporterDeps {
   readonly scheduler: Scheduler;
-  /** TelemetryQueue.enqueue. */
-  readonly enqueue: (event: TelemetryEvent) => EnqueueOutcome;
+  /** TelemetryQueue.add. */
+  readonly submit: (event: TelemetryEvent) => QueueOutcome;
   readonly consent: () => boolean;
   /** Bootstrap advertises `client-health-perf-v1`. */
   readonly supported: () => boolean;
@@ -122,7 +122,7 @@ export class HealthReporter {
       }
       window.setDisabled(this.deps.disabled());
       const report = window.build(now, this.deps.client(), this.deps.footprint());
-      const outcome = this.deps.enqueue(report);
+      const outcome = this.deps.submit(report);
       if (outcome !== 'queued') {
         this.skipped += 1;
         return false;

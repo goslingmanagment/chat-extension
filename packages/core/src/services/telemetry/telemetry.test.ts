@@ -155,7 +155,7 @@ describe('[TL-009] the telemetry queue', () => {
   it('[TL-009] batches of up to 100, a second after the first event', async () => {
     const h = harness();
     await h.queue.start();
-    for (let i = 0; i < 150; i += 1) expect(h.queue.enqueue(acceptance(i))).toBe('queued');
+    for (let i = 0; i < 150; i += 1) expect(h.queue.add(acceptance(i))).toBe('queued');
     await h.c.tick(TELEMETRY_POLICY.debounceMs - 1);
     expect(h.calls).toHaveLength(0);
     await h.c.tick(1);
@@ -168,7 +168,7 @@ describe('[TL-009] the telemetry queue', () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(hubError(503)));
-    for (let i = 0; i < 520; i += 1) h.queue.enqueue(acceptance(i));
+    for (let i = 0; i < 520; i += 1) h.queue.add(acceptance(i));
     expect(h.queue.stats()).toMatchObject({ queued: 500, dropped: { overflow: 20 } });
     expect(h.messages().filter((m) => m === 'telemetry queue overflow')).toHaveLength(1);
     expect(TELEMETRY_POLICY.queueMax).toBe(TELEMETRY_LIMITS.queueMaxEvents);
@@ -178,7 +178,7 @@ describe('[TL-009] the telemetry queue', () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(new FakeHubCallError({ kind: 'transport', failure: 'network' })));
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(1000);
     expect(h.calls).toHaveLength(1);
     for (const pause of [1000, 2000, 4000, 8000]) {
@@ -192,7 +192,7 @@ describe('[TL-009] the telemetry queue', () => {
     expect(h.messages().filter((m) => m === 'telemetry delivery failed')).toHaveLength(5);
     // The next event starts a new cycle, but not before the 16 s rest.
     h.answerWith((events) => Promise.resolve({ accepted: events.length - 1, duplicates: 1 }));
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(15_000);
     expect(h.calls).toHaveLength(5);
     await h.c.tick(1000);
@@ -204,7 +204,7 @@ describe('[TL-009] the telemetry queue', () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(hubError(429, 30_000)));
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(1000);
     expect(h.queue.stats().nextAttemptAt).toBe(h.c.now + 30_000);
     expect(classifyIngestFailure(hubError(502))).toEqual({ kind: 'transient', status: 502, transport: null, retryAfterMs: null });
@@ -222,7 +222,7 @@ describe('[TL-009] the telemetry queue', () => {
       }
       return Promise.resolve({ accepted: events.length, duplicates: 0 });
     });
-    for (let i = 0; i < 130; i += 1) h.queue.enqueue(acceptance(i));
+    for (let i = 0; i < 130; i += 1) h.queue.add(acceptance(i));
     await h.c.tick(1000);
     expect(h.calls.map((b) => b.length)).toEqual([100, 30]);
     expect(h.queue.stats()).toMatchObject({ queued: 0, sent: 30, dropped: { rejected: 100 } });
@@ -234,8 +234,8 @@ describe('[TL-009] the telemetry queue', () => {
     const h = harness();
     h.answerWith(() => Promise.reject(hubError(503)));
     await h.queue.start();
-    h.queue.enqueue(acceptance(1));
-    h.queue.enqueue(acceptance(2));
+    h.queue.add(acceptance(1));
+    h.queue.add(acceptance(2));
     await h.queue.saved();
     const stored = h.kv.value as { entries: unknown[] };
     expect(stored.entries).toHaveLength(2);
@@ -268,7 +268,7 @@ describe('[TL-010] [TL-011] start and stats', () => {
 
   it('[TL-010] events queued before start wait for it', async () => {
     const h = harness();
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(5000);
     expect(h.calls).toHaveLength(0);
     await h.queue.start();
@@ -279,7 +279,7 @@ describe('[TL-010] [TL-011] start and stats', () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(hubError(503)));
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(1000);
     const stats = h.queue.stats();
     expect(stats).toMatchObject({ consent: true, queued: 1, queuedHealth: 0, paused: null, attempt: 1, lastFailure: { status: 503, kind: 'http' } });
@@ -295,10 +295,10 @@ describe('[TL-012] events belong to one sign-in', () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(hubError(401)));
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(1000);
     expect(h.queue.stats().paused).toBe('auth');
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(60_000);
     expect(h.calls).toHaveLength(1);
     expect(h.messages()).toContain('telemetry paused until sign-in');
@@ -311,7 +311,7 @@ describe('[TL-012] events belong to one sign-in', () => {
     h.queue.onSessionChanged();
     await h.c.tick(0);
     expect(h.queue.stats()).toMatchObject({ paused: null, queued: 0, dropped: { 'stale-binding': 2 } });
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(1000);
     expect(h.calls).toHaveLength(2);
     expect(classifyIngestFailure(hubError(403))).toEqual({ kind: 'auth', status: 403 });
@@ -321,13 +321,13 @@ describe('[TL-012] events belong to one sign-in', () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(hubError(503)));
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     h.state.session = null;
     h.queue.onSessionChanged();
     expect(h.queue.stats().queued).toBe(0);
-    expect(h.queue.enqueue(acceptance())).toBe('signed-out');
+    expect(h.queue.add(acceptance())).toBe('signed-out');
     h.state.session = { hubOrigin: 'https://other.example.test', epoch: 1 };
-    expect(h.queue.enqueue(acceptance())).toBe('queued');
+    expect(h.queue.add(acceptance())).toBe('queued');
   });
 });
 
@@ -335,12 +335,12 @@ describe('§9.6 consent', () => {
   it('[TL-009] nothing is queued without technicalAndInteraction; revoking purges at once', async () => {
     const h = harness({ consent: false });
     await h.queue.start();
-    expect(h.queue.enqueue(acceptance())).toBe('no-consent');
+    expect(h.queue.add(acceptance())).toBe('no-consent');
     h.state.consent = true;
     h.queue.onConsentChanged();
     h.answerWith(() => Promise.reject(hubError(503)));
-    h.queue.enqueue(acceptance());
-    h.queue.enqueue(health());
+    h.queue.add(acceptance());
+    h.queue.add(health());
     h.state.consent = false;
     h.queue.onConsentChanged();
     expect(h.queue.stats()).toMatchObject({ consent: false, queued: 0, dropped: { consent: 2 } });
@@ -355,7 +355,7 @@ describe('§9.6 consent', () => {
     const h = harness();
     await h.queue.start();
     h.answerWith(() => Promise.reject(hubError(503)));
-    h.queue.enqueue(acceptance());
+    h.queue.add(acceptance());
     await h.c.tick(1000);
     h.state.consent = false;
     await h.c.tick(10_000);
@@ -368,9 +368,9 @@ describe('[NEW-03] client_health delivery', () => {
   it('[NEW-03] never queued or sent before bootstrap advertises client-health-perf-v1', async () => {
     const h = harness({ supported: false });
     await h.queue.start();
-    expect(h.queue.enqueue(health())).toBe('unsupported');
+    expect(h.queue.add(health())).toBe('unsupported');
     h.state.supported = true;
-    h.queue.enqueue(health());
+    h.queue.add(health());
     h.state.supported = false;
     h.queue.onCapabilitiesChanged();
     expect(h.queue.stats()).toMatchObject({ queued: 0, dropped: { unsupported: 1 } });
@@ -379,13 +379,13 @@ describe('[NEW-03] client_health delivery', () => {
   it('[NEW-03] goes in a batch of its own, after the acceptance events; at most 8 wait', async () => {
     const h = harness();
     await h.queue.start();
-    h.queue.enqueue(health());
-    h.queue.enqueue(acceptance());
-    h.queue.enqueue(health(T0 + 1));
+    h.queue.add(health());
+    h.queue.add(acceptance());
+    h.queue.add(health(T0 + 1));
     await h.c.tick(1000);
     expect(h.calls.map((b) => b.map((e) => e.kind))).toEqual([['ai_acceptance'], ['client_health', 'client_health']]);
     h.answerWith(() => Promise.reject(hubError(503)));
-    for (let i = 0; i < HEALTH_QUEUE_MAX + 3; i += 1) h.queue.enqueue(health(T0 + i));
+    for (let i = 0; i < HEALTH_QUEUE_MAX + 3; i += 1) h.queue.add(health(T0 + i));
     expect(h.queue.stats()).toMatchObject({ queuedHealth: HEALTH_QUEUE_MAX, dropped: { overflow: 3 } });
   });
 });
@@ -406,7 +406,7 @@ function reporterHarness() {
   const state = { consent: true, supported: true, open: true, accept: true };
   const reporter = new HealthReporter({
     scheduler: c.scheduler,
-    enqueue: (event) => {
+    submit: (event) => {
       if (!state.accept) return 'no-consent';
       queued.push(event);
       return 'queued';
@@ -531,7 +531,7 @@ describe('[TL-008] [LG-015] acceptance outcomes', () => {
     const h = harness();
     await h.queue.start();
     const logger = createLogger({ now: () => T0, debugEnabled: () => false, sinks: [(r) => h.records.push(r)] });
-    const reporter = new AcceptanceReporter((event) => h.queue.enqueue(event), logger);
+    const reporter = new AcceptanceReporter((event) => h.queue.add(event), logger);
     let n = 0;
     const tracker = new AcceptanceTracker({ now: () => T0, uuid: () => `00000000-0000-4000-9000-${String(++n).padStart(12, '0')}` });
     tracker.link({ opId: OP, generationRef: GEN, feature: 'reply', surface: 'dock', pageLabel: 'lora-of' });

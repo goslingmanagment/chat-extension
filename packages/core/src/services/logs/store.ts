@@ -161,7 +161,7 @@ export class LogService {
    * keeps it in storage.session); never rejects.
    */
   open(resume: number | null): Promise<number> {
-    const work = this.enqueue(async () => {
+    const work = this.serial(async () => {
       let sessions: readonly LogSessionInfo[] = [];
       try {
         sessions = await this.options.store.sessions();
@@ -217,7 +217,7 @@ export class LogService {
       }
       this.cancelTimer = null;
     }
-    return this.enqueue(async () => {
+    return this.serial(async () => {
       while (this.opened && this.pending.length > 0) {
         const batch = this.pending.splice(0, LOG_WRITE_POLICY.batchMax);
         if (!this.available || this.session === null) {
@@ -331,7 +331,7 @@ export class LogService {
 
   /** The newest `limit` records of this session, oldest first (LG-021). */
   recent(limit: number = LOG_LIMITS.exportRecentRecords): Promise<LogRecord[]> {
-    return this.enqueue(async () => {
+    return this.serial(async () => {
       const session = this.session;
       const stored = this.available && session !== null ? await this.readTail(session, limit) : [];
       // Records still waiting for the store are the newest of all.
@@ -341,7 +341,7 @@ export class LogService {
 
   /** The newest `limit` records of the session before this one: yesterday's failure in today's export (LG-023). */
   previousTail(limit: number): Promise<{ readonly session: number | null; readonly records: LogRecord[] }> {
-    return this.enqueue(async () => {
+    return this.serial(async () => {
       const session = this.session;
       const previous = this.sessionsKnown.filter((s) => session === null || s.session < session).at(-1);
       if (!this.available || previous === undefined) return { session: null, records: [] };
@@ -361,7 +361,7 @@ export class LogService {
 
   /** «Очистить локальные данные»: the store and the pending records; the session number stays. */
   clear(): Promise<void> {
-    return this.enqueue(async () => {
+    return this.serial(async () => {
       this.pending = [];
       try {
         await this.options.store.clear();
@@ -401,7 +401,7 @@ export class LogService {
   }
 
   /** One store operation at a time, in order; a failing step never breaks the chain. */
-  private enqueue<T>(work: () => Promise<T>): Promise<T> {
+  private serial<T>(work: () => Promise<T>): Promise<T> {
     const run = this.chain.then(work, work);
     this.chain = run.then(
       () => undefined,

@@ -7,7 +7,7 @@ import { type AcceptanceEvent } from '@cg/contracts/telemetry';
 
 import { logEvent, type Logger } from '../../domain/logging';
 import { type AcceptanceOutcome } from '../../domain/telemetry';
-import { type EnqueueOutcome } from './queue';
+import { type QueueOutcome } from './queue';
 
 export interface AcceptanceCounts {
   queued: number;
@@ -22,14 +22,14 @@ export class AcceptanceReporter {
   private readonly counts: AcceptanceCounts = { queued: 0, unlinked: 0, duplicate: 0, invalid: 0, refused: 0 };
 
   constructor(
-    private readonly enqueue: (event: AcceptanceEvent) => EnqueueOutcome,
+    private readonly submit: (event: AcceptanceEvent) => QueueOutcome,
     private readonly logger: Logger,
   ) {}
 
   /** `lifecycle` and `opId` name the event in the log when it could not be linked; never any text. */
-  report(outcome: AcceptanceOutcome, facts: { readonly lifecycle: AcceptanceEvent['payload']['lifecycle']; readonly opId: string }): EnqueueOutcome | null {
+  report(outcome: AcceptanceOutcome, facts: { readonly lifecycle: AcceptanceEvent['payload']['lifecycle']; readonly opId: string }): QueueOutcome | null {
     if (outcome.ok) {
-      const queued = this.enqueue(outcome.event);
+      const queued = this.submit(outcome.event);
       if (queued === 'queued') this.counts.queued += 1;
       else this.counts.refused += 1;
       return queued;

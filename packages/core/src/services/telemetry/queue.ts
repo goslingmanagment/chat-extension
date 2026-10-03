@@ -47,7 +47,7 @@ export const TELEMETRY_POLICY = {
 
 export type DropReason = 'overflow' | 'rejected' | 'stale-binding' | 'consent' | 'unsupported' | 'invalid';
 
-export type EnqueueOutcome = 'queued' | 'no-consent' | 'signed-out' | 'unsupported';
+export type QueueOutcome = 'queued' | 'no-consent' | 'signed-out' | 'unsupported';
 
 export interface TelemetryQueueStats {
   readonly consent: boolean;
@@ -204,7 +204,7 @@ export class TelemetryQueue {
   }
 
   /** Queues one event under the current sign-in (consent and support checked here and again at send). */
-  enqueue(event: TelemetryEvent): EnqueueOutcome {
+  add(event: TelemetryEvent): QueueOutcome {
     try {
       if (!this.safe(this.deps.consent)) return 'no-consent';
       const binding = this.safeSession();
