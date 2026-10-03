@@ -247,7 +247,8 @@ describe('[ER-025] an error is not an empty list', () => {
 });
 
 interface CodeCase {
-  readonly id: string;
+  /** The parity row as a literal `[ER-0NN]`, so a static scan of the tests counts it. */
+  readonly id: `[ER-${number}]`;
   readonly code: CgCode;
   readonly recovery: CgRecovery;
   readonly retry: CgRetry;
@@ -256,54 +257,54 @@ interface CodeCase {
 }
 
 const CODE_CASES: readonly CodeCase[] = [
-  { id: 'ER-030', code: 'CG-PERSONA-NONE', recovery: 'contact-owner', retry: 'none', section: 'personas', first: 'open-settings' },
-  { id: 'ER-031', code: 'CG-PERSONA-UNASSIGNED', recovery: 'open-settings', retry: 'none', section: 'personas', first: 'open-settings' },
-  { id: 'ER-032', code: 'CG-GATE-HISTORY', recovery: 'none', retry: 'none', first: 'copy-code' },
-  { id: 'ER-033', code: 'CG-OP-CHAT-BUSY', recovery: 'none', retry: 'none', first: 'copy-code' },
-  { id: 'ER-035', code: 'CG-CONTEXT-CHANGED', recovery: 'new-generation', retry: 'new-click', first: 'again' },
-  { id: 'ER-036', code: 'CG-RUNTIME-RELOADED', recovery: 'reload-tab', retry: 'none', first: 'reload-tab' },
-  { id: 'ER-038', code: 'CG-GATE-HI', recovery: 'none', retry: 'none' },
-  { id: 'ER-039', code: 'CG-NETWORK', recovery: 'retry', retry: 'safe-read', first: 'retry' },
-  { id: 'ER-040', code: 'CG-TIMEOUT', recovery: 'retry', retry: 'safe-read', first: 'retry' },
-  { id: 'ER-041', code: 'CG-HUB-RATE-LIMIT', recovery: 'wait-until', retry: 'after-deadline', first: 'retry' },
-  { id: 'ER-042', code: 'CG-HUB-UNAVAILABLE', recovery: 'retry', retry: 'safe-read', section: 'status', first: 'retry' },
-  { id: 'ER-043', code: 'CG-OUTPUT-UNUSABLE', recovery: 'new-generation', retry: 'new-click', first: 'again' },
-  { id: 'ER-044', code: 'CG-UNKNOWN', recovery: 'contact-owner', retry: 'none', section: 'diagnostics' },
-  { id: 'ER-044', code: 'CG-GATE-DRAFT', recovery: 'none', retry: 'none' },
-  { id: 'ER-045', code: 'CG-GATE-FAN-UNKNOWN', recovery: 'open-chat', retry: 'none', first: 'open-chat' },
-  { id: 'ER-046', code: 'CG-RECAP-NOT-FOUND', recovery: 'none', retry: 'none' },
-  { id: 'ER-047', code: 'CG-STORAGE-READ', recovery: 'retry', retry: 'safe-read', section: 'diagnostics', first: 'retry' },
-  { id: 'ER-048', code: 'CG-HOST-NOT-READY', recovery: 'none', retry: 'none' },
-  { id: 'ER-049', code: 'CG-HOST-CONTRACT', recovery: 'none', retry: 'none', section: 'status', first: 'open-settings' },
-  { id: 'ER-052', code: 'CG-HUB-URL', recovery: 'open-settings', retry: 'none', section: 'account', first: 'open-settings' },
-  { id: 'ER-053', code: 'CG-AUTH-REQUIRED', recovery: 'sign-in', retry: 'none', section: 'account', first: 'sign-in' },
-  { id: 'ER-054', code: 'CG-AUTH-REJECTED', recovery: 'retry', retry: 'new-click', section: 'account', first: 'retry' },
-  { id: 'ER-055', code: 'CG-HUB-HOST-PERMISSION', recovery: 'open-settings', retry: 'none', section: 'account', first: 'open-settings' },
-  { id: 'ER-056', code: 'CG-BINDING-MISSING', recovery: 'contact-owner', retry: 'none', section: 'accounts', first: 'open-settings' },
-  { id: 'ER-057', code: 'CG-HUB-TIMEOUT', recovery: 'retry', retry: 'safe-read', section: 'status', first: 'retry' },
-  { id: 'ER-058', code: 'CG-HUB-REQUEST', recovery: 'contact-owner', retry: 'none', first: 'copy-code' },
-  { id: 'ER-059', code: 'CG-RECAP-SAVE', recovery: 'retry', retry: 'safe-read', first: 'retry' },
-  { id: 'ER-060', code: 'CG-QUOTA-DAILY', recovery: 'wait-until', retry: 'after-deadline', section: 'status', first: 'retry' },
-  { id: 'ER-061', code: 'CG-PROVIDER-PROXY', recovery: 'contact-owner', retry: 'never', section: 'status' },
-  { id: 'ER-061', code: 'CG-PROVIDER-UNKNOWN', recovery: 'new-generation', retry: 'new-click', first: 'again' },
-  { id: 'ER-062', code: 'CG-HUB-CAPABILITY', recovery: 'contact-owner', retry: 'none', section: 'status' },
-  { id: 'ER-063', code: 'CG-PROVIDER-BILLING', recovery: 'contact-owner', retry: 'never', section: 'status' },
-  { id: 'ER-064', code: 'CG-PROVIDER-AUTH', recovery: 'contact-owner', retry: 'never', section: 'status' },
-  { id: 'ER-065', code: 'CG-PROVIDER-RATE-LIMIT', recovery: 'wait-until', retry: 'after-deadline', first: 'retry' },
-  { id: 'ER-066', code: 'CG-PROVIDER-UNAVAILABLE', recovery: 'new-generation', retry: 'new-click', first: 'again' },
-  { id: 'ER-067', code: 'CG-STREAM-TRUNCATED', recovery: 'new-generation', retry: 'new-click', first: 'again' },
-  { id: 'ER-068', code: 'CG-LOGIN-CREDENTIALS', recovery: 'sign-in', retry: 'new-click', section: 'account', first: 'sign-in' },
-  { id: 'ER-070', code: 'CG-AUTH-REVOKED', recovery: 'sign-in', retry: 'none', section: 'account', first: 'sign-in' },
-  { id: 'ER-070', code: 'CG-AUTH-EXPIRED', recovery: 'sign-in', retry: 'none', section: 'account', first: 'sign-in' },
-  { id: 'ER-071', code: 'CG-LOGIN-RATE-LIMIT', recovery: 'wait-until', retry: 'after-deadline', section: 'account', first: 'retry' },
-  { id: 'ER-072', code: 'CG-LOGIN-UNAVAILABLE', recovery: 'retry', retry: 'new-click', section: 'account', first: 'retry' },
-  { id: 'ER-073', code: 'CG-LOGIN-INCOMPLETE', recovery: 'retry', retry: 'safe-read', section: 'account', first: 'retry' },
-  { id: 'ER-074', code: 'CG-INSERT-FAILED', recovery: 'retry', retry: 'new-click', first: 'retry' },
+  { id: '[ER-030]', code: 'CG-PERSONA-NONE', recovery: 'contact-owner', retry: 'none', section: 'personas', first: 'open-settings' },
+  { id: '[ER-031]', code: 'CG-PERSONA-UNASSIGNED', recovery: 'open-settings', retry: 'none', section: 'personas', first: 'open-settings' },
+  { id: '[ER-032]', code: 'CG-GATE-HISTORY', recovery: 'none', retry: 'none', first: 'copy-code' },
+  { id: '[ER-033]', code: 'CG-OP-CHAT-BUSY', recovery: 'none', retry: 'none', first: 'copy-code' },
+  { id: '[ER-035]', code: 'CG-CONTEXT-CHANGED', recovery: 'new-generation', retry: 'new-click', first: 'again' },
+  { id: '[ER-036]', code: 'CG-RUNTIME-RELOADED', recovery: 'reload-tab', retry: 'none', first: 'reload-tab' },
+  { id: '[ER-038]', code: 'CG-GATE-HI', recovery: 'none', retry: 'none' },
+  { id: '[ER-039]', code: 'CG-NETWORK', recovery: 'retry', retry: 'safe-read', first: 'retry' },
+  { id: '[ER-040]', code: 'CG-TIMEOUT', recovery: 'retry', retry: 'safe-read', first: 'retry' },
+  { id: '[ER-041]', code: 'CG-HUB-RATE-LIMIT', recovery: 'wait-until', retry: 'after-deadline', first: 'retry' },
+  { id: '[ER-042]', code: 'CG-HUB-UNAVAILABLE', recovery: 'retry', retry: 'safe-read', section: 'status', first: 'retry' },
+  { id: '[ER-043]', code: 'CG-OUTPUT-UNUSABLE', recovery: 'new-generation', retry: 'new-click', first: 'again' },
+  { id: '[ER-044]', code: 'CG-UNKNOWN', recovery: 'contact-owner', retry: 'none', section: 'diagnostics' },
+  { id: '[ER-044]', code: 'CG-GATE-DRAFT', recovery: 'none', retry: 'none' },
+  { id: '[ER-045]', code: 'CG-GATE-FAN-UNKNOWN', recovery: 'open-chat', retry: 'none', first: 'open-chat' },
+  { id: '[ER-046]', code: 'CG-RECAP-NOT-FOUND', recovery: 'none', retry: 'none' },
+  { id: '[ER-047]', code: 'CG-STORAGE-READ', recovery: 'retry', retry: 'safe-read', section: 'diagnostics', first: 'retry' },
+  { id: '[ER-048]', code: 'CG-HOST-NOT-READY', recovery: 'none', retry: 'none' },
+  { id: '[ER-049]', code: 'CG-HOST-CONTRACT', recovery: 'none', retry: 'none', section: 'status', first: 'open-settings' },
+  { id: '[ER-052]', code: 'CG-HUB-URL', recovery: 'open-settings', retry: 'none', section: 'account', first: 'open-settings' },
+  { id: '[ER-053]', code: 'CG-AUTH-REQUIRED', recovery: 'sign-in', retry: 'none', section: 'account', first: 'sign-in' },
+  { id: '[ER-054]', code: 'CG-AUTH-REJECTED', recovery: 'retry', retry: 'new-click', section: 'account', first: 'retry' },
+  { id: '[ER-055]', code: 'CG-HUB-HOST-PERMISSION', recovery: 'open-settings', retry: 'none', section: 'account', first: 'open-settings' },
+  { id: '[ER-056]', code: 'CG-BINDING-MISSING', recovery: 'contact-owner', retry: 'none', section: 'accounts', first: 'open-settings' },
+  { id: '[ER-057]', code: 'CG-HUB-TIMEOUT', recovery: 'retry', retry: 'safe-read', section: 'status', first: 'retry' },
+  { id: '[ER-058]', code: 'CG-HUB-REQUEST', recovery: 'contact-owner', retry: 'none', first: 'copy-code' },
+  { id: '[ER-059]', code: 'CG-RECAP-SAVE', recovery: 'retry', retry: 'safe-read', first: 'retry' },
+  { id: '[ER-060]', code: 'CG-QUOTA-DAILY', recovery: 'wait-until', retry: 'after-deadline', section: 'status', first: 'retry' },
+  { id: '[ER-061]', code: 'CG-PROVIDER-PROXY', recovery: 'contact-owner', retry: 'never', section: 'status' },
+  { id: '[ER-061]', code: 'CG-PROVIDER-UNKNOWN', recovery: 'new-generation', retry: 'new-click', first: 'again' },
+  { id: '[ER-062]', code: 'CG-HUB-CAPABILITY', recovery: 'contact-owner', retry: 'none', section: 'status' },
+  { id: '[ER-063]', code: 'CG-PROVIDER-BILLING', recovery: 'contact-owner', retry: 'never', section: 'status' },
+  { id: '[ER-064]', code: 'CG-PROVIDER-AUTH', recovery: 'contact-owner', retry: 'never', section: 'status' },
+  { id: '[ER-065]', code: 'CG-PROVIDER-RATE-LIMIT', recovery: 'wait-until', retry: 'after-deadline', first: 'retry' },
+  { id: '[ER-066]', code: 'CG-PROVIDER-UNAVAILABLE', recovery: 'new-generation', retry: 'new-click', first: 'again' },
+  { id: '[ER-067]', code: 'CG-STREAM-TRUNCATED', recovery: 'new-generation', retry: 'new-click', first: 'again' },
+  { id: '[ER-068]', code: 'CG-LOGIN-CREDENTIALS', recovery: 'sign-in', retry: 'new-click', section: 'account', first: 'sign-in' },
+  { id: '[ER-070]', code: 'CG-AUTH-REVOKED', recovery: 'sign-in', retry: 'none', section: 'account', first: 'sign-in' },
+  { id: '[ER-070]', code: 'CG-AUTH-EXPIRED', recovery: 'sign-in', retry: 'none', section: 'account', first: 'sign-in' },
+  { id: '[ER-071]', code: 'CG-LOGIN-RATE-LIMIT', recovery: 'wait-until', retry: 'after-deadline', section: 'account', first: 'retry' },
+  { id: '[ER-072]', code: 'CG-LOGIN-UNAVAILABLE', recovery: 'retry', retry: 'new-click', section: 'account', first: 'retry' },
+  { id: '[ER-073]', code: 'CG-LOGIN-INCOMPLETE', recovery: 'retry', retry: 'safe-read', section: 'account', first: 'retry' },
+  { id: '[ER-074]', code: 'CG-INSERT-FAILED', recovery: 'retry', retry: 'new-click', first: 'retry' },
 ];
 
 describe('codes of the old clients’ errors in the new registry', () => {
   for (const c of CODE_CASES) {
-    it(`[${c.id}] ${c.code}: recovery ${c.recovery}, retry ${c.retry}`, () => {
+    it(`${c.id} ${c.code}: recovery ${c.recovery}, retry ${c.retry}`, () => {
       const entry = CG_REGISTRY[c.code];
       expect(entry.recovery).toBe(c.recovery);
       expect(entry.retry).toBe(c.retry);
