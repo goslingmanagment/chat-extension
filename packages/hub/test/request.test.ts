@@ -129,6 +129,14 @@ describe('[AI-142] the request body of each feature', () => {
     expect(build(op({ fresh }), { bootstrap: tight }).body.liveTextContext?.items).toEqual([{ platformMessageId: '4006', direction: 'fan', occurredAt: '2026-10-03T09:59:00Z', text: 'new' }]);
   });
 
+  it('[AI-142] a zero fresh-text limit from the hub sends no fresh text', () => {
+    const limits = (items: number, chars: number): Bootstrap => ({ ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, freshTextMaxItems: items, freshTextMaxChars: chars } });
+    expect(build(startReply, { bootstrap: limits(0, 0) }).body.liveTextContext).toBeUndefined();
+    expect(build(startReply, { bootstrap: limits(0, 5000) }).body.liveTextContext).toBeUndefined();
+    expect(build(startReply, { bootstrap: limits(60, 0) }).body.liveTextContext).toBeUndefined();
+    expect(build(startReply, { bootstrap: limits(60, 5000) }).body.liveTextContext?.items).toHaveLength(1);
+  });
+
   it('[AI-142] a request the contract refuses is never built', () => {
     const result = buildStreamRequest(startReply, ctx({ persona: { key: PERSONA.key, definitionId: 'short' } }));
     expect(result.ok).toBe(false);

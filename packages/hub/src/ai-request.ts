@@ -44,15 +44,17 @@ export interface StreamRequestContext {
 
 export type StreamRequestResult = { readonly ok: true; readonly request: HubStreamRequest } | { readonly ok: false; readonly problem: string };
 
+/** The last `freshTextMaxItems` messages, each cut to `freshTextMaxChars`; a zero limit from the hub means no fresh text at all. */
 function freshContext(op: StartOp, bootstrap: Bootstrap): LiveTextContext | undefined {
   const fresh = op.fresh;
   if (fresh === undefined) return undefined;
   const { freshTextMaxItems, freshTextMaxChars } = bootstrap.limits;
-  const items = fresh.messages.slice(-Math.max(0, freshTextMaxItems)).map((message) => ({
+  if (freshTextMaxItems <= 0 || freshTextMaxChars <= 0) return undefined;
+  const items = fresh.messages.slice(Math.max(0, fresh.messages.length - freshTextMaxItems)).map((message) => ({
     platformMessageId: message.platformMessageId,
     direction: message.direction,
     occurredAt: message.sentAt,
-    text: message.text.slice(0, Math.max(1, freshTextMaxChars)),
+    text: message.text.slice(0, freshTextMaxChars),
   }));
   return items.length === 0 ? undefined : { capturedAt: fresh.capturedAt, items };
 }
