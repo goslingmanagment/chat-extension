@@ -123,30 +123,69 @@ export const ComposerStateSchema = z.strictObject({
 });
 export type ComposerState = z.infer<typeof ComposerStateSchema>;
 
-/** Insert intent. MAIN checks all of it in one synchronous step right before the write (§6.4). */
+/**
+ * What MAIN compares in the one synchronous step right before the write
+ * (§6.4). `open`: the chat is open now, so the expected route, composer and
+ * draft (revision and digest of the whole document) are known — a CAS.
+ * `deferred` («Открыть и вставить», §6.5): the target's draft is unknown
+ * before the navigation, so MAIN reads it after the route settled (new route
+ * epoch, two stable identity observations, a working editor), in the same
+ * step as the write, and writes only into an empty draft or our own
+ * unchanged insert; any other draft is `rejected` with
+ * `confirm-human-draft`, and the person's choice comes back as an `open`
+ * intent on the revision that was read.
+ */
+export const InsertExpectationSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('open'),
+    documentEpoch: EpochTokenSchema,
+    routeEpoch: CountSchema,
+    composerInstanceId: EpochTokenSchema,
+    draftRevision: CountSchema,
+    draftDigest: DigestSchema,
+  }),
+  z.strictObject({ kind: z.literal('deferred'), documentEpoch: EpochTokenSchema }),
+]);
+export type InsertExpectation = z.infer<typeof InsertExpectationSchema>;
+
+const insertShape = {
+  intentId: UuidSchema,
+  operationId: UuidSchema,
+  part: PartRefSchema,
+  target: ChatRefSchema,
+  expected: InsertExpectationSchema,
+  mode: z.enum(['replace', 'append']),
+  /** Plain text; ChatSpace's bridge escapes it. */
+  text: boundedText(BRIDGE_LIMITS.maxStringLength),
+  /** One-time consent for this draft revision (Б2); never on a deferred insert (no draft was seen). */
+  confirmationId: z.nullable(UuidSchema),
+  createdAt: EpochMsSchema,
+  expiresAt: EpochMsSchema,
+};
+type InsertShape = { readonly expected: InsertExpectation; readonly mode: 'replace' | 'append'; readonly confirmationId: string | null; readonly createdAt: number; readonly expiresAt: number };
+const insertTimesHold = (i: InsertShape): boolean => i.expiresAt > i.createdAt;
+const deferredHolds = (i: InsertShape): boolean => i.expected.kind === 'open' || (i.confirmationId === null && i.mode === 'replace');
+const INSERT_TIMES = { message: 'expiresAt must be after createdAt' } as const;
+const INSERT_DEFERRED = { message: 'a deferred insert replaces an empty or our own draft and carries no consent' } as const;
+
+/**
+ * The insert as MAIN receives it: no action token (§14). Also the
+ * `thenInsert` of a navigation, which the navigation's own cause covers.
+ */
+export const InsertWireSchema = z.strictObject(insertShape).check(z.refine(insertTimesHold, INSERT_TIMES), z.refine(deferredHolds, INSERT_DEFERRED));
+export type InsertWire = z.infer<typeof InsertWireSchema>;
+
+/**
+ * Insert intent of the isolated side (HostPort.insert): the wire form plus
+ * the one-time action token of the click or key that asked for it (§14).
+ * HostPort.insert redeems the token (`token.redeem`, kind `insert`) before
+ * the bridge call and strips it; a refused token is `rejected`
+ * CG-INSERT-FAILED with nothing sent to MAIN. Only `open` intents go
+ * through insert(); a deferred one rides a navigation.
+ */
 export const InsertIntentSchema = z
-  .strictObject({
-    intentId: UuidSchema,
-    operationId: UuidSchema,
-    part: PartRefSchema,
-    target: ChatRefSchema,
-    expected: z.strictObject({
-      documentEpoch: EpochTokenSchema,
-      /** null — a deferred insert after «Открыть и вставить» (§6.5). */
-      routeEpoch: z.nullable(CountSchema),
-      composerInstanceId: z.nullable(EpochTokenSchema),
-      draftRevision: CountSchema,
-      draftDigest: DigestSchema,
-    }),
-    mode: z.enum(['replace', 'append']),
-    /** Plain text; ChatSpace's bridge escapes it. */
-    text: boundedText(BRIDGE_LIMITS.maxStringLength),
-    /** One-time consent for this draft revision (Б2). */
-    confirmationId: z.nullable(UuidSchema),
-    createdAt: EpochMsSchema,
-    expiresAt: EpochMsSchema,
-  })
-  .check(z.refine((i) => i.expiresAt > i.createdAt, { message: 'expiresAt must be after createdAt' }));
+  .strictObject({ ...insertShape, cause: HumanCauseSchema })
+  .check(z.refine(insertTimesHold, INSERT_TIMES), z.refine(deferredHolds, INSERT_DEFERRED));
 export type InsertIntent = z.infer<typeof InsertIntentSchema>;
 
 export const InsertReceiptSchema = z.discriminatedUnion('state', [
@@ -166,17 +205,41 @@ export const InsertReceiptSchema = z.discriminatedUnion('state', [
 ]);
 export type InsertReceipt = z.infer<typeof InsertReceiptSchema>;
 
-/** «Открыть и вставить» and plain navigation; only on a human action (§6.5, §6.9). */
-export const NavigationIntentSchema = z.strictObject({
-  intentId: UuidSchema,
-  cause: HumanCauseSchema,
-  target: z.strictObject({
-    hostAccountId: NativeIdSchema,
-    /** null — open the account (Б13). */
-    platformFanId: z.nullable(NativeIdSchema),
-  }),
-  thenInsert: z.optional(InsertIntentSchema),
-});
+/** A navigation target and the insert that follows it: same account and fan, deferred, only into a chat. */
+export function thenInsertFits(insert: InsertWire | undefined, hostAccountId: string, platformFanId: string | null): boolean {
+  if (insert === undefined) return true;
+  return (
+    platformFanId !== null &&
+    insert.expected.kind === 'deferred' &&
+    insert.target.hostAccountId === hostAccountId &&
+    insert.target.platformFanId === platformFanId
+  );
+}
+
+const THEN_INSERT_FITS = {
+  message: 'thenInsert goes only with a chat target, to the same account and fan, as a deferred insert',
+} as const;
+
+/**
+ * «Открыть и вставить» and plain navigation; only on a human action (§6.5,
+ * §6.9). HostPort.navigate redeems `cause` (`token.redeem`, kind `navigate`)
+ * before the bridge call; a refused token is `failed` CG-NAV-FAILED. MAIN
+ * compares the settled route's chat with `target` in the same synchronous
+ * step as the deferred insert.
+ */
+export const NavigationIntentSchema = z
+  .strictObject({
+    intentId: UuidSchema,
+    cause: HumanCauseSchema,
+    target: z.strictObject({
+      hostAccountId: NativeIdSchema,
+      /** null — open the account (Б13). */
+      platformFanId: z.nullable(NativeIdSchema),
+    }),
+    /** Covered by this navigation's cause; the wire form, deferred. */
+    thenInsert: z.optional(InsertWireSchema),
+  })
+  .check(z.refine((n) => thenInsertFits(n.thenInsert, n.target.hostAccountId, n.target.platformFanId), THEN_INSERT_FITS));
 export type NavigationIntent = z.infer<typeof NavigationIntentSchema>;
 
 export const NavigationReceiptSchema = z.discriminatedUnion('state', [
@@ -186,8 +249,12 @@ export const NavigationReceiptSchema = z.discriminatedUnion('state', [
     /** The outcome of `thenInsert`; null when there was none. */
     insert: z.nullable(InsertReceiptSchema),
   }),
-  /** CG-NAV-FAILED, CG-NAV-TIMEOUT, CG-INSERT-CANCELED… */
-  z.strictObject({ state: z.literal('failed'), code: CgCodeSchema }),
+  /**
+   * CG-NAV-FAILED, CG-NAV-TIMEOUT, CG-INSERT-CANCELED… `insert` — the
+   * thenInsert's outcome when one was asked for: `uncertain` after a bridge
+   * timeout (it may have run), null when there was none.
+   */
+  z.strictObject({ state: z.literal('failed'), code: CgCodeSchema, insert: z.nullable(InsertReceiptSchema) }),
 ]);
 export type NavigationReceipt = z.infer<typeof NavigationReceiptSchema>;
 
@@ -383,9 +450,10 @@ export interface HostPort {
   /** Loads nothing. */
   listCachedChats(hostAccountId: string, limit: number): readonly NavigationItem[];
   listCachedAccounts(): readonly HostAccount[];
+  /** An `open` intent; its cause is redeemed first (§14). */
   insert(intent: InsertIntent): Promise<InsertReceipt>;
   focusComposer(expected: HostIdentity): Promise<boolean>;
-  /** Only on a human action. */
+  /** Only on a human action; its cause is redeemed first (§14). */
   navigate(intent: NavigationIntent): Promise<NavigationReceipt>;
   /** Snapshot of the freshness counters (§6.7.5). */
   checkpoint(chat: ChatRef): FreshnessCheckpoint;

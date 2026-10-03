@@ -16,7 +16,9 @@ import {
   contractReport,
   dispatchTicket,
   hostIdentity,
+  deferredInsert,
   insertIntent,
+  insertWire,
   logRecord,
   opView,
   sendView,
@@ -245,6 +247,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ kind: 'send', surface: 'preview' }], invalid: [{ kind: 'eval', surface: 'preview' }] },
     res: { valid: [{ actionToken: ACTION_TOKEN, expiresAt: T0 + 5000 }], invalid: [{ actionToken: 'short', expiresAt: T0 }] },
   },
+  'token.redeem': {
+    req: {
+      valid: [{ kind: 'insert', surface: 'dock', actionToken: ACTION_TOKEN, intentId: uuid(1) }, { kind: 'navigate', surface: 'preview', actionToken: ACTION_TOKEN, intentId: uuid(9) }],
+      // `generate` and `send` tokens are spent by op.start and send.begin, never redeemed here.
+      invalid: [{ kind: 'send', surface: 'preview', actionToken: ACTION_TOKEN, intentId: uuid(1) }, { kind: 'insert', surface: 'dock', actionToken: ACTION_TOKEN }],
+    },
+    res: { valid: [{ redeemed: true }, { redeemed: false }], invalid: [{ redeemed: 'yes' }] },
+  },
 };
 
 export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
@@ -299,16 +309,22 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
   },
   listAccounts: { payload: empty, data: { valid: [[account]], invalid: [[{ ...account, hostAccountId: 'acc' }]] } },
   insertGuarded: {
-    payload: { valid: [{ intent: insertIntent }], invalid: [{ intent: { ...insertIntent, mode: 'overwrite' } }] },
+    payload: {
+      valid: [{ intent: insertWire }],
+      invalid: [{ intent: { ...insertWire, mode: 'overwrite' } }, { intent: insertIntent }, { intent: deferredInsert }],
+    },
     data: { valid: [{ state: 'applied', draftRevision: 5, draftDigest: DIGEST, ms: 8 }], invalid: [{ state: 'applied', draftRevision: 5 }] },
   },
   focus: { payload: { valid: [{ expected: hostIdentity }], invalid: [{ expected: null }] }, data: { valid: [{ focused: true }], invalid: [true] } },
   navigate: {
     payload: {
-      valid: [{ intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan } }],
-      invalid: [{ intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, cause: { kind: 'click', actionToken: ACTION_TOKEN } } }],
+      valid: [{ intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan } }, { intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, thenInsert: deferredInsert } }],
+      invalid: [
+        { intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, cause: { kind: 'click', actionToken: ACTION_TOKEN } } },
+        { intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, thenInsert: insertWire } },
+      ],
     },
-    data: { valid: [{ state: 'navigated', routeEpoch: 6, insert: null }], invalid: [{ state: 'navigated' }] },
+    data: { valid: [{ state: 'navigated', routeEpoch: 6, insert: null }, { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: null }], invalid: [{ state: 'navigated' }] },
   },
   checkpoint: { payload: { valid: [accFan], invalid: [{ ...accFan, fan: '0' }] }, data: { valid: [checkpoint], invalid: [{ ...checkpoint, coverage: 'maybe' }] } },
   previewSendPreflight: {

@@ -53,6 +53,8 @@ export const SPENDERS_PERIODS = ['lifetime', '30d', 'mtd', '7d', 'today'] as con
 export const SpendersPeriodSchema = z.enum(SPENDERS_PERIODS);
 
 export const ACTION_TOKEN_KINDS = ['generate', 'insert', 'navigate', 'send'] as const;
+/** Kinds HostPort spends through `token.redeem`; the other two are spent by the request they authorize. */
+export const HOST_ACTION_TOKEN_KINDS = ['insert', 'navigate'] as const satisfies readonly (typeof ACTION_TOKEN_KINDS)[number][];
 
 const CursorSchema = z.nullable(boundedText(2048));
 
@@ -330,6 +332,18 @@ export const TAB_REQUESTS = {
   'token.issue': {
     req: z.strictObject({ kind: z.enum(ACTION_TOKEN_KINDS), surface: SurfaceSchema }),
     res: z.strictObject({ actionToken: ActionTokenSchema, expiresAt: EpochMsSchema }),
+    from: TAB,
+  },
+  /**
+   * HostPort spends an `insert` or `navigate` token on exactly one intent
+   * before the bridge call (`generate` and `send` tokens are spent by
+   * `op.start` and `send.begin` themselves). The background accepts a token
+   * once, for its kind and surface, before its deadline, from the tab
+   * session it was issued to; `redeemed: false` — HostPort does not write.
+   */
+  'token.redeem': {
+    req: z.strictObject({ kind: z.enum(HOST_ACTION_TOKEN_KINDS), surface: SurfaceSchema, actionToken: ActionTokenSchema, intentId: UuidSchema }),
+    res: z.strictObject({ redeemed: z.boolean() }),
     from: TAB,
   },
 } as const satisfies Record<string, RequestSpec>;

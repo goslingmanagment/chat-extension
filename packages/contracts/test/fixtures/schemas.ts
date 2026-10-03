@@ -26,7 +26,9 @@ import {
   dispatchTicket,
   histogram,
   hostIdentity,
+  deferredInsert,
   insertIntent,
+  insertWire,
   journalEntry,
   logRecord,
   opView,
@@ -376,20 +378,35 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture('RouteState', C.RouteStateSchema, [routeState, { epoch: 0, name: 'other', account: null, chat: null }], [{ epoch: 5, name: 'inbox', account: null, chat: null }]),
   fixture('ComposerState', C.ComposerStateSchema, [composerState], [{ ...composerState, draft: { revision: 4, provenance: 'x' } }]),
   fixture(
-    'InsertIntent',
-    C.InsertIntentSchema,
+    'InsertExpectation',
+    C.InsertExpectationSchema,
+    [insertWire.expected, deferredInsert.expected],
+    // A deferred insert cannot expect a draft it has not seen; an open one must.
+    [{ kind: 'deferred', documentEpoch: 'doc1', draftRevision: 4, draftDigest: DIGEST }, { kind: 'open', documentEpoch: 'doc1', routeEpoch: null, composerInstanceId: null, draftRevision: 4, draftDigest: DIGEST }],
+  ),
+  fixture(
+    'InsertWire',
+    C.InsertWireSchema,
+    [insertWire, deferredInsert, { ...insertWire, mode: 'append', confirmationId: uuid(8) }],
     [
       insertIntent,
-      {
-        ...insertIntent,
-        mode: 'append',
-        confirmationId: uuid(8),
-        expected: { ...insertIntent.expected, routeEpoch: null, composerInstanceId: null },
-      },
+      { ...insertWire, expiresAt: T0 },
+      { ...insertWire, text: '' },
+      // No consent before the target's draft was seen, and no append to a draft nobody read.
+      { ...deferredInsert, confirmationId: uuid(8) },
+      { ...deferredInsert, mode: 'append' },
     ],
+  ),
+  fixture(
+    'InsertIntent',
+    C.InsertIntentSchema,
+    [insertIntent, { ...insertIntent, mode: 'append', confirmationId: uuid(8) }],
     [
+      // §14: no write without the one-time token of a human click or key.
+      insertWire,
       { ...insertIntent, expiresAt: T0 },
       { ...insertIntent, text: '' },
+      { ...insertIntent, expected: deferredInsert.expected, confirmationId: uuid(8) },
     ],
   ),
   fixture(
@@ -406,19 +423,28 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     'NavigationIntent',
     C.NavigationIntentSchema,
     [
-      { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: IDS.fan }, thenInsert: { ...insertIntent, expected: { ...insertIntent.expected, routeEpoch: null } } },
+      { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: IDS.fan }, thenInsert: deferredInsert },
       { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: null } },
     ],
-    [{ intentId: uuid(9), target: { hostAccountId: IDS.acc, platformFanId: IDS.fan } }],
+    [
+      { intentId: uuid(9), target: { hostAccountId: IDS.acc, platformFanId: IDS.fan } },
+      // thenInsert: deferred, into the navigation's own chat, never with an account-only target.
+      { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: IDS.fan }, thenInsert: insertWire },
+      { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: '2099' }, thenInsert: deferredInsert },
+      { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: null }, thenInsert: deferredInsert },
+      { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: IDS.fan }, thenInsert: { ...deferredInsert, cause } },
+    ],
   ),
   fixture(
     'NavigationReceipt',
     C.NavigationReceiptSchema,
     [
       { state: 'navigated', routeEpoch: 6, insert: null },
-      { state: 'failed', code: 'CG-NAV-TIMEOUT' },
+      { state: 'navigated', routeEpoch: 6, insert: { state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' } },
+      { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } },
+      { state: 'failed', code: 'CG-NAV-FAILED', insert: null },
     ],
-    [{ state: 'navigated', routeEpoch: 6 }],
+    [{ state: 'navigated', routeEpoch: 6 }, { state: 'failed', code: 'CG-NAV-TIMEOUT' }],
   ),
   fixture('LiveTextMessage', C.LiveTextMessageSchema, [message], [{ ...message, text: '' }, { ...message, direction: 'system' }]),
   fixture(
@@ -636,8 +662,14 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'NavigationWire',
     C.NavigationWireSchema,
-    [{ intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, thenInsert: insertIntent }, { intentId: uuid(9), acc: IDS.acc, fan: null }],
-    [{ intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, cause }],
+    [{ intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, thenInsert: deferredInsert }, { intentId: uuid(9), acc: IDS.acc, fan: null }],
+    [
+      { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, cause },
+      { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, thenInsert: insertIntent },
+      { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, thenInsert: insertWire },
+      { intentId: uuid(9), acc: IDS.acc, fan: null, thenInsert: deferredInsert },
+      { intentId: uuid(9), acc: IDS.acc, fan: '2099', thenInsert: deferredInsert },
+    ],
   ),
   fixture(
     'MainSendRequest',
@@ -651,12 +683,14 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     C.BridgeRequestSchema,
     [
       { v: 1, kind: 'req', id: 1, t: 'probe', documentEpoch: null, seq: 0, payload: {} },
-      { v: 1, kind: 'req', id: 2, t: 'insertGuarded', documentEpoch: 'doc1', seq: 1, payload: { intent: insertIntent } },
+      { v: 1, kind: 'req', id: 2, t: 'insertGuarded', documentEpoch: 'doc1', seq: 1, payload: { intent: insertWire } },
     ],
     [
       { v: 1, kind: 'req', id: 1, t: 'eval', documentEpoch: null, seq: 0, payload: {} },
       { v: 1, kind: 'req', id: 1, t: 'probe', documentEpoch: null, seq: 0, payload: {}, extra: 1 },
-      { v: 1, kind: 'req', id: 2, t: 'insertGuarded', documentEpoch: 'doc1', seq: 1, payload: { intent: { ...insertIntent, text: '' } } },
+      { v: 1, kind: 'req', id: 2, t: 'insertGuarded', documentEpoch: 'doc1', seq: 1, payload: { intent: { ...insertWire, text: '' } } },
+      // MAIN gets no tokens (§14).
+      { v: 1, kind: 'req', id: 2, t: 'insertGuarded', documentEpoch: 'doc1', seq: 1, payload: { intent: insertIntent } },
       { v: 1, kind: 'req', id: 0, t: 'probe', documentEpoch: null, seq: 0, payload: {} },
     ],
   ),

@@ -19,6 +19,7 @@ import {
   type HubBinding,
   type HumanCause,
   type InsertIntent,
+  type InsertWire,
   type LogRecord,
   type OpView,
   type PerfHistogram,
@@ -85,18 +86,23 @@ export const hostIdentity: HostIdentity = {
 };
 export const cause: HumanCause = { kind: 'click', actionToken: ACTION_TOKEN };
 
-export const insertIntent: InsertIntent = {
+/** An insert into the open chat as MAIN receives it (no token). */
+export const insertWire: InsertWire = {
   intentId: uuid(1),
   operationId: uuid(2),
   part: { index: 0 },
   target: chat,
-  expected: { documentEpoch: 'doc1', routeEpoch: 5, composerInstanceId: 'composer1', draftRevision: 4, draftDigest: DIGEST },
+  expected: { kind: 'open', documentEpoch: 'doc1', routeEpoch: 5, composerInstanceId: 'composer1', draftRevision: 4, draftDigest: DIGEST },
   mode: 'replace',
   text: 'Hi there',
   confirmationId: null,
   createdAt: T0,
   expiresAt: T0 + 20_000,
 };
+/** The same insert on the isolated side, with the click's token. */
+export const insertIntent: InsertIntent = { ...insertWire, cause };
+/** «Открыть и вставить»: the target's draft is unknown before the navigation. */
+export const deferredInsert: InsertWire = { ...insertWire, expected: { kind: 'deferred', documentEpoch: 'doc1' } };
 
 export const checkpoint: FreshnessCheckpoint = {
   documentEpoch: 'doc1',

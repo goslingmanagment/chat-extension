@@ -44,6 +44,16 @@ describe('light copies', () => {
   });
 });
 
+describe('bridge writes that may have run', () => {
+  it('fix an outcome each receipt schema accepts, and only for the three writes', () => {
+    expect(Object.keys(C.BRIDGE_WRITE_FAILURES).sort()).toEqual([...C.BRIDGE_WRITE_REQUESTS].sort());
+    expect(C.InsertReceiptSchema.safeParse(C.BRIDGE_WRITE_FAILURES.insertGuarded).success).toBe(true);
+    expect(C.NavigationReceiptSchema.safeParse(C.BRIDGE_WRITE_FAILURES.navigate).success).toBe(true);
+    expect(C.PreviewSendCommitSchema.safeParse(C.BRIDGE_WRITE_FAILURES.previewSendCommit).success).toBe(true);
+    expect(C.BRIDGE_ERRORS_BEFORE_EXECUTION).not.toContain('internal');
+  });
+});
+
 describe('X8 attempt machine (§6.7.7)', () => {
   const T = C.SEND_ATTEMPT_TRANSITIONS as Record<C.SendAttemptState, readonly C.SendAttemptState[]>;
 

@@ -10,7 +10,19 @@
 import * as z from 'zod/mini';
 
 import { BRIDGE_PROTOCOL_VERSION, BridgeRequestIdSchema, BridgeResponseSchema, MainProbeSchema, type FromMainType, type ToMainType } from './bridge';
-import { AnchorIdSchema, ChatWindowSchema, ComposerStateSchema, HostFanSchema, InsertIntentSchema, InsertReceiptSchema, NavigationItemSchema, NavigationReceiptSchema, RouteStateSchema, TailSnapshotSchema } from './host';
+import {
+  AnchorIdSchema,
+  ChatWindowSchema,
+  ComposerStateSchema,
+  HostFanSchema,
+  InsertReceiptSchema,
+  InsertWireSchema,
+  NavigationItemSchema,
+  NavigationReceiptSchema,
+  RouteStateSchema,
+  TailSnapshotSchema,
+  thenInsertFits,
+} from './host';
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
 import { BRIDGE_LIMITS, SEND_LIMITS } from './limits';
 import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
@@ -53,12 +65,18 @@ export const DraftWireSchema = z.strictObject({
 export type DraftWire = z.infer<typeof DraftWireSchema>;
 
 /** NavigationIntent without the action token: MAIN gets no tokens (§14). */
-export const NavigationWireSchema = z.strictObject({
-  intentId: UuidSchema,
-  acc: NativeIdSchema,
-  fan: z.nullable(NativeIdSchema),
-  thenInsert: z.optional(InsertIntentSchema),
-});
+export const NavigationWireSchema = z
+  .strictObject({
+    intentId: UuidSchema,
+    acc: NativeIdSchema,
+    fan: z.nullable(NativeIdSchema),
+    thenInsert: z.optional(InsertWireSchema),
+  })
+  .check(
+    z.refine((n) => thenInsertFits(n.thenInsert, n.acc, n.fan), {
+      message: 'thenInsert goes only with a chat target, to the same account and fan, as a deferred insert',
+    }),
+  );
 export type NavigationWire = z.infer<typeof NavigationWireSchema>;
 
 /**
@@ -115,7 +133,13 @@ export const TO_MAIN = {
     timeout: 'call',
   },
   listAccounts: { payload: EmptySchema, data: z.array(HostAccountSchema).check(z.maxLength(200)), write: false, timeout: 'call' },
-  insertGuarded: { payload: z.strictObject({ intent: InsertIntentSchema }), data: InsertReceiptSchema, write: true, timeout: 'call' },
+  /** An `open` insert; a deferred one only rides `navigate`. */
+  insertGuarded: {
+    payload: z.strictObject({ intent: InsertWireSchema }).check(z.refine((p) => p.intent.expected.kind === 'open', { message: 'insertGuarded takes an open intent' })),
+    data: InsertReceiptSchema,
+    write: true,
+    timeout: 'call',
+  },
   focus: { payload: z.strictObject({ expected: HostIdentitySchema }), data: z.strictObject({ focused: z.boolean() }), write: false, timeout: 'call' },
   navigate: { payload: z.strictObject({ intent: NavigationWireSchema }), data: NavigationReceiptSchema, write: true, timeout: 'navInsert' },
   checkpoint: { payload: z.strictObject(AccFan), data: FreshnessCheckpointSchema, write: false, timeout: 'call' },

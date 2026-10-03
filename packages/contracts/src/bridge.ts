@@ -20,6 +20,7 @@
 
 import * as z from 'zod/mini';
 
+import { type CgCode } from './errors';
 import { BRIDGE_LIMITS } from './limits';
 import { CountSchema, EpochTokenSchema } from './primitives';
 
@@ -203,6 +204,31 @@ export type MainProbe = z.infer<typeof MainProbeSchema>;
 export const BRIDGE_ERRORS = ['unknown-request', 'bad-request', 'not-ready', 'identity-mismatch', 'stale-document', 'disabled', 'internal'] as const;
 export const BridgeErrorSchema = z.enum(BRIDGE_ERRORS);
 export type BridgeError = z.infer<typeof BridgeErrorSchema>;
+
+/** Refusals MAIN gives before it executes anything: a write answered with one of these did not happen. */
+export const BRIDGE_ERRORS_BEFORE_EXECUTION = [
+  'unknown-request',
+  'bad-request',
+  'not-ready',
+  'identity-mismatch',
+  'stale-document',
+  'disabled',
+] as const satisfies readonly BridgeError[];
+
+/**
+ * A write (BRIDGE_WRITE_REQUESTS) that timed out, lost its answer or failed
+ * with `internal` may have run: its outcome is fixed as below and never
+ * retried — not even with the same request id (a request that never reached
+ * MAIN would run late). An insert is then reconciled by reading the draft
+ * only; a navigation's `thenInsert` counts as uncertain too. A refusal from
+ * BRIDGE_ERRORS_BEFORE_EXECUTION is a plain «not done»: `rejected` insert,
+ * `held` send (no queue call), `failed` navigation CG-NAV-FAILED.
+ */
+export const BRIDGE_WRITE_FAILURES = {
+  insertGuarded: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' },
+  navigate: { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } },
+  previewSendCommit: { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' },
+} as const satisfies Record<(typeof BRIDGE_WRITE_REQUESTS)[number], { readonly state: string; readonly code: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } }>;
 
 export const BridgeRequestIdSchema = z.int().check(z.gte(1));
 const ToMainTypeSchema = z.enum(TO_MAIN_TYPES);
