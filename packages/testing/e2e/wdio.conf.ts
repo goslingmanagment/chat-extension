@@ -1,14 +1,20 @@
 // WebdriverIO 9 + geckodriver (architecture.md §12 п. 4): the current Firefox
 // without a window, the TEST build (CG_TEST_HOSTS=1) installed as a temporary
-// add-on, our synthetic stand on 127.0.0.1. No network beyond loopback.
+// add-on, our synthetic stand on 127.0.0.1. No network beyond loopback: the
+// profile sends every non-loopback request to the egress sink, which records
+// it and drops it (src/stand/egress-sink.ts); specs add the BiDi trap
+// (support/network-trap.ts) to fail on any such attempt.
 //
 // FIREFOX_BIN overrides the browser binary (default: the macOS app path, or
 // whatever geckodriver finds on PATH elsewhere).
 
 import { existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { startStandServer, type StandServer } from '../src/stand-server';
+import { egressProxyPrefs, startEgressSink, type EgressSink } from '../src/stand/egress-sink';
+import { FIXTURE_BUILD_DIR } from '../src/stand/paths';
 import { E2E_ADDON_UUID, E2E_RELEASE_ADDON_UUID, RELEASE_GECKO_ID, TEST_GECKO_ID } from './support/constants';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -19,6 +25,7 @@ const macFirefox = '/Applications/Firefox.app/Contents/MacOS/firefox';
 const firefoxBinary = process.env['FIREFOX_BIN'] ?? (existsSync(macFirefox) ? macFirefox : undefined);
 
 let stand: StandServer | null = null;
+let egress: EgressSink | null = null;
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -60,11 +67,21 @@ export const config: WebdriverIO.Config = {
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: { ui: 'bdd', timeout: 120_000 },
-  onPrepare: async () => {
-    stand = await startStandServer();
+  onPrepare: async (_config, capabilities) => {
+    if (!existsSync(join(FIXTURE_BUILD_DIR, 'index.html'))) {
+      throw new Error('the ChatSpace fixture is not built: run `pnpm --filter @cg/testing build:stand` (pnpm e2e does it)');
+    }
+    egress = await startEgressSink();
+    stand = await startStandServer({ egress });
     process.env['CG_STAND_ORIGIN'] = stand.origin;
+    // The sink's port is known only now; workers start with these capabilities.
+    for (const capability of capabilities as WebdriverIO.Capabilities[]) {
+      const firefox = capability['moz:firefoxOptions'];
+      if (firefox !== undefined) firefox.prefs = { ...firefox.prefs, ...egressProxyPrefs(egress.port) };
+    }
   },
   onComplete: async () => {
     await stand?.close();
+    await egress?.close();
   },
 };

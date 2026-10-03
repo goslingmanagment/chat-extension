@@ -10,6 +10,7 @@ import { Key } from 'webdriverio';
 
 import { TEST_GECKO_ID } from '../support/constants';
 import { htmlAttribute, installTestBuild, readReport, standUrl, summarize, waitForReport, type SpikeReport } from '../support/extension';
+import { allowedE2eOrigins, useNetworkTrap } from '../support/network-trap';
 
 const evidence: Record<string, unknown> = {};
 const evidenceDir = fileURLToPath(new URL('../../../../.cache/e2e/', import.meta.url));
@@ -30,6 +31,9 @@ async function dockHostHeight(): Promise<number> {
 }
 
 describe('spike M0 — test build on the loopback stand', () => {
+  // stand.js probes the WebSocket constructor with a socket to the closed loopback port 9.
+  useNetworkTrap(() => [...allowedE2eOrigins(), 'ws://127.0.0.1:9']);
+
   before(async () => {
     const capabilities = browser.capabilities as Record<string, unknown>;
     evidence['browser'] = `${String(capabilities['browserName'])} ${String(capabilities['browserVersion'])}`;

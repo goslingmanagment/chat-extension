@@ -8,6 +8,7 @@ import { browser, expect } from '@wdio/globals';
 
 import { E2E_RELEASE_ADDON_UUID, RELEASE_GECKO_ID } from '../support/constants';
 import { installBuild } from '../support/extension';
+import { useNetworkTrap } from '../support/network-trap';
 
 interface PortLike {
   postMessage(message: unknown): void;
@@ -18,6 +19,8 @@ interface PortLike {
 type ExtensionApi = { runtime: { connect(options: { name: string }): PortLike } };
 
 describe('release XPI', () => {
+  useNetworkTrap();
+
   it('installs as a temporary add-on under the release gecko id', async () => {
     expect(await installBuild('release')).toBe(RELEASE_GECKO_ID);
   });
