@@ -1,0 +1,17 @@
+// The hub facade and its DTOs (architecture.md §5.8, §8; hub-pr-plan.md §4
+// with the critic's corrections). Background-side contract: `@cg/hub`
+// implements HubFacade over the vendored SDK; tabs and pages see these DTOs
+// only through the tab protocol. No hub paths here (wire.ts).
+
+export * from './wire';
+export * from './auth';
+export * from './bootstrap';
+export * from './ai';
+export * from './recaps';
+export * from './spenders';
+export * from './feed';
+export * from './newcomers';
+export * from './usage';
+export * from './routes';
+export * from './error-map';
+export * from './facade';
