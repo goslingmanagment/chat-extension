@@ -68,7 +68,6 @@ export function createMainRuntime({ win, documentEpoch, now, setTimer, frame, em
   let login = 1;
   /** Our own router.push in progress: its afterEach does not cancel the pending insert. */
   let pushing = 0;
-  let searchDone = false;
   let disposed = false;
   /** Per-chat anchors keep their last checked state; unchecked counts as fine. */
   const sticky: Record<string, string> = {};
@@ -145,8 +144,8 @@ export function createMainRuntime({ win, documentEpoch, now, setTimer, frame, em
     };
     if (app) Object.assign(found, Object.assign(sticky, reader.anchors(read.acc, read.fan)));
     const listed = (state: string): string[] => MAIN_ANCHORS.filter((key) => (found[key] ?? 'ok') === state);
-    // While the search for #app still runs, nothing is missing yet.
-    return { build: reader.build(), missing: app || searchDone ? listed('missing') : [], shape: listed('shape'), receiptModules: {} };
+    // Without #app (still searching, or given up after 60 s) the host is simply not ready: nothing else is judged.
+    return { build: reader.build(), missing: app ? listed('missing') : ['app'], shape: app ? listed('shape') : [], receiptModules: {} };
   };
 
   const identityMatches = (expected: Identity): boolean => {
@@ -336,7 +335,7 @@ export function createMainRuntime({ win, documentEpoch, now, setTimer, frame, em
       if (found) return attachApp(found);
       const elapsed = now() - searchStarted;
       if (elapsed < APP_SEARCH.slowUntilMs) return void setTimer(attempt, elapsed < APP_SEARCH.fastUntilMs ? APP_SEARCH.fastMs : APP_SEARCH.slowMs);
-      searchDone = true;
+      // Given up (CG-HOST-NOT-READY): no endless retries.
       emit('contract', contractPayload);
     };
     attempt();

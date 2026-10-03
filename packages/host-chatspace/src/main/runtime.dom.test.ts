@@ -515,6 +515,8 @@ describe('MAIN runtime — requests', () => {
     const bare = createMainRuntime({ win: window, documentEpoch: 'doc2', now: () => 0, setTimer: (cb, ms) => setTimeout(cb, ms), frame: (cb) => cb(), emit: (t) => events.push(t) });
     expect(bare.handle('fan', { acc: ACC, fan: FAN })).toBe('not-ready');
     expect(bare.handle('listAccounts', {})).toEqual([]);
+    // While #app is not there (still searching or given up), only `app` is reported, as missing.
+    expect((bare.handle('snapshot', {}) as { contract: unknown }).contract).toEqual({ build: null, missing: ['app'], shape: [], receiptModules: {} });
     bare.dispose();
   });
 });

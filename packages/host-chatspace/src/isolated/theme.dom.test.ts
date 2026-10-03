@@ -10,6 +10,20 @@ afterEach(() => {
 });
 
 describe('the host theme (§6.1: --color-om-*, .dark, fixed width)', () => {
+  it('before <html> exists (a preload or very early start) the theme is unknown and the reader waits for it', async () => {
+    const doc = document.implementation.createHTMLDocument('');
+    doc.documentElement.remove();
+    const reader = createThemeReader(doc);
+    expect(reader.current()).toEqual({ scheme: 'light', tokens: {}, fixedWidth: false });
+    const html = doc.createElement('html');
+    html.className = 'dark';
+    html.style.setProperty('--color-om-neutral-0', '1 1 1');
+    doc.append(html);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(reader.current().scheme).toBe('dark');
+    reader.dispose();
+  });
+
   it('reads the scheme, ChatSpace’s inline tokens (priority palettes first, at most 64) and the fixed width', () => {
     const html = document.documentElement;
     html.classList.add('dark');

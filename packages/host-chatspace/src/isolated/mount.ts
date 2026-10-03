@@ -340,7 +340,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
 
   /** ChatSpace's fixed-width workspace: the nearest ancestor of the composer (or of #app's content) with a max-width. */
   const fixedWidthContainer = (): Element | null => {
-    const width = doc.documentElement.style.getPropertyValue(FIXED_WIDTH_VARIABLE).trim();
+    const width = (doc.documentElement as HTMLElement | null)?.style.getPropertyValue(FIXED_WIDTH_VARIABLE).trim() ?? '';
     if (width === '' || width === 'none') return null;
     for (let node = dockHost.isConnected && kind !== 'fixed-overlay' ? dockHost.parentElement : (fixedBox ?? null); node && node !== doc.body; node = node.parentElement) {
       if (win.getComputedStyle(node).maxWidth !== 'none') return node;
@@ -359,7 +359,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     const width = parent ? Math.max(0, parent.getBoundingClientRect().width) : null;
     return {
       dock: { kind, composerInstanceId: instanceId, width },
-      overlay: { ready: doc.documentElement.isConnected, container: rectOf(containerElement) },
+      overlay: { ready: (doc.documentElement as HTMLElement | null) !== null, container: rectOf(containerElement) },
     };
   };
 
@@ -374,6 +374,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   const overlay = (layer: OverlayLayer): ClosedHost => {
     let found = overlays.get(layer);
     if (!found) {
+      if ((doc.documentElement as HTMLElement | null) === null) throw new Error('overlay before <html> exists');
       found = mountClosedHost(doc.documentElement, 'overlay', 'last', registry);
       const style = found.host.style;
       found.host.setAttribute('data-cg-layer', layer);

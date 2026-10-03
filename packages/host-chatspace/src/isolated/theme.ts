@@ -22,8 +22,12 @@ export interface ThemeReader {
   dispose(): void;
 }
 
+/** ChatSpace's own theme is unknown until <html> exists. */
+const NO_THEME: HostTheme = { scheme: 'light', tokens: {}, fixedWidth: false };
+
 export function readTheme(doc: Document): HostTheme {
-  const html = doc.documentElement;
+  const html = doc.documentElement as HTMLElement | null;
+  if (!html) return NO_THEME;
   const style = html.style;
   const found: Array<[string, string]> = [];
   for (let i = 0; i < style.length; i += 1) {
@@ -48,15 +52,28 @@ export function createThemeReader(doc: Document): ThemeReader {
   let theme = readTheme(doc);
   let text = JSON.stringify(theme);
   const listeners = new Set<(theme: HostTheme) => void>();
-  const observer = new MutationObserver(() => {
+  const refresh = (): void => {
     const next = readTheme(doc);
     const nextText = JSON.stringify(next);
     if (nextText === text) return;
     theme = next;
     text = nextText;
     for (const listener of [...listeners]) listener(theme);
-  });
-  observer.observe(doc.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
+  };
+  const observer = new MutationObserver(refresh);
+  const observe = (): void => observer.observe(doc.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
+  // A document_start script may run before <html> exists: watch for it, then for its attributes.
+  let waiting: MutationObserver | null = null;
+  if ((doc.documentElement as HTMLElement | null) === null) {
+    waiting = new MutationObserver(() => {
+      if ((doc.documentElement as HTMLElement | null) === null) return;
+      waiting?.disconnect();
+      waiting = null;
+      observe();
+      refresh();
+    });
+    waiting.observe(doc, { childList: true });
+  } else observe();
   return {
     current: () => theme,
     onChange(listener) {
@@ -68,6 +85,7 @@ export function createThemeReader(doc: Document): ThemeReader {
     anchor: () => (Object.keys(theme.tokens).length > 0 ? 'ok' : 'missing'),
     dispose() {
       observer.disconnect();
+      waiting?.disconnect();
       listeners.clear();
     },
   };
