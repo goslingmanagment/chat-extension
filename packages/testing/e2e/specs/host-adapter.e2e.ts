@@ -133,7 +133,8 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       for (const name of ['identity', 'route', 'accounts', 'dockMount', 'insert', 'draftRead', 'chatWindow', 'freshText', 'fan', 'chatList', 'navigate', 'theme']) {
         expect([name, s.contract.capabilities[name]?.state]).toEqual([name, 'on']);
       }
-      expect(s.contract.capabilities['previewSend']).toEqual({ state: 'off', reason: 'not-yet' });
+      // This spec runs without the tap script and without flags: the live side is off (x8-send.e2e.ts has it on).
+      expect(s.contract.capabilities['previewSend']).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
     });
 
     it('[AU-034] [AU-035] the accounts ChatSpace loaded, each with its platformAccountId', async () => {

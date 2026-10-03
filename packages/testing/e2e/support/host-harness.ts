@@ -38,23 +38,36 @@ async function bundle(entry: string): Promise<string> {
 export interface InstalledHarness {
   readonly mainBytes: number;
   readonly isolatedBytes: number;
+  readonly tapBytes: number;
   remove(): Promise<void>;
 }
 
-/** Adds both preload scripts; every document loaded afterwards gets the adapter. */
-export async function installHostHarness(): Promise<InstalledHarness> {
-  const [main, isolated] = await Promise.all([bundle('main-harness.ts'), bundle('iso-harness.ts')]);
+export interface HarnessOptions {
+  /**
+   * The tap script too (architecture.md §6.8), as the background registers it
+   * while the `wsTap` flag is on: `first` — before the bridge's script,
+   * `last` — after it (both at document_start; their order is not ours to choose).
+   */
+  readonly tap?: 'first' | 'last';
+}
+
+/** Adds the preload scripts; every document loaded afterwards gets the adapter. */
+export async function installHostHarness(options: HarnessOptions = {}): Promise<InstalledHarness> {
+  const [main, isolated, tap] = await Promise.all([bundle('main-harness.ts'), bundle('iso-harness.ts'), options.tap ? bundle('tap-harness.ts') : Promise.resolve('')]);
   const wrap = (code: string): string => `() => {\n${code}\n}`;
   // The MAIN bundle's evaluation at document_start (boot + runtime), beyond the boot's own installMs: read by the spec.
   const timed = (code: string): string => `() => {\nconst cgStarted = performance.now();\n${code}\nObject.defineProperty(window, '__cgMainEvalMs', { value: performance.now() - cgStarted, configurable: true });\n}`;
+  // Preload scripts run in the order they were added.
+  const tapFirst = options.tap === 'first' ? await browser.scriptAddPreloadScript({ functionDeclaration: wrap(tap) }) : null;
   const mainScript = await browser.scriptAddPreloadScript({ functionDeclaration: timed(main) });
+  const tapLast = options.tap === 'last' ? await browser.scriptAddPreloadScript({ functionDeclaration: wrap(tap) }) : null;
   const isoScript = await browser.scriptAddPreloadScript({ functionDeclaration: wrap(isolated), sandbox: ISO_SANDBOX });
   return {
     mainBytes: main.length,
     isolatedBytes: isolated.length,
+    tapBytes: tap.length,
     remove: async () => {
-      await browser.scriptRemovePreloadScript({ script: mainScript.script });
-      await browser.scriptRemovePreloadScript({ script: isoScript.script });
+      for (const script of [tapFirst, mainScript, tapLast, isoScript]) if (script) await browser.scriptRemovePreloadScript({ script: script.script });
     },
   };
 }

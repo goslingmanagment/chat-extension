@@ -10,6 +10,27 @@ import { defineConfig } from 'vite';
 export const FIXTURE_SOURCE_DIR = fileURLToPath(new URL('./fixture-chatspace/', import.meta.url));
 export const FIXTURE_BUILD_DIR = fileURLToPath(new URL('../../.cache/fixture-chatspace/', import.meta.url));
 
+/**
+ * ChatSpace's build splits its app into modules named `<role>-<hash>.js`, and
+ * the adapter fingerprints the ones its send path lives in (architecture.md
+ * §6.2 «профиль пути отправки и квитанции»; the roles are the adapter's:
+ * `@cg/host-chatspace/host-contract` RECEIPT_MODULE_ROLES). The stand's build
+ * gives its own code the same module names — the queue, the HTTP client and
+ * the socket, the composer, the accounts and chat stores, the query
+ * definitions with Mimic's — so the e2e reads real `modulepreload` links and
+ * resource timing entries, not a list a test made up.
+ */
+const ROLE_MODULES: ReadonlyArray<{ readonly name: string; readonly test: RegExp }> = [
+  { name: 'notificationEntry', test: /fixture-chatspace\/src\/stores\/pending-messages\.ts$/ },
+  { name: 'messages', test: /fixture-chatspace\/src\/(ui\/(composer|bridge|editor-handle|registry)|stores\/composer)\.ts$/ },
+  { name: 'accounts', test: /fixture-chatspace\/src\/stores\/(accounts|chats|stored)\.ts$/ },
+  { name: 'inbox', test: /fixture-chatspace\/src\/query\/(queries|use-query)\.ts$/ },
+  { name: 'composables', test: /fixture-chatspace\/src\/(net\/|query\/(cache|model)\.ts$|env\.ts$|journal\.ts$|protocol\.ts$)/ },
+  // Libraries go below all of them (as in ChatSpace's own build), so no module waits on the entry module that imports it.
+  // The editor's own libraries stay with the editor: it loads later, like ChatSpace's.
+  { name: 'vue.runtime', test: /node_modules\/(?!\.pnpm\/)(?!@tiptap\/|prosemirror-|orderedmap\/|rope-sequence\/|w3c-keyname\/|linkifyjs\/)/ },
+];
+
 export default defineConfig({
   root: FIXTURE_SOURCE_DIR,
   base: '/',
@@ -22,5 +43,7 @@ export default defineConfig({
     sourcemap: false,
     reportCompressedSize: false,
     modulePreload: { polyfill: false },
+    // Each module holds only the files named above; what they import stays where the build puts it.
+    rolldownOptions: { output: { codeSplitting: { includeDependenciesRecursively: false, groups: [...ROLE_MODULES] } } },
   },
 });

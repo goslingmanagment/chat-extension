@@ -168,4 +168,11 @@ export const FIXTURE_CONTRACTS: readonly FixtureContract[] = [
     basis: 're-expressed',
     observedAt: ['composables:85389 (URL)', 'composables:86274-86283 (new WebSocket, onmessage)', 'composables:86366-86425 (bus)', 'composables:86428-86465 (actions, events)', 'accounts:6356-6368, messages:21415-21428 (frame fields)'],
   },
+  {
+    id: 'module-names',
+    contract: 'the build is split into modules named <role>-<hash>.js, loaded as module scripts and modulepreload links; the send path lives in notificationEntry, composables, messages, accounts and inbox (§6.2 receipt profile)',
+    stand: ['../../fixture-chatspace.vite.config.ts'],
+    basis: 'observed',
+    observedAt: ['index.html:10-23 (entry script and modulepreload links)', 'file names of the 0.172.0 copy', 'notificationEntry:1427-1640 (queue), messages:18602-18911 (composer send), composables:85389-86465 (client, socket)'],
+  },
 ];
