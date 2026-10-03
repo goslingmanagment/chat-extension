@@ -281,11 +281,11 @@ export default defineConfig(
     }),
   },
   {
-    files: ['packages/*/src/**/*.test.{ts,tsx}', 'apps/extension/test/**/*.ts', 'tools/**/*.ts', 'tests/**/*.ts', 'packages/testing/**/*.ts'],
+    files: ['packages/*/src/**/*.test.{ts,tsx}', 'packages/*/test/**/*.ts', 'apps/extension/test/**/*.ts', 'tools/**/*.ts', 'tests/**/*.ts', 'packages/testing/**/*.ts'],
     rules: { 'no-restricted-imports': 'off', 'no-restricted-globals': 'off', 'no-restricted-properties': 'off', 'no-console': 'off' },
   },
   {
-    files: ['tools/**/*.ts', 'tests/**/*.ts', 'packages/testing/**/*.ts', 'apps/extension/{build,test,lazy}/**/*.ts', '*.config.ts', 'apps/extension/wxt.config.ts'],
+    files: ['tools/**/*.ts', 'tests/**/*.ts', 'packages/testing/**/*.ts', 'packages/*/test/**/*.ts', 'apps/extension/{build,test,lazy}/**/*.ts', '*.config.ts', 'apps/extension/wxt.config.ts'],
     languageOptions: { globals: globals.node },
   },
 );

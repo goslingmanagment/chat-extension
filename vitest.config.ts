@@ -16,7 +16,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['packages/*/src/**/*.test.ts', 'apps/extension/test/**/*.test.ts', 'tools/**/*.test.ts', 'tests/**/*.test.ts'],
+          include: ['packages/*/src/**/*.test.ts', 'packages/*/test/**/*.test.ts', 'apps/extension/test/**/*.test.ts', 'tools/**/*.test.ts', 'tests/**/*.test.ts'],
           exclude: ['**/node_modules/**', '**/*.dom.test.ts'],
           testTimeout: 60_000,
           hookTimeout: 120_000,

@@ -1,0 +1,331 @@
+// Fixtures for every message of the two runtime protocols: each tab/pages ↔
+// background request (payload and response), each background event, each
+// MAIN request (payload and answer) and each MAIN event. A response that is
+// still a pending hub DTO slot (part 2b) has no invalid fixture yet.
+
+import type { FromMainType, TabEventType, TabRequestType, ToMainType } from '../../src/index';
+import {
+  ACTION_TOKEN,
+  DIGEST,
+  IDS,
+  ISO,
+  T0,
+  account,
+  binding,
+  chat,
+  checkpoint,
+  contractReport,
+  dispatchTicket,
+  hostIdentity,
+  insertIntent,
+  logRecord,
+  opView,
+  sendView,
+  session,
+  startReply,
+  uuid,
+} from './samples';
+import {
+  chatWindow,
+  composerState,
+  contractWire,
+  diagnostics,
+  fan,
+  incomingFact,
+  mainSend,
+  messages,
+  navItem,
+  probe,
+  promptSnapshot,
+  routeState,
+  sendBegin,
+  tabHealth,
+  toast,
+} from './schemas';
+import { DEFAULT_SETTINGS } from '../../src/index';
+
+export interface Verdicts {
+  readonly valid: readonly unknown[];
+  readonly invalid: readonly unknown[];
+}
+
+export interface RequestFixtures {
+  readonly req: Verdicts;
+  readonly res: Verdicts;
+}
+
+const settingsState = { settings: DEFAULT_SETTINGS, revision: 3, readOnly: false } as const;
+const ack = { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] } as const;
+const empty = { valid: [{}], invalid: [{ extra: 1 }] } as const;
+const pageFan = { pageId: 11, fanRef: IDS.fan } as const;
+/** A hub DTO slot accepts anything until part 2b freezes it. */
+const pendingDto = { valid: [{ any: 'shape' }], invalid: [] } as const;
+
+export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixtures } = {
+  'tab.register': {
+    req: { valid: [{ host: 'chatspace', lateInjection: true, contractsVersion: '1.0.0' }], invalid: [{ host: 'chatspace', lateInjection: true }] },
+    res: { valid: [{ tabSessionId: uuid(4), contractsVersion: '1.0.0', testBuild: false }], invalid: [{ tabSessionId: 'tab-1', contractsVersion: '1.0.0', testBuild: false }] },
+  },
+  'tab.presence': {
+    req: { valid: [{ chat, routeEpoch: 5, visible: true, focused: true }, { chat: null, routeEpoch: 0, visible: false, focused: false }], invalid: [{ chat, visible: true, focused: true }] },
+    res: ack,
+  },
+  'session.get': {
+    req: empty,
+    res: { valid: [{ session }, { session: null }], invalid: [{ session: { ...session, login: '' } }] },
+  },
+  'session.signIn': {
+    req: { valid: [{ login: 'chatter1', password: 'synthetic-pass' }], invalid: [{ login: 'chatter1', password: '' }] },
+    res: { valid: [{ session }], invalid: [{ session: null }] },
+  },
+  'session.signOut': {
+    req: empty,
+    res: { valid: [{ serverRevoked: true }, { serverRevoked: null }], invalid: [{}] },
+  },
+  'bootstrap.get': {
+    req: { valid: [{}, { force: true }], invalid: [{ force: 'yes' }] },
+    res: pendingDto,
+  },
+  'binding.resolve': {
+    req: { valid: [{ account }], invalid: [{ account: { ...account, platform: 'myspace' } }] },
+    res: { valid: [{ binding }], invalid: [{ binding: { ...binding, pageId: 0 } }] },
+  },
+  'catalog.get': {
+    req: { valid: [{}], invalid: [{ force: 1 }] },
+    res: pendingDto,
+  },
+  'persona.set': {
+    req: { valid: [{ pageId: 11, key: 'lora', definitionId: 'def-1' }], invalid: [{ pageId: 11, key: 'lora' }] },
+    res: { valid: [{ revision: 4 }], invalid: [{ revision: -1 }] },
+  },
+  'op.start': {
+    req: { valid: [startReply], invalid: [{ ...startReply, surface: 'preview' }] },
+    res: { valid: [{ ok: true, opId: uuid(2) }], invalid: [{ ok: false, code: 'CG-OP-CHAT-BUSY' }] },
+  },
+  'op.cancel': {
+    req: { valid: [{ opId: uuid(2) }], invalid: [{ opId: 'op-1' }] },
+    res: { valid: [{ state: 'canceled' }], invalid: [{ state: 'stopped' }] },
+  },
+  'op.list': {
+    req: { valid: [{ scope: 'all' }, { scope: 'tab', chatKey: 'chatspace:1001:2002' }], invalid: [{ scope: 'window' }] },
+    res: { valid: [{ ops: [opView] }, { ops: [] }], invalid: [{ ops: Array.from({ length: 25 }, () => opView) }] },
+  },
+  'op.reportShown': {
+    req: { valid: [{ opId: uuid(2) }, { opId: uuid(2), part: { index: 1 } }], invalid: [{ opId: uuid(2), part: { index: 12 } }] },
+    res: ack,
+  },
+  'op.reportCopy': {
+    req: { valid: [{ opId: uuid(2), part: { index: 0 } }], invalid: [{ part: { index: 0 } }] },
+    res: ack,
+  },
+  'op.reportInsert': {
+    req: {
+      valid: [{ opId: uuid(2), part: { index: 0 }, receipt: { state: 'applied', draftRevision: 5, draftDigest: DIGEST, ms: 22 } }],
+      invalid: [{ opId: uuid(2), part: { index: 0 }, receipt: { state: 'done' } }],
+    },
+    res: ack,
+  },
+  'op.reportSent': {
+    req: {
+      valid: [{ opId: uuid(2), part: { index: 0 }, pendingId: uuid(7), platformMessageId: IDS.msg2, edited: false }],
+      invalid: [{ opId: uuid(2), part: { index: 0 }, pendingId: uuid(7), platformMessageId: null, edited: false }],
+    },
+    res: ack,
+  },
+  'send.begin': {
+    req: { valid: [sendBegin], invalid: [{ ...sendBegin, attemptId: 'a1' }] },
+    res: {
+      valid: [{ ok: true, ticket: dispatchTicket }, { ok: false, view: { attemptId: uuid(5), state: 'held', code: 'CG-SEND-OFF' } }],
+      invalid: [{ ok: true }, { ok: false, code: 'CG-SEND-OFF' }],
+    },
+  },
+  'send.status': {
+    req: { valid: [{ attemptId: uuid(5) }], invalid: [{}] },
+    res: { valid: [{ view: sendView }, { view: null }], invalid: [{ view: { attemptId: uuid(5), state: 'lost' } }] },
+  },
+  'send.report': {
+    req: {
+      valid: [{ view: { attemptId: uuid(5), state: 'nativeEnqueued' }, pendingId: uuid(7) }, { view: { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-GUARD' }, httpStatus: 422 }],
+      invalid: [{ view: { attemptId: uuid(5), state: 'nativeEnqueued' }, httpStatus: 9000 }],
+    },
+    res: ack,
+  },
+  'recap.status': {
+    req: { valid: [{ ...pageFan, personaDefinitionId: 'def-1' }], invalid: [pageFan] },
+    res: pendingDto,
+  },
+  'recap.read': {
+    req: { valid: [{ ...pageFan, personaDefinitionId: 'def-1' }], invalid: [{ ...pageFan, fanRef: 2002, personaDefinitionId: 'def-1' }] },
+    res: pendingDto,
+  },
+  'spenders.board': {
+    req: { valid: [{ pageId: 11, period: '30d' }, { pageId: 11, period: 'lifetime', force: true }], invalid: [{ pageId: 11, period: 'year' }] },
+    res: pendingDto,
+  },
+  'spenders.stats': {
+    req: { valid: [{ pageId: 11, windowDays: 30, timeZone: 'Europe/Moscow' }], invalid: [{ pageId: 11, windowDays: 0, timeZone: 'Europe/Moscow' }] },
+    res: pendingDto,
+  },
+  'spenders.queue': {
+    req: { valid: [{ pageId: 11, cursor: null, limit: 50 }, { pageId: 11, cursor: 'c1', limit: 100 }], invalid: [{ pageId: 11, cursor: null, limit: 101 }] },
+    res: pendingDto,
+  },
+  'feed.read': {
+    req: { valid: [{ ...pageFan, cursor: null, limit: 50 }], invalid: [{ ...pageFan, cursor: '', limit: 50 }] },
+    res: pendingDto,
+  },
+  'fan.card': {
+    req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
+    res: pendingDto,
+  },
+  'newcomers.list': {
+    req: { valid: [{ pageId: 11, windowHours: 48, cursor: null }], invalid: [{ pageId: 11, windowHours: 721, cursor: null }] },
+    res: pendingDto,
+  },
+  'newcomers.claim': {
+    req: { valid: [{ ...pageFan, action: 'claim' }, { ...pageFan, action: 'renew' }], invalid: [{ ...pageFan, action: 'dispatch' }] },
+    res: pendingDto,
+  },
+  'settings.get': {
+    req: empty,
+    res: { valid: [settingsState], invalid: [{ ...settingsState, readOnly: 'no' }] },
+  },
+  'settings.patch': {
+    req: { valid: [{ patch: { ui: { locale: 'en' } }, baseRevision: 3 }, { patch: {}, baseRevision: null }], invalid: [{ patch: { ui: { locale: 'de' } }, baseRevision: 3 }] },
+    res: { valid: [settingsState], invalid: [{ settings: DEFAULT_SETTINGS }] },
+  },
+  'log.write': {
+    req: { valid: [{ records: [logRecord] }], invalid: [{ records: [] }, { records: Array.from({ length: 51 }, () => logRecord) }] },
+    res: { valid: [{ accepted: 1, dropped: 0 }], invalid: [{ accepted: 1 }] },
+  },
+  'diagnostics.get': {
+    req: empty,
+    res: { valid: [diagnostics], invalid: [{ ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } }] },
+  },
+  'diagnostics.export': {
+    req: { valid: [{ format: 'json' }, { format: 'txt' }], invalid: [{ format: 'zip' }] },
+    res: {
+      valid: [{ fileName: 'chatgoose-diagnostics.json', mime: 'application/json', body: '{}' }],
+      invalid: [{ fileName: 'x.json', mime: 'application/zip', body: '{}' }],
+    },
+  },
+  'sound.event': {
+    req: { valid: [{ fact: incomingFact }], invalid: [{ fact: { ...incomingFact, source: 'dom' } }] },
+    res: { valid: [{ played: true }, { played: false, reason: 'chat-open' }], invalid: [{ reason: 'chat-open' }] },
+  },
+  'sound.preview': {
+    req: { valid: [{ tone: 'bell', volume: 50 }], invalid: [{ tone: 'bell', volume: 52 }] },
+    res: { valid: [{ played: true }, { played: false, code: 'CG-AUDIO-BLOCKED' }], invalid: [{ played: false, code: 'CG-NOPE' }] },
+  },
+  'debug.prompt': {
+    req: { valid: [{ token: 'prompt-token-1' }], invalid: [{ token: '' }] },
+    res: { valid: [promptSnapshot], invalid: [{ ...promptSnapshot, blocks: [{ name: 'system', text: 'x' }] }] },
+  },
+  'health.report': {
+    req: { valid: [{ report: tabHealth }], invalid: [{ report: { ...tabHealth, windowFrom: -1 } }] },
+    res: ack,
+  },
+  'token.issue': {
+    req: { valid: [{ kind: 'send', surface: 'preview' }], invalid: [{ kind: 'eval', surface: 'preview' }] },
+    res: { valid: [{ actionToken: ACTION_TOKEN, expiresAt: T0 + 5000 }], invalid: [{ actionToken: 'short', expiresAt: T0 }] },
+  },
+};
+
+export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
+  'op.update': {
+    valid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming', phase: { name: 'streaming', since: T0 }, firstChunkAt: T0 + 900 }],
+    invalid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming' }],
+  },
+  'op.done': { valid: [{ view: opView }], invalid: [{ view: { ...opView, opId: 'x' } }] },
+  'send.state': { valid: [{ view: sendView }], invalid: [{ view: { ...sendView, state: 'done' } }] },
+  toast: { valid: [{ toast }], invalid: [{ toast: { ...toast, toastId: 'x' } }] },
+  'settings.changed': { valid: [settingsState], invalid: [{ ...settingsState, revision: 'r3' }] },
+  'session.changed': {
+    valid: [{ session, reason: 'sign-in' }, { session: null, reason: 'revoked' }],
+    invalid: [{ session: null, reason: 'logout' }],
+  },
+  'bootstrap.changed': { valid: [{ configRevision: 9, issuedAt: ISO }], invalid: [{ configRevision: 9 }] },
+  'catalog.changed': empty,
+  'newcomers.changed': { valid: [{ pageId: 11 }], invalid: [{ pageId: '11' }] },
+  'flags.changed': {
+    valid: [{ flags: { previewSend: false, someFutureFlag: true }, configRevision: 9 }],
+    invalid: [{ flags: { previewSend: 'off' }, configRevision: 9 }],
+  },
+};
+
+export interface BridgeRequestFixtures {
+  readonly payload: Verdicts;
+  readonly data: Verdicts;
+}
+
+const accFan = { acc: IDS.acc, fan: IDS.fan } as const;
+const draftWire = { composerInstanceId: 'composer1', revision: 4, plainText: 'my draft', provenance: 'human-or-unknown', digest: DIGEST } as const;
+
+export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeRequestFixtures } = {
+  probe: { payload: empty, data: { valid: [probe], invalid: [{ ...probe, v: 2 }] } },
+  snapshot: {
+    payload: empty,
+    data: {
+      valid: [{ route: routeState, hostLoginEpoch: null, composer: null, accounts: [], contract: contractWire }],
+      invalid: [{ route: routeState, hostLoginEpoch: null, composer: null, accounts: [], contract: { ...contractWire, missing: ['nope'] } }],
+    },
+  },
+  readDraft: { payload: { valid: [{ expected: hostIdentity }], invalid: [{}] }, data: { valid: [draftWire], invalid: [{ ...draftWire, digest: 'XYZ' }] } },
+  readTail: {
+    payload: { valid: [{ expected: hostIdentity, max: 60 }, { expected: hostIdentity, max: 200 }], invalid: [{ expected: hostIdentity, max: 201 }] },
+    data: { valid: [{ capturedAt: ISO, messages: messages(3) }, null], invalid: [{ capturedAt: ISO, messages: messages(201) }] },
+  },
+  chatWindow: { payload: { valid: [{ ...accFan, max: 200 }], invalid: [{ ...accFan, max: 0 }] }, data: { valid: [chatWindow, null], invalid: [{ ...chatWindow, state: 'gone' }] } },
+  fan: { payload: { valid: [accFan], invalid: [{ acc: IDS.acc }] }, data: { valid: [fan, null], invalid: [{ ...fan, chat: null }] } },
+  listChats: {
+    payload: { valid: [{ acc: IDS.acc, limit: 50 }], invalid: [{ acc: IDS.acc, limit: 1001 }] },
+    data: { valid: [[navItem], []], invalid: [[{ ...navItem, unreadCount: -1 }]] },
+  },
+  listAccounts: { payload: empty, data: { valid: [[account]], invalid: [[{ ...account, hostAccountId: 'acc' }]] } },
+  insertGuarded: {
+    payload: { valid: [{ intent: insertIntent }], invalid: [{ intent: { ...insertIntent, mode: 'overwrite' } }] },
+    data: { valid: [{ state: 'applied', draftRevision: 5, draftDigest: DIGEST, ms: 8 }], invalid: [{ state: 'applied', draftRevision: 5 }] },
+  },
+  focus: { payload: { valid: [{ expected: hostIdentity }], invalid: [{ expected: null }] }, data: { valid: [{ focused: true }], invalid: [true] } },
+  navigate: {
+    payload: {
+      valid: [{ intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan } }],
+      invalid: [{ intent: { intentId: uuid(9), acc: IDS.acc, fan: IDS.fan, cause: { kind: 'click', actionToken: ACTION_TOKEN } } }],
+    },
+    data: { valid: [{ state: 'navigated', routeEpoch: 6, insert: null }], invalid: [{ state: 'navigated' }] },
+  },
+  checkpoint: { payload: { valid: [accFan], invalid: [{ ...accFan, fan: '0' }] }, data: { valid: [checkpoint], invalid: [{ ...checkpoint, coverage: 'maybe' }] } },
+  previewSendPreflight: {
+    payload: { valid: [{ req: mainSend }], invalid: [{ req: { ...mainSend, binding } }] },
+    data: { valid: [{ ok: true }, { ok: false, code: 'CG-SEND-MIMIC' }], invalid: [{ ok: 'yes' }] },
+  },
+  previewSendCommit: {
+    payload: { valid: [{ req: mainSend }], invalid: [{ req: { ...mainSend, ticket: 'ticket-1' } }] },
+    data: { valid: [{ state: 'nativeEnqueued', pendingId: uuid(7) }], invalid: [{ state: 'nativeAccepted', pendingId: uuid(7) }] },
+  },
+  flags: {
+    payload: { valid: [{ wsTap: true, previewSend: false }], invalid: [{ wsTap: true }] },
+    data: { valid: [{ wsTap: true, previewSend: false }], invalid: [{ wsTap: 'on', previewSend: false }] },
+  },
+};
+
+export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } = {
+  route: { valid: [{ route: routeState, hostLoginEpoch: 'login1' }], invalid: [{ route: { ...routeState, epoch: -1 }, hostLoginEpoch: null }] },
+  accounts: empty,
+  composer: { valid: [{ state: composerState }, { state: null }], invalid: [{ state: { ...composerState, ready: 'yes' } }] },
+  chatCache: { valid: [accFan], invalid: [{ ...accFan, fan: 2002 }] },
+  contract: { valid: [contractWire], invalid: [{ ...contractWire, receiptModules: undefined }] },
+  incoming: {
+    valid: [{ ...accFan, msgId: IDS.msg1, fromFan: true, automatic: false, tip: true, sentAt: null, socketEpoch: 2, fanSequence: 9 }],
+    invalid: [{ ...accFan, msgId: IDS.msg1, fromFan: true, automatic: false, tip: true, sentAt: null, socketEpoch: 2, fanSequence: 9, text: 'hi' }],
+  },
+  coverage: { valid: [{ acc: IDS.acc, state: 'unknown', reason: 'socket-closed' }], invalid: [{ acc: IDS.acc, state: 'ok' }] },
+  humanSend: {
+    valid: [{ ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST }],
+    invalid: [{ ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, text: 'hey' }],
+  },
+  previewSendState: { valid: [{ view: sendView }], invalid: [{ view: { attemptId: uuid(5) } }] },
+};
+
+/** Valid contract samples other packages can reuse. */
+export const SAMPLE_CONTRACT_REPORT = contractReport;

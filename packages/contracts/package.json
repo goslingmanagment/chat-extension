@@ -21,7 +21,8 @@
     "./bridge-messages": "./src/bridge-messages.ts",
     "./tab-protocol": "./src/tab-protocol.ts",
     "./tab-messages": "./src/tab-messages.ts",
-    "./tab-liveness": "./src/tab-liveness.ts"
+    "./tab-liveness": "./src/tab-liveness.ts",
+    "./fixtures": "./test/fixtures/index.ts"
   },
   "dependencies": {
     "zod": "4.6.5"
