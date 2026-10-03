@@ -3,11 +3,19 @@
 // HostContractReport — one state per anchor and per capability, each
 // capability with its reason and the CG code the person sees. Pure: the
 // HostPort recomputes it when an input changes (start, a new store, the first
-// chat, a failed mount, a new build fingerprint) — never on a timer.
+// chat, a failed mount, a new build fingerprint, the flags, the loaded
+// modules) — never on a timer.
 //
-// Part A of R09 implements no WS tap, send observation, receipt or X8: those
-// capabilities are `off` with reason `not-yet`, and their anchors (`wsFrames`,
-// `receiptProfile`) are reported `missing` — unchecked, not broken.
+// The live capabilities (§6.6–§6.8) need the tap script, which the
+// background registers only while the `wsTap` flag is on:
+// - `incoming` — facts of new messages: on while the current socket's frames
+//   read well, degraded until then (sound falls back to the stores);
+// - `sendObserve` — a human send with its receipt (§6.6);
+// - `receipt` — a bootstrap profile matches the loaded send-path modules (§6.2);
+// - `previewSend` — X8: its flag, every anchor a condition is read from, the
+//   tap, and the receipt profile. The socket being armed is not part of it:
+//   that is the preflight's answer (CG-SEND-FRESHNESS), the capability does
+//   not flap with reconnects.
 
 import type { AnchorId, CapabilityState, HostCapability, HostContractReport } from '@cg/contracts/host';
 
@@ -29,6 +37,15 @@ export interface ContractInput {
   readonly accountBound: boolean;
   readonly adapterVersion: string;
   readonly checkedAt: number;
+  /** The live side; absent — no tap script, flags not known, no profile. */
+  readonly live?: {
+    /** The tap script is in the page and was not switched off. */
+    readonly tap: boolean;
+    /** Bootstrap flag `previewSend`, as the composition root configured it. */
+    readonly previewSend: boolean;
+    /** A bootstrap receipt profile matches the modules the page loaded. */
+    readonly receipt: boolean;
+  };
 }
 
 /** contracts ANCHOR_IDS, in order. */
@@ -50,15 +67,16 @@ const ANCHORS: readonly AnchorId[] = [
   'receiptProfile',
   'theme',
 ];
-/** Part B anchors: not checked yet. */
-const PART_B_ANCHORS: readonly AnchorId[] = ['wsFrames', 'receiptProfile'];
-const NOT_YET: CapabilityState = { state: 'off', reason: 'not-yet' };
+/** Anchors an X8 condition is read from (§6.2, §6.7.4): one that is not ok keeps the preview send off. */
+const SEND_ANCHORS: readonly AnchorId[] = ['accounts', 'pendingMessages', 'composerTranslator', 'mimic', 'userPermissions'];
 
 export function buildContractReport(input: ContractInput): HostContractReport {
   const { wire, dom } = input;
+  const live = input.live ?? { tap: false, previewSend: false, receipt: false };
   const anchor = (id: AnchorId): AnchorState => {
     if (id === 'composerFrame' || id === 'draftKey' || id === 'theme') return dom[id];
-    if (PART_B_ANCHORS.includes(id) || wire === null) return 'missing';
+    if (id === 'receiptProfile') return live.receipt ? 'ok' : 'missing';
+    if (wire === null) return 'missing';
     return wire.missing.includes(id) ? 'missing' : wire.shape.includes(id) ? 'shape' : 'ok';
   };
   const anchors = Object.fromEntries(ANCHORS.map((id) => [id, anchor(id)])) as Record<AnchorId, AnchorState>;
@@ -83,6 +101,22 @@ export function buildContractReport(input: ContractInput): HostContractReport {
             degraded('editor')
           : whenOk;
   const cached = (id: AnchorId): CapabilityState => (route.state !== 'on' ? route : anchors[id] === 'ok' ? on : off(id));
+  const coded = (state: 'off' | 'degraded', reason: string, code: CapabilityState['code']): CapabilityState => ({ state, reason, ...(code ? { code } : {}) });
+  const noTap = coded('off', 'wsTap', 'CG-SEND-FRESHNESS');
+  const incoming = route.state !== 'on' ? route : !live.tap ? noTap : anchors.wsFrames === 'ok' ? on : coded('degraded', 'wsFrames', 'CG-SEND-FRESHNESS');
+  const sendObserve = route.state !== 'on' ? route : anchors.pendingMessages !== 'ok' ? coded('off', 'pendingMessages', 'CG-SEND-HOST') : !live.tap ? noTap : on;
+  const receipt = live.receipt ? on : coded('off', 'receiptProfile', 'CG-SEND-RECEIPT');
+  const brokenSendAnchor = SEND_ANCHORS.find((id) => anchors[id] !== 'ok');
+  const previewSend =
+    route.state !== 'on'
+      ? route
+      : !live.previewSend
+        ? coded('off', 'flag', 'CG-SEND-OFF')
+        : brokenSendAnchor
+          ? coded('off', brokenSendAnchor, 'CG-SEND-HOST')
+          : !live.tap
+            ? noTap
+            : receipt;
 
   const capabilities: Record<HostCapability, CapabilityState> = {
     identity,
@@ -95,12 +129,12 @@ export function buildContractReport(input: ContractInput): HostContractReport {
     freshText: cached('chatMessages'),
     fan: cached('fansMap'),
     chatList: cached('chatList'),
-    sendObserve: NOT_YET,
-    incoming: NOT_YET,
+    sendObserve,
+    incoming,
     navigate: route,
     theme: anchors.theme === 'ok' ? on : degraded('theme'),
-    previewSend: NOT_YET,
-    receipt: NOT_YET,
+    previewSend,
+    receipt,
   };
   return { build: wire?.build ?? null, adapterVersion: input.adapterVersion, checkedAt: input.checkedAt, anchors, capabilities };
 }

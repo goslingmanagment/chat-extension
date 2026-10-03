@@ -15,25 +15,46 @@
 //   fixed outcome of BRIDGE_WRITE_FAILURES and is never retried.
 // - An `applied` insert is checked once more against the target chat's own
 //   draft key (NEW-06): a disagreement makes it `uncertain`, never a retry.
-//
-// Part B (X8 send port, receipt, human-send observation, WS tap) is not here:
-// `checkpoint()` answers null and `previewSend` is null.
+// - The live side (§6.6–§6.8) needs the tap script in the page and the flags
+//   of the bootstrap (`configure`): facts of incoming messages and coverage,
+//   human sends with their receipt, the freshness checkpoint, and the X8
+//   preview send. `previewSend` is non-null only while its capability is on
+//   (flag, anchors, tap, a matching receipt profile); the port sends MAIN the
+//   host target, the text and the ticket's deadline — never the hub binding,
+//   the ticket or the action token (§14). One queue call per attempt: a
+//   repeated commit gets the first answer, a bridge failure that may have run
+//   is `uncertain` and is never sent again.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
-import type { FreshnessCheckpoint } from '@cg/contracts/send';
+import type { ReceiptProfile } from '@cg/contracts/hub';
+import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView } from '@cg/contracts/send';
+import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
 import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 
 import { BridgeCallError, loadValidation, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { buildContractReport, sameReport, type ContractWireInput } from './contract';
 import { readStoredDraft, storedDraftAgrees, type DraftStorage } from './draft-store';
+import { ADAPTER_VERSION } from './host-contract';
 import type { MountManager } from './mount';
+import { loadedScriptUrls, matchReceiptProfile, receiptModules } from './receipt-profile';
 import type { ThemeReader } from './theme';
 import { WRITE_FAILURES } from './wire';
 
-/** The adapter's own version, reported in the contract check. */
-export const ADAPTER_VERSION = '0.1.0';
+export { ADAPTER_VERSION };
+
+/** What the composition root tells the port from the bootstrap (and again whenever the flags change). */
+export interface ChatSpaceLiveConfig {
+  /** Flag `wsTap`: false switches the running tap off (§6.8 п. 10); the background unregisters it for later documents. */
+  readonly wsTap: boolean;
+  /** Flag `previewSend`: on for at least one bound page. The hub checks the page's own flag again on every dispatch. */
+  readonly previewSend: boolean;
+  /** Flag `previewSendMarkAiGenerated`: off — the queue call says `isAiGenerated: false` whatever the request says. */
+  readonly markAiGenerated: boolean;
+  /** Bootstrap `limits.previewSendReceiptProfiles`; none — X8 is off. */
+  readonly receiptProfiles: readonly ReceiptProfile[];
+}
 
 /** Spends one action token for one intent (`token.redeem`); false — not redeemed, nothing is written. */
 export type TokenRedeemer = (request: { readonly kind: 'insert' | 'navigate'; readonly actionToken: string; readonly intentId: string }) => Promise<boolean>;
@@ -75,6 +96,8 @@ export interface ChatSpaceHostPort extends HostPort {
   identity(): HostIdentity | null;
   /** «Проверить» (§6.2): re-reads MAIN's snapshot — page memory and DOM only, nothing of ChatSpace's network. */
   recheck(): Promise<HostContractReport>;
+  /** The flags and the receipt profiles of the bootstrap; resolves with the report they lead to. */
+  configure(config: ChatSpaceLiveConfig): Promise<HostContractReport>;
 }
 
 const keyOf = (chat: ChatRef): ChatKey => `${chat.host}:${chat.hostAccountId}:${chat.platformFanId}`;
@@ -86,6 +109,10 @@ const LIST_FRESH_MS = 1000;
 const FAN_CACHE = 200;
 /** Time MAIN gets past a deferred insert's deadline to answer with its own outcome. */
 const NAV_GRACE_MS = 1000;
+/** Attempts whose queue call was asked for, with their first answer. */
+const COMMIT_MEMORY = 64;
+/** The deadline a preflight carries: it has no ticket, and MAIN's preflight does not look at it. */
+const PREFLIGHT_WINDOW_MS = 60_000;
 
 export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpaceHostPort {
   const { bridge, mounts, theme, redeem } = options;
@@ -103,6 +130,16 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   let draftKey: 'ok' | 'missing' = 'ok';
   let snapshotTaken = false;
   let disposed = false;
+  /** The tap script is in the page and was not switched off. */
+  let tap = false;
+  let live: ChatSpaceLiveConfig | null = null;
+  /** The bootstrap profile the loaded send-path modules match; null — none. */
+  let receiptProfile: string | null = null;
+  /** The last judgement said in the diagnostics; undefined — not judged (the flag is off). */
+  let lastJudged: string | null | undefined;
+  const adapterVersion = options.adapterVersion ?? ADAPTER_VERSION;
+  const sendListeners = new Map<string, Set<(view: SendAttemptView) => void>>();
+  const commits = new Map<string, Promise<PreviewSendCommit>>();
   let report: HostContractReport = compute();
   const windows = new Map<ChatKey, ChatWindow | null>();
   const fans = new Map<ChatKey, HostFan | null>();
@@ -122,8 +159,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       wire,
       dom: { composerFrame: mounts.frameAnchor(), draftKey, theme: theme.anchor() },
       accountBound: Boolean(route.account?.platformAccountId),
-      adapterVersion: options.adapterVersion ?? ADAPTER_VERSION,
+      adapterVersion,
       checkedAt: clock(),
+      live: { tap, previewSend: live?.previewSend === true, receipt: receiptProfile !== null },
     });
   }
   const recompute = (): void => {
@@ -138,6 +176,19 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const capability = (name: keyof HostContractReport['capabilities']): boolean => {
     const state = report.capabilities[name].state;
     return state === 'on' || state === 'degraded';
+  };
+
+  /**
+   * §6.2: which approved profile the modules this page ALREADY loaded match —
+   * read from the DOM and the resource timing, nothing is requested. Only
+   * while the flag is on; the modules of a chat load with the first chat.
+   */
+  const refreshReceipt = (): void => {
+    const judged = live?.previewSend ? matchReceiptProfile(receiptModules(loadedScriptUrls(options.win), options.win.location.origin), live.receiptProfiles, adapterVersion) : undefined;
+    // Said once per change: which profile matched, or that none does while the flag is on.
+    if (judged !== lastJudged && judged !== undefined) diag({ event: 'receipt-profile', ...(judged === null ? { code: 'CG-SEND-RECEIPT' as const } : {}), detail: { profile: judged } });
+    lastJudged = judged;
+    receiptProfile = judged ?? null;
   };
 
   // ── identity ──
@@ -232,6 +283,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     // The composer state belongs to the chat we left (the dock leaves it too); MAIN reports the new one a frame later.
     if (composer && !sameChat(composer.chat, route.chat)) setComposer(null);
     if (moved) emit({ type: 'route', route });
+    if (moved) refreshReceipt();
     recompute();
     refreshOpenChat();
   };
@@ -276,17 +328,28 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       case 'contract': {
         wire = event.payload;
         const before = report;
+        refreshReceipt();
         recompute();
         // An anchor came (its data landed after the route settled): what it feeds is read now, not at the next change.
         if (report !== before) refreshOpenChat();
         return;
       }
-      case 'incoming':
+      // Facts of the tap and the receipt observer: never coalesced, never with a message's text.
+      case 'incoming': {
+        const { acc, fan, msgId, ...rest } = event.payload;
+        return emit({ type: 'incoming', fact: { host: 'chatspace', hostAccountId: acc, platformFanId: fan, platformMessageId: msgId, ...rest, source: 'ws-tap' } });
+      }
       case 'coverage':
-      case 'humanSend':
-      case 'previewSendState':
-        // Part B (WS tap, send observation, X8) consumes these.
+        return emit({ type: 'coverage', coverage: { hostAccountId: event.payload.acc, state: event.payload.state, reason: event.payload.reason } });
+      case 'humanSend': {
+        const { acc, fan, ...rest } = event.payload;
+        return emit({ type: 'humanSend', fact: { chat: { host: 'chatspace', hostAccountId: acc, platformFanId: fan }, ...rest } });
+      }
+      case 'previewSendState': {
+        const view = event.payload.view;
+        for (const listener of [...(sendListeners.get(view.attemptId) ?? [])]) listener(view);
         return;
+      }
     }
   };
 
@@ -301,6 +364,11 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   let reloadNeeded = false;
   const noteLateStart = async (): Promise<void> => {
     const probe = await (bridge as MainBridgeClient).probe().catch(() => null);
+    // The tap script leaves its handle at document_start; `configure` may have switched it off meanwhile.
+    if (probe && live?.wsTap !== false) {
+      tap = probe.wsTap;
+      recompute();
+    }
     if (!probe || probe.readyStateAtStart === 'loading' || reloadNeeded) return;
     reloadNeeded = true;
     diag({ event: 'late-start', detail: { readyStateAtStart: probe.readyStateAtStart } });
@@ -340,10 +408,89 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     return rejected(error.failure === 'not-ready' ? 'CG-HOST-NOT-READY' : 'CG-INSERT-FAILED');
   };
 
+  // ── X8: the preview send (§6.7) ──
+
+  /** The request as MAIN gets it (contracts MainSendRequestSchema): the host target, the text, the deadline — no binding, ticket or token. */
+  const toMain = (req: PreviewSendRequest, expiresAt: number) => ({
+    attemptId: req.attemptId,
+    acc: req.target.chat.hostAccountId,
+    fan: req.target.chat.platformFanId,
+    platformAccountId: req.target.binding.platformAccountId,
+    part: req.part,
+    previewRevision: req.previewRevision,
+    plainText: req.plainText,
+    isAiGenerated: live?.markAiGenerated === true && req.isAiGenerated,
+    checkpoint: req.checkpoint,
+    expiresAt,
+  });
+
+  /** What this side can refuse before MAIN is asked: the capability (flag, anchors, tap, receipt profile) and the host of the target. */
+  const sendRefusal = (req: PreviewSendRequest): PreviewSendConditionCode | null => {
+    refreshReceipt();
+    recompute();
+    if (req.target.chat.host !== 'chatspace') return 'CG-CONTEXT-CHANGED';
+    const capability = report.capabilities.previewSend;
+    if (capability.state === 'on') return null;
+    const code = PREVIEW_SEND_CONDITION_CODES.find((known) => known === capability.code);
+    return code ?? 'CG-SEND-HOST';
+  };
+
+  const commit = async (req: PreviewSendRequest, ticket: DispatchTicket): Promise<PreviewSendCommit> => {
+    const refused = sendRefusal(req);
+    if (refused || !bridge) return { state: 'held', code: refused ?? 'CG-SEND-HOST' };
+    // A late command is held, never a late send (§6.7.11); MAIN checks the same deadline again.
+    if (clock() >= ticket.expiresAt) return { state: 'held', code: 'CG-TIMEOUT' };
+    try {
+      return await bridge.request('previewSendCommit', { req: toMain(req, ticket.expiresAt) });
+    } catch (error) {
+      if (!(error instanceof BridgeCallError) || error.executed === 'maybe') {
+        diag({ event: 'x8-commit-lost', code: 'CG-SEND-UNCERTAIN', detail: { failure: error instanceof BridgeCallError ? error.failure : 'error' } });
+        return WRITE_FAILURES.previewSendCommit;
+      }
+      return { state: 'held', code: error.failure === 'stale-document' ? 'CG-CONTEXT-CHANGED' : 'CG-SEND-HOST' };
+    }
+  };
+
+  const sendPort: PreviewSendPort = {
+    async preflight(req: PreviewSendRequest): Promise<PreviewSendPreflight> {
+      if (!(await loadValidation()).isPreviewSendRequest(req)) throw new HostContractError('preflight() takes a PreviewSendRequest');
+      const refused = sendRefusal(req);
+      if (refused || !bridge) return { ok: false, code: refused ?? 'CG-SEND-HOST' };
+      try {
+        return await bridge.request('previewSendPreflight', { req: toMain(req, clock() + PREFLIGHT_WINDOW_MS) });
+      } catch {
+        return { ok: false, code: 'CG-SEND-HOST' };
+      }
+    },
+    async commit(req: PreviewSendRequest, ticket: DispatchTicket): Promise<PreviewSendCommit> {
+      const check = await loadValidation();
+      if (!check.isPreviewSendRequest(req) || !check.isDispatchTicket(ticket) || ticket.attemptId !== req.attemptId) throw new HostContractError('commit() takes a PreviewSendRequest and the ticket of the same attempt');
+      // One command per attempt, ever: a repeat gets the first answer and reaches neither MAIN nor the queue again.
+      let first = commits.get(req.attemptId);
+      if (!first) {
+        commits.set(req.attemptId, (first = commit(req, ticket)));
+        if (commits.size > COMMIT_MEMORY) commits.delete(commits.keys().next().value as string);
+      }
+      return first;
+    },
+    onState(attemptId: string, cb: (view: SendAttemptView) => void): Unsubscribe {
+      const set = sendListeners.get(attemptId) ?? new Set<(view: SendAttemptView) => void>();
+      sendListeners.set(attemptId, set);
+      set.add(cb);
+      return () => {
+        set.delete(cb);
+        if (set.size === 0) sendListeners.delete(attemptId);
+      };
+    },
+  };
+
   const port: ChatSpaceHostPort = {
     kind: 'chatspace',
     platform: 'onlyfans',
-    previewSend: null,
+    /** X8; non-null only while the capability is on. */
+    get previewSend(): PreviewSendPort | null {
+      return !disposed && report.capabilities.previewSend.state === 'on' ? sendPort : null;
+    },
     ready: ready.then(() => undefined),
     identity,
 
@@ -367,6 +514,15 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     async recheck() {
       if (bridge) await snapshot().catch(() => undefined);
       mounts.refresh();
+      refreshReceipt();
+      recompute();
+      return report;
+    },
+    async configure(config: ChatSpaceLiveConfig) {
+      live = config;
+      refreshReceipt();
+      // MAIN's latch follows the flag at once (§6.7.11); `wsTap: false` switches the tap off for this document.
+      tap = bridge ? await bridge.request('flags', { wsTap: config.wsTap, previewSend: config.previewSend }).then((flags) => flags.wsTap, () => false) : false;
       recompute();
       return report;
     },
@@ -499,8 +655,15 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       return receipt;
     },
 
-    /** Part B (§6.7.5): MAIN holds no freshness counters yet. */
-    checkpoint: (): Promise<FreshnessCheckpoint | null> => Promise.resolve(null),
+    /** §6.7.5: MAIN takes it in one synchronous step; null — no tap, no bridge: the result can be inserted, never sent. */
+    async checkpoint(chat: ChatRef): Promise<FreshnessCheckpoint | null> {
+      if (!bridge) return null;
+      try {
+        return await bridge.request('checkpoint', { acc: chat.hostAccountId, fan: chat.platformFanId });
+      } catch {
+        return null;
+      }
+    },
 
     mounts: (): MountPoints => mounts.points(),
     onMounts: (cb): Unsubscribe => mounts.onChange(cb),
@@ -514,6 +677,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       unsubscribeMounts();
       eventListeners.clear();
       contractListeners.clear();
+      sendListeners.clear();
       mounts.dispose();
       theme.dispose();
     },

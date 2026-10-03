@@ -7,7 +7,9 @@
 export { BridgeCallError, connectMainBridge, loadValidation, type BridgeEvent, type BridgeFailure, type BridgeStats, type MainBridgeClient } from './bridge-client';
 export { buildContractReport, type ContractInput } from './contract';
 export { readStoredDraft, storedDraftAgrees, tiptapText, type DraftStorage, type StoredDraft } from './draft-store';
-export { ADAPTER_VERSION, createChatSpaceHostPort, HostContractError, type ChatSpaceHostOptions, type ChatSpaceHostPort, type HostDiagnostic, type TokenRedeemer } from './host-port';
+export { aiGeneratedMark, bigramSimilarity } from './ai-mark';
+export { ADAPTER_VERSION, createChatSpaceHostPort, HostContractError, type ChatSpaceHostOptions, type ChatSpaceHostPort, type ChatSpaceLiveConfig, type HostDiagnostic, type TokenRedeemer } from './host-port';
+export { loadedScriptUrls, matchReceiptProfile, receiptModules } from './receipt-profile';
 export {
   activeSlots,
   COMPOSER_SLOT_SELECTOR,
