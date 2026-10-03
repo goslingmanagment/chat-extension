@@ -23,6 +23,7 @@
     "./tab-messages": "./src/tab-messages.ts",
     "./tab-liveness": "./src/tab-liveness.ts",
     "./vm": "./src/vm/index.ts",
+    "./hub": "./src/hub/index.ts",
     "./fixtures": "./test/fixtures/index.ts"
   },
   "dependencies": {

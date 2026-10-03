@@ -7,3 +7,4 @@
 export * from './samples';
 export * from './schemas';
 export * from './protocols';
+export * from './hub';

@@ -25,8 +25,8 @@ export * from './tab-protocol';
 export * from './tab-messages';
 export * from './tab-liveness';
 export * from './vm/index';
+export * from './hub';
 
-// TODO(R01-2b): export hub.ts — HubFacade and the hub DTOs (§5.8, hub-pr-plan.md §4).
 // TODO(R01-2c): export cg-registry.ts and the i18n key catalog (Appendix A, §9.7).
 
 /** Bumped when the integration step tags `contracts-v1.0`. */

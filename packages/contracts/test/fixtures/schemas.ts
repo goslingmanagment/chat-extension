@@ -5,6 +5,7 @@
 import type * as z from 'zod/mini';
 
 import * as C from '../../src/index';
+import { HUB_SCHEMA_FIXTURES } from './hub';
 import {
   ACTION_TOKEN,
   DIGEST,
@@ -685,5 +686,8 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
 
   // ── UI contract (vm) ──
   ...VM_SCHEMA_FIXTURES,
+
+  // ── hub facade DTOs (part 2b) ──
+  ...HUB_SCHEMA_FIXTURES,
 ];
 

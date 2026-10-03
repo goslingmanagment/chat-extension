@@ -1,7 +1,6 @@
 // Fixtures for every message of the two runtime protocols: each tab/pages ↔
 // background request (payload and response), each background event, each
-// MAIN request (payload and answer) and each MAIN event. A response that is
-// still a pending hub DTO slot (part 2b) has no invalid fixture yet.
+// MAIN request (payload and answer) and each MAIN event.
 
 import type { FromMainType, TabEventType, TabRequestType, ToMainType } from '../../src/index';
 import {
@@ -43,6 +42,7 @@ import {
   toast,
 } from './schemas';
 import { DEFAULT_SETTINGS } from '../../src/index';
+import { HUB_SAMPLES as H } from './hub';
 
 export interface Verdicts {
   readonly valid: readonly unknown[];
@@ -58,8 +58,8 @@ const settingsState = { settings: DEFAULT_SETTINGS, revision: 3, readOnly: false
 const ack = { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] } as const;
 const empty = { valid: [{}], invalid: [{ extra: 1 }] } as const;
 const pageFan = { pageId: 11, fanRef: IDS.fan } as const;
-/** A hub DTO slot accepts anything until part 2b freezes it. */
-const pendingDto = { valid: [{ any: 'shape' }], invalid: [] } as const;
+/** A hub DTO answer: the sample and a broken copy of it. */
+const dto = (valid: object, invalid: object) => ({ valid: [valid], invalid: [invalid, { any: 'shape' }] }) as const;
 
 export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixtures } = {
   'tab.register': {
@@ -84,7 +84,7 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'bootstrap.get': {
     req: { valid: [{}, { force: true }], invalid: [{ force: 'yes' }] },
-    res: pendingDto,
+    res: dto(H.bootstrap, { ...H.bootstrap, flags: { insertion: 'on' } }),
   },
   'binding.resolve': {
     req: { valid: [{ account }], invalid: [{ account: { ...account, platform: 'myspace' } }] },
@@ -92,7 +92,7 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'catalog.get': {
     req: { valid: [{}], invalid: [{ force: 1 }] },
-    res: pendingDto,
+    res: dto({ personas: [H.persona] }, { personas: [{ ...H.persona, definitionId: 'short' }] }),
   },
   'persona.set': {
     req: { valid: [{ pageId: 11, key: 'lora', definitionId: 'def-1' }], invalid: [{ pageId: 11, key: 'lora' }] },
@@ -152,39 +152,39 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'recap.status': {
     req: { valid: [{ ...pageFan, personaDefinitionId: 'def-1' }], invalid: [pageFan] },
-    res: pendingDto,
+    res: dto(H.recapStatus, { ...H.recapStatus, extra: 1 }),
   },
   'recap.read': {
     req: { valid: [{ ...pageFan, personaDefinitionId: 'def-1' }], invalid: [{ ...pageFan, fanRef: 2002, personaDefinitionId: 'def-1' }] },
-    res: pendingDto,
+    res: dto(H.sharedRecaps, { ...H.sharedRecaps, fullSavedToProfile: 'no' }),
   },
   'spenders.board': {
     req: { valid: [{ pageId: 11, period: '30d' }, { pageId: 11, period: 'lifetime', force: true }], invalid: [{ pageId: 11, period: 'year' }] },
-    res: pendingDto,
+    res: dto(H.spendersBoard, { ...H.spendersBoard, complete: undefined }),
   },
   'spenders.stats': {
     req: { valid: [{ pageId: 11, windowDays: 30, timeZone: 'Europe/Moscow' }], invalid: [{ pageId: 11, windowDays: 0, timeZone: 'Europe/Moscow' }] },
-    res: pendingDto,
+    res: dto(H.stats, { ...H.stats, moneyUnit: 'USD' }),
   },
   'spenders.queue': {
     req: { valid: [{ pageId: 11, cursor: null, limit: 50 }, { pageId: 11, cursor: 'c1', limit: 100 }], invalid: [{ pageId: 11, cursor: null, limit: 101 }] },
-    res: pendingDto,
+    res: dto(H.queuePage, { ...H.queuePage, nextCursor: '' }),
   },
   'feed.read': {
     req: { valid: [{ ...pageFan, cursor: null, limit: 50 }], invalid: [{ ...pageFan, cursor: '', limit: 50 }] },
-    res: pendingDto,
+    res: dto(H.feedPage, { ...H.feedPage, items: [{ ...H.feedItem, deleted: null }] }),
   },
   'fan.card': {
     req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
-    res: pendingDto,
+    res: dto(H.spenderDetail, { ...H.spenderDetail, fan: null }),
   },
   'newcomers.list': {
     req: { valid: [{ pageId: 11, windowHours: 48, cursor: null }], invalid: [{ pageId: 11, windowHours: 721, cursor: null }] },
-    res: pendingDto,
+    res: dto(H.audiencePage, { ...H.audiencePage, items: [{ ...H.audienceItem, fanRef: '0' }] }),
   },
   'newcomers.claim': {
     req: { valid: [{ ...pageFan, action: 'claim' }, { ...pageFan, action: 'renew' }], invalid: [{ ...pageFan, action: 'dispatch' }] },
-    res: pendingDto,
+    res: dto(H.claimState, { ...H.claimState, lease: { ...H.claimState.lease, state: 'mine' } }),
   },
   'settings.get': {
     req: empty,
