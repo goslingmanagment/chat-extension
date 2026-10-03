@@ -69,15 +69,17 @@ export function Menu(props: MenuProps): JSX.Element | null {
     const onRootDown = (event: Event): void => {
       if (!inside(event)) onClose('outside');
     };
+    // The one listener outside our root (architecture.md §10.1, the exception for an open layer):
+    // passive, only while the menu is open, reads composedPath and never cancels anything.
     const onDocumentDown = (event: Event): void => {
       if (host === null || !event.composedPath().includes(host)) onClose('outside');
     };
     const document = 'ownerDocument' in root && root.ownerDocument !== null ? root.ownerDocument : root;
     root.addEventListener('pointerdown', onRootDown, true);
-    if (root !== document) document.addEventListener('pointerdown', onDocumentDown, true);
+    if (root !== document) document.addEventListener('pointerdown', onDocumentDown, { capture: true, passive: true });
     return () => {
       root.removeEventListener('pointerdown', onRootDown, true);
-      if (root !== document) document.removeEventListener('pointerdown', onDocumentDown, true);
+      if (root !== document) document.removeEventListener('pointerdown', onDocumentDown, { capture: true });
     };
   }, [open, root, host, onClose, returnFocusTo]);
 

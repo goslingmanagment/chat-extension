@@ -237,6 +237,44 @@ describe('menus (ui-design §4.1 «Тон», «Ещё»; §6.4)', () => {
     await flush(() => kit?.$$('[role="menuitemradio"]')[0]?.dispatchEvent(key('Tab')));
     expect(kit.$('[role="menu"]')).toBeNull();
   });
+
+  it('a press elsewhere inside our own root closes it; a press on an item or the trigger does not', async () => {
+    const closed: string[] = [];
+    function Strip() {
+      const [open, setOpen] = useState(true);
+      let trigger: HTMLButtonElement | null = null;
+      return (
+        <>
+          <MenuAnchor>
+            <StripButton label="Ещё" expanded={open} haspopup="menu" buttonRef={(node) => {
+                trigger = node;
+              }} onClick={() => setOpen(true)} class="cg-trigger" />
+            <Menu
+              open={open}
+              kind="action"
+              label="Ещё"
+              items={[{ id: 'recap', label: 'Recap' }]}
+              onSelect={() => undefined}
+              onClose={(reason) => {
+                closed.push(reason);
+                setOpen(false);
+              }}
+              returnFocusTo={() => trigger}
+            />
+          </MenuAnchor>
+          <span class="cg-elsewhere">dock text</span>
+        </>
+      );
+    }
+    kit = await mountKitSettled(Strip);
+    const press = (target: Element | null | undefined) => flush(() => target?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true })));
+    await press(kit.$('[role="menuitem"]'));
+    await press(kit.$('.cg-trigger'));
+    expect(kit.$('[role="menu"]')).not.toBeNull();
+    await press(kit.$('.cg-elsewhere'));
+    expect(closed).toEqual(['outside']);
+    expect(kit.$('[role="menu"]')).toBeNull();
+  });
 });
 
 describe('dialogs (architecture.md §10.1: modal windows hold focus and give it back)', () => {
