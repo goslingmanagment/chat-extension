@@ -39,7 +39,7 @@ import {
 
 import { DeferredInsertSlot, type DeferredOutcome } from '../../domain/insert/deferred';
 import { buildDeferredInsert, buildOpenAndInsert } from '../../domain/insert/intent';
-import { EMPTY_DRAFTS, draftKey, findDraft, keepOnlyUser, putDraft, readDraftStore, removeDraft, type DraftStore } from '../../domain/newcomers/drafts';
+import { EMPTY_DRAFTS, changedDraftKeys, draftKey, draftUserPrefix, findDraft, keepOnly, mergeDraftStores, putDraft, readDraftStore, removeDraft, sameDraftStore, type DraftStore } from '../../domain/newcomers/drafts';
 import { greetingOutputProblem } from '../../domain/newcomers/greeting';
 import { personalMessages, tooManyForHi } from '../../domain/newcomers/rows';
 import { digestHex } from '../../domain/ops/digest';
@@ -260,28 +260,97 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const key = ownerKey(state.source, state.pageId, state.fanRef);
     return key === null ? 0 : (revisions.get(key) ?? findDraft(drafts, key, clock.now())?.revision ?? 0);
   };
-  const saveDrafts = (): void => {
-    const port = deps.drafts;
-    if (port === null) return;
-    const snapshot = drafts;
-    saveChain = saveChain.then(() => port.save(snapshot)).catch(() => undefined);
+  /**
+   * Whose drafts this tab may hold: the signed-in user's, nobody's once the
+   * background says nobody is signed in (§9.4: a sign-out clears everything
+   * of the user), and — while the sign-in is still being read — no filter.
+   */
+  const draftScope = (state: PageContextState): { readonly id: string; readonly keep: (key: string) => boolean } | null => {
+    const session = state.session;
+    if (session !== null) {
+      const prefix = draftUserPrefix(session.hubOrigin, session.userId);
+      return { id: `user:${prefix}`, keep: (key) => key.startsWith(prefix) };
+    }
+    const code = state.blocker?.code;
+    return state.phase === 'blocked' && (code === 'CG-AUTH-REQUIRED' || code === 'CG-AUTH-REVOKED' || code === 'CG-AUTH-EXPIRED') ? { id: 'nobody', keep: () => false } : null;
   };
-  const readyPromise: Promise<void> =
-    deps.drafts === null
-      ? Promise.resolve()
-      : deps.drafts
-          .load()
-          .then((raw) => {
-            const stored = readDraftStore(raw, clock.now());
-            const session = context.current().session;
-            // Drafts typed before the store answered win over what was stored for the same fan.
-            const typedKeys = new Set(drafts.drafts.map((draft) => draft.key));
-            const merged = { v: stored.v, drafts: [...drafts.drafts, ...stored.drafts.filter((draft) => !typedKeys.has(draft.key))] };
-            drafts = session === null ? merged : keepOnlyUser(merged, session.hubOrigin, session.userId);
-            changed();
-            draftsChanged();
-          })
-          .catch(() => undefined);
+  const scoped = (store: DraftStore): DraftStore => {
+    const scope = draftScope(context.current());
+    return scope === null ? store : keepOnly(store, scope.keep);
+  };
+  /** The scope last applied to memory and storage. */
+  let appliedScope: string | null = null;
+  let saveFailed = false;
+
+  /** What another tab wrote (or this tab merged) becomes what this tab shows; a draft changed elsewhere voids a Fix made from the old text. */
+  function adoptDrafts(next: DraftStore): void {
+    if (sameDraftStore(next, drafts)) return;
+    for (const key of changedDraftKeys(drafts, next)) {
+      const local = revisions.get(key);
+      if (local !== undefined) revisions.set(key, Math.max(local + 1, findDraft(next, key, clock.now())?.revision ?? 0));
+    }
+    drafts = next;
+    changed();
+    draftsChanged();
+  }
+
+  /** One step after another on the shared key; a failure is said once, until a write succeeds again. */
+  function onStore(step: (port: DraftStorePort) => Promise<void>): Promise<void> {
+    const port = deps.drafts;
+    if (port === null) return saveChain;
+    saveChain = saveChain
+      .then(() => (disposed ? undefined : step(port)))
+      .then(
+        () => {
+          saveFailed = false;
+        },
+        () => {
+          if (!saveFailed && !disposed) deps.notifier?.notify('CG-STORAGE-WRITE', 'preview:drafts');
+          saveFailed = true;
+        },
+      );
+    return saveChain;
+  }
+
+  /** Reads the key, merges it draft by draft with what this tab holds, adopts the result and writes it when the key lacks it. */
+  const saveDrafts = (): void => {
+    void onStore(async (port) => {
+      const stored = readDraftStore(await port.load(), clock.now());
+      const merged = scoped(mergeDraftStores(drafts, stored, clock.now()));
+      adoptDrafts(merged);
+      if (!sameDraftStore(merged, stored)) await port.save(merged);
+    });
+  };
+
+  /** The sign-in changed: other users' drafts leave memory and the key (not merged back: they are gone for good). */
+  function applyDraftScope(state: PageContextState): void {
+    const scope = draftScope(state);
+    if (scope === null || scope.id === appliedScope) return;
+    appliedScope = scope.id;
+    for (const key of [...revisions.keys()]) if (!scope.keep(key)) revisions.delete(key);
+    adoptDrafts(keepOnly(drafts, scope.keep));
+    void onStore(async (port) => {
+      const stored = readDraftStore(await port.load(), clock.now());
+      const kept = keepOnly(stored, scope.keep);
+      if (!sameDraftStore(kept, stored)) await port.save(kept);
+    });
+  }
+
+  const readyPromise: Promise<void> = onStore(async (port) => {
+    const stored = readDraftStore(await port.load(), clock.now());
+    // Drafts typed before the store answered are newer than what was stored for the same fan.
+    adoptDrafts(scoped(mergeDraftStores(drafts, stored, clock.now())));
+  });
+  const offStore =
+    deps.drafts?.onChanged?.((raw) => {
+      if (disposed) return;
+      const stored = readDraftStore(raw, clock.now());
+      const merged = scoped(mergeDraftStores(drafts, stored, clock.now()));
+      adoptDrafts(merged);
+      // This tab holds a newer entry than the one just written elsewhere: it goes back into the key.
+      if (!sameDraftStore(merged, stored)) saveDrafts();
+    }) ?? null;
+  applyDraftScope(context.current());
 
   // ── targets and the feed ──
 
@@ -771,7 +840,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       // NF-012: the greeting draft has done its work once a part is confirmed.
       const key = ownerKey(track.source, track.pageId, track.fanRef);
       if (key !== null && findDraft(drafts, key, clock.now()) !== null) {
-        drafts = removeDraft(drafts, key);
+        drafts = removeDraft(drafts, key, clock.now());
         saveDrafts();
         draftsChanged();
       }
@@ -1410,10 +1479,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         attemptOwner.clear();
         unclaimed.clear();
         for (const s of SOURCES) surfaces.setPreview(s, null);
-        if (state.session !== null) drafts = keepOnlyUser(drafts, state.session.hubOrigin, state.session.userId);
       } else if (pendingInsert !== null && pendingInsert.track.personaDefinitionId !== null && state.persona?.definitionId !== pendingInsert.track.personaDefinitionId) {
         cancelInsert('persona');
       }
+      // A sign-out or another user: the drafts of whoever is not signed in now leave memory and storage (§9.4).
+      applyDraftScope(state);
       for (const target of targets.values()) if (target.feed === null && !target.feedLoading && target.feedError === null) void loadFeed(target);
       changed();
       draftsChanged();
@@ -1492,6 +1562,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     },
     dispose() {
       disposed = true;
+      offStore?.();
       draftListeners.clear();
       for (const off of offs) off();
       for (const target of targets.values()) stopPoll(target);

@@ -69,7 +69,8 @@ interface Harness {
   readonly clicks: PreviewSendClick[];
   readonly notes: { readonly code: CgCode; readonly scope: string }[];
   readonly copied: string[];
-  readonly draftStore: { value: unknown; saves: number };
+  /** `newcomers.drafts` as every tab of the browser shares it: `external` is another tab's write, `failSaves` the browser refusing writes. */
+  readonly draftStore: { value: unknown; saves: number; failSaves: number; external(value: unknown): void };
   readonly fresh: { readonly eventRef: string; readonly fanRef: string }[][];
   readonly online: { set(value: boolean): void };
   /** Navigations the host has not answered yet (`slowNavigate`). */
@@ -175,7 +176,16 @@ async function harness(options: Options = {}): Promise<Harness> {
   const driver = new PreviewSendDriver({ port: host.previewSend, background: bg.sendPort, ids: sequentialIds(0x500), onView: (view) => viewListeners.forEach((listener) => listener(view)), clock });
   const notes: { code: CgCode; scope: string }[] = [];
   const copied: string[] = [];
-  const draftStore = { value: options.storedDrafts, saves: 0 };
+  const draftListeners = new Set<(value: unknown) => void>();
+  const draftStore = {
+    value: options.storedDrafts,
+    saves: 0,
+    failSaves: 0,
+    external(value: unknown): void {
+      draftStore.value = structuredClone(value);
+      for (const listener of [...draftListeners]) listener(structuredClone(value));
+    },
+  };
   const fresh: { eventRef: string; fanRef: string }[][] = [];
   let isOnline = true;
   const onlineListeners = new Set<(online: boolean) => void>();
@@ -197,11 +207,21 @@ async function harness(options: Options = {}): Promise<Harness> {
       },
     },
     drafts: {
-      load: () => Promise.resolve(draftStore.value),
+      load: () => Promise.resolve(structuredClone(draftStore.value)),
       save: (value) => {
+        if (draftStore.failSaves > 0) {
+          draftStore.failSaves -= 1;
+          return Promise.reject(new Error('storage refused'));
+        }
         draftStore.value = structuredClone(value);
         draftStore.saves += 1;
+        // storage.onChanged reaches every context, the writer's own included.
+        for (const listener of [...draftListeners]) listener(structuredClone(value));
         return Promise.resolve();
+      },
+      onChanged: (listener) => {
+        draftListeners.add(listener);
+        return () => draftListeners.delete(listener);
       },
     },
     clipboard: { writeText: (text) => (options.clipboard === false ? Promise.resolve(false) : (copied.push(text), Promise.resolve(true))) },
@@ -920,6 +940,77 @@ describe('[NEW-10] [NF-012] the local draft of a preview', () => {
     expect(h.boards.preview.getSnapshot(preview('spenders')).draft.text).toBe('');
     await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
     expect(h.boards.preview.getSnapshot(preview('spenders')).draft.text).toBe('hey you, miss me?');
+  });
+
+  it('[NF-012] a sign-out erases the drafts from memory and storage; another user signing in finds none', async () => {
+    const h = await harness();
+    await h.boards.preview.ready();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: spender('5000'), text: 'secret draft of user A' });
+    expect(JSON.stringify(h.draftStore.value)).toContain('secret draft of user A');
+    h.bg.signIn(null, 'sign-out');
+    await h.flush();
+    expect(JSON.stringify(h.draftStore.value ?? null)).not.toContain('secret draft');
+    expect(h.draftStore.value).toEqual({ v: 1, drafts: [] });
+    h.bg.signIn({ ...session, userId: 99, epoch: 5 });
+    await h.flush();
+    expect(JSON.stringify(h.draftStore.value ?? null)).not.toContain('secret draft');
+    expect(h.boards.preview.draftOf('spenders', PAGE.pageId, '5000')).toBeNull();
+    // User A comes back: the draft is gone for good, not kept aside.
+    h.bg.signIn(session);
+    await h.flush();
+    expect(h.boards.preview.draftOf('spenders', PAGE.pageId, '5000')).toBeNull();
+  });
+
+  it('[NF-012] another user’s drafts left on disk are erased when this user’s sign-in is read', async () => {
+    const theirs = `${WORLD.hubOrigin}|99|${PAGE.pageId}|spenders|5001`;
+    const h = await harness({ storedDrafts: { v: 1, drafts: [{ key: theirs, text: 'someone else', revision: 1, threadRevision: null, updatedAt: NOW_MS - 1000 }] } });
+    await h.boards.preview.ready();
+    await h.flush();
+    expect(JSON.stringify(h.draftStore.value)).not.toContain('someone else');
+  });
+
+  it('[NEW-10] two ChatSpace tabs share the drafts: a write merges draft by draft, each tab follows the other, a removal is not undone', async () => {
+    const h = await harness();
+    await h.boards.preview.ready();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+    const otherKey = `${WORLD.hubOrigin}|${WORLD.user.userId}|${PAGE.pageId}|spenders|5001`;
+    const other = { key: otherKey, text: 'draft from the other tab', revision: 1, threadRevision: null, updatedAt: NOW_MS + 10 };
+    // The other tab wrote while this one was not listening (no change event): this tab's next write keeps it.
+    h.draftStore.value = { v: 1, drafts: [other] };
+    await h.advance(20);
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: spender('5000'), text: 'draft from this tab' });
+    expect(JSON.stringify(h.draftStore.value)).toContain('draft from the other tab');
+    expect(JSON.stringify(h.draftStore.value)).toContain('draft from this tab');
+    expect(h.boards.preview.draftOf('spenders', PAGE.pageId, '5001')?.text).toBe('draft from the other tab');
+    // The other tab edits its draft: this tab follows at once.
+    const stored = h.draftStore.value as { v: 1; drafts: { key: string }[] };
+    await h.advance(20);
+    h.draftStore.external({ v: 1, drafts: [...stored.drafts.filter((d) => d.key !== otherKey), { ...other, text: 'edited in the other tab', revision: 2, updatedAt: h.clock.now() }] });
+    await h.flush();
+    expect(h.boards.preview.draftOf('spenders', PAGE.pageId, '5001')?.text).toBe('edited in the other tab');
+    expect(h.boards.preview.getSnapshot(preview('spenders')).draft.text).toBe('draft from this tab');
+    // The other tab clears this fan's draft: it stays cleared here, and this tab does not write it back.
+    const now = h.clock.now();
+    await h.advance(20);
+    const mine = `${WORLD.hubOrigin}|${WORLD.user.userId}|${PAGE.pageId}|spenders|5000`;
+    const current = h.draftStore.value as { v: 1; drafts: { key: string }[] };
+    h.draftStore.external({ v: 1, drafts: current.drafts.filter((d) => d.key !== mine), removed: [{ key: mine, revision: 9, removedAt: now + 20 }] });
+    await h.flush();
+    expect(h.boards.preview.getSnapshot(preview('spenders')).draft.text).toBe('');
+    expect(JSON.stringify(h.draftStore.value)).not.toContain('draft from this tab');
+    // A write the browser refuses is said once, as a toast; nothing is lost from the field.
+    h.draftStore.failSaves = 2;
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: spender('5000'), text: 'typed while storage refuses' });
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: spender('5000'), text: 'typed while storage refuses!' });
+    expect(h.notes.filter((note) => note.code === 'CG-STORAGE-WRITE')).toEqual([{ code: 'CG-STORAGE-WRITE', scope: 'preview:drafts' }]);
+    expect(h.boards.preview.getSnapshot(preview('spenders')).draft.text).toBe('typed while storage refuses!');
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: spender('5000'), text: 'typed while storage refuses!!' });
+    expect(JSON.stringify(h.draftStore.value)).toContain('typed while storage refuses!!');
   });
 
   it('[NF-012] a stored draft comes back after a reload; another user’s never shows', async () => {

@@ -46,10 +46,18 @@ export interface PreviewSender {
   onView(listener: (view: SendAttemptView) => void): () => void;
 }
 
-/** One storage key as a whole value (`newcomers.drafts` in storage.local). */
+/**
+ * One storage key (`newcomers.drafts` in storage.local) that every ChatSpace
+ * tab of the browser shares. The controller never writes it over whole: each
+ * write reads the key, merges draft by draft and writes the result, and
+ * `onChanged` lets a tab follow what another tab wrote.
+ */
 export interface DraftStorePort {
   load(): Promise<unknown>;
+  /** Rejects when the browser did not take the write (CG-STORAGE-WRITE). */
   save(value: unknown): Promise<void>;
+  /** The key's new value after any write, this tab's own included (storage.onChanged); absent — tabs do not follow each other until their next write. */
+  onChanged?(listener: (value: unknown) => void): () => void;
 }
 
 /** Writes text to the clipboard; false — the write failed (CG-CLIPBOARD). */

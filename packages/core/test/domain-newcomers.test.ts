@@ -55,6 +55,10 @@ import {
   putDraft,
   readDraftStore,
   removeDraft,
+  mergeDraftStores,
+  sameDraftStore,
+  changedDraftKeys,
+  keepOnly,
   resumeDelay,
   shouldRenew,
   startWalk,
@@ -407,8 +411,35 @@ describe('[NF-012] [NEW-10] local drafts: 5000 characters, 24 hours, 100 drafts,
     expect(cleared.draft).toBeNull();
     expect(cleared.revision).toBe(3);
     expect(findDraft(cleared.store, key, 3000)).toBeNull();
-    expect(removeDraft(put.store, key).drafts).toEqual([]);
-    expect(removeDraft(EMPTY_DRAFTS, key)).toBe(EMPTY_DRAFTS);
+    expect(removeDraft(put.store, key, 2500).drafts).toEqual([]);
+    expect(removeDraft(EMPTY_DRAFTS, key, 2500)).toBe(EMPTY_DRAFTS);
+    // A removal leaves a mark without text, and the next draft continues its revision.
+    expect(cleared.store.removed).toEqual([{ key, revision: 3, removedAt: 3000 }]);
+    expect(JSON.stringify(cleared.store)).not.toContain('hello');
+    expect(putDraft(cleared.store, key, 'again', 4000).revision).toBe(4);
+  });
+
+  it('[NEW-10] two tabs merge draft by draft: the newer entry of each draft stands, whichever tab merges, and a removal is not undone', () => {
+    const other = draftKey({ ...owner, fanRef: '2011' });
+    const a = putDraft(EMPTY_DRAFTS, key, 'from tab A', 1000).store;
+    const b = putDraft(putDraft(EMPTY_DRAFTS, other, 'from tab B', 1100).store, key, 'older text', 900).store;
+    const ab = mergeDraftStores(a, b, 2000);
+    expect(sameDraftStore(ab, mergeDraftStores(b, a, 2000))).toBe(true);
+    expect(findDraft(ab, key, 2000)?.text).toBe('from tab A');
+    expect(findDraft(ab, other, 2000)?.text).toBe('from tab B');
+    // Tab B clears its draft later: the mark beats the text tab A still holds.
+    const cleared = putDraft(b, other, '', 1500).store;
+    const merged = mergeDraftStores(ab, cleared, 2000);
+    expect(findDraft(merged, other, 2000)).toBeNull();
+    expect(changedDraftKeys(ab, merged)).toEqual([other]);
+    // A tie keeps the text a person typed; marks expire with the drafts.
+    const tie = mergeDraftStores(putDraft(EMPTY_DRAFTS, key, 'typed', 3000).store, { v: 1, drafts: [], removed: [{ key, revision: 1, removedAt: 3000 }] }, 3000);
+    expect(findDraft(tie, key, 3000)?.text).toBe('typed');
+    expect(readDraftStore(cleared, 1500 + STORAGE_LIMITS.previewDraftTtlMs).removed).toBeUndefined();
+    // Reading drops a broken mark and lets the newer of a draft and its mark stand.
+    const read = readDraftStore({ v: 1, drafts: [{ key, text: 'old', revision: 1, threadRevision: null, updatedAt: 10 }], removed: [{ key, revision: 2, removedAt: 20 }, { key: 5 }] }, 30);
+    expect(read).toEqual({ v: 1, drafts: [], removed: [{ key, revision: 2, removedAt: 20 }] });
+    expect(keepOnly(merged, () => false)).toEqual({ v: 1, drafts: [] });
   });
 
   it('longer than 5000 is cut at 5000; older than 24 hours is gone', () => {
