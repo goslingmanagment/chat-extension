@@ -16,5 +16,10 @@ export const KIT_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../kit/gallery/', i
 /** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /kit-gallery/. */
 export const KIT_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/kit-gallery/`;
 export const KIT_GALLERY_PATH = '/kit-gallery/';
+/** Sources of the boards gallery page (R15): Spenders, «Новые», the fan panel, the palette. */
+export const BOARDS_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../boards/gallery/', import.meta.url));
+/** Built boards gallery (`pnpm --filter @cg/testing build:gallery`), served at /boards-gallery/. */
+export const BOARDS_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/boards-gallery/`;
+export const BOARDS_GALLERY_PATH = '/boards-gallery/';
 /** Screenshots, timings and other e2e evidence. */
 export const E2E_EVIDENCE_DIR = `${REPO_ROOT}.cache/e2e/`;

@@ -6,6 +6,7 @@
 //   `/accounts/...` and its assets, the session-token endpoint, control
 //   endpoints for tests (`/__stand/...`), the M0 spike page (`/spike.html`)
 //   and the ui/kit gallery (`/kit-gallery/`, built into .cache/kit-gallery);
+//   the boards gallery (`/boards-gallery/`, built into .cache/boards-gallery);
 // - the API origin: the native API (`/api/...`, CORS for the page origin with
 //   preflights) and the socket (`/api/chat-space/ws`), with synthetic data.
 // A journal labels every call by who made it (protocol.ts CallOrigin).
@@ -28,7 +29,7 @@ import {
 import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
-import { FIXTURE_BUILD_DIR, KIT_GALLERY_BUILD_DIR, KIT_GALLERY_PATH, SPIKE_STAND_DIR } from './stand/paths';
+import { BOARDS_GALLERY_BUILD_DIR, BOARDS_GALLERY_PATH, FIXTURE_BUILD_DIR, KIT_GALLERY_BUILD_DIR, KIT_GALLERY_PATH, SPIKE_STAND_DIR } from './stand/paths';
 import { SocketHub } from './stand/socket-hub';
 import { StandState } from './stand/state';
 
@@ -197,6 +198,10 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       // The ui/kit gallery (normalized path, so no `..` leaves its folder): the index for the folder, assets by name.
       const inside = relative.slice(KIT_GALLERY_PATH.length - 1);
       status = await serveFile(response, join(KIT_GALLERY_BUILD_DIR, inside === '' || inside.endsWith('/') ? `${inside}index.html` : inside), null);
+    } else if (`/${relative}/`.startsWith(BOARDS_GALLERY_PATH)) {
+      // The boards gallery (R15), served the same way.
+      const inside = relative.slice(BOARDS_GALLERY_PATH.length - 1);
+      status = await serveFile(response, join(BOARDS_GALLERY_BUILD_DIR, inside === '' || inside.endsWith('/') ? `${inside}index.html` : inside), null);
     } else if (path === '/favicon.ico') {
       response.writeHead(204).end();
       status = 204;
