@@ -89,6 +89,20 @@ module.exports = {
     ),
     only('ui-views-only', pkg('ui'), [pkg('contracts'), ZOD, ...PREACT], '`ui`: contracts, ui/kit and Preact only (§4).'),
     {
+      name: 'hub-only-in-background',
+      comment: '`hub` (and with it the SDK and the token) is used only by the background composition (§4, D-13).',
+      severity: 'error',
+      from: { pathNot: [pkg('hub'), pkg('testing'), '^apps/extension/src/(entrypoints|composition)/background\\.ts$'] },
+      to: { path: pkg('hub') },
+    },
+    {
+      name: 'main-world-entries-self-contained',
+      comment: 'The MAIN-world entry points bundle only host-chatspace/main, the WXT define helpers and the hosts list (§4, D-06).',
+      severity: 'error',
+      from: { path: '^apps/extension/src/entrypoints/chatspace-(main\\.content|ws)\\.ts$' },
+      to: { pathNot: [pkg('host-chatspace/src/main'), '^apps/extension/src/hosts\\.ts$', npm('wxt')] },
+    },
+    {
       name: 'sdk-only-in-hub',
       comment: 'The SDK, the token and the network stay in the background (§4, D-13).',
       severity: 'error',

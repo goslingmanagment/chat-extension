@@ -36,6 +36,23 @@ describe('ESLint package graph (§4)', () => {
     ['a deep import into src', 'apps/extension/src/composition/bad.ts', "import { x } from '@cg/core/src/domain/index';\nexport const y = x;", ['no-restricted-imports']],
     ['a relative import across packages', 'packages/hub/src/bad.ts', "import { x } from '../../core/src/domain/index';\nexport const y = x;", ['no-restricted-imports']],
     ['the app imports the test harness', 'apps/extension/src/composition/bad.ts', "import { startStandServer } from '@cg/testing';\nexport const x = startStandServer;", ['no-restricted-imports']],
+    // hub only in the background (§4, D-13)
+    ['the tab composition root imports hub', 'apps/extension/src/composition/tab.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;", ['no-restricted-imports']],
+    ['the page composition root imports the SDK', 'apps/extension/src/composition/pages.ts', "import { KERNEL_CONTRACT_HASH } from '@kernel/sdk';\nexport const x = KERNEL_CONTRACT_HASH;", ['no-restricted-imports']],
+    ['a lazy chunk re-exports hub', 'apps/extension/lazy/entries/dock.ts', "export * as hubProbe from '@cg/hub';", ['no-restricted-imports']],
+    ['the isolated content script imports hub', 'apps/extension/src/entrypoints/chatspace.content.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;", ['no-restricted-imports']],
+    // MAIN-world entry points are self-contained (§4, D-06)
+    ['the MAIN entry imports platform', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
+    ['the WS tap entry imports contracts', 'apps/extension/src/entrypoints/chatspace-ws.ts', "import { BRIDGE_TAGS } from '@cg/contracts';\nexport const x = BRIDGE_TAGS;", ['no-restricted-imports']],
+    ['the MAIN entry imports zod', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import * as z from 'zod/mini';\nexport const x = z;", ['no-restricted-imports']],
+    // browser.* only through @cg/platform (D-01)
+    ['an entry point imports wxt/browser', 'apps/extension/src/entrypoints/background.ts', "import { browser } from 'wxt/browser';\nexport const x = browser;", ['no-restricted-imports']],
+    // host-chatspace never goes to the network (§4, X3)
+    ['the isolated host calls window.fetch', 'packages/host-chatspace/src/isolated/bad.ts', "export const x = () => window.fetch('https://example.invalid/');", ['no-restricted-properties']],
+    ['the isolated host calls win.fetch', 'packages/host-chatspace/src/isolated/bad.ts', "export const x = (win: Window) => win.fetch('https://example.invalid/');", ['no-restricted-properties']],
+    ['the MAIN bridge calls win.fetch', 'packages/host-chatspace/src/main/bad.ts', "export const x = (win: Window) => win.fetch('/x');", ['no-restricted-properties']],
+    ['the MAIN bridge opens a WebSocket', 'packages/host-chatspace/src/main/bridge.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
+    ['the MAIN bridge uses navigator.sendBeacon', 'packages/host-chatspace/src/main/bad.ts', "export const x = () => navigator.sendBeacon('/x');", ['no-restricted-properties']],
   ])('%s → red', async (_label, filePath, code, expected) => {
     expect(await ruleIds(filePath, code)).toEqual(expected);
   });
@@ -45,6 +62,13 @@ describe('ESLint package graph (§4)', () => {
     ['the isolated host imports core/domain/text', 'packages/host-chatspace/src/isolated/ok.ts', "import { normalizeNewlines } from '@cg/core/domain/text';\nexport const x = normalizeNewlines;"],
     ['ui imports preact', 'packages/ui/src/ok.ts', "import { render } from 'preact';\nexport const x = render;"],
     ['platform imports the browser API', 'packages/platform/src/ok.ts', "import { browser } from '@wxt-dev/browser';\nexport const x = browser;"],
+    ['the background composition root imports hub', 'apps/extension/src/composition/background.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;"],
+    [
+      'the MAIN entry imports the bridge, a WXT define helper and the hosts list',
+      'apps/extension/src/entrypoints/chatspace-main.content.ts',
+      "import { installMainBridge } from '@cg/host-chatspace/main';\nimport type { ContentScriptDefinition } from 'wxt';\nimport { defineContentScript } from 'wxt/utils/define-content-script';\nimport { CHATSPACE_MATCHES } from '../hosts';\nexport const x: ContentScriptDefinition = defineContentScript({ matches: [...CHATSPACE_MATCHES], main: installMainBridge });",
+    ],
+    ['the WS tap wraps win.WebSocket', 'packages/host-chatspace/src/main/ws-tap.ts', 'export const x = (win: Window & typeof globalThis) => { win.WebSocket = new Proxy(win.WebSocket, {}); };'],
   ])('%s → green', async (_label, filePath, code) => {
     expect(await ruleIds(filePath, code)).toEqual([]);
   });
@@ -54,13 +78,18 @@ describe('dependency-cruiser package graph (§4)', () => {
   it('reports cycles, relative cross-package imports and forbidden edges in the fixture tree', async () => {
     const ruleSet = createRequire(import.meta.url)('../.dependency-cruiser.cjs') as IConfiguration;
     const baseDir = fileURLToPath(new URL('fixtures/depcruise/', import.meta.url));
-    const result = await cruise(['packages'], { ...ruleSet.options, baseDir, ruleSet: { forbidden: ruleSet.forbidden ?? [] }, validate: true });
+    const result = await cruise(['packages', 'apps'], { ...ruleSet.options, baseDir, ruleSet: { forbidden: ruleSet.forbidden ?? [] }, validate: true });
     const output = result.output as ICruiseResult;
     const violations = output.summary.violations.map((violation) => `${violation.rule.name}: ${violation.from} → ${violation.to}`).sort();
     expect(violations).toEqual([
       'core-domain-pure: packages/core/src/domain/index.ts → packages/platform/src/index.ts',
       'host-main-self-contained: packages/host-chatspace/src/main/index.ts → packages/contracts/src/index.ts',
+      'hub-only-in-background: apps/extension/src/composition/tab.ts → packages/hub/src/index.ts',
+      'main-world-entries-self-contained: apps/extension/src/entrypoints/chatspace-main.content.ts → packages/platform/src/index.ts',
       'no-circular: packages/core/src/domain/cycle-a.ts → packages/core/src/domain/cycle-b.ts',
+      'no-relative-cross-package: apps/extension/src/composition/background.ts → packages/hub/src/index.ts',
+      'no-relative-cross-package: apps/extension/src/composition/tab.ts → packages/hub/src/index.ts',
+      'no-relative-cross-package: apps/extension/src/entrypoints/chatspace-main.content.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/core/src/domain/index.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/host-chatspace/src/isolated/index.ts → packages/contracts/src/index.ts',
       'no-relative-cross-package: packages/host-chatspace/src/main/index.ts → packages/contracts/src/index.ts',

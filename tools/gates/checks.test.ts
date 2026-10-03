@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   checkBrowserApiScope,
   checkHtmlSinks,
+  checkMainWorldBundles,
   checkOnlyMonsterReferences,
   checkReleaseBundle,
+  checkSdkCustody,
   checkSendQueueReferences,
   checkUiTexts,
   SEND_PORT_FILE,
@@ -26,6 +28,22 @@ describe('gate: onlymonster references', () => {
       ['packages/ui/src/y.tsx', 1],
     ]);
   });
+
+  it('sees through regex literals and escaped RegExp strings', () => {
+    const violations = checkOnlyMonsterReferences([
+      file('packages/core/src/domain/a.ts', 'export const a = /^https:\\/\\/chat\\.onlymonster\\.ai\\/api\\//;'),
+      file('packages/core/src/domain/b.ts', 'export const b = /chat.onlymonster.ai\\/api/;'),
+      file('packages/core/src/domain/c.ts', "export const c = new RegExp('chat\\\\.onlymonster\\\\.ai');"),
+      file('packages/core/src/domain/d.ts', 'export const d = /onlymonster[.]ai/i;'),
+      file('packages/core/src/domain/ok.ts', 'export const ok = /onlymonster/; // not the origin'),
+    ]);
+    expect(violations.map((violation) => violation.path)).toEqual([
+      'packages/core/src/domain/a.ts',
+      'packages/core/src/domain/b.ts',
+      'packages/core/src/domain/c.ts',
+      'packages/core/src/domain/d.ts',
+    ]);
+  });
 });
 
 describe('gate: HTML sinks', () => {
@@ -41,7 +59,7 @@ describe('gate: HTML sinks', () => {
 });
 
 describe('gate: browser.* scope', () => {
-  it('allows platform and entry points only', () => {
+  it('allows packages/platform only — entry points and composition roots go through it', () => {
     const code = 'browser.runtime.getURL("x"); chrome.storage.local.get();';
     const violations = checkBrowserApiScope([
       file('packages/platform/src/runtime.ts', code),
@@ -49,7 +67,12 @@ describe('gate: browser.* scope', () => {
       file('apps/extension/src/composition/tab.ts', code),
       file('packages/core/src/domain/x.ts', '// no browser.* here\nconst browserName = "x";'),
     ]);
-    expect(violations.map((violation) => violation.path)).toEqual(['apps/extension/src/composition/tab.ts', 'apps/extension/src/composition/tab.ts']);
+    expect(violations.map((violation) => violation.path)).toEqual([
+      'apps/extension/src/entrypoints/background.ts',
+      'apps/extension/src/entrypoints/background.ts',
+      'apps/extension/src/composition/tab.ts',
+      'apps/extension/src/composition/tab.ts',
+    ]);
   });
 });
 
@@ -90,5 +113,46 @@ describe('gate: release bundle', () => {
       file('lazy/dock.js', 'export{}'),
     ]);
     expect(violations.map((violation) => violation.path)).toEqual(['background.js', 'content-scripts/chatspace.js', 'manifest.json']);
+  });
+
+  it('flags the spike timing marks', () => {
+    expect(gates(checkReleaseBundle([file('content-scripts/chatspace.js', 'globalThis.__cgBundleMarks={t0:performance.now()};')]))).toEqual([
+      'release-bundle',
+    ]);
+  });
+});
+
+describe('gate: SDK custody (§4, D-13)', () => {
+  const hash = 'f'.repeat(64);
+  it('allows the SDK in the background only', () => {
+    const violations = checkSdkCustody(
+      [
+        file('background.js', `const h="${hash}"`),
+        file('content-scripts/chatspace.js', `x\nconst h="${hash}"`),
+        file('lazy/dock.js', 'export{}'),
+        file('chunks/pages-abc.js', `"${hash}"`),
+      ],
+      hash,
+    );
+    expect(violations.map((violation) => [violation.path, violation.line])).toEqual([
+      ['content-scripts/chatspace.js', 2],
+      ['chunks/pages-abc.js', 1],
+    ]);
+  });
+});
+
+describe('gate: MAIN-world bundles (§4, D-06)', () => {
+  it('flags extension API, runtime calls and zod in the bridge and the tap only', () => {
+    const violations = checkMainWorldBundles([
+      file('content-scripts/chatspace-main.js', 'var n=globalThis.browser?.runtime?.id==null?globalThis.browser:globalThis.chrome;function r(e){return n.runtime.getURL(e)}'),
+      file('chatspace-ws.js', 'class $ZodType{}'),
+      file('content-scripts/chatspace.js', 'browser.runtime.getURL("x")'),
+      file('content-scripts/chatspace-main.js', '(function(){let n=t.performance.now.bind(t.performance)})()'),
+    ]);
+    expect(violations.map((violation) => violation.path)).toEqual([
+      'content-scripts/chatspace-main.js',
+      'content-scripts/chatspace-main.js',
+      'chatspace-ws.js',
+    ]);
   });
 });

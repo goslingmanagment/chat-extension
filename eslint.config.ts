@@ -65,6 +65,42 @@ const BANNED_GLOBAL_PROPERTIES = ['window', 'globalThis', 'self'].flatMap((objec
   })),
 );
 
+/**
+ * §4 «host-chatspace не ходит в сеть»: the host code receives the page window
+ * as a parameter (`win.fetch`), so network and storage are banned as a property
+ * of ANY object there, not only of window/globalThis/self.
+ */
+const HOST_NETWORK = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon', 'localStorage', 'sessionStorage'];
+const hostNetworkProperties = (allow: readonly string[] = []) =>
+  HOST_NETWORK.filter((property) => !allow.includes(property)).map((property) => ({
+    property,
+    message: `\`.${property}\` is not allowed in host-chatspace: the host never goes to the network or page storage (§4, X3).`,
+  }));
+const hostBannedGlobals = (allow: readonly string[] = []) => [
+  ...BANNED_GLOBALS.filter((global) => !allow.includes(global.name)),
+  ...['EventSource', 'sessionStorage']
+    .filter((name) => !allow.includes(name))
+    .map((name) => ({ name, message: `\`${name}\` is not allowed in host-chatspace (§4, X3).` })),
+];
+
+/** The background is the only place that may use the hub facade and the SDK (§4, D-13). */
+const BACKGROUND_FILES = ['apps/extension/src/entrypoints/background.ts', 'apps/extension/src/composition/background.ts'];
+/** MAIN-world entry points: bundled self-contained, like host-chatspace/main itself (§4, D-06). */
+const MAIN_WORLD_ENTRIES = ['apps/extension/src/entrypoints/chatspace-main.content.ts', 'apps/extension/src/entrypoints/chatspace-ws.ts'];
+/** The tap is the one MAIN file that wraps the page's WebSocket constructor (§6.8). */
+const WS_TAP_FILE = 'packages/host-chatspace/src/main/ws-tap.ts';
+
+const APP_RESTRICTION: Restriction = {
+  // `wxt` and `wxt/utils/*` stay allowed for the define helpers and types;
+  // `wxt/browser` is browser.* and goes through @cg/platform (D-01).
+  group: flat(CG.testing, '@wxt-dev/browser', 'webextension-polyfill', 'wxt/browser', 'wxt/browser/*', NODE),
+  message: 'Entry points and composition roots wire packages; browser.* goes through @cg/platform; test code never ships (§4, D-01).',
+};
+const HUB_BACKGROUND_ONLY: Restriction = {
+  group: flat(CG.hub, SDK),
+  message: '`hub` and the SDK are background-only: the token and the network never reach a content script, a page or a lazy chunk (§4, D-13).',
+};
+
 export default defineConfig(
   {
     ignores: [
@@ -162,7 +198,19 @@ export default defineConfig(
           ],
         },
       ],
-      'no-restricted-globals': ['error', ...BANNED_GLOBALS.filter((global) => global.name !== 'WebSocket')],
+      'no-restricted-globals': ['error', ...hostBannedGlobals()],
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
+    },
+  },
+  {
+    files: [WS_TAP_FILE],
+    rules: {
+      'no-restricted-globals': ['error', ...hostBannedGlobals(['WebSocket'])],
+      'no-restricted-properties': [
+        'error',
+        ...BANNED_GLOBAL_PROPERTIES.filter((rule) => rule.property !== 'WebSocket'),
+        ...hostNetworkProperties(['WebSocket']),
+      ],
     },
   },
   {
@@ -191,7 +239,8 @@ export default defineConfig(
         message: '`host-chatspace/isolated` imports only @cg/contracts and @cg/core/domain/text; no token, no network (§4).',
         },
       ),
-      'no-restricted-globals': ['error', ...BANNED_GLOBALS],
+      'no-restricted-globals': ['error', ...hostBannedGlobals()],
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
     },
   },
   {
@@ -206,10 +255,20 @@ export default defineConfig(
     },
   },
   {
+    // Content-script and page composition roots, entry points, lazy chunks.
     files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts'],
+    ignores: BACKGROUND_FILES,
+    rules: restrict(APP_RESTRICTION, HUB_BACKGROUND_ONLY),
+  },
+  {
+    files: BACKGROUND_FILES,
+    rules: restrict(APP_RESTRICTION),
+  },
+  {
+    files: MAIN_WORLD_ENTRIES,
     rules: restrict({
-      group: flat(CG.testing, BROWSER_API.filter((name) => !name.startsWith('wxt')), NODE),
-      message: 'Entry points and composition roots wire packages; browser.* goes through @cg/platform; test code never ships (§4).',
+      regex: '^(?!@cg/host-chatspace/main$|wxt$|wxt/utils/define-[a-z-]+$|\\.\\./hosts$)',
+      message: 'MAIN-world entry points bundle only @cg/host-chatspace/main, the WXT define helpers and ../hosts (§4, D-06).',
     }),
   },
   {

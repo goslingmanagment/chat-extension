@@ -24,8 +24,8 @@ export const ONLYMONSTER_ALLOWLIST: readonly string[] = [
   'packages/host-chatspace/src/isolated/host-contract.ts',
 ];
 
-/** Where `browser.*` / `chrome.*` may appear (§4, D-01). */
-export const BROWSER_API_ALLOWED: readonly RegExp[] = [/^packages\/platform\/src\//, /^apps\/extension\/src\/entrypoints\//];
+/** Where `browser.*` / `chrome.*` may appear: packages/platform only (§3, §4, D-01). */
+export const BROWSER_API_ALLOWED: readonly RegExp[] = [/^packages\/platform\/src\//];
 
 /** The only file that may reference ChatSpace's send queue method (§6.7, D-07). */
 export const SEND_PORT_FILE = 'packages/host-chatspace/src/main/send-port.ts';
@@ -61,14 +61,23 @@ function walk(source: ts.SourceFile, visit: (node: ts.Node) => void): void {
   step(source);
 }
 
-/** 1. No reference to onlymonster.ai in our code outside the allowlist. */
+/**
+ * Text of a string/template chunk or a regex literal, with regex escaping
+ * undone (`chat\.onlymonster\.ai`, `onlymonster[.]ai` → `onlymonster.ai`).
+ */
+function namesOnlyMonster(text: string): boolean {
+  const plain = text.replace(/\[\.\]/g, '.').replace(/\\/g, '');
+  return /onlymonster\.ai/i.test(plain);
+}
+
+/** 1. No reference to onlymonster.ai in our code outside the allowlist (strings, templates, regexes). */
 export function checkOnlyMonsterReferences(files: readonly SourceFile[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
     if (ONLYMONSTER_ALLOWLIST.includes(file.path)) continue;
     const source = parse(file);
     walk(source, (node) => {
-      if (isTextNode(node) && /onlymonster\.ai/i.test(node.text)) {
+      if ((isTextNode(node) || ts.isRegularExpressionLiteral(node)) && namesOnlyMonster(node.text)) {
         violations.push({
           gate: 'onlymonster-reference',
           path: file.path,
@@ -108,7 +117,7 @@ export function checkHtmlSinks(files: readonly SourceFile[]): Violation[] {
   return violations;
 }
 
-/** 3. `browser.*` / `chrome.*` only in packages/platform and the entry points. */
+/** 3. `browser.*` / `chrome.*` only in packages/platform (entry points go through it too). */
 export function checkBrowserApiScope(files: readonly SourceFile[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
@@ -124,7 +133,7 @@ export function checkBrowserApiScope(files: readonly SourceFile[]): Violation[] 
           gate: 'browser-api-scope',
           path: file.path,
           line: lineOf(source, node),
-          message: `\`${node.expression.text}.${node.name.text}\` outside packages/platform and the entry points (§4, D-01).`,
+          message: `\`${node.expression.text}.${node.name.text}\` outside packages/platform (§3, §4, D-01).`,
         });
       }
     });
@@ -194,6 +203,7 @@ export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
     [/127\.0\.0\.1|\blocalhost\b/, 'loopback stand / fake hub host'],
     [/data-cg-spike|lazy\/spike\.js/, 'spike M0 probe'],
     [/chat-extension-test@/, 'test gecko id'],
+    [/__cgBundleMarks/, 'spike timing marks'],
   ];
   const violations: Violation[] = [];
   for (const file of files) {
@@ -202,6 +212,54 @@ export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
       if (!match) continue;
       const line = file.text.slice(0, match.index).split('\n').length;
       violations.push({ gate: 'release-bundle', path: file.path, line, message: `release build contains a ${what} (CG_TEST_HOSTS leak).` });
+    }
+  }
+  return violations;
+}
+
+/**
+ * 7. SDK custody (§4 «hub только в фоне», D-13): the vendored SDK — identified
+ * by its contract hash — may be bundled only into the background script, never
+ * into a content script, a lazy chunk or an extension page.
+ */
+export function checkSdkCustody(files: readonly SourceFile[], contractHash: string, allowed: readonly string[] = ['background.js']): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (allowed.includes(file.path)) continue;
+    const index = file.text.indexOf(contractHash);
+    if (index < 0) continue;
+    violations.push({
+      gate: 'sdk-custody',
+      path: file.path,
+      line: file.text.slice(0, index).split('\n').length,
+      message: 'the vendored @kernel/sdk is bundled outside the background (§4, D-13).',
+    });
+  }
+  return violations;
+}
+
+/** Built MAIN-world bundles (bridge and WS tap). */
+export const MAIN_WORLD_BUNDLES: readonly string[] = ['content-scripts/chatspace-main.js', 'chatspace-ws.js'];
+
+/**
+ * 8. The MAIN-world bundles stay self-contained (§4, D-06): no extension API
+ * (it does not exist in the page world — a stray import of @cg/platform shows
+ * up as `globalThis.browser` / `runtime.getURL`) and no zod (contracts).
+ */
+export function checkMainWorldBundles(files: readonly SourceFile[]): Violation[] {
+  const markers: Array<[RegExp, string]> = [
+    [/\b(?:browser|chrome)\s*(?:\?\.|\.|\[)|globalThis\.(?:browser|chrome)\b/, 'extension API access'],
+    [/\bruntime\.(?:getURL|id|connect|sendMessage)\b/, 'extension runtime call'],
+    [/\$Zod|\bZodError\b/, 'zod'],
+  ];
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (!MAIN_WORLD_BUNDLES.includes(file.path)) continue;
+    for (const [pattern, what] of markers) {
+      const match = pattern.exec(file.text);
+      if (!match) continue;
+      const line = file.text.slice(0, match.index).split('\n').length;
+      violations.push({ gate: 'main-world-bundle', path: file.path, line, message: `MAIN-world bundle carries ${what} «${match[0]}» (§4, D-06).` });
     }
   }
   return violations;
