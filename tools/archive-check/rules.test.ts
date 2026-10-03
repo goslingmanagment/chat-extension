@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import type { ZipEntry } from '../lib/zip.ts';
-import { checkArchive, compareWithBuild, REAL_ID_SHA256, sha256 } from './rules.ts';
+import { isStandSource, STAND_SOURCE_GLOBS, STAND_SOURCE_KEPT } from '../../apps/extension/build/sources-archive.ts';
+import { checkArchive, compareWithBuild, danglingReferences, REAL_ID_SHA256, sha256 } from './rules.ts';
 
 const entry = (name: string, text = ''): ZipEntry => ({ name, data: Buffer.from(text) });
 /** A synthetic "real" id: tests never carry the owner's ids. */
@@ -36,27 +37,49 @@ describe('archive check', () => {
     );
   });
 
-  it('lets the stand fixture name Vue/TipTap in the sources archive only, and keeps its folder to hand-written sources', () => {
+  it('keeps the stand and its e2e harness out of the sources archive; only the testing manifest and the lockfile may name Vue/TipTap there', () => {
     const tiptap = "import { Editor } from '@tiptap/core';";
     const rules = (name: string, kind: 'xpi' | 'sources', text = tiptap): string[] => checkArchive('a.zip', [entry(name, text)], kind).map((problem) => problem.rule);
-    expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'sources')).toEqual([]);
     expect(rules('packages/testing/package.json', 'sources', '{"@tiptap/core": "3.31.4"}')).toEqual([]);
     expect(rules('pnpm-lock.yaml', 'sources', "'@tiptap/core@3.31.4':")).toEqual([]);
-    // Anywhere else, and in the XPI even for the same path, it is foreign library code.
+    for (const stand of [
+      'packages/testing/fixture-chatspace.vite.config.ts',
+      'packages/testing/src/stand-server.ts',
+      'packages/testing/src/stand-cli.ts',
+      'packages/testing/src/fixture/queue.dom.test.ts',
+      'packages/testing/src/stand/api.ts',
+      'packages/testing/src/stand/index.ts',
+      'packages/testing/stand/stand.js',
+      'packages/testing/e2e/wdio.conf.ts',
+      'packages/testing/e2e/support/fake-hub.ts',
+      'packages/testing/fixture-chatspace/index.html',
+      'packages/testing/fixture-chatspace/src/main.ts',
+    ]) {
+      expect(rules(stand, 'sources', 'export {};'), stand).toEqual(['stand-in-sources']);
+    }
+    // For `tsc -b` in the archive: the fixture's tsconfig and its wire-protocol types stay.
+    for (const kept of STAND_SOURCE_KEPT) expect(rules(kept, 'sources', '{}'), kept).toEqual([]);
+    expect(STAND_SOURCE_GLOBS).toEqual(expect.arrayContaining(['packages/testing/e2e/**', 'packages/testing/fixture-chatspace/src/!(protocol.ts)', 'packages/testing/fixture-chatspace/src/*/**']));
+    expect(isStandSource('packages/testing/fixture-chatspace/src/protocol.ts')).toBe(false);
+    expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'sources')).toEqual(['stand-in-sources', 'onlymonster-code']);
+    // The fake hub stays: it names no host library.
+    expect(rules('packages/testing/src/fake-hub/hub.ts', 'sources', 'export {};')).toEqual([]);
+    expect(rules('packages/testing/src/standalone.ts', 'sources', 'export {};')).toEqual([]);
+    // Anywhere else, and in the XPI, it is foreign library code.
     expect(rules('packages/ui/src/editor.ts', 'sources')).toEqual(['onlymonster-code']);
     expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'xpi')).toEqual(['onlymonster-code']);
-    // The stand never carries their bundles or a saved page, nor any built file.
-    expect(rules('packages/testing/fixture-chatspace/src/x.ts', 'sources', '// from messages-DlBZ5e81.js')).toEqual(['onlymonster-code']);
-    expect(rules('packages/testing/fixture-chatspace/src/x.css', 'sources', '.a[data-v-1a2b3c4d]{}')).toEqual(['onlymonster-code']);
-    expect(rules('packages/testing/fixture-chatspace/assets/index-abc.js', 'sources', 'export {}')).toEqual(['fixture-provenance']);
   });
 
-  it('keeps every stand folder to hand-written sources: no saved API answers, pages or notes', () => {
-    const rules = (name: string, text = '{}'): string[] => checkArchive('a.zip', [entry(name, text)], 'sources').map((problem) => problem.rule);
-    expect(rules('packages/testing/fixture-chatspace/tsconfig.json')).toEqual([]);
-    expect(rules('packages/testing/stand/stand.js', '(function () {})();')).toEqual([]);
-    expect(rules('packages/testing/src/stand/api.ts', 'export {};')).toEqual([]);
+  it('keeps every stand folder to hand-written sources, should it travel again: no saved bundles, API answers, pages or notes', () => {
+    const provenance = (name: string, text = '{}'): string[] =>
+      checkArchive('a.zip', [entry(name, text)], 'xpi')
+        .map((problem) => problem.rule)
+        .filter((rule) => rule === 'fixture-provenance');
+    expect(provenance('packages/testing/fixture-chatspace/tsconfig.json')).toEqual([]);
+    expect(provenance('packages/testing/stand/stand.js', '(function () {})();')).toEqual([]);
+    expect(provenance('packages/testing/src/stand/api.ts', 'export {};')).toEqual([]);
     for (const saved of [
+      'packages/testing/fixture-chatspace/assets/index-abc.js',
       'packages/testing/fixture-chatspace/src/chats.json',
       'packages/testing/fixture-chatspace/notes.md',
       'packages/testing/stand/chat-list.json',
@@ -64,8 +87,33 @@ describe('archive check', () => {
       'packages/testing/src/stand/answer.json',
       'packages/testing/src/stand/history.html',
     ]) {
-      expect(rules(saved), saved).toEqual(['fixture-provenance']);
+      expect(provenance(saved), saved).toEqual(['fixture-provenance']);
     }
+  });
+
+  it('finds an import, a workspace export or a tsconfig reference that points out of the sources archive', () => {
+    const files = [
+      entry('packages/x/package.json', JSON.stringify({ name: '@cg/x', exports: { '.': './src/index.ts', './stand': './src/stand/index.ts', './data/*': './src/data/*.ts' } })),
+      entry('packages/x/src/index.ts', "export * from './present';\nexport * from './gone';\nexport { y } from './lib.js';\nexport { z } from './dir';"),
+      entry('packages/x/src/present.ts', 'export const a = 1;'),
+      entry('packages/x/src/lib.ts', 'export const y = 1;'),
+      entry('packages/x/src/dir/index.ts', 'export const z = 1;'),
+      entry('packages/x/src/data/one.ts', 'export const one = 1;'),
+      entry('packages/x/tsconfig.json', '{ "extends": "../../tsconfig.base.json", "references": [{ "path": "./fixture" }, { "path": "../../tools" }] }'),
+      entry('tsconfig.base.json', '{}'),
+      entry('apps/a/src/main.ts', "import '@cg/x';\nimport { s } from '@cg/x/stand';\nimport { n } from '@cg/x/nope';\nimport { one } from '@cg/x/data/one';\nimport { describe } from 'vitest';\nconst lazy = () => import('./later');\n/// <reference path=\"./types.d.ts\" />"),
+      entry('apps/a/src/types.d.ts', 'export {};'),
+    ];
+    expect(danglingReferences('s.zip', files).map((problem) => [problem.file, problem.detail])).toEqual([
+      ['packages/x/src/index.ts', 'import «./gone» is not in the archive'],
+      ['packages/x/tsconfig.json', 'tsconfig reference «./fixture» is not in the archive'],
+      ['packages/x/tsconfig.json', 'tsconfig reference «../../tools» is not in the archive'],
+      ['apps/a/src/main.ts', 'import «@cg/x/stand» is not in the archive'],
+      ['apps/a/src/main.ts', 'import «@cg/x/nope» is not in the archive'],
+      ['apps/a/src/main.ts', 'import «./later» is not in the archive'],
+    ]);
+    expect(checkArchive('s.zip', files, 'sources').filter((problem) => problem.rule === 'dangling-import')).toHaveLength(6);
+    expect(checkArchive('x.zip', files, 'xpi').filter((problem) => problem.rule === 'dangling-import')).toEqual([]);
   });
 
   it('finds a real id by hash anywhere a number stands alone, not inside longer numbers', () => {

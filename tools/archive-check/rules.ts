@@ -1,12 +1,17 @@
 // What must never ship (architecture.md §12 п. 7, §3 «pnpm check» п. 9): no
 // OnlyMonster code, CSS, fonts or images, no real messages, tokens or prod
 // HTML — in the XPI and in the sources archive that goes to AMO for signing.
-// A .gitignore alone is not enough. R02 adds the stand's place in the sources
-// archive: its own Vue/TipTap sources may name those libraries, nothing else may
-// (perf traces come with tools/perf).
+// A .gitignore alone is not enough. R02: the ChatSpace-like stand (our own
+// Vue/TipTap app) stays out of the sources archive altogether
+// (apps/extension/build/sources-archive.ts); only the testing package manifest
+// and the lockfile may name those libraries (perf traces come with tools/perf).
 
 import { createHash } from 'node:crypto';
+import { posix } from 'node:path';
 
+import ts from 'typescript';
+
+import { isStandSource } from '../../apps/extension/build/sources-archive.ts';
 import type { ZipEntry } from '../lib/zip.ts';
 
 export interface ArchiveProblem {
@@ -32,16 +37,17 @@ export const HOST_LIBRARY_MARKERS: readonly RegExp[] = [
 
 /**
  * The test stand (packages/testing/fixture-chatspace, R02) is our own small
- * Vue + TipTap app imitating the host. In the SOURCES archive (AMO rebuilds
- * the whole workspace) its source files, the testing package manifest and the
- * lockfile may name those libraries. The XPI never may.
+ * Vue + TipTap app imitating the host. It is not in the sources archive
+ * (`stand-in-sources`); the testing package manifest and the lockfile there
+ * may still name its libraries. The XPI never may.
  */
 export const STAND_FIXTURE_DIR = 'packages/testing/fixture-chatspace/';
-const STAND_LIBRARY_ALLOWED: readonly RegExp[] = [/^packages\/testing\/fixture-chatspace\/.+\.(?:ts|html|css)$/, /^packages\/testing\/package\.json$/, /^pnpm-lock\.yaml$/];
+const STAND_LIBRARY_ALLOWED: readonly RegExp[] = [/^packages\/testing\/package\.json$/, /^pnpm-lock\.yaml$/];
 /**
- * Fixture provenance: the stand's folders hold hand-written sources only — no
- * built or saved bundles, pages or API answers (a saved JSON or Markdown
- * capture included). Per folder: the file kinds it may hold.
+ * Fixture provenance, should the stand ever travel in an archive again: its
+ * folders hold hand-written sources only — no built or saved bundles, pages
+ * or API answers (a saved JSON or Markdown capture included). Per folder: the
+ * file kinds it may hold.
  */
 const STAND_SOURCE_DIRS: ReadonlyArray<readonly [string, RegExp, string]> = [
   [STAND_FIXTURE_DIR, /^packages\/testing\/fixture-chatspace\/(?:tsconfig\.json|.+\.(?:ts|html|css))$/, 'ts, html, css and its tsconfig.json'],
@@ -115,6 +121,7 @@ export function checkArchive(
     if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > MAX_JS_BYTES) {
       add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${MAX_JS_BYTES}`);
     }
+    if (kind === 'sources' && isStandSource(entry.name)) add(entry.name, 'stand-in-sources', 'the ChatSpace-like stand stays out of the AMO sources archive (apps/extension/build/sources-archive.ts)');
     for (const [dir, allowed, kinds] of STAND_SOURCE_DIRS) {
       if (entry.name.startsWith(dir) && !allowed.test(entry.name)) add(entry.name, 'fixture-provenance', `${dir} holds hand-written sources only (${kinds})`);
     }
@@ -130,6 +137,112 @@ export function checkArchive(
     for (const [pattern, what] of REAL_DATA_MARKERS) if (pattern.test(text)) add(entry.name, 'real-data', what);
     const realIds = new Set([...text.matchAll(NUMERIC_TOKEN)].map((match) => sha256(match[0])).filter((hash) => realIdHashes.has(hash)));
     for (const hash of realIds) add(entry.name, 'real-data', `a real id (sha256 ${hash.slice(0, 12)}…, decision X9)`);
+  }
+  if (kind === 'sources') problems.push(...danglingReferences(archive, entries));
+  return problems;
+}
+
+// ── dangling imports in the sources archive ────────────────────────────────
+
+const CODE_FILE = /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/;
+const TSCONFIG_FILE = /(?:^|\/)tsconfig[^/]*\.json$/;
+const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.d.ts', '.js', '.mjs', '.cjs', '.json'];
+
+/** Archive paths a relative module specifier may resolve to (moduleResolution «bundler»). */
+function moduleCandidates(path: string): string[] {
+  const swapped = /\.[mc]?js$/.test(path) ? [path.replace(/\.js$/, '.ts'), path.replace(/\.js$/, '.tsx'), path.replace(/\.mjs$/, '.mts'), path.replace(/\.cjs$/, '.cts')] : [];
+  return [path, ...swapped, ...RESOLVE_EXTENSIONS.map((ext) => `${path}${ext}`), ...RESOLVE_EXTENSIONS.map((ext) => `${path}/index${ext}`)];
+}
+
+interface WorkspacePackage {
+  readonly dir: string;
+  readonly exports: Readonly<Record<string, unknown>> | null;
+}
+
+function workspacePackages(entries: readonly ZipEntry[]): Map<string, WorkspacePackage> {
+  const packages = new Map<string, WorkspacePackage>();
+  for (const entry of entries) {
+    if (!/(?:^|\/)package\.json$/.test(entry.name) || entry.name.includes('node_modules/')) continue;
+    try {
+      const manifest = JSON.parse(entry.data.toString('utf8')) as { name?: unknown; exports?: unknown };
+      if (typeof manifest.name !== 'string') continue;
+      const exports = typeof manifest.exports === 'string' ? { '.': manifest.exports } : typeof manifest.exports === 'object' && manifest.exports !== null ? (manifest.exports as Record<string, unknown>) : null;
+      packages.set(manifest.name, { dir: posix.dirname(entry.name), exports });
+    } catch {
+      // Not ours to judge here.
+    }
+  }
+  return packages;
+}
+
+/** The file an export target names (a string, or the import/default/types condition). */
+function exportTarget(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null) {
+    for (const condition of ['import', 'default', 'types']) {
+      const inner = exportTarget((value as Record<string, unknown>)[condition]);
+      if (inner !== null) return inner;
+    }
+  }
+  return null;
+}
+
+/** null: not a workspace package (an installed dependency); [] — the package does not export it. */
+function workspaceCandidates(specifier: string, packages: ReadonlyMap<string, WorkspacePackage>): string[] | null {
+  for (const [name, pkg] of packages) {
+    if (specifier !== name && !specifier.startsWith(`${name}/`)) continue;
+    if (pkg.exports === null) return null;
+    const subpath = specifier === name ? '.' : `.${specifier.slice(name.length)}`;
+    let target = exportTarget(pkg.exports[subpath]);
+    if (target === null) {
+      for (const [pattern, value] of Object.entries(pkg.exports)) {
+        const star = pattern.indexOf('*');
+        if (star < 0 || !subpath.startsWith(pattern.slice(0, star)) || !subpath.endsWith(pattern.slice(star + 1))) continue;
+        const inner = exportTarget(value);
+        if (inner !== null) target = inner.replace('*', subpath.slice(star, subpath.length - (pattern.length - star - 1)));
+      }
+    }
+    return target === null ? [] : moduleCandidates(posix.normalize(posix.join(pkg.dir, target)));
+  }
+  return null;
+}
+
+/**
+ * Every relative import (static, dynamic, re-export, triple-slash), every
+ * import of a workspace package's export, and every tsconfig `extends` and
+ * project reference in the sources archive must point at a file that is in
+ * the archive: a file left in it must not need one that was left out.
+ */
+export function danglingReferences(archive: string, entries: readonly ZipEntry[]): ArchiveProblem[] {
+  const names = new Set(entries.map((entry) => entry.name));
+  const packages = workspacePackages(entries);
+  const problems: ArchiveProblem[] = [];
+  const dangling = (file: string, specifier: string, what: string): void => {
+    problems.push({ archive, file, rule: 'dangling-import', detail: `${what} «${specifier}» is not in the archive` });
+  };
+  for (const entry of entries) {
+    if (entry.name.includes('node_modules/')) continue;
+    const dir = posix.dirname(entry.name);
+    if (CODE_FILE.test(entry.name)) {
+      const info = ts.preProcessFile(entry.data.toString('utf8'), true, true);
+      for (const { fileName } of [...info.importedFiles, ...info.referencedFiles]) {
+        const specifier = fileName.replace(/[?#].*$/, '');
+        const candidates = specifier.startsWith('.') ? moduleCandidates(posix.normalize(posix.join(dir, specifier))) : workspaceCandidates(specifier, packages);
+        if (candidates !== null && !candidates.some((candidate) => names.has(candidate))) dangling(entry.name, fileName, 'import');
+      }
+    } else if (TSCONFIG_FILE.test(entry.name)) {
+      const parsed = ts.parseConfigFileTextToJson(entry.name, entry.data.toString('utf8')).config as { extends?: unknown; references?: unknown } | undefined;
+      for (const extended of typeof parsed?.extends === 'string' ? [parsed.extends] : Array.isArray(parsed?.extends) ? (parsed.extends as unknown[]) : []) {
+        if (typeof extended !== 'string' || !extended.startsWith('.')) continue;
+        const path = posix.normalize(posix.join(dir, extended));
+        if (!names.has(path) && !names.has(`${path}.json`)) dangling(entry.name, extended, 'tsconfig extends');
+      }
+      for (const reference of Array.isArray(parsed?.references) ? (parsed.references as Array<{ path?: unknown }>) : []) {
+        if (typeof reference.path !== 'string') continue;
+        const path = posix.normalize(posix.join(dir, reference.path));
+        if (!names.has(path.endsWith('.json') ? path : `${path}/tsconfig.json`)) dangling(entry.name, reference.path, 'tsconfig reference');
+      }
+    }
   }
   return problems;
 }
