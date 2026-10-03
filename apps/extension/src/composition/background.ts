@@ -82,7 +82,7 @@ import {
 } from '@cg/platform';
 
 import { CHATSPACE_MATCHES, LOOPBACK_MATCHES } from '../hosts';
-import { hubAddressRefusal } from './background/hub-address';
+import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { createBackgroundLogging } from './background/logging';
 import { opsStoreOver } from './background/ops-store';
@@ -664,7 +664,7 @@ export function composeBackground(): void {
   rpc.handle('usage.get', data['usage.get']);
   rpc.handle('newcomers.claim', notImplemented('newcomers.claim'));
 
-  // settings (ST-042: the hub address changes only while signed out; a release build takes an https hub only)
+  // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
   rpc.handle('settings.get', settingsHandlers['settings.get']);
   rpc.handle('settings.patch', settingsHandlers['settings.patch']);
@@ -758,7 +758,11 @@ export function composeBackground(): void {
           env: { extensionVersion: env.extensionVersion, testBuild, os: env.os, hubOrigin: () => settings.current().hub.baseUrl, debugEnabled },
           local: withTokenTap(local, (token) => logging.redactor.setToken(token)),
           session,
-          fetch: (input, init) => fetch(input, init),
+          // Quiet mode (§2, X3): whatever the settings say, no request of the hub layer goes to the host platform.
+          fetch: quietFetch(
+            (input, init) => fetch(input, init),
+            () => logger.warn('bg.hub', 'request to the host platform refused', { code: 'CG-HUB-URL' }),
+          ),
           log: hubLogOf(logger),
           ...(__CG_TEST_HOSTS__ ? { compatPageAccounts: compatPages } : {}),
         });

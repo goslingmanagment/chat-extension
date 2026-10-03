@@ -5,6 +5,24 @@
 /** ChatSpace pages the content scripts match (D-01, §3). */
 export const CHATSPACE_MATCHES: readonly string[] = ['https://chat.onlymonster.ai/*'];
 
+/**
+ * Quiet mode (§2, X3): the extension never sends a request of its own to the
+ * host platform. Its whole domain is therefore never a hub address, and the
+ * background's `fetch` refuses it whatever the settings say.
+ */
+export const QUIET_DOMAINS: readonly string[] = ['onlymonster.ai'];
+
+/** true — `url` points at the host platform: one of the quiet domains or any subdomain, whatever the scheme, port or path. */
+export function isQuietHost(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/\.+$/, '');
+  } catch {
+    return false;
+  }
+  return QUIET_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
 /** The hub (D-13). */
 export const HUB_HOST_PERMISSION = 'https://gosling-agency.ru/*';
 
