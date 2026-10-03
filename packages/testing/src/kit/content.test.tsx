@@ -113,6 +113,41 @@ describe('[SP-019] the search box: 150 ms after the last change, IME-correct', (
     await flush(() => reset());
     expect(box.value).toBe('');
   });
+
+  it('an outside reset during the debounce cancels the query still waiting', async () => {
+    vi.useFakeTimers();
+    const queries: string[] = [];
+    let setValue: (value: string) => void = () => undefined;
+    function Board() {
+      const [query, setQuery] = useState('');
+      setValue = setQuery;
+      return (
+        <SearchBox
+          value={query}
+          onQuery={(next) => {
+            queries.push(next);
+            setQuery(next);
+          }}
+          label="Поиск"
+          placeholder=""
+        />
+      );
+    }
+    kit = await mountKitSettled(Board);
+    const box = kit.$('input') as HTMLInputElement;
+    await flush(() => input(box, 'abc'));
+    await flush(() => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 50);
+      setValue('x');
+    });
+    await flush(() => vi.advanceTimersByTime(500));
+    expect(box.value).toBe('x');
+    expect(queries).toEqual([]);
+    // Typing after the reset debounces as before.
+    await flush(() => input(box, 'xy'));
+    await flush(() => vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS));
+    expect(queries).toEqual(['xy']);
+  });
 });
 
 describe('text fields: IME-safe, Enter / Shift+Enter, Esc, a growing textarea', () => {

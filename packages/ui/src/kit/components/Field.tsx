@@ -174,6 +174,11 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
     timer.current = setTimeout(() => send(query), delay);
   });
   useEffect(() => {
+    // An outside change of the query (a reset of the filters) wins over typing still waiting for its 150 ms.
+    if (props.value !== sent.current && timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
     sent.current = props.value;
   }, [props.value]);
   useEffect(
