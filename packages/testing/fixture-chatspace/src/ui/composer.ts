@@ -1,16 +1,28 @@
-// Composers (metadata.ts «composer-dom»): one per chat tab visited in this
-// session, all rendered, only the active one shown (v-show), keyed
-// `${tabId}:${accountId}:${chatId}`; a blocked fan's composer stays hidden.
+// Composers (metadata.ts «composer-dom»): one per visited chat tab of the
+// route's account, all rendered, only the active one shown (v-show), keyed
+// `${tabId}:${accountId}:${chatId}`; the active one is hidden while the route
+// chat is not found or its fan is blocked.
 //
-//   div.relative                              ← composer root (one per tab)
-//     div.composer-frame.overflow-hidden      ← clips its content
-//       div.h-10 (top strip)
-//         … quick buttons …
-//         div.inline-flex (trailing group)
-//           div[data-id="browser-composer-translator"]  ← bridge slot, Vue never renders children
-//           button Templates
-//       div.om-rich-text-editor > .ProseMirror (TipTap, created asynchronously)
-//       footer: translator chip, Send
+// Inside each, the OnlyFans composer exists only when ChatSpace would let the
+// human compose (canComposeMessages): the role may send (no
+// of_block_message_sending, unless the user owns the organisation), the fan
+// can receive messages (a missing fan does not forbid it), and — Mimic being
+// available on OnlyFans — Mimic data has loaded and Mimic does not run the
+// chat. Otherwise there is no composer, no slot and no bridge: a Mimic panel
+// when Mimic runs the chat, an «unavailable» notice once Mimic data is in, and
+// nothing at all while it loads.
+//
+//   div[data-stand-composer-slot]               ← per tab (v-show)
+//     div.relative
+//       div.relative[data-stand-composer]       ← composer root
+//         div.composer-frame.overflow-hidden    ← clips its content
+//           div.h-10 (top strip)
+//             … quick buttons …
+//             div.inline-flex (trailing group)
+//               div[data-id="browser-composer-translator"]  ← bridge slot, Vue never renders children
+//               button Templates
+//           div.om-rich-text-editor > .ProseMirror (TipTap, created asynchronously)
+//           footer: translator chip, Send
 //
 // Alt+S (by `code`, any other modifiers) toggles the translator in a capture
 // listener on the composer root; the Templates panel carries
@@ -21,12 +33,13 @@ import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref, vShow, w
 
 import { env, isBroken } from '../env';
 import { record } from '../journal';
+import { isOwner } from '../net/auth';
 import { api } from '../net/http';
 import { useQueryCache } from '../query/cache';
-import type { Account, FansMap } from '../query/model';
+import type { FansMap } from '../query/model';
 import { keys } from '../query/queries';
 import { useComposerTranslator, useOfComposerInsert } from '../stores/composer';
-import { usePendingMessages, type QueueInput } from '../stores/pending-messages';
+import { isMimicTakeover, usePendingMessages, type QueueInput } from '../stores/pending-messages';
 import { draftKey, loadDraft, persistDraft, textToParagraph, vComposerBridge, type DraftBody } from './bridge';
 import { createEditorHandle } from './editor-handle';
 import { registerComposer, unregisterComposer } from './registry';
@@ -42,8 +55,9 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 /** The stand's «translation» of a text (clearly synthetic). */
 export const syntheticTranslation = (text: string): string => `[EN] ${text}`;
 
-export const ConversationComposer = defineComponent({
-  name: 'ConversationComposer',
+/** The OnlyFans composer itself (mounted only when the human may compose). */
+const OfComposer = defineComponent({
+  name: 'OfComposer',
   props: {
     composerKey: { type: String, required: true },
     tabId: { type: String, required: true },
@@ -210,7 +224,7 @@ export const ConversationComposer = defineComponent({
       const slotProps: Record<string, string> = { 'data-id': isBroken('composer-slot') ? 'browser-composer-tools' : 'browser-composer-translator', class: 'inline-flex shrink-0 items-center' };
       if (nativeTranslatorOwner.value) slotProps['data-native-translator'] = '1';
       const translatorOn = settings.value.enabled;
-      return h('div', { ref: root, class: 'relative composer-root', 'data-stand-composer': props.composerKey }, [
+      return h('div', { ref: root, class: 'relative', 'data-stand-composer': props.composerKey }, [
         h('div', { class: frameClass }, [
           h('div', { class: 'h-10 composer-strip' }, [
             h(
@@ -229,7 +243,7 @@ export const ConversationComposer = defineComponent({
           h('div', { class: 'composer-footer' }, [
             h('button', { type: 'button', class: ['chip', translatorOn ? 'chip--on' : ''], title: 'Alt+S', onClick: toggleTranslator }, translatorOn ? `Translate: on${settings.value.autoTranslate ? ' (auto)' : ''}` : 'Translate: off'),
             notice.value !== null ? h('span', { class: 'composer-notice' }, notice.value) : null,
-            h('button', { type: 'button', class: 'send-button', onClick: () => void submit() }, 'Send'),
+            h('button', { type: 'button', class: 'send-button', 'data-stand-send': '', onClick: () => void submit() }, 'Send'),
           ]),
         ]),
         templatesOpen.value
@@ -244,37 +258,81 @@ export const ConversationComposer = defineComponent({
   },
 });
 
-interface ComposerSlot {
+const ROLE_CANNOT_SEND = 'of_block_message_sending';
+
+/** One visited chat tab: the composer when the human may compose, else a Mimic panel or a notice (or nothing yet). */
+const ConversationComposer = defineComponent({
+  name: 'ConversationComposer',
+  props: {
+    composerKey: { type: String, required: true },
+    tabId: { type: String, required: true },
+    accountId: { type: String, required: true },
+    chatId: { type: String, required: true },
+    shown: { type: Boolean, required: true },
+  },
+  setup(props) {
+    const cache = useQueryCache();
+    const roleBlocked = computed(() => (cache.getQueryData<string[]>(keys.userPermissions()) ?? []).includes(ROLE_CANNOT_SEND) && !isOwner.value);
+    const fan = computed(() => cache.getQueryData<FansMap>(keys.fansMap(props.accountId))?.[props.chatId]);
+    const canReceive = computed(() => fan.value?.canReceiveMessages !== false);
+    const loaded = (key: readonly string[]): boolean => {
+      const status = cache.get(key)?.state.value.status;
+      return status !== undefined && status !== 'pending';
+    };
+    const mimicLoaded = computed(() => loaded(keys.mimicSettings()) && loaded(keys.mimicChats()));
+    const takeover = computed(() => isMimicTakeover(cache, props.accountId, props.chatId));
+    // The stand's accounts are all OnlyFans, where Mimic is available.
+    const canCompose = computed(() => !roleBlocked.value && canReceive.value && mimicLoaded.value && !takeover.value);
+    const unavailableReason = computed(() => {
+      if (roleBlocked.value) return 'Your role cannot send messages';
+      if (canReceive.value) return null;
+      return fan.value?.isExpired === true ? 'Subscription expired' : 'Messaging restricted';
+    });
+    watch(
+      canCompose,
+      (can) => record('composer-can-compose', { key: props.composerKey, can, roleBlocked: roleBlocked.value, canReceive: canReceive.value, mimicLoaded: mimicLoaded.value, takeover: takeover.value }),
+      { immediate: true },
+    );
+    return (): VNode =>
+      h('div', { 'data-stand-composer-slot': props.composerKey }, [
+        takeover.value
+          ? h('div', { class: 'composer-mimic', 'data-stand-mimic-panel': '' }, 'Mimic is answering in this chat')
+          : !canCompose.value && mimicLoaded.value
+            ? h('div', { class: 'composer-unavailable', 'data-testid': 'chat-unavailable-notice' }, [
+                h('strong', 'Chat unavailable'),
+                unavailableReason.value !== null ? h('span', { 'data-testid': 'chat-unavailable-reason' }, unavailableReason.value) : null,
+              ])
+            : null,
+        canCompose.value
+          ? h('div', { class: 'relative' }, [h(OfComposer, { composerKey: props.composerKey, tabId: props.tabId, accountId: props.accountId, chatId: props.chatId, shown: props.shown })])
+          : null,
+      ]);
+  },
+});
+
+export interface ComposerSlot {
   readonly key: string;
   readonly tabId: string;
   readonly accountId: string;
   readonly chatId: string;
 }
 
-/** The block of composers under the message list: every visited chat tab keeps its composer. */
+/** The block of composers under the message list. */
 export const ConversationComposers = defineComponent({
   name: 'ConversationComposers',
   props: {
-    accountId: { type: String, required: true },
-    chatId: { type: String as PropType<string | null>, default: null },
+    slots: { type: Array as PropType<readonly ComposerSlot[]>, required: true },
     activeTabId: { type: String as PropType<string | null>, default: null },
-    visited: { type: Array as PropType<readonly ComposerSlot[]>, required: true },
+    /** The route chat is not found or its fan is blocked: the active composer stays hidden. */
+    hideActive: { type: Boolean, required: true },
   },
   setup(props) {
-    const cache = useQueryCache();
-    const isShown = (slot: ComposerSlot): boolean => {
-      if (slot.tabId !== props.activeTabId || slot.accountId !== props.accountId || slot.chatId !== props.chatId) return false;
-      const accountKnown = (cache.getQueryData<Account[]>(keys.accounts()) ?? []).some((account) => String(account.id) === slot.accountId);
-      const fan = cache.getQueryData<FansMap>(keys.fansMap(slot.accountId))?.[slot.chatId];
-      // Hidden for a fan known to be missing or blocked; an unknown fan does not hide it.
-      return accountKnown && fan !== null && fan?.isBlocked !== true;
-    };
     return (): VNode =>
       h(
         'div',
-        { class: 'shrink-0 composers' },
-        props.visited.map((slot) => {
-          const shown = isShown(slot);
+        { class: 'shrink-0 composers', 'data-stand-composers': '' },
+        props.slots.map((slot) => {
+          const shown = slot.tabId === props.activeTabId && !props.hideActive;
           return withDirectives(h(ConversationComposer, { key: slot.key, composerKey: slot.key, tabId: slot.tabId, accountId: slot.accountId, chatId: slot.chatId, shown }), [[vShow, shown]]);
         }),
       );

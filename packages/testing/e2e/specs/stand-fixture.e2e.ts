@@ -8,16 +8,20 @@ import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
 import type { ComposerSnapshot, PageJournalEntry, ServerJournalEntry } from '../../fixture-chatspace/src/protocol';
+import { createDataset } from '../../src/stand/dataset';
+import { DEFAULT_PERMISSIONS } from '../../src/stand/state';
 import { useNetworkTrap } from '../support/network-trap';
-import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady, waitForJournal } from '../support/stand';
+import { callStand, chatPath, composerRoots, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady, waitForJournal } from '../support/stand';
 import { setViewport } from '../support/visual';
 
-const { a: accountA } = STAND_IDS.accounts;
-const { a1, a2, a3, a4, a5 } = STAND_IDS.fans;
+const { a: accountA, b: accountB } = STAND_IDS.accounts;
+const { a1, a2, a3, a4, a5, a6, b1 } = STAND_IDS.fans;
 /** TipTap's Mod: ⌘ on macOS, Ctrl elsewhere. */
 const MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
-const ACTIVE_EDITOR = '.composer-root:not([style*="display: none"]) .ProseMirror';
-const ACTIVE_SEND = '.composer-root:not([style*="display: none"]) .send-button';
+/** The shown chat tab's slot (v-show sets display: none on the others). */
+const ACTIVE_SLOT = '[data-stand-composer-slot]:not([style*="display: none"])';
+const ACTIVE_EDITOR = `${ACTIVE_SLOT} .ProseMirror`;
+const ACTIVE_SEND = `${ACTIVE_SLOT} [data-stand-send]`;
 
 async function pageMark(): Promise<number> {
   return (await callStand('journal')).at(-1)?.seq ?? 0;
@@ -178,7 +182,7 @@ describe('the ChatSpace-like stand on its own', () => {
     await waitForChatReady(accountA, a2);
     expect((await callStand('composers')).length).toBe(2);
     const page = await pageMark();
-    await $('.composer-root:not([style*="display: none"]) .composer-strip__trailing .chip').click();
+    await $(`${ACTIVE_SLOT} [data-stand-templates]`).click();
     await expect($('[data-dismissible-open]')).toBeDisplayed();
     await browser.keys(Key.Escape);
     await expect($('[data-dismissible-open]')).not.toBeExisting();
@@ -318,13 +322,13 @@ describe('the ChatSpace-like stand on its own', () => {
     await setViewport({ width: 1280, height: 600 });
     await browser.waitUntil(async () => (await callStand('messageList'))?.atBottom === true, { timeout: 3000, timeoutMsg: 'list not at the bottom after the resize' });
     const insertBlock = async (): Promise<void> => {
-      await browser.execute(() => {
-        const root = document.querySelector('.composer-root:not([style*="display: none"])');
+      await browser.execute((selector: string) => {
+        const root = document.querySelector(`${selector} [data-stand-composer]`);
         const block = document.createElement('div');
         block.setAttribute('data-stand-test-block', '');
         block.style.height = '120px';
         root?.insertBefore(block, root.firstChild);
-      });
+      }, ACTIVE_SLOT);
       await browser.execute(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     };
     const removeBlock = async (): Promise<void> => {
@@ -343,19 +347,19 @@ describe('the ChatSpace-like stand on its own', () => {
         { timeout: 2000, interval: 50 },
       )
       .catch(async () => {
-        const debug = await browser.execute(() => ({ w: innerWidth, h: innerHeight, blocks: document.querySelectorAll('[data-stand-test-block]').length, roots: [...document.querySelectorAll('.composer-root')].map((r) => (r as HTMLElement).style.display) }));
+        const debug = await browser.execute(() => ({ w: innerWidth, h: innerHeight, blocks: document.querySelectorAll('[data-stand-test-block]').length, slots: [...document.querySelectorAll<HTMLElement>('[data-stand-composer-slot]')].map((slot) => slot.style.display) }));
         throw new Error(`the list lost the bottom when the box above the composer grew: ${JSON.stringify(state)} ${JSON.stringify(debug)} ${JSON.stringify((await callStand('journal')).slice(-15))}`);
       });
     await removeBlock();
 
     const anchor = async (): Promise<{ id: string | null; offset: number }> =>
       browser.execute(() => {
-        const scroller = document.querySelector<HTMLElement>('.messages-scroll');
-        const first = [...document.querySelectorAll<HTMLElement>('[data-message-id]')].find((node) => scroller !== null && node.offsetTop + node.offsetHeight > scroller.scrollTop + 1);
-        return { id: first?.dataset['messageId'] ?? null, offset: first === undefined || scroller === null ? 0 : first.offsetTop - scroller.scrollTop };
+        const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
+        const first = [...document.querySelectorAll<HTMLElement>('[data-stand-message-id]')].find((node) => scroller !== null && node.offsetTop + node.offsetHeight > scroller.scrollTop + 1);
+        return { id: first?.dataset['standMessageId'] ?? null, offset: first === undefined || scroller === null ? 0 : first.offsetTop - scroller.scrollTop };
       });
     await browser.execute(() => {
-      const scroller = document.querySelector<HTMLElement>('.messages-scroll');
+      const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
       if (scroller !== null) scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) / 2);
     });
     await browser.pause(100);
@@ -417,7 +421,7 @@ describe('the ChatSpace-like stand on its own', () => {
       const app = document.querySelector<HTMLElement & { __vue_app__?: { config: { globalProperties: Record<string, unknown> } } }>('#app')?.__vue_app__;
       const pinia = app?.config.globalProperties['$pinia'] as { _s: Map<string, unknown> } | undefined;
       const router = app?.config.globalProperties['$router'] as { currentRoute: { value: { name: unknown } } } | undefined;
-      const slot = document.querySelector('.composer-root:not([style*="display: none"]) [data-id="browser-composer-translator"]');
+      const slot = document.querySelector('[data-stand-composer-slot]:not([style*="display: none"]) [data-id="browser-composer-translator"]');
       return { pending: pinia?._s.has('pendingMessages'), route: router?.currentRoute.value.name, bridge: slot !== null && '__omComposerBridge' in slot, editor: document.querySelector('.ProseMirror') !== null };
     });
     expect(shape).toEqual({ pending: false, route: 'conversation', bridge: false, editor: true });
@@ -426,16 +430,131 @@ describe('the ChatSpace-like stand on its own', () => {
     await openStand(chatPath(accountA, a1));
   });
 
-  it("a blocked fan's composer stays hidden and its history is not loaded; unblocking shows it", async () => {
+  it("opening a blocked fan's chat loads its history (a read on the platform) and hides the composer; unblocking shows it", async () => {
     const server = await standServer.mark();
     await callStand('openChat', accountA, a3, { newTab: true });
     await browser.waitUntil(async () => (await callStand('composers')).some((composer) => composer.chatId === a3), { timeout: 5000, timeoutMsg: 'no composer for the blocked fan' });
-    await expect($('.conversation-blocked')).toBeDisplayed();
+    await expect($('[data-stand-fan-blocked]')).toBeDisplayed();
     expect((await callStand('composers')).find((composer) => composer.chatId === a3)?.shown).toBe(false);
-    expect(historyLoadsOf((await standServer.journal(server)).entries, a3)).toEqual([]);
+    const loads = await waitForJournal((items) => historyLoadsOf(items, a3).length === 1, server, 'history load of the blocked chat');
+    expect(historyLoadsOf(loads, a3)[0]?.origin).toBe('native');
     await callStand('setFan', accountA, a3, { isBlocked: false });
     await waitForChatReady(accountA, a3);
     await callStand('closeActiveChatTab');
+  });
+
+  it('no composer, slot or bridge where the host renders none: Mimic running, role without sending, fan that cannot receive, Mimic data loading', async () => {
+    const activeSlot = async (): Promise<{ slot: boolean; translator: boolean; notice: string | null; mimic: boolean }> =>
+      browser.execute((selector: string) => {
+        const slot = document.querySelector(selector);
+        return {
+          slot: slot !== null,
+          translator: (slot?.querySelector('[data-id="browser-composer-translator"]') ?? null) !== null,
+          notice: slot?.querySelector('[data-testid="chat-unavailable-notice"]')?.textContent ?? null,
+          mimic: (slot?.querySelector('[data-stand-mimic-panel]') ?? null) !== null,
+        };
+      }, ACTIVE_SLOT);
+    const until = async (want: (state: Awaited<ReturnType<typeof activeSlot>>) => boolean, what: string): Promise<void> => {
+      await browser.waitUntil(async () => want(await activeSlot()), { timeout: 5000, timeoutMsg: what });
+      expect((await composerRoots()).active).toEqual([]);
+    };
+
+    await callStand('setMimic', { isActive: true, chats: { [`${accountA}:${a6}`]: 'enabled' } });
+    await callStand('openChat', accountA, a6, { newTab: true });
+    await until((state) => state.slot && state.mimic && !state.translator && state.notice === null, 'Mimic panel without a composer');
+    await callStand('setMimic', { isActive: false, chats: {} });
+    await waitForChatReady(accountA, a6);
+
+    await callStand('setPermissions', [...DEFAULT_PERMISSIONS, 'of_block_message_sending']);
+    await until((state) => !state.translator && (state.notice ?? '').includes('Your role cannot send messages'), 'role notice without a composer');
+    // An owner sends whatever the role says.
+    await callStand('setPermissions', [...DEFAULT_PERMISSIONS, 'of_block_message_sending'], true);
+    await waitForChatReady(accountA, a6);
+    await callStand('setPermissions', [...DEFAULT_PERMISSIONS], false);
+
+    await callStand('setFan', accountA, a6, { canReceiveChatMessage: false });
+    await until((state) => !state.translator && (state.notice ?? '').includes('Messaging restricted'), 'restricted notice without a composer');
+    await callStand('setFan', accountA, a6, { canReceiveChatMessage: true });
+    await waitForChatReady(accountA, a6);
+    await callStand('closeActiveChatTab');
+
+    await standServer.holdMimic(true);
+    try {
+      await openStand(chatPath(accountA, a1), { waitForChat: false });
+      await until((state) => state.slot && !state.translator && state.notice === null && !state.mimic, 'nothing while Mimic data loads');
+    } finally {
+      await standServer.holdMimic(false);
+    }
+    await waitForChatReady(accountA, a1);
+  });
+
+  it("composers live per account: another account's composers unmount, and coming back mounts fresh ones", async () => {
+    const page = await pageMark();
+    const before = (await callStand('composers')).map((composer) => composer.key);
+    expect(before.length).toBeGreaterThan(0);
+    await callStand('openChat', accountB, b1);
+    await waitForChatReady(accountB, b1);
+    expect((await callStand('composers')).map((composer) => composer.accountId)).toEqual([accountB]);
+    await callStand('openChat', accountA, a1);
+    await waitForChatReady(accountA, a1);
+    expect((await callStand('composers')).every((composer) => composer.accountId === accountA)).toBe(true);
+    const unmounted = (await pageJournal(page, 'composer-unmounted')).map((entry) => entry['key']);
+    const mounted = (await pageJournal(page, 'composer-mounted')).map((entry) => entry['key']);
+    for (const key of before) {
+      expect(unmounted).toContain(key);
+      expect(mounted).toContain(key);
+    }
+  });
+
+  it('chat-list scopes, anchored history and pinned messages use the host keys', async () => {
+    const listKey = (...rest: string[]): string[] => ['chatList', accountA, ...rest];
+    const active = async (key: string[]): Promise<boolean> => (await callStand('queryState', key)).active;
+    await $('[data-stand-chat-scope]').selectByAttribute('value', 'filter:unread');
+    await browser.waitUntil(async () => active(listKey('filter:unread')), { timeout: 5000, timeoutMsg: 'unread list not observed' });
+    expect(await active(listKey('all'))).toBe(false);
+    await $('[data-testid="chats-panel-search-input"]').setValue('fern');
+    await browser.keys(Key.Enter);
+    await browser.waitUntil(async () => active(listKey('filter:unread', 'search:fern')), { timeout: 5000, timeoutMsg: 'search list not observed' });
+    await $('[data-stand-chat-order]').click();
+    await browser.waitUntil(async () => active(listKey('filter:unread', 'search:fern', 'order:old')), { timeout: 5000, timeoutMsg: 'old-first list not observed' });
+    await $('[data-stand-chat-scope]').selectByAttribute('value', 'all');
+    await $('[data-testid="chats-panel-search-input"]').clearValue();
+    await browser.keys(Key.Enter);
+    await $('[data-stand-chat-order]').click();
+    await browser.waitUntil(async () => active(listKey('all')), { timeout: 5000, timeoutMsg: 'back to all chats' });
+
+    const anchorId = createDataset().chats.get(`${accountA}:${a1}`)?.messages[20]?.id ?? '';
+    const server = await standServer.mark();
+    await callStand('openChat', accountA, a1, { firstId: anchorId });
+    await browser.waitUntil(async () => (await callStand('queryState', ['chatMessages', accountA, a1, anchorId])).hasData, { timeout: 5000, timeoutMsg: 'anchored history' });
+    expect(historyLoadsOf((await standServer.journal(server)).entries, a1).map((entry) => entry.detail?.['anchor'])).toEqual([anchorId]);
+    await $('[data-stand-exit-anchor]').click();
+    await browser.waitUntil(async () => !(await callStand('queryState', ['chatMessages', accountA, a1, anchorId])).exists, { timeout: 5000, timeoutMsg: 'anchored entry left behind' });
+
+    const pinnedKey = ['chatMessages', accountA, a1, 'pinned'];
+    await $('[data-testid="conversation-header-pinned-messages-button"]').click();
+    await browser.waitUntil(async () => (await callStand('queryState', pinnedKey)).hasData && (await active(pinnedKey)), { timeout: 5000, timeoutMsg: 'pinned messages not loaded' });
+    await browser.keys(Key.Escape);
+    await browser.waitUntil(async () => !(await active(pinnedKey)), { timeout: 5000, timeoutMsg: 'pinned dialog still observing' });
+    expect((await callStand('route')).chatId).toBe(a1);
+  });
+
+  it('window signals: becoming visible refreshes the chat list, not the history; offline and online force a new socket', async () => {
+    const page = await pageMark();
+    const sockets = (await callStand('wsStatus')).sockets;
+    await browser.execute(() => document.dispatchEvent(new Event('visibilitychange')));
+    const refetched = (await pageJournal(page, 'query-window-refetch')).map((entry) => (entry['key'] as string[])[0]);
+    expect(refetched).toContain('chatList');
+    expect(refetched).not.toContain('chatMessages');
+    await browser.execute(() => window.dispatchEvent(new Event('offline')));
+    await browser.waitUntil(
+      async () => {
+        const status = await callStand('wsStatus');
+        return status.sockets === sockets + 1 && status.authenticated;
+      },
+      { timeout: 10_000, timeoutMsg: 'no new socket after offline' },
+    );
+    expect((await pageJournal(page, 'ws-recover'))[0]).toMatchObject({ cause: 'offline' });
   });
 
   it('theme and fixed width: .dark/.light on <html>, --app-content-max-width 1600px', async () => {

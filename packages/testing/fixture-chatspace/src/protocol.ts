@@ -204,6 +204,8 @@ export interface FanPatch {
 export interface OpenChatOptions {
   /** Open in a new chat tab (a second composer) instead of the active one. */
   readonly newTab?: boolean;
+  /** Anchor the history at this message (`?firstId=`; its own cache entry). */
+  readonly firstId?: string;
 }
 
 /**
@@ -238,7 +240,8 @@ export interface StandControl {
   setFanOnline(accountId: string, fanId: string, online: boolean): void;
   setTranslator(accountId: string, settings: Partial<TranslatorSettings>): void;
   setMimic(state: MimicState): Promise<void>;
-  setPermissions(permissions: readonly string[]): Promise<void>;
+  /** The role's permissions, and whether the user owns the organisation (owners send even with of_block_message_sending). */
+  setPermissions(permissions: readonly string[], owner?: boolean): Promise<void>;
   wsStatus(): { readonly status: string; readonly sockets: number; readonly authenticated: boolean };
   reconnectWs(): void;
   journal(since?: number): readonly PageJournalEntry[];

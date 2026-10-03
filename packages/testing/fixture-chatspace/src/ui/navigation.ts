@@ -12,8 +12,8 @@ export interface Navigation {
   readonly router: Router;
   currentAccountId(): string | null;
   currentChatId(): string | null;
-  goToChat(accountId: string, chatId: string | null): Promise<void>;
-  openChat(accountId: string, chatId: string, options?: { readonly newTab?: boolean }): Promise<void>;
+  goToChat(accountId: string, chatId: string | null, query?: Readonly<Record<string, string>>): Promise<void>;
+  openChat(accountId: string, chatId: string, options?: { readonly newTab?: boolean; readonly firstId?: string }): Promise<void>;
   openAccount(accountId: string): Promise<void>;
   activateChatTab(accountId: string, entryId: string): Promise<void>;
   newChatTab(accountId: string): Promise<void>;
@@ -40,8 +40,8 @@ export function installNavigation(router: Router): Navigation {
   const chatTabs = useChatTabEntries();
   const accountTabs = useTabEntries();
 
-  const goToChat = async (accountId: string, chatId: string | null): Promise<void> => {
-    await router.push({ name: chatRouteName(), params: { accountId, ...(chatId !== null ? { chatId } : {}) } });
+  const goToChat = async (accountId: string, chatId: string | null, query: Readonly<Record<string, string>> = {}): Promise<void> => {
+    await router.push({ name: chatRouteName(), params: { accountId, ...(chatId !== null ? { chatId } : {}) }, query });
   };
   const activeEntryOf = (accountId: string) => {
     const state = chatTabs.stateByAccountId[accountId];
@@ -56,7 +56,8 @@ export function installNavigation(router: Router): Navigation {
     openChat: async (accountId, chatId, options = {}) => {
       chatTabs.ensureAccount(accountId);
       if (options.newTab === true) chatTabs.openEmptyEntry(accountId);
-      await goToChat(accountId, chatId);
+      // `firstId` anchors the history at a message (search hits, notifications).
+      await goToChat(accountId, chatId, options.firstId !== undefined ? { firstId: options.firstId } : {});
     },
     openAccount: async (accountId) => {
       accountTabs.openAccount(accountId);

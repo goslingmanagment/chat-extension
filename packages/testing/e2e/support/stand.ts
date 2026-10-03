@@ -129,6 +129,10 @@ export const standServer = {
   setMimic: async (mimic: MimicState): Promise<void> => {
     await control('/__stand/state', { body: { mimic } });
   },
+  /** Holds the Mimic endpoints until released: pages loaded meanwhile stay in «Mimic data loading». */
+  holdMimic: async (hold: boolean): Promise<void> => {
+    await control('/__stand/state', { body: { holdMimic: hold } });
+  },
   state: async (): Promise<{ sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> }> =>
     (await control('/__stand/state')) as { sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> },
   /** Request lines the egress sink saw (outside requests the browser tried). */

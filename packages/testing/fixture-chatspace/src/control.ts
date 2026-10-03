@@ -6,6 +6,7 @@
 import { CONTROL_REQUEST_HEADER, STAND_BREAK_PARAM, type FanPatch, type MimicState, type QueryObserverState, type SendOutcome, type StandControl } from './protocol';
 import { env } from './env';
 import { readJournal, record } from './journal';
+import { isOwner } from './net/auth';
 import { socket, socketState } from './net/socket';
 import { useQueryCache } from './query/cache';
 import type { FansMap } from './query/model';
@@ -130,8 +131,9 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
         ),
       );
     },
-    setPermissions: async (permissions) => {
-      await control('/__stand/state', { permissions });
+    setPermissions: async (permissions, owner) => {
+      await control('/__stand/state', { permissions, ...(owner !== undefined ? { owner } : {}) });
+      if (owner !== undefined) isOwner.value = owner;
       cache.setQueryData(keys.userPermissions(), [...permissions]);
     },
     wsStatus: () => {

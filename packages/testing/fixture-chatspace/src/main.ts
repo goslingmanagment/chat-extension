@@ -1,6 +1,7 @@
 // Boot of the ChatSpace-like stand page: session token → Vue app with Pinia
 // and the router on #app (so `#app.__vue_app__.config.globalProperties` has
-// `$pinia` and `$router`) → app-wide queries → socket → test-control API.
+// `$pinia` and `$router`) → app-wide queries (accounts and permissions
+// awaited, Mimic data not) → socket → test-control API.
 // Everything this page shows is synthetic (packages/testing/src/stand/dataset.ts).
 
 import './styles.css';
@@ -34,7 +35,9 @@ async function boot(): Promise<void> {
   app.use(pinia);
   app.use(router);
 
-  // App-wide queries stay observed (active) for the whole session.
+  // App-wide queries stay observed (active) for the whole session. The page
+  // waits for accounts and permissions only: Mimic data may arrive later, and
+  // until it does, composers stay unrendered (ui/composer.ts).
   const cache = useQueryCache();
   const appObserver = {};
   const appQueryOptions: QueryOptions<unknown>[] = [accountsQuery(), permissionsQuery(), mimicSettingsQuery(), mimicChatsQuery()];
@@ -43,7 +46,7 @@ async function boot(): Promise<void> {
     cache.track(entry, appObserver);
     return cache.refresh(entry);
   });
-  await Promise.all(appQueries);
+  await Promise.all(appQueries.slice(0, 2));
   useTabEntries().seed((cache.getQueryData<Account[]>(accountsQuery().key) ?? []).map((account) => String(account.id)));
   useAccountsStore();
   useChatTabEntries();

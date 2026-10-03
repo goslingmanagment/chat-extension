@@ -82,6 +82,7 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     sendJson(response, 200, { status: 'ok', data: state.permissions });
     return log(200);
   }
+  if (method === 'GET' && route.startsWith('v0/copilot/')) await state.mimicReleased();
   if (method === 'GET' && route === 'v0/copilot/settings') {
     sendJson(response, 200, { is_active: state.mimic.isActive });
     return log(200);

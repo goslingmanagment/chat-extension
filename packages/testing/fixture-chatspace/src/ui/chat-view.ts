@@ -1,32 +1,57 @@
 // The `chat` route: chat list, conversation (header, message list, composers).
-// - The chat list observes ["chatList", acc, 'all']; its rows are links with
-//   data-testid="chat-list-item" and data-chat-id.
-// - The message list observes ["chatMessages", acc, fan] of the OPEN chat only
-//   (opening a chat loads its history; nothing else does) and keeps the bottom
-//   on resize, or the anchor message when scrolled up (metadata.ts «message-list»).
-// - Opening a chat marks it read in the cache only, once the first load settled.
+// - The chat list observes the key of the list the human picked in its toolbar:
+//   ["chatList", acc, all | filter:<f> | list:<id>, search:<q>?, order:old?].
+//   Rows are links with data-testid="chat-list-item" and data-chat-id.
+// - The conversation observes the ROUTE chat's history whenever the account,
+//   the chat and the account's platform id are known — whatever the fan's
+//   state, as ChatSpace's conversation panel does: opening a blocked or unknown
+//   fan's chat loads its history (and so reads it on the platform). «Not found»
+//   comes from that load's error; a blocked fan gets a notice instead of the
+//   list. `?firstId=<id>` anchors the history (its own cache entry); the
+//   pinned-messages dialog observes the pinned entry while it is open.
+// - Opening a chat marks it read in the cache only, once the first load
+//   settled without an error.
+// - The list keeps the bottom on resize, or the anchor message when scrolled
+//   up (metadata.ts «message-list»).
+// - Composers: one per visited chat tab of the ROUTE's account (composer.ts).
 
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type PropType, type VNode } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import { record } from '../journal';
-import { api } from '../net/http';
+import { api, HTTPError } from '../net/http';
 import { useQueryCache } from '../query/cache';
-import type { Account, FansMap, Message } from '../query/model';
-import { chatListQuery, chatMessagesQuery, ensureFans, ensureFanStats, ensureInsights, keys, loadNextListPage, loadOlderHistory } from '../query/queries';
+import type { Account, FansMap, History, Message } from '../query/model';
+import {
+  ALL_CHATS,
+  CHAT_LIST_FILTERS,
+  chatListQuery,
+  chatMessagesQuery,
+  ensureFans,
+  ensureFanStats,
+  ensureInsights,
+  keys,
+  loadNextListPage,
+  loadOlderHistory,
+  pinnedMessagesQuery,
+  type ChatListView,
+} from '../query/queries';
 import { useQuery } from '../query/use-query';
 import { useChatTabEntries, useTabEntries } from '../stores/accounts';
 import { useChatListStore, useChatMessagesStore, useChatsStore } from '../stores/chats';
 import { usePendingMessages, type PendingEntry } from '../stores/pending-messages';
-import { ConversationComposers } from './composer';
+import { ConversationComposers, type ComposerSlot } from './composer';
 import { useNavigation } from './navigation';
 import { registerMessageList } from './registry';
 
 const BOTTOM_SLACK_PX = 2;
 const LOAD_OLDER_AT_PX = 40;
+/** The anchor query parameter of the chat route (a message id). */
+export const ANCHOR_PARAM = 'firstId';
+const STAND_FAN_LIST = '501';
 
 const fanName = (fans: FansMap | undefined, fanId: string): string => fans?.[fanId]?.name ?? `Fan ${fanId.slice(-4)}`;
-const preview = (message: Message | null): string =>
+const preview = (message: Pick<Message, 'text'> | null): string =>
   message === null
     ? ''
     : message.text
@@ -35,6 +60,13 @@ const preview = (message: Message | null): string =>
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
         .replaceAll('&amp;', '&');
+const isNotFound = (error: unknown): boolean => error instanceof HTTPError && error.response.status === 404;
+
+const SCOPES: ReadonlyArray<{ readonly value: ChatListView['scope']; readonly label: string }> = [
+  { value: 'all', label: 'All chats' },
+  ...CHAT_LIST_FILTERS.map((filter) => ({ value: `filter:${filter}` as const, label: `Filter: ${filter}` })),
+  { value: `list:${STAND_FAN_LIST}`, label: 'Stand fan list' },
+];
 
 const ChatsPanel = defineComponent({
   name: 'ChatsPanel',
@@ -43,7 +75,8 @@ const ChatsPanel = defineComponent({
     const cache = useQueryCache();
     const chats = useChatsStore();
     const nav = useNavigation();
-    const list = useQuery(() => chatListQuery(props.accountId, cache));
+    const view = ref<ChatListView>(ALL_CHATS);
+    const list = useQuery(() => chatListQuery(props.accountId, cache, view.value));
     useQuery(() => ({ key: keys.fansMap(props.accountId), staleTime: Number.POSITIVE_INFINITY, query: () => Promise.resolve(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)) ?? {}) }));
     const rows = computed(() => list.data.value?.pages.flatMap((page) => page.items) ?? []);
     const fans = computed(() => cache.getQueryData<FansMap>(keys.fansMap(props.accountId)));
@@ -58,10 +91,38 @@ const ChatsPanel = defineComponent({
       },
       { immediate: true },
     );
+    const setView = (patch: Partial<ChatListView>): void => {
+      view.value = { ...view.value, ...patch };
+      record('chat-list-view', { accountId: props.accountId, ...view.value });
+    };
+
+    const toolbar = (): VNode =>
+      h('div', { class: 'chats-panel__toolbar', 'data-testid': 'chat-list-toolbar' }, [
+        h('input', {
+          type: 'search',
+          class: 'chats-panel__search',
+          placeholder: 'Search chats',
+          'data-testid': 'chats-panel-search-input',
+          value: view.value.search,
+          onChange: (event: Event) => setView({ search: (event.target as HTMLInputElement).value.trim() }),
+        }),
+        h(
+          'select',
+          { class: 'chats-panel__scope', 'data-stand-chat-scope': '', onChange: (event: Event) => setView({ scope: (event.target as HTMLSelectElement).value as ChatListView['scope'] }) },
+          SCOPES.map((scope) => h('option', { value: scope.value, selected: scope.value === view.value.scope }, scope.label)),
+        ),
+        h(
+          'button',
+          { type: 'button', class: 'chip', 'data-stand-chat-order': view.value.order, onClick: () => setView({ order: view.value.order === 'old' ? 'recent' : 'old' }) },
+          view.value.order === 'old' ? 'Oldest first' : 'Newest first',
+        ),
+      ]);
+
     return (): VNode => {
       const hasMore = list.data.value?.pages.at(-1)?.hasMore === true;
       return h('aside', { class: 'chats-panel', 'data-testid': 'chats-panel' }, [
         h('div', { class: 'chats-panel__title' }, list.loading.value && rows.value.length === 0 ? 'Loading chats…' : 'Chats'),
+        toolbar(),
         h(
           'nav',
           { class: 'chats-panel__list' },
@@ -93,7 +154,7 @@ const ChatsPanel = defineComponent({
             );
           }),
         ),
-        hasMore ? h('button', { type: 'button', class: 'chip chats-panel__more', onClick: () => void loadNextListPage(cache, props.accountId) }, 'Load more') : null,
+        hasMore ? h('button', { type: 'button', class: 'chip chats-panel__more', onClick: () => void loadNextListPage(cache, props.accountId, view.value) }, 'Load more') : null,
       ]);
     };
   },
@@ -101,12 +162,17 @@ const ChatsPanel = defineComponent({
 
 const MessagesList = defineComponent({
   name: 'MessagesList',
-  props: { accountId: { type: String, required: true }, chatId: { type: String, required: true } },
+  props: {
+    accountId: { type: String, required: true },
+    chatId: { type: String, required: true },
+    anchor: { type: String as PropType<string | null>, default: null },
+  },
   setup(props) {
     const cache = useQueryCache();
-    const chatList = useChatListStore();
     const pending = usePendingMessages();
-    const history = useQuery(() => chatMessagesQuery(props.accountId, props.chatId, cache));
+    const key = computed(() => keys.chatMessages(props.accountId, props.chatId, props.anchor));
+    const history = computed(() => cache.getQueryData<History>(key.value));
+    const loading = computed(() => cache.get(key.value)?.asyncStatus.value === 'loading');
     const scroller = ref<HTMLElement | null>(null);
     const content = ref<HTMLElement | null>(null);
     // Geometry as of the last real scroll (or our own adjustment): a resize is judged against it,
@@ -114,16 +180,16 @@ const MessagesList = defineComponent({
     let last = { scrollTop: 0, scrollHeight: 0, clientHeight: 0, anchorId: null as string | null, anchorOffset: 0 };
     let loadingOlder = false;
 
-    const messages = computed(() => [...(history.data.value?.pages.flatMap((page) => page.items) ?? [])].reverse());
+    const messages = computed(() => [...(history.value?.pages.flatMap((page) => page.items) ?? [])].reverse());
     const queued = computed<PendingEntry[]>(() => (pending.messagesByAccountId[props.accountId] ?? []).filter((entry) => entry.chatId === props.chatId && entry.status !== 'confirmed'));
 
     const snapshot = (element: HTMLElement): void => {
-      const first = [...element.querySelectorAll<HTMLElement>('[data-message-id]')].find((node) => node.offsetTop + node.offsetHeight > element.scrollTop);
+      const first = [...element.querySelectorAll<HTMLElement>('[data-stand-message-id]')].find((node) => node.offsetTop + node.offsetHeight > element.scrollTop);
       last = {
         scrollTop: element.scrollTop,
         scrollHeight: element.scrollHeight,
         clientHeight: element.clientHeight,
-        anchorId: first?.dataset['messageId'] ?? null,
+        anchorId: first?.dataset['standMessageId'] ?? null,
         anchorOffset: first === undefined ? 0 : first.offsetTop - element.scrollTop,
       };
     };
@@ -134,7 +200,7 @@ const MessagesList = defineComponent({
       if (wasAtBottom()) {
         element.scrollTop = element.scrollHeight;
       } else {
-        const anchor = last.anchorId === null ? null : element.querySelector<HTMLElement>(`[data-message-id="${last.anchorId}"]`);
+        const anchor = last.anchorId === null ? null : element.querySelector<HTMLElement>(`[data-stand-message-id="${last.anchorId}"]`);
         if (anchor !== null) element.scrollTop = anchor.offsetTop - last.anchorOffset;
       }
       snapshot(element);
@@ -144,10 +210,10 @@ const MessagesList = defineComponent({
       // Only a moved scroll position is a scroll; a resize alone keeps the old judgement.
       if (element === null || Math.abs(element.scrollTop - last.scrollTop) < 0.5) return;
       snapshot(element);
-      const oldest = history.data.value?.pages.at(-1);
+      const oldest = history.value?.pages.at(-1);
       if (element.scrollTop < LOAD_OLDER_AT_PX && oldest?.hasMore === true && !loadingOlder) {
         loadingOlder = true;
-        void loadOlderHistory(cache, props.accountId, props.chatId).finally(() => {
+        void loadOlderHistory(cache, props.accountId, props.chatId, props.anchor).finally(() => {
           loadingOlder = false;
         });
       }
@@ -173,27 +239,17 @@ const MessagesList = defineComponent({
       registerMessageList(null);
     });
     watch([() => messages.value.length, () => queued.value.length], () => void nextTick(keepPosition));
-    // Opening a chat: the local unread goes to 0 once the first load settled without error.
-    watch(
-      () => [props.accountId, props.chatId, history.settled.value, history.entry.value?.state.value.status] as const,
-      ([accountId, chatId, settled, status]) => {
-        if (settled && status === 'success') chatList.markChatAsRead(accountId, chatId);
-      },
-      { immediate: true },
-    );
 
     return (): VNode =>
-      h('div', { ref: scroller, class: 'messages-scroll', onScroll }, [
+      h('div', { ref: scroller, class: 'messages-scroll', 'data-stand-message-list': '', onScroll }, [
         h('div', { ref: content, class: 'messages' }, [
-          history.loading.value && messages.value.length === 0 ? h('p', { class: 'messages__state' }, 'Loading messages…') : null,
+          loading.value && messages.value.length === 0 ? h('p', { class: 'messages__state' }, 'Loading messages…') : null,
           ...messages.value.map((message) =>
-            h('div', { key: message.id, class: ['message', message.isOutgoing ? 'message--out' : 'message--in'], 'data-message-id': message.id }, [
-              h('span', { class: 'message__text' }, preview(message)),
-            ]),
+            h('div', { key: message.id, class: ['message', message.isOutgoing ? 'message--out' : 'message--in'], 'data-stand-message-id': message.id }, [h('span', { class: 'message__text' }, preview(message))]),
           ),
           ...queued.value.map((entry) =>
-            h('div', { key: entry.id, class: ['message', 'message--out', 'message--pending', `message--${entry.status}`], 'data-pending-id': entry.id }, [
-              h('span', { class: 'message__text' }, preview({ text: entry.payload.text } as Message)),
+            h('div', { key: entry.id, class: ['message', 'message--out', 'message--pending', `message--${entry.status}`], 'data-stand-pending-id': entry.id }, [
+              h('span', { class: 'message__text' }, preview({ text: entry.payload.text })),
               h('span', { class: 'message__status' }, entry.status === 'failed' ? `failed: ${entry.error?.kind ?? ''}` : entry.status),
               entry.status === 'failed'
                 ? h('button', { type: 'button', class: 'chip', onClick: () => pending.resend(props.accountId, entry.id) }, 'Resend')
@@ -205,112 +261,177 @@ const MessagesList = defineComponent({
   },
 });
 
+/** Pinned messages of the open chat, loaded only while the dialog is open. */
+const PinnedDialog = defineComponent({
+  name: 'PinnedMessagesDialog',
+  props: { accountId: { type: String, required: true }, chatId: { type: String, required: true }, onClose: { type: Function as PropType<() => void>, required: true } },
+  setup(props) {
+    const cache = useQueryCache();
+    const pinned = useQuery(() => pinnedMessagesQuery(props.accountId, props.chatId, cache));
+    const items = computed(() => pinned.data.value?.pages.flatMap((page) => page.items) ?? []);
+    const onKeydown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') props.onClose();
+    };
+    onMounted(() => document.addEventListener('keydown', onKeydown));
+    onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
+    return (): VNode =>
+      h('div', { class: 'pinned-dialog', role: 'dialog', 'aria-label': 'Pinned messages', 'data-stand-pinned-dialog': '' }, [
+        h('div', { class: 'pinned-dialog__title' }, [h('strong', 'Pinned messages'), h('button', { type: 'button', class: 'chip', onClick: () => props.onClose() }, 'Close')]),
+        pinned.loading.value && items.value.length === 0 ? h('p', { class: 'messages__state' }, 'Loading…') : null,
+        ...items.value.map((message) => h('div', { key: message.id, class: 'message' }, [h('span', { class: 'message__text' }, preview(message))])),
+      ]);
+  },
+});
+
 const ConversationHeader = defineComponent({
   name: 'ConversationHeader',
-  props: { accountId: { type: String, required: true }, chatId: { type: String, required: true } },
+  props: {
+    accountId: { type: String, required: true },
+    chatId: { type: String, required: true },
+    onOpenPinned: { type: Function as PropType<() => void>, required: true },
+  },
   setup(props) {
     const cache = useQueryCache();
     const chats = useChatsStore();
     const fan = computed(() => cache.getQueryData<FansMap>(keys.fansMap(props.accountId))?.[props.chatId] ?? null);
-    const setBlocked = async (blocked: boolean): Promise<void> => {
-      const path = `api/v0/accounts/${props.accountId}/platforms/onlyfans/users/${props.chatId}/block`;
-      await (blocked ? api.post(path) : api.delete(path));
-      cache.setQueryData<FansMap>(keys.fansMap(props.accountId), (previous) => {
-        const current = previous?.[props.chatId];
-        return current ? { ...previous, [props.chatId]: { ...current, isBlocked: blocked } } : (previous ?? {});
-      });
-    };
     return (): VNode => {
       const online = chats.isFanOnline(props.chatId) === true;
       const typing = chats.isFanTyping(props.accountId, props.chatId);
-      return h('header', { class: 'conversation-header', 'data-testid': 'conversation-header' }, [
-        h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, fanName(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)), props.chatId).slice(4, 5)),
-        h('div', { class: 'conversation-header__text' }, [
-          h('strong', fanName(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)), props.chatId)),
-          h('span', { class: 'conversation-header__status' }, typing ? 'typing…' : online ? 'online' : 'offline'),
-        ]),
-        fan.value !== null
-          ? h(
-              'button',
-              { type: 'button', class: 'chip', 'data-testid': 'conversation-header-block-button', onClick: () => void setBlocked(!fan.value?.isBlocked).catch(() => undefined) },
-              fan.value.isBlocked ? 'Unblock' : 'Block',
-            )
-          : null,
+      const name = fanName(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)), props.chatId);
+      return h('header', { class: 'conversation-header', 'data-stand-conversation-header': '' }, [
+        h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, name.slice(4, 5)),
+        h('div', { class: 'conversation-header__text' }, [h('strong', name), h('span', { class: 'conversation-header__status' }, typing ? 'typing…' : online ? 'online' : 'offline')]),
+        h('button', { type: 'button', class: 'chip', 'data-testid': 'conversation-header-pinned-messages-button', onClick: () => props.onOpenPinned() }, 'Pinned'),
+        fan.value !== null ? h('button', { type: 'button', class: 'chip', 'data-stand-block-button': '', onClick: () => void setBlocked(cache, props.accountId, props.chatId, !fan.value?.isBlocked).catch(() => undefined) }, fan.value.isBlocked ? 'Unblock' : 'Block') : null,
       ]);
     };
   },
 });
 
+async function setBlocked(cache: ReturnType<typeof useQueryCache>, accountId: string, chatId: string, blocked: boolean): Promise<void> {
+  const path = `api/v0/accounts/${accountId}/platforms/onlyfans/users/${chatId}/block`;
+  await (blocked ? api.post(path) : api.delete(path));
+  cache.setQueryData<FansMap>(keys.fansMap(accountId), (previous) => {
+    const current = previous?.[chatId];
+    return current ? { ...previous, [chatId]: { ...current, isBlocked: blocked } } : (previous ?? {});
+  });
+}
+
 export const ChatView = defineComponent({
   name: 'ChatView',
   setup() {
     const route = useRoute();
+    const router = useRouter();
     const cache = useQueryCache();
     const accountTabs = useTabEntries();
     const chatTabs = useChatTabEntries();
+    const chatList = useChatListStore();
     useChatMessagesStore();
     const accountId = computed(() => (typeof route.params['accountId'] === 'string' ? route.params['accountId'] : ''));
     const chatId = computed(() => (typeof route.params['chatId'] === 'string' && route.params['chatId'] !== '' ? route.params['chatId'] : null));
-    const accountKnown = computed(() => (cache.getQueryData<Account[]>(keys.accounts()) ?? []).some((account) => String(account.id) === accountId.value));
-    const visited = ref<{ key: string; tabId: string; accountId: string; chatId: string }[]>([]);
+    const anchor = computed(() => {
+      const raw = route.query[ANCHOR_PARAM];
+      const value = Array.isArray(raw) ? raw[0] : raw;
+      return typeof value === 'string' && /^\d+$/.test(value) ? value : null;
+    });
+    const account = computed(() => (cache.getQueryData<Account[]>(keys.accounts()) ?? []).find((item) => String(item.id) === accountId.value));
+    const accountKnown = computed(() => account.value !== undefined);
 
-    const activeTabId = computed(() => chatTabs.stateByAccountId[accountId.value]?.activeEntryId ?? null);
-    // Route → tabs, and every visited (tab, chat) keeps a composer.
+    // Route → tabs.
     watch(
       () => [accountId.value, chatId.value] as const,
-      ([account, chat]) => {
-        if (account === '') return;
-        accountTabs.openAccount(account);
-        chatTabs.ensureAccount(account);
-        chatTabs.syncActiveEntryWithChat(account, chat);
+      ([acc, chat]) => {
+        if (acc === '') return;
+        accountTabs.openAccount(acc);
+        chatTabs.ensureAccount(acc);
+        chatTabs.syncActiveEntryWithChat(acc, chat);
         if (chat !== null) {
-          void ensureFans(cache, account, [chat]).catch(() => undefined);
-          void ensureInsights(cache, account, chat).catch(() => undefined);
+          void ensureFans(cache, acc, [chat]).catch(() => undefined);
+          void ensureInsights(cache, acc, chat).catch(() => undefined);
         }
       },
       { immediate: true },
-    );
-    watch(
-      () => [accountId.value, chatId.value, activeTabId.value] as const,
-      ([account, chat, tab]) => {
-        // Only a settled pair: mid-transition the active tab and the route may disagree.
-        const tabChat = chatTabs.stateByAccountId[account]?.entries.find((entry) => entry.id === tab)?.chatId ?? null;
-        if (chat === null || tab === null || tabChat !== chat) return;
-        const key = `${tab}:${account}:${chat}`;
-        if (!visited.value.some((slot) => slot.key === key)) {
-          visited.value = [...visited.value, { key, tabId: tab, accountId: account, chatId: chat }];
-          record('composer-slot-visited', { key });
-        }
-      },
-      { immediate: true },
-    );
-    // A tab that no longer holds that chat drops its composer (a new key mounts a new one).
-    watch(
-      () => JSON.stringify(chatTabs.stateByAccountId),
-      () => {
-        visited.value = visited.value.filter((slot) => chatTabs.stateByAccountId[slot.accountId]?.entries.some((entry) => entry.id === slot.tabId && entry.chatId === slot.chatId) === true);
-      },
     );
 
-    // The conversation waits for its fan: unknown → loading, not found → notice, blocked → notice (no history load).
-    const conversation = (): VNode => {
-      const fan = chatId.value === null ? undefined : cache.getQueryData<FansMap>(keys.fansMap(accountId.value))?.[chatId.value];
-      if (chatId.value === null || !accountKnown.value) return h('div', { class: 'conversation-empty' }, 'Pick a chat');
-      if (fan === undefined) return h('div', { class: 'conversation-empty' }, 'Loading…');
-      if (fan === null) return h('div', { class: 'conversation-empty' }, 'Chat not found');
-      if (fan.isBlocked) return h('div', { class: 'conversation-empty conversation-blocked' }, 'You blocked this fan');
-      return h(MessagesList, { key: `${accountId.value}:${chatId.value}`, accountId: accountId.value, chatId: chatId.value });
+    // Every chat tab ever active keeps a composer — those of the route's account are rendered.
+    const activeTabId = computed(() => chatTabs.stateByAccountId[accountId.value]?.activeEntryId ?? null);
+    const visitedTabIds = ref(new Set<string>());
+    watch(
+      activeTabId,
+      (tab) => {
+        if (tab !== null && !visitedTabIds.value.has(tab)) visitedTabIds.value = new Set([...visitedTabIds.value, tab]);
+      },
+      { immediate: true },
+    );
+    const slots = computed<ComposerSlot[]>(() =>
+      (chatTabs.stateByAccountId[accountId.value]?.entries ?? []).flatMap((entry) =>
+        entry.chatId !== null && visitedTabIds.value.has(entry.id) ? [{ key: `${entry.id}:${accountId.value}:${entry.chatId}`, tabId: entry.id, accountId: accountId.value, chatId: entry.chatId }] : [],
+      ),
+    );
+
+    // The route chat's history, whatever its fan.
+    const history = useQuery(() => {
+      const platformAccountId = account.value?.platformAccountId;
+      return chatId.value !== null && platformAccountId !== undefined && platformAccountId !== '' ? chatMessagesQuery(accountId.value, chatId.value, cache, anchor.value) : null;
+    });
+    const historyState = computed(() => history.entry.value?.state.value);
+    const isError = computed(() => historyState.value?.status === 'error');
+    const notFound = computed(() => isError.value && isNotFound(historyState.value?.error));
+    const initialFetchFinished = computed(() => historyState.value !== undefined && historyState.value.status !== 'pending');
+    watch(
+      () => [chatId.value, accountId.value, initialFetchFinished.value, isError.value] as const,
+      ([chat, acc, finished, error]) => {
+        if (chat !== null && acc !== '' && finished && !error) chatList.markChatAsRead(acc, chat);
+      },
+      { immediate: true },
+    );
+
+    const pinnedOpen = ref(false);
+    watch([accountId, chatId], () => {
+      pinnedOpen.value = false;
+    });
+    const fan = computed(() => (chatId.value === null ? undefined : cache.getQueryData<FansMap>(keys.fansMap(accountId.value))?.[chatId.value]));
+
+    /** Leaves the anchored history: back to the latest messages; the anchored entry is dropped. */
+    const exitAnchor = async (): Promise<void> => {
+      const left = anchor.value;
+      const chat = chatId.value;
+      const query = { ...route.query };
+      delete query[ANCHOR_PARAM];
+      await router.replace({ query });
+      if (left === null || chat === null) return;
+      for (const entry of cache.getEntries({ key: keys.chatMessages(accountId.value, chat, left), exact: true })) {
+        cache.cancel(entry);
+        cache.remove(entry);
+      }
     };
 
-    return (): VNode => {
-      return h('div', { class: 'chat-view' }, [
-        accountKnown.value ? h(ChatsPanel, { accountId: accountId.value, chatId: chatId.value }) : h('aside', { class: 'chats-panel' }, 'Unknown account'),
+    const conversation = (): VNode | VNode[] => {
+      const chat = chatId.value;
+      if (chat === null || !accountKnown.value) return h('div', { class: 'conversation-empty' }, 'Pick a chat');
+      const body = notFound.value
+        ? h('div', { class: 'conversation-empty', 'data-stand-chat-not-found': '' }, 'Chat not found')
+        : fan.value?.isBlocked === true
+          ? h('div', { class: 'conversation-empty conversation-blocked', 'data-stand-fan-blocked': '' }, [
+              h('span', 'You blocked this fan'),
+              h('button', { type: 'button', class: 'chip', onClick: () => void setBlocked(cache, accountId.value, chat, false).catch(() => undefined) }, 'Unblock'),
+            ])
+          : h(MessagesList, { key: `${accountId.value}:${chat}:${anchor.value ?? ''}`, accountId: accountId.value, chatId: chat, anchor: anchor.value });
+      return [
+        h(ConversationHeader, { key: `${accountId.value}:${chat}`, accountId: accountId.value, chatId: chat, onOpenPinned: () => (pinnedOpen.value = true) }),
+        anchor.value !== null ? h('button', { type: 'button', class: 'chip conversation-anchor', 'data-stand-exit-anchor': '', onClick: () => void exitAnchor() }, 'Jump to latest') : null,
+        body,
+        pinnedOpen.value ? h(PinnedDialog, { key: `pinned:${accountId.value}:${chat}`, accountId: accountId.value, chatId: chat, onClose: () => (pinnedOpen.value = false) }) : null,
+      ].filter((node): node is VNode => node !== null);
+    };
+
+    return (): VNode =>
+      h('div', { class: 'chat-view' }, [
+        accountKnown.value ? h(ChatsPanel, { key: accountId.value, accountId: accountId.value, chatId: chatId.value }) : h('aside', { class: 'chats-panel' }, 'Unknown account'),
         h('section', { class: 'conversation-panel' }, [
-          chatId.value !== null && accountKnown.value ? h(ConversationHeader, { key: `${accountId.value}:${chatId.value}`, accountId: accountId.value, chatId: chatId.value }) : null,
           conversation(),
-          h(ConversationComposers, { accountId: accountId.value, chatId: chatId.value, activeTabId: activeTabId.value, visited: visited.value }),
+          h(ConversationComposers, { slots: slots.value, activeTabId: activeTabId.value, hideActive: notFound.value || fan.value?.isBlocked === true }),
         ]),
       ]);
-    };
   },
 });

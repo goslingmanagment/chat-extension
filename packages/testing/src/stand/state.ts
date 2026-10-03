@@ -21,6 +21,10 @@ export class StandState {
   dataset: StandDataset = createDataset();
   permissions: string[] = [...DEFAULT_PERMISSIONS];
   mimic: MimicState = { isActive: false, chats: {} };
+  /** The signed-in user owns the organisation (owners send even with of_block_message_sending). */
+  owner = false;
+  /** While held, the Mimic endpoints answer only when released (the page's «Mimic data loading» state). */
+  private mimicGate: { readonly opened: Promise<void>; readonly open: () => void } | null = null;
   /** While true, the socket never answers `auth` with `authenticated`. */
   withholdAuth = false;
   /** What the socket sends on its own (summaries, typing). */
@@ -34,10 +38,32 @@ export class StandState {
     this.dataset = createDataset();
     this.permissions = [...DEFAULT_PERMISSIONS];
     this.mimic = { isActive: false, chats: {} };
+    this.owner = false;
+    this.holdMimic(false);
     this.withholdAuth = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.scripts.clear();
     // Issued tokens stay valid: an open page keeps its session across a reset.
+  }
+
+  holdMimic(hold: boolean): void {
+    if (hold && this.mimicGate === null) {
+      let open: () => void = () => undefined;
+      const opened = new Promise<void>((resolve) => (open = resolve));
+      this.mimicGate = { opened, open };
+    } else if (!hold && this.mimicGate !== null) {
+      this.mimicGate.open();
+      this.mimicGate = null;
+    }
+  }
+
+  get mimicHeld(): boolean {
+    return this.mimicGate !== null;
+  }
+
+  /** Resolves at once, or when a hold is released. */
+  mimicReleased(): Promise<void> {
+    return this.mimicGate?.opened ?? Promise.resolve();
   }
 
   issueToken(): string {
