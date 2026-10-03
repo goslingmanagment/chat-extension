@@ -2,7 +2,8 @@
 // op scheduler, send coordinator, telemetry queue, log sink, settings owner,
 // sound arbiter, tab presence. R10, R17, R18 fill in the rest.
 //
-// R07: the settings owner, the readiness barrier, the results store — over
+// R07: the settings owner, the readiness barrier, the results store, the X8
+// send journal — all over
 // the ports in ./storage/ports (the composition root passes @cg/platform's
 // adapters, which have exactly those shapes).
 
@@ -53,3 +54,19 @@ export {
   type ResultsStore,
   type ResultsStoreDeps,
 } from './results-store';
+export {
+  SEND_JOURNAL_LIMITS,
+  SEND_JOURNAL_OPEN_STATES,
+  createSendJournal,
+  isOpenSendState,
+  type SendJournal,
+  type SendJournalAdvance,
+  type SendJournalBegin,
+  type SendJournalDeps,
+  type SendJournalLimits,
+  type SendJournalMode,
+  type SendJournalRecovery,
+  type SendJournalRefusal,
+  type SendJournalStats,
+  type SendJournalUpdate,
+} from './send-journal';
