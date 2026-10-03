@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "exports": { "./domain": "./src/domain/index.ts", "./domain/text": "./src/domain/text/index.ts", "./domain/i18n": "./src/domain/i18n/index.ts", "./domain/errors": "./src/domain/errors/index.ts", "./domain/logging": "./src/domain/logging/index.ts", "./services": "./src/services/index.ts", "./application": "./src/application/index.ts" },
+  "exports": { "./domain": "./src/domain/index.ts", "./domain/text": "./src/domain/text/index.ts", "./domain/i18n": "./src/domain/i18n/index.ts", "./domain/errors": "./src/domain/errors/index.ts", "./domain/logging": "./src/domain/logging/index.ts", "./domain/telemetry": "./src/domain/telemetry/index.ts", "./services": "./src/services/index.ts", "./application": "./src/application/index.ts" },
   "dependencies": { "@cg/contracts": "workspace:*", "@chatgoose/hotkeys": "workspace:*" }
 }
