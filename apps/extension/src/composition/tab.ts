@@ -23,6 +23,7 @@ export const LAZY_DOCK_PATH = 'lazy/dock.js';
 const FIRST_SEARCH_MS = 30_000;
 
 export function composeTab(env: TabEnv): void {
+  const started = performance.now();
   const { ctx, win } = env;
   const doc = win.document;
   // Spike/e2e diagnostics exist only in a CG_TEST_HOSTS build: the compile-time
@@ -63,14 +64,17 @@ export function composeTab(env: TabEnv): void {
 
   void waitForComposer(doc, ctx).then(async (parent) => {
     if (!parent || ctx.isInvalid) return;
-    const started = performance.now();
+    const loadStarted = performance.now();
     const chunk = (await import(/* @vite-ignore */ extensionUrl(LAZY_DOCK_PATH))) as typeof DockChunk;
-    const loadMs = performance.now() - started;
+    const loadMs = performance.now() - loadStarted;
     if (ctx.isInvalid) return;
     dockHost = mountClosedHost(parent, 'dock');
     const dock = chunk.mountDock(dockHost.root, { status: 'Каркас R00' });
     probe?.dockMounted(dockHost, { loadMs, renderMs: dock.renderMs, styleMode: dock.styleMode });
   }).catch((error: unknown) => probe?.set('dockError', String(error)));
+
+  // Synchronous early bootstrap cost (§11: ≤ 3 ms on winpc).
+  probe?.set('bootstrapMs', performance.now() - started);
 }
 
 function waitForComposer(doc: Document, ctx: ContentScriptContext): Promise<HTMLElement | null> {

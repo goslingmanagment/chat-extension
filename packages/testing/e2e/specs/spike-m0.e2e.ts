@@ -6,6 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
 
 import { htmlAttribute, installTestBuild, readReport, standUrl, waitForReport, type SpikeReport } from '../support/extension';
 
@@ -31,6 +32,7 @@ describe('spike M0 — test build on the loopback stand', () => {
     expect(report.main?.readyStateAtStart).toBe('loading');
     expect(report['readyStateAtStart']).toBe('loading');
     evidence['main'] = report.main;
+    evidence['isolated'] = { startedAt: report.startedAt, bootstrapMs: report['bootstrapMs'] };
   });
 
   it('d) the background registers the WS tap dynamically (world MAIN) and it runs at document_start', async () => {
@@ -88,6 +90,17 @@ describe('spike M0 — test build on the loopback stand', () => {
     const report = await waitForReport((r) => r.focus?.value === 'hi Привет', 'typed text in the closed-root input');
     expect(report.focus).toEqual({ rootActive: 'INPUT', docActiveIsHost: true, value: 'hi Привет' });
     evidence['focus'] = report.focus;
+
+    // Keyboard: from the ChatSpace-like editor below, Shift+Tab goes back into
+    // the closed root (the dock precedes the composer frame in DOM order).
+    await browser.execute(() => document.querySelector<HTMLElement>('.editor')?.focus());
+    expect(await browser.execute(() => document.activeElement?.className)).toBe('editor');
+    await browser.keys(['Shift', 'Tab']);
+    // Tab focus selects the input's text; move to the end before typing.
+    await browser.keys([Key.ArrowRight, '!']);
+    const keyboard = await waitForReport((r) => r.focus?.value === 'hi Привет!', 'Shift+Tab back into the closed root');
+    expect(keyboard.focus?.docActiveIsHost).toBe(true);
+    evidence['keyboardFocus'] = keyboard.focus;
     // What it actually looks like (owner reads the picture in docs, not the DOM).
     mkdirSync(evidenceDir, { recursive: true });
     await browser.saveScreenshot(`${evidenceDir}stand-dock.png`);
@@ -95,7 +108,10 @@ describe('spike M0 — test build on the loopback stand', () => {
 
   it('c) a strict page CSP does not block the lazy chunk or our styles', async () => {
     await browser.url(standUrl('/spike.html?csp=strict'));
-    const report = await waitForReport((r) => (r.list !== undefined && r.dock !== undefined) || r.dockError !== undefined || r.listError !== undefined, 'dock + list under strict CSP');
+    const report = await waitForReport(
+      (r) => (r.list !== undefined && r.dock !== undefined && r.main !== undefined) || r.dockError !== undefined || r.listError !== undefined,
+      'dock + list + MAIN probe under strict CSP',
+    );
     expect(report.dockError).toBeUndefined();
     expect(report.listError).toBeUndefined();
     expect(report.main?.readyStateAtStart).toBe('loading');

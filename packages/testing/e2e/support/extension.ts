@@ -45,13 +45,17 @@ export async function readReport(): Promise<SpikeReport | null> {
 
 export async function waitForReport(predicate: (report: SpikeReport) => boolean, message: string, timeout = 15_000): Promise<SpikeReport> {
   let last: SpikeReport | null = null;
-  await browser.waitUntil(
-    async () => {
-      last = await readReport();
-      return last !== null && predicate(last);
-    },
-    { timeout, interval: 100, timeoutMsg: `${message}; last report: ${JSON.stringify(last)}` },
-  );
+  try {
+    await browser.waitUntil(
+      async () => {
+        last = await readReport();
+        return last !== null && predicate(last);
+      },
+      { timeout, interval: 100 },
+    );
+  } catch {
+    throw new Error(`${message}: not reached in ${timeout} ms; last report: ${JSON.stringify(last)}`);
+  }
   return last as unknown as SpikeReport;
 }
 
