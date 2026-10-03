@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "exports": { "./main": "./src/main/index.ts", "./isolated": "./src/isolated/index.ts" },
-  "dependencies": { "@cg/contracts": "workspace:*", "@cg/core": "workspace:*" }
+  "exports": {
+    "./main": "./src/main/index.ts",
+    "./isolated": "./src/isolated/index.ts",
+    "./host-contract": "./src/isolated/host-contract.ts"
+  },
+  "dependencies": {
+    "@cg/contracts": "workspace:*",
+    "@cg/core": "workspace:*"
+  }
 }

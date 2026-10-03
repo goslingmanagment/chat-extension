@@ -1,7 +1,8 @@
 # Контракты и протоколы (`packages/contracts`)
 
 Пакет работ R01 закончен: общие интерфейсы `architecture.md` §5 и §10.2 заморожены,
-`CONTRACTS_VERSION = '1.0.0'` (тег `contracts-v1.0` ставится на слияние в `main`).
+`CONTRACTS_VERSION = '1.1.0'` (тег `contracts-v1.0` ставится на слияние в `main`;
+1.1.0 — отмена «Открыть и вставить», см. журнал).
 Менять их можно только по правилу из [журнала изменений](../contracts-changelog.md).
 
 R01 делали четыре исполнителя, интегратор свёл их работу:
@@ -108,7 +109,8 @@ R01 делали четыре исполнителя, интегратор св�
 
 ## Мост MAIN ↔ изолированный мир (§5.3)
 
-15 запросов в MAIN (`TO_MAIN_TYPES`), 9 сообщений из MAIN (`FROM_MAIN_TYPES`).
+16 запросов в MAIN (`TO_MAIN_TYPES`; `cancelInsert` — с 1.1.0), 9 сообщений из MAIN
+(`FROM_MAIN_TYPES`).
 
 - **Конверт:** `{v: 1, kind, id, t, documentEpoch, seq, payload}`; ответ несёт тот
   же `t`, `ok: true` + `data` или `ok: false` + транспортную ошибку (`BRIDGE_ERRORS`,

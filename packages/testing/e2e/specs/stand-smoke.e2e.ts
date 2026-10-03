@@ -145,8 +145,9 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
     expect(back.active).toEqual([firstKey]);
   });
 
-  // R00 mounts the dock once (first composer found); following the active
-  // composer on route changes is R09's job. Unskip with R09.
+  // R00's composition root mounts the dock once (first composer found). R09's
+  // mount manager follows the active composer (proved by host-adapter.e2e.ts
+  // on the stand); unskip once the integrator wires host-chatspace into tab.ts.
   it.skip('R09: the dock follows the active composer when the route changes', async () => {
     await callStand('openChat', accountA, a2, { newTab: true });
     await browser.waitUntil(async () => (await composerRoots()).active[0]?.endsWith(`:${a2}`) === true, { timeout: 5000 });

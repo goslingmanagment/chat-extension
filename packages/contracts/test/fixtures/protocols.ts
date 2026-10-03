@@ -370,6 +370,10 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
     },
     data: { valid: [{ state: 'navigated', routeEpoch: 6, insert: null }, { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: null }], invalid: [{ state: 'navigated' }] },
   },
+  cancelInsert: {
+    payload: { valid: [{ intentId: uuid(9) }], invalid: [{ intentId: 'intent-9' }, { intentId: uuid(9), reason: 'sign-out' }] },
+    data: { valid: [{ canceled: true }, { canceled: false }], invalid: [{ canceled: 'yes' }] },
+  },
   checkpoint: { payload: { valid: [accFan], invalid: [{ ...accFan, fan: '0' }] }, data: { valid: [checkpoint], invalid: [{ ...checkpoint, coverage: 'maybe' }] } },
   previewSendPreflight: {
     payload: { valid: [{ req: mainSend }], invalid: [{ req: { ...mainSend, binding } }] },

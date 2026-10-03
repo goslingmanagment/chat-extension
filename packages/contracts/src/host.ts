@@ -483,6 +483,16 @@ export type HostEvent =
   | { readonly type: 'reloadNeeded' };
 
 /** §5.2. Lives in the isolated world; MAIN is reached only through the bridge. */
+/** Options of HostPort.navigate (contracts carry no DOM types: the part of AbortSignal it uses). */
+export interface NavigateOptions {
+  /** Aborted → a pending `thenInsert` is canceled (§6.5). */
+  readonly signal?: {
+    readonly aborted: boolean;
+    addEventListener(type: 'abort', listener: () => void, options?: { readonly once?: boolean }): void;
+    removeEventListener(type: 'abort', listener: () => void): void;
+  };
+}
+
 export interface HostPort {
   readonly kind: HostKind;
   readonly platform: Platform;
@@ -504,8 +514,14 @@ export interface HostPort {
   /** An `open` intent; its cause is redeemed first (§14). */
   insert(intent: InsertIntent): Promise<InsertReceipt>;
   focusComposer(expected: HostIdentity): Promise<boolean>;
-  /** Only on a human action; its cause is redeemed first (§14). */
-  navigate(intent: NavigationIntent): Promise<NavigationReceipt>;
+  /**
+   * Only on a human action; its cause is redeemed first (§14). Aborting
+   * `options.signal` cancels a pending `thenInsert` (§6.5: sign-out, persona
+   * or binding change, the preview closed): it is not written unless it
+   * already was, and the receipt's insert is CG-INSERT-CANCELED. The
+   * navigation itself is not undone.
+   */
+  navigate(intent: NavigationIntent, options?: NavigateOptions): Promise<NavigationReceipt>;
   /**
    * Snapshot of the freshness counters (§6.7.5), asked on the Generate click:
    * MAIN takes it in one synchronous step of its handler (only MAIN holds the

@@ -87,6 +87,10 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
       env.editorChunkDelayMs = ms;
       record('stand-editor-delay', { ms });
     },
+    setRouteDelayMs: (ms) => {
+      env.routeDelayMs = ms;
+      record('stand-route-delay', { ms });
+    },
     injectFanMessage: async (accountId, fanId, text) => {
       const result = (await control('/__stand/fan-message', { accountId, fanId, ...(text !== undefined ? { text } : {}) })) as { id: string };
       return result.id;

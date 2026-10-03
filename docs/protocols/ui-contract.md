@@ -55,6 +55,14 @@
     `{name}`. `FeedItemVM.at` и `.automatic` бывают `null` («неизвестно»). У панели
     фана названы источники: деньги и подписка — `fan.card`, «был N назад», био,
     списки и оценки ChatSpace — `HostFan`, риск ухода — статус удержания строки доски.
+11. **Хосты монтирования ChatSpace (R09, `@cg/host-chatspace`).** Хост оверлея
+    (`mounts.overlay('panel' | 'modal' | 'toast')`) — на весь экран
+    (`position: fixed; inset: 0`) и **пропускает клики** (`pointer-events: none`),
+    чтобы пустая часть слоя не закрывала ChatSpace. Панель, окно или тост внутри
+    закрытого корня сами ставят себе `pointer-events: auto`, иначе клики проходят
+    сквозь них. Док (`mounts.dock`) — в потоке над composer, кликается как есть.
+    `HostPort.chatWindow(chat, max)` у ChatSpace считает по всему, что ChatSpace уже
+    загрузил (не больше 200 сообщений): `max` не сужает окно.
 
 ## Сценарии
 

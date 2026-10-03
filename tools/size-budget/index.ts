@@ -8,6 +8,7 @@ import { parseArgs } from 'node:util';
 import { fail, OUTPUT_ROOT, RELEASE_DIR } from '../lib/paths.ts';
 import { computeBudgets, KIB, type LazyChunk } from './budget.ts';
 import { probeContracts } from './contracts-probes.ts';
+import { probeMain } from './main-probes.ts';
 
 const { values } = parseArgs({ options: { dir: { type: 'string', default: RELEASE_DIR } } });
 const dir = values.dir;
@@ -19,7 +20,7 @@ try {
   fail(`size-budget: ${dir}.lazy-chunks.json not found — run the build first (pnpm build).`);
 }
 
-const lines = [...computeBudgets((file) => readFileSync(join(dir, file)), chunks), ...(await probeContracts())];
+const lines = [...computeBudgets((file) => readFileSync(join(dir, file)), chunks), ...(await probeMain()), ...(await probeContracts())];
 const kib = (bytes: number): string => `${(bytes / KIB).toFixed(2)} KiB`;
 for (const line of lines) {
   console.log(`${line.ok ? 'ok  ' : 'OVER'}  ${line.label.padEnd(66)} ${kib(line.gzipBytes).padStart(11)} / ${kib(line.limitBytes)}`);
