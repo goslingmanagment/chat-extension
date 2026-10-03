@@ -61,9 +61,6 @@ export function featureGate(feature: FeatureId, facts: GateFacts): Gate | null {
   // AI-021: Fix rewrites the person's draft; without one there is nothing to fix.
   if (rule.requiresDraft && facts.draftEmpty === true) return gate('needs-draft');
   switch (feature) {
-    case 'reply':
-      // A reply answers the fan: a whole conversation without a fan message is Hi's ground.
-      return wholeHistory(window) && window.fanMessages === 0 ? gate('no-history') : null;
     case 'hi':
       // AI-031: a fan's message is always personal, so more than ten of them is a dialog whatever else is there.
       return window.fanMessages > HI_MAX_PERSONAL_MESSAGES ? gate('hi-gate') : null;
@@ -73,6 +70,9 @@ export function featureGate(feature: FeatureId, facts: GateFacts): Gate | null {
     case 'recap':
       // AI-051: only when the whole conversation is loaded and it is short.
       return wholeHistory(window) && window.loaded < MIN_MESSAGES_FOR_DEEP ? gate('no-history') : null;
+    // Reply has no client gate of its own (neither predecessor had one): whether a chat without a fan
+    // message can be answered is the hub's to say.
+    case 'reply':
     case 'fix':
     case 'recap-short':
     case 'coach':

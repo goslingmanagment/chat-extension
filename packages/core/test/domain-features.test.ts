@@ -213,9 +213,10 @@ describe('client gates', () => {
     expect(featureGate('review', facts({ window: { ...short, loaded: 30 } }))).toBeNull();
   });
 
-  it('Reply needs a fan message when the whole conversation has none', () => {
-    expect(featureGate('reply', facts({ window: windowOf({ loaded: 3, fanMessages: 0, modelMessages: 3, hasOlder: false }) }))?.code).toBe('CG-GATE-HISTORY');
-    expect(featureGate('reply', facts({ window: windowOf({ loaded: 3, fanMessages: 0, modelMessages: 3, hasOlder: true }) }))).toBeNull();
+  it('[AI-001] Reply has no client gate beyond the loading chat: a chat without a fan message is the hub\'s to judge', () => {
+    expect(featureGate('reply', facts({ window: windowOf({ loaded: 3, fanMessages: 0, modelMessages: 3, hasOlder: false }) }))).toBeNull();
+    expect(featureGate('reply', facts({ window: windowOf({ loaded: 0, fanMessages: 0, modelMessages: 0, hasOlder: false }) }))).toBeNull();
+    expect(featureGate('reply', facts({ window: null }))?.code).toBe('CG-GATE-CHAT-LOADING');
   });
 
   it('[AI-036] Ping is never blocked on OnlyFans; the segment is only a hint', () => {

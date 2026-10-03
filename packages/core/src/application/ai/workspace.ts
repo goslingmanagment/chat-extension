@@ -339,9 +339,11 @@ export class AiWorkspace {
     if (bootstrap.s !== 'ready') return off('loading-chat', 'chat-loading', null);
     if (chat === null) return off('ready', 'chat-loading', null);
 
-    // UI-011: without the host's identity the account is not known — nothing sensitive runs.
+    // UI-011: without the host's identity the account is not known — nothing sensitive runs. It is the
+    // «ChatSpace обновился» banner («вставка недоступна — только Копировать»), so parts are copy-only too:
+    // what was generated before can still be copied, nothing new starts (the buttons say why).
     const identityOn = snapshot.contract.capabilities.identity.state === 'on' && snapshot.contract.capabilities.route.state === 'on';
-    if (!identityOn) return off('host-degraded', 'host-degraded', { code: 'CG-HOST-CONTRACT' });
+    if (!identityOn) return { ...off('host-degraded', 'host-degraded', { code: 'CG-HOST-CONTRACT' }), copyOnly: { reason: 'host-degraded', code: 'CG-HOST-CONTRACT' } };
     if (chat.account === null || chat.identity === null) return off('loading-chat', 'chat-loading', null);
 
     const binding = this.env.binding(chat.account);

@@ -136,8 +136,26 @@ describe('dock: where it shows and what state it is in', () => {
     const vm = h.dock();
     expect(vm.status).toBe('host-degraded');
     expect(vm.statusError?.code).toBe('CG-HOST-CONTRACT');
+    // The banner says «только Копировать»: the mode agrees with it (vm/dock.ts: host-degraded is copy-only).
+    expect(vm.mode).toBe('copy-only');
+    expect(vm.view).toEqual({ s: 'partial', gaps: [{ kind: 'host-degraded', capabilities: ['identity', 'route'] }] });
     expect(vm.actions.reply).toMatchObject({ enabled: false });
     expect(vm.actions.reply.reason?.id).toBe('host-degraded');
+    expect(vm.actions.reply.reason?.code).toBe('CG-HOST-CONTRACT');
+    expect(vm.targetHandle).toBeNull();
+    expect(await h.dispatch({ type: 'Generate', targetHandle: targetHandle('dock', openChat), feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-HOST-CONTRACT' });
+    expect(h.bg.callsOf('op.start')).toEqual([]);
+
+    // What was generated before the break can be copied, never inserted.
+    const before = await start();
+    const opId = await reply(before, 'made before the break');
+    before.host.setCapability('route', { state: 'contractBroken', reason: 'router' });
+    await before.settle();
+    expect(before.dock()).toMatchObject({ status: 'host-degraded', mode: 'copy-only' });
+    expect(partsOf(before)[0]?.insertBlocked).toMatchObject({ id: 'host-degraded', code: 'CG-HOST-CONTRACT' });
+    expect(await before.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-HOST-CONTRACT' });
+    expect(before.host.inserts).toBe(0);
+    expect(await before.dispatch({ type: 'Copy', artifactHandle: partsOf(before)[0]?.copyHandle as string })).toMatchObject({ ok: true });
   });
 
   it('[UI-013] no persona for the page: the banner leads to «Персоны»', async () => {
