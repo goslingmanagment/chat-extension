@@ -1,0 +1,347 @@
+// A scripted HostPort (architecture.md §5.2, §16 freeze item 9): what the
+// ChatSpace adapter (R09) promises its consumers — the operation and send
+// coordinators (R10), the controllers (R11, R12) — without a ChatSpace page.
+// It answers from the script's memory and answer queues, plays the script's
+// timeline on `advance()`, and checks every call against the contracts the
+// way the real adapter must: an intent without its action token, a deferred
+// insert through insert(), a second queue call for one attempt are contract
+// violations, not refusals a person would see.
+
+import {
+  InsertIntentSchema,
+  NavigationIntentSchema,
+  PreviewSendRequestSchema,
+  DispatchTicketSchema,
+  chatKeyOf,
+  type ChatRef,
+  type ChatWindow,
+  type DispatchTicket,
+  type DraftSnapshot,
+  type FreshnessCheckpoint,
+  type HostAccount,
+  type HostContractReport,
+  type HostEvent,
+  type HostFan,
+  type HostIdentity,
+  type HostPort,
+  type HostSnapshot,
+  type HostTheme,
+  type InsertIntent,
+  type InsertReceipt,
+  type LiveTextTail,
+  type MountPoints,
+  type NavigationIntent,
+  type NavigationItem,
+  type NavigationReceipt,
+  type PreviewSendCommit,
+  type PreviewSendPort,
+  type PreviewSendPreflight,
+  type PreviewSendRequest,
+  type SendAttemptView,
+  type Unsubscribe,
+} from '@cg/contracts';
+
+/** What ChatSpace already holds in page memory; the port reads only this (never the network). */
+export interface HostMemory {
+  readonly drafts: readonly DraftSnapshot[];
+  readonly tails: readonly { readonly chat: ChatRef; readonly tail: LiveTextTail }[];
+  readonly chatWindows: readonly ChatWindow[];
+  readonly fans: readonly HostFan[];
+  readonly chatList: readonly NavigationItem[];
+}
+
+/** Answers to the port's checks and writes, taken in order per kind; an empty queue answers the default. */
+export interface HostAnswers {
+  /** `token.redeem` for each insert and navigation (default: redeemed). */
+  readonly redeem?: readonly boolean[];
+  readonly insert?: readonly InsertReceipt[];
+  readonly navigate?: readonly NavigationReceipt[];
+  /** null — MAIN gave no checkpoint (default: the script's `checkpoint`). */
+  readonly checkpoint?: readonly (FreshnessCheckpoint | null)[];
+  readonly preflight?: readonly PreviewSendPreflight[];
+  readonly commit?: readonly PreviewSendCommit[];
+}
+
+export type HostStep =
+  | { readonly kind: 'event'; readonly at: number; readonly event: HostEvent }
+  /** A PreviewSendPort.onState update of one attempt. */
+  | { readonly kind: 'send-state'; readonly at: number; readonly view: SendAttemptView }
+  | { readonly kind: 'contract'; readonly at: number; readonly report: HostContractReport }
+  | { readonly kind: 'mounts'; readonly at: number; readonly mounts: MountPoints }
+  | { readonly kind: 'theme'; readonly at: number; readonly theme: HostTheme };
+
+export interface HostScript {
+  readonly start: HostSnapshot;
+  readonly memory: HostMemory;
+  /** The checkpoint MAIN gives when the answers queue is empty. */
+  readonly checkpoint: FreshnessCheckpoint | null;
+  readonly answers: HostAnswers;
+  /** Offsets from the scenario start, ms, non-decreasing. */
+  readonly timeline: readonly HostStep[];
+}
+
+/** The consumer broke the contract (not a host refusal a person should see). */
+export class HostContractViolation extends Error {
+  constructor(
+    message: string,
+    readonly input: unknown,
+  ) {
+    super(message);
+    this.name = 'HostContractViolation';
+  }
+}
+
+type Callback<T> = (value: T) => void;
+
+function emit<T>(callbacks: ReadonlySet<Callback<T>>, value: T): void {
+  for (const callback of callbacks) callback(value);
+}
+
+function listen<T>(callbacks: Set<Callback<T>>, callback: Callback<T>): Unsubscribe {
+  callbacks.add(callback);
+  return () => {
+    callbacks.delete(callback);
+  };
+}
+
+const sameChat = (a: ChatRef, b: ChatRef): boolean => chatKeyOf(a) === chatKeyOf(b);
+
+/** Every call the consumer made, for assertions. */
+export interface HostCalls {
+  readonly redeemed: { readonly kind: 'insert' | 'navigate'; readonly intentId: string; readonly actionToken: string; readonly redeemed: boolean }[];
+  readonly inserts: InsertIntent[];
+  readonly navigations: NavigationIntent[];
+  readonly checkpoints: ChatRef[];
+  readonly preflights: PreviewSendRequest[];
+  /** Queue calls that reached MAIN, one per attempt. */
+  readonly commits: { readonly request: PreviewSendRequest; readonly ticket: DispatchTicket }[];
+}
+
+class FakePreviewSendPort implements PreviewSendPort {
+  private readonly firstResults = new Map<string, PreviewSendCommit>();
+  readonly states = new Map<string, Set<Callback<SendAttemptView>>>();
+
+  constructor(private readonly host: FakeHostPort) {}
+
+  preflight(req: PreviewSendRequest): Promise<PreviewSendPreflight> {
+    this.host.check(PreviewSendRequestSchema, req, 'preflight');
+    this.host.calls.preflights.push(req);
+    return Promise.resolve(this.host.take('preflight') ?? { ok: true });
+  }
+
+  commit(req: PreviewSendRequest, ticket: DispatchTicket): Promise<PreviewSendCommit> {
+    this.host.check(PreviewSendRequestSchema, req, 'commit');
+    this.host.check(DispatchTicketSchema, ticket, 'commit ticket');
+    if (ticket.attemptId !== req.attemptId) throw new HostContractViolation('the ticket belongs to another attempt', { req, ticket });
+    // MAIN keeps a map of used attempts: a repeated command returns the first result and never calls the queue again.
+    const first = this.firstResults.get(req.attemptId);
+    if (first !== undefined) return Promise.resolve(first);
+    const result = this.host.take('commit') ?? { state: 'nativeEnqueued', pendingId: `pending-${req.attemptId}` };
+    this.firstResults.set(req.attemptId, result);
+    this.host.calls.commits.push({ request: req, ticket });
+    return Promise.resolve(result);
+  }
+
+  onState(attemptId: string, cb: (view: SendAttemptView) => void): () => void {
+    const set = this.states.get(attemptId) ?? new Set<Callback<SendAttemptView>>();
+    this.states.set(attemptId, set);
+    return listen(set, cb);
+  }
+}
+
+export class FakeHostPort implements HostPort {
+  readonly kind = 'chatspace' as const;
+  readonly platform = 'onlyfans' as const;
+  readonly previewSend: PreviewSendPort | null;
+  readonly calls: HostCalls = { redeemed: [], inserts: [], navigations: [], checkpoints: [], preflights: [], commits: [] };
+
+  private snapshot: HostSnapshot;
+  private readonly queues: { -readonly [K in keyof HostAnswers]-?: NonNullable<HostAnswers[K]>[number][] };
+  private readonly events = new Set<Callback<HostEvent>>();
+  private readonly contracts = new Set<Callback<HostContractReport>>();
+  private readonly mountListeners = new Set<Callback<MountPoints>>();
+  private readonly themeListeners = new Set<Callback<HostTheme>>();
+  private readonly sendPort: FakePreviewSendPort;
+  private step = -1;
+  private disposed = false;
+
+  constructor(
+    readonly script: HostScript,
+    readonly startedAt = 0,
+  ) {
+    this.snapshot = script.start;
+    this.queues = {
+      redeem: [...(script.answers.redeem ?? [])],
+      insert: [...(script.answers.insert ?? [])],
+      navigate: [...(script.answers.navigate ?? [])],
+      checkpoint: [...(script.answers.checkpoint ?? [])],
+      preflight: [...(script.answers.preflight ?? [])],
+      commit: [...(script.answers.commit ?? [])],
+    };
+    this.sendPort = new FakePreviewSendPort(this);
+    this.previewSend = script.start.contract.capabilities.previewSend.state === 'on' ? this.sendPort : null;
+  }
+
+  /** @internal The next scripted answer of a kind, or undefined when the queue is empty. */
+  take<K extends keyof HostAnswers>(kind: K): NonNullable<HostAnswers[K]>[number] | undefined {
+    return this.queues[kind].shift();
+  }
+
+  /** @internal Throws HostContractViolation when `value` fails `schema`. */
+  check(schema: { safeParse(value: unknown): { success: boolean } }, value: unknown, what: string): void {
+    if (this.disposed) throw new HostContractViolation(`${what} after dispose()`, value);
+    if (!schema.safeParse(value).success) throw new HostContractViolation(`${what}: the input breaks its contract schema`, value);
+  }
+
+  /** Clock of the timeline: the offset of the last played step. */
+  get now(): number {
+    const step = this.script.timeline[this.step];
+    return this.startedAt + (step?.at ?? 0);
+  }
+
+  /** Plays the next timeline step; false when the timeline is over. */
+  advance(): boolean {
+    const step = this.script.timeline[this.step + 1];
+    if (step === undefined || this.disposed) return false;
+    this.step += 1;
+    switch (step.kind) {
+      case 'event':
+        this.applyEvent(step.event);
+        emit(this.events, step.event);
+        break;
+      case 'send-state':
+        emit(this.sendPort.states.get(step.view.attemptId) ?? new Set<Callback<SendAttemptView>>(), step.view);
+        break;
+      case 'contract':
+        this.snapshot = { ...this.snapshot, contract: step.report };
+        emit(this.contracts, step.report);
+        break;
+      case 'mounts':
+        this.snapshot = { ...this.snapshot, mounts: step.mounts };
+        emit(this.mountListeners, step.mounts);
+        break;
+      case 'theme':
+        this.snapshot = { ...this.snapshot, theme: step.theme };
+        emit(this.themeListeners, step.theme);
+        break;
+    }
+    return true;
+  }
+
+  /** Plays the whole timeline. */
+  run(): void {
+    while (this.advance()) {
+      // each step notifies its listeners synchronously
+    }
+  }
+
+  private applyEvent(event: HostEvent): void {
+    if (event.type === 'route') this.snapshot = { ...this.snapshot, route: event.route };
+    else if (event.type === 'composer') this.snapshot = { ...this.snapshot, composer: event.composer };
+    else if (event.type === 'accounts') this.snapshot = { ...this.snapshot, accounts: event.accounts };
+  }
+
+  probe(): HostContractReport {
+    return this.snapshot.contract;
+  }
+
+  onContract(cb: (report: HostContractReport) => void): Unsubscribe {
+    return listen(this.contracts, cb);
+  }
+
+  current(): HostSnapshot {
+    return this.snapshot;
+  }
+
+  subscribe(cb: (event: HostEvent) => void): Unsubscribe {
+    return listen(this.events, cb);
+  }
+
+  readDraft(expected: HostIdentity): Promise<DraftSnapshot> {
+    const chat = expected.chat;
+    const found = chat === null ? undefined : this.script.memory.drafts.find((d) => d.identity.chat !== null && sameChat(d.identity.chat, chat));
+    if (found === undefined) return Promise.reject(new Error('no draft of that chat in page memory'));
+    return Promise.resolve(found);
+  }
+
+  readVisibleTail(expected: HostIdentity, max: number): Promise<LiveTextTail | null> {
+    const chat = expected.chat;
+    const found = chat === null ? undefined : this.script.memory.tails.find((t) => sameChat(t.chat, chat));
+    if (found === undefined || this.snapshot.contract.capabilities.freshText.state !== 'on') return Promise.resolve(null);
+    return Promise.resolve({ ...found.tail, messages: found.tail.messages.slice(-max) });
+  }
+
+  chatWindow(chat: ChatRef): ChatWindow | null {
+    return this.script.memory.chatWindows.find((w) => sameChat(w.chat, chat)) ?? null;
+  }
+
+  fan(chat: ChatRef): HostFan | null {
+    return this.script.memory.fans.find((f) => sameChat(f.chat, chat)) ?? null;
+  }
+
+  listCachedChats(hostAccountId: string, limit: number): readonly NavigationItem[] {
+    return this.script.memory.chatList.filter((item) => item.chat.hostAccountId === hostAccountId).slice(0, limit);
+  }
+
+  listCachedAccounts(): readonly HostAccount[] {
+    return this.snapshot.accounts;
+  }
+
+  private redeem(kind: 'insert' | 'navigate', intentId: string, actionToken: string): boolean {
+    const redeemed = this.take('redeem') ?? true;
+    this.calls.redeemed.push({ kind, intentId, actionToken, redeemed });
+    return redeemed;
+  }
+
+  insert(intent: InsertIntent): Promise<InsertReceipt> {
+    this.check(InsertIntentSchema, intent, 'insert');
+    if (intent.expected.kind !== 'open') throw new HostContractViolation('a deferred insert rides a navigation, never insert()', intent);
+    if (!this.redeem('insert', intent.intentId, intent.cause.actionToken)) return Promise.resolve({ state: 'rejected', code: 'CG-INSERT-FAILED' });
+    this.calls.inserts.push(intent);
+    const receipt = this.take('insert') ?? { state: 'applied', draftRevision: intent.expected.draftRevision + 1, draftDigest: 'feedbeef0000aaaa', ms: 6 };
+    return Promise.resolve(receipt);
+  }
+
+  focusComposer(): Promise<boolean> {
+    return Promise.resolve(this.snapshot.composer !== null);
+  }
+
+  navigate(intent: NavigationIntent): Promise<NavigationReceipt> {
+    this.check(NavigationIntentSchema, intent, 'navigate');
+    if (!this.redeem('navigate', intent.intentId, intent.cause.actionToken)) return Promise.resolve({ state: 'failed', code: 'CG-NAV-FAILED', insert: null });
+    this.calls.navigations.push(intent);
+    const receipt = this.take('navigate') ?? { state: 'navigated', routeEpoch: this.snapshot.route.epoch + 1, insert: null };
+    return Promise.resolve(receipt);
+  }
+
+  checkpoint(chat: ChatRef): Promise<FreshnessCheckpoint | null> {
+    this.calls.checkpoints.push(chat);
+    const answer = this.queues.checkpoint.length > 0 ? this.take('checkpoint') : this.script.checkpoint;
+    return Promise.resolve(answer ?? null);
+  }
+
+  mounts(): MountPoints {
+    return this.snapshot.mounts;
+  }
+
+  onMounts(cb: (mounts: MountPoints) => void): Unsubscribe {
+    return listen(this.mountListeners, cb);
+  }
+
+  theme(): HostTheme {
+    return this.snapshot.theme;
+  }
+
+  onTheme(cb: (theme: HostTheme) => void): Unsubscribe {
+    return listen(this.themeListeners, cb);
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.events.clear();
+    this.contracts.clear();
+    this.mountListeners.clear();
+    this.themeListeners.clear();
+    this.sendPort.states.clear();
+  }
+}
