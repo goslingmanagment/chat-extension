@@ -90,6 +90,14 @@ describe('catalog', () => {
     }
   });
 
+  it('every reason text and every «Отправить» reason is a catalog key; send reasons cover send.reason.* exactly', () => {
+    const keys = new Set<string>(C.I18N_KEYS);
+    for (const reason of Object.values(C.UNAVAILABLE_REASONS)) expect(keys.has(reason.key), reason.key).toBe(true);
+    const sendReasonKeys = C.I18N_KEYS.filter((key) => key.startsWith('send.reason.'));
+    expect(Object.values(C.SEND_REASON_KEYS).sort()).toEqual([...sendReasonKeys].sort());
+    for (const code of Object.keys(C.SEND_REASON_KEYS)) expect(C.isCgCode(code), code).toBe(true);
+  });
+
   it('names every dock action and «Отправить»', () => {
     for (const id of C.DOCK_ACTION_IDS) expect(C.CATALOG_ACTION_IDS).toContain(id);
     expect(C.CATALOG_ACTION_IDS).toContain('send');

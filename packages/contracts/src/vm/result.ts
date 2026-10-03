@@ -4,7 +4,7 @@
 // is a preview without buttons. Every draft says it has not been sent until a
 // part is (ui-design §1 п. 9).
 
-import { type CgCode, type CgErrorView } from '../errors';
+import { type CgCode, type CgErrorView, type I18nKey } from '../errors';
 import { type FeatureId, type Surface, type Tone } from '../features';
 import { type PartRef } from '../ids';
 import { type OpState } from '../ops';
@@ -30,14 +30,36 @@ export interface PhaseVM {
 }
 
 /**
+ * Why «Отправить» is off or refused, by code (ui-design §5.9): the text the
+ * disabled button explains itself with, never a toast.
+ */
+export const SEND_REASON_KEYS = {
+  'CG-SEND-OFF': 'send.reason.off',
+  'CG-SEND-HOST': 'send.reason.host',
+  'CG-SEND-RECEIPT': 'send.reason.receipt',
+  'CG-SEND-ACTIVE-CHAT': 'send.reason.activeChat',
+  'CG-SEND-PERMISSION': 'send.reason.permission',
+  'CG-SEND-FAN': 'send.reason.fan',
+  'CG-SEND-MIMIC': 'send.reason.mimic',
+  'CG-SEND-TRANSLATOR': 'send.reason.translator',
+  'CG-SEND-FRESHNESS': 'send.reason.freshness',
+  'CG-SEND-BUSY': 'send.reason.busy',
+  'CG-SEND-QUEUE': 'send.reason.queue',
+  'CG-SEND-PART': 'send.reason.part',
+  'CG-SEND-GUARD': 'send.reason.guard',
+  'CG-CLAIM-EXPIRED': 'send.reason.claimExpired',
+} as const satisfies Partial<Record<CgCode, I18nKey>>;
+export type SendReasonCode = keyof typeof SEND_REASON_KEYS;
+
+/**
  * The «Отправить» row of a part in a preview, nine states one to one with
  * ui-design §4.13 (X8, §6.7.7). `sent` needs the receipt AND the echo with
  * the same id; `accepted` (receipt only) and `uncertain` never look like it.
  */
 export type PreviewSendView =
   | { readonly s: 'available' }
-  /** The code explains the disabled button (never a toast); `reason` is its text (`send.reason.<code>`). */
-  | { readonly s: 'unavailable'; readonly code: CgCode; readonly reason: Msg }
+  /** The code explains the disabled button (never a toast); `reason` is its text (SEND_REASON_KEYS). */
+  | { readonly s: 'unavailable'; readonly code: SendReasonCode; readonly reason: Msg }
   | { readonly s: 'held-stale'; readonly at: IsoTimestamp | null }
   | { readonly s: 'queued' }
   | { readonly s: 'sending' }
