@@ -88,6 +88,7 @@ import { createBackgroundLogging } from './background/logging';
 import { opsStoreOver } from './background/ops-store';
 import { CLOCK, IDS, TIMERS, eventSinkOf, hubLogOf, keyOf, logSinkOf, serviceLogOf } from './background/ports';
 import { sendJournalStoreOver } from './background/send-journal-store';
+import { personaPatchRefusal } from './background/settings-guard';
 import { createBackgroundTelemetry } from './background/telemetry';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 
@@ -667,7 +668,11 @@ export function composeBackground(): void {
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
   rpc.handle('settings.get', settingsHandlers['settings.get']);
-  rpc.handle('settings.patch', settingsHandlers['settings.patch']);
+  rpc.handle('settings.patch', (request, sender) => {
+    // §14: a tab changes personas only of the pages of its own binding — the same check as `persona.set`.
+    const refusal = personaPatchRefusal(request.patch, sender, pageOf);
+    return refusal === null ? settingsHandlers['settings.patch'](request) : fail(refusal, 'personas');
+  });
   rpc.handle('settings.patchRestricted', (request) => {
     const refusal = hubAddressRefusal({ next: request.patch.hub?.baseUrl, current: settings.current().hub.baseUrl, signedIn: hub().status().auth !== 'none', testBuild: __CG_TEST_HOSTS__ });
     return refusal === null ? settingsHandlers['settings.patchRestricted'](request) : fail('CG-HUB-URL', refusal);
