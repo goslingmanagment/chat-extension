@@ -45,6 +45,13 @@ const rowsOf = (id: string): readonly string[] => PARITY_EXCEPTIONS.find((except
 /** The registries name what is forbidden; the hub's auth wire carries the desktop's reservation shape. */
 const REGISTRIES = ['packages/contracts/src/parity/exceptions.ts', 'packages/contracts/src/hub/auth.ts'];
 const STORAGE_VALUES: readonly string[] = Object.values(STORAGE_KEYS);
+/**
+ * architecture.md §6.1: the isolated side reads ChatSpace's own composer draft
+ * (`localStorage['chat-space:draft:of:…']`, same origin, read-only through the
+ * `DraftStorage` port). That is the host's storage, not ours: these sources may
+ * name it, nothing may write it.
+ */
+const HOST_DRAFT_READERS = /^packages\/host-chatspace\/src\/isolated\//;
 const tabRequest = (type: string) => (TAB_REQUESTS as unknown as Record<string, { readonly req: { safeParse(value: unknown): { success: boolean } } }>)[type];
 
 describe('[HB-010] [RB-027] NEG-NO-LOCAL-ARCHIVE', () => {
@@ -72,7 +79,9 @@ describe('[HB-010] [RB-027] NEG-NO-LOCAL-ARCHIVE', () => {
   });
 
   it('no shipped source uses web storage or the Cache API, opens another IndexedDB database, or keeps an offline archive', () => {
-    expect(findInClientSources(/\b(?:localStorage|sessionStorage|openDatabase)\b|\bcaches\.open\b/, REGISTRIES)).toEqual([]);
+    expect(findInClientSources(/\b(?:sessionStorage|openDatabase)\b|\bcaches\.open\b/, REGISTRIES)).toEqual([]);
+    expect(findInClientSources(/\blocalStorage\b/, REGISTRIES).filter((hit) => !HOST_DRAFT_READERS.test(hit))).toEqual([]);
+    expect(findInClientSources(/\blocalStorage\s*(?:\.\s*(?:setItem|removeItem|clear)\b|\[[^\]]*\]\s*=(?!=))/, REGISTRIES)).toEqual([]);
     expect(findInClientSources(/\bindexedDB\.open\((?!\s*(?:LOG_DB_NAME\b|['"`]cg-logs['"`]))/, REGISTRIES)).toEqual([]);
     expect(findInClientSources(/\b(?:messageArchive|chatArchive|localArchive|offlineCache|offlineMode|messagesCache|cachedMessages|conversationCache|transcriptCache)\b/i, REGISTRIES)).toEqual([]);
   });
