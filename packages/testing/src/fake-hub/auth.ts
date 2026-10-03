@@ -15,12 +15,16 @@ export interface FakeUser {
   readonly username: string;
   readonly password: string;
   readonly role: 'owner' | 'team_lead' | 'chatter';
+  /** Pages granted to the user by default (`me.assignedPages`, bootstrap pages); a test changes them with `grantPages`. */
+  readonly pages: readonly string[];
 }
 
-/** Synthetic accounts: the chatter of the scenarios and a second chatter (two clients, one fan). */
+const ALL_PAGES: readonly string[] = [WORLD.pages.one.pageLabel, WORLD.pages.vip.pageLabel, WORLD.pages.fansly.pageLabel];
+
+/** Synthetic accounts: the chatter of the scenarios and a second chatter (two clients, one fan); both granted every page by default. */
 export const FAKE_USERS: readonly FakeUser[] = [
-  { userId: WORLD.user.userId, username: WORLD.user.username, password: 'synthetic-password', role: 'chatter' },
-  { userId: WORLD.otherUser.userId, username: WORLD.otherUser.username, password: 'synthetic-password-2', role: 'chatter' },
+  { userId: WORLD.user.userId, username: WORLD.user.username, password: 'synthetic-password', role: 'chatter', pages: ALL_PAGES },
+  { userId: WORLD.otherUser.userId, username: WORLD.otherUser.username, password: 'synthetic-password-2', role: 'chatter', pages: ALL_PAGES },
 ];
 
 export interface TokenRecord {

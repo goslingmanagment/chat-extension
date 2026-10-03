@@ -259,6 +259,34 @@ describe('fake hub routes: the model’s own checks', () => {
     await refused('aiFeatureStream', { feature: 'ping', body: { clientRequestId: uuid(9), pageLabel: 'not-my-page', platform: 'onlyfans', conversationRef: WORLD.fan }, capabilities: [] }, 404, 'not_found');
   });
 
+  it('grants are per user: a known page not granted to the caller is 404 for them only; me and bootstrap list only granted pages', async () => {
+    const vip = WORLD.pages.vip.pageLabel;
+    const other = hub.issueToken({ username: WORLD.otherUser.username });
+    expect(hub.control({ op: 'grantPages', username: WORLD.otherUser.username, pages: [PAGE] })).toEqual({ ok: true, pages: [PAGE] });
+    const as = async (route: HubRouteKey, request: unknown, who: string) => {
+      const response = await call(route, request, who);
+      return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+    };
+    const me = await as('me', null, other);
+    expect((me.body['user'] as { assignedPages: Array<{ label: string }> }).assignedPages.map((page) => page.label)).toEqual([PAGE]);
+    const boot = (await as('clientBootstrap', null, other)).body as { pages: Array<{ pageLabel: string }>; bindingsByHost: Record<string, number> };
+    expect(HUB_ROUTE_SCHEMAS.clientBootstrap.response.safeParse(boot).success).toBe(true);
+    expect(boot.pages.map((page) => page.pageLabel)).toEqual([PAGE]);
+    expect(Object.values(boot.bindingsByHost)).toEqual([WORLD.pages.one.pageId]);
+    const stats = { pageLabel: vip, windowDays: 30, timeZone: 'UTC' };
+    expect(await as('clientSpenderStats', stats, other)).toMatchObject({ status: 404, body: { error: 'not_found' } });
+    expect(await as('clientFanClaimStatus', { pageLabel: vip, fanRef: WORLD.newFan }, other)).toMatchObject({ status: 404, body: { error: 'not_found' } });
+    expect((await as('clientSpenderStats', { ...stats, pageLabel: PAGE }, other)).status).toBe(200);
+    // The first chatter keeps every page.
+    expect((await as('clientSpenderStats', stats, token)).status).toBe(200);
+    expect(hub.status().grants).toEqual([
+      { userId: WORLD.user.userId, pages: [PAGE, vip, WORLD.pages.fansly.pageLabel] },
+      { userId: WORLD.otherUser.userId, pages: [PAGE] },
+    ]);
+    expect(() => hub.control({ op: 'grantPages', username: 'nobody', pages: [] })).toThrow(/no user/);
+    expect(() => hub.control({ op: 'grantPages', userId: WORLD.otherUser.userId, pages: ['not-a-page'] })).toThrow(/no page/);
+  });
+
   it('an owner flag off refuses its route with client_feature_disabled and the reason; Fansly is platform_unsupported', async () => {
     hub.control({ op: 'config', patch: { pageFlags: { [PAGE]: { stats: false } } } });
     await refused('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }, 409, 'client_feature_disabled', 'flag_off');

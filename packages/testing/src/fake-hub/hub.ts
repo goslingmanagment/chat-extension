@@ -119,6 +119,8 @@ interface State {
   readonly claims: ClaimsModel;
   readonly data: DataModel;
   readonly generations: Map<string, Generation>;
+  /** Pages granted per user id (FakeUser.pages, changed by `grantPages`). */
+  readonly grants: Map<number, readonly string[]>;
   catalog: PersonaCatalogItem[];
   health: HealthState;
   httpScript: HttpScriptEntry[];
@@ -217,6 +219,7 @@ export class FakeHub {
       claims: new ClaimsModel(),
       data: new DataModel(new CursorSigner(crypto.randomUUID()), now),
       generations: new Map(),
+      grants: new Map(FAKE_USERS.map((user) => [user.userId, user.pages])),
       catalog: [...DEFAULT_CATALOG],
       health: { status: 'ok', compatibleClientSdks: SCENARIO_DATA.health.compatibleClientSdks, contractHash: SCENARIO_DATA.health.contractHash },
       httpScript: [],
@@ -333,6 +336,13 @@ export class FakeHub {
       case 'desktopGreeting':
         s.claims.confirmFromDesktop(command.pageLabel, command.fanRef, now);
         return { ok: true };
+      case 'grantPages': {
+        const user = FAKE_USERS.find((candidate) => candidate.username === command.username || candidate.userId === command.userId);
+        if (user === undefined) throw new Error(`fake hub: no user ${command.username ?? String(command.userId)}`);
+        for (const label of command.pages) this.page(label);
+        s.grants.set(user.userId, [...command.pages]);
+        return { ok: true, pages: [...command.pages] };
+      }
       case 'archiveMessage':
         return { ok: true, messageId: s.data.addArchiveMessage(this.page(command.pageLabel), command.fanRef, command.sender ?? 'fan', now, command.messageId) };
       case 'audienceEvent':
@@ -355,6 +365,7 @@ export class FakeHub {
       script: { httpLeft: httpLeft.length, sseLeft: s.sseScript.filter((entry) => !entry.used).length, httpLeftRoutes: httpLeft.map((entry) => entry.exchange.route) },
       waitingGates: s.gates.waiting(),
       openStreams: s.openStreams,
+      grants: [...s.grants].map(([userId, pages]) => ({ userId, pages: [...pages] })),
       claims: s.claims.snapshot(now),
       ingested: s.data.ingestedEvents().length,
     };
@@ -484,7 +495,8 @@ export class FakeHub {
     if (!spec.capabilities.every((capability) => s.config.capabilities.includes(capability))) return refuse({ ...record, servedBy: 'check' }, 'not_found', 'route_not_deployed');
     const pageLabel = pageLabelOf(route, valid.request);
     const page = pageLabel === null ? null : (FAKE_PAGES.find((candidate) => candidate.pageLabel === pageLabel) ?? null);
-    if (pageLabel !== null && page === null) return refuse({ ...record, servedBy: 'check' }, 'not_found');
+    // A page the hub does not know, or one not granted to the caller: 404 either way (the hub never tells them apart).
+    if (pageLabel !== null && (page === null || (principal !== null && !this.granted(principal.user.userId, page)))) return refuse({ ...record, servedBy: 'check' }, 'not_found');
     if (spec.flag !== null && page !== null) {
       const flag = featureVerdict(s.config, page, spec.flag);
       if (!flag.available) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', flag.reason ?? 'flag_off');
@@ -594,6 +606,15 @@ export class FakeHub {
 
   // ── the model ────────────────────────────────────────────────────────────
 
+  private grantedPages(userId: number): FakePage[] {
+    const labels = this.state.grants.get(userId) ?? [];
+    return FAKE_PAGES.filter((page) => labels.includes(page.pageLabel));
+  }
+
+  private granted(userId: number, page: FakePage): boolean {
+    return (this.state.grants.get(userId) ?? []).includes(page.pageLabel);
+  }
+
   private page(pageLabel: string): FakePage {
     const page = FAKE_PAGES.find((candidate) => candidate.pageLabel === pageLabel);
     if (page === undefined) throw new Error(`fake hub: no page ${pageLabel}`);
@@ -657,12 +678,12 @@ export class FakeHub {
         return {
           kind: 'json',
           status: 200,
-          body: { authMethod: 'device_token', user: { id: user.userId, username: user.username, role: user.role, mustChangePassword: false, assignedPages: FAKE_PAGES.map(pageRefOf) } },
+          body: { authMethod: 'device_token', user: { id: user.userId, username: user.username, role: user.role, mustChangePassword: false, assignedPages: this.grantedPages(user.userId).map(pageRefOf) } },
         };
       }
       case 'clientBootstrap': {
         const { user, token } = need(principal);
-        return { kind: 'json', status: 200, body: bootstrapOf(s.config, FAKE_PAGES, { userId: user.userId, username: user.username, role: user.role, tokenClient: token.client }, now) };
+        return { kind: 'json', status: 200, body: bootstrapOf(s.config, this.grantedPages(user.userId), { userId: user.userId, username: user.username, role: user.role, tokenClient: token.client }, now) };
       }
       case 'aiPersonaCatalog':
         return { kind: 'json', status: 200, body: { personas: s.catalog.map((item) => ({ ...item })) } };
