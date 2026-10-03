@@ -2,7 +2,7 @@
 // op scheduler, send coordinator, telemetry queue, log sink, settings owner,
 // sound arbiter, tab presence. R10, R17, R18 fill in the rest.
 //
-// R07: the settings owner and the readiness barrier — over
+// R07: the settings owner, the readiness barrier, the results store — over
 // the ports in ./storage/ports (the composition root passes @cg/platform's
 // adapters, which have exactly those shapes).
 
@@ -43,3 +43,13 @@ export {
   type SettingsPatchRequest,
   type SettingsWriteResult,
 } from './settings-owner';
+export {
+  RESULTS_LIMITS,
+  createResultsStore,
+  type ResultMeta,
+  type ResultsLimits,
+  type ResultsPutResult,
+  type ResultsRecovery,
+  type ResultsStore,
+  type ResultsStoreDeps,
+} from './results-store';
