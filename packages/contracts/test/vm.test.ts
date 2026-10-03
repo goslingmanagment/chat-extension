@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { OPTIONS_FOOTER_SAMPLES, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -239,6 +239,15 @@ describe('toasts (1.1.0)', () => {
 });
 
 describe('extension pages (1.2.0)', () => {
+  it('[ST-005] the options view may carry its footer: the links as actions and the «нов.» flag', () => {
+    expectTypeOf<NonNullable<C.OptionsVM['footer']>['whatsNew']>().toEqualTypeOf<C.UiAction | null>();
+    expectTypeOf<NonNullable<C.OptionsVM['footer']>['unseenNotes']>().toEqualTypeOf<boolean>();
+    const [full, bare] = OPTIONS_FOOTER_SAMPLES.valid;
+    for (const action of [full?.whatsNew, full?.changelog]) expect(C.UiActionSchema.safeParse(action).success).toBe(true);
+    expect(bare).toEqual({ whatsNew: null, changelog: null, unseenNotes: false });
+    expect(OPTIONS_FOOTER_SAMPLES.invalid).toHaveLength(2);
+  });
+
   it('[PU-017] [ST-076] a page hands a click to ChatSpace as a command: a surface to open, or an account to go to', () => {
     expect(C.PAGE_COMMAND_SURFACES).toEqual(['spenders', 'newcomers', 'cheatsheet']);
     expect(C.TAB_REQUESTS['tab.command']).toMatchObject({ from: ['page'], pages: ['popup', 'options'] });

@@ -183,6 +183,25 @@ export const TOAST_VM_SAMPLES: { readonly valid: readonly C.ToastVM[]; readonly 
 };
 
 /**
+ * The footer of the options page (1.2.0, ST-005): optional, so a view without
+ * it still is an OptionsVM; a link the build does not know is null, not a
+ * made-up address.
+ */
+type OptionsFooter = NonNullable<C.OptionsVM['footer']>;
+export const OPTIONS_FOOTER_SAMPLES: { readonly valid: readonly OptionsFooter[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    { whatsNew: { type: 'Navigate', to: { kind: 'page', page: 'whats-new' } }, changelog: { type: 'Navigate', to: { kind: 'page', page: 'changelog' } }, unseenNotes: true },
+    { whatsNew: null, changelog: null, unseenNotes: false },
+  ],
+  invalid: [
+    // @ts-expect-error a link is an action of the page, never a bare address
+    { whatsNew: 'https://example.test/whats-new', changelog: null, unseenNotes: false } satisfies OptionsFooter,
+    // @ts-expect-error whether the notes were opened is a flag, not the version
+    { whatsNew: null, changelog: null, unseenNotes: '0.4.3' } satisfies OptionsFooter,
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */

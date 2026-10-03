@@ -250,6 +250,12 @@ interface OptionsVMOf<S extends SettingsSection> {
     readonly dismiss: UiAction;
   } | null;
   readonly body: OptionsBodyMap[S] | null;
+  /**
+   * The footer under the section list (ST-005; 1.2.0): «Что нового» and
+   * «История версий» — null where the build knows no such page — and whether
+   * the notes of this version are still unread (the «нов.» mark).
+   */
+  readonly footer?: { readonly whatsNew: UiAction | null; readonly changelog: UiAction | null; readonly unseenNotes: boolean };
 }
 
 /** One view per section, correlated: `section: 'status'` comes with a StatusBodyVM. */
