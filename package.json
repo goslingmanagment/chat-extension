@@ -19,7 +19,8 @@
     "parity": "node tools/parity/index.ts",
     "archive-check": "node tools/archive-check/index.ts",
     "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",
-    "dev": "node tools/dev/index.ts"
+    "dev": "node tools/dev/index.ts",
+    "sign:dry-run": "node tools/sign-dry-run/index.ts"
   },
   "devDependencies": {
     "@cg/testing": "workspace:*",
