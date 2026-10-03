@@ -337,6 +337,72 @@ describe('[NEW-08] the WS tap switch follows the wsTap flag', () => {
     expect(tap.state).toBe(true);
   });
 
+  it('[NEW-08] a wish made while the queue is finishing is not lost, whichever microtask it lands in', async () => {
+    // The registrar as the composition root builds it: the browser call, then `.then(() => undefined)`.
+    for (let microtasks = 0; microtasks <= 12; microtasks += 1) {
+      const calls: boolean[] = [];
+      let registered = false;
+      let release: () => void = () => undefined;
+      const tap = new WsTapSwitch({
+        sync: (enabled) =>
+          new Promise<void>((resolve) => {
+            calls.push(enabled);
+            release = resolve;
+          }).then(() => {
+            registered = enabled;
+          }),
+      });
+      void tap.apply(true);
+      await settle();
+      release();
+      for (let i = 0; i < microtasks; i += 1) await Promise.resolve();
+      // A sign-out or the flag going off, right behind the registration.
+      const off = tap.apply(false);
+      for (let round = 0; round < 3; round += 1) {
+        await settle();
+        release();
+      }
+      expect({ microtasks, state: await off, registered, calls }).toEqual({ microtasks, state: false, registered: false, calls: [true, false] });
+      expect(tap.state).toBe(false);
+    }
+  });
+
+  it('[NEW-08] a wish made in the same tick as one that changes nothing is still applied', async () => {
+    const calls: boolean[] = [];
+    const tap = new WsTapSwitch({
+      sync: (enabled) => {
+        calls.push(enabled);
+        return Promise.resolve();
+      },
+    });
+    expect(await tap.apply(false)).toBe(false);
+    // Nothing to do — and, before that queue is released, the flag comes on.
+    void tap.apply(false);
+    expect(await tap.apply(true)).toBe(true);
+    expect(tap.state).toBe(true);
+    expect(calls).toEqual([false, true]);
+  });
+
+  it('[NEW-08] a listener may ask for another state from inside its notification', async () => {
+    const calls: boolean[] = [];
+    const tap = new WsTapSwitch({
+      sync: (enabled) => {
+        calls.push(enabled);
+        return Promise.resolve();
+      },
+    });
+    let asked = false;
+    tap.onChange((on) => {
+      if (on && !asked) {
+        asked = true;
+        void tap.apply(false);
+      }
+    });
+    expect(await tap.apply(true)).toBe(false);
+    expect(calls).toEqual([true, false]);
+    expect(tap.state).toBe(false);
+  });
+
   it('[NEW-08] a failed registration leaves the tap reported off', async () => {
     const log = new LogRecorder();
     const tap = new WsTapSwitch({ sync: () => Promise.reject(new Error('scripting refused')) }, log);

@@ -33,15 +33,7 @@ export class WsTapSwitch {
   /** Asks for a state; resolves with the state actually registered once the queue drained. */
   apply(enabled: boolean): Promise<boolean> {
     this.wanted = enabled;
-    if (this.running === null) {
-      // The queue is released a tick after it drained — never inside `drain` itself: a wish that is already
-      // applied drains without one await, and a release made there would run before this assignment and
-      // leave the finished promise here for good (every later wish would then be ignored).
-      const running: Promise<boolean> = this.drain().finally(() => {
-        if (this.running === running) this.running = null;
-      });
-      this.running = running;
-    }
+    this.running ??= this.drain();
     return this.running;
   }
 
@@ -61,17 +53,30 @@ export class WsTapSwitch {
     };
   }
 
+  /**
+   * One queue at a time. It is released in the very step that finds nothing left to do — with no await
+   * between that check and the release — so a wish cannot land between the two and be left behind: it is
+   * either seen by the loop or starts a queue of its own.
+   */
   private async drain(): Promise<boolean> {
-    while (this.wanted !== null && this.wanted !== this.applied) {
-      const target = this.wanted;
-      try {
-        await this.registrar.sync(target);
-        this.set(target);
-      } catch {
-        this.log.write({ level: 'warn', scope: 'bg.ws-tap', msg: 'tap sync failed', fields: { wanted: target } });
-        this.set(false);
-        if (this.wanted === target) break;
+    // Yield first: `apply` stores this promise in `running` before the loop below can release it
+    // (a wish that is already applied runs the loop without a single await).
+    await Promise.resolve();
+    try {
+      while (this.wanted !== null && this.wanted !== this.applied) {
+        const target = this.wanted;
+        try {
+          await this.registrar.sync(target);
+          this.set(target);
+        } catch {
+          this.log.write({ level: 'warn', scope: 'bg.ws-tap', msg: 'tap sync failed', fields: { wanted: target } });
+          this.set(false);
+          // The same wish again would fail the same way: it waits for the next one.
+          if (this.wanted === target) break;
+        }
       }
+    } finally {
+      this.running = null;
     }
     return this.applied ?? false;
   }
