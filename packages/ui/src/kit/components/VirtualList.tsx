@@ -143,15 +143,16 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
 
   let stickyIndex: number | null = null;
   if (props.isGroupHeader !== undefined) {
-    const firstVisible = rowAt(offsets, Math.max(0, scrollTop - headerHeight));
-    for (let index = Math.min(firstVisible, count - 1); index >= 0; index -= 1) {
+    // The rows start under the in-flow column header, so the row at the header's lower edge is the one at scrollTop.
+    const atEdge = rowAt(offsets, Math.max(0, scrollTop));
+    for (let index = Math.min(atEdge, count - 1); index >= 0; index -= 1) {
       if (props.isGroupHeader(props.items[index] as T, index)) {
         stickyIndex = index;
         break;
       }
     }
-    // The real row is still in view at the top: no copy over it.
-    if (stickyIndex !== null && (offsets[stickyIndex] ?? 0) >= scrollTop - headerHeight) stickyIndex = null;
+    // The real group row still starts at or below the header's edge: no copy over it.
+    if (stickyIndex !== null && (offsets[stickyIndex] ?? 0) >= scrollTop) stickyIndex = null;
   }
 
   const rows: JSX.Element[] = [];
@@ -194,7 +195,8 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
         </div>
       )}
       {stickyIndex === null ? null : (
-        <div class="cg-vlist__sticky" style={{ top: `${headerHeight}px` }} aria-hidden="true">
+        // A copy for the eye only: hidden from screen readers and out of the Tab order (its buttons live on the real row).
+        <div class="cg-vlist__sticky" style={{ top: `${headerHeight}px` }} aria-hidden="true" inert>
           <div style={{ height: `${(offsets[stickyIndex + 1] ?? 0) - (offsets[stickyIndex] ?? 0)}px` }}>{props.renderRow(props.items[stickyIndex] as T, stickyIndex)}</div>
         </div>
       )}

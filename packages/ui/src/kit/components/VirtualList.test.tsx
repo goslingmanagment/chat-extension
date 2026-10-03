@@ -141,6 +141,43 @@ describe('the board list: 1000 rows, at most 150 in the DOM (architecture.md §1
     }
   });
 
+  it('the sticky group row is the group of the row at the header’s lower edge, and it is inert', async () => {
+    const flat = Array.from({ length: 400 }, (_, id) => ({ id, shelf: id % 50 === 0 }));
+    const { scroller } = mount({ items: flat, rowHeight: 36, header: <div>head</div>, headerHeight: 28, isGroupHeader: (row) => row.shelf });
+    const scrollTo = (top: number) =>
+      act(() => {
+        scroller.scrollTop = top;
+        scroller.dispatchEvent(new Event('scroll'));
+      });
+    const sticky = (): Element | null => scroller.querySelector('.cg-vlist__sticky');
+    // Shelf 50 starts at 1800: 10 px above the header's edge it slides under the header, and its copy takes its place.
+    await scrollTo(1810);
+    expect(sticky()?.textContent).toBe('shelf 50');
+    expect(sticky()?.hasAttribute('inert')).toBe(true);
+    expect(sticky()?.getAttribute('aria-hidden')).toBe('true');
+    // Exactly at the edge the real shelf row shows itself: no copy.
+    await scrollTo(1800);
+    expect(sticky()).toBeNull();
+    // Just below the edge the last row of shelf 0 is at the edge: shelf 0 sticks.
+    await scrollTo(1790);
+    expect(sticky()?.textContent).toBe('shelf 0');
+    await scrollTo(0);
+    expect(sticky()).toBeNull();
+  });
+
+  it(`a sticky copy counts against the cap: rows and the copy are at most ${MAX_DOM_ROWS}`, async () => {
+    const flat = Array.from({ length: 1000 }, (_, id) => ({ id, shelf: id % 50 === 0 }));
+    const { scroller } = mount({ items: flat, rowHeight: 36, height: MAX_DOM_ROWS * 36, isGroupHeader: (row) => row.shelf });
+    await act(() => {
+      scroller.scrollTop = 300 * 36 + 10;
+      scroller.dispatchEvent(new Event('scroll'));
+    });
+    expect(scroller.querySelector('.cg-vlist__sticky')?.textContent).toBe('shelf 300');
+    const rows = scroller.querySelectorAll('[data-cg-row]').length;
+    expect(rows).toBe(MAX_DOM_ROWS - 1);
+    expect(rows + scroller.querySelectorAll('.cg-vlist__sticky').length).toBe(MAX_DOM_ROWS);
+  });
+
   it('active index scrolls into view on keyboard movement', async () => {
     const host = document.createElement('div');
     container = host;
