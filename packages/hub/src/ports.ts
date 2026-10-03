@@ -22,19 +22,47 @@ export interface HubKeyValueStore {
   remove(keys: readonly string[]): Promise<HubStorageResult<void>>;
 }
 
-/** Wall clock and timers. Deadlines from the hub are converted with `localDeadline`, never by shifting this clock (HB-008). */
+/**
+ * Two clocks and timers (HB-008). Deadlines from the hub are converted with
+ * `localDeadline` / Retry-After, never by shifting a clock.
+ */
 export interface HubClock {
+  /** Wall time, epoch ms: what is shown, absolute UTC boundaries (the quota's day), stamps that outlive the background (storage). */
   now(): number;
+  /** Monotonic ms (`performance.now`): elapsed time inside one background lifetime — TTLs, cache ages, budgets. A wall-clock jump never moves it. */
+  monotonic(): number;
   setTimeout(callback: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
 }
 
-/** Reads the global timers at call time, so test fake timers apply. */
+/** Reads the globals at call time, so test fake timers apply. */
 export const SYSTEM_CLOCK: HubClock = {
   now: () => Date.now(),
+  monotonic: () => globalThis.performance.now(),
   setTimeout: (callback, ms) => globalThis.setTimeout(callback, ms),
   clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>),
 };
+
+/** A moment stamped on both clocks; `mono` is absent for a stamp read back from storage (another background lifetime). */
+export interface ClockStamp {
+  readonly at: number;
+  readonly mono?: number | undefined;
+}
+
+export function stampNow(clock: HubClock): { readonly at: number; readonly mono: number } {
+  return { at: clock.now(), mono: clock.monotonic() };
+}
+
+/**
+ * Time since `stamp`: by the monotonic clock while the background that made
+ * it lives; by the wall clock for a stored stamp — and a stored stamp from the
+ * future (the wall clock went back) counts as infinitely old, never as fresh.
+ */
+export function elapsedSince(clock: HubClock, stamp: ClockStamp): number {
+  if (stamp.mono !== undefined) return Math.max(0, clock.monotonic() - stamp.mono);
+  const age = clock.now() - stamp.at;
+  return age < 0 ? Number.POSITIVE_INFINITY : age;
+}
 
 export type HubLogLevel = 'debug' | 'info' | 'warn' | 'error';
 /** Facts only: routes, statuses, codes, counts, epochs. Never a token, a password, a message, a draft, a prompt or model output. */

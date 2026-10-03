@@ -38,7 +38,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 
 let h: Harness;
 beforeEach(() => {
-  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
   h = makeHarness({ paths: HUB_ROUTE_PATHS });
 });
 afterEach(() => {

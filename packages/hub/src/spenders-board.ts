@@ -30,7 +30,7 @@ import { type BootstrapService } from './bootstrap';
 import { flagState, pageOf } from './bootstrap-rules';
 import { type Connection, type HubContext } from './context';
 import { FacadeCallError, FacadeCheckError, toError, transportFailure } from './errors';
-import { type HubKeyValueStore } from './ports';
+import { elapsedSince, stampNow, type HubKeyValueStore } from './ports';
 import { callScope, onAbort } from './wire';
 
 /** `storage.session` key of the shared board cache (§9.4: session data, survives a background unload). */
@@ -69,7 +69,8 @@ const SessionCacheSchema = z.strictObject({
 });
 
 export class SpendersBoardService {
-  private readonly cache = new Map<string, { readonly at: number; readonly board: SpendersBoard }>();
+  /** `at` wall (stored in storage.session), `mono` monotonic for a board built by this background (HB-008). */
+  private readonly cache = new Map<string, { readonly at: number; readonly mono?: number; readonly board: SpendersBoard }>();
   private readonly builds = new Map<string, Build>();
   private sessionLoaded = false;
 
@@ -87,7 +88,7 @@ export class SpendersBoardService {
     if (request.force !== true) {
       await this.loadSession();
       const hit = this.cache.get(key);
-      if (hit !== undefined && this.ctx.clock.now() - hit.at < SPENDERS_BOARD.cacheMs) return hit.board;
+      if (hit !== undefined && elapsedSince(this.ctx.clock, hit) < SPENDERS_BOARD.cacheMs) return hit.board;
     } else {
       this.cache.delete(key);
     }
@@ -217,7 +218,7 @@ export class SpendersBoardService {
   }
 
   private remember(key: string, board: SpendersBoard): void {
-    this.cache.set(key, { at: this.ctx.clock.now(), board });
+    this.cache.set(key, { ...stampNow(this.ctx.clock), board });
     if (this.session === null) return;
     const entries = [...this.cache.entries()]
       .sort((a, b) => b[1].at - a[1].at)

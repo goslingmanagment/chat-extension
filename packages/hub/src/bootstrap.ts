@@ -28,15 +28,17 @@ import * as z from 'zod/mini';
 import { protocolSupported, synthesizeCompatBootstrap, type CompatPage } from './bootstrap-rules';
 import { type CallOptions, type Connection, type HubContext } from './context';
 import { FacadeCallError, FacadeCheckError, toError, transportFailure } from './errors';
-import { type HubKeyValueStore } from './ports';
+import { elapsedSince, type HubKeyValueStore } from './ports';
 
 export type BootstrapSource = 'hub' | 'compat';
 
 export interface BootstrapEntry {
   readonly bootstrap: Bootstrap;
   readonly source: BootstrapSource;
-  /** Our clock at the fetch: the cache lives `ttlSec` from here. */
+  /** Our wall clock at the fetch (stored); the cache lives `ttlSec` from here. */
   readonly fetchedAt: number;
+  /** Our monotonic clock at the fetch; absent for an entry read back from storage (HB-008). */
+  readonly fetchedMono?: number;
   readonly epoch: number;
   readonly hubOrigin: string;
   readonly userId: number;
@@ -67,6 +69,7 @@ export class BootstrapService {
   private inFlight: { readonly epoch: number; readonly promise: Promise<BootstrapEntry> } | null = null;
   private timer: unknown = null;
   private failures = 0;
+  /** Monotonic. */
   private lastFocusRefreshAt = Number.NEGATIVE_INFINITY;
   private lastFailure: unknown = null;
   private readonly listeners = new Set<(entry: BootstrapEntry) => void>();
@@ -88,7 +91,12 @@ export class BootstrapService {
   }
 
   isFresh(entry: BootstrapEntry): boolean {
-    return this.ctx.clock.now() < entry.fetchedAt + entry.bootstrap.ttlSec * 1000;
+    return this.age(entry) < entry.bootstrap.ttlSec * 1000;
+  }
+
+  /** Monotonic within this background, wall for a stored entry (HB-008). */
+  private age(entry: BootstrapEntry): number {
+    return elapsedSince(this.ctx.clock, { at: entry.fetchedAt, mono: entry.fetchedMono });
   }
 
   /** The last refresh failure (a FacadeCallError / FacadeCheckError), null after a success. */
@@ -153,6 +161,7 @@ export class BootstrapService {
    */
   async fetchFor(connection: Connection, options: CallOptions): Promise<BootstrapEntry> {
     const now = this.ctx.clock.now();
+    const mono = this.ctx.clock.monotonic();
     let bootstrap: Bootstrap;
     let source: BootstrapSource = 'hub';
     try {
@@ -168,7 +177,7 @@ export class BootstrapService {
     if (source === 'hub' && bootstrap.identity.tokenClient !== CHAT_EXTENSION_CLIENT && !this.ctx.compatAllowed()) {
       throw new FacadeCheckError('narrowTokenMissing', 'clientBootstrap', connection.epoch);
     }
-    return { bootstrap, source, fetchedAt: now, epoch: connection.epoch, hubOrigin: connection.hubOrigin, userId: connection.userId };
+    return { bootstrap, source, fetchedAt: now, fetchedMono: mono, epoch: connection.epoch, hubOrigin: connection.hubOrigin, userId: connection.userId };
   }
 
   private async synthesize(connection: Connection, options: CallOptions, now: number): Promise<Bootstrap> {
@@ -184,8 +193,10 @@ export class BootstrapService {
     this.entry = entry;
     this.failures = 0;
     this.lastFailure = null;
-    this.schedule(Math.max(1_000, entry.fetchedAt + entry.bootstrap.ttlSec * 1000 - this.ctx.clock.now()));
-    void this.deps.local.set({ [STORAGE_KEYS.cacheBootstrap]: { v: 1, ...entry } }).then((written) => {
+    this.schedule(Math.max(1_000, entry.bootstrap.ttlSec * 1000 - this.age(entry)));
+    // The monotonic stamp means nothing to another background: only the wall one is stored.
+    const { fetchedMono: _mono, ...stored } = entry;
+    void this.deps.local.set({ [STORAGE_KEYS.cacheBootstrap]: { v: 1, ...stored } }).then((written) => {
       if (!written.ok) this.ctx.log('warn', 'hub: bootstrap cache write failed', { code: written.code });
     });
     if (previous === null || previous.bootstrap.configRevision !== entry.bootstrap.configRevision || previous.epoch !== entry.epoch || previous.bootstrap.issuedAt !== entry.bootstrap.issuedAt) {
@@ -223,7 +234,7 @@ export class BootstrapService {
 
   /** Focus of a ChatSpace tab: refresh at most once per 60 s (§8.3). */
   onFocus(): void {
-    const now = this.ctx.clock.now();
+    const now = this.ctx.clock.monotonic();
     if (this.ctx.custody.current() === null || now - this.lastFocusRefreshAt < HUB_FACADE_TIMING.bootstrapFocusRefreshMinMs) return;
     this.lastFocusRefreshAt = now;
     this.refresh().catch(() => undefined);

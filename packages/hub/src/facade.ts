@@ -211,7 +211,7 @@ export class ChatExtensionHub implements HubFacade {
     this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {} });
     this.catalogService = new CatalogService(this.ctx, options.local);
     this.quota = new QuotaTracker(() => clock.now());
-    this.echo = new PromptEchoStore(() => clock.now(), uuid);
+    this.echo = new PromptEchoStore(clock, uuid);
     this.board = new SpendersBoardService(
       this.ctx,
       this.bootstrapService,
@@ -703,13 +703,14 @@ export class ChatExtensionHub implements HubFacade {
    * CG-RECAP-SAVE); rejects when cancelled.
    */
   async saveRecapProfile(request: ProfileFromGenerationRequest, signal: AbortSignalLike): Promise<ProfileSaveOutcome> {
-    const started = this.ctx.clock.now();
+    // Elapsed on the monotonic clock: a wall-clock jump neither ends nor stretches the 30 min (HB-008).
+    const started = this.ctx.clock.monotonic();
     const timing = HUB_FACADE_TIMING;
     for (let attempt = 0; ; attempt += 1) {
       const outcome = await this.profileWrite(request, signal);
       if (outcome.state !== 'not-ready') return outcome;
       const delay = timing.profileSaveDelaysMs[attempt] ?? timing.profileSaveThenEveryMs;
-      if (this.ctx.clock.now() + delay - started > timing.profileSaveGiveUpMs) return outcome;
+      if (this.ctx.clock.monotonic() + delay - started > timing.profileSaveGiveUpMs) return outcome;
       await this.sleep('clientFanProfileFromGeneration', delay, signal);
     }
   }

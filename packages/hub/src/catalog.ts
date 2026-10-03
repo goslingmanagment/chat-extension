@@ -18,14 +18,16 @@ import * as z from 'zod/mini';
 
 import { type Connection, type HubContext } from './context';
 import { toError } from './errors';
-import { type HubKeyValueStore } from './ports';
+import { elapsedSince, stampNow, type HubKeyValueStore } from './ports';
 
 /** AU-027: «раз в 5 мин». */
 export const CATALOG_TTL_MS = 5 * 60_000;
 
 interface CatalogEntry {
   readonly catalog: PersonaCatalog;
+  /** Wall (stored) and monotonic (this background only, HB-008) stamps of the fetch. */
   readonly fetchedAt: number;
+  readonly fetchedMono?: number;
   readonly epoch: number;
   readonly hubOrigin: string;
   readonly userId: number;
@@ -68,7 +70,7 @@ export class CatalogService {
 
   async get(force = false): Promise<PersonaCatalog> {
     const cached = this.cached();
-    if (!force && cached !== null && this.entry !== null && this.ctx.clock.now() - this.entry.fetchedAt < CATALOG_TTL_MS) return cached;
+    if (!force && cached !== null && this.entry !== null && elapsedSince(this.ctx.clock, { at: this.entry.fetchedAt, mono: this.entry.fetchedMono }) < CATALOG_TTL_MS) return cached;
     return this.refresh();
   }
 
@@ -158,8 +160,10 @@ export class CatalogService {
 
   private adopt(catalog: PersonaCatalog, connection: Connection): void {
     const previous = this.entry?.catalog ?? null;
-    this.entry = { catalog, fetchedAt: this.ctx.clock.now(), epoch: connection.epoch, hubOrigin: connection.hubOrigin, userId: connection.userId };
-    void this.local.set({ [STORAGE_KEYS.cacheCatalog]: { v: 1, ...this.entry } }).then((written) => {
+    const { at, mono } = stampNow(this.ctx.clock);
+    this.entry = { catalog, fetchedAt: at, fetchedMono: mono, epoch: connection.epoch, hubOrigin: connection.hubOrigin, userId: connection.userId };
+    const { fetchedMono: _mono, ...stored } = this.entry;
+    void this.local.set({ [STORAGE_KEYS.cacheCatalog]: { v: 1, ...stored } }).then((written) => {
       if (!written.ok) this.ctx.log('warn', 'hub: catalog cache write failed', { code: written.code });
     });
     if (previous === null || JSON.stringify(previous) !== JSON.stringify(catalog)) {

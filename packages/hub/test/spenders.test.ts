@@ -56,7 +56,7 @@ function serveBoard(harness: Harness, page: (request: RecordedRequest) => Respon
 }
 
 beforeEach(async () => {
-  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
   open = 0;
   maxOpen = 0;
   h = makeHarness({ paths: HUB_ROUTE_PATHS });

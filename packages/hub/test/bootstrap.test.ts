@@ -49,7 +49,7 @@ const account = (over: Partial<HostAccount> = {}): HostAccount => ({
 
 let h: Harness;
 beforeEach(() => {
-  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
   h = makeHarness({ paths: HUB_ROUTE_PATHS });
 });
 afterEach(() => {
@@ -352,6 +352,44 @@ describe('[HB-003] [HB-005] [HB-007] status and the SDK contract', () => {
     expect(errorWireOf(error)).toMatchObject({ code: 'CG-HUB-RATE-LIMIT', retryAt: NOW_MS + 30_000 });
     h.hub.on('clientBootstrap', () => json(429, { error: 'rate_limit_exceeded', message: 'x', statusCode: 429 }, { 'retry-after': new Date(NOW_MS + 45_000).toUTCString() }));
     expect(errorWireOf(await h.facade.bootstrap({ force: true }).catch((reason: unknown) => reason))).toMatchObject({ retryAt: NOW_MS + 45_000 });
+  });
+});
+
+describe('[HB-008] elapsed time runs on the monotonic clock; the wall clock is for display and storage', () => {
+  it('[HB-008] a wall clock set back an hour does not stretch the bootstrap ttl; set forward it does not cut it', async () => {
+    await signIn(h, WORLD_PILOT);
+    vi.setSystemTime(Date.now() + 3_600_000);
+    expect(h.facade.cachedBootstrap()?.fresh).toBe(true);
+    expect(h.facade.flagState('insertion', one.pageLabel).usable).toBe(true);
+    vi.setSystemTime(NOW_MS - 3_600_000);
+    h.hub.on('clientBootstrap', () => hubError(503, 'service_unavailable'));
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(h.facade.cachedBootstrap()?.fresh).toBe(false);
+    expect(h.facade.flagState('insertion', one.pageLabel)).toEqual({ usable: false, reason: 'bootstrap_expired' });
+  });
+
+  it('[HB-008] a stored bootstrap stamped in the future (the clock went back across a restart) is not fresh', async () => {
+    await signIn(h, WORLD_PILOT);
+    const stored = h.local.data.get(STORAGE_KEYS.cacheBootstrap) as Record<string, unknown>;
+    expect(stored).not.toHaveProperty('fetchedMono');
+    h.local.data.set(STORAGE_KEYS.cacheBootstrap, { ...stored, fetchedAt: NOW_MS + 3_600_000 });
+    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
+    h.hub.on('clientBootstrap', () => 'hang');
+    await restarted.facade.ready;
+    expect(restarted.facade.cachedBootstrap()).toMatchObject({ fresh: false });
+    restarted.facade.dispose();
+  });
+
+  it('[HB-008] the shared board cache lives 10 min of elapsed time, whatever the wall clock does', async () => {
+    await signIn(h, WORLD_PILOT);
+    const BOARD = scenarioNamed(HTTP_SCENARIOS, 'spenders-board-1000');
+    h.hub.on('spenders', (request) => json(200, BOARD.exchanges.find((exchange) => exchange.route === 'spenders' && (exchange.request as { offset: number }).offset === Number(request.query['offset']))?.response.body));
+    h.hub.on('pageSpenderAutoLists', () => json(200, okBody(BOARD, 'pageSpenderAutoLists')));
+    await h.facade.spendersBoard({ pageLabel: one.pageLabel, period: '30d' });
+    vi.setSystemTime(Date.now() - 3_600_000);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    await h.facade.spendersBoard({ pageLabel: one.pageLabel, period: '30d' });
+    expect(h.hub.of('spenders')).toHaveLength(10);
   });
 });
 

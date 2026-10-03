@@ -59,7 +59,7 @@ function call(facade: ChatExtensionHub, exchange: HttpExchange): Promise<unknown
 
 let h: Harness;
 beforeEach(async () => {
-  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+  vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
   h = makeHarness({ paths: HUB_ROUTE_PATHS });
   await signIn(h, WORLD_ON);
   await flush(20);

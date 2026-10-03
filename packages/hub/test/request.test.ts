@@ -146,7 +146,7 @@ describe('[AI-142] the request body of each feature', () => {
 describe('[AI-142] the facade builds over the current bootstrap and transport', () => {
   let h: Harness;
   beforeEach(() => {
-    vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
     h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: fullStreamTransport() });
   });
   afterEach(() => {

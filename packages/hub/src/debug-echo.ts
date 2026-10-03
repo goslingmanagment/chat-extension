@@ -8,7 +8,7 @@
 
 import { DEBUG_LIMITS, type FeatureId, type HubAiFeature, type HubFrame, type PromptSnapshotView } from '@cg/contracts';
 
-import { type UuidSource } from './ports';
+import { type HubClock, type UuidSource } from './ports';
 
 type DebugFrame = Extract<HubFrame, { type: 'debug_input_v1' }>;
 
@@ -16,6 +16,7 @@ interface EchoEntry {
   readonly token: string;
   readonly opId: string;
   readonly feature: FeatureId;
+  /** Monotonic: the snapshot TTL and the order of eviction. */
   readonly createdAt: number;
   frame: DebugFrame | null;
   capturedAt: number | null;
@@ -62,7 +63,8 @@ export class PromptEchoStore {
   private readonly expired: string[] = [];
 
   constructor(
-    private readonly now: () => number,
+    /** `now` for the capture time shown; `monotonic` for the snapshot TTL (HB-008). */
+    private readonly clock: Pick<HubClock, 'now' | 'monotonic'>,
     private readonly uuid: UuidSource,
   ) {}
 
@@ -70,7 +72,7 @@ export class PromptEchoStore {
   requested(opId: string, feature: FeatureId): void {
     this.sweep();
     const token = this.uuid();
-    this.byToken.set(token, { token, opId, feature, createdAt: this.now(), frame: null, capturedAt: null, ended: false, fromCache: false });
+    this.byToken.set(token, { token, opId, feature, createdAt: this.clock.monotonic(), frame: null, capturedAt: null, ended: false, fromCache: false });
     this.byOp.set(opId, token);
     this.trim();
   }
@@ -79,7 +81,7 @@ export class PromptEchoStore {
     const entry = this.entryOf(opId);
     if (entry === null) return;
     entry.frame = frame;
-    entry.capturedAt = this.now();
+    entry.capturedAt = this.clock.now();
   }
 
   /** The stream of `opId` is over, with or without an echo. */
@@ -147,7 +149,7 @@ export class PromptEchoStore {
   }
 
   private sweep(): void {
-    const now = this.now();
+    const now = this.clock.monotonic();
     for (const entry of [...this.byToken.values()]) {
       if (now - entry.createdAt >= DEBUG_LIMITS.promptSnapshotTtlMs) this.drop(entry);
     }
