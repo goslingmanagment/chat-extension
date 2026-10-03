@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { BOARDS_I18N_KEYS, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -246,5 +246,19 @@ describe('spoken money (1.1.0)', () => {
     expect(C.isPluralKey('common.money.dollars')).toBe(true);
     expect(SPOKEN_MONEY_SAMPLES.valid[0]?.(320_000, { sign: 'plus' })).toBe('плюс 320 долларов');
     expect(SPOKEN_MONEY_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('boards, preview, «Новые», fan panel and palette texts (1.2.0)', () => {
+  it('[SP-012] [NF-025] [CS-032] the catalog names every text those surfaces draw', () => {
+    expect(new Set(BOARDS_I18N_KEYS.text).size).toBe(BOARDS_I18N_KEYS.text.length);
+    for (const key of BOARDS_I18N_KEYS.text) {
+      expect(C.UI_TEXT_KEYS, key).toContain(key);
+      expect(C.isPluralKey(key), key).toBe(false);
+    }
+    for (const key of BOARDS_I18N_KEYS.plural) expect(C.isPluralKey(key), key).toBe(true);
+    for (const key of BOARDS_I18N_KEYS.invalid) expect(C.I18N_KEYS as readonly unknown[]).not.toContain(key);
+    // The narrow list column prints «Всего» for «Всё время» (ui-design §3.5).
+    expect(C.UI_TEXT_KEYS).toContain('spenders.col.lifetimeShort');
   });
 });

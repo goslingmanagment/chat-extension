@@ -194,3 +194,65 @@ export const SPOKEN_MONEY_SAMPLES: { readonly valid: readonly SpokenMoney[]; rea
     ((mills: number | null) => mills ?? 0) satisfies SpokenMoney,
   ],
 };
+
+/**
+ * The i18n keys of 1.2.0 (R15: Spenders, the preview, «Новые», the fan panel,
+ * the palette): texts ui-design.md draws or §10 asks for that 1.1.0 had no
+ * key for. Keys are the contract; the texts live in core/domain/i18n.
+ */
+export const BOARDS_I18N_KEYS: { readonly text: readonly C.UiTextKey[]; readonly plural: readonly C.UiPluralKey[]; readonly invalid: readonly unknown[] } = {
+  text: [
+    'spenders.col.lifetimeShort',
+    'spenders.shelf.from',
+    'spenders.shelf.range',
+    'spenders.shelf.none',
+    'spenders.truncated',
+    'spenders.truncatedNoTotal',
+    'stats.newPayersObserved',
+    'preview.metaOurUnknown',
+    'preview.notOpenedAfterSendTooltip',
+    'preview.feed.label',
+    'preview.feed.fanPrefix',
+    'preview.feed.deleted',
+    'preview.feed.automatic',
+    'preview.feed.priced',
+    'preview.feed.notBought',
+    'preview.feed.older',
+    'preview.ping.segment',
+    'preview.ping.segmentNoDays',
+    'preview.ping.active',
+    'preview.ping.unknown',
+    'send.unavailableReason',
+    'newcomers.claim.mine',
+    'newcomers.incomplete',
+    'newcomers.draft',
+    'newcomers.draftStale',
+    'newcomers.scanProgress',
+    'newcomers.window.label',
+    'fanPanel.subscribedLabel',
+    'fanPanel.subscribedValue',
+    'fanPanel.subscribedMonths',
+    'fanPanel.subscribedSince',
+    'fanPanel.churn.low',
+    'fanPanel.churn.medium',
+    'fanPanel.churn.high',
+    'fanPanel.churn.unknown',
+    'fanPanel.byKind.posts',
+    'fanPanel.byKind.other',
+    'fanPanel.subOnline',
+    'fanPanel.lastSeen',
+    'fanPanel.online',
+    'fanPanel.buyingPower',
+    'fanPanel.recap.archivePartial',
+    'palette.partial',
+  ],
+  plural: ['spenders.footerNoTotal', 'fanPanel.footerCoverage', 'quickJump.unread'],
+  invalid: [
+    // @ts-expect-error the shelf label is built from its bounds: there is no one-piece key
+    'spenders.shelf' satisfies C.I18nKey,
+    // @ts-expect-error a colleague's lease has no countdown and no name (ui-design §12 п. 5)
+    'newcomers.claim.other' satisfies C.I18nKey,
+    // @ts-expect-error «Отправить» has no «send all» text
+    'send.all' satisfies C.I18nKey,
+  ],
+};

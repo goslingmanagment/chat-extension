@@ -28,6 +28,45 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.2.0 — 2026-10-04 (волна 2a; добавочное)
+
+Минорная версия волны 2a: только новые ключи i18n. Старые потребители не
+ломаются: ни один ключ не убран и не сменил смысл.
+
+### R15 — доски, превью, «Новые», панель фана, палитра
+
+- **46 ключей i18n** (43 текста и 3 с множественным числом) для того, что
+  `ui-design.md` рисует или требует в §10, а в каталоге 1.1.0 названо не было.
+  Тексты ru/en — в `core/domain/i18n`; фикстура — `BOARDS_I18N_KEYS`.
+  - **Доска Spenders:** `spenders.col.lifetimeShort` («Всего» в колонке списка
+    ≤ 620 px, §3.5); подпись полки по границам корзины хаба —
+    `spenders.shelf.from` («$600+»), `spenders.shelf.range` («$350–600»),
+    `spenders.shelf.none` («вне полок», SP-008); обрезка на 1000 строк —
+    `spenders.truncated`, `spenders.truncatedNoTotal` (SP-021); подвал, когда
+    общее число фанов неизвестно, — `spenders.footerNoTotal`.
+  - **Статистика:** `stats.newPayersObserved` — «первая наблюдённая покупка»
+    при неполном прошлом (SP-048).
+  - **Превью:** `preview.metaOurUnknown`; `preview.notOpenedAfterSendTooltip`
+    (§4.16); лента архива — `preview.feed.label`, `.fanPrefix`, `.deleted`,
+    `.automatic`, `.priced`, `.notBought`, `.older` (SP-053, NF-010); сегмент
+    Ping — `preview.ping.segment`, `.segmentNoDays`, `.active`, `.unknown`
+    (AI-038); `send.unavailableReason` — «Отправка недоступна: {reason}» в
+    строке кода (§4.13).
+  - **«Новые»:** `newcomers.claim.mine` (своя бронь с отсчётом; у брони
+    коллеги отсчёта нет, §12 п. 5), `newcomers.incomplete` (NF-025),
+    `newcomers.draft`, `newcomers.draftStale` (NF-012, NF-018),
+    `newcomers.scanProgress` (NF-008), `newcomers.window.label` (NF-003).
+  - **Панель фана:** `fanPanel.subscribedLabel`, `.subscribedValue`,
+    `.subscribedMonths`, `.subscribedSince` (строка «ключ — значение» вместо
+    одной фразы `fanPanel.subscribed`, §4.18); значения риска ухода
+    `fanPanel.churn.low|medium|high|unknown`; `fanPanel.byKind.posts`,
+    `.other` (виды трат модели `FanPanelVM`); `fanPanel.subOnline`,
+    `.lastSeen`, `.online`; `fanPanel.buyingPower` (оценка ChatSpace, §10);
+    `fanPanel.recap.archivePartial`; подвал при неполном охвате —
+    `fanPanel.footerCoverage`.
+  - **Палитра и быстрый переход:** `palette.partial` (не все списки
+    загружены), `quickJump.unread`.
+
 ## 1.1.0 — 2026-10-03 (волна 1: R08, R09, R13, R18; добавочное)
 
 Одна минорная версия на всю волну 1: добавочные изменения (`contract-change`)
