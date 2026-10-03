@@ -8,6 +8,8 @@
 import { HOTKEY_SCHEME_VERSION } from '@chatgoose/hotkeys';
 
 export * from './text';
+export * from './settings';
+export * from './storage';
 
 /** Operation limits (D-11): one per chat across the extension, up to three per tab, no queue. */
 export const OP_LIMITS = { perChat: 1, perTab: 3 } as const;

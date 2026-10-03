@@ -1,0 +1,47 @@
+// Byte budgets of the storage keys (architecture.md §9.4 «Пределы хранилищ»,
+// §5.6): the composition root hands `storageBudgetOf` to the platform's
+// storage wrappers, which refuse a larger value with CG-STORAGE-FULL before
+// the browser is asked. `unlimitedStorage` is not requested (§3): these are
+// the extension's own caps.
+
+import { STORAGE_KEYS } from '@cg/contracts/settings';
+import { STORAGE_LIMITS } from '@cg/contracts/limits';
+
+const KiB = 1024;
+const MiB = 1024 * KiB;
+
+/** storage.session keys of the background (results of operations, the settings revision). */
+export const SESSION_KEYS = {
+  /** Index of the stored results: ids, owners, sizes, times. */
+  resultsIndex: 'results.index',
+  /** Prefix of one stored result: `result.<opId>`. */
+  resultPrefix: 'result.',
+  /** Revision of the settings, monotonic while the browser runs (§9.4 «с ревизией»). */
+  settingsRevision: 'settings.revision',
+} as const;
+
+/** One stored result (an OpView: up to 64k characters of stream plus the parsed result). */
+export const RESULT_MAX_BYTES = 512 * KiB;
+
+export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
+  [STORAGE_KEYS.settings]: 256 * KiB,
+  [STORAGE_KEYS.authToken]: 16 * KiB,
+  [STORAGE_KEYS.authMeta]: 16 * KiB,
+  [STORAGE_KEYS.cacheBootstrap]: 1 * MiB,
+  [STORAGE_KEYS.cacheCatalog]: 1 * MiB,
+  [STORAGE_KEYS.presence]: 256 * KiB,
+  /** 500 events of a few hundred bytes (TL-009). */
+  [STORAGE_KEYS.telemetryQueue]: 1 * MiB,
+  /** No text: ids, states, times; open entries are never dropped. */
+  [STORAGE_KEYS.sendJournal]: 1 * MiB,
+  /** «Новые» drafts: up to 100 and 1 MiB (§9.4). */
+  [STORAGE_KEYS.newcomersDrafts]: STORAGE_LIMITS.previewDraftsTotalBytes,
+  [SESSION_KEYS.resultsIndex]: 1 * MiB,
+  [SESSION_KEYS.settingsRevision]: 64,
+};
+
+/** The budget of a key: its own, the per-result budget for `result.*`, or none. */
+export function storageBudgetOf(key: string): number | undefined {
+  if (key.startsWith(SESSION_KEYS.resultPrefix)) return RESULT_MAX_BYTES;
+  return STORAGE_KEY_BUDGETS[key];
+}

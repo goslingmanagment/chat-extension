@@ -1,9 +1,11 @@
-// runtime.Port plumbing for the tab ↔ background channel (§5.4). The
-// background trusts only its own senders: same extension id, top frame.
-// Message shapes are validated by the callers with @cg/contracts schemas.
+// Raw runtime.Port plumbing for the tab ↔ background channel (§5.4), kept for
+// the R00 composition roots and the liveness exchange (`tab-liveness`). The
+// typed RPC with the full sender rules is rpc-background.ts / rpc-tab.ts /
+// rpc-page.ts; the integrator moves the composition onto it.
 
-import { browser, type Browser } from '@wxt-dev/browser';
-import { TAB_PORT_NAME } from '@cg/contracts';
+import { TAB_PORT_NAME } from '@cg/contracts/tab-protocol';
+
+import { defaultBrowser, type BrowserApi, type PortApi } from './browser-api';
 
 export interface TabPortClient {
   post(message: unknown): void;
@@ -13,8 +15,8 @@ export interface TabPortClient {
   close(): void;
 }
 
-export function connectTabPort(): TabPortClient {
-  const port = browser.runtime.connect({ name: TAB_PORT_NAME });
+export function connectTabPort(api: BrowserApi = defaultBrowser()): TabPortClient {
+  const port = api.runtime.connect({ name: TAB_PORT_NAME });
   return {
     post: (message) => port.postMessage(message),
     onMessage: (handler) => port.onMessage.addListener((message: unknown) => handler(message)),
@@ -32,11 +34,11 @@ export interface TabPortServerSide {
 }
 
 /** Background side: accepts only `cg-tab` ports from this extension's top-frame content scripts. */
-export function onTabPortConnect(handler: (port: TabPortServerSide) => void): void {
-  browser.runtime.onConnect.addListener((port: Browser.runtime.Port) => {
+export function onTabPortConnect(handler: (port: TabPortServerSide) => void, api: BrowserApi = defaultBrowser()): void {
+  api.runtime.onConnect.addListener((port: PortApi) => {
     if (port.name !== TAB_PORT_NAME) return;
     const sender = port.sender;
-    if (sender?.id !== browser.runtime.id || sender.frameId !== 0) {
+    if (sender?.id !== api.runtime.id || sender.frameId !== 0) {
       port.disconnect();
       return;
     }
