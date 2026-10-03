@@ -11,6 +11,7 @@
 export * from './primitives';
 export * from './features';
 export * from './ids';
+export * from './limits';
 export * from './errors';
 export * from './settings';
 export * from './bridge';

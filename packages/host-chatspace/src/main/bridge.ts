@@ -6,13 +6,19 @@
 // 4. MAIN accepts only the first valid 'connect' and drops its window listener.
 // Natives are captured at load, before the page can patch them.
 //
+// Frames on the port follow the contracts envelope (BridgeRequestSchema /
+// BridgeResponseSchema): every answer carries the request's id and type, this
+// document's epoch and a per-document sequence number.
+//
 // R00 answers one request, `probe`. R09 adds the rest of ToMain/FromMain.
 
-import { PROTOCOL_VERSION, TAG_CONNECT, TAG_ISO_HELLO, TAG_MAIN_READY, WS_TAP_KEY } from './protocol';
+import { ERR_UNKNOWN_REQUEST, KIND_REQ, KIND_RES, PROTOCOL_VERSION, TAG_CONNECT, TAG_ISO_HELLO, TAG_MAIN_READY, WS_TAP_KEY } from './protocol';
 
 export interface MainBridgeHandle {
   /** Time spent installing the bridge, ms (§11 budget: ≤ 1 ms at document_start). */
   readonly installMs: number;
+  /** Minted once per document; changes on reload. */
+  readonly documentEpoch: string;
   /** Whether a port is connected. */
   isConnected(): boolean;
   dispose(): void;
@@ -20,6 +26,13 @@ export interface MainBridgeHandle {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function mintDocumentEpoch(crypto: Crypto): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  let epoch = '';
+  for (const byte of bytes) epoch += byte.toString(16).padStart(2, '0');
+  return epoch;
 }
 
 export function installMainBridge(win: Window = window): MainBridgeHandle {
@@ -32,11 +45,17 @@ export function installMainBridge(win: Window = window): MainBridgeHandle {
   // eslint-disable-next-line @typescript-eslint/unbound-method -- native captured at load, always invoked with .call
   const hasOwn = Object.prototype.hasOwnProperty;
   const tapKey = Symbol.for(WS_TAP_KEY);
+  const documentEpoch = mintDocumentEpoch(win.crypto);
   const origin = win.location.origin;
   const targetOrigin = origin === 'null' ? '*' : origin;
 
   let port: MessagePort | null = null;
   let installMs = 0;
+  let seq = 0;
+
+  const reply = (id: number, t: string, body: Record<string, unknown>): void => {
+    port?.postMessage({ v: PROTOCOL_VERSION, kind: KIND_RES, id, t, documentEpoch, seq: seq++, ...body });
+  };
 
   const announce = (): void => {
     post({ cg: TAG_MAIN_READY, v: PROTOCOL_VERSION }, targetOrigin);
@@ -44,14 +63,12 @@ export function installMainBridge(win: Window = window): MainBridgeHandle {
 
   const onPortMessage = (event: MessageEvent): void => {
     const data: unknown = event.data;
-    if (!isRecord(data) || data['v'] !== PROTOCOL_VERSION || data['kind'] !== 'req') return;
+    if (!isRecord(data) || data['v'] !== PROTOCOL_VERSION || data['kind'] !== KIND_REQ) return;
     const id = data['id'];
-    if (typeof id !== 'number' || !Number.isSafeInteger(id)) return;
-    if (data['t'] === 'probe') {
-      port?.postMessage({
-        v: PROTOCOL_VERSION,
-        kind: 'res',
-        id,
+    const t = data['t'];
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1 || typeof t !== 'string') return;
+    if (t === 'probe') {
+      reply(id, t, {
         ok: true,
         data: {
           v: PROTOCOL_VERSION,
@@ -62,7 +79,7 @@ export function installMainBridge(win: Window = window): MainBridgeHandle {
       });
       return;
     }
-    port?.postMessage({ v: PROTOCOL_VERSION, kind: 'res', id, ok: false, err: 'unknown-request' });
+    reply(id, t, { ok: false, err: ERR_UNKNOWN_REQUEST });
   };
 
   const onWindowMessage = (event: MessageEvent): void => {
@@ -87,6 +104,7 @@ export function installMainBridge(win: Window = window): MainBridgeHandle {
 
   return {
     installMs,
+    documentEpoch,
     isConnected: () => port !== null,
     dispose: () => {
       removeWindowListener('message', onWindowMessage, true);
