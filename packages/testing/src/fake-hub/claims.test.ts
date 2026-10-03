@@ -151,6 +151,25 @@ describe('fake hub claims: lease and greeting', () => {
     expect((await post(a2, lease('renew'))).state.lease.state).toBe('owned');
   });
 
+  it('two installs of one chatter over GET and «Новые»: only the install (device token) holding the lease sees `owned` and its lease token', async () => {
+    await post(a, lease('claim'));
+    expect((await status(a)).lease).toEqual({ state: 'owned', leaseToken: LEASE, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: null });
+    expect((await status(a2)).lease).toEqual({ state: 'held', leaseToken: null, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: 'you-elsewhere' });
+    expect((await status(b)).lease).toEqual({ state: 'held', leaseToken: null, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: 'someone-else' });
+    const summary = async (token: string) => {
+      const response = await hubCall(hub.fetch, hub.origin, 'clientAudienceNew', { pageLabel: PAGE, windowHours: 48 }, { token });
+      return ((await response.json()) as { items: Array<{ fanRef: string; claim: unknown }> }).items.find((item) => item.fanRef === FAN)?.claim;
+    };
+    expect(await summary(a)).toEqual({ greeting: 'none', lease: 'owned', heldBy: null, custody: null });
+    expect(await summary(a2)).toEqual({ greeting: 'none', lease: 'held', heldBy: 'you-elsewhere', custody: null });
+    // The holding install signed in again (a new token): its next renew moves the lease to that token.
+    expect((await post(a2, lease('renew'))).state.lease).toMatchObject({ state: 'owned', leaseToken: LEASE });
+    expect((await status(a2)).lease).toMatchObject({ state: 'owned', leaseToken: LEASE });
+    expect((await status(a)).lease).toMatchObject({ state: 'held', leaseToken: null, heldBy: 'you-elsewhere' });
+    const dump = JSON.stringify([await status(a), await status(b), await summary(a), await summary(b)]);
+    expect(dump).not.toContain(LEASE);
+  });
+
   it('the lease expires lazily after claimLeaseSec unless renewed; then anyone may claim', async () => {
     await post(a, lease('claim'));
     advance(100_000);
@@ -308,6 +327,21 @@ describe('fake hub claims: custody', () => {
     expect((await post(b, dispatch(attempt(), 0, { purpose: 'preview-reply', instanceId: B_INSTANCE }), '3011')).status).toBe(200);
     advance(55_000);
     expect((await post(a, dispatch(attempt(), 0, { purpose: 'preview-reply' }), '3012')).status).toBe(200);
+  });
+
+  it('claim and custody are OnlyFans-only: on a Fansly page every action and the status are refused, the flag-free ones included', async () => {
+    const fansly = WORLD.pages.fansly.pageLabel;
+    const call = async (route: 'clientFanClaim' | 'clientFanClaimStatus', body?: ClaimBody) => {
+      const response = await hubCall(hub.fetch, hub.origin, route, body === undefined ? { pageLabel: fansly, fanRef: FAN } : { pageLabel: fansly, fanRef: FAN, body }, { token: a });
+      const json = (await response.json()) as { error?: string; reason?: string };
+      return { status: response.status, error: json.error ?? null, reason: json.reason ?? null };
+    };
+    const off = { status: 409, error: 'client_feature_disabled', reason: 'platform_unsupported' };
+    expect(await call('clientFanClaimStatus')).toEqual(off);
+    expect(await call('clientFanClaim', lease('claim'))).toEqual(off);
+    expect(await call('clientFanClaim', native(attempt(), 0, '4100'))).toEqual(off);
+    expect(await call('clientFanClaim', dispatch(attempt(), 0, { purpose: 'preview-reply' }))).toEqual(off);
+    expect(hub.status().claims.filter((claim) => claim.pageLabel === fansly)).toEqual([]);
   });
 
   it('a desktop-confirmed greeting closes the fan for everyone', async () => {

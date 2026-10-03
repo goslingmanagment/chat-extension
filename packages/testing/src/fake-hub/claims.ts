@@ -10,7 +10,10 @@
 //    `failed` — only the late proof (`sent`) or an owner resolve ends it.
 // `dispatch` runs the hub's checks in the hub's order (PR 27 «Порядок
 // проверок»). Every custody move is checked against the frozen
-// CUSTODY_TRANSITIONS.
+// CUSTODY_TRANSITIONS. The holder of a lease is told apart only as
+// `you-elsewhere` / `someone-else`; installs of one chatter are told apart by
+// their device token (one per install): GET status and the «Новые» summary
+// show `owned` and the lease token only to the token that holds the lease.
 
 import {
   isCustodyTransition,
@@ -30,6 +33,8 @@ export type FlagVerdict = { readonly ok: true } | { readonly ok: false; readonly
 export interface ClaimContext {
   readonly now: number;
   readonly userId: number;
+  /** The caller's device token id: one per install. */
+  readonly tokenId: number;
   readonly leaseSec: number;
   readonly ticketSec: number;
   readonly perMinute: number;
@@ -47,6 +52,8 @@ interface Lease {
   readonly leaseToken: string;
   readonly userId: number;
   readonly instanceId: string;
+  /** The device token of the install holding it (moves to the install's new token on its next claim/renew). */
+  tokenId: number;
   state: 'active' | 'released' | 'expired';
   expiresAt: number;
 }
@@ -98,10 +105,12 @@ export function stableJson(value: unknown): string {
 
 const refuse = (error: HubErrorCode, extra: { reason?: string; retryAfterSec?: number } = {}): ClaimResult => ({ ok: false, error, ...extra });
 
+/** Who asks: a POST names its install and lease token; a GET only has its device token. null = not compared. */
 interface Caller {
   readonly userId: number;
   readonly instanceId: string | null;
   readonly leaseToken: string | null;
+  readonly tokenId: number | null;
 }
 
 export class ClaimsModel {
@@ -134,7 +143,12 @@ export class ClaimsModel {
   }
 
   private static owns(lease: Lease, caller: Caller): boolean {
-    return lease.userId === caller.userId && (caller.instanceId === null || lease.instanceId === caller.instanceId) && (caller.leaseToken === null || lease.leaseToken === caller.leaseToken);
+    return (
+      lease.userId === caller.userId &&
+      (caller.instanceId === null || lease.instanceId === caller.instanceId) &&
+      (caller.leaseToken === null || lease.leaseToken === caller.leaseToken) &&
+      (caller.tokenId === null || lease.tokenId === caller.tokenId)
+    );
   }
 
   private view(fan: FanClaims, caller: Caller, focus: Attempt | null, ctx: ClaimContext, withTicket: boolean): ClaimState {
@@ -193,10 +207,10 @@ export class ClaimsModel {
     fan.greeting = { at: now, messageRef, source, ownerUserId: attempt.userId, group: attempt.group };
   }
 
-  /** GET …/claim: the same state, never a ticket. */
+  /** GET …/claim: the same state, never a ticket; `owned` and the lease token only for the install (device token) holding the lease. */
   status(pageLabel: string, fanRef: string, ctx: ClaimContext): ClaimState {
     const fan = this.fan(pageLabel, fanRef);
-    return this.view(fan, { userId: ctx.userId, instanceId: null, leaseToken: null }, fan.attempts.at(-1) ?? null, ctx, false);
+    return this.view(fan, { userId: ctx.userId, instanceId: null, leaseToken: null, tokenId: ctx.tokenId }, fan.attempts.at(-1) ?? null, ctx, false);
   }
 
   /** The «Новые» row's claim summary for this caller. */
@@ -226,7 +240,7 @@ export class ClaimsModel {
   }
 
   private leaseAction(fan: FanClaims, body: Extract<ClaimBody, { action: 'claim' | 'renew' | 'release' }>, ctx: ClaimContext): ClaimResult {
-    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: body.leaseToken };
+    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: body.leaseToken, tokenId: null };
     const answer = (): ClaimResult => ({ ok: true, state: this.view(fan, caller, this.openAttempt(fan), ctx, false) });
     const live = ClaimsModel.liveLease(fan);
     if (body.action === 'release') {
@@ -237,6 +251,7 @@ export class ClaimsModel {
     if (!flag.ok) return refuse('client_feature_disabled', { reason: flag.reason });
     const extend = (lease: Lease): void => {
       lease.expiresAt = ctx.now + ctx.leaseSec * 1000;
+      lease.tokenId = ctx.tokenId;
     };
     if (body.action === 'renew') {
       if (live === null) return refuse('claim_expired');
@@ -253,12 +268,12 @@ export class ClaimsModel {
       extend(live);
       return answer();
     }
-    fan.lease = { leaseToken: body.leaseToken, userId: ctx.userId, instanceId: body.instanceId, state: 'active', expiresAt: ctx.now + ctx.leaseSec * 1000 };
+    fan.lease = { leaseToken: body.leaseToken, userId: ctx.userId, instanceId: body.instanceId, tokenId: ctx.tokenId, state: 'active', expiresAt: ctx.now + ctx.leaseSec * 1000 };
     return answer();
   }
 
   private dispatch(fan: FanClaims, body: Extract<ClaimBody, { action: 'dispatch' }>, ctx: ClaimContext): ClaimResult {
-    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: body.leaseToken ?? null };
+    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: body.leaseToken ?? null, tokenId: null };
     const hash = stableJson(body);
     // 1. A repeat of the same attempt only reads; another body under the same id is a conflict.
     const existing = this.findAttempt(body.attemptId);
@@ -329,7 +344,7 @@ export class ClaimsModel {
     const found = this.findAttempt(body.attemptId);
     if (found === null || found.fan !== fan || found.attempt.userId !== ctx.userId || found.attempt.instanceId !== body.instanceId) return refuse('custody_not_owned');
     const { attempt } = found;
-    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: null };
+    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: null, tokenId: null };
     if (attempt.state === 'sent') {
       return attempt.platformMessageId === body.platformMessageId ? { ok: true, state: this.view(fan, caller, attempt, ctx, false) } : refuse('attempt_conflict');
     }
@@ -345,7 +360,7 @@ export class ClaimsModel {
     const found = this.findAttempt(body.attemptId);
     if (found === null || found.fan !== fan || found.attempt.userId !== ctx.userId || found.attempt.instanceId !== body.instanceId) return refuse('custody_not_owned');
     const { attempt } = found;
-    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: null };
+    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: null, tokenId: null };
     const now = ClaimsModel.custodyOf(attempt, ctx.now);
     if (now === 'failed' && attempt.failure?.reason === body.reason) return { ok: true, state: this.view(fan, caller, attempt, ctx, false) };
     // An expired ticket made the send uncertain: no `failed` without the proof that it never left in time.
@@ -357,7 +372,7 @@ export class ClaimsModel {
   }
 
   private registerNativeSend(pageLabel: string, fan: FanClaims, body: Extract<ClaimBody, { action: 'registerNativeSend' }>, ctx: ClaimContext): ClaimResult {
-    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: null };
+    const caller: Caller = { userId: ctx.userId, instanceId: body.instanceId, leaseToken: null, tokenId: null };
     const hash = stableJson(body);
     const existing = this.findAttempt(body.attemptId);
     if (existing !== null) {

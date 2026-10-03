@@ -489,6 +489,8 @@ export class FakeHub {
       const flag = featureVerdict(s.config, page, spec.flag);
       if (!flag.available) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', flag.reason ?? 'flag_off');
     }
+    // H-7 claim and custody are OnlyFans-only (§4.12): every action and the status, the flag-free ones included.
+    if (spec.routeClass === 'claim' && page !== null && page.platform !== 'onlyfans') return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
 
     let outcome: Outcome;
     try {
@@ -610,6 +612,7 @@ export class FakeHub {
     return {
       now: this.clock.now(),
       userId: principal.user.userId,
+      tokenId: principal.token.id,
       leaseSec: limits.claimLeaseSec,
       ticketSec: limits.dispatchTicketSec,
       perMinute: limits.previewSendPerMinute,
