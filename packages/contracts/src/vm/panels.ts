@@ -138,6 +138,13 @@ export interface ToastVM {
   readonly copyCode: boolean;
   /** 4.5 s, errors 6.5 s; null while held by hover or focus. */
   readonly expiresAt: number | null;
+  /**
+   * The error's technical line «HTTP 429 • …» (CgErrorView.detail, at most
+   * CG_DETAIL_MAX_CHARS), monospace under the explanation (ER-010). 1.1.0.
+   */
+  readonly detail?: string;
+  /** The error's retry deadline, fixed once (CgErrorView.retryAt, epoch ms): «Повторить можно через 24 с» (ER-010). 1.1.0. */
+  readonly retryAt?: number;
 }
 
 export interface ToastsVM {

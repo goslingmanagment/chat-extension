@@ -156,3 +156,28 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
     ],
   ),
 ];
+
+/**
+ * ToastVM (a type, no schema): valid samples and values the type refuses.
+ * 1.1.0 — the error toast's technical line and retry deadline (ER-010).
+ */
+const TOAST_BASE: C.ToastVM = {
+  id: 'toast-1',
+  kind: 'error',
+  code: 'CG-PROVIDER-RATE-LIMIT',
+  title: 'AI перегружен',
+  body: 'Повторите вручную.',
+  actions: [],
+  copyCode: true,
+  expiresAt: 6_500,
+};
+
+export const TOAST_VM_SAMPLES: { readonly valid: readonly C.ToastVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [TOAST_BASE, { ...TOAST_BASE, detail: 'HTTP 429 • retry-after 24', retryAt: 30_000 }, { ...TOAST_BASE, kind: 'info', code: null, copyCode: false }],
+  invalid: [
+    // @ts-expect-error the technical line is text, not a status number
+    { ...TOAST_BASE, detail: 429 } satisfies C.ToastVM,
+    // @ts-expect-error the retry deadline is epoch ms, not an ISO string
+    { ...TOAST_BASE, retryAt: '2026-10-03T06:21:00.000Z' } satisfies C.ToastVM,
+  ],
+};
