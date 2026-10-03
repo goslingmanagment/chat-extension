@@ -11,7 +11,7 @@
 import { jsonUtf8Bytes } from '../../domain/storage';
 import type { KeyValuePort, StorageChange, StorageFailureCode, StorageResult } from '../storage/ports';
 
-type Op = 'get' | 'set' | 'remove';
+type Op = 'get' | 'set' | 'remove' | 'keys';
 type Failure = 'fail' | 'lost' | 'full';
 
 export interface MemoryKv {
@@ -38,7 +38,7 @@ const copy = <T>(value: T): T => (value === undefined ? value : (JSON.parse(JSON
 
 export function createMemoryKv(options: { readonly budgetOf?: (key: string) => number | undefined } = {}): MemoryKv {
   const data = new Map<string, unknown>();
-  const calls: Record<Op, number> = { get: 0, set: 0, remove: 0 };
+  const calls: Record<Op, number> = { get: 0, set: 0, remove: 0, keys: 0 };
   const failures: { op: Op; failure: Failure }[] = [];
   const instances = new Set<Set<(changes: Readonly<Record<string, StorageChange>>) => void>>();
   let held: (() => void)[] | null = null;
@@ -113,6 +113,13 @@ export function createMemoryKv(options: { readonly budgetOf?: (key: string) => n
           }
           emit(changes);
           return { ok: true, value: undefined };
+        }),
+        keys: () =>
+          later(() => {
+          calls.keys += 1;
+          if (!alive) throw new Error('instance gone');
+          if (take('keys')) return fail('CG-STORAGE-READ', 'keys failed');
+          return { ok: true, value: [...data.keys()] };
         }),
         onChanged(listener) {
           listeners.add(listener);

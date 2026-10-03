@@ -16,6 +16,7 @@ export { connectTabPort, onTabPortConnect, type TabPortClient, type TabPortServe
 export { syncDynamicMainScript, mainScriptRegistration, type DynamicMainScriptSpec, type DynamicScriptSync } from './scripting';
 export {
   createKeyValueStore,
+  DEFAULT_STORAGE_CALL_TIMEOUT_MS,
   isQuotaError,
   jsonBytes,
   DEFAULT_MAX_WRITE_BYTES,

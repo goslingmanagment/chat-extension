@@ -97,7 +97,7 @@ export interface FakeContext {
 }
 
 type AreaName = 'local' | 'session';
-type Op = 'get' | 'set' | 'remove';
+type Op = 'get' | 'set' | 'remove' | 'getKeys';
 
 export interface FakeBrowser {
   readonly runtimeId: string;
@@ -110,6 +110,8 @@ export interface FakeBrowser {
   readonly quota: Partial<Record<AreaName, number>>;
   /** Whether permissions.request grants (the person clicks «Allow»). */
   grantRequests: boolean;
+  /** Storage answers after this many ms (a real timer), or never ('hang'); default: next microtask. */
+  latency: ((area: AreaName, op: Op) => number | 'hang') | null;
   /** The current background context (null while unloaded). */
   background(): FakeContext | null;
   /** Starts a background context; `onWake` runs its top-level code. */
@@ -159,8 +161,16 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
     });
   };
 
+  /** The browser's latency: the call's effect happens after it, as a real storage call's does. */
+  const pause = async (area: AreaName, op: Op): Promise<void> => {
+    const ms = fake.latency?.(area, op) ?? 0;
+    if (ms === 'hang') await new Promise<never>(() => undefined);
+    else if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms));
+  };
+
   const areaApi = (area: AreaName, context: () => FakeContext): StorageAreaApi => ({
     async get(keys) {
+      await pause(area, 'get');
       if (!context().alive) throw new Error('context invalidated');
       const failure = takeFailure(area, 'get');
       if (failure !== undefined) throw failure;
@@ -170,7 +180,15 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
       for (const key of wanted) if (map.has(key)) out[key] = structuredClone(map.get(key));
       return out;
     },
+    async getKeys() {
+      await pause(area, 'getKeys');
+      if (!context().alive) throw new Error('context invalidated');
+      const failure = takeFailure(area, 'getKeys');
+      if (failure !== undefined) throw failure;
+      return [...areas[area].keys()];
+    },
     async set(items) {
+      await pause(area, 'set');
       if (!context().alive) throw new Error('context invalidated');
       const failure = takeFailure(area, 'set');
       if (failure !== undefined) throw failure;
@@ -191,6 +209,7 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
       emitChanges(area, changes);
     },
     async remove(keys) {
+      await pause(area, 'remove');
       if (!context().alive) throw new Error('context invalidated');
       const failure = takeFailure(area, 'remove');
       if (failure !== undefined) throw failure;
@@ -359,6 +378,7 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
     scripts,
     quota,
     grantRequests: true,
+    latency: null,
     background: () => (backgroundContext?.alive ? backgroundContext : null),
     startBackground,
     unloadBackground() {

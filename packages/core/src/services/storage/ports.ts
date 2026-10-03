@@ -21,6 +21,8 @@ export interface KeyValuePort {
   get(keys: readonly string[]): Promise<StorageResult<Readonly<Record<string, unknown>>>>;
   set(items: Readonly<Record<string, unknown>>): Promise<StorageResult<void>>;
   remove(keys: readonly string[]): Promise<StorageResult<void>>;
+  /** Every key of the area (rare: finding keys an index lost track of). */
+  keys(): Promise<StorageResult<readonly string[]>>;
   onChanged(listener: (changes: Readonly<Record<string, StorageChange>>) => void): () => void;
 }
 

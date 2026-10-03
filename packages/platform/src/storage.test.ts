@@ -1,6 +1,7 @@
 import { STORAGE_KEYS, STORAGE_LIMITS } from '@cg/contracts';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { StorageAreaApi } from './browser-api';
 import { createKeyValueStore, isQuotaError, jsonBytes } from './storage';
 import { createFakeBrowser, flush } from './test-support/fake-browser';
 
@@ -11,13 +12,50 @@ function setup() {
 }
 
 describe('storage.local / storage.session wrappers (§9.4)', () => {
-  it('[RB-011] runs calls in issue order: a read issued after a write sees the write', async () => {
-    const { api } = setup();
+  it('[RB-011] runs calls in issue order: a read issued after a write sees the write, however slow the browser is', async () => {
+    const { fake, api } = setup();
+    // Earlier calls take longer: without the queue the reads would overtake the writes.
+    const delays = [8, 1, 6, 1, 0];
+    fake.latency = () => delays.shift() ?? 0;
     const store = createKeyValueStore('local', { api });
     const calls = [store.set({ a: 1 }), store.get(['a']), store.set({ a: 2 }), store.remove(['a']), store.get(['a'])];
     const [, firstRead, , , lastRead] = await Promise.all(calls);
     expect(firstRead).toEqual({ ok: true, value: { a: 1 } });
     expect(lastRead).toEqual({ ok: true, value: {} });
+  });
+
+  it('a browser call that never answers fails after the call timeout and the queue moves on', async () => {
+    const { fake, api } = setup();
+    const store = createKeyValueStore('local', { api, callTimeoutMs: 20 });
+    await store.set({ a: 1 });
+    fake.latency = (_area, op) => (op === 'get' ? 'hang' : 0);
+    const read = store.get(['a']);
+    const write = store.set({ a: 2 });
+    expect(await read).toEqual({ ok: false, code: 'CG-STORAGE-READ', detail: 'local.get StorageTimeout' });
+    expect(await write).toEqual({ ok: true, value: undefined });
+    fake.latency = (_area, op) => (op === 'get' ? 0 : 'hang');
+    expect(await store.set({ a: 3 })).toEqual({ ok: false, code: 'CG-STORAGE-WRITE', detail: 'local.set StorageTimeout' });
+    expect(await store.remove(['a'])).toEqual({ ok: false, code: 'CG-STORAGE-WRITE', detail: 'local.remove StorageTimeout' });
+    expect(await store.get(['a'])).toEqual({ ok: true, value: { a: 2 } });
+    fake.latency = () => 'hang';
+    expect(await store.keys()).toEqual({ ok: false, code: 'CG-STORAGE-READ', detail: 'local.keys StorageTimeout' });
+  });
+
+  it('lists the keys of its area (getKeys, or get(null) on a Firefox without it); a failure is CG-STORAGE-READ', async () => {
+    const { fake, api } = setup();
+    const session = createKeyValueStore('session', { api });
+    await session.set({ 'result.a': 1, 'results.index': 2 });
+    await createKeyValueStore('local', { api }).set({ other: 1 });
+    expect(await session.keys()).toEqual({ ok: true, value: ['result.a', 'results.index'] });
+    const getKeys = vi.spyOn(api.storage.session, 'getKeys');
+    await session.keys();
+    expect(getKeys).toHaveBeenCalledTimes(1);
+    const area = api.storage.session;
+    const older: StorageAreaApi = { get: (keys) => area.get(keys), set: (items) => area.set(items), remove: (keys) => area.remove(keys) };
+    const legacy = createKeyValueStore('session', { api: { ...api, storage: { ...api.storage, session: older } } });
+    expect(await legacy.keys()).toEqual({ ok: true, value: ['result.a', 'results.index'] });
+    fake.failNext('session', 'getKeys');
+    expect(await session.keys()).toEqual({ ok: false, code: 'CG-STORAGE-READ', detail: 'session.keys Error' });
   });
 
   it('[RB-011] a change of several keys is ONE browser set', async () => {

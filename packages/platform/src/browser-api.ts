@@ -70,6 +70,8 @@ export interface StorageChangeApi {
 
 export interface StorageAreaApi {
   get(keys: string | string[] | null): Promise<Record<string, unknown>>;
+  /** Firefox 143+; older builds list keys through `get(null)`. */
+  getKeys?(): Promise<string[]>;
   set(items: Record<string, unknown>): Promise<void>;
   remove(keys: string | string[]): Promise<void>;
 }

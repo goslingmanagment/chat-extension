@@ -8,6 +8,11 @@
 //   write, never a series (§9.4 «одним storage.local.set»).
 // - Calls run in the order they were issued (RB-011): a read issued after a
 //   write sees that write.
+// - No call hangs forever: a browser call that has not answered within
+//   `callTimeoutMs` is a failure (CG-STORAGE-READ for reads, CG-STORAGE-WRITE
+//   for writes — a timed-out write may still land, as with a lost
+//   confirmation) and the queue moves on, so one stuck call cannot stall the
+//   area. Only a timed-out call loses the issue-order guarantee.
 // - Size budgets per key (§9.4 «Пределы хранилищ»): a value over its budget
 //   is refused with CG-STORAGE-FULL before the browser is asked; a browser
 //   quota error is CG-STORAGE-FULL too, any other failure CG-STORAGE-WRITE.
@@ -34,6 +39,8 @@ export interface KeyValueStore {
   get(keys: readonly string[]): Promise<StorageResult<Readonly<Record<string, unknown>>>>;
   set(items: Readonly<Record<string, unknown>>): Promise<StorageResult<void>>;
   remove(keys: readonly string[]): Promise<StorageResult<void>>;
+  /** Every key of the area (`getKeys`, or `get(null)` before Firefox 143). */
+  keys(): Promise<StorageResult<readonly string[]>>;
   /** Changes of this area, from any context (another writer, «Очистить локальные данные»). */
   onChanged(listener: (changes: Readonly<Record<string, StorageChange>>) => void): () => void;
 }
@@ -44,7 +51,12 @@ export interface KeyValueStoreOptions {
   readonly budgetOf?: (key: string) => number | undefined;
   /** Cap of one write, all keys together. */
   readonly maxWriteBytes?: number;
+  /** A browser call unanswered by then fails and the queue moves on; default DEFAULT_STORAGE_CALL_TIMEOUT_MS. */
+  readonly callTimeoutMs?: number;
 }
+
+/** Well past a healthy storage call, well inside the background's readiness deadline. */
+export const DEFAULT_STORAGE_CALL_TIMEOUT_MS = 5_000;
 
 const MiB = 1024 * 1024;
 
@@ -94,6 +106,40 @@ export function isQuotaError(error: unknown): boolean {
 
 const fail = (code: StorageFailureCode, detail: string): StorageResult<never> => ({ ok: false, code, detail });
 
+async function listKeys(target: StorageAreaApi): Promise<string[]> {
+  if (typeof target.getKeys === 'function') return target.getKeys();
+  return Object.keys(await target.get(null));
+}
+
+class StorageTimeout extends Error {
+  override readonly name = 'StorageTimeout';
+}
+
+/** The browser call, or a StorageTimeout rejection once `ms` passed (the call itself is not cancelled). */
+function within<T>(call: () => Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new StorageTimeout('storage call timed out')), ms);
+    let started: Promise<T>;
+    try {
+      started = call();
+    } catch (error) {
+      clearTimeout(timer);
+      reject(error instanceof Error ? error : new Error('storage call failed'));
+      return;
+    }
+    started.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error('storage call failed'));
+      },
+    );
+  });
+}
+
 /** Error class name only: browser messages may echo paths or values. */
 function errorName(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
@@ -107,6 +153,7 @@ export function createKeyValueStore(area: StorageAreaName, options: KeyValueStor
   const api = options.api ?? defaultBrowser();
   const maxWriteBytes = options.maxWriteBytes ?? DEFAULT_MAX_WRITE_BYTES[area];
   const areaApi = (): StorageAreaApi => api.storage[area];
+  const timeoutMs = options.callTimeoutMs ?? DEFAULT_STORAGE_CALL_TIMEOUT_MS;
   let tail: Promise<unknown> = Promise.resolve();
 
   /** Run in issue order; a failure of one call never blocks the next. */
@@ -125,7 +172,7 @@ export function createKeyValueStore(area: StorageAreaName, options: KeyValueStor
       return serial(async () => {
         if (keys.length === 0) return { ok: true, value: {} };
         try {
-          const raw = await areaApi().get([...keys]);
+          const raw = await within(() => areaApi().get([...keys]), timeoutMs);
           const value: Record<string, unknown> = {};
           for (const key of keys) {
             if (raw !== null && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, key)) value[key] = raw[key];
@@ -150,7 +197,7 @@ export function createKeyValueStore(area: StorageAreaName, options: KeyValueStor
         }
         if (total > maxWriteBytes) return fail('CG-STORAGE-FULL', `${area}.set: ${total} > ${maxWriteBytes} bytes`);
         try {
-          await areaApi().set({ ...items });
+          await within(() => areaApi().set({ ...items }), timeoutMs);
           return { ok: true, value: undefined };
         } catch (error) {
           return isQuotaError(error) ? fail('CG-STORAGE-FULL', `${area}.set quota`) : fail('CG-STORAGE-WRITE', `${area}.set ${errorName(error)}`);
@@ -161,10 +208,20 @@ export function createKeyValueStore(area: StorageAreaName, options: KeyValueStor
       return serial(async () => {
         if (keys.length === 0) return { ok: true, value: undefined };
         try {
-          await areaApi().remove([...keys]);
+          await within(() => areaApi().remove([...keys]), timeoutMs);
           return { ok: true, value: undefined };
         } catch (error) {
           return fail('CG-STORAGE-WRITE', `${area}.remove ${errorName(error)}`);
+        }
+      });
+    },
+    keys() {
+      return serial(async () => {
+        try {
+          const keys = await within(() => listKeys(areaApi()), timeoutMs);
+          return { ok: true, value: [...keys] };
+        } catch (error) {
+          return fail('CG-STORAGE-READ', `${area}.keys ${errorName(error)}`);
         }
       });
     },
