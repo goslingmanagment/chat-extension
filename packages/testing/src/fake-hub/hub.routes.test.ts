@@ -301,6 +301,20 @@ describe('fake hub routes: the model’s own checks', () => {
     await refused('clientAudienceNew', { pageLabel: PAGE, windowHours: 168 }, 400, 'bad_request', 'window_too_wide');
   });
 
+  it('the model’s own answer is checked against the response schema: a contract-invalid answer is 500 fake_hub_bug with the issues journaled', async () => {
+    hub.control({ op: 'config', patch: { limits: { claimLeaseSec: -5 } } });
+    const mark = hub.journal.mark();
+    const response = await call('clientBootstrap', null);
+    const body = (await response.json()) as { error: string; reason: string; message: string };
+    expect({ status: response.status, error: body.error, reason: body.reason }).toEqual({ status: 500, error: 'internal_error', reason: 'fake_hub_bug' });
+    expect(body.message).toMatch(/self-check limits\.claimLeaseSec/);
+    const [entry] = hub.read(mark).entries;
+    expect(entry).toMatchObject({ route: 'clientBootstrap', status: 500, error: 'internal_error', reason: 'fake_hub_bug', servedBy: 'check' });
+    expect(entry?.issues).toEqual([expect.stringMatching(/^self-check limits\.claimLeaseSec: /)]);
+    // A model bug is a violation of the run, like an invalid request.
+    expect(hub.violations(mark)).toHaveLength(1);
+  });
+
   it('a request that fails the contract schema is 400 bad_request and journaled as invalid', async () => {
     const mark = hub.journal.mark();
     await refused('clientSpenderStats', { pageLabel: PAGE, windowDays: 7, timeZone: 'UTC' }, 400, 'bad_request');
