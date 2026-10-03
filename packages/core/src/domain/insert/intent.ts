@@ -26,7 +26,8 @@ import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 /** How long an open insert stays valid after it was built (one bridge round trip and some). */
 export const OPEN_INSERT_TTL_MS = 10_000;
 
-const sameChat = (a: ChatRef | null, b: ChatRef): boolean => a !== null && chatKeyOf(a) === chatKeyOf(b);
+/** Whether `a` is exactly the chat `b` (host, account and fan). */
+export const sameChat = (a: ChatRef | null, b: ChatRef): boolean => a !== null && chatKeyOf(a) === chatKeyOf(b);
 
 /** What the operation was frozen with, and what the background and the host say now. */
 export interface InsertGuardInput {
@@ -62,6 +63,8 @@ export interface OpenInsertInput {
   readonly part: PartRef;
   readonly text: string;
   readonly mode: 'replace' | 'append';
+  /** The operation's chat (`op.target.chat`): the insert is bound to it for ever, whatever the draft says. */
+  readonly target: ChatRef;
   /** The draft read right before (its identity is the CAS); for a consented write, the confirmed one. */
   readonly draft: DraftSnapshot;
   readonly confirmationId: string | null;
@@ -72,16 +75,22 @@ export interface OpenInsertInput {
 
 export type IntentResult<T> = { readonly ok: true; readonly intent: T } | { readonly ok: false; readonly code: CgCode };
 
-/** An `open` intent (the chat is open now): CAS on the draft's identity, revision and fingerprint. */
+/**
+ * An `open` intent (the chat is open now): CAS on the draft's identity,
+ * revision and fingerprint. A draft read from any chat but the operation's is
+ * refused (CG-INSERT-CHAT-CHANGED): its CAS fields would all agree with that
+ * other chat, so MAIN's compare could not catch it.
+ */
 export function buildOpenInsert(input: OpenInsertInput): IntentResult<InsertIntent> {
   const identity = input.draft.identity;
-  if (identity.chat === null || identity.composerInstanceId === null) return { ok: false, code: 'CG-HOST-COMPOSER-MISSING' };
+  if (!sameChat(identity.chat, input.target)) return { ok: false, code: 'CG-INSERT-CHAT-CHANGED' };
+  if (identity.composerInstanceId === null) return { ok: false, code: 'CG-HOST-COMPOSER-MISSING' };
   if (input.text.length === 0 || input.text.length > BRIDGE_LIMITS.maxStringLength) return { ok: false, code: 'CG-INSERT-FAILED' };
   const intent: InsertIntent = {
     intentId: input.intentId,
     operationId: input.operationId,
     part: input.part,
-    target: identity.chat,
+    target: input.target,
     expected: {
       kind: 'open',
       documentEpoch: identity.documentEpoch,

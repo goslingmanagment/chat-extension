@@ -6,13 +6,14 @@
 // Добавить / Отмена»). After the replacement, for 30 s, «Вернуть мой текст»
 // writes the person's text back with a CAS on the revision the replacement
 // produced; a person who typed after the Fix gets a question, never a silent
-// overwrite. The source text stays in the tab's memory only.
+// overwrite. The source text stays in the tab's memory only. Both writes go
+// only into the operation's own chat.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type InsertIntent, type InsertReceipt } from '@cg/contracts/host';
-import { type DraftSnapshot, type HumanCause, type PartRef } from '@cg/contracts/ids';
+import { type ChatRef, type DraftSnapshot, type HumanCause, type PartRef } from '@cg/contracts/ids';
 
-import { buildOpenInsert } from './intent';
+import { buildOpenInsert, sameChat } from './intent';
 
 export const FIX_RESTORE_WINDOW_MS = 30_000;
 
@@ -43,6 +44,8 @@ export class FixSession {
   constructor(
     readonly opId: string,
     readonly part: PartRef,
+    /** The operation's chat (`op.target.chat`). */
+    readonly target: ChatRef,
     private readonly source: FixSource,
     /** No verified editor: «Заменить мой черновик» and «Вернуть мой текст» are off (§6.4). */
     private readonly editorObserved: boolean,
@@ -52,6 +55,7 @@ export class FixSession {
   replace(current: DraftSnapshot, fixedText: string, ids: FixIds, cause: HumanCause, now: number): FixStep {
     if (!this.editorObserved) return { kind: 'unavailable', code: 'CG-HOST-NOT-READY' };
     if (this.replaced !== null) return { kind: 'unavailable', code: 'CG-INSERT-FAILED' };
+    if (!sameChat(current.identity.chat, this.target)) return { kind: 'unavailable', code: 'CG-INSERT-CHAT-CHANGED' };
     if (!sameRevision(current, this.source.revision, this.source.digest)) return { kind: 'confirm', reason: 'draft-changed' };
     const built = buildOpenInsert({
       intentId: ids.intentId,
@@ -59,6 +63,7 @@ export class FixSession {
       part: this.part,
       text: fixedText,
       mode: 'replace',
+      target: this.target,
       draft: current,
       confirmationId: ids.confirmationId,
       cause,
@@ -90,8 +95,9 @@ export class FixSession {
   restore(current: DraftSnapshot, intentId: string, cause: HumanCause, now: number): FixStep {
     if (this.replaced === null || this.restored) return { kind: 'unavailable', code: 'CG-INSERT-FAILED' };
     if (now >= this.replaced.until) return { kind: 'unavailable', code: 'CG-TIMEOUT' };
+    if (!sameChat(current.identity.chat, this.target)) return { kind: 'unavailable', code: 'CG-INSERT-CHAT-CHANGED' };
     if (!sameRevision(current, this.replaced.revision, this.replaced.digest)) return { kind: 'confirm', reason: 'draft-changed' };
-    const built = buildOpenInsert({ intentId, operationId: this.opId, part: this.part, text: this.source.text, mode: 'replace', draft: current, confirmationId: null, cause, now });
+    const built = buildOpenInsert({ intentId, operationId: this.opId, part: this.part, text: this.source.text, mode: 'replace', target: this.target, draft: current, confirmationId: null, cause, now });
     return built.ok ? { kind: 'intent', intent: built.intent } : { kind: 'unavailable', code: built.code };
   }
 

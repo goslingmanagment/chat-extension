@@ -4,16 +4,23 @@
 // was asked about: a draft that changed meanwhile voids it and the question
 // is asked again («черновик изменился», CG-DRAFT-CHANGED). MAIN checks the
 // consent id again in the same synchronous step as the write and refuses a
-// used one, so a replayed answer never writes twice.
+// used one, so a replayed answer never writes twice. A question is bound to
+// its operation's chat: a draft of another chat is never asked about, and an
+// answer given while another chat is open voids the question
+// (CG-INSERT-CHAT-CHANGED) instead of re-asking about that chat's draft.
 
-import { type DraftSnapshot, type PartRef } from '@cg/contracts/ids';
+import { type CgCode } from '@cg/contracts/errors';
+import { type ChatRef, type DraftSnapshot, type PartRef } from '@cg/contracts/ids';
 
 import { type ConfirmReason } from './draft-rule';
+import { sameChat } from './intent';
 
 export interface PendingConfirmation {
   readonly confirmationId: string;
   readonly opId: string;
   readonly part: PartRef;
+  /** The operation's chat: the only chat this consent may ever write into. */
+  readonly target: ChatRef;
   readonly kind: ConfirmReason;
   /** The draft the question is about: revision, document fingerprint and where it lives. */
   readonly draftRevision: number;
@@ -34,12 +41,16 @@ export type ConfirmAnswer =
   | { readonly kind: 'canceled' }
   /** The draft changed since the question: ask again about the current revision. */
   | { readonly kind: 'ask-again'; readonly confirmation: PendingConfirmation }
+  /** The open chat is not the operation's: the question is void, nothing is written or asked. */
+  | { readonly kind: 'chat-changed'; readonly code: Extract<CgCode, 'CG-INSERT-CHAT-CHANGED'> }
   /** Unknown or already answered: nothing happens. */
   | { readonly kind: 'unknown' };
 
 export interface ConfirmationRequest {
   readonly opId: string;
   readonly part: PartRef;
+  /** `op.target.chat`. */
+  readonly target: ChatRef;
   readonly kind: ConfirmReason;
   readonly draft: DraftSnapshot;
   readonly formatLoss: boolean;
@@ -61,12 +72,15 @@ export class ConfirmationBook {
     private readonly now: () => number,
   ) {}
 
-  ask(request: ConfirmationRequest): PendingConfirmation {
+  /** A new question about `request.draft`; null — the draft is not of the operation's chat (nothing is asked). */
+  ask(request: ConfirmationRequest): PendingConfirmation | null {
     for (const [id, existing] of this.pending) if (existing.opId === request.opId) this.pending.delete(id);
+    if (!sameChat(request.draft.identity.chat, request.target)) return null;
     const confirmation: PendingConfirmation = {
       confirmationId: this.newId(),
       opId: request.opId,
       part: request.part,
+      target: request.target,
       kind: request.kind,
       draftRevision: request.draft.revision,
       draftDigest: request.draft.digest,
@@ -86,8 +100,10 @@ export class ConfirmationBook {
     if (pending === undefined) return { kind: 'unknown' };
     this.pending.delete(confirmationId);
     if (choice === 'cancel') return { kind: 'canceled' };
+    if (!sameChat(current.identity.chat, pending.target)) return { kind: 'chat-changed', code: 'CG-INSERT-CHAT-CHANGED' };
     if (!sameDraft(pending, current)) {
-      return { kind: 'ask-again', confirmation: this.ask({ opId: pending.opId, part: pending.part, kind: 'draft-changed', draft: current, formatLoss: pending.formatLoss }) };
+      const again = this.ask({ opId: pending.opId, part: pending.part, target: pending.target, kind: 'draft-changed', draft: current, formatLoss: pending.formatLoss });
+      return again === null ? { kind: 'chat-changed', code: 'CG-INSERT-CHAT-CHANGED' } : { kind: 'ask-again', confirmation: again };
     }
     return { kind: 'insert', mode: choice, confirmation: pending };
   }

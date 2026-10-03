@@ -32,6 +32,10 @@ import { binding, uuid } from './support/world';
 
 const OP = hostUuid(0x100);
 const target = { binding: { ...binding, hostAccountId: openChat.hostAccountId, platformAccountId: identity.platformAccountId }, chat: openChat, fanRef: openChat.platformFanId, conversationRef: openChat.platformFanId };
+const must = <T>(value: T | null): T => {
+  if (value === null) throw new Error('expected a value');
+  return value;
+};
 const draftAt = (revision: number, over: Partial<DraftSnapshot> = {}, id: Partial<HostIdentity> = {}): DraftSnapshot => ({
   ...emptyDraft,
   revision,
@@ -55,13 +59,13 @@ describe('[AI-125] Б2 draft rule and one-time consent', () => {
   it('[AI-125] a consent is one-time and bound to its revision; a changed draft asks again', () => {
     let n = 0;
     const book = new ConfirmationBook(() => uuid(0x500 + ++n), () => HOST_T0);
-    const asked = book.ask({ opId: OP, part: { index: 0 }, kind: 'human-draft', draft: humanDraft, formatLoss: false });
+    const asked = must(book.ask({ opId: OP, part: { index: 0 }, target: openChat, kind: 'human-draft', draft: humanDraft, formatLoss: false }));
     expect(book.pendingFor(OP)?.confirmationId).toBe(asked.confirmationId);
     const answer = book.answer(asked.confirmationId, 'append', humanDraft);
     expect(answer).toMatchObject({ kind: 'insert', mode: 'append' });
     expect(book.answer(asked.confirmationId, 'append', humanDraft)).toEqual({ kind: 'unknown' });
 
-    const second = book.ask({ opId: OP, part: { index: 0 }, kind: 'human-draft', draft: humanDraft, formatLoss: false });
+    const second = must(book.ask({ opId: OP, part: { index: 0 }, target: openChat, kind: 'human-draft', draft: humanDraft, formatLoss: false }));
     const changed = book.answer(second.confirmationId, 'replace', { ...humanDraft, revision: humanDraft.revision + 1 });
     expect(changed.kind).toBe('ask-again');
     if (changed.kind === 'ask-again') {
@@ -69,10 +73,10 @@ describe('[AI-125] Б2 draft rule and one-time consent', () => {
       expect(changed.confirmation.draftRevision).toBe(humanDraft.revision + 1);
       expect(book.answer(changed.confirmation.confirmationId, 'cancel', humanDraft)).toEqual({ kind: 'canceled' });
     }
-    book.ask({ opId: OP, part: { index: 0 }, kind: 'human-draft', draft: humanDraft, formatLoss: false });
+    book.ask({ opId: OP, part: { index: 0 }, target: openChat, kind: 'human-draft', draft: humanDraft, formatLoss: false });
     book.dropOp(OP);
     expect(book.pendingFor(OP)).toBeNull();
-    book.ask({ opId: OP, part: { index: 0 }, kind: 'human-draft', draft: humanDraft, formatLoss: false });
+    book.ask({ opId: OP, part: { index: 0 }, target: openChat, kind: 'human-draft', draft: humanDraft, formatLoss: false });
     book.clear();
     expect(book.pendingFor(OP)).toBeNull();
   });
@@ -81,9 +85,22 @@ describe('[AI-125] Б2 draft rule and one-time consent', () => {
     let n = 0;
     const book = new ConfirmationBook(() => uuid(0x600 + ++n), () => HOST_T0);
     const a = draftAt(9, { provenance: 'human-or-unknown', plainText: 'A' });
-    const asked = book.ask({ opId: OP, part: { index: 0 }, kind: 'human-draft', draft: a, formatLoss: false });
+    const asked = must(book.ask({ opId: OP, part: { index: 0 }, target: openChat, kind: 'human-draft', draft: a, formatLoss: false }));
     const backToA = draftAt(11, { provenance: 'human-or-unknown', plainText: 'A' });
     expect(book.answer(asked.confirmationId, 'replace', backToA).kind).toBe('ask-again');
+  });
+
+  it('[AI-125] a consent is bound to the operation\'s chat: a draft of another chat is never asked about, and an answer there voids the question', () => {
+    let n = 0;
+    const book = new ConfirmationBook(() => uuid(0x680 + ++n), () => HOST_T0);
+    const onPreview = draftAt(4, { provenance: 'human-or-unknown', plainText: 'B' }, { chat: previewChat, routeEpoch: 6 });
+    expect(book.ask({ opId: OP, part: { index: 0 }, target: openChat, kind: 'human-draft', draft: onPreview, formatLoss: false })).toBeNull();
+    expect(book.pendingFor(OP)).toBeNull();
+    const asked = must(book.ask({ opId: OP, part: { index: 0 }, target: openChat, kind: 'human-draft', draft: humanDraft, formatLoss: false }));
+    // The person went to chat B and answered there: no write, no new question about B's draft.
+    expect(book.answer(asked.confirmationId, 'replace', onPreview)).toEqual({ kind: 'chat-changed', code: 'CG-INSERT-CHAT-CHANGED' });
+    expect(book.pendingFor(OP)).toBeNull();
+    expect(book.answer(asked.confirmationId, 'replace', humanDraft)).toEqual({ kind: 'unknown' });
   });
 });
 
@@ -115,7 +132,7 @@ describe('[AI-125] insert guards and intents', () => {
   });
 
   it('[AI-125] the open intent carries the CAS of the read draft and passes the host fake', async () => {
-    const built = buildOpenInsert({ intentId: uuid(0x700), operationId: OP, part: { index: 0 }, text: 'Hi there', mode: 'replace', draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 });
+    const built = buildOpenInsert({ intentId: uuid(0x700), operationId: OP, part: { index: 0 }, text: 'Hi there', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 });
     expect(built.ok).toBe(true);
     if (!built.ok) return;
     expect(built.intent.expected).toEqual({ kind: 'open', documentEpoch: identity.documentEpoch, routeEpoch: 5, composerInstanceId: 'composer-1', draftRevision: emptyDraft.revision, draftDigest: emptyDraft.digest });
@@ -127,15 +144,25 @@ describe('[AI-125] insert guards and intents', () => {
     expect(host.calls.inserts).toHaveLength(1);
   });
 
+  it('[AI-125] a draft read on chat B for an operation of chat A never becomes an intent; the intent targets the operation\'s chat', () => {
+    const onPreview = draftAt(4, {}, { chat: previewChat, routeEpoch: 6 });
+    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: onPreview, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-CHAT-CHANGED' });
+    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: draftAt(4, {}, { chat: null }), confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-CHAT-CHANGED' });
+    const other = { ...openChat, hostAccountId: '1002' };
+    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: other, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-CHAT-CHANGED' });
+    const built = buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 });
+    expect(built.ok && built.intent.target).toEqual(openChat);
+  });
+
   it('[AI-125] no composer or an unusable text never becomes an intent', () => {
-    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', draft: draftAt(1, {}, { composerInstanceId: null }), confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-HOST-COMPOSER-MISSING' });
-    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: '', mode: 'replace', draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-FAILED' });
-    expect(buildOpenInsert({ intentId: 'bad', operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-FAILED' });
+    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: draftAt(1, {}, { composerInstanceId: null }), confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-HOST-COMPOSER-MISSING' });
+    expect(buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: '', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-FAILED' });
+    expect(buildOpenInsert({ intentId: 'bad', operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 })).toEqual({ ok: false, code: 'CG-INSERT-FAILED' });
   });
 
   it('[AI-125] property A→B→A: an intent built on route A is dead after the route went to B and came back to A', () => {
     const rnd = seeded(125);
-    const built = buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 });
+    const built = buildOpenInsert({ intentId: uuid(1), operationId: OP, part: { index: 0 }, text: 'x', mode: 'replace', target: openChat, draft: emptyDraft, confirmationId: null, cause: hostCause, now: HOST_T0 });
     if (!built.ok) throw new Error('intent');
     expect(intentMatchesHost(built.intent, identity)).toBe(true);
     for (let run = 0; run < 200; run += 1) {
@@ -163,7 +190,7 @@ describe('[AI-125] Fix «Заменить мой черновик» and «Вер
   const applied = (revision: number): InsertReceipt => ({ state: 'applied', draftRevision: revision, draftDigest: `feedbeef${revision.toString(16).padStart(8, '0')}`, ms: 5 });
 
   it('[AI-125] the replace click is the consent for the source revision', () => {
-    const fix = new FixSession(OP, { index: 0 }, source, true);
+    const fix = new FixSession(OP, { index: 0 }, openChat, source, true);
     const step = fix.replace(humanDraft, 'Better words', ids, hostCause, HOST_T0);
     expect(step.kind).toBe('intent');
     if (step.kind === 'intent') {
@@ -174,13 +201,13 @@ describe('[AI-125] Fix «Заменить мой черновик» and «Вер
   });
 
   it('[AI-125] a draft changed during the generation voids the consent: ask again', () => {
-    const fix = new FixSession(OP, { index: 0 }, source, true);
+    const fix = new FixSession(OP, { index: 0 }, openChat, source, true);
     expect(fix.replace({ ...humanDraft, revision: humanDraft.revision + 1 }, 'Better', ids, hostCause, HOST_T0)).toEqual({ kind: 'confirm', reason: 'draft-changed' });
-    expect(new FixSession(OP, { index: 0 }, source, false).replace(humanDraft, 'Better', ids, hostCause, HOST_T0)).toEqual({ kind: 'unavailable', code: 'CG-HOST-NOT-READY' });
+    expect(new FixSession(OP, { index: 0 }, openChat, source, false).replace(humanDraft, 'Better', ids, hostCause, HOST_T0)).toEqual({ kind: 'unavailable', code: 'CG-HOST-NOT-READY' });
   });
 
   it('[AI-125] «Вернуть мой текст» for 30 s with a CAS on the replacement revision; typed after → a question, not a silent restore', () => {
-    const fix = new FixSession(OP, { index: 0 }, source, true);
+    const fix = new FixSession(OP, { index: 0 }, openChat, source, true);
     expect(fix.restore(humanDraft, uuid(1), hostCause, HOST_T0)).toEqual({ kind: 'unavailable', code: 'CG-INSERT-FAILED' });
     fix.onReplaced({ state: 'rejected', code: 'CG-DRAFT-CHANGED' }, HOST_T0);
     expect(fix.wasReplaced).toBe(false);
@@ -201,8 +228,16 @@ describe('[AI-125] Fix «Заменить мой черновик» and «Вер
     expect(fix.restore(draftAt(11), uuid(4), hostCause, HOST_T0 + 2000)).toEqual({ kind: 'unavailable', code: 'CG-INSERT-FAILED' });
   });
 
+  it('[AI-125] Fix writes only into its operation\'s chat: a draft of another chat refuses replace and restore', () => {
+    const onPreview = { ...humanDraft, identity: { ...humanDraft.identity, chat: previewChat, routeEpoch: 6 } };
+    const fix = new FixSession(OP, { index: 0 }, openChat, source, true);
+    expect(fix.replace(onPreview, 'Better', ids, hostCause, HOST_T0)).toEqual({ kind: 'unavailable', code: 'CG-INSERT-CHAT-CHANGED' });
+    fix.onReplaced(applied(10), HOST_T0);
+    expect(fix.restore({ ...draftAt(10), identity: onPreview.identity }, uuid(6), hostCause, HOST_T0 + 1000)).toEqual({ kind: 'unavailable', code: 'CG-INSERT-CHAT-CHANGED' });
+  });
+
   it('[AI-125] after 30 s the restore is gone', () => {
-    const fix = new FixSession(OP, { index: 0 }, source, true);
+    const fix = new FixSession(OP, { index: 0 }, openChat, source, true);
     fix.onReplaced(applied(10), HOST_T0);
     expect(fix.restoreExpired(HOST_T0 + FIX_RESTORE_WINDOW_MS)).toBe(true);
     expect(fix.restoreUntil(HOST_T0 + FIX_RESTORE_WINDOW_MS)).toBeNull();
@@ -283,7 +318,7 @@ describe('[AI-125] receipts and [LG-017] the insert journal', () => {
 
   it('[LG-017] route changes, intents, receipts and refusals are journaled without any text', () => {
     const secret = 'my private words';
-    const built = buildOpenInsert({ intentId: uuid(0x700), operationId: OP, part: { index: 1 }, text: secret, mode: 'append', draft: humanDraft, confirmationId: uuid(0x701), cause: hostCause, now: HOST_T0 });
+    const built = buildOpenInsert({ intentId: uuid(0x700), operationId: OP, part: { index: 1 }, text: secret, mode: 'append', target: openChat, draft: humanDraft, confirmationId: uuid(0x701), cause: hostCause, now: HOST_T0 });
     if (!built.ok) throw new Error('intent');
     const deferred = buildDeferredInsert({ intentId: uuid(0x702), operationId: OP, part: { index: 0 }, target: previewChat, text: secret, documentEpoch: identity.documentEpoch, now: HOST_T0, timeoutMs: 20_000 });
     if (!deferred.ok) throw new Error('deferred');
