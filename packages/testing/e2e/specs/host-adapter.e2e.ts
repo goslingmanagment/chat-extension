@@ -510,6 +510,16 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       expect(await composerText(a8)).toBe('');
     });
 
+    it('[NEW-01] canceled by the extension while waiting (sign-out, persona or binding change) → CG-INSERT-CANCELED, nothing inserted later', async () => {
+      await callStand('setEditorDelayMs', 1500);
+      const id = await harness<string>('navigate', { acc: ACC, fan: a2, text: 'given up', abortAfterMs: 300 });
+      expect(await waitNavigation(id)).toMatchObject({ state: 'navigated', insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
+      await callStand('setEditorDelayMs', 0);
+      await waitForChatReady(ACC, a2, 8000);
+      await browser.pause(300);
+      expect(await composerText(a2)).toBe('');
+    });
+
     it('opens an account (Б13) and refuses without a redeemed human cause', async () => {
       const id = await harness<string>('navigate', { acc: STAND_IDS.accounts.b, fan: null });
       expect(await waitNavigation(id)).toMatchObject({ state: 'navigated' });

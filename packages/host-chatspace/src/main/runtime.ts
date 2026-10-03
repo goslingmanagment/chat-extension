@@ -77,7 +77,11 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   const sticky: Record<string, string> = {};
   const usedIntents = new Set<string>();
   const usedConsents = new Set<string>();
-  let pending: { cancel(code: string): void } | null = null;
+  let pending: { readonly intentId: string; cancel(code: string): void } | null = null;
+  /** Deferred inserts the isolated side canceled (§6.5) — maybe before their navigation arrived. */
+  const canceledInserts = new Set<string>();
+  /** Deferred inserts that ended (written, refused, timed out or canceled): a cancel comes too late for them. */
+  const endedInserts = new Set<string>();
   const observed = new WeakSet<object>();
   let editorWatch: MutationObserver | null = null;
   /**
@@ -256,17 +260,23 @@ export function createMainRuntime(context: MainContext): MainRuntime {
    * the target's working composer — a new route epoch, a settled route, the
    * bridge and the editor, the same identity on two consecutive frames — then
    * write in one step into an empty draft or our own unchanged insert. A
-   * human navigation, another insert intent, an ambiguous composer or the
-   * route leaving the target cancel it (CG-INSERT-CANCELED, the navigation
+   * human navigation, another insert intent, an ambiguous composer, the
+   * route leaving the target or the isolated side (`cancelInsert`: sign-out,
+   * persona or binding change) cancel it (CG-INSERT-CANCELED, the navigation
    * itself happened); the deadline is the insert's `expiresAt` (CG-NAV-TIMEOUT).
    */
   const deferredInsert = (intent: InsertWire, sinceEpoch: number): Promise<NavReceipt> =>
     new Promise((resolve) => {
+      const end = (receipt: NavReceipt): void => {
+        endedInserts.add(intent.intentId);
+        resolve(receipt);
+      };
       const self = {
+        intentId: intent.intentId,
         cancel: (code: string): void => {
           if (pending !== self) return;
           pending = null;
-          resolve(code === CG_CANCELED ? { state: 'navigated', routeEpoch, insert: rejected(code) } : { state: 'failed', code, insert: rejected(code) });
+          end(code === CG_CANCELED ? { state: 'navigated', routeEpoch, insert: rejected(code) } : { state: 'failed', code, insert: rejected(code) });
         },
       };
       pending?.cancel(CG_CANCELED);
@@ -275,6 +285,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       let stable = 0;
       const step = (): void => {
         if (pending !== self) return;
+        if (canceledInserts.has(intent.intentId)) return self.cancel(CG_CANCELED);
         if (clock() > intent.expiresAt) return self.cancel(CG_NAV_TIMEOUT);
         const read = route();
         if (read.acc !== intent.target.hostAccountId || read.fan !== intent.target.platformFanId) return self.cancel(CG_CANCELED);
@@ -286,6 +297,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         last = key;
         if (stable < 2 || !composer || !composers) return frame(step);
         pending = null;
+        endedInserts.add(intent.intentId);
         void Promise.resolve(composers.write(composer, intent, null, usedConsents)).then((insert) => resolve({ state: 'navigated', routeEpoch, insert }));
       };
       frame(step);
@@ -457,6 +469,13 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         return composer && composers ? { focused: composers.focus(composer) } : ERR_IDENTITY;
       case 'insertGuarded':
         return insertGuarded(payload['intent'] as InsertWire);
+      case 'cancelInsert': {
+        const id = payload['intentId'] as string;
+        if (endedInserts.has(id)) return { canceled: false };
+        canceledInserts.add(id);
+        if (pending?.intentId === id) pending.cancel(CG_CANCELED);
+        return { canceled: true };
+      }
     }
     return navigate(payload['intent'] as NavigationWire);
   };

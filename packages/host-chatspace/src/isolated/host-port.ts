@@ -20,7 +20,7 @@
 // `checkpoint()` answers null and `previewSend` is null.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FreshnessCheckpoint } from '@cg/contracts/send';
 import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
@@ -451,20 +451,32 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       }
     },
 
-    async navigate(intent: NavigationIntent): Promise<NavigationReceipt> {
+    async navigate(intent: NavigationIntent, options: NavigateOptions = {}): Promise<NavigationReceipt> {
       const check = await loadValidation();
       if (!check.isNavigationIntent(intent)) throw new HostContractError('navigate() takes a NavigationIntent with its cause');
       const then = intent.thenInsert;
       const failed = (code: CgCode): NavigationReceipt => ({ state: 'failed', code, insert: then ? rejected(code) : null });
       if (!bridge || !capability('navigate')) return failed('CG-NAV-FAILED');
       if (!(await redeem({ kind: 'navigate', actionToken: intent.cause.actionToken, intentId: intent.intentId }))) return failed('CG-NAV-FAILED');
-      // Copy only (the insert capability is off): the chat still opens, the insert is refused now instead of waiting out its deadline in MAIN.
+      // The chat still opens, but its insert is refused now instead of waiting out its deadline in MAIN: copy only (the insert
+      // capability is off), or the insert was canceled already (§6.5: sign-out, persona or binding change, the preview closed).
       const insertCapability = report.capabilities.insert;
-      const insertOff = insertCapability.state === 'off' || insertCapability.state === 'contractBroken' ? (insertCapability.code ?? 'CG-HOST-COMPOSER-MISSING') : null;
+      const skipped: CgCode | null =
+        options.signal?.aborted === true
+          ? 'CG-INSERT-CANCELED'
+          : insertCapability.state === 'off' || insertCapability.state === 'contractBroken'
+            ? (insertCapability.code ?? 'CG-HOST-COMPOSER-MISSING')
+            : null;
       // MAIN waits for the composer until the insert's own deadline: never later than this side waits for MAIN's answer, or the
       // insert could land after the person was told it timed out.
-      const thenInsert = then && !insertOff ? { ...then, expiresAt: Math.max(then.createdAt + 1, Math.min(then.expiresAt, clock() + navTimeoutMs)) } : undefined;
+      const thenInsert = then && !skipped ? { ...then, expiresAt: Math.max(then.createdAt + 1, Math.min(then.expiresAt, clock() + navTimeoutMs)) } : undefined;
       const timeoutMs = thenInsert ? Math.min(Math.max(0, thenInsert.expiresAt - clock()), navTimeoutMs) + NAV_GRACE_MS : navTimeoutMs;
+      // Canceled while MAIN waits for the composer: MAIN drops the insert unless it was written already; the receipt tells which.
+      const signal = thenInsert ? options.signal : undefined;
+      const onAbort = (): void => {
+        if (thenInsert) void bridge.request('cancelInsert', { intentId: thenInsert.intentId }).catch(() => undefined);
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
       let receipt: NavigationReceipt;
       try {
         receipt = await bridge.request(
@@ -474,9 +486,11 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         );
       } catch (error) {
         if (error instanceof BridgeCallError && error.executed === 'no') return failed('CG-NAV-FAILED');
-        return { ...WRITE_FAILURES.navigate, insert: then ? (insertOff ? rejected(insertOff) : WRITE_FAILURES.navigate.insert) : null };
+        return { ...WRITE_FAILURES.navigate, insert: then ? (skipped ? rejected(skipped) : WRITE_FAILURES.navigate.insert) : null };
+      } finally {
+        signal?.removeEventListener('abort', onAbort);
       }
-      if (then && insertOff) return { ...receipt, insert: rejected(insertOff) };
+      if (then && skipped) return { ...receipt, insert: rejected(skipped) };
       if (then && receipt.insert && intent.target.platformFanId) {
         const target: ChatRef = { host: 'chatspace', hostAccountId: intent.target.hostAccountId, platformFanId: intent.target.platformFanId };
         return { ...receipt, insert: verifyAgainstKey(receipt.insert, target, then.text, then.mode) };

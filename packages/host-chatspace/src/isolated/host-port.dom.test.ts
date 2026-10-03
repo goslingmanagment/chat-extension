@@ -408,6 +408,27 @@ describe('navigation (§6.5, §6.9)', () => {
     expect(sent?.timeoutMs).toBe(20_000);
   });
 
+  it('[NEW-01] aborting the signal while MAIN waits sends cancelInsert for the deferred insert; aborted before, the insert never leaves', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    const { host, bridge } = await port({ navigate: () => new Promise((resolve) => (answer = resolve)), cancelInsert: () => ({ canceled: true }) });
+    const controller = new AbortController();
+    const pending = host.navigate(nav({ thenInsert: thenInsert as never }), { signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    expect(bridge.calls.filter((call) => call.t === 'cancelInsert').map((call) => call.payload)).toEqual([{ intentId: thenInsert['intentId'] }]);
+    answer({ state: 'navigated', routeEpoch: 5, insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
+    expect(await pending).toEqual({ state: 'navigated', routeEpoch: 5, insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
+    // A later abort reaches nothing.
+    controller.abort();
+    expect(bridge.calls.filter((call) => call.t === 'cancelInsert')).toHaveLength(1);
+
+    const early = await port({ navigate: () => ({ state: 'navigated', routeEpoch: 6, insert: null }) });
+    const aborted = new AbortController();
+    aborted.abort();
+    expect(await early.host.navigate(nav({ thenInsert: thenInsert as never }), { signal: aborted.signal })).toEqual({ state: 'navigated', routeEpoch: 6, insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
+    expect(early.bridge.calls.find((call) => call.t === 'navigate')?.payload['intent']).not.toHaveProperty('thenInsert');
+  });
+
   it('a refusal before execution is CG-NAV-FAILED', async () => {
     const { host } = await port({ navigate: () => Promise.reject(new BridgeCallError('bad-request', 'navigate')) });
     expect(await host.navigate(nav({ thenInsert: thenInsert as never }))).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'rejected', code: 'CG-NAV-FAILED' } });

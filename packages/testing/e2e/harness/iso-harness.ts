@@ -140,8 +140,11 @@ const api = {
     redeemAllowed = allowed;
     return allowed;
   },
-  navigate(options: { readonly acc: string; readonly fan: string | null; readonly text?: string; readonly ttlMs?: number }) {
+  navigate(options: { readonly acc: string; readonly fan: string | null; readonly text?: string; readonly ttlMs?: number; readonly abortAfterMs?: number }) {
     const id = crypto.randomUUID();
+    // The extension gives the insert up meanwhile (sign-out, persona or binding change, §6.5).
+    const controller = new AbortController();
+    if (options.abortAfterMs !== undefined) setTimeout(() => controller.abort(), options.abortAfterMs);
     const now = Date.now();
     const then =
       options.text !== undefined && options.fan !== null
@@ -158,7 +161,7 @@ const api = {
             expiresAt: now + (options.ttlMs ?? 20_000),
           }
         : undefined;
-    const pending = need().navigate({ intentId: id, cause: { kind: 'click', actionToken: TOKEN }, target: { hostAccountId: options.acc, platformFanId: options.fan }, ...(then ? { thenInsert: then } : {}) });
+    const pending = need().navigate({ intentId: id, cause: { kind: 'click', actionToken: TOKEN }, target: { hostAccountId: options.acc, platformFanId: options.fan }, ...(then ? { thenInsert: then } : {}) }, { signal: controller.signal });
     navigations.set(id, pending);
     void pending.then((receipt) => settledNavigations.set(id, receipt));
     return id;

@@ -769,6 +769,44 @@ describe('MAIN runtime — navigation (§6.5, §6.9)', () => {
     expect(target.calls).toEqual([]);
   });
 
+  it('[NEW-01] canceled by the isolated side (sign-out, persona or binding change): nothing written, the navigation stays', async () => {
+    const h = harness as Harness;
+    const target = h.page.all.find((item) => item.fan === OTHER) as FakeComposer;
+    const then = deferred();
+    const pending = h.call('navigate', { intent: { intentId: uuid(21), acc: ACC, fan: OTHER, thenInsert: then } });
+    // Sent right behind its navigation: it lands while router.push is still in flight.
+    expect(await h.call('cancelInsert', { intentId: then.intentId })).toEqual({ canceled: true });
+    await frames(h, 4);
+    expect(NavigationReceiptSchema.parse(await pending)).toEqual({ state: 'navigated', routeEpoch: 2, insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
+    expect(target.calls).toEqual([]);
+    expect(h.page.pushes).toHaveLength(1);
+  });
+
+  it('[NEW-01] a cancel while MAIN waits for the composer drops the insert; a cancel after it was written changes nothing', async () => {
+    const h = harness as Harness;
+    const target = h.page.all.find((item) => item.fan === OTHER) as FakeComposer;
+    Object.defineProperty(target.prose, 'editor', { configurable: true, value: undefined });
+    const editor = target.editor;
+    target.editor = null;
+    const waiting = deferred();
+    const first = h.call('navigate', { intent: { intentId: uuid(22), acc: ACC, fan: OTHER, thenInsert: waiting } });
+    await frames(h, 3);
+    expect(await h.call('cancelInsert', { intentId: waiting.intentId })).toEqual({ canceled: true });
+    expect(await first).toMatchObject({ state: 'navigated', insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
+    // The editor arrives; another «Открыть и вставить» writes; its late cancel is refused.
+    target.editor = editor;
+    Object.defineProperty(target.prose, 'editor', { configurable: true, value: editor });
+    h.page.showOnly(ACC, FAN);
+    h.page.go(ACC, FAN);
+    h.frame();
+    const written = deferred();
+    const second = h.call('navigate', { intent: { intentId: uuid(23), acc: ACC, fan: OTHER, thenInsert: written } });
+    await frames(h, 5);
+    expect(await second).toMatchObject({ state: 'navigated', insert: { state: 'applied' } });
+    expect(await h.call('cancelInsert', { intentId: written.intentId })).toEqual({ canceled: false });
+    expect(target.calls).toEqual(['setText']);
+  });
+
   it('a navigation the router refuses or that lands elsewhere is CG-NAV-FAILED', async () => {
     const h = harness as Harness;
     h.page.setPush(() => Promise.reject(new Error('guard')));

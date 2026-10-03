@@ -99,5 +99,6 @@ export const PAYLOAD: Record<string, Check> = {
     const { acc, fan, thenInsert: then } = (value as { intent: NavigationWire }).intent;
     return !then || (fan !== null && then.expected.kind === 'deferred' && then.target.hostAccountId === acc && then.target.platformFanId === fan);
   },
+  cancelInsert: shape({ intentId: isUuid }),
   flags: shape({ wsTap: is(true, false), previewSend: is(true, false) }),
 };
