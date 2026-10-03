@@ -28,6 +28,30 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.1.0 — 2026-10-03 (R08, фасад хаба)
+
+Добавочное изменение (`contract-change`), старые потребители не ломаются:
+
+- **`HubCheckError`** (`hub/facade.ts`) — второй вид отказа фасада: хаб не
+  спрашивали или его ответ не читается как ошибка хаба, отказал сам слой хаба
+  (`pending` при входе, полный токен вместо узкого, нет bootstrap, нет
+  возможности, флаг выключен, страница не выдана, чужая персона в `meta`…).
+  Поля: `check` (имя проверки), `code` (= `HUB_CLIENT_CHECK_CODES[check]`),
+  `route`, `epoch`, необязательный `reason` (открытая лексема причины
+  страницы). Отличается от `HubCallError` по `name`: `isHubCallError`,
+  `isHubCheckError`.
+- **`HubCallError.resolution?`** — готовое прочтение ошибки фасадом
+  (`ResolveHubError` по фактам, которые есть только у него: страница в
+  bootstrap, кадры уже пришли, повтор AI уже потрачен, действие брони, поиск
+  фана). Без него потребитель не знает, что единственный повтор 503 уже
+  сделан, и мог бы повторить второй раз.
+- **Новые проверки** в `HUB_CLIENT_CHECK_CODES`: `notSignedIn`
+  (CG-AUTH-REQUIRED), `hubOriginMismatch` (CG-AUTH-REQUIRED), `hubUrlInvalid`
+  (CG-HUB-URL), `bootstrapMissing` (CG-HUB-OUTDATED), `authUnreadable`
+  (CG-STORAGE-READ), `authWriteFailed` (CG-STORAGE-WRITE), `boardTimeout`
+  (CG-DATA-TIMEOUT); список имён `HUB_CLIENT_CHECKS`, тип `HubClientCheck` и
+  схема `HubClientCheckSchema` (с фикстурами).
+
 ## 1.0.0 — 2026-10-03 (R01, тег `contracts-v1.0`)
 
 Первая заморозка: пакет работ R01 (части 1, 2a, 2b, 2c и интеграция). Заморожено

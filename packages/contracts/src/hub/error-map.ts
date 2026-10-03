@@ -4,6 +4,8 @@
 // over these tables, implemented in core (its signature is below). We never
 // parse provider or hub message text; only the machine `error`/`reason`/`code`.
 
+import * as z from 'zod/mini';
+
 import { type CgCode } from '../errors';
 import { type ClaimAction } from './newcomers';
 import { type HubRouteClass, type HubRouteKey } from './routes';
@@ -276,7 +278,27 @@ export const HUB_CLIENT_CHECK_CODES = {
   recapNotFound: 'CG-RECAP-NOT-FOUND',
   /** Split asked for, the parse produced no usable part. */
   outputUnusable: 'CG-OUTPUT-UNUSABLE',
+  // 1.1.0 (R08): checks the facade makes before or instead of a hub call.
+  /** No sign-in: «Сначала войдите» (HB-001). */
+  notSignedIn: 'CG-AUTH-REQUIRED',
+  /** The stored sign-in belongs to another hub address than the settings name (AU-016 «mismatch»): sign in again. */
+  hubOriginMismatch: 'CG-AUTH-REQUIRED',
+  /** The hub address is not a valid origin, or not https in a release build. */
+  hubUrlInvalid: 'CG-HUB-URL',
+  /** The hub has no `client/bootstrap` (404) and the dev/compat mode is off. */
+  bootstrapMissing: 'CG-HUB-OUTDATED',
+  /** The stored sign-in could not be read (AU-016 «unreadable»). */
+  authUnreadable: 'CG-STORAGE-READ',
+  /** The sign-in could not be written atomically: nothing is kept. */
+  authWriteFailed: 'CG-STORAGE-WRITE',
+  /** The Spenders board got no page inside its 120 s budget (SP-031). */
+  boardTimeout: 'CG-DATA-TIMEOUT',
 } as const satisfies Record<string, CgCode>;
+
+/** Names of the hub layer's own checks: a HubCheckError's `check` (facade.ts). */
+export type HubClientCheck = keyof typeof HUB_CLIENT_CHECK_CODES;
+export const HUB_CLIENT_CHECKS = Object.keys(HUB_CLIENT_CHECK_CODES) as HubClientCheck[];
+export const HubClientCheckSchema = z.enum(HUB_CLIENT_CHECKS as [HubClientCheck, ...HubClientCheck[]]);
 
 // ── The resolver (implemented in core) ────────────────────────────────────
 

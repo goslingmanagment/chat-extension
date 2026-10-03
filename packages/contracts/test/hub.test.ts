@@ -182,6 +182,29 @@ describe('hub error map vs Appendix A «Колонка chat-extension»', () => 
     for (const code of Object.values(C.HUB_CLIENT_CHECK_CODES)) expect(C.isCgCode(code)).toBe(true);
     expect([...C.HUB_TRANSPORT_FAILURES].sort()).toEqual(Object.keys(C.HUB_TRANSPORT_CODES).sort());
   });
+
+  it('1.1.0: the two rejection shapes of the facade are told apart by name, every check has a code', () => {
+    expect(C.HUB_CLIENT_CHECKS).toEqual(Object.keys(C.HUB_CLIENT_CHECK_CODES));
+    const check: C.HubCheckError = { name: 'HubCheckError', check: 'signInPending', code: C.HUB_CLIENT_CHECK_CODES.signInPending, route: 'authIssueDeviceTokenWithPassword', epoch: 3 };
+    const call: C.HubCallError = {
+      name: 'HubCallError',
+      route: 'me',
+      failure: { kind: 'transport', failure: 'network' },
+      epoch: 3,
+      resolution: { code: 'CG-NETWORK', disposition: 'show', retryAt: null, httpStatus: null },
+    };
+    expect(C.isHubCheckError(check)).toBe(true);
+    expect(C.isHubCallError(check)).toBe(false);
+    expect(C.isHubCallError(call)).toBe(true);
+    expect(C.isHubCheckError(call)).toBe(false);
+    for (const value of [null, undefined, 'HubCallError', { name: 'Error' }]) {
+      expect(C.isHubCallError(value)).toBe(false);
+      expect(C.isHubCheckError(value)).toBe(false);
+    }
+    expect(C.HUB_CLIENT_CHECK_CODES.notSignedIn).toBe('CG-AUTH-REQUIRED');
+    expect(C.HUB_CLIENT_CHECK_CODES.bootstrapMissing).toBe('CG-HUB-OUTDATED');
+    expect(C.HUB_CLIENT_CHECK_CODES.boardTimeout).toBe('CG-DATA-TIMEOUT');
+  });
 });
 
 describe('hub routes, flags and the feature map', () => {
