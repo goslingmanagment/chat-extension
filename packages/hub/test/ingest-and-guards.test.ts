@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe('[TL-009] [TL-012] ingest: acceptance always, client_health only under its capability, in its own batches', () => {
-  it('[TL-009] batches of at most 100, the events as they are (stable clientEventId, page, no text)', async () => {
+  it('[TL-009] [TL-007] [TL-008] batches of at most 100, the events as they are (stable clientEventId, page, no text)', async () => {
     await signIn(h, WORLD_PILOT);
     h.hub.on('ingestObservations', (request) => json(200, { accepted: (request.body as { events: unknown[] }).events.length - 1, duplicates: 1 }));
     const events = Array.from({ length: 250 }, (_, n) => acceptance(n));

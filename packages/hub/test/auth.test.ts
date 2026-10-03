@@ -45,7 +45,7 @@ afterEach(() => {
 });
 
 describe('[AU-001] [AU-005] [AU-006] [AU-008] [HB-004] sign-in with login and password', () => {
-  it('[AU-001] asks for a narrow active token with the device label, then me, bootstrap and catalog', async () => {
+  it('[AU-001] [ST-046] [ST-052] asks for a narrow active token with the device label, then me, bootstrap and catalog', async () => {
     const left = h.hub.serve(SIGN_IN.exchanges.filter((exchange) => exchange.response.status === 200 && exchange.route !== 'health'));
     const session = await h.facade.signIn(WORLD.user.username, PASSWORD);
     await flush();
@@ -80,7 +80,7 @@ describe('[AU-001] [AU-005] [AU-006] [AU-008] [HB-004] sign-in with login and pa
     expect(h.hub.of('me')[0]?.headers['authorization']).toBe(`Bearer ${TOKEN}`);
   });
 
-  it('[AU-006] [AU-007] [AU-008] writes token, hub address, user and metadata in ONE storage call', async () => {
+  it('[AU-006] [AU-007] [AU-008] [ST-047] writes token, hub address, user and metadata in ONE storage call', async () => {
     await signIn(h, WORLD_PILOT);
     const first = h.local.writes[0] ?? {};
     expect(Object.keys(first).sort()).toEqual([STORAGE_KEYS.authMeta, STORAGE_KEYS.authToken]);
@@ -293,7 +293,7 @@ describe('[AU-010] [AU-011] [AU-015] the 401 rule', () => {
 });
 
 describe('[AU-014] an answer to an old token never touches a newer sign-in', () => {
-  it('[AU-014] a late 401 token_revoked of the replaced sign-in is ignored', async () => {
+  it('[AU-014] [ST-048] a late 401 token_revoked of the replaced sign-in is ignored', async () => {
     await signIn(h, WORLD_PILOT);
     const late = deferred<Response>();
     const tokenB = 'cgx_synthetic_token_0002';
@@ -319,7 +319,7 @@ describe('[AU-014] an answer to an old token never touches a newer sign-in', () 
 });
 
 describe('[AU-013] sign-out: erase → revoke (5 s) → erase again', () => {
-  it('[AU-013] the local sign-in is gone before the revoke is asked; the revoke carries the old token', async () => {
+  it('[AU-013] [ST-051] the local sign-in is gone before the revoke is asked; the revoke carries the old token', async () => {
     await signIn(h, WORLD_PILOT);
     let storedDuringRevoke: boolean | null = null;
     h.hub.on('authRevokeCurrentDeviceToken', () => {
@@ -364,7 +364,7 @@ describe('[AU-016] [AU-021] [HB-001] the sign-in is bound to the hub address', (
     expect(h.hub.requests).toEqual([]);
   });
 
-  it('[AU-016] another hub address in the settings: mismatch, calls refused, sign-out revokes at the issuing hub', async () => {
+  it('[AU-016] [ST-042] another hub address in the settings: mismatch, calls refused, sign-out revokes at the issuing hub', async () => {
     await signIn(h, WORLD_PILOT);
     h.env.origin = 'https://other-hub.example.test';
     expect(h.facade.session()).toBeNull();

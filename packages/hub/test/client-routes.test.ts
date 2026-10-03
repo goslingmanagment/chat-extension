@@ -5,6 +5,7 @@
 // AI-097, NEW-02, HB-006).
 
 import { CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp } from '@cg/contracts';
+import { HUB_SAMPLES } from '@cg/contracts/fixtures';
 import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, uuid, type HttpExchange } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -127,6 +128,20 @@ describe('[NF-010] [NF-023] [AI-061] every client-route scenario of the fake hub
       expect(h.hub.unexpected).toEqual([]);
     });
   }
+
+  it('[AI-061] [AI-060] the recap status line: metadata only, by page, conversation, fan and persona', async () => {
+    h.hub.on('aiRecapStatus', () => json(200, HUB_SAMPLES.recapStatus));
+    const query = { pageLabel: PAGE, conversationRef: WORLD.fan, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId };
+    await expect(h.facade.recapStatus(query)).resolves.toEqual(HUB_SAMPLES.recapStatus);
+    expect(h.hub.of('aiRecapStatus')[0]).toMatchObject({ path: '/api/v1/ai/recap-status', query: { pageLabel: PAGE, conversationRef: WORLD.fan, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId } });
+    expect(errorWireOf(await h.facade.recapStatus({ ...query, pageLabel: 'not-my-page' }).catch((reason: unknown) => reason))?.code).toBe('CG-BINDING-NOT-GRANTED');
+  });
+
+  it('[AI-069] the shared recaps of a page, fan and persona come as the hub keeps them', async () => {
+    const exchange = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges[0];
+    h.hub.serve(exchange === undefined ? [] : [exchange]);
+    await expect(h.facade.recaps({ pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId })).resolves.toEqual(exchange?.response.body);
+  });
 
   it('[AI-071] the dossier of an unknown fan is null (a granted page\'s 404 on a fan lookup)', async () => {
     h.hub.on('pageConversationProfile', () => hubError(404, 'not_found'));

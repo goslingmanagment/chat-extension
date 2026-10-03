@@ -76,7 +76,7 @@ describe('[HB-011] [AU-022] the bootstrap and its cache', () => {
     expect(count()).toBe(4);
   });
 
-  it('[AU-022] the cache is marked with its owner: hub, user and sign-in epoch', async () => {
+  it('[AU-022] [ST-053] the cache is marked with its owner: hub, user and sign-in epoch', async () => {
     await signIn(h, WORLD_PILOT);
     expect(h.local.data.get(STORAGE_KEYS.cacheBootstrap)).toMatchObject({ v: 1, source: 'hub', epoch: 1, hubOrigin: WORLD.hubOrigin, userId: WORLD.user.userId });
     // Another sign-in never sees it: the epoch differs.
@@ -277,7 +277,7 @@ describe('[HB-003] [HB-005] [HB-007] status and the SDK contract', () => {
     expect(h.facade.status().sdk).toEqual({ vendoredHash: VENDORED_CONTRACT_HASH, hubHash: null, compatible: null });
   });
 
-  it('[HB-007] a hub that does not list our SDK is shown, never blocking; a listed one is compatible', async () => {
+  it('[HB-007] [ST-055] a hub that does not list our SDK is shown, never blocking; a listed one is compatible', async () => {
     h.hub.on('health', () => json(200, HEALTH));
     await h.facade.health();
     expect(h.facade.status().sdk).toEqual({ vendoredHash: VENDORED_CONTRACT_HASH, hubHash: HEALTH['contractHash'], compatible: false });
@@ -302,7 +302,7 @@ describe('[HB-003] [HB-005] [HB-007] status and the SDK contract', () => {
     expect(h.facade.status().lastCheckedAt).not.toBeNull();
   });
 
-  it('[HB-003] off → connecting → live → degraded → auth-failed', async () => {
+  it('[HB-003] [ST-044] [ST-054] [ST-056] off → connecting → live → degraded → auth-failed', async () => {
     expect(h.facade.status().state).toBe('off');
     await signIn(h, WORLD_PILOT);
     expect(h.facade.status().state).toBe('live');
@@ -321,7 +321,7 @@ describe('[HB-003] [HB-005] [HB-007] status and the SDK contract', () => {
     expect(h.facade.status().state).toBe('auth-failed');
   });
 
-  it('[HB-002] «Проверить связь» reads health, bootstrap and catalog; a 401 with a reason heals through the usual rule', async () => {
+  it('[HB-002] [ST-045] [ST-058] «Проверить связь» reads health, bootstrap and catalog; a 401 with a reason heals through the usual rule', async () => {
     await signIn(h, WORLD_PILOT);
     h.hub.on('health', () => json(200, HEALTH));
     const report = await h.facade.checkConnection();
