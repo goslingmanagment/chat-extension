@@ -618,8 +618,13 @@ export class ChatExtensionHub implements HubFacade {
   }
 
   async profileFromGeneration(request: ProfileFromGenerationRequest): Promise<ProfileSaveOutcome> {
+    return this.profileWrite(request, undefined);
+  }
+
+  /** One H-5 link write; `signal` (the tab) cancels it in flight. */
+  private async profileWrite(request: ProfileFromGenerationRequest, signal: AbortSignalLike | undefined): Promise<ProfileSaveOutcome> {
     try {
-      const response = await this.client('clientFanProfileFromGeneration', request, request.pageLabel);
+      const response = await this.client('clientFanProfileFromGeneration', request, request.pageLabel, { signal });
       return { state: 'saved', response: response as Extract<ProfileSaveOutcome, { state: 'saved' }>['response'] };
     } catch (error) {
       if (!(error instanceof FacadeCallError) || error.failure.kind !== 'http') throw error;
@@ -643,7 +648,7 @@ export class ChatExtensionHub implements HubFacade {
     const started = this.ctx.clock.now();
     const timing = HUB_FACADE_TIMING;
     for (let attempt = 0; ; attempt += 1) {
-      const outcome = await this.profileFromGeneration(request);
+      const outcome = await this.profileWrite(request, signal);
       if (outcome.state !== 'not-ready') return outcome;
       const delay = timing.profileSaveDelaysMs[attempt] ?? timing.profileSaveThenEveryMs;
       if (this.ctx.clock.now() + delay - started > timing.profileSaveGiveUpMs) return outcome;
@@ -822,7 +827,7 @@ export class ChatExtensionHub implements HubFacade {
     route: ClientRouteKey,
     request: unknown,
     pageLabel: string,
-    options: { readonly flags?: readonly ClientFeatureFlag[]; readonly fresh?: boolean; readonly facts?: CallFacts } = {},
+    options: { readonly flags?: readonly ClientFeatureFlag[]; readonly fresh?: boolean; readonly facts?: CallFacts; readonly signal?: AbortSignalLike | undefined } = {},
   ): Promise<unknown> {
     await this.ready;
     const connection = this.ctx.connection(route);
@@ -835,7 +840,7 @@ export class ChatExtensionHub implements HubFacade {
       const state = flagState(entry.bootstrap, flag, pageLabel);
       if (!state.usable) throw new FacadeCheckError(flag === 'previewSend' ? 'previewSendOff' : 'featureDisabled', route, connection.epoch, state.reason ?? undefined);
     }
-    return this.ctx.client(route, request, { facts: { pageLabel, ...options.facts } }, connection);
+    return this.ctx.client(route, request, { signal: options.signal, facts: { pageLabel, ...options.facts } }, connection);
   }
 
   /**

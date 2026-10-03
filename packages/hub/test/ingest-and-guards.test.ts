@@ -161,6 +161,18 @@ describe('[AI-067] [AI-068] the dossier save from a full recap follows the §7 s
     await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(h.hub.of('clientFanProfileFromGeneration')).toHaveLength(asked + 1);
   });
+  it('[AI-068] a closed tab cancels the write in flight, not only the pauses between writes', async () => {
+    await signIn(h, WORLD_PILOT);
+    h.hub.on('clientFanProfileFromGeneration', () => 'hang');
+    const tab = new AbortController();
+    const saving = h.facade.saveRecapProfile(save, tab.signal).catch((reason: unknown) => reason);
+    await flush(20);
+    expect(h.hub.of('clientFanProfileFromGeneration')).toHaveLength(1);
+    tab.abort();
+    const error = await saving;
+    expect(isHubCallError(error) && error.failure).toEqual({ kind: 'transport', failure: 'aborted' });
+    expect(h.hub.of('clientFanProfileFromGeneration')[0]?.signal?.aborted).toBe(true);
+  });
 });
 
 describe('[AU-029] routes this client never calls (§8.1 «Никогда»)', () => {
