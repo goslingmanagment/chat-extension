@@ -24,10 +24,12 @@ export * from './bridge-messages';
 export * from './tab-protocol';
 export * from './tab-messages';
 export * from './tab-liveness';
+export * from './errors/registry';
+export * from './i18n/keys';
+export * from './i18n/catalog';
 
 // TODO(R01-2a): export vm/* — view models, AppClient, UiAction, ActionReceipt (§10.2).
 // TODO(R01-2b): export hub.ts — HubFacade and the hub DTOs (§5.8, hub-pr-plan.md §4).
-// TODO(R01-2c): export cg-registry.ts and the i18n key catalog (Appendix A, §9.7).
 
 /** Bumped when the integration step tags `contracts-v1.0`. */
 export const CONTRACTS_VERSION = '0.0.0-r00';

@@ -22,6 +22,9 @@
     "./tab-protocol": "./src/tab-protocol.ts",
     "./tab-messages": "./src/tab-messages.ts",
     "./tab-liveness": "./src/tab-liveness.ts",
+    "./errors/registry": "./src/errors/registry.ts",
+    "./i18n/keys": "./src/i18n/keys.ts",
+    "./i18n/catalog": "./src/i18n/catalog.ts",
     "./fixtures": "./test/fixtures/index.ts"
   },
   "dependencies": {

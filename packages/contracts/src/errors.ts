@@ -6,6 +6,7 @@
 
 import * as z from 'zod/mini';
 
+import type { CgBodyKey, CgTitleKey, UiPluralKey, UiTextKey } from './i18n/keys';
 import { EpochMsSchema, displayText } from './primitives';
 
 /** `CG-<AREA>-<NAME>`: readable without a lookup, never clashing with the old numeric `CG-HUB-NNN` / `CG-FLOW-NN`. */
@@ -147,9 +148,10 @@ export type CgRecovery = (typeof CG_RECOVERIES)[number];
 
 /**
  * What may be repeated at all (Appendix A «Повтор»): a safe read, a new human
- * click, a manual retry after a deadline, or never.
+ * click, a manual retry after a deadline, never (forbidden), or nothing to
+ * repeat (`none`, the column's «—»).
  */
-export const CG_RETRIES = ['safe-read', 'new-click', 'after-deadline', 'never'] as const;
+export const CG_RETRIES = ['safe-read', 'new-click', 'after-deadline', 'never', 'none'] as const;
 export type CgRetry = (typeof CG_RETRIES)[number];
 
 /** Telemetry class: plain count, count with a sample, or a P1 incident counter. */
@@ -168,11 +170,8 @@ export const SettingsRouteSchema = z.strictObject({
 });
 export type SettingsRoute = z.infer<typeof SettingsRouteSchema>;
 
-// TODO(R01-2c): replace this alias with the typed key union from the i18n key
-// catalog that part 2c adds next to cg-registry.ts; CgEntry then type-checks
-// its texts against the catalog.
-/** A key of the i18n catalog. */
-export type I18nKey = string;
+/** A key of the i18n catalog (i18n/keys.ts): a UI text, a plural UI text or a CG title/body. */
+export type I18nKey = UiTextKey | UiPluralKey | CgTitleKey<CgCode> | CgBodyKey<CgCode>;
 
 /** One entry of the CG registry (§5.7). */
 export interface CgEntry {
