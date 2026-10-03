@@ -1,6 +1,8 @@
-// Placeholder dock (architecture.md §6.3, §10.1): toolbar with status above the
-// ChatSpace composer. R14 builds the real dock from scratch (X7); this one only
-// proves the mount, focus and typing inside a closed shadow root (spike M0).
+// Placeholder dock of the M0 spike (architecture.md §3, §6.3): a toolbar row
+// with a status and an input above the ChatSpace composer. It only proves the
+// mount, focus and typing inside a closed shadow root; the composition root
+// and the spike e2e still use it. The real dock is `@cg/ui/dock` (R14): once
+// the tab composition mounts that one, this file and its mount go away.
 
 import { useState } from 'preact/hooks';
 

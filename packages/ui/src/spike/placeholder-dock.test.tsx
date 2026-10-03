@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { mountDock } from './mount';
+import { mountDock } from './mount-placeholder-dock';
 
-describe('dock in a closed shadow root', () => {
+describe('the spike placeholder dock in a closed shadow root', () => {
   it('renders, adopts styles and keeps typed text', () => {
     const host = document.createElement('div');
     document.body.append(host);
