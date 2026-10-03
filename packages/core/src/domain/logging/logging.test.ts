@@ -170,6 +170,81 @@ describe('[LG-003] secrets never reach a sink', () => {
     expect(isAllowedStringField('id', null)).toBe(false);
   });
 
+  it('[LG-003] free text under common field names and data keys becomes its length', () => {
+    const h = harness();
+    h.logger.info('bg.x', 'm', {
+      fields: {
+        items: ['hey babe how are you'],
+        account: 'Lora Real Name',
+        fan: { name: 'Jess' },
+        chat: 'fan wrote hello',
+        result: 'Hey babe, model output here',
+        from: 'Fan Display',
+        to: 'Jess',
+        paid: 'a fan wrote this',
+        resource: 'resource text',
+        barcode: 'secretword',
+        format: 'free text here',
+        error: 'model said: hi babe',
+        reason: 'привет',
+        byChat: { 'Alice Smith': 3, Алиса: 4, '518588958': 5 },
+      },
+    });
+    const fields = h.sunk[0]?.fields ?? {};
+    expect(fields).toEqual({
+      items: ['[text len=20]'],
+      account: '[text len=14]',
+      fan: { name: '[text len=4]' },
+      chat: '[text len=15]',
+      result: '[text len=27]',
+      from: '[text len=11]',
+      to: '[text len=4]',
+      paid: '[text len=16]',
+      resource: '[text len=13]',
+      barcode: '[text len=10]',
+      format: '[text len=14]',
+      error: '[text len=19]',
+      reason: '[text len=6]',
+      // An integer-like key comes first in an object, so the marks count from 1.
+      byChat: { '518588958': 5, '[key#1]': 3, '[key#2]': 4 },
+    });
+    for (const name of ['chat', 'items', 'account', 'paid', 'resource', 'barcode', 'name', 'result', 'from', 'to', 'detail', 'format_text']) {
+      expect(isAllowedStringField(name, null)).toBe(false);
+    }
+  });
+
+  it('[LG-003] machine values stay: word-boundary endings, exact names, codes in `error`', () => {
+    const fields = sanitizeFields(
+      {
+        op_id: OP,
+        STARTED_AT: '2026-10-03T12:00:00.000Z',
+        accountId: '36408',
+        chatKey: 'chatspace:36408:518588958',
+        format: 'json',
+        error: 'CG-HUB-UNAVAILABLE',
+        route: 'https://gosling-agency.ru/v1/x?fan=1',
+        degraded: ['fansMap:off'],
+        counts: { 'CG-NETWORK': 2, 'p1.insert-misplaced': 1 },
+      },
+      createRedactor(),
+    );
+    expect(fields).toEqual({
+      op_id: OP,
+      STARTED_AT: '2026-10-03T12:00:00.000Z',
+      accountId: '36408',
+      chatKey: 'chatspace:36408:518588958',
+      format: 'json',
+      error: 'CG-HUB-UNAVAILABLE',
+      route: `https://gosling-agency.ru/v1/x?${REDACTED}`,
+      degraded: ['fansMap:off'],
+      counts: { 'CG-NETWORK': 2, 'p1.insert-misplaced': 1 },
+    });
+    // An error keeps its own text (LG-009), only inside an error container.
+    expect(sanitizeFields({ cause: { name: 'TypeError', message: 'x is undefined', detail: 'a b' } }, createRedactor())).toEqual({
+      cause: { name: 'TypeError', message: 'x is undefined', detail: 'a b' },
+    });
+  });
+
   it('[LG-003] is idempotent, so the background can redact a tab record again', () => {
     const redactor = createRedactor();
     redactor.setToken(TOKEN);
@@ -184,6 +259,19 @@ describe('[LG-003] secrets never reach a sink', () => {
     redactor.setToken(TOKEN);
     const out = JSON.stringify(sanitizeValue({ [`k_${TOKEN}`]: 1 }, redactor));
     expect(out).not.toContain(TOKEN);
+  });
+
+  it('[LG-022] a string without a field name is never let through', () => {
+    const redactor = createRedactor();
+    expect(sanitizeValue(['hey babe text', { text: 'x' }], redactor, { allowlist: true })).toEqual(['[text len=13]', { text: '[text len=1]' }]);
+    expect(sanitizeValue('draft text here', redactor, { allowlist: true })).toBe('[text len=15]');
+    expect(sanitizeFields('draft text here', redactor)).toEqual({ value: '[text len=15]' });
+    // Without the allowlist (records already redacted) the string is only scrubbed.
+    expect(sanitizeValue('ok text', redactor, { allowlist: false })).toBe('ok text');
+  });
+
+  it('[LG-003] a URL fragment alone is masked too', () => {
+    expect(scrubText('open https://h.example/cb#access_token=abc123xyz now')).toBe(`open https://h.example/cb?${REDACTED} now`);
   });
 });
 
@@ -204,6 +292,13 @@ describe('[LG-008] record limits', () => {
     expect((value['list'] as unknown[])[99]).toBe('[+51 more]');
     expect((value['reason'] as string).length).toBeLessThanOrEqual(LOG_LIMITS.maxStringLength);
     expect(value['reason'] as string).toMatch(/…\[\+\d+\]$/);
+  });
+
+  it('[LG-008] the depth limit is exact: an object at the limit depth becomes a mark', () => {
+    const limits = { maxDepth: 3, maxArrayLength: 100, maxObjectKeys: 100, maxStringLength: 100 };
+    expect(sanitizeValue({ a: { b: { c: { d: 1 } } } }, createRedactor(), { limits })).toEqual({ a: { b: { c: '[depth]' } } });
+    expect(sanitizeValue({ a: { b: { c: 1 } } }, createRedactor(), { limits })).toEqual({ a: { b: { c: 1 } } });
+    expect(sanitizeValue({ a: { b: 1 } }, createRedactor(), { limits, baseDepth: 2 })).toEqual({ a: '[depth]' });
   });
 
   it('[LG-008] keeps every record within 8 KiB and valid by the schema, however large the input', () => {

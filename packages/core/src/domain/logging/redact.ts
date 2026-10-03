@@ -8,11 +8,18 @@
 //    hub token and its tail, kept up to date on sign-in and sign-out), of
 //    secret SHAPES (`sk-…`, hub device tokens, `Bearer …`, JWTs), of
 //    «label=value» pairs and of URL parameters;
-// 3. the payload allowlist: a string passes only under a field name that is
-//    known to carry machine values (codes, states, ids, versions…). Anything
-//    else — `text`, `draft`, `prompt`, `answer`, a fan's name — becomes its
-//    length. Texts of conversations, drafts, prompts and model output never
-//    reach a log, whoever wrote the call;
+// 3. the payload allowlist. A string passes only when both hold:
+//    - its field name is known to carry machine values: an exact name
+//      (`code`, `state`, `reason`, `version`…) or a camelCase / snake_case
+//      ending (`opId`, `startedAt`, `insertMs`, `op_id`) — at a word
+//      boundary, so `chat`, `items`, `account` or `paid` are not ids;
+//    - the value looks like a machine token: ASCII, no spaces.
+//    The only free text is an error's own name/message/stack/code/detail
+//    inside an error container (LG-009). Anything else — `text`, `draft`,
+//    `prompt`, `name`, `result`, a fan's name, a bare string without a field
+//    name — becomes its length, and an object key that is not a machine
+//    token becomes `[key#N]`. Texts of conversations, drafts, prompts and
+//    model output never reach a log, whoever wrote the call;
 // 4. the size limits of LOG_LIMITS: depth 8, 100 array items, 100 keys,
 //    20 000 characters per string, with visible truncation marks.
 //
@@ -125,35 +132,64 @@ export const LOG_VALUE_LIMITS: SanitizeLimits = {
   maxStringLength: LOG_LIMITS.maxStringLength,
 };
 
-/** Field names whose string values are machine data and may be logged as they are (after scrubbing). */
+/** Exact field names whose string values are machine data (enumerations, codes, versions) and may be logged after scrubbing. */
 const ALLOWED_STRING_FIELDS: ReadonlySet<string> = new Set([
   'action', 'adapter', 'anchor', 'anchors', 'browser', 'build', 'capabilities', 'capability', 'category', 'client', 'code', 'contract',
-  'coverage', 'degraded', 'detail', 'disabled', 'disposition', 'error', 'event', 'failure', 'feature', 'features', 'file', 'flag', 'flags', 'format', 'from',
-  'host', 'journal', 'kind', 'level', 'lifecycle', 'locale', 'method', 'metric', 'mime', 'missing', 'mode', 'model', 'name', 'origin',
-  'os', 'outcome', 'pagelabel', 'phase', 'platform', 'provider', 'reason', 'result', 'route', 'scope', 'section', 'source', 'stage',
-  'stages', 'state', 'status', 'surface', 'theme', 'to', 'tone', 'trigger', 'type', 'unit', 'version', 'via', 'why',
+  'coverage', 'degraded', 'disabled', 'disposition', 'error', 'event', 'failure', 'feature', 'features', 'file', 'flag', 'flags', 'format',
+  'host', 'journal', 'kind', 'level', 'lifecycle', 'locale', 'method', 'metric', 'mime', 'missing', 'mode', 'model', 'origin',
+  'os', 'outcome', 'pagelabel', 'phase', 'platform', 'provider', 'reason', 'route', 'scope', 'section', 'source', 'stage',
+  'stages', 'state', 'status', 'surface', 'theme', 'tone', 'trigger', 'type', 'unit', 'version', 'via', 'why',
 ]);
 
 /** Endings of machine-valued field names: `opId`, `chatKey`, `startedAt`, `insertMs`, `draftDigest`… */
-const ALLOWED_STRING_SUFFIXES = [
-  'id', 'ids', 'ref', 'refs', 'key', 'keys', 'at', 'ms', 'epoch', 'digest', 'hash', 'version', 'code', 'codes', 'status', 'state',
-  'kind', 'count', 'bytes', 'chars', 'length', 'revision', 'seq', 'origin', 'build', 'reason', 'route', 'stage', 'phase', 'source',
+const ALLOWED_SUFFIX_WORDS = [
+  'Id', 'Ids', 'Ref', 'Refs', 'Key', 'Keys', 'At', 'Ms', 'Epoch', 'Digest', 'Hash', 'Version', 'Code', 'Codes', 'Status', 'State',
+  'Kind', 'Count', 'Bytes', 'Chars', 'Length', 'Revision', 'Seq', 'Origin', 'Build', 'Reason', 'Route', 'Stage', 'Phase', 'Source',
 ] as const;
+
+/**
+ * The ending must start a word of the raw key: after a lowercase letter or a
+ * digit in camelCase (`opId`, `insertMs`), or after `_` / `-` (`op_id`,
+ * `STARTED_AT`). `chat`, `items`, `account`, `paid`, `resource` do not match.
+ */
+const CAMEL_SUFFIX = new RegExp(`[a-z0-9](?:${ALLOWED_SUFFIX_WORDS.join('|')})$`);
+const SEPARATED_SUFFIX = new RegExp(`.[_-](?:${ALLOWED_SUFFIX_WORDS.join('|')})$`, 'i');
 
 /** Inside a serialized error these carry the error itself, not data (LG-009). */
 const ERROR_CONTAINERS: ReadonlySet<string> = new Set(['error', 'err', 'cause', 'exception', 'rejection']);
 const ERROR_TEXT_FIELDS: ReadonlySet<string> = new Set(['name', 'message', 'stack', 'code', 'detail']);
 
+/**
+ * A machine token: ASCII letters, digits and URL/code punctuation, no spaces
+ * (ids, codes, states, versions, ISO times, scrubbed URLs). A truncation mark
+ * of this module may end it, so a second pass keeps it (idempotence).
+ */
+const MACHINE_TOKEN = /^[A-Za-z0-9._:/@+=,#?&%~[\]-]*(?:…\[\+\d+\])?$/;
+
+export function isMachineToken(value: string): boolean {
+  return MACHINE_TOKEN.test(value);
+}
+
 function normalizedKey(key: string): string {
   return key.toLowerCase().replace(/[-_]/g, '');
 }
 
-/** Whether a string under this field name is machine data (the payload allowlist, LG-003). */
+function isErrorText(key: string, parentKey: string | null): boolean {
+  return parentKey !== null && ERROR_CONTAINERS.has(normalizedKey(parentKey)) && ERROR_TEXT_FIELDS.has(normalizedKey(key));
+}
+
+/** Whether a string under this field name is machine data (the payload allowlist, LG-003); its value must still be a machine token. */
 export function isAllowedStringField(key: string, parentKey: string | null): boolean {
-  const name = normalizedKey(key);
-  if (ALLOWED_STRING_FIELDS.has(name)) return true;
-  if (parentKey !== null && ERROR_CONTAINERS.has(normalizedKey(parentKey)) && ERROR_TEXT_FIELDS.has(name)) return true;
-  return ALLOWED_STRING_SUFFIXES.some((suffix) => name.length > suffix.length && name.endsWith(suffix));
+  if (ALLOWED_STRING_FIELDS.has(normalizedKey(key))) return true;
+  if (isErrorText(key, parentKey)) return true;
+  return CAMEL_SUFFIX.test(key) || SEPARATED_SUFFIX.test(key);
+}
+
+/** Whether this string may be logged as it is (after scrubbing): the whole allowlist rule of the header. */
+export function isAllowedString(value: string, key: string | null, parentKey: string | null): boolean {
+  if (key === null) return false;
+  if (isErrorText(key, parentKey)) return true;
+  return isAllowedStringField(key, parentKey) && isMachineToken(value);
 }
 
 /** The marks this module writes itself; a second pass keeps them as they are (idempotence). */
@@ -189,7 +225,7 @@ export interface SanitizeOptions {
   readonly allowlist?: boolean;
   /** Depth of the value inside its record: `fields` sits at 1, so its values start at 2. */
   readonly baseDepth?: number;
-  /** Field name of the value itself, for the allowlist of a bare string or array. */
+  /** Field name of the value itself, for the allowlist of a bare string or array; without one a string becomes its length. */
   readonly key?: string | null;
 }
 
@@ -202,7 +238,7 @@ interface Walk {
 
 function sanitizeString(walk: Walk, value: string, key: string | null, parentKey: string | null): string {
   if (OWN_MARK.test(value)) return value;
-  if (walk.allowlist && key !== null && !isAllowedStringField(key, parentKey)) return lengthMark(value);
+  if (walk.allowlist && !isAllowedString(value, key, parentKey)) return lengthMark(value);
   return truncateText(walk.redactor.text(value), walk.limits.maxStringLength);
 }
 
@@ -278,7 +314,9 @@ function inner(walk: Walk, value: unknown, depth: number, key: string | null, pa
         skipped += 1;
         continue;
       }
-      const safeKey = truncateText(walk.redactor.text(rawKey), MAX_KEY_LENGTH);
+      const scrubbedKey = truncateText(walk.redactor.text(rawKey), MAX_KEY_LENGTH);
+      // A data key (a name, a phrase) says as much as a value: with the allowlist on, only machine keys stay.
+      const safeKey = walk.allowlist && !isMachineToken(scrubbedKey) ? `[key#${written}]` : scrubbedKey;
       if (isRedactedLogField(rawKey)) {
         out[safeKey] = REDACTED;
       } else {

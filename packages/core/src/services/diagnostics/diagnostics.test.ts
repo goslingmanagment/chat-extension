@@ -165,6 +165,22 @@ describe('[LG-021] [LG-022] [LG-023] [LG-024] [LG-025] the export file', () => {
     expect(bundle.hub.lastError?.detail).toBe('HTTP 504 • tail [redacted]');
   });
 
+  it('[LG-022] a snapshot shaped as bare strings reaches the file as lengths only', () => {
+    const bundle = JSON.parse(
+      exportJson(facts({ ops: { active: 1, snapshot: [FAN_TEXT, { text: 'x' }] }, sends: { open: 0, uncertain: 0, journal: FAN_TEXT } }), logs, redactor()).body,
+    ) as ExportBundle;
+    expect(bundle.ops.snapshot).toEqual([`[text len=${FAN_TEXT.length}]`, { text: '[text len=1]' }]);
+    expect(bundle.sends.journal).toBe(`[text len=${FAN_TEXT.length}]`);
+  });
+
+  it('[LG-022] the TXT is redacted as a whole: a record that names the live token loses it', () => {
+    const leaky = { recent: [...records(3), ...records(1, { msg: `retry with ${TOKEN}`, scope: 'bg.hub' })], previous: { session: null, records: [] } };
+    const body = exportTxt(facts(), leaky, redactor()).body;
+    expect(body).toContain('retry with [redacted]');
+    expect(body).not.toContain(TOKEN);
+    expect(body).not.toContain(TAIL);
+  });
+
   it('[LG-022] the second pass keeps numbers under forbidden names and masks the rest', () => {
     const r = redactor();
     expect(redactBundle({ ctx: { session: 3 }, session: { token: TOKEN }, list: [`Bearer ${TOKEN}`], [TOKEN]: 1, n: Number.NaN, f: () => 1 }, r)).toEqual({
