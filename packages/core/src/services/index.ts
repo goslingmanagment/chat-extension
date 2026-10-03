@@ -42,6 +42,7 @@ export {
   type SettingsOwner,
   type SettingsOwnerDeps,
   type SettingsPatchRequest,
+  type SettingsResult,
   type SettingsWriteResult,
 } from './settings-owner';
 export {

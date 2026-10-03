@@ -74,10 +74,10 @@ describe('[RB-011] the settings owner is the single writer', () => {
     expect(heard).toEqual([1]);
   });
 
-  it('refuses the restricted sections to a tab and a value the schema refuses; a patch on an older revision merges', async () => {
+  it('refuses the restricted sections to a tab and a value the schema refuses (defensive: CG-UNKNOWN, never a retry text); a patch on an older revision merges', async () => {
     const { owner, local, logs } = setup();
-    expect(await owner.patch({ hub: { baseUrl: 'https://evil.example.test' } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-UNKNOWN' } });
-    expect(await owner.patch({ sound: { volume: 7 } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-WRITE' } });
+    expect(await owner.patch({ hub: { baseUrl: 'https://evil.example.test' } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-UNKNOWN', detail: 'restricted section' } });
+    expect(await owner.patch({ sound: { volume: 7 } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-UNKNOWN', detail: 'invalid settings' } });
     expect(local.calls.set).toBe(0);
     await owner.patch({ ui: { theme: 'dark' } }, { baseRevision: 0, restricted: false });
     const merged = await owner.patch({ ui: { hints: false } }, { baseRevision: 0, restricted: false });
@@ -95,19 +95,66 @@ describe('[RB-011] the settings owner is the single writer', () => {
     expect(local.calls.set).toBe(1);
   });
 
-  it('a write whose storage confirmation was lost is «не сохранено»; the value that did land is adopted, never lost', async () => {
-    const { owner, local, changes } = setup();
+  it('[ST-013] a write whose confirmation was lost is read back: the value landed — confirmed, adopted and broadcast', async () => {
+    const { owner, local, changes, logs } = setup();
     await owner.start();
     local.failNext('set', 'lost');
     const result = await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false });
-    expect(result).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-WRITE' } });
+    expect(result).toMatchObject({ ok: true, state: { revision: 1, settings: { ui: { locale: 'en' } } } });
+    expect(owner.current().ui.locale).toBe('en');
+    expect(local.read<typeof DEFAULT_SETTINGS>(KEY)?.ui.locale).toBe('en');
+    expect(changes.map((state) => state.settings.ui.locale)).toEqual(['en']);
+    expect(logs.some((entry) => entry.msg === 'settings write confirmed by reading it back')).toBe(true);
+    // The next unrelated patch keeps it.
+    await owner.patch({ ui: { hints: false } }, { baseRevision: 1, restricted: false });
+    expect(local.read<typeof DEFAULT_SETTINGS>(KEY)?.ui).toMatchObject({ locale: 'en', hints: false });
+  });
+
+  it('[ST-014] a write that did not land is «не сохранено» and changes nothing; «Повторить» writes it', async () => {
+    const { owner, local, changes } = setup();
+    await owner.start();
+    local.failNext('set');
+    expect(await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-WRITE' } });
     expect(owner.current().ui.locale).toBe('system');
-    // «Повторить»: the same change, written again, confirmed.
+    expect(local.read(KEY)).toBeUndefined();
+    expect(changes).toEqual([]);
     const retry = await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false });
     expect(retry.ok).toBe(true);
     expect(local.read<typeof DEFAULT_SETTINGS>(KEY)?.ui.locale).toBe('en');
-    await settle();
-    expect(changes.at(-1)?.settings.ui.locale).toBe('en');
+  });
+
+  it('[ST-015] a lost confirmation that cannot be read back: the next patch reads first, so the landed field is never reverted', async () => {
+    const { owner, local, changes } = setup();
+    await owner.start();
+    local.holdEvents();
+    local.failNext('set', 'lost');
+    local.failNext('get');
+    expect(await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-WRITE' } });
+    // Unknown whether it landed (it did): memory keeps the old value until a read succeeds.
+    expect(owner.current().ui.locale).toBe('system');
+    const next = await owner.patch({ ui: { hints: false } }, { baseRevision: 0, restricted: false });
+    expect(next.ok && next.state.settings.ui).toMatchObject({ locale: 'en', hints: false });
+    expect(local.read<typeof DEFAULT_SETTINGS>(KEY)?.ui).toMatchObject({ locale: 'en', hints: false });
+    // The landed value was adopted (and broadcast) before the patch applied on top of it.
+    expect(changes.map((state) => [state.revision, state.settings.ui.locale, state.settings.ui.hints])).toEqual([
+      [1, 'en', true],
+      [2, 'en', false],
+    ]);
+    local.releaseEvents();
+    await settle(10);
+    expect(owner.current().ui).toMatchObject({ locale: 'en', hints: false });
+    expect(changes).toHaveLength(2);
+  });
+
+  it('[ST-015] a read-back that fails blocks the next write until a read succeeds (never written over an unread value)', async () => {
+    const { owner, local } = setup();
+    await owner.start();
+    local.failNext('set', 'lost');
+    local.failNext('get');
+    local.failNext('get');
+    await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false });
+    expect(await owner.patch({ ui: { hints: false } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    expect(local.read<typeof DEFAULT_SETTINGS>(KEY)?.ui).toMatchObject({ locale: 'en', hints: true });
   });
 
   it('a quota failure is CG-STORAGE-FULL and changes nothing', async () => {
@@ -115,6 +162,37 @@ describe('[RB-011] the settings owner is the single writer', () => {
     local.failNext('set', 'full');
     expect(await owner.patch({ ui: { hints: false } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-FULL' }, state: { revision: 0 } });
     expect(local.read(KEY)).toBeUndefined();
+  });
+
+  it('[ST-018] a late echo of the owner\'s own earlier write is not an outside change (no revert, no stale broadcast)', async () => {
+    const { owner, local, changes } = setup();
+    await owner.start();
+    // Firefox does not promise that onChanged arrives before set() resolves.
+    local.holdEvents();
+    await owner.patch({ ui: { theme: 'dark' } }, { baseRevision: 0, restricted: false });
+    await owner.patch({ ui: { theme: 'light' } }, { baseRevision: 1, restricted: false });
+    local.releaseEvents();
+    await settle(20);
+    expect(owner.current().ui.theme).toBe('light');
+    expect(changes.map((state) => [state.revision, state.settings.ui.theme])).toEqual([
+      [1, 'dark'],
+      [2, 'light'],
+    ]);
+    const next = await owner.patch({ ui: { hints: false } }, { baseRevision: 2, restricted: false });
+    expect(next).toMatchObject({ ok: true, state: { revision: 3 } });
+    expect(local.read<typeof DEFAULT_SETTINGS>(KEY)?.ui).toMatchObject({ theme: 'light', hints: false });
+  });
+
+  it('[ST-018] a late echo arriving after an outside change does not hide it: the store is read again', async () => {
+    const { owner, local, changes } = setup();
+    await owner.start();
+    local.holdEvents();
+    await owner.patch({ ui: { theme: 'dark' } }, { baseRevision: 0, restricted: false });
+    local.external(KEY, { ...clone(DEFAULT_SETTINGS), ui: { ...DEFAULT_SETTINGS.ui, theme: 'light', hints: false } });
+    local.releaseEvents();
+    await settle(20);
+    expect(owner.current().ui).toMatchObject({ theme: 'light', hints: false });
+    expect(changes.at(-1)).toMatchObject({ revision: 2, settings: { ui: { theme: 'light', hints: false } } });
   });
 
   it('the request handlers answer the RPC shape', async () => {
@@ -141,7 +219,9 @@ describe('[RB-012] migrations run forward, at start, before the first answer', (
     });
     const answer = owner.state();
     expect(owner.mode()).toBe('loading');
-    const state = await answer;
+    const result = await answer;
+    if (!result.ok) throw new Error('not loaded');
+    const state = result.state;
     expect(steps).toEqual(['1→2']);
     expect(local.calls.set).toBe(1);
     expect(state.settings.ui).toEqual({ theme: 'dark', locale: 'ru', hints: false, resultStyle: 'sheet' });
@@ -157,17 +237,20 @@ describe('[RB-012] migrations run forward, at start, before the first answer', (
     local.data.set(KEY, { ...clone(DEFAULT_SETTINGS), schemaVersion: 1 });
     local.failNext('set');
     const { owner, logs } = setup({ local, deps: { schemaVersion: 2, migrations: [{ from: 1, to: 2, migrate: (stored) => ({ ...stored }) }] } });
-    expect((await owner.state()).readOnly).toBe(false);
+    expect(await owner.state()).toMatchObject({ ok: true, state: { readOnly: false } });
     expect(logs.find((entry) => entry.msg === 'settings migrated')).toMatchObject({ level: 'warn', code: 'CG-STORAGE-WRITE', fields: { from: 1, saved: false } });
   });
 
-  it('an unreadable chain leaves the stored value untouched and the settings read-only', async () => {
+  it('[ST-017] an unreadable chain leaves the stored value untouched and the settings unavailable (CG-STORAGE-READ)', async () => {
     const local = createMemoryKv();
     const stored = { ...clone(customSettings), schemaVersion: 1 };
     local.data.set(KEY, stored);
-    const { owner } = setup({ local, deps: { schemaVersion: 3, migrations: [{ from: 1, to: 2, migrate: (s) => ({ ...s }) }] } });
-    const state = await owner.state();
-    expect(state.readOnly).toBe(true);
+    const { owner, changes } = setup({ local, deps: { schemaVersion: 3, migrations: [{ from: 1, to: 2, migrate: (s) => ({ ...s }) }] } });
+    expect(await owner.state()).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    expect(await settingsRequestHandlers(owner)['settings.get']()).toEqual({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    // Asking again reads again, but neither bumps the revision nor broadcasts.
+    expect(await owner.state()).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    expect(changes).toEqual([]);
     expect(await owner.patch({ ui: { hints: true } }, { baseRevision: null, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-READ' } });
     expect(local.read(KEY)).toEqual(stored);
     expect(local.calls.set).toBe(0);
@@ -180,10 +263,11 @@ describe('[ST-016] a store written by a newer build is read-only (CG-STORAGE-VER
     const future = { ...clone(customSettings), schemaVersion: 9, brandNew: { x: 1 } };
     local.data.set(KEY, future);
     const { owner, logs } = setup({ local });
-    const state = await owner.state();
-    expect(state.readOnly).toBe(true);
+    const result = await owner.state();
+    expect(result).toMatchObject({ ok: true, state: { readOnly: true, settings: { ui: { theme: 'dark' } } } });
     expect(owner.mode()).toBe('newer');
-    expect(state.settings.ui.theme).toBe('dark');
+    // ST-016, not ST-017: the RPC answers the readable settings, read-only.
+    expect(await settingsRequestHandlers(owner)['settings.get']()).toMatchObject({ ok: true, payload: { readOnly: true, settings: { ui: { theme: 'dark' } } } });
     expect(await owner.patch({ ui: { hints: true } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-VERSION' } });
     expect(await owner.setPersonaScope({ hubOrigin: HUB, userId: 99 })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-VERSION' } });
     expect(local.read(KEY)).toEqual(future);
@@ -197,7 +281,9 @@ describe('[ST-017] broken values, failed reads', () => {
     const local = createMemoryKv();
     local.data.set(KEY, { ...clone(customSettings), ui: { ...customSettings.ui, theme: 'neon' } });
     const { owner, logs } = setup({ local });
-    const state = await owner.state();
+    const result = await owner.state();
+    if (!result.ok) throw new Error('not loaded');
+    const state = result.state;
     expect(state.settings.ui.theme).toBe('host');
     expect(state.settings.accounts).toEqual(customSettings.accounts);
     expect(state.readOnly).toBe(false);
@@ -210,16 +296,24 @@ describe('[ST-017] broken values, failed reads', () => {
     local.data.set(KEY, clone(customSettings));
     local.failNext('get');
     local.failNext('get');
-    const { owner, logs } = setup({ local });
+    local.failNext('get');
+    const { owner, logs, changes } = setup({ local });
     expect(await owner.start()).toEqual({ kind: 'unreadable', code: 'CG-STORAGE-READ' });
     expect(owner.mode()).toBe('unreadable');
-    // The next request reads again (fails again): read-only defaults, nothing written.
+    // «Settings Unavailable»: settings.get is an error, never defaults posing as the person's values.
+    expect(await settingsRequestHandlers(owner)['settings.get']()).toEqual({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    // The next request reads again (fails again): nothing written, nothing broadcast.
     expect(await owner.patch({ sound: { volume: 90 } }, { baseRevision: null, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-READ' } });
     expect(local.calls.set).toBe(0);
     expect(local.read(KEY)).toEqual(customSettings);
-    // The read works now: the person's values come back and the change lands on top of them.
+    expect(changes).toEqual([]);
+    // The read works now: the person's values come back (broadcast once) and the change lands on top of them.
     const saved = await owner.patch({ sound: { volume: 90 } }, { baseRevision: null, restricted: false });
     expect(saved.ok).toBe(true);
+    expect(changes.map((state) => [state.revision, state.settings.sound.volume])).toEqual([
+      [1, customSettings.sound.volume],
+      [2, 90],
+    ]);
     expect(local.read(KEY)).toEqual({ ...customSettings, sound: { ...customSettings.sound, volume: 90 } });
     expect(logs.filter((entry) => entry.code === 'CG-STORAGE-READ').length).toBeGreaterThanOrEqual(2);
     expectNoValues(logs);
@@ -268,8 +362,7 @@ describe('[BG-004] background unload and restart', () => {
     first.unload();
 
     const second = setup({ local: first.local, session: first.session });
-    const state = await second.owner.state();
-    expect(state).toMatchObject({ revision: 2, readOnly: false, settings: { ui: { theme: 'dark', hints: false } } });
+    expect(await second.owner.state()).toMatchObject({ ok: true, state: { revision: 2, readOnly: false, settings: { ui: { theme: 'dark', hints: false } } } });
     const next = await second.owner.patch({ ui: { theme: 'light' } }, { baseRevision: 2, restricted: false });
     expect(next.ok && next.state.revision).toBe(3);
     second.unload();
@@ -277,7 +370,21 @@ describe('[BG-004] background unload and restart', () => {
     // A browser restart: storage.session is empty, storage.local is not.
     first.session.wipe();
     const third = setup({ local: first.local, session: first.session });
-    expect(await third.owner.state()).toMatchObject({ revision: 0, settings: { ui: { theme: 'light', hints: false } } });
+    expect(await third.owner.state()).toMatchObject({ ok: true, state: { revision: 0, settings: { ui: { theme: 'light', hints: false } } } });
+  });
+
+  it('an outside change before `start` never resets the revision kept in storage.session', async () => {
+    const local = createMemoryKv();
+    const session = createMemoryKv();
+    session.data.set(SESSION_KEYS.settingsRevision, 57);
+    const { owner, changes } = setup({ local, session });
+    local.external(KEY, { ...clone(DEFAULT_SETTINGS), ui: { ...DEFAULT_SETTINGS.ui, theme: 'dark' } });
+    await settle(10);
+    expect(changes).toEqual([]);
+    expect(await owner.state()).toMatchObject({ ok: true, state: { revision: 57, settings: { ui: { theme: 'dark' } } } });
+    const next = await owner.patch({ ui: { hints: false } }, { baseRevision: 57, restricted: false });
+    expect(next).toMatchObject({ ok: true, state: { revision: 58 } });
+    expect(session.read(SESSION_KEYS.settingsRevision)).toBe(58);
   });
 
   it('a revision that could not be kept is logged and the change still lands', async () => {

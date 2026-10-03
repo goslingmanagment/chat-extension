@@ -89,7 +89,7 @@ describe('[BG-004] background unload and restart (§12 п. 5)', () => {
     await settle(10);
     expect(answered).toBe(false);
     await page.start();
-    expect(await answer).toMatchObject({ revision: 0, readOnly: false });
+    expect(await answer).toMatchObject({ ok: true, state: { revision: 0, readOnly: false } });
   });
 
   it('[X8-07] a new event page restores settings, results, the send journal and seen accounts; what was running is interrupted or uncertain, never repeated', async () => {
@@ -110,7 +110,7 @@ describe('[BG-004] background unload and restart (§12 п. 5)', () => {
     const second = eventPage(local, session, T0 + 90_000);
     const settingsAnswer = second.request(() => second.settings.state());
     await second.start();
-    expect(await settingsAnswer).toMatchObject({ revision: 1, readOnly: false, settings: { ui: { theme: 'dark' }, sound: { volume: 35 } } });
+    expect(await settingsAnswer).toMatchObject({ ok: true, state: { revision: 1, readOnly: false, settings: { ui: { theme: 'dark' }, sound: { volume: 35 } } } });
     expect(await second.results.get(opView.opId)).toEqual(opView);
     expect(await second.results.get(uuid(77))).toMatchObject({ state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
     expect(second.journal.get(journalEntry.attemptId)).toMatchObject({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN', pendingId: 'pending-1' });
@@ -125,7 +125,7 @@ describe('[BG-004] background unload and restart (§12 п. 5)', () => {
     session.wipe();
     const third = eventPage(local, session, T0 + 3_600_000);
     await third.start();
-    expect(await third.settings.state()).toMatchObject({ revision: 0, settings: { ui: { theme: 'dark' } } });
+    expect(await third.settings.state()).toMatchObject({ ok: true, state: { revision: 0, settings: { ui: { theme: 'dark' } } } });
     expect(await third.results.list({ scope: 'all' })).toEqual({ ops: [], truncated: false });
     expect(third.journal.stats()).toMatchObject({ uncertain: 1, open: 1 });
   });
@@ -135,9 +135,7 @@ describe('[BG-004] background unload and restart (§12 п. 5)', () => {
     local.data.set(STORAGE_KEYS.settings, { ...customSettings, schemaVersion: 2, someV2Section: {} });
     const page = eventPage(local, createMemoryKv(), T0);
     await page.start();
-    const state = await page.request(() => page.settings.state());
-    expect(state.readOnly).toBe(true);
-    expect(state.settings.ui.theme).toBe('dark');
+    expect(await page.request(() => page.settings.state())).toMatchObject({ ok: true, state: { readOnly: true, settings: { ui: { theme: 'dark' } } } });
     expect(await page.settings.patch({ ui: { hints: true } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-VERSION' } });
     expect((await page.journal.begin(journalEntry)).ok).toBe(true);
     expect(page.barrier.isReady()).toBe(true);
@@ -152,6 +150,9 @@ describe('[BG-004] background unload and restart (§12 п. 5)', () => {
     const report = (await page.start()) as { steps: { name: string; outcome: string }[] };
     expect(report.steps.every((step) => step.outcome === 'ok')).toBe(true);
     expect(page.settings.mode()).toBe('unreadable');
+    // «Settings Unavailable» (CG-STORAGE-READ), not the read-only banner of a newer store.
+    expect(await page.request(() => page.settings.state())).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    expect(page.broadcasts).toEqual([]);
     expect(await page.journal.begin(journalEntry)).toMatchObject({ ok: false, code: 'CG-STORAGE-READ' });
     expect(local.read(STORAGE_KEYS.settings)).toEqual(customSettings);
     expect(local.calls.set).toBe(0);

@@ -8,11 +8,19 @@
 //   what is readable, write nothing.
 // - A broken optional value falls back to its default and is logged by path.
 // - A failed read never erases: nothing is written until a read succeeds;
-//   until then the owner answers defaults read-only (CG-STORAGE-READ) and
-//   tries to read again on the next request.
+//   until then `settings.get` and every write answer CG-STORAGE-READ (ST-017
+//   «Settings Unavailable», distinct from ST-016's read-only CG-STORAGE-VERSION),
+//   nothing is broadcast, and the next request reads again.
 // - «Сохранено» only on a confirmed write: every confirmed change bumps the
 //   revision (kept in storage.session, so it survives the event page
 //   unloading) and is broadcast (`settings.changed`) to every tab and page.
+//   A write whose confirmation was lost is read back: landed — confirmed;
+//   not landed — «не сохранено»; unknown — the next request reads first, so a
+//   later patch never writes over a value that may have landed.
+// - A change from outside (another build, «Очистить локальные данные») is
+//   never taken from the event's value: the owner reads the key again in its
+//   chain and adopts it only when it differs from what the owner wrote — a
+//   late echo of the owner's own earlier write is not an outside change.
 // - Sign-in and identity are not here (separate `auth.*` keys); the persona
 //   scope is set only by the background (`setPersonaScope`), never guessed.
 
@@ -43,18 +51,25 @@ export interface SettingsOwnerDeps {
   readonly onChange?: (state: SettingsState) => void;
 }
 
-export type SettingsWriteResult =
+export type SettingsResult =
   | { readonly ok: true; readonly state: SettingsState }
   | { readonly ok: false; readonly error: CgErrorWire; readonly state: SettingsState };
+
+/** A write's answer; the same shape as a read's. */
+export type SettingsWriteResult = SettingsResult;
 
 export type SettingsMode = 'loading' | 'ok' | 'newer' | 'unreadable';
 
 export interface SettingsOwner {
   /** Load and migrate; the readiness barrier runs it. Idempotent. */
   start(): Promise<SettingsLoadOutcome>;
-  /** `settings.get`. */
-  state(): Promise<SettingsState>;
-  /** The settings in memory now (defaults before `start`). */
+  /**
+   * `settings.get`: the settings, read-only when a newer build stored them
+   * (CG-STORAGE-VERSION); CG-STORAGE-READ while they cannot be read (never
+   * defaults posing as the person's values).
+   */
+  state(): Promise<SettingsResult>;
+  /** The settings in memory now (defaults before `start` and while unreadable). */
   current(): SettingsV1;
   mode(): SettingsMode;
   /** `settings.patch` (restricted: false) and `settings.patchRestricted` (true, options page only). */
@@ -82,11 +97,15 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
   /** What storage holds as far as we know (stable JSON); an onChanged with it is our own echo. */
   let known: string | null = null;
   let writing: string | null = null;
+  /** A write's outcome or an outside change could not be read back: read before the next answer. */
+  let stale = false;
   let started: Promise<SettingsLoadOutcome> | null = null;
   const listeners = new Set<(state: SettingsState) => void>();
 
   /** `settings.changed` to every tab and page (the composition root's emit), then in-process listeners. */
   const broadcast = (state: SettingsState): void => {
+    // Unreadable settings are never broadcast: defaults would pose as the person's values.
+    if (mode === 'unreadable') return;
     for (const listener of [deps.onChange, ...listeners]) {
       if (!listener) continue;
       try {
@@ -97,6 +116,7 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
     }
   };
 
+  /** `readOnly` is true in 'newer' and 'unreadable'; only 'newer' is ever sent (unreadable answers CG-STORAGE-READ). */
   const snapshot = (): SettingsState => ({ settings: copy(settings), revision, readOnly: mode !== 'ok' });
   const fail = (code: CgCode, detail?: string): SettingsWriteResult => ({ ok: false, error: detail === undefined ? { code } : { code, detail }, state: snapshot() });
 
@@ -160,23 +180,64 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
 
   const ensureStarted = (): Promise<SettingsLoadOutcome> => (started ??= owner.start());
 
-  /** A read failed earlier: try again before answering (never write on top of an unread value). */
-  async function retryIfUnreadable(): Promise<void> {
-    if (mode === 'unreadable') await load();
+  /**
+   * Reads the key and adopts it when it is not what the owner knows it wrote
+   * (an outside change, a value that landed after all, a store readable
+   * again). Runs inside the chain, so no write of ours is in flight. False —
+   * the read failed.
+   */
+  async function reconcile(): Promise<boolean> {
+    const read = await deps.local.get([KEY]);
+    if (!read.ok) {
+      stale = true;
+      log({ level: 'error', scope: SCOPE, msg: 'settings read failed', code: 'CG-STORAGE-READ' });
+      return false;
+    }
+    stale = false;
+    const raw = read.value[KEY];
+    if ((mode === 'ok' || mode === 'newer') && stableJson(raw) === known) return true;
+    const before = mode;
+    adopt(loadStoredSettings(raw, migrations, schemaVersion), raw);
+    // Not interpretable: logged by adopt; no revision, no broadcast (`settings.get` answers CG-STORAGE-READ).
+    if (mode === 'unreadable') return true;
+    revision = await bumpRevision();
+    log({ level: 'info', scope: SCOPE, msg: 'settings read again', fields: { from: before, mode } });
+    broadcast(snapshot());
+    return true;
+  }
+
+  /** Before an answer: a read failed earlier, or a write's outcome is unknown — read first (never write on top of an unread value). */
+  async function refresh(): Promise<void> {
+    if (mode === 'unreadable' || stale) await reconcile();
+  }
+
+  /** Writes stop here: unreadable (CG-STORAGE-READ), newer (CG-STORAGE-VERSION) or still unread (CG-STORAGE-READ). */
+  function writeBlocked(): SettingsWriteResult | null {
+    if (mode === 'unreadable' || stale) return fail('CG-STORAGE-READ');
+    if (mode === 'newer') return fail('CG-STORAGE-VERSION');
+    return null;
   }
 
   async function write(next: SettingsV1, reason: string): Promise<SettingsWriteResult> {
     const nextRevision = await bumpRevision();
-    writing = stableJson(next);
+    const target = stableJson(next);
+    writing = target;
     const saved = await deps.local.set({ [KEY]: next });
     writing = null;
     if (!saved.ok) {
-      log({ level: 'error', scope: SCOPE, msg: 'settings not saved', code: saved.code, fields: { reason } });
-      return fail(saved.code);
+      // The confirmation may be lost while the value landed: read it back once.
+      const check = await deps.local.get([KEY]);
+      const landed = check.ok && stableJson(check.value[KEY]) === target;
+      if (!landed) {
+        if (!check.ok) stale = true;
+        log({ level: 'error', scope: SCOPE, msg: 'settings not saved', code: saved.code, fields: { reason, readBack: check.ok } });
+        return fail(saved.code);
+      }
+      log({ level: 'warn', scope: SCOPE, msg: 'settings write confirmed by reading it back', code: saved.code, fields: { reason } });
     }
     settings = next;
     revision = nextRevision;
-    known = stableJson(next);
+    known = target;
     const state = snapshot();
     broadcast(state);
     return { ok: true, state };
@@ -185,16 +246,12 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
   const unsubscribe = deps.local.onChanged((changes) => {
     const change = changes[KEY];
     if (change === undefined) return;
+    // Before `start` there is nothing to reconcile: its load reads the key as it is then.
+    if (started === null) return;
+    // Cheap filter only: what the owner knows or is writing now. The decision is a fresh read in the chain.
     const seen = stableJson(change.newValue);
-    if (seen === known || seen === writing) return;
-    // Someone else changed the key («Очистить локальные данные», another build): read it as a load.
-    void chain(async () => {
-      if (stableJson(change.newValue) === known) return;
-      adopt(loadStoredSettings(change.newValue, migrations, schemaVersion), change.newValue);
-      revision = await bumpRevision();
-      log({ level: 'info', scope: SCOPE, msg: 'settings changed outside the owner', fields: { mode } });
-      broadcast(snapshot());
-    });
+    if ((seen === known && mode !== 'unreadable') || seen === writing) return;
+    void chain(reconcile);
   });
 
   const owner: SettingsOwner = {
@@ -209,9 +266,11 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
     },
     async state() {
       await ensureStarted();
-      return chain(async () => {
-        await retryIfUnreadable();
-        return snapshot();
+      return chain(async (): Promise<SettingsResult> => {
+        await refresh();
+        // A store that cannot be read is ST-017 «Settings Unavailable», never defaults read-only.
+        if (mode === 'unreadable') return fail('CG-STORAGE-READ');
+        return { ok: true, state: snapshot() };
       });
     },
     current: () => copy(settings),
@@ -219,11 +278,12 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
     async patch(patch, options) {
       await ensureStarted();
       return chain(async () => {
-        await retryIfUnreadable();
-        if (mode === 'unreadable') return fail('CG-STORAGE-READ');
-        if (mode === 'newer') return fail('CG-STORAGE-VERSION');
+        await refresh();
+        const blocked = writeBlocked();
+        if (blocked) return blocked;
         const outcome = applySettingsPatch(settings, patch, { restricted: options.restricted });
-        if (!outcome.ok) return fail(outcome.reason === 'restricted' ? 'CG-UNKNOWN' : 'CG-STORAGE-WRITE', outcome.reason === 'restricted' ? 'restricted section' : 'invalid settings');
+        // Defensive: the RPC schema refuses both before the handler. Not a storage failure — a retry cannot help.
+        if (!outcome.ok) return fail('CG-UNKNOWN', outcome.reason === 'restricted' ? 'restricted section' : 'invalid settings');
         if (options.baseRevision !== null && options.baseRevision !== revision) {
           log({ level: 'info', scope: SCOPE, msg: 'patch on an older revision merged field by field', fields: { base: options.baseRevision, revision } });
         }
@@ -235,9 +295,9 @@ export function createSettingsOwner(deps: SettingsOwnerDeps): SettingsOwner {
     async setPersonaScope(scope) {
       await ensureStarted();
       return chain(async () => {
-        await retryIfUnreadable();
-        if (mode === 'unreadable') return fail('CG-STORAGE-READ');
-        if (mode === 'newer') return fail('CG-STORAGE-VERSION');
+        await refresh();
+        const blocked = writeBlocked();
+        if (blocked) return blocked;
         const next = withPersonaScope(settings, scope);
         if (next === settings) return { ok: true, state: snapshot() };
         return write(next, 'persona-scope');
@@ -273,9 +333,9 @@ export function settingsRequestHandlers(owner: SettingsOwner): {
   readonly 'settings.patch': (request: SettingsPatchRequest) => Promise<ServiceAnswer<SettingsState>>;
   readonly 'settings.patchRestricted': (request: SettingsPatchRequest) => Promise<ServiceAnswer<SettingsState>>;
 } {
-  const answer = (result: SettingsWriteResult): ServiceAnswer<SettingsState> => (result.ok ? { ok: true, payload: result.state } : { ok: false, error: result.error });
+  const answer = (result: SettingsResult): ServiceAnswer<SettingsState> => (result.ok ? { ok: true, payload: result.state } : { ok: false, error: result.error });
   return {
-    'settings.get': async () => ({ ok: true, payload: await owner.state() }),
+    'settings.get': async () => answer(await owner.state()),
     'settings.patch': async (request) => answer(await owner.patch(request.patch, { baseRevision: request.baseRevision, restricted: false })),
     'settings.patchRestricted': async (request) => answer(await owner.patch(request.patch, { baseRevision: request.baseRevision, restricted: true })),
   };

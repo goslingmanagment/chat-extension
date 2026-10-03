@@ -4,7 +4,9 @@
 // "background instances" can open the same area — an unload and a restart
 // is: drop the old instance (`detach`), open a new one over the same data.
 // Failure injection: a call fails, or a set lands but its confirmation is
-// lost (the write happened, the caller hears a failure).
+// lost (the write happened, the caller hears a failure). Change events can
+// be held and delivered later, in order (Firefox does not promise that
+// onChanged arrives before `set` resolves).
 
 import { jsonUtf8Bytes } from '../../domain/storage';
 import type { KeyValuePort, StorageChange, StorageFailureCode, StorageResult } from '../storage/ports';
@@ -22,6 +24,10 @@ export interface MemoryKv {
   external(key: string, value: unknown): void;
   /** A browser restart for storage.session: everything gone, without events. */
   wipe(): void;
+  /** Change events wait until `releaseEvents` (late echoes). */
+  holdEvents(): void;
+  /** Delivers the held events in order and stops holding. */
+  releaseEvents(): void;
   read<T = unknown>(key: string): T | undefined;
 }
 
@@ -35,6 +41,7 @@ export function createMemoryKv(options: { readonly budgetOf?: (key: string) => n
   const calls: Record<Op, number> = { get: 0, set: 0, remove: 0 };
   const failures: { op: Op; failure: Failure }[] = [];
   const instances = new Set<Set<(changes: Readonly<Record<string, StorageChange>>) => void>>();
+  let held: (() => void)[] | null = null;
 
   const take = (op: Op): Failure | null => {
     const index = failures.findIndex((item) => item.op === op);
@@ -46,9 +53,11 @@ export function createMemoryKv(options: { readonly budgetOf?: (key: string) => n
   const emit = (changes: Record<string, StorageChange>): void => {
     if (Object.keys(changes).length === 0) return;
     const targets = [...instances].flatMap((listeners) => [...listeners]);
-    void Promise.resolve().then(() => {
+    const deliver = (): void => {
       for (const listener of targets) listener(copy(changes));
-    });
+    };
+    if (held) held.push(deliver);
+    else void Promise.resolve().then(deliver);
   };
 
   const fail = (code: StorageFailureCode, detail: string): StorageResult<never> => ({ ok: false, code, detail });
@@ -126,6 +135,14 @@ export function createMemoryKv(options: { readonly budgetOf?: (key: string) => n
     },
     wipe() {
       data.clear();
+    },
+    holdEvents() {
+      held ??= [];
+    },
+    releaseEvents() {
+      const queue = held ?? [];
+      held = null;
+      for (const deliver of queue) deliver();
     },
     read: <T = unknown>(key: string) => copy(data.get(key)) as T | undefined,
   };
