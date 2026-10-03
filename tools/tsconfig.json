@@ -1,0 +1,41 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2024"
+    ],
+    "types": [
+      "node"
+    ],
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "rootDir": "..",
+    "outDir": ".tsbuild",
+    "tsBuildInfoFile": ".tsbuild/tools.tsbuildinfo"
+  },
+  "include": [
+    "**/*.ts",
+    "../tests/**/*.ts",
+    "../tests/**/*.json",
+    "../eslint.config.ts",
+    "../vitest.config.ts"
+  ],
+  "exclude": [
+    ".tsbuild",
+    "../tests/fixtures/**"
+  ],
+  "references": [
+    {
+      "path": "../apps/extension/tsconfig.node.json"
+    },
+    {
+      "path": "../packages/contracts"
+    },
+    {
+      "path": "../packages/hub"
+    },
+    {
+      "path": "../packages/core"
+    }
+  ]
+}
