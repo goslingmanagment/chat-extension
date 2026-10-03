@@ -16,6 +16,7 @@ import { defineConfig } from 'wxt';
 import { artifactNames, isFlavorArtifact } from './build/artifacts.ts';
 import { bundleTimingPlugin } from './build/bundle-timing.ts';
 import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from './build/manifest.ts';
+import { STAND_SOURCE_GLOBS } from './build/sources-archive.ts';
 import { buildLazyChunks, type LazyChunkInfo } from './lazy/vite.config.ts';
 
 const flavor: BuildFlavor = process.env['CG_TEST_HOSTS'] === '1' ? 'test' : 'release';
@@ -70,9 +71,11 @@ export default defineConfig({
   zip: {
     artifactTemplate: artifacts.xpi,
     sourcesTemplate: artifacts.sources,
-    // AMO needs the whole workspace to rebuild; the test build is never signed.
+    // AMO needs the workspace to rebuild the XPI; the test build is never signed.
+    // The ChatSpace-like stand (R02) is not needed for that and stays out
+    // (build/sources-archive.ts; tools/archive-check fails if it is there).
     zipSources: flavor === 'release',
     sourcesRoot: repoRoot,
-    excludeSources: ['docs/**', 'AGENTS.md', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo'],
+    excludeSources: ['docs/**', 'AGENTS.md', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo', ...STAND_SOURCE_GLOBS],
   },
 });

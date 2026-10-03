@@ -1,12 +1,14 @@
 // What must never ship (architecture.md §12 п. 7, §3 «pnpm check» п. 9): no
 // OnlyMonster code, CSS, fonts or images, no real messages, tokens or prod
 // HTML — in the XPI and in the sources archive that goes to AMO for signing.
-// A .gitignore alone is not enough. R02 adds the stand's place in the sources
-// archive: its own Vue/TipTap sources may name those libraries, nothing else may
-// (perf traces come with tools/perf).
+// A .gitignore alone is not enough. R02: the ChatSpace-like stand (our own
+// Vue/TipTap app) stays out of the sources archive altogether
+// (apps/extension/build/sources-archive.ts); only the testing package manifest
+// and the lockfile may name those libraries (perf traces come with tools/perf).
 
 import { createHash } from 'node:crypto';
 
+import { isStandSource } from '../../apps/extension/build/sources-archive.ts';
 import type { ZipEntry } from '../lib/zip.ts';
 
 export interface ArchiveProblem {
@@ -32,16 +34,17 @@ export const HOST_LIBRARY_MARKERS: readonly RegExp[] = [
 
 /**
  * The test stand (packages/testing/fixture-chatspace, R02) is our own small
- * Vue + TipTap app imitating the host. In the SOURCES archive (AMO rebuilds
- * the whole workspace) its source files, the testing package manifest and the
- * lockfile may name those libraries. The XPI never may.
+ * Vue + TipTap app imitating the host. It is not in the sources archive
+ * (`stand-in-sources`); the testing package manifest and the lockfile there
+ * may still name its libraries. The XPI never may.
  */
 export const STAND_FIXTURE_DIR = 'packages/testing/fixture-chatspace/';
-const STAND_LIBRARY_ALLOWED: readonly RegExp[] = [/^packages\/testing\/fixture-chatspace\/.+\.(?:ts|html|css)$/, /^packages\/testing\/package\.json$/, /^pnpm-lock\.yaml$/];
+const STAND_LIBRARY_ALLOWED: readonly RegExp[] = [/^packages\/testing\/package\.json$/, /^pnpm-lock\.yaml$/];
 /**
- * Fixture provenance: the stand's folders hold hand-written sources only — no
- * built or saved bundles, pages or API answers (a saved JSON or Markdown
- * capture included). Per folder: the file kinds it may hold.
+ * Fixture provenance, should the stand ever travel in an archive again: its
+ * folders hold hand-written sources only — no built or saved bundles, pages
+ * or API answers (a saved JSON or Markdown capture included). Per folder: the
+ * file kinds it may hold.
  */
 const STAND_SOURCE_DIRS: ReadonlyArray<readonly [string, RegExp, string]> = [
   [STAND_FIXTURE_DIR, /^packages\/testing\/fixture-chatspace\/(?:tsconfig\.json|.+\.(?:ts|html|css))$/, 'ts, html, css and its tsconfig.json'],
@@ -115,6 +118,7 @@ export function checkArchive(
     if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > MAX_JS_BYTES) {
       add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${MAX_JS_BYTES}`);
     }
+    if (kind === 'sources' && isStandSource(entry.name)) add(entry.name, 'stand-in-sources', 'the ChatSpace-like stand stays out of the AMO sources archive (apps/extension/build/sources-archive.ts)');
     for (const [dir, allowed, kinds] of STAND_SOURCE_DIRS) {
       if (entry.name.startsWith(dir) && !allowed.test(entry.name)) add(entry.name, 'fixture-provenance', `${dir} holds hand-written sources only (${kinds})`);
     }
