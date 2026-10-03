@@ -1,0 +1,7666 @@
+import { ofapiMediaRouteSchemas } from "./routes-ofapi-media";
+import { ofapiMediaImageRouteSchemas } from "./routes-ofapi-media-images";
+import { ofapiMarketingRouteSchemas } from "./routes-ofapi-marketing";
+import { ofapiActionRouteSchemas } from "./routes-ofapi-actions";
+import { ofapiBannedWordRouteSchemas } from "./routes-ofapi-banned-words";
+import { OFAPI_EXTENDED_COMMAND_KINDS } from "../shared/index";
+import { ofapiExtendedCommandOptions } from "./ofapi-extended-commands";
+import { ofapiVendorRouteSchemas } from "./routes-ofapi-vendor";
+import { ofapiReadCollectionsRouteSchemas } from "./routes-ofapi-read-collections";
+import { ofapiExportRouteSchemas } from "./routes-ofapi-exports";
+import { ofapiCollectionRouteSchemas } from "./routes-ofapi-collection";
+import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, FANSLY_CLIENT_CHECK_ROUTES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
+import { z } from "zod";
+// Agent Read Plane operations #1-#10. Declared in their own module (one coherent
+// contract with its own envelope law and principal) and spread into routeSchemas
+// below, so registration, the auth-declaration gate and the OpenAPI generator
+// keep seeing ONE flat registry.
+import { agentExportPolicyEnum, agentRouteSchemas } from "./routes-agent";
+// Owner administration of the plane's KEYS. A sibling module rather than part of
+// the read plane: issuing a credential carries no evidence envelope, and folding
+// it into agentRouteSchemas would have meant loosening that module's pins.
+import { agentKeyAdminRouteSchemas } from "./routes-agent-keys";
+// The Fansly Sync Engine's owner routes (history requests). Owner-session, no
+// agent envelope, so a sibling module for the same reason as the keys above.
+import { syncRouteSchemas } from "./routes-sync";
+// House primitives shared with the sibling route modules (see primitives.ts).
+import { businessDate, errorResponseSchema, fanLookupParamsSchema, fanSearchMatchKindEnum, intId, isoTimestamp, mills, pageParamsSchema, paginationQuerySchema, platformEnum, queryBooleanSchema, sortDirEnum, transactionStateEnum, transactionTypeEnum, } from "./primitives";
+const periodEnum = z.enum(PERIOD_OPTIONS);
+const spenderPeriodEnum = z.enum(SPENDER_PERIOD_OPTIONS);
+const spenderSeriesGranularityEnum = z.enum(SPENDER_SERIES_GRANULARITIES);
+const nonCustomPeriodEnum = z.enum(["today", "7d", "30d", "all"]);
+const transactionReportingBucketEnum = z.enum(transactionReportingBuckets);
+const userRoleEnum = z.enum(userRoles);
+const fanFlagEnum = z.enum(fanFlagTypes);
+const aiUsageFeatureEnum = z.enum(aiUsageFeatures);
+const spenderScopeKindEnum = z.enum(["page", "model", "agency"]);
+const spenderSortByEnum = z.enum([
+    "grossAmountMills",
+    "creatorNetAmountMills",
+    "postedGrossAmountMills",
+    "pendingGrossAmountMills",
+    "postedCreatorNetAmountMills",
+    "pendingCreatorNetAmountMills",
+    "lifetimeGrossAmountMills",
+    "lifetimeCreatorNetAmountMills",
+    "lastTransactionAt",
+    "platformUserId",
+    "username",
+    "displayName",
+]);
+const spenderRetentionStatusEnum = z.enum(SPENDER_RETENTION_STATUSES);
+const pageSpenderAutoListBucketKeyEnum = z.enum([
+    "0-25",
+    "25-50",
+    "50-150",
+    "150-350",
+    "350-600",
+    "600-plus",
+]);
+export const pageRefSchema = z.object({
+    id: intId,
+    label: z.string(),
+    platform: platformEnum,
+    modelSlug: z.string(),
+    modelName: z.string(),
+});
+export const authUserSchema = z.object({
+    id: intId,
+    username: z.string(),
+    role: userRoleEnum,
+    // DEPRECATED (Decision 370): the #116(b) flag is retired — this field is a
+    // wire-only constant `false`. It stays forever because the vendored client
+    // SDKs declare it required (`$strip` tolerates extra fields, never missing
+    // ones): dropping it would turn `me()` into response_validation_failed on
+    // every un-revendored extension and desktop install.
+    mustChangePassword: z.boolean(),
+    assignedPages: z.array(pageRefSchema),
+});
+// --- Stage 22: device tokens + access grants ---
+export const changePasswordBodySchema = z.object({
+    currentPassword: z.string().min(1).max(1024),
+    newPassword: z.string().min(8).max(256),
+});
+export const issuedDeviceTokenResponseSchema = z.object({
+    // The raw bearer token — returned exactly once at issuance.
+    token: z.string(),
+    id: intId,
+    label: z.string(),
+    keyPrefix: z.string(),
+    expiresAt: isoTimestamp,
+});
+export const reservedDeviceTokenResponseSchema = z.object({
+    // Distinct-prefix raw reservation bearer, returned exactly once.  It cannot
+    // authenticate ordinary routes until the activation move commits.
+    token: z.string(),
+    reservationId: intId,
+    label: z.string(),
+    keyPrefix: z.string(),
+    reservationExpiresAt: isoTimestamp,
+});
+export const activatedDeviceTokenResponseSchema = issuedDeviceTokenResponseSchema.omit({
+    token: true,
+});
+export const deviceTokenItemSchema = z.object({
+    id: intId,
+    label: z.string(),
+    keyPrefix: z.string(),
+    harvestMachineId: z.string().uuid().nullable(),
+    isActive: z.boolean(),
+    expiresAt: isoTimestamp,
+    lastUsedAt: isoTimestamp.nullable(),
+    // Decision 349 (Р7): the x-client-version the token last presented, written
+    // by the same UPDATE as lastUsedAt. Null until the token's first use.
+    lastClientVersion: z.string().nullable(),
+    createdAt: isoTimestamp,
+    revokedAt: isoTimestamp.nullable(),
+    revokedReason: z.string().nullable(),
+});
+export const deviceTokenHarvestCapabilityBodySchema = z.object({
+    // null explicitly removes the capability; a UUID binds the token to that
+    // one preserved Desktop database identity.
+    machineId: z.string().uuid().nullable(),
+});
+// D116(c) fleet-gate foundation (desktop D19): per active chatter, device-token
+// freshness. Read-only reporting surface. (Decision 370 retired the API-key
+// columns with the lane itself.)
+// Deliberately NO aggregate go/no-go boolean: chatter-role automation
+// accounts (probes/scripts) are indistinguishable from humans until the
+// service-account split lands, so any all-chatters flag would be
+// permanently false — the summary counts let the phase-2 CI (or the owner)
+// apply policy over the rows once accounts are classified.
+export const deviceTokenAdoptionRowSchema = z.object({
+    username: z.string(),
+    hasFreshDeviceToken: z.boolean(),
+    deviceTokenLastUsedAt: isoTimestamp.nullable(),
+    deviceTokenExpiresAt: isoTimestamp.nullable(),
+});
+export const deviceTokenAdoptionReportSchema = z.object({
+    generatedAt: isoTimestamp,
+    freshWindowDays: z.number().int().positive(),
+    chatters: z.array(deviceTokenAdoptionRowSchema),
+    summary: z.object({
+        activeChatters: z.number().int().nonnegative(),
+        onFreshTokens: z.number().int().nonnegative(),
+    }),
+});
+export const accessGrantItemSchema = z.object({
+    id: intId,
+    scopeType: z.enum(["org", "model", "page"]),
+    scopeId: z.number().int(),
+    scopeLabel: z.string().nullable(),
+    grantedBy: z.number().int().nullable(),
+    grantedAt: isoTimestamp,
+    revokedBy: z.number().int().nullable(),
+    revokedAt: isoTimestamp.nullable(),
+});
+export const registrationStateEnum = z.enum(["invited", "active"]);
+export const adminUserSchema = authUserSchema.extend({
+    // Decision #126: deactivation tombstone (null = active) and the honest
+    // activity signal — the last device-token use (Decision 370 retired the
+    // API-key half of it with the lane).
+    disabledAt: isoTimestamp.nullable(),
+    // Deleted accounts retain their immutable attribution but cannot authenticate.
+    deletedAt: isoTimestamp.nullable(),
+    lastActiveAt: isoTimestamp.nullable(),
+    // Decision 349 (§4.1 p.12): "invited" = no password yet (the invite link has
+    // not been redeemed); "active" = a password is set.
+    registrationState: registrationStateEnum,
+});
+// --- Decision 349: unified chatter account — account links (invite / reset),
+// password-based device-token issuance, self-serve cabinet ---
+export const accountLinkKindEnum = z.enum(["invite", "password_reset"]);
+export const accountLinkStateEnum = z.enum(["active", "used", "expired", "revoked"]);
+export const accountLinkItemSchema = z.object({
+    id: intId,
+    kind: accountLinkKindEnum,
+    keyPrefix: z.string(),
+    state: accountLinkStateEnum,
+    expiresAt: isoTimestamp,
+    usedAt: isoTimestamp.nullable(),
+    revokedAt: isoTimestamp.nullable(),
+    revokedReason: z.string().nullable(),
+    createdAt: isoTimestamp,
+    createdBy: z.number().int().nullable(),
+});
+export const issuedAccountLinkSchema = z.object({
+    id: intId,
+    kind: accountLinkKindEnum,
+    keyPrefix: z.string(),
+    // The raw link token — returned exactly once at creation, never again (not
+    // in audit, observations, logs or any URL path). Clients place it in the URL
+    // FRAGMENT (`/join#<token>`) and send it back only in a POST body.
+    token: z.string(),
+    expiresAt: isoTimestamp,
+});
+// Link lifetime: 7 days by default, 30 days at most (§4.1 p.3).
+const accountLinkExpiresInHours = z.number().int().min(1).max(720);
+export const inviteRoleEnum = z.enum(["chatter", "team_lead"]);
+export const adminCreateInviteBodySchema = z.object({
+    username: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "username may contain latin letters, digits, dots, underscores and dashes"),
+    role: inviteRoleEnum.optional(),
+    pageLabels: z.array(z.string().min(1)).max(100),
+    expiresInHours: accountLinkExpiresInHours.optional(),
+});
+export const adminCreateInviteResponseSchema = z.object({
+    user: adminUserSchema,
+    link: issuedAccountLinkSchema,
+});
+export const adminCreateAccountLinkBodySchema = z.object({
+    kind: accountLinkKindEnum,
+    expiresInHours: accountLinkExpiresInHours.optional(),
+});
+export const accountLinkTokenBodySchema = z.object({
+    token: z.string().min(1).max(512),
+});
+export const authInspectAccountLinkResponseSchema = z.discriminatedUnion("state", [
+    z.object({
+        state: z.literal("active"),
+        kind: accountLinkKindEnum,
+        username: z.string(),
+        expiresAt: isoTimestamp,
+        // Platforms of the pages assigned to the invited user, so the "done"
+        // screen offers only the clients the person actually needs.
+        platforms: z.array(platformEnum),
+    }),
+    // A link that is no longer redeemable discloses nothing but its state.
+    z.object({ state: z.enum(["used", "expired", "revoked"]) }),
+]);
+export const authRedeemAccountLinkBodySchema = z.object({
+    token: z.string().min(1).max(512),
+    // §4.2: 12–256 characters, not in the shared common-password blacklist
+    // (checked server-side; the schema carries only the length bounds).
+    password: z.string().min(12).max(256),
+});
+export const authRedeemAccountLinkResponseSchema = z.object({
+    username: z.string(),
+});
+export const deviceTokenIssueModeEnum = z.enum(["active", "pending"]);
+export const authIssueDeviceTokenWithPasswordBodySchema = z.object({
+    username: z.string().trim().min(1).max(100),
+    password: z.string().min(1).max(1024),
+    label: z.string().min(1).max(120),
+    // active  → a live device token (the extension: one atomic storage write);
+    // pending → a 10-minute reservation, activated through authActivateDeviceToken
+    //           after the client has durably staged custody (the desktop).
+    mode: deviceTokenIssueModeEnum,
+});
+export const authIssueDeviceTokenWithPasswordResponseSchema = z.discriminatedUnion("mode", [
+    issuedDeviceTokenResponseSchema.extend({ mode: z.literal("active") }),
+    reservedDeviceTokenResponseSchema.extend({ mode: z.literal("pending") }),
+]);
+export const ownDeviceItemSchema = z.object({
+    id: intId,
+    label: z.string(),
+    keyPrefix: z.string(),
+    lastClientVersion: z.string().nullable(),
+    expiresAt: isoTimestamp,
+    lastUsedAt: isoTimestamp.nullable(),
+    createdAt: isoTimestamp,
+});
+export const authRevokeAllDevicesResponseSchema = z.object({
+    deviceTokens: z.number().int().nonnegative(),
+    sessions: z.number().int().nonnegative(),
+});
+export const adminTerminateAllAccessResponseSchema = z.object({
+    deviceTokens: z.number().int().nonnegative(),
+    sessions: z.number().int().nonnegative(),
+    links: z.number().int().nonnegative(),
+});
+export const authStateSchema = z.object({
+    authMethod: z.enum(["session", "device_token"]),
+    user: authUserSchema,
+});
+const serviceHealthStatusEnum = z.enum(["ok", "degraded"]);
+const systemCheckStatusEnum = z.enum(["ok", "error"]);
+const healthConnectionStatusEnum = z.enum([
+    "active",
+    "stale",
+    "error",
+    "expired",
+    "never_synced",
+    "unverified",
+]);
+const syncUxStateEnum = z.enum([
+    "healthy",
+    "syncing",
+    "catching_up",
+    "retrying",
+    "attention",
+    "setup",
+    "off",
+]);
+export const syncUxSummarySchema = z.object({
+    state: syncUxStateEnum,
+    label: z.string(),
+    headline: z.string(),
+    detail: z.string().nullable(),
+    progressLabel: z.string().nullable(),
+    nextRetryAt: isoTimestamp.nullable(),
+    updatedAt: isoTimestamp.nullable(),
+    requiresAction: z.boolean(),
+});
+export const systemCheckSchema = z.object({
+    status: systemCheckStatusEnum,
+    latencyMs: z.number().int().nonnegative().nullable(),
+    error: z.string().nullable(),
+});
+export const healthResponseSchema = z.object({
+    status: serviceHealthStatusEnum,
+    timestamp: isoTimestamp,
+    contractHash: z.string().regex(/^[a-f0-9]{64}$/),
+    capabilities: z.array(z.literal("desktop-lifecycle-v2")),
+    checks: z.object({
+        api: z.object({
+            status: z.literal("ok"),
+        }),
+        database: systemCheckSchema,
+    }),
+});
+/** `/health/sync`'s block of a page the Fansly Sync Engine owns: its legacy
+ *  streams are not judged; the page is unhealthy on a stale owner (> 90 s),
+ *  a refused credential (an `auth`/`identity_mismatch` hold) or a handover
+ *  older than 10 minutes. */
+export const syncHealthEngineSchema = z.object({
+    mode: z.enum(["handover", "live"]),
+    ownerHeartbeatAgeSeconds: z.number().int().nonnegative().nullable(),
+    /** `until` is an ISO instant or "infinity" (a hold only new credentials lift). */
+    hold: z.object({ kind: z.string(), until: z.string() }).nullable(),
+    urgentOldestAgeSeconds: z.number().int().nonnegative().nullable(),
+    wsConnected: z.boolean(),
+    /** 0 while connected; null when the page never had a socket. */
+    wsDownSeconds: z.number().int().nonnegative().nullable(),
+    quarantined: z.number().int().nonnegative(),
+    /** The page's open engine alert latches (`page_stopped`, `live_degraded`, …). */
+    openAlerts: z.array(z.string()),
+});
+export const syncHealthPageSchema = z.object({
+    pageId: intId,
+    pageLabel: z.string(),
+    platform: platformEnum,
+    modelSlug: z.string(),
+    modelName: z.string(),
+    status: serviceHealthStatusEnum,
+    connectionStatus: healthConnectionStatusEnum,
+    lastLightSyncAt: isoTimestamp.nullable(),
+    lightAgeMinutes: z.number().int().nonnegative().nullable(),
+    lastFollowerSyncAt: isoTimestamp.nullable(),
+    followerAgeMinutes: z.number().int().nonnegative().nullable(),
+    failedStreams: z.number().int(),
+    stalledStreams: z.number().int(),
+    pendingStreams: z.number().int(),
+    lastErrorSummary: z.string().nullable(),
+    issues: z.array(z.string()),
+    engine: syncHealthEngineSchema.optional(),
+});
+export const syncHealthResponseSchema = z.object({
+    status: serviceHealthStatusEnum,
+    timestamp: isoTimestamp,
+    thresholds: z.object({
+        lightMaxAgeMinutes: z.number().int().positive(),
+        followerMaxAgeMinutes: z.number().int().positive(),
+    }),
+    overall: z.object({
+        pageCount: z.number().int(),
+        unhealthyPageCount: z.number().int(),
+        runningStreams: z.number().int(),
+        failedStreams: z.number().int(),
+        stalledStreams: z.number().int(),
+        pendingStreams: z.number().int(),
+        recentFailedRuns: z.number().int(),
+        recent429s: z.number().int(),
+        recent5xxs: z.number().int(),
+    }),
+    pages: z.array(syncHealthPageSchema),
+});
+// Bounded so a failed attempt cannot persist megabyte-sized usernames into
+// the append-only audit_events table (audit P-3).
+export const loginBodySchema = z.object({
+    username: z.string().min(1).max(254),
+    password: z.string().min(1).max(1024),
+});
+export const pageSpenderAutoListParamsSchema = pageParamsSchema.extend({
+    bucketKey: pageSpenderAutoListBucketKeyEnum,
+});
+export const modelParamsSchema = z.object({
+    modelSlug: z.string().min(1),
+});
+export const pageFanParamsSchema = pageParamsSchema.extend({
+    platformUserId: z.string().min(1),
+});
+export const fanProfileVersionParamsSchema = pageFanParamsSchema.extend({
+    version: z.coerce.number().int().min(1),
+});
+export const pageConversationProfileParamsSchema = pageParamsSchema.extend({
+    conversationId: z.string().min(1),
+});
+// Request instants must include a timezone; the legacy isoTimestamp response
+// primitive is intentionally permissive and must not validate query bounds.
+export const revenueInstantSchema = z.iso.datetime({ offset: true })
+    .refine((value) => Number.isFinite(Date.parse(value)), "Invalid timestamp");
+const standardRevenueQuerySchema = z.object({
+    period: nonCustomPeriodEnum,
+    windowAt: revenueInstantSchema.optional(),
+    from: businessDate.optional(),
+    to: businessDate.optional(),
+});
+const customRevenueQuerySchema = z.object({
+    period: z.literal("custom"),
+    windowAt: revenueInstantSchema.optional(),
+    from: businessDate,
+    to: businessDate,
+}).refine((value) => value.from <= value.to, {
+    message: "`from` must be on or before `to`",
+    path: ["to"],
+});
+export const revenueQuerySchema = z.union([
+    standardRevenueQuerySchema,
+    customRevenueQuerySchema,
+]);
+export const transactionListQuerySchema = paginationQuerySchema.extend({
+    type: transactionTypeEnum.optional(),
+    state: transactionStateEnum.optional(),
+});
+export const fanListQuerySchema = paginationQuerySchema.extend({
+    query: z.string().min(1).optional(),
+});
+export const subscriberListQuerySchema = paginationQuerySchema.extend({
+    query: z.string().min(1).optional(),
+    expiringWithinDays: z.coerce.number().int().min(1).max(90).optional(),
+    startedWithinHours: z.coerce.number().int().min(1).max(24 * 30).optional(),
+    autoRenew: queryBooleanSchema.optional(),
+});
+export const followerListQuerySchema = paginationQuerySchema.extend({
+    query: z.string().min(1).optional(),
+    followedWithinHours: z.coerce.number().int().min(1).max(24 * 30).optional(),
+    subscriber: queryBooleanSchema.optional(),
+    dmStatus: z.enum(["none", "has_dm"]).optional(),
+    activeWithinMinutes: z.coerce.number().int().min(1).max(24 * 60).optional(),
+});
+// Zod 4's `.merge()` (and `.pick()`/`.omit()`/`.partial()`) rebuilds the object
+// from raw shapes and silently drops `superRefine` checks (audit B5). The
+// spender cross-field rules therefore live in plain helpers that return issue
+// lists, the base field schemas stay refinement-free, and every composed schema
+// applies the relevant rules in a single `.superRefine()` as its final step.
+const spenderScopeFieldsSchema = z.object({
+    scope: spenderScopeKindEnum,
+    pageLabel: z.string().min(1).optional(),
+    modelSlug: z.string().min(1).optional(),
+    platform: platformEnum.optional(),
+});
+const spenderPeriodFieldsSchema = z.object({
+    period: spenderPeriodEnum,
+    from: businessDate.optional(),
+    to: businessDate.optional(),
+});
+const spenderOptionalPeriodFieldsSchema = z.object({
+    period: spenderPeriodEnum.optional(),
+    from: businessDate.optional(),
+    to: businessDate.optional(),
+});
+function spenderScopeIssues(value) {
+    const issues = [];
+    if (value.scope === "page" && !value.pageLabel) {
+        issues.push({ path: ["pageLabel"], message: "`pageLabel` is required for page scope" });
+    }
+    if (value.scope === "model") {
+        if (!value.modelSlug) {
+            issues.push({ path: ["modelSlug"], message: "`modelSlug` is required for model scope" });
+        }
+        if (!value.platform) {
+            issues.push({ path: ["platform"], message: "`platform` is required for model scope" });
+        }
+    }
+    if (value.scope === "agency" && !value.platform) {
+        issues.push({ path: ["platform"], message: "`platform` is required for agency scope" });
+    }
+    return issues;
+}
+function spenderPeriodIssues(value) {
+    const issues = [];
+    if (value.period === "custom") {
+        if (!value.from) {
+            issues.push({ path: ["from"], message: "`from` is required when `period=custom`" });
+        }
+        if (!value.to) {
+            issues.push({ path: ["to"], message: "`to` is required when `period=custom`" });
+        }
+        if (value.from && value.to && value.from > value.to) {
+            issues.push({ path: ["to"], message: "`from` must be on or before `to`" });
+        }
+    }
+    if (value.period !== "custom" && (value.from || value.to)) {
+        issues.push({
+            path: ["period"],
+            message: "`from` and `to` are only supported when `period=custom`",
+        });
+    }
+    return issues;
+}
+function addSpenderIssues(issues, context) {
+    for (const issue of issues) {
+        context.addIssue({ code: z.ZodIssueCode.custom, ...issue });
+    }
+}
+export const spenderListQuerySchema = spenderScopeFieldsSchema
+    .extend(spenderPeriodFieldsSchema.shape)
+    .extend(paginationQuerySchema.shape)
+    .extend({
+    query: z.string().min(1).optional(),
+    sortBy: spenderSortByEnum.optional(),
+    sortDir: sortDirEnum.optional(),
+    retentionStatus: spenderRetentionStatusEnum.optional(),
+})
+    .superRefine((value, context) => {
+    addSpenderIssues([...spenderScopeIssues(value), ...spenderPeriodIssues(value)], context);
+});
+export const spenderDetailQuerySchema = spenderScopeFieldsSchema
+    .extend(spenderPeriodFieldsSchema.shape)
+    .superRefine((value, context) => {
+    addSpenderIssues([...spenderScopeIssues(value), ...spenderPeriodIssues(value)], context);
+});
+export const spenderSeriesQuerySchema = spenderScopeFieldsSchema
+    .extend(spenderPeriodFieldsSchema.shape)
+    .extend({
+    granularity: spenderSeriesGranularityEnum.default("auto"),
+})
+    .superRefine((value, context) => {
+    addSpenderIssues([...spenderScopeIssues(value), ...spenderPeriodIssues(value)], context);
+});
+export const spenderBatchBodySchema = spenderScopeFieldsSchema
+    .extend(spenderOptionalPeriodFieldsSchema.shape)
+    .extend({
+    fans: z.array(fanLookupParamsSchema).min(1).max(200),
+})
+    .superRefine((value, context) => {
+    addSpenderIssues([...spenderScopeIssues(value), ...spenderPeriodIssues(value)], context);
+});
+export const pageSpenderAutoListsQuerySchema = spenderOptionalPeriodFieldsSchema
+    .superRefine((value, context) => {
+    addSpenderIssues(spenderPeriodIssues(value), context);
+});
+export const pageSpenderAutoListQuerySchema = fanListQuerySchema
+    .extend(spenderOptionalPeriodFieldsSchema.shape)
+    .extend({
+    excludeNonFollowers: queryBooleanSchema.optional(),
+})
+    .superRefine((value, context) => {
+    addSpenderIssues(spenderPeriodIssues(value), context);
+});
+export const fansSearchQuerySchema = spenderScopeFieldsSchema
+    .extend(paginationQuerySchema.shape)
+    .extend({
+    query: z.string().min(1).optional(),
+    q: z.string().min(1).optional(),
+})
+    .superRefine((value, context) => {
+    addSpenderIssues(spenderScopeIssues(value), context);
+    if (!value.query && !value.q) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["query"],
+            message: "`query` is required",
+        });
+    }
+});
+export const pageConversationPreviewParamsSchema = pageParamsSchema.extend({
+    platformConversationId: z.string().min(1),
+});
+export const pageConversationPreviewQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(25).default(10),
+});
+export const pageConversationMessagesParamsSchema = pageParamsSchema.extend({
+    conversationId: z.string().min(1),
+});
+export const pageConversationMessagesQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).default(25),
+});
+// ── Voice notes (Task 6) ──────────────────────────────────────────────────────
+// Three page-scoped routes on the chatter lane. The status/create views share
+// one projection (voiceNoteStatusSchema); the audio route returns raw bytes.
+export const voiceNoteParamsSchema = pageParamsSchema.extend({
+    // The render's numeric voice_notes.id. Coerced from the path segment; a
+    // foreign/unknown id is an indistinguishable 404 (page-scoped, service-side).
+    id: z.coerce.number().int().min(1),
+});
+// Content is bounded here only to cap the request; the substantive checks
+// (control-char refs, script length against the LIVE config max, source
+// eligibility) run service-side and answer with structured 400/409 codes.
+export const voiceNoteCreateBodySchema = z.object({
+    // MUST be a UUID: it keys the idempotent `voice_notes.client_request_id`
+    // (a `uuid` column). Validating the format here — like the sibling AI-lane
+    // routes — rejects a malformed id at the schema boundary with a 400, before
+    // any non-UUID string can reach Postgres and raise a raw 22P02 → 500.
+    clientRequestId: z.string().uuid(),
+    conversationRef: z.string().min(1).max(200),
+    sourceGenerationRef: z.string().min(1).max(200),
+    script: z.string().min(1).max(8000),
+});
+export const voiceNoteStateSchema = z.enum([
+    "queued",
+    "dispatched",
+    "completed",
+    "failed_definite",
+    "failed_after_dispatch",
+    "indeterminate",
+    "quota_denied",
+    "artifact_expired",
+]);
+// The client-facing projection (never carries audio bytes). `createdAt` is
+// REQUIRED — the takes list orders by it. `errorCode` is present only on a
+// terminal non-success state; its vocabulary is a SUPERSET of the HTTP error
+// codes (voice_failed_definite / voice_failed_after_dispatch /
+// voice_indeterminate / voice_quota_denied / artifact_expired).
+export const voiceNoteStatusSchema = z.object({
+    voiceNoteId: intId,
+    state: voiceNoteStateSchema,
+    scriptChars: z.number().int(),
+    billed: z.boolean().nullable(),
+    audioSha256: z.string().nullable(),
+    audioBytesLen: z.number().int().nullable(),
+    createdAt: isoTimestamp,
+    errorCode: z.string().optional(),
+});
+const pageMetricSchema = z.object({
+    value: z.number().int().nullable(),
+    available: z.boolean(),
+});
+const messageCoverageStatusSchema = z.enum(["pending_backfill", "partial_window", "complete"]);
+const messageSyncEligibilitySchema = z.enum(["eligible", "excluded", "unresolved_identity"]);
+export const assignedPageSchema = pageRefSchema.extend({
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    followerCount: pageMetricSchema,
+    subscriberCount: pageMetricSchema,
+    lastLightSyncAt: isoTimestamp.nullable(),
+    lastFollowerSyncAt: isoTimestamp.nullable(),
+    // OPTIONAL UI hint (Task 6). Present only when the voice-notes switch is live
+    // AND this page is allowlisted AND a voice profile exists — a missing field
+    // reads as disabled (old-kernel forward-compat). The flag never gates the
+    // render: `POST …/voice-notes` stays the authoritative admission.
+    capabilities: z.object({ voiceNotes: z.boolean() }).optional(),
+});
+export const modelListItemSchema = z.object({
+    id: intId,
+    slug: z.string(),
+    name: z.string(),
+    pageCount: z.number().int(),
+});
+export const adminModelListItemSchema = modelListItemSchema.extend({
+    sortOrder: z.number().int(),
+});
+const revenueSummarySchema = z.object({
+    revenueMills: mills,
+    adjustmentMills: mills,
+    unclassifiedMills: mills,
+    netEarningsMills: mills,
+    totalNetMills: mills,
+});
+export const revenueBreakdownItemSchema = z.object({
+    canonicalType: transactionTypeEnum,
+    bucket: transactionReportingBucketEnum,
+    netAmountMills: mills,
+});
+// Audit B2: OnlyFans trailing windows deliberately run one calendar day longer
+// than other platforms (7d spans 8 days, 30d spans 31 — see
+// ONLYFANS_REVENUE_TRAILING_PERIOD_OFFSETS in packages/shared/src/time.ts), so
+// mixed-platform totals and their comparisons combine different per-platform
+// widths. These entries disclose the exact window each platform contributed;
+// the top-level from/to stays the union.
+export const platformRevenueWindowSchema = z.object({
+    platform: platformEnum,
+    from: isoTimestamp.nullable(),
+    to: isoTimestamp.nullable(),
+    comparisonFrom: isoTimestamp.nullable(),
+    comparisonTo: isoTimestamp.nullable(),
+});
+export const revenueComparisonSchema = z.object({
+    from: isoTimestamp.describe("Comparison window start. For mixed-platform scopes, this is the earliest included platform-local start."),
+    to: isoTimestamp.describe("Comparison window end. For mixed-platform scopes, this is the latest included platform-local end."),
+    netEarningsMills: mills,
+    totalNetMills: mills,
+    deltaNetMills: mills,
+    deltaPct: z.number().nullable(),
+    sources: z.array(z.object({
+        canonicalType: transactionTypeEnum,
+        bucket: transactionReportingBucketEnum,
+        currentNetMills: mills,
+        previousNetMills: mills,
+        deltaNetMills: mills,
+        deltaPct: z.number().nullable(),
+    })).optional().describe("Union of reportable sources in both windows; monetary deltas are server-computed."),
+});
+export const revenueWindowSchema = revenueSummarySchema.extend({
+    period: periodEnum,
+    windowAt: isoTimestamp.optional().describe("Clock used to resolve calendar windows, not a capture watermark or database snapshot."),
+    from: isoTimestamp.nullable().describe("Window start. For mixed-platform scopes, this is the earliest included platform-local start."),
+    to: isoTimestamp.nullable().describe("Window end. For mixed-platform scopes, this is the latest included platform-local end."),
+    currency: z.literal("USD"),
+    breakdown: z.array(revenueBreakdownItemSchema),
+    comparison: revenueComparisonSchema.nullable(),
+    platformWindows: z.array(platformRevenueWindowSchema).describe("Billing window each included platform contributed to this report (audit B2). Single-platform reports carry one entry; mixed-platform totals span every listed window."),
+});
+export const pageRevenueItemSchema = z.object({
+    pageId: intId,
+    pageLabel: z.string(),
+    modelSlug: z.string(),
+    modelName: z.string(),
+    netEarningsMills: mills,
+    totalNetMills: mills,
+    previousNetEarningsMills: mills.nullable().optional().describe("Overview only: earnings for this page's platform-specific comparison window. Null for all time; absent on older servers. Includes retired pages and the same reporting buckets as netEarningsMills."),
+    deltaNetMills: mills.nullable().optional(),
+    deltaPct: z.number().nullable().optional(),
+    platform: platformEnum.optional(),
+    // W7.2 (A33, decision #131): revenue rollups include tombstoned pages —
+    // historical attribution is permanent. Optional (additive).
+    status: z.enum(["active", "deleted"]).optional(),
+});
+export const modelRevenueItemSchema = z.object({
+    modelId: intId,
+    modelSlug: z.string(),
+    modelName: z.string(),
+    pageCount: z.number().int(),
+    netEarningsMills: mills,
+    totalNetMills: mills,
+    previousNetEarningsMills: mills.nullable().optional(),
+    deltaNetMills: mills.nullable().optional(),
+    deltaPct: z.number().nullable().optional(),
+    // W7.2 (A33): 'retired' = every page of the model is tombstoned.
+    status: z.enum(["active", "retired"]).optional(),
+});
+export const overviewRevenueResponseSchema = revenueWindowSchema.extend({
+    models: z.array(modelRevenueItemSchema),
+    pages: z.array(pageRevenueItemSchema),
+});
+export const overviewGrowthResponseSchema = z.object({
+    pages: z.array(z.object({
+        pageId: intId,
+        newFollowers: z.number().int(),
+        newSubscribers: z.number().int(),
+    })),
+});
+export const modelRevenueResponseSchema = revenueWindowSchema.extend({
+    model: modelListItemSchema,
+    pages: z.array(pageRevenueItemSchema),
+});
+export const pageRevenueResponseSchema = revenueWindowSchema.extend({
+    page: assignedPageSchema,
+});
+export const transactionFanSchema = z.object({
+    platformUserId: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+}).nullable();
+const pageTransactionFanSchema = z.object({
+    platformUserId: z.string(),
+    pageAlias: z.string().nullable(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+}).nullable();
+export const transactionItemSchema = z.object({
+    transactionId: z.string(),
+    rawType: z.union([z.number().int(), z.string()]),
+    canonicalType: transactionTypeEnum,
+    transactionState: transactionStateEnum,
+    amountMills: mills,
+    destinationAmountMills: mills,
+    netAmountMills: mills,
+    walletId: z.string().nullable(),
+    correlationId: z.string().nullable(),
+    correlationAccountId: z.string().nullable(),
+    occurredAt: isoTimestamp,
+    sourceUpdatedAt: isoTimestamp.nullable(),
+    fan: pageTransactionFanSchema,
+});
+export const transactionListResponseSchema = z.object({
+    page: assignedPageSchema,
+    items: z.array(transactionItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+export const subscriberItemSchema = z.object({
+    platformSubscriptionId: z.string(),
+    platformUserId: z.string(),
+    pageAlias: z.string().nullable(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    endsAt: isoTimestamp.nullable(),
+    autoRenew: z.boolean().nullable(),
+    autoRenewOffDetectedAt: isoTimestamp.nullable(),
+    subscriptionTierName: z.string().nullable(),
+    startedAt: isoTimestamp.nullable(),
+    totalSpentCents: z.number().int(),
+    lastTransactionAt: isoTimestamp.nullable(),
+});
+export const subscriberDailyItemSchema = z.object({
+    businessDate: businessDate,
+    newSubscribers: z.number().int(),
+    activeSubscribers: z.number().int(),
+});
+export const subscriberListResponseSchema = z.object({
+    page: assignedPageSchema,
+    items: z.array(subscriberItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+export const subscriberDailyResponseSchema = z.object({
+    page: assignedPageSchema,
+    items: z.array(subscriberDailyItemSchema),
+});
+export const followerItemSchema = z.object({
+    platformUserId: z.string(),
+    pageAlias: z.string().nullable(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    followedAt: isoTimestamp,
+    isSubscriber: z.boolean(),
+    subscriberSince: isoTimestamp.nullable(),
+    subscriptionExpiresAt: isoTimestamp.nullable(),
+    autoRenew: z.boolean().nullable(),
+    autoRenewOffDetectedAt: isoTimestamp.nullable(),
+    totalSpentCents: z.number().int(),
+    lastTransactionAt: isoTimestamp.nullable(),
+    dm: z.object({
+        hasConversation: z.boolean(),
+        platformConversationId: z.string().nullable(),
+        unreadCount: z.number().int(),
+        lastMessageAt: isoTimestamp.nullable(),
+        lastFanMessageAt: isoTimestamp.nullable(),
+        lastModelMessageAt: isoTimestamp.nullable(),
+        lastMessagePreview: z.string().nullable(),
+    }),
+    presence: z.object({
+        status: z.enum(["active_now", "recently_active", "offline"]),
+        lastSeenAt: isoTimestamp.nullable(),
+        observedAt: isoTimestamp.nullable(),
+    }),
+});
+export const followerDailyItemSchema = z.object({
+    businessDate: businessDate,
+    newFollowers: z.number().int(),
+    knownTotalFollowers: z.number().int().nullable(),
+});
+export const followerListResponseSchema = z.object({
+    page: assignedPageSchema,
+    items: z.array(followerItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+export const followerDailyResponseSchema = z.object({
+    page: assignedPageSchema,
+    items: z.array(followerDailyItemSchema),
+});
+export const fanListItemSchema = z.object({
+    platformUserId: z.string(),
+    pageAlias: z.string().nullable(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    totalCreatorNetMills: mills,
+    currency: z.literal("USD"),
+    isFollower: z.boolean(),
+    followerSince: isoTimestamp.nullable(),
+    isSubscriber: z.boolean(),
+    subscriberSince: isoTimestamp.nullable(),
+    subscriptionExpiresAt: isoTimestamp.nullable(),
+    autoRenew: z.boolean().nullable(),
+    autoRenewOffDetectedAt: isoTimestamp.nullable(),
+    lastTransactionAt: isoTimestamp.nullable(),
+});
+export const fanListResponseSchema = z.object({
+    page: assignedPageSchema,
+    items: z.array(fanListItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+const deletedFanItemSchema = z.object({
+    platformUserId: z.string(),
+    latestKnownLabel: z.string().nullable(),
+    pageAlias: z.string().nullable(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    latestHistoricalPageAlias: z.string().nullable(),
+    latestHistoricalUsername: z.string().nullable(),
+    deletedDetectedAt: isoTimestamp,
+    deletedLastDetectedAt: isoTimestamp.nullable(),
+    lastSeenAt: isoTimestamp,
+});
+export const pageDeletedFansResponseSchema = z.object({
+    page: assignedPageSchema,
+    items: z.array(deletedFanItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+const fanBaseSchema = z.object({
+    platform: platformEnum,
+    platformUserId: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    createdAtExternal: isoTimestamp.nullable(),
+});
+const pageScopedFanBaseSchema = fanBaseSchema.extend({
+    pageAlias: z.string().nullable(),
+});
+const fanNoteSchema = z.object({
+    id: intId,
+    authorUserId: intId.nullable(),
+    body: z.string(),
+    createdAt: isoTimestamp,
+});
+const fanSummarySchema = z.object({
+    id: intId,
+    authorUserId: intId.nullable(),
+    body: z.string(),
+    createdAt: isoTimestamp,
+});
+const fanFlagSchema = z.object({
+    flag: fanFlagEnum,
+    createdAt: isoTimestamp,
+    createdByUserId: intId.nullable(),
+});
+const fanPageContextSchema = z.object({
+    pageId: intId,
+    pageLabel: z.string(),
+    modelSlug: z.string(),
+    modelName: z.string(),
+    totalCreatorNetMills: mills,
+    currency: z.literal("USD"),
+    isFollower: z.boolean(),
+    followerSince: isoTimestamp.nullable(),
+    isSubscriber: z.boolean(),
+    subscriberSince: isoTimestamp.nullable(),
+    subscriptionExpiresAt: isoTimestamp.nullable(),
+    autoRenew: z.boolean().nullable(),
+    autoRenewOffDetectedAt: isoTimestamp.nullable(),
+    lastTransactionAt: isoTimestamp.nullable(),
+    notes: z.array(fanNoteSchema),
+    summaries: z.array(fanSummarySchema),
+});
+export const pageFanDetailResponseSchema = z.object({
+    fan: pageScopedFanBaseSchema,
+    platformTotalSpendMills: mills,
+    page: fanPageContextSchema,
+    flags: z.array(fanFlagSchema),
+});
+export const crossPageFanDetailResponseSchema = z.object({
+    fan: fanBaseSchema,
+    platformTotalSpendMills: mills,
+    pages: z.array(fanPageContextSchema),
+    flags: z.array(fanFlagSchema),
+});
+const spenderFanSchema = fanBaseSchema.extend({
+    pageAlias: z.string().nullable(),
+});
+const spenderPeriodMetadataSchema = z.object({
+    timeZone: z.string(),
+    fromBusinessDate: businessDate.nullable(),
+    toBusinessDateInclusive: businessDate.nullable(),
+    asOf: isoTimestamp.nullable(),
+});
+const spenderWindowMetricsSchema = z.object({
+    grossAmountMills: mills,
+    creatorNetAmountMills: mills,
+    postedGrossAmountMills: mills,
+    pendingGrossAmountMills: mills,
+    unknownGrossAmountMills: mills,
+    postedCreatorNetAmountMills: mills,
+    pendingCreatorNetAmountMills: mills,
+    unknownCreatorNetAmountMills: mills,
+    transactionCount: z.number().int(),
+    lastTransactionAt: isoTimestamp.nullable(),
+});
+const spenderLifetimeMetricsSchema = z.object({
+    scopeGrossAmountMills: mills,
+    scopeCreatorNetAmountMills: mills,
+    platformGrossAmountMills: mills,
+    platformCreatorNetAmountMills: mills,
+});
+const spenderComparisonSchema = z.object({
+    previousGrossAmountMills: mills,
+    previousCreatorNetAmountMills: mills,
+    deltaGrossAmountMills: mills,
+    deltaCreatorNetAmountMills: mills,
+    deltaPct: z.number().nullable(),
+});
+const spenderMetricsSchema = z.object({
+    window: spenderWindowMetricsSchema.nullable(),
+    lifetime: spenderLifetimeMetricsSchema,
+    comparison: spenderComparisonSchema.nullable(),
+});
+const spenderScopeModelSchema = z.object({
+    slug: z.string(),
+    name: z.string(),
+});
+const spenderScopeResponseSchema = z.object({
+    kind: spenderScopeKindEnum,
+    platform: platformEnum,
+    pageCount: z.number().int(),
+    page: pageRefSchema.nullable(),
+    model: spenderScopeModelSchema.nullable(),
+});
+const spenderDiagnosticsSchema = z.object({
+    totalGrossAmountMills: mills,
+    totalCreatorNetAmountMills: mills,
+    attributedGrossAmountMills: mills,
+    attributedCreatorNetAmountMills: mills,
+    unattributedGrossAmountMills: mills,
+    unattributedCreatorNetAmountMills: mills,
+});
+const spenderConversationSchema = z.object({
+    platformConversationId: z.string().nullable(),
+    unreadCount: z.number().int(),
+    lastMessageAt: isoTimestamp.nullable(),
+    lastFanMessageAt: isoTimestamp.nullable(),
+    lastModelMessageAt: isoTimestamp.nullable(),
+    lastMessagePreview: z.string().nullable(),
+    storedMessageCount: z.number().int(),
+    messageCoverageStatus: messageCoverageStatusSchema,
+    messageBackfillComplete: z.boolean(),
+});
+const spenderLastTransactionSchema = z.object({
+    canonicalType: transactionTypeEnum,
+    transactionState: transactionStateEnum,
+    grossAmountMills: mills,
+    creatorNetAmountMills: mills,
+    occurredAt: isoTimestamp,
+}).nullable();
+const spenderListItemSchema = z.object({
+    fan: spenderFanSchema,
+    metrics: spenderMetricsSchema,
+    lifetimeLastTransactionAt: isoTimestamp.nullable(),
+    lastFanMessageAt: isoTimestamp.nullable(),
+    conversation: spenderConversationSchema,
+    lastTransaction: spenderLastTransactionSchema,
+    retentionStatus: spenderRetentionStatusEnum.exclude(["all"]),
+});
+export const spenderListResponseSchema = z.object({
+    scope: spenderScopeResponseSchema,
+    period: spenderPeriodMetadataSchema,
+    diagnostics: spenderDiagnosticsSchema,
+    items: z.array(spenderListItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+const pageSpenderAutoListItemSchema = z.object({
+    key: z.string(),
+    label: z.string(),
+    minAmountMills: mills.nonnegative(),
+    maxAmountMillsExclusive: mills.positive().nullable(),
+    entryCount: z.number().int().nonnegative(),
+});
+export const pageSpenderAutoListsResponseSchema = z.object({
+    page: pageRefSchema,
+    currency: z.literal("USD"),
+    metric: z.enum(["grossAmountMills", "lifetimeGrossAmountMills"]),
+    period: spenderPeriodMetadataSchema,
+    asOf: isoTimestamp.nullable(),
+    totalEntries: z.number().int().nonnegative(),
+    lists: z.array(pageSpenderAutoListItemSchema),
+});
+const pageSpenderAutoListFanSchema = z.object({
+    fan: spenderFanSchema,
+    isFollower: z.boolean(),
+    isSubscriber: z.boolean(),
+    subscriptionStatus: z.enum(["active", "expired", "never"]),
+    subscriptionExpiresAt: isoTimestamp.nullable(),
+    lastSubscriptionEndedAt: isoTimestamp.nullable(),
+    grossAmountMills: mills,
+    creatorNetAmountMills: mills,
+    lifetimeGrossAmountMills: mills,
+    lifetimeCreatorNetAmountMills: mills,
+    lastTransactionAt: isoTimestamp.nullable(),
+});
+export const pageSpenderAutoListDetailResponseSchema = z.object({
+    page: pageRefSchema,
+    currency: z.literal("USD"),
+    metric: z.enum(["grossAmountMills", "lifetimeGrossAmountMills"]),
+    period: spenderPeriodMetadataSchema,
+    bucket: pageSpenderAutoListItemSchema,
+    items: z.array(pageSpenderAutoListFanSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+const spenderPageBreakdownSchema = z.object({
+    pageId: intId,
+    pageLabel: z.string(),
+    modelSlug: z.string(),
+    modelName: z.string(),
+    inScope: z.boolean(),
+    grossAmountMills: mills,
+    creatorNetAmountMills: mills,
+    lastTransactionAt: isoTimestamp.nullable(),
+    isFollower: z.boolean(),
+    followerSince: isoTimestamp.nullable(),
+    isSubscriber: z.boolean(),
+    subscriberSince: isoTimestamp.nullable(),
+    subscriptionExpiresAt: isoTimestamp.nullable(),
+    autoRenew: z.boolean().nullable(),
+    autoRenewOffDetectedAt: isoTimestamp.nullable(),
+});
+const spenderTypeBreakdownItemSchema = z.object({
+    canonicalType: transactionTypeEnum,
+    grossAmountMills: mills,
+    creatorNetAmountMills: mills,
+    transactionCount: z.number().int(),
+});
+export const spenderDetailResponseSchema = z.object({
+    scope: spenderScopeResponseSchema,
+    fan: spenderFanSchema,
+    period: spenderPeriodMetadataSchema,
+    metrics: spenderMetricsSchema,
+    typeBreakdown: z.array(spenderTypeBreakdownItemSchema),
+    pages: z.array(spenderPageBreakdownSchema),
+});
+export const spenderSeriesBucketSchema = z.object({
+    fromBusinessDate: businessDate,
+    toBusinessDateInclusive: businessDate,
+    metrics: spenderWindowMetricsSchema,
+});
+export const spenderSeriesResponseSchema = z.object({
+    scope: spenderScopeResponseSchema,
+    fan: spenderFanSchema,
+    period: spenderPeriodMetadataSchema,
+    granularity: spenderSeriesGranularityEnum.exclude(["auto"]),
+    items: z.array(spenderSeriesBucketSchema),
+});
+const spenderSubscriptionSchema = z.object({
+    status: z.enum(["active", "expired", "never"]),
+    expiresAt: isoTimestamp.nullable(),
+    autoRenew: z.boolean().nullable(),
+    autoRenewOffDetectedAt: isoTimestamp.nullable(),
+});
+export const spenderBatchItemSchema = z.object({
+    requestedFan: fanLookupParamsSchema,
+    found: z.boolean(),
+    fan: spenderFanSchema.nullable(),
+    metrics: spenderMetricsSchema.nullable(),
+    typeBreakdown: z.array(spenderTypeBreakdownItemSchema).nullable(),
+    lifetimeLastTransactionAt: isoTimestamp.nullable(),
+    subscription: spenderSubscriptionSchema.nullable(),
+});
+export const spenderBatchResponseSchema = z.object({
+    scope: spenderScopeResponseSchema,
+    period: spenderPeriodMetadataSchema,
+    items: z.array(spenderBatchItemSchema),
+});
+const fanSearchPageMembershipSchema = z.object({
+    pageId: intId,
+    pageLabel: z.string(),
+    modelSlug: z.string(),
+    modelName: z.string(),
+    isFollower: z.boolean(),
+    followerSince: isoTimestamp.nullable(),
+    isSubscriber: z.boolean(),
+    subscriberSince: isoTimestamp.nullable(),
+    subscriptionExpiresAt: isoTimestamp.nullable(),
+    autoRenew: z.boolean().nullable(),
+    autoRenewOffDetectedAt: isoTimestamp.nullable(),
+});
+export const fansSearchItemSchema = z.object({
+    fan: spenderFanSchema,
+    matchKind: fanSearchMatchKindEnum,
+    matchedValue: z.string().nullable(),
+    pages: z.array(fanSearchPageMembershipSchema),
+});
+export const fansSearchResponseSchema = z.object({
+    scope: spenderScopeResponseSchema,
+    items: z.array(fansSearchItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+const pageConversationFanSchema = z.object({
+    fanId: intId,
+    platform: platformEnum,
+    platformUserId: z.string(),
+    pageAlias: z.string().nullable(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+});
+const pageConversationStateSchema = z.object({
+    platformConversationId: z.string(),
+    storedMessageCount: z.number().int(),
+    messageCoverageStatus: messageCoverageStatusSchema,
+    messageBackfillComplete: z.boolean(),
+    messageSyncEligibility: messageSyncEligibilitySchema,
+    messageSyncExcludedReason: z.string().nullable(),
+    lastMessageSyncAt: isoTimestamp.nullable(),
+    unreadCount: z.number().int(),
+    lastMessageAt: isoTimestamp.nullable(),
+});
+/** Provenance of a conversation message (Fansly live overlay, plan §7.11).
+ * Additive: present only on pages that read the live overlay
+ * (`fanslyLiveOverlayReadPages`), absent everywhere else and from older
+ * kernels; an absent value means a REST copy. `rest`: Hub's REST-synced copy.
+ * `live`: the message came from the page's Fansly socket and Hub's REST copy
+ * has not arrived yet: text, sender and time are provisional, and tips and
+ * PPV appear only once the REST copy replaces it. */
+const conversationMessageSourceSchema = z.enum(["rest", "live"]);
+/** Only on `live` rows: true when the chat is excluded from REST message sync,
+ * so no REST copy will ever confirm the message («API недоступен»). */
+const conversationMessageApiUnavailableSchema = z.boolean();
+const pageConversationPreviewMessageSchema = z.object({
+    platformMessageId: z.string(),
+    senderPlatformUserId: z.string().nullable(),
+    senderRole: z.enum(["fan", "model", "system", "unknown"]),
+    createdAt: isoTimestamp,
+    content: z.string(),
+    totalTipAmountCents: z.number().int(),
+    source: conversationMessageSourceSchema.optional(),
+    apiUnavailable: conversationMessageApiUnavailableSchema.optional(),
+});
+export const pageConversationPreviewResponseSchema = z.object({
+    page: assignedPageSchema,
+    fan: pageConversationFanSchema.nullable(),
+    conversation: pageConversationStateSchema,
+    messageSyncUx: syncUxSummarySchema,
+    messages: z.array(pageConversationPreviewMessageSchema),
+});
+export const pageConversationMessageItemSchema = z.object({
+    messageId: z.string(),
+    senderRole: z.enum(["fan", "model", "system", "unknown"]),
+    content: z.string(),
+    createdAt: isoTimestamp,
+    tipAmountCents: z.number().int(),
+    source: conversationMessageSourceSchema.optional(),
+    apiUnavailable: conversationMessageApiUnavailableSchema.optional(),
+});
+export const pageConversationMessagesResponseSchema = z.object({
+    page: assignedPageSchema,
+    conversationId: z.string(),
+    conversation: pageConversationStateSchema,
+    messages: z.array(pageConversationMessageItemSchema),
+});
+const fanProfileSourceEnum = z.enum(["chatmuse"]);
+export const fanProfileDocumentSchema = z.object({
+    version: z.number().int().positive(),
+    body: z.string(),
+    source: fanProfileSourceEnum,
+    createdAt: isoTimestamp,
+    /** Scan generation time (#136); null for rows written before the field
+     * existed. Optional so a newer SDK tolerates an older kernel. */
+    sourceGeneratedAt: isoTimestamp.nullable().optional(),
+    createdByUserId: intId.nullable(),
+});
+export const fanProfileResponseSchema = z.object({
+    fan: pageScopedFanBaseSchema,
+    profile: fanProfileDocumentSchema.nullable(),
+});
+export const fanProfileVersionListItemSchema = z.object({
+    version: z.number().int().positive(),
+    createdAt: isoTimestamp,
+    isCurrent: z.boolean(),
+});
+export const fanProfileVersionListResponseSchema = z.object({
+    items: z.array(fanProfileVersionListItemSchema),
+});
+// --- Phase 4: Dashboard schemas ---
+const connectionStatusEnum = z.enum([
+    "active", "stale", "error", "expired", "never_synced", "unverified",
+]);
+const syncTriggerScopeEnum = z.enum(["light", "followers", "all", "data", "messages", "posts"]);
+const transactionSortByEnum = z.enum(["occurredAt", "grossAmountMills", "netAmountMills"]);
+export const connectionItemSchema = z.object({
+    id: intId,
+    label: z.string(),
+    platform: platformEnum,
+    modelSlug: z.string(),
+    modelName: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    connectionStatus: connectionStatusEnum,
+    lastLightSyncAt: isoTimestamp.nullable(),
+    lastFollowerSyncAt: isoTimestamp.nullable(),
+    lastSyncError: z.string().nullable(),
+    subscriberCount: pageMetricSchema,
+    followerCount: pageMetricSchema,
+    proxyUrl: z.string().nullable(),
+    proxyHasAuth: z.boolean(),
+    syncUx: syncUxSummarySchema,
+});
+export const overviewResponseSchema = z.object({
+    counts: z.object({
+        models: z.number().int(),
+        pages: z.number().int(),
+        fans: z.number().int(),
+    }),
+    revenue: z.object({
+        "7d": z.object({
+            revenueMills: mills,
+            adjustmentMills: mills,
+            unclassifiedMills: mills,
+            netEarningsMills: mills,
+            previousNetEarningsMills: mills,
+            deltaPct: z.number().nullable(),
+        }),
+        "30d": z.object({
+            revenueMills: mills,
+            adjustmentMills: mills,
+            unclassifiedMills: mills,
+            netEarningsMills: mills,
+            previousNetEarningsMills: mills,
+            deltaPct: z.number().nullable(),
+        }),
+    }),
+    overall: z.object({
+        syncUx: syncUxSummarySchema,
+    }),
+    pages: z.array(z.object({
+        id: intId,
+        label: z.string(),
+        platform: platformEnum,
+        modelSlug: z.string(),
+        modelName: z.string(),
+        username: z.string().nullable(),
+        subscriberCount: pageMetricSchema,
+        followerCount: pageMetricSchema,
+        revenueTodayMills: mills,
+        revenue7dMills: mills,
+        revenue30dMills: mills,
+        newSubscribersToday: z.number().int(),
+        newFollowersToday: z.number().int(),
+        connectionStatus: connectionStatusEnum,
+        lastLightSyncAt: isoTimestamp.nullable(),
+        lastFollowerSyncAt: isoTimestamp.nullable(),
+        lastSyncError: z.string().nullable(),
+        syncUx: syncUxSummarySchema,
+    })),
+    setup: z.object({
+        hasPages: z.boolean(),
+        hasFanslyPages: z.boolean(),
+        hasOnlyFansPages: z.boolean(),
+    }),
+});
+export const revenueDailyQuerySchema = z.object({
+    windowAt: revenueInstantSchema.optional(),
+    period: periodEnum.default("30d"),
+    from: businessDate.optional(),
+    to: businessDate.optional(),
+    groupByType: queryBooleanSchema.default(false),
+});
+export const revenueDailyItemSchema = z.object({
+    businessDate: businessDate,
+    netAmountMills: mills,
+    transactionCount: z.number().int(),
+});
+export const revenueDailyTypedItemSchema = z.object({
+    businessDate: businessDate,
+    canonicalType: transactionTypeEnum,
+    netAmountMills: mills,
+    transactionCount: z.number().int(),
+});
+export const revenueDailyResponseSchema = z.object({
+    series: z.array(revenueDailyItemSchema.extend({
+        canonicalType: transactionTypeEnum.optional(),
+    })),
+});
+// Per-model earnings + trends: every visible model's period total and daily
+// series in one call (the dashboard's "By model" comparison view).
+export const revenueByModelQuerySchema = z.object({
+    period: periodEnum.default("30d"),
+    windowAt: revenueInstantSchema.optional(),
+    from: businessDate.optional(),
+    to: businessDate.optional(),
+});
+export const revenueByModelItemSchema = z.object({
+    modelSlug: z.string(),
+    modelName: z.string(),
+    pageCount: z.number().int(),
+    totalNetAmountMills: mills,
+    transactionCount: z.number().int(),
+    series: z.array(revenueDailyItemSchema),
+});
+export const revenueByModelResponseSchema = z.object({
+    models: z.array(revenueByModelItemSchema),
+});
+export const crossPageTransactionItemSchema = z.object({
+    transactionId: z.string(),
+    rawType: z.union([z.number().int(), z.string()]),
+    canonicalType: transactionTypeEnum,
+    transactionState: transactionStateEnum,
+    amountMills: mills,
+    destinationAmountMills: mills,
+    netAmountMills: mills,
+    occurredAt: isoTimestamp,
+    sourceUpdatedAt: isoTimestamp.nullable(),
+    fan: transactionFanSchema,
+    pageLabel: z.string(),
+    platform: platformEnum,
+});
+export const crossPageTransactionListQuerySchema = paginationQuerySchema.extend({
+    pageLabel: z.string().min(1).optional(),
+    type: transactionTypeEnum.optional(),
+    state: transactionStateEnum.optional(),
+    sortBy: transactionSortByEnum.default("occurredAt"),
+    sortDir: sortDirEnum.default("desc"),
+    from: revenueInstantSchema.optional(),
+    to: revenueInstantSchema.optional(),
+    reportableOnly: queryBooleanSchema.default(false),
+}).superRefine((value, context) => {
+    if (Boolean(value.from) !== Boolean(value.to)) {
+        context.addIssue({ code: "custom", path: [value.from ? "to" : "from"], message: "Both from and to are required" });
+    }
+    else if (value.from && value.to && Date.parse(value.from) >= Date.parse(value.to)) {
+        context.addIssue({ code: "custom", path: ["to"], message: "from must be before to (exclusive upper bound)" });
+    }
+});
+export const crossPageTransactionListResponseSchema = z.object({
+    items: z.array(crossPageTransactionItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+    summary: z.object({
+        netAmountMills: mills,
+        currency: z.literal("USD"),
+        readAt: isoTimestamp,
+    }).optional(),
+    scope: z.object({
+        pageLabel: z.string().nullable(),
+        from: isoTimestamp.nullable(),
+        to: isoTimestamp.nullable(),
+        type: transactionTypeEnum.nullable(),
+        state: transactionStateEnum.nullable(),
+        reportableOnly: z.boolean(),
+    }).optional().describe("Echo of the applied filter; old servers without exact drilldown support omit this."),
+});
+export const fanTransactionItemSchema = z.object({
+    transactionId: z.string(),
+    rawType: z.union([z.number().int(), z.string()]),
+    canonicalType: transactionTypeEnum,
+    transactionState: transactionStateEnum,
+    amountMills: mills,
+    destinationAmountMills: mills,
+    netAmountMills: mills,
+    occurredAt: isoTimestamp,
+    sourceUpdatedAt: isoTimestamp.nullable(),
+});
+export const fanTransactionListResponseSchema = z.object({
+    items: z.array(fanTransactionItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+export const crossPageFanTransactionItemSchema = fanTransactionItemSchema.extend({
+    pageLabel: z.string(),
+    platform: platformEnum,
+});
+export const crossPageFanTransactionListResponseSchema = z.object({
+    items: z.array(crossPageFanTransactionItemSchema),
+    limit: z.number().int(),
+    offset: z.number().int(),
+    total: z.number().int(),
+});
+export const upsertFanProfileBodySchema = z.object({
+    body: z.string().min(1).max(50_000),
+    /** Epoch ms of the client's Scan generation (#136): created_at is only the
+     * hub APPEND time and must not stand in for the dossier's age when a
+     * client re-pushes an old cached summary. Optional — legacy clients omit.
+     * Bounded to 2100-01-01: int().positive() alone admits values past the
+     * JS Date range (Invalid Date at insert) and absurd-future stamps that
+     * would keep volatile dossier sections "fresh" forever. Small NEAR-future
+     * clock skew is clamped server-side, not rejected here. */
+    generatedAtMs: z.number().int().positive().max(4_102_444_800_000).optional(),
+});
+export const createFanNoteBodySchema = z.object({
+    body: z.string().min(1).max(10000),
+});
+export const fanNoteResponseSchema = z.object({
+    id: intId,
+    fanId: z.number().int(),
+    platformAccountId: z.number().int(),
+    authorUserId: intId,
+    body: z.string(),
+    createdAt: isoTimestamp,
+});
+export const setFanFlagsBodySchema = z.object({
+    flags: z.array(fanFlagEnum),
+});
+export const fanFlagsResponseSchema = z.object({
+    flags: z.array(fanFlagSchema),
+});
+export const aiUsageEventInputSchema = z.object({
+    clientEventId: z.string().min(1).max(255),
+    feature: aiUsageFeatureEnum,
+    model: z.string().min(1).max(100),
+    inputTokens: z.number().int().nonnegative().max(100_000_000),
+    outputTokens: z.number().int().nonnegative().max(100_000_000),
+    cacheWriteTokens: z.number().int().nonnegative().max(100_000_000),
+    cacheReadTokens: z.number().int().nonnegative().max(100_000_000),
+    conversationId: z.string().min(1).max(255).nullable().optional(),
+    durationMs: z.number().int().nonnegative().nullable().optional(),
+    isCacheHit: z.boolean(),
+    isRegeneration: z.boolean(),
+    completedAt: z.string().min(1),
+});
+export const aiUsageBatchBodySchema = z.object({
+    events: z.array(aiUsageEventInputSchema).min(1).max(100),
+});
+export const aiUsageBatchResponseSchema = z.object({
+    receivedCount: z.number().int().nonnegative(),
+    insertedCount: z.number().int().nonnegative(),
+    // Events dropped for an unparseable or >5min-future completedAt; the rest of
+    // the batch is still ingested instead of failing wholesale.
+    invalidCount: z.number().int().nonnegative(),
+    dedupedCount: z.number().int().nonnegative(),
+});
+// Stage 11: client-capture lane. The desktop uploads spool-backed batches of
+// device-held facts; each event becomes one observation (source
+// 'client_capture', dedup on <principal>:<clientEventId> via the Stage 7 key
+// protocol). Unknown kinds are journaled, never dropped (capture-first).
+export const ingestObservationEventSchema = z.object({
+    clientEventId: z.string().uuid(),
+    kind: z.string().min(1).max(120),
+    observedAt: isoTimestamp,
+    payload: z.record(z.string(), z.unknown()),
+    pageLabel: z.string().min(1).max(120).optional(),
+});
+export const ingestObservationsBodySchema = z.object({
+    events: z.array(ingestObservationEventSchema).min(1).max(100),
+});
+export const ingestObservationsResponseSchema = z.object({
+    accepted: z.number().int().nonnegative(),
+    // Already-journaled clientEventIds; the client may prune its spool on either.
+    duplicates: z.number().int().nonnegative(),
+});
+export const aiGatewayPromptCacheTtlSchema = z.enum(["1h", "5m", "none"]);
+export const aiGatewayReasoningEffortSchema = z.enum(["off", "low", "medium", "high", "max"]);
+export const aiGatewayPromptBlockSchema = z.object({
+    text: z.string().min(1).max(100_000),
+    cache: aiGatewayPromptCacheTtlSchema,
+}).strict();
+// A single profile image supplied by the live Fansly client. The kernel never
+// fetches the platform URL: providers receive it as image input through the
+// existing gateway. Reject credentials, custom ports and non-platform hosts.
+export const fanslyAvatarUrlSchema = z.string().max(4096).regex(/^https:\/\/[a-z0-9-]+\.fansly\.com\//);
+const fanslyNumericIdSchema = z.string().regex(/^[0-9]{1,32}$/);
+export const AI_FEATURE_CLIENT_MEDIA_MAX_ITEMS = 1000;
+export const aiFeatureClientMediaSchema = z.object({
+    /** The canonical Fansly conversation (groupId) the window belongs to. */
+    groupRef: fanslyNumericIdSchema,
+    items: z.array(z.object({
+        /** The number in the transcript token. Unique and increasing. */
+        n: z.number().int().min(1).max(100_000),
+        placement: z.enum(["inline", "appended", "preview"]),
+        messageId: fanslyNumericIdSchema,
+        /** Message send time, epoch milliseconds. */
+        sentAt: z.number().int().min(0).max(8_640_000_000_000_000),
+        sender: z.enum(["fan", "model"]),
+        kind: z.enum(["photo", "video", "gif"]),
+        /** Fansly accountMedia id (for a preview: the paid item it teases). */
+        mediaId: fanslyNumericIdSchema,
+        /** The item is the body of a paid PPV (never described). */
+        paid: z.boolean(),
+    }).strict()).max(AI_FEATURE_CLIENT_MEDIA_MAX_ITEMS),
+}).strict();
+export const aiGatewayImagesSchema = z.array(z.object({ url: fanslyAvatarUrlSchema }).strict()).max(1);
+// Feature-lane-only debug echo. Deliberately separate from the raw gateway
+// prompt-block schema (100k): an assembled block is much larger than the wire
+// values it carries. clientContext admits a 300k transcript, the builder places
+// the WHOLE transcript in one dynamic block, and escapeForPrompt expands the
+// worst case fivefold ("&" → "&amp;"). Bound = (transcript 300k + spending 20k
+// + subscription 20k + draft 20k) × 5 + dossier 20k + template framing, rounded
+// up. Echo contract only — never accepted in an AI request body.
+export const AI_FEATURE_DEBUG_PROMPT_BLOCK_MAX_CHARS = 2_500_000;
+export const aiFeatureDebugPromptBlockSchema = z.object({
+    text: z.string().min(1).max(AI_FEATURE_DEBUG_PROMPT_BLOCK_MAX_CHARS),
+    cache: aiGatewayPromptCacheTtlSchema,
+}).strict();
+export const aiFeatureDebugInputFrameSchema = z.object({
+    type: z.literal("debug_input_v1"),
+    systemBlocks: z.array(aiFeatureDebugPromptBlockSchema).min(1).max(64),
+    userBlocks: z.array(aiFeatureDebugPromptBlockSchema).min(1).max(64),
+    contextManifest: z.record(z.string(), z.unknown()).nullable(),
+    images: aiGatewayImagesSchema.optional(),
+}).strict();
+export const aiGatewayStreamBodySchema = z.object({
+    clientRequestId: z.string().uuid(),
+    feature: aiUsageFeatureEnum,
+    pageLabel: z.string().min(1).max(120),
+    platform: platformEnum,
+    platformUserId: z.string().min(1).max(255),
+    conversationId: z.string().min(1).max(255).nullable().optional(),
+    model: z.string().min(1).max(100),
+    reasoningEffort: aiGatewayReasoningEffortSchema,
+    temperature: z.number().min(0).max(2).optional(),
+    maxTokens: z.number().int().positive().max(100_000).optional(),
+    isRegeneration: z.boolean(),
+    prompt: z.object({
+        systemBlocks: z.array(aiGatewayPromptBlockSchema).min(1).max(64),
+        userBlocks: z.array(aiGatewayPromptBlockSchema).min(1).max(64),
+        images: aiGatewayImagesSchema.optional(),
+    }).strict(),
+}).strict();
+export const aiGatewayUsageSchema = z.object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    cacheWriteTokens: z.number().int().nonnegative(),
+    cacheReadTokens: z.number().int().nonnegative(),
+    costMicroUsd: z.number().int().nonnegative(),
+    costApproximate: z.boolean(),
+});
+export const aiGatewayQuotaSchema = z.object({
+    accepted: z.boolean(),
+    remainingRequestsToday: z.number().int().nonnegative().nullable(),
+    remainingMicroUsdToday: z.number().int().nonnegative().nullable(),
+});
+const aiFeatureAttachedRecapSchema = z.object({
+    generatedAt: isoTimestamp,
+    ageMs: z.number().int().nonnegative(),
+}).strict();
+export const aiFeatureAttachedRecapsSchema = z.object({
+    full: aiFeatureAttachedRecapSchema.nullable(),
+    short: aiFeatureAttachedRecapSchema.nullable(),
+}).strict();
+export const aiGatewayStreamFrameSchema = z.discriminatedUnion("type", [
+    z.object({
+        type: z.literal("meta"),
+        requestId: z.string().uuid(),
+        clientRequestId: z.string().uuid(),
+        feature: aiUsageFeatureEnum,
+        pageLabel: z.string(),
+        model: z.string(),
+        provider: z.enum(["anthropic", "openrouter"]),
+        providerResponseId: z.string().nullable(),
+        personaDefinitionId: z.string().min(16).max(100).optional(),
+        // Feature-lane-only provenance for coach-chat. It is optional because the
+        // raw gateway and every other feature share this existing meta frame.
+        attachedRecaps: aiFeatureAttachedRecapsSchema.optional(),
+        // The server-substituted coach preset question follows the same optionality
+        // rule: the raw gateway and every other feature never set it.
+        presetQuestion: z.string().optional(),
+        quota: aiGatewayQuotaSchema,
+    }).strict(),
+    z.object({
+        type: z.literal("content_delta"),
+        text: z.string(),
+    }).strict(),
+    z.object({
+        type: z.literal("reasoning_delta"),
+        text: z.string(),
+    }).strict(),
+    z.object({
+        type: z.literal("usage"),
+        usage: aiGatewayUsageSchema,
+        providerResponseId: z.string().nullable(),
+        cacheHit: z.boolean(),
+    }).strict(),
+    z.object({
+        type: z.literal("error"),
+        code: z.string().min(1).max(100),
+        message: z.string().min(1).max(500),
+        retryAfterMs: z.number().int().nonnegative().nullable(),
+    }).strict(),
+    z.object({
+        type: z.literal("done"),
+        stopReason: z.string().nullable(),
+    }).strict(),
+]);
+// Unknown frames remain fatal for the raw gateway. Only streamAiFeature uses
+// this additive union, and the server emits debug_input_v1 only when the
+// caller advertised the matching capability header.
+export const aiFeatureStreamFrameSchema = z.union([
+    aiGatewayStreamFrameSchema,
+    aiFeatureDebugInputFrameSchema,
+]);
+// Stage 29 restricted capture class (DP 6-A): owner-only reads.
+// Personas are global single-tenant owner content. Legacy full-text client
+// routes remain during the read-only-client rollout; new clients consume only
+// the metadata catalog and the owner dashboard uses the separate admin CRUD.
+export const aiPersonaSchema = z.object({
+    key: z.string().min(1).max(120),
+    displayName: z.string().min(1).max(120),
+    systemBlock: z.string().min(1).max(50_000),
+    updatedAt: z.string(),
+    version: z.number().int().positive(),
+});
+export const aiPersonasResponseSchema = z.object({
+    personas: z.array(aiPersonaSchema),
+});
+export const aiPersonaUpsertParamsSchema = z.object({
+    key: z.string().min(1).max(120),
+});
+export const aiPersonaUpsertBodySchema = z.object({
+    displayName: z.string().min(1).max(120),
+    systemBlock: z.string().min(1).max(50_000),
+    // Omitted keeps shipped clients on their transitional last-write-wins lane.
+    // null is create-only; a number is an optimistic active-revision update.
+    expectedVersion: z.number().int().positive().nullable().optional(),
+}).strict();
+export const aiPersonaArchiveQuerySchema = z.object({
+    // Query strings cannot carry null. Zero is the explicit create-only/absent
+    // sentinel; positive values archive exactly that active revision.
+    expectedVersion: z.coerce.number().int().nonnegative().optional(),
+}).strict();
+export const aiPersonaCatalogItemSchema = z.object({
+    key: z.string().min(1).max(120),
+    displayName: z.string().min(1).max(120),
+    version: z.number().int().positive(),
+    // Opaque identity of the exact definition bytes. Clients compare it but do
+    // not parse it; it is independent of monotonic revision after DB restore.
+    definitionId: z.string().min(16).max(100),
+    status: z.enum(["active", "archived"]),
+});
+export const aiPersonaCatalogResponseSchema = z.object({
+    personas: z.array(aiPersonaCatalogItemSchema),
+});
+// Recap-status metadata read (spec §3/§5): the freshest usable full + short
+// fan-summary recap for one conversation, metadata only — NO generation, NO AI
+// spend. Backs the extension's "recap status line".
+export const aiRecapStatusQuerySchema = z.object({
+    pageLabel: z.string().min(1).max(120),
+    conversationRef: z.string().min(1).max(255),
+    fanRef: z.string().min(1).max(255).optional(),
+    // Optional for rollout compatibility. Definition-aware clients send the
+    // opaque catalog identity so status and the eventual coach attach select the
+    // same persona-scoped recap rows.
+    personaDefinitionId: z.string().min(16).max(100).optional(),
+}).strict();
+const aiRecapSlotSchema = z.object({
+    generatedAt: z.string(),
+    ageMs: z.number().int().min(0),
+    transcriptCoverage: z.enum(["full-history", "window"]).nullable(),
+    requestedCount: z.number().int().nullable(),
+    keptCount: z.number().int().nullable(),
+}).strict();
+export const aiRecapStatusResponseSchema = z.object({
+    full: aiRecapSlotSchema.nullable(),
+    short: aiRecapSlotSchema.nullable(),
+}).strict();
+const adminAiPersonaCreateKeySchema = z.string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9:_-]*$/, "Use letters, numbers, colon, underscore, or hyphen");
+// Existing rows may have been created through the shipped legacy API, whose
+// key contract allowed any non-empty 120-character string. Admin path params
+// must preserve that exact key so the owner can update/archive every row that
+// appears in the admin list. The narrower policy applies only to new keys.
+const adminAiPersonaExistingKeySchema = z.string().min(1).max(120);
+const adminAiPersonaDisplayNameSchema = z.string().trim().min(1).max(120);
+const adminAiPersonaSystemBlockSchema = z.string()
+    .min(1)
+    .max(50_000)
+    .refine((value) => /\S/.test(value), "System prompt must contain non-whitespace text");
+export const adminAiPersonaSchema = aiPersonaSchema.extend({
+    status: z.enum(["active", "archived"]),
+});
+export const adminAiPersonasResponseSchema = z.object({
+    personas: z.array(adminAiPersonaSchema),
+});
+export const adminAiPersonaCreateBodySchema = z.object({
+    key: adminAiPersonaCreateKeySchema,
+    displayName: adminAiPersonaDisplayNameSchema,
+    systemBlock: adminAiPersonaSystemBlockSchema,
+}).strict();
+export const adminAiPersonaParamsSchema = z.object({
+    key: adminAiPersonaExistingKeySchema,
+});
+export const adminAiPersonaUpdateBodySchema = z.object({
+    displayName: adminAiPersonaDisplayNameSchema,
+    systemBlock: adminAiPersonaSystemBlockSchema,
+    expectedVersion: z.number().int().positive(),
+}).strict();
+export const adminAiPersonaArchiveQuerySchema = z.object({
+    expectedVersion: z.coerce.number().int().positive(),
+}).strict();
+// Stage 30 feature services: kernel-side prompt assembly over the gateway.
+export const aiFeatureStreamParamsSchema = z.object({
+    feature: z.string().min(1).max(40),
+});
+// Coach transport ceiling (spec §3/§7, option "c"): the single source of truth
+// for a coach answer's maximum size. It bounds BOTH the replayed
+// `coachHistory[].answer` wire field below AND the live coach-chat output stream
+// (the runtime aborts a generation whose accumulated visible output crosses this
+// same number). Because the stream enforces the identical bound, any committed
+// coach answer is always schema-valid on the next turn's replay. This is a
+// TRANSPORT bound, not a prompt bound — core projects each accepted history
+// answer to a far smaller ≤10k head+tail replay before prompt assembly. Exported
+// so the schema and the runtime stream check cannot drift apart.
+export const COACH_ANSWER_MAX_CHARS = 64_000;
+// Ping recency is a bounded wire value, not an arbitrary client number. The
+// ceiling is intentionally far beyond any real platform history (~54 years)
+// while keeping the strict clientContext contract finite. The runtime imports
+// this same constant when deriving the OnlyFans value so the two paths cannot
+// drift.
+export const FAN_SILENCE_DAYS_MAX = 20_000;
+// Scoped body limit for POST /api/v1/ai/features/:feature (Blocker 4, P1-4).
+// Fastify's bodyLimit is a BYTE budget enforced BEFORE Zod, but the schema caps
+// are CHAR counts (z.string().max() counts UTF-16 code units). The limit must
+// therefore clear the largest byte count a schema-valid body can serialize to,
+// content-agnostic: this is a SIZE bound, NOT a content policy. Round-4 P2-4
+// reverted the control-char ban that briefly guarded a tighter number — it
+// regressed every live Fansly feature whose transcripts carry arbitrary fan
+// text (a stray control char 400'd the whole reply/help-me/ping request) and
+// was invisible in the generated OpenAPI anyway; the fields are plain bounded
+// strings again and the limit simply absorbs the true worst case. That
+// worst-case schema-valid coach body sums to ~1.69M UTF-16 code units --
+// coachHistory 20x(2k question + 64k answer) = 1.32M, transcript 300k, spending
+// 20k, subscription 20k, bio 5k, draft 20k, question 2k, plus the small scalar
+// fields. The preset literal ("situation", <=11 bytes) is negligible. The TRUE
+// per-code-unit worst case on the JSON wire is SIX bytes: a
+// lone surrogate (U+D800) or an ASCII control char is a legal JSON string value
+// that JSON.stringify escapes to a six-byte `\uXXXX` sequence, so ~1.69M x 6
+// ~= 10.1MB (a printable 3-byte-UTF-8 char like the CJK "no" is only the 3-byte
+// ceiling -> ~5.06MB, well under this). The former 4 MiB and 8 MiB limits both
+// 413'd this six-byte worst case before validation; 12 MiB (12,582,912) clears
+// ~10.1MB with headroom while genuine transport abuse still 413s. Kept in the
+// contract next to the schema so the limit and the field caps that drive it
+// cannot drift apart; asserted against the measured worst case in
+// tests/contracts-coach-body.test.ts.
+export const AI_FEATURE_STREAM_BODY_LIMIT_BYTES = 12 * 1024 * 1024;
+export const aiFeatureStreamBodySchema = z.object({
+    clientRequestId: z.string().uuid(),
+    pageLabel: z.string().min(1).max(120),
+    platform: platformEnum,
+    conversationRef: z.string().min(1).max(255),
+    fanRef: z.string().min(1).max(255).nullable().optional(),
+    personaKey: z.string().min(1).max(120).nullable().optional(),
+    expectedPersonaDefinitionId: z.string().min(16).max(100).optional(),
+    model: z.string().min(1).max(100).optional(),
+    reasoningEffort: aiGatewayReasoningEffortSchema.optional(),
+    replyTone: z.enum(["none", "casual", "flirty", "upsell", "spicy"]).optional(),
+    replyMode: z.enum(["default", "preferSplit"]).optional(),
+    messageCount: z.number().int().min(5).max(3000).optional(),
+    draftText: z.string().min(1).max(20_000).optional(),
+    isRegeneration: z.boolean().optional(),
+    chatterQuestion: z.string().min(1).max(2_000).optional(),
+    coachHistory: z
+        .array(z.object({
+        question: z.string().min(1).max(2_000),
+        answer: z.string().min(1).max(COACH_ANSWER_MAX_CHARS),
+    }).strict())
+        .max(20)
+        .optional(),
+    // Coach-chat only: substitutes the pinned canonical question when the
+    // chatterQuestion field is absent or whitespace-only.
+    preset: z.literal("situation").optional(),
+    summaryMode: z.literal("short").optional(),
+    // hi-greeting only (Decision 379): how many greeting variants the unified
+    // template asks for. The chat Hi button sends 3, the New Followers queue
+    // sends 1. Absent means 3, or 1 under the deprecated alias below.
+    variantCount: z.union([z.literal(1), z.literal(3)]).optional(),
+    // DEPRECATED alias (Decision 379), kept for released clients (extension
+    // <= 2.4.3, of-desktop). It keeps its Decision 333 semantics exactly: the
+    // identity validations, one message when variantCount is absent, and the
+    // freshness gate skipped. New clients send variantCount instead. Do not
+    // remove while a supported client still sends it.
+    greetingMode: z.literal("new-follower").optional(),
+    // Stage 32: client-loaded context for platforms whose kernel archive is
+    // pull-cadenced (Fansly: dm_conversations 30 min / dm_messages 24 h — no
+    // webhook lane), where the client reads the conversation live at
+    // generation time. Prompt ASSEMBLY stays kernel-side (templates, personas,
+    // policies, platform wording); only the context VALUES ride in. The values
+    // land verbatim in the assembled prompt and are captured under the
+    // Stage 29 restricted class exactly like archive-loaded context.
+    clientContext: z.object({
+        transcript: z.string().min(1).max(300_000),
+        messageCount: z.number().int().min(0).max(5000),
+        fanDisplayName: z.string().max(200),
+        fanSpendingData: z.string().max(20_000).default(""),
+        fanSubscriptionData: z.string().max(20_000).default(""),
+        fanBio: z.string().max(5_000).optional(),
+        // Decision 290: the chatter's own saved name for the fan (Fansly rename,
+        // account note contentType 12002). Read by the ping template today;
+        // optional for clients released before it.
+        fanCustomName: z.string().max(200).optional(),
+        // hi-greeting only (Decision 379; any hi-greeting request, no longer tied
+        // to the deprecated greetingMode alias). The kernel never fetches the URL.
+        fanUsername: z.string().max(200).optional(),
+        fanAvatarUrl: fanslyAvatarUrlSchema.optional(),
+        // hi-greeting only (Decision 379): messages in the window that are NOT
+        // automatic/mass sends (fan messages plus the model's personal ones). The
+        // freshness gate counts these when present, so a fan holding only welcome
+        // and mass messages is not locked out. Never above messageCount.
+        personalMessageCount: z.number().int().min(0).max(5000).optional(),
+        pingSegment: z.enum(["segment-a", "segment-b", "active"]).optional(),
+        // Whole days since the fan's latest text message, computed from the same
+        // analysis (and clock) that selected pingSegment. Ping only; optional for
+        // compatibility with clients released before Decision #127.
+        fanSilenceDays: z.number().int().min(0).max(FAN_SILENCE_DAYS_MAX).optional(),
+        transcriptCoverage: z.enum(["full-history", "window"]).optional(),
+        // AI media describer (hub docs/runbooks/ai-media-describe.md): the
+        // describable media of the KEPT window, numbered as they appear in the
+        // transcript — inline `[Photo #3]` (legacy `[Photo]`), appended
+        // ` [Photo #4]` after a bundle label, ` (preview #8)` after a PPV label.
+        // The hub fills ready descriptions into exactly these tokens, or restores
+        // the legacy labels byte-for-byte while the feature is off. Ids only: the
+        // client never sends a URL or bytes. Optional; older clients omit it.
+        media: aiFeatureClientMediaSchema.optional(),
+    }).strict().superRefine((value, ctx) => {
+        if (value.personalMessageCount !== undefined && value.personalMessageCount > value.messageCount) {
+            ctx.addIssue({
+                code: "custom",
+                path: ["personalMessageCount"],
+                message: "personalMessageCount cannot exceed messageCount",
+            });
+        }
+    }).optional(),
+}).strict();
+export const aiRestrictedGenerationSchema = z.object({
+    generationRef: z.string(),
+    feature: z.string(),
+    model: z.string(),
+    provider: z.string(),
+    userId: z.number().nullable(),
+    pageId: z.number().nullable(),
+    conversationRef: z.string().nullable(),
+    promptBlocks: z.array(z.unknown()),
+    completion: z.string(),
+    params: z.record(z.string(), z.unknown()),
+    createdAt: z.string(),
+});
+export const aiRestrictedGenerationsQuerySchema = z.object({
+    feature: z.string().optional(),
+    pageId: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+export const aiRestrictedGenerationsResponseSchema = z.object({
+    generations: z.array(aiRestrictedGenerationSchema),
+});
+export const aiRestrictedAcceptanceEventSchema = z.object({
+    lifecycle: z.enum(["shown", "copied", "inserted", "edited", "sent"]),
+    userId: z.number().nullable(),
+    occurredAt: z.string(),
+});
+export const aiRestrictedGenerationParamsSchema = z.object({
+    generationRef: z.string().min(1),
+});
+export const aiRestrictedGenerationDetailResponseSchema = z.object({
+    generation: aiRestrictedGenerationSchema,
+    acceptance: z.array(aiRestrictedAcceptanceEventSchema),
+});
+export const adminChatterUsageQuerySchema = z.object({
+    from: businessDate.optional(),
+    to: businessDate.optional(),
+}).superRefine((value, ctx) => {
+    const hasFrom = value.from !== undefined;
+    const hasTo = value.to !== undefined;
+    if (hasFrom !== hasTo) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "`from` and `to` must be provided together",
+            path: [hasFrom ? "to" : "from"],
+        });
+    }
+    if (value.from && value.to && value.from > value.to) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "`from` must be on or before `to`",
+            path: ["to"],
+        });
+    }
+});
+export const aiUsageTokenCountsSchema = z.object({
+    input: z.number().int().nonnegative(),
+    output: z.number().int().nonnegative(),
+    cacheWrite: z.number().int().nonnegative(),
+    cacheRead: z.number().int().nonnegative(),
+    cacheTotal: z.number().int().nonnegative(),
+});
+export const aiUsageTopFeatureSchema = z.object({
+    feature: aiUsageFeatureEnum,
+    requestCount: z.number().int().nonnegative(),
+    sharePct: z.number().nonnegative(),
+});
+export const aiUsageFeatureBreakdownSchema = z.object({
+    feature: aiUsageFeatureEnum,
+    requestCount: z.number().int().nonnegative(),
+    sharePct: z.number().nonnegative(),
+    tokenCounts: aiUsageTokenCountsSchema,
+    costMicroUsd: z.number().int().nonnegative(),
+    costApproximate: z.boolean(),
+    regenerateRatePct: z.number().nonnegative(),
+});
+export const aiUsageCostSummarySchema = z.object({
+    microUsd: z.number().int().nonnegative(),
+    approximate: z.boolean(),
+});
+export const aiUsageGatewaySummarySchema = z.object({
+    requestCount: z.number().int().nonnegative(),
+    completedCount: z.number().int().nonnegative(),
+    failedCount: z.number().int().nonnegative(),
+    cancelledCount: z.number().int().nonnegative(),
+    quotaDeniedCount: z.number().int().nonnegative(),
+    openReservationCount: z.number().int().nonnegative(),
+    providerBreakdown: z.array(z.object({
+        provider: z.enum(["anthropic", "openrouter"]),
+        requestCount: z.number().int().nonnegative(),
+        costMicroUsd: z.number().int().nonnegative(),
+    })),
+});
+export const adminChatterUsageRowSchema = z.object({
+    userId: intId,
+    username: z.string(),
+    totalGenerations: z.number().int().nonnegative(),
+    tokenCounts: aiUsageTokenCountsSchema,
+    cost: aiUsageCostSummarySchema,
+    gateway: aiUsageGatewaySummarySchema,
+    topFeature: aiUsageTopFeatureSchema.nullable(),
+    featureBreakdown: z.array(aiUsageFeatureBreakdownSchema),
+    regenerateRatePct: z.number().nonnegative(),
+    warning: z.boolean(),
+});
+export const adminChatterUsageResponseSchema = z.object({
+    range: z.object({
+        from: businessDate,
+        to: businessDate,
+        timeZone: z.string().min(1),
+    }),
+    rows: z.array(adminChatterUsageRowSchema),
+});
+// Decision 349: the caller's own AI spend (any session, any human role). Same
+// range semantics as the admin report; the row drops userId (it is the caller)
+// and a daily series is added for the cabinet's chart.
+export const authMyUsageDailyRowSchema = z.object({
+    date: businessDate,
+    requestCount: z.number().int().nonnegative(),
+    costMicroUsd: z.number().int().nonnegative(),
+});
+export const authMyUsageResponseSchema = z.object({
+    range: z.object({
+        from: businessDate,
+        to: businessDate,
+        timeZone: z.string().min(1),
+    }),
+    row: adminChatterUsageRowSchema.omit({ userId: true }),
+    daily: z.array(authMyUsageDailyRowSchema),
+});
+// Admin schemas
+export const adminAssignPageBodySchema = z.object({
+    pageLabel: z.string().min(1),
+});
+export const syncRunItemSchema = z.object({
+    runId: z.number().int(),
+    platformAccountId: z.number().int(),
+    pageLabel: z.string(),
+    platform: platformEnum,
+    stream: z.string(),
+    trigger: z.string(),
+    status: z.string(),
+    startedAt: isoTimestamp,
+    finishedAt: isoTimestamp.nullable(),
+    errorSummary: z.string().nullable(),
+    stats: z.record(z.string(), z.unknown()),
+});
+export const syncRunDetailResponseSchema = z.object({
+    run: syncRunItemSchema,
+    events: z.array(z.object({
+        id: z.number().int(),
+        runId: z.number().int(),
+        platformAccountId: z.number().int(),
+        pageLabel: z.string(),
+        provider: platformEnum,
+        stream: z.string(),
+        eventType: z.string(),
+        severity: z.string(),
+        message: z.string(),
+        details: z.record(z.string(), z.unknown()),
+        emittedAt: isoTimestamp,
+    })),
+    attempts: z.array(z.object({
+        attemptId: z.number().int(),
+        runId: z.number().int(),
+        platformAccountId: z.number().int(),
+        pageLabel: z.string(),
+        provider: platformEnum,
+        stream: z.string(),
+        operation: z.string(),
+        logicalRequestId: z.string(),
+        attemptNumber: z.number().int(),
+        state: z.string(),
+        failureKind: z.string().nullable(),
+        httpStatus: z.number().int().nullable(),
+        retryDelayMs: z.number().int().nullable(),
+        durationMs: z.number().int().nullable(),
+        requestShape: z.record(z.string(), z.unknown()),
+        responseShape: z.record(z.string(), z.unknown()),
+        errorMessage: z.string().nullable(),
+        startedAt: isoTimestamp,
+        finishedAt: isoTimestamp.nullable(),
+    })),
+});
+const syncMonitorStatusEnum = z.enum([
+    "idle",
+    "pending",
+    "running",
+    "retrying",
+    "blocked",
+    "paused",
+]);
+const syncMonitorRateHealthEnum = z.enum(["healthy", "warning", "limited"]);
+export const syncMonitorProgressSchema = z.object({
+    label: z.string(),
+    current: z.number().int(),
+    total: z.number().int().nullable(),
+    unit: z.string(),
+    percent: z.number().nullable(),
+});
+export const syncMonitorRateHealthSchema = z.object({
+    state: syncMonitorRateHealthEnum,
+    last429At: isoTimestamp.nullable(),
+    nextAvailableAt: isoTimestamp.nullable(),
+});
+export const syncMonitorRecentRunsSchema = z.object({
+    running: z.number().int(),
+    success: z.number().int(),
+    partial: z.number().int(),
+    failed: z.number().int(),
+    skipped: z.number().int(),
+});
+export const syncMonitorRecentErrorsSchema = z.object({
+    total429s: z.number().int(),
+    total5xxs: z.number().int(),
+    failedRuns: z.number().int(),
+    failedAttempts: z.number().int(),
+    retryAttempts: z.number().int(),
+    last429At: isoTimestamp.nullable(),
+    last5xxAt: isoTimestamp.nullable(),
+});
+export const syncMonitorLastCompletionSchema = z.object({
+    runId: z.number().int(),
+    trigger: z.string(),
+    status: z.enum(["success", "partial", "failed", "skipped"]),
+    startedAt: isoTimestamp,
+    finishedAt: isoTimestamp,
+    durationMs: z.number().int().nullable(),
+    errorSummary: z.string().nullable(),
+});
+export const syncMonitorActiveRunSchema = z.object({
+    runId: z.number().int(),
+    trigger: z.string(),
+    startedAt: isoTimestamp,
+    lastActivityAt: isoTimestamp,
+});
+export const syncMonitorDeepBackfillSchema = z.object({
+    pendingConversations: z.number().int(),
+    pendingPagesEstimate: z.number().int(),
+    spenderPendingConversations: z.number().int(),
+    spenderPendingPagesEstimate: z.number().int(),
+    regularPendingConversations: z.number().int(),
+    regularPendingPagesEstimate: z.number().int(),
+    recentRequests: z.number().int(),
+    lastCompletedAt: isoTimestamp.nullable(),
+    liveRequestsSinceDeepBackfill: z.number().int(),
+    active: z.boolean(),
+    stalled: z.boolean(),
+    stallReason: z.string().nullable(),
+});
+const extendedSyncStreamEnum = z.enum([
+    "light",
+    "fan_identities",
+    "followers",
+    "transactions",
+    "top_spenders",
+    "subscribers",
+    "dm_conversations",
+    "dm_messages",
+    "followers_reconcile",
+    "fan_earnings",
+    "purchase_history",
+    "posts",
+    // WP-F1: the monitor serves this stream too, so the wire enum has to name
+    // it or a stats_snapshot row fails response validation.
+    "stats_snapshot",
+    // WP-F2.
+    "notifications",
+    // WP-F3.
+    "catalog",
+    // WP-F5.
+    "post_replies",
+    // WP-F7.
+    "payouts",
+    // WP-F4.
+    "media_stats",
+]);
+export const syncMonitorStreamItemSchema = z.object({
+    stream: extendedSyncStreamEnum,
+    status: syncMonitorStatusEnum,
+    stalled: z.boolean(),
+    pending: z.boolean(),
+    retryAt: isoTimestamp.nullable(),
+    progress: syncMonitorProgressSchema.nullable(),
+    deepBackfill: syncMonitorDeepBackfillSchema.nullable().optional(),
+    recentRuns: syncMonitorRecentRunsSchema,
+    recentErrors: syncMonitorRecentErrorsSchema,
+    rateHealth: syncMonitorRateHealthSchema,
+    activeRun: syncMonitorActiveRunSchema.nullable(),
+    lastCompletion: syncMonitorLastCompletionSchema.nullable(),
+    succeededAt: isoTimestamp.nullable(),
+    failedAt: isoTimestamp.nullable(),
+    lastErrorSummary: z.string().nullable(),
+    consecutiveFailures: z.number().int(),
+    syncUx: syncUxSummarySchema,
+});
+export const syncMonitorPageCountsSchema = z.object({
+    fans: z.number().int(),
+    followers: z.number().int(),
+    subscribers: z.number().int(),
+    transactions: z.number().int(),
+    conversations: z.number().int(),
+    messages: z.number().int(),
+});
+export const syncMonitorPageSummarySchema = z.object({
+    runningStreams: z.number().int(),
+    blockedStreams: z.number().int(),
+    stalledStreams: z.number().int(),
+    pendingStreams: z.number().int(),
+    retryingStreams: z.number().int(),
+});
+export const syncMonitorPageItemSchema = z.object({
+    pageId: z.number().int(),
+    pageLabel: z.string(),
+    platform: platformEnum,
+    modelSlug: z.string(),
+    modelName: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    counts: syncMonitorPageCountsSchema,
+    summary: syncMonitorPageSummarySchema,
+    streams: z.array(syncMonitorStreamItemSchema),
+    syncUx: syncUxSummarySchema,
+});
+export const syncMonitorProviderSummarySchema = z.object({
+    platform: platformEnum,
+    rateHealth: syncMonitorRateHealthSchema,
+    recent429s: z.number().int(),
+    recent5xxs: z.number().int(),
+});
+export const syncMonitorOverallSchema = z.object({
+    pages: z.number().int(),
+    streams: z.number().int(),
+    runningStreams: z.number().int(),
+    blockedStreams: z.number().int(),
+    stalledStreams: z.number().int(),
+    pendingStreams: z.number().int(),
+    retryingStreams: z.number().int(),
+    counts: syncMonitorPageCountsSchema,
+    recentRuns: syncMonitorRecentRunsSchema,
+    recentErrors: syncMonitorRecentErrorsSchema,
+    providers: z.array(syncMonitorProviderSummarySchema),
+    syncUx: syncUxSummarySchema,
+});
+export const syncMonitorRecentEventSchema = z.object({
+    id: z.number().int(),
+    runId: z.number().int(),
+    pageId: z.number().int(),
+    pageLabel: z.string(),
+    platform: platformEnum,
+    stream: extendedSyncStreamEnum,
+    eventType: z.string(),
+    severity: z.enum(["info", "warn", "error"]),
+    message: z.string(),
+    details: z.record(z.string(), z.unknown()),
+    emittedAt: isoTimestamp,
+});
+export const syncStatusQuerySchema = z.object({
+    pageLabel: z.string().min(1).optional(),
+    windowHours: z.coerce.number().int().min(1).max(24 * 14).default(24),
+    eventLimit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export const syncStatusResponseSchema = z.object({
+    generatedAt: isoTimestamp,
+    window: z.object({
+        hours: z.number().int(),
+        startedAt: isoTimestamp,
+    }),
+    overall: syncMonitorOverallSchema,
+    pages: z.array(syncMonitorPageItemSchema),
+    recentEvents: z.array(syncMonitorRecentEventSchema),
+});
+export const syncRequestsQuerySchema = z.object({
+    since: z.string().optional(),
+    limit: z.coerce.number().int().min(1).default(100),
+});
+export const syncRequestItemSchema = z.object({
+    timestamp: isoTimestamp,
+    pageLabel: z.string(),
+    platform: platformEnum,
+    stream: extendedSyncStreamEnum,
+    operation: z.string(),
+    endpoint: z.string(),
+    method: z.string(),
+    attemptNumber: z.number().int(),
+    status: z.enum(["started", "success", "retry", "failed"]),
+    httpStatusCode: z.number().int().nullable(),
+    durationMs: z.number().int().nullable(),
+    rateLimitWaitMs: z.number().int().nullable(),
+    groupId: z.string().nullable(),
+    partnerUsername: z.string().nullable(),
+    returnedItems: z.number().int().nullable(),
+    syncDone: z.boolean().nullable(),
+    proxyGapMs: z.number().int().nullable(),
+});
+export const syncRequestsResponseSchema = z.array(syncRequestItemSchema);
+const syncBlockKeyEnum = z.enum([
+    "connection",
+    "financials",
+    "audience",
+    "messages_live",
+    "messages_history",
+]);
+const syncBlockStateEnum = z.enum([
+    "not_started",
+    "scheduled",
+    "backfilling",
+    "up_to_date",
+    "syncing",
+    "retrying",
+    "delayed",
+    "failed",
+    "paused",
+    "not_available",
+    // The page is the Fansly Sync Engine's (`handover`/`live`): its legacy
+    // streams are frozen and the block describes the engine's live work.
+    "engine",
+]);
+/** The engine mode of a page the Fansly Sync Engine owns. */
+const syncEngineOwnedModeEnum = z.enum(["handover", "live"]);
+const simpleConnectionStatusEnum = z.enum(["connected", "not_connected", "error"]);
+export const syncBlockProgressSchema = z.object({
+    label: z.string(),
+    current: z.number().int(),
+    total: z.number().int().nullable(),
+    unit: z.string(),
+    percent: z.number().nullable(),
+    details: z.record(z.string(), z.unknown()),
+});
+export const syncBlockErrorSchema = z.object({
+    stream: z.string().nullable(),
+    code: z.string().nullable(),
+    summary: z.string().nullable(),
+    failedAt: isoTimestamp.nullable(),
+    consecutiveFailures: z.number().int(),
+});
+export const syncStatusReasonSchema = z.object({
+    code: z.string().nullable(),
+    summary: z.string().nullable(),
+    waitingFor: z.array(z.string()).nullable(),
+});
+const syncStreamRoleEnum = z.enum(["primary", "supporting"]);
+export const syncBlockIntervalSchema = z.object({
+    stream: extendedSyncStreamEnum,
+    cadenceSeconds: z.number().int(),
+});
+export const syncBlockSubstreamSchema = z.object({
+    stream: extendedSyncStreamEnum,
+    role: syncStreamRoleEnum,
+    state: syncBlockStateEnum.exclude(["not_available"]),
+    succeededAt: isoTimestamp.nullable(),
+    nextDueAt: isoTimestamp.nullable(),
+    nextRetryAt: isoTimestamp.nullable(),
+    cadenceSeconds: z.number().int(),
+    isFresh: z.boolean(),
+    needsAttention: z.boolean(),
+    statusReason: syncStatusReasonSchema.nullable(),
+    error: syncBlockErrorSchema.nullable(),
+});
+export const syncBlockStatusSchema = z.object({
+    block: syncBlockKeyEnum,
+    state: syncBlockStateEnum,
+    /** Present exactly when `state` is `engine`. */
+    engineMode: syncEngineOwnedModeEnum.optional(),
+    succeededAt: isoTimestamp.nullable(),
+    progress: syncBlockProgressSchema.nullable(),
+    progressStream: z.string().nullable(),
+    progressRole: syncStreamRoleEnum.nullable(),
+    error: syncBlockErrorSchema.nullable(),
+    statusReason: syncStatusReasonSchema.nullable(),
+    primaryFresh: z.boolean(),
+    needsAttention: z.boolean(),
+    nextDueAt: isoTimestamp.nullable(),
+    nextRetryAt: isoTimestamp.nullable(),
+    intervals: z.array(syncBlockIntervalSchema),
+    metrics: z.record(z.string(), z.unknown()),
+    connectionStatus: simpleConnectionStatusEnum.nullable(),
+    substreams: z.array(syncBlockSubstreamSchema),
+});
+const syncDiagnosisCodeEnum = z.enum([
+    "worker_offline",
+    "stalled_run",
+    "auth_blocked",
+]);
+const syncDiagnosisSeverityEnum = z.enum(["warning", "error"]);
+const syncDiagnosisActionKindEnum = z.enum([
+    "worker",
+    "credentials",
+    "sync_settings",
+]);
+export const syncDiagnosisSchema = z.object({
+    code: syncDiagnosisCodeEnum,
+    severity: syncDiagnosisSeverityEnum,
+    headline: z.string(),
+    detail: z.string(),
+    actionKind: syncDiagnosisActionKindEnum.nullable(),
+});
+export const syncBlocksPageSchema = z.object({
+    pageId: z.number().int(),
+    pageLabel: z.string(),
+    platform: platformEnum,
+    modelSlug: z.string(),
+    modelName: z.string(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    diagnosis: syncDiagnosisSchema.nullable(),
+    blocks: z.object({
+        connection: syncBlockStatusSchema,
+        financials: syncBlockStatusSchema,
+        audience: syncBlockStatusSchema,
+        messages_live: syncBlockStatusSchema,
+        messages_history: syncBlockStatusSchema,
+    }),
+});
+export const syncOverviewResponseSchema = z.object({
+    generatedAt: isoTimestamp,
+    diagnosis: syncDiagnosisSchema.nullable(),
+    pages: z.array(syncBlocksPageSchema),
+});
+export const pageSyncBlocksParamsSchema = pageParamsSchema;
+export const pageSyncBlocksResponseSchema = z.object({
+    generatedAt: isoTimestamp,
+    page: syncBlocksPageSchema,
+});
+export const pageMessagesBlockResponseSchema = z.object({
+    generatedAt: isoTimestamp,
+    page: z.object({
+        pageId: z.number().int(),
+        pageLabel: z.string(),
+        platform: platformEnum,
+        modelSlug: z.string(),
+        modelName: z.string(),
+        username: z.string().nullable(),
+        displayName: z.string().nullable(),
+        diagnosis: syncDiagnosisSchema.nullable(),
+    }),
+    block: syncBlockStatusSchema,
+});
+export const adminSyncBlockBodySchema = z.object({
+    pageLabel: z.string().min(1),
+    block: syncBlockKeyEnum,
+});
+export const adminSyncBlockRequestSchema = z.object({
+    stream: extendedSyncStreamEnum,
+    requestedSeq: z.number().int(),
+});
+export const adminSyncBlockResponseSchema = z.object({
+    accepted: z.literal(true),
+    action: z.enum(["trigger", "pause", "resume", "reset"]),
+    pageLabel: z.string(),
+    block: syncBlockKeyEnum,
+    requests: z.array(adminSyncBlockRequestSchema).optional(),
+    /** A page the Fansly Sync Engine owns: what the engine lever did — the
+     *  resource files whose polls became due (trigger), the registry keys
+     *  paused or resumed, or whose quarantined work was requeued (reset), and
+     *  how many polls, keys or rows moved. */
+    engine: z.object({
+        mode: syncEngineOwnedModeEnum,
+        resources: z.array(z.string()),
+        affected: z.number().int().nonnegative(),
+    }).optional(),
+});
+export const adminFollowersReconcileResetBodySchema = z.object({
+    pageLabel: z.string().min(1),
+});
+export const adminFollowersReconcileResetResponseSchema = z.object({
+    accepted: z.literal(true),
+    action: z.literal("reset"),
+    pageLabel: z.string(),
+    stream: z.literal("followers_reconcile"),
+    requests: z.array(adminSyncBlockRequestSchema),
+});
+const followersReconcileCandidateGenerationBucketSchema = z.object({
+    lastSeenGeneration: z.number().int().nonnegative().nullable(),
+    count: z.number().int().positive(),
+});
+const adminFollowersReconcileOverrideEvidenceSchema = z.object({
+    pageLabel: z.string(),
+    stream: z.literal("followers_reconcile"),
+    blockedRequestSeq: z.number().int().nonnegative(),
+    blockedAt: isoTimestamp,
+    generation: z.number().int().positive(),
+    fullSweepStartedAt: isoTimestamp,
+    activeFollowerCount: z.number().int().nonnegative(),
+    deactivationLimit: z.number().int().positive(),
+    candidateCount: z.number().int().nonnegative(),
+    candidateSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    candidateGenerationBuckets: z.array(followersReconcileCandidateGenerationBucketSchema),
+});
+export const adminFollowersReconcileOverridePreviewBodySchema = z.object({
+    pageLabel: z.string().min(1),
+});
+export const adminFollowersReconcileOverridePreviewResponseSchema = adminFollowersReconcileOverrideEvidenceSchema.extend({
+    accepted: z.literal(true),
+    action: z.literal("preview"),
+    audiencePaused: z.boolean(),
+    audienceLeaseFree: z.boolean(),
+    overrideRequired: z.boolean(),
+    readyToApply: z.boolean(),
+});
+export const adminFollowersReconcileOverrideApplyBodySchema = z.object({
+    pageLabel: z.string().min(1),
+    blockedRequestSeq: z.number().int().nonnegative(),
+    blockedAt: isoTimestamp,
+    generation: z.number().int().positive(),
+    fullSweepStartedAt: isoTimestamp,
+    candidateSha256: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export const adminFollowersReconcileOverrideApplyResponseSchema = adminFollowersReconcileOverrideEvidenceSchema.extend({
+    accepted: z.literal(true),
+    action: z.literal("apply"),
+    deactivatedCount: z.number().int().positive(),
+    audienceRemainsPaused: z.literal(true),
+});
+export const syncTriggerBodySchema = z.object({
+    pageLabel: z.string().min(1),
+    scope: syncTriggerScopeEnum,
+});
+export const syncTriggerResponseSchema = z.object({
+    accepted: z.literal(true),
+    pageLabel: z.string(),
+    scope: syncTriggerScopeEnum,
+});
+export const syncTriggerAllResponseSchema = z.object({
+    accepted: z.literal(true),
+    pagesQueued: z.number().int(),
+});
+export const syncRunsQuerySchema = z.object({
+    pageLabel: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(20),
+    since: z.string().optional(),
+});
+export const adminLogsQuerySchema = z.object({
+    severity: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+export const adminLogItemSchema = z.object({
+    id: intId,
+    syncRunId: intId,
+    provider: platformEnum,
+    stream: z.string(),
+    eventType: z.string(),
+    severity: z.string(),
+    message: z.string(),
+    details: z.record(z.string(), z.unknown()),
+    emittedAt: isoTimestamp,
+    pageLabel: z.string(),
+});
+export const adminQueueJobsQuerySchema = z.object({
+    state: z.string().min(1).optional(),
+    name: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export const adminQueueJobItemSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    state: z.string(),
+    data: z.unknown().nullable(),
+    createdOn: isoTimestamp,
+    startedOn: isoTimestamp.nullable(),
+    completedOn: isoTimestamp.nullable(),
+    output: z.unknown().nullable(),
+    retryLimit: z.number().int(),
+    retryCount: z.number().int(),
+});
+export const adminDbTableStatSchema = z.object({
+    schema: z.string(),
+    table: z.string(),
+    rowEstimate: z.number().int(),
+    totalBytes: z.number().int(),
+    indexBytes: z.number().int(),
+});
+export const adminDbMigrationSchema = z.object({
+    name: z.string(),
+    appliedAt: isoTimestamp,
+});
+export const adminDbStatsResponseSchema = z.object({
+    tables: z.array(adminDbTableStatSchema),
+    migrations: z.array(adminDbMigrationSchema),
+});
+export const adminIncidentsQuerySchema = z.object({
+    severity: z.string().min(1).optional(),
+    code: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+export const adminIncidentItemSchema = adminLogItemSchema;
+export const adminIncidentSummaryItemSchema = z.object({
+    code: z.string().nullable(),
+    severity: z.string(),
+    count: z.number().int(),
+});
+export const adminIncidentsResponseSchema = z.object({
+    summary: z.array(adminIncidentSummaryItemSchema),
+    items: z.array(adminIncidentItemSchema),
+});
+// --- Notifications dashboard schemas ---
+const notificationConnectionStatusEnum = z.enum([
+    "not_configured",
+    "untested",
+    "connected",
+    "last_message_failed",
+]);
+const notificationCredentialSourceEnum = z.enum(["db", "env", "none"]);
+// Telegram bot token: `<bot_id>:<35-char secret>` from @BotFather. The bound is
+// lenient (>=30) to tolerate future token-length changes while still rejecting a
+// chat id / random text pasted into the token field.
+const telegramBotTokenSchema = z
+    .string()
+    .trim()
+    .regex(/^\d{5,}:[A-Za-z0-9_-]{30,}$/, "Expected a Telegram bot token like 7123456789:AA…");
+// Chat id: a numeric id (negative / -100… for groups & channels) or an @username.
+const telegramChatIdSchema = z
+    .string()
+    .trim()
+    .regex(/^(-?\d+|@[A-Za-z0-9_]{5,32})$/, "Expected a numeric chat id (e.g. 123456789 or -100…) or @username");
+// Stage 10: platform-neutral message archive reads (owner/team_lead only).
+export const archiveMessageItemSchema = z.object({
+    id: intId,
+    accountId: intId,
+    platform: z.string(),
+    conversationRef: z.string().nullable(),
+    messageRef: z.string(),
+    fanNativeId: z.string().nullable(),
+    senderRole: z.string(),
+    isSentByMe: z.boolean(),
+    occurredAt: isoTimestamp.nullable(),
+    textPlain: z.string(),
+    priceMills: z.string().nullable(),
+    isTip: z.boolean(),
+    tipAmountMills: z.string(),
+    deletedAt: isoTimestamp.nullable(),
+});
+const notificationIncidentKindEnum = z.enum([
+    "auth_blocked",
+    "proxy_failed",
+    "proxy_missing",
+    "stream_failed_threshold",
+    "ofapi_auth",
+    "ofapi_low_credit",
+    "ofapi_webhook_silence",
+    "ofapi_burn_rate",
+    "db_disk_usage",
+    "observations_partitions",
+    "wrong_transactions_writer",
+    "read_gateway_capture",
+    "golden_signal_lag",
+    "scheduler_silent",
+    "ops_sampler_silent",
+    "ofapi_chargebacks_reconcile_failed",
+    "ofapi_link_stats_reconcile_failed",
+    "ai_provider_billing",
+    "ai_provider_failed",
+    "capture_payload_parity",
+    "ofapi_binding_conflict",
+    "sync_silent",
+    "fansly_sync_engine",
+]);
+const notificationIncidentStatusEnum = z.enum(["open", "resolved"]);
+const notificationDeliveryOutboxStateEnum = z.enum([
+    "pending",
+    "leased",
+    "delivered",
+    "suppressed",
+    "exhausted",
+]);
+const deliveryKindEnum = z.enum([
+    "test",
+    "daily_report_scheduled",
+    "daily_report_manual",
+    "incident_opened",
+    "incident_resolved",
+    "incident_manually_resolved",
+    "alert_digest_scheduled",
+]);
+export const notificationsSettingsResponseSchema = z.object({
+    configured: z.boolean(),
+    botTokenSet: z.boolean(),
+    chatId: z.string().nullable(),
+    botTokenSource: notificationCredentialSourceEnum,
+    chatIdSource: notificationCredentialSourceEnum,
+    enabled: z.boolean(),
+    dailyReportEnabled: z.boolean(),
+    syncFailureAlertsEnabled: z.boolean(),
+    aiCriticalAlertsEnabled: z.boolean(),
+    reportHourUtc: z.number().int().min(0).max(23),
+    connectionStatus: notificationConnectionStatusEnum,
+    lastMessageAt: isoTimestamp.nullable(),
+    lastMessageError: z.string().nullable(),
+});
+export const notificationsSettingsUpdateBodySchema = z.object({
+    enabled: z.boolean().optional(),
+    dailyReportEnabled: z.boolean().optional(),
+    syncFailureAlertsEnabled: z.boolean().optional(),
+    aiCriticalAlertsEnabled: z.boolean().optional(),
+    reportHourUtc: z.number().int().min(0).max(23).optional(),
+    botToken: telegramBotTokenSchema.nullable().optional(),
+    chatId: telegramChatIdSchema.nullable().optional(),
+});
+export const notificationsTestMessageResponseSchema = z.object({
+    status: z.string(),
+    error: z.string().nullable(),
+});
+export const notificationsDiscoverChatsBodySchema = z.object({
+    // Optional: test a token the operator has typed but not yet saved. When
+    // omitted, the stored/env token is used.
+    botToken: telegramBotTokenSchema.optional(),
+});
+export const notificationsDiscoverChatsResponseSchema = z.object({
+    botUsername: z.string().nullable(),
+    chats: z.array(z.object({
+        id: z.string(),
+        type: z.string(),
+        title: z.string(),
+    })),
+});
+export const notificationsIncidentItemSchema = z.object({
+    id: intId,
+    incidentKey: z.string(),
+    kind: notificationIncidentKindEnum,
+    /** Null for global incidents (db_disk_usage, observations_partitions, …). */
+    pageLabel: z.string().nullable(),
+    platform: platformEnum.nullable(),
+    stream: z.string().nullable(),
+    status: notificationIncidentStatusEnum,
+    openedAt: isoTimestamp,
+    lastSeenAt: isoTimestamp,
+    resolvedAt: isoTimestamp.nullable(),
+    errorCode: z.string().nullable(),
+    errorSummary: z.string().nullable(),
+    notificationCount: z.number().int(),
+    outboxState: notificationDeliveryOutboxStateEnum.nullable(),
+    outboxAttemptCount: z.number().int().nonnegative().nullable(),
+    outboxLastError: z.string().nullable(),
+    outboxSuppressionReason: z.string().nullable(),
+});
+export const notificationsIncidentsQuerySchema = z.object({
+    status: notificationIncidentStatusEnum.optional(),
+    kind: notificationIncidentKindEnum.optional(),
+    pageLabel: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    offset: z.coerce.number().int().min(0).default(0),
+});
+export const notificationsIncidentsResponseSchema = z.object({
+    items: z.array(notificationsIncidentItemSchema),
+    total: z.number().int(),
+});
+export const notificationsResolveIncidentResponseSchema = z.object({
+    ok: z.literal(true),
+});
+export const notificationsReportPreviewResponseSchema = z.object({
+    text: z.string(),
+    reportDate: z.string(),
+});
+export const notificationsReportSendResponseSchema = z.object({
+    status: z.string(),
+    error: z.string().nullable(),
+    reportDate: z.string().nullable(),
+});
+export const notificationsDeliveryAttemptItemSchema = z.object({
+    id: intId,
+    kind: deliveryKindEnum,
+    status: z.string(),
+    reportDate: z.string().nullable(),
+    error: z.string().nullable(),
+    createdAt: isoTimestamp,
+});
+export const notificationsReportHistoryResponseSchema = z.object({
+    items: z.array(notificationsDeliveryAttemptItemSchema),
+});
+const credentialProxySchema = z.object({
+    url: z.string().min(1),
+    username: z.string().nullable().optional(),
+    password: z.string().nullable().optional(),
+});
+const fanslyCredentialsSchema = z.object({
+    platform: z.literal("fansly"),
+    session: z.object({
+        authorization: z.string().min(1),
+        fanslyClientId: z.string().optional(),
+        fanslyClientCheck: z.string().optional(),
+        fanslySessionId: z.string().optional(),
+        routeChecks: z.partialRecord(z.enum(FANSLY_CLIENT_CHECK_ROUTES), z.string().min(1)).optional(),
+    }),
+    // Decision #124: every standalone Fansly verification/onboarding request
+    // must carry the egress route it will actually use. Missing/null may never
+    // reach the adapter's proxyless fail-closed belt as a generic runtime error.
+    proxy: credentialProxySchema,
+});
+const onlyfansCredentialsSchema = z.object({
+    platform: z.literal("onlyfans"),
+    // Stage 18: OnlyMonster retired — OnlyFans pages onboard against the OFAPI
+    // vendor by username (the account must already be connected there); no
+    // pasted credentials, no per-page proxy (egress is vendor-side).
+    username: z.string().min(1),
+});
+export const verifyCredentialsBodySchema = z.discriminatedUnion("platform", [
+    fanslyCredentialsSchema,
+    onlyfansCredentialsSchema,
+]);
+export const verifyCredentialsResponseSchema = z.object({
+    valid: z.literal(true),
+    platform: platformEnum,
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+});
+export const createPageBodySchema = z.discriminatedUnion("platform", [
+    fanslyCredentialsSchema.extend({
+        modelSlug: z.string().min(1),
+        label: z.string().min(1),
+    }),
+    onlyfansCredentialsSchema.extend({
+        modelSlug: z.string().min(1),
+        label: z.string().min(1),
+    }),
+]);
+export const testProxyBodySchema = z.object({
+    proxy: z.object({
+        url: z.string().min(1),
+        username: z.string().nullable().optional(),
+        password: z.string().nullable().optional(),
+    }),
+});
+export const testProxyResponseSchema = z.object({
+    ip: z.string(),
+});
+export const createModelBodySchema = z.object({
+    slug: z.string().min(1).max(100),
+    name: z.string().min(1).max(200),
+});
+export const updateModelBodySchema = z.object({
+    slug: z.string().min(1).max(100).optional(),
+    name: z.string().min(1).max(200).optional(),
+    sortOrder: z.number().int().min(0).optional(),
+}).refine((value) => value.slug !== undefined || value.name !== undefined || value.sortOrder !== undefined, {
+    message: "At least one field is required",
+});
+export const createModelResponseSchema = z.object({
+    id: intId,
+    slug: z.string(),
+    name: z.string(),
+});
+export const updatePageBodySchema = z.object({
+    label: z.string().min(1).optional(),
+    modelSlug: z.string().min(1).optional(),
+}).refine((value) => value.label !== undefined || value.modelSlug !== undefined, {
+    message: "At least one field is required",
+});
+export const updateCredentialsBodySchema = z.discriminatedUnion("platform", [
+    z.object({
+        platform: z.literal("fansly"),
+        session: fanslyCredentialsSchema.shape.session.optional(),
+        // Omission preserves the stored route for a session-only update. Proxy
+        // removal is a separate explicit operation and is never encoded as null.
+        proxy: credentialProxySchema.optional(),
+    }),
+    z.object({
+        // Stage 18: OnlyFans pages hold no pasted credentials (OFAPI vendor-side)
+        // — the update route rejects this variant with a clear 400.
+        platform: z.literal("onlyfans"),
+    }),
+]);
+export const verifyPageResponseSchema = z.object({
+    verified: z.boolean(),
+    username: z.string().nullable(),
+    platform: platformEnum,
+    // W3.3 (D4-N1): false = the credentials verified but the auth block could
+    // not be cleared — streams stay blocked and the incidents stay open; the
+    // dashboard renders a warning instead of an all-clear.
+    syncUnblocked: z.boolean(),
+});
+export const adminCreatePageResponseSchema = z.object({
+    page: assignedPageSchema,
+    verified: z.boolean(),
+    syncQueued: z.boolean(),
+    syncWarning: z.object({
+        code: z.literal("initial_sync_enqueue_failed"),
+        message: z.string(),
+    }).nullable(),
+    syncRetry: z.object({
+        method: z.literal("POST"),
+        path: z.literal("/api/v1/admin/sync/trigger"),
+        body: syncTriggerBodySchema,
+    }).nullable(),
+});
+export const adminUpdatePageResponseSchema = z.object({
+    page: assignedPageSchema,
+});
+export const updateCredentialsResponseSchema = z.object({
+    updated: z.boolean(),
+    verified: z.boolean(),
+    // W3.3 (D4-N1): see verifyPageResponseSchema.syncUnblocked.
+    syncUnblocked: z.boolean(),
+});
+export const deletedResponseSchema = z.object({
+    deleted: z.literal(true),
+});
+// ─── OFAPI webhook receiver + SSE sync-event fanout (ChatMuse real-time) ───
+//
+// SyncEvent is core's copy of the ChatGoose desktop protocol union
+// (chatgoose_desktop packages/shared/src/protocol — shared conceptually, owned
+// here). `accountId` is the OFAPI account id ("acct_…", the desktop's account
+// namespace); chatId/messageId are raw OnlyFans numeric ids serialized as strings
+// (chat_id === fan.id). Unknown frame types are skipped by consumers, so the
+// union can grow without breaking them.
+const syncEventIdSchema = z.string().min(1);
+export const normalizedSyncMessageMediaSchema = z.object({
+    id: syncEventIdSchema,
+    type: z.enum(["photo", "video", "audio", "gif", "other"]),
+    isReady: z.boolean(),
+    locked: z.boolean(),
+    durationSeconds: z.number().nonnegative().nullable().optional(),
+});
+export const normalizedSyncMessageReplyToSchema = z.object({
+    messageId: syncEventIdSchema.optional(),
+    sender: z.enum(["fan", "model"]).optional(),
+    textPreview: z.string(),
+});
+export const normalizedSyncMessageSchema = z.object({
+    id: syncEventIdSchema,
+    // OFAPI HTML. Consumers derive their own plain-text preview.
+    text: z.string(),
+    createdAt: isoTimestamp,
+    isSentByMe: z.boolean(),
+    price: z.number().nonnegative(),
+    isOpened: z.boolean().nullable().optional(),
+    isNew: z.boolean().optional(),
+    isTip: z.boolean().optional(),
+    tipAmountUsd: z.number().nonnegative().nullable().optional(),
+    tipText: z.string().nullable().optional(),
+    mediaCount: z.number().int().nonnegative().optional(),
+    media: z.array(normalizedSyncMessageMediaSchema).optional(),
+    replyTo: normalizedSyncMessageReplyToSchema.nullable().optional(),
+});
+export const chatListUpdatedEventSchema = z.object({
+    type: z.literal("chatListUpdated"),
+    accountId: syncEventIdSchema,
+});
+export const messageReceivedEventSchema = z.object({
+    type: z.literal("messageReceived"),
+    accountId: syncEventIdSchema,
+    chatId: syncEventIdSchema,
+    messageId: syncEventIdSchema,
+    message: normalizedSyncMessageSchema.optional(),
+});
+export const messageSentEventSchema = z.object({
+    type: z.literal("messageSent"),
+    accountId: syncEventIdSchema,
+    chatId: syncEventIdSchema,
+    messageId: syncEventIdSchema,
+    message: normalizedSyncMessageSchema.optional(),
+});
+// Core extension over the desktop union (load-bearing for its message tombstones);
+// the upstream messages.deleted payload carries only the message id, no chat id.
+export const messageDeletedEventSchema = z.object({
+    type: z.literal("messageDeleted"),
+    accountId: syncEventIdSchema,
+    messageId: syncEventIdSchema,
+});
+// messages.ppv.unlocked / tips.received payloads are notification-shaped: the fan
+// id is present, but the message id is only sometimes recoverable (from the
+// notification's message link) — optional, never fabricated.
+export const ppvUnlockedEventSchema = z.object({
+    type: z.literal("ppvUnlocked"),
+    accountId: syncEventIdSchema,
+    chatId: syncEventIdSchema,
+    messageId: syncEventIdSchema.optional(),
+});
+export const tipReceivedEventSchema = z.object({
+    type: z.literal("tipReceived"),
+    accountId: syncEventIdSchema,
+    chatId: syncEventIdSchema,
+    messageId: syncEventIdSchema.optional(),
+    // OFAPI amounts are dollars; absent when upstream omits it.
+    amountUsd: z.number().nonnegative().optional(),
+});
+export const presenceEventSchema = z.object({
+    type: z.literal("presence"),
+    accountId: syncEventIdSchema,
+    chatId: syncEventIdSchema,
+    online: z.boolean(),
+    // Epoch milliseconds.
+    lastSeenAt: z.number().optional(),
+});
+export const typingEventSchema = z.object({
+    type: z.literal("typing"),
+    accountId: syncEventIdSchema,
+    chatId: syncEventIdSchema,
+});
+export const accountAuthChangedEventSchema = z.object({
+    type: z.literal("accountAuthChanged"),
+    accountId: syncEventIdSchema,
+    authenticated: z.boolean(),
+});
+export const syncEventSchema = z.discriminatedUnion("type", [
+    chatListUpdatedEventSchema,
+    messageReceivedEventSchema,
+    messageSentEventSchema,
+    messageDeletedEventSchema,
+    ppvUnlockedEventSchema,
+    tipReceivedEventSchema,
+    presenceEventSchema,
+    typingEventSchema,
+    accountAuthChangedEventSchema,
+]);
+export const syncSnapshotRequiredResponseSchema = z.object({
+    error: z.literal("sync_snapshot_required"),
+    message: z.string(),
+    statusCode: z.literal(409),
+    version: z.literal(1),
+    requestedSeq: z.number().int().nonnegative(),
+    oldestAvailableSeq: z.number().int().nonnegative().nullable(),
+    currentSeq: z.number().int().nonnegative(),
+    snapshotPath: z.literal("/api/v1/events/snapshot"),
+});
+/** A sticky snapshotCursor/stateCursor became older than cleanup's durable
+ * replay floor while a paged recovery was in progress. Clients must discard
+ * only that matching progress record and restart the snapshot without either
+ * cursor; retrying the same continuation can never succeed. */
+export const syncSnapshotRestartRequiredResponseSchema = z.object({
+    error: z.literal("sync_snapshot_restart_required"),
+    message: z.string(),
+    statusCode: z.literal(409),
+    replayFloor: z.number().int().nonnegative(),
+    snapshotPath: z.literal("/api/v1/events/snapshot"),
+});
+// --- Event stream v2 (kernel Stage 21): domain_events, per-account ordering ---
+/** H3: what Core knows about how a durable frame's fact reached the ledger.
+ * `redelivery` — its source OFAPI webhook receipt carries the provider's
+ * redelivery header (`x-ofapi-redelivery-of`); `repair` — a superseding
+ * correction (`data.supersedesEventId`); `live` — neither is KNOWN. `live` is
+ * NOT "fresh": old facts are labelled `live` on every replay before
+ * `replay_completed`, after re-canonicalization of old observations by a new
+ * parser version (e.g. formerly quarantined PPVs), on Fansly history pulls
+ * (no webhook lane, never looked up), on OFAPI's own automatic retries (no
+ * redelivery header) and on receipts past retention. A missing
+ * `provenance` means unknown (the lookup failed): treat it as not live.
+ * Business identity (refs, dedup) is the same in all three.
+ * Clients deciding on attention (toasts, sounds) must combine `live` with
+ * the stream's `replay_completed` boundary AND an age check on `occurredAt`
+ * — and even that is not proof: when the upstream payload has no timestamp
+ * of its own, `occurredAt` falls back to the receipt time. Never toast from
+ * `GET /api/v1/events/v2/facts` (catch-up of history, not news). */
+export const domainEventProvenanceEnum = z.enum(["live", "redelivery", "repair"]);
+/** H3: the money facts `GET /api/v1/events/v2/facts` serves. */
+export const domainEventFactTypes = [
+    "message.ppv_unlocked",
+    "tip.received",
+    "transaction.posted",
+];
+export const domainEventFrameSchema = z.object({
+    accountId: z.number().int().positive(),
+    accountSeq: z.number().int().positive(),
+    // Canonical vocabulary (target §3.2). Deliberately open: clients MUST
+    // tolerate unknown types (the v1 union's forward-compat rule, now explicit).
+    type: z.string().min(1),
+    occurredAt: isoTimestamp,
+    data: z.unknown(),
+    // Stage 24 serve-time additions (all optional — pre-Stage-24 frames and the
+    // smoke consumer's persisted expectations stay valid):
+    // the ledger's platform-native refs, surfaced so clients can route events
+    // without re-deriving them from `data`...
+    fanRef: z.string().nullable().optional(),
+    conversationRef: z.string().nullable().optional(),
+    messageRef: z.string().nullable().optional(),
+    // ...the page's OFAPI account ref (null for unmapped/Fansly pages), so
+    // OFAPI-keyed clients (the desktop) filter without numeric-id translation...
+    accountRef: z.string().nullable().optional(),
+    // ...and, on message.received/message.sent frames whose source observation
+    // is an OFAPI webhook message, the same normalized message payload the v1
+    // fanout serves — projection-grade ingest without a read-gateway round
+    // trip (decision #92's "payloads ride Stage 24"). Shape-tolerant clients
+    // validate it themselves (it is upstream-derived, not a kernel contract).
+    payload: z.unknown().optional(),
+    // H3 serve-time additions (optional; older consumers strip unknown keys):
+    // the ledger's transaction ref (transaction.posted), so money consumers
+    // apply one change per transaction...
+    transactionRef: z.string().nullable().optional(),
+    // ...what Core knows about how the fact reached the ledger — NOT a
+    // freshness signal (see domainEventProvenanceEnum). Absent = unknown,
+    // treat it as not live...
+    provenance: domainEventProvenanceEnum.optional(),
+    // ...and, on money-fact frames (domainEventFactTypes) whose conversationRef
+    // names a known DM thread, its fan labels for display without a chat read.
+    thread: z.object({
+        fanName: z.string().nullable(),
+        username: z.string().nullable(),
+    }).optional(),
+});
+// The v2 stream may interleave `event: ephemeral` frames (no id line — they
+// never advance the cursor): serve-time-only events that are deliberately
+// NOT ledgered (typing indicators). data = a v1 SyncEvent JSON object.
+// The v2 stream also carries an `event: control` lane: connection-scoped
+// signals that are not domain events and never enter DomainEventFrame
+// validation. Today's only member is `{"type":"replay_completed"}` — written
+// once per connection when replay (cursor resume and/or post-snapshot
+// catch-up) has fully flushed; every frame after it is live delivery. Its
+// `id` line repeats the already-delivered watermark cursor (safe to resume
+// from, unlike ephemeral's deliberate no-id). Clients that don't recognize a
+// control type MUST skip the frame (the same forward-compat rule that makes
+// unknown event names safe for SDK subscribers, which consume only
+// `event: domain`). Consumers: the desktop's notification gate treats it as
+// the replay/live attention boundary (its decisions.md D23).
+export const domainEventsSnapshotRequiredAccountSchema = z.object({
+    accountId: z.number().int().positive(),
+    requestedSeq: z.number().int().nonnegative(),
+    oldestAvailableSeq: z.number().int().positive().nullable(),
+    currentSeq: z.number().int().nonnegative(),
+});
+export const domainEventsSnapshotRequiredResponseSchema = z.object({
+    error: z.literal("sync_snapshot_required"),
+    message: z.string(),
+    statusCode: z.literal(409),
+    version: z.literal(2),
+    accounts: z.array(domainEventsSnapshotRequiredAccountSchema),
+    snapshotPath: z.literal("/api/v1/events/v2/snapshot"),
+});
+export const domainEventsSnapshotResponseSchema = z.object({
+    // Opaque replay cursor over the requested accounts. It ordinarily points at
+    // current high-waters, but may remain before a retained OFAPI event that is
+    // not yet represented by the durable state snapshot. accounts.currentSeq
+    // remains the raw committed high-water for diagnostics.
+    cursor: z.string(),
+    accounts: z.array(z.object({
+        accountId: z.number().int().positive(),
+        // Platform-native OFAPI id used by Desktop's durable state endpoint. Null
+        // for pages that are not backed by OFAPI.
+        accountRef: z.string().min(1).nullable(),
+        currentSeq: z.number().int().nonnegative(),
+    })),
+});
+/** H3: one page of an account's money facts, in account_seq order. */
+export const domainEventFactsResponseSchema = z.object({
+    accountId: z.number().int().positive(),
+    // The account's committed high-water when this page was read. Every fact
+    // at or below it is either in this page, in a later page, or superseded.
+    throughSeq: z.number().int().nonnegative(),
+    facts: z.array(domainEventFrameSchema),
+    // Pass back as afterSeq. The last fact's accountSeq while hasMore, else
+    // throughSeq (the next call then returns only newer facts).
+    nextAfterSeq: z.number().int().nonnegative(),
+    hasMore: z.boolean(),
+});
+export const syncSnapshotQuerySchema = z.object({
+    accountId: syncEventIdSchema,
+    afterSeq: z.coerce.number().int().nonnegative(),
+    snapshotCursor: z.coerce.number().int().nonnegative().optional(),
+    pageCursor: z.coerce.number().int().nonnegative().default(0),
+    limit: z.coerce.number().int().min(1).max(50).default(25),
+    // Additive bounded-v1 protocol. Old servers strip these unknown query
+    // fields and return the legacy page shape; upgraded clients detect the
+    // absent nextStateCursor and continue with legacy thread pagination.
+    pageMode: z.literal("bounded_v1").optional(),
+    stateCursor: z.string().min(1).max(2_048).regex(/^[A-Za-z0-9_-]+$/).optional(),
+    messageLimit: z.coerce.number().int().min(1).max(200).default(100),
+});
+export const syncSnapshotMessageSchema = z.object({
+    chatId: syncEventIdSchema,
+    messageId: syncEventIdSchema,
+    message: normalizedSyncMessageSchema.nullable(),
+    deletedAt: isoTimestamp.nullable(),
+    sourceUpdatedAt: isoTimestamp,
+    sourceFanoutSeq: z.number().int().nonnegative().nullable(),
+});
+export const syncSnapshotThreadSchema = z.object({
+    chatId: syncEventIdSchema,
+    fanName: z.string(),
+    unreadCount: z.number().int().nonnegative(),
+    hasUnreadTips: z.boolean(),
+    lastMessageId: syncEventIdSchema.nullable(),
+    lastMessageAt: isoTimestamp.nullable(),
+    lastMessageIsSentByMe: z.boolean(),
+    lastMessagePreview: z.string(),
+    visible: z.boolean(),
+    sourceUpdatedAt: isoTimestamp,
+    messages: z.array(syncSnapshotMessageSchema),
+});
+export const syncSnapshotUnresolvedTombstoneSchema = z.object({
+    messageId: syncEventIdSchema,
+    deletedAt: isoTimestamp,
+    sourceUpdatedAt: isoTimestamp,
+    sourceFanoutSeq: z.number().int().nonnegative(),
+});
+export const syncSnapshotResponseSchema = z.object({
+    version: z.literal(1),
+    requestedAfterSeq: z.number().int().nonnegative(),
+    snapshotCursor: z.number().int().nonnegative(),
+    stateAt: isoTimestamp,
+    resumeAllowed: z.boolean(),
+    page: z.object({
+        pageId: intId,
+        label: z.string(),
+        accountId: syncEventIdSchema,
+        username: z.string().nullable(),
+        authStatus: z.string().nullable(),
+        authenticated: z.boolean().nullable(),
+        authChangedAt: isoTimestamp.nullable(),
+    }),
+    coverage: z.object({
+        durableDomains: z.array(z.enum([
+            "chat_heads",
+            "hot_messages",
+            "message_tombstones",
+            "account_auth",
+        ])),
+        omittedDomains: z.array(z.object({
+            domain: z.string(),
+            reason: z.string(),
+        })),
+        messageWindow: z.literal("hot_projection_plus_archive_delta"),
+    }),
+    threads: z.array(syncSnapshotThreadSchema),
+    unresolvedTombstones: z.array(syncSnapshotUnresolvedTombstoneSchema),
+    nextPageCursor: z.number().int().nonnegative().nullable(),
+    // Present (including terminal null) only for bounded_v1 responses. Its
+    // absence is the backwards-compatible old-Core/legacy-mode signal.
+    nextStateCursor: z.string().min(1).max(2_048).nullable().optional(),
+});
+export const ofapiWebhookAckResponseSchema = z.object({
+    received: z.literal(true),
+    duplicate: z.boolean(),
+});
+export const ofapiPageMappingSchema = z.object({
+    bindingGeneration: z.number().int().positive(),
+    pageId: intId,
+    label: z.string(),
+    username: z.string().nullable(),
+    ofapiAccountId: z.string().nullable(),
+    // OFAPI account health (decision #49 Phase 3): latest accounts.* state and
+    // webhook recency for the mapped account. Null when unmapped / no data yet.
+    ofapiAuthStatus: z.string().nullable(),
+    ofapiAuthChangedAt: isoTimestamp.nullable(),
+    lastEventAt: isoTimestamp.nullable(),
+    lastEventAgeSeconds: z.number().int().nullable(),
+});
+export const ofapiWebhookRegistrationStateSchema = z.enum([
+    "stable",
+    "create_prepared",
+    "create_dispatching",
+    "create_indeterminate",
+    "create_failed",
+    "update_prepared",
+    "update_dispatching",
+    "update_indeterminate",
+]);
+export const ofapiWebhookPendingRegistrationSchema = z.object({
+    operationId: z.string().min(1),
+    operation: z.enum(["create", "update"]),
+    externalWebhookId: z.string().nullable(),
+    endpointUrl: z.string(),
+    accountScope: z.literal("global"),
+    events: z.array(z.string()),
+    preparedAt: isoTimestamp,
+});
+export const ofapiWebhookStatusResponseSchema = z.object({
+    configured: z.boolean(),
+    registrationState: ofapiWebhookRegistrationStateSchema.nullable(),
+    registrationError: z.string().nullable(),
+    pendingRegistration: ofapiWebhookPendingRegistrationSchema.nullable(),
+    endpointUrl: z.string().nullable(),
+    externalWebhookId: z.string().nullable(),
+    accountScope: z.string().nullable(),
+    events: z.array(z.string()),
+    signingSecretMask: z.string().nullable(),
+    updatedAt: isoTimestamp.nullable(),
+    pages: z.array(ofapiPageMappingSchema),
+    // Last credit balance observed in OFAPI REST _meta plus today's tracked spend.
+    credit: z.object({
+        lastBalance: z.number().int().nullable(),
+        lastBalanceAt: isoTimestamp.nullable(),
+        spentToday: z.number().int(),
+    }),
+});
+const ofapiEvidenceRefSchema = z.object({ id: intId, receivedAt: isoTimestamp }).strict();
+export const ofapiBindingRefreshBodySchema = z.object({
+    pageId: intId,
+    expectedAccountId: z.string().regex(/^acct_[A-Za-z0-9]+$/).nullable(),
+    expectedGeneration: z.number().int().positive(),
+    accountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
+    identityEvidence: ofapiEvidenceRefSchema.nullable().default(null),
+    historicalEvidence: z.array(ofapiEvidenceRefSchema).max(20).default([]),
+    dryRun: z.boolean().default(true),
+    previewToken: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+}).strict();
+export const ofapiBindingRefreshResponseSchema = z.object({
+    dryRun: z.boolean(), applied: z.boolean(), previewToken: z.string(),
+    pageId: intId, expectedAccountId: z.string().nullable(), expectedGeneration: z.number().int(),
+    accountId: z.string(), creatorId: z.string(), historicalAccountIds: z.array(z.string()),
+    recovery: z.array(z.object({ stream: z.string(), version: z.string(), code: z.string() })),
+    credentialFingerprint: z.string(), expectedTeam: z.string().nullable(),
+    identityEvidence: ofapiEvidenceRefSchema.nullable(), historicalEvidence: z.array(ofapiEvidenceRefSchema),
+});
+export const ofapiCredentialPreflightSchema = z.object({
+    status: z.enum(["verified", "unknown", "mismatch", "denied"]), expectedTeam: z.string().nullable(),
+    observedTeam: z.string().nullable(), credentialFingerprint: z.string(), checkedAt: isoTimestamp,
+    reason: z.string().nullable(), rosterScope: z.literal("unknown"),
+});
+const ofapiWebhookGroupSchema = z.enum(["subscription_expiry", "account_lifecycle", "media_uploads", "data_exports", "engagement"]);
+export const ofapiWebhookEventCatalogSchema = z.object({
+    source: z.literal("onlyfansapi"), state: z.enum(["never", "captured", "invalid"]), observedAt: isoTimestamp.nullable(), observationId: z.string().nullable(),
+    events: z.array(z.object({ value: z.string(), description: z.string(), requested: z.boolean(), supported: z.boolean(), optionalGroup: z.string().nullable() })),
+});
+export const ofapiWebhookCollectionPolicySchema = z.object({
+    version: z.number().int().nonnegative(), desiredGroups: z.array(z.string()), appliedGroups: z.array(z.string()),
+    historyEnabled: z.boolean(), applyState: z.string(), errorCode: z.string().nullable(), appliedAt: isoTimestamp.nullable(),
+    groups: z.array(z.object({ id: z.string(), events: z.array(z.string()) })),
+});
+export const ofapiWebhookDeliveryScanSchema = z.object({
+    id: z.string().uuid(), webhookId: z.string(), state: z.string(), from: isoTimestamp, to: isoTimestamp,
+    nextOffset: z.number().int().nonnegative(), capturedAttempts: z.number().int().nonnegative(),
+    errorCode: z.string().nullable(), coverageScope: z.literal("credential-visible"), completedAt: isoTimestamp.nullable(),
+});
+export const ofapiWebhookDeliveryHistorySchema = z.object({
+    webhookId: z.string().nullable(), latestScan: ofapiWebhookDeliveryScanSchema.nullable(),
+    attempts: z.array(z.object({
+        attemptId: z.number().int().positive(), deliveryUuid: z.string(), eventType: z.string(),
+        attemptNumber: z.number().int().positive(), succeeded: z.boolean(), statusCode: z.number().int().nullable(),
+        errorType: z.string().nullable(), redeliveredFrom: z.string().nullable(), createdAt: isoTimestamp,
+        deliveryRecovered: z.boolean(), localEventId: z.number().int().positive().nullable(),
+        captureState: z.string().nullable(), localStatus: z.string().nullable(), projectionStatus: z.string().nullable(),
+        canonicalVersion: z.number().int().nullable(),
+        redeliveryState: z.string().nullable(), redeliveryUuid: z.string().nullable(), redeliverySucceeded: z.boolean().nullable(),
+    })),
+});
+export const ofapiWebhookRedeliveryResultSchema = z.object({
+    id: z.string().uuid(), state: z.string(), redeliveryUuid: z.string().nullable(), errorCode: z.string().nullable(), projected: z.boolean(),
+});
+export const ofapiWebhookRegisterBodySchema = z.object({
+    // Public URL OFAPI should deliver to, e.g. https://hub.example.com/api/v1/ofapi/webhook
+    endpointUrl: z.string().url().max(2000),
+});
+export const ofapiWebhookReconcileBodySchema = z.discriminatedUnion("action", [
+    z.object({
+        action: z.literal("adopt"),
+        operationId: z.string().min(1),
+        externalWebhookId: z.string().min(1).max(500),
+    }),
+    z.object({
+        action: z.literal("confirm_not_created"),
+        operationId: z.string().min(1),
+        reason: z.string().trim().min(1).max(500),
+    }),
+]);
+export const ofapiCaptureSeedBodySchema = z.object({
+    dryRun: z.boolean().default(true),
+    goal: z.enum(["connect_to_anchor", "history_to_exhaustion"])
+        .default("connect_to_anchor"),
+    targets: z.array(z.object({
+        pageId: intId,
+        chatId: z.string().trim().min(1).max(200),
+        anchorMessageId: z.string().trim().min(1).max(200).optional(),
+    })).min(1).max(20),
+}).superRefine((value, ctx) => {
+    value.targets.forEach((target, index) => {
+        if (value.goal === "connect_to_anchor" && target.anchorMessageId === undefined) {
+            ctx.addIssue({
+                code: "custom",
+                path: ["targets", index, "anchorMessageId"],
+                message: "connect_to_anchor requires a verified anchorMessageId",
+            });
+        }
+        if (value.goal === "history_to_exhaustion" && target.anchorMessageId !== undefined) {
+            ctx.addIssue({
+                code: "custom",
+                path: ["targets", index, "anchorMessageId"],
+                message: "history_to_exhaustion must not declare an anchorMessageId",
+            });
+        }
+    });
+});
+export const ofapiCaptureSeedResponseSchema = z.object({
+    dryRun: z.boolean(),
+    seedId: z.string().uuid(),
+    limits: z.object({
+        maxTargets: z.literal(20),
+        maxPagesPerJob: z.literal(3),
+        maxCallsPerJob: z.literal(3),
+        maxCreditsPerJob: z.literal(3),
+        maxItemsPerJob: z.literal(300),
+    }),
+    created: z.number().int().nonnegative(),
+    coalesced: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+    results: z.array(z.object({
+        pageId: intId,
+        chatId: z.string(),
+        goal: z.enum(["connect_to_anchor", "history_to_exhaustion"]),
+        frozenHeadId: z.string(),
+        anchorMessageId: z.string().nullable(),
+        status: z.enum([
+            "would_create",
+            "would_coalesce",
+            "created",
+            "coalesced",
+            "already_covered",
+            "already_captured",
+        ]),
+        jobId: z.string().uuid().nullable(),
+        state: z.enum(ofapiCaptureJobStates).nullable(),
+        reasonCode: z.string().nullable(),
+    })),
+});
+const ofapiExportQuoteCommonSchema = {
+    dryRun: z.boolean().default(true),
+    pageId: intId,
+    startDate: isoTimestamp,
+    endDate: isoTimestamp,
+    maxMessages: z.number().int().min(1).max(10_000_000).default(10_000_000),
+    quoteTtlMinutes: z.number().int().min(60).max(10_080).default(1_440),
+};
+export const ofapiExportQuoteBodySchema = z.discriminatedUnion("profile", [
+    z.object({
+        ...ofapiExportQuoteCommonSchema,
+        profile: z.literal("pilot_chats"),
+        chatIds: z.array(z.string().regex(/^\d+$/).max(30)).min(1).max(3),
+    }).strict(),
+    z.object({
+        ...ofapiExportQuoteCommonSchema,
+        profile: z.literal("fleet_tail"),
+    }).strict(),
+]);
+const ofapiExportQuoteJobStateSchema = z.enum(ofapiCaptureJobStates);
+export const ofapiExportQuoteCreateResponseSchema = z.object({
+    dryRun: z.boolean(),
+    status: z.enum(["would_create", "would_coalesce", "created", "coalesced"]),
+    jobId: z.string().uuid().nullable(),
+    pageId: intId,
+    profile: z.enum(["pilot_chats", "fleet_tail", "profile_visitors", "fans", "tracking_links", "trial_links", "smart_links"]),
+    targetHash: z.string().regex(/^[0-9a-f]{64}$/),
+    state: ofapiExportQuoteJobStateSchema.nullable(),
+    reasonCode: z.string().nullable(),
+});
+export const ofapiExportQuoteParamsSchema = z.object({
+    jobId: z.string().uuid(),
+});
+export const ofapiExportQuoteCancelBodySchema = z.object({
+    expectedState: z.literal("blocked"),
+    reason: z.string().trim().min(1).max(500),
+}).strict();
+export const ofapiExportPilotApprovalBodySchema = z.object({
+    expectedRowVersion: z.number().int().nonnegative(),
+    approvedMaxCredits: z.number().int().min(1).max(50),
+    reason: z.string().trim().min(1).max(500),
+    dryRun: z.boolean().default(true),
+}).strict();
+export const ofapiExportPilotApprovalResponseSchema = z.object({
+    dryRun: z.boolean(),
+    jobId: z.string().uuid(),
+    previousState: z.literal("blocked"),
+    nextState: z.literal("ready"),
+    expectedRowVersion: z.number().int().nonnegative(),
+    nextRowVersion: z.number().int().nonnegative(),
+    approvedMaxCredits: z.number().int().min(1).max(50),
+    requiredMaxCredits: z.number().int().min(1).max(50),
+});
+export const ofapiExportArtifactCaptureBodySchema = z.object({
+    expectedRowVersion: z.number().int().nonnegative(),
+    expectedSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    reason: z.string().trim().min(1).max(500),
+    dryRun: z.boolean().default(true),
+}).strict();
+export const ofapiExportArtifactCaptureResponseSchema = z.object({
+    dryRun: z.boolean(),
+    status: z.enum(["would_capture", "captured"]),
+    jobId: z.string().uuid(),
+    pageId: intId,
+    expectedRowVersion: z.number().int().nonnegative(),
+    nextRowVersion: z.number().int().nonnegative(),
+    importJobId: z.string().uuid().nullable(),
+    importJobState: ofapiExportQuoteJobStateSchema.nullable(),
+    classification: z.literal("item_presence"),
+    artifact: z.object({
+        fileName: z.string(),
+        sha256: z.string().regex(/^[0-9a-f]{64}$/),
+        byteSize: z.number().int().positive(),
+        rowCount: z.number().int().nonnegative().max(1_000),
+        chatCount: z.number().int().nonnegative().max(3),
+        minCreatedAt: isoTimestamp.nullable(),
+        maxCreatedAt: isoTimestamp.nullable(),
+    }),
+});
+export const ofapiExportQuoteStatusResponseSchema = z.object({
+    jobId: z.string().uuid(),
+    pageId: intId,
+    profile: z.enum(["pilot_chats", "fleet_tail", "profile_visitors", "fans", "tracking_links", "trial_links", "smart_links"]),
+    targetHash: z.string().regex(/^[0-9a-f]{64}$/),
+    state: ofapiExportQuoteJobStateSchema,
+    reasonCode: z.string().nullable(),
+    reasonMessage: z.string().nullable(),
+    attemptCount: z.number().int().nonnegative(),
+    dispatchCount: z.number().int().nonnegative(),
+    spentCredits: z.number().int().nonnegative(),
+    rowVersion: z.number().int().nonnegative(),
+    createdAt: isoTimestamp,
+    updatedAt: isoTimestamp,
+    quote: z.object({
+        vendorExportId: z.string(),
+        vendorStatus: z.string(),
+        totalRows: z.number().int().nonnegative().nullable(),
+        creditCost: z.number().int().nonnegative().nullable(),
+        pollCount: z.number().int().nonnegative(),
+        quotedAt: isoTimestamp.nullable(),
+        expiresAt: isoTimestamp.nullable(),
+        approvedMaxCredits: z.number().int().nonnegative().nullable(),
+        approvedAt: isoTimestamp.nullable(),
+        rowsProcessed: z.number().int().nonnegative().nullable(),
+        failedDownloads: z.number().int().nonnegative().nullable(),
+        artifactPending: z.boolean(),
+        lifecycle: z.object({
+            status: z.string(), receivedAt: isoTimestamp, sourceAt: isoTimestamp.nullable(),
+            eventId: z.number().int().positive(), conflictingTerminal: z.boolean(),
+        }).nullable().optional(),
+    }).nullable(),
+});
+const ofapiCaptureControlKeySchema = z.string().trim().max(200).refine((value) => value === "global"
+    || /^page:[1-9]\d*$/.test(value)
+    || /^(scope):(live|interactive|bulk)$/.test(value)
+    || /^operation:[a-z0-9_.:-]+$/.test(value), "Unsupported OFAPI capture control key");
+const ofapiCaptureOperatorAttemptSchema = z.object({
+    attemptId: z.string().uuid(),
+    captureJobId: z.string().uuid().nullable(),
+    pageId: intId,
+    operation: z.string(),
+    state: z.enum([
+        "reserved",
+        "released_pre_dispatch",
+        "dispatching",
+        "response_captured",
+        "indeterminate",
+    ]),
+    creditState: z.enum(["reserved", "settled", "released", "indeterminate"]),
+    reservedCredits: z.number().int().nonnegative(),
+    settledCredits: z.number().int().nonnegative().nullable(),
+    certaintyResolution: z.string().nullable(),
+    dispatchStartedAt: isoTimestamp.nullable(),
+    finishedAt: isoTimestamp.nullable(),
+});
+export const ofapiCaptureOperatorStatusResponseSchema = z.object({
+    controls: z.array(z.object({
+        controlKey: z.string(),
+        paused: z.boolean(),
+        reason: z.string().nullable(),
+        version: z.number().int().nonnegative(),
+        updatedAt: isoTimestamp,
+    })),
+    jobGroups: z.array(z.object({
+        state: ofapiExportQuoteJobStateSchema,
+        reasonCode: z.string().nullable(),
+        count: z.number().int().nonnegative(),
+        oldestUpdatedAt: isoTimestamp,
+    })),
+    jobSamples: z.array(z.object({
+        jobId: z.string().uuid(),
+        pageId: intId,
+        kind: z.enum([
+            "chat_paginate",
+            "campaign_snapshot",
+            "head_repair",
+            "account_export",
+            "export_import",
+            "post_paginate",
+            "collection_read",
+            "media_upload",
+        ]),
+        state: ofapiExportQuoteJobStateSchema,
+        reasonCode: z.string().nullable(),
+        /** Decision #246: the parked job's own words — for an exhausted retry the
+         *  governed cause is here (`... transport (body_too_large, post_dispatch)`). */
+        reasonMessage: z.string().nullable(),
+        rowVersion: z.number().int().nonnegative(),
+        updatedAt: isoTimestamp,
+    })),
+    indeterminate: z.object({
+        count: z.number().int().nonnegative(),
+        oldestAt: isoTimestamp.nullable(),
+        samples: z.array(ofapiCaptureOperatorAttemptSchema),
+    }),
+    strandedInteractive: z.object({
+        count: z.number().int().nonnegative(),
+        oldestAt: isoTimestamp.nullable(),
+    }),
+    storageHealth: z.object({
+        healthy: z.boolean(),
+        breached: z.boolean(),
+        checkedAt: isoTimestamp,
+        usedBytes: z.number().int().nonnegative().nullable(),
+        freeBytes: z.number().int().nonnegative().nullable(),
+        totalBytes: z.number().int().nonnegative().nullable(),
+        errorPresent: z.boolean(),
+    }).nullable(),
+});
+export const ofapiCaptureControlBodySchema = z.object({
+    controlKey: ofapiCaptureControlKeySchema,
+    paused: z.boolean(),
+    expectedVersion: z.number().int().nonnegative(),
+    reason: z.string().trim().min(1).max(500),
+    dryRun: z.boolean().default(true),
+}).strict();
+export const ofapiCaptureControlResponseSchema = z.object({
+    executed: z.boolean(),
+    controlKey: z.string(),
+    previous: z.object({
+        paused: z.boolean(),
+        reason: z.string().nullable(),
+        version: z.number().int().nonnegative(),
+    }),
+    next: z.object({
+        paused: z.boolean(),
+        reason: z.string(),
+        version: z.number().int().nonnegative(),
+    }),
+});
+export const ofapiCaptureAttemptParamsSchema = z.object({
+    attemptId: z.string().uuid(),
+});
+export const ofapiCaptureAttemptResolveBodySchema = z.object({
+    expectedState: z.literal("indeterminate").default("indeterminate"),
+    resolution: z.enum(["confirmed_billed", "confirmed_not_billed"]),
+    actualCredits: z.number().int().nonnegative().max(1_000_000).optional(),
+    reason: z.string().trim().min(1).max(500),
+    dryRun: z.boolean().default(true),
+}).strict().superRefine((value, ctx) => {
+    if (value.resolution === "confirmed_not_billed" && value.actualCredits !== undefined) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["actualCredits"],
+            message: "confirmed_not_billed cannot declare actualCredits",
+        });
+    }
+});
+export const ofapiCaptureAttemptResolveResponseSchema = z.object({
+    dryRun: z.boolean(),
+    status: z.enum(["would_resolve", "resolved"]),
+    attempt: ofapiCaptureOperatorAttemptSchema,
+});
+export const ofapiCaptureJobParamsSchema = z.object({
+    jobId: z.string().uuid(),
+});
+export const ofapiCaptureJobReplayBodySchema = z.object({
+    expectedState: z.enum(["blocked", "awaiting_parse"]),
+    expectedReasonCode: z.enum([
+        "parser_failed",
+        "contract_rejected",
+        "capture_envelope_invalid",
+        "invalid_json",
+        "export_contract_rejected",
+    ]),
+    expectedJobRowVersion: z.number().int().nonnegative(),
+    reason: z.string().trim().min(1).max(500),
+    dryRun: z.boolean().default(true),
+}).strict().superRefine((value, ctx) => {
+    const expectedState = value.expectedReasonCode === "parser_failed"
+        ? "awaiting_parse"
+        : "blocked";
+    if (value.expectedState !== expectedState) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["expectedState"],
+            message: `${value.expectedReasonCode} requires ${expectedState}`,
+        });
+    }
+});
+export const ofapiCaptureJobReplayResponseSchema = z.object({
+    dryRun: z.boolean(),
+    status: z.enum(["would_replay", "replayed"]),
+    jobId: z.string().uuid(),
+    attemptId: z.string().uuid(),
+    previous: z.object({
+        state: z.enum(["blocked", "awaiting_parse"]),
+        reasonCode: z.string().nullable(),
+        rowVersion: z.number().int().nonnegative(),
+    }),
+    next: z.object({
+        state: z.literal("awaiting_parse"),
+        reasonCode: z.null(),
+        rowVersion: z.number().int().nonnegative(),
+        observationId: z.number().int().positive(),
+        observationReceivedAt: isoTimestamp,
+    }),
+});
+/** Decision #246: a parked capture job is CANCELLED, never resumed in place.
+ *  The row and its attempts stay (append-only history); the active slot is
+ *  freed, so the owning lane starts a fresh job with fresh allowances on its
+ *  next request. Nothing is dispatched by this action. */
+export const ofapiCaptureJobCancelBodySchema = z.object({
+    expectedState: z.enum(["blocked", "retry_wait"]),
+    expectedReasonCode: z.string().trim().min(1).max(100),
+    expectedJobRowVersion: z.number().int().nonnegative(),
+    reason: z.string().trim().min(1).max(500),
+    dryRun: z.boolean().default(true),
+}).strict();
+export const ofapiCaptureJobCancelResponseSchema = z.object({
+    dryRun: z.boolean(),
+    status: z.enum(["would_cancel", "cancelled"]),
+    jobId: z.string().uuid(),
+    pageId: z.number().int().positive(),
+    previous: z.object({
+        state: z.enum(["blocked", "retry_wait"]),
+        reasonCode: z.string().nullable(),
+        rowVersion: z.number().int().nonnegative(),
+    }),
+    next: z.object({
+        state: z.literal("cancelled"),
+        reasonCode: z.literal("owner_cancelled"),
+        rowVersion: z.number().int().nonnegative(),
+    }),
+});
+export const ofapiCoverageRevokeParamsSchema = z.object({
+    pageId: intId,
+    chatId: z.string().trim().min(1).max(200),
+});
+export const ofapiCoverageRevokeBodySchema = z.object({
+    actionId: z.string().uuid(),
+    expectedSourceAccountSeq: z.number().int().nonnegative(),
+    reason: z.string().trim().min(1).max(500),
+    dryRun: z.boolean().default(true),
+}).strict();
+export const ofapiCoverageRevokeResponseSchema = z.object({
+    dryRun: z.boolean(),
+    status: z.enum(["would_revoke", "revoked", "already_reconciled"]),
+    pageId: intId,
+    chatId: z.string(),
+    sourceAccountSeq: z.number().int().nonnegative(),
+    revokedAt: isoTimestamp.nullable(),
+});
+export const ofapiExportCreateReconcileBodySchema = z.discriminatedUnion("action", [
+    z.object({
+        action: z.literal("confirm_not_created"),
+        attemptId: z.string().uuid(),
+        expectedState: z.literal("blocked").default("blocked"),
+        expectedReasonCode: z.literal("indeterminate").default("indeterminate"),
+        expectedJobRowVersion: z.number().int().nonnegative(),
+        reason: z.string().trim().min(1).max(500),
+        dryRun: z.boolean().default(true),
+    }).strict(),
+    z.object({
+        action: z.literal("adopt_created"),
+        attemptId: z.string().uuid(),
+        expectedState: z.literal("blocked").default("blocked"),
+        expectedReasonCode: z.literal("indeterminate").default("indeterminate"),
+        expectedJobRowVersion: z.number().int().nonnegative(),
+        vendorExportId: z.string().regex(/^data_export_[A-Za-z0-9_-]+$/).max(200),
+        actualCredits: z.number().int().nonnegative().max(1_000_000).optional(),
+        reason: z.string().trim().min(1).max(500),
+        dryRun: z.boolean().default(true),
+    }).strict(),
+]);
+export const ofapiExportCreateReconcileResponseSchema = z.object({
+    dryRun: z.boolean(),
+    status: z.enum(["would_reconcile", "reconciled"]),
+    action: z.enum(["confirm_not_created", "adopt_created"]),
+    job: z.object({
+        jobId: z.string().uuid(),
+        state: ofapiExportQuoteJobStateSchema,
+        reasonCode: z.string().nullable(),
+        rowVersion: z.number().int().nonnegative(),
+    }),
+    attempt: ofapiCaptureOperatorAttemptSchema,
+});
+export const ofapiWebhookRegisterResponseSchema = z.object({
+    externalWebhookId: z.string().nullable(),
+    endpointUrl: z.string(),
+    accountScope: z.literal("global"),
+    events: z.array(z.string()),
+    signingSecretMask: z.string(),
+    mapping: z.object({
+        mapped: z.array(z.object({
+            pageId: intId,
+            label: z.string(),
+            ofapiAccountId: z.string(),
+        })),
+        unmatchedAccounts: z.array(z.object({
+            id: z.string(),
+            username: z.string().nullable(),
+        })),
+        unmappedPages: z.array(z.string()),
+    }),
+});
+// --- OFAPI credit ledger schemas (docs/ofapi-parity-plan.md Phase 2) ---
+export const ofapiCreditLedgerSourceEnum = z.enum([
+    "rest",
+    "webhook_accrual",
+    "external",
+    "refill",
+    "adjustment",
+]);
+// Net spend per ledger source, including signed corrections. Refills are negative credit
+// movement and never count as spend, so they have no key here.
+const ofapiCreditsSpendBySourceSchema = z.object({
+    rest: z.number().int(),
+    webhookAccrual: z.number().int(),
+    external: z.number().int(),
+    adjustment: z.number().int(),
+});
+export const ofapiCreditsSummaryResponseSchema = z.object({
+    // OFAPI_CREDIT_LEDGER_ENABLED — with the flag off the page shows a notice and
+    // the ledger-derived sections are empty.
+    enabled: z.boolean(),
+    balance: z.object({
+        value: z.number().int().nullable(),
+        observedAt: isoTimestamp.nullable(),
+    }),
+    today: z.object({
+        day: businessDate,
+        total: z.number().int(),
+        bySource: ofapiCreditsSpendBySourceSchema,
+    }),
+    budgets: z.array(z.object({
+        stream: z.string(),
+        spentToday: z.number().int(),
+        dailyCeiling: z.number().int(),
+        state: z.enum(["ok", "budget_exhausted", "floor_blocked"]),
+        retryAt: isoTimestamp.nullable(),
+    })),
+    floor: z.object({
+        value: z.number().int(),
+        blocked: z.boolean(),
+    }),
+    forecast: z.object({
+        // New forecasts use recorded REST activity plus signed corrections and
+        // webhook accrual estimates. Inferred balance residuals remain visible
+        // separately; they are not evidence of a repeatable spending rate.
+        basis: z.literal("recorded_activity").optional(),
+        unverifiedResidual: z.object({
+            credits: z.number().int(),
+            from: isoTimestamp,
+            to: isoTimestamp,
+        }).optional(),
+        monthUnverifiedResidualCredits: z.number().int().optional(),
+        avgDailySpend7d: z.number(),
+        daysLeft: z.number().int().nullable(),
+        runOutDate: businessDate.nullable(),
+        // D5: month-to-date spend and the projected calendar-month total (MTD +
+        // avgDailySpend × remaining UTC days). Credits only; the dashboard formats USD
+        // from `pricing`. Optional so a dashboard bundle can roll across an API version
+        // that predates them.
+        monthToDateSpend: z.number().int().optional(),
+        monthEndProjection: z.number().int().min(0).optional(),
+        // Credits to refill now to keep the runway at `targetDays` above the floor:
+        // max(0, floor + avgDailySpend × targetDays − balance). Null when the balance
+        // has not been observed (no meaningful recommendation).
+        refillRecommendation: z.object({
+            targetDays: z.number().int().min(0),
+            credits: z.number().int().min(0),
+        }).nullable().optional(),
+    }),
+    incidents: z.array(z.object({
+        kind: z.string(),
+        openedAt: isoTimestamp,
+        errorSummary: z.string().nullable(),
+    })),
+    reconciliation: z.object({
+        lastRunAt: isoTimestamp.nullable(),
+        lastDriftCredits: z.number().int().nullable(),
+    }),
+    accrual: z.object({
+        lastPostedDay: businessDate.nullable(),
+        // Optional so a dashboard bundle can roll forward/back across an API version
+        // that predates this derived estimate.
+        pendingToday: z.object({
+            day: businessDate,
+            eventCount: z.number().int().min(0),
+            estimatedCredits: z.number().int().min(0),
+        }).nullable().optional(),
+    }),
+    // D3: trailing-window (last 60 min) burn drivers mirroring the ofapi_burn_rate
+    // monitor. `total` is all-source net (refills excluded, external prorated);
+    // topOperations/topPages are REST-only (webhook/external spend has no operation
+    // or page attribution). Optional so a dashboard bundle can roll across an API
+    // version that predates it.
+    recentBurn: z.object({
+        windowMinutes: z.number().int().positive(),
+        total: z.number().int(),
+        threshold: z.number().int(),
+        alerting: z.boolean(),
+        topOperations: z.array(z.object({
+            operation: z.string().nullable(),
+            requests: z.number().int(),
+            credits: z.number().int(),
+        })),
+        topPages: z.array(z.object({
+            pageId: intId,
+            pageLabel: z.string(),
+            credits: z.number().int(),
+        })),
+    }).optional(),
+    // Display-only flat credit price for USD cost estimates (OFAPI_CREDIT_MICRO_USD_PRICE).
+    // Micro-USD integer per credit; 0 means "unset" and the dashboard hides USD figures.
+    // Optional so a dashboard bundle can roll forward/back across an API version that
+    // predates the price surface.
+    pricing: z.object({
+        microUsdPerCredit: z.number().int().min(0),
+    }).optional(),
+});
+const ofapiCreditsChatterWindowSchema = z.object({
+    from: isoTimestamp,
+    to: isoTimestamp,
+    // Compatibility estimates for installed SDKs: REST is floored at zero and
+    // the legacy total remains REST plus the estimated webhook component.
+    restCredits: z.number().int().min(0),
+    webhook: z.object({
+        eventCount: z.number().int().min(0),
+        estimatedCredits: z.number().int().min(0),
+    }),
+    totalEstimatedCredits: z.number().int().min(0),
+    // Exact signed net for upgraded clients. Optional for compatibility with
+    // older Hub versions; a correction can make a bounded window net-negative.
+    netRestCredits: z.number().int().optional(),
+    netTotalEstimatedCredits: z.number().int().optional(),
+});
+export const ofapiCreditsChatterSummaryResponseSchema = z.object({
+    enabled: z.boolean(),
+    scope: z.object({
+        pageIds: z.array(intId),
+        pageCount: z.number().int().min(0),
+    }),
+    today: z.object({
+        day: businessDate,
+    }).merge(ofapiCreditsChatterWindowSchema),
+    last7d: ofapiCreditsChatterWindowSchema,
+    limitations: z.array(z.string()),
+});
+const ofapiReadGatewayParamsSchema = z.object({
+    "*": z.string().min(1).max(1000),
+});
+export const ofapiCommandStateSchema = z.enum([
+    "queued",
+    "in_flight",
+    "confirmed",
+    "failed_retryable",
+    "failed_terminal",
+    "indeterminate",
+    "cancelled",
+]);
+export const ofapiCommandKindSchema = z.enum([
+    ...OFAPI_EXTENDED_COMMAND_KINDS,
+    "send_text_message_v1",
+    "send_media_message_v1",
+    "typing_active_v1",
+    "unsend_message_v1",
+    "mark_chat_read_v1",
+]);
+const ofapiCommandBaseFields = {
+    clientCommandId: z.string().uuid(),
+    accountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
+    conversationId: z.string().regex(/^[0-9]{1,30}$/),
+};
+const ofapiCommandMediaIdSchema = z.string().regex(/^(?:[0-9]{1,30}|ofapi_media_[A-Za-z0-9_-]{1,128})$/);
+const ofapiCommandPriceSchema = z.number().int().min(0).max(200).refine((price) => price === 0 || price >= 3, { message: "Price must be 0 or an integer from 3 to 200" });
+const sendMediaMessagePayloadSchema = z.strictObject({
+    text: z.string().max(10_000),
+    price: ofapiCommandPriceSchema,
+    mediaFiles: z.array(ofapiCommandMediaIdSchema).min(1).max(50),
+    previews: z.array(ofapiCommandMediaIdSchema).max(50),
+}).superRefine((payload, ctx) => {
+    const attached = new Set();
+    for (const id of payload.mediaFiles) {
+        if (attached.has(id)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["mediaFiles"],
+                message: "mediaFiles must not contain duplicates",
+            });
+            break;
+        }
+        attached.add(id);
+    }
+    const previews = new Set();
+    for (const id of payload.previews) {
+        if (previews.has(id)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["previews"],
+                message: "previews must not contain duplicates",
+            });
+            break;
+        }
+        previews.add(id);
+        if (!attached.has(id)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["previews"],
+                message: "previews must be a subset of mediaFiles",
+            });
+            break;
+        }
+    }
+});
+export const createOfapiCommandBodySchema = z.discriminatedUnion("kind", [
+    ...ofapiExtendedCommandOptions,
+    z.strictObject({
+        ...ofapiCommandBaseFields,
+        kind: z.literal("send_text_message_v1"),
+        outreachPurpose: z.literal("new-follower").optional(),
+        payload: z.strictObject({
+            text: z.string().min(1).max(10_000).refine((text) => text.trim().length > 0, {
+                message: "Message text must not be blank",
+            }),
+        }),
+        retryOfCommandId: z.string().uuid().nullable().optional(),
+    }),
+    z.strictObject({
+        ...ofapiCommandBaseFields,
+        kind: z.literal("send_media_message_v1"),
+        payload: sendMediaMessagePayloadSchema,
+        retryOfCommandId: z.string().uuid().nullable().optional(),
+    }),
+    z.strictObject({
+        ...ofapiCommandBaseFields,
+        kind: z.literal("typing_active_v1"),
+        payload: z.strictObject({}),
+        retryOfCommandId: z.null().optional(),
+    }),
+    z.strictObject({
+        ...ofapiCommandBaseFields,
+        kind: z.literal("unsend_message_v1"),
+        payload: z.strictObject({
+            messageId: z.string().regex(/^[0-9]{1,30}$/),
+        }),
+        retryOfCommandId: z.null().optional(),
+    }),
+    z.strictObject({
+        ...ofapiCommandBaseFields,
+        kind: z.literal("mark_chat_read_v1"),
+        payload: z.strictObject({}),
+        retryOfCommandId: z.null().optional(),
+    }),
+]);
+export const ofapiCommandParamsSchema = z.object({
+    commandId: z.string().uuid(),
+});
+export const ofapiCommandResponseSchema = z.object({
+    commandId: z.string().uuid(),
+    clientCommandId: z.string().uuid(),
+    kind: ofapiCommandKindSchema,
+    outreachPurpose: z.literal("new-follower").nullable().optional(),
+    accountId: z.string(),
+    conversationId: z.string(),
+    state: ofapiCommandStateSchema,
+    payloadHash: z.string().regex(/^[0-9a-f]{64}$/),
+    retryOfCommandId: z.string().uuid().nullable(),
+    attemptCount: z.number().int().min(0),
+    lastErrorCode: z.string().nullable(),
+    lastErrorClass: z.string().nullable(),
+    verifierResult: z.record(z.string(), z.unknown()).nullable(),
+    platformMessageId: z.string().nullable(),
+    attemptStartedAt: isoTimestamp.nullable(),
+    attemptFinishedAt: isoTimestamp.nullable(),
+    createdAt: isoTimestamp,
+    updatedAt: isoTimestamp,
+    deduplicated: z.boolean(),
+});
+export const adminOfapiCreditsDailyQuerySchema = z.object({
+    days: z.coerce.number().int().min(1).max(90).default(30),
+});
+export const ofapiCreditsDailyResponseSchema = z.object({
+    days: z.array(z.object({
+        day: businessDate,
+        total: z.number().int(),
+        bySource: ofapiCreditsSpendBySourceSchema,
+    })),
+    balance: z.array(z.object({
+        at: isoTimestamp,
+        value: z.number().int(),
+    })),
+    refills: z.array(z.object({
+        at: isoTimestamp,
+        credits: z.number().int(),
+    })),
+    byOperation: z.array(z.object({
+        operation: z.string().nullable(),
+        requests: z.number().int(),
+        credits: z.number().int(),
+    })),
+    byPage: z.array(z.object({
+        pageId: intId,
+        pageLabel: z.string(),
+        credits: z.number().int(),
+        // Net creator earnings (mills) for this page over the same window, for
+        // per-page cost-vs-revenue / ROI. Optional so a dashboard bundle can roll
+        // forward/back across an API version that predates the revenue join.
+        revenueMills: z.number().int().optional(),
+    })),
+});
+export const adminOfapiCreditsLedgerQuerySchema = z.object({
+    offset: z.coerce.number().int().min(0).default(0),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    source: ofapiCreditLedgerSourceEnum.optional(),
+    pageId: z.coerce.number().int().positive().optional(),
+    operation: z.string().min(1).optional(),
+    from: isoTimestamp.optional(),
+    to: isoTimestamp.optional(),
+});
+// CSV export reuses the ledger filters but drops pagination — the handler streams
+// every matching row (up to an internal safety cap) as an accounting extract.
+export const adminOfapiCreditsLedgerCsvQuerySchema = z.object({
+    source: ofapiCreditLedgerSourceEnum.optional(),
+    pageId: z.coerce.number().int().positive().optional(),
+    operation: z.string().min(1).optional(),
+    from: isoTimestamp.optional(),
+    to: isoTimestamp.optional(),
+});
+export const ofapiCreditsLedgerResponseSchema = z.object({
+    total: z.number().int(),
+    pageOptions: z.array(z.object({
+        pageId: intId,
+        pageLabel: z.string(),
+    })),
+    rows: z.array(z.object({
+        id: z.number().int(),
+        occurredAt: isoTimestamp,
+        source: ofapiCreditLedgerSourceEnum,
+        operation: z.string().nullable(),
+        pageId: intId.nullable(),
+        pageLabel: z.string().nullable(),
+        httpStatus: z.number().int().nullable(),
+        credits: z.number().int(),
+        estimated: z.boolean(),
+        balanceAfter: z.number().int().nullable(),
+        requestId: z.string().nullable(),
+        accrualDay: businessDate.nullable(),
+    })),
+});
+export const adminOfapiSpendComparisonQuerySchema = z.object({
+    days: z.coerce.number().int().min(1).max(30).default(7),
+    sampleLimit: z.coerce.number().int().min(1).max(100).default(25),
+});
+const ofapiSpendComparisonStatusEnum = z.enum([
+    "matched",
+    "missing_in_core_truth",
+    "page_mismatch",
+    "amount_mismatch",
+    "fan_mismatch",
+    "state_mismatch",
+    "ppv_estimated",
+    "tips_blocked",
+    "tips_signal",
+    "blocked",
+    "skipped",
+    "other",
+]);
+const ofapiSpendComparisonAggregateSchema = z.object({
+    status: ofapiSpendComparisonStatusEnum,
+    count: z.number().int().min(0),
+    grossAmountMills: mills,
+    creatorNetAmountMills: mills,
+    coreGrossAmountMills: mills,
+    coreCreatorNetAmountMills: mills,
+});
+export const ofapiSpendComparisonResponseSchema = z.object({
+    generatedAt: isoTimestamp,
+    window: z.object({
+        from: isoTimestamp,
+        to: isoTimestamp,
+        days: z.number().int().min(1),
+    }),
+    summary: z.array(ofapiSpendComparisonAggregateSchema),
+    byPage: z.array(ofapiSpendComparisonAggregateSchema.extend({
+        pageId: intId,
+        pageLabel: z.string(),
+    })),
+    samples: z.array(z.object({
+        projectionId: z.number().int(),
+        comparisonStatus: ofapiSpendComparisonStatusEnum,
+        sourceEventType: z.string(),
+        projectionStatus: z.string(),
+        eventStatus: z.string().nullable(),
+        blockedReason: z.string().nullable(),
+        journalId: z.number().int(),
+        pageId: intId,
+        pageLabel: z.string(),
+        fanPlatformUserId: z.string().nullable(),
+        transactionId: z.string().nullable(),
+        messageId: z.string().nullable(),
+        occurredAt: isoTimestamp,
+        grossAmountMills: mills.nullable(),
+        creatorNetAmountMills: mills.nullable(),
+        coreTransactionPk: z.number().int().nullable(),
+        corePageId: intId.nullable(),
+        coreFanPlatformUserId: z.string().nullable(),
+        coreTransactionState: z.string().nullable(),
+        coreOccurredAt: isoTimestamp.nullable(),
+        coreGrossAmountMills: mills.nullable(),
+        coreCreatorNetAmountMills: mills.nullable(),
+    })),
+    limitations: z.array(z.string()),
+});
+export const ofapiDmColdArchiveStatusResponseSchema = z.object({
+    enabled: z.boolean(),
+    retentionDays: z.number().int().min(1),
+    rowCount: z.number().int().min(0),
+    tombstoneCount: z.number().int().min(0),
+    lastArchivedAt: isoTimestamp.nullable(),
+    lastSourceReceivedAt: isoTimestamp.nullable(),
+    nextPurgeAt: isoTimestamp.nullable(),
+    archiveLagMs: z.number().int().min(0).nullable(),
+    acl: z.literal("owner_admin_endpoint_only"),
+    audit: z.literal("source_journal_metadata_on_each_row"),
+    purgePolicy: z.literal("daily_retention_purge_by_retain_until"),
+    // Step A of the spec 11 staging: the WIRE type widens to the enum now, in its
+    // own deploy, so the fleet can re-vendor while the SERVED value is unchanged.
+    // The value itself moves later, from `agentExportPolicyValue` config, and only
+    // after every client's vendored runtime schema has been verified to accept the
+    // new member. Collapsing the two steps breaks clients in production.
+    exportPolicy: agentExportPolicyEnum,
+    mediaPolicy: z.literal("stable_metadata_only_no_signed_urls"),
+});
+// --- Declarative route authorization (kernel Stage 19) ---
+// Every routeSchemas entry carries an `auth` declaration enforced by one API-server
+// middleware (AUTH_POLICY_ENFORCEMENT=log|enforce); a contracts unit test fails any
+// entry without one. Kinds mirror the verified guard vocabulary:
+//   public         no principal required (health, login/logout)
+//   hmac           authenticated in-handler by HMAC over the raw body (OFAPI webhook)
+//   monitoring     x-monitoring-token OR a dashboard session (sync health)
+//   session        cookie-session dashboard roles (owner/team_lead)
+//   any-session    any live cookie session, any human role (self-serve auth)
+//   owner-session  cookie session with the owner role (admin surface, swagger/openapi)
+//   apiKey         bearer device token (desktop/extension lanes). Historical
+//                  name, kept deliberately: Decision 370 retired API keys, and
+//                  renaming the kind would touch hundreds of declarations
+//   device-token   device-token bearer only (current-device self-service)
+//   agentKey       Agent Read Plane machine key only — there is no human behind
+//                  this principal (agent-read slice 0b; no route declares it yet)
+//   any            any authenticated principal that predates the agent plane;
+//                  finer scoping stays in the service. NOT a wildcard: an agent
+//                  key is refused here exactly as it is on every kind but agentKey
+// scope:"page" = the middleware resolves params.pageLabel and requires canAccessPage
+// before any handler runs; page ids derived from query/body stay handler-checked.
+// `roles` is reserved for narrowing beyond the kind (unused today; Stage 22 adds
+// device tokens additively). `roles` never admits an agent: it names human roles.
+export const routeAuthPolicySchema = z
+    .object({
+    kind: z.enum(["public", "hmac", "monitoring", "session", "any-session", "owner-session", "apiKey", "device-token", "pending-device-token", "agentKey", "any"]),
+    roles: z.array(userRoleEnum).nonempty().optional(),
+    scope: z.enum(["page", "none"]).optional(),
+})
+    .strict();
+// OpenAPI `security` is DERIVED from the auth declaration (the swagger transform
+// injects it), so the published contract can no longer disagree with what the
+// middleware actually enforces. Scheme names match the server's securitySchemes.
+export function routeSecurityFromAuth(auth) {
+    switch (auth.kind) {
+        case "public":
+        case "hmac":
+            // hmac authenticates by signature over the raw body, which OpenAPI's
+            // security schemes cannot express; the webhook documents it in prose.
+            return undefined;
+        case "monitoring":
+            return [{ cookieAuth: [] }, { monitoringTokenAuth: [] }];
+        case "session":
+        case "any-session":
+        case "owner-session":
+            return [{ cookieAuth: [] }];
+        case "apiKey":
+        case "device-token":
+        case "pending-device-token":
+            return [{ bearerAuth: [] }];
+        // An agent key travels in the same Authorization: Bearer header as the other
+        // bearers, but it gets its OWN scheme: folding it into bearerAuth would make
+        // the published contract claim a chatter api key can call the agent plane,
+        // which is precisely what the middleware refuses.
+        case "agentKey":
+            return [{ agentKeyAuth: [] }];
+        case "any":
+            return [{ cookieAuth: [] }, { bearerAuth: [] }];
+        default:
+            // Exhaustiveness guard: a new auth kind without a scheme must be a COMPILE
+            // error, not an operation published with no security at all.
+            return assertNeverAuthKind(auth.kind);
+    }
+}
+function assertNeverAuthKind(kind) {
+    throw new Error(`route auth kind has no OpenAPI security scheme: ${String(kind)}`);
+}
+// --- Configuration surface (Stage A: read-only) ---
+const configValueScalar = z.union([z.string(), z.number(), z.boolean()]).nullable();
+export const configRunningValueSchema = z.object({
+    role: z.string(),
+    instanceId: z.string(),
+    value: configValueScalar,
+    masked: z.boolean(),
+    // "unknown" = this instance reported under an older/mismatched snapshot shape, so its
+    // value can't be trusted; the row is surfaced (not silently dropped) and counts as
+    // not-yet-applied for pendingApply.
+    state: z.enum(["set", "unset", "unknown"]).nullable(),
+    lastSeenAt: isoTimestamp,
+});
+// A boot-apply override an instance rejected at start (invalid value / not a boot key /
+// would break a merged invariant). Surfaced per instance so an ignored override is
+// visible rather than silent.
+export const configSkippedOverrideSchema = z.object({
+    key: z.string(),
+    reason: z.string(),
+});
+export const configItemSchema = z.object({
+    key: z.string(),
+    envName: z.string(),
+    configField: z.string().nullable(),
+    kind: z.enum(["boolean", "number", "string", "url", "secret", "derived", "alias", "complex"]),
+    subsystem: z.string(),
+    label: z.string(),
+    default: z.string(),
+    editability: z.enum(["never", "staged", "editable"]),
+    // Authoritative wiring class (replaces applyMode): 'live' = wired to the runtime
+    // overlay (no restart); 'boot' = applied at process start (needs restart); 'none' =
+    // not overridable via the DB (env-only / read-only). Orthogonal to `editability`.
+    runtimeApply: z.enum(["live", "boot", "none"]),
+    comparable: z.boolean(),
+    secret: z.boolean(),
+    note: z.string().nullable(),
+    costWarning: z.string().nullable(),
+    destructive: z.boolean(),
+    stagedGroup: z.string().nullable(),
+    stagedOrder: z.number().int().nullable(),
+    requires: z.array(z.string()),
+    // Effective-state fields. In Stage A there is no overlay, so source is always
+    // "env", desired is null and pendingApply is false; the running array carries
+    // each live process's actual value and drift flags cross-instance disagreement.
+    source: z.enum(["env", "override"]),
+    desired: configValueScalar,
+    // SERVER-computed APPLIED truth (Stage C) — the single source for the staged UI's
+    // lock/Enable-Disable decision, so the client never reconstructs it. For a boot key it is
+    // getRunningFlagState (role-complete + fail-closed: every expected role must have an active
+    // instance and report the key true to read "on", else "off"; "unknown" when it can't be
+    // proven, e.g. no fleet / a missing role / a stale snapshot). For a non-boot key it summarizes
+    // the active instances' reported values (all-true → "on", any non-true → "off", none → "unknown").
+    runningState: z.enum(["on", "off", "unknown"]),
+    // SERVER-computed desired baseline (Stage C): the override boolean when one exists, else the
+    // env (rawConfig) boolean; null for keys with no boolean meaning (non-boolean / non-overridable).
+    // The staged UI's Enable/Disable + dependent locks read THIS, never a client recomputation.
+    desiredEffective: z.boolean().nullable(),
+    // Current version of the override row (null when env-sourced); the editor sends it
+    // back as expectedVersion for optimistic-concurrency.
+    overrideVersion: z.number().int().nullable(),
+    pendingApply: z.boolean(),
+    drift: z.boolean(),
+    // True when this editable key is wired to take effect at runtime now (Stage B1).
+    // Only `live` editable keys can be PATCHed and actually applied without a restart.
+    live: z.boolean(),
+    running: z.array(configRunningValueSchema),
+});
+export const configInstanceSchema = z.object({
+    role: z.string(),
+    instanceId: z.string(),
+    startedAt: isoTimestamp,
+    lastSeenAt: isoTimestamp,
+    imageTag: z.string().nullable(),
+    status: z.enum(["active", "stale"]),
+    // Boot-apply overrides this instance rejected at start. Empty for a clean boot, and
+    // empty for an instance reporting an older snapshot shape (no skip data available).
+    skippedOverrides: z.array(configSkippedOverrideSchema),
+});
+// Per expected role (plus any unexpected observed role): whether a live process is
+// reporting. "stale" = a row exists but is past the heartbeat window; "missing" =
+// no row at all. Surfaces a stopped process instead of silently dropping it.
+export const configRoleStatusSchema = z.object({
+    role: z.string(),
+    status: z.enum(["active", "stale", "missing"]),
+});
+export const configViewResponseSchema = z.object({
+    generatedAt: isoTimestamp,
+    roleStatuses: z.array(configRoleStatusSchema),
+    instances: z.array(configInstanceSchema),
+    subsystems: z.array(z.object({
+        subsystem: z.string(),
+        items: z.array(configItemSchema),
+    })),
+});
+// --- Configuration surface (Stage B1: editable, owner-only) ---
+// A single override value is one of the three scalar kinds an editable descriptor
+// can hold; the server re-validates and clamps it against the registry.
+const configOverrideValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+// Audit notes are operator-supplied free text persisted into config_audit_log (append-only,
+// one row per key in a patch). Bound them so a write can't persist megabyte-sized notes into
+// the audit trail (mirrors the audit P-3 cap on the login fields).
+const CONFIG_NOTE_MAX_LEN = 1024;
+export const configUpdateBodySchema = z.object({
+    patches: z
+        .array(z.object({
+        key: z.string(),
+        value: configOverrideValueSchema,
+        // Optimistic concurrency: when present it must match the row's current
+        // version (0 for a brand-new key) or the write is a 409 conflict. Intentionally
+        // OPTIONAL on the live path (opt-in, last-write-wins for owner-only low-stakes knobs);
+        // the staged path makes it MANDATORY since staged flips are higher-stakes.
+        expectedVersion: z.number().int().min(0).optional(),
+    }))
+        .min(1),
+    note: z.string().max(CONFIG_NOTE_MAX_LEN).optional(),
+});
+export const configUpdateResponseSchema = z.object({
+    // The CLAMPED, stored value per key so the UI can correct an out-of-range entry.
+    results: z.array(z.object({
+        key: z.string(),
+        value: configOverrideValueSchema,
+        version: z.number().int(),
+    })),
+});
+export const configClearParamsSchema = z.object({
+    key: z.string(),
+});
+// Query params (not a body) so DELETE needs no request body — both fields optional.
+export const configClearQuerySchema = z.object({
+    expectedVersion: z.coerce.number().int().min(0).optional(),
+    note: z.string().max(CONFIG_NOTE_MAX_LEN).optional(),
+});
+export const configClearResponseSchema = z.object({
+    ok: z.literal(true),
+    key: z.string(),
+});
+// --- Staged-rollout flips (Stage C: boot-applied flag set, owner-only) ---
+// A staged flip writes an explicit boolean override for a `runtimeApply === 'boot'`
+// key in the prescribed enable order, OR reverts it to env (`desired: null` → clears the
+// override row). Unlike the live PATCH, expectedVersion is MANDATORY (a staged flip is
+// always version-checked: 0 means "no row yet"), and an explicit `ack` records the
+// operator's acknowledgement that the flag only takes effect after a restart — persisted
+// into the audit note, not just the UI.
+export const configStagedBodySchema = z.object({
+    patches: z
+        .array(z.object({
+        key: z.string(),
+        // boolean = set the desired value; null = revert to env (clear the override). A
+        // null patch is validated as the env baseline boolean but applied as a clear.
+        desired: z.boolean().nullable(),
+        // Required (not optional): staged flips are always version-checked. 0 = the
+        // override row is absent; a mismatch is a 409 conflict.
+        expectedVersion: z.number().int().min(0),
+    }))
+        .min(1),
+    note: z.string().max(CONFIG_NOTE_MAX_LEN).optional(),
+    // Must be true; the handler rejects ack:false (400) and stores it in the audit note.
+    ack: z.boolean(),
+});
+export const configStagedResponseSchema = z.object({
+    results: z.array(z.object({
+        key: z.string(),
+        // boolean for an upsert; null for a cleared key (reverted to env).
+        value: z.boolean().nullable(),
+        version: z.number().int().nullable(),
+    })),
+});
+export const opsMetricsResponseSchema = z.object({
+    samples: z.array(z.object({
+        metric: z.string(),
+        quantile: z.string(),
+        valueMs: z.number().int(),
+        sampledAt: isoTimestamp,
+    })),
+    thresholdsMs: z.record(z.string(), z.number().int()),
+    smoke: z.object({
+        framesSeen: z.number().int(),
+        gapCount: z.number().int(),
+        duplicateCount: z.number().int(),
+        updatedAt: isoTimestamp.nullable(),
+    }).nullable(),
+});
+// ── WP-S1: the endpoints-cover SERVING surface (Fansly only, A28-2) ──────────
+//
+// Eight owner-session, page-scoped read routes over the projections F1–F7 and F4
+// fill. THE ONE LAW THESE SCHEMAS ENCODE: **serving never authorizes capture**.
+// Nothing here triggers a fetch, nothing here is a write, and every route is a
+// pure read of what the projections already hold.
+//
+// Three shape rules that are not style:
+//   * Every labelled platform enum is served as RAW CODE + LABEL + MAPPING
+//     VERSION (A22-2). The code is the truth; the label is this build's reading
+//     of it and can be wrong (`fansly-notification-types.ts` was wrong on eight
+//     of sixteen codes once already).
+//   * A metric the platform did not serve is `null`, NEVER 0 — a read layer that
+//     coalesces turns "unserved" into "zero views", which is a different fact.
+//   * Money is integer mills and NET is never silently turned into gross. A12
+//     settled that `saleStats.total` is the creator's net share; a gross figure
+//     derived from it travels inside a `derived` envelope that names its basis.
+//
+// No provider raw JSON crosses these routes (raw drill-down stays on the
+// governed journal surface) and no delivery/CDN address appears in any response:
+// media are identified by REF only, which is an id, not an address.
+/** `[from, to)` on every windowed insights route. Both bounds are required —
+ *  the plane's original incident was a silent default window. */
+const insightsInstant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/, "Expected an RFC 3339 timestamp with an explicit offset");
+/** Every list route is bounded. 500 is the ceiling everywhere; no route has an
+ *  unbounded mode and none takes an offset (keyset only). */
+const insightsLimitSchema = z.coerce.number().int().min(1).max(500);
+/** Opaque keyset position, minted by the previous response. It carries only a
+ *  sort position inside the SAME page's SAME query — never a scope. */
+const insightsCursorSchema = z.string().min(1).max(512);
+const insightsSubjectKindEnum = z.enum([
+    "account_profile",
+    "account_media",
+    "media_offer",
+    "post",
+]);
+const insightsPageSchema = z.object({
+    label: z.string(),
+    platform: platformEnum,
+});
+/** The `(status, acquisition_mode, proof)` vocabulary, verbatim from
+ *  `capture_coverage`. Serving it is how a chart says "partial", and the panel
+ *  that reads it is the honesty panel. */
+const insightsCoverageRowSchema = z.object({
+    plane: z.string(),
+    scopeRef: z.string(),
+    status: z.string(),
+    acquisitionMode: z.string(),
+    proof: z.string(),
+    oldestCapturedAt: isoTimestamp.nullable(),
+    newestCapturedAt: isoTimestamp.nullable(),
+    expectedCount: z.number().int().nullable(),
+    observedUniqueCount: z.number().int().nullable(),
+    reasonCode: z.string().nullable(),
+    nextProbeAt: isoTimestamp.nullable(),
+    updatedAt: isoTimestamp,
+});
+/** A figure Hub COMPUTED. A13: the platform serves no averages and no gross,
+ *  so anything of that shape is ours and says so, with the components it was
+ *  built from named in `basis`. */
+function insightsDerived(value) {
+    return z.object({
+        value,
+        derived: z.literal(true),
+        /** What the value was computed FROM, in words a reader can check. */
+        basis: z.string(),
+    });
+}
+const insightsTrafficRowSchema = z.object({
+    subjectKind: z.string(),
+    subjectRef: z.string(),
+    periodMs: z.number().int(),
+    bucketStart: isoTimestamp,
+    /** RAW, as text — the integer the platform sent. */
+    sourceCode: z.string(),
+    /** THIS BUILD'S reading of the code. `unknown:<code>` when it has none. */
+    sourceLabel: z.string(),
+    mappingVersion: z.number().int(),
+    /** `type - (type % 10)` as text for a profile row; null for a media row,
+     *  whose 0/1 codes are not a family/member structure at all. */
+    family: z.string().nullable(),
+    familyLabel: z.string().nullable(),
+    /** Member 1 is the creator widget's visit counter; every other member is the
+     *  dwell-bearing series. Null for media rows, for the same reason. */
+    measure: z.enum(["visits", "dwell"]).nullable(),
+    /** Metrics: NULL means the platform did not serve it. Never 0. */
+    views: z.number().int().nullable(),
+    previewViews: z.number().int().nullable(),
+    uniqueViewers: z.number().int().nullable(),
+    previewUniqueViewers: z.number().int().nullable(),
+    videoViews: z.number().int().nullable(),
+    previewVideoViews: z.number().int().nullable(),
+    interactionTimeMs: z.number().int().nullable(),
+    previewInteractionTimeMs: z.number().int().nullable(),
+    /** A SUM over views on the wire; divided at read time or not at all. */
+    videoPercentWatchedSum: z.string().nullable(),
+    previewVideoPercentWatchedSum: z.string().nullable(),
+    revisionCount: z.number().int(),
+    lastObservedAt: isoTimestamp,
+});
+export const statsTrafficQuerySchema = z.object({
+    from: insightsInstant,
+    to: insightsInstant,
+    periodMs: z.coerce.number().int().min(1).default(86_400_000),
+    subjectKind: insightsSubjectKindEnum.default("account_profile"),
+    subjectRef: z.string().max(64).optional(),
+    limit: insightsLimitSchema.default(500),
+    cursor: insightsCursorSchema.optional(),
+});
+export const statsTrafficResponseSchema = z.object({
+    page: insightsPageSchema,
+    window: z.object({
+        from: isoTimestamp,
+        to: isoTimestamp,
+        periodMs: z.number().int(),
+        subjectKind: z.string(),
+        subjectRef: z.string().nullable(),
+    }),
+    rows: z.array(insightsTrafficRowSchema),
+    coverage: z.array(insightsCoverageRowSchema),
+    nextCursor: z.string().nullable(),
+});
+const insightsMediaSalesSchema = z.object({
+    count: z.number().int().nullable(),
+    /** A12: `saleStats.total` is the creator's NET share. Stored verbatim. */
+    netMills: mills.nullable(),
+    pendingMills: mills.nullable(),
+    /** DERIVED from `netMills`. Fansly's cut is 20 %, so gross = net / 0.8 — a
+     *  factor that can change, which is exactly why net is what is stored and
+     *  gross is what is computed here and labelled. Never summed with net. */
+    grossMills: insightsDerived(mills).nullable(),
+});
+const insightsMediaRowSchema = z.object({
+    mediaOfferRef: z.string(),
+    mediaRef: z.string().nullable(),
+    bundleRefs: z.array(z.string()),
+    mediaType: z.number().int().nullable(),
+    mimeType: z.string().nullable(),
+    width: z.number().int().nullable(),
+    height: z.number().int().nullable(),
+    durationMs: z.number().int().nullable(),
+    priceMills: mills.nullable(),
+    likeCount: z.number().int().nullable(),
+    sales: insightsMediaSalesSchema,
+    createdAtPlatform: isoTimestamp.nullable(),
+    deletedAtPlatform: isoTimestamp.nullable(),
+    firstObservedAt: isoTimestamp,
+    lastObservedAt: isoTimestamp,
+    buckets: z.array(insightsTrafficRowSchema),
+});
+const insightsTopMediaRowSchema = z.object({
+    plane: z.string(),
+    rank: z.number().int(),
+    mediaOfferRef: z.string(),
+    bundleRef: z.string().nullable(),
+    periodMs: z.number().int(),
+    requestedStart: isoTimestamp,
+    requestedEnd: isoTimestamp,
+    views: z.number().int().nullable(),
+    previewViews: z.number().int().nullable(),
+    interactionTimeMs: z.number().int().nullable(),
+    previewInteractionTimeMs: z.number().int().nullable(),
+    observedAt: isoTimestamp,
+});
+export const statsMediaQuerySchema = z.object({
+    from: insightsInstant,
+    to: insightsInstant,
+    periodMs: z.coerce.number().int().min(1).default(86_400_000),
+    mediaOfferRef: z.string().max(64).optional(),
+    limit: insightsLimitSchema.default(50),
+    /** Total bucket rows across the whole response, not per media. */
+    bucketLimit: insightsLimitSchema.default(200),
+    cursor: insightsCursorSchema.optional(),
+});
+export const statsMediaResponseSchema = z.object({
+    page: insightsPageSchema,
+    window: z.object({
+        from: isoTimestamp,
+        to: isoTimestamp,
+        periodMs: z.number().int(),
+    }),
+    media: z.array(insightsMediaRowSchema),
+    /** `stats_top_media` for the freshest window the page holds. Window identity
+     *  is part of a row: rank 2 of one window is not rank 2 of the next. */
+    top: z.array(insightsTopMediaRowSchema),
+    /** [E5]: the per-media statistics route serves SEVEN stat keys and no video
+     *  fields at all, even for a video asset. Watch metrics are therefore not
+     *  claimable per media — stated here so a caller cannot read their absence as
+     *  zero watch time. The account-level media datapoints DO carry them, and
+     *  those rows arrive under `subjectKind: "account_media"`. */
+    watchMetrics: z.object({
+        perMediaAvailable: z.literal(false),
+        reason: z.literal("not_served_per_media_e5"),
+    }),
+    coverage: z.array(insightsCoverageRowSchema),
+    bucketsTruncated: z.boolean(),
+    nextCursor: z.string().nullable(),
+});
+export const statsTagsQuerySchema = z.object({
+    from: insightsInstant,
+    to: insightsInstant,
+    limit: insightsLimitSchema.default(100),
+    cursor: insightsCursorSchema.optional(),
+});
+export const statsTagsResponseSchema = z.object({
+    page: insightsPageSchema,
+    window: z.object({ from: isoTimestamp, to: isoTimestamp }),
+    /** Top FYP tags per captured window. `tagName` is NULL when the response's
+     *  own `tags[]` join missed — never fabricated from the id. */
+    topTags: z.array(z.object({
+        plane: z.string(),
+        rank: z.number().int(),
+        tagRef: z.string(),
+        tagName: z.string().nullable(),
+        periodMs: z.number().int(),
+        requestedStart: isoTimestamp,
+        requestedEnd: isoTimestamp,
+        views: z.number().int().nullable(),
+        previewViews: z.number().int().nullable(),
+        interactionTimeMs: z.number().int().nullable(),
+        previewInteractionTimeMs: z.number().int().nullable(),
+        observedAt: isoTimestamp,
+    })),
+    /** Platform-GLOBAL counters, sampled per page. The global value is derived at
+     *  READ time: latest `captured_at` wins, ties break on `page_id` ascending —
+     *  `account_seq` is incomparable across pages. */
+    platformTags: z.array(z.object({
+        tagRef: z.string(),
+        tagName: z.string().nullable(),
+        businessDate: businessDate,
+        viewCount: z.number().int().nullable(),
+        postCount: z.number().int().nullable(),
+        source: z.string(),
+        capturedAt: isoTimestamp,
+    })),
+    coverage: z.array(insightsCoverageRowSchema),
+    nextCursor: z.string().nullable(),
+});
+/** One lane's live operating state, read straight off `page_sync_states`. Every
+ *  field is nullable because every field is written by ONE lane's progress
+ *  block and no lane writes them all. */
+const insightsLaneProgressSchema = z.object({
+    journaled: z.number().int().nullable(),
+    callsToday: z.number().int().nullable(),
+    calledToday: z.number().int().nullable(),
+    dailyCap: z.number().int().nullable(),
+    deferred: z.string().nullable(),
+    // WP-F4's queue + honesty block.
+    mediaKnown: z.number().int().nullable(),
+    queueSize: z.number().int().nullable(),
+    dueToday: z.number().int().nullable(),
+    deferredToday: z.number().int().nullable(),
+    neverVisited: z.number().int().nullable(),
+    backfillComplete: z.number().int().nullable(),
+    backfillStopped: z.number().int().nullable(),
+    /** A16 item 3: the LIVE long-tail cycle, computed by the lane from the live
+     *  class census and the live cap. Never a documentation constant. */
+    estimatedCycleDays: z.number().nullable(),
+    requestsPerDayWanted: z.number().nullable(),
+    saturating: z.boolean().nullable(),
+    longTailCycleDays: z.number().nullable(),
+    // WP-F3's M block.
+    uniqueMediaCount: z.number().int().nullable(),
+    vaultMemberUniqueCount: z.number().int().nullable(),
+    /** Σ `item_count`. NON-UNIQUE by construction — the system albums are views
+     *  over the same media, so this double-counts. Labelled, never used as M. */
+    albumMembershipSum: z.number().int().nullable(),
+    vaultWalkStatus: z.string().nullable(),
+    // WP-F5's walk + truncation block.
+    rootsKnown: z.number().int().nullable(),
+    rootsWalked: z.number().int().nullable(),
+    rootsDirty: z.number().int().nullable(),
+    postsKnown: z.number().int().nullable(),
+    commentsSeen: z.number().int().nullable(),
+    commentsMissing: z.number().int().nullable(),
+    possiblyTruncated: z.number().int().nullable(),
+    paginationMode: z.string().nullable(),
+    phase: z.string().nullable(),
+    seedComplete: z.boolean().nullable(),
+});
+export const statsCoverageResponseSchema = z.object({
+    page: insightsPageSchema,
+    generatedAt: isoTimestamp,
+    /** Every `capture_coverage` row this page holds: the floors, in the
+     *  `(status, acquisition_mode, proof)` vocabulary. */
+    planes: z.array(insightsCoverageRowSchema),
+    /** Per lane: is its gate open, is this page on its allowlist, and what did it
+     *  last report. A lane whose flag is off holds no data for a reason, and a
+     *  panel that cannot tell that apart from "no activity" is the panel this one
+     *  replaces. */
+    streams: z.array(z.object({
+        stream: z.string(),
+        status: z.string(),
+        phase: z.string().nullable(),
+        succeededAt: isoTimestamp.nullable(),
+        failedAt: isoTimestamp.nullable(),
+        consecutiveFailures: z.number().int(),
+        blockerKind: z.string().nullable(),
+        blockerCode: z.string().nullable(),
+        /** null when this lane has no ramp flag of its own. */
+        flagEnabled: z.boolean().nullable(),
+        /** null when this lane has no page allowlist of its own. FAIL-CLOSED on
+         *  every lane this initiative shipped: empty allowlist = NO pages. */
+        allowlisted: z.boolean().nullable(),
+        progress: insightsLaneProgressSchema,
+    })),
+    /** What we actually hold, per projection: row count and the range it spans.
+     *  A zero count next to an open floor is a real answer; a zero count with no
+     *  coverage row is "never started" and reads that way. */
+    holdings: z.array(z.object({
+        projection: z.string(),
+        rowCount: z.number().int(),
+        oldestAt: isoTimestamp.nullable(),
+        newestAt: isoTimestamp.nullable(),
+    })),
+});
+export const contentMediaQuerySchema = z.object({
+    limit: insightsLimitSchema.default(100),
+    cursor: insightsCursorSchema.optional(),
+});
+export const contentMediaResponseSchema = z.object({
+    page: insightsPageSchema,
+    generatedAt: isoTimestamp,
+    /** Catalog heads. IDs ONLY — `mediaRef`/`previewRef` are platform ids, and no
+     *  delivery or CDN address exists anywhere in this response by construction. */
+    media: z.array(insightsMediaRowSchema.omit({ buckets: true })),
+    vaultAlbums: z.array(z.object({
+        vaultKind: z.string(),
+        albumRef: z.string(),
+        title: z.string().nullable(),
+        albumType: z.number().int().nullable(),
+        status: z.number().int().nullable(),
+        pos: z.number().int().nullable(),
+        /** AS SERVED, and NON-UNIQUE across albums: the system albums are views
+         *  over the same media. M is `count(distinct media_offer_ref)`. */
+        itemCount: z.number().int().nullable(),
+        missingSince: isoTimestamp.nullable(),
+        lastObservedAt: isoTimestamp,
+    })),
+    tiers: z.array(z.object({
+        tierRef: z.string(),
+        name: z.string().nullable(),
+        color: z.string().nullable(),
+        pos: z.number().int().nullable(),
+        /** `tier.price` — a BASE, never the price a subscriber pays. The price
+         *  truth is the plan rows below. */
+        basePriceMills: mills.nullable(),
+        maxSubscribers: z.number().int().nullable(),
+        missingSince: isoTimestamp.nullable(),
+        plans: z.array(z.object({
+            planRef: z.string(),
+            status: z.number().int().nullable(),
+            durationDays: z.number().int().nullable(),
+            priceMills: mills.nullable(),
+            useAmounts: z.number().int().nullable(),
+            promoCount: z.number().int(),
+            missingSince: isoTimestamp.nullable(),
+        })),
+    })),
+    walls: z.array(z.object({
+        wallRef: z.string(),
+        name: z.string().nullable(),
+        description: z.string().nullable(),
+        pos: z.number().int().nullable(),
+        mainWall: z.boolean().nullable(),
+        defaultWall: z.boolean().nullable(),
+        private: z.number().int().nullable(),
+        missingSince: isoTimestamp.nullable(),
+    })),
+    automations: z.array(z.object({
+        automationRef: z.string(),
+        /** RAW platform code (3 and 15 observed live). Never a label. */
+        triggerType: z.number().int().nullable(),
+        delaySeconds: z.number().int().nullable(),
+        cooldownSeconds: z.number().int().nullable(),
+        templateType: z.number().int().nullable(),
+        senderRef: z.string().nullable(),
+        messageText: z.string().nullable(),
+        attachmentCount: z.number().int(),
+        /** FALSE when the served template did not parse. An unparsed template and
+         *  an automation with no text must never look alike. */
+        parseOk: z.boolean(),
+        missingSince: isoTimestamp.nullable(),
+    })),
+    /** M and the numbers M is not. */
+    inventory: z.object({
+        uniqueMediaCount: z.number().int(),
+        vaultMemberUniqueCount: z.number().int(),
+        albumMembershipSum: insightsDerived(z.number().int()),
+    }),
+    coverage: z.array(insightsCoverageRowSchema),
+    nextCursor: z.string().nullable(),
+});
+export const contentCommentsQuerySchema = z.object({
+    from: insightsInstant,
+    to: insightsInstant,
+    postRef: z.string().max(64).optional(),
+    limit: insightsLimitSchema.default(200),
+    cursor: insightsCursorSchema.optional(),
+});
+export const contentCommentsResponseSchema = z.object({
+    page: insightsPageSchema,
+    window: z.object({ from: isoTimestamp, to: isoTimestamp }),
+    comments: z.array(z.object({
+        commentRef: z.string(),
+        parentPostRef: z.string(),
+        rootPostRef: z.string().nullable(),
+        authorRef: z.string(),
+        authorUsername: z.string().nullable(),
+        authorDisplayName: z.string().nullable(),
+        /** Empty-content replies ARE stored: a fan who replied with only an
+         *  attachment still replied. `''` is a reply, not a missing one. */
+        textPlain: z.string(),
+        likeCount: z.number().int().nullable(),
+        mediaLikeCount: z.number().int().nullable(),
+        /** TWO BASES, never summed (§2.3). */
+        tipTotalMills: mills.nullable(),
+        attachmentTipMills: mills.nullable(),
+        attachmentCount: z.number().int().nullable(),
+        pinned: z.boolean().nullable(),
+        occurredAt: isoTimestamp,
+        changedAt: isoTimestamp,
+        discoveredVia: z.string(),
+        /** The route has NO established pagination, so a suspiciously full page
+         *  marks its rows. The doubt belongs to the row because it outlives the
+         *  sweep that created it. */
+        possiblyTruncated: z.boolean(),
+        /** A later FULL walk stopped naming this comment. Never a delete. */
+        missingSince: isoTimestamp.nullable(),
+    })),
+    perPost: z.array(z.object({
+        postRef: z.string(),
+        commentCount: z.number().int(),
+        possiblyTruncatedCount: z.number().int(),
+        missingCount: z.number().int(),
+        oldestAt: isoTimestamp.nullable(),
+        newestAt: isoTimestamp.nullable(),
+    })),
+    /** WP-F2 ships `post_likes` EMPTY on Fansly: no like code is live-confirmed
+     *  ([E4]), so layer 2 writes nothing. Declared, not omitted — an omitted
+     *  panel is indistinguishable from a panel with nothing in it. */
+    likers: z.object({
+        state: z.literal("not_started"),
+        reason: z.literal("no_confirmed_like_code_e4"),
+        rows: z.array(z.object({
+            subjectKind: z.string(),
+            subjectRef: z.string(),
+            likerPlatformUserId: z.string(),
+            state: z.string(),
+            occurredAt: isoTimestamp,
+            discoveredVia: z.string(),
+        })),
+    }),
+    coverage: z.array(insightsCoverageRowSchema),
+    nextCursor: z.string().nullable(),
+});
+export const moneyRevenueMixQuerySchema = z.object({
+    from: businessDate,
+    to: businessDate,
+    limit: insightsLimitSchema.default(500),
+    cursor: insightsCursorSchema.optional(),
+});
+export const moneyRevenueMixResponseSchema = z.object({
+    page: insightsPageSchema,
+    window: z.object({ from: businessDate, to: businessDate }),
+    daily: z.array(z.object({
+        businessDate: businessDate,
+        /** RAW. One visible label maps to TWO live codes, legacy and current
+         *  (A22-2), and the ledger reaches back into legacy territory. */
+        typeCode: z.number().int(),
+        typeLabel: z.string(),
+        /** `legacy` / `current` / `single` — which half of a pair this code is. */
+        typeEra: z.enum(["legacy", "current", "single"]).nullable(),
+        mappingVersion: z.number().int(),
+        /** Stored separately and NEVER derived across bases. */
+        grossMills: mills.nullable(),
+        netMills: mills.nullable(),
+        lastObservedAt: isoTimestamp,
+    })),
+    months: z.array(z.object({
+        year: z.number().int(),
+        month: z.number().int(),
+        /** TRUE for the `(0, 0)` rolling-rollup row — the creator's Statements
+         *  header. It is NEVER summed with the real months, and it is flagged here
+         *  rather than filtered out so a reader sees why the totals differ. */
+        rollup: z.boolean(),
+        totalGrossMills: mills.nullable(),
+        totalNetMills: mills.nullable(),
+        topPercent: z.string().nullable(),
+        maxTopPercent: z.string().nullable(),
+        windowStart: isoTimestamp.nullable(),
+        windowEnd: isoTimestamp.nullable(),
+        lastObservedAt: isoTimestamp,
+    })),
+    coverage: z.array(insightsCoverageRowSchema),
+    nextCursor: z.string().nullable(),
+});
+export const moneyPayoutsQuerySchema = z.object({
+    limit: insightsLimitSchema.default(200),
+    cursor: insightsCursorSchema.optional(),
+});
+export const moneyPayoutsResponseSchema = z.object({
+    page: insightsPageSchema,
+    generatedAt: isoTimestamp,
+    requests: z.array(z.object({
+        payoutRef: z.string(),
+        /** MILLS with no scaling: the wire unit IS the kernel unit here. */
+        amountMills: mills.nullable(),
+        methodRef: z.string().nullable(),
+        /** RAW. 8 is the only code ever observed, and it is never treated as "the
+         *  success code" in a conditional. */
+        statusCode: z.number().int().nullable(),
+        statusLabel: z.string().nullable(),
+        statusConfidence: z.string(),
+        requestedAt: isoTimestamp.nullable(),
+        updatedAtPlatform: isoTimestamp.nullable(),
+        version: z.number().int().nullable(),
+    })),
+    /** MASKED. The full processor payload stays raw-journal-only under the
+     *  restricted class; provider 2 (Paxum) returns a plaintext email and the
+     *  ONLY sanctioned reader of that field is the WP-F7 canonicalizer, which
+     *  turns it into the mask served here. */
+    methods: z.array(z.object({
+        methodRef: z.string(),
+        providerId: z.number().int().nullable(),
+        providerLabel: z.string(),
+        type: z.number().int().nullable(),
+        flags: z.number().int().nullable(),
+        status: z.number().int().nullable(),
+        maskedLabel: z.string().nullable(),
+        metadataParseOk: z.boolean(),
+        missingSince: isoTimestamp.nullable(),
+    })),
+    coverage: z.array(insightsCoverageRowSchema),
+    nextCursor: z.string().nullable(),
+});
+const baseRouteSchemas = {
+    ...ofapiMarketingRouteSchemas,
+    ...ofapiBannedWordRouteSchemas,
+    ...ofapiVendorRouteSchemas,
+    ...ofapiReadCollectionsRouteSchemas,
+    ...ofapiExportRouteSchemas,
+    ...ofapiMediaRouteSchemas,
+    ...ofapiMediaImageRouteSchemas,
+    ...ofapiCollectionRouteSchemas,
+    health: {
+        auth: { kind: "public" },
+        tags: ["system"],
+        summary: "Health check",
+        response: {
+            200: healthResponseSchema,
+            503: healthResponseSchema,
+        },
+    },
+    opsMetrics: {
+        auth: { kind: "monitoring" },
+        tags: ["system"],
+        summary: "Golden-signal lag samples (Stage 25 acceptance instrument)",
+        response: {
+            200: opsMetricsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    healthSync: {
+        auth: { kind: "monitoring" },
+        tags: ["system"],
+        summary: "Detailed sync health",
+        response: {
+            200: syncHealthResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            503: syncHealthResponseSchema,
+        },
+    },
+    login: {
+        auth: { kind: "public" },
+        tags: ["auth"],
+        summary: "Log in with a dashboard account",
+        body: loginBodySchema,
+        response: {
+            200: authStateSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            429: errorResponseSchema,
+        },
+    },
+    logout: {
+        auth: { kind: "public" },
+        tags: ["auth"],
+        summary: "Clear the current session cookie if one is present",
+        response: {
+            200: z.object({ ok: z.literal(true) }),
+        },
+    },
+    me: {
+        auth: { kind: "any" },
+        tags: ["auth"],
+        summary: "Get the current authenticated principal",
+        response: {
+            200: authStateSchema,
+            401: errorResponseSchema,
+        },
+    },
+    aiUsageBatch: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        // Stage 29 (§6.4 policy): the gateway ledger is authoritative — this
+        // client-reported lane is deprecated; successor = the gateway's own
+        // finalize write (POST /api/v1/ai/gateway/stream). Removal only after
+        // Stage 31 confirms the fleet cutover. It keeps serving until then.
+        deprecated: true,
+        summary: "Ingest a batch of chatter AI usage events (deprecated: gateway ledger is authoritative)",
+        body: aiUsageBatchBodySchema,
+        response: {
+            200: aiUsageBatchResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    ingestObservations: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "Ingest a batch of desktop-captured observations (client-capture lane)",
+        body: ingestObservationsBodySchema,
+        response: {
+            200: ingestObservationsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    aiGatewayStream: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "Stream a chatter AI generation through the core gateway",
+        description: "Default-off ChatMuse gateway for desktop AI generations. The runtime route "
+            + "uses chatter device-token auth, validates the prompt-stream request contract, and must not "
+            + "reach provider network while the gateway flag is disabled.",
+        body: aiGatewayStreamBodySchema,
+        response: {
+            200: z.unknown(),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+            429: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    ofapiWebhookReceive: {
+        auth: { kind: "hmac" },
+        tags: ["ofapi"],
+        summary: "Receive an OFAPI webhook delivery",
+        description: "Called by onlyfansapi.com, not by API clients. Authenticated by "
+            + "HMAC-SHA256 of the raw request body (hex, `signature` header) against the "
+            + "registered signing secret; deduplicated by the `x-ofapi-idempotency-key` "
+            + "header. The body is the OFAPI envelope {event, account_id, payload} and is "
+            + "intentionally not schema-validated before signature verification.",
+        response: {
+            200: ofapiWebhookAckResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    eventsStream: {
+        auth: { kind: "apiKey" },
+        tags: ["events"],
+        summary: "SSE stream of sync events for the chatter's assigned pages",
+        description: "`text/event-stream` of SyncEvent frames (`event: sync`, `data` = "
+            + "JSON SyncEvent, `id` = journal event id). Chatter device-token auth only; events "
+            + "are filtered to the chatter's assigned pages. Supports `Last-Event-ID` "
+            + "header (or `lastEventId` query parameter) replay from the ~7-day journal.",
+        querystring: z.object({
+            lastEventId: z.coerce.number().int().nonnegative().optional(),
+        }),
+        response: {
+            // The handler hijacks the reply and writes text/event-stream directly;
+            // this entry documents the success shape for OpenAPI consumers only.
+            200: z.string().describe("text/event-stream — `event: sync` frames whose `data` is a JSON SyncEvent "
+                + "(see syncEventSchema) and whose `id` is the journal fanout sequence."),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: syncSnapshotRequiredResponseSchema,
+        },
+    },
+    eventsSnapshot: {
+        auth: { kind: "apiKey" },
+        tags: ["events"],
+        summary: "Current durable sync state for replay-gap recovery",
+        description: "Chatter-key scoped snapshot for one assigned OFAPI account. The legacy "
+            + "pageCursor mode paginates threads. Additive pageMode=bounded_v1 uses an opaque, "
+            + "scope-bound stateCursor to page unresolved tombstones and per-thread messages "
+            + "with messageLimit<=200; clients apply every page idempotently and persist "
+            + "snapshotCursor only after nextStateCursor=null. No message is truncated and no "
+            + "OFAPI request or historical DM backfill is performed.",
+        querystring: syncSnapshotQuerySchema,
+        response: {
+            200: syncSnapshotResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: syncSnapshotRestartRequiredResponseSchema,
+        },
+    },
+    eventsV2Stream: {
+        auth: { kind: "any" },
+        tags: ["events"],
+        summary: "SSE stream of canonical domain events (v2) for granted accounts",
+        description: "`text/event-stream` of DomainEventFrame rows (`event: domain`, `data` = "
+            + "JSON frame, `id` = the OPAQUE resume cursor — pass it back verbatim via "
+            + "`Last-Event-ID` or `cursor`). Per-account gapless ordering; all platforms. "
+            + "A cursor below an account's retained floor (or ahead of its head) answers "
+            + "409 sync_snapshot_required with the per-account detail. The stream may "
+            + "interleave `event: ephemeral` frames (serve-time-only, no id) and "
+            + "`event: control` frames (connection signals — `{\"type\":"
+            + "\"replay_completed\"}` marks the end of replay; frames after it are live "
+            + "delivery). Skip control types you don't recognize. Optional `platform` "
+            + "narrows the account universe to granted accounts on that platform (typing "
+            + "and grant revalidation too); cursors it emits are bound to it and must be "
+            + "resumed with the same `platform` (400 otherwise). A cursor minted without "
+            + "`platform` is narrowed once, never widened.",
+        querystring: z.object({
+            cursor: z.string().optional(),
+            platform: platformEnum.optional(),
+        }),
+        response: {
+            200: z.string().describe("text/event-stream — `event: domain` frames (see domainEventFrameSchema); "
+                + "`id` is the opaque v2 cursor. Interleaved lanes: `event: ephemeral` "
+                + "(serve-time-only) and `event: control` (`replay_completed` = end of "
+                + "replay)."),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: domainEventsSnapshotRequiredResponseSchema,
+        },
+    },
+    eventsV2Snapshot: {
+        auth: { kind: "any" },
+        tags: ["events"],
+        summary: "Fresh v2 cursor (and per-account heads) for cold start or gap recovery",
+        description: "Returns the current per-account high-water cursor for the requested "
+            + "accounts (comma-separated ids; omitted = every granted account), including "
+            + "the platform-native accountRef needed for each durable OFAPI state walk. An "
+            + "omitted-accounts cursor is bound to that exact grant keyset: reconnect returns "
+            + "409 rather than widening a stale cursor at a newly granted account's head. "
+            + "Gap-recovery callers pass the rejected opaque sourceCursor so already-applied "
+            + "history is not replayed again; Core also advances past erased sequence holes. "
+            + "State payloads ride the consumer stages (24/33) additively — v2's snapshot "
+            + "role here is the cursor-reset handshake. Optional `platform` limits the "
+            + "accounts to that platform (an explicit account on another platform is 400) "
+            + "and binds the cursor to it; a sourceCursor bound to a different platform is 400.",
+        querystring: z.object({
+            accounts: z.string().regex(/^\d+(,\d+)*$/).optional(),
+            // Rejected resume cursor whose already-applied watermarks bound replay
+            // after the caller completes the durable per-account state walk.
+            sourceCursor: z.string().min(1).optional(),
+            platform: platformEnum.optional(),
+        }),
+        response: {
+            200: domainEventsSnapshotResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    eventsV2Facts: {
+        auth: { kind: "any" },
+        tags: ["events"],
+        summary: "Money facts (PPV unlocks, tips, posted transactions) of one granted account",
+        description: "Pages one account's `message.ppv_unlocked`, `tip.received` and "
+            + "`transaction.posted` ledger events by account_seq (`afterSeq` exclusive), as "
+            + "DomainEventFrame rows without message payloads. Superseded events are "
+            + "excluded; their superseding repair is served with provenance `repair`. A "
+            + "read of existing ledger rows: no new sequence, cursor or OFAPI request. "
+            + "Same grants as the v2 stream (403 outside them). `afterSeq` above the "
+            + "account's head is 409.",
+        querystring: z.object({
+            accountId: z.coerce.number().int().positive(),
+            afterSeq: z.coerce.number().int().nonnegative().default(0),
+            limit: z.coerce.number().int().min(1).max(1000).default(500),
+        }),
+        response: {
+            200: domainEventFactsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiWebhookStatus: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Current OFAPI webhook registration and page mappings",
+        response: {
+            200: ofapiWebhookStatusResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminOfapiBindingRefresh: {
+        auth: { kind: "owner-session" }, tags: ["admin"],
+        summary: "Preview or apply a verified OFAPI binding replacement and narrow recovery",
+        body: ofapiBindingRefreshBodySchema,
+        response: { 200: ofapiBindingRefreshResponseSchema, 400: errorResponseSchema, 401: errorResponseSchema,
+            403: errorResponseSchema, 409: errorResponseSchema, 503: errorResponseSchema },
+    },
+    adminOfapiCredentialPreflight: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Inspect server credential adoption proof",
+        response: { 200: ofapiCredentialPreflightSchema, 401: errorResponseSchema, 403: errorResponseSchema, 503: errorResponseSchema },
+    },
+    adminOfapiWebhookEventCatalog: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Read the captured vendor webhook event catalog without egress",
+        response: { 200: ofapiWebhookEventCatalogSchema, 401: errorResponseSchema, 403: errorResponseSchema },
+    },
+    adminOfapiWebhookEventCatalogRefresh: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Explicitly capture the free vendor webhook event catalog",
+        body: z.object({}), response: { 200: ofapiWebhookEventCatalogSchema, 401: errorResponseSchema, 403: errorResponseSchema, 503: errorResponseSchema },
+    },
+    adminOfapiWebhookDeliveries: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Read retained webhook attempts and local ingestion stages",
+        querystring: z.object({ limit: z.coerce.number().int().min(1).max(100).default(25), offset: z.coerce.number().int().nonnegative().default(0), failedOnly: z.enum(["true", "false"]).optional() }),
+        response: { 200: ofapiWebhookDeliveryHistorySchema, 401: errorResponseSchema, 403: errorResponseSchema },
+    },
+    adminOfapiWebhookDeliverySync: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Capture a bounded delivery-history window, including all outcomes",
+        body: z.object({ id: z.string().uuid(), from: isoTimestamp, to: isoTimestamp, maxPages: z.number().int().min(1).max(20).default(20) }),
+        response: { 200: ofapiWebhookDeliveryScanSchema, 400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 409: errorResponseSchema, 503: errorResponseSchema },
+    },
+    adminOfapiWebhookRedeliver: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Preview or explicitly queue one billed remote webhook redelivery",
+        body: z.object({ id: z.string().uuid(), attemptId: z.number().int().positive(), dryRun: z.boolean().default(true) }),
+        response: { 200: ofapiWebhookRedeliveryResultSchema, 400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema, 409: errorResponseSchema, 503: errorResponseSchema },
+    },
+    adminOfapiWebhookReplay: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Replay one accepted local receipt without vendor redelivery or new SSE identity",
+        body: z.object({ eventId: z.number().int().positive(), dryRun: z.boolean().default(true) }),
+        response: { 200: z.object({ eventId: z.number().int().positive(), state: z.string() }), 400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema, 409: errorResponseSchema },
+    },
+    adminOfapiWebhookCollectionPolicy: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Read optional webhook desired and applied settings",
+        response: { 200: ofapiWebhookCollectionPolicySchema, 401: errorResponseSchema, 403: errorResponseSchema },
+    },
+    adminOfapiWebhookCollectionPolicySave: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Save versioned optional webhook categories and free history collector policy",
+        body: z.object({ expectedVersion: z.number().int().nonnegative(), groups: z.array(ofapiWebhookGroupSchema).max(5), historyEnabled: z.boolean() }),
+        response: { 200: ofapiWebhookCollectionPolicySchema, 400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 409: errorResponseSchema },
+    },
+    adminOfapiWebhookCollectionPolicyApply: {
+        auth: { kind: "owner-session" }, tags: ["admin"], summary: "Apply optional webhook categories and verify the remote registration",
+        body: z.object({ expectedVersion: z.number().int().nonnegative() }),
+        response: { 200: ofapiWebhookCollectionPolicySchema, 400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 409: errorResponseSchema, 503: errorResponseSchema },
+    },
+    adminOfapiWebhookRegister: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Register (or re-register) the OFAPI webhook and inventory current bindings",
+        description: "Creates/updates the team webhook at onlyfansapi.com with "
+            + "account_scope=global and a freshly generated signing secret, stores the "
+            + "registration, and inventories current page bindings. Replacement uses a verified preview.",
+        body: ofapiWebhookRegisterBodySchema,
+        response: {
+            200: ofapiWebhookRegisterResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    adminOfapiWebhookReconcile: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Resolve an indeterminate initial OFAPI webhook creation",
+        description: "Owner-only recovery after independently checking OFAPI: either "
+            + "adopt the created remote webhook id or confirm that creation did not happen.",
+        body: ofapiWebhookReconcileBodySchema,
+        response: {
+            200: ofapiWebhookStatusResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiCaptureJobsSeed: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or seed a bounded explicit OFAPI chat cohort",
+        description: "Creates no more than 20 explicitly listed jobs. connect_to_anchor "
+            + "requires an existing verified continuous anchor; history_to_exhaustion is the "
+            + "explicit, capped bootstrap path for a first proof. The current head is frozen "
+            + "from Core; no chat discovery or automatic fanout occurs.",
+        body: ofapiCaptureSeedBodySchema,
+        response: {
+            200: ofapiCaptureSeedResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiCaptureOperatorStatus: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Inspect bounded OFAPI capture controls and unresolved work",
+        description: "Returns only operational metadata: controls, grouped active jobs, "
+            + "bounded job/attempt samples, and the latest storage-health result.",
+        response: {
+            200: ofapiCaptureOperatorStatusResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminOfapiCaptureControl: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or CAS-update one OFAPI capture pause control",
+        body: ofapiCaptureControlBodySchema,
+        response: {
+            200: ofapiCaptureControlResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiCaptureAttemptResolve: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or resolve one indeterminate OFAPI request certainty",
+        description: "Records an independently verified billed/not-billed outcome. It never "
+            + "dispatches or retries a vendor request.",
+        params: ofapiCaptureAttemptParamsSchema,
+        body: ofapiCaptureAttemptResolveBodySchema,
+        response: {
+            200: ofapiCaptureAttemptResolveResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiCaptureJobReplay: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or locally replay one captured OFAPI response",
+        description: "CAS-clears a parser/contract quarantine and reuses the already captured "
+            + "observation. It never dispatches another vendor request.",
+        params: ofapiCaptureJobParamsSchema,
+        body: ofapiCaptureJobReplayBodySchema,
+        response: {
+            200: ofapiCaptureJobReplayResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiCaptureJobCancel: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or cancel one parked OFAPI capture job",
+        description: "Decision #246: frees the job's active slot so the owning lane can start a fresh "
+            + "job with fresh allowances on its next request. The cancelled row and its attempts are "
+            + "kept; nothing is dispatched.",
+        params: ofapiCaptureJobParamsSchema,
+        body: ofapiCaptureJobCancelBodySchema,
+        response: {
+            200: ofapiCaptureJobCancelResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiCoverageRevoke: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or revoke one OFAPI history proof",
+        description: "Appends an operator observation and projection-only revocation fact. "
+            + "It never deletes captured evidence or calls OFAPI.",
+        params: ofapiCoverageRevokeParamsSchema,
+        body: ofapiCoverageRevokeBodySchema,
+        response: {
+            200: ofapiCoverageRevokeResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiExportCreateReconcile: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Reconcile one uncertain quote-only OFAPI export create",
+        description: "After an independent vendor check, either confirms no export was created "
+            + "or adopts its explicit id. This route never calls OFAPI or repeats POST /data-exports.",
+        params: ofapiExportQuoteParamsSchema,
+        body: ofapiExportCreateReconcileBodySchema,
+        response: {
+            200: ofapiExportCreateReconcileResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiExportQuotesCreate: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or create a bounded OFAPI chat-export quote",
+        description: "Creates one page-scoped account_export intent before any vendor request. "
+            + "The worker may create and poll a quote, but this surface cannot approve, start, "
+            + "retry, download, or import an export. auto_start is always false.",
+        body: ofapiExportQuoteBodySchema,
+        response: {
+            200: ofapiExportQuoteCreateResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiExportQuoteStatus: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Inspect a durable OFAPI export quote without signed URLs",
+        params: ofapiExportQuoteParamsSchema,
+        response: {
+            200: ofapiExportQuoteStatusResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminOfapiExportPilotApprove: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Dry-run or approve one bounded OFAPI chat-export pilot",
+        description: "CAS-approves only a 1-3 chat pilot capped at 1,000 rows and 50 credits. "
+            + "The worker performs one stateful start; an uncertain start is never retried automatically.",
+        params: ofapiExportQuoteParamsSchema,
+        body: ofapiExportPilotApprovalBodySchema,
+        response: {
+            200: ofapiExportPilotApprovalResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiExportArtifactCapture: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Verify and register one downloaded OFAPI pilot artifact",
+        description: "Reads only <jobId>.csv from the configured read-only artifact directory, "
+            + "checks checksum/schema/account/chat/row invariants, journals a pointer, and creates "
+            + "one local export_import job. It performs no OFAPI request and certifies item presence, "
+            + "not continuous history.",
+        params: ofapiExportQuoteParamsSchema,
+        body: ofapiExportArtifactCaptureBodySchema,
+        response: {
+            200: ofapiExportArtifactCaptureResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminOfapiExportQuoteCancel: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Cancel a blocked quote-only OFAPI export intent",
+        description: "CAS-cancels only a fully captured quote or explicit vendor calculation "
+            + "failure. This frees the single page export slot and never calls OFAPI. Any other "
+            + "blocked outcome requires independent vendor reconciliation first.",
+        params: ofapiExportQuoteParamsSchema,
+        body: ofapiExportQuoteCancelBodySchema,
+        response: {
+            200: ofapiExportQuoteStatusResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    ofapiCreditsChatterSummary: {
+        auth: { kind: "apiKey" },
+        tags: ["ofapi"],
+        summary: "Get page-scoped OFAPI credit spend visible to the authenticated chatter",
+        description: "Bearer chatter-key endpoint for desktop clients. It reports REST spend "
+            + "attributed to the chatter's assigned pages and a webhook credit estimate derived "
+            + "from journaled events for those pages. It intentionally omits owner-only global "
+            + "balance, refills, external drift, and adjustments.",
+        response: {
+            200: ofapiCreditsChatterSummaryResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    ofapiReadGateway: {
+        auth: { kind: "apiKey" },
+        tags: ["ofapi"],
+        summary: "Read an allowlisted OFAPI resource through the core custody boundary",
+        description: "Chatter-key-only, page-scoped compatibility gateway mounted at "
+            + "`/api/v1/ofapi/read`. It preserves the desktop OFAPI GET paths and JSON "
+            + "shapes, but accepts only the documented desktop read allowlist. `/accounts` "
+            + "is synthesized from assigned core page mappings and `/whoami` is sanitized. "
+            + "The optional `x-agency-hub-read-intent: deep-history-v1` header identifies "
+            + "backward user scrollback that may be served from certified DB history. "
+            + "No POST, DELETE, send, mark-read, typing, or upload operation is exposed.",
+        params: ofapiReadGatewayParamsSchema,
+        response: {
+            200: z.unknown(),
+            400: z.unknown(),
+            401: z.unknown(),
+            402: z.unknown(),
+            403: z.unknown(),
+            404: z.unknown(),
+            429: z.unknown(),
+            422: z.unknown(),
+            500: z.unknown(),
+            502: z.unknown(),
+            503: z.unknown(),
+            504: z.unknown(),
+        },
+    },
+    createOfapiCommand: {
+        auth: { kind: "apiKey" },
+        tags: ["ofapi"],
+        summary: "Create or deduplicate a desktop OFAPI command",
+        description: "Chatter-key-only C6b command intake. The command boundary accepts "
+            + "narrow versioned desktop writes and persists them as queued outbox rows. Exact "
+            + "client-id replays return the existing row; payload mismatches return 409.",
+        body: createOfapiCommandBodySchema,
+        response: {
+            200: ofapiCommandResponseSchema,
+            202: ofapiCommandResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    getOfapiCommand: {
+        auth: { kind: "apiKey" },
+        tags: ["ofapi"],
+        summary: "Get one owned desktop OFAPI command",
+        description: "Returns command state and audit metadata without echoing message text.",
+        params: ofapiCommandParamsSchema,
+        response: {
+            200: ofapiCommandResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    cancelOfapiCommand: {
+        auth: { kind: "apiKey" },
+        tags: ["ofapi"],
+        summary: "Cancel one queued desktop OFAPI command",
+        description: "Transitions only queued commands to cancelled. Repeating cancel on an "
+            + "already-cancelled command is idempotent; no vendor call is made.",
+        params: ofapiCommandParamsSchema,
+        response: {
+            200: ofapiCommandResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    adminOfapiCreditsSummary: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Get the OFAPI credit balance, budgets, forecast, and ops state",
+        response: {
+            200: ofapiCreditsSummaryResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminOfapiCreditsDaily: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Get per-day OFAPI credit spend by source plus balance/refill series",
+        querystring: adminOfapiCreditsDailyQuerySchema,
+        response: {
+            200: ofapiCreditsDailyResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminOfapiCreditsLedger: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List OFAPI credit ledger rows with filters and pagination",
+        querystring: adminOfapiCreditsLedgerQuerySchema,
+        response: {
+            200: ofapiCreditsLedgerResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminOfapiCreditsLedgerCsv: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Export the filtered OFAPI credit ledger as a CSV accounting extract",
+        querystring: adminOfapiCreditsLedgerCsvQuerySchema,
+        response: {
+            // The handler sets text/csv + Content-Disposition and writes the body
+            // directly; server OpenAPI generation rewrites this success media type to
+            // text/csv because the Zod Fastify transformer only accepts Zod schemas here.
+            200: z.string().describe("CSV — one row per credit ledger entry matching the filters"),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminOfapiSpendComparison: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Compare OFAPI spend shadow projection rows against core transaction truth",
+        description: "Read-only C3/D6 gate endpoint. It does not write transactions or revenue; "
+            + "it classifies shadow rows as matched, missing, or mismatched against the current "
+            + "core transactions table so production equivalence can be proven before desktop "
+            + "spend polling is reduced.",
+        querystring: adminOfapiSpendComparisonQuerySchema,
+        response: {
+            200: ofapiSpendComparisonResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminOfapiDmColdArchiveStatus: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Get OFAPI DM cold archive status and governance policy markers",
+        description: "Read-only C4 gate endpoint. It exposes the forward-only archive flag, "
+            + "retention window, lag/count metrics, and the current ACL/audit/purge/export/media "
+            + "policy markers. It does not expose raw transcript text.",
+        response: {
+            200: ofapiDmColdArchiveStatusResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    pages: {
+        auth: { kind: "any" },
+        tags: ["pages"],
+        summary: "List visible pages",
+        response: {
+            200: z.array(assignedPageSchema),
+            401: errorResponseSchema,
+        },
+    },
+    voiceNoteCreate: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["voice"],
+        summary: "Admit (or idempotently replay) a voice-note render",
+        description: "Admits at most one billable ElevenLabs render per (user, clientRequestId); "
+            + "returns 202 with the queued/dispatched view immediately (the synthesis runs "
+            + "detached). A replay of an already-admitted request re-runs no admission gate. "
+            + "Structured error codes (in the body `error` field): 400 voice_script_invalid / "
+            + "voice_source_invalid; 403 voice_disabled / voice_not_allowlisted; 409 "
+            + "idempotency_mismatch (same id, different request) / voice_no_profile; 429 "
+            + "voice_quota_denied; 503 voice_provider_unavailable (live flag on but "
+            + "ELEVENLABS_API_KEY or the complete SERVICE_EGRESS_PROXY_* tuple is "
+            + "unconfigured, or an active erasure temporarily owns the page writer "
+            + "fence). Quota refusal writes no render "
+            + "row and consumes no character budget. The same clientRequestId remains "
+            + "a 429 while the budget is exhausted, but may be admitted after capacity "
+            + "is restored; a concurrent already-admitted winner is replayed.",
+        params: pageParamsSchema,
+        body: voiceNoteCreateBodySchema,
+        response: {
+            202: voiceNoteStatusSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+            429: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    voiceNoteStatus: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["voice"],
+        summary: "Read a voice-note render's status",
+        description: "Page-scoped (id, page, user) lookup — a foreign or unknown voiceNoteId is an "
+            + "indistinguishable 404. 403 voice_retrieval_disabled when the retrieval incident "
+            + "switch is off.",
+        params: voiceNoteParamsSchema,
+        response: {
+            200: voiceNoteStatusSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    voiceNoteAudio: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["voice"],
+        summary: "Download a completed voice-note's audio bytes",
+        description: "Returns the rendered artifact as binary `audio/mpeg` (headers: content-length, "
+            + "cache-control private/no-store, x-content-type-options nosniff). The content-type "
+            + "is honest because setVoiceProfile constrains output_format to an MP3-only "
+            + "allowlist (non-MP3 ElevenLabs formats are rejected at profile-set time). The handler "
+            + "writes the body directly; server OpenAPI generation rewrites the 200 media type "
+            + "to audio/mpeg (the Zod Fastify transformer only accepts a Zod schema here). "
+            + "Not-yet-ready and never-produced are indistinguishable 404s. A purged artifact "
+            + "is 410 with body code `artifact_expired`: DELIBERATELY no new SDK error category "
+            + "— clients match the structured body code (the existing gate-code pattern), and "
+            + "410 stays category `validation` in the SDK taxonomy.",
+        params: voiceNoteParamsSchema,
+        response: {
+            // The handler sets audio/mpeg and writes the bytes directly; OpenAPI
+            // generation rewrites this success media type to audio/mpeg because the
+            // Zod Fastify transformer only accepts Zod schemas here.
+            200: z.string().describe("Binary audio/mpeg — the rendered voice-note MP3 bytes"),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            410: errorResponseSchema,
+        },
+    },
+    models: {
+        auth: { kind: "session" },
+        tags: ["models"],
+        summary: "List visible models",
+        response: {
+            200: z.array(modelListItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    overviewRevenue: {
+        auth: { kind: "session" },
+        tags: ["revenue"],
+        summary: "Get agency or visible-scope revenue overview",
+        querystring: revenueQuerySchema,
+        response: {
+            200: overviewRevenueResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    overviewGrowth: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get period-aware follower and subscriber growth",
+        querystring: revenueQuerySchema,
+        response: {
+            200: overviewGrowthResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    modelRevenue: {
+        auth: { kind: "session" },
+        tags: ["revenue"],
+        summary: "Get revenue for one model",
+        params: modelParamsSchema,
+        querystring: revenueQuerySchema,
+        response: {
+            200: modelRevenueResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageRevenue: {
+        auth: { kind: "session", scope: "page" },
+        tags: ["revenue"],
+        summary: "Get revenue for one page",
+        params: pageParamsSchema,
+        querystring: revenueQuerySchema,
+        response: {
+            200: pageRevenueResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageTransactions: {
+        auth: { kind: "session", scope: "page" },
+        tags: ["transactions"],
+        summary: "List transactions for one page",
+        params: pageParamsSchema,
+        querystring: transactionListQuerySchema,
+        response: {
+            200: transactionListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageSubscribers: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["subscribers"],
+        summary: "List current subscribers for one page",
+        params: pageParamsSchema,
+        querystring: subscriberListQuerySchema,
+        response: {
+            200: subscriberListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageSubscribersDaily: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["subscribers"],
+        summary: "List daily subscriber rollups for one page",
+        params: pageParamsSchema,
+        querystring: revenueQuerySchema,
+        response: {
+            200: subscriberDailyResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageFollowers: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["followers"],
+        summary: "List active followers for one page",
+        params: pageParamsSchema,
+        querystring: followerListQuerySchema,
+        response: {
+            200: followerListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageFollowersDaily: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["followers"],
+        summary: "List daily follower rollups for one page",
+        params: pageParamsSchema,
+        querystring: revenueQuerySchema,
+        response: {
+            200: followerDailyResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageFans: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "List fans for one page",
+        params: pageParamsSchema,
+        querystring: fanListQuerySchema,
+        response: {
+            200: fanListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageTopSpenders: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "Top spenders for one page from the fan-earnings projection (Stage 32 board)",
+        params: pageParamsSchema,
+        querystring: z.object({
+            // 'lifetime' or a month window ('2026-06') — the projection's window values.
+            window: z.string().regex(/^(lifetime|\d{4}-\d{2})$/).default("lifetime"),
+            limit: z.coerce.number().int().min(1).max(1000).default(150),
+        }),
+        response: {
+            200: z.object({
+                window: z.string(),
+                /** Freshest observed_at in the window (null = projection empty for this page). */
+                builtAt: z.string().nullable(),
+                /** Spenders with gross > 0 in this window (entries may be a bounded subset). */
+                fanCount: z.number().int().nonnegative(),
+                /** W8.1 (A12/A20): why the projection is (or is not) being fed — a
+                 * `builtAt: null` response is no longer ambiguous between "no
+                 * spenders" and "stream not ramped for this page". Additive. */
+                source: z.object({
+                    streamState: z.enum(["ramped", "flag_off", "not_allowlisted", "unsupported_platform"]),
+                    /** fan_earnings stream's last successful sync for this page. */
+                    lastSyncedAt: z.string().nullable(),
+                    /** null = the page has no fan_earnings sync state row yet. */
+                    consecutiveFailures: z.number().int().nullable(),
+                }),
+                entries: z.array(z.object({
+                    platformUserId: z.string(),
+                    username: z.string().nullable(),
+                    displayName: z.string().nullable(),
+                    grossMills: z.number().int().nonnegative(),
+                    netMills: z.number().int().nullable(),
+                    currency: z.string(),
+                    observedAt: z.string(),
+                    /** First time hydration failed to find this account on the platform
+                     * (fans.deleted_detected_at); null = the fan is alive. Cleared server
+                     * side as soon as any sync sees a name again (fans.ts:116-136).
+                     * Optional so a client vendored against an older kernel still
+                     * validates the response. */
+                    deletedAt: z.string().nullable().optional(),
+                })),
+            }),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageDeletedFans: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "List deleted fans for one page",
+        params: pageParamsSchema,
+        querystring: paginationQuerySchema,
+        response: {
+            200: pageDeletedFansResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageSpenderAutoLists: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["spenders"],
+        summary: "List spender auto-list buckets for one page",
+        params: pageParamsSchema,
+        querystring: pageSpenderAutoListsQuerySchema,
+        response: {
+            200: pageSpenderAutoListsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageSpenderAutoListDetail: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["spenders"],
+        summary: "List fans inside one spender auto-list bucket",
+        params: pageSpenderAutoListParamsSchema,
+        querystring: pageSpenderAutoListQuerySchema,
+        response: {
+            200: pageSpenderAutoListDetailResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageFanDetail: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "Get one fan within one page",
+        params: pageFanParamsSchema,
+        response: {
+            200: pageFanDetailResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageFanProfile: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "Get the latest intelligence profile for one fan on one page",
+        params: pageFanParamsSchema,
+        response: {
+            200: fanProfileResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageConversationProfile: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "Get the latest intelligence profile for the fan mapped to one page conversation",
+        params: pageConversationProfileParamsSchema,
+        response: {
+            200: fanProfileResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    upsertFanProfile: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "Append a new intelligence profile version for one fan on one page",
+        params: pageFanParamsSchema,
+        body: upsertFanProfileBodySchema,
+        response: {
+            200: fanProfileDocumentSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageFanProfileVersions: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "List intelligence profile versions for one fan on one page",
+        params: pageFanParamsSchema,
+        response: {
+            200: fanProfileVersionListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageFanProfileVersion: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "Get one intelligence profile version for one fan on one page",
+        params: fanProfileVersionParamsSchema,
+        response: {
+            200: fanProfileDocumentSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    crossPageFanDetail: {
+        auth: { kind: "session" },
+        tags: ["fans"],
+        summary: "Get one fan across visible pages",
+        params: fanLookupParamsSchema,
+        response: {
+            200: crossPageFanDetailResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    spenders: {
+        auth: { kind: "any" },
+        tags: ["spenders"],
+        summary: "List ranked spenders for a scoped platform view",
+        querystring: spenderListQuerySchema,
+        response: {
+            200: spenderListResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    spenderDetail: {
+        auth: { kind: "any" },
+        tags: ["spenders"],
+        summary: "Get one platform-scoped spender",
+        params: fanLookupParamsSchema,
+        querystring: spenderDetailQuerySchema,
+        response: {
+            200: spenderDetailResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    spenderSeries: {
+        auth: { kind: "session" },
+        tags: ["spenders"],
+        summary: "Get zero-filled spender trend series",
+        params: fanLookupParamsSchema,
+        querystring: spenderSeriesQuerySchema,
+        response: {
+            200: spenderSeriesResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    spenderBatch: {
+        auth: { kind: "any" },
+        tags: ["spenders"],
+        summary: "Batch-resolve spender metrics for platform-scoped fan identities",
+        body: spenderBatchBodySchema,
+        response: {
+            200: spenderBatchResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    fansSearch: {
+        auth: { kind: "any" },
+        tags: ["fans"],
+        summary: "Search visible platform-scoped fan identities",
+        querystring: fansSearchQuerySchema,
+        response: {
+            200: fansSearchResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageConversationPreview: {
+        auth: { kind: "session", scope: "page" },
+        tags: ["conversations"],
+        summary: "Return locally cached DM preview rows for one conversation",
+        params: pageConversationPreviewParamsSchema,
+        querystring: pageConversationPreviewQuerySchema,
+        response: {
+            200: pageConversationPreviewResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageConversationMessages: {
+        auth: { kind: "session", scope: "page" },
+        tags: ["conversations"],
+        summary: "Return cached DM messages for one conversation",
+        params: pageConversationMessagesParamsSchema,
+        querystring: pageConversationMessagesQuerySchema,
+        response: {
+            200: pageConversationMessagesResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    followerOutreachAttempt: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["conversations"],
+        summary: "Reserve and record one human-triggered follower greeting send",
+        params: pageParamsSchema,
+        body: z.object({
+            fanRef: z.string().regex(/^\d{1,24}$/),
+            attemptId: z.string().uuid(),
+            action: z.enum(["reserve", "dispatch", "sent"]),
+            messageRef: z.string().regex(/^\d{1,24}$/).optional(),
+        }).strict(),
+        response: {
+            200: z.object({ owned: z.boolean(), state: z.enum(["reserved", "dispatching", "sent", "expired"]), expiresAt: isoTimestamp.nullable() }).strict(),
+            400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema,
+        },
+    },
+    // --- Phase 4: Dashboard routes ---
+    overview: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get agency overview dashboard data",
+        response: {
+            200: overviewResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    syncStatus: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get aggregated sync monitor data for visible pages",
+        querystring: syncStatusQuerySchema,
+        response: {
+            200: syncStatusResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    syncRequests: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get recent visible sync worker HTTP requests",
+        querystring: syncRequestsQuerySchema,
+        response: {
+            200: syncRequestsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    syncOverview: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get the 6-block sync overview for visible pages",
+        response: {
+            200: syncOverviewResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    pageSyncBlocks: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["dashboard"],
+        summary: "Get all sync blocks for one visible page",
+        params: pageSyncBlocksParamsSchema,
+        response: {
+            200: pageSyncBlocksResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageMessagesBlock: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["dashboard"],
+        summary: "Get the combined Messages sync block for one visible page",
+        params: pageSyncBlocksParamsSchema,
+        response: {
+            200: pageMessagesBlockResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    overviewRevenueDaily: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get agency-wide revenue daily series",
+        querystring: revenueDailyQuerySchema,
+        response: {
+            200: revenueDailyResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    overviewRevenueByModel: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get per-model revenue totals and daily series",
+        querystring: revenueByModelQuerySchema,
+        response: {
+            200: revenueByModelResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    pageRevenueDaily: {
+        auth: { kind: "session", scope: "page" },
+        tags: ["dashboard"],
+        summary: "Get daily revenue series for one page",
+        params: pageParamsSchema,
+        querystring: revenueDailyQuerySchema,
+        response: {
+            200: revenueDailyResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    modelRevenueDaily: {
+        auth: { kind: "session" },
+        tags: ["dashboard"],
+        summary: "Get daily revenue series for one model",
+        params: modelParamsSchema,
+        querystring: revenueDailyQuerySchema,
+        response: {
+            200: revenueDailyResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    crossPageTransactions: {
+        auth: { kind: "session" },
+        tags: ["transactions"],
+        summary: "List transactions across all visible pages",
+        querystring: crossPageTransactionListQuerySchema,
+        response: {
+            200: crossPageTransactionListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    pageFanTransactions: {
+        auth: { kind: "session", scope: "page" },
+        tags: ["fans"],
+        summary: "Get fan transaction history on a specific page",
+        params: pageFanParamsSchema,
+        querystring: paginationQuerySchema,
+        response: {
+            200: fanTransactionListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    crossPageFanTransactions: {
+        auth: { kind: "session" },
+        tags: ["fans"],
+        summary: "Get cross-page fan transaction history",
+        params: fanLookupParamsSchema,
+        querystring: paginationQuerySchema,
+        response: {
+            200: crossPageFanTransactionListResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    createFanNote: {
+        auth: { kind: "any", scope: "page" },
+        tags: ["fans"],
+        summary: "Create a note on a fan for a specific page",
+        params: pageFanParamsSchema,
+        body: createFanNoteBodySchema,
+        response: {
+            200: fanNoteResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    setFanFlags: {
+        auth: { kind: "owner-session" },
+        tags: ["fans"],
+        summary: "Set flags on a fan",
+        params: fanLookupParamsSchema,
+        body: setFanFlagsBodySchema,
+        response: {
+            200: fanFlagsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    openApiJson: {
+        auth: { kind: "owner-session" },
+        tags: ["system"],
+        summary: "Get the OpenAPI specification",
+        response: {
+            200: z.any(),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    // Admin routes
+    adminListUsers: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List all users",
+        response: {
+            200: z.array(adminUserSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    aiPersonasList: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "List kernel AI personas (the desktop picker's source)",
+        response: {
+            200: aiPersonasResponseSchema,
+            401: errorResponseSchema,
+        },
+    },
+    aiPersonaCatalog: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "List AI persona metadata for client pickers",
+        response: {
+            200: aiPersonaCatalogResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    aiRecapStatus: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "Freshest usable recap metadata (full + short slots) for one conversation",
+        querystring: aiRecapStatusQuerySchema,
+        response: {
+            200: aiRecapStatusResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    aiPersonaUpsert: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "Create or update a kernel AI persona",
+        params: aiPersonaUpsertParamsSchema,
+        body: aiPersonaUpsertBodySchema,
+        response: {
+            200: aiPersonaSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    aiPersonaArchive: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "Archive a kernel AI persona (soft retire)",
+        params: aiPersonaUpsertParamsSchema,
+        querystring: aiPersonaArchiveQuerySchema,
+        response: {
+            200: z.object({ archived: z.boolean(), version: z.number().int().positive() }),
+            401: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminAiPersonasList: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List full active and archived AI personas for owner administration",
+        response: {
+            200: adminAiPersonasResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminAiPersonaCreate: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Create an AI persona",
+        body: adminAiPersonaCreateBodySchema,
+        response: {
+            200: adminAiPersonaSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminAiPersonaUpdate: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Update an active AI persona with optimistic concurrency",
+        params: adminAiPersonaParamsSchema,
+        body: adminAiPersonaUpdateBodySchema,
+        response: {
+            200: adminAiPersonaSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminAiPersonaArchive: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Archive an active AI persona with optimistic concurrency",
+        params: adminAiPersonaParamsSchema,
+        querystring: adminAiPersonaArchiveQuerySchema,
+        response: {
+            200: adminAiPersonaSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    aiFeatureStream: {
+        auth: { kind: "apiKey" },
+        tags: ["usage"],
+        summary: "Stream a kernel-assembled AI feature generation",
+        description: "Stage 30 feature services: context loads kernel-side, the migrated prompt "
+            + "builder assembles the request, and the stream rides the gateway (budgets, ledger, "
+            + "restricted capture).",
+        params: aiFeatureStreamParamsSchema,
+        body: aiFeatureStreamBodySchema,
+        response: {
+            200: z.unknown(),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+            429: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    aiRestrictedGenerations: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List restricted AI generation content (owner only)",
+        querystring: aiRestrictedGenerationsQuerySchema,
+        response: {
+            200: aiRestrictedGenerationsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    aiRestrictedGenerationDetail: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Get one restricted AI generation with its acceptance lifecycle (owner only)",
+        params: aiRestrictedGenerationParamsSchema,
+        response: {
+            200: aiRestrictedGenerationDetailResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminChatterUsage: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Get aggregated AI usage per chatter",
+        querystring: adminChatterUsageQuerySchema,
+        response: {
+            200: adminChatterUsageResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminAssignPage: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Assign a page to a user",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        body: adminAssignPageBodySchema,
+        response: {
+            200: authUserSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminUnassignPage: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Unassign a page from a user",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER), pageLabel: z.string().min(1) }),
+        response: {
+            200: z.object({ ok: z.literal(true) }),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminDeactivateUser: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Disable a user temporarily, retaining their login and history",
+        description: "Sets the disabled_at tombstone and revokes every credential "
+            + "(device tokens, reservations, sessions, links) in one transaction. History and "
+            + "attribution are preserved and the login stays reserved. "
+            + "Owners and the calling account itself cannot be deactivated.",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: z.object({
+                ok: z.literal(true),
+                revokedDeviceTokens: z.number().int().nonnegative(),
+                revokedSessions: z.number().int().nonnegative(),
+            }),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminReactivateUser: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Reactivate a deactivated user",
+        description: "Clears disabled_at. The stored password works again immediately "
+            + "and the registration state is preserved; device tokens stay revoked — the "
+            + "person signs in again from each device. Permanently deleted accounts "
+            + "cannot be restored.",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: z.object({ ok: z.literal(true) }),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminDeleteUser: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Permanently delete an account and release its login",
+        description: "Revokes every credential and account link, clears the password, "
+            + "and permanently marks this immutable user ID deleted in one transaction. "
+            + "Historical attribution is retained. The login can be assigned to a new "
+            + "account with a different ID; no access or credentials transfer. Deleted "
+            + "accounts cannot be restored. Owners and the caller cannot be deleted.",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: z.object({
+                ok: z.literal(true),
+                revokedDeviceTokens: z.number().int().nonnegative(),
+                revokedSessions: z.number().int().nonnegative(),
+            }),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    authChangePassword: {
+        auth: { kind: "any-session" },
+        tags: ["auth"],
+        summary: "Change the caller's own password",
+        description: "Verifies the current password, sets the new one and revokes "
+            + "every session — log in again with the new credential.",
+        body: changePasswordBodySchema,
+        response: {
+            200: z.object({ ok: z.literal(true) }),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    authActivateDeviceToken: {
+        auth: { kind: "pending-device-token" },
+        tags: ["auth"],
+        summary: "Activate a durably staged pending device token",
+        description: "Accepts only the distinct pending-device-token bearer. Atomically "
+            + "moves its digest into active device_tokens and deletes the reservation. "
+            + "Retrying after a lost success response is idempotent.",
+        response: {
+            200: activatedDeviceTokenResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    authRevokeCurrentDeviceToken: {
+        auth: { kind: "device-token" },
+        tags: ["auth"],
+        summary: "Revoke the current device-token bearer",
+        description: "Revokes exactly the credential authenticating this request. "
+            + "Cookie sessions are rejected; sibling device tokens are untouched.",
+        response: {
+            200: z.object({ revoked: z.literal(true) }),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminListDeviceTokens: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List a user's device tokens",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: z.array(deviceTokenItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminSetDeviceTokenHarvestCapability: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Bind or remove a device token's Desktop harvest capability",
+        description: "Owner-only machine binding. Rebinding one machine atomically "
+            + "transfers its harvest authority from the previous device token.",
+        params: z.object({
+            userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+            tokenId: z.coerce.number().int().positive(),
+        }),
+        body: deviceTokenHarvestCapabilityBodySchema,
+        response: {
+            200: deviceTokenItemSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminRevokeDeviceTokens: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Revoke all of a user's device tokens",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: z.object({ revokedCount: z.number().int().nonnegative() }),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminDeviceTokenAdoption: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Device-token adoption across active chatters (D116(c) gate report)",
+        description: "Read-only: per active chatter, whether a live device token "
+            + "was used within the freshness window, and which client version it last "
+            + "spoke. The fleet gate for retiring a client lane reads these rows.",
+        response: {
+            200: deviceTokenAdoptionReportSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminGrantModel: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Grant a user model-scope access (present and future pages)",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        body: z.object({ modelSlug: z.string().min(1) }),
+        response: {
+            200: z.object({ ok: z.literal(true) }),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminRevokeModel: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Revoke a user's model-scope grant",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER), modelSlug: z.string().min(1) }),
+        response: {
+            200: z.object({ ok: z.literal(true) }),
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminListUserGrants: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Access-grant history for one user (active and revoked)",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: z.object({ grants: z.array(accessGrantItemSchema) }),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    // --- Decision 349: unified chatter account (PR-1A) ---
+    adminCreateInvite: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Invite a person: create the account, assign pages and mint a one-time invite link — one transaction",
+        description: "Creates the user WITHOUT a password, assigns every listed page "
+            + "and creates an invite link (7 days by default, 30 at most) atomically: a "
+            + "failure on any page leaves neither user nor link behind. The raw link "
+            + "token is returned exactly once. Usernames are unique case-insensitively.",
+        body: adminCreateInviteBodySchema,
+        response: {
+            200: adminCreateInviteResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminCreateAccountLink: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Create a one-time invite or password-reset link for a user (returned once)",
+        description: "A new link of either kind supersedes every previously active "
+            + "link of the same user. `invite` is accepted only for an unfinished "
+            + "registration; a user with a password gets `password_reset`. Owners "
+            + "cannot be reset by link (they change their password themselves).",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        body: adminCreateAccountLinkBodySchema,
+        response: {
+            200: issuedAccountLinkSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminListAccountLinks: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List a user's invite and password-reset links with their state",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: z.array(accountLinkItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminRevokeAccountLink: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Revoke one of a user's links (idempotent on an already inactive link)",
+        params: z.object({
+            userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+            linkId: z.coerce.number().int().positive(),
+        }),
+        response: {
+            200: accountLinkItemSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminRevokeDeviceToken: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Revoke ONE of a user's device tokens (\"revoke this sign-in\")",
+        params: z.object({
+            userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+            tokenId: z.coerce.number().int().positive(),
+        }),
+        response: {
+            200: z.object({ revoked: z.literal(true) }),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminTerminateAllAccess: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Terminate every sign-in of a user: device tokens, reservations, sessions and active links",
+        description: "The strongest revocation short of deactivation (§4.4). The "
+            + "user is NOT disabled and the password is NOT changed: a fresh login "
+            + "with the valid password still works. Owner accounts are refused.",
+        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+        response: {
+            200: adminTerminateAllAccessResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    authInspectAccountLink: {
+        auth: { kind: "public" },
+        tags: ["auth"],
+        summary: "Inspect an invite / password-reset link before redeeming it",
+        description: "The token travels in the POST body, never in the path. An "
+            + "active link discloses its kind, the username, the expiry and the "
+            + "platforms of the assigned pages; an inactive one only its state; an "
+            + "unknown token is 404. Rate-limited per IP (30/min).",
+        body: accountLinkTokenBodySchema,
+        response: {
+            200: authInspectAccountLinkResponseSchema,
+            400: errorResponseSchema,
+            404: errorResponseSchema,
+            429: errorResponseSchema,
+        },
+    },
+    authRedeemAccountLink: {
+        auth: { kind: "public" },
+        tags: ["auth"],
+        summary: "Redeem a link: set the password (invite) or reset it and terminate every sign-in (password_reset)",
+        description: "One-time: the link is marked used in the same transaction as "
+            + "the password. A used, expired or revoked link answers 409 `conflict` "
+            + "with `reason` = used | expired | revoked. Rate-limited per IP (10/min).",
+        body: authRedeemAccountLinkBodySchema,
+        response: {
+            200: authRedeemAccountLinkResponseSchema,
+            400: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+            429: errorResponseSchema,
+        },
+    },
+    authIssueDeviceTokenWithPassword: {
+        auth: { kind: "public" },
+        tags: ["auth"],
+        summary: "Sign in a device with username + password: issue a device token (active) or a reservation (pending) — no cookie",
+        description: "The single client sign-in protocol (Р2). Shares the per-account "
+            + "backoff and the `auth.login_failed` audit with `login`; wrong "
+            + "credentials answer 401 without an oracle. Rate-limited per IP (20/min).",
+        body: authIssueDeviceTokenWithPasswordBodySchema,
+        response: {
+            200: authIssueDeviceTokenWithPasswordResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            429: errorResponseSchema,
+        },
+    },
+    authListDevices: {
+        auth: { kind: "any-session" },
+        tags: ["auth"],
+        summary: "List the caller's live devices (active device tokens)",
+        response: {
+            200: z.array(ownDeviceItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    authRevokeDevice: {
+        auth: { kind: "any-session" },
+        tags: ["auth"],
+        summary: "Sign out one of the caller's own devices",
+        params: z.object({ deviceId: z.coerce.number().int().positive() }),
+        response: {
+            200: z.object({ revoked: z.literal(true) }),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    authRevokeAllDevices: {
+        auth: { kind: "any-session" },
+        tags: ["auth"],
+        summary: "Sign out on all devices: every device token and reservation, every session except the current one",
+        response: {
+            200: authRevokeAllDevicesResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    authMyUsage: {
+        auth: { kind: "any-session" },
+        tags: ["auth"],
+        summary: "The caller's own AI usage: totals, feature breakdown and a daily series",
+        querystring: adminChatterUsageQuerySchema,
+        response: {
+            200: authMyUsageResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    archiveConversationMessages: {
+        auth: { kind: "session" },
+        tags: ["archive"],
+        summary: "List archived messages for one conversation (paged, before-cursor)",
+        params: z.object({ ref: z.string().min(1).max(200) }),
+        querystring: z.object({
+            before: z.coerce.number().int().positive().optional(),
+            limit: z.coerce.number().int().min(1).max(500).optional(),
+        }),
+        response: {
+            200: z.array(archiveMessageItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    archiveSearch: {
+        auth: { kind: "session" },
+        tags: ["archive"],
+        summary: "Search archived message text (bounded ILIKE)",
+        querystring: z.object({
+            q: z.string().min(2).max(200),
+            fan: z.string().max(200).optional(),
+            limit: z.coerce.number().int().min(1).max(200).optional(),
+        }),
+        response: {
+            200: z.array(archiveMessageItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminSyncRuns: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List recent sync runs",
+        querystring: syncRunsQuerySchema,
+        response: {
+            200: z.array(syncRunItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminSyncRunDetail: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Get sync run detail",
+        params: z.object({ runId: z.coerce.number().int().positive() }),
+        response: {
+            200: syncRunDetailResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminSyncTrigger: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Trigger sync for a page",
+        body: syncTriggerBodySchema,
+        response: {
+            202: syncTriggerResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            // fansly_page_switching: the page is being switched to the Fansly Sync Engine
+            409: errorResponseSchema,
+        },
+    },
+    adminSyncBlockTrigger: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Trigger sync for a specific page block",
+        body: adminSyncBlockBodySchema,
+        response: {
+            200: adminSyncBlockResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            // fansly_page_switching: the page is being switched to the Fansly Sync Engine
+            409: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    adminSyncBlockPause: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Pause sync for a specific page block",
+        body: adminSyncBlockBodySchema,
+        response: {
+            200: adminSyncBlockResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminSyncBlockResume: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Resume sync for a specific page block",
+        body: adminSyncBlockBodySchema,
+        response: {
+            200: adminSyncBlockResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminSyncBlockReset: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Reset sync state for a specific page block",
+        body: adminSyncBlockBodySchema,
+        response: {
+            200: adminSyncBlockResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            // fansly_page_switching: the page is being switched to the Fansly Sync Engine
+            409: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    adminFollowersReconcileReset: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Reset only the Fansly follower-reconcile stream without deleting its cursor",
+        body: adminFollowersReconcileResetBodySchema,
+        response: {
+            200: adminFollowersReconcileResetResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            // fansly_page_switching: the page is being switched to the Fansly Sync Engine
+            409: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
+    adminFollowersReconcileOverridePreview: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Preview the exact follower rows behind a blast-radius block",
+        body: adminFollowersReconcileOverridePreviewBodySchema,
+        response: {
+            200: adminFollowersReconcileOverridePreviewResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminFollowersReconcileOverrideApply: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Apply a hash-bound follower blast-radius override while audience sync is paused",
+        body: adminFollowersReconcileOverrideApplyBodySchema,
+        response: {
+            200: adminFollowersReconcileOverrideApplyResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminSyncTriggerAll: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Trigger sync for all pages",
+        response: {
+            202: syncTriggerAllResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminConnections: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List connection statuses",
+        response: {
+            200: z.array(connectionItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminModels: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List all models for admin management",
+        response: {
+            200: z.array(adminModelListItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminCreateModel: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Create a model",
+        body: createModelBodySchema,
+        response: {
+            200: createModelResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminUpdateModel: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Update a model",
+        params: modelParamsSchema,
+        body: updateModelBodySchema,
+        response: {
+            200: createModelResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminDeleteModel: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Delete an empty model",
+        params: modelParamsSchema,
+        response: {
+            200: deletedResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminPages: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List all pages for admin management",
+        response: {
+            200: z.array(assignedPageSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminCreatePage: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Onboard a new page",
+        body: createPageBodySchema,
+        response: {
+            200: adminCreatePageResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminUpdatePage: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Update a page",
+        params: pageParamsSchema,
+        body: updatePageBodySchema,
+        response: {
+            200: adminUpdatePageResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminDeletePage: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Delete a page",
+        params: pageParamsSchema,
+        response: {
+            200: deletedResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    adminVerifyCredentials: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Verify credentials without persisting",
+        body: verifyCredentialsBodySchema,
+        response: {
+            200: verifyCredentialsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminTestProxy: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Test a proxy connection and return the exit IP",
+        body: testProxyBodySchema,
+        response: {
+            200: testProxyResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminVerifyPage: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Verify stored credentials for a page",
+        description: "On a page the Fansly Sync Engine runs (`live`) the verify is the engine's `account.verify`, answered "
+            + "within 30 s; 409 `fansly_sync_work_queued` (with `statusUrl`) when it is still queued, 409 "
+            + "`fansly_page_switching` while the page is being switched (nothing was sent).",
+        params: pageParamsSchema,
+        response: {
+            200: verifyPageResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminUpdateCredentials: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Update credentials for an existing page",
+        description: "On a page the Fansly Sync Engine runs (`live`) the candidate session/proxy is checked by the engine's "
+            + "`account.identity` (≤ 30 s) before anything is stored; 409 `fansly_sync_work_queued` (with `statusUrl`) "
+            + "when the check is still queued, 409 `fansly_page_switching` while the page is being switched "
+            + "(nothing was sent and nothing was stored).",
+        params: pageParamsSchema,
+        body: updateCredentialsBodySchema,
+        response: {
+            200: updateCredentialsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminLogs: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List recent sync event logs",
+        querystring: adminLogsQuerySchema,
+        response: {
+            200: z.array(adminLogItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminQueueJobs: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List pg-boss jobs",
+        querystring: adminQueueJobsQuerySchema,
+        response: {
+            200: z.array(adminQueueJobItemSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminDbStats: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List database table sizes and migrations",
+        response: {
+            200: adminDbStatsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminIncidents: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "List sync incidents and seven-day summary counts",
+        querystring: adminIncidentsQuerySchema,
+        response: {
+            200: adminIncidentsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    // --- Notifications dashboard ---
+    notificationsSettings: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "Get notification settings and connection status",
+        response: {
+            200: notificationsSettingsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    notificationsSettingsUpdate: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "Update notification settings",
+        body: notificationsSettingsUpdateBodySchema,
+        response: {
+            200: notificationsSettingsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    notificationsTestMessage: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "Send a test Telegram message",
+        response: {
+            200: notificationsTestMessageResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    notificationsDiscoverChats: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "Discover Telegram chats that have messaged the bot",
+        body: notificationsDiscoverChatsBodySchema,
+        response: {
+            200: notificationsDiscoverChatsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    notificationsIncidents: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "List notification incidents with page context",
+        querystring: notificationsIncidentsQuerySchema,
+        response: {
+            200: notificationsIncidentsResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    notificationsResolveIncident: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "Manually resolve an incident",
+        params: z.object({ incidentId: z.coerce.number().int().positive() }),
+        response: {
+            200: notificationsResolveIncidentResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    notificationsReportPreview: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "Preview the next daily report without sending",
+        response: {
+            200: notificationsReportPreviewResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    notificationsReportSend: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "Manually send a daily report",
+        response: {
+            200: notificationsReportSendResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    notificationsReportHistory: {
+        auth: { kind: "owner-session" },
+        tags: ["notifications"],
+        summary: "List daily report delivery history",
+        response: {
+            200: notificationsReportHistoryResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    // --- Configuration (owner-only) ---
+    adminConfig: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Read effective runtime configuration across processes",
+        response: {
+            200: configViewResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    adminConfigUpdate: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Set runtime config overrides for live (editable, reload) keys",
+        body: configUpdateBodySchema,
+        response: {
+            200: configUpdateResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminConfigClear: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Clear a runtime config override (revert to env)",
+        params: configClearParamsSchema,
+        querystring: configClearQuerySchema,
+        response: {
+            200: configClearResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    adminConfigStaged: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "Flip staged-rollout (boot-applied) config flags in the prescribed order",
+        body: configStagedBodySchema,
+        response: {
+            200: configStagedResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    // --- WP-S1: the endpoints-cover serving surface (Fansly only, A28-2) -------
+    // Every one of the eight is `owner-session` + `scope: "page"`. That pairing is
+    // deliberate and is the whole access story for now: widening any of them to a
+    // chatter or agent principal is its own PR with its own gate. It is also what
+    // gates the money routes — `owner-session` IS the money scope on the REST
+    // surface (there is no separate money capability for cookie sessions; the
+    // `read:money` capability exists on the AGENT plane, whose datasets carry the
+    // same data behind it). `tests/contracts-auth-declarations.test.ts` pins both
+    // halves so a later widening cannot happen quietly.
+    statsTraffic: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Profile/media traffic buckets by RAW source code for one page",
+        params: pageParamsSchema,
+        querystring: statsTrafficQuerySchema,
+        response: {
+            200: statsTrafficResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    statsMedia: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Per-media traffic buckets, catalog head and top-media rankings",
+        params: pageParamsSchema,
+        querystring: statsMediaQuerySchema,
+        response: {
+            200: statsMediaResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    statsTags: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Top FYP tags per window plus platform-global tag counters",
+        params: pageParamsSchema,
+        querystring: statsTagsQuerySchema,
+        response: {
+            200: statsTagsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    statsCoverage: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Capture coverage, per-lane budget state and the live long-tail cycle",
+        params: pageParamsSchema,
+        response: {
+            200: statsCoverageResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    contentMedia: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Content catalog: media, vault albums, tiers/plans, walls, automations",
+        params: pageParamsSchema,
+        querystring: contentMediaQuerySchema,
+        response: {
+            200: contentMediaResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    contentComments: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Post comments with pagination/truncation honesty; likers declared empty",
+        params: pageParamsSchema,
+        querystring: contentCommentsQuerySchema,
+        response: {
+            200: contentCommentsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    moneyRevenueMix: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Daily revenue mix by RAW type code plus month totals incl. the rollup row",
+        params: pageParamsSchema,
+        querystring: moneyRevenueMixQuerySchema,
+        response: {
+            200: moneyRevenueMixResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    moneyPayouts: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Payout requests and MASKED payout methods (money-gated by owner-session)",
+        params: pageParamsSchema,
+        querystring: moneyPayoutsQuerySchema,
+        response: {
+            200: moneyPayoutsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+};
+export const routeSchemas = {
+    ...baseRouteSchemas,
+    ...ofapiActionRouteSchemas,
+    ...agentRouteSchemas,
+    ...agentKeyAdminRouteSchemas,
+    ...syncRouteSchemas,
+};
