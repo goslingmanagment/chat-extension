@@ -108,7 +108,15 @@ describe('[TL-009] [TL-012] ingest: acceptance always, client_health only under 
 });
 
 describe('[TL-013] the user\'s own AI spend (H-15, debug only)', () => {
+  it('[TL-013] [ST-097] refused locally with debug off, never asked of the hub', async () => {
+    await signIn(h, WORLD_PILOT);
+    const error = await h.facade.aiUsage({ pageLabel: PAGE, date: '2026-10-03' }).catch((reason: unknown) => reason);
+    expect(errorWireOf(error)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'debug_off' });
+    expect(h.hub.of('clientAiUsageDaily')).toEqual([]);
+  });
+
   it('[TL-013] refused locally without ai-usage-v1; with it, the report of a granted page', async () => {
+    h.env.debug = true;
     await signIn(h, { ...WORLD_PILOT, bootstrap: { ...BOOTSTRAP_PILOT_ON, capabilities: BOOTSTRAP_PILOT_ON.capabilities.filter((capability) => capability !== 'ai-usage-v1') } });
     expect(errorWireOf(await h.facade.aiUsage({ pageLabel: PAGE, date: '2026-10-03' }).catch((reason: unknown) => reason))?.code).toBe('CG-HUB-CAPABILITY');
     await signIn(h, WORLD_PILOT);

@@ -803,8 +803,11 @@ export class ChatExtensionHub implements HubFacade {
     return { accepted, duplicates, healthRefused };
   }
 
-  /** H-15, debug only: refused locally without `ai-usage-v1`. */
+  /** H-15, debug only (§5.8): refused locally with debug off (CG-FEATURE-DISABLED · debug_off) and without `ai-usage-v1`. */
   async aiUsage(query: AiUsageQuery): Promise<AiUsageReport> {
+    await this.ready;
+    const connection = this.ctx.connection('clientAiUsageDaily');
+    if (!this.options.env.debugEnabled()) throw new FacadeCheckError('featureDisabled', 'clientAiUsageDaily', connection.epoch, 'debug_off');
     return (await this.client('clientAiUsageDaily', query, query.pageLabel)) as AiUsageReport;
   }
 
