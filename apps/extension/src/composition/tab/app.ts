@@ -295,6 +295,10 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     healthFrom = to;
     return out;
   };
+  const sendHealth = (report: HostContractReport): void => {
+    const nodes = mounts.dock.root.querySelectorAll('*').length;
+    void rpc.request('health.report', { report: healthReport(report, nodes) });
+  };
   let contractLogged = false;
   const reportContract = (report: HostContractReport): void => {
     dock.update({ contract: report });
@@ -306,8 +310,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
       .map(([name]) => name);
     logHostContract(logger, { build: report.build, adapterVersion: report.adapterVersion, ok: missing.length === 0, missing, degraded }, contractLogged);
     contractLogged = true;
-    const nodes = mounts.dock.root.querySelectorAll('*').length;
-    void rpc.request('health.report', { report: healthReport(report, nodes) });
+    sendHealth(report);
   };
   offs.push(host.onContract(reportContract));
   reportContract(snapshot.contract);
@@ -316,8 +319,11 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   offs.push(
     rpc.onState(() => {
       dock.update({ runtime: runtimeOf() });
-      // A new tab session after a lost port: the background may have restarted with another sign-in.
-      if (rpc.state() === 'ready') void rpc.request('session.get', {}).then((answer) => (answer.ok ? onSession(answer.payload.session) : undefined));
+      if (rpc.state() !== 'ready') return;
+      // A new tab session after a lost port: the background started again. It may have another sign-in…
+      void rpc.request('session.get', {}).then((answer) => (answer.ok ? onSession(answer.payload.session) : undefined));
+      // …and it kept nothing of this tab in memory: the host contract («Статус», client_health) goes to it again.
+      sendHealth(host.current().contract);
     }),
     rpc.onEvent('session.changed', (event) => void onSession(event.session)),
     rpc.onEvent('bootstrap.changed', () => void readBootstrap()),
