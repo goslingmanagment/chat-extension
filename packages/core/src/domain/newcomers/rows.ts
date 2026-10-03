@@ -22,8 +22,8 @@ export interface NewcomerRow {
   readonly kind: NewcomerKind;
   readonly trial: boolean;
   readonly subscribedAt: IsoTimestamp;
-  /** The current subscription of THIS page as the hub knows it, with its data time (X8 condition 9). */
-  readonly subscription: { readonly state: 'active' | 'expired' | 'unknown'; readonly asOf: IsoTimestamp | null };
+  /** The current subscription of THIS page as the hub knows it, with its data time and its end (X8 condition 9). */
+  readonly subscription: { readonly state: 'active' | 'expired' | 'unknown'; readonly asOf: IsoTimestamp | null; readonly endsAt: IsoTimestamp | null };
   readonly thread: {
     readonly storedMessages: number;
     readonly lastMessageAt: IsoTimestamp | null;
@@ -45,7 +45,19 @@ function subscriptionOf(status: AudienceNewItem['status']): NewcomerRow['subscri
   if (status.isSubscriber === true && known !== 'expired') state = 'active';
   else if (status.isSubscriber === false && known !== 'active') state = 'expired';
   else if (status.isSubscriber === null && known !== null) state = known;
-  return { state, asOf: status.asOf };
+  return { state, asOf: status.asOf, endsAt: status.endsAt };
+}
+
+/**
+ * X8 condition 9 for «Новые» (§6.7.4): an explicit current status WITH its
+ * data time. «Active» without a data time, or with an end that has passed,
+ * is not a confirmed subscription — expired or unknown data refuse the send.
+ */
+export function subscriptionCurrent(subscription: NewcomerRow['subscription'], now: number): boolean {
+  if (subscription.state !== 'active' || subscription.asOf === null || Number.isNaN(Date.parse(subscription.asOf))) return false;
+  if (subscription.endsAt === null) return true;
+  const ends = Date.parse(subscription.endsAt);
+  return !Number.isNaN(ends) && ends > now;
 }
 
 const clean = (text: string | null): string | null => {
@@ -167,8 +179,14 @@ export function matchesSearch(row: NewcomerRow, query: string): boolean {
 }
 
 /** Why Hi is off for a row, by its greeting status; null — Hi may start (the hub still decides on its own). */
-export type HiBlock = 'claim-busy' | 'claim-elsewhere' | 'greeted' | 'uncertain';
+export type HiBlock = 'claim-busy' | 'claim-elsewhere' | 'greeted' | 'uncertain' | 'sending';
 
+/**
+ * §6.7.9: after the first confirmed part the fan counts as greeted — the
+ * owner may still send the rest of that group, but another generation would
+ * be a second greeting, so Hi is off from then on. While the first part is
+ * still on its way Hi waits for it.
+ */
 export function hiBlock(status: GreetingStatusVM): HiBlock | null {
   switch (status.s) {
     case 'claim-other':
@@ -180,6 +198,7 @@ export function hiBlock(status: GreetingStatusVM): HiBlock | null {
     case 'greeted':
       return 'greeted';
     case 'sending':
+      return status.sent > 0 ? 'greeted' : 'sending';
     case 'none':
     case 'claim-mine':
       return null;

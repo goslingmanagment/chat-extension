@@ -17,6 +17,9 @@ export interface LeasePolicy {
   readonly activityMs: number;
 }
 
+/** After a renewal that did not go through, the next one is tried this soon (and no later than the deadline). */
+export const RENEW_RETRY_MS = 10_000;
+
 /** The hub's defaults (H-7) while no bootstrap is at hand. */
 export const DEFAULT_LEASE_POLICY: LeasePolicy = { leaseMs: 120_000, renewMs: 40_000, activityMs: 120_000 };
 

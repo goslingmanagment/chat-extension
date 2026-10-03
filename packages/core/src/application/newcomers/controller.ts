@@ -28,10 +28,10 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { RowLocks, claimRefusal, leaseNow, leaseOfClaim, leasePolicy, shouldRenew, type LeasePolicy, type LeaseView } from '../../domain/newcomers/claim';
+import { RENEW_RETRY_MS, RowLocks, claimRefusal, leaseNow, leaseOfClaim, leasePolicy, shouldRenew, type LeasePolicy, type LeaseView } from '../../domain/newcomers/claim';
 import { draftStale } from '../../domain/newcomers/greeting';
 import { NO_SEEN_EVENTS, nextPollDelay, observeEvents, pollMode, resumeDelay, unprime, type SeenEvents } from '../../domain/newcomers/poll';
-import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
+import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
 import { WINDOW_HOURS, appendAudiencePage, clampWindow, startWalk, walkHasMore, walkIncomplete, windowLimit, windowOptions, type AudienceWalk } from '../../domain/newcomers/window';
 import { type PageContextPort, type PageContextState, flagReason, pageFlag } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
@@ -63,6 +63,8 @@ interface LeaseRecord {
   detail: ClaimState | null;
   /** Why the last claim call was refused; cleared by the next answer. */
   refusal: { readonly kind: ReturnType<typeof claimRefusal>; readonly error: CgErrorWire } | null;
+  /** The last renewal of a lease of ours did not go through; cleared by the next answer. */
+  renewError: CgErrorWire | null;
   progress: LocalGreeting['progress'];
   lastActivityAt: number;
   busy: boolean;
@@ -157,7 +159,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   function recordOf(fanRef: string): LeaseRecord {
     let record = leases.get(fanRef);
     if (record === undefined) {
-      record = { view: { s: 'none' }, detail: null, refusal: null, progress: null, lastActivityAt: clock.now(), busy: false, timer: null };
+      record = { view: { s: 'none' }, detail: null, refusal: null, renewError: null, progress: null, lastActivityAt: clock.now(), busy: false, timer: null };
       leases.set(fanRef, record);
     }
     return record;
@@ -203,8 +205,12 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     return binding !== null && route !== null && chatKeyOf(route) === chatKeyOf({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef });
   }
 
-  /** One timer per lease: renew when the person works with the fan, otherwise let the lease run out and say so. */
-  function scheduleLease(fanRef: string): void {
+  /**
+   * One timer per lease: renew when the person works with the fan, otherwise
+   * let the lease run out and say so. `retry` — the last renewal did not go
+   * through: the next one comes sooner, and no later than the deadline.
+   */
+  function scheduleLease(fanRef: string, retry = false): void {
     const record = recordOf(fanRef);
     stopTimer(record);
     const lease = record.view;
@@ -212,7 +218,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const now = clock.now();
     const p = policy();
     const untilExpiry = Math.max(0, lease.until - now);
-    record.timer = clock.setTimer(Math.min(p.renewMs, untilExpiry), () => {
+    record.timer = clock.setTimer(Math.min(retry ? RENEW_RETRY_MS : p.renewMs, untilExpiry), () => {
       record.timer = null;
       if (disposed || leases.get(fanRef) !== record) return;
       const at = clock.now();
@@ -220,11 +226,21 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (current.s !== 'mine') {
         // The lease ran out unrenewed: «бронь истекла — нажмите Hi ещё раз».
         record.view = { s: 'expired' };
+        record.renewError = null;
         changed();
         return;
       }
-      if (shouldRenew(current, { lastActivityAt: record.lastActivityAt, busy: working(fanRef, record) }, at, p)) void claimCall(fanRef, 'renew');
-      else scheduleLease(fanRef);
+      if (!shouldRenew(current, { lastActivityAt: record.lastActivityAt, busy: working(fanRef, record) }, at, p)) return scheduleLease(fanRef);
+      void claimCall(fanRef, 'renew').then((answer) => {
+        if (disposed || leases.get(fanRef) !== record || record.timer !== null || record.view.s !== 'mine') return;
+        // The renewal did not go through and the lease is still ours: it is tried again, never left to lapse in silence.
+        // (Another action of this fan in flight is not a failure: its own answer decides.)
+        if (!answer.ok && answer.code !== 'CG-CLAIM-ROW-BUSY' && record.renewError === null) {
+          record.renewError = { code: answer.code };
+          changed();
+        }
+        scheduleLease(fanRef, !answer.ok);
+      });
     });
   }
 
@@ -232,6 +248,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const record = recordOf(fanRef);
     record.detail = state;
     record.refusal = null;
+    record.renewError = null;
     record.view = leaseOfClaim(state, receivedAt, policy());
     scheduleLease(fanRef);
   }
@@ -260,6 +277,11 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       return { ok: false, code, error: claimError(fanRef, code) };
     }
     noteRefusal(fanRef, answer.error);
+    // A renewal that failed while the lease is still ours: the card says so (the lease's own timer tries again).
+    if (action === 'renew' && record.view.s === 'mine') {
+      record.renewError = answer.error;
+      changed();
+    }
     return { ok: false, code: answer.error.code, error: claimError(fanRef, answer.error.code, answer.error) };
   }
 
@@ -276,7 +298,10 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     record.refusal = { kind, error: wire };
     if (kind === 'other') record.view = { s: 'other' };
     else if (kind === 'expired') record.view = { s: 'expired' };
-    if (record.view.s !== 'mine') stopTimer(record);
+    if (record.view.s !== 'mine') {
+      stopTimer(record);
+      record.renewError = null;
+    }
     changed();
   }
 
@@ -291,8 +316,11 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const lease = leaseOf(fanRef);
     const handle = handleOf(fanRef);
     switch (lease.s) {
-      case 'mine':
-        return { s: 'mine', until: lease.until, renew: button('newcomers.claim.renew', { type: 'RenewClaim', targetHandle: handle }), release: button('newcomers.claim.release', { type: 'ReleaseClaim', targetHandle: handle }) };
+      case 'mine': {
+        const mine = { s: 'mine', until: lease.until, renew: button('newcomers.claim.renew', { type: 'RenewClaim', targetHandle: handle }), release: button('newcomers.claim.release', { type: 'ReleaseClaim', targetHandle: handle }) } as const;
+        const failed = record?.renewError ?? null;
+        return failed === null ? mine : { ...mine, renewError: errorOf(failed, i18n) };
+      }
       case 'other':
         return { s: 'other', error: claimError(fanRef, 'CG-CLAIM-BUSY') };
       case 'elsewhere':
@@ -315,11 +343,16 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (block === 'claim-busy') return { ok: false, code: 'CG-CLAIM-BUSY', error: claimError(fanRef, 'CG-CLAIM-BUSY') };
       if (block === 'claim-elsewhere') return { ok: false, code: 'CG-CLAIM-BUSY', error: { ...errorOf({ code: 'CG-CLAIM-BUSY' }, i18n), body: i18n.t('newcomers.claim.elsewhere') } };
       if (block === 'uncertain') return { ok: false, code: 'CG-SEND-UNCERTAIN', error: localError('CG-SEND-UNCERTAIN', i18n) };
+      // §6.7.9: once a part is confirmed the fan is greeted — another generation would be a second greeting.
       if (block === 'greeted') return { ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) };
+      if (block === 'sending') return { ok: false, code: 'CG-SEND-BUSY', error: localError('CG-SEND-BUSY', i18n) };
       recordOf(fanRef).lastActivityAt = clock.now();
-      // A greeting that already has a confirmed part goes on under its group, not under a new lease.
-      if (statusOf(fanRef).s === 'sending') return { ok: true };
-      return claimCall(fanRef, leaseOf(fanRef).s === 'mine' ? 'renew' : 'claim');
+      const mine = leaseOf(fanRef).s === 'mine';
+      const answer = await claimCall(fanRef, mine ? 'renew' : 'claim');
+      return answer.ok ? { ok: true, taken: !mine } : answer;
+    },
+    giveBack(fanRef) {
+      if (leaseOf(fanRef).s === 'mine') void claimCall(fanRef, 'release');
     },
     leaseToken(fanRef) {
       const lease = leaseOf(fanRef);
@@ -333,10 +366,12 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (block === 'claim-busy') return reason('claim-busy');
       if (block === 'claim-elsewhere') return reason('claim-elsewhere');
       if (block === 'uncertain') return reason('part-uncertain', { n: (localOf(fanRef).progress?.uncertainPart ?? 0) + 1 });
+      if (block === 'sending') return reason('parts-sending');
       return reason('hi-gate');
     },
     subscribed(fanRef) {
-      return rowOf(fanRef)?.subscription.state === 'active';
+      const row = rowOf(fanRef);
+      return row !== null && subscriptionCurrent(row.subscription, clock.now());
     },
     threadRevision(fanRef) {
       const row = rowOf(fanRef);
@@ -415,6 +450,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       error = null;
       failures = 0;
       loadedAt = clock.now();
+      pruneLeases();
       const observed = observeEvents(seen, next.items.map((item) => item.eventRef));
       seen = observed.seen;
       if (observed.fresh.length > 0 && deps.onNewSubscribers !== undefined) {
@@ -424,6 +460,18 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     }
     changed();
     schedulePoll();
+  }
+
+  /** Lease records of fans that left the list and hold nothing any more are dropped (the map does not grow with every card ever opened). */
+  function pruneLeases(): void {
+    const listed = new Set(rows.map((row) => row.fanRef));
+    const now = clock.now();
+    const open = surfaces.current().preview.newcomers;
+    const selected = open === null ? null : own(open);
+    for (const [fanRef, record] of leases) {
+      if (listed.has(fanRef) || fanRef === selected || record.timer !== null || record.busy || record.progress !== null || locks.has(fanRef) || leaseNow(record.view, now).s === 'mine') continue;
+      leases.delete(fanRef);
+    }
   }
 
   async function loadMore(): Promise<void> {

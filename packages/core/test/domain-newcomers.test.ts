@@ -62,6 +62,7 @@ import {
   resumeDelay,
   shouldRenew,
   startWalk,
+  subscriptionCurrent,
   threadRevision,
   tooManyForHi,
   unprime,
@@ -188,11 +189,26 @@ describe('[NF-005] [NF-007] rows and greeting statuses', () => {
 
   it('the subscription is «active» only when the hub says so plainly; a disagreement is unknown', () => {
     const status = pageOne.items[0]!.status;
-    expect(newcomerRow(pageOne.items[0]!).subscription).toEqual({ state: 'active', asOf: status.asOf });
+    expect(newcomerRow(pageOne.items[0]!).subscription).toEqual({ state: 'active', asOf: status.asOf, endsAt: status.endsAt });
     expect(newcomerRow({ ...pageOne.items[0]!, status: { ...status, isSubscriber: false, subscriptionStatus: 'expired' } }).subscription.state).toBe('expired');
     expect(newcomerRow({ ...pageOne.items[0]!, status: { ...status, isSubscriber: true, subscriptionStatus: 'expired' } }).subscription.state).toBe('unknown');
     expect(newcomerRow({ ...pageOne.items[0]!, status: { ...status, isSubscriber: null, subscriptionStatus: 'unknown' } }).subscription.state).toBe('unknown');
     expect(newcomerRow({ ...pageOne.items[0]!, status: { ...status, isSubscriber: null, subscriptionStatus: 'active' } }).subscription.state).toBe('active');
+  });
+
+  it('[X8-09] «Новые» confirms a subscription only by an explicit current status WITH its data time: no time, or an end that passed, refuses (§6.7.4 condition 9)', () => {
+    const active = { state: 'active', asOf: at(-60), endsAt: at(86_400) } as const;
+    expect(subscriptionCurrent(active, NOW_MS)).toBe(true);
+    expect(subscriptionCurrent({ ...active, endsAt: null }, NOW_MS)).toBe(true);
+    // «Active» with no data time is a status nobody dated: unknown, not a confirmation.
+    expect(subscriptionCurrent({ ...active, asOf: null }, NOW_MS)).toBe(false);
+    expect(subscriptionCurrent({ ...active, asOf: 'not a time' }, NOW_MS)).toBe(false);
+    // The end the hub itself named has passed: the status is stale, whatever its word says.
+    expect(subscriptionCurrent({ ...active, endsAt: at(-1) }, NOW_MS)).toBe(false);
+    expect(subscriptionCurrent({ ...active, endsAt: at(1) }, NOW_MS)).toBe(true);
+    expect(subscriptionCurrent({ ...active, endsAt: 'soon' }, NOW_MS)).toBe(false);
+    expect(subscriptionCurrent({ ...active, state: 'expired' }, NOW_MS)).toBe(false);
+    expect(subscriptionCurrent({ ...active, state: 'unknown' }, NOW_MS)).toBe(false);
   });
 
   it('[NF-005] statuses from the hub summary: nobody yet, a colleague, greeted (the desktop outbox included)', () => {
@@ -243,7 +259,9 @@ describe('[NF-005] [NF-007] rows and greeting statuses', () => {
   it('[NF-014] Hi is off for a fan a colleague leads, one this person leads elsewhere, a stopped or a greeted one', () => {
     expect(hiBlock({ s: 'none' })).toBeNull();
     expect(hiBlock({ s: 'claim-mine' })).toBeNull();
-    expect(hiBlock({ s: 'sending', sent: 1, total: 3 })).toBeNull();
+    // §6.7.9: after the first confirmed part another generation is a second greeting; while the first part is on its way Hi waits.
+    expect(hiBlock({ s: 'sending', sent: 1, total: 3 })).toBe('greeted');
+    expect(hiBlock({ s: 'sending', sent: 0, total: 3 })).toBe('sending');
     expect(hiBlock({ s: 'claim-other' })).toBe('claim-busy');
     expect(hiBlock({ s: 'claim-elsewhere' })).toBe('claim-elsewhere');
     expect(hiBlock({ s: 'stopped', sent: 1, total: 3, part: 2 })).toBe('uncertain');

@@ -115,8 +115,13 @@ export interface PreviewDirectory {
 
 /** The «Новые» side of a preview: the greeting lease and status of the fan on the card (H-7). */
 export interface GreetingDesk {
-  /** Takes the lease for a Generate click (it is taken there, §8.5); a refusal names its code. */
-  claimForGenerate(fanRef: string): Promise<{ readonly ok: true } | { readonly ok: false; readonly code: CgCode; readonly error: CgErrorView }>;
+  /**
+   * Takes the lease for a Generate click (it is taken there, §8.5); a refusal
+   * names its code. `taken` — this very call took a lease the tab did not hold.
+   */
+  claimForGenerate(fanRef: string): Promise<{ readonly ok: true; readonly taken: boolean } | { readonly ok: false; readonly code: CgCode; readonly error: CgErrorView }>;
+  /** The Generate click that took the lease started no operation: the lease goes back at once, so colleagues are not locked out for nothing. */
+  giveBack(fanRef: string): void;
   /** The lease token a greeting is sent under; null — no live lease of this tab. */
   leaseToken(fanRef: string): string | null;
   claim(fanRef: string): ClaimVM;
