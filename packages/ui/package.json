@@ -9,6 +9,7 @@
     "./kit": "./src/kit/index.ts",
     "./spenders": "./src/spenders/index.ts",
     "./newcomers": "./src/newcomers/index.ts",
+    "./fanpanel": "./src/fanpanel/index.ts",
     "./spike": "./src/spike/index.ts"
   },
   "dependencies": {
