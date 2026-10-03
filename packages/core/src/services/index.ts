@@ -1,6 +1,12 @@
-// core/services — background services over ports (architecture.md §4):
-// op scheduler, send coordinator, telemetry queue, log sink, settings owner,
-// sound arbiter, tab presence. R10, R17, R18 fill this in.
+// core/services — background services over ports (architecture.md §4, §7,
+// §6.7, §14): the operation scheduler, the send coordinator and its tab-side
+// driver, one-time action tokens, tab sessions, the readiness barrier, the
+// recap dossier save and the WS tap switch. They import only @cg/contracts
+// and core/domain; the composition roots give them the clock, storage, the
+// hub facade, the tab event sink and ids.
 
-/** Marker export so the entry exists in the package graph before R10 lands. */
-export const SERVICES_LAYER = 'core/services' as const;
+export * from './ports';
+export * from './tokens';
+export * from './tabs';
+export * from './readiness';
+export * from './ws-tap';
