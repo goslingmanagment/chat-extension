@@ -24,6 +24,13 @@ export function standOrigin(): string {
   return origin;
 }
 
+/** The stand's API and socket origin (a second loopback origin, like ChatSpace's apex). */
+export function standApiOrigin(): string {
+  const origin = process.env['CG_STAND_API_ORIGIN'];
+  if (!origin) throw new Error('CG_STAND_API_ORIGIN not set (wdio onPrepare starts the stand)');
+  return origin;
+}
+
 export const chatPath = (accountId: string, chatId?: string): string => `/accounts/${accountId}/chats/${chatId ?? ''}`;
 
 export async function waitForStandReady(timeout = 15_000): Promise<void> {

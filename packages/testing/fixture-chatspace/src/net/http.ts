@@ -8,6 +8,7 @@
 // without a fresh token it redirects to sign-in and still fails the call;
 // POST is never retried, idempotent methods are on 408/413/429/5xx.
 
+import { env } from '../env';
 import { record } from '../journal';
 import { NATIVE_REQUEST_HEADER } from '../protocol';
 import { getToken } from './auth';
@@ -71,7 +72,7 @@ function createRequest(method: string, url: URL, options: RequestOptions, attemp
   const timeoutController = new AbortController();
   const signal = options.signal ? AbortSignal.any([options.signal, timeoutController.signal]) : timeoutController.signal;
   const headers = new Headers(base?.headers);
-  headers.set(NATIVE_REQUEST_HEADER, String(seq));
+  headers.set(NATIVE_REQUEST_HEADER, `${env.bootId}.${seq}`);
   let body: string | null = null;
   if (options.json !== undefined) {
     body = JSON.stringify(options.json);
@@ -79,7 +80,7 @@ function createRequest(method: string, url: URL, options: RequestOptions, attemp
   }
   const request = base !== null ? new Request(base, { headers, signal }) : new Request(url, { method, headers, body, signal });
   const hooks = options.hooks !== false;
-  record('http-request', { seq, method, path: `${url.pathname}${url.search}`, fetchCapture, attempt });
+  record('http-request', { seq, nativeId: `${env.bootId}.${seq}`, method, path: `${url.pathname}${url.search}`, fetchCapture, attempt });
 
   const promise = (async (): Promise<Response> => {
     const timer = setTimeout(() => timeoutController.abort(new TimeoutError(request)), options.timeout ?? CLIENT_TIMEOUT_MS);
@@ -135,8 +136,8 @@ export function createClient(prefixUrl: string): HttpClient {
   return { get: call('GET'), post: call('POST'), delete: call('DELETE') };
 }
 
-/** The app's client (ChatSpace keeps one; each call still creates its own request object). */
-export const api: HttpClient = createClient(`${location.origin}/`);
+/** The app's client on the API origin (ChatSpace keeps one; each call still creates its own request object). */
+export const api: HttpClient = createClient(`${env.apiOrigin}/`);
 
 /** The server's error body, if any (`{code, message, details: {upstream_message}}`). */
 export async function errorBody(error: unknown): Promise<{ code?: string; message?: string; upstreamMessage?: string } | null> {

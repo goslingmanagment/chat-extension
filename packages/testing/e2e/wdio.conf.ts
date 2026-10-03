@@ -74,6 +74,7 @@ export const config: WebdriverIO.Config = {
     egress = await startEgressSink();
     stand = await startStandServer({ egress });
     process.env['CG_STAND_ORIGIN'] = stand.origin;
+    process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
     // The sink's port is known only now; workers start with these capabilities.
     for (const capability of capabilities as WebdriverIO.Capabilities[]) {
       const firefox = capability['moz:firefoxOptions'];

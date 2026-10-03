@@ -7,7 +7,7 @@
 
 import { browser } from '@wdio/globals';
 
-import { standOrigin } from './stand';
+import { standApiOrigin, standOrigin } from './stand';
 
 export interface TrappedRequest {
   readonly url: string;
@@ -19,10 +19,10 @@ export interface TrappedRequest {
 const NON_NETWORK_SCHEMES = new Set(['moz-extension:', 'about:', 'data:', 'blob:', 'chrome:', 'resource:', 'javascript:']);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
-/** Origins an e2e may reach: the stand and, when R02 part 2 starts it, the fake hub. */
+/** Origins an e2e may reach: the stand (page and API) and, when R02 part 2 starts it, the fake hub. */
 export function allowedE2eOrigins(): string[] {
   const hub = process.env['CG_FAKE_HUB_ORIGIN'];
-  return [standOrigin(), ...(hub !== undefined && hub !== '' ? [hub] : [])];
+  return [standOrigin(), standApiOrigin(), ...(hub !== undefined && hub !== '' ? [hub] : [])];
 }
 
 export class NetworkTrap {

@@ -2,6 +2,10 @@
 // (client actions auth / subscribe_account / unsubscribe_account / ping, server
 // frames with a top-level `event`). Every connection is a new socket, as on
 // ChatSpace reconnects; tests inject frames and close sockets through control.
+// A socket is the page's (`native`) once it sends an action with a valid
+// session token; one that sends anything else, stays silent past the grace
+// period, or closes silent (other than by its page going away inside the
+// grace period, close code 1001), is `foreign`.
 
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -17,6 +21,15 @@ interface Connection {
   label: 'pending' | 'native' | 'foreign';
   authenticated: boolean;
   readonly accounts: Set<string>;
+  grace: ReturnType<typeof setTimeout> | undefined;
+}
+
+/** WebSocket close code a browser sends when the page that owns the socket goes away. */
+const PAGE_GONE_CODE = 1001;
+
+export interface SocketHubOptions {
+  /** How long a new socket may stay silent before it is labelled foreign (ms). */
+  readonly graceMs: number;
 }
 
 export interface SocketSummary {
@@ -52,6 +65,7 @@ export class SocketHub {
   constructor(
     private readonly state: StandState,
     private readonly journal: ServerJournal,
+    private readonly options: SocketHubOptions = { graceMs: 5000 },
   ) {}
 
   handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
@@ -60,14 +74,25 @@ export class SocketHub {
 
   private accept(socket: WebSocket): void {
     this.nextId += 1;
-    const connection: Connection = { id: this.nextId, socket, label: 'pending', authenticated: false, accounts: new Set() };
+    const connection: Connection = { id: this.nextId, socket, label: 'pending', authenticated: false, accounts: new Set(), grace: undefined };
     this.connections.set(connection.id, connection);
     this.journal.record({ kind: 'ws-open', origin: 'pending', socketId: connection.id });
+    connection.grace = setTimeout(() => this.silent(connection, 'grace'), this.options.graceMs);
     socket.on('message', (data: RawData) => this.onMessage(connection, data));
     socket.on('close', (code: number) => {
+      clearTimeout(connection.grace);
+      // A page reloaded right after connecting closes its socket before it could authenticate.
+      if (connection.label === 'pending' && code !== PAGE_GONE_CODE) this.silent(connection, 'closed');
       this.connections.delete(connection.id);
       this.journal.record({ kind: 'ws-close', origin: connection.label, socketId: connection.id, detail: { code } });
     });
+  }
+
+  /** A socket that never sent an action with a session token is not the page's. */
+  private silent(connection: Connection, reason: 'grace' | 'closed'): void {
+    if (connection.label !== 'pending') return;
+    connection.label = 'foreign';
+    this.journal.record({ kind: 'ws-silent', origin: 'foreign', socketId: connection.id, detail: { reason } });
   }
 
   private onMessage(connection: Connection, data: RawData): void {
@@ -76,6 +101,7 @@ export class SocketHub {
     const token = typeof frame?.['token'] === 'string' ? frame['token'] : null;
     const account = asRecord(frame?.['account']);
     const accountId = account && typeof account['account_id'] === 'string' ? account['account_id'] : undefined;
+    clearTimeout(connection.grace);
     // Every client action carries the session token; one without a valid token is not the page's client.
     if (this.state.isValidToken(token)) {
       if (connection.label === 'pending') connection.label = 'native';
@@ -133,7 +159,10 @@ export class SocketHub {
   }
 
   close(): Promise<void> {
-    for (const connection of this.connections.values()) connection.socket.terminate();
+    for (const connection of this.connections.values()) {
+      clearTimeout(connection.grace);
+      connection.socket.terminate();
+    }
     return new Promise((resolve) => this.server.close(() => resolve()));
   }
 }

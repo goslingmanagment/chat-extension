@@ -5,8 +5,9 @@ import { startStandServer } from './stand-server';
 import { STAND_IDS } from './stand/dataset';
 
 const port = Number(process.env['STAND_PORT'] ?? 5179);
-const stand = await startStandServer({ port });
-console.log(`stand: ${stand.origin}/accounts/${STAND_IDS.accounts.a}/chats/${STAND_IDS.fans.a1}`);
+const apiPort = Number(process.env['STAND_API_PORT'] ?? port + 1);
+const stand = await startStandServer({ port, apiPort });
+console.log(`stand: ${stand.origin}/accounts/${STAND_IDS.accounts.a}/chats/${STAND_IDS.fans.a1} (API and socket on ${stand.apiOrigin})`);
 console.log('stand: Ctrl+C to stop');
 const stop = (): void => {
   void stand.close().then(() => process.exit(0));

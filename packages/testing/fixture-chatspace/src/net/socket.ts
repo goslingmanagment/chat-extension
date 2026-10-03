@@ -7,6 +7,7 @@
 
 import { shallowRef, watch, type ShallowRef } from 'vue';
 
+import { env } from '../env';
 import { record } from '../journal';
 import { STAND_WS_PATH } from '../protocol';
 import { getToken } from './auth';
@@ -22,8 +23,8 @@ const BACKOFF_BASE_MS = 1000;
 const BACKOFF_MAX_MS = 30_000;
 const RECONNECT_BUDGET = 10;
 
-/** The socket URL; ChatSpace keeps the same thing in its config, the extension's tap matches on it. */
-export const SOCKET_URL = `ws://${location.host}${STAND_WS_PATH}`;
+/** The socket URL on the API origin; ChatSpace keeps the same thing in its config, the extension's tap matches on it. */
+export const SOCKET_URL = `${env.apiOrigin.replace(/^http/, 'ws')}${STAND_WS_PATH}`;
 
 class SocketManager {
   readonly status: ShallowRef<SocketStatus> = shallowRef('CLOSED');

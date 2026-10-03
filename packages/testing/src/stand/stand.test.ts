@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 
 import { FIXTURE_CONTRACTS } from '../../fixture-chatspace/src/metadata';
-import { CONTROL_REQUEST_HEADER, NATIVE_REQUEST_HEADER, STAND_TOKEN_PATH, STAND_WS_PATH, type ServerJournalEntry } from '../../fixture-chatspace/src/protocol';
+import { CONTROL_REQUEST_HEADER, NATIVE_REQUEST_HEADER, STAND_API_ORIGIN_META, STAND_TOKEN_PATH, STAND_WS_PATH, type ServerJournalEntry } from '../../fixture-chatspace/src/protocol';
 import viteConfig, { FIXTURE_BUILD_DIR as VITE_OUT_DIR } from '../../fixture-chatspace.vite.config';
 import { startStandServer, type StandServer } from '../stand-server';
 import { createDataset, plainText, STAND_IDS } from './dataset';
@@ -19,23 +19,42 @@ import { startEgressSink } from './egress-sink';
 import { FIXTURE_BUILD_DIR, FIXTURE_SOURCE_DIR } from './paths';
 
 const fixtureDir = mkdtempSync(join(tmpdir(), 'cg-stand-'));
-writeFileSync(join(fixtureDir, 'index.html'), '<!doctype html><title>stand test</title>');
+writeFileSync(join(fixtureDir, 'index.html'), '<!doctype html><title>stand test</title><meta name="stand-api-origin" content="" />');
 
 let stand: StandServer;
 let token = '';
+let nativeSeq = 0;
 
-const native = (extra: Record<string, string> = {}): Record<string, string> => ({ [NATIVE_REQUEST_HEADER]: '1', authorization: `Bearer ${token}`, ...extra });
+/** Headers of a native client call; every call gets its own native id, as the page's client does. */
+const native = (extra: Record<string, string> = {}): Record<string, string> => {
+  nativeSeq += 1;
+  return { [NATIVE_REQUEST_HEADER]: `unit.${nativeSeq}`, authorization: `Bearer ${token}`, ...extra };
+};
 const control = { [CONTROL_REQUEST_HEADER]: '1', 'content-type': 'application/json' };
 const { a: accountA } = STAND_IDS.accounts;
 const { a1, a2 } = STAND_IDS.fans;
 
+/** Control and session-token paths go to the page origin, `/api/...` to the API origin. */
+const urlOf = (path: string): string => `${path.startsWith('/api/') ? stand.apiOrigin : stand.origin}${path}`;
+
 async function json(path: string, init: RequestInit = {}): Promise<{ status: number; body: unknown }> {
-  const response = await fetch(`${stand.origin}${path}`, init);
+  const response = await fetch(urlOf(path), init);
   const text = await response.text();
   return { status: response.status, body: text === '' ? null : (JSON.parse(text) as unknown) };
 }
 
 const journalSince = (since: number): readonly ServerJournalEntry[] => stand.journal.read(since).entries;
+
+/** Polls until the condition holds (a confirmed event), instead of sleeping a fixed time. */
+async function waitFor(condition: () => boolean, what: string, timeoutMs = 2000): Promise<void> {
+  const started = Date.now();
+  while (!condition()) {
+    if (Date.now() - started > timeoutMs) throw new Error(`${what}: not seen in ${timeoutMs} ms`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+const framesSentTo = (socketId: number, since = 0): readonly ServerJournalEntry[] => journalSince(since).filter((entry) => entry.kind === 'ws-out' && entry.socketId === socketId);
 
 interface Socket {
   readonly ws: WebSocket;
@@ -46,7 +65,7 @@ interface Socket {
 }
 
 async function openSocket(): Promise<Socket> {
-  const ws = new WebSocket(`${stand.origin.replace('http', 'ws')}${STAND_WS_PATH}`);
+  const ws = new WebSocket(`${stand.apiOrigin.replace('http', 'ws')}${STAND_WS_PATH}`);
   const frames: Array<Record<string, unknown>> = [];
   ws.on('message', (data: Buffer) => frames.push(JSON.parse(data.toString('utf8')) as Record<string, unknown>));
   await new Promise<void>((resolve, reject) => {
@@ -80,8 +99,8 @@ async function nativeSocket(accounts: readonly string[]): Promise<Socket> {
 }
 
 beforeAll(async () => {
-  stand = await startStandServer({ fixtureDir });
-  token = ((await json(STAND_TOKEN_PATH, { method: 'POST', headers: { [NATIVE_REQUEST_HEADER]: 'auth' } })).body as { token: string }).token;
+  stand = await startStandServer({ fixtureDir, socketGraceMs: 300 });
+  token = ((await json(STAND_TOKEN_PATH, { method: 'POST', headers: { [NATIVE_REQUEST_HEADER]: 'unit.auth' } })).body as { token: string }).token;
 });
 
 afterAll(async () => {
@@ -93,12 +112,12 @@ afterEach(() => {
 });
 
 describe('stand server: who called', () => {
-  it('labels assets, native client calls, control calls and foreign calls', async () => {
+  it('labels navigations and subresources, native client calls, control calls and foreign calls', async () => {
     const since = stand.journal.read().next;
-    await fetch(`${stand.origin}/accounts/${accountA}/chats/${a1}`);
-    await fetch(`${stand.origin}/api/v0/accounts`, { headers: native() });
+    await fetch(`${stand.origin}/accounts/${accountA}/chats/${a1}`, { headers: { 'sec-fetch-dest': 'document' } });
+    await fetch(`${stand.apiOrigin}/api/v0/accounts`, { headers: native() });
     await fetch(`${stand.origin}/__stand/state`, { headers: control });
-    await fetch(`${stand.origin}/api/v0/accounts`, { headers: { authorization: `Bearer ${token}` } });
+    await fetch(`${stand.apiOrigin}/api/v0/accounts`, { headers: { authorization: `Bearer ${token}` } });
     const entries = journalSince(since).filter((entry) => entry.kind === 'http' || entry.kind === 'control');
     expect(entries.map((entry) => [entry.origin, entry.path])).toEqual([
       ['asset', `/accounts/${accountA}/chats/${a1}`],
@@ -108,13 +127,57 @@ describe('stand server: who called', () => {
     ]);
   });
 
+  it("a fetch of the page's own index or bundles is foreign: only navigations and subresources are assets", async () => {
+    const since = stand.journal.read().next;
+    await fetch(`${stand.origin}/`, { headers: { 'sec-fetch-dest': 'empty' } });
+    await fetch(`${stand.origin}/assets/index.js`);
+    await fetch(`${stand.origin}/assets/index.js`, { headers: { 'sec-fetch-dest': 'script' } });
+    expect(journalSince(since).map((entry) => [entry.origin, entry.path])).toEqual([
+      ['foreign', '/'],
+      ['foreign', '/assets/index.js'],
+      ['asset', '/assets/index.js'],
+    ]);
+  });
+
+  it('a native request id answered once is a replay the second time (foreign)', async () => {
+    const since = stand.journal.read().next;
+    const headers = native();
+    expect((await fetch(`${stand.apiOrigin}/api/v0/accounts`, { headers })).status).toBe(200);
+    expect((await fetch(`${stand.apiOrigin}/api/v0/accounts`, { headers })).status).toBe(200);
+    const entries = journalSince(since).filter((entry) => entry.kind === 'http');
+    expect(entries.map((entry) => entry.origin)).toEqual(['native', 'foreign']);
+    expect(entries[1]?.detail).toEqual({ replayOf: headers[NATIVE_REQUEST_HEADER] });
+  });
+
+  it('the API origin answers CORS for the page origin: preflights and every response', async () => {
+    const since = stand.journal.read().next;
+    const preflight = await fetch(`${stand.apiOrigin}/api/v0/accounts/${accountA}/chats/${a1}/messages`, {
+      method: 'OPTIONS',
+      headers: { origin: stand.origin, 'access-control-request-method': 'POST', 'access-control-request-headers': `authorization,content-type,${NATIVE_REQUEST_HEADER}` },
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(stand.origin);
+    expect(preflight.headers.get('access-control-allow-headers')).toContain(NATIVE_REQUEST_HEADER);
+    const unauthorized = await fetch(`${stand.apiOrigin}/api/v0/accounts`, { headers: { [NATIVE_REQUEST_HEADER]: 'unit.cors', origin: stand.origin } });
+    expect(unauthorized.status).toBe(401);
+    expect(unauthorized.headers.get('access-control-allow-origin')).toBe(stand.origin);
+    expect(journalSince(since).filter((entry) => entry.method === 'OPTIONS').map((entry) => entry.origin)).toEqual(['native']);
+  });
+
+  it('the page origin has no API and the API origin has no page', async () => {
+    expect((await fetch(`${stand.origin}/api/v0/accounts`, { headers: native() })).status).toBe(404);
+    expect((await fetch(`${stand.apiOrigin}/accounts/${accountA}/chats/`, { headers: { 'sec-fetch-dest': 'document' } })).status).toBe(404);
+  });
+
   it('answers 401 without a session token and 403 on control endpoints without the control header', async () => {
-    expect((await json('/api/v0/accounts', { headers: { [NATIVE_REQUEST_HEADER]: '1' } })).status).toBe(401);
+    expect((await json('/api/v0/accounts', { headers: { [NATIVE_REQUEST_HEADER]: 'unit.no-token' } })).status).toBe(401);
     expect((await json('/__stand/reset', { method: 'POST' })).status).toBe(403);
   });
 
-  it('serves the SPA index for app routes and a 503 hint when the fixture is not built', async () => {
-    expect((await fetch(`${stand.origin}/accounts/${accountA}/chats/`)).status).toBe(200);
+  it('serves the SPA index for app routes, told where the API is, and a 503 hint when the fixture is not built', async () => {
+    const index = await fetch(`${stand.origin}/accounts/${accountA}/chats/`, { headers: { 'sec-fetch-dest': 'document' } });
+    expect(index.status).toBe(200);
+    expect(await index.text()).toContain(`<meta name="${STAND_API_ORIGIN_META}" content="${stand.apiOrigin}"`);
     const unbuilt = await startStandServer({ fixtureDir: join(fixtureDir, 'missing') });
     try {
       const response = await fetch(`${unbuilt.origin}/`);
@@ -160,7 +223,7 @@ describe('stand server: native API', () => {
 
 describe('stand server: scripted native send and the socket echo', () => {
   const post = (chatId: string, text: string, signal?: AbortSignal) =>
-    fetch(`${stand.origin}/api/v0/accounts/${accountA}/chats/${chatId}/messages`, {
+    fetch(`${stand.apiOrigin}/api/v0/accounts/${accountA}/chats/${chatId}/messages`, {
       method: 'POST',
       headers: native({ 'content-type': 'application/json' }),
       body: JSON.stringify({ text, is_copied: false, is_ai_generated: true, internal_template_id: null, reply_time: null, previous_message: null, platformMetadata: {} }),
@@ -208,34 +271,63 @@ describe('stand server: scripted native send and the socket echo', () => {
 
   it('a hanging send ends only when the client aborts, journalled as send-aborted', async () => {
     stand.state.script(accountA, a2, [{ kind: 'hang' }]);
+    const since = stand.journal.read().next;
     const controller = new AbortController();
     const pending = post(a2, '<p>never</p>', controller.signal);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitFor(() => journalSince(since).some((entry) => entry.kind === 'send' && entry.chatId === a2), 'the hanging send reached the server');
+    expect(journalSince(since).some((entry) => entry.kind === 'send-aborted')).toBe(false);
     controller.abort();
     await expect(pending).rejects.toThrow();
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(stand.journal.read().entries.some((entry) => entry.kind === 'send-aborted' && entry.chatId === a2)).toBe(true);
+    await waitFor(() => journalSince(since).some((entry) => entry.kind === 'send-aborted' && entry.chatId === a2), 'send-aborted');
   });
 });
 
 describe('stand server: socket protocol', () => {
   it('a frame without a valid token marks the socket foreign; it gets nothing', async () => {
+    const since = stand.journal.read().next;
     const socket = await openSocket();
     socket.send({ action: 'auth', token: 'not-a-stand-token' });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(socket.frames).toEqual([]);
-    expect(stand.hub.summary().find((item) => item.label === 'foreign')).toBeDefined();
+    await waitFor(() => journalSince(since).some((entry) => entry.kind === 'ws-in' && entry.origin === 'foreign'), 'the foreign frame handled');
+    const [handled] = journalSince(since).filter((entry) => entry.kind === 'ws-in');
+    expect(framesSentTo(handled?.socketId ?? -1, since)).toEqual([]);
+    expect(stand.hub.summary().find((item) => item.id === handled?.socketId)?.label).toBe('foreign');
     socket.close();
+  });
+
+  it('a socket that never sends is foreign: after the grace period, or when it closes silent', async () => {
+    const opened = (since: number): number => journalSince(since).find((entry) => entry.kind === 'ws-open')?.socketId ?? -1;
+    const eventsOf = (socketId: number): string[][] =>
+      journalSince(0)
+        .filter((entry) => entry.socketId === socketId && (entry.kind === 'ws-silent' || entry.kind === 'ws-close'))
+        .map((entry) => [entry.kind, entry.origin, String(entry.detail?.['reason'] ?? entry.detail?.['code'])]);
+    let since = stand.journal.read().next;
+    const lingering = await openSocket();
+    const lingeringId = opened(since);
+    await waitFor(() => eventsOf(lingeringId).length === 1, 'the silent socket relabelled');
+    expect(eventsOf(lingeringId)).toEqual([['ws-silent', 'foreign', 'grace']]);
+    lingering.close();
+    since = stand.journal.read().next;
+    const quick = await openSocket();
+    const quickId = opened(since);
+    quick.ws.close(1000);
+    await waitFor(() => eventsOf(quickId).length === 2, 'the quick socket closed');
+    expect(eventsOf(quickId)).toEqual([
+      ['ws-silent', 'foreign', 'closed'],
+      ['ws-close', 'foreign', '1000'],
+    ]);
   });
 
   it('withheld auth: subscribed but never authenticated, so no frames', async () => {
     stand.state.withholdAuth = true;
+    const since = stand.journal.read().next;
     const socket = await openSocket();
     socket.send({ action: 'auth', token });
     socket.send({ action: 'subscribe_account', token, account: { account_id: accountA } });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(socket.frames).toEqual([]);
+    await waitFor(() => journalSince(since).filter((entry) => entry.kind === 'ws-in').length === 2, 'both actions handled');
+    const socketId = journalSince(since).find((entry) => entry.kind === 'ws-in')?.socketId ?? -1;
+    expect(stand.hub.summary().find((item) => item.id === socketId)).toMatchObject({ label: 'native', authenticated: false, accounts: [accountA] });
     expect(stand.hub.broadcast({ event: 'probe' }, accountA)).toBe(0);
+    expect(framesSentTo(socketId, since)).toEqual([]);
     socket.close();
   });
 

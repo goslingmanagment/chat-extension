@@ -3,16 +3,28 @@
 // e2e harness. None of this is a ChatSpace contract — it exists so tests can
 // script the stand and read what happened on it.
 
-/** WebSocket path; ws://<stand origin><path> plays the role of ChatSpace's configured socket URL. */
+/**
+ * The page and its API live on two loopback origins, like ChatSpace (page on
+ * chat.<domain>, API and socket on the apex): the page server serves the app,
+ * the control endpoints and the session token; the API server serves `/api/...`
+ * with CORS for the page origin, and the socket.
+ */
+/** WebSocket path on the API origin; ws://<api origin><path> plays the role of ChatSpace's configured socket URL. */
 export const STAND_WS_PATH = '/api/chat-space/ws';
-/** Native API prefix (the page's HTTP client resolves `api/...` against the stand origin). */
+/** Native API prefix on the API origin (the page's HTTP client resolves `api/...` against it). */
 export const STAND_API_PREFIX = '/api/';
-/** Control endpoints for tests; never called by the app's own client. */
+/** `<meta name=…>` the page server fills with the API origin when it serves the app. */
+export const STAND_API_ORIGIN_META = 'stand-api-origin';
+/** Control endpoints for tests (page origin); never called by the app's own client. */
 export const STAND_CONTROL_PREFIX = '/__stand/';
-/** Plays the session-token provider (Clerk's getToken). */
+/** Plays the session-token provider (Clerk's getToken), on the page origin. */
 export const STAND_TOKEN_PATH = '/__stand/auth/token';
 
-/** Every request the page's native HTTP client makes carries this header (value: request sequence number). */
+/**
+ * Every request the page's native HTTP client makes carries this header. Its
+ * value is unique per request (`<page boot id>.<sequence>`): the server labels a
+ * value it has already answered as a replay (foreign).
+ */
 export const NATIVE_REQUEST_HEADER = 'x-stand-native';
 /** Control requests (page test API or Node harness) carry this header. */
 export const CONTROL_REQUEST_HEADER = 'x-stand-control';
@@ -24,8 +36,11 @@ export const STAND_BREAK_PARAM = 'stand-break';
  * Who made a call, as the stand server labels it:
  * - `native` — the page's own client (the role ChatSpace plays);
  * - `control` — the test harness or `window.__stand`;
- * - `asset` — documents, scripts and styles;
- * - `foreign` — anything else reaching the API or the socket: the extension
+ * - `asset` — navigations and page subresources (`Sec-Fetch-Dest` other than
+ *   `empty`): documents, scripts, styles, images;
+ * - `foreign` — anything else on either origin, whatever the path: a fetch or
+ *   XHR without the native header (also of the page's own index or bundles), a
+ *   replayed native request, a socket that never authenticated — the extension
  *   under test (its own requests to the host must stay at zero).
  */
 export type CallOrigin = 'native' | 'control' | 'asset' | 'foreign';
@@ -73,6 +88,8 @@ export interface ServerJournalEntry {
     | 'ws-in'
     | 'ws-out'
     | 'ws-close'
+    /** A socket that stayed silent past the grace period is relabelled foreign. */
+    | 'ws-silent'
     | 'control';
   readonly origin: CallOrigin | 'pending';
   readonly method?: string;

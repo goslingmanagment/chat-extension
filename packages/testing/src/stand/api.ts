@@ -53,12 +53,13 @@ function errorBody(status: number, code = errorCode(status), message = 'Stand sc
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Handles one `/api/...` request; returns the status sent (null while a `hang` send is open). */
-export async function handleApi(context: ApiContext, request: IncomingMessage, response: ServerResponse, url: URL, origin: CallOrigin): Promise<number | null> {
+export async function handleApi(context: ApiContext, request: IncomingMessage, response: ServerResponse, url: URL, origin: CallOrigin, replayOf?: string): Promise<number | null> {
   const { state, journal } = context;
   const method = request.method ?? 'GET';
   const path = url.pathname;
+  const replay = replayOf === undefined ? {} : { replayOf };
   const log = (status: number, extra: Record<string, unknown> = {}): number => {
-    journal.record({ kind: 'http', origin, method, path: `${path}${url.search}`, status, ...extra });
+    journal.record({ kind: 'http', origin, method, path: `${path}${url.search}`, status, ...extra, ...(replayOf !== undefined ? { detail: { ...replay } } : {}) });
     return status;
   };
 
@@ -152,7 +153,7 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
       const unreadBefore = chat.unread;
       chat.unread = 0;
       sendJson(response, 200, { items: items.map(rawMessage), platform_fan_id: fanId, has_more: start > 0 });
-      journal.record({ kind: 'history-load', origin, method, path: `${path}${url.search}`, status: 200, accountId, chatId: fanId, detail: { unreadBefore } });
+      journal.record({ kind: 'history-load', origin, method, path: `${path}${url.search}`, status: 200, accountId, chatId: fanId, detail: { unreadBefore, ...replay } });
       return log(200, { accountId, chatId: fanId });
     }
     if (method === 'POST') return handleSend(context, request, response, { accountId, fanId, origin, path });
