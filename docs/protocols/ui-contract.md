@@ -64,6 +64,14 @@
     `HostPort.chatWindow(chat, max)` у ChatSpace считает по всему, что ChatSpace уже
     загрузил (не больше 200 сообщений): `max` не сужает окно.
 
+12. **Recap и Review без операции (1.2.0, R14).** `ShowAnalysis { view, mode }`
+    открывает вид в листе дока (`sheet`), разворачивает его в окно (`expanded`,
+    UI-014) или скрывает (`hidden`). `HideResult` и `ExpandResult` называют
+    операцию, а у сохранённого Recap её нет (`RecapViewVM.opId = null`). Кнопка
+    Recap в полосе шлёт `ShowAnalysis { view: 'recap', mode: 'sheet' }` и ничего
+    не генерирует: генерация — только кнопками выбора (`RecapPickerVM.build`) и
+    «↻ Обновить».
+
 ## Сценарии
 
 Тест целостности проверяет: каждая тема §10.2 п. 7 покрыта, каждый вид достигает каждого

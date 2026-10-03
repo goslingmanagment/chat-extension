@@ -166,6 +166,8 @@ export const RU: I18nCatalog<'ru'> = {
   'result.keys.copy': 'копировать',
   'result.keys.collapse': 'свернуть',
   'result.keys.hideTooltip': 'Подсказка видна первые 5 ответов',
+  'result.expand': 'Развернуть',
+  'result.collapse': 'Свернуть',
 
   // ── Parts, Б2 confirmation, Fix ──
   'part.aria': 'Часть {n}',
@@ -249,6 +251,7 @@ export const RU: I18nCatalog<'ru'> = {
   'review.section.mistakes': 'Ошибки',
   'review.section.works': 'Что сработало',
   'review.section.recommendations': 'Рекомендации',
+  'review.example': 'Как надо было',
   'debug.label': 'Отладка',
   'debug.prompt': 'Промпт',
   'debug.gutter.cost': '$',
@@ -496,6 +499,9 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.draft': 'Черновик {n}',
   'coach.chip.situation': 'Что сейчас в чате?',
   'coach.chip.offer': 'Что предложить?',
+  'coach.attachDraft': 'Приложить мой ответ',
+  'coach.sentToCoach': 'Отправлено Coach…',
+  'coach.memoryBoundary': 'Ходы выше Coach уже не помнит',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Палитра команд',

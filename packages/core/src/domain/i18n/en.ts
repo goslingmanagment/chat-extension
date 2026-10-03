@@ -160,6 +160,8 @@ export const EN: I18nCatalog<'en'> = {
   'result.keys.copy': 'copy',
   'result.keys.collapse': 'collapse',
   'result.keys.hideTooltip': 'This hint shows for the first 5 answers',
+  'result.expand': 'Expand',
+  'result.collapse': 'Collapse',
 
   // ── Parts, Б2 confirmation, Fix ──
   'part.aria': 'Part {n}',
@@ -236,6 +238,7 @@ export const EN: I18nCatalog<'en'> = {
   'review.section.mistakes': 'Mistakes',
   'review.section.works': 'What worked',
   'review.section.recommendations': 'Recommendations',
+  'review.example': 'How it should have been',
   'debug.label': 'Debug',
   'debug.prompt': 'Prompt',
   'debug.gutter.cost': '$',
@@ -471,6 +474,9 @@ export const EN: I18nCatalog<'en'> = {
   'coach.draft': 'Draft {n}',
   'coach.chip.situation': 'What is going on in the chat?',
   'coach.chip.offer': 'What to offer?',
+  'coach.attachDraft': 'Attach my reply',
+  'coach.sentToCoach': 'Sent to Coach…',
+  'coach.memoryBoundary': 'Coach no longer remembers the turns above',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Command palette',

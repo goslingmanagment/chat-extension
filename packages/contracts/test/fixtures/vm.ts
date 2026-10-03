@@ -35,6 +35,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   RefreshRecap: { type: 'RefreshRecap', length: 'short' },
   NewCoachDialog: { type: 'NewCoachDialog' },
   RetryRecapSave: { type: 'RetryRecapSave', length: 'full' },
+  ShowAnalysis: { type: 'ShowAnalysis', view: 'recap', mode: 'expanded' },
   SetSpendersPeriod: { type: 'SetSpendersPeriod', period: '30d' },
   SetSpendersFilter: { type: 'SetSpendersFilter', filter: 'waiting' },
   SetSpendersSort: { type: 'SetSpendersSort', sort: 'fan-age' },
@@ -153,6 +154,9 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { type: 'ClearLocalData', confirmed: false },
       { type: 'SendAll', operationId: OP },
       { type: 'Navigate', to: { kind: 'chat-slot', slot: 0 } },
+      { type: 'ShowAnalysis', view: 'coach', mode: 'sheet' },
+      { type: 'ShowAnalysis', view: 'recap', mode: 'generate' },
+      { type: 'ShowAnalysis', view: 'review', mode: 'hidden', operationId: OP },
     ],
   ),
 ];
