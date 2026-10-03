@@ -63,6 +63,11 @@ export const KEY_INSIGHTS = 'fanInsights';
 export const APP_SEARCH = { fastMs: 100, fastUntilMs: 15_000, slowMs: 2000, slowUntilMs: 60_000 } as const;
 /** §5.3: UI events at most 50 per second per type; extra ones coalesce (the latest wins). */
 export const UI_EVENT_GAP_MS = 20;
+/**
+ * Events that carry a state: one equal to the last sent is not repeated. The
+ * others (`accounts`, `chatCache`) are signals — «read again» — and always go out.
+ */
+export const STATE_EVENTS: readonly string[] = ['route', 'composer', 'contract'];
 /** A hidden tab gets no animation frames: a timer stands in for «one frame». */
 export const FRAME_FALLBACK_MS = 100;
 /** Write results kept for deduplication by request id. */

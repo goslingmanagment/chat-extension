@@ -54,6 +54,8 @@ const MAIN_ANCHORS = ['app', 'router', 'accounts', 'composerBridge', 'chatMessag
 const CACHE_READS = ['get', 'getQueryData', 'getEntries'];
 /** Cache keys whose change can mount, unmount or hide the open chat's composer. */
 const COMPOSER_KEYS = [KEY_FANS, KEY_MESSAGES, KEY_MIMIC_CHATS, KEY_MIMIC_SETTINGS, KEY_PERMISSIONS];
+/** Cache keys behind an anchor of the whole page (the per-chat ones are matched with the open account and chat). */
+const GLOBAL_ANCHOR_KEYS = [KEY_ACCOUNTS, KEY_PERMISSIONS, KEY_MIMIC_SETTINGS, KEY_MIMIC_CHATS];
 
 export function createMainRuntime(context: MainContext): MainRuntime {
   const { win, now, setTimer, frame, emit } = context;
@@ -279,15 +281,24 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       const first = args[0];
       const key = (isPlain(first) && Array.isArray(first['key']) ? first['key'] : Array.isArray(first) ? first : []) as unknown[];
       const read = route();
-      if (key[0] === KEY_ACCOUNTS) {
+      const head = key[0] as string;
+      // A key behind an anchor changed (data often lands after the route settled): the contract is judged again (coalesced, sent only when it changed).
+      if (
+        GLOBAL_ANCHOR_KEYS.includes(head) ||
+        ((head === KEY_FANS || head === KEY_CHAT_LIST) && key[1] === read.acc) ||
+        (head === KEY_MESSAGES && key[1] === read.acc && key[2] === read.fan)
+      ) {
+        emit('contract', contractPayload);
+      }
+      if (head === KEY_ACCOUNTS) {
         emit('accounts', () => ({}));
         emit('route', routePayload);
       }
       if (!read.fan || (key[1] !== undefined && key[1] !== read.acc)) return;
       const fan = read.fan;
-      if (COMPOSER_KEYS.includes(key[0] as string)) composerSoon();
+      if (COMPOSER_KEYS.includes(head)) composerSoon();
       // The open chat's history, its fan, its row of the list: the isolated side re-reads what it shows.
-      if ((key[0] === KEY_MESSAGES && key[2] === fan) || key[0] === KEY_FANS || key[0] === KEY_CHAT_LIST) emit('chatCache', () => ({ acc: read.acc, fan }));
+      if ((head === KEY_MESSAGES && key[2] === fan) || head === KEY_FANS || head === KEY_CHAT_LIST) emit('chatCache', () => ({ acc: read.acc, fan }));
     });
   };
 

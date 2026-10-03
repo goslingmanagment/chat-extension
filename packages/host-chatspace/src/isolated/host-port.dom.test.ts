@@ -221,6 +221,48 @@ describe('[BG-002] state from MAIN', () => {
     expect(bridge.calls.filter((call) => call.t === 'chatWindow').every((call) => call.payload['fan'] === FAN)).toBe(true);
   });
 
+  it('[RB-008] an anchor that turns ok later (history landed after the route settled) gets its data read at once', async () => {
+    const window = { chat: chat(), state: 'ready', loaded: 1, fanMessages: 1, modelMessages: 0, lastFanMessageId: '4004', lastFanMessageAt: null, lastModelMessageAt: null, hasOlder: null } as const;
+    const { host, bridge } = await port({ snapshot: () => snapshot({ contract: wire({ missing: ['chatMessages'] }) }), chatWindow: () => window });
+    expect(host.probe().capabilities.chatWindow.state).toBe('off');
+    expect(bridge.calls.filter((call) => call.t === 'chatWindow')).toHaveLength(0);
+    // A chatCache that comes before the contract finds the capability off and reads nothing…
+    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
+    expect(bridge.calls.filter((call) => call.t === 'chatWindow')).toHaveLength(0);
+    // …the contract that turns it on reads the window without waiting for the next change.
+    bridge.emit({ t: 'contract', payload: wire() });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(bridge.calls.filter((call) => call.t === 'chatWindow')).toHaveLength(1);
+    expect(host.chatWindow(chat(), 50)).toEqual(window);
+  });
+
+  it('a cache change during an in-flight read is not lost: one more read follows; the chat list is only marked stale', async () => {
+    const answers: Array<(value: unknown) => void> = [];
+    const { host, bridge } = await port({ chatWindow: () => new Promise((resolve) => answers.push(resolve)), listChats: () => [] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const windows = () => bridge.calls.filter((call) => call.t === 'chatWindow').length;
+    const lists = () => bridge.calls.filter((call) => call.t === 'listChats').length;
+    expect(windows()).toBe(1);
+    const listed = lists();
+    host.listCachedChats(ACC, 10);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const listedAfterRead = lists();
+    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
+    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
+    expect(windows()).toBe(1);
+    answers.shift()?.(null);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(windows()).toBe(2);
+    answers.shift()?.(null);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(windows()).toBe(2);
+    // The list is not re-read on every cache change: only marked stale, then read when someone asks for it.
+    expect(lists()).toBe(listedAfterRead);
+    expect(listedAfterRead).toBeGreaterThanOrEqual(listed);
+    host.listCachedChats(ACC, 10);
+    expect(lists()).toBe(listedAfterRead + 1);
+  });
+
   it('[UI-016] the fresh tail goes to the hub trimmed to its 60-message limit and the asked max', async () => {
     const messages = Array.from({ length: 80 }, (_, i) => ({ platformMessageId: String(5000 + i), direction: 'fan', sentAt: '2026-10-03T10:00:00.000Z', text: `m${i}` }));
     const { host, bridge } = await port({ readTail: () => ({ capturedAt: '2026-10-03T10:00:00.000Z', messages }) });

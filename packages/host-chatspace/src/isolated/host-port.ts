@@ -108,6 +108,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const fans = new Map<ChatKey, HostFan | null>();
   const lists = new Map<string, { readonly items: readonly NavigationItem[]; readonly at: number }>();
   const inFlight = new Set<string>();
+  /** Reads asked for while the same read was in flight: it runs once more afterwards. */
+  const dirty = new Set<string>();
 
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
@@ -159,14 +161,22 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
 
   // ── cache refresh (reads of page memory through MAIN) ──
 
+  /** One read per key at a time; asked again meanwhile, it runs once more when the first is done (a change is never lost). */
   const once = (key: string, work: () => Promise<void>): void => {
-    if (!bridge || disposed || inFlight.has(key)) return;
+    if (!bridge || disposed) return;
+    if (inFlight.has(key)) {
+      dirty.add(key);
+      return;
+    }
     inFlight.add(key);
     void work()
       .catch((error: unknown) => {
         if (error instanceof BridgeCallError) diag({ event: 'read-failed', detail: { request: error.t, failure: error.failure } });
       })
-      .finally(() => inFlight.delete(key));
+      .finally(() => {
+        inFlight.delete(key);
+        if (dirty.delete(key)) once(key, work);
+      });
   };
 
   const refreshWindow = (chat: ChatRef): void =>
@@ -198,6 +208,12 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     if (capability('chatWindow')) refreshWindow(chat);
     if (capability('fan')) refreshFan(chat, true);
     if (capability('chatList')) refreshList(chat.hostAccountId);
+  };
+
+  /** The cached list is kept but no longer fresh: the next listCachedChats() reads it again (lazily, not on every cache change). */
+  const staleList = (hostAccountId: string): void => {
+    const cached = lists.get(hostAccountId);
+    if (cached) lists.set(hostAccountId, { items: cached.items, at: Number.NEGATIVE_INFINITY });
   };
 
   const refreshAccounts = (): void =>
@@ -257,12 +273,17 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         if (!sameChat(chat, route.chat)) return;
         if (capability('chatWindow')) refreshWindow(chat);
         if (capability('fan')) refreshFan(chat, true);
-        if (capability('chatList')) refreshList(chat.hostAccountId);
+        staleList(chat.hostAccountId);
         return;
       }
-      case 'contract':
+      case 'contract': {
         wire = event.payload;
-        return recompute();
+        const before = report;
+        recompute();
+        // An anchor came (its data landed after the route settled): what it feeds is read now, not at the next change.
+        if (report !== before) refreshOpenChat();
+        return;
+      }
       case 'incoming':
       case 'coverage':
       case 'humanSend':

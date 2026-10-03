@@ -177,11 +177,10 @@ describe('events MAIN → isolated (§5.3 limits)', () => {
     return seen;
   };
 
-  it('checked events arrive in order; an unchanged state is not repeated; UI events coalesce, the latest wins', async () => {
+  it('[EX-008] checked events arrive in order; UI events coalesce, the latest wins', async () => {
     const { client, context } = await connected();
     const seen = events(client);
     const ctx = context();
-    ctx.emit('chatCache', () => ({ acc: '1001', fan: '2002' }));
     ctx.emit('chatCache', () => ({ acc: '1001', fan: '2002' }));
     for (let i = 0; i < 5; i += 1) ctx.emit('chatCache', () => ({ acc: '1001', fan: String(2010 + i) }));
     await new Promise((resolve) => setTimeout(resolve, 80));
@@ -189,6 +188,24 @@ describe('events MAIN → isolated (§5.3 limits)', () => {
     expect(fans[0]).toBe('2002');
     expect(fans.at(-1)).toBe('2014');
     expect(fans.length).toBeLessThanOrEqual(3);
+  });
+
+  it('[EX-008] an unchanged state is not repeated; a signal (chatCache, accounts) always goes out', async () => {
+    const { client, context } = await connected();
+    const seen = events(client);
+    const ctx = context();
+    const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+    ctx.emit('composer', () => ({ state: null }));
+    ctx.emit('chatCache', () => ({ acc: '1001', fan: '2002' }));
+    ctx.emit('accounts', () => ({}));
+    await pause(100);
+    // The same chat's cache changed again and the accounts query refreshed: both must reach the isolated side.
+    ctx.emit('composer', () => ({ state: null }));
+    ctx.emit('chatCache', () => ({ acc: '1001', fan: '2002' }));
+    ctx.emit('accounts', () => ({}));
+    await pause(100);
+    const count = (t: string): number => seen.filter((event) => event.t === t).length;
+    expect([count('composer'), count('chatCache'), count('accounts')]).toEqual([1, 2, 2]);
   });
 
   it('[RB-008] an event of the right type but a broken payload is dropped and counted', async () => {

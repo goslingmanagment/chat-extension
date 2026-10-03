@@ -8,7 +8,8 @@
 //
 // The boot owns the port: the envelope check, write deduplication by request
 // id, the answer frames and the event throttle (≤ 50 per second per type,
-// latest wins, unchanged states not repeated). It answers `probe` and `flags`
+// latest wins; an unchanged state — route, composer, contract — is not
+// repeated, a signal — accounts, chatCache — always goes out). It answers `probe` and `flags`
 // itself; everything else goes to the runtime (runtime.ts) once one is
 // attached — before that the answer is `not-ready`. The runtime reads and
 // writes ChatSpace; keeping it out of the boot keeps the document_start
@@ -33,6 +34,7 @@ import {
   NOT_YET_REQUESTS,
   PROTOCOL_VERSION,
   RUNTIME_KEY,
+  STATE_EVENTS,
   TAG_CONNECT,
   TAG_ISO_HELLO,
   TAG_MAIN_READY,
@@ -51,7 +53,11 @@ export interface MainContext {
   readonly setTimer: (callback: () => void, ms: number) => unknown;
   /** One frame, or a timer when the tab gets no frames. */
   readonly frame: (callback: () => void) => void;
-  /** A UI event: throttled per type, the latest state wins, an unchanged state is not repeated (§5.3). */
+  /**
+   * A UI event: throttled per type, the latest wins (§5.3). A state event
+   * (STATE_EVENTS) equal to the last one sent is not repeated; a signal
+   * (`accounts`, `chatCache`: «something changed, read again») always goes out.
+   */
   readonly emit: (t: string, build: () => Plain) => void;
 }
 
@@ -147,9 +153,11 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
         delete queued[t];
         if (!latest) return;
         const payload = latest();
-        const text = stringify(payload);
-        if (lastSent[t] === text) return;
-        lastSent[t] = text;
+        if (STATE_EVENTS.includes(t)) {
+          const text = stringify(payload);
+          if (lastSent[t] === text) return;
+          lastSent[t] = text;
+        }
         lastAt[t] = now();
         send({ kind: KIND_EVT, t, payload });
       };

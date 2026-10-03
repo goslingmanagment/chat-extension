@@ -211,6 +211,35 @@ describe('MAIN runtime — reads (§6.1)', () => {
     expect(h.events.filter((event) => event.t === 'contract').length).toBeGreaterThan(1);
   });
 
+  it('[RB-008] history that lands after the route settled is judged again: its anchor turns ok without a navigation', () => {
+    const h = harness as Harness;
+    const lastContract = () => h.events.filter((event) => event.t === 'contract').at(-1)?.payload as { missing: string[] };
+    h.page.go(ACC, OTHER);
+    h.frame();
+    expect(lastContract().missing).toContain('chatMessages');
+    const before = h.events.length;
+    h.page.cache.set(['chatMessages', ACC, OTHER], { pages: [{ items: [], hasMore: false }], pageParams: [null] });
+    expect(h.events.slice(before).map((event) => event.t)).toEqual(expect.arrayContaining(['contract', 'chatCache']));
+    expect(lastContract().missing).not.toContain('chatMessages');
+    // Another chat's history is no anchor of the open one.
+    const quiet = h.events.length;
+    h.page.cache.set(['chatMessages', ACC, '2999'], { pages: [] });
+    expect(h.events.slice(quiet).filter((event) => event.t === 'contract')).toEqual([]);
+  });
+
+  it('[RB-008] [AU-034] accounts that arrive after the app was found are judged again, and announced', async () => {
+    const h = await start((page) => {
+      page.cache.delete(['accounts']);
+      composer = page.addComposer(ACC, FAN);
+    });
+    const lastContract = () => h.events.filter((event) => event.t === 'contract').at(-1)?.payload as { missing: string[] };
+    expect(lastContract().missing).toContain('accounts');
+    const before = h.events.length;
+    h.page.cache.set(['accounts'], [{ id: 1001, platformAccountId: '3003', platform: 'onlyfans', username: 'one', name: 'One' }]);
+    expect(lastContract().missing).not.toContain('accounts');
+    expect(h.events.slice(before).map((event) => event.t)).toEqual(expect.arrayContaining(['contract', 'accounts', 'route']));
+  });
+
   it('[RB-015] route epochs grow on every navigation; [BG-002] the route event carries the account and chat', () => {
     const h = harness as Harness;
     h.page.go(ACC, OTHER);
