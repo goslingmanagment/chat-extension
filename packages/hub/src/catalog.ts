@@ -1,6 +1,7 @@
 // Persona catalog (AU-026…AU-028): metadata only (`aiPersonaCatalog`), never
 // prompt text — full personas are a forbidden route. Cached for the sign-in
-// it was read under, in memory and in `cache.catalog`; refreshed at start,
+// it was read under, in memory and in `cache.catalog`; refreshed at start
+// (unless the stored one is younger than 5 min: then when it turns 5 min),
 // every 5 min, at sign-in, on «Проверить связь», and whenever the hub says
 // a persona changed (409 or a foreign `meta`). An assignment keeps a
 // reference (`key` + `definitionId`), never a body.
@@ -96,12 +97,27 @@ export class CatalogService {
     return promise;
   }
 
-  private schedule(): void {
+  private schedule(ms: number = CATALOG_TTL_MS): void {
     this.cancelTimer();
     this.timer = this.ctx.clock.setTimeout(() => {
       this.timer = null;
       this.refresh().catch(() => undefined);
-    }, CATALOG_TTL_MS);
+    }, ms);
+  }
+
+  /**
+   * Background start, after `loadStored` (AU-027). An event page starts again after every idle unload: the
+   * stored catalog of this sign-in, while younger than 5 min, is kept and read again when it turns 5 min.
+   */
+  startRefresh(): void {
+    if (this.ctx.custody.current() === null) return;
+    const entry = this.entry;
+    const age = this.cached() === null || entry === null ? Number.POSITIVE_INFINITY : elapsedSince(this.ctx.clock, { at: entry.fetchedAt, mono: entry.fetchedMono });
+    if (age < CATALOG_TTL_MS) {
+      this.schedule(Math.max(1_000, CATALOG_TTL_MS - age));
+      return;
+    }
+    this.refresh().catch(() => undefined);
   }
 
   private cancelTimer(): void {

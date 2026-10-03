@@ -105,21 +105,82 @@ describe('[HB-011] [AU-022] the bootstrap and its cache', () => {
     expect(h.hub.of('clientBootstrap')).toHaveLength(2);
   });
 
-  it('[HB-011] focus refreshes at most once per 60 s', async () => {
+  it('[HB-011] focus refreshes at most once per 60 s, and never a bootstrap that was read less than 60 s ago', async () => {
     await signIn(h, WORLD_PILOT);
+    const count = () => h.hub.of('clientBootstrap').length;
+    // Just read at the sign-in: a focus right behind it reads nothing.
+    h.facade.notifyFocus();
+    await flush();
+    expect(count()).toBe(1);
+    await vi.advanceTimersByTimeAsync(60_000);
     h.facade.notifyFocus();
     await flush();
     h.facade.notifyFocus();
     await flush();
-    expect(h.hub.of('clientBootstrap')).toHaveLength(2);
+    expect(count()).toBe(2);
     await vi.advanceTimersByTimeAsync(59_000);
     h.facade.notifyFocus();
     await flush();
-    expect(h.hub.of('clientBootstrap')).toHaveLength(2);
+    expect(count()).toBe(2);
     await vi.advanceTimersByTimeAsync(1_000);
     h.facade.notifyFocus();
     await flush();
-    expect(h.hub.of('clientBootstrap')).toHaveLength(3);
+    expect(count()).toBe(3);
+  });
+
+  it('[HB-011] [BG-003] a restarted background keeps a stored bootstrap and catalog that are still fresh: no read at start, none for the focus of its tabs, one by the ttl', async () => {
+    await signIn(h, WORLD_PILOT);
+    await flush();
+    const bootstraps = () => h.hub.of('clientBootstrap').length;
+    const catalogs = () => h.hub.of('aiPersonaCatalog').length;
+    expect([bootstraps(), catalogs()]).toEqual([1, 1]);
+    // The event page was unloaded 30 s after the sign-in and woke 10 s later.
+    h.facade.dispose();
+    await vi.advanceTimersByTimeAsync(40_000);
+    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
+    await restarted.facade.ready;
+    await flush();
+    expect(restarted.facade.cachedBootstrap()).toMatchObject({ fresh: true, source: 'hub' });
+    // Its tabs register again and report their focus.
+    restarted.facade.notifyFocus();
+    await flush();
+    expect([bootstraps(), catalogs()]).toEqual([1, 1]);
+    // The stored stamps still count: both are read again when they turn 300 s old, not 300 s after the restart.
+    await vi.advanceTimersByTimeAsync(259_000);
+    expect([bootstraps(), catalogs()]).toEqual([1, 1]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await flush();
+    expect([bootstraps(), catalogs()]).toEqual([2, 2]);
+    restarted.facade.dispose();
+  });
+
+  it('[HB-011] a restarted background reads an expired stored bootstrap and catalog at once', async () => {
+    await signIn(h, WORLD_PILOT);
+    await flush();
+    h.facade.dispose();
+    await vi.advanceTimersByTimeAsync(301_000);
+    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
+    await restarted.facade.ready;
+    await flush();
+    expect(h.hub.of('clientBootstrap')).toHaveLength(2);
+    expect(h.hub.of('aiPersonaCatalog')).toHaveLength(2);
+    expect(restarted.facade.cachedBootstrap()).toMatchObject({ fresh: true });
+    restarted.facade.dispose();
+  });
+
+  it('[AU-027] a restarted background still notices a config change against what the one before it saw', async () => {
+    await signIn(h, WORLD_PILOT);
+    await flush();
+    h.facade.dispose();
+    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
+    await restarted.facade.ready;
+    await flush();
+    expect(h.hub.of('aiPersonaCatalog')).toHaveLength(1);
+    h.hub.on('clientBootstrap', () => json(200, { ...BOOTSTRAP_PILOT_ON, configRevision: BOOTSTRAP_PILOT_ON.configRevision + 1 }));
+    await restarted.facade.bootstrap({ force: true });
+    await flush();
+    expect(h.hub.of('aiPersonaCatalog')).toHaveLength(2);
+    restarted.facade.dispose();
   });
 
   it('[HB-011] an expired bootstrap whose refresh fails keeps its results readable but blocks taking new work', async () => {

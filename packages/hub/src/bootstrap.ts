@@ -1,8 +1,10 @@
 // Bootstrap (architecture.md §8.3, H-2): fetch, checks, cache and refresh.
 // - The cache lives `ttlSec` from our fetch, in memory and in `cache.bootstrap`
 //   (owner-marked: hub origin + user + epoch, AU-022).
-// - Refreshed at start, on expiry, at sign-in, on focus at most once per
-//   60 s and on «Проверить связь»; after a failure: 5 / 15 / 60 s, then
+// - Refreshed at start (unless the stored one is still fresh: an event page
+//   starts again after every idle unload, so a start is not rare — then it
+//   is read again by its ttl), on expiry, at sign-in, on focus at most once
+//   per 60 s and on «Проверить связь»; after a failure: 5 / 15 / 60 s, then
 //   every 60 s (AU-017, HUB_FACADE_TIMING).
 // - An expired bootstrap blocks new sensitive actions (the facade refreshes
 //   before them) but keeps whatever results exist.
@@ -232,11 +234,32 @@ export class BootstrapService {
     this.timer = null;
   }
 
-  /** Focus of a ChatSpace tab: refresh at most once per 60 s (§8.3). */
+  /**
+   * Focus of a ChatSpace tab: refresh at most once per 60 s (§8.3). A bootstrap read less than 60 s ago —
+   * by this background or by the one before it (the stored stamp) — is not read again for a focus either:
+   * a restarted event page hears «focus» from every tab that registers again.
+   */
   onFocus(): void {
     const now = this.ctx.clock.monotonic();
-    if (this.ctx.custody.current() === null || now - this.lastFocusRefreshAt < HUB_FACADE_TIMING.bootstrapFocusRefreshMinMs) return;
+    const minMs = HUB_FACADE_TIMING.bootstrapFocusRefreshMinMs;
+    if (this.ctx.custody.current() === null || now - this.lastFocusRefreshAt < minMs) return;
+    const cached = this.cached();
+    if (cached !== null && this.age(cached) < minMs) return;
     this.lastFocusRefreshAt = now;
+    this.refresh().catch(() => undefined);
+  }
+
+  /**
+   * Background start, after `loadStored` (§8.3). The stored bootstrap of this sign-in, while still fresh,
+   * is kept and read again when its ttl runs out; a missing or expired one is read now.
+   */
+  startRefresh(): void {
+    if (this.ctx.custody.current() === null) return;
+    const cached = this.cached();
+    if (cached !== null && this.isFresh(cached)) {
+      this.schedule(Math.max(1_000, cached.bootstrap.ttlSec * 1000 - this.age(cached)));
+      return;
+    }
     this.refresh().catch(() => undefined);
   }
 

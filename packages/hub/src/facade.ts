@@ -260,9 +260,12 @@ export class ChatExtensionHub implements HubFacade {
     await this.custody.load();
     if (this.custody.current() === null) return;
     await Promise.all([this.bootstrapService.loadStored(), this.catalogService.loadStored()]);
-    // §8.3: refresh at start; AU-027: the catalog too. Failures schedule their own retries.
-    this.bootstrapService.refresh().catch(() => undefined);
-    this.catalogService.refresh().catch(() => undefined);
+    // AU-027: a config change is noticed against what the previous background last saw.
+    this.configRevision = this.bootstrapService.cached()?.bootstrap.configRevision ?? null;
+    // §8.3: refresh at start; AU-027: the catalog too — unless what the previous background stored is still
+    // fresh (an event page starts again after every idle unload). Failures schedule their own retries.
+    this.bootstrapService.startRefresh();
+    this.catalogService.startRefresh();
   }
 
   private forgetPreviousSignIn(change: SessionChange): void {
