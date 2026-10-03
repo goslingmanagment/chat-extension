@@ -206,6 +206,8 @@ export class TabEnvironment {
   reload(): void {
     this.generation += 1;
     const generation = this.generation;
+    // A read that failed for the hub's or the transport's reasons is made again; «not bound» is an answer, not a failure.
+    this.dropFailedBindings();
     void this.rpc.request('settings.get', {}).then((answer) => {
       if (!answer.ok) return;
       // An event may have brought a newer revision meanwhile.
@@ -241,7 +243,7 @@ export class TabEnvironment {
     if (session !== null && (!same || this.bootstrapValue.s !== 'ready')) {
       this.loadBootstrap();
       this.loadCatalog();
-    }
+    } else if (session !== null && this.catalogValue.s === 'error') this.loadCatalog();
   }
 
   private loadBootstrap(): void {
@@ -261,6 +263,11 @@ export class TabEnvironment {
   private dropBindings(): void {
     this.bindingEpoch += 1;
     this.bindings.clear();
+  }
+
+  /** Bindings whose read failed (not «missing», «ambiguous» or «not granted») are resolved again on the next look. */
+  private dropFailedBindings(): void {
+    for (const [key, binding] of this.bindings) if (binding.s === 'error' && !binding.error.code.startsWith('CG-BINDING-')) this.bindings.delete(key);
   }
 
   private loadCatalog(): void {

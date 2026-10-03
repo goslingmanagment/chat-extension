@@ -171,6 +171,46 @@ describe('dock: where it shows and what state it is in', () => {
     expect(h.dock().status).toBe('ready');
   });
 
+  it('a binding or catalog read that failed once is read again on «Повторить» and after a reconnect; «not bound» is not', async () => {
+    const h = await start({ background: (bg) => (bg.bindingError = { code: 'CG-HUB-UNAVAILABLE' }) });
+    expect(h.dock()).toMatchObject({ status: 'hub-down', view: { s: 'offline', retry: { type: 'ReloadView', selector: { of: 'dock' } } } });
+    expect(h.bg.callsOf('binding.resolve')).toHaveLength(1);
+    // Nothing asks again by itself.
+    await h.clock.advance(60_000);
+    expect(h.bg.callsOf('binding.resolve')).toHaveLength(1);
+    h.bg.bindingError = null;
+    expect(await h.dispatch({ type: 'ReloadView', selector: { of: 'dock' } })).toMatchObject({ ok: true });
+    await h.settle();
+    expect(h.bg.callsOf('binding.resolve')).toHaveLength(2);
+    expect(h.dock().status).toBe('ready');
+
+    // A port that came back reads it again too.
+    const dropped = await start({ background: (bg) => (bg.bindingError = { code: 'CG-RUNTIME-UNREACHABLE' }) });
+    expect(dropped.dock().status).toBe('hub-down');
+    dropped.bg.bindingError = null;
+    dropped.bg.setConnection('reconnecting');
+    dropped.bg.setConnection('ready');
+    await dropped.settle();
+    expect(dropped.dock().status).toBe('ready');
+
+    // The catalog of a page without a persona: the failed read is the hub line, and «Повторить» reads it again.
+    const catalog = await start({ settings: { ...settingsWithPersona(), personas: { scope: null, byPageId: {} } }, background: (bg) => (bg.catalog = { error: { code: 'CG-HUB-TIMEOUT' } }) });
+    expect(catalog.dock().status).toBe('hub-down');
+    expect(catalog.bg.callsOf('catalog.get')).toHaveLength(1);
+    catalog.bg.catalog = CATALOG;
+    await catalog.dispatch({ type: 'ReloadView', selector: { of: 'dock' } });
+    await catalog.settle();
+    expect(catalog.bg.callsOf('catalog.get')).toHaveLength(2);
+    expect(catalog.dock().status).toBe('no-persona');
+
+    // «Аккаунт не привязан» is the hub's answer: «Повторить» does not exist for it and a reload asks nothing.
+    const unbound = await start({ background: (bg) => (bg.bindingError = { code: 'CG-BINDING-MISSING' }) });
+    unbound.ai.workspace.env.reload();
+    await unbound.settle();
+    expect(unbound.bg.callsOf('binding.resolve')).toHaveLength(1);
+    expect(unbound.dock().status).toBe('no-binding');
+  });
+
   it('[AI-122] the chat is still loading: the words, no banner, every action off', async () => {
     const h = await start();
     h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), state: 'loading' }, openChat);
