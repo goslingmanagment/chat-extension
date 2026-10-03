@@ -9,6 +9,8 @@ import { type FeatureId, type Surface, type Tone } from '../features';
 import { type PartRef } from '../ids';
 import { type OpState } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
+import { type PreviewSendPreflight, type SendAttemptView } from '../send';
+import { PREVIEW_SEND_CONDITION_CODES, isRetryableEnd } from '../send-rules';
 import { type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
 import { type Msg } from './i18n';
@@ -38,6 +40,7 @@ export const SEND_REASON_KEYS = {
   'CG-SEND-HOST': 'send.reason.host',
   'CG-SEND-RECEIPT': 'send.reason.receipt',
   'CG-SEND-ACTIVE-CHAT': 'send.reason.activeChat',
+  'CG-SEND-HISTORY': 'send.reason.history',
   'CG-SEND-PERMISSION': 'send.reason.permission',
   'CG-SEND-FAN': 'send.reason.fan',
   'CG-SEND-MIMIC': 'send.reason.mimic',
@@ -47,9 +50,19 @@ export const SEND_REASON_KEYS = {
   'CG-SEND-QUEUE': 'send.reason.queue',
   'CG-SEND-PART': 'send.reason.part',
   'CG-SEND-GUARD': 'send.reason.guard',
+  'CG-CONTEXT-CHANGED': 'send.reason.contextChanged',
+  'CG-CLAIM-BUSY': 'send.reason.claimBusy',
   'CG-CLAIM-EXPIRED': 'send.reason.claimExpired',
+  /** The hub's `preview_send_rate_limited` (6 per minute): off until its deadline. */
+  'CG-HUB-RATE-LIMIT': 'send.reason.rateLimit',
+  /** The hub's `custody_held`: another send to this fan is unresolved (the desktop's included). */
+  'CG-SEND-UNCERTAIN': 'send.reason.otherUncertain',
 } as const satisfies Partial<Record<CgCode, I18nKey>>;
 export type SendReasonCode = keyof typeof SEND_REASON_KEYS;
+
+export function isSendReasonCode(code: CgCode): code is SendReasonCode {
+  return Object.prototype.hasOwnProperty.call(SEND_REASON_KEYS, code);
+}
 
 /**
  * The «Отправить» row of a part in a preview, nine states one to one with
@@ -65,10 +78,74 @@ export type PreviewSendView =
   | { readonly s: 'sending' }
   | { readonly s: 'accepted' }
   | { readonly s: 'sent'; readonly at: IsoTimestamp }
-  /** `canRetry` only when the registry allows a new click (CG-SEND-QUEUE); otherwise «Открыть и вставить» and «Копировать». */
+  /** `canRetry` by isRetryableEnd (nothing reached ChatSpace: CG-SEND-QUEUE, a failed dispatch); otherwise «Открыть и вставить» and «Копировать». */
   | { readonly s: 'rejected'; readonly code: CgCode; readonly detail?: string; readonly canRetry: boolean }
   /** No retry, no «Открыть и вставить»: only «Открыть чат для проверки» for this attempt (§6.7.8). */
   | { readonly s: 'uncertain'; readonly since: IsoTimestamp; readonly attemptId: Uuid };
+
+/** PreviewSendView without its texts and times: what previewSendStateOf decides; the controller adds `reason`, `at`, `since`, `detail`. */
+export type PreviewSendState =
+  | { readonly s: 'available' }
+  | { readonly s: 'unavailable'; readonly code: SendReasonCode }
+  | { readonly s: 'held-stale' }
+  | { readonly s: 'queued' }
+  | { readonly s: 'sending' }
+  | { readonly s: 'accepted' }
+  | { readonly s: 'sent' }
+  | { readonly s: 'rejected'; readonly code: CgCode; readonly canRetry: boolean }
+  | { readonly s: 'uncertain'; readonly attemptId: Uuid };
+
+function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
+  if (preflight.ok) return { s: 'available' };
+  if (preflight.code === 'CG-SEND-STALE') return { s: 'held-stale' };
+  return { s: 'unavailable', code: preflight.code };
+}
+
+/**
+ * The one mapping of an attempt (or its absence) and the current preflight to
+ * the «Отправить» row, total over SEND_ATTEMPT_STATES (§6.7.7, ui-design §4.13):
+ * - no attempt, or `ready` → the preflight: available, unavailable by code, or held-stale;
+ * - `preparing` (local lock and hub dispatch, before ChatSpace starts) → queued;
+ * - `nativeEnqueued` (ChatSpace's send started, X8 never queues behind a busy account) → sending;
+ * - `nativeAccepted` → accepted; `sentObserved` → sent; `uncertain` → uncertain;
+ * - `rejected` (proven native refusal) → rejected without retry;
+ * - `notEnqueued` (the queue's null, CG-SEND-QUEUE) → rejected with «Отправить ещё раз»;
+ * - `held`: CG-SEND-STALE → held-stale; a code another click cannot lift
+ *   (SEND_HOLD_CODES_WITHOUT_RETRY) or the hub's rate limit → unavailable with it
+ *   (the controller drops the attempt once the rate-limit deadline passes);
+ *   any other §6.7.4 condition → the current preflight decides (the condition
+ *   may have cleared); anything else — a transport failure of `dispatch`, an
+ *   expired ticket (CG-TIMEOUT) — nothing reached ChatSpace → rejected with retry.
+ */
+export function previewSendStateOf(attempt: SendAttemptView | null, preflight: PreviewSendPreflight): PreviewSendState {
+  if (attempt === null) return fromPreflight(preflight);
+  const code = attempt.code;
+  switch (attempt.state) {
+    case 'ready':
+      return fromPreflight(preflight);
+    case 'preparing':
+      return { s: 'queued' };
+    case 'nativeEnqueued':
+      return { s: 'sending' };
+    case 'nativeAccepted':
+      return { s: 'accepted' };
+    case 'sentObserved':
+      return { s: 'sent' };
+    case 'uncertain':
+      return { s: 'uncertain', attemptId: attempt.attemptId };
+    case 'rejected':
+      return { s: 'rejected', code: code ?? 'CG-SEND-REJECTED', canRetry: false };
+    case 'notEnqueued':
+      return { s: 'rejected', code: code ?? 'CG-SEND-QUEUE', canRetry: isRetryableEnd('notEnqueued', code) };
+    case 'held':
+      if (code === 'CG-SEND-STALE') return { s: 'held-stale' };
+      if (code !== undefined && isSendReasonCode(code) && (code === 'CG-HUB-RATE-LIMIT' || !isRetryableEnd('held', code))) {
+        return { s: 'unavailable', code };
+      }
+      if (code !== undefined && (PREVIEW_SEND_CONDITION_CODES as readonly CgCode[]).includes(code)) return fromPreflight(preflight);
+      return { s: 'rejected', code: code ?? 'CG-SEND-HOST', canRetry: isRetryableEnd('held', code) };
+  }
+}
 
 export const PREVIEW_SEND_STATES = [
   'available',

@@ -224,13 +224,13 @@ export const TAB_REQUESTS = {
     from: TAB,
   },
   'send.status': { req: z.strictObject({ attemptId: UuidSchema }), res: z.strictObject({ view: z.nullable(SendAttemptViewSchema) }), from: ANY },
-  /** A state MAIN observed; the background journals it and reports `sent`/`failed` to the hub only on proof. */
+  /**
+   * A state MAIN observed; the background journals it and reports to the hub
+   * custody by SEND_CUSTODY_REPORTS only on proof (a refusal's status is
+   * `view.httpStatus`).
+   */
   'send.report': {
-    req: z.strictObject({
-      view: SendAttemptViewSchema,
-      pendingId: z.optional(PendingIdSchema),
-      httpStatus: z.optional(z.int().check(z.gte(100), z.lte(599))),
-    }),
+    req: z.strictObject({ view: SendAttemptViewSchema, pendingId: z.optional(PendingIdSchema) }),
     res: Ack,
     from: TAB,
   },

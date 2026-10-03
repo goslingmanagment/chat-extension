@@ -393,6 +393,11 @@ export const RU: I18nCatalog<'ru'> = {
   'send.reason.part': 'часть устарела — обновите ответ.',
   'send.reason.guard': 'Message Guard ChatSpace не пропустил текст.',
   'send.reason.claimExpired': 'бронь истекла — нажмите Hi ещё раз.',
+  'send.reason.history': 'ChatSpace сейчас загружает этот чат: отправка вызвала бы чтение переписки. Откройте чат и вставьте часть.',
+  'send.reason.contextChanged': 'аккаунт, привязка или персона сменились после генерации — сделайте ответ заново.',
+  'send.reason.claimBusy': 'этого фана уже ведёт другой чаттер или он уже поприветствован.',
+  'send.reason.rateLimit': 'слишком много отправок за минуту — подождите немного.',
+  'send.reason.otherUncertain': 'прошлая отправка этому фану не проверена — дождитесь проверки тимлидом или владельцем.',
 
   // ── New subscribers ──
   'newcomers.title': 'Новые',
@@ -902,6 +907,8 @@ export const RU: I18nCatalog<'ru'> = {
   'cg.sendReceipt.body': 'Отправка из превью ещё не проверена для этой версии ChatSpace. Вставьте часть в чат вручную.',
   'cg.sendActiveChat.title': 'Чат открыт',
   'cg.sendActiveChat.body': 'Этот чат открыт — вставьте ответ в поле ввода.',
+  'cg.sendHistory.title': 'Чат загружается',
+  'cg.sendHistory.body': 'ChatSpace сейчас загружает переписку этого фана: отправка из превью вызвала бы её чтение. Откройте чат и вставьте часть.',
   'cg.sendPermission.title': 'Нет права отправлять',
   'cg.sendPermission.body': 'У этого аккаунта нет права отправлять, доступ утрачен или нужна смена.',
   'cg.sendFan.title': 'Фану нельзя отправить',

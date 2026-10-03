@@ -85,6 +85,32 @@ describe('X8 attempt machine (§6.7.7)', () => {
     expect(C.SEND_ATTEMPT_CUSTODY_STATES).toContain('uncertain');
   });
 
+  it('another click lifts a hold only when the code allows it (§6.7.5, §6.7.8)', () => {
+    expect(C.isRetryableEnd('notEnqueued', 'CG-SEND-QUEUE')).toBe(true);
+    expect(C.isRetryableEnd('held', 'CG-SEND-BUSY')).toBe(true);
+    expect(C.isRetryableEnd('held', 'CG-NETWORK')).toBe(true);
+    for (const code of C.SEND_HOLD_CODES_WITHOUT_RETRY) expect(C.isRetryableEnd('held', code), code).toBe(false);
+    for (const state of ['rejected', 'uncertain', 'sentObserved', 'nativeAccepted'] as const) expect(C.isRetryableEnd(state, undefined)).toBe(false);
+  });
+
+  it('custody reports: proof only, never for an unknown outcome (H-7)', () => {
+    expect(Object.keys(C.SEND_CUSTODY_REPORTS).sort()).toEqual([...C.SEND_ATTEMPT_STATES].sort());
+    expect(C.SEND_CUSTODY_REPORTS.uncertain).toBeNull();
+    expect(C.SEND_CUSTODY_REPORTS.nativeAccepted).toBeNull();
+    expect(C.SEND_CUSTODY_REPORTS.sentObserved).toBe('sent');
+    for (const state of C.SEND_ATTEMPT_RETRYABLE_ENDS) expect(C.SEND_CUSTODY_REPORTS[state]).toBe('failed-not-enqueued');
+    expect(C.isNativeRefusalStatus(401)).toBe(false);
+    expect(C.isNativeRefusalStatus(422)).toBe(true);
+    expect(C.isNativeRefusalStatus(500)).toBe(false);
+  });
+
+  it('a server deadline moves onto the local clock by the server\'s remaining time', () => {
+    const received = 1_000_000;
+    // The client clock is 5 minutes off; the ticket still has 10 s on the server.
+    expect(C.localDeadline('2026-10-03T10:00:10.000Z', '2026-10-03T10:00:00.000Z', received)).toBe(received + 10_000 - C.SERVER_DEADLINE_MARGIN_MS);
+    expect(C.localDeadline('soon', '2026-10-03T10:00:00.000Z', received)).toBeNull();
+  });
+
   it('the lock key is (hubOrigin, pageId, platform, fanRef)', () => {
     expect(C.sendLockKey({ hubOrigin: 'https://hub.example.test', pageId: 11, platform: 'onlyfans', fanRef: '2002' })).toBe('https://hub.example.test|11|onlyfans|2002');
   });

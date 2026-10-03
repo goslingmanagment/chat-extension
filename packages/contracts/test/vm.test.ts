@@ -104,6 +104,51 @@ describe('catalog', () => {
   });
 });
 
+describe('«Отправить» row (previewSendStateOf)', () => {
+  const ok: C.PreviewSendPreflight = { ok: true };
+  const attempt = (state: C.SendAttemptState, code?: C.CgCode): C.SendAttemptView => ({ attemptId: '00000000-0000-4000-8000-000000000005', state, ...(code ? { code } : {}) });
+
+  it('every §6.7.4 condition but the stale hold has a reason text', () => {
+    for (const code of C.PREVIEW_SEND_CONDITION_CODES) {
+      if (code === 'CG-SEND-STALE') continue;
+      expect(C.isSendReasonCode(code), code).toBe(true);
+    }
+    for (const code of C.SEND_HOLD_CODES_WITHOUT_RETRY) if (code !== 'CG-SEND-STALE') expect(C.isSendReasonCode(code), code).toBe(true);
+  });
+
+  it('is total over the attempt states', () => {
+    for (const state of C.SEND_ATTEMPT_STATES) {
+      const view = C.previewSendStateOf(attempt(state), ok);
+      expect((C.PREVIEW_SEND_STATES as readonly string[]).includes(view.s), state).toBe(true);
+    }
+  });
+
+  it('maps the attempt machine onto the row (ui-design §4.13)', () => {
+    expect(C.previewSendStateOf(null, ok)).toEqual({ s: 'available' });
+    expect(C.previewSendStateOf(null, { ok: false, code: 'CG-SEND-HISTORY' })).toEqual({ s: 'unavailable', code: 'CG-SEND-HISTORY' });
+    expect(C.previewSendStateOf(null, { ok: false, code: 'CG-SEND-STALE' })).toEqual({ s: 'held-stale' });
+    expect(C.previewSendStateOf(attempt('preparing'), ok).s).toBe('queued');
+    expect(C.previewSendStateOf(attempt('nativeEnqueued'), ok).s).toBe('sending');
+    expect(C.previewSendStateOf(attempt('nativeAccepted'), ok).s).toBe('accepted');
+    expect(C.previewSendStateOf(attempt('sentObserved'), ok).s).toBe('sent');
+    expect(C.previewSendStateOf(attempt('uncertain', 'CG-SEND-UNCERTAIN'), ok).s).toBe('uncertain');
+    expect(C.previewSendStateOf(attempt('rejected', 'CG-SEND-GUARD'), ok)).toEqual({ s: 'rejected', code: 'CG-SEND-GUARD', canRetry: false });
+    expect(C.previewSendStateOf(attempt('notEnqueued', 'CG-SEND-QUEUE'), ok)).toEqual({ s: 'rejected', code: 'CG-SEND-QUEUE', canRetry: true });
+  });
+
+  it('a hold: stale stays held, a final code stays off, a cleared condition frees the button, a failed dispatch may be clicked again', () => {
+    expect(C.previewSendStateOf(attempt('held', 'CG-SEND-STALE'), ok)).toEqual({ s: 'held-stale' });
+    expect(C.previewSendStateOf(attempt('held', 'CG-SEND-PART'), ok)).toEqual({ s: 'unavailable', code: 'CG-SEND-PART' });
+    expect(C.previewSendStateOf(attempt('held', 'CG-SEND-UNCERTAIN'), ok)).toEqual({ s: 'unavailable', code: 'CG-SEND-UNCERTAIN' });
+    expect(C.previewSendStateOf(attempt('held', 'CG-CLAIM-BUSY'), ok)).toEqual({ s: 'unavailable', code: 'CG-CLAIM-BUSY' });
+    expect(C.previewSendStateOf(attempt('held', 'CG-HUB-RATE-LIMIT'), ok)).toEqual({ s: 'unavailable', code: 'CG-HUB-RATE-LIMIT' });
+    expect(C.previewSendStateOf(attempt('held', 'CG-SEND-BUSY'), ok)).toEqual({ s: 'available' });
+    expect(C.previewSendStateOf(attempt('held', 'CG-SEND-BUSY'), { ok: false, code: 'CG-SEND-MIMIC' })).toEqual({ s: 'unavailable', code: 'CG-SEND-MIMIC' });
+    expect(C.previewSendStateOf(attempt('held', 'CG-NETWORK'), ok)).toEqual({ s: 'rejected', code: 'CG-NETWORK', canRetry: true });
+    expect(C.previewSendStateOf(attempt('held', 'CG-TIMEOUT'), ok)).toEqual({ s: 'rejected', code: 'CG-TIMEOUT', canRetry: true });
+  });
+});
+
 describe('views', () => {
   it('declares the produced states of every view', () => {
     expect(Object.keys(C.VM_STATE_SUPPORT).sort()).toEqual([...C.VIEW_NAMES].sort());

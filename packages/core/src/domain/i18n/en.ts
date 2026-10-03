@@ -375,6 +375,11 @@ export const EN: I18nCatalog<'en'> = {
   'send.reason.part': 'the part is out of date — refresh the answer.',
   'send.reason.guard': 'ChatSpace’s Message Guard did not let the text through.',
   'send.reason.claimExpired': 'the hold expired — press Hi again.',
+  'send.reason.history': 'ChatSpace is loading this chat: a send would read the conversation. Open the chat and insert the part.',
+  'send.reason.contextChanged': 'the account, binding or persona changed after the generation — make the answer again.',
+  'send.reason.claimBusy': 'another chatter is working with this fan, or the fan is already greeted.',
+  'send.reason.rateLimit': 'too many sends this minute — wait a little.',
+  'send.reason.otherUncertain': 'an earlier send to this fan is not verified — wait for a team lead or the owner to check it.',
 
   // ── New subscribers ──
   'newcomers.title': 'New',
@@ -862,6 +867,8 @@ export const EN: I18nCatalog<'en'> = {
   'cg.sendReceipt.body': 'Sending from the preview has not been verified for this ChatSpace version. Insert the part into the chat by hand.',
   'cg.sendActiveChat.title': 'The chat is open',
   'cg.sendActiveChat.body': 'This chat is open — insert the answer into the message field.',
+  'cg.sendHistory.title': 'The chat is loading',
+  'cg.sendHistory.body': 'ChatSpace is loading this fan’s conversation: a send from the preview would read it. Open the chat and insert the part.',
   'cg.sendPermission.title': 'Not allowed to send',
   'cg.sendPermission.body': 'This account may not send, has lost access, or needs a shift.',
   'cg.sendFan.title': 'Cannot send to this fan',

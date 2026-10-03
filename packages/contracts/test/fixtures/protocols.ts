@@ -155,8 +155,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'send.report': {
     req: {
-      valid: [{ view: { attemptId: uuid(5), state: 'nativeEnqueued' }, pendingId: uuid(7) }, { view: { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-GUARD' }, httpStatus: 422 }],
-      invalid: [{ view: { attemptId: uuid(5), state: 'nativeEnqueued' }, httpStatus: 9000 }],
+      valid: [
+        { view: { attemptId: uuid(5), state: 'nativeEnqueued' }, pendingId: uuid(7) },
+        { view: { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-GUARD', httpStatus: 422 } },
+      ],
+      invalid: [
+        { view: { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-GUARD' }, httpStatus: 422 },
+        { view: { attemptId: uuid(5), state: 'nativeEnqueued', httpStatus: 422 } },
+      ],
     },
     res: ack,
   },

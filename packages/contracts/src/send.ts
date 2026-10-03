@@ -1,15 +1,17 @@
 // X8: send from a preview through ChatSpace's own send queue on a human click
-// (architecture.md §5.2 "X8", §6.7). Types of the port, the freshness
-// checkpoint, the hub's one-time dispatch ticket, the attempt state machine of
-// §6.7.7 and the attempt journal record. An outcome that is not proven is
-// `uncertain` and is NEVER retried; only the late second half of an already
-// linked receipt/echo pair may still turn it into `sentObserved`.
+// (architecture.md §5.2 "X8", §6.7). Schemas of the port, the freshness
+// checkpoint, the hub's one-time dispatch ticket, the attempt view and the
+// attempt journal record; the state machine and the end rules as plain data
+// are in send-rules.ts. An outcome that is not proven is `uncertain` and is
+// NEVER retried; only the late second half of an already linked
+// receipt/echo pair may still turn it into `sentObserved`.
 
 import * as z from 'zod/mini';
 
 import { CgCodeSchema, type CgCode } from './errors';
 import { HumanCauseSchema, PartRefSchema, PlatformSchema, TargetSchema, type HumanCause } from './ids';
 import { SEND_LIMITS } from './limits';
+import { PREVIEW_SEND_CONDITION_CODES, SEND_ATTEMPT_STATES, isNativeRefusalStatus } from './send-rules';
 import {
   CountSchema,
   EpochMsSchema,
@@ -66,85 +68,52 @@ export type PreviewSendRequest = z.infer<typeof PreviewSendRequestSchema>;
 export const DispatchTicketSchema = z.strictObject({
   attemptId: UuidSchema,
   ticket: boundedText(512),
+  /** Local clock: localDeadline(custody.ticketExpiresAt, serverNow, receivedAt), never the server instant as is. */
   expiresAt: EpochMsSchema,
 });
 export type DispatchTicket = z.infer<typeof DispatchTicketSchema>;
 
+/** One of PREVIEW_SEND_CONDITION_CODES (send-rules.ts). */
+export const PreviewSendConditionCodeSchema = z.enum(PREVIEW_SEND_CONDITION_CODES);
+
 /** Side-effect-free check for the button: a reason when it must stay disabled. */
 export const PreviewSendPreflightSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(true) }),
-  z.strictObject({ ok: z.literal(false), code: CgCodeSchema, detail: z.optional(displayText(400)) }),
+  z.strictObject({ ok: z.literal(false), code: PreviewSendConditionCodeSchema, detail: z.optional(displayText(400)) }),
 ]);
 export type PreviewSendPreflight = z.infer<typeof PreviewSendPreflightSchema>;
 
 /** ChatSpace's local id of the queued record (a UUID of theirs): links the attempt, never a delivery proof. */
 export const PendingIdSchema = RefSchema;
 
-/** Result of the single queue call. A repeated command with the same attemptId returns the first result. */
+/**
+ * Result of the single queue call. A repeated command with the same attemptId
+ * returns the first result. A bridge failure of this call (timeout, transport
+ * error) is `uncertain`, never a «not sent» (bridge.ts BRIDGE_WRITE_FAILURES).
+ */
 export const PreviewSendCommitSchema = z.discriminatedUnion('state', [
   /** Queued; the native send already started. */
   z.strictObject({ state: z.literal('nativeEnqueued'), pendingId: PendingIdSchema }),
   /** The queue returned null (Mimic or 50 entries in the chat) with the call boundary intact. */
-  z.strictObject({ state: z.literal('notEnqueued'), code: CgCodeSchema }),
-  /** A condition failed in the same synchronous step, before the queue was touched. */
-  z.strictObject({ state: z.literal('held'), code: CgCodeSchema }),
+  z.strictObject({ state: z.literal('notEnqueued'), code: z.literal('CG-SEND-QUEUE') }),
+  /**
+   * Nothing touched the queue: a condition failed in the same synchronous step,
+   * or the ticket's deadline passed (CG-TIMEOUT: a late command is held, never a late send).
+   */
+  z.strictObject({ state: z.literal('held'), code: z.union([PreviewSendConditionCodeSchema, z.literal('CG-TIMEOUT')]) }),
   /** The queue may have been called but the result is not known. */
-  z.strictObject({ state: z.literal('uncertain'), code: CgCodeSchema }),
+  z.strictObject({ state: z.literal('uncertain'), code: z.literal('CG-SEND-UNCERTAIN') }),
 ]);
 export type PreviewSendCommit = z.infer<typeof PreviewSendCommitSchema>;
 
-/** §6.7.7. */
-export const SEND_ATTEMPT_STATES = [
-  'ready',
-  'preparing',
-  'held',
-  'notEnqueued',
-  'nativeEnqueued',
-  'nativeAccepted',
-  'sentObserved',
-  'rejected',
-  'uncertain',
-] as const;
+/** §6.7.7; the transitions and the end rules are in send-rules.ts. */
 export const SendAttemptStateSchema = z.enum(SEND_ATTEMPT_STATES);
-export type SendAttemptState = z.infer<typeof SendAttemptStateSchema>;
-
-/**
- * Allowed transitions (§6.7.7):
- * - ready → preparing on a trusted click (local fan lock, hub dispatch);
- * - preparing → held: freshness, a condition or the lease failed BEFORE the native queue;
- * - preparing → notEnqueued: the queue returned null with the call boundary intact;
- * - preparing → nativeEnqueued: ChatSpace returned its pending id, the send has started;
- * - nativeEnqueued → nativeAccepted: the exact server id from the intercepted response;
- * - nativeAccepted → sentObserved: the outgoing echo with the same id, account and fan;
- * - a proven final native refusal (4xx except 401, e.g. Message Guard) → rejected;
- * - after a possible queue call: timeout, reload, lost answer, 401 without a receipt of
- *   the finished chain, observer failure or ambiguity → uncertain;
- * - uncertain → sentObserved only when the late second half of an already linked pair
- *   (receipt and echo with the same id) arrives. Never back to ready.
- */
-export const SEND_ATTEMPT_TRANSITIONS = {
-  ready: ['preparing'],
-  preparing: ['held', 'notEnqueued', 'nativeEnqueued', 'uncertain'],
-  held: [],
-  notEnqueued: [],
-  nativeEnqueued: ['nativeAccepted', 'rejected', 'uncertain'],
-  nativeAccepted: ['sentObserved', 'uncertain'],
-  sentObserved: [],
-  rejected: [],
-  uncertain: ['sentObserved'],
-} as const satisfies Record<SendAttemptState, readonly SendAttemptState[]>;
-
-/** States after which a NEW attempt (new click, new attemptId) is allowed for this part. */
-export const SEND_ATTEMPT_RETRYABLE_ENDS = ['held', 'notEnqueued'] as const satisfies readonly SendAttemptState[];
-
-/** States that keep the hub custody and hold the fan and the group (§6.7.7 п. 4–6, §6.7.9). */
-export const SEND_ATTEMPT_CUSTODY_STATES = ['preparing', 'nativeEnqueued', 'nativeAccepted', 'uncertain'] as const satisfies readonly SendAttemptState[];
 
 /** Inputs of the attempt machine; R10 implements the reducer over SEND_ATTEMPT_TRANSITIONS. */
 export type SendAttemptInput =
   | { readonly type: 'click'; readonly cause: HumanCause }
   | { readonly type: 'held'; readonly code: CgCode }
-  | { readonly type: 'notEnqueued' }
+  | { readonly type: 'notEnqueued'; readonly code: CgCode }
   | { readonly type: 'nativeEnqueued'; readonly pendingId: string }
   /** The intercepted response of exactly this attempt; a 401 is not an outcome (§6.7.6). */
   | { readonly type: 'receipt'; readonly httpStatus: number; readonly platformMessageId: NativeId | null }
@@ -154,20 +123,39 @@ export type SendAttemptInput =
   /** Timeout, reload, lost answer, observer failure or ambiguity after a possible queue call. */
   | { readonly type: 'lost'; readonly code: CgCode };
 
-export const SendAttemptViewSchema = z.strictObject({
-  attemptId: UuidSchema,
-  state: SendAttemptStateSchema,
-  code: z.optional(CgCodeSchema),
-  /** Only from the receipt; a string, never a number. */
-  platformMessageId: z.optional(NativeIdSchema),
-  detail: z.optional(
-    z.strictObject({
-      /** Message Guard topics as ChatSpace reported them. */
-      guardTopics: z.optional(z.array(displayText(64)).check(z.maxLength(16))),
-      upstream: z.optional(displayText(400)),
+/**
+ * One attempt as MAIN observed it, and as the background journals and
+ * reports it. `httpStatus` is the status of the intercepted response of
+ * exactly this attempt, carried only by a proven refusal: the background
+ * reports the hub's `failed: native_rejected` with it (H-7 needs a 4xx other
+ * than 401). Message Guard recognised at the end of a 401 chain has no
+ * status of its own: it shows as `rejected`, but the custody waits for the
+ * hub's `resolve` (SEND_CUSTODY_REPORTS).
+ */
+export const SendAttemptViewSchema = z
+  .strictObject({
+    attemptId: UuidSchema,
+    state: SendAttemptStateSchema,
+    code: z.optional(CgCodeSchema),
+    /** Only from the receipt; a string, never a number. */
+    platformMessageId: z.optional(NativeIdSchema),
+    httpStatus: z.optional(z.int().check(z.gte(100), z.lte(599))),
+    detail: z.optional(
+      z.strictObject({
+        /** Message Guard topics as ChatSpace reported them. */
+        guardTopics: z.optional(z.array(displayText(64)).check(z.maxLength(16))),
+        upstream: z.optional(displayText(400)),
+      }),
+    ),
+  })
+  .check(
+    z.refine((v) => v.httpStatus === undefined || (v.state === 'rejected' && isNativeRefusalStatus(v.httpStatus)), {
+      message: 'httpStatus belongs to a rejected attempt and is a 4xx other than 401',
     }),
-  ),
-});
+    z.refine((v) => v.state !== 'rejected' || v.code !== 'CG-SEND-REJECTED' || v.httpStatus !== undefined, {
+      message: 'CG-SEND-REJECTED is proven by the intercepted status',
+    }),
+  );
 export type SendAttemptView = z.infer<typeof SendAttemptViewSchema>;
 
 /** Why the hub custody exists: an «Новые» greeting or a Spenders preview reply (H-7). */

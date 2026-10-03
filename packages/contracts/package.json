@@ -12,6 +12,7 @@
     "./limits": "./src/limits.ts",
     "./errors": "./src/errors.ts",
     "./settings": "./src/settings.ts",
+    "./send-rules": "./src/send-rules.ts",
     "./send": "./src/send.ts",
     "./host": "./src/host.ts",
     "./ops": "./src/ops.ts",

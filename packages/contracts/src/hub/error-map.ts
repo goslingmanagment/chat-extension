@@ -226,6 +226,14 @@ export const HUB_TRANSPORT_FAILURES = ['network', 'timeout', 'contract', 'trunca
 export type HubTransportFailure = (typeof HUB_TRANSPORT_FAILURES)[number];
 
 /**
+ * No transport failure is repeated automatically (the only automatic repeat
+ * in the hub layer is the AI stream's `retry-once`); a code's registry
+ * `retry` says what the person may repeat. On the claim route a `dispatch`
+ * that fails in transport ends its attempt `held` with the transport code:
+ * no ticket, so no command reached MAIN; the background reports
+ * `failed: not_enqueued` for that attemptId (SEND_CUSTODY_REPORTS) and only a
+ * new click makes a new attempt.
+ *
  * - network: no connection (sign-in: «хаб недоступен при входе»);
  * - timeout: our deadline (sign-in 20 s, §8.2);
  * - contract: a response or frame failed its schema, an undeclared status, an unknown frame;

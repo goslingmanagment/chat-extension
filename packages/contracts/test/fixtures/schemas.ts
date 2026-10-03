@@ -302,7 +302,13 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     ],
   ),
   fixture('DispatchTicket', C.DispatchTicketSchema, [dispatchTicket], [{ ...dispatchTicket, ticket: '' }]),
-  fixture('PreviewSendPreflight', C.PreviewSendPreflightSchema, [{ ok: true }, { ok: false, code: 'CG-SEND-BUSY' }], [{ ok: false }, { ok: true, code: 'CG-SEND-BUSY' }]),
+  fixture('PreviewSendConditionCode', C.PreviewSendConditionCodeSchema, ['CG-SEND-HISTORY', 'CG-CONTEXT-CHANGED', 'CG-CLAIM-BUSY'], ['CG-SEND-QUEUE', 'CG-NETWORK']),
+  fixture(
+    'PreviewSendPreflight',
+    C.PreviewSendPreflightSchema,
+    [{ ok: true }, { ok: false, code: 'CG-SEND-BUSY' }, { ok: false, code: 'CG-SEND-HISTORY' }],
+    [{ ok: false }, { ok: true, code: 'CG-SEND-BUSY' }, { ok: false, code: 'CG-SEND-UNCERTAIN' }],
+  ),
   fixture('PendingId', C.PendingIdSchema, [uuid(7)], ['']),
   fixture(
     'PreviewSendCommit',
@@ -311,16 +317,35 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { state: 'nativeEnqueued', pendingId: uuid(7) },
       { state: 'notEnqueued', code: 'CG-SEND-QUEUE' },
       { state: 'held', code: 'CG-SEND-STALE' },
+      { state: 'held', code: 'CG-TIMEOUT' },
       { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' },
     ],
-    [{ state: 'sentObserved' }, { state: 'nativeEnqueued' }],
+    [
+      { state: 'sentObserved' },
+      { state: 'nativeEnqueued' },
+      { state: 'held', code: 'CG-NETWORK' },
+      { state: 'notEnqueued', code: 'CG-SEND-MIMIC' },
+      { state: 'uncertain', code: 'CG-SEND-REJECTED' },
+    ],
   ),
   fixture('SendAttemptState', C.SendAttemptStateSchema, ['uncertain', 'nativeAccepted'], ['sent']),
   fixture(
     'SendAttemptView',
     C.SendAttemptViewSchema,
-    [sendView, { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-GUARD', detail: { guardTopics: ['contact-info'], upstream: 'MESSAGE_GUARD_VIOLATION' } }],
-    [{ ...sendView, platformMessageId: 4005 }, { ...sendView, state: 'sent' }],
+    [
+      sendView,
+      { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-GUARD', httpStatus: 422, detail: { guardTopics: ['contact-info'], upstream: 'MESSAGE_GUARD_VIOLATION' } },
+      { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-GUARD' },
+      { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-REJECTED', httpStatus: 403 },
+    ],
+    [
+      { ...sendView, platformMessageId: 4005 },
+      { ...sendView, state: 'sent' },
+      // 401 is never an outcome; a status belongs to a proven refusal only.
+      { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-REJECTED', httpStatus: 401 },
+      { attemptId: uuid(5), state: 'rejected', code: 'CG-SEND-REJECTED' },
+      { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN', httpStatus: 500 },
+    ],
   ),
   fixture('SendPurpose', C.SendPurposeSchema, ['greeting'], ['reply']),
   fixture(
