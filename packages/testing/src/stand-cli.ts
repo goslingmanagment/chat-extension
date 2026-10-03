@@ -1,0 +1,15 @@
+// `pnpm stand`: builds nothing, serves the stand on a fixed loopback port for
+// a look by hand (the fixture must be built: `pnpm --filter @cg/testing build:stand`).
+
+import { startStandServer } from './stand-server';
+import { STAND_IDS } from './stand/dataset';
+
+const port = Number(process.env['STAND_PORT'] ?? 5179);
+const stand = await startStandServer({ port });
+console.log(`stand: ${stand.origin}/accounts/${STAND_IDS.accounts.a}/chats/${STAND_IDS.fans.a1}`);
+console.log('stand: Ctrl+C to stop');
+const stop = (): void => {
+  void stand.close().then(() => process.exit(0));
+};
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);
