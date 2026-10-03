@@ -103,9 +103,33 @@ export class RecordingSink implements HotkeySink {
   readonly ran: KeyCommand[] = [];
   readonly refused: { command: DispatcherCommandId; refusal: KeyRefusal }[] = [];
   readonly quick: boolean[] = [];
+  /** HK-025: the dock's first state is there; the test turns it off and calls `settle()` when it arrives. */
+  dockReady = true;
+  private readonly readyListeners = new Set<() => void>();
 
   run(command: KeyCommand): void {
     this.ran.push(command);
+  }
+
+  ready(command: KeyCommand): boolean {
+    return this.dockReady || command.target !== 'dock';
+  }
+
+  onReady(listener: () => void): () => void {
+    this.readyListeners.add(listener);
+    return () => {
+      this.readyListeners.delete(listener);
+    };
+  }
+
+  /** The first state arrived. */
+  settle(): void {
+    this.dockReady = true;
+    for (const listener of [...this.readyListeners]) listener();
+  }
+
+  get readySubscribers(): number {
+    return this.readyListeners.size;
   }
 
   refuse(command: DispatcherCommandId, refusal: KeyRefusal): void {

@@ -12,9 +12,11 @@
 // them as they are; `@cg/host-chatspace/isolated` `createKeyboardProbe` is
 // the probe for ChatSpace).
 //
-// Until the lazy part of the tab is connected (`connect`), a claimed key is
-// kept — the newest one only — and runs when the sink arrives, if the chat is
-// still the same one and the key is not too old (HK-024, HK-025).
+// Until the lazy part of the tab is connected (`connect`) and has the first
+// authoritative state of the chat (`HotkeySink.ready`), a claimed key is kept
+// — the newest one only — and runs once both are there, if the chat is still
+// the same one and the key is not too old (HK-024, HK-025). A cold-start ⌘E
+// becomes Reply, not a «чат ещё загружается» toast.
 
 import {
   createKeyResolver,
@@ -91,13 +93,29 @@ export interface HotkeySink {
   refuse(command: DispatcherCommandId, refusal: KeyRefusal): void;
   /** ⌘/Ctrl held alone for 400 ms: the quick-jump popup; false — the modifier went up. */
   quickJump(open: boolean): void;
+  /**
+   * HK-025: false while the tab's first authoritative state for this command
+   * has not arrived (the dock of a chat that is still loading). The key is
+   * then kept and runs when `onReady` fires. Omitted — always ready.
+   */
+  ready?(command: KeyCommand): boolean;
+  /** Calls `listener` whenever `ready` may have turned true; returns the unsubscribe. */
+  onReady?(listener: () => void): () => void;
 }
 
+export type KeptKeyDrop = 'route-changed' | 'expired' | 'replaced' | 'superseded';
+
 export type EarlyNotice =
-  /** The key is kept until the lazy part loads: show «загружается». */
+  /** The key is kept until the lazy part loads and has the chat's first state: show «загружается». */
   | { readonly kind: 'queued'; readonly command: DispatcherCommandId }
-  /** The kept key was dropped: the chat changed or it waited too long. */
-  | { readonly kind: 'dropped'; readonly command: DispatcherCommandId; readonly why: 'route-changed' | 'expired' | 'replaced' }
+  /** The kept key went to the lazy part: nothing waits any more. */
+  | { readonly kind: 'ran'; readonly command: DispatcherCommandId }
+  /**
+   * The kept key was dropped: the chat changed, it waited too long, a newer
+   * key waits in its place (`replaced`: «загружается» stays), or a newer key
+   * ran at once (`superseded`: nothing waits any more).
+   */
+  | { readonly kind: 'dropped'; readonly command: DispatcherCommandId; readonly why: KeptKeyDrop }
   /** A claimed key that runs nothing, pressed before the lazy part loaded: the reason to show once something can show it. */
   | { readonly kind: 'refused'; readonly command: DispatcherCommandId; readonly refusal: KeyRefusal };
 
@@ -142,8 +160,14 @@ export interface EarlyKeyDispatcher {
 
 /** ⌘/Ctrl held alone this long opens the quick jump (§9.1). */
 export const QUICK_JUMP_HOLD_MS = 400;
-/** A key kept for the lazy part older than this is not run: the person has moved on. */
+/** A kept key older than this is not run: the person has moved on. */
 export const KEPT_KEY_TTL_MS = 5000;
+
+interface KeptKey {
+  readonly command: KeyCommand;
+  readonly epoch: number | string;
+  readonly at: number;
+}
 
 function asKeyEvent(value: unknown): KeyEventLike | null {
   if (value === null || typeof value !== 'object') return null;
@@ -156,29 +180,87 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
   const resolver = options.resolver ?? createKeyResolver(platform);
   const sampleEvery = Math.max(1, options.sampleEvery ?? 20);
   let sink: HotkeySink | null = null;
-  let kept: { readonly command: KeyCommand; readonly epoch: number | string; readonly at: number } | null = null;
+  let kept: KeptKey | null = null;
+  /** While a connected sink is not ready for the kept key: the key's expiry and the sink's readiness subscription. */
+  let keptTimer: unknown = null;
+  let stopReady: (() => void) | null = null;
   let holdTimer: unknown = null;
   let quickJumpOpen = false;
   let disposed = false;
   const counters = { keydowns: 0, claimed: 0, isolated: 0, untrusted: 0, queued: 0, dropped: 0, maxHandlerMs: 0 };
 
-  const drop = (why: 'route-changed' | 'expired' | 'replaced'): void => {
-    if (kept === null) return;
-    counters.dropped += 1;
-    options.onEarly?.({ kind: 'dropped', command: kept.command.id, why });
+  const stopWaiting = (): void => {
+    if (keptTimer !== null) {
+      timers.clearTimer(keptTimer);
+      keptTimer = null;
+    }
+    if (stopReady !== null) {
+      stopReady();
+      stopReady = null;
+    }
+  };
+
+  const drop = (why: KeptKeyDrop): void => {
+    const dropped = kept;
+    if (dropped === null) return;
     kept = null;
+    stopWaiting();
+    counters.dropped += 1;
+    options.onEarly?.({ kind: 'dropped', command: dropped.command.id, why });
+  };
+
+  const handOver = (pending: KeptKey, to: HotkeySink): void => {
+    kept = null;
+    stopWaiting();
+    options.onEarly?.({ kind: 'ran', command: pending.command.id });
+    to.run(pending.command);
+  };
+
+  /** The kept key waited for the chat's first state as long as a key may: it runs if the state came at the last moment, else says why not. */
+  const onKeptTimeout = (): void => {
+    keptTimer = null;
+    const pending = kept;
+    const to = sink;
+    if (pending === null || to === null) return;
+    if (state.route().epoch !== pending.epoch) return drop('route-changed');
+    if (to.ready?.(pending.command) !== false) return handOver(pending, to);
+    drop('expired');
+    // The person is still in that chat and nothing happened: the reason, not silence (HK-026).
+    to.refuse(pending.command.id, 'chat-loading');
+  };
+
+  /**
+   * HK-025: the kept key goes to the lazy part only in the chat it was
+   * pressed in, only while fresh, and only once the part has the chat's first
+   * state — until then it waits, bounded by what is left of its freshness.
+   */
+  const settleKept = (): void => {
+    const pending = kept;
+    const to = sink;
+    if (pending === null || to === null) return;
+    if (state.route().epoch !== pending.epoch) return drop('route-changed');
+    const left = KEPT_KEY_TTL_MS - (options.now() - pending.at);
+    if (left < 0) return drop('expired');
+    if (to.ready?.(pending.command) === false) {
+      stopReady ??= to.onReady?.(settleKept) ?? null;
+      keptTimer ??= timers.setTimer(left, onKeptTimeout);
+      return;
+    }
+    handOver(pending, to);
   };
 
   const run = (command: KeyCommand): void => {
-    if (sink !== null) {
+    // HK-024: the newest key only — an older one still waiting is no longer what the person wants.
+    if (sink !== null && sink.ready?.(command) !== false) {
+      drop('superseded');
       sink.run(command);
       return;
     }
-    // HK-024: the newest key only — an older one is no longer what the person wants.
     drop('replaced');
     kept = { command, epoch: state.route().epoch, at: options.now() };
     counters.queued += 1;
     options.onEarly?.({ kind: 'queued', command: command.id });
+    settleKept();
   };
 
   const cancelHold = (): void => {
@@ -316,25 +398,14 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
 
   return {
     connect(next) {
+      stopWaiting();
       sink = next;
-      const pending = kept;
-      kept = null;
-      if (pending === null) return;
-      // HK-025: only in the chat it was pressed in, and only while it is still fresh.
-      if (state.route().epoch !== pending.epoch) {
-        kept = pending;
-        drop('route-changed');
-        return;
-      }
-      if (options.now() - pending.at > KEPT_KEY_TTL_MS) {
-        kept = pending;
-        drop('expired');
-        return;
-      }
-      next.run(pending.command);
+      settleKept();
     },
     disconnect() {
       closeQuickJump();
+      // A key still waiting stays kept for the next connect; its freshness is judged again there.
+      stopWaiting();
       sink = null;
     },
     stats: () => ({ ...counters }),
@@ -342,6 +413,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
       if (disposed) return;
       disposed = true;
       cancelHold();
+      stopWaiting();
       sink = null;
       kept = null;
       options.window.removeEventListener('keydown', onKeydown, { capture: true });

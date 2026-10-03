@@ -65,6 +65,8 @@ export type KeyRefusal =
   | 'overlay-open'
   /** HK-026: the cursor is in a field where the combination does not work (⌘U and ⌘1–9 while typing, an AI key in a field that is not the message field). */
   | 'in-field'
+  /** HK-025: the chat's first state did not come while the key was still fresh. */
+  | 'chat-loading'
   /** ⌘⇧H: Help is removed (Б3). */
   | 'help-removed';
 

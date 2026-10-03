@@ -34,7 +34,7 @@ interface Rig {
   readonly handlerMs: number[];
 }
 
-function rig(platform: HotkeyPlatform = 'mac', connect = true): Rig {
+function rig(platform: HotkeyPlatform = 'mac', connect = true, onEarly?: (notice: EarlyNotice) => void): Rig {
   const win = new FakeWindow();
   const doc = new FakeWindow();
   const own = new FakeOwnership();
@@ -56,7 +56,10 @@ function rig(platform: HotkeyPlatform = 'mac', connect = true): Rig {
     perfNow: () => (tick += 0.25),
     onHandlerMs: (ms) => handlerMs.push(ms),
     sampleEvery: 2,
-    onEarly: (notice) => notices.push(notice),
+    onEarly: (notice) => {
+      notices.push(notice);
+      onEarly?.(notice);
+    },
   });
   // ChatSpace registers its global listener when its layout mounts: after ours, on the same `window`, in capture.
   win.addEventListener('keydown', (event) => native.push(event as FakeKey), { capture: true });
@@ -229,6 +232,7 @@ describe('the early dispatcher', () => {
     expect(r.sink.ran).toEqual([]);
     r.dispatcher.connect(r.sink);
     expect(r.sink.ids).toEqual(['reply@dock']);
+    expect(r.notices).toEqual([{ kind: 'queued', command: 'reply' }, { kind: 'ran', command: 'reply' }]);
     expect(r.dispatcher.stats()).toMatchObject({ queued: 1, dropped: 0 });
     // A refusal before the lazy part has nobody to show it yet: it is reported the same early way.
     const early = rig('mac', false);
@@ -236,28 +240,33 @@ describe('the early dispatcher', () => {
     expect(early.notices).toEqual([{ kind: 'refused', command: 'help', refusal: 'help-removed' }]);
   });
 
-  it('[HK-024] what was pressed before anything could draw is shown the moment the toasts exist: «загрузка» for a kept key, the reason for a refused one', () => {
+  it('[HK-024] what was pressed before anything could draw is shown the moment the toasts exist: «загрузка» for a kept key until it runs or is dropped, the reason for a refused one', () => {
     const toasts = new FakeToasts();
     const refusedLater: string[] = [];
+    const waiting: boolean[] = [];
     const presenter = { toasts, refuse: (command: string, refusal: string) => refusedLater.push(`${command}:${refusal}`) };
-    const early = createEarlyNotices();
+    const early = createEarlyNotices({ onWaiting: (on) => waiting.push(on) });
     early.onEarly({ kind: 'queued', command: 'reply' });
     early.onEarly({ kind: 'refused', command: 'help', refusal: 'help-removed' });
-    expect(toasts.shown).toEqual([]);
+    // Nothing can draw yet; the bootstrap is told at once (it marks the dock host).
+    expect([toasts.shown, waiting]).toEqual([[], [true]]);
     early.attach(presenter);
     expect(toasts.shown.map((item) => item.toast)).toEqual([{ kind: 'info', code: null, scope: 'hotkey.early', title: { key: 'common.loading' }, body: null }]);
     expect(refusedLater).toEqual(['help:help-removed']);
-    // A newer key replaced the kept one: still waiting, one toast. The lazy part took it over: the toast goes.
+    // A newer key waits in its place: still waiting, the same one toast. It runs: the toast goes.
     early.onEarly({ kind: 'dropped', command: 'reply', why: 'replaced' });
     early.onEarly({ kind: 'queued', command: 'ping' });
-    expect(toasts.shown).toHaveLength(1);
-    early.settled();
-    expect(toasts.shown).toEqual([]);
-    // After the toasts exist notices show at once; a dropped key takes its «загрузка» away.
-    early.onEarly({ kind: 'queued', command: 'fix' });
-    expect(toasts.shown).toHaveLength(1);
-    early.onEarly({ kind: 'dropped', command: 'fix', why: 'route-changed' });
-    expect(toasts.shown).toEqual([]);
+    expect([toasts.shown.length, waiting]).toEqual([1, [true]]);
+    early.onEarly({ kind: 'ran', command: 'ping' });
+    expect([toasts.shown, waiting]).toEqual([[], [true, false]]);
+    // After the toasts exist notices show at once; a dropped key takes its «загрузка» away, whatever dropped it.
+    for (const why of ['route-changed', 'expired', 'superseded'] as const) {
+      early.onEarly({ kind: 'queued', command: 'fix' });
+      expect(toasts.shown).toHaveLength(1);
+      early.onEarly({ kind: 'dropped', command: 'fix', why });
+      expect(toasts.shown).toEqual([]);
+    }
+    expect(waiting).toEqual([true, false, true, false, true, false, true, false]);
     early.onEarly({ kind: 'refused', command: 'reply', refusal: 'overlay-open' });
     expect(refusedLater).toEqual(['help:help-removed', 'reply:overlay-open']);
 
@@ -294,6 +303,104 @@ describe('the early dispatcher', () => {
     expect(late.sink.ran).toEqual([]);
     expect(late.notices[late.notices.length - 1]).toEqual({ kind: 'dropped', command: 'reply', why: 'expired' });
     expect(late.dispatcher.stats()).toMatchObject({ queued: 1, dropped: 1 });
+  });
+
+  it('[HK-025] a cold-start key waits for the chat\'s first state: the lazy part arrives while the dock still loads, the dock settles, the key runs as pressed', async () => {
+    const r = rig('mac', false);
+    r.sink.dockReady = false;
+    chord(r, 'KeyE');
+    await r.clock.advance(1000);
+    r.dispatcher.connect(r.sink);
+    // Not judged against «чат загружается»: neither run nor refused, still announced as waiting.
+    expect([r.sink.ran, r.sink.refused, r.notices]).toEqual([[], [], [{ kind: 'queued', command: 'reply' }]]);
+    await r.clock.advance(2000);
+    r.sink.settle();
+    expect(r.sink.ids).toEqual(['reply@dock']);
+    expect(r.notices).toEqual([{ kind: 'queued', command: 'reply' }, { kind: 'ran', command: 'reply' }]);
+    // Nothing is left behind: no subscription, no timer; a later «ready» runs nothing twice.
+    expect([r.sink.readySubscribers, r.clock.pending]).toEqual([0, 0]);
+    r.sink.settle();
+    await r.clock.advance(KEPT_KEY_TTL_MS);
+    expect(r.sink.ids).toEqual(['reply@dock']);
+  });
+
+  it('[HK-025] a key of the dock pressed after the lazy part arrived but before the first state waits the same way; a key that needs no dock runs at once', () => {
+    const r = rig('mac');
+    r.sink.dockReady = false;
+    const reply = chord(r, 'KeyE');
+    expect([reply.defaultPrevented, reply.stopped]).toEqual([true, true]);
+    expect([r.sink.ran, r.notices]).toEqual([[], [{ kind: 'queued', command: 'reply' }]]);
+    // The newest key only: ⌘P takes ⌘E's place and waits; then ⌘K, which needs no dock, runs at once and nothing waits any more.
+    chord(r, 'KeyP');
+    expect(r.notices.slice(1)).toEqual([{ kind: 'dropped', command: 'reply', why: 'replaced' }, { kind: 'queued', command: 'ping' }]);
+    chord(r, 'KeyK');
+    expect(r.sink.ids).toEqual(['palette@global']);
+    expect(r.notices[r.notices.length - 1]).toEqual({ kind: 'dropped', command: 'ping', why: 'superseded' });
+    r.sink.settle();
+    expect(r.sink.ids).toEqual(['palette@global']);
+    expect([r.sink.readySubscribers, r.clock.pending]).toEqual([0, 0]);
+    // Once the first state is there keys run at once.
+    chord(r, 'KeyE');
+    expect(r.sink.ids).toEqual(['palette@global', 'reply@dock']);
+    expect(r.dispatcher.stats()).toMatchObject({ queued: 2, dropped: 2 });
+  });
+
+  it('[HK-025] the wait is bounded and checks the chat again: another chat — dropped; five seconds without a state — the reason, not silence', async () => {
+    const moved = rig('mac', false);
+    moved.sink.dockReady = false;
+    chord(moved, 'KeyE');
+    moved.dispatcher.connect(moved.sink);
+    moved.page.epoch = '/accounts/1001/chats/2003';
+    moved.sink.settle();
+    expect([moved.sink.ran, moved.sink.refused]).toEqual([[], []]);
+    expect(moved.notices[moved.notices.length - 1]).toEqual({ kind: 'dropped', command: 'reply', why: 'route-changed' });
+
+    const slow = rig('mac', false);
+    slow.sink.dockReady = false;
+    chord(slow, 'KeyE');
+    await slow.clock.advance(2000);
+    slow.dispatcher.connect(slow.sink);
+    // What is left of the key's five seconds, counted from the press.
+    await slow.clock.advance(KEPT_KEY_TTL_MS - 2000 - 1);
+    expect([slow.sink.ran, slow.sink.refused]).toEqual([[], []]);
+    await slow.clock.advance(1);
+    expect(slow.sink.ran).toEqual([]);
+    expect(slow.sink.refused).toEqual([{ command: 'reply', refusal: 'chat-loading' }]);
+    expect(slow.notices[slow.notices.length - 1]).toEqual({ kind: 'dropped', command: 'reply', why: 'expired' });
+    expect(slow.sink.readySubscribers).toBe(0);
+    slow.sink.settle();
+    expect(slow.sink.ran).toEqual([]);
+
+    // The state came with the last tick (no notification reached us): the key still runs.
+    const last = rig('mac', false);
+    last.sink.dockReady = false;
+    chord(last, 'KeyE');
+    last.dispatcher.connect(last.sink);
+    last.sink.dockReady = true;
+    await last.clock.advance(KEPT_KEY_TTL_MS);
+    expect([last.sink.ids, last.sink.refused]).toEqual([['reply@dock'], []]);
+
+    // The chat changed while the key waited, and nothing told us: at its deadline it is dropped, not refused in another chat.
+    const gone = rig('mac', false);
+    gone.sink.dockReady = false;
+    chord(gone, 'KeyE');
+    gone.dispatcher.connect(gone.sink);
+    gone.page.epoch = '/accounts/1001/chats/2003';
+    await gone.clock.advance(KEPT_KEY_TTL_MS);
+    expect([gone.sink.ran, gone.sink.refused]).toEqual([[], []]);
+    expect(gone.notices[gone.notices.length - 1]).toEqual({ kind: 'dropped', command: 'reply', why: 'route-changed' });
+
+    // The lazy part goes away while the key waits (the extension reloads): the key is kept for the next one and judged again there.
+    const again = rig('mac', false);
+    again.sink.dockReady = false;
+    chord(again, 'KeyE');
+    again.dispatcher.connect(again.sink);
+    again.dispatcher.disconnect();
+    expect([again.sink.readySubscribers, again.clock.pending]).toEqual([0, 0]);
+    again.sink.settle();
+    expect(again.sink.ran).toEqual([]);
+    again.dispatcher.connect(again.sink);
+    expect(again.sink.ids).toEqual(['reply@dock']);
   });
 
   it('[HK-022] window blur and a hidden tab reset the engine: a modifier held across them fires nothing', () => {
@@ -618,6 +725,77 @@ describe('the hotkey runner', () => {
     // The other six say «в этом чате уже идёт генерация».
     expect(await busy.run('ping')).toBeUndefined();
     expect(busy.toasts.shown[0]?.toast.code).toBe('CG-OP-CHAT-BUSY');
+  });
+
+  it('[HK-025] cold start: ⌘E pressed before the lazy part, the dock still «чат загружается» when it arrives — «Загрузка…» stays until the dock\'s first state, then Reply starts; no «чат ещё загружается» toast', async () => {
+    const waiting: boolean[] = [];
+    const early = createEarlyNotices({ onWaiting: (on) => waiting.push(on) });
+    const r = rig('mac', false, early.onEarly);
+    chord(r, 'KeyE');
+    expect(waiting).toEqual([true]);
+    // The lazy part arrives: the runner over a dock that is still loading its chat.
+    const lazy = runnerRig({}, 'loading-chat');
+    early.attach({ toasts: lazy.toasts, refuse: (command, refusal) => lazy.runner.refuse(command, refusal) });
+    r.dispatcher.connect(lazy.runner);
+    await settle();
+    expect(lazy.client.dispatched).toEqual([]);
+    expect(lazy.toasts.shown.map((item) => item.toast.title)).toEqual([{ key: 'common.loading' }]);
+    // The chat's first authoritative state.
+    lazy.client.set({ of: 'dock' }, dock(CTX, 'ready'));
+    await settle();
+    expect(lazy.client.dispatched).toEqual([{ type: 'Generate', targetHandle: DOCK_HANDLE, feature: 'reply', options: {} }]);
+    expect([lazy.toasts.shown, waiting]).toEqual([[], [true, false]]);
+
+    // The first state says the chat cannot generate: the key says that reason — the real one, not «загружается».
+    const signedOut = runnerRig({}, 'loading-chat');
+    const cold = rig('mac', false);
+    chord(cold, 'KeyE');
+    cold.dispatcher.connect(signedOut.runner);
+    signedOut.client.set({ of: 'dock' }, dock(CTX, 'not-signed-in'));
+    await settle();
+    expect(signedOut.client.dispatched).toEqual([]);
+    expect(signedOut.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-AUTH-REQUIRED']);
+
+    // Five seconds and the chat still loads: «Reply недоступен: чат ещё загружается», «Загрузка…» gone.
+    const stuckEarly = createEarlyNotices();
+    const stuck = rig('mac', false, stuckEarly.onEarly);
+    const never = runnerRig({}, 'loading-chat');
+    chord(stuck, 'KeyE');
+    stuckEarly.attach({ toasts: never.toasts, refuse: (command, refusal) => never.runner.refuse(command, refusal) });
+    stuck.dispatcher.connect(never.runner);
+    await stuck.clock.advance(KEPT_KEY_TTL_MS);
+    expect(never.client.dispatched).toEqual([]);
+    expect(toastTitles(never.toasts, never.i18n)).toEqual(['Reply недоступен: чат ещё загружается']);
+    expect(never.toasts.shown[0]?.toast.code).toBe('CG-GATE-CHAT-LOADING');
+  });
+
+  it('[HK-025] the runner is ready for a key of the dock only after the dock\'s first authoritative state; that latches, and keys that read no dock never wait', () => {
+    const r = runnerRig({}, 'loading-chat');
+    const command = (id: KeyCommand['id'], target: KeyCommand['target'] = 'dock'): KeyCommand => ({ id, slot: null, target });
+    for (const id of ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach', 'tone', 'split'] as const) expect([id, r.runner.ready?.(command(id))]).toEqual([id, false]);
+    for (const key of [command('cancel'), command('fan-panel'), command('reply', 'preview'), command('palette', 'global'), command('spenders', 'global'), command('chat-next', 'global'), command('close', 'global')]) {
+      expect([key.id, r.runner.ready?.(key)]).toEqual([key.id, true]);
+    }
+    let fired = 0;
+    const stop = r.runner.onReady?.(() => (fired += 1));
+    // A dock whose view is still «loading» is not a first state, whatever its status says.
+    r.client.set({ of: 'dock' }, { ...dock(CTX, 'ready'), view: views.loading() });
+    expect([fired, r.runner.ready?.(command('reply'))]).toEqual([0, false]);
+    r.client.set({ of: 'dock' }, dock(CTX, 'no-persona'));
+    expect([fired, r.runner.ready?.(command('reply'))]).toEqual([1, true]);
+    // Another chat loads later: its «чат загружается» is said at once, nothing waits and nothing fires again.
+    r.client.set({ of: 'dock' }, dock(CTX, 'loading-chat'));
+    r.client.set({ of: 'dock' }, dock(CTX, 'ready'));
+    expect([fired, r.runner.ready?.(command('reply'))]).toEqual([1, true]);
+    stop?.();
+    // A dock that was ready when the lazy part arrived never makes a key wait.
+    expect(runnerRig().runner.ready?.(command('reply'))).toBe(true);
+    // A disposed runner tells nobody.
+    const gone = runnerRig({}, 'loading-chat');
+    gone.runner.onReady?.(() => (fired += 1));
+    gone.runner.dispose();
+    gone.client.set({ of: 'dock' }, dock(CTX, 'ready'));
+    expect(fired).toBe(1);
   });
 
   it('[HK-027] a refused key says «сначала закройте открытое окно»; ⌘⇧H says «пока убран»; [HK-026] a key in a field where it does not work says so', () => {

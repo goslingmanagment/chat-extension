@@ -39,7 +39,9 @@
   (R17, `@cg/core/application/hotkeys`): где фокус (наше поле, наш UI, поле ввода ChatSpace,
   другое поле, страница), открыто ли окно самого ChatSpace, и передача клавиши нашему
   элементу копией, которая не выходит из закрытого корня. `routeOfLocation` — маршрут по
-  адресу, пока MAIN ещё не ответил.
+  адресу, пока MAIN ещё не ответил. `createKeyPendingMark(host)` ставит на хост дока
+  `data-cg-key-pending` и `aria-busy`, пока нажатая клавиша ждёт ленивую часть или первое
+  состояние чата (HK-024, HK-025): до загрузки интерфейса это единственный знак ожидания.
 - `buildContractReport`, `createThemeReader`, `readStoredDraft`, `host-contract.ts` (все
   строки ChatSpace в одном месте; копия MAIN закреплена тестом).
 

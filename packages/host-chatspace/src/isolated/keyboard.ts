@@ -51,6 +51,28 @@ export function routeOfLocation(location: Pick<Location, 'pathname'>): { readonl
   return { kind: match === null ? 'other' : match[2] === undefined ? 'account' : 'chat', epoch: location.pathname };
 }
 
+/** On the dock host while a key of ours waits for the lazy part or for the chat's first state (HK-024, HK-025). */
+export const KEY_PENDING_ATTRIBUTE = 'data-cg-key-pending';
+
+/**
+ * The one sign of a waiting key that exists before anything of ours can
+ * draw: the dock host is in the page from document_start, the toasts are
+ * not. It is the `onWaiting` of `@cg/core/application/hotkeys`
+ * `createEarlyNotices`. The attribute (with `aria-busy`) is what the dock's
+ * own stylesheet, the stand and the tests read; this module draws nothing.
+ */
+export function createKeyPendingMark(host: Element): (waiting: boolean) => void {
+  return (waiting) => {
+    if (waiting) {
+      host.setAttribute(KEY_PENDING_ATTRIBUTE, '');
+      host.setAttribute('aria-busy', 'true');
+    } else {
+      host.removeAttribute(KEY_PENDING_ATTRIBUTE);
+      host.removeAttribute('aria-busy');
+    }
+  };
+}
+
 const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit']);
 const TEXT_ROLES = new Set(['textbox', 'searchbox', 'combobox']);
 

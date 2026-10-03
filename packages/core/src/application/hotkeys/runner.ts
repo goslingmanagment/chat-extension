@@ -64,6 +64,11 @@ const STATUS_REASON: Readonly<Record<DockStatus, UnavailableReasonId>> = {
   'reload-needed': 'reload-needed',
 };
 
+/** Commands that read the open chat's dock: they wait for its first authoritative state (HK-025). */
+const NEEDS_DOCK: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach', 'tone', 'split'];
+/** The dock has its first authoritative state: anything but «чат загружается». */
+const dockSettled = (dock: DockVM): boolean => dock.status !== 'loading-chat' && dock.view.s !== 'loading';
+
 const isRunning = (state: OpState | null | undefined): boolean => state !== null && state !== undefined && !(OP_TERMINAL_STATES as readonly string[]).includes(state);
 
 /** ⌘⇧O walks the tones round: no tone → each tone → no tone (AI-008); it starts nothing. */
@@ -89,7 +94,17 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     deps.onDockSheet?.(open);
   };
   syncSheet(dockView());
-  const unsubscribeDock = client.subscribe({ of: 'dock' }, syncSheet);
+
+  // HK-025: until the dock's first authoritative state arrives, a key of the dock is not judged against «чат
+  // загружается» — the dispatcher keeps it and asks again when this fires. Later loads say the reason at once.
+  let settled = dockSettled(dockView());
+  const readyListeners = new Set<() => void>();
+  const unsubscribeDock = client.subscribe({ of: 'dock' }, (dock) => {
+    syncSheet(dock);
+    if (settled || !dockSettled(dock)) return;
+    settled = true;
+    for (const listener of [...readyListeners]) listener();
+  });
 
   const reasonOf = (id: UnavailableReasonId): ReasonVM => catalog.reason(id);
   const labelOf = (id: CatalogActionId): string => i18n.t(catalog.entry(id).label);
@@ -284,7 +299,14 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
         toasts.show({ kind: 'warning', code: null, scope: `hotkey.${command}`, title: { key: 'dock.action.unavailable', params: { action: labelOf(command), reason: i18n.t('dock.reason.keyInField') } }, body: null });
         return;
       }
-      unavailable(command, reasonOf('overlay-open'));
+      unavailable(command, reasonOf(refusal === 'chat-loading' ? 'chat-loading' : 'overlay-open'));
+    },
+    ready: (command: KeyCommand) => settled || command.target !== 'dock' || !NEEDS_DOCK.includes(command.id),
+    onReady(listener: () => void) {
+      readyListeners.add(listener);
+      return () => {
+        readyListeners.delete(listener);
+      };
     },
     quickJump(open: boolean) {
       send({ type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open } });
@@ -292,6 +314,7 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     dockSheet: () => sheet,
     dispose() {
       unsubscribeDock();
+      readyListeners.clear();
     },
   };
 }

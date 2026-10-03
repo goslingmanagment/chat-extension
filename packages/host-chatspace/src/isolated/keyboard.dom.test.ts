@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createKeyboardProbe, isTypingTarget, routeOfLocation, type KeyboardProbe } from './keyboard';
+import { KEY_PENDING_ATTRIBUTE, createKeyPendingMark, createKeyboardProbe, isTypingTarget, routeOfLocation, type KeyboardProbe } from './keyboard';
 import { mountClosedHost, type ClosedHost } from './mount';
 import { createShadowRootRegistry, type ShadowRootRegistry } from './shadow-registry';
 
@@ -195,5 +195,19 @@ describe('the route by the address', () => {
     for (const pathname of ['/', '/accounts', '/accounts/1001', '/accounts/abc/chats/2002', '/accounts/1001/chats/2002/media', '/settings', '/accounts/0/chats/1']) {
       expect([pathname, routeOfLocation({ pathname }).kind]).toEqual([pathname, 'other']);
     }
+  });
+});
+
+describe('a key that waits', () => {
+  it('[HK-024] the dock host carries data-cg-key-pending and aria-busy from the keydown until the key runs or is dropped', () => {
+    const mark = createKeyPendingMark(ours.host);
+    expect(ours.host.hasAttribute(KEY_PENDING_ATTRIBUTE)).toBe(false);
+    mark(true);
+    expect([ours.host.getAttribute(KEY_PENDING_ATTRIBUTE), ours.host.getAttribute('aria-busy')]).toEqual(['', 'true']);
+    mark(true);
+    mark(false);
+    expect([ours.host.hasAttribute(KEY_PENDING_ATTRIBUTE), ours.host.hasAttribute('aria-busy')]).toEqual([false, false]);
+    // Nothing else on the host is touched.
+    expect(ours.host.getAttribute('data-cg')).toBe('dock');
   });
 });

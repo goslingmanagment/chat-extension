@@ -340,10 +340,17 @@ describe('R17 — the early key dispatcher on the stand', () => {
       expect((await composer(a1))?.html).toBe('<p>q</p>');
       const early = await inputLog();
       expect([early.ran, early.notices]).toEqual([[], [{ kind: 'queued', command: 'fix' }]]);
+      // Nothing of ours can draw yet: the dock host itself says that a key waits.
+      expect(await input('dock')).toMatchObject({ keyPending: true });
       await input('connect');
       const log = await inputLog();
       expect(log.ran).toEqual(['fix@dock']);
+      expect(log.notices).toEqual([
+        { kind: 'queued', command: 'fix' },
+        { kind: 'ran', command: 'fix' },
+      ]);
       expect(log.stats).toMatchObject({ queued: 1, dropped: 0 });
+      expect(await input('dock')).toMatchObject({ keyPending: false });
 
       // The chat changed before the part arrived: the kept key is dropped, not run in another chat.
       await open(`${chatPath(ACC, a1)}?cg-lazy=manual`);
@@ -358,6 +365,25 @@ describe('R17 — the early key dispatcher on the stand', () => {
         { kind: 'queued', command: 'reply' },
         { kind: 'dropped', command: 'reply', why: 'route-changed' },
       ]);
+    });
+
+    it('[HK-025] the lazy part arrives while the chat still loads: the key waits for the chat\'s first state and then runs as pressed', async () => {
+      await open(`${chatPath(ACC, a1)}?cg-lazy=manual&cg-dock=loading`);
+      await inComposer();
+      await browser.keys([MOD, 'e']);
+      await input('connect');
+      // Neither run against «чат загружается» nor refused: still waiting, and the host says so.
+      const waiting = await inputLog();
+      expect([waiting.ran, waiting.refused, waiting.notices]).toEqual([[], [], [{ kind: 'queued', command: 'reply' }]]);
+      expect(await input('dock')).toMatchObject({ keyPending: true });
+      await input('dockReady');
+      const log = await inputLog();
+      expect(log.ran).toEqual(['reply@dock']);
+      expect(log.notices[log.notices.length - 1]).toEqual({ kind: 'ran', command: 'reply' });
+      expect(await input('dock')).toMatchObject({ keyPending: false });
+      // TipTap never saw ⌘E: no inline code.
+      await browser.keys(['q']);
+      expect((await composer(a1))?.html).toBe('<p>q</p>');
     });
 
     it('[NEW-07] ⌘/Ctrl held alone for 400 ms opens the quick jump, a digit under it jumps, letting go closes it; in the message field nothing opens', async () => {

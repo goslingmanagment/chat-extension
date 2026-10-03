@@ -10,13 +10,15 @@
 //
 // `?cg-keys=mac|win` picks the key scheme (default: the browser's own
 // platform); `?cg-lazy=manual` leaves the lazy part unconnected until the
-// spec calls `connect` (HK-024). The spec drives it through
+// spec calls `connect` (HK-024); `?cg-dock=loading` makes the lazy part
+// arrive without the chat's first state until the spec calls `dockReady`
+// (HK-025). The spec drives it through
 // `globalThis.__cgInput.call(method, argsJson)`. No network, ever.
 
-import { createEarlyKeyDispatcher, createTabKeyState, type EarlyNotice, type HotkeySink } from '@cg/core/application/hotkeys';
+import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyNotice, type HotkeySink } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible } from '@cg/core/application/navigation';
 import { hotkeyPlatformOf, type DispatcherCommandId, type HotkeyPlatform, type KeyCommand, type KeyRefusal, type OverlayKind } from '@cg/core/domain/hotkeys';
-import { createKeyboardProbe, routeOfLocation, startChatSpaceHost } from '@cg/host-chatspace/isolated';
+import { KEY_PENDING_ATTRIBUTE, createKeyPendingMark, createKeyboardProbe, routeOfLocation, startChatSpaceHost } from '@cg/host-chatspace/isolated';
 
 const readyStateAtStart = document.readyState;
 const params = new URLSearchParams(window.location.search);
@@ -51,6 +53,9 @@ window.addEventListener(
   { capture: true },
 );
 
+// The one sign of a waiting key before our UI exists: the dock host's attribute.
+const early = createEarlyNotices({ onWaiting: createKeyPendingMark(started.mounts.dock.host) });
+
 const dispatcher = createEarlyKeyDispatcher({
   platform,
   window,
@@ -60,7 +65,10 @@ const dispatcher = createEarlyKeyDispatcher({
   timers: { setTimer: (ms, fn) => setTimeout(fn, ms), clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>) },
   now: () => Date.now(),
   perfNow: () => performance.now(),
-  onEarly: (notice) => notices.push(notice),
+  onEarly: (notice) => {
+    notices.push(notice);
+    early.onEarly(notice);
+  },
 });
 mirrorDismissible(overlays, (target, owner, open) => started.mounts.setDismissibleOpen(target, owner, open));
 
@@ -113,7 +121,18 @@ function setOverlay(overlay: OverlayKind, open: boolean): void {
 
 const TOGGLED: Partial<Record<DispatcherCommandId, OverlayKind>> = { palette: 'palette', cheatsheet: 'cheatsheet', spenders: 'spenders', 'fan-panel': 'fan-panel' };
 
+/** The chat's first authoritative state as the lazy part would know it. */
+let dockSettled = params.get('cg-dock') !== 'loading';
+const readyListeners = new Set<() => void>();
+
 const sink: HotkeySink = {
+  ready: (command: KeyCommand) => dockSettled || command.target !== 'dock',
+  onReady(listener: () => void) {
+    readyListeners.add(listener);
+    return () => {
+      readyListeners.delete(listener);
+    };
+  },
   run(command: KeyCommand) {
     ran.push(command.slot === null ? `${command.id}@${command.target}` : `${command.id}:${command.slot}@${command.target}`);
     if (command.id === 'close') {
@@ -148,7 +167,12 @@ const api = {
   /** The dock's host is in place above the open chat's composer, with our card and field in its closed root. */
   dock() {
     buildUi('dock', started.mounts.dock.root);
-    return { kind: started.mounts.points().dock.kind, connected: started.mounts.dock.host.isConnected, dismissible: started.mounts.dock.host.hasAttribute('data-dismissible-open') };
+    return {
+      kind: started.mounts.points().dock.kind,
+      connected: started.mounts.dock.host.isConnected,
+      dismissible: started.mounts.dock.host.hasAttribute('data-dismissible-open'),
+      keyPending: started.mounts.dock.host.hasAttribute(KEY_PENDING_ATTRIBUTE),
+    };
   },
   log() {
     return { ran: [...ran], refused: [...refused], quick: [...quick], notices: [...notices], ui: [...ui], overlays: [...overlays.list()], stats: dispatcher.stats() };
@@ -193,6 +217,12 @@ const api = {
   },
   connect() {
     dispatcher.connect(sink);
+    return true;
+  },
+  /** The chat's first state arrived. */
+  dockReady() {
+    dockSettled = true;
+    for (const listener of [...readyListeners]) listener();
     return true;
   },
   /** A key the page forges: a scripted event on `window`, as a script of the site could dispatch. */
