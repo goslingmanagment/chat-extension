@@ -1,0 +1,408 @@
+// Tab and extension pages ↔ background protocol (architecture.md §5.4), the
+// per-type half: the request registry (payload, response, allowed senders),
+// the event registry and their payload schemas. Transport, sender rules and
+// the envelope are in tab-protocol.ts.
+
+import * as z from 'zod/mini';
+
+import { CgCodeSchema, CgErrorWireSchema } from './errors';
+import { FeatureIdSchema, SurfaceSchema } from './features';
+import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
+import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, HumanCauseSchema } from './ids';
+import { DEBUG_LIMITS, LOG_LIMITS } from './limits';
+import { LogRecordSchema } from './logs';
+import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
+import {
+  ActionTokenSchema,
+  CountSchema,
+  EpochMsSchema,
+  EpochTokenSchema,
+  HubIntIdSchema,
+  HubOriginSchema,
+  IsoTimestampSchema,
+  NativeIdSchema,
+  OpenTokenSchema,
+  TimeZoneSchema,
+  UuidSchema,
+  boundedText,
+  displayText,
+} from './primitives';
+import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendGroupSchema, SendPurposeSchema } from './send';
+import { SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
+import { type ExtensionPage, type TabSender } from './tab-protocol';
+import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
+
+// ── Shared payload pieces ──────────────────────────────────────────────────
+
+const Empty = z.strictObject({});
+const Ack = z.strictObject({ recorded: z.boolean() });
+
+/** A hub page + fan the tab asks about; the background re-checks the page is in the tab's binding. */
+const PageFan = { pageId: HubIntIdSchema, fanRef: NativeIdSchema };
+
+export const SPENDERS_PERIODS = ['lifetime', '30d', 'mtd', '7d', 'today'] as const;
+export const SpendersPeriodSchema = z.enum(SPENDERS_PERIODS);
+
+export const ACTION_TOKEN_KINDS = ['generate', 'insert', 'navigate', 'send'] as const;
+
+const CursorSchema = z.nullable(boundedText(2048));
+
+/** A background toast; the tab renders the text from the code and its i18n catalog (§9.5). */
+export const BackgroundToastSchema = z.strictObject({
+  toastId: UuidSchema,
+  kind: z.enum(['info', 'success', 'warning', 'error']),
+  /** Toasts with the same code and scope replace each other. */
+  scope: OpenTokenSchema,
+  code: z.optional(CgCodeSchema),
+  error: z.optional(CgErrorWireSchema),
+  /** «AI готово · {фан}» jumps to this chat on click. */
+  opId: z.optional(UuidSchema),
+  feature: z.optional(FeatureIdSchema),
+  chat: z.optional(ChatRefSchema),
+  fanLabel: z.nullable(displayText(256)),
+});
+export type BackgroundToast = z.infer<typeof BackgroundToastSchema>;
+
+/** `diagnostics.get`: versions, flags and states without secrets or texts (LG-020…LG-025, SN-015). */
+export const DiagnosticsSnapshotSchema = z.strictObject({
+  generatedAt: IsoTimestampSchema,
+  extension: z.strictObject({ version: boundedText(32), contractsVersion: boundedText(32), testBuild: z.boolean() }),
+  browser: z.strictObject({ name: z.literal('firefox'), major: z.nullable(z.int().check(z.gte(1))) }),
+  os: z.enum(['windows', 'macos', 'linux', 'other']),
+  session: z.strictObject({ signedIn: z.boolean(), hubOrigin: z.nullable(HubOriginSchema), role: z.nullable(RoleSchema) }),
+  hub: z.strictObject({
+    reachable: z.nullable(z.boolean()),
+    lastCheckedAt: z.nullable(IsoTimestampSchema),
+    lastError: z.nullable(CgErrorWireSchema),
+    flags: z.record(OpenTokenSchema, z.boolean()),
+  }),
+  tabs: z
+    .array(
+      z.strictObject({
+        tabSessionId: UuidSchema,
+        host: z.nullable(HostContractReportSchema),
+        chatKey: z.nullable(ChatKeySchema),
+      }),
+    )
+    .check(z.maxLength(32)),
+  counters: z.record(HealthCodeSchema, CountSchema),
+  logs: z.strictObject({ records: CountSchema, bytes: CountSchema, dropped: CountSchema }),
+  telemetry: z.strictObject({ consent: z.boolean(), queued: CountSchema, dropped: CountSchema }),
+  sound: z.strictObject({
+    listeningTabs: CountSchema,
+    lastIncomingAt: z.nullable(IsoTimestampSchema),
+    outcomes: z.record(OpenTokenSchema, CountSchema),
+  }),
+  ops: z.strictObject({ active: CountSchema }),
+  sends: z.strictObject({ open: CountSchema, uncertain: CountSchema }),
+});
+export type DiagnosticsSnapshot = z.infer<typeof DiagnosticsSnapshotSchema>;
+
+/** `debug.prompt`: the prompt snapshot for debug-prompt.html only, by an opaque token (§9.3, DB-004…DB-008). */
+export const PromptSnapshotViewSchema = z.strictObject({
+  state: z.enum(['ok', 'expired', 'not-found', 'debug-off', 'echo-off']),
+  fromCache: z.boolean(),
+  capturedAt: z.nullable(IsoTimestampSchema),
+  feature: z.nullable(FeatureIdSchema),
+  manifest: z.nullable(displayText(DEBUG_LIMITS.promptManifestMaxChars)),
+  blocks: z
+    .array(z.strictObject({ name: boundedText(64), text: displayText(DEBUG_LIMITS.promptBlockMaxChars), truncated: z.boolean() }))
+    .check(z.maxLength(32)),
+});
+export type PromptSnapshotView = z.infer<typeof PromptSnapshotViewSchema>;
+
+/** X8 `send.begin`: what the background needs to journal the attempt and ask the hub for `dispatch`. */
+export const SendBeginSchema = z.strictObject({
+  attemptId: UuidSchema,
+  opId: UuidSchema,
+  target: TargetSchema,
+  purpose: SendPurposeSchema,
+  group: SendGroupSchema,
+  part: PartRefSchema,
+  previewRevision: CountSchema,
+  /** Revision of this part's text; the hub keys custody by it (H-7 `textRevision`). */
+  textRevision: CountSchema,
+  checkpoint: FreshnessCheckpointSchema,
+  documentEpoch: EpochTokenSchema,
+  cause: HumanCauseSchema,
+  /** «Новые»: the lease this greeting is sent under. */
+  leaseToken: z.optional(UuidSchema),
+});
+export type SendBegin = z.infer<typeof SendBeginSchema>;
+
+// ── Requests ───────────────────────────────────────────────────────────────
+
+interface RequestSpec {
+  readonly req: z.ZodMiniType;
+  readonly res: z.ZodMiniType;
+  readonly from: readonly TabSender[];
+  /** Only these pages may send it (when the sender is a page). */
+  readonly pages?: readonly ExtensionPage[];
+  /** The response is a hub DTO that part 2b still has to freeze; until then `res` accepts anything. */
+  readonly pendingHubDto?: string;
+}
+
+// TODO(R01-2b): hub.ts (HubFacade + hub DTOs, §5.8, hub-pr-plan.md §4) replaces
+// every `hubDto(...)` response below with its DTO schema and drops the
+// `pendingHubDto` mark; the contract tests then require invalid fixtures too.
+const hubDto = (name: string) => ({ res: z.unknown(), pendingHubDto: name }) as const;
+
+const TAB = ['tab'] as const satisfies readonly TabSender[];
+const PAGE = ['page'] as const satisfies readonly TabSender[];
+const ANY = ['tab', 'page'] as const satisfies readonly TabSender[];
+
+export const TAB_REQUESTS = {
+  // ── tab lifecycle ──
+  /** First request of a tab document: the background mints the tab session (§5.1). */
+  'tab.register': {
+    req: z.strictObject({
+      host: HostKindSchema,
+      /** The script arrived after document_start: the tab predates this extension instance (UP-009). */
+      lateInjection: z.boolean(),
+      contractsVersion: boundedText(32),
+    }),
+    res: z.strictObject({ tabSessionId: UuidSchema, contractsVersion: boundedText(32), testBuild: z.boolean() }),
+    from: TAB,
+  },
+  /** Which chat the tab shows and whether it is visible and focused (sound, «AI готово» toasts). */
+  'tab.presence': {
+    req: z.strictObject({ chat: z.nullable(ChatRefSchema), routeEpoch: CountSchema, visible: z.boolean(), focused: z.boolean() }),
+    res: Ack,
+    from: TAB,
+  },
+
+  // ── sign-in and bootstrap ──
+  'session.get': { req: Empty, res: z.strictObject({ session: z.nullable(SessionIdentitySchema) }), from: ANY },
+  /** The password goes page → background once and is never logged or stored. */
+  'session.signIn': {
+    req: z.strictObject({ login: boundedText(128), password: boundedText(256) }),
+    res: z.strictObject({ session: SessionIdentitySchema }),
+    from: PAGE,
+    pages: ['options', 'popup'],
+  },
+  /** `serverRevoked: null` — the hub did not answer; the local sign-in is cleared anyway. */
+  'session.signOut': { req: Empty, res: z.strictObject({ serverRevoked: z.nullable(z.boolean()) }), from: PAGE },
+  'bootstrap.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), ...hubDto('Bootstrap'), from: ANY },
+  /** Binds a host account to exactly one page by platformAccountId; CG-BINDING-* on failure. */
+  'binding.resolve': { req: z.strictObject({ account: HostAccountSchema }), res: z.strictObject({ binding: HubBindingSchema }), from: ANY },
+  'catalog.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), ...hubDto('PersonaCatalog'), from: ANY },
+  'persona.set': {
+    req: z.strictObject({ pageId: HubIntIdSchema, key: boundedText(64), definitionId: boundedText(128) }),
+    res: z.strictObject({ revision: CountSchema }),
+    from: ANY,
+  },
+
+  // ── operations ──
+  'op.start': { req: StartOpSchema, res: AdmissionSchema, from: TAB },
+  'op.cancel': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ state: OpStateSchema }), from: ANY },
+  'op.list': {
+    req: z.strictObject({ scope: z.enum(['tab', 'all']), chatKey: z.optional(ChatKeySchema) }),
+    res: z.strictObject({ ops: z.array(OpViewSchema).check(z.maxLength(24)) }),
+    from: ANY,
+  },
+  /** The result was really visible (telemetry `shown`). */
+  'op.reportShown': { req: z.strictObject({ opId: UuidSchema, part: z.optional(PartRefSchema) }), res: Ack, from: TAB },
+  /** Written to the clipboard successfully (telemetry `copied`, Б14). */
+  'op.reportCopy': { req: z.strictObject({ opId: UuidSchema, part: z.optional(PartRefSchema) }), res: Ack, from: TAB },
+  /** A guarded insert finished; `inserted` only for `applied`. */
+  'op.reportInsert': { req: z.strictObject({ opId: UuidSchema, part: PartRefSchema, receipt: InsertReceiptSchema }), res: Ack, from: TAB },
+  /** A human send from the composer proven by receipt + echo with the same id (§6.6). */
+  'op.reportSent': {
+    req: z.strictObject({
+      opId: UuidSchema,
+      part: PartRefSchema,
+      pendingId: PendingIdSchema,
+      platformMessageId: NativeIdSchema,
+      edited: z.boolean(),
+    }),
+    res: Ack,
+    from: TAB,
+  },
+
+  // ── X8 preview send ──
+  /** Journal first, then hub `dispatch`; the answer is the one-time ticket or the reason to hold. */
+  'send.begin': {
+    req: SendBeginSchema,
+    res: z.discriminatedUnion('ok', [
+      z.strictObject({ ok: z.literal(true), ticket: DispatchTicketSchema }),
+      z.strictObject({ ok: z.literal(false), view: SendAttemptViewSchema }),
+    ]),
+    from: TAB,
+  },
+  'send.status': { req: z.strictObject({ attemptId: UuidSchema }), res: z.strictObject({ view: z.nullable(SendAttemptViewSchema) }), from: ANY },
+  /** A state MAIN observed; the background journals it and reports `sent`/`failed` to the hub only on proof. */
+  'send.report': {
+    req: z.strictObject({
+      view: SendAttemptViewSchema,
+      pendingId: z.optional(PendingIdSchema),
+      httpStatus: z.optional(z.int().check(z.gte(100), z.lte(599))),
+    }),
+    res: Ack,
+    from: TAB,
+  },
+
+  // ── recaps ──
+  'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), ...hubDto('RecapStatus'), from: ANY },
+  'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), ...hubDto('SharedRecaps'), from: ANY },
+
+  // ── hub data ──
+  /** The whole board up to 1000 rows; the background pages through the hub (§8.5). */
+  'spenders.board': {
+    req: z.strictObject({ pageId: HubIntIdSchema, period: SpendersPeriodSchema, force: z.optional(z.boolean()) }),
+    ...hubDto('SpendersPage'),
+    from: TAB,
+  },
+  'spenders.stats': {
+    req: z.strictObject({ pageId: HubIntIdSchema, windowDays: z.int().check(z.gte(1), z.lte(90)), timeZone: TimeZoneSchema }),
+    ...hubDto('SpendersStats'),
+    from: TAB,
+  },
+  'spenders.queue': {
+    req: z.strictObject({ pageId: HubIntIdSchema, cursor: CursorSchema, limit: z.int().check(z.gte(1), z.lte(100)) }),
+    ...hubDto('QueuePage'),
+    from: TAB,
+  },
+  'feed.read': {
+    req: z.strictObject({ ...PageFan, cursor: CursorSchema, limit: z.int().check(z.gte(1), z.lte(100)) }),
+    ...hubDto('FeedPage'),
+    from: TAB,
+  },
+  'fan.card': { req: z.strictObject(PageFan), ...hubDto('SpenderDetail'), from: TAB },
+  'newcomers.list': {
+    req: z.strictObject({ pageId: HubIntIdSchema, windowHours: z.int().check(z.gte(1), z.lte(720)), cursor: CursorSchema }),
+    ...hubDto('AudienceNewPage'),
+    from: TAB,
+  },
+  'newcomers.claim': {
+    req: z.strictObject({ ...PageFan, action: z.enum(['claim', 'renew', 'release']) }),
+    ...hubDto('ClaimState'),
+    from: TAB,
+  },
+
+  // ── service ──
+  'settings.get': { req: Empty, res: SettingsStateSchema, from: ANY },
+  /** «Сохранено» is shown only on this confirmation with its revision (ST-013…ST-015). */
+  'settings.patch': {
+    req: z.strictObject({ patch: SettingsPatchSchema, baseRevision: z.nullable(CountSchema) }),
+    res: SettingsStateSchema,
+    from: ANY,
+  },
+  'log.write': {
+    req: z.strictObject({ records: z.array(LogRecordSchema).check(z.minLength(1), z.maxLength(LOG_LIMITS.maxRecordsPerWrite)) }),
+    res: z.strictObject({ accepted: CountSchema, dropped: CountSchema }),
+    from: ANY,
+  },
+  'diagnostics.get': { req: Empty, res: DiagnosticsSnapshotSchema, from: PAGE },
+  /** The page saves it through a Blob; no `downloads` permission (§3). */
+  'diagnostics.export': {
+    req: z.strictObject({ format: z.enum(['json', 'txt']) }),
+    res: z.strictObject({
+      fileName: boundedText(128),
+      mime: z.enum(['application/json', 'text/plain']),
+      body: displayText(LOG_LIMITS.exportMaxBytes),
+    }),
+    from: PAGE,
+    pages: ['options'],
+  },
+  /** An incoming-message fact for the one sound arbiter of the extension (§9.8). */
+  'sound.event': {
+    req: z.strictObject({ fact: IncomingFactSchema }),
+    res: z.strictObject({ played: z.boolean(), reason: z.optional(OpenTokenSchema) }),
+    from: TAB,
+  },
+  'sound.preview': {
+    req: z.strictObject({ tone: ToneIdSchema, volume: SettingsV1Schema.shape.sound.shape.volume }),
+    res: z.strictObject({ played: z.boolean(), code: z.optional(CgCodeSchema) }),
+    from: PAGE,
+    pages: ['options'],
+  },
+  'debug.prompt': { req: z.strictObject({ token: boundedText(128) }), res: PromptSnapshotViewSchema, from: PAGE, pages: ['debug-prompt'] },
+  'health.report': { req: z.strictObject({ report: TabHealthReportSchema }), res: Ack, from: TAB },
+  /** One-time action token for a trusted (`isTrusted`) event inside our closed shadow root (§14). */
+  'token.issue': {
+    req: z.strictObject({ kind: z.enum(ACTION_TOKEN_KINDS), surface: SurfaceSchema }),
+    res: z.strictObject({ actionToken: ActionTokenSchema, expiresAt: EpochMsSchema }),
+    from: TAB,
+  },
+} as const satisfies Record<string, RequestSpec>;
+
+export type TabRequestType = keyof typeof TAB_REQUESTS;
+export const TAB_REQUEST_TYPES = Object.keys(TAB_REQUESTS) as TabRequestType[];
+export type TabRequestPayload<T extends TabRequestType> = z.infer<(typeof TAB_REQUESTS)[T]['req']>;
+export type TabResponsePayload<T extends TabRequestType> = z.infer<(typeof TAB_REQUESTS)[T]['res']>;
+
+// ── Events ─────────────────────────────────────────────────────────────────
+
+interface EventSpec {
+  readonly payload: z.ZodMiniType;
+  readonly to: readonly TabSender[];
+}
+
+export const TAB_EVENTS = {
+  /** Stream text in 50 ms batches (`append` since the previous `seq`), plus phase/state changes. */
+  'op.update': {
+    payload: z.strictObject({
+      opId: UuidSchema,
+      seq: CountSchema,
+      append: displayText(64_000),
+      state: OpStateSchema,
+      phase: PhaseSchema,
+      firstChunkAt: z.optional(EpochMsSchema),
+    }),
+    to: ANY,
+  },
+  /** The terminal view of an operation. */
+  'op.done': { payload: z.strictObject({ view: OpViewSchema }), to: ANY },
+  'send.state': { payload: z.strictObject({ view: SendAttemptViewSchema }), to: ANY },
+  toast: { payload: z.strictObject({ toast: BackgroundToastSchema }), to: TAB },
+  'settings.changed': { payload: SettingsStateSchema, to: ANY },
+  'session.changed': {
+    payload: z.strictObject({
+      session: z.nullable(SessionIdentitySchema),
+      reason: z.enum(['sign-in', 'sign-out', 'revoked', 'expired', 'hub-changed']),
+    }),
+    to: ANY,
+  },
+  /** A newer bootstrap is cached; receivers call `bootstrap.get`. */
+  'bootstrap.changed': { payload: z.strictObject({ configRevision: CountSchema, issuedAt: IsoTimestampSchema }), to: ANY },
+  'catalog.changed': { payload: Empty, to: ANY },
+  'newcomers.changed': { payload: z.strictObject({ pageId: HubIntIdSchema }), to: TAB },
+  /** Owner kill switches; unknown flag names mean "off" (open tokens, critic item 14). */
+  'flags.changed': { payload: z.strictObject({ flags: z.record(OpenTokenSchema, z.boolean()), configRevision: CountSchema }), to: ANY },
+} as const satisfies Record<string, EventSpec>;
+
+export type TabEventType = keyof typeof TAB_EVENTS;
+export const TAB_EVENT_TYPES = Object.keys(TAB_EVENTS) as TabEventType[];
+export type TabEventPayload<T extends TabEventType> = z.infer<(typeof TAB_EVENTS)[T]['payload']>;
+
+export function isTabRequestType(type: string): type is TabRequestType {
+  return Object.prototype.hasOwnProperty.call(TAB_REQUESTS, type);
+}
+
+export function isTabEventType(type: string): type is TabEventType {
+  return Object.prototype.hasOwnProperty.call(TAB_EVENTS, type);
+}
+
+export type TabPayloadCheck = { readonly ok: true; readonly payload: unknown } | { readonly ok: false };
+
+/** Second stage: the payload of a request, a response or an event of a known type. */
+export function parseTabPayload(kind: 'req' | 'res' | 'evt', type: string, payload: unknown): TabPayloadCheck {
+  let schema: z.ZodMiniType;
+  if (kind === 'evt') {
+    if (!isTabEventType(type)) return { ok: false };
+    schema = TAB_EVENTS[type].payload;
+  } else {
+    if (!isTabRequestType(type)) return { ok: false };
+    schema = kind === 'req' ? TAB_REQUESTS[type].req : TAB_REQUESTS[type].res;
+  }
+  const parsed = schema.safeParse(payload);
+  return parsed.success ? { ok: true, payload: parsed.data } : { ok: false };
+}
+
+/** Whether a sender kind (and page) may send this request type. */
+export function mayRequest(type: TabRequestType, sender: TabSender, page: ExtensionPage | null): boolean {
+  const spec: RequestSpec = TAB_REQUESTS[type];
+  if (!spec.from.includes(sender)) return false;
+  if (sender === 'page' && spec.pages !== undefined) return page !== null && spec.pages.includes(page);
+  return true;
+}
