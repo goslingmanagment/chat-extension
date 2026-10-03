@@ -3,3 +3,6 @@
 
 /** Marker export so the entry exists in the package graph before R11 lands. */
 export const APPLICATION_LAYER = 'core/application' as const;
+
+// R11: the AI controllers (dock, Recap, Review, Coach) — also under `@cg/core/application/ai`.
+export * from './ai';
