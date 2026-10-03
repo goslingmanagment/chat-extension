@@ -1,0 +1,307 @@
+// The lifecycle of the wiring (architecture.md §7 «Фон и выгрузка», §5.4,
+// §14): the background composition root and the tab's runtime together, on
+// the fake browser and the in-process fake hub (test/support/world.ts).
+// - every request waits for the start steps (the readiness barrier);
+// - a background that was unloaded restores what it kept: operations become
+//   `interrupted`, an open send `uncertain`, the telemetry queue's state;
+// - alarms are armed while a ChatSpace tab is registered;
+// - `settings.changed` reaches tabs and pages;
+// - a tab registers again with a restarted background and says where it is;
+// - an open tab keeps the event page from idling (BG-003);
+// - the start record says why the page started (LG-016, LG-018).
+
+import { DEFAULT_SETTINGS, STORAGE_KEYS, type LogRecord, type OpView, type SendJournalEntry, type SettingsState } from '@cg/contracts';
+import { account, journalEntry, opView } from '@cg/contracts/fixtures';
+import { OPS_STORE_KEY, createResultsStore, createSendJournal } from '@cg/core/services';
+import { ChatExtensionHub } from '@cg/hub';
+import { createKeyValueStore } from '@cg/platform';
+import { callsTo } from '@cg/testing/fake-hub';
+import { WORLD } from '@cg/testing/hub';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { pageSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
+import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from '../src/composition/background/lifecycle.ts';
+import { opsStoreOver } from '../src/composition/background/ops-store.ts';
+import { PASSWORD, createWorld, settingsFor, sleep, until, type World } from './support/world.ts';
+
+const uuid = (n: number): string => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
+const ALARM_NAMES = ['cg.hub.bootstrap', 'cg.results.sweep', 'cg.telemetry.flush', 'cg.telemetry.health'];
+
+let world: World;
+beforeEach(() => {
+  // The event page's console port: the records are read from the export, not from the test output.
+  for (const level of ['debug', 'info', 'warn', 'error'] as const) vi.spyOn(console, level).mockImplementation(() => undefined);
+});
+afterEach(() => {
+  world.dispose();
+  vi.restoreAllMocks();
+});
+
+/** The records of the diagnostics export (what a person sends to the owner), oldest first. */
+async function exportedLogs(w: World): Promise<LogRecord[]> {
+  const file = await w.page().request('diagnostics.export', { format: 'json' });
+  if (!file.ok) throw new Error(`diagnostics.export: ${file.error.code}`);
+  const bundle = JSON.parse(file.payload.body) as { logs?: { recent?: LogRecord[] } };
+  return bundle.logs?.recent ?? [];
+}
+const startRecords = (records: readonly LogRecord[]): Array<Record<string, unknown>> => records.filter((record) => record.msg === 'background started').map((record) => record.fields ?? {});
+
+async function signIn(w: World): Promise<void> {
+  const answer = await w.page().request('session.signIn', { login: WORLD.user.username, password: PASSWORD });
+  expect(answer).toMatchObject({ ok: true, payload: { session: { login: WORLD.user.username } } });
+}
+
+describe('the readiness barrier', () => {
+  it('[BG-004] a request that arrives while the event page is still starting is answered from the restored state, not before it', async () => {
+    world = createWorld({ settings: settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale: 'en' } }) });
+    // Every storage call of the start takes a while: the page is far from ready when the requests come.
+    world.fake.latency = () => 15;
+    const page = world.page();
+    const [session, settings, diagnostics] = await Promise.all([page.request('session.get', {}), page.request('settings.get', {}), page.request('diagnostics.get', {})]);
+    expect(world.starts()).toBe(1);
+    // `session.get` reads the hub layer, which exists only after the settings step: an early answer is an error.
+    expect(session).toEqual({ ok: true, payload: { session: null } });
+    expect(settings).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'en' }, hub: { baseUrl: WORLD.hubOrigin } } } });
+    expect(diagnostics).toMatchObject({ ok: true, payload: { session: { signedIn: false }, tabs: [] } });
+    // Nothing talked to the hub by itself: the one request is the status surface asking for the hub's health, unauthenticated.
+    expect(world.hub.read().entries.map((entry) => [entry.route, entry.token])).toEqual([['health', null]]);
+  });
+});
+
+describe('a background that was unloaded', () => {
+  it('[BG-004] [BG-006] restores what it kept: a running operation is interrupted, an open send is uncertain, the telemetry counters stay', async () => {
+    world = createWorld();
+    // What the previous instance of the event page left in storage, written with its own stores.
+    const seed = world.fake.context(pageSender(world.fake, 'debug-journal')).api;
+    const session = createKeyValueStore('session', { api: seed });
+    const local = createKeyValueStore('local', { api: seed });
+    const now = Date.now();
+    const running: OpView = { ...opView, opId: uuid(31), state: 'streaming', phase: { name: 'streaming', since: now - 2000 }, startedAt: now - 5000, firstChunkAt: now - 3000 };
+    delete (running as { endedAt?: number }).endedAt;
+    delete (running as { result?: unknown }).result;
+    const done: OpView = { ...opView, opId: uuid(32), startedAt: now - 60_000, firstChunkAt: now - 59_000, endedAt: now - 56_000, phase: { name: 'settled', since: now - 56_000 } };
+    const meta = (requestKey: string) => ({ startedBy: 'tab-before', requestKey, tag: { hubOrigin: WORLD.hubOrigin, userId: WORLD.user.userId, signInEpoch: 1, pageId: 11, personaKey: 'default', personaDefinitionId: WORLD.persona.definitionId }, fanLabel: null, knownIds: [], checkpoint: null, split: false });
+    await opsStoreOver(createResultsStore({ session }), session).set(OPS_STORE_KEY, { v: 1, ops: [{ view: running, meta: meta('rk-1') }, { view: done, meta: meta('rk-2') }] });
+    const journal = createSendJournal({ local });
+    await journal.start();
+    const attempt: SendJournalEntry = { ...journalEntry, attemptId: uuid(41), opId: done.opId, createdAt: now - 4000, updatedAt: now - 4000 };
+    expect(await journal.begin(attempt)).toMatchObject({ ok: true });
+    // ChatSpace took it into its queue, and then the event page was gone: nobody heard how it ended.
+    expect(await journal.advance(attempt.attemptId, { state: 'nativeEnqueued', pendingId: uuid(42) })).toMatchObject({ ok: true });
+    journal.dispose();
+    await local.set({ [STORAGE_KEYS.telemetryQueue]: { v: 1, entries: [], dropped: { overflow: 3, rejected: 0, exhausted: 2, 'stale-binding': 0, consent: 0, unsupported: 0, invalid: 0 }, paused: null } });
+
+    const page = world.page();
+    const ops = await page.request('op.list', { scope: 'all' });
+    expect(world.starts()).toBe(1);
+    expect(ops.ok && ops.payload.ops.map((op) => [op.opId, op.state, op.error?.code ?? null]).sort()).toEqual([
+      [uuid(31), 'interrupted', 'CG-OP-INTERRUPTED'],
+      [uuid(32), 'done', null],
+    ]);
+    // The half-way send is not sent again and not forgotten: it holds its fan as `uncertain`.
+    expect(await page.request('send.status', { attemptId: attempt.attemptId })).toMatchObject({ ok: true, payload: { view: { attemptId: attempt.attemptId, state: 'uncertain' } } });
+    const diagnostics = await page.request('diagnostics.get', {});
+    expect(diagnostics).toMatchObject({ ok: true, payload: { ops: { active: 0 }, sends: { uncertain: 1 }, telemetry: { queued: 0, dropped: 5 } } });
+    // No POST to the hub for the interrupted operation: without a sign-in the status read of `health` is all there is.
+    expect(world.hub.read().entries.map((entry) => entry.route)).toEqual(['health']);
+  });
+
+  it('[BG-002] the open tab registers again with the new instance and says where it is: the same sign-in, the tab, its chat and its accounts', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    world.tabRuntime();
+    const page = world.page();
+    const tabsOf = async () => {
+      const diagnostics = await page.request('diagnostics.get', {});
+      return diagnostics.ok ? diagnostics.payload.tabs : [];
+    };
+    const seenOpen = async () => {
+      const seen = await page.request('accounts.seen', {});
+      return seen.ok ? seen.payload.accounts.map((item) => [item.account.hostAccountId, item.openTabs]) : [];
+    };
+    await until(async () => (await tabsOf())[0]?.chatKey === 'chatspace:1001:2002', 'the tab reported its chat');
+    const before = (await tabsOf())[0]?.tabSessionId;
+    expect(await seenOpen()).toEqual([[account.hostAccountId, 1]]);
+
+    world.fake.suspendBackground();
+    await until(() => world.starts() === 2, 'the tab woke the event page');
+    await until(async () => (await tabsOf())[0]?.chatKey === 'chatspace:1001:2002', 'the tab reported its chat to the new instance');
+    const after = await tabsOf();
+    expect(after).toHaveLength(1);
+    expect(after[0]?.tabSessionId).not.toBe(before);
+    // The accounts go with the report after a reconnect, although they did not change.
+    expect(await seenOpen()).toEqual([[account.hostAccountId, 1]]);
+    expect(await page.request('session.get', {})).toMatchObject({ ok: true, payload: { session: { login: WORLD.user.username } } });
+    // The restored sign-in read nothing again: the stored bootstrap and catalog were fresh, and the tab's focus is not a reason.
+    const entries = world.hub.read().entries;
+    expect(callsTo(entries, 'clientBootstrap')).toHaveLength(1);
+    expect(callsTo(entries, 'aiPersonaCatalog')).toHaveLength(1);
+  });
+});
+
+describe('alarms', () => {
+  it('are armed when a ChatSpace tab registers — not for a page — and found again by the next instance', async () => {
+    world = createWorld();
+    world.start();
+    const page = world.page();
+    expect(await page.request('session.get', {})).toMatchObject({ ok: true });
+    expect([...world.fake.alarms.keys()]).toEqual([]);
+    world.tabRuntime();
+    await until(() => world.fake.alarms.size === ALARM_NAMES.length, 'the alarms are armed');
+    expect([...world.fake.alarms.keys()].sort()).toEqual(ALARM_NAMES);
+    for (const alarm of world.fake.alarms.values()) expect(alarm.periodInMinutes).toBeGreaterThan(0);
+    const due = new Map([...world.fake.alarms].map(([name, alarm]) => [name, alarm.scheduledTime]));
+    world.fake.suspendBackground();
+    await until(() => world.starts() === 2, 'the tab woke the event page');
+    await sleep(50);
+    // The next instance keeps the schedule it found: an alarm is not pushed back by every restart.
+    expect(new Map([...world.fake.alarms].map(([name, alarm]) => [name, alarm.scheduledTime]))).toEqual(due);
+  });
+});
+
+describe('settings', () => {
+  it('[BG-005] a change made on a page reaches every tab and every page', async () => {
+    world = createWorld();
+    world.start();
+    const options = world.page('options');
+    const popup = world.page('popup');
+    const tab = world.tabClient();
+    const heard: Array<[string, SettingsState['settings']['ui']['locale'], number]> = [];
+    tab.client.onEvent('settings.changed', (state) => heard.push(['tab', state.settings.ui.locale, state.revision]));
+    popup.onEvent('settings.changed', (state) => heard.push(['popup', state.settings.ui.locale, state.revision]));
+    await until(() => tab.client.state() === 'ready', 'the tab registered');
+    await sleep(20);
+    const saved = await options.request('settings.patch', { patch: { ui: { locale: 'en' } }, baseRevision: null });
+    expect(saved).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'en' } } } });
+    await until(() => heard.length === 2, 'both heard the change');
+    const revision = saved.ok ? saved.payload.revision : -1;
+    expect(heard.sort()).toEqual([['popup', 'en', revision], ['tab', 'en', revision]]);
+  });
+
+  it('a tab’s patch cannot set the persona of a page it is not bound to; its own page it can', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    const tab = world.tabClient();
+    await until(() => tab.client.state() === 'ready', 'the tab registered');
+    const persona = { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId };
+    // The tab shows no account yet: no page is «its own».
+    expect(await tab.client.request('settings.patch', { patch: { personas: { byPageId: { [String(WORLD.pages.one.pageId)]: persona } } }, baseRevision: null })).toEqual({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED', detail: 'personas' } });
+    expect(await tab.client.request('tab.presence', { chat: null, routeEpoch: 1, visible: true, focused: false, accounts: [account] })).toEqual({ ok: true, payload: { recorded: true } });
+    expect(await tab.client.request('settings.patch', { patch: { personas: { byPageId: { [String(WORLD.pages.vip.pageId)]: persona } } }, baseRevision: null })).toEqual({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED', detail: 'personas' } });
+    const own = await tab.client.request('settings.patch', { patch: { personas: { byPageId: { [String(WORLD.pages.one.pageId)]: persona } } }, baseRevision: null });
+    expect(own).toMatchObject({ ok: true, payload: { settings: { personas: { byPageId: { [String(WORLD.pages.one.pageId)]: persona } } } } });
+    // The rest of a tab's patch is as open as before.
+    expect(await tab.client.request('settings.patch', { patch: { ui: { locale: 'ru' } }, baseRevision: null })).toMatchObject({ ok: true });
+  });
+});
+
+describe('[BG-003] the keepalive', () => {
+  it('a registered tab repeats its presence report: the event page keeps hearing from it, and a focused tab’s beat is not a «focus»', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    const page = world.page();
+    const background = world.fake.background();
+    let fromTab = 0;
+    world.fake.background()?.events.onConnect.addListener((port) => port.onMessage.addListener(() => void (fromTab += 1)));
+    const focus = vi.spyOn(ChatExtensionHub.prototype, 'notifyFocus');
+    world.tabRuntime({ keepaliveMs: 40 });
+    await until(() => fromTab >= 6, 'the tab keeps sending', 3000);
+    expect(world.fake.background()).toBe(background);
+    expect(world.starts()).toBe(1);
+    const diagnostics = await page.request('diagnostics.get', {});
+    expect(diagnostics.ok && diagnostics.payload.tabs).toHaveLength(1);
+    // One registration, then only presence reports. The tab was focused all along: that is one «focus»
+    // (its first report), and no beat made the hub layer read the bootstrap again.
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(callsTo(world.hub.read().entries, 'clientBootstrap')).toHaveLength(1);
+  });
+
+  it('a tab gaining the focus is a «focus»: the bootstrap is read again once it is older than a minute, and the beats that follow read nothing', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    const stored = world.fake.areas.local.get(STORAGE_KEYS.cacheBootstrap) as { fetchedAt: number };
+    const tab = world.tabRuntime({ keepaliveMs: 40, focused: false });
+    await until(() => world.fake.alarms.size > 0, 'the tab registered');
+    await sleep(120);
+    expect(callsTo(world.hub.read().entries, 'clientBootstrap')).toHaveLength(1);
+    // The same sign-in, a bootstrap read two minutes ago: a restarted page reads it from storage…
+    world.fake.areas.local.set(STORAGE_KEYS.cacheBootstrap, { ...stored, fetchedAt: stored.fetchedAt - 120_000 });
+    world.fake.suspendBackground();
+    await until(() => world.starts() === 2, 'the tab woke the event page');
+    await sleep(120);
+    expect(callsTo(world.hub.read().entries, 'clientBootstrap')).toHaveLength(1);
+    // …and the tab coming to the front reads it again, once.
+    tab.focus(true);
+    await until(() => callsTo(world.hub.read().entries, 'clientBootstrap').length === 2, 'the focus read the bootstrap');
+    await sleep(200);
+    expect(callsTo(world.hub.read().entries, 'clientBootstrap')).toHaveLength(2);
+  });
+});
+
+describe('[LG-016] [LG-018] the start record says why the event page started', () => {
+  it('[LG-016] the reason: an install, an update, a browser start, a reload, a wake', () => {
+    expect(startReasonOf({ earlierStarts: 0, installed: 'install', browserStarted: false })).toBe('install');
+    expect(startReasonOf({ earlierStarts: 0, installed: 'update', browserStarted: false })).toBe('update');
+    expect(startReasonOf({ earlierStarts: 0, installed: 'browser_update', browserStarted: true })).toBe('browser-start');
+    expect(startReasonOf({ earlierStarts: 0, installed: null, browserStarted: true })).toBe('browser-start');
+    // Loaded anew with no event to say why: reloaded or enabled again.
+    expect(startReasonOf({ earlierStarts: 0, installed: null, browserStarted: false })).toBe('reload');
+    expect(startReasonOf({ earlierStarts: 0, installed: 'other', browserStarted: false })).toBe('reload');
+    expect(startReasonOf({ earlierStarts: 3, installed: null, browserStarted: false })).toBe('wake');
+    // The counter could not be read: nothing says «first start», so it is a wake.
+    expect(startReasonOf({ earlierStarts: null, installed: null, browserStarted: false })).toBe('wake');
+    expect(earlierStartsOf({ ok: true, value: undefined })).toBe(0);
+    expect(earlierStartsOf({ ok: true, value: 4 })).toBe(4);
+    expect(earlierStartsOf({ ok: true, value: 'x' })).toBeNull();
+    expect(earlierStartsOf({ ok: false })).toBeNull();
+  });
+
+  it('[LG-016] [LG-018] an update, then idle unloads: «update» with the previous version once, «wake» after it, and the suspend is logged', async () => {
+    world = createWorld();
+    world.start();
+    world.fake.fireInstalled({ reason: 'update', previousVersion: '0.9.0' });
+    const page = world.page();
+    expect(await page.request('session.get', {})).toMatchObject({ ok: true });
+    world.fake.suspendBackground();
+    expect(await page.request('session.get', {})).toMatchObject({ ok: true });
+    world.fake.suspendBackground();
+    expect(await page.request('session.get', {})).toMatchObject({ ok: true });
+    expect(world.starts()).toBe(3);
+    expect(world.fake.areas.session.get(STARTS_KEY)).toBe(3);
+
+    const records = await exportedLogs(world);
+    expect(startRecords(records).map((fields) => [fields['reason'], fields['previousVersion'] ?? null])).toEqual([
+      ['update', '0.9.0'],
+      ['wake', null],
+      ['wake', null],
+    ]);
+    const lifecycle = records.filter((record) => record.scope === 'bg.lifecycle').map((record) => record.msg);
+    expect(lifecycle).toEqual(['extension updated', 'background started', 'background suspending', 'background started', 'background suspending', 'background started']);
+    const ready = records.filter((record) => record.msg === 'start steps').map((record) => record.fields?.['starts']);
+    expect(ready).toEqual([1, 2, 3]);
+  });
+
+  it('[LG-016] an install, a browser start and a reload are told apart; nothing talks to the hub on any of them (UP-008)', async () => {
+    for (const [fire, reason] of [
+      [(w: World) => w.fake.fireInstalled({ reason: 'install', temporary: true }), 'install'],
+      [(w: World) => w.fake.fireStartup(), 'browser-start'],
+      [() => undefined, 'reload'],
+    ] as const) {
+      const w = createWorld();
+      world = w;
+      const began = Date.now();
+      w.start();
+      fire(w);
+      expect(await w.page().request('session.get', {})).toMatchObject({ ok: true });
+      // Only a start with no event waits for one, and only for a moment.
+      if (reason === 'reload') expect(Date.now() - began).toBeGreaterThanOrEqual(LIFECYCLE_EVENT_WAIT_MS - 20);
+      expect({ reason, logged: startRecords(await exportedLogs(w)).map((fields) => fields['reason']) }).toEqual({ reason, logged: [reason] });
+      expect(w.hub.read().entries).toEqual([]);
+      w.dispose();
+    }
+  });
+});
