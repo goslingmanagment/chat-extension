@@ -80,6 +80,16 @@ async function setComposerText(accountId: string, chatId: string, text: string):
   );
 }
 
+/** Whether the account's send queue is still in its processing loop. */
+async function queueBusy(accountId: string): Promise<boolean> {
+  return browser.execute((account: string) => {
+    const app = document.querySelector<HTMLElement & { __vue_app__?: { config: { globalProperties: Record<string, unknown> } } }>('#app')?.__vue_app__;
+    const pinia = app?.config.globalProperties['$pinia'] as { _s: Map<string, { processingByAccountId?: Record<string, boolean> }> } | undefined;
+    return pinia?._s.get('pendingMessages')?.processingByAccountId?.[account] === true;
+  }, accountId);
+}
+
+const messagePosts = (entries: readonly PageJournalEntry[]): PageJournalEntry[] => entries.filter((entry) => entry['method'] === 'POST' && String(entry['path']).endsWith('/messages'));
 const sendsOf = (entries: readonly ServerJournalEntry[], chatId: string): ServerJournalEntry[] => entries.filter((entry) => entry.kind === 'send' && entry.chatId === chatId);
 const historyLoadsOf = (entries: readonly ServerJournalEntry[], chatId: string): ServerJournalEntry[] => entries.filter((entry) => entry.kind === 'history-load' && entry.chatId === chatId);
 
@@ -123,19 +133,21 @@ describe('the ChatSpace-like stand on its own', () => {
 
   it('scripted answers: Message Guard → FAILED blocked; 401 → one bare re-run after a fresh session token; a hang → timeout', async () => {
     await callStand('scriptSend', accountA, a1, [{ kind: 'guard', words: ['stand-word'], topics: ['direct_contact'] }]);
+    let page = await pageMark();
     let server = await standServer.mark();
     await setComposerText(accountA, a1, 'guarded text');
     await $(ACTIVE_SEND).click();
     await browser.waitUntil(async () => (await pending(accountA))[0]?.status === 'failed', { timeout: 5000, timeoutMsg: 'guard failure' });
     const [blocked] = await pending(accountA);
     expect(blocked?.error).toEqual({ kind: 'blocked', guard: { words: ['stand-word'], topics: ['Direct contact'] } });
-    // Never retried on its own.
-    await browser.pause(300);
+    // Never retried on its own: once the queue's loop is over, the page created one POST and the server saw one.
+    await browser.waitUntil(async () => !(await queueBusy(accountA)), { timeout: 5000, timeoutMsg: 'the queue keeps processing after the failure' });
+    expect(messagePosts(await pageJournal(page, 'http-request'))).toHaveLength(1);
     expect(sendsOf((await standServer.journal(server)).entries, a1)).toHaveLength(1);
     await storeCall('pendingMessages', 'cancel', [accountA, blocked?.id]);
 
     await callStand('scriptSend', accountA, a1, [{ kind: 'status', status: 401 }, { kind: 'ok' }]);
-    const page = await pageMark();
+    page = await pageMark();
     server = await standServer.mark();
     await setComposerText(accountA, a1, 'after a 401');
     await $(ACTIVE_SEND).click();
@@ -143,8 +155,7 @@ describe('the ChatSpace-like stand on its own', () => {
       timeout: 5000,
       timeoutMsg: '401 then 200',
     });
-    const posts = (await pageJournal(page, 'http-request')).filter((entry) => entry['method'] === 'POST' && String(entry['path']).endsWith('/messages'));
-    expect(posts.map((entry) => entry['attempt'])).toEqual(['first', 'after-401']);
+    expect(messagePosts(await pageJournal(page, 'http-request')).map((entry) => entry['attempt'])).toEqual(['first', 'after-401']);
     expect((await pageJournal(page, 'auth-refresh')).length).toBe(1);
     expect(sendsOf((await standServer.journal(server)).entries, a1).map((entry) => entry.detail?.['outcome'])).toEqual(['status', 'ok']);
 
@@ -358,11 +369,20 @@ describe('the ChatSpace-like stand on its own', () => {
         const first = [...document.querySelectorAll<HTMLElement>('[data-stand-message-id]')].find((node) => scroller !== null && node.offsetTop + node.offsetHeight > scroller.scrollTop + 1);
         return { id: first?.dataset['standMessageId'] ?? null, offset: first === undefined || scroller === null ? 0 : first.offsetTop - scroller.scrollTop };
       });
-    await browser.execute(() => {
-      const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
-      if (scroller !== null) scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) / 2);
-    });
-    await browser.pause(100);
+    // Scrolls half-way, then waits for the scroll event (the list's own handler runs first, being attached first) and
+    // for the frame after it, so the list has judged the new position before the anchor is read.
+    expect(
+      await browser.execute(async () => {
+        const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
+        if (scroller === null) return 'no list';
+        const scrolled = new Promise<string>((resolve) => {
+          scroller.addEventListener('scroll', () => requestAnimationFrame(() => requestAnimationFrame(() => resolve('scrolled'))), { once: true });
+          setTimeout(() => resolve('no scroll event in 2 s'), 2000);
+        });
+        scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) / 2);
+        return scrolled;
+      }),
+    ).toBe('scrolled');
     const before = await anchor();
     await insertBlock();
     let after = await anchor();
@@ -397,10 +417,17 @@ describe('the ChatSpace-like stand on its own', () => {
     await waitForChatReady(accountA, a1);
     const cached = await callStand('queryState', ['chatMessages', accountA, a2]);
     expect(cached).toMatchObject({ exists: true, hasData: true, active: false });
+    const page = await pageMark();
     const server = await standServer.mark();
     await standServer.fanMessage(accountA, a2, 'push into an inactive cache');
     await standServer.fanMessage(accountA, a4, 'push into a chat never opened');
-    await browser.pause(400);
+    // The page handled both pushes (handlers run synchronously after the frame is journalled; this read is a later task).
+    await browser.waitUntil(async () => (await pageJournal(page, 'ws-frame')).filter((entry) => entry['event'] === 'account_new_message').length === 2, {
+      timeout: 5000,
+      timeoutMsg: 'the page did not handle both pushes',
+    });
+    const historyRequests = (await pageJournal(page, 'http-request')).filter((entry) => entry['method'] === 'GET' && /\/chats\/[^/]+\/messages/.test(String(entry['path'])));
+    expect(historyRequests).toEqual([]);
     let entries = (await standServer.journal(server)).entries;
     expect(historyLoadsOf(entries, a2)).toEqual([]);
     expect(historyLoadsOf(entries, a4)).toEqual([]);

@@ -104,8 +104,10 @@ async function nativeSocket(accounts: readonly string[]): Promise<Socket> {
   const socket = await openSocket();
   socket.send({ action: 'auth', token });
   await socket.next('authenticated');
+  const since = stand.journal.read().next;
   for (const account of accounts) socket.send({ action: 'subscribe_account', token, account: { account_id: account, platform: 'onlyfans', platform_account_id: 'x' } });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  const handled = (): number => journalSince(since).filter((entry) => entry.kind === 'ws-in' && entry.detail?.['action'] === 'subscribe_account').length;
+  await waitFor(() => handled() >= accounts.length, 'subscriptions handled');
   return socket;
 }
 
