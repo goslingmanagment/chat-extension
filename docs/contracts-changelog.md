@@ -49,7 +49,9 @@
   (CG-AUTH-REQUIRED), `hubOriginMismatch` (CG-AUTH-REQUIRED), `hubUrlInvalid`
   (CG-HUB-URL), `bootstrapMissing` (CG-HUB-OUTDATED), `authUnreadable`
   (CG-STORAGE-READ), `authWriteFailed` (CG-STORAGE-WRITE), `boardTimeout`
-  (CG-DATA-TIMEOUT); список имён `HUB_CLIENT_CHECKS`, тип `HubClientCheck` и
+  (CG-DATA-TIMEOUT), `previewSendOff` (CG-SEND-OFF: `dispatch` при выключенном
+  или недоступном на странице `previewSend` — так же, как хаб читает свой отказ
+  `dispatch`); список имён `HUB_CLIENT_CHECKS`, тип `HubClientCheck` и
   схема `HubClientCheckSchema` (с фикстурами).
 
 ## 1.0.0 — 2026-10-03 (R01, тег `contracts-v1.0`)

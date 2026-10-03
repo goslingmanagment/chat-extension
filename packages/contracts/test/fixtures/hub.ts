@@ -642,7 +642,7 @@ export const HUB_SCHEMA_FIXTURES = [
   ]),
 
   // ── the hub layer's own checks (1.1.0) ──
-  fixture('HubClientCheck', C.HubClientCheckSchema, ['signInPending', 'narrowTokenMissing', 'notSignedIn', 'boardTimeout'], ['CG-LOGIN-PENDING', 'signedOut', '']),
+  fixture('HubClientCheck', C.HubClientCheckSchema, ['signInPending', 'narrowTokenMissing', 'notSignedIn', 'boardTimeout', 'previewSendOff'], ['CG-LOGIN-PENDING', 'signedOut', '']),
 
   // ── recaps ──
   fixture('RecapStatusQuery', C.RecapStatusQuerySchema, [{ pageLabel: PAGE, conversationRef: IDS.fan, fanRef: IDS.fan, personaDefinitionId: PDEF }], [

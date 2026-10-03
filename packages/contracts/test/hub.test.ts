@@ -204,6 +204,7 @@ describe('hub error map vs Appendix A «Колонка chat-extension»', () => 
     expect(C.HUB_CLIENT_CHECK_CODES.notSignedIn).toBe('CG-AUTH-REQUIRED');
     expect(C.HUB_CLIENT_CHECK_CODES.bootstrapMissing).toBe('CG-HUB-OUTDATED');
     expect(C.HUB_CLIENT_CHECK_CODES.boardTimeout).toBe('CG-DATA-TIMEOUT');
+    expect(C.HUB_CLIENT_CHECK_CODES.previewSendOff).toBe('CG-SEND-OFF');
   });
 });
 

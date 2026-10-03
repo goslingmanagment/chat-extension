@@ -293,6 +293,8 @@ export const HUB_CLIENT_CHECK_CODES = {
   authWriteFailed: 'CG-STORAGE-WRITE',
   /** The Spenders board got no page inside its 120 s budget (SP-031). */
   boardTimeout: 'CG-DATA-TIMEOUT',
+  /** A `dispatch` while `previewSend` is off or unavailable on the page: X8 is off (the hub's own refusal of a dispatch reads the same). */
+  previewSendOff: 'CG-SEND-OFF',
 } as const satisfies Record<string, CgCode>;
 
 /** Names of the hub layer's own checks: a HubCheckError's `check` (facade.ts). */
