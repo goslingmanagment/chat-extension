@@ -9,6 +9,8 @@
     "./primitives": "./src/primitives.ts",
     "./features": "./src/features.ts",
     "./ids": "./src/ids.ts",
+    "./errors": "./src/errors.ts",
+    "./settings": "./src/settings.ts",
     "./bridge": "./src/bridge.ts",
     "./tab-protocol": "./src/tab-protocol.ts"
   },

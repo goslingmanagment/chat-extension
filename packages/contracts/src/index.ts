@@ -11,6 +11,8 @@
 export * from './primitives';
 export * from './features';
 export * from './ids';
+export * from './errors';
+export * from './settings';
 export * from './bridge';
 export * from './tab-protocol';
 
