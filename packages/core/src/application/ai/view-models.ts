@@ -25,7 +25,7 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { SEGMENT_LABEL_KEYS, formatCostLine, profileOf, type StageMark } from '../../domain/debug';
+import { SEGMENT_LABEL_KEYS, formatCostLine, profileOf, showDebugBlock, type StageMark } from '../../domain/debug';
 import { errorView, recoveryActions } from '../../domain/errors';
 import { createTranslator, type Translator } from '../../domain/i18n';
 import { isTerminalOpState } from '../../domain/ops';
@@ -223,16 +223,17 @@ export interface DebugContext {
 /**
  * The debug footer of a result: the cost line, the stage profile, the hub's
  * stages, the prompt snapshot's opaque token, reasoning and the context
- * card. Only in debug mode; while the generation runs only the live timer
- * (every 100 ms, and only in the expanded view) is known.
+ * card. Only in debug mode and only in the expanded result — a collapsed
+ * dock has no debug block at all (DB-020); while the generation runs only
+ * the live timer (every 100 ms) is known.
  */
 export function debugVm(view: OpView, ctx: DebugContext): ResultDebugVM | null {
-  if (!ctx.enabled) return null;
+  if (!showDebugBlock(ctx.enabled, ctx.expanded)) return null;
   const running = !isTerminalOpState(view.state);
   const debug = view.debug;
   if (debug === undefined) {
     if (!running) return null;
-    return { costLine: null, stages: [], totalMs: Math.max(0, ctx.now - view.startedAt), hubStages: [], prompt: null, reasoning: null, context: null, liveTimer: ctx.expanded };
+    return { costLine: null, stages: [], totalMs: Math.max(0, ctx.now - view.startedAt), hubStages: [], prompt: null, reasoning: null, context: null, liveTimer: true };
   }
   const t = translatorOf(ctx.i18n);
   const profile = profileOf(profilerMarks(debug.stages), running ? 'running' : view.state === 'done' ? 'done' : 'failed', ctx.now);
@@ -246,6 +247,6 @@ export function debugVm(view: OpView, ctx: DebugContext): ResultDebugVM | null {
     prompt: token !== null && HANDLE_PATTERN.test(token) ? { type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: token } } : null,
     reasoning: debug.reasoning,
     context: debug.context,
-    liveTimer: running && ctx.expanded,
+    liveTimer: running,
   };
 }

@@ -1351,7 +1351,7 @@ describe('dock: quota, stale results, debug', () => {
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
   });
 
-  it('[UI-030] the debug footer — usage line, stage profile, prompt token — exists only in debug mode', async () => {
+  it('[UI-030] [DB-020] the debug footer — usage line, stage profile, prompt token — exists only in debug mode and only in the expanded result', async () => {
     const debugFrame: HubFrame = { type: 'debug_input_v1', systemBlocks: [{ text: 'system', cache: 'none' }], userBlocks: [{ text: 'user', cache: 'none' }], contextManifest: null };
     const script = (): ScriptResponse => ({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply'), afterMs: 300 }, { kind: 'frame', frame: debugFrame }, delta('hey', 100), { kind: 'frame', frame: usage }, doneStep] });
 
@@ -1365,11 +1365,16 @@ describe('dock: quota, stale results, debug', () => {
     const h = await start({ settings: { ...settingsWithPersona(), debug: { enabled: true, renderTrace: false } } });
     h.script(script());
     await h.generate('reply');
-    // While it runs only the live timer is known — and only in the expanded view.
-    expect(result(h).debug).toMatchObject({ costLine: null, liveTimer: false, prompt: null });
+    // A collapsed result has no debug block at all, running or finished.
+    expect(result(h).debug).toBeNull();
     await h.dispatch({ type: 'ExpandResult', operationId: result(h).opId, expanded: true });
-    expect(result(h).debug?.liveTimer).toBe(true);
+    // While it runs only the live timer is known.
+    expect(result(h).debug).toMatchObject({ costLine: null, liveTimer: true, prompt: null });
     await h.finish();
+    await h.dispatch({ type: 'ExpandResult', operationId: result(h).opId, expanded: false });
+    expect(result(h).debug).toBeNull();
+    expect(JSON.stringify(h.dock().result)).not.toMatch(/tok|\$0\.0/);
+    await h.dispatch({ type: 'ExpandResult', operationId: result(h).opId, expanded: true });
     const debug = result(h).debug;
     // Intl groups digits with no-break spaces.
     expect(debug?.costLine?.replace(/\s/gu, ' ')).toBe('in 3 412 tok • out 286 tok • cache r 3 000 / w 0 • $0.0143 • 0,4 с');

@@ -793,7 +793,23 @@ describe('review', () => {
     expect(vm.meta).toEqual([{ key: 'review.meta', params: { n: 412, name: 'Fan Two' } }]);
     expect(vm.stamp.coverage).toBe('partial');
     expect(vm.view).toMatchObject({ s: 'partial', gaps: [{ kind: 'coverage', level: 'partial' }] });
-    expect(vm.debug).not.toBeNull();
+    // [DB-020] the debug block itself only in the expanded sheet.
+    expect(vm.debug).toBeNull();
+    await h.dispatch({ type: 'ExpandResult', operationId: vm.opId as string, expanded: true });
+    expect(h.review().debug).not.toBeNull();
+  });
+
+  it('[DB-020] a Recap built in debug mode shows its debug block only when the sheet is expanded', async () => {
+    const h = await start({ settings: { ...settingsWithPersona(), debug: { enabled: true, renderTrace: false } } });
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    h.script(recapStream(FULL_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.finish();
+    expect(h.recapView()).toMatchObject({ markdown: FULL_TEXT, expanded: false, debug: null });
+    await h.dispatch({ type: 'ExpandResult', operationId: h.recapView().opId as string, expanded: true });
+    expect(h.recapView().expanded).toBe(true);
+    expect(h.recapView().debug).not.toBeNull();
   });
 
   it('the Review key starts it; while it runs the key brings the sheet back and ⌘. cancels', async () => {
