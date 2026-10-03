@@ -487,8 +487,15 @@ export interface HostPort {
   focusComposer(expected: HostIdentity): Promise<boolean>;
   /** Only on a human action; its cause is redeemed first (§14). */
   navigate(intent: NavigationIntent): Promise<NavigationReceipt>;
-  /** Snapshot of the freshness counters (§6.7.5). */
-  checkpoint(chat: ChatRef): FreshnessCheckpoint;
+  /**
+   * Snapshot of the freshness counters (§6.7.5), asked on the Generate click:
+   * MAIN takes it in one synchronous step of its handler (only MAIN holds the
+   * counters and the subscription epoch). A fan message that lands between
+   * the click and that step counts as seen before Generate and is covered by the
+   * served-context check (H-4b, §6.7.5). null — no checkpoint (bridge
+   * or capability down): the result can be inserted, never sent.
+   */
+  checkpoint(chat: ChatRef): Promise<FreshnessCheckpoint | null>;
   mounts(): MountPoints;
   onMounts(cb: (mounts: MountPoints) => void): Unsubscribe;
   theme(): HostTheme;

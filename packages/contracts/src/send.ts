@@ -28,9 +28,10 @@ import {
 } from './primitives';
 
 /**
- * Freshness checkpoint, taken synchronously in MAIN on the Generate click and
- * kept unchanged by the operation (§6.7.5). `coverage: 'unknown'` means the
- * observation cannot prove "nothing new", never "nothing new".
+ * Freshness checkpoint, taken synchronously in MAIN when the Generate click's
+ * request reaches it, and kept unchanged by the operation (§6.7.5).
+ * `coverage: 'unknown'` means the observation cannot prove "nothing new",
+ * never "nothing new".
  */
 export const FreshnessCheckpointSchema = z.strictObject({
   documentEpoch: EpochTokenSchema,
@@ -237,9 +238,13 @@ export function sendLockKey(entry: Pick<SendJournalEntry, 'hubOrigin' | 'pageId'
   return `${entry.hubOrigin}|${entry.pageId}|${entry.platform}|${entry.fanRef}`;
 }
 
-/** X8 port of HostPort (§5.2): side-effect-free preflight, exactly one queue call per attempt. */
+/**
+ * X8 port of HostPort (§5.2): side-effect-free preflight, exactly one queue
+ * call per attempt. Both calls go to MAIN, which alone sees the conditions;
+ * a preflight the bridge cannot answer is `{ok: false, code: 'CG-SEND-HOST'}`.
+ */
 export interface PreviewSendPort {
-  preflight(req: PreviewSendRequest): PreviewSendPreflight;
+  preflight(req: PreviewSendRequest): Promise<PreviewSendPreflight>;
   commit(req: PreviewSendRequest, ticket: DispatchTicket): Promise<PreviewSendCommit>;
   onState(attemptId: string, cb: (view: SendAttemptView) => void): () => void;
 }
