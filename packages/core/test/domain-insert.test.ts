@@ -99,7 +99,7 @@ describe('[AI-125] insert guards and intents', () => {
     expect(guard()).toBeNull();
   });
 
-  it('[AI-125] a chat switch, another account, a missing or hidden composer, a changed sign-in, binding or persona refuse before the host', () => {
+  it('[AI-125] [AU-024] [AU-028] a chat switch, another account, a missing or hidden composer, a changed sign-in, binding or persona refuse before the host', () => {
     const otherChat = { ...openChat, platformFanId: '2099' };
     expect(guard({ route: { ...startSnapshot.route, chat: otherChat } })).toBe('CG-INSERT-CHAT-CHANGED');
     expect(guard({ route: { ...startSnapshot.route, name: 'other' } })).toBe('CG-INSERT-CHAT-CHANGED');

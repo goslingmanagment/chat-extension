@@ -57,7 +57,7 @@ export const REPORT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
 export type BeginResult = { readonly ok: true; readonly ticket: DispatchTicket } | { readonly ok: false; readonly view: SendAttemptView };
 
 /** The page's switches and limits for X8, read from the bootstrap at the click. */
-export interface SendPageGate extends Omit<SendGate, 'session' | 'personaDefinitionId'> {
+export interface SendPageGate extends Omit<SendGate, 'session' | 'personaDefinitionId' | 'bindingRevision'> {
   readonly flagRevision: number;
   readonly ticketSec: number;
   readonly pageLabel: string | null;
@@ -116,6 +116,19 @@ interface Attempt {
   resolved?: 'sent' | 'not-sent';
 }
 
+/**
+ * Whether a new click of the same part (same attempt key) may make a new
+ * attempt after `prior`: the frozen retryable ends, a hub resolve «not
+ * sent», and a hold by another unresolved send to the fan (the next click
+ * reads the hub custody again and holds again while it is unresolved).
+ */
+function mayTryAgain(prior: Attempt): boolean {
+  const view = prior.track.view;
+  if (prior.resolved !== undefined) return prior.resolved === 'not-sent';
+  if (view.state === 'held' && view.code === 'CG-SEND-UNCERTAIN') return true;
+  return isRetryableEnd(view.state, view.code);
+}
+
 function isHubCallError(error: unknown): error is { readonly name: 'HubCallError'; readonly failure: HubFailure; readonly epoch: number } {
   return typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'HubCallError' && typeof (error as { failure?: unknown }).failure === 'object';
 }
@@ -144,7 +157,7 @@ export class SendCoordinator {
     // One generation part and preview revision is one attempt, however many clicks arrive.
     const previous = this.byKey.get(key);
     const prior = previous === undefined ? undefined : this.attempts.get(previous);
-    if (prior !== undefined && !isRetryableEnd(prior.track.view.state, prior.track.view.code)) return { ok: false, view: prior.track.view };
+    if (prior !== undefined && !mayTryAgain(prior)) return { ok: false, view: prior.track.view };
 
     const env = this.deps.environment();
     const page = sendPageGate(env.bootstrap, begin.target.binding.pageId);
@@ -172,7 +185,12 @@ export class SendCoordinator {
 
     // 1 — a trusted click of our own UI (AI-120): the `send` token of the surface.
     const surface: Surface = PURPOSE_SURFACE[begin.purpose];
-    if (!this.deps.tokens.redeem({ tabSessionId, kind: 'send', surface, actionToken: begin.cause.actionToken })) return this.holdLocal(attempt, 'CG-SEND-PART');
+    if (!this.deps.tokens.redeem({ tabSessionId, kind: 'send', surface, actionToken: begin.cause.actionToken })) {
+      // A stale or foreign token says nothing about the part: the next real click may try it.
+      if (prior === undefined) this.byKey.delete(key);
+      else this.byKey.set(key, prior.track.view.attemptId);
+      return this.holdLocal(attempt, 'CG-SEND-PART');
+    }
 
     // 1–4, 14 — the background's own conditions.
     const condition = beginCondition(begin, this.opForSend(begin.opId), this.gateOf(env, page, begin.target.binding.pageId));
@@ -256,6 +274,7 @@ export class SendCoordinator {
     return {
       session: env.session === null ? null : { hubOrigin: env.session.hubOrigin, userId: env.session.userId, epoch: env.session.epoch },
       personaDefinitionId: env.persona(pageId)?.definitionId ?? null,
+      bindingRevision: env.bootstrap?.pages.find((page) => page.pageId === pageId)?.bindingRevision ?? null,
       previewSend: page.previewSend,
       newcomers: page.newcomers,
       receiptProfiles: page.receiptProfiles,

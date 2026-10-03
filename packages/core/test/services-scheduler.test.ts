@@ -400,7 +400,7 @@ describe('[RB-002] [RB-003] [RB-004] [RB-005] [RB-006] [AI-132] how an operation
     expect(view).toMatchObject({ state: 'failed', error: { code: 'CG-OUTPUT-UNUSABLE' } });
   });
 
-  it('[AI-126] persona fence: a 409 and a meta with another definition both drop the result and refresh the catalog', async () => {
+  it('[AI-126] [AU-028] persona fence: a 409 and a meta with another definition both drop the result and refresh the catalog', async () => {
     const pre = await ended(scenario('persona-409'));
     expect(pre.view?.error?.code).toBe('CG-PERSONA-CHANGED');
     expect(pre.h.hooks.catalog).toBe(1);

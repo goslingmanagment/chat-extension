@@ -225,7 +225,7 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(h.coordinator.counts()).toEqual({ open: 1, uncertain: 0 });
   });
 
-  it('[AI-120] [SP-054] refusals before the journal: no token, the background conditions; nothing reaches the hub', async () => {
+  it('[AI-120] [SP-054] [AU-024] refusals before the journal: no token, the background conditions; nothing reaches the hub', async () => {
     const h = sendHarness();
     const forged = await h.coordinator.begin(TAB, { ...h.begin(), cause: { kind: 'click', actionToken: 'tok_forged_00000000000' } });
     expect(forged).toEqual({ ok: false, view: { attemptId: A, state: 'held', code: 'CG-SEND-PART' } });
@@ -237,6 +237,8 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     h.env = { ...h.env, bootstrap: withX8(BOOTSTRAP_PILOT_ON), persona: () => ({ ...persona, definitionId: WORLD.persona.otherDefinitionId }) };
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), previewRevision: 3 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-CONTEXT-CHANGED' } });
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x504), opId: uuid(0x199), previewRevision: 4 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-PART' } });
+    h.env = { ...h.env, persona: () => persona, bootstrap: { ...withX8(BOOTSTRAP_PILOT_ON), pages: withX8(BOOTSTRAP_PILOT_ON).pages.map((p) => ({ ...p, bindingRevision: p.bindingRevision + 1 })) } };
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x505), previewRevision: 5 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-CONTEXT-CHANGED' } });
     expect(h.hub.claims).toHaveLength(0);
     expect(h.store.writes).toBe(0);
     expect(await h.coordinator.report({ attemptId: A, state: 'nativeEnqueued' })).toBe(false);
@@ -333,6 +335,25 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
       expect({ resolved, ok: next.ok }).toEqual({ resolved, ok: true });
       expect(h.coordinator.counts().uncertain).toBe(0);
     }
+  });
+
+  it('[X8-01] a stale token does not burn the part; after a hub resolve «not sent» the same part may be clicked again', async () => {
+    const h = sendHarness();
+    expect(await h.coordinator.begin(TAB, { ...h.begin(), cause: { kind: 'click', actionToken: 'tok_expired_0000000000' } })).toMatchObject({ ok: false, view: { code: 'CG-SEND-PART' } });
+    h.hub.claimScript.push(ticketFor(uuid(0x501)));
+    expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501) }))).ok).toBe(true);
+    await report(h, '501', 'uncertain', { code: 'CG-SEND-UNCERTAIN' });
+    // Another part is held by the unresolved one; once the hub resolves «not sent», both may go.
+    h.hub.statusScript.push(okAnswer(uuid(0x501), 'uncertain-held'));
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502), part: { index: 1 } }))).toMatchObject({ ok: false, view: { code: 'CG-SEND-UNCERTAIN' } });
+    h.hub.statusScript.push(okAnswer(uuid(0x501), 'resolved-not-sent'));
+    h.hub.claimScript.push(ticketFor(uuid(0x503)));
+    expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), part: { index: 1 } }))).ok).toBe(true);
+    h.hub.claimScript.push(okAnswer(uuid(0x503), 'failed'));
+    await report(h, '503', 'notEnqueued', { code: 'CG-SEND-QUEUE' });
+    await h.coordinator.idle();
+    h.hub.claimScript.push(ticketFor(uuid(0x504)));
+    expect((await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x504) }))).ok).toBe(true);
   });
 
   it('[NF-022] a ticket that is never reported turns uncertain after its deadline, and nothing is sent again', async () => {

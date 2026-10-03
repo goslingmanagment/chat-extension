@@ -311,7 +311,7 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
     ...over,
   });
 
-  it('[AI-121] no sign-in, a stale binding, no bootstrap, an ungranted page, no persona, a switched-off feature each have their reason', () => {
+  it('[AI-121] [AU-024] no sign-in, a stale binding, no bootstrap, an ungranted page, no persona, a switched-off feature each have their reason', () => {
     expect(startPrecondition(env(), startOf())).toBeNull();
     expect(startPrecondition(env({ session: null }), startOf())).toBe('CG-AUTH-REQUIRED');
     expect(startPrecondition(env({ session: { ...session, epoch: 9 } }), startOf())).toBe('CG-CONTEXT-CHANGED');
@@ -479,7 +479,7 @@ describe('[RB-016] [RB-004] [RB-005] the stream reader', () => {
     expect(state.terminal).toEqual({ kind: 'error', code: 'provider_rate_limited', retryAfterMs: 30_000 });
   });
 
-  it('[AI-126] meta with another persona definition drops the result (§7 «Ограда»)', () => {
+  it('[AI-126] [AU-028] meta with another persona definition drops the result (§7 «Ограда»)', () => {
     const r = readFrame(INITIAL_STREAM_STATE, { ...metaFrame, personaDefinitionId: WORLD.persona.otherDefinitionId }, expect0);
     expect(r.effect).toEqual({ kind: 'terminal', terminal: { kind: 'persona-changed' } });
   });

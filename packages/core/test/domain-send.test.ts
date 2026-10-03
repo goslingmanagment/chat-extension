@@ -114,6 +114,7 @@ function opOf(over: Partial<OpForSend> = {}): OpForSend {
 const gate: SendGate = {
   session: { hubOrigin: session.hubOrigin, userId: session.userId, epoch: session.epoch },
   personaDefinitionId: WORLD.persona.definitionId,
+  bindingRevision: WORLD.pages.one.bindingRevision,
   previewSend: true,
   newcomers: true,
   receiptProfiles: 1,
@@ -458,7 +459,7 @@ describe('[SP-054] [NF-019] the background send conditions (§6.7.4: 1–4, 14)'
     expect(beginCondition(beginOf(), opOf(), gate)).toBeNull();
   });
 
-  it('[SP-054] each failed condition has its code, in table order', () => {
+  it('[SP-054] [X8-03] [AU-024] [AU-028] each failed condition has its code, in table order', () => {
     expect(beginCondition(beginOf(), null, gate)).toBe('CG-SEND-PART');
     expect(beginCondition(beginOf(), opOf({ state: 'streaming' }), gate)).toBe('CG-SEND-PART');
     expect(beginCondition(beginOf(), opOf({ feature: 'review' }), gate)).toBe('CG-SEND-PART');
@@ -471,6 +472,8 @@ describe('[SP-054] [NF-019] the background send conditions (§6.7.4: 1–4, 14)'
     expect(beginCondition(beginOf(), opOf(), { ...gate, session: null })).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, session: { ...gate.session!, epoch: 4 } })).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, personaDefinitionId: WORLD.persona.otherDefinitionId })).toBe('CG-CONTEXT-CHANGED');
+    expect(beginCondition(beginOf(), opOf(), { ...gate, bindingRevision: WORLD.pages.one.bindingRevision + 1 })).toBe('CG-CONTEXT-CHANGED');
+    expect(beginCondition(beginOf(), opOf(), { ...gate, bindingRevision: null })).toBe('CG-CONTEXT-CHANGED');
     expect(beginCondition(beginOf(), opOf(), { ...gate, previewSend: false })).toBe('CG-SEND-OFF');
     expect(beginCondition(beginOf({ purpose: 'greeting' }), opOf({ surface: 'newcomers' }), { ...gate, newcomers: false })).toBe('CG-SEND-OFF');
     expect(beginCondition(beginOf(), opOf(), { ...gate, receiptProfiles: 0 })).toBe('CG-SEND-RECEIPT');

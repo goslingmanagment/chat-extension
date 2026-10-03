@@ -38,6 +38,8 @@ export interface SendGate {
   readonly session: { readonly hubOrigin: string; readonly userId: number; readonly epoch: number } | null;
   /** The persona definition assigned to the page now. */
   readonly personaDefinitionId: string | null;
+  /** The page's binding revision in the current bootstrap; null — the page is not there. */
+  readonly bindingRevision: number | null;
   /** `previewSend` usable on the page (flag, page feature, capability). */
   readonly previewSend: boolean;
   /** `newcomers` usable on the page (greetings only). */
@@ -70,6 +72,7 @@ export function beginCondition(begin: SendBegin, op: OpForSend | null, gate: Sen
   if (canonicalJson(op.target) !== canonicalJson(begin.target)) return 'CG-CONTEXT-CHANGED';
   if (gate.session === null || !sameSession(op.session, gate.session)) return 'CG-CONTEXT-CHANGED';
   if (gate.personaDefinitionId !== op.personaDefinitionId) return 'CG-CONTEXT-CHANGED';
+  if (gate.bindingRevision !== op.target.binding.bindingRevision) return 'CG-CONTEXT-CHANGED';
   // 3, 4 — the owner switch and a verified receipt profile (the hub re-checks the flag on dispatch).
   if (!gate.previewSend || (begin.purpose === 'greeting' && !gate.newcomers)) return 'CG-SEND-OFF';
   if (gate.receiptProfiles === 0) return 'CG-SEND-RECEIPT';
