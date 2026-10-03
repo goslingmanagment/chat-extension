@@ -88,6 +88,8 @@ export class AuthCustody {
   private readable = true;
   private tail: Promise<void> = Promise.resolve();
   private epochController = new AbortController();
+  /** The settings' hub address as of the last sign-in, start or address change (hubOriginChanged). */
+  private knownOrigin: string | null = null;
   /** The sign-in a 401 token_revoked/token_expired ended (memory only), so the call that carried it still reads its own code. */
   private endedByUnauthorized: { readonly epoch: number; readonly token: string } | null = null;
   private readonly listeners = new Set<(change: SessionChange) => void>();
@@ -103,6 +105,7 @@ export class AuthCustody {
 
   /** Reads the stored sign-in once at background start. A failed read never erases anything and never guesses an identity. */
   async load(): Promise<void> {
+    this.knownOrigin = this.deps.configuredOrigin();
     const read = await this.deps.local.get([STORAGE_KEYS.authToken, STORAGE_KEYS.authMeta]);
     if (!read.ok) {
       this.readable = false;
@@ -193,6 +196,7 @@ export class AuthCustody {
     this.meta = meta;
     this.readable = true;
     this.endedByUnauthorized = null;
+    this.knownOrigin = input.hubOrigin;
     this.bump();
     const session = this.session();
     this.emit({ session, reason: 'sign-in', epoch, code: null });
@@ -220,6 +224,32 @@ export class AuthCustody {
       this.emit({ session: null, reason: reason === 'outdated' ? 'sign-out' : reason, epoch, code });
     }
     this.deps.log('info', 'auth: signed out', { epoch, reason });
+  }
+
+  /**
+   * Inside a transition: the settings' hub address changed (§7: an automatic
+   * cancel). When that turns the stored sign-in usable ↔ unusable (AU-016
+   * bound ↔ mismatch), the epoch moves on — every operation under the old
+   * address is cancelled — and `hub-changed` is announced with the session as
+   * it now is. Nothing is erased: sign-out still revokes at the issuing hub,
+   * and going back to that address makes the sign-in usable again. Returns
+   * whether the epoch moved.
+   */
+  async hubOriginChanged(): Promise<boolean> {
+    const origin = this.deps.configuredOrigin();
+    const before = this.knownOrigin;
+    this.knownOrigin = origin;
+    if (before === origin || this.stored === null || !this.readable) return false;
+    const wasBound = this.stored.hubOrigin === before;
+    if (wasBound === (this.stored.hubOrigin === origin)) return false;
+    const epoch = this.meta.epoch + 1;
+    this.meta = { ...this.meta, epoch };
+    this.bump();
+    const written = await this.deps.local.set({ [STORAGE_KEYS.authMeta]: this.meta });
+    if (!written.ok) this.deps.log('error', 'auth: epoch write failed', { code: written.code, epoch });
+    this.emit({ session: this.session(), reason: 'hub-changed', epoch, code: null });
+    this.deps.log('info', 'auth: hub address changed', { epoch, bound: !wasBound });
+    return true;
   }
 
   /** Erases the storage key again, without a new epoch (sign-out step 3, AU-013). */

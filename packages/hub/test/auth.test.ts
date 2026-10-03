@@ -377,6 +377,46 @@ describe('[AU-016] [AU-021] [HB-001] the sign-in is bound to the hub address', (
     expect(h.facade.status().auth).toBe('none');
   });
 
+  it('[AU-016] a hub address change cancels the running calls and announces hub-changed; going back restores the sign-in', async () => {
+    await signIn(h, WORLD_PILOT);
+    const epoch = h.facade.epochSignal();
+    h.hub.on('clientBootstrap', () => 'hang');
+    const running = h.facade.bootstrap({ force: true }).catch((error: unknown) => error);
+    await flush(20);
+    h.env.origin = 'https://other-hub.example.test';
+    await h.facade.notifyHubOriginChanged();
+    expect(epoch.aborted).toBe(true);
+    expect(isHubCallError(await running)).toBe(true);
+    expect(h.changes.at(-1)).toEqual({ session: null, reason: 'hub-changed', epoch: 2, code: null });
+    expect(h.facade.status()).toMatchObject({ auth: 'mismatch', state: 'auth-failed' });
+    expect((h.local.data.get(STORAGE_KEYS.authMeta) as { epoch: number }).epoch).toBe(2);
+    // Nothing erased: the stored sign-in is still the issuing hub's.
+    expect((h.local.data.get(STORAGE_KEYS.authToken) as { hubOrigin: string }).hubOrigin).toBe(WORLD.hubOrigin);
+    // Another unusable address, or the same one again: no new epoch.
+    h.env.origin = 'https://third-hub.example.test';
+    await h.facade.notifyHubOriginChanged();
+    await h.facade.notifyHubOriginChanged();
+    expect(h.changes).toHaveLength(2);
+    // Back to the issuing hub: usable again under a new epoch, its bootstrap read anew.
+    h.hub.on('clientBootstrap', () => json(200, BOOTSTRAP_PILOT_ON));
+    const asked = h.hub.of('clientBootstrap').length;
+    h.env.origin = WORLD.hubOrigin;
+    await h.facade.notifyHubOriginChanged();
+    expect(h.changes.at(-1)).toMatchObject({ reason: 'hub-changed', epoch: 3, session: { epoch: 3, hubOrigin: WORLD.hubOrigin } });
+    expect(h.facade.session()?.epoch).toBe(3);
+    await flush(20);
+    expect(h.hub.of('clientBootstrap')).toHaveLength(asked + 1);
+    expect(h.facade.cachedBootstrap()?.bootstrap.configRevision).toBe(BOOTSTRAP_PILOT_ON.configRevision);
+  });
+
+  it('[AU-016] an address change with nobody signed in changes nothing', async () => {
+    await h.facade.ready;
+    h.env.origin = 'https://other-hub.example.test';
+    await h.facade.notifyHubOriginChanged();
+    expect(h.changes).toEqual([]);
+    expect(h.local.writes).toEqual([]);
+  });
+
   it('[AU-016] an unreadable stored sign-in is never guessed nor erased: CG-STORAGE-READ', async () => {
     const local = new MemoryStore({ [STORAGE_KEYS.authToken]: { v: 1, token: 'x' } });
     h = makeHarness({ paths: HUB_ROUTE_PATHS, local });

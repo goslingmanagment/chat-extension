@@ -459,6 +459,22 @@ export class ChatExtensionHub implements HubFacade {
     return { checkedAt: new Date(this.ctx.clock.now()).toISOString(), health: result(health), bootstrap: result(bootstrap), catalog: result(catalog) };
   }
 
+  /**
+   * `settings.hub.baseUrl` changed (the settings service calls this; ST-042
+   * normally allows it only signed out). A stored sign-in that this makes
+   * unusable (another hub) or usable again gets a new epoch: the operations
+   * of the old address are cancelled and `session.changed` says `hub-changed`
+   * (§7). Usable again: the bootstrap and the catalog are read anew.
+   */
+  async notifyHubOriginChanged(): Promise<void> {
+    await this.ready;
+    const moved = await this.custody.transition(() => this.custody.hubOriginChanged());
+    if (moved && this.custody.current() !== null) {
+      this.bootstrapService.refresh().catch(() => undefined);
+      this.catalogService.refresh().catch(() => undefined);
+    }
+  }
+
   /** A ChatSpace tab got focus: refresh the bootstrap at most once per 60 s. */
   notifyFocus(): void {
     this.bootstrapService.onFocus();

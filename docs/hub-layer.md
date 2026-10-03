@@ -125,6 +125,12 @@ const hub = new ChatExtensionHub({
 - события: `onSessionChange` → `session.changed`, `onBootstrapChange` →
   `bootstrap.changed`, `onCatalogChange` → `catalog.changed`,
   `onQuotaChange` → `quota.changed`, `onStreamNotice` → состояние операции;
+- `notifyHubOriginChanged()` — служба настроек вызывает при каждой смене
+  `settings.hub.baseUrl`. Обычно адрес меняется только без входа (ST-042), но
+  если вход есть и смена делает его непригодным (другой хаб, AU-016) или снова
+  пригодным, эпоха растёт, операции старого адреса отменяются, а
+  `onSessionChange` приходит с причиной `hub-changed` (§7). Вход не стирается:
+  выход отзывает токен у хаба-издателя, а возврат адреса снова его включает;
 - `notifyFocus()` — на фокус вкладки ChatSpace (не чаще раза в 60 с сам);
   `checkConnection()` — «Проверить связь»; `status()` — строка «Связь» и раздел
   «Аккаунт»;
