@@ -36,6 +36,7 @@ import {
   target,
   uuid,
 } from './samples';
+import { VM_SCHEMA_FIXTURES } from './vm';
 
 export interface SchemaFixture {
   readonly name: string;
@@ -681,5 +682,8 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   // ── scaffold liveness ──
   fixture('TabHello', C.TabHelloSchema, [{ t: 'hello', v: 1 }], [{ t: 'hello', v: 2 }]),
   fixture('BackgroundStatus', C.BackgroundStatusSchema, [{ t: 'status', v: 1, wsTapRegistered: false, testBuild: false }], [{ t: 'status', v: 1, wsTapRegistered: false }]),
+
+  // ── UI contract (vm) ──
+  ...VM_SCHEMA_FIXTURES,
 ];
 

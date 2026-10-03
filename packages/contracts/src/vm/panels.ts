@@ -1,0 +1,129 @@
+// Side panel, palette, quick jump, cheatsheet and toasts (architecture.md
+// §9.1, §9.5, §10.2; ui-design §4.18, §4.20–§4.22). Every row that does
+// something carries the UiAction the controller prepared; the UI dispatches
+// it unchanged.
+
+import { type CgCode } from '../errors';
+import { type IsoTimestamp, type MoneyMills } from '../primitives';
+import { type UiAction } from './actions';
+import { type HotkeyLabel, type HotkeyPlatform, type ReasonVM } from './catalog';
+import { type Msg } from './i18n';
+import { type ToastId } from './selectors';
+import { type ActionButtonVM, type DataStamp, type VmView } from './view';
+
+/** The fan panel (CS-031…CS-038): who this is, money by kind, subscription, ChatSpace's own scores if in memory, bio, Recap tab. */
+export interface FanPanelVM {
+  /** `empty` — «Выберите чат»; `partial` — some blocks unknown (no dossier, host scores not loaded). */
+  readonly view: VmView;
+  readonly tab: 'fan' | 'recap';
+  /** Header when no chat is open: «ChatGoose» and the persona label. */
+  readonly personaLabel: string | null;
+  readonly fan: {
+    readonly name: string;
+    readonly username: string | null;
+    /** Avatars are initials only: no remote images. */
+    readonly initials: string;
+    readonly lastSeenAt: IsoTimestamp | null;
+    readonly online: boolean | null;
+  } | null;
+  readonly spent: {
+    readonly total: MoneyMills | null;
+    readonly period30: MoneyMills | null;
+    readonly byKind: readonly { readonly kind: 'messages' | 'tips' | 'subscription' | 'posts' | 'other'; readonly mills: MoneyMills | null }[];
+  } | null;
+  readonly subscription: {
+    readonly months: number | null;
+    readonly since: IsoTimestamp | null;
+    readonly autoRenew: boolean | null;
+    readonly churnRisk: 'low' | 'medium' | 'high' | null;
+  } | null;
+  /** Buying power and ChatSpace's scores, only if ChatSpace already holds them. */
+  readonly host: { readonly buyingPower: string | null; readonly scores: readonly { readonly label: string; readonly value: string }[] } | null;
+  readonly bio: string | null;
+  readonly lists: readonly string[];
+  /** «Данные на 09:18», «архив полный, 412 сообщений». */
+  readonly footer: { readonly stamp: DataStamp; readonly archiveMessages: number | null };
+  readonly close: UiAction;
+}
+
+export type PaletteGroupId = 'actions' | 'running' | 'waiting' | 'chats' | 'accounts' | 'navigation' | 'online';
+
+export interface PaletteItemVM {
+  readonly id: string;
+  readonly label: string | Msg;
+  readonly sublabel: string | null;
+  /** Matched ranges of `label` (underlined, strong), as [start, end) pairs. */
+  readonly match: readonly (readonly [number, number])[];
+  readonly hotkey: HotkeyLabel | null;
+  /** «$12,480, ждёт 7 мин» on the right. */
+  readonly money: MoneyMills | null;
+  readonly waitingSince: IsoTimestamp | null;
+  /** A running generation: spinner and «14 с» from here. */
+  readonly runningSince: number | null;
+  readonly enabled: boolean;
+  readonly reason: ReasonVM | null;
+  readonly action: UiAction;
+}
+
+export interface PaletteVM {
+  /** `empty` — nothing matches; `partial` — a source (Spenders, «Новые», the host list) is missing. */
+  readonly view: VmView;
+  readonly query: string;
+  readonly groups: readonly { readonly id: PaletteGroupId; readonly title: Msg; readonly items: readonly PaletteItemVM[] }[];
+  /** «Чаты: Spenders и Новые, 43 фана». */
+  readonly footer: Msg | null;
+}
+
+/** Holding the modifier 400 ms over ⌘1–9 (§9.1). */
+export interface QuickJumpVM {
+  readonly view: VmView;
+  readonly items: readonly {
+    readonly slot: number;
+    readonly name: string | null;
+    readonly username: string | null;
+    readonly unread: number | null;
+    readonly action: UiAction;
+  }[];
+}
+
+export interface CheatsheetVM {
+  /** `partial` — some combinations are reserved or not yet measured on this browser. */
+  readonly view: VmView;
+  readonly platform: HotkeyPlatform;
+  readonly groups: readonly {
+    readonly id: string;
+    readonly title: Msg;
+    readonly rows: readonly {
+      readonly label: Msg;
+      readonly hotkey: HotkeyLabel | null;
+      /** «пока убран» (⌘⇧H), «нет клавиши» («Отправить»), «браузер не отдаёт». */
+      readonly note: Msg | null;
+    }[];
+  }[];
+  readonly note: Msg;
+}
+
+export const TOAST_KINDS = ['info', 'success', 'warning', 'error'] as const;
+export type ToastKind = (typeof TOAST_KINDS)[number];
+
+export interface ToastVM {
+  readonly id: ToastId;
+  readonly kind: ToastKind;
+  /** First line «ChatGoose · CG-…» of our errors. */
+  readonly code: CgCode | null;
+  readonly title: string;
+  readonly body: string | null;
+  /** «Открыть чат», «Настройки» (deep link by code), etc. */
+  readonly actions: readonly ActionButtonVM[];
+  /** «Скопировать код» through ClipboardPort. */
+  readonly copyCode: boolean;
+  /** 4.5 s, errors 6.5 s; null while held by hover or focus. */
+  readonly expiresAt: number | null;
+}
+
+export interface ToastsVM {
+  /** `empty` — none on screen. */
+  readonly view: VmView;
+  /** Newest first, at most three; same code and scope replace each other (ER-009…ER-015). */
+  readonly toasts: readonly ToastVM[];
+}

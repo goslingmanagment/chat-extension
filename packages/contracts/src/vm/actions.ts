@@ -1,0 +1,254 @@
+// UI actions (architecture.md §10.2 «Действия UI»): the only way the UI asks
+// for anything. The UI holds opaque handles and operation/part numbers, never
+// a target, a persona, a model or a provider address; the controller fills in
+// the target and the policy and re-checks ownership of every result, variant
+// and part before an insert or a send. Objects are strict: an extra key is a
+// rejection, so the UserOptions allowlist holds at run time too.
+
+import * as z from 'zod/mini';
+
+import { CgCodeSchema, SettingsRouteSchema } from '../errors';
+import { FeatureIdSchema, ToneSchema } from '../features';
+import { PART_LIMITS } from '../ids';
+import { COACH_LIMITS } from '../ops';
+import { UuidSchema, boundedText, displayText } from '../primitives';
+import { SettingsV1Schema } from '../settings';
+import { SEND_LIMITS } from '../limits';
+import { type SpendersPeriodSchema } from '../tab-messages';
+import { HandleSchema, JOURNAL_KINDS, MOUNT_SURFACES, OVERLAY_SURFACES, ViewSelectorSchema } from './selectors';
+
+const ui = SettingsV1Schema.shape.ui.shape;
+const generation = SettingsV1Schema.shape.generation.shape;
+const sound = SettingsV1Schema.shape.sound.shape;
+const debug = SettingsV1Schema.shape.debug.shape;
+const onboarding = SettingsV1Schema.shape.onboarding.shape;
+
+/**
+ * Settings the UI changes directly with SetPreference, by their path in
+ * SettingsV1, each with the value schema of that setting. Maps (account
+ * labels, muted accounts, persona per page) have their own actions; the
+ * background owns the write and answers with a revision (ST-013…ST-015).
+ */
+export const PREFERENCE_VALUE_SCHEMAS = {
+  'hub.baseUrl': SettingsV1Schema.shape.hub.shape.baseUrl,
+  'ui.theme': ui.theme,
+  'ui.locale': ui.locale,
+  'ui.hints': ui.hints,
+  'ui.resultStyle': ui.resultStyle,
+  'generation.split': generation.split,
+  'generation.windows.quick': generation.windows.shape.quick,
+  'generation.windows.ping': generation.windows.shape.ping,
+  'generation.windows.improve': generation.windows.shape.improve,
+  'generation.windows.deep': generation.windows.shape.deep,
+  'generation.coach.historyLimit': generation.coach.shape.historyLimit,
+  'generation.coach.autoRecap': generation.coach.shape.autoRecap,
+  'sound.messages.on': sound.messages.shape.on,
+  'sound.messages.tone': sound.messages.shape.tone,
+  'sound.subscribers.on': sound.subscribers.shape.on,
+  'sound.subscribers.tone': sound.subscribers.shape.tone,
+  'sound.volume': sound.volume,
+  'debug.enabled': debug.enabled,
+  'debug.renderTrace': debug.renderTrace,
+  'onboarding.checklistDismissed': onboarding.checklistDismissed,
+  'onboarding.keysFooter.dismissed': onboarding.keysFooter.shape.dismissed,
+} as const;
+
+export type PreferenceKey = keyof typeof PREFERENCE_VALUE_SCHEMAS;
+export const PREFERENCE_KEYS = Object.keys(PREFERENCE_VALUE_SCHEMAS) as PreferenceKey[];
+export const PreferenceKeySchema = z.enum(PREFERENCE_KEYS as [PreferenceKey, ...PreferenceKey[]]);
+export type PreferenceValues = { readonly [K in PreferenceKey]: z.infer<(typeof PREFERENCE_VALUE_SCHEMAS)[K]> };
+
+/**
+ * The allowlist of what a person may choose for one generation (§10.2):
+ * tone (Reply only, one-off, Б1), Split (Б7), the message window (clamped by
+ * the controller to settings and bootstrap `deepMax`), the variant count (Hi),
+ * the Coach question, preset and «приложить мой ответ». The Recap mode is the
+ * feature itself (`recap` / `recap-short`). No persona, model or provider.
+ */
+export const UserOptionsSchema = z.strictObject({
+  tone: z.optional(z.nullable(ToneSchema)),
+  split: z.optional(z.boolean()),
+  window: z.optional(z.int().check(z.gte(1), z.lte(3000))),
+  variants: z.optional(z.union([z.literal(1), z.literal(3)])),
+  question: z.optional(boundedText(COACH_LIMITS.questionMaxChars)),
+  preset: z.optional(z.literal('situation')),
+  attachMyDraft: z.optional(z.boolean()),
+});
+export type UserOptions = z.infer<typeof UserOptionsSchema>;
+
+/** Where Navigate goes. Host navigation happens only on a human click or key, through the dispatcher (§6.9). */
+export const NavigationTargetSchema = z.discriminatedUnion('kind', [
+  /** Open a fan's chat in ChatSpace: «Открыть чат», «Перейти», a palette or quick-jump row, a toast. */
+  z.strictObject({ kind: z.literal('chat'), targetHandle: HandleSchema }),
+  /** J / K over the chat list the person sees. */
+  z.strictObject({ kind: z.literal('chat-step'), direction: z.enum(['next', 'previous']) }),
+  /** ⌘U / Ctrl+U. */
+  z.strictObject({ kind: z.literal('next-unread') }),
+  /** ⌘1–9: the N-th chat of the visible list. */
+  z.strictObject({ kind: z.literal('chat-slot'), slot: z.int().check(z.gte(1), z.lte(9)) }),
+  /** «к вкладке» of an OnlyMonster account (Б13). */
+  z.strictObject({ kind: z.literal('account'), accountHandle: HandleSchema }),
+  z.strictObject({ kind: z.literal('surface'), surface: z.enum(OVERLAY_SURFACES), open: z.boolean() }),
+  z.strictObject({ kind: z.literal('page'), page: z.enum(['whats-new', 'changelog']) }),
+  /** debug-prompt.html with the snapshot's opaque token (DB-007). */
+  z.strictObject({ kind: z.literal('debug-prompt'), promptHandle: HandleSchema }),
+  z.strictObject({ kind: z.literal('journal'), journal: z.enum(JOURNAL_KINDS) }),
+]);
+export type NavigationTarget = z.infer<typeof NavigationTargetSchema>;
+
+export type SpendersPeriod = z.infer<typeof SpendersPeriodSchema>;
+/** The board periods (same list as the `spenders.board` request, pinned by a test); kept local so actions do not load the tab registry. */
+const SpendersPeriodChoiceSchema = z.enum(['lifetime', '30d', 'mtd', '7d', 'today'] as const satisfies readonly SpendersPeriod[]);
+/** Board filters (SP-008…SP-010): one pressed at a time per group, the controller decides the grouping. */
+export const SPENDERS_FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history'] as const;
+export type SpendersFilter = (typeof SPENDERS_FILTERS)[number];
+/** «Всё время ↓» sorts shelves by sum; «Фан писал» by recency of the fan's last message. */
+export const SPENDERS_SORTS = ['sum', 'fan-age'] as const;
+export type SpendersSort = (typeof SPENDERS_SORTS)[number];
+
+export const NEWCOMERS_TABS = ['todo', 'all'] as const;
+export type NewcomersTab = (typeof NEWCOMERS_TABS)[number];
+/** Greeting status filters with counters (NF-008). */
+export const GREETING_FILTERS = ['any', 'none', 'claimed', 'sending', 'stopped', 'greeted'] as const;
+export type GreetingFilter = (typeof GREETING_FILTERS)[number];
+/** «Новые» window, hours (§8.5: quick 24/48/72/168, any 1–720 within bootstrap `audienceWindowHours`). */
+export const NEWCOMERS_WINDOW_HOURS = { min: 1, max: 720, quick: [24, 48, 72, 168], default: 48 } as const;
+
+export const RECAP_LENGTHS = ['short', 'full'] as const;
+export type RecapLength = (typeof RECAP_LENGTHS)[number];
+
+const part = z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1));
+const variant = z.optional(z.int().check(z.gte(0), z.lte(PART_LIMITS.maxVariants - 1)));
+const act = <T extends string, S extends z.core.$ZodLooseShape>(type: T, shape: S) => z.strictObject({ type: z.literal(type), ...shape });
+
+const GenerateActionSchema = act('Generate', {
+  targetHandle: HandleSchema,
+  feature: FeatureIdSchema,
+  options: UserOptionsSchema,
+}).check(
+  z.refine((a) => a.options.tone === undefined || a.options.tone === null || a.feature === 'reply', {
+    message: 'a tone belongs to Reply only',
+  }),
+  z.refine((a) => a.options.variants === undefined || a.feature === 'hi', { message: 'variants belong to Hi only' }),
+  z.refine(
+    (a) => (a.options.question === undefined && a.options.preset === undefined && a.options.attachMyDraft === undefined) || a.feature === 'coach',
+    { message: 'question, preset and attachMyDraft belong to Coach only' },
+  ),
+  z.refine((a) => a.options.split !== true || (a.feature !== 'recap' && a.feature !== 'recap-short' && a.feature !== 'review'), {
+    message: 'Recap and Review are not messages to the fan: no Split',
+  }),
+);
+
+const SetPreferenceActionSchema = act('SetPreference', { key: PreferenceKeySchema, value: z.unknown() }).check(
+  z.refine((a) => PREFERENCE_VALUE_SCHEMAS[a.key].safeParse(a.value).success, { message: 'value does not fit the preference' }),
+);
+
+export const UiActionSchema = z.discriminatedUnion('type', [
+  // ── generation and results (§10.2) ──
+  GenerateActionSchema,
+  /** «Ещё раз»: a new generation with the original's tone, bypassing the result cache (AI-007, AI-128). */
+  act('Regenerate', { operationId: UuidSchema }),
+  act('CancelGeneration', { operationId: UuidSchema }),
+  /** «Скрыть»: collapses, keeps the result; the same click with the same parameters opens it again. */
+  act('HideResult', { operationId: UuidSchema }),
+  /** «Развернуть ↗» (UI-014). */
+  act('ExpandResult', { operationId: UuidSchema, expanded: z.boolean() }),
+  /** The one-off tone of the next Reply in this target; «Без тона» = null (AI-005, AI-008). */
+  act('SetTone', { targetHandle: HandleSchema, tone: z.nullable(ToneSchema) }),
+  act('InsertPart', { operationId: UuidSchema, variant, part }),
+  /** Fix: the click is the consent for the revision Fix was made from (Б2). */
+  act('ReplaceMyDraft', { operationId: UuidSchema, part }),
+  /** «Вернуть мой текст», 30 s after Fix, CAS on the post-Fix revision. */
+  act('RestoreMyDraft', { operationId: UuidSchema }),
+  act('AnswerConfirm', { confirmationId: UuidSchema, choice: z.enum(['replace', 'append', 'cancel']) }),
+  act('OpenAndInsertPart', { operationId: UuidSchema, variant, part }),
+  /** X8: a button click only; never a hotkey, never «send all», never the next part by itself. */
+  act('SendPart', { operationId: UuidSchema, variant, part }),
+  act('OpenChatToVerify', { attemptId: UuidSchema }),
+  /** Writes `copied` only after the clipboard write succeeded. */
+  act('Copy', { artifactHandle: HandleSchema }),
+
+  // ── previews, archive, Recap, Coach ──
+  act('OpenPreview', { targetHandle: HandleSchema }),
+  act('RefreshArchive', { targetHandle: HandleSchema }),
+  /** Older feed pages by the server cursor when scrolling up (SP-053). */
+  act('LoadOlder', { targetHandle: HandleSchema }),
+  /** The local draft of a preview (Fix source, a greeting): never goes to ChatSpace by itself. */
+  act('SetPreviewDraft', { targetHandle: HandleSchema, text: displayText(SEND_LIMITS.previewDraftMaxChars) }),
+  /** «Коротко | Полностью», «Открыть последний»: shows a saved slot, never generates. */
+  act('ShowRecap', { length: z.enum(RECAP_LENGTHS) }),
+  /** «↻ Обновить»: a new Recap from the fresh archive, bypassing the cache. */
+  act('RefreshRecap', { length: z.enum(RECAP_LENGTHS) }),
+  act('NewCoachDialog', {}),
+  /** CG-RECAP-SAVE «Сохранить ещё раз»: the idempotent dossier reference write only, never a new generation. */
+  act('RetryRecapSave', { length: z.enum(RECAP_LENGTHS) }),
+
+  // ── lists ──
+  act('SetSpendersPeriod', { period: SpendersPeriodChoiceSchema }),
+  act('SetSpendersFilter', { filter: z.enum(SPENDERS_FILTERS) }),
+  act('SetSpendersSort', { sort: z.enum(SPENDERS_SORTS) }),
+  /** «Сбросить фильтры». */
+  act('ResetFilters', { list: z.enum(['spenders', 'newcomers']) }),
+  /** Debounced by the controller (150 ms, IME-safe, SP-019). */
+  act('Search', { list: z.enum(['spenders', 'newcomers', 'palette']), query: displayText(200) }),
+  /** A collapsed shelf «ещё N · показать», or a click on a shelf in the stats (SP-045). */
+  act('RevealShelf', { shelfId: HandleSchema }),
+  act('SetStatsExpanded', { expanded: z.boolean() }),
+  act('SetNewcomersTab', { tab: z.enum(NEWCOMERS_TABS) }),
+  act('SetNewcomersFilter', { filter: z.enum(GREETING_FILTERS) }),
+  act('SetNewcomersWindow', { hours: z.int().check(z.gte(NEWCOMERS_WINDOW_HOURS.min), z.lte(NEWCOMERS_WINDOW_HOURS.max)) }),
+  act('LoadMore', { list: z.enum(['spenders', 'newcomers']) }),
+  /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
+  act('RenewClaim', { targetHandle: HandleSchema }),
+  act('ReleaseClaim', { targetHandle: HandleSchema }),
+  act('SetFanPanelTab', { tab: z.enum(['fan', 'recap']) }),
+
+  // ── toasts ──
+  act('DismissToast', { toastId: HandleSchema }),
+  /** Hover or focus inside a toast holds its timer (ui-design §4.22). */
+  act('HoldToast', { toastId: HandleSchema, hold: z.boolean() }),
+
+  // ── navigation and settings ──
+  act('Navigate', { to: NavigationTargetSchema }),
+  act('OpenSettings', { route: SettingsRouteSchema }),
+  SetPreferenceActionSchema,
+  act('SetAccountLabel', { accountHandle: HandleSchema, label: z.nullable(boundedText(60)) }),
+  act('SetAccountMuted', { accountHandle: HandleSchema, muted: z.boolean() }),
+  act('ChoosePersona', { pageHandle: HandleSchema, personaKey: boundedText(64) }),
+  /** Only from the options page; the password goes to the background and is never stored. */
+  act('SignIn', { login: boundedText(128), password: boundedText(256) }),
+  act('SignOut', {}),
+  /** «Проверить всё» (not more often than every 10 s) and the popup's «Обновить статус». */
+  act('RecheckStatus', {}),
+  /** «Повторить» of a failed read: a safe read of that view only. */
+  act('ReloadView', { selector: ViewSelectorSchema }),
+  /** CG-RUNTIME-RELOADED «Перезагрузить вкладку». */
+  act('ReloadTab', {}),
+  /** CG-UI-FAILED «Перезагрузить панель». */
+  act('ReloadSurface', { surface: z.enum(MOUNT_SURFACES) }),
+  /** «Скопировать отчёт» / «…для тимлида»: a short redacted text, no correspondence, no fan money. */
+  act('CopyReport', { scope: z.enum(['status', 'error']), code: z.optional(CgCodeSchema) }),
+  act('ExportDiagnostics', {}),
+  /** The UI asks DialogPort first; `confirmed` records that it did. */
+  act('ClearLocalData', { confirmed: z.literal(true) }),
+  act('TestSound', { which: z.enum(['messages', 'subscribers']) }),
+  /** `permissions.request` inside the click (ST-121, §9.6 consent). */
+  act('RequestPermission', { kind: z.enum(['data-collection', 'hub-host', 'chatspace-host']) }),
+  /** «не сохранено · Повторить» (ST-015). */
+  act('RetrySettingsWrite', {}),
+  /** «Сохранить .txt» of a journal (NF-029). */
+  act('SaveJournal', { journal: z.enum(JOURNAL_KINDS) }),
+]);
+
+type UiActionWire = z.infer<typeof UiActionSchema>;
+
+/** SetPreference with its value typed by the key. */
+export type SetPreferenceAction = {
+  [K in PreferenceKey]: { readonly type: 'SetPreference'; readonly key: K; readonly value: PreferenceValues[K] };
+}[PreferenceKey];
+
+export type UiAction = Exclude<UiActionWire, { type: 'SetPreference' }> | SetPreferenceAction;
+export type UiActionType = UiAction['type'];
+export type UiActionOf<T extends UiActionType> = Extract<UiAction, { type: T }>;
+
+export const UI_ACTION_TYPES: readonly UiActionType[] = UiActionSchema._zod.def.options.map((option) => option.shape.type._zod.def.values[0] as UiActionType);
