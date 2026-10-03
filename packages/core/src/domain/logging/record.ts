@@ -141,6 +141,57 @@ export function buildRecord(input: RecordInput, env: RecordEnvironment): LogReco
   }
 }
 
+/** UTF-8 bytes of a string (core has no TextEncoder). */
+export function utf8Length(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    if (c < 0x80) bytes += 1;
+    else if (c < 0x800) bytes += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < text.length) {
+      const next = text.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        i += 1;
+      } else bytes += 3;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/** UTF-8 bytes of the JSON form of a value; 0 for what JSON cannot write. */
+export function jsonBytes(value: unknown): number {
+  try {
+    const text = JSON.stringify(value);
+    return typeof text === 'string' ? utf8Length(text) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * The background's second pass over a record that a tab or a page sent
+ * (LG-003, LG-011): the same redaction again, now with the live secrets the
+ * tab never had (the token and its tail), within the background's 8 KiB, the
+ * sender's ctx added. Idempotent for anything the background wrote itself.
+ */
+export function redactRecord(
+  record: LogRecord,
+  redactor: Pick<Redactor, 'text'>,
+  options: { readonly maxBytes?: number; readonly ctx?: RecordInput['ctx'] } = {},
+): LogRecord {
+  const at = Date.parse(record.ts);
+  const input: { -readonly [K in keyof RecordInput]: RecordInput[K] } = {
+    level: record.level,
+    scope: record.scope,
+    msg: record.msg,
+    ctx: { ...(record.ctx ?? {}), ...(options.ctx ?? {}) },
+  };
+  if (record.code !== undefined) input.code = record.code;
+  if (record.fields !== undefined) input.fields = record.fields;
+  return buildRecord(input, { now: Number.isFinite(at) ? at : 0, seq: record.seq, redactor, maxBytes: options.maxBytes ?? LOG_LIMITS.maxRecordBytes });
+}
+
 /** The file/console line (LG-007): ISO time, level, [scope], CG code, fields as JSON. */
 export function formatRecordLine(record: LogRecord): string {
   const parts = [record.ts, record.level.toUpperCase().padEnd(5), `[${record.scope}]`];

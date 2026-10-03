@@ -13,6 +13,7 @@ import {
   createRedactor,
   formatRecordLine,
   isAllowedStringField,
+  jsonBytes,
   lengthMark,
   localDayKey,
   logEvent,
@@ -21,12 +22,14 @@ import {
   logUsage,
   normalizeScope,
   recordBytes,
+  redactRecord,
   sanitizeFields,
   sanitizeValue,
   scrubText,
   serializeError,
   tokenSecrets,
   truncateText,
+  utf8Length,
   type ConsolePort,
   type LogEventId,
 } from './index';
@@ -528,5 +531,30 @@ describe('mandatory events', () => {
     const h = harness();
     logUsage(h.logger, { feature: 'reply', generationRef: OP, inputTokens: 3412, outputTokens: 286, cacheWriteTokens: 0, cacheReadTokens: 3000, costMicroUsd: 14_300, costApproximate: false, cacheHit: true }, { opId: OP });
     expect(h.sunk[0]).toMatchObject({ msg: 'generation usage', ctx: { opId: OP }, fields: { inputTokens: 3412, costMicroUsd: 14_300, generationRef: OP } });
+  });
+});
+
+describe('[LG-005] sizes of records', () => {
+  it('[LG-005] UTF-8 bytes of text and JSON, surrogate pairs and lone halves included', () => {
+    expect(utf8Length('abc')).toBe(3);
+    expect(utf8Length('жё')).toBe(4);
+    expect(utf8Length('€')).toBe(3);
+    expect(utf8Length('😀')).toBe(4);
+    expect(utf8Length('\ud83d')).toBe(3);
+    expect(utf8Length('\ud83dx')).toBe(4);
+    expect(jsonBytes({ a: 'ж' })).toBe(10);
+    const cyclic: Record<string, unknown> = {};
+    cyclic['self'] = cyclic;
+    expect(jsonBytes(cyclic)).toBe(0);
+    expect(jsonBytes(undefined)).toBe(0);
+  });
+
+  it('[LG-003] redactRecord keeps time and order, adds ctx, and is a no-op on a clean record', () => {
+    const redactor = createRedactor();
+    redactor.setToken(TOKEN);
+    const clean = buildRecord({ level: 'info', scope: 'bg.ops', msg: 'op started', fields: { feature: 'reply', text: 'hello' } }, { now: T0, seq: 3, redactor, maxBytes: LOG_LIMITS.maxRecordBytes });
+    expect(redactRecord(clean, redactor)).toEqual(clean);
+    const again = redactRecord({ ...clean, ts: 'not a time', msg: `uses ${TOKEN}` }, redactor, { ctx: { opId: OP } });
+    expect(again).toMatchObject({ ts: new Date(0).toISOString(), seq: 3, msg: 'uses [redacted]', ctx: { opId: OP } });
   });
 });

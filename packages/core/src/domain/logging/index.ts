@@ -22,7 +22,20 @@ export {
   type SanitizeLimits,
   type SanitizeOptions,
 } from './redact';
-export { MSG_MAX_CHARS, buildRecord, cleanCtx, formatRecordLine, normalizeScope, recordBytes, type LogCtx, type RecordEnvironment, type RecordInput } from './record';
+export {
+  MSG_MAX_CHARS,
+  buildRecord,
+  cleanCtx,
+  formatRecordLine,
+  jsonBytes,
+  normalizeScope,
+  recordBytes,
+  redactRecord,
+  utf8Length,
+  type LogCtx,
+  type RecordEnvironment,
+  type RecordInput,
+} from './record';
 export { Ring } from './ring';
 export { CodeCounters, localDayKey, type CodeCount, type CodeCountersSnapshot } from './counters';
 export { createLogger, type ConsolePort, type LogOptions, type LogSink, type Logger, type LoggerOptions, type LoggerStats } from './logger';
