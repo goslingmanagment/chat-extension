@@ -14,6 +14,7 @@
     "./settings": "./src/settings.ts",
     "./send": "./src/send.ts",
     "./host": "./src/host.ts",
+    "./ops": "./src/ops.ts",
     "./bridge": "./src/bridge.ts",
     "./tab-protocol": "./src/tab-protocol.ts"
   },
