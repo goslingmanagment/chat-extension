@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+  - vendor/*
+
+# pnpm 10 blocks dependency install scripts by default. None are needed:
+# WebdriverIO downloads geckodriver itself at run time, and esbuild (pulled in
+# by tsx for the wdio config) ships its binary as an optional dependency.
+onlyBuiltDependencies: []
+ignoredBuiltDependencies:
+  - edgedriver
+  - esbuild
+  - geckodriver

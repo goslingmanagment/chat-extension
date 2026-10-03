@@ -1,0 +1,9 @@
+{
+  "name": "@cg/hub",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@cg/contracts": "workspace:*", "@cg/core": "workspace:*", "@cg/platform": "workspace:*", "@kernel/sdk": "workspace:*" }
+}

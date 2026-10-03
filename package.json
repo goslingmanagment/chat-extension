@@ -1,0 +1,42 @@
+{
+  "name": "chat-extension",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.1",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm webext-lint && pnpm size && pnpm gates && pnpm parity && pnpm archive-check",
+    "typecheck": "tsc -b",
+    "lint": "eslint . && depcruise packages apps/extension/src apps/extension/lazy/entries --config .dependency-cruiser.cjs",
+    "test": "vitest run",
+    "build": "pnpm --filter @cg/extension build",
+    "build:test": "pnpm --filter @cg/extension build:test",
+    "webext-lint": "web-ext lint --self-hosted --source-dir apps/extension/.output/firefox-mv3",
+    "size": "node tools/size-budget/index.ts",
+    "gates": "node tools/gates/index.ts",
+    "parity": "node tools/parity/index.ts",
+    "archive-check": "node tools/archive-check/index.ts",
+    "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",
+    "dev": "node tools/dev/index.ts",
+    "sign:dry-run": "node tools/sign-dry-run/index.ts"
+  },
+  "devDependencies": {
+    "@cg/testing": "workspace:*",
+    "@chatgoose/hotkeys": "workspace:*",
+    "@eslint/js": "10.0.1",
+    "@kernel/sdk": "workspace:*",
+    "@types/node": "26.6.4",
+    "dependency-cruiser": "18.5.0",
+    "eslint": "10.12.0",
+    "fake-indexeddb": "6.2.5",
+    "globals": "17.13.0",
+    "happy-dom": "20.14.5",
+    "jiti": "2.7.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0",
+    "vitest": "5.0.3",
+    "web-ext": "10.7.0"
+  }
+}

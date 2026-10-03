@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/core" },
+    { "path": "packages/platform" },
+    { "path": "packages/hub" },
+    { "path": "packages/host-chatspace" },
+    { "path": "packages/ui" },
+    { "path": "packages/testing" },
+    { "path": "apps/extension/tsconfig.json" },
+    { "path": "apps/extension/tsconfig.node.json" },
+    { "path": "tools" }
+  ]
+}

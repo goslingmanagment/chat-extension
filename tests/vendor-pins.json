@@ -1,0 +1,13 @@
+{
+  "kernelSdk": {
+    "contractHash": "1378e7ee0ef27e97b18bba93ff7fed94d27edaa560f0a0051038267bcbaac09a",
+    "sourceCommit": "44b05ad579ec4a05a3e9eb0d5317e9bef0251afc",
+    "distSha256": "e8bf13edccf4a3dd9c8d59cfbc9f2c9914e4c2a6071dba61bd60a4771a94f72d",
+    "note": "Vendored from the hub commit deployed in prod on 2026-10-03 (image label agency-hub.source-revision=44b05ad579ec, /api/v1/health contractHash). Re-vendor with the hub's scripts/vendor-sdk.mjs, then update this pin in the same commit."
+  },
+  "chatgooseHotkeys": {
+    "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
+    "sourceCommit": "44b05ad579ec4a05a3e9eb0d5317e9bef0251afc",
+    "note": "Same sha256 as fansly-chat and onlyfans-chat (vendored there from a667c62b; packages/chatgoose-hotkeys/src is unchanged up to 44b05ad5)."
+  }
+}
