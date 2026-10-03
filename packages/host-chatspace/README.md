@@ -54,23 +54,20 @@ const started = startChatSpaceHost({
 // хоткеи: started.mounts.registry; HostPort: await started.host
 ```
 
-**Решение владельца до интеграции — как поставлять рантайм MAIN.** Загрузчик
-укладывается в бюджет §11 (≤ 5 КиБ, сейчас 1,7 КиБ gzip); рантайм — ещё ~8 КиБ; вместе
-~9 КиБ. Точка входа расширения сейчас ставит только загрузчик (корни композиции —
-интегратора), поэтому без решения хост в собранном расширении отвечает `not-ready` на
-всё, кроме `probe`. `pnpm size` меряет оба варианта временными строками (10 и 9 КиБ),
-чтобы рантайм не рос бесконтрольно, пока решения нет. Варианты:
-1. **Один бандл на `document_start`**
-   (`installMainBridge(window, { runtime: createMainRuntime })`) и новый бюджет MAIN
-   ~10 КиБ. Рекомендуем: работа на `document_start` по-прежнему ≤ 1 мс (рантайм ничего
-   не делает до `DOMContentLoaded`), а перехватывать нечего.
-2. **Второй MAIN-скрипт** на `document_end` с `attachMainRuntime(createMainRuntime)` и
-   своей строкой бюджета (загрузчик — с `exposeRuntimeHook: true`). Риск: крючок лежит
-   под `Symbol.for` на `window`, страница может забрать его первой — тогда хост навсегда
-   «не готов» (ничего не пишется, но и не работает).
+**Как поставляется рантайм MAIN (решение X11, `docs/decisions.md`).** Один бандл на
+`document_start`: `installMainBridge(window, { runtime: createMainRuntime })`. Загрузчик —
+1,7 КиБ gzip, рантайм — ещё ~8 КиБ, вместе ~9 КиБ; бюджет MAIN — 10 КиБ (`pnpm size`
+меряет собранный `content-scripts/chatspace-main.js`). Работа на `document_start`
+по-прежнему ≤ 1 мс: рантайм ничего не делает до `DOMContentLoaded`.
 
-Время разбора и выполнения бандла на `document_start` e2e пишет в
-`.cache/e2e/host-adapter.json` (`mainEvalMs`), кроме `installMs` загрузчика.
+Второй MAIN-скрипт (`attachMainRuntime(createMainRuntime)` с `exposeRuntimeHook: true`)
+отклонён: крючок лежит под `Symbol.for` на `window`, страница может забрать его первой —
+тогда хост навсегда «не готов». Сам API остаётся в пакете, расширение его не включает.
+
+Время выполнения бандла на `document_start` e2e пишет в `.cache/e2e/host-adapter.json`
+(`mainEvalMs`, обвязка без расширения) и проверяет на собранном расширении
+(`integration-m1.e2e.ts`: метки начала и конца бандла тестовой сборки, медиана ≤ 1 мс),
+кроме `installMs` загрузчика.
 
 **Отмена «Открыть и вставить»** (§6.5): `navigate(intent, { signal })` — R10 прерывает
 сигнал при выходе, смене персоны или привязки и при закрытии превью; MAIN не пишет

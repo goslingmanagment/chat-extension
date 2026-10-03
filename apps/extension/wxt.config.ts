@@ -54,9 +54,11 @@ export default defineConfig({
     'build:manifestGenerated': (_wxt, manifest) => {
       finalizeManifest(manifest as ManifestLike, { flavor, lazyFiles: lazyChunks.map((chunk) => chunk.file) });
     },
-    // Spike timing marks around the isolated content script (test builds only).
+    // Timing marks around both content scripts (test builds only): the e2e
+    // reads the whole synchronous start of the isolated bundle (§11: ≤ 3 ms)
+    // and of the MAIN bundle at document_start (X11: ≤ 1 ms).
     'vite:build:extendConfig': (entrypoints, config) => {
-      if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace')) return;
+      if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace' || entry.name === 'chatspace-main')) return;
       config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },
     // WXT never deletes older versions' archives. Drop this flavor's before

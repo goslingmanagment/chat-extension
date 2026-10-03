@@ -1,12 +1,16 @@
-// TEST builds only (spike M0, architecture.md §11 «ранний бутстрап»): marks the
-// first and the last statement of the isolated content-script bundle with
-// performance.now(). The spike probe reports t1 − t0, i.e. the whole
-// synchronous start — top-level code of the bundle (zod schemas, WXT's runtime,
-// ContentScriptContext) plus composeTab — not just composeTab's body. Parsing
-// and compiling the file happen before t0 and stay outside the number.
+// TEST builds only (architecture.md §11): marks the first and the last
+// statement of a content-script bundle with performance.now(). The probe
+// reports t1 − t0, i.e. the whole synchronous start — top-level code of the
+// bundle plus its entry function — not just the entry's body. Parsing and
+// compiling the file happen before t0 and stay outside the number.
 //
-// The marks live on the content script's own global (Firefox gives each
-// extension's content scripts a sandbox global), so the page never sees them.
+// - The isolated bundle («ранний бутстрап» ≤ 3 ms): zod schemas, WXT's
+//   runtime, ContentScriptContext, composeTab. Its marks live on the content
+//   script's own global (Firefox gives each extension's content scripts a
+//   sandbox global), so the page never sees them.
+// - The MAIN bundle (boot + runtime, decision X11: work at document_start
+//   ≤ 1 ms). Its marks are on the page's window — a test build only; the e2e
+//   reads them there.
 // tools/gates fails if BUNDLE_MARKS_KEY ever reaches a release bundle.
 
 import type { Plugin } from 'vite';

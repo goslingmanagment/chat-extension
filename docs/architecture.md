@@ -153,7 +153,7 @@ OnlyMonster ChatSpace (OnlyFans), а во второй фазе — на fansly.
 
 ```
 chat.onlymonster.ai (вкладка ChatSpace)
- ├─ MAIN world: chatspace-main.js — document_start, ≤ 5 КБ, без зависимостей
+ ├─ MAIN world: chatspace-main.js — document_start, ≤ 10 КиБ (X11), без зависимостей
  │    читает:   #app.__vue_app__ → $router, $pinia._s (сторы), _pc_query (кэш), мост composer
  │    слушает:  router.afterEach, $onAction/$subscribe сторов, кадры WebSocket (тап)
  │    пишет:    1) вставка через __omComposerBridge (CAS ревизии)
@@ -2446,7 +2446,7 @@ type PreviewSendView =
 
 | Метрика | Бюджет | Как мерим |
 |---|---|---|
-| мост MAIN | ≤ 5 КиБ gzip; работа на `document_start` ≤ 1 мс | `tools/size-budget`; `performance.now()` в отладке |
+| мост MAIN | ≤ 10 КиБ gzip — загрузчик и рантайм одним скриптом (решение X11, `docs/decisions.md`; стартовая цель была 5 КиБ под один загрузчик); работа на `document_start` ≤ 1 мс | `tools/size-budget`; e2e на собранном расширении (метки начала и конца бандла); `performance.now()` в отладке |
 | ранний бутстрап изолированного мира (диспетчер, клиент моста, монтирование) | ≤ 30 КиБ gzip; ≤ 3 мс на winpc | то же |
 | первый чанк дока (с Preact) | ≤ 45 КиБ gzip; ленивые чанки — по 30 КиБ каждый, превышение — разбор | `tools/size-budget` в `pnpm check` |
 | маршрут → док обновлён (`routeToDockMs`) | p95 ≤ 50 мс winpc, ≤ 30 мс Mac | своя метрика |

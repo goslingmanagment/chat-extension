@@ -12,10 +12,11 @@
 // repeated, a signal — accounts, chatCache — always goes out). It answers `probe` and `flags`
 // itself; everything else goes to the runtime (runtime.ts) once one is
 // attached — before that the answer is `not-ready`. The runtime reads and
-// writes ChatSpace; keeping it out of the boot keeps the document_start
-// bundle within its 5 KiB budget (§11): the runtime comes in the same bundle
-// (`installMainBridge(win, { runtime: createMainRuntime })`) or from a second
-// MAIN script that calls `attachMainRuntime()` (the integrator's choice).
+// writes ChatSpace and does nothing before DOMContentLoaded, so the work at
+// document_start stays the boot's (≤ 1 ms, §11). The extension ships both in
+// one bundle (`installMainBridge(win, { runtime: createMainRuntime })`,
+// ≤ 10 KiB, decision X11); a second MAIN script calling `attachMainRuntime()`
+// stays possible but unused.
 //
 // The page sees all of this and can post anything on the port, so the
 // isolated side checks every frame from MAIN; MAIN checks every request by

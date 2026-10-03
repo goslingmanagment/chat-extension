@@ -36,13 +36,21 @@ describe('size budgets', () => {
     expect(coach?.limitBytes).toBe(BUDGETS.lazyChunk);
     expect(lines.filter((line) => !line.ok)).toHaveLength(1);
   });
-});
 
-describe('MAIN runtime probes', () => {
-  it('[EX-007] measure the boot with the runtime and the runtime alone (the shipped boot has its own line)', async () => {
-    const { probeMain } = await import('./main-probes.ts');
-    const lines = await probeMain();
-    expect(lines.map((line) => line.label)).toEqual([expect.stringContaining('boot + runtime'), expect.stringContaining('second script')]);
-    for (const line of lines) expect(line.gzipBytes).toBeGreaterThan(BUDGETS.mainBridge / 2);
+  it('[EX-007] the MAIN bridge line is the shipped document_start bundle — boot and runtime together — within 10 KiB (X11)', () => {
+    expect(BUDGETS.mainBridge).toBe(10 * 1024);
+    const files = (main: number): Record<string, Uint8Array> => ({
+      'content-scripts/chatspace-main.js': noise(main),
+      'chatspace-ws.js': noise(500),
+      'content-scripts/chatspace.js': noise(9000),
+      'lazy/dock.js': noise(4000),
+      'lazy/chunks/preact.js': noise(12000),
+      'lazy/coach.js': noise(2000),
+      'lazy/chunks/md.js': noise(2000),
+    });
+    const line = (main: number) => computeBudgets((file) => files(main)[file] ?? new Uint8Array(), chunks).find((item) => item.files.includes('content-scripts/chatspace-main.js'));
+    expect(line(9000)?.ok).toBe(true);
+    expect(line(9000)?.limitBytes).toBe(BUDGETS.mainBridge);
+    expect(line(11_000)?.ok).toBe(false);
   });
 });
