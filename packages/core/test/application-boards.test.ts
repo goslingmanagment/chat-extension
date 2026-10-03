@@ -316,6 +316,8 @@ const newcomer = (fanRef: string): string => fanHandle('newcomers', PAGE.pageId,
 const count = (h: Harness, type: Parameters<BoardsBackground['count']>[0]): number => h.bg.count(type);
 const lastPayload = (h: Harness, type: Parameters<BoardsBackground['count']>[0]): unknown => h.bg.requests.filter((request) => request.type === type).at(-1)?.payload;
 const partsOf = (h: Harness, from: PreviewSource): readonly PartVM[] => h.boards.preview.getSnapshot(preview(from)).result?.parts ?? [];
+/** The background says its flags moved: every context reads the sign-in, the bootstrap and the binding again. */
+const reread = (h: Harness): void => h.bg.emit('flags.changed', { flags: {}, configRevision: h.bootstrap.configRevision });
 
 describe('[SP-002] [SP-003] [SP-004] the Spenders board opens', () => {
   it('[SP-003] [SP-022] waits for the page identity, then shows 1000 of 1240 rows as a cut list with its data time and coverage; nothing is read while it is closed', async () => {
@@ -710,6 +712,61 @@ describe('[SP-033] [SP-034] [SP-035] [SP-042] [SP-043] keys, opening a chat, a c
     await h.flush();
     expect(h.boards.spenders.getSnapshot(BOARD).shelves).toEqual([]);
     expect(h.boards.spenders.getSnapshot(BOARD).footer.loaded).toBe(0);
+  });
+
+  it('[SP-042] a context read that merely failed is not another identity: the board, the preview and its result stay, the view says «нет связи»', async () => {
+    const { h, opId, handle } = await withReply();
+    const epoch = h.boards.context.current().epoch;
+    // The background's port dropped while the context was read again.
+    h.bg.failNext('bootstrap.get', { code: 'CG-RUNTIME-UNREACHABLE' });
+    reread(h);
+    await h.flush();
+    const lost = h.boards.context.current();
+    expect(lost).toMatchObject({ phase: 'blocked', blocker: { code: 'CG-RUNTIME-UNREACHABLE' }, epoch });
+    expect(lost.binding?.pageId).toBe(PAGE.pageId);
+    expect(h.boards.surfaces.current()).toMatchObject({ spenders: true, preview: { spenders: handle } });
+    expect(h.boards.spenders.getSnapshot(BOARD).view).toMatchObject({ s: 'offline', error: { code: 'CG-RUNTIME-UNREACHABLE' } });
+    expect(h.boards.spenders.getSnapshot(BOARD).shelves[0]?.rows.length).toBeGreaterThan(0);
+    const during = h.boards.preview.getSnapshot(preview('spenders'));
+    expect(during.result?.opId).toBe(opId);
+    // Nothing is sent, inserted or generated while the identity cannot be confirmed.
+    expect(during.result?.parts?.[0]?.send).toMatchObject({ s: 'unavailable' });
+    expect((await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).ok).toBe(false);
+    expect((await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'ping', options: {} })).ok).toBe(false);
+    expect(h.host.calls.navigations).toEqual([]);
+    // A slow answer is the same: a failure of the read, not of the person.
+    h.bg.failNext('session.get', { code: 'CG-TIMEOUT' });
+    h.bg.emit('catalog.changed', {});
+    await h.flush();
+    expect(h.boards.context.current()).toMatchObject({ phase: 'blocked', epoch });
+    // The next read answers: everything is where it was, on the same epoch.
+    reread(h);
+    await h.flush();
+    expect(h.boards.context.current()).toMatchObject({ phase: 'ready', epoch });
+    expect(h.boards.surfaces.current().spenders).toBe(true);
+    const back = h.boards.preview.getSnapshot(preview('spenders'));
+    expect(back.result?.opId).toBe(opId);
+    expect(back.result?.parts?.[0]?.send).toEqual({ s: 'available' });
+  });
+
+  it('[SP-042] a refusal that names the person or the page ends the identity: revoked access closes the board', async () => {
+    const { h } = await withReply();
+    const epoch = h.boards.context.current().epoch;
+    h.bg.failNext('bootstrap.get', { code: 'CG-AUTH-REVOKED' });
+    reread(h);
+    await h.flush();
+    expect(h.boards.context.current().epoch).toBe(epoch + 1);
+    expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null } });
+    expect(h.boards.preview.getSnapshot(preview('spenders')).result).toBeNull();
+    // A failed read that comes with ANOTHER sign-in is that sign-in's, not the old one's.
+    const other = await withReply();
+    const before = other.h.boards.context.current().epoch;
+    other.h.bg.session = { ...session, epoch: 9 };
+    other.h.bg.failNext('bootstrap.get', { code: 'CG-HUB-TIMEOUT' });
+    reread(other.h);
+    await other.h.flush();
+    expect(other.h.boards.context.current().epoch).toBe(before + 1);
+    expect(other.h.boards.surfaces.current().spenders).toBe(false);
   });
 
   it('[SP-043] the board speaks the chosen language and switches on the fly', async () => {

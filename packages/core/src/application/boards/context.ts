@@ -5,7 +5,10 @@
 // from the background over the tab protocol and from the host port; nothing
 // is guessed by a name. `epoch` grows whenever the sign-in, the hub, the
 // account or the binding changes: lists, feeds, leases and pending inserts
-// of the previous identity are dropped on it.
+// of the previous identity are dropped on it. A read that merely failed (the
+// background did not answer, the hub timed out) says nothing about who the
+// person is: the identity it could not confirm stays, with the epoch, and
+// the views say «нет связи» over what they last showed.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
@@ -15,6 +18,7 @@ import { type SettingsV1 } from '@cg/contracts/settings';
 
 import { flagUsable } from '../../domain/ops/environment';
 import { type TabRpc } from './ports';
+import { failureClass } from './views';
 
 export interface PagePersona {
   readonly key: string;
@@ -91,6 +95,17 @@ function personaOf(settings: SettingsV1 | null, catalog: PersonaCatalog | null, 
 const identityKey = (session: SessionIdentity | null, account: HostAccount | null, binding: HubBinding | null): string =>
   [session?.hubOrigin ?? '', session?.userId ?? '', session?.epoch ?? '', account?.hostAccountId ?? '', binding?.pageId ?? '', binding?.bindingRevision ?? ''].join('|');
 
+const sameSession = (a: SessionIdentity, b: SessionIdentity): boolean => a.hubOrigin === b.hubOrigin && a.userId === b.userId && a.epoch === b.epoch;
+const sameAccount = (a: HostAccount, b: HostAccount): boolean => a.hostAccountId === b.hostAccountId && a.platformAccountId === b.platformAccountId;
+
+/** What a refresh had read before one of its reads failed. */
+interface ReadSoFar {
+  readonly session?: SessionIdentity;
+  readonly bootstrap?: Bootstrap;
+  readonly account?: HostAccount;
+  readonly settings?: SettingsV1 | null;
+}
+
 export interface PageContextDeps {
   readonly rpc: TabRpc;
   readonly host: HostPort;
@@ -114,8 +129,25 @@ export function createPageContext(deps: PageContextDeps): PageContextPort {
     for (const listener of [...listeners]) listener(state);
   };
 
-  const blocked = (blocker: CgErrorWire, partial: Partial<PageContextState> = {}): void => {
-    set({ ...INITIAL, ...partial, phase: 'blocked', blocker, settings: partial.settings ?? state.settings, persona: null });
+  /**
+   * A refresh stopped at `blocker`. A refusal that says something is not the
+   * person's to see (no sign-in, no binding, no right — the `forbidden`
+   * class) ends the identity. Any other failure is a read that did not
+   * happen: when what was read so far still names the same sign-in and
+   * account, the bound page stays as it was and the epoch does not move.
+   */
+  const blocked = (blocker: CgErrorWire, read: ReadSoFar = {}): void => {
+    const settings = read.settings ?? state.settings;
+    const { session, account, binding } = state;
+    if (failureClass(blocker.code) !== 'forbidden' && session !== null && account !== null && binding !== null && sameSession(read.session ?? session, session) && sameAccount(read.account ?? account, account)) {
+      const bootstrap = read.bootstrap ?? state.bootstrap;
+      const page = bootstrap?.pages.find((p) => p.pageId === binding.pageId) ?? null;
+      if (bootstrap !== null && page !== null) {
+        set({ phase: 'blocked', blocker, session, bootstrap, account, binding, page, settings, persona: personaOf(settings, catalog, session, binding.pageId) });
+        return;
+      }
+    }
+    set({ ...INITIAL, ...read, phase: 'blocked', blocker, settings, persona: null });
   };
 
   const refresh = async (): Promise<void> => {
