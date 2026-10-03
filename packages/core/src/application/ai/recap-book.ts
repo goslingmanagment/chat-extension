@@ -42,8 +42,6 @@ export interface RecapBookDeps {
   changed(): void;
   /** The chat that is open now (a status is not asked for a chat the person already left). */
   openChat(): ChatKey | null;
-  /** The persona definition a finished recap belongs to, when its start is not remembered. */
-  personaOf(pageId: number): string | null;
 }
 
 const idOf = (key: RecapSlotKey): string => [key.hubOrigin, key.pageId, key.fanRef, key.personaDefinitionId].join('\u0000');
@@ -109,15 +107,21 @@ export class RecapBook {
     return null;
   }
 
-  /** A recap finished in this tab: it is now the shared artifact, and the slot holds its copy. */
+  /**
+   * A recap finished in this tab: it is now the shared artifact, and the slot
+   * holds its copy. A result whose persona this tab does not know (it was
+   * adopted already finished — after a reload, or made before a persona
+   * change) is never filed under the current persona: `recap.read` tells
+   * what the hub holds for it.
+   */
   generated(record: OpRecord): RecapCopy | null {
     const { view } = record;
     const { clock, ids } = this.deps.ports;
+    const personaDefinitionId = record.memo.personaDefinitionId;
+    if (personaDefinitionId === null) return null;
     const copy = copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
     if (copy === null) return null;
     const binding = view.target.binding;
-    const personaDefinitionId = record.memo.personaDefinitionId ?? this.deps.personaOf(binding.pageId);
-    if (personaDefinitionId === null) return null;
     const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef: view.target.fanRef, personaDefinitionId }, copy);
     // The background's saver is on it for the tab that owns the operation; its toast ends the wait.
     if (stored.length === 'full' && record.own && !this.saves.has(stored.id)) this.saves.set(stored.id, saveStarted(clock.now()));

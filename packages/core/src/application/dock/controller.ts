@@ -274,8 +274,9 @@ export function createDockController(ws: AiWorkspace): DockController {
       case 'needs-confirm':
         return done(type, 'needs-confirm', { opId });
       case 'canceled':
-      // A write of this operation is already on its way (a double click): this one changed nothing.
+        return done(type, 'noop', { opId });
       case 'busy':
+        // A write of this operation is already on its way (a double click): this one changed nothing.
         return done(type, 'noop', { opId });
       case 'failed':
         return refused(ws, type, outcome.error);

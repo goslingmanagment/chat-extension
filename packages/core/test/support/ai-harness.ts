@@ -58,6 +58,8 @@ export interface HarnessOptions {
   readonly language?: 'ru' | 'en';
   /** Start the surfaces only when the test says so. */
   readonly background?: (background: FakeBackground) => void;
+  /** Another tab of the same extension: the background and the clock of an existing harness, its own tab session. */
+  readonly shared?: { readonly bg: FakeBackground; readonly clock: FakeClock; readonly tab: string };
 }
 
 export class FakeClipboard {
@@ -105,26 +107,29 @@ export const delta = (text: string, afterMs = 20): ScriptStep => ({ kind: 'frame
 export const doneStep: ScriptStep = { kind: 'frame', frame: { type: 'done', stopReason: 'end_turn' } };
 
 export function aiHarness(parts: HarnessParts, options: HarnessOptions = {}): Harness {
-  const clock = new FakeClock(NOW_MS);
-  const bg = new FakeBackground({
-    bootstrap: options.bootstrap ?? parts.bootstrap,
-    resolve: parts.resolve,
-    clock,
-    ...(options.session === undefined ? {} : { session: options.session }),
-    ...(options.settings === undefined ? {} : { settings: options.settings }),
-  });
+  const clock = options.shared?.clock ?? new FakeClock(NOW_MS);
+  const bg =
+    options.shared?.bg ??
+    new FakeBackground({
+      bootstrap: options.bootstrap ?? parts.bootstrap,
+      resolve: parts.resolve,
+      clock,
+      ...(options.session === undefined ? {} : { session: options.session }),
+      ...(options.settings === undefined ? {} : { settings: options.settings }),
+    });
   options.background?.(bg);
+  const tab = options.shared?.tab ?? TAB;
   const host = new MutableHost(parts.baseHost, parts.memory);
   const clipboard = new FakeClipboard();
   const toasts: ToastRequest[] = [];
   const overlays = { opened: [] as OverlaySurface[], closed: [] as OverlaySurface[] };
   const journal: Omit<LogRecord, 'ts' | 'seq'>[] = [];
   const ai = createAiSurfaces({
-    rpc: bg.rpc(TAB),
+    rpc: bg.rpc(tab),
     host,
     i18n: createI18n({ language: options.language ?? 'ru', now: () => clock.now(), timeZone: 'UTC' }),
     clock,
-    ids: sequentialIds(0x5000),
+    ids: sequentialIds(tab === TAB ? 0x5000 : 0x6000),
     catalog: parts.catalog,
     clipboard,
     toasts: { show: (toast) => toasts.push(toast) },

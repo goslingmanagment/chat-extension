@@ -362,7 +362,8 @@ export class InsertService {
     // «Вернуть мой текст» that cannot run leaves the part as it is: the Fix text is still in the field.
     const fail = (code: CgCode): WriteOutcome => (mark ? this.fail(record, part, code) : failed(code));
     const code = insertGuard({
-      op: { target: record.view.target, personaDefinitionId: record.memo.personaDefinitionId ?? ctx.current.personaDefinitionId ?? '', signInEpoch: record.view.target.binding.loginEpoch },
+      // An operation whose persona this tab does not know is never taken for one of the current persona (§7 «Ограда»).
+      op: { target: record.view.target, personaDefinitionId: record.memo.personaDefinitionId ?? '', signInEpoch: record.view.target.binding.loginEpoch },
       current: ctx.current,
       host: { route: snapshot.route, composer: snapshot.composer, identity: snapshot.identity },
     });

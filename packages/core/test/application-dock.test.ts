@@ -875,6 +875,61 @@ describe('dock: inserting a part', () => {
   });
 });
 
+describe('dock: a result this tab did not start', () => {
+  /** Another tab of the same extension on the same chat. */
+  const otherTab = async (h: Harness): Promise<Harness & { readonly fake: FakeHostPort }> => {
+    const p = parts();
+    const tab = await readyHarness(p, { shared: { bg: h.bg, clock: h.clock, tab: OTHER_TAB } });
+    await tab.settle();
+    return Object.assign(tab, { fake: p.fake });
+  };
+
+  it('a result adopted already finished has no known persona: it is not inserted; the same click reopens it and then it is', async () => {
+    const h = await start();
+    const opId = await reply(h, 'cached answer');
+    const tab = await otherTab(h);
+    expect(tab.ai.workspace.ops.get(opId)).toMatchObject({ own: false, memo: { personaDefinitionId: null } });
+    // Not shown by itself, and not insertable on a guess that it is of the current persona.
+    expect(tab.dock().result).toBeNull();
+    expect(await tab.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(tab.host.inserts).toBe(0);
+    // The same click with the same parameters reopens it (AI-128): the admission is for this request, persona included.
+    expect(await tab.generate('reply')).toMatchObject({ ok: true, outcome: 'noop', opId });
+    expect(h.bg.hub.streams).toHaveLength(1);
+    expect(tab.ai.workspace.ops.get(opId)?.memo.personaDefinitionId).toBe(WORLD.persona.definitionId);
+    expect(await tab.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(tab.host.draftOf(openChat)?.plainText).toBe('cached answer');
+  });
+
+  it('a run adopted while it still runs is of the page\'s current persona: its result inserts', async () => {
+    const h = await start();
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply') }, delta('from the first tab', 1_000), doneStep] });
+    const receipt = await h.generate('reply');
+    const opId = (receipt as { opId: string }).opId;
+    const tab = await otherTab(h);
+    expect(tab.ai.workspace.ops.get(opId)).toMatchObject({ own: false, memo: { personaDefinitionId: WORLD.persona.definitionId } });
+    await h.finish();
+    expect(tab.ai.workspace.ops.get(opId)?.view.state).toBe('done');
+    expect(await tab.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+  });
+
+  it('[AI-126] a result of the old persona adopted by a tab opened after the change is never inserted', async () => {
+    const h = await start();
+    const opId = await reply(h, 'written as the first persona');
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: 'other', definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    const tab = await otherTab(h);
+    expect(tab.ai.workspace.ops.get(opId)).not.toBeNull();
+    expect(await tab.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(tab.host.inserts).toBe(0);
+    // The same click is a new request now (another persona): a new generation, not the old text.
+    tab.script(tab.streamOf('fast-reply', ['written as the second persona']));
+    const again = await tab.generate('reply');
+    expect(again).toMatchObject({ ok: true, outcome: 'started' });
+    expect((again as { opId: string }).opId).not.toBe(opId);
+  });
+});
+
 describe('dock: Fix', () => {
   const withDraft = async (answers: HostAnswers = {}): Promise<Harness & { fake: FakeHostPort }> => {
     const h = await start({}, answers);

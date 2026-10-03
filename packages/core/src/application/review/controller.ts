@@ -52,11 +52,22 @@ export type ReviewController = AiController;
 export function createReviewController(ws: AiWorkspace): ReviewController {
   const { catalog, clock, i18n } = ws.ports;
 
-  /** The review the open chat's sheet follows: the newest one of that chat. */
+  /**
+   * The review the open chat's sheet follows: the newest one of that chat
+   * made under the persona its page has now. A review of another persona, or
+   * one whose persona this tab does not know, is never shown as the current
+   * one (AI-126); the same click reopens a cached review of this persona.
+   */
   function current(): OpRecord | null {
     const chat = ws.situation().chat;
     if (chat === null) return null;
-    return ws.ops.ofChat(chat.key).find((record) => record.view.feature === 'review' && record.view.state !== 'canceled') ?? null;
+    return (
+      ws.ops.ofChat(chat.key).find((record) => {
+        if (record.view.feature !== 'review' || record.view.state === 'canceled') return false;
+        const persona = record.memo.personaDefinitionId;
+        return persona !== null && persona === ws.env.assignedDefinition(record.view.target.binding.pageId);
+      }) ?? null
+    );
   }
 
   function build(): ReviewVM {

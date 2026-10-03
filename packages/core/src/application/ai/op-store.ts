@@ -33,7 +33,15 @@ export interface StartMemo {
   readonly fixSource: { readonly text: string; readonly revision: number; readonly digest: string } | null;
   /** The start itself without its spent token, for «Ещё раз». */
   readonly start: Omit<StartOp, 'cause'> | null;
-  /** The persona definition the operation was started under. */
+  /**
+   * The persona definition the operation was made under; null — not known to
+   * this tab. Known for an operation this tab started or reopened (the
+   * admission is for the same request, persona included) and for one adopted
+   * while it still ran (the background cancels a run the moment its page's
+   * persona changes, so a running one is of the current persona). A result
+   * adopted already finished says nothing about its persona: it is never
+   * inserted and never shown as the current persona's (§7 «Ограда», AI-126).
+   */
   readonly personaDefinitionId: string | null;
 }
 
@@ -63,6 +71,8 @@ export type OpStoreEvent =
 const NO_MEMO: StartMemo = { split: false, fixSource: null, start: null, personaDefinitionId: null };
 const EARLY_OPS_MAX = 16;
 const EARLY_EVENTS_MAX = 400;
+/** Dropped operations remembered so that a later read of the background does not bring them back. */
+const TOMBSTONES_MAX = 256;
 
 interface Entry {
   mirror: OpMirror;
@@ -87,11 +97,15 @@ export class OpStore {
   private readonly inFlight = new Map<ChatKey, number>();
   private readonly listeners = new Set<(event: OpStoreEvent) => void>();
   private readonly keepers = new Set<(opId: string) => boolean>();
+  /** Operations a sign-in or persona change dropped, and when: the background may still list them for half an hour. */
+  private readonly tombstones = new Map<string, number>();
   private readonly unsubscribe: (() => void)[] = [];
 
   constructor(
     private readonly rpc: TabRpcPort,
     private readonly clock: TimerClock,
+    /** The persona definition assigned to a page now, as this tab knows it; null — not known. */
+    private readonly personaOf: (pageId: number) => string | null = () => null,
   ) {
     this.unsubscribe.push(
       rpc.onEvent('op.update', (update) => this.onUpdate(update)),
@@ -170,6 +184,8 @@ export class OpStore {
     const opId = admission.opId;
     const now = this.clock.now();
     const fullMemo: StartMemo = { ...memo, split: start.split, start: withoutCause(start) };
+    // The admission is for this very request — its persona included: whatever dropped the operation before, it is valid again.
+    this.tombstones.delete(opId);
     let reopened = true;
     const known = this.entries.get(opId);
     if (known === undefined) {
@@ -194,13 +210,17 @@ export class OpStore {
           reopened = false;
         } else {
           found.own = true;
-          if (found.memo === NO_MEMO) found.memo = { ...fullMemo, start: null };
+          if (found.memo.start === null) found.memo = { ...fullMemo, start: null };
         }
       }
-    } else if (!known.own && !isTerminalOpState(known.view.state)) {
-      // The background attached this tab to the run: the batches restart, the text so far is read again.
-      await this.syncChat(chatKey, opId);
-      known.own = true;
+    } else {
+      // An operation this tab adopted and now asked for by the same request: what the request says holds for it.
+      if (known.memo.start === null) known.memo = { ...fullMemo, start: null };
+      if (!known.own && !isTerminalOpState(known.view.state)) {
+        // The background attached this tab to the run: the batches restart, the text so far is read again.
+        await this.syncChat(chatKey, opId);
+        known.own = true;
+      }
     }
     this.adoptLeftovers(chatKey);
     const entry = this.entries.get(opId);
@@ -227,7 +247,8 @@ export class OpStore {
     for (const view of answer.payload.ops) {
       const entry = this.entries.get(view.opId);
       if (entry === undefined) {
-        this.entries.set(view.opId, { mirror: mirrorFromView(view), view, memo: NO_MEMO, own: false, reopenedAt: null, desynced: false });
+        if (this.tombstones.has(view.opId)) continue;
+        this.entries.set(view.opId, { mirror: mirrorFromView(view), view, memo: this.adoptedMemo(view), own: false, reopenedAt: null, desynced: false });
         this.emit({ kind: 'changed', opId: view.opId });
         if (isTerminalOpState(view.state)) this.emit({ kind: 'done', record: this.recordOf(this.entries.get(view.opId) as Entry) });
         continue;
@@ -284,15 +305,35 @@ export class OpStore {
     }
   }
 
-  /** Drops what a sign-in or persona change invalidated; the background cancels the runs itself. */
+  /**
+   * Drops what a sign-in or persona change invalidated; the background
+   * cancels the runs itself. The background keeps finished results for half
+   * an hour whatever the persona: a dropped operation is remembered, so a
+   * later read of a chat (`op.list`) or a late `op.done` does not bring it
+   * back as if it were of the new persona (AI-126).
+   */
   drop(filter: (record: OpRecord) => boolean): string[] {
     const dropped: string[] = [];
+    const now = this.clock.now();
     for (const [opId, entry] of this.entries) {
       if (!filter(this.recordOf(entry))) continue;
       this.entries.delete(opId);
+      this.early.delete(opId);
+      this.tombstones.set(opId, now);
       dropped.push(opId);
     }
+    for (const [opId, at] of this.tombstones) {
+      if (now - at < OP_LIMITS.resultTtlMs && this.tombstones.size <= TOMBSTONES_MAX) break;
+      this.tombstones.delete(opId);
+    }
     return dropped;
+  }
+
+  /** What is known of an operation this tab did not start: nothing, except the persona of one that still runs. */
+  private adoptedMemo(view: OpView): StartMemo {
+    if (isTerminalOpState(view.state)) return NO_MEMO;
+    const personaDefinitionId = this.personaOf(view.target.binding.pageId);
+    return personaDefinitionId === null ? NO_MEMO : { ...NO_MEMO, personaDefinitionId };
   }
 
   // ── events ───────────────────────────────────────────────────────────────
@@ -324,6 +365,8 @@ export class OpStore {
   private onDone(view: OpView): void {
     const entry = this.entries.get(view.opId);
     if (entry === undefined) {
+      // Dropped by a sign-in or persona change: its late end (or its «устарело» mark) is nobody's.
+      if (this.tombstones.has(view.opId)) return;
       const chatKey = chatKeyOf(view.target.chat);
       // An answer to a start of this chat is still on its way: this may be its operation.
       if ((this.inFlight.get(chatKey) ?? 0) > 0) this.buffer(view.opId, { kind: 'done', view });

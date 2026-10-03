@@ -52,6 +52,8 @@ interface ChatUi {
   /** Б1: the one-off tone of the next Reply in this chat. */
   tone: Tone | null;
   sheet: Sheet | null;
+  /** The hub page of the chat when its sheet was set; null — not known then. */
+  pageId: number | null;
 }
 
 export interface OpenChat {
@@ -157,12 +159,11 @@ export class AiWorkspace {
 
   constructor(readonly ports: AiPorts) {
     this.env = new TabEnvironment(ports.rpc);
-    this.ops = new OpStore(ports.rpc, ports.clock);
+    this.ops = new OpStore(ports.rpc, ports.clock, (pageId) => this.env.assignedDefinition(pageId));
     this.recaps = new RecapBook({
       ports,
       changed: () => this.bump(),
       openChat: () => this.situation().chat?.key ?? null,
-      personaOf: (pageId) => this.env.persona(pageId).definitionId,
     });
     this.inserts = new InsertService({
       ports,
@@ -399,7 +400,7 @@ export class AiWorkspace {
   private ui(key: ChatKey): ChatUi {
     let ui = this.chats.get(key);
     if (ui === undefined) {
-      ui = { tone: null, sheet: null };
+      ui = { tone: null, sheet: null, pageId: null };
       this.chats.set(key, ui);
     }
     return ui;
@@ -419,7 +420,10 @@ export class AiWorkspace {
   }
 
   setSheet(key: ChatKey, sheet: Sheet | null): void {
-    this.ui(key).sheet = sheet;
+    const ui = this.ui(key);
+    ui.sheet = sheet;
+    const situation = this.situation();
+    if (situation.chat?.key === key && situation.ready !== null) ui.pageId = situation.ready.page.pageId;
     this.bump();
   }
 
@@ -777,6 +781,10 @@ export class AiWorkspace {
       if (changed.size > 0) {
         // AI-126: a persona change drops the results and the Coach dialogs of that page.
         this.forget(this.ops.drop((record) => changed.has(record.view.target.binding.pageId) && isTerminalOpState(record.view.state)));
+        // A Recap or Review sheet of that page showed the old persona's: it closes (a page not known then — to be safe, too).
+        for (const ui of this.chats.values()) {
+          if (ui.sheet !== null && ui.sheet.kind !== 'draft' && (ui.pageId === null || changed.has(ui.pageId))) ui.sheet = null;
+        }
         this.reset((_key, pageId) => changed.has(pageId));
       }
     }

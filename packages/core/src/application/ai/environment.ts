@@ -175,6 +175,11 @@ export class TabEnvironment {
     return LOADING;
   }
 
+  /** The persona definition the settings assign to a page, whatever the catalog says of it; null — none, or the settings are not read yet. */
+  assignedDefinition(pageId: number): string | null {
+    return this.settingsValue?.settings.personas.byPageId[String(pageId)]?.definitionId ?? null;
+  }
+
   /** The persona assigned to a page (the settings hold a reference, the catalog its name and status). */
   persona(pageId: number): PersonaState {
     const settings = this.settingsValue;

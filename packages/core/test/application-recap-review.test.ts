@@ -8,14 +8,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { UiActionSchema, type Bootstrap, type HubFrame, type LiveTextTail, type RecapBody, type RecapViewVM, type ReviewVM } from '@cg/contracts';
+import { UiActionSchema, chatKeyOf, type Bootstrap, type HubFrame, type LiveTextTail, type RecapBody, type RecapViewVM, type ReviewVM } from '@cg/contracts';
 import { RECAP_STATUS, readArtifactHandle } from '@cg/core/application/ai';
 import { saveSchedule } from '@cg/core/domain/recap';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostIso, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_ON, contextFrame, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
-import { settingsWithPersona } from './support/ai-background';
+import { OTHER_TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
 import { type ScriptResponse } from './support/fake-hub';
 import { NOW_MS, WORLD, uuid } from './support/world';
@@ -822,3 +822,93 @@ describe('review', () => {
     expect(h.bg.callsOf('op.start')).toHaveLength(1);
   });
 });
+
+describe('persona change: nothing of the old persona comes back', () => {
+  const OTHER_PERSONA = { key: 'other', definitionId: WORLD.persona.otherDefinitionId };
+  const A_TEXT = 'Рекап персоны A.';
+
+  /** A full recap and a review, both made under the first persona. */
+  async function madeUnderFirst(h: Harness): Promise<void> {
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    h.script(recapStream(A_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.finish();
+    h.script(reviewStream(REVIEW));
+    await h.generate('review');
+    await h.finish();
+    expect(h.recapView().markdown).toBe(A_TEXT);
+    expect(h.review().rating).toBe(7);
+  }
+
+  it('[AI-126] the next visit of the chat does not bring the old persona\'s Recap and Review back', async () => {
+    const h = await start();
+    await madeUnderFirst(h);
+    h.bg.changePersona(WORLD.pages.one.pageId, OTHER_PERSONA);
+    await h.settle();
+    // The sheets of the old persona closed and show nothing.
+    expect(h.dock().analysis).toBeNull();
+    expect(h.review()).toMatchObject({ opId: null, rating: null });
+    expect(h.recapView().markdown).toBeNull();
+
+    // Another chat and back: the background still lists the old results of this chat (it keeps them half an hour).
+    const lists = h.bg.callsOf('op.list').length;
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
+    h.host.openChat(previewChat);
+    await h.settle();
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(h.bg.callsOf('op.list').length).toBeGreaterThan(lists);
+    expect(h.bg.scheduler.list(OTHER_TAB, 'tab', chatKeyOf(openChat)).ops.map((op) => op.feature).sort()).toEqual(['recap', 'review']);
+    // What the change dropped stays dropped in this tab.
+    expect(h.ai.workspace.ops.ofChat(chatKeyOf(openChat))).toEqual([]);
+    expect(h.review()).toMatchObject({ opId: null, rating: null, raw: null });
+    expect(h.review().view.s).toBe('empty');
+    await openRecap(h);
+    expect(h.bg.callsOf('recap.read').at(-1)).toMatchObject({ personaDefinitionId: OTHER_PERSONA.definitionId });
+    expect(h.recapView()).toMatchObject({ markdown: null, view: { s: 'empty' } });
+    expect(h.recapPicker().slots).toEqual({ short: null, full: null });
+    await h.clock.advance(RECAP_STATUS.settleMs);
+    expect(h.dock().actions.recap.badge).toBeNull();
+    expect(JSON.stringify([h.recapView(), h.recapPicker(), h.review()])).not.toContain(A_TEXT);
+  });
+
+  it('[AI-126] a tab opened after the change adopts the old results without their persona: they are not shown as the new one\'s', async () => {
+    const h = await start();
+    await madeUnderFirst(h);
+    h.bg.changePersona(WORLD.pages.one.pageId, OTHER_PERSONA);
+    await h.settle();
+    const later = await readyHarness(parts(), { shared: { bg: h.bg, clock: h.clock, tab: OTHER_TAB } });
+    later.mount({ of: 'recap.view' });
+    later.mount({ of: 'recap.picker' });
+    later.mount({ of: 'review' });
+    await later.settle();
+    // It did read what the background holds of this chat.
+    expect(later.ai.workspace.ops.ofChat(chatKeyOf(openChat)).map((record) => record.view.feature).sort()).toEqual(['recap', 'review']);
+    expect(later.review()).toMatchObject({ opId: null, rating: null });
+    await openRecap(later);
+    expect(later.recapView()).toMatchObject({ markdown: null, view: { s: 'empty' } });
+    expect(later.recapPicker().slots).toEqual({ short: null, full: null });
+    await later.clock.advance(RECAP_STATUS.settleMs);
+    expect(later.dock().actions.recap.badge).toBeNull();
+  });
+
+  it('a recap of the same persona made in another tab is the hub\'s shared one: it comes with `recap.read`, never by a guess', async () => {
+    const h = await start();
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    h.script(recapStream(A_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.finish();
+    const generation = h.ai.workspace.ops.all()[0]?.view.generationRef ?? '';
+    const later = await readyHarness(parts(), { shared: { bg: h.bg, clock: h.clock, tab: OTHER_TAB } });
+    later.mount({ of: 'recap.view' });
+    await later.settle();
+    // Adopted finished, persona unknown: not a local copy yet.
+    expect(later.dock().actions.recap.badge).toBeNull();
+    h.bg.sharedRecaps = { full: body({ generationRef: generation, text: A_TEXT }), short: null, fullSavedToProfile: true };
+    await openRecap(later);
+    expect(later.recapView()).toMatchObject({ markdown: A_TEXT, view: { s: 'ready' } });
+  });
+});
+
