@@ -32,6 +32,9 @@ Agency Hub (`hub`).
 - [docs/hub-layer.md](docs/hub-layer.md) — слой хаба (`@cg/hub`): транспорты,
   поток AI, вход, режим совместимости для хаба без новых маршрутов (только
   разработка) и что подключает интегратор.
+- [docs/pages.md](docs/pages.md) — страницы расширения (popup, настройки, экран
+  входа, страницы отладки): что где лежит, что подключает интегратор и чего
+  страницы ждут от фона.
 - [docs/decisions.md](docs/decisions.md) — журнал решений.
 - [AGENTS.md](AGENTS.md) — правила для агентов.
 
@@ -70,7 +73,7 @@ pnpm install --frozen-lockfile
 | `pnpm archive-check` | архивы последней сборки (по версии в её манифесте): XPI совпадает с папкой сборки байт в байт; в XPI и архиве исходников нет кода/шрифтов/картинок OnlyMonster, реальных id (сверка по sha256) и секретов; в архиве исходников нет стенда и ни один файл не ссылается на то, чего в нём нет |
 | `pnpm e2e` | обе сборки + стенд ChatSpace + поддельный хаб + WebdriverIO 9 и geckodriver: Firefox без окна ставит выпускной XPI (id, popup, ответ фона) и тестовую сборку (спайк M0, смоук на стенде, связь с поддельным хабом) временными дополнениями; отдельно проверяется сам стенд. Внешней сети нет: всё не-loopback уходит в «сток» и роняет тест |
 | `pnpm --filter @cg/testing stand` | собрать стенд и поднять его на `http://127.0.0.1:5179` (порт — `STAND_PORT`), чтобы посмотреть руками |
-| `pnpm --filter @cg/testing gallery` | то же плюс галерея `ui/kit` на `http://127.0.0.1:5179/kit-gallery/`: каждый компонент кита во всех состояниях (`?theme=light\|dark&lang=ru\|en&col=320&section=…`); e2e `kit-gallery.e2e.ts` снимает её в обеих темах, на двух языках, при 100/125/150/200 % и в колонке 320 px в `.cache/e2e/kit-gallery-*.png` |
+| `pnpm --filter @cg/testing gallery` | то же плюс галерея `ui/kit` на `http://127.0.0.1:5179/kit-gallery/`: каждый компонент кита во всех состояниях (`?theme=light\|dark&lang=ru\|en&col=320&section=…`); e2e `kit-gallery.e2e.ts` снимает её в обеих темах, на двух языках, при 100/125/150/200 % и в колонке 320 px в `.cache/e2e/kit-gallery-*.png`. Там же галерея страниц расширения — `http://127.0.0.1:5179/pages-gallery/?page=popup\|options\|debug-prompt\|debug-journal&state=working\|troubled\|signed-out\|first-run\|read-only\|debug\|unreachable&theme=light\|dark\|system&lang=ru\|en#<раздел>`: настоящие страницы на сценарном фоне без расширения; e2e `pages-gallery.e2e.ts` снимает их в `.cache/e2e/pages-*.png` для сверки с макетом `final-20a/20b/21a/21b` |
 | `pnpm sign:dry-run` | настоящий `web-ext sign --channel unlisted` против локального макета AMO на 127.0.0.1 (без ключей, ничего не подписывает) — проверка, что подпись работает на этой Node |
 | `pnpm dev` | тестовая сборка + `web-ext run` в отдельном профиле `.dev-profile/`; при изменении кода пересобирает, Firefox перезагружает дополнение |
 
@@ -135,7 +138,8 @@ vue-router + TipTap, которое повторяет **только те ко�
   трафик Firefox выключен префами и `MOZ_REMOTE_SETTINGS_DEVTOOLS=1`),
   `e2e/support/visual.ts` (снимки в светлой и тёмной теме
   при 1440×900 и 1280×800 в `.cache/e2e/`). Сборка стенда — в `.cache/fixture-chatspace/`,
-  галереи кита — в `.cache/kit-gallery/`; в git и в архив исходников для AMO они не попадают.
+  галереи кита — в `.cache/kit-gallery/`, галереи страниц — в `.cache/pages-gallery/`; в git
+  и в архив исходников для AMO они не попадают.
 
 **Чем стенд не является.** Это не копия ChatSpace: нет виртуальных списков, медиа,
 шаблонов (кроме простой панели), Side Panel, уведомлений, онлайна по опросу (онлайн
