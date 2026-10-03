@@ -22,6 +22,7 @@
     "./tab-protocol": "./src/tab-protocol.ts",
     "./tab-messages": "./src/tab-messages.ts",
     "./tab-liveness": "./src/tab-liveness.ts",
+    "./vm": "./src/vm/index.ts",
     "./fixtures": "./test/fixtures/index.ts"
   },
   "dependencies": {
