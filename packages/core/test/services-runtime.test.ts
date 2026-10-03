@@ -316,6 +316,27 @@ describe('[NEW-08] the WS tap switch follows the wsTap flag', () => {
     expect(WsTapSwitch.wanted(null)).toBe(false);
   });
 
+  it('[NEW-08] a wish that is already applied does not jam the switch: the next change of the flag still syncs', async () => {
+    const calls: boolean[] = [];
+    const tap = new WsTapSwitch({
+      sync: (enabled) => {
+        calls.push(enabled);
+        return Promise.resolve();
+      },
+    });
+    expect(await tap.fromBootstrap(pilot)).toBe(true);
+    // The same bootstrap again (a refresh on focus, a new issuedAt): nothing to do, in the same tick.
+    expect(await tap.fromBootstrap(pilot)).toBe(true);
+    expect(await tap.apply(true)).toBe(true);
+    expect(calls).toEqual([true]);
+    // The owner switches the tap off, then a sign-out, then on again.
+    expect(await tap.fromBootstrap({ ...pilot, flags: { ...pilot.flags, wsTap: false } })).toBe(false);
+    expect(await tap.fromBootstrap(null)).toBe(false);
+    expect(await tap.fromBootstrap(pilot)).toBe(true);
+    expect(calls).toEqual([true, false, true]);
+    expect(tap.state).toBe(true);
+  });
+
   it('[NEW-08] a failed registration leaves the tap reported off', async () => {
     const log = new LogRecorder();
     const tap = new WsTapSwitch({ sync: () => Promise.reject(new Error('scripting refused')) }, log);

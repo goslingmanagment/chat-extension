@@ -33,7 +33,15 @@ export class WsTapSwitch {
   /** Asks for a state; resolves with the state actually registered once the queue drained. */
   apply(enabled: boolean): Promise<boolean> {
     this.wanted = enabled;
-    if (this.running === null) this.running = this.drain();
+    if (this.running === null) {
+      // The queue is released a tick after it drained — never inside `drain` itself: a wish that is already
+      // applied drains without one await, and a release made there would run before this assignment and
+      // leave the finished promise here for good (every later wish would then be ignored).
+      const running: Promise<boolean> = this.drain().finally(() => {
+        if (this.running === running) this.running = null;
+      });
+      this.running = running;
+    }
     return this.running;
   }
 
@@ -54,22 +62,18 @@ export class WsTapSwitch {
   }
 
   private async drain(): Promise<boolean> {
-    try {
-      while (this.wanted !== null && this.wanted !== this.applied) {
-        const target = this.wanted;
-        try {
-          await this.registrar.sync(target);
-          this.set(target);
-        } catch {
-          this.log.write({ level: 'warn', scope: 'bg.ws-tap', msg: 'tap sync failed', fields: { wanted: target } });
-          this.set(false);
-          if (this.wanted === target) break;
-        }
+    while (this.wanted !== null && this.wanted !== this.applied) {
+      const target = this.wanted;
+      try {
+        await this.registrar.sync(target);
+        this.set(target);
+      } catch {
+        this.log.write({ level: 'warn', scope: 'bg.ws-tap', msg: 'tap sync failed', fields: { wanted: target } });
+        this.set(false);
+        if (this.wanted === target) break;
       }
-      return this.applied ?? false;
-    } finally {
-      this.running = null;
     }
+    return this.applied ?? false;
   }
 
   private set(on: boolean): void {
