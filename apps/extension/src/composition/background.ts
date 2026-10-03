@@ -5,6 +5,7 @@ import { BackgroundStatusSchema, TabHelloSchema, type BackgroundStatus } from '@
 import { onTabPortConnect, syncDynamicMainScript, type DynamicMainScriptSpec } from '@cg/platform';
 
 import { CHATSPACE_MATCHES, LOOPBACK_MATCHES } from '../hosts';
+import { EGRESS_PROBE_MESSAGE, fireEgressProbe, isEgressProbe } from './egress-probe';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -27,6 +28,11 @@ export function composeBackground(): void {
   // Registered synchronously so a port can wake the event page.
   onTabPortConnect((port) => {
     port.onMessage((raw) => {
+      if (__CG_TEST_HOSTS__ && isEgressProbe(raw)) {
+        fireEgressProbe();
+        port.post({ t: EGRESS_PROBE_MESSAGE, fired: true });
+        return;
+      }
       if (!TabHelloSchema.safeParse(raw).success) return;
       void wsTapReady.then((wsTapRegistered) => {
         const status: BackgroundStatus = { t: 'status', v: 1, wsTapRegistered, testBuild: __CG_TEST_HOSTS__ };

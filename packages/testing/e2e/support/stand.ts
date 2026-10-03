@@ -2,6 +2,8 @@
 // page's test-control API (window.__stand) and the server's control endpoints
 // and journal (read from Node, never through the browser).
 
+import { request as httpRequest } from 'node:http';
+
 import { browser } from '@wdio/globals';
 
 import {
@@ -16,6 +18,7 @@ import {
   type StandControl,
 } from '../../fixture-chatspace/src/protocol';
 import { STAND_IDS } from '../../src/stand/dataset';
+import type { EgressPage } from '../../src/stand/egress-sink';
 
 export { STAND_IDS };
 
@@ -93,14 +96,32 @@ export async function callStand<K extends Method>(method: K, ...args: Fn<K>['arg
   return result;
 }
 
+/**
+ * One control call over node:http. In the wdio worker the global fetch often
+ * waited 0.1–1.9 s on its first call after a pause (the server answers in
+ * ~1 ms), which the per-test trap reads turned into seconds per spec.
+ */
 async function control(path: string, init: { readonly method?: string; readonly body?: unknown } = {}): Promise<unknown> {
-  const response = await fetch(`${standOrigin()}${path}`, {
-    method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
-    headers: { [CONTROL_REQUEST_HEADER]: '1', 'content-type': 'application/json' },
-    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+  const body = init.body !== undefined ? JSON.stringify(init.body) : undefined;
+  const { status, text } = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const request = httpRequest(
+      `${standOrigin()}${path}`,
+      {
+        method: init.method ?? (body === undefined ? 'GET' : 'POST'),
+        headers: { [CONTROL_REQUEST_HEADER]: '1', 'content-type': 'application/json', ...(body !== undefined ? { 'content-length': Buffer.byteLength(body) } : {}) },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => resolve({ status: response.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }));
+        response.on('error', reject);
+      },
+    );
+    request.on('error', reject);
+    request.end(body);
   });
-  if (!response.ok) throw new Error(`stand control ${path}: HTTP ${response.status}`);
-  return response.json();
+  if (status < 200 || status >= 300) throw new Error(`stand control ${path}: HTTP ${status}`);
+  return JSON.parse(text) as unknown;
 }
 
 /** The stand server's control API, from the test process. */
@@ -139,8 +160,8 @@ export const standServer = {
   },
   state: async (): Promise<{ sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> }> =>
     (await control('/__stand/state')) as { sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> },
-  /** Request lines the egress sink saw (outside requests the browser tried). */
-  egress: async (): Promise<string[]> => ((await control('/__stand/egress')) as { attempts: string[] }).attempts,
+  /** Outside requests the browser tried (the egress sink), after the cursor `since`. */
+  egress: async (since = 0): Promise<EgressPage> => (await control(`/__stand/egress?since=${since}`)) as EgressPage,
 };
 
 export function byOrigin(entries: readonly ServerJournalEntry[], origin: CallOrigin): ServerJournalEntry[] {

@@ -16,7 +16,7 @@ import { CONTROL_REQUEST_HEADER, DEFAULT_SOCKET_TRAFFIC, NATIVE_REQUEST_HEADER, 
 import viteConfig, { FIXTURE_BUILD_DIR as VITE_OUT_DIR } from '../../fixture-chatspace.vite.config';
 import { startStandServer, type StandServer } from '../stand-server';
 import { createDataset, plainText, STAND_IDS } from './dataset';
-import { startEgressSink } from './egress-sink';
+import { egressHost, startEgressSink } from './egress-sink';
 import { FIXTURE_BUILD_DIR, FIXTURE_SOURCE_DIR, REPO_ROOT } from './paths';
 
 /** Source files under a folder (no build output or dependencies). */
@@ -425,7 +425,31 @@ describe('egress sink', () => {
         socket.on('close', () => resolve());
         socket.on('error', () => resolve());
       });
-      expect(sink.attempts()).toEqual(['CONNECT cg-trap.invalid:443 HTTP/1.1']);
+      expect(sink.read()).toEqual({ attempts: [{ seq: 1, line: 'CONNECT cg-trap.invalid:443 HTTP/1.1', host: 'cg-trap.invalid' }], next: 1, dropped: 0 });
+      expect(sink.read(1)).toEqual({ attempts: [], next: 1, dropped: 0 });
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('reads by cursor and reports lines that fell out of the bounded log', async () => {
+    const sink = await startEgressSink({ maxAttempts: 2 });
+    const send = (line: string): Promise<void> =>
+      new Promise<void>((resolve) => {
+        const socket = connect(sink.port, '127.0.0.1', () => socket.write(`${line}\r\n\r\n`));
+        socket.on('close', () => resolve());
+        socket.on('error', () => resolve());
+      });
+    try {
+      for (const line of ['CONNECT a.invalid:443 HTTP/1.1', 'GET http://b.invalid/x HTTP/1.1', 'CONNECT [::2]:443 HTTP/1.1']) await send(line);
+      const page = sink.read(0);
+      expect(page.attempts.map((attempt) => [attempt.seq, attempt.host])).toEqual([
+        [2, 'b.invalid'],
+        [3, '::2'],
+      ]);
+      expect([page.next, page.dropped]).toEqual([3, 1]);
+      expect(sink.read(2)).toMatchObject({ next: 3, dropped: 0 });
+      expect(egressHost('nonsense')).toBeNull();
     } finally {
       await sink.close();
     }

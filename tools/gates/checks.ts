@@ -197,11 +197,12 @@ export function checkSendQueueReferences(files: readonly SourceFile[]): Violatio
   return violations;
 }
 
-/** 6. The release bundle carries nothing test-only: no loopback hosts, no spike probe. */
+/** 6. The release bundle carries nothing test-only: no loopback hosts, no spike or egress probe. */
 export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
   const markers: Array<[RegExp, string]> = [
     [/127\.0\.0\.1|\blocalhost\b/, 'loopback stand / fake hub host'],
     [/data-cg-spike|lazy\/spike\.js/, 'spike M0 probe'],
+    [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
     [/chat-extension-test@/, 'test gecko id'],
     [/__cgBundleMarks/, 'spike timing marks'],
   ];

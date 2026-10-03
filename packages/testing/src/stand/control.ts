@@ -7,12 +7,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { CallOrigin, MimicState, SendOutcome, SocketTraffic } from '../../fixture-chatspace/src/protocol';
 import { STAND_TOKEN_PATH } from '../../fixture-chatspace/src/protocol';
 import type { StandMessage } from './dataset';
+import type { EgressPage } from './egress-sink';
 import type { ApiContext } from './api';
 import { readJson, sendJson } from './api';
 import { newMessageFrame } from './wire';
 
 export interface EgressLog {
-  attempts(): readonly string[];
+  read(since?: number): EgressPage;
 }
 
 export interface ControlContext extends ApiContext {
@@ -77,7 +78,8 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     return;
   }
   if (path === '/__stand/egress' && method === 'GET') {
-    ok({ attempts: context.egress?.attempts() ?? [] });
+    const page: EgressPage = context.egress?.read(Number(url.searchParams.get('since') ?? 0)) ?? { attempts: [], next: 0, dropped: 0 };
+    ok(page);
     return;
   }
 

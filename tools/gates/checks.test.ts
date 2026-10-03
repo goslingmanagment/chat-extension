@@ -122,6 +122,10 @@ describe('gate: release bundle', () => {
     expect(violations.map((violation) => violation.path)).toEqual(['background.js', 'content-scripts/chatspace.js', 'manifest.json']);
   });
 
+  it('flags the background egress probe', () => {
+    expect(gates(checkReleaseBundle([file('background.js', 'fetch("https://cg-bg-probe.invalid/probe")')]))).toEqual(['release-bundle']);
+  });
+
   it('flags the spike timing marks', () => {
     expect(gates(checkReleaseBundle([file('content-scripts/chatspace.js', 'globalThis.__cgBundleMarks={t0:performance.now()};')]))).toEqual([
       'release-bundle',

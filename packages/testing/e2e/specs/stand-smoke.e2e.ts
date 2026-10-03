@@ -2,12 +2,15 @@
 // ChatSpace-like fixture. Proves the harness, not the features: the content
 // scripts attach to the stand, the dock's mount point is the single active
 // composer and moves with the route, the network trap catches an outside
-// request, and the stand renders for visual checks.
+// request of a page (BiDi log and egress sink) and of the background (egress
+// sink only), and the stand renders for visual checks.
 
 import { existsSync } from 'node:fs';
 
+import { TAB_PORT_NAME } from '@cg/contracts';
 import { browser, expect } from '@wdio/globals';
 
+import { E2E_ADDON_UUID, EGRESS_PROBE_HOST, EGRESS_PROBE_MESSAGE } from '../support/constants';
 import { installTestBuild, waitForReport } from '../support/extension';
 import { useNetworkTrap } from '../support/network-trap';
 import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady, waitForStandReady } from '../support/stand';
@@ -19,6 +22,20 @@ const { a1, a2 } = STAND_IDS.fans;
 describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () => {
   const { trap } = useNetworkTrap();
   let journalStart = 0;
+
+  /** Takes egress attempts until the probe `host` shows up; returns the distinct hosts taken (the browser may retry a probe). */
+  const takeEgressUntil = async (host: string): Promise<string[]> => {
+    trap().expectProbeHost(host);
+    const hosts: string[] = [];
+    await browser.waitUntil(
+      async () => {
+        hosts.push(...(await trap().takeEgress()).map((attempt) => attempt.host ?? attempt.line));
+        return hosts.includes(host);
+      },
+      { timeout: 5000, interval: 100, timeoutMsg: `the egress sink saw no request to ${host}` },
+    );
+    return [...new Set(hosts)];
+  };
 
   before(async () => {
     await standServer.reset();
@@ -137,7 +154,7 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
   });
 
-  it('the trap catches a deliberate outside request; it only reached the egress sink', async () => {
+  it('the trap catches a deliberate outside request of the page: in the BiDi log and in the egress sink', async () => {
     await browser.execute(() => {
       void fetch('https://cg-trap.invalid/probe').catch(() => undefined);
     });
@@ -150,10 +167,7 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
       { timeout: 5000, timeoutMsg: 'the trap saw no outside request' },
     );
     expect(violations.map((request) => request.url)).toEqual(['https://cg-trap.invalid/probe']);
-    await browser.waitUntil(async () => (await standServer.egress()).some((line) => line.startsWith('CONNECT cg-trap.invalid:443')), {
-      timeout: 5000,
-      timeoutMsg: 'the egress sink saw no CONNECT for the probe',
-    });
+    expect(await takeEgressUntil('cg-trap.invalid')).toEqual(['cg-trap.invalid']);
   });
 
   it('visual snapshots: light and dark at 1440×900 and 1280×800 into .cache/e2e/', async () => {
@@ -164,5 +178,32 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
       expect(snapshot.measured).toEqual(snapshot.viewport);
     }
     expect((await composerRoots()).active).toHaveLength(1);
+  });
+
+  // Last: it leaves the stand for our own extension page.
+  it('a request of the extension background shows in the egress sink (the BiDi log does not see background pages)', async () => {
+    await browser.url(`moz-extension://${E2E_ADDON_UUID}/popup.html`);
+    const answer = await browser.execute(
+      async (portName, probe) => {
+        type Port = { postMessage(message: unknown): void; disconnect(): void; onMessage: { addListener(listener: (message: unknown) => void): void } };
+        const api = (globalThis as unknown as { browser?: { runtime: { connect(options: { name: string }): Port } } }).browser;
+        if (api?.runtime === undefined) return 'no extension API on this page';
+        return new Promise<unknown>((resolve) => {
+          setTimeout(() => resolve('no answer from the background in 5 s'), 5000);
+          const port = api.runtime.connect({ name: portName });
+          port.onMessage.addListener((message) => {
+            resolve(message);
+            port.disconnect();
+          });
+          port.postMessage({ t: probe });
+        });
+      },
+      TAB_PORT_NAME,
+      EGRESS_PROBE_MESSAGE,
+    );
+    expect(answer).toEqual({ t: EGRESS_PROBE_MESSAGE, fired: true });
+    expect(await takeEgressUntil(EGRESS_PROBE_HOST)).toEqual([EGRESS_PROBE_HOST]);
+    // Whatever the BiDi log saw of it (today nothing) is the probe and nothing else.
+    expect((await trap().takeViolations()).filter((request) => new URL(request.url).hostname !== EGRESS_PROBE_HOST)).toEqual([]);
   });
 });
