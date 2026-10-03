@@ -31,7 +31,7 @@ import { flagState, pageOf } from './bootstrap-rules';
 import { type Connection, type HubContext } from './context';
 import { FacadeCallError, FacadeCheckError, toError, transportFailure } from './errors';
 import { type HubKeyValueStore } from './ports';
-import { callScope } from './wire';
+import { callScope, onAbort } from './wire';
 
 /** `storage.session` key of the shared board cache (§9.4: session data, survives a background unload). */
 export const BOARD_SESSION_KEY = 'cache.spenders';
@@ -56,6 +56,7 @@ export interface BoardReaders {
 }
 
 interface Build {
+  readonly key: string;
   readonly promise: Promise<SpendersBoard>;
   readonly controller: AbortController;
   readonly waiters: Set<symbol>;
@@ -90,7 +91,9 @@ export class SpendersBoardService {
     } else {
       this.cache.delete(key);
     }
-    const build = this.builds.get(key) ?? this.start(key, request, connection);
+    // A build its last waiter left is already cancelled: never join it, start anew (SP-027).
+    const running = this.builds.get(key);
+    const build = running !== undefined && !running.controller.signal.aborted ? running : this.start(key, request, connection);
     return this.join(build, options, connection);
   }
 
@@ -106,26 +109,33 @@ export class SpendersBoardService {
     const waiter = Symbol('waiter');
     build.waiters.add(waiter);
     if (options.onProgress !== undefined) build.progress.add(options.onProgress);
-    const leave = () => {
+    let detach: () => void = () => undefined;
+    const release = () => {
+      detach();
       build.waiters.delete(waiter);
       if (options.onProgress !== undefined) build.progress.delete(options.onProgress);
-      if (build.waiters.size === 0) build.controller.abort();
     };
     return new Promise<SpendersBoard>((resolve, reject) => {
-      const signal = options.signal;
-      const onAbort = () => {
-        leave();
+      const cancelled = () => {
+        release();
+        if (build.waiters.size === 0) {
+          // The last waiter left: cancel the build and drop it at once, so a request in the
+          // same tick (another tab opening, a remount) starts a new one instead of joining it.
+          build.controller.abort();
+          if (this.builds.get(build.key) === build) this.builds.delete(build.key);
+        }
         reject(this.ctx.failure('spenders', transportFailure('aborted'), connection));
       };
-      if (signal?.aborted === true) return onAbort();
-      signal?.addEventListener('abort', onAbort, { once: true });
+      const signal = options.signal;
+      if (signal?.aborted === true) return cancelled();
+      if (signal !== undefined) detach = onAbort(signal, cancelled);
       build.promise.then(
         (board) => {
-          build.waiters.delete(waiter);
+          release();
           resolve(board);
         },
         (error: unknown) => {
-          build.waiters.delete(waiter);
+          release();
           reject(toError(error));
         },
       );
@@ -146,7 +156,7 @@ export class SpendersBoardService {
         if (this.builds.get(key)?.promise === promise) this.builds.delete(key);
       });
     promise.catch(() => undefined);
-    const build: Build = { promise, controller, waiters: new Set(), progress };
+    const build: Build = { key, promise, controller, waiters: new Set(), progress };
     this.builds.set(key, build);
     return build;
   }

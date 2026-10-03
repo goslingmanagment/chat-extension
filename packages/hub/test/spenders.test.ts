@@ -4,6 +4,8 @@
 // preconditions; detail, batch and buckets with coalescing; statistics and
 // «ждут ответа» (parity SP-004…SP-032, SP-007, CS-031…CS-034).
 
+import { getEventListeners } from 'node:events';
+
 import { SPENDERS_BOARD, isHubCallError, isHubCheckError, type CgCode, type SpendersBoard } from '@cg/contracts';
 import { BOARD_TOTAL, BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, PAGE, WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -164,6 +166,31 @@ describe('[SP-026] [SP-024] [SP-027] [SP-028] cache, refresh, one build, progres
     expect(errorWireOf(await two)).toBeNull();
     await vi.advanceTimersByTimeAsync(1_000);
     expect(h.hub.of('spenders').filter((request) => request.query['period'] === 'today')).toHaveLength(1);
+  });
+
+  it('[SP-027] a tab asking right after the last waiter left starts a new build, never joins the cancelled one', async () => {
+    let hang = true;
+    serveBoard(h, (request) => (hang ? 'hang' : json(200, pageOf(Number(request.query['offset'])))));
+    const tabA = new AbortController();
+    const first = h.facade.spendersBoard({ pageLabel: PAGE, period: '30d' }, { signal: tabA.signal }).catch((error: unknown) => error);
+    await until(() => h.hub.of('spenders').length === 1);
+    hang = false;
+    tabA.abort();
+    // Tab B in the same tick: the cancelled build is gone, a new one serves it.
+    const second = h.facade.spendersBoard({ pageLabel: PAGE, period: '30d' });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(errorWireOf(await first)).toBeNull();
+    await expect(second).resolves.toMatchObject({ complete: true, total: BOARD_TOTAL });
+    expect(h.hub.of('spenders')[0]?.signal?.aborted).toBe(true);
+    expect(h.hub.of('spenders')).toHaveLength(6);
+  });
+
+  it('[SP-027] a settled board leaves no listener on the caller\'s signal', async () => {
+    serveBoard(h);
+    const tab = new AbortController();
+    await board(h, { pageLabel: PAGE, period: '30d' }, { signal: tab.signal });
+    await board(h, { pageLabel: PAGE, period: '30d' }, { signal: tab.signal });
+    expect(getEventListeners(tab.signal, 'abort')).toHaveLength(0);
   });
 
   it('[SP-028] the ranking shows after the first page, the rest extends it', async () => {
