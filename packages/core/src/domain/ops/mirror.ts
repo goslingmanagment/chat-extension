@@ -54,10 +54,19 @@ export function applyOpUpdate(mirror: OpMirror, update: OpUpdate): { readonly mi
   };
 }
 
-/** The terminal view replaces the streamed text: actions only on its result (§7). */
+/**
+ * The terminal view replaces the streamed text: actions only on its result
+ * (§7). A finished view comes again only to add the «устарело» marker (a fan
+ * wrote after the generation); anything else after `op.done` is stale.
+ */
 export function applyOpDone(mirror: OpMirror, view: OpView): { readonly mirror: OpMirror; readonly outcome: MirrorOutcome } {
   if (view.opId !== mirror.opId) return { mirror, outcome: 'foreign' };
-  if (mirror.done !== null || !isTerminalOpState(view.state)) return { mirror, outcome: 'stale' };
+  const done = mirror.done;
+  if (done !== null) {
+    const marksStale = view.state === done.state && done.stale === undefined && view.stale !== undefined;
+    return marksStale ? { mirror: { ...mirror, done: { ...done, stale: view.stale } }, outcome: 'applied' } : { mirror, outcome: 'stale' };
+  }
+  if (!isTerminalOpState(view.state)) return { mirror, outcome: 'stale' };
   return {
     mirror: { ...mirror, state: view.state, phase: view.phase, text: view.text ?? mirror.text, firstChunkAt: view.firstChunkAt ?? mirror.firstChunkAt, done: view },
     outcome: 'applied',

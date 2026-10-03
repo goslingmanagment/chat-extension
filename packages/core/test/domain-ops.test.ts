@@ -614,6 +614,12 @@ describe('[RB-020] [RB-017] [AI-138] the tab mirror of an operation', () => {
     expect(done.mirror.text).toBe('Hello');
     expect(applyOpUpdate(done.mirror, update(2, 'late')).outcome).toBe('after-done');
     expect(applyOpDone(done.mirror, doneView('again')).outcome).toBe('stale');
+    // [AI-128] the background sends the finished view again only to mark it stale.
+    const marked = applyOpDone(done.mirror, { ...doneView('Hello'), stale: { reason: 'fan-wrote', at: null } });
+    expect(marked.outcome).toBe('applied');
+    expect(marked.mirror.done?.stale).toEqual({ reason: 'fan-wrote', at: null });
+    expect(marked.mirror.text).toBe('Hello');
+    expect(applyOpDone(marked.mirror, { ...doneView('Hello'), stale: { reason: 'fan-wrote', at: null } }).outcome).toBe('stale');
     expect(applyOpDone(mirror, { ...doneView('x'), opId: uuid(0x101) }).outcome).toBe('foreign');
     expect(applyOpDone(mirror, { ...doneView('x'), state: 'streaming' }).outcome).toBe('stale');
   });
