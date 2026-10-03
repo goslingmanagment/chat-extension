@@ -101,6 +101,8 @@ export function diagnosticsSnapshot(facts: DiagnosticsFacts): DiagnosticsSnapsho
     sound: facts.sound,
     ops: { active: facts.ops.active },
     sends: { open: facts.sends.open, uncertain: facts.sends.uncertain },
+    // ST-110: the sizes of our caches and logs for the options page, when the background measures them.
+    ...(facts.footprint === undefined ? {} : { footprint: { cachesKB: countOf(Math.round(facts.footprint.cachesKB)) ?? 0, logsKB: countOf(Math.round(facts.footprint.logsKB)) ?? 0 } }),
   };
 }
 

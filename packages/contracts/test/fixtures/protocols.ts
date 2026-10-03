@@ -250,7 +250,20 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'diagnostics.get': {
     req: empty,
-    res: { valid: [diagnostics], invalid: [{ ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } }] },
+    res: {
+      valid: [
+        diagnostics,
+        { ...diagnostics, footprint: { cachesKB: 412, logsKB: 1280 } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: null } } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: 2 } } },
+      ],
+      invalid: [
+        { ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } },
+        { ...diagnostics, footprint: { cachesKB: -1, logsKB: 0 } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2' } } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: 'today', from: '0.4.2', staleTabs: 0 } } },
+      ],
+    },
   },
   'journal.read': {
     req: { valid: [{ journal: 'send-attempts', limit: 200 }], invalid: [{ journal: 'prompts', limit: 200 }, { journal: 'operations', limit: 501 }] },

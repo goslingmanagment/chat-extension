@@ -96,7 +96,18 @@ const ContractHashSchema = z.string().check(z.regex(CONTRACT_HASH_PATTERN));
 /** `diagnostics.get`: versions, flags and states without secrets or texts (LG-020…LG-025, SN-015). */
 export const DiagnosticsSnapshotSchema = z.strictObject({
   generatedAt: IsoTimestampSchema,
-  extension: z.strictObject({ version: boundedText(32), contractsVersion: boundedText(32), testBuild: z.boolean() }),
+  extension: z.strictObject({
+    version: boundedText(32),
+    contractsVersion: boundedText(32),
+    testBuild: z.boolean(),
+    /**
+     * When this version replaced an older one (`runtime.onInstalled`, reason
+     * `update`) — the «Обновилось сегодня в 09:02 с 0.4.2» line of «Статус»;
+     * absent — a fresh install or not known. `staleTabs` — ChatSpace tabs still
+     * on the scripts of the old version (UP-009), null — not counted. 1.2.0.
+     */
+    updated: z.optional(z.strictObject({ at: IsoTimestampSchema, from: boundedText(32), staleTabs: z.nullable(CountSchema) })),
+  }),
   browser: z.strictObject({ name: z.literal('firefox'), major: z.nullable(z.int().check(z.gte(1))) }),
   os: z.enum(['windows', 'macos', 'linux', 'other']),
   session: z.strictObject({ signedIn: z.boolean(), hubOrigin: z.nullable(HubOriginSchema), role: z.nullable(RoleSchema) }),
@@ -132,6 +143,11 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
   }),
   ops: z.strictObject({ active: CountSchema }),
   sends: z.strictObject({ open: CountSchema, uncertain: CountSchema }),
+  /**
+   * Sizes of our own caches and logs, an estimate (ST-110, options
+   * «Диагностика»); absent — the background does not measure them. 1.2.0.
+   */
+  footprint: z.optional(z.strictObject({ cachesKB: CountSchema, logsKB: CountSchema })),
 });
 export type DiagnosticsSnapshot = z.infer<typeof DiagnosticsSnapshotSchema>;
 

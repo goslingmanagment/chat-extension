@@ -840,8 +840,18 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'DiagnosticsSnapshot',
     C.DiagnosticsSnapshotSchema,
-    [diagnostics, { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'a'.repeat(64), hubHash: null, compatible: null } } }],
-    [{ ...diagnostics, os: 'beos' }, { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'x', hubHash: null, compatible: null } } }],
+    [
+      diagnostics,
+      { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'a'.repeat(64), hubHash: null, compatible: null } } },
+      // 1.2.0: the sizes of our caches and logs, and when this version replaced which one.
+      { ...diagnostics, footprint: { cachesKB: 412, logsKB: 1280 }, extension: { ...diagnostics.extension, updated: { at: ISO, from: '0.4.2', staleTabs: 0 } } },
+    ],
+    [
+      { ...diagnostics, os: 'beos' },
+      { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'x', hubHash: null, compatible: null } } },
+      { ...diagnostics, footprint: { cachesKB: 1.5, logsKB: 0 } },
+      { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: ISO, from: '', staleTabs: null } } },
+    ],
   ),
   fixture(
     'PageCommand',
