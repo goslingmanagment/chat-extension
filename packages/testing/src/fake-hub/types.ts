@@ -173,7 +173,7 @@ export interface FakeHubJournalEntry {
   readonly token: { readonly id: number; readonly client: string | null } | null;
   /** `x-client-version`. */
   readonly clientVersion: string | null;
-  /** The facade request with every text field (password, drafts, questions, fresh text) replaced by its length. */
+  /** The facade request, redacted by default: only ids, enums, dates and cursors under known keys stay; every other string is its length (journal.ts `redact`). */
   readonly request: unknown;
   /** Schema problems of a 400 (paths and rules, never values). */
   readonly issues: readonly string[];

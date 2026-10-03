@@ -34,7 +34,45 @@ describe('fake hub journal: redaction', () => {
       messageCount: 3000,
     });
     expect(redact(null)).toBeNull();
-    expect(redact(['a', 1])).toEqual(['a', 1]);
+    expect(redact(['a', 1, true])).toEqual(['‹1 chars›', 1, true]);
+    expect(redact({ capabilities: ['context-v1'], knownFanMessageIds: ['6600', '6601'] })).toEqual({ capabilities: ['context-v1'], knownFanMessageIds: ['6600', '6601'] });
+  });
+
+  it('redacts by default: unknown keys, text under a kept key, and text used as a key are all lengths', () => {
+    expect(
+      redact({
+        systemPrompt: 'SECRET-PROMPT-TEXT',
+        notes: 'FAN SAID HELLO',
+        messages: [{ body: 'SECRET2' }],
+        payload: { note: 'SECRET3', feature: 'fast-reply', lifecycle: 'shown' },
+        fanRef: 'a whole sentence where an id belongs',
+        reason: 'x'.repeat(201),
+        'FAN TEXT AS A KEY': 1,
+      }),
+    ).toEqual({
+      systemPrompt: '‹18 chars›',
+      notes: '‹14 chars›',
+      messages: [{ body: '‹7 chars›' }],
+      payload: { note: '‹7 chars›', feature: 'fast-reply', lifecycle: 'shown' },
+      fanRef: '‹36 chars›',
+      reason: '‹201 chars›',
+      '‹key 6: 17 chars›': 1,
+    });
+  });
+
+  it('a request the schema refused and an ingest payload never bring text into the journal', async () => {
+    const secrets = ['SECRET-PROMPT-TEXT', 'FAN SAID HELLO', 'SECRET2', 'SECRET3', 'FINAL MESSAGE TO FAN', 'SEARCHED-FAN-NAME'];
+    const ai = { feature: 'fast-reply', body: { ...streamBody({ clientRequestId: uuid(0x610) }), systemPrompt: secrets[0], notes: secrets[1], messages: [{ body: secrets[2] }] }, capabilities: [] };
+    expect((await hubCall(hub.fetch, hub.origin, 'aiFeatureStream', ai, { token })).status).toBe(400);
+    const event = (payload: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ clientEventId: uuid(0x611), kind: 'ai_acceptance', observedAt: '2026-10-03T09:59:00.000Z', pageLabel: PAGE, payload, ...extra });
+    expect((await hubCall(hub.fetch, hub.origin, 'ingestObservations', { events: [event({ feature: 'fast-reply' }, { note: secrets[3] })] }, { token })).status).toBe(400);
+    expect((await hubCall(hub.fetch, hub.origin, 'ingestObservations', { events: [event({ feature: 'fast-reply', message: secrets[4] })] }, { token })).status).toBe(200);
+    await hubCall(hub.fetch, hub.origin, 'spenders', { pageLabel: PAGE, scope: 'page', period: 'lifetime', limit: 50, offset: 0, query: secrets[5] }, { token });
+    const entries = hub.read().entries;
+    const dump = JSON.stringify(entries);
+    for (const secret of secrets) expect(dump).not.toContain(secret);
+    expect(entries.map((entry) => entry.status)).toEqual([400, 400, 200, 200]);
+    expect(entries[2]?.request).toEqual({ events: [{ clientEventId: uuid(0x611), kind: 'ai_acceptance', observedAt: '2026-10-03T09:59:00.000Z', pageLabel: PAGE, payload: { feature: 'fast-reply', message: '‹20 chars›' } }] });
   });
 
   it('no draft, question, fresh text, password or model output reaches the journal of a real exchange', async () => {

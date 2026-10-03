@@ -2,23 +2,53 @@
 // forbidden operation, unknown), with its answer and who gave it. Tests assert
 // on it — «this route was called with this request», «a forbidden route was
 // never called», «no request failed the contract schema». No conversation
-// text, draft, prompt, password or model output ever lands here: text fields
-// of requests are replaced by their length, responses are not kept (only the
-// stream's frame types).
+// text, draft, prompt, password or model output ever lands here: requests are
+// redacted by default (every string outside a short list of id, enum, date and
+// cursor keys becomes its length — a request the schema refused and an open
+// ingest payload included), responses are not kept (only the stream's frame
+// types).
 
 import { type HubRouteKey } from '@cg/contracts';
 
 import { type FakeHubJournalEntry, type FakeHubJournalPage, type StreamOutcome } from './types';
 
-/** Request keys whose values are text a person or a model wrote (or a secret). */
-const TEXT_KEYS = new Set(['password', 'draftText', 'chatterQuestion', 'question', 'answer', 'text']);
+/**
+ * Keys whose string values the journal keeps (at any depth, array items
+ * included): ids, refs, enums, dates, time zones and cursors the client
+ * computes. Never a key a person or a model writes text under — and a kept
+ * value with whitespace or longer than KEPT_MAX_CHARS is still redacted (text
+ * the client put under an id by mistake).
+ */
+export const JOURNAL_KEPT_STRING_KEYS: ReadonlySet<string> = new Set([
+  // routing and identity
+  'pageLabel', 'fanRef', 'conversationRef', 'platform', 'platformUserId', 'feature', 'username', 'client', 'mode',
+  // AI requests
+  'clientRequestId', 'personaKey', 'expectedPersonaDefinitionId', 'personaDefinitionId', 'replyMode', 'replyTone', 'preset', 'summaryMode',
+  'capabilities', 'direction', 'platformMessageId', 'knownFanMessageIds', 'capturedAt', 'occurredAt',
+  // claims and custody
+  'action', 'attemptId', 'instanceId', 'leaseToken', 'purpose', 'generationRef', 'evidence', 'reason',
+  // reads
+  'cursor', 'period', 'scope', 'sortBy', 'sortDir', 'retentionStatus', 'from', 'to', 'date', 'timeZone',
+  // ingest envelope, acceptance and health payloads (health codes and metric names)
+  'kind', 'clientEventId', 'observedAt', 'lifecycle', 'opId', 'surface', 'via', 'metric', 'missing', 'disabled',
+]);
+const KEPT_MAX_CHARS = 200;
+const KEPT_VALUE = new RegExp(`^\\S{0,${KEPT_MAX_CHARS}}$`, 'u');
+/** Key names are kept when they look like identifiers; anything else (text used as a key) is redacted too. */
+const KEPT_KEY = /^[A-Za-z_$][\w$.:-]{0,63}$/;
 
-/** A deep copy with every text-bearing value replaced by `‹N chars›`. */
+const chars = (text: string): string => `‹${text.length} chars›`;
+
+/**
+ * A deep copy for the journal: numbers, booleans and null stay; a string
+ * stays only under a kept key and only when it looks like a token; every
+ * other string becomes `‹N chars›`.
+ */
 export function redact(value: unknown, key: string | null = null): unknown {
-  if (key !== null && TEXT_KEYS.has(key) && typeof value === 'string') return `‹${value.length} chars›`;
-  if (Array.isArray(value)) return value.map((item) => redact(item, null));
+  if (typeof value === 'string') return key !== null && JOURNAL_KEPT_STRING_KEYS.has(key) && KEPT_VALUE.test(value) ? value : chars(value);
+  if (Array.isArray(value)) return value.map((item) => redact(item, key));
   if (typeof value === 'object' && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redact(v, k)]));
+    return Object.fromEntries(Object.entries(value).map(([k, v], index) => (KEPT_KEY.test(k) ? [k, redact(v, k)] : [`‹key ${index}: ${k.length} chars›`, redact(v, null)])));
   }
   return value;
 }
