@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createSendJournal, isOpenSendState, SEND_JOURNAL_LIMITS, SEND_JOURNAL_OPEN_STATES, type SendJournalDeps } from './send-journal';
 import type { ServiceLogEntry } from './storage/ports';
-import { createMemoryKv, manualClock, type MemoryKv } from './test-support/memory-kv';
+import { createMemoryKv, manualClock, settle, type MemoryKv } from './test-support/memory-kv';
 
 const KEY = STORAGE_KEYS.sendJournal;
 const DAY = 24 * 60 * 60 * 1000;
@@ -78,14 +78,23 @@ describe('[X8-07] the send journal: written before the command, never retried wh
     expect(await journal.advance(uuid(501), { state: 'nativeEnqueued', pendingId: 'pending-1' })).toMatchObject({ ok: true, persisted: true, entry: { state: 'nativeEnqueued', pendingId: 'pending-1', updatedAt: T0 + 10 } });
     expect(await journal.advance(uuid(501), { state: 'preparing' })).toMatchObject({ ok: false, code: 'transition' });
     expect(await journal.advance(uuid(501), { state: 'nativeAccepted', platformMessageId: IDS.msg2 })).toMatchObject({ ok: true, entry: { state: 'nativeAccepted', platformMessageId: IDS.msg2 } });
-    // The same state again only adds facts.
+    // The same state again only adds facts; an observed id is never replaced by another.
     expect(await journal.advance(uuid(501), { state: 'nativeAccepted' })).toMatchObject({ ok: true, entry: { state: 'nativeAccepted' } });
-    expect(await journal.advance(uuid(501), { state: 'sentObserved' })).toMatchObject({ ok: true, entry: { state: 'sentObserved' } });
+    expect(await journal.advance(uuid(501), { state: 'nativeAccepted', platformMessageId: IDS.msg1 })).toMatchObject({ ok: false, code: 'transition', detail: 'platformMessageId already set' });
+    expect(await journal.advance(uuid(501), { state: 'sentObserved', pendingId: 'pending-2' })).toMatchObject({ ok: false, code: 'transition', detail: 'pendingId already set' });
+    expect(await journal.advance(uuid(501), { state: 'sentObserved', platformMessageId: IDS.msg2 })).toMatchObject({ ok: true, entry: { state: 'sentObserved' } });
+    // A finished record is final: no same-state rewrite either.
+    expect(await journal.advance(uuid(501), { state: 'sentObserved', platformMessageId: IDS.msg1 })).toMatchObject({ ok: false, code: 'transition' });
+    expect(await journal.advance(uuid(501), { state: 'sentObserved' })).toMatchObject({ ok: false, code: 'transition' });
+    expect(journal.get(uuid(501))).toMatchObject({ state: 'sentObserved', platformMessageId: IDS.msg2 });
     expect(await journal.advance(uuid(501), { state: 'ready' })).toMatchObject({ ok: false, code: 'transition' });
     expect(await journal.advance(uuid(999), { state: 'held' })).toMatchObject({ ok: false, code: 'unknown-attempt' });
     expect(journal.open()).toEqual([]);
+    // A finished attempt journaled again (a repeated call with its id) is never a second enqueue permit.
+    expect(await journal.begin(entry(1))).toMatchObject({ ok: false, code: 'CG-SEND-BUSY', holder: uuid(501) });
     expect((await journal.begin(entry(2))).ok).toBe(true);
     expect(await journal.advance(uuid(502), { state: 'held', code: 'CG-SEND-STALE' })).toMatchObject({ ok: true, entry: { state: 'held', code: 'CG-SEND-STALE' } });
+    expect(await journal.advance(uuid(502), { state: 'held', code: 'CG-SEND-FRESHNESS' })).toMatchObject({ ok: false, code: 'transition' });
     expect(isOpenSendState('held')).toBe(false);
     expect(SEND_JOURNAL_OPEN_STATES).toEqual(['preparing', 'nativeEnqueued', 'nativeAccepted', 'uncertain']);
   });
@@ -107,10 +116,28 @@ describe('[X8-07] the send journal: written before the command, never retried wh
     expect(journal.stats()).toMatchObject({ open: 1, uncertain: 1, records: 1 });
     // Only the late linked pair or the hub's resolve ends it.
     expect(await journal.advance(uuid(501), { state: 'ready' })).toMatchObject({ ok: false, code: 'transition' });
-    expect(await journal.release(uuid(501))).toBe(true);
-    expect(await journal.release(uuid(501))).toBe(false);
+    expect(await journal.release(uuid(501))).toEqual({ ok: true });
+    expect(await journal.release(uuid(501))).toEqual({ ok: false, reason: 'unknown-attempt' });
     expect((await journal.begin(entry(3))).ok).toBe(true);
     expect(stored(local)?.entries.map((item) => item['attemptId'])).toEqual([uuid(503)]);
+  });
+
+  it('[RB-007] release is only for an uncertain attempt: a live one keeps its fan (§6.7.7 п. 6)', async () => {
+    const { journal, local, logs } = setup();
+    await journal.begin(entry(1));
+    expect(await journal.release(uuid(501))).toEqual({ ok: false, reason: 'not-uncertain' });
+    await journal.advance(uuid(501), { state: 'nativeEnqueued', pendingId: 'p1' });
+    expect(await journal.release(uuid(501))).toEqual({ ok: false, reason: 'not-uncertain' });
+    await journal.advance(uuid(501), { state: 'nativeAccepted', platformMessageId: IDS.msg2 });
+    expect(await journal.release(uuid(501))).toEqual({ ok: false, reason: 'not-uncertain' });
+    expect(await journal.begin(entry(2))).toMatchObject({ ok: false, code: 'CG-SEND-BUSY', holder: uuid(501) });
+    expect(journal.open().map((item) => item.attemptId)).toEqual([uuid(501)]);
+    expect(logs.filter((item) => item.msg.startsWith('release refused'))).toHaveLength(3);
+    // A release whose write fails keeps the record.
+    await journal.advance(uuid(501), { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    local.failNext('set');
+    expect(await journal.release(uuid(501))).toEqual({ ok: false, reason: 'CG-STORAGE-WRITE' });
+    expect(journal.open()).toHaveLength(1);
   });
 
   it('uncertain → sentObserved when the late second half of the linked pair arrives', async () => {
@@ -208,6 +235,86 @@ describe('[X8-07] the journal after the background unloads or the browser restar
   });
 });
 
+describe('[RB-007] the key removed or overwritten outside the journal', () => {
+  it('«Очистить локальные данные» (the key removed): open and uncertain records are written back at once, finished ones may go', async () => {
+    const { journal, local, logs, port } = setup();
+    await journal.begin(entry(1));
+    await journal.advance(uuid(501), { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    await journal.begin(entry(2, { fanRef: '7002' }));
+    await journal.begin(entry(3, { fanRef: '7003' }));
+    await journal.advance(uuid(503), { state: 'held' });
+    await settle(10);
+    local.external(KEY, undefined);
+    await settle(20);
+    expect(stored(local)?.entries.map((item) => [item['attemptId'], item['state']])).toEqual([
+      [uuid(501), 'uncertain'],
+      [uuid(502), 'preparing'],
+      [uuid(503), 'held'],
+    ]);
+    expect(logs.find((item) => item.msg === 'send journal removed outside: open records written back')?.fields).toEqual({ open: 2, saved: true });
+    // The event page unloads right after: the next one still holds both fans.
+    journal.dispose();
+    port.detach();
+    const next = setup({ local });
+    expect(await next.journal.begin(entry(4))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(await next.journal.begin(entry(5, { fanRef: '7002' }))).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+  });
+
+  it('a value that dropped an open record is rewritten; a late echo of an own write is not a removal', async () => {
+    const { journal, local } = setup();
+    await journal.start();
+    local.holdEvents();
+    await journal.begin(entry(1));
+    await journal.begin(entry(2, { fanRef: '7002' }));
+    const writes = local.calls.set;
+    const reads = local.calls.get;
+    local.releaseEvents();
+    await settle(20);
+    // The first echo lacks attempt 2 (it predates it): the store is read again, holds both — no write.
+    expect(local.calls.get).toBe(reads + 1);
+    expect(local.calls.set).toBe(writes);
+    local.external(KEY, { v: 1, entries: [] });
+    await settle(20);
+    expect(stored(local)?.entries.map((item) => item['attemptId'])).toEqual([uuid(501), uuid(502)]);
+  });
+
+  it('an outside value this build cannot read is left untouched and refuses sends; a failed re-read waits for the next change', async () => {
+    for (const [value, mode, code] of [
+      [{ v: 2, entries: [] }, 'newer', 'CG-STORAGE-VERSION'],
+      ['garbage', 'unreadable', 'CG-STORAGE-READ'],
+    ] as const) {
+      const { journal, local } = setup();
+      await journal.begin(entry(1));
+      local.external(KEY, value);
+      await settle(20);
+      expect(local.read(KEY)).toEqual(value);
+      expect(journal.stats().mode).toBe(mode);
+      expect(await journal.begin(entry(2, { fanRef: '7002' }))).toMatchObject({ ok: false, code });
+    }
+    const { journal, local, logs } = setup();
+    await journal.begin(entry(1));
+    local.failNext('get');
+    local.external(KEY, undefined);
+    await settle(20);
+    expect(journal.stats().dirty).toBe(true);
+    expect(logs.some((item) => item.code === 'CG-STORAGE-READ' && item.msg.includes('changed outside'))).toBe(true);
+    // The next change writes the whole journal again.
+    await journal.advance(uuid(501), { state: 'nativeEnqueued', pendingId: 'p1' });
+    expect(stored(local)?.entries.map((item) => item['attemptId'])).toEqual([uuid(501)]);
+  });
+
+  it('unparsed records are part of what must survive an outside overwrite', async () => {
+    const local = createMemoryKv();
+    const foreign = { ...entry(1), state: 'someFutureState' };
+    local.data.set(KEY, { v: 1, entries: [foreign] });
+    const { journal } = setup({ local });
+    await journal.start();
+    local.external(KEY, { v: 1, entries: [] });
+    await settle(20);
+    expect(stored(local)?.entries).toEqual([foreign]);
+  });
+});
+
 describe('a journal this build cannot read is never overwritten (§9.4)', () => {
   it('a failed read refuses every send until a read succeeds', async () => {
     const local = createMemoryKv();
@@ -235,7 +342,7 @@ describe('a journal this build cannot read is never overwritten (§9.4)', () => 
       const { journal } = setup({ local });
       expect(await journal.begin(entry(1))).toMatchObject({ ok: false, code });
       expect(await journal.removeFinished()).toBe(0);
-      expect(await journal.release(uuid(501))).toBe(false);
+      expect(await journal.release(uuid(501))).toEqual({ ok: false, reason: 'unavailable' });
       expect(local.read(KEY)).toEqual(value);
       expect(local.calls.set).toBe(0);
     }

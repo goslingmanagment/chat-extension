@@ -68,6 +68,7 @@ export {
   type SendJournalMode,
   type SendJournalRecovery,
   type SendJournalRefusal,
+  type SendJournalRelease,
   type SendJournalStats,
   type SendJournalUpdate,
 } from './send-journal';

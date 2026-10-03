@@ -71,6 +71,7 @@ function eventPage(local: MemoryKv, session: MemoryKv, at: number, consent = con
     ]);
   const unload = (): void => {
     settings.dispose();
+    journal.dispose();
     consentState.dispose();
     localPort.detach();
     sessionPort.detach();
