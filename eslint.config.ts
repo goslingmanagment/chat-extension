@@ -15,7 +15,7 @@ type Restriction = { group?: string[]; regex?: string; message: string };
 const CG = {
   contracts: '@cg/contracts',
   core: ['@cg/core', '@cg/core/*'],
-  platform: '@cg/platform',
+  platform: ['@cg/platform', '@cg/platform/*'],
   hub: '@cg/hub',
   host: ['@cg/host-chatspace', '@cg/host-chatspace/*'],
   ui: ['@cg/ui', '@cg/ui/*'],
