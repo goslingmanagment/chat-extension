@@ -5,7 +5,12 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./primitives": "./src/primitives.ts",
+    "./features": "./src/features.ts",
+    "./ids": "./src/ids.ts",
+    "./bridge": "./src/bridge.ts",
+    "./tab-protocol": "./src/tab-protocol.ts"
   },
   "dependencies": {
     "zod": "4.6.5"
