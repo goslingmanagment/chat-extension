@@ -54,9 +54,11 @@ export async function waitForStandReady(timeout = 15_000): Promise<void> {
 }
 
 /** Opens a stand path (optionally as a «new build» without some anchors) and waits for the app — and for the open chat, if any. */
-export async function openStand(path: string, options: { readonly breaks?: readonly StandBreak[]; readonly waitForChat?: boolean } = {}): Promise<void> {
+export async function openStand(path: string, options: { readonly breaks?: readonly StandBreak[]; readonly waitForChat?: boolean; readonly csp?: 'strict' } = {}): Promise<void> {
   const url = new URL(path, standOrigin());
   if (options.breaks !== undefined && options.breaks.length > 0) url.searchParams.set('stand-break', options.breaks.join(','));
+  // The fixture's document comes with a strict CSP (src/stand-server.ts `strictFixtureCsp`).
+  if (options.csp !== undefined) url.searchParams.set('csp', options.csp);
   await browser.url(url.toString());
   await waitForStandReady();
   const chat = /^\/accounts\/([^/]+)\/chats\/([^/?#]+)/.exec(url.pathname);

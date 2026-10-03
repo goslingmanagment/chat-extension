@@ -74,6 +74,17 @@ const SPIKE_FILES = new Set(['/spike.html', '/stand.js', '/stand.css']);
 export const STRICT_STAND_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws:; object-src 'none'; base-uri 'none'";
 
+/**
+ * The same strictness for the ChatSpace-like fixture (`?csp=strict` on any of
+ * its paths): the page may also talk to its own API origin and socket, and
+ * nothing else — no inline script or style, no eval. Our UI must work under
+ * it (lazy chunks by import(), sheets adopted in closed roots).
+ */
+export function strictFixtureCsp(apiOrigin: string): string {
+  const socket = apiOrigin.replace(/^http/, 'ws');
+  return `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ${apiOrigin} ${socket}; object-src 'none'; base-uri 'none'`;
+}
+
 const API_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 const API_ALLOWED_HEADERS = `authorization, content-type, ${NATIVE_REQUEST_HEADER}`;
 const PREFLIGHT_MAX_AGE_S = 600;
@@ -204,7 +215,9 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       status = await serveFile(response, join(fixtureDir, relative), null);
     } else if (existsSync(join(fixtureDir, 'index.html'))) {
       // History-mode SPA: every other path is the app's index, told where its API is.
-      status = await serveFile(response, join(fixtureDir, 'index.html'), null, (text) => text.replace(META_PATTERN, `$1${apiOrigin}$2`));
+      status = await serveFile(response, join(fixtureDir, 'index.html'), url.searchParams.get('csp') === 'strict' ? strictFixtureCsp(apiOrigin) : null, (text) =>
+        text.replace(META_PATTERN, `$1${apiOrigin}$2`),
+      );
     } else {
       response
         .writeHead(503, { 'content-type': 'text/plain; charset=utf-8' })
