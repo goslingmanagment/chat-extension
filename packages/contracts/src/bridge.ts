@@ -163,6 +163,7 @@ export const TO_MAIN_TYPES = [
   'insertGuarded',
   'focus',
   'navigate',
+  'cancelInsert',
   'checkpoint',
   'previewSendPreflight',
   'previewSendCommit',

@@ -143,6 +143,14 @@ export const TO_MAIN = {
   },
   focus: { payload: z.strictObject({ expected: HostIdentitySchema }), data: z.strictObject({ focused: z.boolean() }), write: false, timeout: 'call' },
   navigate: { payload: z.strictObject({ intent: NavigationWireSchema }), data: NavigationReceiptSchema, write: true, timeout: 'navInsert' },
+  /**
+   * Cancels the deferred insert (`thenInsert.intentId`) of an «Открыть и
+   * вставить» (§6.5: sign-out, persona or binding change, the preview
+   * closed); it may come before its navigation reached MAIN. `canceled` —
+   * MAIN will not write it; false — it was already written or had ended.
+   * The navigation itself is not undone; its receipt carries the outcome.
+   */
+  cancelInsert: { payload: z.strictObject({ intentId: UuidSchema }), data: z.strictObject({ canceled: z.boolean() }), write: false, timeout: 'call' },
   checkpoint: { payload: z.strictObject(AccFan), data: FreshnessCheckpointSchema, write: false, timeout: 'call' },
   previewSendPreflight: { payload: z.strictObject({ req: MainSendRequestSchema }), data: PreviewSendPreflightSchema, write: false, timeout: 'call' },
   previewSendCommit: { payload: z.strictObject({ req: MainSendRequestSchema }), data: PreviewSendCommitSchema, write: true, timeout: 'call' },
@@ -223,6 +231,7 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('insertGuarded'),
   requestFrame('focus'),
   requestFrame('navigate'),
+  requestFrame('cancelInsert'),
   requestFrame('checkpoint'),
   requestFrame('previewSendPreflight'),
   requestFrame('previewSendCommit'),
