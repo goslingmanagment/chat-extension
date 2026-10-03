@@ -104,6 +104,27 @@ describe('I18n port: one money notation (ui-design §1 п. 6)', () => {
   it('is the same in both languages', () => {
     expect(make('ru').formatMoneyMills(4_670_000)).toBe(make('en').formatMoneyMills(4_670_000));
   });
+
+  it('says the amount in words for screen readers: «+$320» is «плюс 320 долларов» (ui-design §6.2)', () => {
+    const ru = make('ru');
+    const say = (mills: number | null, format?: Parameters<typeof ru.formatMoneyMills>[1]): string => ru.formatMoneySpoken?.(mills, format) ?? 'missing';
+    expect(say(320_000, { sign: 'plus' })).toBe('плюс 320 долларов');
+    expect(say(-45_000)).toBe('минус 45 долларов');
+    expect(say(-45_000, { sign: 'plus' })).toBe('минус 45 долларов');
+    expect(say(12_480_000)).toBe('12480 долларов');
+    expect(say(1_000)).toBe('1 доллар');
+    expect(say(21_000)).toBe('21 доллар');
+    expect(say(3_000)).toBe('3 доллара');
+    expect(say(0)).toBe('');
+    expect(say(0, { zero: 'show', sign: 'plus' })).toBe('0 долларов');
+    expect(say(-400)).toBe('0 долларов');
+    expect(say(null)).toBe('неизвестно');
+    expect(say(Number.NaN)).toBe('неизвестно');
+    const en = make('en');
+    expect(en.formatMoneySpoken?.(320_000, { sign: 'plus' })).toBe('plus 320 dollars');
+    expect(en.formatMoneySpoken?.(1_000)).toBe('1 dollar');
+    expect(en.formatMoneySpoken?.(-45_000)).toBe('minus 45 dollars');
+  });
 });
 
 describe('I18n port: ages, times and durations', () => {

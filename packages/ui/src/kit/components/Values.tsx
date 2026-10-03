@@ -1,12 +1,13 @@
 // Money, ages, times, durations and countdowns, formatted only by the I18n
 // port (ui-design §1 п. 6, §2.3, §4.8): tabular digits, one money notation,
-// green only for money that came in (`+$320`). Live values schedule one timer
+// green only for money that came in (`+$320`), and the amount in words for
+// a money cell's name (§6.2). Live values schedule one timer
 // for their next change and none when idle.
 
 import { type JSX } from 'preact';
 
 import { type IsoTimestamp, type MoneyMills } from '@cg/contracts/primitives';
-import { type DurationStyle, type MoneySign, type TimeStyle } from '@cg/contracts/vm';
+import { type DurationStyle, type MoneyFormat, type MoneySign, type TimeStyle } from '@cg/contracts/vm';
 
 import { countdownParts, useCountdown, useElapsed, useMinuteClock } from '../clock';
 import { useI18n, useNowFn } from '../context';
@@ -16,14 +17,35 @@ export interface MoneyProps {
   /** `plus` marks income: `+$320` in green (the only green, ui-design §1 п. 4). */
   readonly sign?: MoneySign;
   readonly zero?: 'blank' | 'show';
+  /**
+   * The amount is a table cell of its own (`role="cell"`): the cell is named
+   * by the amount in words, «плюс 320 долларов» (ui-design §6.2). Off for an
+   * amount inside a sentence or a bigger cell — a plain span cannot carry a
+   * name; such a cell takes `useSpokenMoney` for its own `aria-label`.
+   */
+  readonly cell?: boolean;
   readonly class?: string;
 }
 
-export function Money({ mills, sign = 'auto', zero = 'blank', class: extra }: MoneyProps): JSX.Element {
+/** The amount in words from the I18n port for an `aria-label`; null when there is nothing to say or the port cannot. */
+export function useSpokenMoney(mills: MoneyMills | null, format: MoneyFormat = {}): string | null {
+  const spoken = useI18n().formatMoneySpoken?.(mills, format);
+  return spoken === undefined || spoken === '' ? null : spoken;
+}
+
+export function Money({ mills, sign = 'auto', zero = 'blank', cell = false, class: extra }: MoneyProps): JSX.Element {
   const i18n = useI18n();
   const text = i18n.formatMoneyMills(mills, { sign, zero });
+  const spoken = useSpokenMoney(mills, { sign, zero });
   const income = sign === 'plus' && mills !== null && text.startsWith('+');
-  return <span class={`cg-num${income ? ' cg-money' : ''}${extra === undefined ? '' : ` ${extra}`}`}>{text}</span>;
+  return (
+    <span
+      class={`cg-num${income ? ' cg-money' : ''}${extra === undefined ? '' : ` ${extra}`}`}
+      {...(cell ? { role: 'cell', ...(spoken === null ? {} : { 'aria-label': spoken }) } : {})}
+    >
+      {text}
+    </span>
+  );
 }
 
 /** «сейчас», «7 мин», «3 ч», «12 д»; refreshed by the shared minute ticker while shown. */

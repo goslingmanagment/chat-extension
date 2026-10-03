@@ -139,7 +139,7 @@ export {
   type VirtualListHandle,
   type VirtualListProps,
 } from './components/VirtualList';
-export { Age, Countdown, Duration, ElapsedTimer, Money, Time, useCountdownText, type MoneyProps } from './components/Values';
+export { Age, Countdown, Duration, ElapsedTimer, Money, Time, useCountdownText, useSpokenMoney, type MoneyProps } from './components/Values';
 export { ViewState, remedyLabelKey, type ViewStateProps } from './components/ViewState';
 export { Boundary, type BoundaryProps } from './components/Boundary';
 export { Markdown, MarkdownView, type MarkdownProps } from './markdown/Markdown';

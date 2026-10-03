@@ -23,6 +23,7 @@ import {
   Time,
   Caret,
   Spinner,
+  useSpokenMoney,
 } from '@cg/ui/kit';
 
 import { cgError, ctxOf, part, phase, uuid } from '../scenarios/app-client';
@@ -398,6 +399,31 @@ describe('values through I18n: one money notation, ages, times, durations, count
     expect(values.map((value) => value.textContent)).toEqual(['$12,480', '+$320', '−$45', '', '$0', '—']);
     expect(values.map((value) => value.classList.contains('cg-money'))).toEqual([false, true, false, false, false, false]);
     expect(values[5]?.classList.contains('cg-x')).toBe(true);
+    // Inside a sentence a span cannot carry a name: no role, no label.
+    expect(values.map((value) => value.getAttribute('aria-label'))).toEqual([null, null, null, null, null, null]);
+  });
+
+  it('a money cell is named by the amount in words: «+$320» is «плюс 320 долларов» (ui-design §6.2)', async () => {
+    let label: string | null = 'not read';
+    function Row() {
+      label = useSpokenMoney(12_480_000);
+      return (
+        <div role="row">
+          <Money mills={320_000} sign="plus" cell />
+          <Money mills={-45_000} cell />
+          <Money mills={1_000} cell />
+          <Money mills={null} cell />
+          <Money mills={0} cell />
+        </div>
+      );
+    }
+    kit = mountKit(Row);
+    const cells = kit.$$('[role="cell"]');
+    expect(cells.map((cell) => cell.textContent)).toEqual(['+$320', '−$45', '$1', '—', '']);
+    expect(cells.map((cell) => cell.getAttribute('aria-label'))).toEqual(['плюс 320 долларов', 'минус 45 долларов', '1 доллар', 'неизвестно', null]);
+    expect(label).toBe('12480 долларов');
+    await flush(() => kit?.deps.i18n.setLanguage('en'));
+    expect(kit.$('[role="cell"]')?.getAttribute('aria-label')).toBe('plus 320 dollars');
   });
 
   it('ages, times and durations', () => {

@@ -1,8 +1,8 @@
 // The I18n port of the UI (architecture.md §9.7, §10.2 п. 3; contract
 // `@cg/contracts/vm` I18n): texts from the ru/en catalogs, plural forms by
-// Intl.PluralRules, and the one place that formats money, ages, times and
-// durations, so every surface prints them the same way (ui-design §1 п. 6,
-// §5). The language switches on the fly (I18-001): `setLanguage` notifies
+// Intl.PluralRules, and the one place that formats money (printed and
+// spoken), ages, times and durations, so every surface prints them the same
+// way (ui-design §1 п. 6, §5, §6.2). The language switches on the fly (I18-001): `setLanguage` notifies
 // the subscribers and the views re-render with the new texts.
 //
 // Pure: the clock and the time zone come from the caller; no DOM, no
@@ -150,6 +150,17 @@ export function createI18n(options: I18nOptions): LiveI18n {
     return key;
   };
 
+  // «плюс 320 долларов» for screen readers (ui-design §6.2): the same rounding and blanks as the printed form.
+  const formatMoneySpoken = (mills: number | null, format: MoneyFormat = {}): string => {
+    if (mills === null || !Number.isFinite(mills)) return catalogText('common.unknown', undefined, null);
+    if (mills === 0 && format.zero !== 'show') return '';
+    const dollars = Math.round(Math.abs(mills) / 1000);
+    const amount = catalogText('common.money.dollars', undefined, dollars);
+    if (mills < 0 && dollars > 0) return catalogText('common.money.minus', { amount }, null);
+    if (format.sign === 'plus' && dollars > 0) return catalogText('common.money.plus', { amount }, null);
+    return amount;
+  };
+
   const formatAge = (from: number | string, now: number = clock()): string => {
     const start = toEpoch(from);
     if (!Number.isFinite(start)) return UNKNOWN_VALUE;
@@ -192,6 +203,7 @@ export function createI18n(options: I18nOptions): LiveI18n {
     plural: (key, count, params) => catalogText(key, plainParams(params), count),
     text: (msg: Msg) => (isPluralKey(msg.key) ? catalogText(msg.key, plainParams(msg.params), null) : t(msg.key, msg.params)),
     formatMoneyMills,
+    formatMoneySpoken,
     formatAge,
     formatTime,
     formatDuration,
