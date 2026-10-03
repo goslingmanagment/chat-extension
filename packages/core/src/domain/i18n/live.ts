@@ -14,7 +14,7 @@
 // Pure: the clock and the time zone come from the caller; no DOM, no
 // storage, no timers. Plain text only, never markup.
 
-import { isPluralKey, type I18nPlainParams, type I18nTextKey } from '@cg/contracts/i18n/catalog';
+import { type I18nPlainParams, type I18nTextKey } from '@cg/contracts/i18n/catalog';
 import { DEFAULT_LOCALE, LOCALES, type Locale, type UiPluralKey } from '@cg/contracts/i18n/keys';
 import { type UiLocale } from '@cg/contracts/settings';
 import {
@@ -265,7 +265,8 @@ export function createLiveI18n(source: CatalogSource, options: I18nOptions): Liv
     },
     t,
     plural: (key, count, params) => catalogText(key, plainParams(params), count),
-    text: (msg: Msg) => (isPluralKey(msg.key) ? catalogText(msg.key, plainParams(msg.params), null) : t(msg.key, msg.params)),
+    // A plural key takes its count from the `n` parameter; a plain one ignores it.
+    text: (msg: Msg) => t(msg.key, msg.params),
     formatMoneyMills,
     formatMoneySpoken,
     formatAge,
