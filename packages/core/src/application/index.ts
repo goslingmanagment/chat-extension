@@ -1,5 +1,13 @@
 // core/application — controllers for the tab and the extension pages: surface
-// state → view models (architecture.md §4, §10.2). R11, R12, R16, R17 fill this in.
+// state → view models (architecture.md §4, §10.2). The router is the AppClient
+// every surface gets; R11, R12, R16 and R17 plug their controllers into it.
 
-/** Marker export so the entry exists in the package graph before R11 lands. */
-export const APPLICATION_LAYER = 'core/application' as const;
+export {
+  UnservedViewError,
+  ViewListeners,
+  createAppRouter,
+  type AppRouter,
+  type AppRouterOptions,
+  type RouterFailure,
+  type SurfaceController,
+} from './router';
