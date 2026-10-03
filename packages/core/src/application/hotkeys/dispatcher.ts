@@ -208,8 +208,10 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
 
   /** ⌘/Ctrl went down alone, outside any field, with the chat list on screen: the quick jump may open. */
   const armQuickJump = (event: KeyEventLike): void => {
+    // Windows repeats a held Ctrl as keydowns (from 250 ms on, at its shortest delay): the hold goes on, nothing restarts.
+    if (event.repeat === true) return;
     cancelHold();
-    if (sink === null || quickJumpOpen || event.repeat === true || !resolver.primaryHeldAlone()) return;
+    if (sink === null || quickJumpOpen || !resolver.primaryHeldAlone()) return;
     // Cheapest checks first: ⌘/Ctrl goes down in the composer with every ⌘V.
     const focus = ownership.focus(event);
     if (focus === 'composer' || focus === 'field' || focus === 'ours-field') return;

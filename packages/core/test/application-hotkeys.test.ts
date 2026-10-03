@@ -448,6 +448,34 @@ describe('the early dispatcher', () => {
     expect(r.sink.quick).toEqual([true, false, true, false, true, false]);
   });
 
+  it('[NEW-07] win: a held Ctrl that auto-repeats (keyboard delay under 400 ms) still opens the quick jump at 400 ms, once', async () => {
+    const r = rig('win');
+    r.win.fire('keydown', primaryKey('win', true));
+    // Windows' shortest repeat delay is 250 ms, then about 30 keys a second.
+    await r.clock.advance(250);
+    r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+    await r.clock.advance(33);
+    r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+    await r.clock.advance(116);
+    expect(r.sink.quick).toEqual([]);
+    await r.clock.advance(1);
+    expect(r.sink.quick).toEqual([true]);
+    // The repeats go on while the popup is open: it neither closes nor opens again.
+    for (let i = 0; i < 5; i += 1) {
+      await r.clock.advance(33);
+      r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+    }
+    await r.clock.advance(1000);
+    expect(r.sink.quick).toEqual([true]);
+    r.win.fire('keyup', primaryKey('win', false));
+    expect(r.sink.quick).toEqual([true, false]);
+    // A repeat alone never arms a hold: Ctrl was down before the page had the focus (the engine was reset).
+    r.win.fire('blur');
+    r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+    await r.clock.advance(1000);
+    expect(r.sink.quick).toEqual([true, false]);
+  });
+
   it('[NEW-07] no quick jump while typing, without a chat list, under a window, or before the lazy part', async () => {
     for (const arrange of [
       (r: Rig) => (r.own.kind = 'composer'),
