@@ -545,6 +545,63 @@ describe('MAIN runtime — guarded insert (§6.4)', () => {
   });
 });
 
+describe('MAIN runtime — every guard of the one synchronous step', () => {
+  beforeEach(async () => {
+    await start((page) => {
+      composer = page.addComposer(ACC, FAN);
+      page.addComposer(ACC, OTHER, { shown: false });
+    });
+  });
+
+  it('[AI-022] the digest half of the CAS: the same revision with another document is refused (confirm-changed-draft)', async () => {
+    const h = harness as Harness;
+    composer.editor?.type('typed');
+    const intent = await openIntent(h, { confirmationId: uuid(100) });
+    const forged = { ...intent, expected: { ...intent.expected, draftDigest: 'ffffffffffffffff' } };
+    expect(await h.call('insertGuarded', { intent: forged })).toEqual({ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-changed-draft' });
+    expect(composer.calls).toEqual([]);
+  });
+
+  it('[RB-015] A→B→A: an intent made before the switch is refused at MAIN by its route epoch, though chat and composer match again', async () => {
+    const h = harness as Harness;
+    const intent = await openIntent(h);
+    h.page.showOnly(ACC, OTHER);
+    h.page.go(ACC, OTHER);
+    h.frame();
+    h.page.showOnly(ACC, FAN);
+    h.page.go(ACC, FAN);
+    h.frame();
+    // Same chat, same composer node, same draft — only the epoch tells that the person left and came back.
+    expect(identity(h).composerInstanceId).toBe(intent.expected.composerInstanceId);
+    expect(await h.call('insertGuarded', { intent })).toEqual({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
+    expect(composer.calls).toEqual([]);
+  });
+
+  it('[RB-015] a sign-out (the queue reset) makes every identity from before fail: readDraft, readTail, focus', async () => {
+    const h = harness as Harness;
+    const queue = fakeStore('pendingMessages', { enqueue: () => null, resetAll: () => undefined, messagesByAccountId: {} }, ['resetAll']);
+    h.page.addStore(queue);
+    const before = identity(h);
+    expect(await h.call('readDraft', { expected: before })).toMatchObject({ composerInstanceId: before.composerInstanceId });
+    (queue['resetAll'] as () => void)();
+    expect(await h.call('readDraft', { expected: before })).toBe('identity-mismatch');
+    expect(await h.call('readTail', { expected: before, max: 5 })).toBe('identity-mismatch');
+    expect(await h.call('focus', { expected: before })).toBe('identity-mismatch');
+    expect(await h.call('readDraft', { expected: identity(h) })).toMatchObject({ composerInstanceId: before.composerInstanceId });
+  });
+
+  it('[AU-030] an identity of another page (platformAccountId) or another document is refused', async () => {
+    const h = harness as Harness;
+    for (const over of [{ platformAccountId: '9999' }, { documentEpoch: 'doc0' }, { hostAccountId: '1009' }, { chat: chatOf(OTHER) }, { chat: null }]) {
+      const expected = identity(h, over);
+      expect([over, await h.call('readDraft', { expected })]).toEqual([over, 'identity-mismatch']);
+      expect([over, await h.call('readTail', { expected, max: 5 })]).toEqual([over, 'identity-mismatch']);
+      expect([over, await h.call('focus', { expected })]).toEqual([over, 'identity-mismatch']);
+    }
+    expect(composer.calls).toEqual([]);
+  });
+});
+
 describe('MAIN runtime — degraded composers', () => {
   it('without the editor handle the bridge still writes, but a non-empty draft always needs consent', async () => {
     const h = await start((page) => {
@@ -653,6 +710,22 @@ describe('MAIN runtime — navigation (§6.5, §6.9)', () => {
     const receipt = NavigationReceiptSchema.parse(await pending);
     expect(receipt).toMatchObject({ state: 'navigated', routeEpoch: 2, insert: { state: 'applied' } });
     expect(target.editor?.text).toBe('Open and insert');
+    expect(target.calls).toEqual(['setText']);
+  });
+
+  it('[NEW-01] the deferred insert waits for two stable observations of the ready composer, not one', async () => {
+    const h = harness as Harness;
+    const target = h.page.all.find((item) => item.fan === OTHER) as FakeComposer;
+    const pending = h.call('navigate', { intent: { intentId: uuid(11), acc: ACC, fan: OTHER, thenInsert: deferred() } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The route settles and the composer is seen ready once: nothing yet.
+    h.frame();
+    expect(target.calls).toEqual([]);
+    // The same composer seen ready again: now it is written.
+    h.frame();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    h.frame();
+    expect(NavigationReceiptSchema.parse(await pending)).toMatchObject({ state: 'navigated', insert: { state: 'applied' } });
     expect(target.calls).toEqual(['setText']);
   });
 

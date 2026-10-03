@@ -110,6 +110,26 @@ describe('[EX-008] MAIN request checks agree with the contracts fixtures', () =>
     for (const payload of fixtures.invalid) expect([t, payload, check?.(payload)]).toEqual([t, payload, false]);
   });
 
+  it('[NEW-01] a navigation’s deferred insert must aim at the navigation’s own account and fan', () => {
+    const then = (fan: string, acc = '1001') => ({
+      intentId: '00000000-0000-4000-8000-000000000011',
+      operationId: '00000000-0000-4000-8000-000000000012',
+      part: { index: 0 },
+      target: { host: 'chatspace', hostAccountId: acc, platformFanId: fan },
+      expected: { kind: 'deferred', documentEpoch: 'doc' },
+      mode: 'replace',
+      text: 'hi',
+      confirmationId: null,
+      createdAt: 1,
+      expiresAt: 2,
+    });
+    const navigate = (fan: string | null, insert: unknown) => ({ intent: { intentId: '00000000-0000-4000-8000-000000000010', acc: '1001', fan, thenInsert: insert } });
+    expect(PAYLOAD['navigate']?.(navigate('2002', then('2002')))).toBe(true);
+    expect(PAYLOAD['navigate']?.(navigate('2002', then('2003')))).toBe(false);
+    expect(PAYLOAD['navigate']?.(navigate('2002', then('2002', '1009')))).toBe(false);
+    expect(PAYLOAD['navigate']?.(navigate(null, then('2002')))).toBe(false);
+  });
+
   it('the envelope check takes the contract’s request frames and nothing else', () => {
     const frame = { v: 1, kind: 'req', id: 1, t: 'probe', documentEpoch: null, seq: 0, payload: {} };
     expect(isRequestEnvelope(frame)).toBe(true);

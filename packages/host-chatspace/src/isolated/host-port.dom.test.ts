@@ -307,6 +307,8 @@ describe('guarded insert (§6.4)', () => {
     const { host, bridge, redeemed } = await port({ insertGuarded: () => ({ state: 'applied', draftRevision: 5, draftDigest: '00000000000000bb', ms: 1 }) });
     expect(await host.insert(insertIntent({ target: chat(OTHER) }))).toEqual({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
     expect(await host.insert(insertIntent({ expected: { ...insertIntent().expected, routeEpoch: 3 } as InsertIntent['expected'] }))).toEqual({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
+    expect(await host.insert(insertIntent({ expected: { ...insertIntent().expected, composerInstanceId: 'c9' } as InsertIntent['expected'] }))).toEqual({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
+    expect(await host.insert(insertIntent({ expected: { ...insertIntent().expected, documentEpoch: 'doc0' } }))).toEqual({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
     expect(redeemed).toEqual([]);
     const refused = await port({}, { redeem: false });
     expect(await refused.host.insert(insertIntent())).toEqual({ state: 'rejected', code: 'CG-INSERT-FAILED' });

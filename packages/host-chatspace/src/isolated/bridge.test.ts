@@ -144,6 +144,64 @@ describe('[EX-008] the boot routes requests to the runtime', () => {
     expect(runs).toBe(1);
   });
 
+  /** The isolated side by hand: our own port to MAIN, raw frames in and out. */
+  async function rawPort(handle: (t: string, payload: unknown) => unknown) {
+    const win = fakeWindow();
+    const main = installMainBridge(win, { runtime: () => ({ handle, dispose: () => undefined }) });
+    const channel = new MessageChannel();
+    const answers: Array<Record<string, unknown>> = [];
+    channel.port1.onmessage = (event: MessageEvent<Record<string, unknown>>) => answers.push(event.data);
+    win.postMessage({ cg: 'connect', v: 1, nonce: 'n1' }, '*', [channel.port2]);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    cleanups.push(() => channel.port1.close(), () => main.dispose());
+    let seq = 0;
+    const send = (frame: Record<string, unknown>): void => channel.port1.postMessage({ v: 1, kind: 'req', documentEpoch: null, seq: seq++, payload: {}, ...frame });
+    const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20));
+    return { main, send, answers, settle };
+  }
+
+  it('[EX-008] a repeated request id of a write runs once and gets the first answer again; a read runs every time', async () => {
+    let runs = 0;
+    const raw = await rawPort((t) => (t === 'insertGuarded' || t === 'listAccounts' ? ((runs += 1), t === 'listAccounts' ? [] : { state: 'rejected', code: 'CG-INSERT-FAILED' }) : null));
+    const intent = {
+      intentId: '00000000-0000-4000-8000-000000000001',
+      operationId: '00000000-0000-4000-8000-000000000002',
+      part: { index: 0 },
+      target: { host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' },
+      expected: { kind: 'open', documentEpoch: 'doc', routeEpoch: 1, composerInstanceId: 'c1', draftRevision: 0, draftDigest: '0123456789abcdef' },
+      mode: 'replace',
+      text: 'hi',
+      confirmationId: null,
+      createdAt: 1,
+      expiresAt: 2,
+    };
+    raw.send({ id: 7, t: 'insertGuarded', payload: { intent } });
+    raw.send({ id: 7, t: 'insertGuarded', payload: { intent } });
+    await raw.settle();
+    expect(runs).toBe(1);
+    expect(raw.answers.map((answer) => [answer['id'], answer['ok'], answer['data']])).toEqual([
+      [7, true, { state: 'rejected', code: 'CG-INSERT-FAILED' }],
+      [7, true, { state: 'rejected', code: 'CG-INSERT-FAILED' }],
+    ]);
+    raw.send({ id: 8, t: 'listAccounts' });
+    raw.send({ id: 8, t: 'listAccounts' });
+    await raw.settle();
+    expect(runs).toBe(3);
+  });
+
+  it('[EX-008] a request carrying another document’s epoch is refused before it runs (stale-document)', async () => {
+    let runs = 0;
+    const raw = await rawPort(() => ((runs += 1), []));
+    raw.send({ id: 1, t: 'listAccounts', documentEpoch: 'not-this-document' });
+    raw.send({ id: 2, t: 'listAccounts', documentEpoch: raw.main.documentEpoch });
+    await raw.settle();
+    expect(raw.answers.map((answer) => [answer['id'], answer['ok'], answer['err'] ?? null])).toEqual([
+      [1, false, 'stale-document'],
+      [2, true, null],
+    ]);
+    expect(runs).toBe(1);
+  });
+
   it('an answer that breaks its schema fails the call as `invalid-answer` (a write may have run)', async () => {
     const { client } = await connected(() => ({ wrong: true }));
     const error = (await client.request('listAccounts', {}).catch((e: unknown) => e)) as BridgeCallError;
@@ -283,15 +341,25 @@ describe('a page script pretending to be MAIN (§14)', () => {
     expect(client.stats().rejected).toEqual({ 'unknown-type': 1, envelope: 2 });
   });
 
-  it('a frame of another document epoch or an old sequence number is dropped', async () => {
+  it('a frame of another document epoch is dropped, even with a newer sequence number', async () => {
     const win = fakeWindow();
     let n = 0;
-    forgeMain(win, (request) => ({ v: 1, kind: 'res', id: request.id, t: request.t, documentEpoch: n++ === 0 ? 'one' : 'two', seq: 5, ok: true, data: [] }));
+    forgeMain(win, (request) => ({ v: 1, kind: 'res', id: request.id, t: request.t, documentEpoch: n === 0 ? 'one' : 'two', seq: 5 + n++, ok: true, data: [] }));
     const client = await connectMainBridge(win, 100);
     cleanups.push(() => client.close());
     expect(await client.request('listAccounts', {})).toEqual([]);
     await expect(client.request('listAccounts', {}, 60)).rejects.toMatchObject({ failure: 'timeout' });
     expect(client.stats().stale).toBe(1);
     vi.useRealTimers();
+  });
+
+  it('a frame of this document with an old sequence number (a replay) is dropped', async () => {
+    const win = fakeWindow();
+    forgeMain(win, (request) => ({ v: 1, kind: 'res', id: request.id, t: request.t, documentEpoch: 'one', seq: 5, ok: true, data: [] }));
+    const client = await connectMainBridge(win, 100);
+    cleanups.push(() => client.close());
+    expect(await client.request('listAccounts', {})).toEqual([]);
+    await expect(client.request('listAccounts', {}, 60)).rejects.toMatchObject({ failure: 'timeout' });
+    expect(client.stats().stale).toBe(1);
   });
 });
