@@ -1,8 +1,8 @@
 import { act } from 'preact/test-utils';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type ToastVM } from '@cg/contracts';
-import { ToastStack } from '@cg/ui/kit';
+import { DETAIL_MAX_CHARS, TOAST_MAX, ToastStack } from '@cg/ui/kit';
 
 import { aiReadyToast, button, cgError, ctxOf, entry, scenarioById, toast, toasts, views, type AppClientScenario } from '../scenarios/app-client';
 import { type MountedKit, flush, mountKit } from './harness';
@@ -13,14 +13,15 @@ let kit: MountedKit | null = null;
 afterEach(() => {
   kit?.unmount();
   kit = null;
+  vi.useRealTimers();
 });
 
 function withToasts(list: readonly ToastVM[]): AppClientScenario {
   return { ...scenarioById('gallery-ready'), id: 'kit-toasts', views: [entry({ of: 'toasts' }, toasts(list.length === 0 ? views.empty({ key: 'common.empty' }) : views.ready(), list))] };
 }
 
-function mountToasts(list: readonly ToastVM[]): MountedKit {
-  kit = mountKit(ToastStack, { scenario: withToasts(list), kind: 'toasts' });
+function mountToasts(list: readonly ToastVM[], now?: () => number): MountedKit {
+  kit = mountKit(ToastStack, { scenario: withToasts(list), kind: 'toasts', ...(now === undefined ? {} : { now }) });
   return kit;
 }
 
@@ -38,18 +39,20 @@ describe('[ER-009] toasts: four kinds, top right, a polite stack, newest first',
       hubDown,
       toast(ctx, 'w', 'warning', { code: 'CG-HOST-CONTRACT', title: 'ChatSpace обновился — часть функций выключена' }),
       aiReadyToast(ctx, 'Theodore Whitfield', 'h-chat'),
-      toast(ctx, 'i', 'info', { title: 'Recap сохранён в хаб' }),
     ]);
     const stack = k.$('.cg-toasts') as HTMLElement;
     expect(stack.getAttribute('aria-live')).toBe('polite');
     const items = k.$$('.cg-toast');
-    expect(items.map((item) => item.className.replace('cg-toast cg-toast--', ''))).toEqual(['error', 'warning', 'success', 'info']);
+    expect(items.map((item) => item.className.replace('cg-toast cg-toast--', ''))).toEqual(['error', 'warning', 'success']);
     expect(items[0]?.querySelector('.cg-dot--danger')).not.toBeNull();
     expect(items[1]?.querySelector('.cg-dot--ring')).not.toBeNull();
     expect(items[2]?.querySelector('.cg-toast__ok')).not.toBeNull();
-    expect(items[3]?.querySelector('.cg-toast__info')).not.toBeNull();
     // Only an error interrupts; the rest is polite.
-    expect(items.map((item) => item.getAttribute('role'))).toEqual(['alert', null, null, null]);
+    expect(items.map((item) => item.getAttribute('role'))).toEqual(['alert', null, null]);
+    k.unmount();
+    const info = mountToasts([toast(ctx, 'i', 'info', { title: 'Recap сохранён в хаб' })]);
+    expect(info.$('.cg-toast--info .cg-toast__info')).not.toBeNull();
+    expect(info.$('.cg-toast')?.getAttribute('role')).toBeNull();
   });
 
   it('× and Esc inside dismiss; hover and focus hold the timer, once per change', async () => {
@@ -76,6 +79,26 @@ describe('[ER-009] toasts: four kinds, top right, a polite stack, newest first',
     expect(k.$('.cg-toast__x')?.getAttribute('aria-label')).toBe('Закрыть');
   });
 
+  it('hold follows real focus: the pointer leaving keeps the hold while focus is inside', async () => {
+    const k = mountToasts([hubDown]);
+    const item = k.$('.cg-toast') as HTMLElement;
+    const settings = k.$$('.cg-toast__acts .cg-btn')[0] as HTMLElement;
+    await flush(() => settings.focus());
+    expect(k.root.activeElement).toBe(settings);
+    await flush(() => item.dispatchEvent(new MouseEvent('mouseenter')));
+    await flush(() => item.dispatchEvent(new MouseEvent('mouseleave')));
+    expect(k.client.dispatched).toEqual([{ type: 'HoldToast', toastId: 'toast-hub', hold: true }]);
+    await flush(() => settings.blur());
+    expect(k.client.dispatched.at(-1)).toEqual({ type: 'HoldToast', toastId: 'toast-hub', hold: false });
+  });
+
+  it('never draws more than three, newest first (ui-design §3.9)', () => {
+    const list = ['a', 'b', 'c', 'd'].map((id) => toast(ctx, `toast-${id}`, 'info', { title: id }));
+    const k = mountToasts(list);
+    expect(TOAST_MAX).toBe(3);
+    expect(k.$$('.cg-toast__t').map((item) => item.textContent)).toEqual(['a', 'b', 'c']);
+  });
+
   it('an empty queue draws nothing', () => {
     const k = mountToasts([]);
     expect(k.$$('.cg-toast')).toHaveLength(0);
@@ -96,6 +119,42 @@ describe('[ER-010] the error toast: whose error, what happened, what to do', () 
     });
     expect(k.deps.clipboard.written).toEqual(['CG-HUB-UNAVAILABLE']);
     expect(copy.textContent).toBe('Скопировано');
+  });
+});
+
+describe('[ER-010] the error toast: the technical line and the timer', () => {
+  it('shows the technical line in monospace, cut at 400, and counts to the fixed retry deadline', async () => {
+    vi.useFakeTimers();
+    const start = Date.UTC(2026, 9, 3, 6, 20, 0);
+    vi.setSystemTime(start);
+    const error = cgError(ctx, 'CG-PROVIDER-RATE-LIMIT');
+    const limited = toast(ctx, 'toast-rate', 'error', {
+      code: 'CG-PROVIDER-RATE-LIMIT',
+      title: error.title,
+      body: error.body,
+      copyCode: true,
+      detail: 'HTTP 429 • retry-after 24',
+      retryAt: start + 24_000,
+    });
+    const k = mountToasts([limited], () => Date.now());
+    expect(k.$('.cg-toast__tech')?.textContent).toBe('HTTP 429 • retry-after 24');
+    expect(k.$('.cg-toast__count')?.textContent).toBe('Повторить через 24 с');
+    await flush(() => vi.advanceTimersByTime(4_000));
+    expect(k.$('.cg-toast__count')?.textContent).toBe('Повторить через 20 с');
+    await flush(() => vi.advanceTimersByTime(20_100));
+    expect(k.$('.cg-toast__count')).toBeNull();
+    // Counting never retries anything by itself.
+    expect(k.client.dispatched).toEqual([]);
+  });
+
+  it('a long technical line is cut; a toast without one shows none', () => {
+    const long = toast(ctx, 'toast-long', 'error', { code: 'CG-HUB-UNAVAILABLE', title: 'x', detail: 'y'.repeat(DETAIL_MAX_CHARS + 50) });
+    const k = mountToasts([long, hubDown]);
+    const [first, second] = k.$$('.cg-toast');
+    expect(first?.querySelector('.cg-toast__tech')?.textContent).toHaveLength(DETAIL_MAX_CHARS);
+    expect(first?.querySelector('.cg-toast__tech')?.textContent?.endsWith('…')).toBe(true);
+    expect(second?.querySelector('.cg-toast__tech')).toBeNull();
+    expect(second?.querySelector('.cg-toast__count')).toBeNull();
   });
 });
 

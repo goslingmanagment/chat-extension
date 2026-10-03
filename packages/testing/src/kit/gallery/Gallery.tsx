@@ -240,9 +240,18 @@ function Tooltips(): JSX.Element {
 function toastsOf(ctx: ScenarioCtx): ToastVM[] {
   const hub = cgError(ctx, 'CG-HUB-UNAVAILABLE');
   const contract = cgError(ctx, 'CG-HOST-CONTRACT');
+  const rate = cgError(ctx, 'CG-PROVIDER-RATE-LIMIT');
   const settings = button('common.settings', { type: 'OpenSettings', route: { section: 'status', code: 'CG-HUB-UNAVAILABLE' } });
   return [
     toast(ctx, 'e', 'error', { code: 'CG-HUB-UNAVAILABLE', title: hub.title, body: hub.body, copyCode: true, actions: [settings] }),
+    toast(ctx, 'r', 'error', {
+      code: 'CG-PROVIDER-RATE-LIMIT',
+      title: rate.title,
+      body: rate.body,
+      copyCode: true,
+      detail: 'HTTP 429 • retry-after 24 • req 7f3a',
+      retryAt: ctx.now + 24_000,
+    }),
     toast(ctx, 'w', 'warning', { code: 'CG-HOST-CONTRACT', title: contract.title, actions: [settings] }),
     aiReadyToast(ctx, 'Theodore Whitfield', 'h-chat'),
     toast(ctx, 'i', 'info', { title: ctx.lang === 'ru' ? 'Recap сохранён в хаб' : 'Recap saved to the hub' }),

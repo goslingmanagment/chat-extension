@@ -113,13 +113,14 @@ export {
   type DialogSize,
   type SidePanelProps,
 } from './components/Dialog';
-export { ToastItem, ToastStack, type ToastItemProps } from './components/Toast';
+export { TOAST_MAX, ToastItem, ToastStack, type ToastItemProps } from './components/Toast';
 export {
   CodeLine,
   CopyCodeButton,
   DETAIL_MAX_CHARS,
   ErrorCard,
   StatusBanner,
+  technicalLine,
   type ErrorCardProps,
   type ErrorTone,
   type StatusBannerProps,

@@ -67,7 +67,8 @@ export function CopyCodeButton({ code }: { readonly code: string }): JSX.Element
   );
 }
 
-function technicalLine(detail: string | undefined): string | null {
+/** The technical line as shown: nothing when empty, cut at DETAIL_MAX_CHARS with «…». */
+export function technicalLine(detail: string | undefined): string | null {
   if (detail === undefined || detail.trim() === '') return null;
   return detail.length > DETAIL_MAX_CHARS ? `${detail.slice(0, DETAIL_MAX_CHARS - 1)}…` : detail;
 }
