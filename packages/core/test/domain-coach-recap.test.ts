@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { COACH_LIMITS, HUB_FACADE_TIMING, STORAGE_LIMITS, type ChatWindow, type CoachAnswer, type LiveTextTail, type RecapStatus, type SharedRecaps } from '@cg/contracts';
+import { COACH_LIMITS, HUB_FACADE_TIMING, ProfileFromGenerationRequestSchema, STORAGE_LIMITS, parseTabPayload, type ChatWindow, type CoachAnswer, type LiveTextTail, type RecapStatus, type SharedRecaps } from '@cg/contracts';
 import {
   COACH_PROJECTION,
   COACH_RECAP_FRESH_MS,
@@ -30,6 +30,8 @@ import {
   copyOfShared,
   coverageLevelOf,
   latestLength,
+  profileRequestOf,
+  recapSaveAnswer,
   saveAnswered,
   saveRetryDelay,
   saveSchedule,
@@ -456,6 +458,28 @@ describe('[AI-067] [AI-068] the dossier save schedule', () => {
   it('an answer to a state that is not saving changes nothing', () => {
     expect(saveAnswered({ s: 'saved', at: null }, 'rejected', NOW_MS)).toEqual({ s: 'saved', at: null });
     expect(saveAnswered({ s: 'not-applicable' }, 'saved', NOW_MS)).toEqual({ s: 'not-applicable' });
+  });
+
+  it('[AI-067] `recap.save` on the background\'s side: the hub is asked by the generation, never with the text', () => {
+    const request = { pageId: 11, fanRef: '2002', generationRef: '00000000-0000-4000-8000-000000000200', opId: '00000000-0000-4000-8000-000000000100' };
+    expect(parseTabPayload('req', 'recap.save', request).ok).toBe(true);
+    const asked = profileRequestOf(request, 'model-one');
+    expect(asked).toEqual({ pageLabel: 'model-one', fanRef: '2002', generationRef: request.generationRef, clientRequestId: request.opId });
+    expect(ProfileFromGenerationRequestSchema.safeParse(asked).success).toBe(true);
+    // A copy of the hub's recap has no operation of ours.
+    expect(profileRequestOf({ pageId: 11, fanRef: '2002', generationRef: request.generationRef }, 'model-one')).toEqual({ pageLabel: 'model-one', fanRef: '2002', generationRef: request.generationRef });
+
+    const answers = [
+      recapSaveAnswer({ state: 'saved', response: { outcome: 'existing', profile: { version: 3, createdAt: '2026-10-03T10:00:01.000Z', sourceGeneratedAt: null } } }),
+      recapSaveAnswer({ state: 'not-ready' }),
+      recapSaveAnswer({ state: 'rejected', reason: 'generation_not_found' }),
+    ];
+    expect(answers).toEqual([
+      { state: 'saved', savedAt: '2026-10-03T10:00:01.000Z' },
+      { state: 'not-ready', savedAt: null },
+      { state: 'rejected', savedAt: null },
+    ]);
+    for (const answer of answers) expect(parseTabPayload('res', 'recap.save', answer).ok).toBe(true);
   });
 });
 

@@ -8,7 +8,8 @@
 // is «Сохранено в хаб» or CG-RECAP-SAVE with «Сохранить ещё раз», which
 // repeats only that write. A short recap has no dossier.
 
-import { HUB_FACADE_TIMING } from '@cg/contracts/hub';
+import { HUB_FACADE_TIMING, type ProfileFromGenerationRequest, type ProfileSaveOutcome } from '@cg/contracts/hub';
+import { type TabRequestPayload, type TabResponsePayload } from '@cg/contracts/tab-messages';
 
 export type SaveAnswer = 'saved' | 'not-ready' | 'rejected' | 'error';
 
@@ -56,4 +57,20 @@ export function saveSchedule(): number[] {
     now = state.nextAt;
     offsets.push(now);
   }
+}
+
+// ── `recap.save` on the background's side (tab protocol 1.2.0) ──────────────
+
+/**
+ * What the background asks the hub for a tab's `recap.save`: the same
+ * idempotent link write as its own saver's (H-5), by the generation — never
+ * the text. `pageLabel` is the bootstrap page of the request's `pageId`.
+ */
+export function profileRequestOf(request: TabRequestPayload<'recap.save'>, pageLabel: string): ProfileFromGenerationRequest {
+  return { pageLabel, fanRef: request.fanRef, generationRef: request.generationRef, ...(request.opId === undefined ? {} : { clientRequestId: request.opId }) };
+}
+
+/** The hub's answer as the tab gets it; `savedAt` is when the dossier version was created. */
+export function recapSaveAnswer(outcome: ProfileSaveOutcome): TabResponsePayload<'recap.save'> {
+  return outcome.state === 'saved' ? { state: 'saved', savedAt: outcome.response.profile.createdAt } : { state: outcome.state, savedAt: null };
 }
