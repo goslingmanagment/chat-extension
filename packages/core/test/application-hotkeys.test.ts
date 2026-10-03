@@ -932,6 +932,14 @@ describe('the hotkey runner', () => {
     await settle();
     expect(all.client.dispatched.length).toBeGreaterThan(20);
     for (const action of all.client.dispatched) expect(forbidden).not.toContain(action.type);
+    // With a confirmation on screen too: the only answer a key ever gives it is «Отмена».
+    const asking = runnerRig({ result: result(CTX, { opId, feature: 'reply', state: 'done', confirm: { confirmationId: uuid(0x62), kind: 'human-draft', part: { index: 0 }, formatLoss: false } }) });
+    asking.overlays.set('dialog', true);
+    for (const id of DISPATCHER_COMMAND_IDS) for (const target of ['dock', 'preview', 'global'] as const) asking.runner.run({ id, slot: id === 'quick-jump' ? 1 : null, target });
+    await settle();
+    for (const action of asking.client.dispatched) expect(action.type !== 'AnswerConfirm' || action.choice === 'cancel').toBe(true);
+    expect(asking.client.dispatched.filter((action) => action.type === 'AnswerConfirm')).not.toEqual([]);
+    for (const type of ['SendPart', 'InsertPart', 'OpenAndInsertPart', 'ReplaceMyDraft'] as const) expect(asking.client.dispatched.map((action) => action.type)).not.toContain(type);
   });
 
   it('[HK-042] [HK-026] in a preview a busy action\'s key does nothing, a gated one says why; Tone and Split without a target say why too', async () => {
@@ -980,9 +988,38 @@ describe('the hotkey runner', () => {
     expect(await r.run('close', 'global')).toEqual({ type: 'HideResult', operationId: opId });
     r.overlays.set('result-expanded', true);
     expect(await r.run('close', 'global')).toEqual({ type: 'ExpandResult', operationId: opId, expanded: false });
-    // A confirmation of ours answers its own Esc: nothing is dispatched from here.
+  });
+
+  it('[HK-029] Esc with a confirmation of ours on top and the focus outside it is its «Отмена» (ui-design §6.3, Б2) — never «Заменить» or «Добавить»', async () => {
+    const opId = uuid(0x72);
+    const confirmationId = uuid(0x73);
+    const asking = result(CTX, { opId, feature: 'reply', state: 'done', confirm: { confirmationId, kind: 'human-draft', part: { index: 0 }, formatLoss: false } });
+    const r = runnerRig({ result: asking });
     r.overlays.set('dialog', true);
-    expect(await r.run('close', 'global')).toBeUndefined();
+    expect(await r.run('close', 'global')).toEqual({ type: 'AnswerConfirm', confirmationId, choice: 'cancel' });
+    // The confirmation of a preview's result, when a preview is what is open.
+    const previewConfirm = uuid(0x74);
+    r.overlays.set('dialog', false);
+    r.overlays.setPreview('spenders');
+    r.client.set({ of: 'preview', from: 'spenders' }, preview(CTX, 'spenders', views.ready(), { result: result(CTX, { opId, feature: 'reply', state: 'done', surface: 'preview', confirm: { confirmationId: previewConfirm, kind: 'draft-changed', part: { index: 1 }, formatLoss: true } }) }));
+    r.overlays.set('dialog', true);
+    expect(await r.run('close', 'global')).toEqual({ type: 'AnswerConfirm', confirmationId: previewConfirm, choice: 'cancel' });
+    // Another dialog of ours: its owner registers what Esc does; the registration goes with the dialog.
+    const own = runnerRig();
+    own.overlays.set('dialog', true, { type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } });
+    expect(own.overlays.closeAction('dialog')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } });
+    expect(await own.run('close', 'global')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } });
+    own.overlays.set('dialog', false);
+    expect(own.overlays.closeAction('dialog')).toBeNull();
+    // A registration that would insert, replace or send is not Esc's to run; a dialog nobody knows about is left alone.
+    for (const action of [{ type: 'AnswerConfirm', confirmationId, choice: 'replace' }, { type: 'AnswerConfirm', confirmationId, choice: 'append' }, { type: 'SendPart', operationId: opId, variant: 0, part: { index: 0 } }] as const) {
+      own.overlays.set('dialog', true, action as UiAction);
+      expect(await own.run('close', 'global')).toBeUndefined();
+      own.overlays.set('dialog', false);
+    }
+    own.overlays.set('dialog', true);
+    expect(await own.run('close', 'global')).toBeUndefined();
+    expect(own.toasts.shown).toEqual([]);
   });
 
   it('the dock\'s sheet is reported as it opens and closes; open overlays are mirrored as data-dismissible-open', () => {

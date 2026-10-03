@@ -8,7 +8,7 @@
 // themselves; whoever mounts the other overlays (the tab's composition root)
 // sets those when it mounts and unmounts them.
 
-import { type PreviewSource } from '@cg/contracts/vm';
+import { type PreviewSource, type UiAction } from '@cg/contracts/vm';
 
 import { type OverlayKind } from '../../domain/hotkeys';
 
@@ -17,8 +17,15 @@ export interface OverlayState {
   list(): readonly OverlayKind[];
   top(): OverlayKind | null;
   isOpen(overlay: OverlayKind): boolean;
-  /** Opening moves the overlay to the top; closing an overlay that is not open does nothing. */
-  set(overlay: OverlayKind, open: boolean): void;
+  /**
+   * Opening moves the overlay to the top; closing an overlay that is not open
+   * does nothing. `close` — what Esc dispatches for this overlay when the
+   * focus is outside its root: a dialog's own «Отмена» (ui-design §6.3). A
+   * window needs none: it closes by `Navigate`.
+   */
+  set(overlay: OverlayKind, open: boolean, close?: UiAction): void;
+  /** The action registered with the open overlay; null — none, or the overlay is closed. */
+  closeAction(overlay: OverlayKind): UiAction | null;
   /** Where the open preview came from (its view selector needs it); null — no preview. */
   previewFrom(): PreviewSource | null;
   setPreview(from: PreviewSource | null): void;
@@ -32,12 +39,15 @@ export function createOverlayState(): OverlayState {
   const changed = (): void => {
     for (const listener of [...listeners]) listener();
   };
-  const set = (overlay: OverlayKind, on: boolean): void => {
+  const closers = new Map<OverlayKind, UiAction>();
+  const set = (overlay: OverlayKind, on: boolean, close?: UiAction): void => {
     const has = open.includes(overlay);
     if (on) {
+      if (close !== undefined) closers.set(overlay, close);
       if (open[open.length - 1] === overlay) return;
       open = [...open.filter((item) => item !== overlay), overlay];
     } else {
+      closers.delete(overlay);
       if (!has) return;
       open = open.filter((item) => item !== overlay);
     }
@@ -48,6 +58,7 @@ export function createOverlayState(): OverlayState {
     top: () => open[open.length - 1] ?? null,
     isOpen: (overlay) => open.includes(overlay),
     set,
+    closeAction: (overlay) => (open.includes(overlay) ? (closers.get(overlay) ?? null) : null),
     previewFrom: () => preview,
     setPreview(from) {
       preview = from;

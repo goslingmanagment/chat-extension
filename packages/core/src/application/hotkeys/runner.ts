@@ -69,6 +69,10 @@ const NEEDS_DOCK: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping'
 /** The dock has its first authoritative state: anything but «чат загружается». */
 const dockSettled = (dock: DockVM): boolean => dock.status !== 'loading-chat' && dock.view.s !== 'loading';
 
+/** A key never does more than a button and never what only a deliberate click may do: no insert, no replacement, no send. */
+const NEVER_BY_KEY: readonly UiAction['type'][] = ['InsertPart', 'OpenAndInsertPart', 'ReplaceMyDraft', 'SendPart'];
+const cancelsOnly = (action: UiAction): boolean => !NEVER_BY_KEY.includes(action.type) && (action.type !== 'AnswerConfirm' || action.choice === 'cancel');
+
 const isRunning = (state: OpState | null | undefined): boolean => state !== null && state !== undefined && !(OP_TERMINAL_STATES as readonly string[]).includes(state);
 
 /** ⌘⇧O walks the tones round: no tone → each tone → no tone (AI-008); it starts nothing. */
@@ -251,8 +255,17 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
       if (opId !== null) send({ type: 'ExpandResult', operationId: opId, expanded: false });
       return;
     }
-    // A confirmation of ours answers its own Esc inside its root; nothing to do from here.
-    if (top === 'dialog') return;
+    if (top === 'dialog') {
+      // Esc is the dialog's «Отмена» wherever the focus is (ui-design §6.3, Б2) — a dialog that took the key inside
+      // its own root never gets here. What its owner registered, else the confirmation on screen; never an answer
+      // that inserts, replaces or sends.
+      const registered = overlays.closeAction('dialog');
+      const asked = previewView()?.result?.confirm ?? dockView().result?.confirm ?? null;
+      if (registered !== null) {
+        if (cancelsOnly(registered)) send(registered);
+      } else if (asked !== null) send({ type: 'AnswerConfirm', confirmationId: asked.confirmationId, choice: 'cancel' });
+      return;
+    }
     if (top !== null) {
       send({ type: 'Navigate', to: { kind: 'surface', surface: top, open: false } });
       return;
