@@ -24,6 +24,28 @@ export const CUSTODY_STATES = ['dispatching', 'sent', 'failed', 'uncertain-held'
 export type CustodyState = (typeof CUSTODY_STATES)[number];
 /** Custody states that block every new dispatch to the fan until resolved. */
 export const CUSTODY_BLOCKING_STATES = ['dispatching', 'uncertain-held'] as const satisfies readonly CustodyState[];
+
+/**
+ * How one attempt's custody may move (H-7, frozen in R01). It starts as
+ * `dispatching` (dispatch) or straight `sent` (registerNativeSend).
+ * `uncertain-held` is `dispatching` whose ticket expired unreported; it never
+ * frees itself and never becomes `failed`: only the late proof (`sent`) or an
+ * owner/team-lead resolve ends it.
+ */
+export const CUSTODY_INITIAL_STATES = ['dispatching', 'sent'] as const satisfies readonly CustodyState[];
+export const CUSTODY_TRANSITIONS = {
+  dispatching: ['sent', 'failed', 'uncertain-held', 'resolved-sent', 'resolved-not-sent'],
+  'uncertain-held': ['sent', 'resolved-sent', 'resolved-not-sent'],
+  sent: [],
+  failed: [],
+  'resolved-sent': [],
+  'resolved-not-sent': [],
+} as const satisfies Record<CustodyState, readonly CustodyState[]>;
+
+export function isCustodyTransition(from: CustodyState | null, to: CustodyState): boolean {
+  if (from === null) return (CUSTODY_INITIAL_STATES as readonly CustodyState[]).includes(to);
+  return from === to || (CUSTODY_TRANSITIONS[from] as readonly CustodyState[]).includes(to);
+}
 /** Where a confirmed greeting came from; `desktop-outbox` = the desktop's succeeded new-follower command (critic item 1). */
 export const GREETING_SOURCES = ['preview-send', 'native-register', 'resolve', 'desktop-outbox'] as const;
 export const CUSTODY_PURPOSES = ['greeting', 'preview-reply'] as const;

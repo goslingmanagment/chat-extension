@@ -217,6 +217,18 @@ describe('hub routes, flags and the feature map', () => {
     expect(C.narrowToken(C.CLIENT_FEATURE_UNAVAILABLE_REASONS, 'moon_phase')).toBeNull();
   });
 
+  it('custody never frees itself: uncertain-held ends only by proof or resolve', () => {
+    expect(C.isCustodyTransition(null, 'dispatching')).toBe(true);
+    expect(C.isCustodyTransition(null, 'sent')).toBe(true);
+    expect(C.isCustodyTransition(null, 'uncertain-held')).toBe(false);
+    expect(C.isCustodyTransition('dispatching', 'uncertain-held')).toBe(true);
+    expect(C.isCustodyTransition('uncertain-held', 'failed')).toBe(false);
+    expect(C.isCustodyTransition('uncertain-held', 'dispatching')).toBe(false);
+    expect(C.isCustodyTransition('uncertain-held', 'sent')).toBe(true);
+    for (const terminal of ['sent', 'failed', 'resolved-sent', 'resolved-not-sent'] as const) expect(C.CUSTODY_TRANSITIONS[terminal]).toEqual([]);
+    for (const state of C.CUSTODY_BLOCKING_STATES) expect(C.CUSTODY_TRANSITIONS[state].length).toBeGreaterThan(0);
+  });
+
   it('builds the owner binding key of a host account (critic: onlymonster:<id>)', () => {
     expect(C.hostBindingKey('chatspace', '1001')).toBe('onlymonster:1001');
     expect(HUB_SAMPLES.bootstrap.bindingsByHost['onlymonster:1001']).toBe(11);
