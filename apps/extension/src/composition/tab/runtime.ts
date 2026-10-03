@@ -1,6 +1,7 @@
 // The tab's runtime — the part of the early isolated bundle that starts one
 // task after document_start (architecture.md §2, §5.4, §11): the `cg-tab`
-// port, the tab's registration, presence, and the loader of the lazy chunks.
+// port, the tab's registration, presence, the keepalive of the event page
+// (BG-003), and the loader of the lazy chunks.
 //
 // It stays light on purpose (§11: the early bundle ≤ 30 KiB): the request
 // registry of the tab protocol alone is 26 KiB, so before the application is
@@ -13,7 +14,7 @@ import { CONTRACTS_VERSION } from '@cg/contracts';
 import type { HostAccount } from '@cg/contracts/ids';
 import { TabRegisterResponseSchema } from '@cg/contracts/tab-protocol';
 import type { HostDiagnostic, MountDiagnostic, StartedChatSpaceHost, TokenRedeemer } from '@cg/host-chatspace/isolated';
-import { createTabRpcClient, extensionUrl, isExtensionContextAlive, type TabPayloadValidator } from '@cg/platform';
+import { createTabRpcClient, extensionUrl, isExtensionContextAlive, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
 
 import type * as TabAppChunk from '../../../lazy/entries/tab-app';
 import type * as TabProtocolChunk from '../../../lazy/entries/tab-protocol';
@@ -32,6 +33,16 @@ export const LAZY = {
 /** Presence reports are coalesced: a burst of route, focus and account events is one request. */
 const PRESENCE_DELAY_MS = 200;
 
+/**
+ * «Пока ChatSpace открыт, вкладка держит фон» (§7, BG-003). Firefox unloads an event page after 30 s
+ * without an event delivered to it (`extensions.background.idle.timeout`): an open port does not hold it,
+ * nor do the events the background sends to the tab, nor its own fetches — a message arriving from the tab
+ * does. So a registered tab repeats its presence report (the real values, nothing reset) this often.
+ * A third of the timeout: a background tab's timers are clamped to 1 s and, once its timer budget is
+ * spent, delayed by up to 15 s more — the next report still lands inside the 30 s.
+ */
+export const KEEPALIVE_MS = 10_000;
+
 export interface TabRuntimeEnv {
   readonly win: Window;
   readonly life: AbortSignal;
@@ -43,6 +54,10 @@ export interface TabRuntimeEnv {
   readonly setNavInsertTimeoutMs: (ms: number) => void;
   /** Hands over what the host reported so far and where the rest goes. */
   readonly takeDiagnostics: (listener: (diagnostic: HostDiagnostic | MountDiagnostic) => void) => (HostDiagnostic | MountDiagnostic)[];
+  /** Tests only: the browser API of the tab's context (the real `browser` otherwise). */
+  readonly api?: BrowserApi;
+  /** Tests only: the keepalive period (KEEPALIVE_MS otherwise). */
+  readonly keepaliveMs?: number;
 }
 
 export interface TabRuntime {
@@ -72,12 +87,20 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     }
     return type === 'tab.presence' && isAck(payload) ? { ok: true, payload } : { ok: false };
   };
-  const rpc = createTabRpcClient({ validate, register: { host: 'chatspace', lateInjection: env.lateInjection, contractsVersion: CONTRACTS_VERSION } });
+  const rpc = createTabRpcClient({
+    validate,
+    register: { host: 'chatspace', lateInjection: env.lateInjection, contractsVersion: CONTRACTS_VERSION },
+    ...(env.api === undefined ? {} : { api: env.api }),
+  });
   life.addEventListener('abort', () => rpc.close());
+  /** How many times the background answered `tab.register`: more than one — it started again under this tab. */
+  let registrations = 0;
   rpc.onState((state, tabSessionId) => {
-    probe?.set('rpc', { state, registered: tabSessionId !== null });
+    if (state === 'ready') registrations += 1;
+    probe?.set('rpc', { state, registered: tabSessionId !== null, registrations });
     // The extension was reloaded or updated under the tab: this instance is done (UP-009).
-    if (state === 'reloaded' || !isExtensionContextAlive()) probe?.set('runtime', 'reloaded');
+    if (state === 'reloaded' || !isExtensionContextAlive(env.api)) probe?.set('runtime', 'reloaded');
+    // A new tab session: the background knows nothing of this tab yet — its chat, its focus, its accounts.
     if (state === 'ready') reportPresence(true);
   });
 
@@ -115,10 +138,15 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   doc.addEventListener('visibilitychange', onVisibility);
   win.addEventListener('focus', onVisibility);
   win.addEventListener('blur', onVisibility);
+  // BG-003: the keepalive. Only a registered tab beats; a lost port reconnects by itself (rpc-tab.ts).
+  const keepalive = setInterval(() => {
+    if (rpc.state() === 'ready') reportPresence();
+  }, env.keepaliveMs ?? KEEPALIVE_MS);
   life.addEventListener('abort', () => {
     doc.removeEventListener('visibilitychange', onVisibility);
     win.removeEventListener('focus', onVisibility);
     win.removeEventListener('blur', onVisibility);
+    clearInterval(keepalive);
     if (presenceTimer !== null) clearTimeout(presenceTimer);
   });
   void host.host.then((port) => {

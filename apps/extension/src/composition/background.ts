@@ -616,7 +616,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // tab lifecycle
   rpc.handle('tab.presence', async (report, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
-    if (report.focused) hubInstance?.notifyFocus();
+    // «Focus» is a tab gaining it. A focused tab repeats its report every few seconds — its keepalive of
+    // this event page (BG-003) — and that is not a reason to read the bootstrap again.
+    const before = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId);
+    if (report.focused && before?.focused !== true) hubInstance?.notifyFocus();
     return ok(await presence.report(sender.tabSessionId, report));
   });
 
