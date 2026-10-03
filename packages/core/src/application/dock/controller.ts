@@ -14,7 +14,7 @@
 // panel and never generates by itself.
 
 import { TONES, type FeatureId } from '@cg/contracts/features';
-import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
+import { chatKeyOf } from '@cg/contracts/ids';
 import { type ActiveOpSummary } from '@cg/contracts/ops';
 import {
   DOCK_ACTION_IDS,
@@ -32,12 +32,12 @@ import {
 
 import { featureGate, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
 import { flagUsable, isTerminalOpState } from '../../domain/ops';
-import { readArtifactHandle, targetHandle } from '../ai/handles';
+import { targetHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { errorVm, msg, views } from '../ai/view-models';
-import { QUOTA_LOW_AT, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
+import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
 
 /** The keys footer is shown under the first results (ui-design §4.3). */
 export const KEYS_FOOTER_RESULTS = 5;
@@ -96,11 +96,6 @@ export function createDockController(ws: AiWorkspace): DockController {
   const offOps = ws.onOpEvent((event) => {
     if (event.kind !== 'done') return;
     const { view } = event.record;
-    // The refusal list is about what ran then: once one of them ended the person may simply click again.
-    for (const chatKey of refusalChats()) {
-      const sheet = ws.sheet(chatKey);
-      if (sheet !== null && sheet.kind === 'refusal' && sheet.refusal.running.some((running) => running.opId === view.opId)) ws.setSheet(chatKey, null);
-    }
     if (view.state !== 'done' || !isDraftFeature(view.feature) || !event.record.own || counted.has(view.opId)) return;
     counted.add(view.opId);
     const settings = ws.env.settings;
@@ -110,11 +105,6 @@ export function createDockController(ws: AiWorkspace): DockController {
     footerOps.add(view.opId);
     void ws.env.patchSettings({ onboarding: { keysFooter: { shown: footer.shown + 1, dismissed: footer.dismissed } } });
   });
-
-  const refusalOf = new Set<ChatKey>();
-  function refusalChats(): ChatKey[] {
-    return [...refusalOf];
-  }
 
   // ── the view ─────────────────────────────────────────────────────────────
 
@@ -227,11 +217,6 @@ export function createDockController(ws: AiWorkspace): DockController {
     return chat !== null && chat.handle === handle ? chat : null;
   }
 
-  function showRefusal(key: ChatKey, refusal: RefusalState): void {
-    refusalOf.add(key);
-    ws.setSheet(key, { kind: 'refusal', refusal });
-  }
-
   async function generate(action: UiActionOf<'Generate'>, cause: CauseKind, regenerateOf?: OpRecord): Promise<ActionReceipt> {
     const chat = regenerateOf === undefined ? chatOf(action.targetHandle) : ws.situation().chat;
     if (chat === null) return refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' });
@@ -250,11 +235,10 @@ export function createDockController(ws: AiWorkspace): DockController {
     });
     switch (result.kind) {
       case 'started':
-        refusalOf.delete(chat.key);
         ws.setSheet(chat.key, { kind: 'draft', opId: result.opId });
         return done(action.type, result.reopened ? 'noop' : 'started', { opId: result.opId });
       case 'refused':
-        showRefusal(chat.key, result.refusal);
+        ws.showRefusal(chat.key, result.refusal);
         return refused(
           ws,
           action.type,
@@ -288,17 +272,29 @@ export function createDockController(ws: AiWorkspace): DockController {
     return answer.ok ? done(action.type, 'done', { revision: answer.payload.revision }) : refused(ws, action.type, answer.error);
   }
 
+  /**
+   * The operation an action names, when it is the dock's to act on: known to
+   * this tab and of the open chat's surfaces. A preview's or «Новые»'s
+   * operation — or one this tab does not know — is not: the router asks the
+   * next controller (R12's).
+   */
+  function own(opId: string): OpRecord | null {
+    const record = ws.ops.get(opId);
+    return record !== null && isOwnSurface(record.view.surface) ? record : null;
+  }
+
   const handlers: ActionHandlers = {
     Generate: (action, cause) => (isDraftFeature(action.feature) ? generate(action, cause) : null),
     Regenerate(action, cause) {
-      const record = ws.ops.get(action.operationId);
+      const record = own(action.operationId);
       if (record === null || !isDraftFeature(record.view.feature)) return null;
       const chat = ws.situation().chat;
       // «Ещё раз» belongs to the chat of its result.
       if (chat === null || chat.key !== chatKeyOf(record.view.target.chat)) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
       return generate({ type: 'Generate', targetHandle: chat.handle, feature: record.view.feature, options: {} }, cause, record).then((receipt) => ({ ...receipt, type: action.type }));
     },
-    // ⌘. / «Отменить»: explicit only; the terminal view follows as an event.
+    // ⌘. / «Отменить»: explicit only; the terminal view follows as an event. A cancel is by id whatever the
+    // surface: «Идут сейчас» lists runs of other tabs and surfaces, and the background ends any of them the same way.
     CancelGeneration: (action) => ws.ops.cancel(action.operationId).then((answer) => (answer.ok ? done(action.type, 'done', { opId: action.operationId }) : refused(ws, action.type, answer.error))),
     HideResult(action) {
       const chat = ws.situation().chat;
@@ -311,7 +307,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       return Promise.resolve(done(action.type));
     },
     ExpandResult(action) {
-      const record = ws.ops.get(action.operationId);
+      const record = own(action.operationId);
       if (record === null || !isDraftFeature(record.view.feature)) return null;
       ws.setExpanded(action.operationId, action.expanded);
       return Promise.resolve(done(action.type, action.expanded ? 'opened' : 'done'));
@@ -325,15 +321,15 @@ export function createDockController(ws: AiWorkspace): DockController {
       return Promise.resolve(done(action.type));
     },
     InsertPart(action, cause) {
-      if (ws.ops.get(action.operationId) === null) return null;
+      if (own(action.operationId) === null) return null;
       return writeOutcome(action.type, action.operationId, ws.inserts.insertPart(action.operationId, action.variant === undefined ? { index: action.part } : { variant: action.variant, index: action.part }, cause));
     },
     ReplaceMyDraft(action, cause) {
-      if (ws.ops.get(action.operationId) === null) return null;
+      if (own(action.operationId) === null) return null;
       return writeOutcome(action.type, action.operationId, ws.inserts.replaceMyDraft(action.operationId, action.part, cause));
     },
     RestoreMyDraft(action, cause) {
-      if (ws.ops.get(action.operationId) === null) return null;
+      if (own(action.operationId) === null) return null;
       return writeOutcome(action.type, action.operationId, ws.inserts.restoreMyDraft(action.operationId, cause));
     },
     AnswerConfirm(action, cause) {
@@ -342,7 +338,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       return writeOutcome(action.type, pending.view.opId, ws.inserts.answerConfirm(action.confirmationId, action.choice, cause));
     },
     Copy(action) {
-      if (readArtifactHandle(action.artifactHandle) === null) return null;
+      // A part of a preview's operation, or a handle that names nothing here, is not the dock's to copy.
+      if (!ws.holds(action.artifactHandle)) return null;
       return ws.copy(action.artifactHandle).then((copied) => (copied.ok ? done(action.type) : refused(ws, action.type, copied.error)));
     },
     SetPreference(action) {

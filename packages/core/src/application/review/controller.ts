@@ -22,7 +22,7 @@ import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorVm, featureHotkey, msg, phaseVm, views } from '../ai/view-models';
-import { type AiWorkspace } from '../ai/workspace';
+import { isOwnSurface, type AiWorkspace } from '../ai/workspace';
 
 const SECTION_TITLES: Readonly<Record<ReviewSectionVM['kind'], I18nKey>> = {
   verdict: 'review.section.verdict',
@@ -166,7 +166,7 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
         ws.setSheet(chat.key, { kind: 'review' });
         return done(type, result.reopened ? 'noop' : 'started', { opId: result.opId });
       case 'refused':
-        ws.setSheet(chat.key, { kind: 'refusal', refusal: result.refusal });
+        ws.showRefusal(chat.key, result.refusal);
         return refused(ws, type, result.refusal.error);
       case 'failed':
         return refused(ws, type, result.error);
@@ -182,7 +182,7 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
     },
     Regenerate(action, cause) {
       const record = ws.ops.get(action.operationId);
-      if (record === null || record.view.feature !== 'review') return null;
+      if (record === null || record.view.feature !== 'review' || !isOwnSurface(record.view.surface)) return null;
       const chat = ws.situation().chat;
       if (chat === null || chat.key !== chatKeyOf(record.view.target.chat)) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
       return generate(action.type, cause, record);

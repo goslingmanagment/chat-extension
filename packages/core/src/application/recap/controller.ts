@@ -18,7 +18,7 @@
 // sheet's own id).
 
 import { type FeatureId } from '@cg/contracts/features';
-import { type ChatKey } from '@cg/contracts/ids';
+import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import {
   type ActionButtonVM,
   type ActionReceipt,
@@ -42,7 +42,7 @@ import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorVm, featureHotkey, isOfflineCode, msg, phaseVm, views } from '../ai/view-models';
-import { type AiWorkspace, type Situation } from '../ai/workspace';
+import { isOwnSurface, type AiWorkspace, type Situation } from '../ai/workspace';
 
 const FEATURE_OF: Readonly<Record<RecapLength, FeatureId>> = { short: 'recap-short', full: 'recap' };
 const lengthOf = (feature: FeatureId): RecapLength => (feature === 'recap-short' ? 'short' : 'full');
@@ -281,7 +281,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
         ws.setSheet(chat.key, { kind: 'recap' });
         return done(type, 'started', { opId: result.opId });
       case 'refused':
-        ws.setSheet(chat.key, { kind: 'refusal', refusal: result.refusal });
+        ws.showRefusal(chat.key, result.refusal);
         return refused(ws, type, result.refusal.error);
       case 'failed':
         return refused(ws, type, result.error);
@@ -295,7 +295,13 @@ export function createRecapController(ws: AiWorkspace): RecapController {
   }
 
   const handlers: ActionHandlers = {
-    Generate: (action) => (isRecap(action.feature) ? Promise.resolve(open(action.type, lengthOf(action.feature))) : null),
+    Generate(action) {
+      if (!isRecap(action.feature)) return null;
+      const chat = ws.situation().chat;
+      // The click was for a chat that is gone: its sheet is not opened over another one.
+      if (chat === null || chat.handle !== action.targetHandle) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
+      return Promise.resolve(open(action.type, lengthOf(action.feature)));
+    },
     ShowRecap(action) {
       const { chat, ready } = ws.situation();
       if (chat === null) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
@@ -310,7 +316,10 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     RefreshRecap: (action, cause) => generate(action.type, action.length, cause),
     Regenerate(action, cause) {
       const record = ws.ops.get(action.operationId);
-      if (record === null || !isRecap(record.view.feature)) return null;
+      if (record === null || !isRecap(record.view.feature) || !isOwnSurface(record.view.surface)) return null;
+      const chat = ws.situation().chat;
+      // A build is paid: «Ещё раз» of another chat's recap never builds one for the chat that is open.
+      if (chat === null || chat.key !== chatKeyOf(record.view.target.chat)) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
       return generate(action.type, lengthOf(record.view.feature), cause);
     },
     RetryRecapSave(action) {

@@ -1144,7 +1144,82 @@ describe('dock: copy', () => {
   it('a handle that names nothing of ours is not taken', async () => {
     const h = await start();
     await expect(h.dispatch({ type: 'Copy', artifactHandle: 'prompt:1' })).rejects.toThrow(/no controller took/);
-    expect(await h.dispatch({ type: 'Copy', artifactHandle: `part:${uuid(0xdead)}:-:0` })).toMatchObject({ ok: false, code: 'CG-CLIPBOARD' });
+    // Well-formed, but of an operation this tab does not hold: another controller's (the router asks on).
+    await expect(h.dispatch({ type: 'Copy', artifactHandle: `part:${uuid(0xdead)}:-:0` })).rejects.toThrow(/no controller took/);
+    await expect(h.dispatch({ type: 'Copy', artifactHandle: `recap:${uuid(0xdead)}` })).rejects.toThrow(/no controller took/);
+    expect(h.clipboard.texts).toEqual([]);
+  });
+});
+
+describe('dock: operations of other surfaces are not the dock\'s', () => {
+  /** A finished Reply of a preview (R12's surface) for the open chat's fan, as this tab's store adopted it. */
+  async function previewOp(h: Harness): Promise<string> {
+    h.script(h.streamOf('fast-reply', ['from the preview']));
+    const rpc = h.bg.rpc(TAB);
+    const token = await rpc.request('token.issue', { kind: 'generate', surface: 'preview' });
+    const target = await rpc.request('binding.resolve', { account: hostAccount });
+    if (!token.ok || !target.ok) throw new Error('setup');
+    const admitted = await rpc.request('op.start', {
+      feature: 'reply',
+      surface: 'preview',
+      target: { binding: target.payload.binding, chat: openChat, fanRef: HOST_IDS.fan, conversationRef: HOST_IDS.fan },
+      cause: { kind: 'click', actionToken: token.payload.actionToken },
+      tone: null,
+      split: false,
+      window: 100,
+    });
+    if (!admitted.ok || !admitted.payload.ok) throw new Error('setup');
+    await h.finish();
+    return admitted.payload.opId;
+  }
+
+  it('Regenerate, ExpandResult, InsertPart and Copy of a preview\'s operation go to the next controller', async () => {
+    const h = await start();
+    const opId = await previewOp(h);
+    // The store knows it (the chat is followed), and it is a finished draft.
+    expect(h.ai.workspace.ops.get(opId)?.view).toMatchObject({ surface: 'preview', state: 'done', feature: 'reply' });
+    const starts = h.bg.callsOf('op.start').length;
+    await expect(h.dispatch({ type: 'Regenerate', operationId: opId })).rejects.toThrow(/no controller took Regenerate/);
+    await expect(h.dispatch({ type: 'ExpandResult', operationId: opId, expanded: true })).rejects.toThrow(/no controller took ExpandResult/);
+    await expect(h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).rejects.toThrow(/no controller took InsertPart/);
+    await expect(h.dispatch({ type: 'Copy', artifactHandle: `part:${opId}:-:0` })).rejects.toThrow(/no controller took Copy/);
+    expect(h.bg.callsOf('op.start')).toHaveLength(starts);
+    expect(h.host.inserts).toBe(0);
+    expect(h.clipboard.texts).toEqual([]);
+    // It never became the dock's sheet either.
+    expect(h.dock().result).toBeNull();
+  });
+
+  it('«Ещё раз» belongs to the chat of its result: from another chat it is refused, and Fix never rewrites chat A\'s draft for chat B', async () => {
+    const h = await start();
+    h.host.type('draft of fan two');
+    await h.settle();
+    h.script(h.streamOf('improve-draft', ['Draft of fan two.']));
+    const fix = await h.generate('fix');
+    await h.finish();
+    const opId = (fix as { opId: string }).opId;
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
+    h.host.openChat(previewChat);
+    await h.settle();
+    const starts = h.bg.callsOf('op.start').length;
+    expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: false, type: 'Regenerate', code: 'CG-CONTEXT-CHANGED' });
+    expect(h.bg.callsOf('op.start')).toHaveLength(starts);
+  });
+
+  it('a click that names another chat than the open one starts nothing — on any controller', async () => {
+    const h = await start();
+    const foreign = targetHandle('dock', { ...openChat, platformFanId: '888' });
+    for (const feature of ['reply', 'hi', 'ping', 'fix', 'review', 'recap', 'recap-short', 'coach'] as const) {
+      expect(await h.dispatch({ type: 'Generate', targetHandle: foreign, feature, options: {} }), feature).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    }
+    expect(await h.dispatch({ type: 'Generate', targetHandle: foreign, feature: 'coach', options: { question: 'for another fan' } })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(await h.dispatch({ type: 'SetTone', targetHandle: foreign, tone: 'flirty' })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(h.bg.callsOf('op.start')).toEqual([]);
+    expect(h.bg.callsOf('token.issue')).toEqual([]);
+    expect(h.bg.callsOf('recap.read')).toEqual([]);
+    expect(h.overlays.opened).toEqual([]);
+    expect(h.dock()).toMatchObject({ analysis: null, result: null, refusal: null });
+    expect(h.dock().options.tone).toBeNull();
   });
 });
 
@@ -1305,6 +1380,71 @@ describe('dock: a refused start and what runs elsewhere', () => {
     expect(h.dock().refusal?.error.code).toBe('CG-OP-CHAT-BUSY');
     expect(h.dock().refusal?.running).toHaveLength(1);
     expect(h.dock().refusal?.running[0]).toMatchObject({ feature: 'ping', inThisTab: false });
+  });
+});
+
+describe('dock: a refusal raised by Review or Recap', () => {
+  const stall = (feature: Parameters<typeof meta>[0] = 'fast-reply'): ScriptResponse => ({ kind: 'stream', steps: [{ kind: 'frame', frame: meta(feature) }, { kind: 'stall' }] });
+
+  /** Three generations of this tab in three other chats. */
+  async function threeRuns(h: Harness): Promise<string[]> {
+    const opIds: string[] = [];
+    for (const fan of ['2101', '2102', '2103']) {
+      const chat = { ...openChat, platformFanId: fan };
+      h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat }, chat);
+      h.host.openChat(chat);
+      await h.settle();
+      h.script(stall());
+      opIds.push(((await h.generate('reply')) as { opId: string }).opId);
+    }
+    h.host.openChat(openChat);
+    await h.settle();
+    return opIds;
+  }
+
+  it('[AI-123] clears when one of the listed runs ends, like the dock\'s own', async () => {
+    const h = await start();
+    const opIds = await threeRuns(h);
+    expect(await h.generate('review')).toMatchObject({ ok: false, code: 'CG-OP-TAB-LIMIT' });
+    expect(h.dock().refusal).toMatchObject({ feature: 'review', error: { code: 'CG-OP-TAB-LIMIT' } });
+    expect(h.dock().refusal?.running.map((op) => op.opId).sort()).toEqual([...opIds].sort());
+    expect(await h.dispatch({ type: 'CancelGeneration', operationId: opIds[1] as string })).toMatchObject({ ok: true });
+    expect(h.dock().refusal).toBeNull();
+
+    const recap = await start();
+    const running = await threeRuns(recap);
+    await recap.generate('recap');
+    expect(await recap.dispatch({ type: 'RefreshRecap', length: 'full' })).toMatchObject({ ok: false, code: 'CG-OP-TAB-LIMIT' });
+    expect(recap.dock().refusal).toMatchObject({ feature: 'recap', error: { code: 'CG-OP-TAB-LIMIT' } });
+    // The run ended by itself (the background's word), not by a click here.
+    recap.bg.scheduler.cancel(running[0] as string);
+    await recap.settle();
+    expect(recap.dock().refusal).toBeNull();
+  });
+
+  it('[AI-123] a Review refused because the chat is busy in another tab: the list goes when that run ends', async () => {
+    const h = await start();
+    h.script(stall('ping'));
+    const other = h.bg.rpc(OTHER_TAB);
+    const token = await other.request('token.issue', { kind: 'generate', surface: 'dock' });
+    const target = await other.request('binding.resolve', { account: hostAccount });
+    if (!token.ok || !target.ok) throw new Error('setup');
+    const admitted = await other.request('op.start', {
+      feature: 'ping',
+      surface: 'dock',
+      target: { binding: target.payload.binding, chat: openChat, fanRef: HOST_IDS.fan, conversationRef: HOST_IDS.fan },
+      cause: { kind: 'click', actionToken: token.payload.actionToken },
+      tone: null,
+      split: false,
+      window: 100,
+    });
+    if (!admitted.ok || !admitted.payload.ok) throw new Error('setup');
+    expect(await h.generate('review')).toMatchObject({ ok: false, code: 'CG-OP-CHAT-BUSY' });
+    expect(h.dock().refusal).toMatchObject({ feature: 'review', error: { code: 'CG-OP-CHAT-BUSY' } });
+    h.bg.scheduler.cancel(admitted.payload.opId);
+    await h.settle();
+    expect(h.dock().refusal).toBeNull();
+    expect(h.dock().actions.review.enabled).toBe(true);
   });
 });
 

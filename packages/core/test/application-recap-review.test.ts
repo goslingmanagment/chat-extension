@@ -839,6 +839,44 @@ describe('review', () => {
   });
 });
 
+describe('recap: a build belongs to its chat', () => {
+  it('«Ещё раз» of another chat\'s recap builds nothing for the chat that is open', async () => {
+    const h = await start();
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    h.script(recapStream(FULL_TEXT));
+    const built = await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.finish();
+    const opId = (built as { opId: string }).opId;
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: false, type: 'Regenerate', code: 'CG-CONTEXT-CHANGED' });
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    expect(h.bg.hub.streams).toHaveLength(1);
+    // In its own chat it is a new build of the same length.
+    h.host.openChat(openChat);
+    await h.settle();
+    h.script(recapStream(SHORT_TEXT));
+    expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(h.bg.callsOf('op.start')[1]).toMatchObject({ feature: 'recap', force: true });
+  });
+
+  it('the sheet of a chat that is gone is not opened over another chat', async () => {
+    const h = await start();
+    const handle = h.dock().targetHandle as string;
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'recap', options: {} })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'review', options: {} })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(h.dock().analysis).toBeNull();
+    expect(h.bg.callsOf('recap.read')).toEqual([]);
+    expect(h.bg.callsOf('op.start')).toEqual([]);
+  });
+});
+
 describe('persona change: nothing of the old persona comes back', () => {
   const OTHER_PERSONA = { key: 'other', definitionId: WORLD.persona.otherDefinitionId };
   const A_TEXT = 'Рекап персоны A.';

@@ -449,6 +449,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       if (action.feature !== 'coach') return null;
       // AI-080: opening the panel generates nothing.
       if (action.options.question === undefined && action.options.preset === undefined) {
+        const chat = ws.situation().chat;
+        // The click was for a chat that is gone: its panel is not opened over another one.
+        if (chat === null || chat.handle !== action.targetHandle) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
         ws.ports.overlays?.open('coach');
         const ready = ws.situation().ready;
         // The header's recap: what the hub holds is read when the panel opens.

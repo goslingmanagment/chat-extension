@@ -115,6 +115,13 @@ export type StartResult =
 
 export type CopyState = 'idle' | 'done' | 'failed';
 
+/**
+ * Whose operation it is: the dock, Recap, Review and Coach controllers answer
+ * for operations of the open chat's surfaces; previews and «Новые» have
+ * their own controllers (R12), which the router asks after these.
+ */
+export const isOwnSurface = (surface: Surface): boolean => surface !== 'preview' && surface !== 'newcomers';
+
 /** How long «Скопировано» stays on a part (ui-design §4.3). */
 export const COPIED_MARK_MS = 2_000;
 /** UI-031: «AI: осталось N» from this many requests down. */
@@ -427,6 +434,11 @@ export class AiWorkspace {
     this.bump();
   }
 
+  /** A start that was not admitted takes the chat's sheet, whichever controller asked (ui-design §4.9). */
+  showRefusal(key: ChatKey, refusal: RefusalState): void {
+    this.setSheet(key, { kind: 'refusal', refusal });
+  }
+
   isExpanded(id: string): boolean {
     return this.expanded.has(id);
   }
@@ -643,6 +655,15 @@ export class AiWorkspace {
     }
   }
 
+  /** Whether a handle names something these controllers hold now: a part or a Review of their own operation, a recap copy. */
+  holds(handle: string): boolean {
+    const artifact = readArtifactHandle(handle);
+    if (artifact === null) return false;
+    if (artifact.kind === 'recap') return this.recaps.slots.byLocalId(artifact.localId) !== null;
+    const record = this.ops.get(artifact.opId);
+    return record !== null && isOwnSurface(record.view.surface);
+  }
+
   /** «Копировать»: `copied` is reported only after the clipboard write succeeded (TL-006, Б14). */
   async copy(handle: string): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: CgErrorWire }> {
     const artifact = readArtifactHandle(handle);
@@ -728,6 +749,10 @@ export class AiWorkspace {
         const key = chatKeyOf(view.target.chat);
         const sheet = this.sheet(key);
         if (sheet !== null && sheet.kind === 'draft' && sheet.opId === view.opId) this.ui(key).sheet = null;
+      }
+      // «Идут сейчас» is about what ran then: once one of them ended the person may simply click again.
+      for (const ui of this.chats.values()) {
+        if (ui.sheet !== null && ui.sheet.kind === 'refusal' && ui.sheet.refusal.running.some((running) => running.opId === view.opId)) ui.sheet = null;
       }
       const wire = view.error;
       if (wire?.retryAt !== undefined) this.wakeAt(wire.retryAt);
