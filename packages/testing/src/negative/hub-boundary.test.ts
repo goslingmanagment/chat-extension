@@ -21,7 +21,8 @@ import { HUB_ROUTE_PATHS, streamBody, uuid } from '../scenarios/hub';
 import { createFakeHub } from '../fake-hub/hub';
 import { hubCall } from '../fake-hub/kit';
 import { FORBIDDEN_OPERATION_ROUTES, matchRoute } from '../fake-hub/routing';
-import { findInClientSources } from './sources';
+import { OFAPI_CODE_PATTERN, ofapiScanPattern, vendoredSdkOfapiNames } from './ofapi';
+import { clientSources, findInClientSources, findInFile } from './sources';
 
 /** The files that name the forbidden things to forbid them. */
 const REGISTRIES = ['packages/contracts/src/parity/exceptions.ts', 'packages/contracts/src/hub/routes.ts'];
@@ -41,6 +42,14 @@ async function journaled(method: string, path: string): Promise<{ status: number
   return { status: response.status, kind: entry?.kind ?? 'none', violation: hub.violations().length === 1 };
 }
 
+describe('negative scans: what they read', () => {
+  it('every shipped source root, the lazy chunks (lazy/entries → lazy/dock.js in the XPI) included; no test file', () => {
+    const paths = clientSources().map((file) => file.path);
+    expect(paths).toEqual(expect.arrayContaining(['apps/extension/lazy/entries/dock.ts', 'packages/contracts/src/index.ts']));
+    expect(paths.filter((path) => /\.(?:test|spec)\.tsx?$/.test(path))).toEqual([]);
+  });
+});
+
 describe('[SP-025] [SP-057] [NF-040] [SN-024] [PU-019] [ST-103] [ST-105] [ER-019] [ER-079] [DB-023] [TL-016] [TL-017] [RB-026] NEG-OFAPI', () => {
   it('lists exactly these rows', () => {
     expect(rowsOf('NEG-OFAPI')).toEqual(['SP-025', 'SP-057', 'NF-040', 'SN-024', 'PU-019', 'ST-103', 'ST-105', 'ER-019', 'ER-079', 'DB-023', 'TL-016', 'TL-017', 'RB-026']);
@@ -53,8 +62,32 @@ describe('[SP-025] [SP-057] [NF-040] [SN-024] [PU-019] [ST-103] [ST-105] [ER-019
     expect(SETTING_PATHS.filter((path) => /ofapi|credit|paid|refresh/i.test(path))).toEqual([]);
   });
 
-  it('no shipped source names an OFAPI path, the SDK’s OFAPI reads or the vendor', () => {
-    expect(findInClientSources(/\/ofapi\b|\bofapi(?:Read|Command|Credits?)\w*|onlyfansapi\.com/i, REGISTRIES)).toEqual([]);
+  it('no shipped source names an OFAPI path, any OFAPI operation, schema or constant of the vendored SDK, or the vendor', () => {
+    expect(findInClientSources(ofapiScanPattern(), REGISTRIES)).toEqual([]);
+  });
+
+  it('the scan catches every OFAPI name the vendored SDK exposes, the namespace used as code, paths and the vendor; prose stays allowed', () => {
+    const sdkNames = vendoredSdkOfapiNames();
+    // Derived from the vendored dist, like the sdk-custody gate's markers: a re-vendor brings its own.
+    expect(sdkNames.length).toBeGreaterThan(100);
+    expect(sdkNames).toEqual(expect.arrayContaining(['ofapiActionDispatch', 'ofapiMediaUploadCreate', 'adminOfapiCreditsDaily', 'ofapiReadGateway', 'OFAPI_READ_CATALOG']));
+    // The generic shape alone already covers every SDK name used as code (only the bare namespace word needs the code shapes).
+    expect(sdkNames.filter((name) => !/^ofapi$/i.test(name) && !OFAPI_CODE_PATTERN.test(name))).toEqual([]);
+    const caught = [
+      'await sdk.ofapiActionDispatch({ params });',
+      'const chats = await sdk.ofapi.read({ path: "chats" });',
+      'sdk.ofapi?.read(x);',
+      'void client.adminOfapiCreditsDaily();',
+      'const catalog = OFAPI_READ_CATALOG;',
+      "fetch(`${origin}/api/v1/ofapi/read/chats`);",
+      "fetch('https://app.onlyfansapi.com/api/acct_1/chats');",
+      'const op = cancelOfapiCommand;',
+      "const capability = 'ofapi_chats';",
+    ];
+    const allowed = ['// Database only on the hub (no OFAPI, no refresh).', 'const profile = await sdk.pageFanProfile(params);', 'const sofapics = 1; // «ofapi» inside a longer word is not a name of it'];
+    const scan = (lines: readonly string[]) => findInFile({ path: 'fixture.ts', text: lines.join('\n') }, ofapiScanPattern());
+    expect(scan(caught)).toHaveLength(caught.length);
+    expect(scan(allowed)).toEqual([]);
   });
 
   it('the fake hub refuses an OFAPI call and journals it as forbidden', async () => {
