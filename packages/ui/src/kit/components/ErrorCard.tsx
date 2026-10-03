@@ -54,14 +54,18 @@ export function CopyCodeButton({ code }: { readonly code: string }): JSX.Element
       label={copied ? i18n.t('common.copied') : i18n.t('common.copyCode')}
       variant="quiet"
       onClick={() => {
-        void deps.clipboard.writeText(code).then((result) => {
-          if (result.ok) {
-            setCopied(true);
-            announce(i18n.t('common.copied'));
-          } else {
-            report({ kind: 'clipboard', surface, code: result.code, name: 'ClipboardError' });
-          }
-        });
+        // A port that rejects instead of answering {ok:false} is reported the same way, never left unhandled.
+        void deps.clipboard.writeText(code).then(
+          (result) => {
+            if (result.ok) {
+              setCopied(true);
+              announce(i18n.t('common.copied'));
+            } else {
+              report({ kind: 'clipboard', surface, code: result.code, name: 'ClipboardError' });
+            }
+          },
+          (error: unknown) => report({ kind: 'clipboard', surface, code: 'CG-CLIPBOARD', name: error instanceof Error ? error.name : typeof error }),
+        );
       }}
     />
   );

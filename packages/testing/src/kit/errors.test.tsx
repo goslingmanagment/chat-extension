@@ -94,6 +94,27 @@ describe('the error card (ui-design §4.8; ER-005…ER-007 rendered)', () => {
     expect(kit.client.dispatched).toHaveLength(1);
   });
 
+  it('[ER-022] «Скопировать код»: a refused copy and a rejected clipboard port are both reported, never unhandled', async () => {
+    const error = cgError(ctx, 'CG-HUB-UNAVAILABLE');
+    kit = mountKit(() => <ErrorCard error={error} tone="failure" />);
+    const copy = kit.$('.cg-card__acts .cg-btn') as HTMLElement;
+    kit.deps.clipboard.fail = true;
+    await flush(async () => {
+      copy.click();
+      await Promise.resolve();
+    });
+    Object.assign(kit.deps.clipboard, { writeText: () => Promise.reject(new TypeError('Clipboard write was blocked')) });
+    await flush(async () => {
+      copy.click();
+      await Promise.resolve();
+    });
+    expect(kit.failures).toEqual([
+      { kind: 'clipboard', surface: 'dock', code: 'CG-CLIPBOARD', name: 'ClipboardError' },
+      { kind: 'clipboard', surface: 'dock', code: 'CG-CLIPBOARD', name: 'TypeError' },
+    ]);
+    expect(copy.textContent).toBe('Скопировать код');
+  });
+
   it('a state: a ring, not a red dot; inline in a part: the dot moves into the code line; copy can be off', () => {
     const error = cgError(ctx, 'CG-CLIPBOARD');
     kit = mountKit(() => (
