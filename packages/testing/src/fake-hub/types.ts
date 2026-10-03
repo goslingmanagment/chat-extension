@@ -115,6 +115,8 @@ export type FakeHubCommand =
   | { readonly op: 'archiveMessage'; readonly pageLabel: string; readonly fanRef: string; readonly sender?: 'fan' | 'model'; readonly messageId?: string }
   /** The pages granted to a user (by username or userId), replacing the current grant: `me`, bootstrap and every page route follow it (404 outside it). */
   | { readonly op: 'grantPages'; readonly username?: string; readonly userId?: number; readonly pages: readonly string[] }
+  /** The fan's archive is rebuilt (the hub's archive generation moves): every feed cursor of the fan is `cursor_invalid` from now on. */
+  | { readonly op: 'archiveRebuild'; readonly pageLabel: string; readonly fanRef: string }
   /** A subscription event lands in «Новые». */
   | { readonly op: 'audienceEvent'; readonly pageLabel: string; readonly fanRef: string; readonly kind?: 'new' | 'returning'; readonly trial?: boolean }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */

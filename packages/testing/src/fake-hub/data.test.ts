@@ -1,13 +1,14 @@
 // The fake hub's read models over HTTP (architecture.md §8.5, §8.7; hub H-7c,
 // H-8, H-9c, H-15): signed cursors that refuse forgeries and other targets,
-// the fixed «Новые» window of a cursor pass, the feed's head and Ping
+// a feed pass bound to its snapshot, user and archive generation, the fixed
+// «Новые» window of a cursor pass, the feed's head and Ping
 // summary, Spenders filters and sorting, statistics in the asked zone, own AI
 // spend per zone, the ingest kinds of the narrow token, health and `me`.
 
 import { HUB_ROUTE_SCHEMAS, type HubRouteKey } from '@cg/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { PAGE, WORLD, uuid } from '../scenarios/hub';
+import { PAGE, SCENARIO_DATA, WORLD, uuid } from '../scenarios/hub';
 import { CursorSigner, localDate, zonedMidnight } from './data';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall } from './kit';
@@ -56,6 +57,19 @@ describe('fake hub data: signed cursors', () => {
     expect(await refused('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, cursor: first.nextOlderCursor })).toMatchObject({ reason: 'cursor_invalid' });
   });
 
+  it('the feed cursor is bound to the user and the archive generation: another chatter’s cursor, or one from before a rebuild, is cursor_invalid', async () => {
+    const first = await get<{ nextOlderCursor: string }>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 10 });
+    const other = hub.issueToken({ username: WORLD.otherUser.username });
+    expect(await refused('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, cursor: first.nextOlderCursor }, other)).toEqual({ status: 400, error: 'bad_request', reason: 'cursor_invalid' });
+    await get('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, cursor: first.nextOlderCursor });
+    expect(hub.control({ op: 'archiveRebuild', pageLabel: PAGE, fanRef: WORLD.fan })).toEqual({ ok: true, generation: 2 });
+    expect(await refused('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, cursor: first.nextOlderCursor })).toEqual({ status: 400, error: 'bad_request', reason: 'cursor_invalid' });
+    // A new pass starts on the new generation.
+    const again = await get<{ nextOlderCursor: string; snapshotRevision: string }>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 10 });
+    expect(again.snapshotRevision).toBe('snap-2');
+    await get('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, cursor: again.nextOlderCursor });
+  });
+
   it('«ждут ответа» refuses a cursor of another page', async () => {
     const first = await get<{ nextCursor: string }>('clientSpenderAwaitingReply', { pageLabel: PAGE, limit: 1 });
     expect(await refused('clientSpenderAwaitingReply', { pageLabel: WORLD.pages.vip.pageLabel, cursor: first.nextCursor })).toEqual({ status: 400, error: 'bad_request', reason: 'cursor_invalid' });
@@ -63,6 +77,26 @@ describe('fake hub data: signed cursors', () => {
 });
 
 describe('fake hub data: archive feed (H-9c)', () => {
+  it('a cursor pass stays on its snapshot: messages arriving meanwhile wait for the next pass; no gaps, no duplicates', async () => {
+    type Page = { snapshotRevision: string; head: { messageRef: string } | null; items: Array<{ messageId: string }>; nextOlderCursor: string | null };
+    const first = await get<Page>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 10 });
+    const arrived = (hub.control({ op: 'archiveMessage', pageLabel: PAGE, fanRef: WORLD.fan }) as { messageId: string }).messageId;
+    const seen = [...first.items.map((item) => item.messageId)];
+    let cursor = first.nextOlderCursor;
+    while (cursor !== null) {
+      const page = await get<Page>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 10, cursor });
+      expect({ snapshot: page.snapshotRevision, head: page.head?.messageRef }).toEqual({ snapshot: first.snapshotRevision, head: first.head?.messageRef });
+      seen.push(...page.items.map((item) => item.messageId));
+      cursor = page.nextOlderCursor;
+    }
+    expect(seen).not.toContain(arrived);
+    expect(new Set(seen).size).toBe(seen.length);
+    const fresh = await get<Page>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 10 });
+    expect(fresh.head?.messageRef).toBe(arrived);
+    expect(fresh.snapshotRevision).not.toBe(first.snapshotRevision);
+    expect(seen).toHaveLength(SCENARIO_DATA.feedTotal);
+  });
+
   it('an unknown fan has an empty, unknown archive; the summary says so', async () => {
     expect(await get('clientConversationFeed', { pageLabel: PAGE, fanRef: '999999' })).toMatchObject({
       coverage: 'unknown',

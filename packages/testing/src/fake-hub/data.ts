@@ -138,6 +138,9 @@ interface ArchiveMessage extends FeedItem {
 }
 
 interface Archive {
+  /** The hub's `archive_generation`: a rebuild of the archive (re-capture) bumps it and invalidates every feed cursor. */
+  generation: number;
+  /** Grows with every change; `snapshotRevision` of a feed pass. */
   revision: number;
   /** Newest first. */
   readonly messages: ArchiveMessage[];
@@ -420,6 +423,7 @@ export class DataModel {
     if (archive === undefined) {
       const seeded = fanRef === WORLD.fan ? SCENARIO_DATA.feedTotal : this.knowsFanStatic(fanRef) ? 3 : 0;
       archive = {
+        generation: 1,
         revision: 1,
         messages: Array.from({ length: seeded }, (_, n) => {
           const item = SCENARIO_DATA.feedItem(n);
@@ -458,6 +462,14 @@ export class DataModel {
     return id;
   }
 
+  /** The archive is rebuilt (the hub's `archive_generation` moves): every feed cursor of the fan becomes `cursor_invalid`. */
+  rebuildArchive(page: FakePage, fanRef: string): number {
+    const archive = this.archive(page, fanRef);
+    archive.generation += 1;
+    archive.revision += 1;
+    return archive.generation;
+  }
+
   /** The head the generation reader serves (context_v1) and whether a message id is in the archive. */
   archiveFacts(page: FakePage, fanRef: string): { head: FeedItem | null; total: number; states: (id: string) => 'included' | 'absent' | 'deleted' } {
     const archive = this.archive(page, fanRef);
@@ -471,13 +483,37 @@ export class DataModel {
     };
   }
 
-  feed(page: FakePage, query: FeedQuery, now: number): Read<FeedPage> {
+  /**
+   * One page of the feed. The cursor is bound like the hub's (hub-pr-plan.md
+   * PR 22): page, fan, user, archive generation, the snapshot (revision and
+   * the newest message order it covered) and the position. A pass stays on
+   * its snapshot: messages that arrive later are never in it (they wait for
+   * the next pass), and every page of it carries the same snapshotRevision
+   * and head. A forged cursor, another target's or user's, or a changed
+   * generation is 400 `cursor_invalid`.
+   */
+  feed(page: FakePage, query: FeedQuery, now: number, userId: number): Read<FeedPage> {
     const archive = this.archive(page, query.fanRef);
-    const all = archive.messages;
+    let all: readonly ArchiveMessage[] = archive.messages;
+    let revision = archive.revision;
     let start = 0;
     if (query.cursor !== undefined) {
       const cursor = this.cursors.open('fd1', query.cursor);
-      if (cursor === null || cursor['p'] !== page.pageLabel || cursor['f'] !== query.fanRef || typeof cursor['k'] !== 'string') return no('bad_request', 'cursor_invalid');
+      if (
+        cursor === null ||
+        cursor['p'] !== page.pageLabel ||
+        cursor['f'] !== query.fanRef ||
+        cursor['u'] !== userId ||
+        cursor['g'] !== archive.generation ||
+        typeof cursor['r'] !== 'number' ||
+        typeof cursor['t'] !== 'number' ||
+        typeof cursor['k'] !== 'string'
+      ) {
+        return no('bad_request', 'cursor_invalid');
+      }
+      const top = cursor['t'];
+      all = archive.messages.filter((m) => m.order <= top);
+      revision = cursor['r'];
       const index = all.findIndex((m) => m.messageId === cursor['k']);
       if (index < 0) return no('bad_request', 'cursor_invalid');
       start = index + 1;
@@ -488,15 +524,16 @@ export class DataModel {
     const head = all[0];
     const coverage = all.length === 0 ? 'unknown' : 'complete';
     const first = query.cursor === undefined;
+    const snapshot = { p: page.pageLabel, f: query.fanRef, u: userId, g: archive.generation, r: revision, t: head?.order ?? 0 };
     return ok({
       target: { pageLabel: page.pageLabel, fanRef: query.fanRef },
       source: 'union',
-      snapshotRevision: `snap-${archive.revision}`,
+      snapshotRevision: `snap-${revision}`,
       asOf: iso(now),
       coverage,
       head: head === undefined ? null : { messageRef: head.messageId, at: head.at, sender: head.sender },
       newestKnownAt: head?.at ?? null,
-      nextOlderCursor: last !== undefined && start + items.length < all.length ? this.cursors.sign('fd1', { p: page.pageLabel, f: query.fanRef, k: last.messageId }) : null,
+      nextOlderCursor: last !== undefined && start + items.length < all.length ? this.cursors.sign('fd1', { ...snapshot, k: last.messageId }) : null,
       items,
       summary: first ? this.feedSummary(all, query.summaryWindow ?? 100, coverage, now) : null,
     });

@@ -345,6 +345,8 @@ export class FakeHub {
       }
       case 'archiveMessage':
         return { ok: true, messageId: s.data.addArchiveMessage(this.page(command.pageLabel), command.fanRef, command.sender ?? 'fan', now, command.messageId) };
+      case 'archiveRebuild':
+        return { ok: true, generation: s.data.rebuildArchive(this.page(command.pageLabel), command.fanRef) };
       case 'audienceEvent':
         return { ok: true, eventRef: s.data.addAudienceEvent(this.page(command.pageLabel), command.fanRef, command.kind ?? 'new', command.trial ?? false, now) };
       case 'status':
@@ -716,7 +718,7 @@ export class FakeHub {
       case 'clientFanProfileFromGeneration':
         return this.profileFromGeneration(request as ProfileFromGenerationRequest, need(principal));
       case 'clientConversationFeed':
-        return read(s.data.feed(need(page), request as FeedQuery, now));
+        return read(s.data.feed(need(page), request as FeedQuery, now, need(principal).user.userId));
       case 'clientSpenderStats':
         return read(s.data.stats(need(page), request as StatsQuery, now));
       case 'clientSpenderAwaitingReply':
