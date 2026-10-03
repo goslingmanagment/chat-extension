@@ -35,6 +35,11 @@
 - `createMountManager` — док первым ребёнком корня рамки активного composer, строка
   «только копировать» у заблокированного фана, фиксированный оверлей без рамки, слои
   оверлеев 900/950/960, `data-dismissible-open`, реестр закрытых корней для хоткеев.
+- `createKeyboardProbe(doc, registry)` — сторона страницы для раннего диспетчера хоткеев
+  (R17, `@cg/core/application/hotkeys`): где фокус (наше поле, наш UI, поле ввода ChatSpace,
+  другое поле, страница), открыто ли окно самого ChatSpace, и передача клавиши нашему
+  элементу копией, которая не выходит из закрытого корня. `routeOfLocation` — маршрут по
+  адресу, пока MAIN ещё не ответил.
 - `buildContractReport`, `createThemeReader`, `readStoredDraft`, `host-contract.ts` (все
   строки ChatSpace в одном месте; копия MAIN закреплена тестом).
 
