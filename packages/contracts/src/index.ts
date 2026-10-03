@@ -1,6 +1,8 @@
 // @cg/contracts — the shared vocabulary of every world (architecture.md §5):
 // identities, the host port, the MAIN ↔ isolated bridge, the tab/pages ↔
-// background protocol, operations, settings, errors, telemetry and logs.
+// background protocol, operations, settings, errors and the CG registry,
+// i18n keys, telemetry and logs, the UI contract (vm) and the hub facade
+// with its DTOs (hub).
 // Types and schemas only (zod/mini, docs/protocols/README.md); depends on zod
 // only (§4). Each module is also its own `exports` subpath. The package is
 // side-effect free, so a bundle carries only the modules it uses: the early
@@ -30,5 +32,9 @@ export * from './i18n/catalog';
 export * from './vm/index';
 export * from './hub';
 
-/** Bumped when the integration step tags `contracts-v1.0`. */
-export const CONTRACTS_VERSION = '0.0.0-r00';
+/**
+ * Semver of the frozen contracts (`contracts-v1.0`, R01). A new field is a
+ * minor bump, a new meaning a major one; every bump has its entry in
+ * docs/contracts-changelog.md (architecture.md §5).
+ */
+export const CONTRACTS_VERSION = '1.0.0';

@@ -94,8 +94,8 @@ describe('parity manifest checks', () => {
     expect(manifestRequired("export const CONTRACTS_VERSION = '0.0.0-r00';")).toBeNull();
     expect(manifestRequired("export const CONTRACTS_VERSION = '1.0.0';")).toBe('CONTRACTS_VERSION 1.0.0');
     expect(manifestRequired('export const SOMETHING_ELSE = 1;')).toMatch(/not found/);
-    // The real contracts file keeps a version this gate can read.
+    // The real contracts are frozen (R01), so the manifest is required.
     const contracts = readFileSync(new URL('../../packages/contracts/src/index.ts', import.meta.url), 'utf8');
-    expect(manifestRequired(contracts) ?? 'still R00').not.toMatch(/not found/);
+    expect(manifestRequired(contracts)).toMatch(/^CONTRACTS_VERSION \d+\.\d+\.\d+$/);
   });
 });

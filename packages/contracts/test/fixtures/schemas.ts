@@ -140,7 +140,7 @@ export const toast = {
 } as const;
 export const diagnostics = {
   generatedAt: ISO,
-  extension: { version: '0.1.0', contractsVersion: '0.0.0-r00', testBuild: false },
+  extension: { version: '0.1.0', contractsVersion: '1.0.0', testBuild: false },
   browser: { name: 'firefox', major: 157 },
   os: 'windows',
   session: { signedIn: true, hubOrigin: HUB, role: 'chatter' },
