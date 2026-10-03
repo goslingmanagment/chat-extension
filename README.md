@@ -12,7 +12,7 @@ Agency Hub (`hub`).
 
 **Статус:** каркас готов (пакет работ R00) и спайк M0 пройден — итоги в
 [docs/spike-m0.md](docs/spike-m0.md). Общие интерфейсы заморожены (R01,
-`@cg/contracts` версии 1.1.0): что внутри — [docs/protocols/README.md](docs/protocols/README.md),
+`@cg/contracts` версии 1.2.0): что внутри — [docs/protocols/README.md](docs/protocols/README.md),
 правила изменений — [docs/contracts-changelog.md](docs/contracts-changelog.md).
 Дальше — волна 1.
 

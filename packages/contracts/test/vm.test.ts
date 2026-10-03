@@ -238,6 +238,12 @@ describe('toasts (1.1.0)', () => {
   });
 });
 
+describe('extension pages (1.2.0)', () => {
+  it('the new page texts are keys of the catalog', () => {
+    for (const key of ['popup.dialogNone', 'settings.save.saved', 'settings.status.warningOne', 'signIn.lead', 'debugPage.journal.title'] as const) expect(C.UI_TEXT_KEYS).toContain(key);
+  });
+});
+
 describe('spoken money (1.1.0)', () => {
   it('the I18n port may say an amount in words; the catalog has the words', () => {
     expectTypeOf<C.I18n['formatMoneySpoken']>().toEqualTypeOf<((mills: C.MoneyMills | null, format?: C.MoneyFormat) => string) | undefined>();
