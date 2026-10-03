@@ -420,20 +420,22 @@ describe('[DB-022] [DB-018] the local spend journal service', () => {
 });
 
 describe('[DB-001] debug off and sign-out clear the debug data', () => {
-  it('[DB-001] debug off: prompts and journals; sign-out: the spend journal too', async () => {
+  it('[DB-001] debug off or sign-out: prompts, journals and the local spend journal all go (§9.3)', async () => {
     const p = promptStore();
     const token = p.store.put(snapshotFromFrame(frame('p'), { feature: 'reply', capturedAt: T0 })) ?? '';
     const journals = new DebugJournals(() => true);
     journals.sink({ ts: new Date(T0).toISOString(), seq: 1, level: 'info', scope: 'bg.ops', msg: 'op' });
-    const spend = new SpendService(new MemoryKv());
+    const kv = new MemoryKv();
+    const spend = new SpendService(kv);
     spend.recordUsage('reply', usage, T0);
-    clearDebugData({ prompts: p.store, journals, spend }, 'debug-off');
+    clearDebugData({ prompts: p.store, journals, spend });
     expect(p.store.view(token).state).toBe('expired');
     expect(journals.read('operations', 10).records).toEqual([]);
-    expect(spend.report(T0).total.runs).toBe(1);
-    clearDebugData({ prompts: p.store, journals, spend }, 'sign-out');
     expect(spend.report(T0).total.runs).toBe(0);
     await spend.saved();
+    const again = new SpendService(kv);
+    await again.start();
+    expect(again.report(T0, 7).total.runs).toBe(0);
   });
 });
 

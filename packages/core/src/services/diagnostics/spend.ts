@@ -1,10 +1,12 @@
 // The local AI spend journal of this browser (architecture.md §9.3, Б4;
 // DB-018, DB-022, PU-016): every `usage` frame is counted by feature and
-// local day — numbers only — and kept in storage.session so an event-page
-// restart does not lose the day. Shown only in debug mode, labelled
-// «только этот браузер», and replaced by the hub's own report (H-15,
-// `usage.get`) where the hub has it; never presented as the full spend.
-// Cleared on sign-out.
+// local day — numbers only. The composition root keeps it in storage.local
+// (D-12), so «day and 7 days» are days of this browser, not «since the
+// browser started» (storage.session is cleared on a browser restart). Shown
+// only in debug mode, labelled «только этот браузер», and replaced by the
+// hub's own report (H-15, `usage.get`) where the hub has it; never presented
+// as the full spend. Cleared when debug is turned off and on sign-out
+// (§9.3 «Выключение отладки или выход очищают всё»).
 
 import { type FeatureId } from '@cg/contracts/features';
 
@@ -19,7 +21,7 @@ export class SpendService {
 
   constructor(private readonly store: KeyValuePort) {}
 
-  /** Restores the journal of this browser session; never rejects. */
+  /** Restores the journal of this browser; never rejects. */
   async start(): Promise<void> {
     try {
       this.journal.restore(await this.store.load());
@@ -48,7 +50,7 @@ export class SpendService {
     return this.journal.todayCostMicroUsd(now);
   }
 
-  /** Sign-out: the person's numbers go. */
+  /** Debug off or sign-out: the numbers go. */
   clear(): void {
     this.journal.clear();
     this.persist();
