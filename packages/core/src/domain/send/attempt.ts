@@ -168,9 +168,14 @@ export function applyReportedView(track: AttemptTrack, reported: SendAttemptView
       return applyAttemptInput(track, { type: 'receipt', httpStatus: 200, platformMessageId: id });
     case 'sentObserved': {
       if (id === null) return same(track, 'sent without an id');
-      if (state === 'uncertain' && track.receiptMessageId !== null && track.receiptMessageId !== id) return same(track, 'another receipt id');
-      const received = state === 'uncertain' || state === 'nativeAccepted' ? { track, changed: false } : applyAttemptInput(track, { type: 'receipt', httpStatus: 200, platformMessageId: id });
-      const echoed = applyAttemptInput(state === 'uncertain' ? { ...received.track, receiptMessageId: id } : received.track, { type: 'echo', platformMessageId: id });
+      if (state === 'uncertain') {
+        // Only the late second half of an already linked pair: the receipt id came in an earlier, separate report.
+        if (track.receiptMessageId === null) return same(track, 'no linked receipt');
+        if (track.receiptMessageId !== id) return same(track, 'another receipt id');
+        return applyAttemptInput(track, { type: 'echo', platformMessageId: id });
+      }
+      const received = state === 'nativeAccepted' ? { track, changed: false } : applyAttemptInput(track, { type: 'receipt', httpStatus: 200, platformMessageId: id });
+      const echoed = applyAttemptInput(received.track, { type: 'echo', platformMessageId: id });
       return echoed.track.view.state === 'sentObserved' ? { track: echoed.track, changed: true } : echoed;
     }
     case 'rejected': {

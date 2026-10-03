@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CUSTODY_STATES,
   ClaimBodySchema,
   SEND_ATTEMPT_STATES,
   SEND_ATTEMPT_TRANSITIONS,
@@ -14,6 +15,7 @@ import {
   SendJournalEntrySchema,
   isRetryableEnd,
   sendLockKey,
+  type ClaimBody,
   type ClaimState,
   type FreshnessCheckpoint,
   type OpResult,
@@ -32,6 +34,7 @@ import {
   beginCondition,
   canMoveAttempt,
   compareCheckpoints,
+  custodyBlocks,
   custodyReport,
   dispatchBody,
   freshnessCode,
@@ -45,6 +48,8 @@ import {
   partBlock,
   partDelivered,
   readDispatch,
+  reportAccepted,
+  reportRetryable,
   restoreAction,
   sendOrderOf,
   servedContextHold,
@@ -299,6 +304,20 @@ describe('[AI-120] [RB-007] [NF-022] the attempt machine: linked by id, never re
     expect(applyReportedView(preparing, { attemptId: ATTEMPT, state: 'held' }).track.view.code).toBe('CG-SEND-HOST');
     expect(applyReportedView(preparing, { attemptId: ATTEMPT, state: 'notEnqueued' }).track.view.code).toBe('CG-SEND-QUEUE');
   });
+
+  it('[NF-022] from uncertain one sentObserved report is only the echo: the receipt id must have been linked by an earlier report', () => {
+    const preparing = applyAttemptInput(newAttempt(ATTEMPT), { type: 'click', cause: hostCause }).track;
+    const lost = applyReportedView(preparing, { attemptId: ATTEMPT, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }).track;
+    expect(applyReportedView(lost, { attemptId: ATTEMPT, state: 'sentObserved', platformMessageId: '4100' })).toMatchObject({ changed: false, ignored: 'no linked receipt' });
+    const linked = applyReportedView(lost, { attemptId: ATTEMPT, state: 'nativeAccepted', platformMessageId: '4100' });
+    expect(linked.changed).toBe(true);
+    expect(linked.track.view.state).toBe('uncertain');
+    expect(applyReportedView(linked.track, { attemptId: ATTEMPT, state: 'sentObserved', platformMessageId: '4101' })).toMatchObject({ changed: false, ignored: 'another receipt id' });
+    expect(applyReportedView(linked.track, { attemptId: ATTEMPT, state: 'sentObserved', platformMessageId: '4100' }).track.view).toEqual({ attemptId: ATTEMPT, state: 'sentObserved', platformMessageId: '4100' });
+    // MAIN's own «uncertain, but the receipt was seen» links the receipt; the echo then completes it.
+    const withId = applyReportedView(preparing, { attemptId: ATTEMPT, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', platformMessageId: '4100' }).track;
+    expect(applyReportedView(withId, { attemptId: ATTEMPT, state: 'sentObserved', platformMessageId: '4100' }).track.view.state).toBe('sentObserved');
+  });
 });
 
 describe('[X8-08] [X8-01] locks and one attempt per part', () => {
@@ -379,6 +398,20 @@ describe('[X8-08] [X8-09] hub custody', () => {
     expect(custodyReport({ attemptId: ATTEMPT, instanceId: WORLD.instanceId, state: 'rejected', dispatched: true })).toBeNull();
     expect(custodyReport({ attemptId: ATTEMPT, instanceId: WORLD.instanceId, state: 'rejected', httpStatus: 401, dispatched: true })).toBeNull();
     expect(custodyReport({ attemptId: ATTEMPT, instanceId: WORLD.instanceId, state: 'sentObserved', dispatched: true })).toBeNull();
+  });
+
+  it('[X8-08] the hub still takes `sent` while the custody waits, `failed` only before the ticket expired; only silence or a busy hub repeats a report', () => {
+    const sent: ClaimBody = { action: 'sent', attemptId: ATTEMPT, instanceId: WORLD.instanceId, platformMessageId: '4100', evidence: 'receipt+echo' };
+    const failed: ClaimBody = { action: 'failed', attemptId: ATTEMPT, instanceId: WORLD.instanceId, reason: 'not_enqueued' };
+    expect(CUSTODY_STATES.filter((state) => custodyBlocks(state))).toEqual(['dispatching', 'uncertain-held']);
+    expect(CUSTODY_STATES.filter((state) => reportAccepted(sent, state))).toEqual(['dispatching', 'uncertain-held']);
+    expect(CUSTODY_STATES.filter((state) => reportAccepted(failed, state))).toEqual(['dispatching']);
+    expect(reportAccepted(dispatchBody({ attemptId: ATTEMPT, instanceId: WORLD.instanceId, purpose: 'preview-reply', group: { generationRef: ATTEMPT, variant: 0, partCount: 1 }, partIndex: 0, textRevision: 0, flagRevision: 1 }), 'dispatching')).toBe(false);
+    expect(reportRetryable({ kind: 'transport', failure: 'timeout' })).toBe(true);
+    expect(reportRetryable({ kind: 'http', status: 503, error: 'service_unavailable', reason: null, retryAfterMs: null })).toBe(true);
+    expect(reportRetryable({ kind: 'http', status: 429, error: 'rate_limit_exceeded', reason: null, retryAfterMs: 1000 })).toBe(true);
+    expect(reportRetryable({ kind: 'http', status: 409, error: 'custody_not_owned', reason: null, retryAfterMs: null })).toBe(false);
+    expect(reportRetryable({ kind: 'sse-error', code: 'x', retryAfterMs: null })).toBe(false);
   });
 });
 

@@ -9,7 +9,7 @@
 // or an owner's `resolve` in the hub. `dispatch` itself is never repeated.
 
 import { type CgCode } from '@cg/contracts/errors';
-import { CUSTODY_BLOCKING_STATES, type ClaimBody, type ClaimState, type CustodyState } from '@cg/contracts/hub';
+import { CUSTODY_BLOCKING_STATES, isCustodyTransition, type ClaimBody, type ClaimState, type CustodyState, type HubFailure } from '@cg/contracts/hub';
 import { type DispatchTicket, type SEND_PURPOSES, type SendGroup } from '@cg/contracts/send';
 import { SEND_CUSTODY_REPORTS, isNativeRefusalStatus, localDeadline, type SendAttemptState } from '@cg/contracts/send-rules';
 
@@ -91,4 +91,27 @@ export function custodyReport(input: ReportInput): ClaimBody | null {
       if (input.platformMessageId === undefined) return null;
       return { action: 'sent', attemptId: input.attemptId, instanceId: input.instanceId, platformMessageId: input.platformMessageId, evidence: 'receipt+echo' };
   }
+}
+
+/** A custody that blocks every new dispatch to the fan until it ends (`dispatching`, `uncertain-held`). */
+export function custodyBlocks(state: CustodyState): boolean {
+  return (CUSTODY_BLOCKING_STATES as readonly CustodyState[]).includes(state);
+}
+
+/**
+ * Whether the hub can still take this report for a custody in `state`
+ * (CUSTODY_TRANSITIONS): `sent` ends `dispatching` and `uncertain-held`;
+ * `failed` ends only `dispatching` — once the ticket expired unreported the
+ * custody is `uncertain-held` and only the late proof or a resolve ends it.
+ */
+export function reportAccepted(body: ClaimBody, state: CustodyState): boolean {
+  if (body.action === 'sent') return state !== 'sent' && isCustodyTransition(state, 'sent');
+  if (body.action === 'failed') return isCustodyTransition(state, 'failed') && state !== 'failed';
+  return false;
+}
+
+/** A custody report is repeated (same attemptId) after these failures only: no answer, or a busy hub. */
+export function reportRetryable(failure: HubFailure): boolean {
+  if (failure.kind === 'transport') return true;
+  return failure.kind === 'http' && (failure.status === 429 || failure.status >= 500);
 }
