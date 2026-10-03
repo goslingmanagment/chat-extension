@@ -294,8 +294,16 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'FreshnessCheckpoint',
     C.FreshnessCheckpointSchema,
-    [checkpoint, { ...checkpoint, lastFanMessageId: null, coverage: 'unknown' }],
-    [{ ...checkpoint, coverage: 'partial' }, { ...checkpoint, fanSequence: -1 }],
+    [checkpoint, { ...checkpoint, lastFanMessageId: null, knownFanMessageIds: [], coverage: 'unknown' }, { ...checkpoint, knownFanMessageIds: [IDS.msg1, IDS.msg2] }],
+    [
+      { ...checkpoint, coverage: 'partial' },
+      { ...checkpoint, fanSequence: -1 },
+      // The newest known id is lastFanMessageId; the set is bounded and has no repeats.
+      { ...checkpoint, knownFanMessageIds: [IDS.msg2, IDS.msg1] },
+      { ...checkpoint, lastFanMessageId: null },
+      { ...checkpoint, knownFanMessageIds: [IDS.msg1, IDS.msg1] },
+      { ...checkpoint, knownFanMessageIds: [IDS.msg1, ...Array.from({ length: 10 }, (_, i) => String(5000 + i))] },
+    ],
   ),
   fixture(
     'PreviewSendRequest',
@@ -583,7 +591,10 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       {
         source: 'union',
         servedHead: { messageRef: IDS.msg1, at: ISO },
-        knownFanMessage: { id: IDS.msg1, state: 'included' },
+        knownFanMessages: [
+          { id: IDS.msg1, state: 'included' },
+          { id: IDS.msg2, state: null },
+        ],
         live: { status: 'served', accepted: 3, rejected: 1 },
       },
       { source: null, servedHead: null, live: { status: null, accepted: 0, rejected: 0 } },

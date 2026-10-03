@@ -100,6 +100,19 @@ export const PREVIEW_SEND_CONDITION_CODES = [
 ] as const satisfies readonly CgCode[];
 export type PreviewSendConditionCode = (typeof PREVIEW_SEND_CONDITION_CODES)[number];
 
+/**
+ * The served-context check of §6.7.5 («обслуженный контекст»): the hold for
+ * fan messages the page saw before Generate lifts only when the hub says
+ * `included` for every id the checkpoint named; `absent`, `deleted`,
+ * `unknown`, a missing answer or a missing frame keep it. No known id — the
+ * check has nothing to prove (the counters after Generate still apply).
+ */
+export function servedContextCovers(knownIds: readonly string[], answers: readonly { readonly id: string; readonly state: string | null }[] | undefined): boolean {
+  if (knownIds.length === 0) return true;
+  if (answers === undefined) return false;
+  return knownIds.every((id) => answers.some((answer) => answer.id === id && answer.state === 'included'));
+}
+
 /** A proven final native refusal: 4xx other than 401 (§6.7.6 п. 4; a 401 is never an outcome). */
 export function isNativeRefusalStatus(status: number): boolean {
   return status >= 400 && status <= 499 && status !== 401;

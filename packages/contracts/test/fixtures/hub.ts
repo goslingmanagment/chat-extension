@@ -121,7 +121,7 @@ const streamBody: C.AiFeatureStreamBody = {
 };
 const streamRequest: C.HubStreamRequest = {
   feature: 'fast-reply',
-  body: { ...streamBody, knownFanMessageId: IDS.msg2, liveTextContext: liveText },
+  body: { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1], liveTextContext: liveText },
   capabilities: ['context-v1', 'split-all-v1'],
 };
 const reviewBody: C.AiFeatureStreamBody = { clientRequestId: uuid(3), pageLabel: PAGE, platform: 'onlyfans', conversationRef: IDS.fan, messageCount: 1500 };
@@ -159,7 +159,10 @@ const contextFrame: C.ContextFrame = {
   archiveHead: null,
   window: { requested: 100, served: 87 },
   coverage: 'complete',
-  knownFanMessage: { id: IDS.msg2, state: 'included' },
+  knownFanMessages: [
+    { id: IDS.msg2, state: 'included' },
+    { id: IDS.msg1, state: 'absent' },
+  ],
   live: { status: 'served', accepted: 2, rejected: 0 },
   fanLanguageEvidence: 'latin',
 };
@@ -586,10 +589,15 @@ export const HUB_SCHEMA_FIXTURES = [
     { ...liveText, items: [{ platformMessageId: '0123', direction: 'fan', occurredAt: ISO, text: 'x' }] },
     { ...liveText, items: [{ platformMessageId: IDS.msg1, direction: 'fan', occurredAt: ISO, text: 'x', isFromQueue: true }] },
   ]),
-  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody], [
+  fixture('AiFeatureStreamBody', C.AiFeatureStreamBodySchema, [streamBody, reviewBody, { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg1] }], [
     { ...streamBody, messageCount: 3001 },
     { ...streamBody, clientContext: { transcript: 'x' } },
     { ...streamBody, conversationRef: 'chat-2002' },
+    // The bounded set of §6.7.5: 1–10 distinct ids, never the old single field.
+    { ...streamBody, knownFanMessageIds: [] },
+    { ...streamBody, knownFanMessageIds: [IDS.msg2, IDS.msg2] },
+    { ...streamBody, knownFanMessageIds: Array.from({ length: 11 }, (_, i) => String(5000 + i)) },
+    { ...streamBody, knownFanMessageId: IDS.msg2 },
   ]),
   fixture(
     'HubStreamRequest',
@@ -624,7 +632,7 @@ export const HUB_SCHEMA_FIXTURES = [
     { ...debugFrame, systemBlocks: [] },
     { ...debugFrame, images: [{ url: 'https://evil.example/x.png' }] },
   ]),
-  fixture('ContextFrame', C.ContextFrameSchema, [contextFrame, { ...contextFrame, source: 'archive', servedHead: null, knownFanMessage: undefined, futureKey: true }], [
+  fixture('ContextFrame', C.ContextFrameSchema, [contextFrame, { ...contextFrame, source: 'archive', servedHead: null, knownFanMessages: undefined, futureKey: true }], [
     { ...contextFrame, live: undefined },
     { ...contextFrame, generationRef: 'gen-1' },
   ]),

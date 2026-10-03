@@ -33,20 +33,32 @@ import {
  * `coverage: 'unknown'` means the observation cannot prove "nothing new",
  * never "nothing new".
  */
-export const FreshnessCheckpointSchema = z.strictObject({
-  documentEpoch: EpochTokenSchema,
-  /** A new page socket is a new epoch. */
-  socketEpoch: CountSchema,
-  /** The account's subscription on the current socket. */
-  subscriptionEpoch: CountSchema,
-  hostAccountId: NativeIdSchema,
-  platformFanId: NativeIdSchema,
-  /** Fan messages first seen for (account, fan), deduplicated by id. */
-  fanSequence: CountSchema,
-  lastFanMessageId: z.nullable(NativeIdSchema),
-  observedAt: EpochMsSchema,
-  coverage: z.enum(['ok', 'unknown']),
-});
+export const FreshnessCheckpointSchema = z
+  .strictObject({
+    documentEpoch: EpochTokenSchema,
+    /** A new page socket is a new epoch. */
+    socketEpoch: CountSchema,
+    /** The account's subscription on the current socket. */
+    subscriptionEpoch: CountSchema,
+    hostAccountId: NativeIdSchema,
+    platformFanId: NativeIdSchema,
+    /** Fan messages first seen for (account, fan), deduplicated by id. */
+    fanSequence: CountSchema,
+    lastFanMessageId: z.nullable(NativeIdSchema),
+    /**
+     * The fan messages this document saw for (account, fan) before the
+     * checkpoint, newest first, at most knownFanMessagesMax: the bounded set
+     * the served-context check asks the hub about (body `knownFanMessageIds`,
+     * §6.7.5). Order is arrival, never id size. The first is lastFanMessageId.
+     */
+    knownFanMessageIds: z.array(NativeIdSchema).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
+    observedAt: EpochMsSchema,
+    coverage: z.enum(['ok', 'unknown']),
+  })
+  .check(
+    z.refine((c) => (c.knownFanMessageIds[0] ?? null) === c.lastFanMessageId, { message: 'the newest known id is lastFanMessageId' }),
+    z.refine((c) => new Set(c.knownFanMessageIds).size === c.knownFanMessageIds.length, { message: 'known ids repeat' }),
+  );
 export type FreshnessCheckpoint = z.infer<typeof FreshnessCheckpointSchema>;
 
 /** The checkpoint was taken for exactly this chat (account and fan as strings). */

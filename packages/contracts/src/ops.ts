@@ -9,7 +9,7 @@ import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature } from './features';
 import { LiveTextTailSchema } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema } from './ids';
-import { AI_REQUEST_LIMITS, COACH_LIMITS, OP_LIMITS } from './limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -260,7 +260,10 @@ export const KNOWN_FAN_MESSAGE_STATES = ['included', 'absent', 'deleted', 'unkno
 export const ServedContextSchema = z.strictObject({
   source: z.nullable(z.enum(CONTEXT_SOURCES)),
   servedHead: z.nullable(z.strictObject({ messageRef: NativeIdSchema, at: IsoTimestampSchema })),
-  knownFanMessage: z.optional(z.strictObject({ id: NativeIdSchema, state: z.enum(KNOWN_FAN_MESSAGE_STATES) })),
+  /** The hub's answer per known id; an unknown state token becomes null (it never lifts a hold, servedContextCovers). */
+  knownFanMessages: z.optional(
+    z.array(z.strictObject({ id: NativeIdSchema, state: z.nullable(z.enum(KNOWN_FAN_MESSAGE_STATES)) })).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
+  ),
   live: z.strictObject({ status: z.nullable(z.enum(LIVE_TEXT_STATUSES)), accepted: CountSchema, rejected: CountSchema }),
 });
 export type ServedContext = z.infer<typeof ServedContextSchema>;

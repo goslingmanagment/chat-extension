@@ -7,7 +7,7 @@
 import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
-import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS } from '../limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS } from '../limits';
 import {
   CountSchema,
   IsoTimestampSchema,
@@ -131,8 +131,20 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   preset: z.optional(z.literal('situation')),
   summaryMode: z.optional(z.literal('short')),
   variantCount: z.optional(z.union([z.literal(1), z.literal(3)])),
-  /** H-4b: only an id from the freshness checkpoint; the hub checks page and fan. */
-  knownFanMessageId: z.optional(NativeIdSchema),
+  /**
+   * H-4b: only ids from the freshness checkpoint (FreshnessCheckpoint
+   * .knownFanMessageIds), never text; the hub checks page and fan for each
+   * and answers `knownFanMessages` in `context_v1`.
+   */
+  knownFanMessageIds: z.optional(
+    z
+      .array(NativeIdSchema)
+      .check(
+        z.minLength(1),
+        z.maxLength(SEND_LIMITS.knownFanMessagesMax),
+        z.refine((ids) => new Set(ids).size === ids.length, { message: 'known ids repeat' }),
+      ),
+  ),
   liveTextContext: z.optional(LiveTextContextSchema),
 });
 export type AiFeatureStreamBody = z.infer<typeof AiFeatureStreamBodySchema>;
@@ -236,7 +248,7 @@ export const DebugInputFrameSchema = z.strictObject({
   ),
 });
 
-// Known values of `source`, `live.status`, `coverage` and `knownFanMessage.state`
+// Known values of `source`, `live.status`, `coverage` and `knownFanMessages[].state`
 // are ops.ts CONTEXT_SOURCES, LIVE_TEXT_STATUSES, COVERAGE_LEVELS and
 // KNOWN_FAN_MESSAGE_STATES: the tab's ServedContext narrows to them.
 export const FAN_LANGUAGE_EVIDENCE = ['latin', 'cyrillic', 'mixed', 'unknown'] as const;
@@ -263,7 +275,8 @@ export const ContextFrameSchema = z.object({
   archiveHead: z.optional(z.nullable(ContextHeadSchema)),
   window: z.object({ requested: CountSchema, served: CountSchema }),
   coverage: OpenTokenSchema,
-  knownFanMessage: z.optional(z.object({ id: z.string(), state: OpenTokenSchema })),
+  /** One answer per id of the body's `knownFanMessageIds`: included | absent | deleted | unknown. */
+  knownFanMessages: z.optional(z.array(z.object({ id: z.string(), state: OpenTokenSchema })).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax))),
   live: z.object({ status: OpenTokenSchema, accepted: CountSchema, rejected: CountSchema }),
   fanLanguageEvidence: z.optional(OpenTokenSchema),
 });

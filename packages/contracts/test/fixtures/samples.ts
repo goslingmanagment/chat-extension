@@ -112,6 +112,7 @@ export const checkpoint: FreshnessCheckpoint = {
   platformFanId: IDS.fan,
   fanSequence: 3,
   lastFanMessageId: IDS.msg1,
+  knownFanMessageIds: [IDS.msg1],
   observedAt: T0,
   coverage: 'ok',
 };

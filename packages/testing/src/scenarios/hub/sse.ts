@@ -71,7 +71,7 @@ export function contextFrame(over: Partial<ContextFrame> = {}): ContextFrame {
     archiveHead: { messageRef: WORLD.messages.modelReply, occurredAt: at(-600), isFromFan: false },
     window: { requested: 100, served: 42 },
     coverage: 'complete',
-    knownFanMessage: { id: WORLD.messages.fanLatest, state: 'included' },
+    knownFanMessages: [{ id: WORLD.messages.fanLatest, state: 'included' }],
     live: { status: 'served', accepted: 3, rejected: 0 },
     fanLanguageEvidence: 'latin',
     ...over,
@@ -116,7 +116,7 @@ const failed = (cg: SseExpectation['cg'], disposition: SseExpectation['dispositi
   ...over,
 });
 
-const reply = request('fast-reply', { replyTone: 'flirty', replyMode: 'preferSplit', knownFanMessageId: WORLD.messages.fanLatest });
+const reply = request('fast-reply', { replyTone: 'flirty', replyMode: 'preferSplit', knownFanMessageIds: [WORLD.messages.fanLatest] });
 
 export const SSE_SCENARIOS: readonly SseScenario[] = [
   {
@@ -259,7 +259,7 @@ export const SSE_SCENARIOS: readonly SseScenario[] = [
     responses: [
       stream(
         frame(meta('ping')),
-        frame(contextFrame({ live: { status: 'rejected', accepted: 0, rejected: 2 }, knownFanMessage: { id: WORLD.messages.fanDeleted, state: 'deleted' } })),
+        frame(contextFrame({ live: { status: 'rejected', accepted: 0, rejected: 2 }, knownFanMessages: [{ id: WORLD.messages.fanDeleted, state: 'deleted' }] })),
         delta('Thinking of you'),
         usage,
         done,
@@ -270,11 +270,11 @@ export const SSE_SCENARIOS: readonly SseScenario[] = [
   {
     name: 'context-known-fan-absent',
     description: 'The checkpoint’s fan message is not in the served snapshot: the preview holds the send (§6.7.5).',
-    request: request('fast-reply', { knownFanMessageId: WORLD.messages.fanLatest }),
+    request: request('fast-reply', { knownFanMessageIds: [WORLD.messages.fanLatest] }),
     responses: [
       stream(
         frame(meta('fast-reply')),
-        frame(contextFrame({ source: 'archive', servedHead: { messageRef: WORLD.messages.modelReply, occurredAt: at(-600), isFromFan: false }, knownFanMessage: { id: WORLD.messages.fanLatest, state: 'absent' }, live: { status: 'not_sent', accepted: 0, rejected: 0 } })),
+        frame(contextFrame({ source: 'archive', servedHead: { messageRef: WORLD.messages.modelReply, occurredAt: at(-600), isFromFan: false }, knownFanMessages: [{ id: WORLD.messages.fanLatest, state: 'absent' }], live: { status: 'not_sent', accepted: 0, rejected: 0 } })),
         delta('Reply'),
         usage,
         done,

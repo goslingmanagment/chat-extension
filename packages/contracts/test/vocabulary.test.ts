@@ -114,6 +114,16 @@ describe('X8 attempt machine (§6.7.7)', () => {
     expect(C.isNativeRefusalStatus(500)).toBe(false);
   });
 
+  it('the served-context check lifts a hold only when every known id is included (§6.7.5)', () => {
+    const ids = ['4004', '4006'];
+    expect(C.servedContextCovers([], undefined)).toBe(true);
+    expect(C.servedContextCovers(ids, undefined)).toBe(false);
+    expect(C.servedContextCovers(ids, [{ id: '4006', state: 'included' }])).toBe(false);
+    expect(C.servedContextCovers(ids, [{ id: '4006', state: 'included' }, { id: '4004', state: 'absent' }])).toBe(false);
+    expect(C.servedContextCovers(ids, [{ id: '4006', state: 'included' }, { id: '4004', state: null }])).toBe(false);
+    expect(C.servedContextCovers(ids, [{ id: '4004', state: 'included' }, { id: '4006', state: 'included' }])).toBe(true);
+  });
+
   it('a server deadline moves onto the local clock by the server\'s remaining time', () => {
     const received = 1_000_000;
     // The client clock is 5 minutes off; the ticket still has 10 s on the server.

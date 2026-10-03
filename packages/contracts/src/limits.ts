@@ -82,6 +82,8 @@ export const SEND_LIMITS = {
   nativeTimeoutMs: 30 * SECOND,
   /** Per-chat entries in ChatSpace's queue at which it refuses (`notificationEntry:1426, 1544`). */
   nativeQueueMaxPerChat: 50,
+  /** Fan message ids a checkpoint names for the served-context check: the bounded set of §6.7.5, newest first. */
+  knownFanMessagesMax: 10,
 } as const;
 
 /** Logs (§9.2, LG-004…LG-012, LG-023). */

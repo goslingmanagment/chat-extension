@@ -103,9 +103,9 @@ describe('contracts vs the vendored SDK', () => {
     const body = sdkRoutes['aiFeatureStream']?.body;
     if (body === undefined) throw new Error('aiFeatureStream body');
     for (const s of SSE_SCENARIOS) {
-      const { knownFanMessageId, liveTextContext, ...current } = s.request.body;
+      const { knownFanMessageIds, liveTextContext, ...current } = s.request.body;
       expect(body.safeParse(current).success, s.name).toBe(true);
-      if (knownFanMessageId !== undefined || liveTextContext !== undefined) expect(body.safeParse(s.request.body).success, `${s.name}: H-4 fields`).toBe(false);
+      if (knownFanMessageIds !== undefined || liveTextContext !== undefined) expect(body.safeParse(s.request.body).success, `${s.name}: H-4 fields`).toBe(false);
     }
   });
 });
