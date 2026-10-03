@@ -382,6 +382,15 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
     expect(bootstrap?.pages[0]?.features['insertion']).toEqual({ available: true });
     expect(bootstrap?.pages[0]?.features['previewSend']).toEqual({ available: false, reason: 'hub_not_ready' });
     expect(bootstrap?.pages[1]?.features['insertion']).toEqual({ available: false, reason: 'platform_unsupported' });
+    // What the UI reads: «хаб не готов», never «выключено владельцем».
+    expect(h.facade.flagState('stats', one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(h.facade.flagState('stats', null)).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(h.facade.flagState('recap', one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(h.facade.flagState('previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(h.facade.flagState('previewSend', null)).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(h.facade.flagState('previewSendMarkAiGenerated', null)).toEqual({ usable: false, reason: 'flag_off' });
+    expect(h.facade.flagState('insertion', one.pageLabel)).toEqual({ usable: true, reason: null });
+    expect(h.facade.flagState('review', one.pageLabel)).toEqual({ usable: true, reason: null });
     expect(h.facade.status()).toMatchObject({ compat: true, bootstrap: { source: 'compat' }, state: 'degraded' });
     expect(h.facade.resolveBinding(account())).toMatchObject({ state: 'bound', binding: { pageId: one.pageId } });
     // New routes are never asked of such a hub: refused locally.
@@ -411,8 +420,13 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
       pageAccounts: { p: '3003' },
     });
     expect(bootstrap).toMatchObject({ protocol: 1, configRevision: 0, minVersion: '0.0.0', pages: [{ title: 'M', platformAccountId: '3003', bindingRevision: 0 }] });
-    expect(bootstrap.flags['previewSend']).toBe(false);
+    // The owner's switches stay on; what the hub cannot do is unavailable on the page (hub_not_ready).
     expect(bootstrap.flags['coach']).toBe(true);
-    expect(bootstrap.flags['recap']).toBe(false);
+    expect(bootstrap.flags['recap']).toBe(true);
+    expect(bootstrap.flags['previewSend']).toBe(true);
+    expect(bootstrap.flags['previewSendMarkAiGenerated']).toBe(false);
+    expect(bootstrap.pages[0]?.features['recap']).toEqual({ available: false, reason: 'hub_not_ready' });
+    expect(bootstrap.pages[0]?.features['previewSend']).toEqual({ available: false, reason: 'hub_not_ready' });
+    expect(flagState(bootstrap, 'previewSend', null)).toEqual({ usable: false, reason: 'hub_not_ready' });
   });
 });

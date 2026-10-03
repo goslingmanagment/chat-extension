@@ -179,7 +179,8 @@ export interface CompatPage {
  * DEV-ONLY (debug mode or a test build, never a release by default): the
  * prod hub answers 404 for `client/bootstrap` until H-2 ships. This builds a
  * bootstrap from `me` + `pages`: every feature that needs a new route is
- * unavailable with `hub_not_ready`, no capability is declared, X8 is off.
+ * unavailable with `hub_not_ready` (the global switches stay on, so the
+ * reason is never `flag_off`), no capability is declared, X8 is off.
  * The hub's pages carry no platformAccountId there; `pageAccounts`
  * (pageLabel → OF creator id, injected by the dev composition) is the only
  * way to bind one — never a name.
@@ -214,7 +215,10 @@ export function synthesizeCompatBootstrap(input: {
       features: features(page.platform),
     })),
     bindingsByHost: {},
-    flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, compatFlagAvailable(flag)])),
+    // The owner switched nothing off: the global switches are on, and what this hub cannot do reads
+    // `hub_not_ready` from the page features and the missing capabilities — never «flag_off». The AI
+    // mark of X8 has no capability of its own to stop it, so it stays off.
+    flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, flag !== 'previewSendMarkAiGenerated'])),
     limits: COMPAT_LIMITS,
     capabilities: [],
   };
