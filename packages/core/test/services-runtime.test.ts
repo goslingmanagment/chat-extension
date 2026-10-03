@@ -113,7 +113,7 @@ describe('[BG-002] [BG-003] [BG-006] [RB-019] [UP-009] tab sessions', () => {
     expect(s.register({ tabId: 7, frameId: 2, documentId: 'doc-a' }, request)).toEqual({ ok: false, reason: 'not-top-frame' });
   });
 
-  it('[BG-002] a reloaded tab replaces its session; [UP-009] a late or foreign-contract tab must reload', () => {
+  it('[BG-002] [RB-010] a reloaded or reconnected tab replaces its session; [UP-009] a late or foreign-contract tab must reload', () => {
     const s = sessions();
     const a = s.register({ tabId: 7, frameId: 0, documentId: 'doc-a' }, request);
     const b = s.register({ tabId: 7, frameId: 0, documentId: 'doc-b' }, { ...request, lateInjection: true });

@@ -318,7 +318,7 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
     ...over,
   });
 
-  it('[AI-121] [AU-024] no sign-in, a stale binding, no bootstrap, an ungranted page, no persona, a switched-off feature each have their reason', () => {
+  it('[AI-121] [AU-024] [AU-022] [AU-025] [AU-026] no sign-in, a stale binding, no bootstrap, an ungranted page, no persona, a switched-off feature each have their reason', () => {
     expect(startPrecondition(env(), startOf())).toBeNull();
     expect(startPrecondition(env({ session: null }), startOf())).toBe('CG-AUTH-REQUIRED');
     expect(startPrecondition(env({ session: { ...session, epoch: 9 } }), startOf())).toBe('CG-CONTEXT-CHANGED');
@@ -385,7 +385,7 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     expect(messageWindowFor('recap-short', { ...windows, deep: 200 }, 3000)).toBe(200);
   });
 
-  it('[AI-134] the request carries clientRequestId = opId, page, fan, persona and messageCount clamped to deepMax', () => {
+  it('[AI-134] [AU-026] the request carries clientRequestId = opId, page, fan, persona and messageCount clamped to deepMax', () => {
     const built = buildStreamRequest(startOf({ window: 3000, feature: 'review' }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, deepMax: 1500 } } });
     expect(built.ok).toBe(true);
     if (!built.ok) return;
@@ -508,7 +508,7 @@ describe('[RB-016] [RB-004] [RB-005] the stream reader', () => {
     expect(usage.state.usage).toEqual({ inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4, costMicroUsd: 5 });
   });
 
-  it('[RB-016] context_v1 tokens this client does not know become null; foreign ids are dropped', () => {
+  it('[RB-016] [DB-028] context_v1 tokens this client does not know become null; foreign ids are dropped', () => {
     const served = narrowContext({
       ...contextFrame({ source: 'mirror_v2', live: { status: 'partial', accepted: 1, rejected: 1 } }),
       knownFanMessages: [

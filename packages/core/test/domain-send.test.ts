@@ -537,7 +537,7 @@ describe('[X8-07] the attempt journal: no text, written first, restored without 
     expect(SendJournalEntrySchema.safeParse(late).success).toBe(true);
   });
 
-  it('[X8-07] a damaged journal keeps its valid records and drops the rest and duplicates', () => {
+  it('[X8-07] [DB-029] a damaged journal keeps its valid records and drops the rest and duplicates', () => {
     const entry = journalEntryOf(beginOf(), NOW_MS);
     expect(parseJournal([entry, entry, { attemptId: 'x' }, journalEntryOf(beginOf({ attemptId: uuid(0x501) }), NOW_MS)])).toEqual({
       entries: [entry, journalEntryOf(beginOf({ attemptId: uuid(0x501) }), NOW_MS)],

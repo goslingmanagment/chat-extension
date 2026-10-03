@@ -118,7 +118,7 @@ const opIdOf = (outcome: Awaited<ReturnType<OpScheduler['start']>>): string => {
 };
 
 describe('[AI-137] [AI-139] [RB-016] a reply streams in 50 ms batches and ends with its result', () => {
-  it('[AI-137] the admission is journaled before the hub request; batches carry monotonic seq; the result parses', async () => {
+  it('[AI-137] [DB-028] the admission is journaled before the hub request; batches carry monotonic seq; the result parses', async () => {
     const h = harness();
     const op = h.nextOp();
     h.hub.streamScript.push(...forOp(scenario('reply-normal'), op));
@@ -431,7 +431,7 @@ describe('[RB-002] [RB-003] [RB-004] [RB-005] [RB-006] [AI-132] how an operation
     expect(view).toMatchObject({ state: 'failed', error: { code: 'CG-OUTPUT-UNUSABLE' } });
   });
 
-  it('[AI-126] [AU-028] persona fence: a 409 and a meta with another definition both drop the result and refresh the catalog', async () => {
+  it('[AI-126] [AU-027] [AU-028] persona fence: a 409 and a meta with another definition both drop the result and refresh the catalog', async () => {
     const pre = await ended(scenario('persona-409'));
     expect(pre.view?.error?.code).toBe('CG-PERSONA-CHANGED');
     expect(pre.h.hooks.catalog).toBe(1);
@@ -515,7 +515,7 @@ describe('[AI-124] [AI-126] [AI-130] [AI-131] [BG-006] the run lives in the back
     expect(h.scheduler.attachTab(op, OTHER_TAB)?.text).toBeUndefined();
   });
 
-  it('[AI-127] [AI-124] after a reload the same request from the new tab session reopens the running operation and follows it', async () => {
+  it('[AI-127] [AI-124] [RB-010] after a reload the same request from the new tab session reopens the running operation and follows it', async () => {
     const h = harness();
     h.hub.streamScript.push({ kind: 'hang' });
     const op = opIdOf(await h.start(TAB, startOf()));
@@ -544,7 +544,7 @@ describe('[AI-124] [AI-126] [AI-130] [AI-131] [BG-006] the run lives in the back
     expect(h.events.of('op.done')).toHaveLength(1);
   });
 
-  it('[AI-126] a persona, sign-in or hub change cancels the operations of that page and sign-in only', async () => {
+  it('[AI-126] [AU-027] a persona, sign-in or hub change cancels the operations of that page and sign-in only', async () => {
     const h = harness();
     for (let i = 0; i < 3; i += 1) h.hub.streamScript.push({ kind: 'hang' });
     const a = opIdOf(await h.start(TAB, startOf()));
@@ -687,7 +687,7 @@ describe('[BG-004] [RB-003] restore after an unload', () => {
     expect(second.scheduler.active()).toHaveLength(0);
   });
 
-  it('[BG-004] results older than 30 minutes and unreadable stores come back empty', async () => {
+  it('[BG-004] [DB-029] results older than 30 minutes and unreadable stores come back empty', async () => {
     const clock = new FakeClock(NOW_MS);
     const store = new MemoryStore();
     const first = harness({ clock, store });
@@ -736,8 +736,8 @@ describe('[DB-018] [DB-022] AI spend in the log', () => {
   });
 });
 
-describe('[DB-011] [DB-014] debug details', () => {
-  it('[DB-011] stages, usage, reasoning, context and the prompt token only with debug on', async () => {
+describe('[DB-001] [DB-004] [DB-009] [DB-011] [DB-014] [DB-016] [DB-017] [DB-018] debug details', () => {
+  it('[DB-001] [DB-011] [DB-016] [DB-017] [DB-018] [DB-009] [DB-004] stages, usage, reasoning, context and the prompt token only with debug on', async () => {
     const h = harness({ env: { debug: true } });
     const op = h.nextOp();
     h.hub.streamScript.push(...forOp(scenario('debug-input-and-reasoning'), op));
