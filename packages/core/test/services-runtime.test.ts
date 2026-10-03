@@ -53,6 +53,17 @@ describe('[AI-120] [BG-001] one-time action tokens bound to a trusted event', ()
     expect(t.check({ tabSessionId: TAB, kind: 'generate', surface: 'dock', actionToken: late.actionToken })).toBe('expired');
   });
 
+  it('[AI-120] a token refused for its kind or surface is spent too: the right request after it is refused', () => {
+    const { t } = tokens();
+    const wrongKind = t.issue(TAB, 'send', 'preview');
+    expect(t.redeem({ tabSessionId: TAB, kind: 'generate', surface: 'preview', actionToken: wrongKind.actionToken })).toBe(false);
+    expect(t.redeem({ tabSessionId: TAB, kind: 'send', surface: 'preview', actionToken: wrongKind.actionToken })).toBe(false);
+    const wrongSurface = t.issue(TAB, 'send', 'preview');
+    expect(t.redeem({ tabSessionId: TAB, kind: 'send', surface: 'newcomers', actionToken: wrongSurface.actionToken })).toBe(false);
+    expect(t.redeem({ tabSessionId: TAB, kind: 'send', surface: 'preview', actionToken: wrongSurface.actionToken })).toBe(false);
+    expect(t.outstanding(TAB)).toBe(0);
+  });
+
   it('[BG-001] an expired token is refused even when nothing swept it yet; a closed tab takes its tokens along', () => {
     const { clock, t } = tokens();
     const issued = t.issue(TAB, 'generate', 'dock');
