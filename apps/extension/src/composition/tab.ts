@@ -2,9 +2,16 @@
 // (architecture.md §2, §4: wiring only). Order: runtime port → MAIN bridge →
 // wait for the composer → lazily load the dock chunk into a closed shadow root.
 // R09/R13/R14/R17 plug their parts in here.
+//
+// Lifecycle is OURS, not WXT's: WXT invalidates its ContentScriptContext when
+// a `<runtime id>:chatspace:wxt:content-script-started` CustomEvent reaches the
+// document — and the page can dispatch that event too (spike M0). Firefox
+// kills a removed or updated extension's content scripts outright, so a real
+// invalidation only ever reaches an instance whose runtime is gone; while our
+// runtime is alive, an invalidation is a spoof and is ignored.
 
 import { BackgroundStatusSchema } from '@cg/contracts';
-import { connectMainBridge, findComposerMount, mountClosedHost, removeStaleHosts, type ClosedHost } from '@cg/host-chatspace/isolated';
+import { connectMainBridge, mountClosedHost, removeStaleHosts, waitForComposerMount, type ClosedHost } from '@cg/host-chatspace/isolated';
 import { connectTabPort, extensionUrl, isExtensionContextAlive } from '@cg/platform';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 
@@ -31,6 +38,22 @@ export function composeTab(env: TabEnv): void {
   const probe: SpikeProbe | null = __CG_TEST_HOSTS__ ? createSpikeProbe(win) : null;
   let dockHost: ClosedHost | null = null;
 
+  const life = new AbortController();
+  life.signal.addEventListener('abort', () => {
+    probe?.set('runtime', 'shut-down');
+    dockHost?.remove();
+    dockHost = null;
+  });
+  let spoofedInvalidations = 0;
+  ctx.onInvalidated(() => {
+    if (!isExtensionContextAlive()) {
+      life.abort('extension-gone');
+      return;
+    }
+    spoofedInvalidations += 1;
+    probe?.set('ignoredInvalidations', spoofedInvalidations);
+  });
+
   // An already-open tab after an update/reinstall still shows the dead
   // instance's hosts; this instance owns the page now (§6.8 п. 8, UP-009).
   const staleHosts = removeStaleHosts(doc);
@@ -45,56 +68,32 @@ export function composeTab(env: TabEnv): void {
     if (status.success) probe?.set('background', status.data);
   });
   port.onDisconnect(() => {
-    probe?.set('runtime', isExtensionContextAlive() ? 'port-closed' : 'reloaded');
+    const alive = isExtensionContextAlive();
+    probe?.set('runtime', alive ? 'port-closed' : 'reloaded');
+    if (!alive) life.abort('extension-gone');
   });
   port.post({ t: 'hello', v: 1 });
 
-  ctx.onInvalidated(() => {
-    probe?.set('runtime', 'invalidated');
-    dockHost?.remove();
-    dockHost = null;
-  });
-
   void connectMainBridge(win)
     .then(async (bridge) => {
-      ctx.onInvalidated(() => bridge.close());
+      life.signal.addEventListener('abort', () => bridge.close());
       probe?.set('main', await bridge.probe());
     })
     .catch((error: unknown) => probe?.set('mainError', String(error)));
 
-  void waitForComposer(doc, ctx).then(async (parent) => {
-    if (!parent || ctx.isInvalid) return;
-    const loadStarted = performance.now();
-    const chunk = (await import(/* @vite-ignore */ extensionUrl(LAZY_DOCK_PATH))) as typeof DockChunk;
-    const loadMs = performance.now() - loadStarted;
-    if (ctx.isInvalid) return;
-    dockHost = mountClosedHost(parent, 'dock');
-    const dock = chunk.mountDock(dockHost.root, { status: 'Каркас R00' });
-    probe?.dockMounted(dockHost, { loadMs, renderMs: dock.renderMs, styleMode: dock.styleMode });
-  }).catch((error: unknown) => probe?.set('dockError', String(error)));
+  void waitForComposerMount(doc, { timeoutMs: FIRST_SEARCH_MS, signal: life.signal })
+    .then(async (parent) => {
+      if (!parent || life.signal.aborted) return;
+      const loadStarted = performance.now();
+      const chunk = (await import(/* @vite-ignore */ extensionUrl(LAZY_DOCK_PATH))) as typeof DockChunk;
+      const loadMs = performance.now() - loadStarted;
+      if (life.signal.aborted) return;
+      dockHost = mountClosedHost(parent, 'dock');
+      const dock = chunk.mountDock(dockHost.root, { status: 'Каркас R00' });
+      probe?.dockMounted(dockHost, { loadMs, renderMs: dock.renderMs, styleMode: dock.styleMode });
+    })
+    .catch((error: unknown) => probe?.set('dockError', String(error)));
 
   // Synchronous early bootstrap cost (§11: ≤ 3 ms on winpc).
   probe?.set('bootstrapMs', performance.now() - started);
-}
-
-function waitForComposer(doc: Document, ctx: ContentScriptContext): Promise<HTMLElement | null> {
-  const found = findComposerMount(doc);
-  if (found) return Promise.resolve(found);
-  return new Promise((resolve) => {
-    const observer = new MutationObserver(() => {
-      const parent = findComposerMount(doc);
-      if (!parent) return;
-      observer.disconnect();
-      resolve(parent);
-    });
-    observer.observe(doc, { childList: true, subtree: true });
-    ctx.setTimeout(() => {
-      observer.disconnect();
-      resolve(null);
-    }, FIRST_SEARCH_MS);
-    ctx.onInvalidated(() => {
-      observer.disconnect();
-      resolve(null);
-    });
-  });
 }

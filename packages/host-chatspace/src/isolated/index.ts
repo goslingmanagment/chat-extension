@@ -4,4 +4,4 @@
 // @cg/core/domain/text. Never receives the hub token, never touches the network.
 
 export { connectMainBridge, type MainBridgeClient } from './bridge-client';
-export { findComposerMount, mountClosedHost, removeStaleHosts, type ClosedHost } from './mount';
+export { findComposerMount, mountClosedHost, removeStaleHosts, waitForComposerMount, type ClosedHost, type WaitForComposerOptions } from './mount';

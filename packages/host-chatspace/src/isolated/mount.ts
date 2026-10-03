@@ -15,6 +15,39 @@ export function findComposerMount(doc: Document): HTMLElement | null {
   return root instanceof HTMLElement ? root : null;
 }
 
+export interface WaitForComposerOptions {
+  /** How long the first search keeps its document-wide observer (§6.3). */
+  readonly timeoutMs: number;
+  /** Aborting stops the search; the promise then resolves with null. */
+  readonly signal: AbortSignal;
+}
+
+/**
+ * Resolves with the composer frame root as soon as ChatSpace renders it, or
+ * with null after `timeoutMs` or on abort. The document-wide observer lives
+ * only for this first search; R09 replaces it with the scoped re-mount rules.
+ */
+export function waitForComposerMount(doc: Document, options: WaitForComposerOptions): Promise<HTMLElement | null> {
+  const found = findComposerMount(doc);
+  if (found || options.signal.aborted) return Promise.resolve(found);
+  return new Promise((resolve) => {
+    const finish = (result: HTMLElement | null): void => {
+      observer.disconnect();
+      clearTimeout(timer);
+      options.signal.removeEventListener('abort', onAbort);
+      resolve(result);
+    };
+    const onAbort = (): void => finish(null);
+    const observer = new MutationObserver(() => {
+      const parent = findComposerMount(doc);
+      if (parent) finish(parent);
+    });
+    observer.observe(doc, { childList: true, subtree: true });
+    const timer = setTimeout(() => finish(null), options.timeoutMs);
+    options.signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 export interface ClosedHost {
   readonly host: HTMLElement;
   readonly root: ShadowRoot;
