@@ -1,13 +1,19 @@
 // Isolated half of the MAIN ↔ isolated handshake (architecture.md §5.3).
-// MAIN is untrusted: every answer is parsed with a zod/mini schema; requests
-// time out after BRIDGE_LIMITS.callTimeoutMs.
+// MAIN is untrusted: every frame first passes checkBridgeFrame (plain JSON
+// within the limits), then the envelope schema, and an answer must carry the
+// pending request's own type before its data meets that type's schema.
+// Requests time out after BRIDGE_LIMITS.callTimeoutMs. R09 adds events,
+// the remaining request types, and rejection counters.
 
 import {
   BRIDGE_LIMITS,
   BRIDGE_PROTOCOL_VERSION,
   BRIDGE_TAGS,
+  BridgeResponseSchema,
   MainProbeSchema,
+  checkBridgeFrame,
   type MainProbe,
+  type ToMainType,
 } from '@cg/contracts';
 
 export interface MainBridgeClient {
@@ -16,6 +22,7 @@ export interface MainBridgeClient {
 }
 
 interface Pending {
+  readonly t: ToMainType;
   resolve(value: unknown): void;
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
@@ -67,38 +74,40 @@ export function connectMainBridge(win: Window, timeoutMs: number = BRIDGE_LIMITS
 
 function createClient(port: MessagePort, timeoutMs: number): MainBridgeClient {
   let nextId = 1;
+  let seq = 0;
+  let documentEpoch: string | null = null;
   const pending = new Map<number, Pending>();
 
   port.onmessage = (event: MessageEvent) => {
     const data: unknown = event.data;
-    if (!isRecord(data) || data['v'] !== BRIDGE_PROTOCOL_VERSION || data['kind'] !== 'res') return;
-    const id = data['id'];
-    if (typeof id !== 'number') return;
-    const entry = pending.get(id);
-    if (!entry) return;
-    pending.delete(id);
+    if (!checkBridgeFrame(data).ok) return;
+    const frame = BridgeResponseSchema.safeParse(data);
+    if (!frame.success) return;
+    const entry = pending.get(frame.data.id);
+    if (!entry || entry.t !== frame.data.t) return;
+    pending.delete(frame.data.id);
     clearTimeout(entry.timer);
-    if (data['ok'] === true) entry.resolve(data['data']);
-    else entry.reject(new Error(typeof data['err'] === 'string' ? data['err'].slice(0, 200) : 'main-error'));
+    documentEpoch = frame.data.documentEpoch;
+    if (frame.data.ok) entry.resolve(frame.data.data);
+    else entry.reject(new Error(`main-error:${frame.data.err}`));
   };
 
-  const request = (t: string): Promise<unknown> =>
+  const request = (t: ToMainType, payload: Record<string, unknown>): Promise<unknown> =>
     new Promise((resolve, reject) => {
       const id = nextId++;
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(new Error('main-call-timeout'));
       }, timeoutMs);
-      pending.set(id, { resolve, reject, timer });
-      port.postMessage({ v: BRIDGE_PROTOCOL_VERSION, kind: 'req', id, t });
+      pending.set(id, { t, resolve, reject, timer });
+      port.postMessage({ v: BRIDGE_PROTOCOL_VERSION, kind: 'req', id, t, documentEpoch, seq: seq++, payload });
     });
 
   return {
     async probe() {
-      const raw = await request('probe');
-      const parsed = MainProbeSchema.safeParse(raw);
-      if (!parsed.success) throw new Error('main-probe-invalid');
-      return parsed.data;
+      const probe = MainProbeSchema.safeParse(await request('probe', {}));
+      if (!probe.success) throw new Error('main-probe-invalid');
+      return probe.data;
     },
     close() {
       for (const entry of pending.values()) {

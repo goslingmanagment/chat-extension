@@ -5,7 +5,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./app-client": "./src/scenarios/app-client/index.ts",
+    "./hub": "./src/scenarios/hub/index.ts",
+    "./host": "./src/scenarios/host/index.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",
