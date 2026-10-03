@@ -14,6 +14,8 @@ export * from './ids';
 export * from './limits';
 export * from './errors';
 export * from './settings';
+export * from './send';
+export * from './host';
 export * from './bridge';
 export * from './tab-protocol';
 
