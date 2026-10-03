@@ -19,7 +19,7 @@ import { env, storeId } from '../env';
 import { record } from '../journal';
 import { api, errorBody, HTTPError } from '../net/http';
 import { useQueryCache, type QueryCache } from '../query/cache';
-import { hasMessage, newestMessage, plainText, upsertMessage, type Account, type History, type Message } from '../query/model';
+import { hasMessage, newestMessage, plainText, sentMessageMetadata, upsertMessage, type Account, type History, type Message } from '../query/model';
 import { keys } from '../query/queries';
 
 export const PendingStatus = { PENDING: 'pending', SENDING: 'sending', FAILED: 'failed', CONFIRMED: 'confirmed' } as const;
@@ -145,8 +145,12 @@ export const usePendingMessages = defineStore(storeId('pendingMessages'), () => 
   const countForChat = (accountId: string, chatId: string): number => messagesByAccountId.value[accountId]?.filter((entry) => entry.chatId === chatId).length ?? 0;
   const accountOf = (accountId: string): Account | undefined => cache.getQueryData<Account[]>(keys.accounts())?.find((account) => String(account.id) === accountId);
 
-  /** The cache learns the sent message (with the server id) or, without a cache, its exact key is invalidated. */
-  const storeSent = (entry: PendingEntry, serverId: string): void => {
+  /**
+   * The cache learns the sent message with the server's id exactly as the
+   * response carried it (a number stays a number), or, without a cache, its
+   * exact key is invalidated.
+   */
+  const storeSent = (entry: PendingEntry, serverId: unknown): void => {
     const key = keys.chatMessages(entry.accountId, entry.chatId);
     const history = cache.getQueryData<History>(key);
     const account = accountOf(entry.accountId);
@@ -155,24 +159,26 @@ export const usePendingMessages = defineStore(storeId('pendingMessages'), () => 
       return;
     }
     const sent: Message = {
-      id: serverId,
+      id: serverId as Message['id'],
       text: entry.payload.text,
       createdAt: entry.createdAt,
       platform: entry.platform,
       platformSenderId: account.platformAccountId,
       isOutgoing: true,
-      platformMetadata: { isTip: false, mediaCount: 0, isFree: true, isOpened: false, isLiked: false, isPinned: false, cancelSeconds: SENT_CANCEL_SECONDS },
+      platformMetadata: sentMessageMetadata(SENT_CANCEL_SECONDS),
     };
     cache.setQueryData<History>(key, (previous) => {
       const base = previous ?? history;
-      return hasMessage(base, serverId) ? base : upsertMessage(base, sent);
+      return hasMessage(base, sent.id) ? base : upsertMessage(base, sent);
     });
   };
 
   const previousMessageOf = (entry: PendingEntry): { id: number; created_at: string; is_fan_message: boolean } | null => {
     const newest = newestMessage(cache.getQueryData<History>(keys.chatMessages(entry.accountId, entry.chatId)));
-    if (newest === null || newest.id.trim() === '' || !Number.isSafeInteger(Number(newest.id))) return null;
-    return { id: Number(newest.id), created_at: newest.createdAt, is_fan_message: !newest.isOutgoing };
+    // String(): a numeric server id stored as is must not break the next send.
+    const id = newest === null ? '' : String(newest.id);
+    if (newest === null || id.trim() === '' || !Number.isSafeInteger(Number(id))) return null;
+    return { id: Number(id), created_at: newest.createdAt, is_fan_message: !newest.isOutgoing };
   };
 
   const send = async (entry: PendingEntry): Promise<void> => {
@@ -200,7 +206,7 @@ export const usePendingMessages = defineStore(storeId('pendingMessages'), () => 
         })
         .json<{ id?: unknown }>();
       if (find(entry.accountId, entry.id) === null) return;
-      storeSent(entry, String(response.id));
+      storeSent(entry, response.id);
       removeEntry(entry.accountId, entry.id);
     } catch (error) {
       const hit = find(entry.accountId, entry.id);

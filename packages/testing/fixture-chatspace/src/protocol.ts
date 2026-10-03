@@ -51,6 +51,12 @@ export type SendOutcome =
       readonly kind: 'ok';
       /** Server message id (string, like the platform's); generated when omitted. */
       readonly id?: string;
+      /** The id in the HTTP response when it differs from the message id — e.g. a number (the receipt's type is unverified live). */
+      readonly responseId?: string | number;
+      /** The id in the echo when it differs from the response's (a receipt that must not pair with this echo). */
+      readonly echoId?: string;
+      /** The echo's HTML when the platform normalised it (e.g. other entities or tags than the sent text). */
+      readonly echoContent?: string;
       /** The outgoing `account_new_message` echo: before the HTTP response, after it, or none. */
       readonly echo?: 'before' | 'after' | 'none';
       /** Gap between the echo and the response, ms. */

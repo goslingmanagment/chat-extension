@@ -10,7 +10,8 @@ import { useQueryCache } from '../../fixture-chatspace/src/query/cache';
 import { keys } from '../../fixture-chatspace/src/query/queries';
 import { isMimicTakeover, QUEUE_LIMIT, usePendingMessages, type PendingEntry } from '../../fixture-chatspace/src/stores/pending-messages';
 import { escapeText, textToNodes, textToParagraph } from '../../fixture-chatspace/src/ui/bridge';
-import { plainText } from '../../fixture-chatspace/src/query/model';
+import { mapRestMessage, mapSocketMessage, plainText } from '../../fixture-chatspace/src/query/model';
+import { newMessageFrame, rawMessage } from '../stand/wire';
 
 type Handler = (request: Request) => Promise<Response> | Response;
 
@@ -153,6 +154,17 @@ describe('fixture send queue', () => {
     expect(readJournal().some((item) => item.type === 'sign-in-redirect')).toBe(true);
   });
 
+  it('stores the server id exactly as the response carried it (a number stays a number)', async () => {
+    const cache = useQueryCache();
+    cache.setQueryData(keys.chatMessages(ACCOUNT, CHAT), { pages: [{ items: [], hasMore: false, cursor: null }], pageParams: [null] });
+    answer = () => json({ id: 5900000009 });
+    usePendingMessages().enqueue(input());
+    await tick(20);
+    const history = cache.getQueryData<{ pages: Array<{ items: Array<{ id: unknown; platformMetadata: Record<string, unknown> }> }> }>(keys.chatMessages(ACCOUNT, CHAT));
+    expect(history?.pages[0]?.items[0]?.id).toBe(5900000009);
+    expect(history?.pages[0]?.items[0]?.platformMetadata).toEqual({ isTip: false, gifUrl: null, mediaCount: 0, isFree: true, isOpened: false, isLiked: false, isPinned: false, canBePinned: false, canReport: false, cancelSeconds: 60 });
+  });
+
   it('confirms an outgoing echo by plain text: SENDING → CONFIRMED, then a late failure only removes it', async () => {
     let fail: () => void = () => undefined;
     answer = () => new Promise<Response>((resolve) => (fail = () => resolve(json({ code: 'INTERNAL_ERROR' }, 500))));
@@ -172,6 +184,27 @@ describe('fixture text helpers', () => {
     expect(escapeText('a&b <c> "d" \'e\'')).toBe('a&amp;b &lt;c&gt; "d" \'e\'');
     expect(textToParagraph('x &lt; y\nz')).toBe('<p>x &amp;lt; y<br>z</p>');
     expect(textToNodes('a\n\nb')).toEqual([{ type: 'text', text: 'a' }, { type: 'hardBreak' }, { type: 'hardBreak' }, { type: 'text', text: 'b' }]);
-    expect(plainText('<p>x &amp;lt; y<br>z</p>')).toBe('x &lt; y\nz');
+  });
+
+  it('compares echoes like the host: every tag dropped (a <br> leaves no newline), every entity decoded, trimmed', () => {
+    expect(plainText('<p>x &amp;lt; y<br>z</p>')).toBe('x &lt; yz');
+    expect(plainText(' <p>a&nbsp;b &#x41;&#66; &eacute; &quot;q&quot;</p> ')).toBe('a\u00a0b AB é "q"');
+  });
+});
+
+describe('fixture message cache shapes', () => {
+  const account = { id: '910101', platformAccountId: '830000101', name: 'A', username: 'a', openOnStart: true };
+  const message = { id: '5100000001', content: '<p>hi</p>', sentAt: '2026-09-01T09:00:00.000Z', isFromFan: true, isPinned: true };
+  const RAW_ONLY = ['changedAt', 'fromUser', 'media', 'previews', 'lockedText', 'responseType', 'canPurchase'];
+
+  it('REST and socket messages carry the mapped metadata, never the raw platform object', () => {
+    const rest = mapRestMessage(rawMessage(message), 'onlyfans', { fanId: '74001001', platformAccountId: account.platformAccountId });
+    const frame = newMessageFrame(account, '74001001', message) as { account: Record<string, unknown>; message: Record<string, unknown> };
+    const socket = mapSocketMessage(frame.message, frame.account, 'onlyfans');
+    for (const mapped of [rest, socket]) {
+      for (const field of RAW_ONLY) expect(mapped.platformMetadata, field).not.toHaveProperty(field);
+      expect(mapped.platformMetadata).toMatchObject({ isTip: false, gifUrl: null, isPinned: true, canBePinned: true, canReport: true, isUnsent: false, isFromQueue: false, cancelSeconds: 0 });
+      expect(typeof mapped.platformMetadata.cancelSecondsAsOf).toBe('string');
+    }
   });
 });

@@ -2,6 +2,10 @@
 // mappers do (metadata.ts «cache-shapes»): ids stay strings except the
 // account's numeric `id`; messages are `{id, text, createdAt, platformSenderId,
 // isOutgoing, platform, platformMetadata}`; history pages run newest first.
+// `platformMetadata` is the MAPPED OnlyFans metadata (field names as in the
+// host's cache, values derived by our own code), not the raw platform object:
+// raw fields such as changedAt, fromUser, media, previews, lockedText or
+// responseType never reach the cache.
 
 export interface Account {
   readonly id: number;
@@ -19,6 +23,45 @@ export interface Account {
   readonly timezone: string | null;
 }
 
+/** Locked (paid, unopened) media by kind. */
+export interface LockedMediaCounts {
+  readonly images: number;
+  readonly videos: number;
+  readonly gifs: number;
+  readonly audios: number;
+}
+
+/** A message's OnlyFans metadata as the cache holds it. */
+export interface OnlyFansMessageMetadata {
+  readonly isTip: boolean;
+  readonly tipText?: string;
+  readonly gifUrl: string | null;
+  readonly giphyId?: string;
+  readonly replyToMessage?: { readonly id: string };
+  readonly mediaItems?: ReadonlyArray<{ readonly id: string; readonly type: string; readonly isFree: boolean }>;
+  readonly audioItems?: ReadonlyArray<{ readonly id: string; readonly isFree: boolean }>;
+  readonly storyImageUrl?: string;
+  readonly tags?: unknown;
+  readonly taggedCreators?: readonly unknown[];
+  readonly mediaCount?: number;
+  readonly isFree?: boolean;
+  readonly isOpened?: boolean;
+  readonly isNew?: boolean;
+  readonly isMediaReady?: boolean;
+  readonly price?: number | null;
+  readonly lockedMediaCounts?: LockedMediaCounts;
+  readonly isLockedText?: true;
+  readonly isLiked?: boolean;
+  readonly isPinned?: boolean;
+  readonly canBePinned?: boolean;
+  readonly canReport?: boolean;
+  readonly cancelSeconds: number;
+  readonly cancelSecondsAsOf?: string;
+  readonly isFromQueue?: boolean;
+  readonly queueId?: unknown;
+  readonly isUnsent?: boolean;
+}
+
 export interface Message {
   readonly id: string;
   readonly text: string;
@@ -26,7 +69,7 @@ export interface Message {
   readonly platformSenderId: string;
   readonly isOutgoing: boolean;
   readonly platform: string;
-  readonly platformMetadata: Readonly<Record<string, unknown>>;
+  readonly platformMetadata: OnlyFansMessageMetadata;
 }
 
 export interface HistoryPage {
@@ -121,6 +164,63 @@ export function mapAccount(raw: Raw): Account {
   };
 }
 
+const optional = <T>(value: unknown, test: (value: unknown) => value is T): T | undefined => (test(value) ? value : undefined);
+const isNumber = (value: unknown): value is number => typeof value === 'number';
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
+const nonEmpty = <T>(items: readonly T[]): readonly T[] | undefined => (items.length > 0 ? items : undefined);
+
+/** Raw OnlyFans message metadata → the cache's metadata (own derivation; the stand has text messages only). */
+export function mapOnlyFansMetadata(raw: Raw): OnlyFansMessageMetadata {
+  const media = Array.isArray(raw['media']) ? (raw['media'] as unknown[]).map(record) : [];
+  const freeIds = new Set((Array.isArray(raw['previews']) ? (raw['previews'] as unknown[]) : []).map((id) => String(id)));
+  const viewable = media.filter((item) => item['canView'] === true);
+  const locked = media.filter((item) => item['canView'] !== true);
+  const countOf = (type: string): number => locked.filter((item) => item['type'] === type).length;
+  const isTip = bool(raw['isTip']);
+  const isFree = optional(raw['isFree'], isBoolean);
+  const giphyId = strOrNull(raw['giphyId']);
+  const replyTo = record(raw['replyToMessage']);
+  const tipText = strOrNull(raw['tipText']);
+  const lockedCounts = locked.length > 0 && isFree !== true && raw['isOpened'] !== true ? { images: countOf('photo'), videos: countOf('video'), gifs: countOf('gif'), audios: countOf('audio') } : undefined;
+  const mediaItems = nonEmpty(viewable.filter((item) => item['type'] !== 'audio').map((item) => ({ id: str(item['id']), type: str(item['type']), isFree: freeIds.has(str(item['id'])) })));
+  const audioItems = nonEmpty(viewable.filter((item) => item['type'] === 'audio').map((item) => ({ id: str(item['id']), isFree: freeIds.has(str(item['id'])) })));
+  const mediaCount = optional(raw['mediaCount'], isNumber);
+  const isOpened = optional(raw['isOpened'], isBoolean);
+  const isNew = optional(raw['isNew'], isBoolean);
+  const isMediaReady = optional(raw['isMediaReady'], isBoolean);
+  return {
+    isTip,
+    ...(tipText !== null ? { tipText } : {}),
+    gifUrl: giphyId === null ? null : `/stand-gif/${giphyId}.gif`,
+    ...(giphyId !== null ? { giphyId } : {}),
+    ...(typeof replyTo['id'] === 'string' || typeof replyTo['id'] === 'number' ? { replyToMessage: { id: str(replyTo['id']) } } : {}),
+    ...(mediaItems !== undefined ? { mediaItems } : {}),
+    ...(audioItems !== undefined ? { audioItems } : {}),
+    ...(mediaCount !== undefined ? { mediaCount } : {}),
+    ...(isFree !== undefined ? { isFree } : {}),
+    ...(isOpened !== undefined ? { isOpened } : {}),
+    ...(isNew !== undefined ? { isNew } : {}),
+    ...(isMediaReady !== undefined ? { isMediaReady } : {}),
+    price: typeof raw['price'] === 'number' ? raw['price'] : null,
+    ...(lockedCounts !== undefined ? { lockedMediaCounts: lockedCounts } : {}),
+    ...(raw['lockedText'] === true && !isTip && isFree !== true ? { isLockedText: true as const } : {}),
+    isLiked: bool(raw['isLiked']),
+    isPinned: bool(raw['isPinned']),
+    canBePinned: bool(raw['canBePinned']),
+    canReport: bool(raw['canReport']),
+    cancelSeconds: num(raw['cancelSeconds']),
+    cancelSecondsAsOf: new Date().toISOString(),
+    isFromQueue: bool(raw['isFromQueue']),
+    queueId: raw['queueId'] ?? null,
+    isUnsent: bool(raw['isUnsent']),
+  };
+}
+
+/** Metadata of a message the queue just sent (the server answered with its id only). */
+export function sentMessageMetadata(cancelSeconds: number): OnlyFansMessageMetadata {
+  return { isTip: false, gifUrl: null, mediaCount: 0, isFree: true, isOpened: false, isLiked: false, isPinned: false, canBePinned: false, canReport: false, cancelSeconds };
+}
+
 /** A history item from the REST API. */
 export function mapRestMessage(raw: Raw, platform: string, ids: { readonly fanId: string; readonly platformAccountId: string }): Message {
   const fromFan = bool(raw['is_from_fan']);
@@ -131,7 +231,7 @@ export function mapRestMessage(raw: Raw, platform: string, ids: { readonly fanId
     platformSenderId: fromFan ? ids.fanId : ids.platformAccountId,
     isOutgoing: !fromFan,
     platform,
-    platformMetadata: record(raw['platform_metadata']),
+    platformMetadata: mapOnlyFansMetadata(record(raw['platform_metadata'])),
   };
 }
 
@@ -145,7 +245,7 @@ export function mapSocketMessage(raw: Raw, account: Raw, platform: string): Mess
     platformSenderId: fromFan ? str(raw['platform_fan_id']) : str(account['platform_account_id']),
     isOutgoing: !fromFan,
     platform,
-    platformMetadata: record(raw['platformMetadata']),
+    platformMetadata: mapOnlyFansMetadata(record(raw['platformMetadata'])),
   };
 }
 
@@ -196,18 +296,18 @@ export function mapFan(raw: Raw): Fan {
   };
 }
 
-/** Plain text of an HTML message (tags dropped, entities decoded, trimmed) — how echoes are compared. */
+/** Every entity decoded by the browser's own HTML parser (`&nbsp;` → U+00A0). */
+function decodeEntities(text: string): string {
+  if (!text.includes('&')) return text;
+  return new DOMParser().parseFromString(text, 'text/html').documentElement.textContent ?? '';
+}
+
+/**
+ * Plain text of an HTML message, as the host compares echoes: every tag
+ * dropped (a `<br>` leaves no newline), every entity decoded, trimmed.
+ */
 export function plainText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&nbsp;', ' ')
-    .replaceAll('&amp;', '&')
-    .trim();
+  return decodeEntities(html.replace(/<[^>]+>/g, '')).trim();
 }
 
 /** Newest message across all loaded history pages. */

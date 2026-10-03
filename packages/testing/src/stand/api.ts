@@ -243,7 +243,10 @@ async function handleSend(context: ApiContext, request: IncomingMessage, respons
 
   switch (outcome.kind) {
     case 'ok': {
-      const message: StandMessage = { id: outcome.id ?? state.nextMessageId(), content: text, sentAt: new Date().toISOString(), isFromFan: false };
+      // What the platform stored (and echoes) may differ from what was sent and from the receipt.
+      const id = outcome.id ?? state.nextMessageId();
+      const message: StandMessage = { id: outcome.echoId ?? id, content: outcome.echoContent ?? text, sentAt: new Date().toISOString(), isFromFan: false };
+      const responseId = outcome.responseId ?? id;
       state.appendMessage(accountId, fanId, message);
       const echo = (): void => {
         if (account) hub.deliverNewMessage(newMessageFrame(account, fanId, message), accountId);
@@ -254,9 +257,9 @@ async function handleSend(context: ApiContext, request: IncomingMessage, respons
         echo();
         await delay(gap);
       }
-      sendJson(response, 200, { id: message.id, content: message.content, sent_at: message.sentAt, is_from_fan: false });
+      sendJson(response, 200, { id: responseId, content: message.content, sent_at: message.sentAt, is_from_fan: false });
       if (mode === 'after') setTimeout(echo, gap);
-      return done(200, { id: message.id, echo: mode });
+      return done(200, { id: responseId, echoId: message.id, echo: mode });
     }
     case 'guard':
       sendJson(response, 422, {

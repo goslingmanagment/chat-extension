@@ -41,7 +41,10 @@ export function messageMetadata(message: StandMessage): Record<string, unknown> 
     isTip: false,
     canPurchase: false,
     isLiked: false,
-    isPinned: false,
+    isPinned: message.isPinned === true,
+    canBePinned: true,
+    canReport: message.isFromFan,
+    isMediaReady: true,
   };
 }
 

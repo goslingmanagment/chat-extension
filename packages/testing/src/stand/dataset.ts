@@ -32,6 +32,7 @@ export interface StandMessage {
   readonly content: string;
   readonly sentAt: string;
   readonly isFromFan: boolean;
+  readonly isPinned?: boolean;
 }
 
 export interface StandChat {
@@ -113,6 +114,8 @@ export function createDataset(): StandDataset {
           content: `<p>${line(isFromFan ? FAN_LINES : CREATOR_LINES, n + index)}</p>`,
           sentAt: new Date(BASE_TIME + minute * 60_000).toISOString(),
           isFromFan,
+          // Two pinned messages per chat (the pinned-messages dialog has something to load).
+          isPinned: n === 1 || n === 5,
         });
       }
       const last = messages.at(-1);
@@ -122,13 +125,20 @@ export function createDataset(): StandDataset {
   return { userId: STAND_IDS.user, accounts, chats };
 }
 
-/** Plain text of a message body (tags dropped, the three escaped entities decoded). */
+const NAMED_ENTITIES: Readonly<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+
+/**
+ * Plain text of a message body, for the journal: every tag dropped (no newline
+ * for `<br>`), entities decoded (numeric and the common named ones; the page
+ * itself decodes all of them with the browser's parser), trimmed.
+ */
 export function plainText(html: string): string {
   return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&amp;', '&')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity: string, name: string) => {
+      if (name.startsWith('#x') || name.startsWith('#X')) return String.fromCodePoint(Number.parseInt(name.slice(2), 16));
+      if (name.startsWith('#')) return String.fromCodePoint(Number(name.slice(1)));
+      return NAMED_ENTITIES[name.toLowerCase()] ?? entity;
+    })
     .trim();
 }

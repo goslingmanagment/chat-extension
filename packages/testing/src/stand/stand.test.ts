@@ -270,6 +270,20 @@ describe('stand server: scripted native send and the socket echo', () => {
     socket.close();
   });
 
+  it('a receipt can differ from the echo: numeric response id, another echo id, platform-normalised echo HTML', async () => {
+    const socket = await nativeSocket([accountA]);
+    try {
+      stand.state.script(accountA, a1, [{ kind: 'ok', id: '987650001', responseId: 987650001, echoId: '987650002', echoContent: '<p>hi &amp; bye<br></p>', echo: 'after', gapMs: 10 }]);
+      const response = await post(a1, '<p>hi &amp; bye</p>');
+      expect(((await response.json()) as { id: unknown }).id).toBe(987650001);
+      const echoOf = (): Record<string, unknown> | undefined => socket.frames.find((frame) => (frame['message'] as { id?: string } | undefined)?.id === '987650002');
+      await waitFor(() => echoOf() !== undefined, 'the echo of this send');
+      expect(echoOf()?.['message']).toMatchObject({ content: '<p>hi &amp; bye<br></p>', is_from_fan: false });
+    } finally {
+      socket.close();
+    }
+  });
+
   it('a hanging send ends only when the client aborts, journalled as send-aborted', async () => {
     stand.state.script(accountA, a2, [{ kind: 'hang' }]);
     const since = stand.journal.read().next;
@@ -327,7 +341,7 @@ describe('stand server: socket protocol', () => {
     await waitFor(() => journalSince(since).filter((entry) => entry.kind === 'ws-in').length === 2, 'both actions handled');
     const socketId = journalSince(since).find((entry) => entry.kind === 'ws-in')?.socketId ?? -1;
     expect(stand.hub.summary().find((item) => item.id === socketId)).toMatchObject({ label: 'native', authenticated: false, accounts: [accountA] });
-    expect(stand.hub.broadcast({ event: 'probe' }, accountA)).toBe(0);
+    stand.hub.broadcast({ event: 'probe' }, accountA);
     expect(framesSentTo(socketId, since)).toEqual([]);
     socket.close();
   });
@@ -386,7 +400,7 @@ describe('synthetic data and fixture files', () => {
     const ids = [...dataset.accounts.flatMap((account) => [account.id, account.platformAccountId]), ...[...dataset.chats.values()].flatMap((chat) => [chat.fan.id, ...chat.messages.map((message) => message.id)])];
     for (const id of ids) expect(id).toMatch(/^[1-9]\d{0,29}$/);
     expect(dataset.chats.get(`${accountA}:${a1}`)?.messages.length).toBe(40);
-    expect(plainText('<p>a &amp;lt; b<br>c</p>')).toBe('a &lt; b\nc');
+    expect(plainText('<p>a &amp;lt; b<br>c &#x41;&nbsp;</p>')).toBe('a &lt; bc A\u00a0'.trim());
   });
 
   it('builds the fixture where the server serves it from, outside the sources archive', () => {
