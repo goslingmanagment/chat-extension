@@ -182,19 +182,15 @@ describe('spike M0 — test build on the loopback stand', () => {
     await browser.url(standUrl());
     await waitForReport((r) => r.dock !== undefined, 'dock before the spoof');
     // WXT invalidates its ContentScriptContext on this CustomEvent; the name is
-    // public (gecko id + entry name), so any page can send it. Since R09 the
-    // isolated script starts without WXT's context (content-script-context.ts),
-    // so the event reaches no listener of ours at all.
+    // public (gecko id + entry name), so any page can send it.
     await browser.execute((name) => {
       document.dispatchEvent(new CustomEvent(name, { detail: { contentScriptName: 'chatspace', messageId: 'spoof' } }));
     }, `${TEST_GECKO_ID}:chatspace:wxt:content-script-started`);
-    await browser.pause(300);
-    const report = await readReport();
-    expect(report?.runtime).toBeUndefined();
-    expect(report?.ignoredInvalidations).toBeUndefined();
+    const report = await waitForReport((r) => (r.ignoredInvalidations ?? 0) >= 1, 'spoofed invalidation reached WXT and was ignored');
+    expect(report.runtime).toBeUndefined();
     expect(await browser.execute(() => document.querySelectorAll('[data-cg="dock"]').length)).toBe(1);
     expect(await dockHostHeight()).toBe(DOCK_HEIGHT_PX);
-    evidence['spoofedInvalidation'] = { reachedUs: false, dockSurvived: true };
+    evidence['spoofedInvalidation'] = { ignoredInvalidations: report.ignoredInvalidations, dockSurvived: true };
   });
 
   it('c) an already-open tab after the extension is removed and installed again behaves predictably', async () => {

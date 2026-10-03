@@ -1,14 +1,7 @@
 // Composition root of the isolated content script on a ChatSpace tab
-// (architecture.md §2, §4: wiring only). Order: MAIN bridge → wait for the
-// composer → lazily load the dock chunk into a closed shadow root; the runtime
-// port comes a task later. R09/R13/R14/R17 plug their parts in here.
-//
-// Early start (§11: ≤ 3 ms): the synchronous part touches neither the
-// WebExtension API nor a zod schema — their first use in a new document costs
-// milliseconds (R09 measured ~3 ms for the first `browser.runtime` touch).
-// @cg/platform and the liveness schema are imported lazily, the background
-// port opens in the next task, and WXT's own content-script context is
-// replaced at build time (content-script-context.ts).
+// (architecture.md §2, §4: wiring only). Order: runtime port → MAIN bridge →
+// wait for the composer → lazily load the dock chunk into a closed shadow root.
+// R09/R13/R14/R17 plug their parts in here.
 //
 // Lifecycle is OURS, not WXT's: WXT invalidates its ContentScriptContext when
 // a `<runtime id>:chatspace:wxt:content-script-started` CustomEvent reaches the
@@ -17,7 +10,9 @@
 // invalidation only ever reaches an instance whose runtime is gone; while our
 // runtime is alive, an invalidation is a spoof and is ignored.
 
+import { BackgroundStatusSchema } from '@cg/contracts';
 import { connectMainBridge, mountClosedHost, removeStaleHosts, waitForComposerMount, type ClosedHost } from '@cg/host-chatspace/isolated';
+import { connectTabPort, extensionUrl, isExtensionContextAlive } from '@cg/platform';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 
 import type * as DockChunk from '../../lazy/entries/dock';
@@ -33,10 +28,6 @@ export const LAZY_DOCK_PATH = 'lazy/dock.js';
 
 /** How long the first composer search keeps its document-wide observer (§6.3). */
 const FIRST_SEARCH_MS = 30_000;
-
-/** The browser API (@cg/platform) and the schemas load after the synchronous start (§11). */
-const loadPlatform = () => import('@cg/platform');
-const loadLiveness = () => import('@cg/contracts/tab-liveness');
 
 export function composeTab(env: TabEnv): void {
   const started = performance.now();
@@ -55,14 +46,12 @@ export function composeTab(env: TabEnv): void {
   });
   let spoofedInvalidations = 0;
   ctx.onInvalidated(() => {
-    void loadPlatform().then(({ isExtensionContextAlive }) => {
-      if (!isExtensionContextAlive()) {
-        life.abort('extension-gone');
-        return;
-      }
-      spoofedInvalidations += 1;
-      probe?.set('ignoredInvalidations', spoofedInvalidations);
-    });
+    if (!isExtensionContextAlive()) {
+      life.abort('extension-gone');
+      return;
+    }
+    spoofedInvalidations += 1;
+    probe?.set('ignoredInvalidations', spoofedInvalidations);
   });
 
   // An already-open tab after an update/reinstall still shows the dead
@@ -73,25 +62,17 @@ export function composeTab(env: TabEnv): void {
   const lateInjection = doc.readyState !== 'loading';
   probe?.set('lifecycle', { staleHosts, lateInjection });
 
-  // The background port: a task after the synchronous start.
-  setTimeout(() => {
-    void loadPlatform().then(({ connectTabPort, isExtensionContextAlive }) => {
-      if (life.signal.aborted) return;
-      const port = connectTabPort();
-      port.onMessage((raw) => {
-        void loadLiveness().then(({ BackgroundStatusSchema }) => {
-          const status = BackgroundStatusSchema.safeParse(raw);
-          if (status.success) probe?.set('background', status.data);
-        });
-      });
-      port.onDisconnect(() => {
-        const alive = isExtensionContextAlive();
-        probe?.set('runtime', alive ? 'port-closed' : 'reloaded');
-        if (!alive) life.abort('extension-gone');
-      });
-      port.post({ t: 'hello', v: 1 });
-    });
-  }, 0);
+  const port = connectTabPort();
+  port.onMessage((raw) => {
+    const status = BackgroundStatusSchema.safeParse(raw);
+    if (status.success) probe?.set('background', status.data);
+  });
+  port.onDisconnect(() => {
+    const alive = isExtensionContextAlive();
+    probe?.set('runtime', alive ? 'port-closed' : 'reloaded');
+    if (!alive) life.abort('extension-gone');
+  });
+  port.post({ t: 'hello', v: 1 });
 
   void connectMainBridge(win)
     .then(async (bridge) => {
@@ -104,7 +85,6 @@ export function composeTab(env: TabEnv): void {
     .then(async (parent) => {
       if (!parent || life.signal.aborted) return;
       const loadStarted = performance.now();
-      const { extensionUrl } = await loadPlatform();
       const chunk = (await import(/* @vite-ignore */ extensionUrl(LAZY_DOCK_PATH))) as typeof DockChunk;
       const loadMs = performance.now() - loadStarted;
       if (life.signal.aborted) return;
