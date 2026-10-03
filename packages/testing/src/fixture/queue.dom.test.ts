@@ -19,6 +19,8 @@ const CHAT = '74001001';
 const realFetch = globalThis.fetch;
 const sends: Array<{ url: string; via: string }> = [];
 let answer: Handler = () => Response.json({ id: '5900000001' });
+/** While true, the session-token endpoint refuses (no fresh token after a 401). */
+let sessionGone = false;
 
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -26,7 +28,7 @@ const json = (body: unknown, status = 200): Response => new Response(JSON.string
 function makeFetch(via: string): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = input instanceof Request ? input : new Request(String(input), init);
-    if (request.url.endsWith('/__stand/auth/token')) return json({ token: 'stand-session-test', userId: '6100042' });
+    if (request.url.endsWith('/__stand/auth/token')) return sessionGone ? json({ code: 'UNAUTHORIZED' }, 401) : json({ token: 'stand-session-test', userId: '6100042' });
     if (request.url.includes('/messages')) {
       sends.push({ url: request.url, via });
       return answer(request);
@@ -42,6 +44,7 @@ const input = (text = '<p>hello</p>', chatId = CHAT) => ({ accountId: ACCOUNT, c
 beforeEach(() => {
   setActivePinia(createPinia());
   sends.length = 0;
+  sessionGone = false;
   answer = () => json({ id: '5900000001' });
   globalThis.fetch = makeFetch('page');
   useQueryCache().setQueryData(keys.accounts(), [{ id: Number(ACCOUNT), platformAccountId: '830000101', platform: 'onlyfans' }]);
@@ -138,6 +141,16 @@ describe('fixture send queue', () => {
     expect(sends.map((item) => item.via)).toEqual(['observer', 'page']);
     expect(readJournal().filter((item) => item.type === 'http-request').slice(-2)).toMatchObject([{ attempt: 'first' }, { attempt: 'after-401' }]);
     expect(entries()).toEqual([]);
+  });
+
+  it('a 401 without a fresh session token fails the send (FAILED platform), never «accepted»', async () => {
+    answer = () => json({ code: 'UNAUTHORIZED' }, 401);
+    sessionGone = true;
+    usePendingMessages().enqueue(input());
+    await tick(30);
+    expect(sends).toHaveLength(1);
+    expect(entries()[0]).toMatchObject({ status: 'failed', error: { kind: 'platform' } });
+    expect(readJournal().some((item) => item.type === 'sign-in-redirect')).toBe(true);
   });
 
   it('confirms an outgoing echo by plain text: SENDING → CONFIRMED, then a late failure only removes it', async () => {

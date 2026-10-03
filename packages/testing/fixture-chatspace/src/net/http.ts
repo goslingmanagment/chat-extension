@@ -2,8 +2,10 @@
 // (metadata.ts «http-client»): every call creates a new request object that
 // takes `options.fetch ?? globalThis.fetch.bind(globalThis)` SYNCHRONOUSLY in
 // its constructor, before the first await; the token comes in an async
-// before-request hook; a 401 refreshes the token and re-runs the request once
-// as a bare request created at that moment (so it captures fetch anew);
+// before-request hook; fetch gets the original request plus an options object
+// (a clone stays for a re-run); a 401 refreshes the token and re-runs once
+// as a bare request created at that moment (so it captures fetch anew), and
+// without a fresh token it redirects to sign-in and still fails the call;
 // POST is never retried, idempotent methods are on 408/413/429/5xx.
 
 import { record } from '../journal';
@@ -86,9 +88,11 @@ function createRequest(method: string, url: URL, options: RequestOptions, attemp
         const token = await getToken();
         if (token !== null) request.headers.set('authorization', `Bearer ${token}`);
       }
+      // Like Ky: the original request goes to fetch (with an options object), a clone is kept for a re-run.
+      const retained = request.clone();
       let response: Response;
       try {
-        response = await fetchFn(request.clone());
+        response = await fetchFn(request, {});
       } catch (error) {
         if (timeoutController.signal.aborted && options.signal?.aborted !== true) throw new TimeoutError(request);
         throw error;
@@ -96,15 +100,15 @@ function createRequest(method: string, url: URL, options: RequestOptions, attemp
       record('http-response', { seq, status: response.status });
       if (hooks && response.status === 401) {
         const fresh = await getToken({ skipCache: true });
-        if (fresh === null) {
-          record('sign-in-redirect', { seq });
-          location.assign('/sign-in');
-          return response;
+        if (fresh !== null) {
+          const retryHeaders = new Headers(retained.headers);
+          retryHeaders.set('authorization', `Bearer ${fresh}`);
+          // Bare re-run: a new request object, created now, outside the caller's stack.
+          return await createRequest(method, new URL(url), { hooks: false, signal: retained.signal }, 'after-401', 0, new Request(retained, { headers: retryHeaders }));
         }
-        const retryHeaders = new Headers(request.headers);
-        retryHeaders.set('authorization', `Bearer ${fresh}`);
-        // Bare re-run: a new request object, created now, outside the caller's stack.
-        return await createRequest(method, new URL(url), { hooks: false, signal: request.signal }, 'after-401', 0, new Request(request, { headers: retryHeaders }));
+        // No session: off to sign-in, and the 401 still fails the call below.
+        record('sign-in-redirect', { seq });
+        location.assign('/sign-in');
       }
       if (!response.ok) {
         if (hooks && retries < RETRY_LIMIT && RETRY_METHODS.has(method) && RETRY_STATUSES.has(response.status)) {
@@ -113,7 +117,7 @@ function createRequest(method: string, url: URL, options: RequestOptions, attemp
           const { searchParams: _applied, ...again } = options;
           return await createRequest(method, new URL(url), again, 'retry', retries + 1, null);
         }
-        throw new HTTPError(response, request);
+        throw new HTTPError(response, retained);
       }
       return response;
     } catch (error) {
