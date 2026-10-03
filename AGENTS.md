@@ -16,6 +16,7 @@ platform data go through the hub via the vendored `@kernel/sdk`.
 - `docs/hub-integration-plan.md` — the plan: hub contract changes, the
   extension's hub layer, order of work, acceptance, owner decisions. §0 is the
   owner's bar for this client.
+- `docs/architecture.md` — the implementation-ready architecture (arena Opus 5.5 + astra, 2026-10-03): stack, packages, frozen interfaces, ChatSpace host, X8, hub changes, work packages, the UI agent's contract. `docs/parity/` — parity checklist (787 rows) and its map to modules/packages.
 - `docs/decisions.md` — decision log (quick-ref table + entries). The hub keeps
   no decision log; a cross-repo ruling is recorded here and in the sibling
   clients' logs, pointing at the hub doc or package that carries it.
