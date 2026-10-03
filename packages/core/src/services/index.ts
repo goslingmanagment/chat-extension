@@ -3,7 +3,7 @@
 // sound arbiter, tab presence. R10, R17, R18 fill in the rest.
 //
 // R07: the settings owner, the readiness barrier, the results store, the X8
-// send journal — all over
+// send journal, tab presence and seen accounts, the consent state — all over
 // the ports in ./storage/ports (the composition root passes @cg/platform's
 // adapters, which have exactly those shapes).
 
@@ -70,3 +70,13 @@ export {
   type SendJournalStats,
   type SendJournalUpdate,
 } from './send-journal';
+export {
+  PRESENCE_REFRESH_MS,
+  createPresence,
+  type PresenceDeps,
+  type PresenceService,
+  type SeenAccountView,
+  type TabPresence,
+  type TabPresenceReport,
+} from './presence';
+export { createConsentState, type ConsentDeps, type ConsentState } from './consent';
