@@ -398,4 +398,44 @@ describe('segments, check boxes and tabs (ui-design §6.1: aria-pressed, role=ch
     expect(kit.$$('[role="tab"]')[0]?.getAttribute('aria-selected')).toBe('true');
     await flush(() => kit?.$$('[role="tab"]')[0]?.dispatchEvent(key('x')));
   });
+
+  it('an unavailable tab is aria-disabled with its reason: arrows reach it without selecting it, a click does nothing', async () => {
+    const change = vi.fn();
+    function Period() {
+      const [value, setValue] = useState<'all' | 'd30' | 'd7'>('all');
+      return (
+        <Tabs
+          label="Период"
+          value={value}
+          onChange={(next) => {
+            change(next);
+            setValue(next);
+          }}
+          tabs={[
+            { value: 'all', label: 'Всё время' },
+            { value: 'd30', label: '30 дней', reason: 'Хаб не отдаёт это окно' },
+            { value: 'd7', label: '7 дней' },
+          ]}
+        />
+      );
+    }
+    kit = mountKit(Period);
+    const tabs = (): HTMLElement[] => kit?.$$('[role="tab"]') ?? [];
+    const off = tabs()[1] as HTMLElement;
+    expect(off.getAttribute('aria-disabled')).toBe('true');
+    expect(kit.root.getElementById(off.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Хаб не отдаёт это окно');
+    expect(tabs()[0]?.hasAttribute('aria-disabled')).toBe(false);
+    await flush(() => off.click());
+    expect(change).not.toHaveBeenCalled();
+    // → from «Всё время» lands on the unavailable tab: focus, no selection.
+    tabs()[0]?.focus();
+    await flush(() => tabs()[0]?.dispatchEvent(key('ArrowRight')));
+    expect(kit.root.activeElement).toBe(tabs()[1]);
+    expect(change).not.toHaveBeenCalled();
+    expect(tabs().map((tab) => tab.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    // → again goes on from where focus is and selects the next available one.
+    await flush(() => tabs()[1]?.dispatchEvent(key('ArrowRight')));
+    expect(change.mock.calls).toEqual([['d7']]);
+    expect(kit.root.activeElement).toBe(tabs()[2]);
+  });
 });
