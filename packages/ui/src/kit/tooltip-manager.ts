@@ -1,8 +1,8 @@
 // Our own tooltip, not the `title` attribute (ui-design §4.1 «Подсказка»,
 // UI-004): one per root. It appears after 1 s of hover, after 250 ms when
 // moving over from a neighbour whose tooltip closed less than 300 ms ago, and
-// at once on keyboard focus. Esc, scrolling, the pointer leaving and focus
-// leaving close it. The text is also each trigger's `aria-describedby`.
+// at once on keyboard focus. Esc, scrolling (the page's or one of our own
+// lists inside the shadow root), the pointer leaving and focus leaving close it. The text is also each trigger's `aria-describedby`.
 
 import { signal, type ReadonlySignal, type Signal } from '@preact/signals';
 
@@ -95,13 +95,19 @@ export class TooltipManager {
     this.detach?.();
     const view = anchor.ownerDocument.defaultView;
     if (view === null) return;
-    // Only while a tooltip is shown: a scroll or a resize anywhere closes it.
+    // Only while a tooltip is shown: a scroll or a resize anywhere closes it. A scroll event is not
+    // composed, so one of our own lists scrolling inside our shadow root never reaches the window:
+    // the root gets a listener of its own.
     const onMove = (): void => this.close();
+    const rootNode = anchor.getRootNode();
+    const shadow = rootNode !== anchor.ownerDocument && 'host' in rootNode ? rootNode : null;
     view.addEventListener('scroll', onMove, { capture: true, passive: true });
     view.addEventListener('resize', onMove, { passive: true });
+    shadow?.addEventListener('scroll', onMove, { capture: true, passive: true });
     this.detach = () => {
       view.removeEventListener('scroll', onMove, { capture: true });
       view.removeEventListener('resize', onMove);
+      shadow?.removeEventListener('scroll', onMove, { capture: true });
     };
   }
 }

@@ -93,6 +93,28 @@ describe('[UI-004] our own tooltip, not `title` (ui-design §4.1 «Подска�
     remove.mockRestore();
   });
 
+  it('scrolling one of our own lists inside the closed shadow root closes it too', () => {
+    const tips = new TooltipManager(() => clock);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = host.attachShadow({ mode: 'closed' });
+    const list = document.createElement('div');
+    const trigger = document.createElement('button');
+    list.append(trigger);
+    root.append(list);
+    tips.focus(trigger, 'Fix недоступен', true);
+    expect(tips.state.value?.text).toBe('Fix недоступен');
+    // A scroll event is not composed: its path ends at our shadow root, the window never sees it.
+    list.dispatchEvent(new Event('scroll', { bubbles: false, composed: false }));
+    expect(tips.state.value).toBeNull();
+    // Closed means let go: a later scroll inside reaches no listener of ours.
+    const remove = vi.spyOn(root, 'removeEventListener');
+    tips.focus(trigger, 'x', true);
+    tips.close();
+    expect(remove.mock.calls.filter(([type]) => type === 'scroll')).toHaveLength(1);
+    remove.mockRestore();
+  });
+
   it('follows a changed text, drops an emptied one, and never opens on a detached trigger', () => {
     const tips = new TooltipManager(() => clock);
     const a = anchor();
