@@ -274,6 +274,18 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ fact: incomingFact }], invalid: [{ fact: { ...incomingFact, source: 'dom' } }] },
     res: { valid: [{ played: true }, { played: false, reason: 'chat-open' }], invalid: [{ reason: 'chat-open' }] },
   },
+  'data.clear': {
+    req: { valid: [{ confirmed: true }], invalid: [{ confirmed: false }, {}] },
+    res: { valid: [{ cleared: true }, { cleared: false }], invalid: [{ cleared: 'yes' }] },
+  },
+  'tab.command': {
+    req: {
+      valid: [{ command: { kind: 'surface', surface: 'spenders' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: IDS.acc } }],
+      // A page names a surface or an account, never a chat to open or a text to send.
+      invalid: [{ command: { kind: 'surface', surface: 'coach' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: 'acc' } }, { command: { kind: 'chat', fan: IDS.fan } }],
+    },
+    res: { valid: [{ delivered: true }, { delivered: false }], invalid: [{ delivered: 1 }] },
+  },
   'sound.preview': {
     req: { valid: [{ tone: 'bell', volume: 50 }], invalid: [{ tone: 'bell', volume: 52 }] },
     res: { valid: [{ played: true }, { played: false, code: 'CG-AUDIO-BLOCKED' }], invalid: [{ played: false, code: 'CG-NOPE' }] },

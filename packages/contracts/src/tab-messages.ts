@@ -8,7 +8,7 @@ import * as z from 'zod/mini';
 import { CgCodeSchema, CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
-import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
+import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
@@ -134,6 +134,20 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
   sends: z.strictObject({ open: CountSchema, uncertain: CountSchema }),
 });
 export type DiagnosticsSnapshot = z.infer<typeof DiagnosticsSnapshotSchema>;
+
+/**
+ * A click on an extension page that acts inside ChatSpace (§9.9; 1.2.0): the
+ * popup's «Spenders», «Новые» and «Клавиши», and «к вкладке» of an account
+ * in the options (Б13, ST-076). The background brings a ChatSpace tab to the
+ * front and has it run the command as that human action — the tab opens its
+ * overlay, or its router opens the account; nothing is loaded from the host.
+ */
+export const PAGE_COMMAND_SURFACES = ['spenders', 'newcomers', 'cheatsheet'] as const;
+export const PageCommandSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('surface'), surface: z.enum(PAGE_COMMAND_SURFACES) }),
+  z.strictObject({ kind: z.literal('account'), host: HostKindSchema, hostAccountId: NativeIdSchema }),
+]);
+export type PageCommand = z.infer<typeof PageCommandSchema>;
 
 /** `debug.prompt`: the prompt snapshot for debug-prompt.html only, by an opaque token (§9.3, DB-004…DB-008). */
 export const PromptSnapshotViewSchema = z.strictObject({
@@ -418,6 +432,25 @@ export const TAB_REQUESTS = {
     }),
     from: PAGE,
     pages: ['options'],
+  },
+  /**
+   * «Очистить локальные данные» (options «Диагностика», ST-110; 1.2.0): our
+   * caches and logs go — cached hub answers, finished results, the log store
+   * and the journals. The sign-in, the settings and open X8 attempts stay.
+   * The page asks the person first; `confirmed` records that it did.
+   */
+  'data.clear': {
+    req: z.strictObject({ confirmed: z.literal(true) }),
+    res: z.strictObject({ cleared: z.boolean() }),
+    from: PAGE,
+    pages: ['options'],
+  },
+  /** See PageCommandSchema; `delivered: false` — no ChatSpace tab is open to act in. 1.2.0. */
+  'tab.command': {
+    req: z.strictObject({ command: PageCommandSchema }),
+    res: z.strictObject({ delivered: z.boolean() }),
+    from: PAGE,
+    pages: ['popup', 'options'],
   },
   /** An incoming-message fact for the one sound arbiter of the extension (§9.8). */
   'sound.event': {
