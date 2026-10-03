@@ -8,10 +8,26 @@ import { fileURLToPath } from 'node:url';
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
-import { htmlAttribute, installTestBuild, readReport, standUrl, waitForReport, type SpikeReport } from '../support/extension';
+import { TEST_GECKO_ID } from '../support/constants';
+import { htmlAttribute, installTestBuild, readReport, standUrl, summarize, waitForReport, type SpikeReport } from '../support/extension';
 
 const evidence: Record<string, unknown> = {};
 const evidenceDir = fileURLToPath(new URL('../../../../.cache/e2e/', import.meta.url));
+
+/** What our stylesheet gives the dock row (DOCK_CSS); unstyled it is a ~22 px block. */
+const STYLED_DOCK = { display: 'flex', height: '36px', boxSizing: 'border-box' };
+const DOCK_HEIGHT_PX = 36;
+
+/** Loads of the stand for the timing series (§11 budgets are judged on the median and the max). */
+const TIMING_LOADS = 12;
+/** §11: early isolated bootstrap ≤ 3 ms on winpc; the Mac must stay inside it. */
+const BOOTSTRAP_MEDIAN_MS = 3;
+/** No single start may take a frame. */
+const BOOTSTRAP_MAX_MS = 16;
+
+async function dockHostHeight(): Promise<number> {
+  return browser.execute(() => document.querySelector('[data-cg="dock"]')?.getBoundingClientRect().height ?? 0);
+}
 
 describe('spike M0 — test build on the loopback stand', () => {
   before(async () => {
@@ -32,7 +48,9 @@ describe('spike M0 — test build on the loopback stand', () => {
     expect(report.main?.readyStateAtStart).toBe('loading');
     expect(report['readyStateAtStart']).toBe('loading');
     evidence['main'] = report.main;
-    evidence['isolated'] = { startedAt: report.startedAt, bootstrapMs: report['bootstrapMs'] };
+    const boot = await waitForReport((r) => r.bootstrap !== undefined, 'bootstrap timing');
+    expect(boot.bootstrap?.bundleMs).not.toBeNull();
+    evidence['isolated'] = { startedAt: boot.startedAt, bootstrap: boot.bootstrap };
   });
 
   it('d) the background registers the WS tap dynamically (world MAIN) and it runs at document_start', async () => {
@@ -62,7 +80,10 @@ describe('spike M0 — test build on the loopback stand', () => {
     expect(hostShape.count).toBe(1);
     expect(hostShape.shadowRootVisibleToPage).toBe(false);
     expect(hostShape.parentIsComposerRoot).toBe(true);
-    expect(hostShape.height).toBeGreaterThan(20);
+    // Our stylesheet applies inside the closed root (adoptedStyleSheets).
+    expect(report.dock?.styleMode).toBe('adopted');
+    expect(report.dock?.style).toEqual(STYLED_DOCK);
+    expect(hostShape.height).toBe(DOCK_HEIGHT_PX);
     evidence['dock'] = { ...report.dock, hostHeight: hostShape.height };
   });
 
@@ -115,7 +136,57 @@ describe('spike M0 — test build on the loopback stand', () => {
     expect(report.dockError).toBeUndefined();
     expect(report.listError).toBeUndefined();
     expect(report.main?.readyStateAtStart).toBe('loading');
-    evidence['strictCsp'] = { dock: report.dock, list: report.list, main: report.main };
+    // Styles, not just the mount: same computed style and height as without CSP.
+    expect(report.dock?.styleMode).toBe('adopted');
+    expect(report.dock?.style).toEqual(STYLED_DOCK);
+    const hostHeight = await dockHostHeight();
+    expect(hostHeight).toBe(DOCK_HEIGHT_PX);
+    mkdirSync(evidenceDir, { recursive: true });
+    await browser.saveScreenshot(`${evidenceDir}stand-dock-strict-csp.png`);
+    evidence['strictCsp'] = { dock: report.dock, hostHeight, list: report.list, main: report.main };
+  });
+
+  it(`§11 timings over ${TIMING_LOADS} loads: the whole synchronous start of the isolated bundle, dock and list`, async () => {
+    const series: Record<string, number[]> = { bundleMs: [], composeMs: [], dockLoadMs: [], dockRenderMs: [], listRenderMs: [], listUpdateMs: [], firstFrameMs: [], mainInstallMs: [] };
+    const push = (key: string, value: number | null | undefined): void => {
+      if (typeof value === 'number') series[key]?.push(value);
+    };
+    for (let load = 0; load < TIMING_LOADS; load += 1) {
+      await browser.url(standUrl());
+      const report = await waitForReport(
+        (r) => r.bootstrap !== undefined && r.list !== undefined && r.main !== undefined,
+        `timings, load ${load + 1}`,
+      );
+      push('bundleMs', report.bootstrap?.bundleMs);
+      push('composeMs', report.bootstrap?.composeMs);
+      push('dockLoadMs', report.dock?.loadMs);
+      push('dockRenderMs', report.dock?.renderMs);
+      push('listRenderMs', report.list?.renderMs);
+      push('listUpdateMs', report.list?.updateMs);
+      push('firstFrameMs', report.list?.firstFrameMs);
+      push('mainInstallMs', report.main?.installMs);
+    }
+    const timings = Object.fromEntries(Object.entries(series).map(([key, values]) => [key, summarize(values)]));
+    evidence['timings'] = { loads: TIMING_LOADS, ...timings };
+    const bundle = summarize(series['bundleMs'] ?? []);
+    expect(bundle.n).toBe(TIMING_LOADS);
+    expect(bundle.median).toBeLessThanOrEqual(BOOTSTRAP_MEDIAN_MS);
+    expect(bundle.max).toBeLessThanOrEqual(BOOTSTRAP_MAX_MS);
+  });
+
+  it("a page cannot switch our content script off with WXT's «script started» event", async () => {
+    await browser.url(standUrl());
+    await waitForReport((r) => r.dock !== undefined, 'dock before the spoof');
+    // WXT invalidates its ContentScriptContext on this CustomEvent; the name is
+    // public (gecko id + entry name), so any page can send it.
+    await browser.execute((name) => {
+      document.dispatchEvent(new CustomEvent(name, { detail: { contentScriptName: 'chatspace', messageId: 'spoof' } }));
+    }, `${TEST_GECKO_ID}:chatspace:wxt:content-script-started`);
+    const report = await waitForReport((r) => (r.ignoredInvalidations ?? 0) >= 1, 'spoofed invalidation reached WXT and was ignored');
+    expect(report.runtime).toBeUndefined();
+    expect(await browser.execute(() => document.querySelectorAll('[data-cg="dock"]').length)).toBe(1);
+    expect(await dockHostHeight()).toBe(DOCK_HEIGHT_PX);
+    evidence['spoofedInvalidation'] = { ignoredInvalidations: report.ignoredInvalidations, dockSurvived: true };
   });
 
   it('c) an already-open tab after the extension is removed and installed again behaves predictably', async () => {

@@ -94,6 +94,7 @@ export function composeTab(env: TabEnv): void {
     })
     .catch((error: unknown) => probe?.set('dockError', String(error)));
 
-  // Synchronous early bootstrap cost (§11: ≤ 3 ms on winpc).
-  probe?.set('bootstrapMs', performance.now() - started);
+  // The body of composeTab only; the probe adds the whole synchronous start of
+  // the bundle (§11: ≤ 3 ms on winpc) once the bundle's last statement ran.
+  probe?.bootstrapped(performance.now() - started);
 }

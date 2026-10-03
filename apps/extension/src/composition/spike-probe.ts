@@ -10,10 +10,19 @@ import { extensionUrl } from '@cg/platform';
 import type * as SpikeChunk from '../../lazy/entries/spike';
 
 export const LAZY_SPIKE_PATH = 'lazy/spike.js';
+/** Same key as build/bundle-timing.ts (the marks around this bundle, test builds only). */
+const BUNDLE_MARKS_KEY = '__cgBundleMarks';
 
 export interface SpikeProbe {
   set(key: string, value: unknown): void;
+  /** composeTab's own synchronous time; the bundle-wide number follows a task later. */
+  bootstrapped(composeMs: number): void;
   dockMounted(host: ClosedHost, metrics: Record<string, unknown>): void;
+}
+
+interface BundleMarks {
+  readonly t0?: number;
+  readonly t1?: number;
 }
 
 export function createSpikeProbe(win: Window): SpikeProbe {
@@ -29,9 +38,21 @@ export function createSpikeProbe(win: Window): SpikeProbe {
 
   return {
     set,
+    bootstrapped(composeMs) {
+      // The bundle's last statement (t1) runs after main() returns: read it a task later.
+      setTimeout(() => {
+        const marks = Reflect.get(globalThis, BUNDLE_MARKS_KEY) as BundleMarks | undefined;
+        const bundleMs = marks?.t0 !== undefined && marks.t1 !== undefined ? marks.t1 - marks.t0 : null;
+        set('bootstrap', { composeMs, bundleMs });
+      }, 0);
+    },
     dockMounted(host, metrics) {
-      set('dock', { ...metrics, inFlowFirstChild: host.host.parentElement?.firstElementChild === host.host });
       const root = host.root;
+      // Computed inside the closed root: proves our stylesheet applies (unstyled, the row is ~22 px).
+      const toolbar = root.querySelector('[role="toolbar"]');
+      const computed = toolbar ? getComputedStyle(toolbar) : null;
+      const style = computed ? { display: computed.display, height: computed.height, boxSizing: computed.boxSizing } : null;
+      set('dock', { ...metrics, style, inFlowFirstChild: host.host.parentElement?.firstElementChild === host.host });
       const input = root.querySelector('input');
       const focusState = (): Record<string, unknown> => ({
         rootActive: root.activeElement?.tagName ?? null,

@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path';
 import { defineConfig } from 'wxt';
 
 import { artifactNames, isFlavorArtifact } from './build/artifacts.ts';
+import { bundleTimingPlugin } from './build/bundle-timing.ts';
 import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from './build/manifest.ts';
 import { buildLazyChunks, type LazyChunkInfo } from './lazy/vite.config.ts';
 
@@ -46,6 +47,11 @@ export default defineConfig({
     },
     'build:manifestGenerated': (_wxt, manifest) => {
       finalizeManifest(manifest as ManifestLike, { flavor, lazyFiles: lazyChunks.map((chunk) => chunk.file) });
+    },
+    // Spike timing marks around the isolated content script (test builds only).
+    'vite:build:extendConfig': (entrypoints, config) => {
+      if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace')) return;
+      config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },
     // WXT never deletes older versions' archives. Drop this flavor's before
     // zipping, so .output/ holds exactly the archives of this build.
