@@ -418,6 +418,9 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
 /** A ChatSpace-like tab sender (synthetic origin; the real one is named only in hosts.ts). */
 export const TAB_ORIGIN = 'https://chat.example.test';
 export const TAB_MATCHES = [`${TAB_ORIGIN}/*`] as const;
+/** A Fansly-like origin (synthetic). */
+export const FANSLY_ORIGIN = 'https://fansly.example.test';
+export const TAB_HOSTS = { chatspace: TAB_MATCHES, 'fansly-web': [`${FANSLY_ORIGIN}/*`] } as const;
 
 export function tabSender(fake: FakeBrowser, overrides: Partial<MessageSenderApi> = {}): MessageSenderApi {
   return { id: fake.runtimeId, url: `${TAB_ORIGIN}/chat/1001/2002`, origin: TAB_ORIGIN, frameId: 0, tab: { id: 7, url: `${TAB_ORIGIN}/chat/1001/2002` }, ...overrides };

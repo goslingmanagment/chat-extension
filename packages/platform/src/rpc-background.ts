@@ -8,10 +8,12 @@
 //   request then waits for the one readiness promise before it is handled.
 // - The sender is checked before anything is parsed: same extension, top
 //   frame, a ChatSpace origin (tabs) or one of our pages (pages), the type is
-//   allowed for that sender kind, and every tab request after `tab.register`
-//   carries the session the background minted for exactly that port
-//   (§5.1: a tab cannot claim another tab's session). A message failing
-//   these gets no answer and only bumps a counter.
+//   allowed for that sender kind, a tab registers only as the host kind its
+//   origin belongs to (a ChatSpace tab cannot register as fansly-web), and
+//   every tab request after `tab.register` carries the session the
+//   background minted for exactly that port (§5.1: a tab cannot claim
+//   another tab's session). A message failing these gets no answer and only
+//   bumps a counter.
 // - Payloads are checked with the frozen schemas in both directions; a
 //   handler's own bug (an answer that fails its schema) is an error answer,
 //   never a malformed one.
@@ -40,6 +42,8 @@ import {
   verifyTabSender,
   type RpcRejectReason,
   type RpcResult,
+  type TabHostKind,
+  type TabHostMatches,
 } from './rpc-common';
 
 export interface TabSessionInfo {
@@ -63,8 +67,8 @@ export type TabRequestHandler<T extends HandledRequestType> = (
 
 export interface BackgroundRpcOptions {
   readonly api?: BrowserApi;
-  /** Match patterns of the host pages (ChatSpace; plus the loopback stand in test builds). */
-  readonly tabMatches: readonly string[];
+  /** Match patterns of the host pages per host kind (ChatSpace; plus the loopback stand, as ChatSpace, in test builds). */
+  readonly tabHosts: TabHostMatches;
   /** The readiness barrier: no request is handled before it settles. */
   readonly ready: Promise<unknown>;
   readonly contractsVersion: string;
@@ -90,6 +94,7 @@ export interface BackgroundRpc {
 
 interface TabPortState {
   readonly port: PortApi;
+  readonly host: TabHostKind;
   readonly tabId: number;
   readonly url: string;
   session: TabSessionInfo | null;
@@ -164,7 +169,8 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     return { ok: true, payload: output.payload };
   }
 
-  async function register(state: TabPortState, payload: unknown): Promise<RpcResult<unknown>> {
+  /** null — refused without an answer (a host kind its origin does not belong to). */
+  async function register(state: TabPortState, payload: unknown): Promise<RpcResult<unknown> | null> {
     if (!(await whenReady())) {
       reject('not-ready', 'tab.register', 'tab');
       return rpcError('CG-UNKNOWN', 'background not ready');
@@ -173,6 +179,10 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     if (!input.ok) {
       reject('payload', 'tab.register', 'tab');
       return rpcError('CG-UNKNOWN', 'invalid tab.register request');
+    }
+    if ((input.payload as TabRegisterRequest).host !== state.host) {
+      reject('origin', 'tab.register', 'tab');
+      return null;
     }
     if (!tabPorts.has(state)) return rpcError('CG-RUNTIME-UNREACHABLE', 'port closed');
     // One session per port: a repeated register answers the same session.
@@ -198,7 +208,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       reject('sender-kind', type, 'tab');
       return;
     }
-    let work: Promise<RpcResult<unknown>>;
+    let work: Promise<RpcResult<unknown> | null>;
     if (type === 'tab.register') {
       if (tabSessionId !== undefined) {
         reject('session', type, 'tab');
@@ -214,20 +224,20 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       work = dispatch(type, payload, { kind: 'tab', tabSessionId: session.tabSessionId, tabId: state.tabId, url: state.url });
     }
     void work.then((result) => {
-      if (tabPorts.has(state)) post(state.port, responseEnvelope(id, type, result));
+      if (result !== null && tabPorts.has(state)) post(state.port, responseEnvelope(id, type, result));
     });
   }
 
   const onConnect = (port: PortApi): void => {
     if (disposed) return;
     if (port.name === TAB_PORT_NAME) {
-      const verdict = verifyTabSender(port.sender, runtimeId, options.tabMatches);
+      const verdict = verifyTabSender(port.sender, runtimeId, options.tabHosts);
       if (!verdict.ok || verdict.kind !== 'tab') {
         reject(verdict.ok ? 'origin' : verdict.reason, null, 'tab');
         port.disconnect();
         return;
       }
-      const state: TabPortState = { port, tabId: verdict.tabId, url: verdict.url, session: null };
+      const state: TabPortState = { port, host: verdict.host, tabId: verdict.tabId, url: verdict.url, session: null };
       tabPorts.add(state);
       port.onMessage.addListener((message) => onTabMessage(state, message));
       port.onDisconnect.addListener(() => {

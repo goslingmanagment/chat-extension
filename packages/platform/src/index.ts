@@ -36,6 +36,8 @@ export {
   type RpcRejectReason,
   type RpcResult,
   type SenderVerdict,
+  type TabHostKind,
+  type TabHostMatches,
   type TabPayloadValidator,
 } from './rpc-common';
 export {

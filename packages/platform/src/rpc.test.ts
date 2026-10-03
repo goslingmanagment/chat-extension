@@ -7,7 +7,7 @@ import { createBackgroundRpc, type BackgroundRpc } from './rpc-background';
 import { requestEnvelope, verifyPageSender, verifyTabSender, urlMatchesPattern } from './rpc-common';
 import { createPageRpcClient } from './rpc-page';
 import { createTabRpcClient, type TabRpcClient } from './rpc-tab';
-import { TAB_MATCHES, TAB_ORIGIN, createFakeBrowser, flush, pageSender, tabSender, type FakeBrowser, type FakeContext } from './test-support/fake-browser';
+import { FANSLY_ORIGIN, TAB_HOSTS, TAB_ORIGIN, createFakeBrowser, flush, pageSender, tabSender, type FakeBrowser, type FakeContext } from './test-support/fake-browser';
 
 const uuidOf = (n: number): string => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const settingsState = { settings: DEFAULT_SETTINGS, revision: 3, readOnly: false };
@@ -30,7 +30,7 @@ function world(options: { ready?: () => Promise<unknown> } = {}): World {
     state.starts.push(state.starts.length + 1);
     const rpc = createBackgroundRpc({
       api: context.api,
-      tabMatches: TAB_MATCHES,
+      tabHosts: TAB_HOSTS,
       ready: options.ready?.() ?? Promise.resolve(),
       contractsVersion: CONTRACTS_VERSION,
       testBuild: true,
@@ -61,17 +61,20 @@ describe('sender checks (§5.4, §14)', () => {
   const id = fake.runtimeId;
 
   it('[NF-027] a tab must be this extension, the top frame of a tab, on a host origin', () => {
-    expect(verifyTabSender(tabSender(fake), id, TAB_MATCHES)).toMatchObject({ ok: true, kind: 'tab', tabId: 7 });
-    expect(verifyTabSender(tabSender(fake, { id: 'other@example' }), id, TAB_MATCHES)).toEqual({ ok: false, reason: 'foreign-extension' });
-    expect(verifyTabSender(tabSender(fake, { frameId: 3 }), id, TAB_MATCHES)).toEqual({ ok: false, reason: 'subframe' });
-    expect(verifyTabSender({ ...tabSender(fake), tab: {} }, id, TAB_MATCHES)).toEqual({ ok: false, reason: 'subframe' });
-    expect(verifyTabSender(tabSender(fake, { url: 'https://evil.example.test/chat', origin: 'https://evil.example.test' }), id, TAB_MATCHES)).toEqual({
+    expect(verifyTabSender(tabSender(fake), id, TAB_HOSTS)).toMatchObject({ ok: true, kind: 'tab', host: 'chatspace', tabId: 7 });
+    expect(verifyTabSender(tabSender(fake, { url: `${FANSLY_ORIGIN}/messages`, origin: FANSLY_ORIGIN }), id, TAB_HOSTS)).toMatchObject({ ok: true, host: 'fansly-web' });
+    // Patterns of two kinds matching one URL is a misconfiguration: refused, never guessed.
+    expect(verifyTabSender(tabSender(fake), id, { chatspace: [`${TAB_ORIGIN}/*`], 'fansly-web': ['https://*.example.test/*'] })).toEqual({ ok: false, reason: 'origin' });
+    expect(verifyTabSender(tabSender(fake, { id: 'other@example' }), id, TAB_HOSTS)).toEqual({ ok: false, reason: 'foreign-extension' });
+    expect(verifyTabSender(tabSender(fake, { frameId: 3 }), id, TAB_HOSTS)).toEqual({ ok: false, reason: 'subframe' });
+    expect(verifyTabSender({ ...tabSender(fake), tab: {} }, id, TAB_HOSTS)).toEqual({ ok: false, reason: 'subframe' });
+    expect(verifyTabSender(tabSender(fake, { url: 'https://evil.example.test/chat', origin: 'https://evil.example.test' }), id, TAB_HOSTS)).toEqual({
       ok: false,
       reason: 'origin',
     });
     // The browser's own origin wins over a URL that looks right.
-    expect(verifyTabSender(tabSender(fake, { origin: 'null' }), id, TAB_MATCHES)).toEqual({ ok: false, reason: 'origin' });
-    expect(verifyTabSender(undefined, id, TAB_MATCHES)).toEqual({ ok: false, reason: 'foreign-extension' });
+    expect(verifyTabSender(tabSender(fake, { origin: 'null' }), id, TAB_HOSTS)).toEqual({ ok: false, reason: 'origin' });
+    expect(verifyTabSender(undefined, id, TAB_HOSTS)).toEqual({ ok: false, reason: 'foreign-extension' });
   });
 
   it('[NF-027] a page must be one of our listed pages at our own base', () => {
@@ -155,17 +158,43 @@ describe('[EX-015] typed RPC over cg-tab, sendMessage and cg-page', () => {
     expect(w.rejects).toContain('subframe:-:tab');
   });
 
+  /** A tab port driven by hand (no client-side checks): answers are collected raw. */
+  async function rawTab(w: World, sender: Parameters<FakeBrowser['context']>[0]) {
+    const context = w.fake.context(sender);
+    const port = context.api.runtime.connect({ name: 'cg-tab' });
+    const answers: Record<string, unknown>[] = [];
+    port.onMessage.addListener((message) => answers.push(message as Record<string, unknown>));
+    await flush(10);
+    return { port, answers };
+  }
+
   it('[NF-027] a request must carry the session minted for its own port', async () => {
     const w = world();
     const a = tabClient(w.fake);
     await a.client.request('settings.get', {});
-    // A second tab claims tab A's session on its own port.
-    const b = w.fake.context(tabSender(w.fake, { tab: { id: 8 } }));
-    const port = b.api.runtime.connect({ name: 'cg-tab' });
-    const answers: unknown[] = [];
-    port.onMessage.addListener((message) => answers.push(message));
+    // A second tab registers on its own port (its own session) and then claims tab A's session.
+    const b = await rawTab(w, tabSender(w.fake, { tab: { id: 8 } }));
+    b.port.postMessage(requestEnvelope(1, 'tab.register', register));
+    await flush(30);
+    const own = (b.answers[0]?.['payload'] as { tabSessionId?: string } | undefined)?.tabSessionId;
+    expect(own).toBe(uuidOf(102));
+    b.answers.length = 0;
+    b.port.postMessage(requestEnvelope(2, 'settings.get', {}, uuidOf(101)));
+    await flush(30);
+    expect(b.answers).toEqual([]);
+    expect(w.rejects).toEqual(['session:settings.get:tab']);
+    // With its own session it is answered.
+    b.port.postMessage(requestEnvelope(3, 'settings.get', {}, own));
+    await flush(30);
+    expect(b.answers).toMatchObject([{ kind: 'res', id: 3, ok: true }]);
+  });
+
+  it('[NF-027] an unregistered port, a register with a session, garbage, unknown types and tab events get no answer', async () => {
+    const w = world();
+    await tabClient(w.fake).client.request('settings.get', {});
+    const { port, answers } = await rawTab(w, tabSender(w.fake, { tab: { id: 8 } }));
+    // Unregistered: no session at all, or another tab's.
     port.postMessage(requestEnvelope(1, 'settings.get', {}, uuidOf(101)));
-    // Unregistered: no session at all.
     port.postMessage(requestEnvelope(2, 'settings.get', {}));
     // tab.register must not carry a session.
     port.postMessage(requestEnvelope(3, 'tab.register', register, uuidOf(101)));
@@ -179,6 +208,63 @@ describe('[EX-015] typed RPC over cg-tab, sendMessage and cg-page', () => {
     expect(w.rejects).toContain('envelope:-:tab');
     expect(w.rejects).toContain('unknown-type:nope.nope:tab');
     expect(w.rpc.counters().session).toBe(3);
+  });
+
+  it('[NF-027] a tab registers only as the host kind of its origin', async () => {
+    const w = world();
+    const registered: string[] = [];
+    // A ChatSpace tab claiming to be Fansly: no answer, counted.
+    const fake = await rawTab(w, tabSender(w.fake));
+    fake.port.postMessage(requestEnvelope(1, 'tab.register', { ...register, host: 'fansly-web' }));
+    await flush(30);
+    expect(fake.answers).toEqual([]);
+    expect(w.rejects).toEqual(['origin:tab.register:tab']);
+    expect(w.rpc.tabs()).toEqual([]);
+    // A Fansly tab registering as Fansly is fine.
+    const fanslySender = tabSender(w.fake, { url: `${FANSLY_ORIGIN}/messages`, origin: FANSLY_ORIGIN, tab: { id: 12 } });
+    const fansly = createTabRpcClient({ api: w.fake.context(fanslySender).api, validate: parseTabPayload, register: { ...register, host: 'fansly-web' } });
+    expect((await fansly.request('settings.get', {})).ok).toBe(true);
+    for (const tab of w.rpc.tabs()) registered.push(`${tab.tabId}:${tab.request.host}`);
+    expect(registered).toEqual(['12:fansly-web']);
+  });
+
+  it('[EX-015] one session per port: a repeated register answers the same session', async () => {
+    const fake = createFakeBrowser();
+    const seen: string[] = [];
+    let n = 0;
+    const rpc = createBackgroundRpc({
+      api: fake.startBackground().api,
+      tabHosts: TAB_HOSTS,
+      ready: Promise.resolve(),
+      contractsVersion: CONTRACTS_VERSION,
+      testBuild: false,
+      mintSessionId: () => uuidOf(200 + ++n),
+      onTabRegistered: (info) => seen.push(info.tabSessionId),
+    });
+    const context = fake.context(tabSender(fake));
+    const port = context.api.runtime.connect({ name: 'cg-tab' });
+    const answers: Record<string, unknown>[] = [];
+    port.onMessage.addListener((message) => answers.push(message as Record<string, unknown>));
+    await flush(10);
+    port.postMessage(requestEnvelope(1, 'tab.register', register));
+    port.postMessage(requestEnvelope(2, 'tab.register', register));
+    await flush(30);
+    expect(answers.map((answer) => (answer['payload'] as { tabSessionId: string }).tabSessionId)).toEqual([uuidOf(201), uuidOf(201)]);
+    expect(seen).toEqual([uuidOf(201)]);
+    expect(rpc.tabs()).toHaveLength(1);
+  });
+
+  it('the background checks its own answers against the schema (whatever the client would do)', async () => {
+    const w = world();
+    w.rpc.handle('quota.get', () => ({ ok: true, payload: { quota: 'nope' } }) as never);
+    const { port, answers } = await rawTab(w, tabSender(w.fake));
+    port.postMessage(requestEnvelope(1, 'tab.register', register));
+    await flush(30);
+    const session = (answers[0]?.['payload'] as { tabSessionId: string }).tabSessionId;
+    port.postMessage(requestEnvelope(2, 'quota.get', { pageId: 11 }, session));
+    await flush(30);
+    expect(answers[1]).toEqual({ v: 1, kind: 'res', id: 2, type: 'quota.get', ok: false, error: { code: 'CG-UNKNOWN', detail: 'invalid quota.get response' } });
+    expect(w.rpc.counters().response).toBe(1);
   });
 
   it('[NF-027] a content script cannot use sendMessage as a page; another origin cannot open the tab port', async () => {
@@ -207,7 +293,7 @@ describe('[EX-015] typed RPC over cg-tab, sendMessage and cg-page', () => {
     expect(await client.request('quota.get', { pageId: 0 })).toEqual({ ok: false, error: { code: 'CG-UNKNOWN', detail: 'invalid quota.get request' } });
     const bare = world();
     bare.rpc.dispose();
-    const fresh = createBackgroundRpc({ api: bare.fake.startBackground().api, tabMatches: TAB_MATCHES, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: false });
+    const fresh = createBackgroundRpc({ api: bare.fake.startBackground().api, tabHosts: TAB_HOSTS, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: false });
     const other = tabClient(bare.fake);
     expect(await other.client.request('settings.get', {})).toEqual({ ok: false, error: { code: 'CG-UNKNOWN', detail: 'no handler for settings.get' } });
     expect(fresh.counters().handler).toBe(1);
@@ -340,7 +426,7 @@ describe('[RB-010] the tab port reconnects 100/200/400 ms after the background g
     let starts = 0;
     w.fake.onWake((context) => {
       starts += 1;
-      const rpc = createBackgroundRpc({ api: context.api, tabMatches: TAB_MATCHES, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: true });
+      const rpc = createBackgroundRpc({ api: context.api, tabHosts: TAB_HOSTS, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: true });
       rpc.handle('settings.get', () => ({ ok: true, payload: settingsState }));
     });
     // The broken event page goes away; the next connection wakes a working one.
@@ -349,6 +435,35 @@ describe('[RB-010] the tab port reconnects 100/200/400 ms after the background g
     await vi.waitFor(() => expect(client.state()).toBe('ready'));
     expect(starts).toBe(1);
     expect(await client.request('settings.get', {})).toEqual({ ok: true, payload: settingsState });
+  });
+
+  it('a successful reconnect resets the attempts: the next loss gets all three again', async () => {
+    const w = world();
+    const { client } = tabClient(w.fake);
+    await vi.waitFor(() => expect(client.state()).toBe('ready'));
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.waitFor(() => expect(client.state()).toBe('ready'));
+    // Now the event page starts but registers nothing: 100 + 200 + 400 ms of attempts, not 200 + 400.
+    w.fake.onWake(() => undefined);
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(650);
+    expect(client.state()).toBe('reconnecting');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(client.state()).toBe('lost');
+  });
+
+  it('a request that timed out while waiting for registration is never sent afterwards', async () => {
+    let open!: () => void;
+    const w = world({ ready: () => new Promise<void>((resolve) => (open = resolve)) });
+    const { client } = tabClient(w.fake);
+    const early = client.request('catalog.get', {}, { timeoutMs: 50 });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await early).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'catalog.get timeout' } });
+    open();
+    await vi.waitFor(() => expect(client.state()).toBe('ready'));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(w.handled).toEqual([]);
   });
 
   it('a register the background never answers counts as a failed attempt', async () => {

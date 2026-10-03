@@ -4,7 +4,7 @@
 // bundle can carry the tab client.
 
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
-import { EXTENSION_PAGES, TAB_PROTOCOL_VERSION, type ExtensionPage } from '@cg/contracts/tab-protocol';
+import { EXTENSION_PAGES, TAB_PROTOCOL_VERSION, type ExtensionPage, type TabRegisterRequest } from '@cg/contracts/tab-protocol';
 import type { TabPayloadCheck } from '@cg/contracts/tab-messages';
 
 import type { MessageSenderApi } from './browser-api';
@@ -62,8 +62,14 @@ export function urlMatchesPattern(url: URL, pattern: string): boolean {
   return path.endsWith('*') ? urlPath.startsWith(pathPattern) : urlPath === pathPattern;
 }
 
+/** The host kinds a tab registers as (`tab.register` `host`). */
+export type TabHostKind = TabRegisterRequest['host'];
+
+/** Match patterns per host kind (ChatSpace; the loopback stand counts as ChatSpace in test builds). */
+export type TabHostMatches = Readonly<Partial<Record<TabHostKind, readonly string[]>>>;
+
 export type SenderVerdict =
-  | { readonly ok: true; readonly kind: 'tab'; readonly tabId: number; readonly url: string }
+  | { readonly ok: true; readonly kind: 'tab'; readonly host: TabHostKind; readonly tabId: number; readonly url: string }
   | { readonly ok: true; readonly kind: 'page'; readonly page: ExtensionPage; readonly tabId: number | null; readonly url: string }
   | { readonly ok: false; readonly reason: RpcRejectReason };
 
@@ -96,15 +102,20 @@ function parseUrl(raw: string | undefined): URL | null {
 /**
  * A tab: same extension, top frame of a tab, document origin among the host
  * patterns (ChatSpace; the loopback stand in test builds). When the browser
- * names the sender's origin too, it must be the URL's origin.
+ * names the sender's origin too, it must be the URL's origin. The verdict
+ * names the host kind whose patterns matched: a tab may register only as it.
  */
-export function verifyTabSender(sender: MessageSenderApi | undefined, runtimeId: string, tabMatches: readonly string[]): SenderVerdict {
+export function verifyTabSender(sender: MessageSenderApi | undefined, runtimeId: string, tabHosts: TabHostMatches): SenderVerdict {
   if (!sender || sender.id !== runtimeId) return { ok: false, reason: 'foreign-extension' };
   if (sender.frameId !== 0 || typeof sender.tab?.id !== 'number') return { ok: false, reason: 'subframe' };
   const url = parseUrl(sender.url);
-  if (!url || !tabMatches.some((pattern) => urlMatchesPattern(url, pattern))) return { ok: false, reason: 'origin' };
+  if (!url) return { ok: false, reason: 'origin' };
+  const hosts = (Object.entries(tabHosts) as [TabHostKind, readonly string[] | undefined][]).filter(([, patterns]) => patterns?.some((pattern) => urlMatchesPattern(url, pattern)));
+  // No host, or patterns of two kinds matching one URL (a misconfiguration): refused.
+  const host = hosts.length === 1 ? hosts[0]?.[0] : undefined;
+  if (host === undefined) return { ok: false, reason: 'origin' };
   if (sender.origin !== undefined && sender.origin !== url.origin) return { ok: false, reason: 'origin' };
-  return { ok: true, kind: 'tab', tabId: sender.tab.id, url: url.href };
+  return { ok: true, kind: 'tab', host, tabId: sender.tab.id, url: url.href };
 }
 
 /**

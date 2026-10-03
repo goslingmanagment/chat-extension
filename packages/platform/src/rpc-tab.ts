@@ -29,7 +29,11 @@ export interface TabRpcClientOptions {
   readonly register: TabRegisterRequest;
   /** Default 60 s: some reads page through the hub (Spenders board). */
   readonly requestTimeoutMs?: number;
-  /** A cold event page answers `tab.register` after its readiness barrier. */
+  /**
+   * A cold event page answers `tab.register` after its readiness barrier,
+   * which opens within 10 s (core READINESS_DEADLINE_MS): the default leaves
+   * room above that, so a slow cold start is not counted as a failed attempt.
+   */
   readonly registerTimeoutMs?: number;
   readonly reconnectDelaysMs?: readonly number[];
   readonly isContextAlive?: () => boolean;
@@ -61,7 +65,8 @@ interface Pending {
 }
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
-export const DEFAULT_REGISTER_TIMEOUT_MS = 10_000;
+/** Above the background's readiness deadline (10 s), with room for waking the event page. */
+export const DEFAULT_REGISTER_TIMEOUT_MS = 15_000;
 
 export function createTabRpcClient(options: TabRpcClientOptions): TabRpcClient {
   const api = options.api ?? defaultBrowser();
