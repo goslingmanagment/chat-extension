@@ -16,5 +16,10 @@ export const KIT_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../kit/gallery/', i
 /** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /kit-gallery/. */
 export const KIT_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/kit-gallery/`;
 export const KIT_GALLERY_PATH = '/kit-gallery/';
+/** Sources of the extension-pages gallery (R16). */
+export const PAGES_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../pages/gallery/', import.meta.url));
+/** Built pages gallery (`pnpm --filter @cg/testing build:pages`), served at /pages-gallery/. */
+export const PAGES_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/pages-gallery/`;
+export const PAGES_GALLERY_PATH = '/pages-gallery/';
 /** Screenshots, timings and other e2e evidence. */
 export const E2E_EVIDENCE_DIR = `${REPO_ROOT}.cache/e2e/`;
