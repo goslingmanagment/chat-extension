@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { env } from '../../fixture-chatspace/src/env';
+import { isSignedIn } from '../../fixture-chatspace/src/net/auth';
 import { readJournal } from '../../fixture-chatspace/src/journal';
 import { useQueryCache } from '../../fixture-chatspace/src/query/cache';
 import { keys } from '../../fixture-chatspace/src/query/queries';
@@ -50,6 +51,7 @@ beforeEach(() => {
   globalThis.fetch = makeFetch('page');
   useQueryCache().setQueryData(keys.accounts(), [{ id: Number(ACCOUNT), platformAccountId: '830000101', platform: 'onlyfans' }]);
   env.queueTimeoutMs = 30_000;
+  isSignedIn.value = true;
 });
 
 afterEach(() => {
@@ -163,6 +165,39 @@ describe('fixture send queue', () => {
     const history = cache.getQueryData<{ pages: Array<{ items: Array<{ id: unknown; platformMetadata: Record<string, unknown> }> }> }>(keys.chatMessages(ACCOUNT, CHAT));
     expect(history?.pages[0]?.items[0]?.id).toBe(5900000009);
     expect(history?.pages[0]?.items[0]?.platformMetadata).toEqual({ isTip: false, gifUrl: null, mediaCount: 0, isFree: true, isOpened: false, isLiked: false, isPinned: false, canBePinned: false, canReport: false, cancelSeconds: 60 });
+  });
+
+  it('silent resets: sign-out drops every entry and aborts the POST; so does an account leaving the accounts list — no action is reported', async () => {
+    const aborted: string[] = [];
+    answer = (request) =>
+      new Promise<Response>((_resolve, reject) => {
+        request.signal.addEventListener('abort', () => {
+          aborted.push(request.url);
+          reject(new DOMException('aborted', 'AbortError'));
+        });
+      });
+    const queue = usePendingMessages();
+    const actions: string[] = [];
+    queue.$onAction(({ name }) => {
+      actions.push(name);
+    });
+    queue.enqueue(input());
+    await tick(10);
+    expect(entries()[0]?.status).toBe('sending');
+    isSignedIn.value = false;
+    await tick(10);
+    expect(entries()).toEqual([]);
+    expect(aborted).toHaveLength(1);
+    isSignedIn.value = true;
+
+    queue.enqueue(input('<p>second</p>'));
+    await tick(10);
+    expect(entries()[0]?.status).toBe('sending');
+    useQueryCache().setQueryData(keys.accounts(), [{ id: 910202, platformAccountId: '830000202', platform: 'onlyfans' }]);
+    await tick(10);
+    expect(entries()).toEqual([]);
+    expect(aborted).toHaveLength(2);
+    expect(actions).toEqual(['enqueue', 'enqueue']);
   });
 
   it('confirms an outgoing echo by plain text: SENDING → CONFIRMED, then a late failure only removes it', async () => {

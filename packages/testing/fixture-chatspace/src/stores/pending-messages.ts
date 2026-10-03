@@ -10,13 +10,18 @@
 //   never a retry on its own;
 // - success: the sent message goes into the chat's history cache (or the exact
 //   key is invalidated when there is no cache), the entry disappears;
-// - confirmEchoedMessage matches an outgoing echo by chat + PLAIN TEXT.
+// - confirmEchoedMessage matches an outgoing echo by chat + PLAIN TEXT;
+// - two silent resets, as ChatSpace's store has, through internal calls that
+//   `$onAction` does not see: sign-out drops every entry, and an account that
+//   leaves the accounts list drops its entries — both abort in-flight POSTs,
+//   so a SENDING entry can vanish with no action and no answer.
 
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { env, storeId } from '../env';
 import { record } from '../journal';
+import { isSignedIn } from '../net/auth';
 import { api, errorBody, HTTPError } from '../net/http';
 import { useQueryCache, type QueryCache } from '../query/cache';
 import { hasMessage, newestMessage, plainText, sentMessageMetadata, upsertMessage, type Account, type History, type Message } from '../query/model';
@@ -99,8 +104,12 @@ async function guardOf(error: unknown): Promise<{ words: string[]; topics: strin
   }
 }
 
-const localId = (): string =>
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `pending-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+let localSeq = 0;
+/** A local entry id (a UUID; a stand-own counter where crypto.randomUUID is missing). */
+const localId = (): string => {
+  localSeq += 1;
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `stand-local-${localSeq}`;
+};
 
 const isAbort = (error: unknown): boolean => error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 
@@ -323,6 +332,30 @@ export const usePendingMessages = defineStore(storeId('pendingMessages'), () => 
   const resetAll = (): void => {
     for (const accountId of Object.keys(messagesByAccountId.value)) resetForAccount(accountId);
   };
+
+  // Plain closures, not the store's actions: these resets do not reach $onAction.
+  watch(isSignedIn, (signedIn, was) => {
+    if (was && !signedIn) {
+      record('queue-reset', { reason: 'signed-out' });
+      resetAll();
+    }
+  });
+  const accountIds = computed(() => cache.getQueryData<Account[]>(keys.accounts())?.map((account) => String(account.id)));
+  let knownAccounts = new Set<string>();
+  watch(
+    accountIds,
+    (ids) => {
+      if (ids === undefined) return;
+      const current = new Set(ids);
+      for (const id of knownAccounts) {
+        if (current.has(id)) continue;
+        record('queue-reset', { reason: 'account-removed', accountId: id });
+        resetForAccount(id);
+      }
+      knownAccounts = current;
+    },
+    { immediate: true },
+  );
 
   return { messagesByAccountId, processingByAccountId, enqueue, cancel, resend, confirmEchoedMessage, resetForAccount, resetAll };
 });

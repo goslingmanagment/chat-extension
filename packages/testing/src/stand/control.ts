@@ -116,6 +116,16 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ closed: hub.closeAll(code) });
     return;
   }
+  if (path === '/__stand/accounts/hide' && method === 'POST') {
+    // The accounts list changes, and the server tells every page (accounts_list_updated → refetch).
+    const accountId = asString(body['accountId']);
+    if (accountId !== null) {
+      if (body['hidden'] === false) state.hiddenAccounts.delete(accountId);
+      else state.hiddenAccounts.add(accountId);
+    }
+    ok({ hidden: [...state.hiddenAccounts], delivered: hub.broadcast({ event: 'accounts_list_updated' }, null) });
+    return;
+  }
   if (path === '/__stand/ws/traffic' && method === 'POST') {
     state.traffic = { ...state.traffic, ...trafficPatch(body) };
     hub.restartTraffic();

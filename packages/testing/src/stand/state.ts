@@ -23,6 +23,8 @@ export class StandState {
   mimic: MimicState = { isActive: false, chats: {} };
   /** The signed-in user owns the organisation (owners send even with of_block_message_sending). */
   owner = false;
+  /** Accounts left out of the accounts list (the organisation lost them). */
+  readonly hiddenAccounts = new Set<string>();
   /** While held, the Mimic endpoints answer only when released (the page's «Mimic data loading» state). */
   private mimicGate: { readonly opened: Promise<void>; readonly open: () => void } | null = null;
   /** While true, the socket never answers `auth` with `authenticated`. */
@@ -39,6 +41,7 @@ export class StandState {
     this.permissions = [...DEFAULT_PERMISSIONS];
     this.mimic = { isActive: false, chats: {} };
     this.owner = false;
+    this.hiddenAccounts.clear();
     this.holdMimic(false);
     this.withholdAuth = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;

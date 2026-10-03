@@ -557,6 +557,31 @@ describe('the ChatSpace-like stand on its own', () => {
     expect((await pageJournal(page, 'ws-recover'))[0]).toMatchObject({ cause: 'offline' });
   });
 
+  it('silent queue resets: an account leaving the accounts list, and sign-out, drop SENDING entries and abort their POSTs', async () => {
+    const queued = async (accountId: string, chatId: string): Promise<void> => {
+      await callStand('scriptSend', accountId, chatId, [{ kind: 'hang' }]);
+      await storeCall('pendingMessages', 'enqueue', [{ accountId, chatId, platform: 'onlyfans', text: '<p>in flight</p>', platformMetadata: {} }]);
+      await browser.waitUntil(async () => (await pending(accountId))[0]?.status === 'sending', { timeout: 5000, timeoutMsg: 'not sending' });
+    };
+    let server = await standServer.mark();
+    await queued(accountB, b1);
+    await standServer.hideAccount(accountB);
+    try {
+      await waitForJournal((items) => items.some((entry) => entry.kind === 'send-aborted' && entry.chatId === b1), server, 'the POST of the dropped account aborted');
+      expect(await pending(accountB)).toEqual([]);
+    } finally {
+      await standServer.hideAccount(accountB, false);
+    }
+
+    server = await standServer.mark();
+    await queued(accountA, a2);
+    await callStand('signOut');
+    await waitForJournal((items) => items.some((entry) => entry.kind === 'send-aborted' && entry.chatId === a2), server, 'the POST aborted on sign-out');
+    expect(await pending(accountA)).toEqual([]);
+    expect((await callStand('wsStatus')).status).toBe('CLOSED');
+    await openStand(chatPath(accountA, a1));
+  });
+
   it('theme and fixed width: .dark/.light on <html>, --app-content-max-width 1600px', async () => {
     await callStand('setTheme', 'light');
     expect(await browser.execute(() => [document.documentElement.classList.contains('light'), document.documentElement.classList.contains('dark')])).toEqual([true, false]);

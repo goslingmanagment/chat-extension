@@ -75,7 +75,7 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
   const list = (name: string): string[] => url.searchParams.getAll(name);
 
   if (method === 'GET' && route === 'v0/accounts') {
-    sendJson(response, 200, { items: state.dataset.accounts.map(rawAccount) });
+    sendJson(response, 200, { items: state.dataset.accounts.filter((account) => !state.hiddenAccounts.has(account.id)).map(rawAccount) });
     return log(200);
   }
   if (method === 'GET' && route === 'user/permissions') {

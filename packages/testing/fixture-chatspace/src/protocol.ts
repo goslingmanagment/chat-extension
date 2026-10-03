@@ -243,6 +243,8 @@ export interface StandControl {
   /** The role's permissions, and whether the user owns the organisation (owners send even with of_block_message_sending). */
   setPermissions(permissions: readonly string[], owner?: boolean): Promise<void>;
   wsStatus(): { readonly status: string; readonly sockets: number; readonly authenticated: boolean };
+  /** The session ends without a navigation (Clerk sign-out): the send queue resets, the socket closes. */
+  signOut(): void;
   reconnectWs(): void;
   journal(since?: number): readonly PageJournalEntry[];
   /** Reloads the page as a «new build» without the given anchors (§6.2). */

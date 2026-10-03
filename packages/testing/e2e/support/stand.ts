@@ -129,6 +129,10 @@ export const standServer = {
   setMimic: async (mimic: MimicState): Promise<void> => {
     await control('/__stand/state', { body: { mimic } });
   },
+  /** Takes an account out of (or back into) the accounts list; pages hear accounts_list_updated and refetch. */
+  hideAccount: async (accountId: string, hidden = true): Promise<void> => {
+    await control('/__stand/accounts/hide', { body: { accountId, hidden } });
+  },
   /** Holds the Mimic endpoints until released: pages loaded meanwhile stay in «Mimic data loading». */
   holdMimic: async (hold: boolean): Promise<void> => {
     await control('/__stand/state', { body: { holdMimic: hold } });
