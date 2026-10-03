@@ -4,8 +4,23 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_TOKEN_PATTERN, type Bootstrap } from '@cg/contracts';
-import { AbortSwitch, ACTION_TOKEN_TTL_MS, ACTION_TOKENS_PER_TAB, ActionTokens, Readiness, TabSessions, WriteQueue, WsTapSwitch, onInstalledPlan } from '@cg/core/services';
+import { ACTION_TOKEN_PATTERN, DEFAULT_SETTINGS, type Bootstrap, type SettingsV1 } from '@cg/contracts';
+import {
+  AbortSwitch,
+  ACTION_TOKEN_TTL_MS,
+  ACTION_TOKENS_PER_TAB,
+  ActionTokens,
+  LAZY_TIMING,
+  LazyLoadStatus,
+  NO_CHANGE,
+  Readiness,
+  TabSessions,
+  WriteQueue,
+  WsTapSwitch,
+  onInstalledPlan,
+  settingsChangePlan,
+  type LazyStatus,
+} from '@cg/core/services';
 import { BOOTSTRAP_PILOT_ON } from '@cg/testing/hub';
 
 import { FakeClock, LogRecorder, sequentialIds, settle } from './support/clock';
@@ -246,5 +261,74 @@ describe('ports: the abort switch and the write queue', () => {
     await a;
     await queue.idle();
     expect(order).toEqual([1, 3]);
+  });
+});
+
+describe('[BG-005] what a settings change means', () => {
+  const withPersonas = (byPageId: SettingsV1['personas']['byPageId']): SettingsV1 => ({ ...DEFAULT_SETTINGS, personas: { scope: null, byPageId } });
+  const choice = { key: 'default', definitionId: 'pdef_0123456789abcdef' };
+
+  it('[BG-005] any change is broadcast; nothing changed — nothing to do', () => {
+    expect(settingsChangePlan(DEFAULT_SETTINGS, structuredClone(DEFAULT_SETTINGS))).toBe(NO_CHANGE);
+    expect(settingsChangePlan(null, DEFAULT_SETTINGS)).toEqual({ broadcastSettings: true, environment: [], reset: [] });
+    expect(settingsChangePlan(DEFAULT_SETTINGS, { ...DEFAULT_SETTINGS, ui: { ...DEFAULT_SETTINGS.ui, hints: !DEFAULT_SETTINGS.ui.hints } })).toEqual({ broadcastSettings: true, environment: [], reset: [] });
+  });
+
+  it('[BG-005] a new hub address cancels the old hub and drops the board, the catalog and the persona choices', () => {
+    const next = { ...DEFAULT_SETTINGS, hub: { baseUrl: 'https://hub.example.test' } };
+    expect(settingsChangePlan(DEFAULT_SETTINGS, next)).toEqual({ broadcastSettings: true, environment: [{ kind: 'hub', origin: 'https://hub.example.test' }], reset: ['board', 'catalog', 'personas'] });
+  });
+
+  it('[AI-126] a changed, added or removed persona choice is a persona change of exactly that page', () => {
+    const plan = settingsChangePlan(withPersonas({ '11': choice, '12': choice }), withPersonas({ '11': { ...choice, definitionId: 'pdef_fedcba9876543210' }, '13': choice }));
+    expect(plan.environment).toEqual([
+      { kind: 'persona', pageId: 11, next: { ...choice, definitionId: 'pdef_fedcba9876543210' } },
+      { kind: 'persona', pageId: 12, next: null },
+      { kind: 'persona', pageId: 13, next: choice },
+    ]);
+  });
+});
+
+describe('[UP-016] the lazy load status', () => {
+  it('[UP-016] a fast chunk never shows a label; a slow one shows «загружается…»; a failure waits for the person', async () => {
+    const clock = new FakeClock(NOW_MS);
+    let outcome: 'ok' | 'fail' | 'hang' = 'ok';
+    let loads = 0;
+    const status = new LazyLoadStatus(clock, () => {
+      loads += 1;
+      if (outcome === 'ok') return Promise.resolve();
+      if (outcome === 'fail') return Promise.reject(new Error('chunk'));
+      return new Promise<void>(() => undefined);
+    });
+    const seen: LazyStatus['s'][] = [];
+    const off = status.onChange((s) => seen.push(s.s));
+    status.start();
+    status.start();
+    await clock.advance(1);
+    expect(seen).toEqual(['pending', 'loaded']);
+    expect(status.retry()).toBe(false);
+    off();
+
+    outcome = 'hang';
+    const slow = new LazyLoadStatus(clock, () => {
+      loads += 1;
+      return outcome === 'hang' ? new Promise<void>(() => undefined) : outcome === 'fail' ? Promise.reject(new Error('x')) : Promise.resolve();
+    });
+    slow.start();
+    await clock.advance(LAZY_TIMING.showLabelAfterMs);
+    expect(slow.current).toEqual({ s: 'loading' });
+    await clock.advance(LAZY_TIMING.giveUpAfterMs);
+    expect(slow.current).toEqual({ s: 'failed', code: 'CG-UI-FAILED', attempts: 1 });
+    await clock.advance(60_000);
+    expect(loads).toBe(2);
+    outcome = 'fail';
+    expect(slow.retry()).toBe(true);
+    await clock.advance(1);
+    expect(slow.current).toEqual({ s: 'failed', code: 'CG-UI-FAILED', attempts: 2 });
+    outcome = 'ok';
+    expect(slow.retry()).toBe(true);
+    await clock.advance(1);
+    expect(slow.current).toEqual({ s: 'loaded' });
+    expect(loads).toBe(4);
   });
 });

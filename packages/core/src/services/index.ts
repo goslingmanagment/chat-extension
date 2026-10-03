@@ -10,6 +10,8 @@ export * from './tokens';
 export * from './tabs';
 export * from './readiness';
 export * from './ws-tap';
+export * from './change-policy';
+export * from './lazy-status';
 export * from './scheduler';
 export * from './profile-saver';
 export * from './send-coordinator';
