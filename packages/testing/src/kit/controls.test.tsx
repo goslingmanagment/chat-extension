@@ -240,7 +240,7 @@ describe('menus (ui-design §4.1 «Тон», «Ещё»; §6.4)', () => {
 });
 
 describe('dialogs (architecture.md §10.1: modal windows hold focus and give it back)', () => {
-  it('the confirmation dialog focuses «Отмена», traps Tab, answers, and gives focus back', async () => {
+  it('a destructive confirmation focuses «Отмена», traps Tab, answers, and gives focus back', async () => {
     const answers: string[] = [];
     function Asker() {
       const [open, setOpen] = useState(false);
@@ -263,8 +263,10 @@ describe('dialogs (architecture.md §10.1: modal windows hold focus and give it 
     const opener = kit.$('.cg-opener') as HTMLElement;
     opener.focus();
     await flush(() => opener.click());
-    const dialog = kit.$('[role="dialog"]') as HTMLElement;
+    // Destructive: an alertdialog described by its text, opening on «Отмена».
+    const dialog = kit.$('[role="alertdialog"]') as HTMLElement;
     expect(dialog.getAttribute('aria-label')).toBe('Отмена');
+    expect(kit.root.getElementById(dialog.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Здесь пока пусто');
     expect(kit.$('.cg-scrim')).not.toBeNull();
     const [cancel, confirm] = kit.$$('.cg-confirm-dlg__acts .cg-btn');
     expect(kit.root.activeElement).toBe(cancel);
@@ -273,13 +275,34 @@ describe('dialogs (architecture.md §10.1: modal windows hold focus and give it 
       dialog.dispatchEvent(key('Tab'));
     });
     expect(kit.root.activeElement).toBe(cancel);
+    expect(confirm?.classList.contains('is-destructive')).toBe(true);
     await flush(() => confirm?.click());
     expect(answers).toEqual(['confirm']);
-    expect(kit.$('[role="dialog"]')).toBeNull();
+    expect(kit.$('[role="alertdialog"]')).toBeNull();
     expect(kit.root.activeElement).toBe(opener);
     await flush(() => opener.click());
     await flush(() => kit?.$('.cg-scrim')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
     expect(answers).toEqual(['confirm', 'cancel']);
+  });
+
+  it('a normal confirmation is a plain dialog that opens on its confirm button', async () => {
+    const answers: string[] = [];
+    kit = await mountKitSettled(
+      () => (
+        <ConfirmDialog
+          request={{ title: { key: 'coach.newDialog' }, body: null, confirm: { key: 'coach.newDialog' }, cancel: { key: 'common.cancel' }, tone: 'normal' }}
+          onAnswer={(answer) => answers.push(answer)}
+        />
+      ),
+      { kind: 'coach' },
+    );
+    const dialog = kit.$('[role="dialog"]') as HTMLElement;
+    expect(dialog.hasAttribute('aria-describedby')).toBe(false);
+    const [, confirm] = kit.$$('.cg-confirm-dlg__acts .cg-btn');
+    expect(kit.root.activeElement).toBe(confirm);
+    expect(confirm?.classList.contains('is-destructive')).toBe(false);
+    await flush(() => dialog.dispatchEvent(key('Escape')));
+    expect(answers).toEqual(['cancel']);
   });
 
   it('closing a window whose opener is outside our root asks the host side to return focus', async () => {

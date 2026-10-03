@@ -7,7 +7,7 @@
 // Side panels (fan panel, Coach) do not hold focus; Esc closes them.
 
 import { type ComponentChildren, type JSX, type TargetedKeyboardEvent } from 'preact';
-import { useLayoutEffect, useRef } from 'preact/hooks';
+import { useId, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { type ConfirmDialogRequest } from '@cg/contracts/vm';
 
@@ -31,6 +31,10 @@ export interface DialogProps {
   readonly scrim?: boolean;
   /** What gets focus on open; else the first tabbable, else the dialog itself. */
   readonly initialFocus?: () => HTMLElement | null;
+  /** `alertdialog`: a confirmation of something that cannot be undone, read out with its text at once. */
+  readonly alert?: boolean;
+  /** The id of the text that describes the dialog (`aria-describedby`). */
+  readonly describedBy?: string;
   readonly class?: string;
   readonly children?: ComponentChildren;
 }
@@ -94,9 +98,10 @@ export function Dialog(props: DialogProps): JSX.Element | null {
       <div
         ref={boxRef}
         class={`cg-dialog cg-dialog--${size}${props.class === undefined ? '' : ` ${props.class}`}`}
-        role="dialog"
+        role={props.alert === true ? 'alertdialog' : 'dialog'}
         aria-modal="true"
         aria-label={props.label}
+        {...(props.describedBy === undefined ? {} : { 'aria-describedby': props.describedBy })}
         tabIndex={-1}
         style={style}
         onKeyDown={onKeyDown}
@@ -138,7 +143,13 @@ export function SidePanel(props: SidePanelProps): JSX.Element {
   );
 }
 
-/** The modal confirmation behind DialogPort.confirm («Очистить локальные данные», «Новый диалог»). */
+/**
+ * The modal confirmation behind DialogPort.confirm («Очистить локальные
+ * данные», «Новый диалог»). `tone` without a new colour (ui-design §1 п. 4):
+ * a normal one opens on its confirm button, so Enter goes on; a destructive
+ * one is an `alertdialog` read out with its text, opens on «Отмена», and its
+ * confirm button is set in `ink-strong` 600.
+ */
 export function ConfirmDialog({
   request,
   onAnswer,
@@ -148,15 +159,36 @@ export function ConfirmDialog({
 }): JSX.Element | null {
   const i18n = useI18n();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const bodyId = `cg-confirm-${useId()}`;
   if (request === null) return null;
+  const destructive = request.tone === 'destructive';
   return (
-    <Dialog open label={i18n.text(request.title)} onClose={() => onAnswer('cancel')} size="center" initialFocus={() => cancelRef.current}>
-      <div class="cg-confirm-dlg">
+    <Dialog
+      open
+      label={i18n.text(request.title)}
+      onClose={() => onAnswer('cancel')}
+      size="center"
+      alert={destructive}
+      {...(request.body === null ? {} : { describedBy: bodyId })}
+      initialFocus={() => (destructive ? cancelRef.current : confirmRef.current)}
+    >
+      <div class="cg-confirm-dlg" data-cg-tone={request.tone}>
         <h2 class="cg-confirm-dlg__title">{i18n.text(request.title)}</h2>
-        {request.body === null ? null : <p class="cg-confirm-dlg__body">{i18n.text(request.body)}</p>}
+        {request.body === null ? null : (
+          <p class="cg-confirm-dlg__body" id={bodyId}>
+            {i18n.text(request.body)}
+          </p>
+        )}
         <div class="cg-confirm-dlg__acts">
           <Button label={i18n.text(request.cancel)} variant="quiet" buttonRef={cancelRef} onClick={() => onAnswer('cancel')} />
-          <Button label={i18n.text(request.confirm)} variant="line" onClick={() => onAnswer('confirm')} />
+          <Button
+            label={i18n.text(request.confirm)}
+            variant="line"
+            class={destructive ? 'cg-confirm-dlg__go is-destructive' : 'cg-confirm-dlg__go'}
+            buttonRef={confirmRef}
+            onClick={() => onAnswer('confirm')}
+          />
         </div>
       </div>
     </Dialog>
@@ -190,5 +222,6 @@ export const DIALOG_CSS = `
 .cg-confirm-dlg__title { margin: 0 0 4px; font-size: var(--cg-text-xl); line-height: 22px; font-weight: 600; color: var(--cg-ink-strong); }
 .cg-confirm-dlg__body { margin: 0; color: var(--cg-ink-2); }
 .cg-confirm-dlg__acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px; }
+.cg-confirm-dlg__go.is-destructive { color: var(--cg-ink-strong); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .cg-dialog { animation: none; } }
 `;
