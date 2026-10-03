@@ -1,13 +1,15 @@
 // Sign-in custody (architecture.md §8.2, §14; parity AU-*, HB-001, HB-004)
 // against the fake hub's sign-in scenario, in-memory fetch and storage.
 
+import { getEventListeners } from 'node:events';
+
 import { STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode } from '@cg/contracts';
 import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, WORLD, at, streamBody } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { errorWireOf, sdkStreamTransport, type HubStatus } from '../src/index';
 import { MemoryStore, hubError, json, testEnv } from './support/fake-hub';
-import { flush, makeHarness, signIn, type Harness } from './support/harness';
+import { flush, makeHarness, signIn, until, type Harness } from './support/harness';
 import { okBody, scenarioNamed, signInWorld } from './support/world';
 
 const SIGN_IN = scenarioNamed(HTTP_SCENARIOS, 'sign-in-and-bootstrap-all-off');
@@ -443,5 +445,27 @@ describe('every sign-in change bumps the epoch and is announced', () => {
       ['sign-out', 2, null],
       ['sign-in', 3, 3],
     ]);
+  });
+});
+
+describe('[AU-009] calls link to the epoch signal without piling listeners on it', () => {
+  it('[AU-009] fifty finished calls leave the epoch signal with the listeners it started with; a cancel still reaches a running one', async () => {
+    await signIn(h, WORLD_PILOT);
+    h.hub.on('clientBootstrap', () => json(200, BOOTSTRAP_PILOT_ON));
+    const epoch = h.facade.epochSignal();
+    // The sign-in's own catalog read settles first.
+    await h.facade.catalog();
+    await flush(20);
+    expect(getEventListeners(epoch, 'abort')).toHaveLength(0);
+    for (let i = 0; i < 50; i += 1) await h.facade.bootstrap({ force: true });
+    expect(getEventListeners(epoch, 'abort')).toHaveLength(0);
+    h.hub.on('clientBootstrap', () => 'hang');
+    const asked = h.hub.of('clientBootstrap').length;
+    const running = h.facade.bootstrap({ force: true }).catch((error: unknown) => error);
+    await until(() => h.hub.of('clientBootstrap').length === asked + 1);
+    expect(getEventListeners(epoch, 'abort')).toHaveLength(1);
+    await h.facade.signOut();
+    expect(isHubCallError(await running)).toBe(true);
+    expect(h.hub.of('clientBootstrap').at(-1)?.signal?.aborted).toBe(true);
   });
 });

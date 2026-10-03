@@ -29,17 +29,34 @@ export interface CallScope {
   dispose(): void;
 }
 
-/** One AbortSignal for a call: any parent aborts it, and so does the deadline. */
+/**
+ * Listens for `abort` on a signal; the returned function stops listening.
+ * A real AbortSignal gets its listener removed, so a long-lived parent (the
+ * sign-in epoch's signal, a tab's signal) does not collect one listener per
+ * call. A signal without `removeEventListener` (contracts carry no DOM types)
+ * keeps it until it fires.
+ */
+export function onAbort(signal: AbortSignalLike, listener: () => void): () => void {
+  signal.addEventListener('abort', listener, { once: true });
+  return () => {
+    if ('removeEventListener' in signal && typeof signal.removeEventListener === 'function') {
+      (signal.removeEventListener as (type: 'abort', listener: () => void) => void).call(signal, 'abort', listener);
+    }
+  };
+}
+
+/** One AbortSignal for a call: any parent aborts it, and so does the deadline. `dispose` detaches it from the parents. */
 export function callScope(clock: HubClock, parents: readonly (AbortSignalLike | undefined)[], timeoutMs: number | null): CallScope {
   const controller = new AbortController();
   let timedOut = false;
   const abort = () => controller.abort();
+  const detach: (() => void)[] = [];
   for (const parent of parents) {
     if (parent === undefined) continue;
     if (parent.aborted) controller.abort();
-    else parent.addEventListener('abort', abort, { once: true });
+    else detach.push(onAbort(parent, abort));
   }
-  const timer =
+  let timer =
     timeoutMs === null
       ? null
       : clock.setTimeout(() => {
@@ -52,6 +69,8 @@ export function callScope(clock: HubClock, parents: readonly (AbortSignalLike | 
     abort: () => controller.abort(),
     dispose: () => {
       if (timer !== null) clock.clearTimeout(timer);
+      timer = null;
+      for (const stop of detach.splice(0)) stop();
     },
   };
 }
