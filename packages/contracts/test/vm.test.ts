@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, STATS_ATTENTION_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { CLAIM_RENEW_SAMPLES, MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, STATS_ATTENTION_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -281,5 +281,19 @@ describe('the statistics\' attention block (1.2.0)', () => {
     expect(unknown?.awaitingUnknown?.count).toBeNull();
     expect(unknown?.silentOver21.lifetime).toBeNull();
     expect(STATS_ATTENTION_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('a lease whose renewal failed (1.2.0)', () => {
+  it('[NF-021] the card of a lease of ours may carry the error of its last renewal; the lease itself is unchanged', () => {
+    type Mine = Extract<C.ClaimVM, { s: 'mine' }>;
+    expectTypeOf<Mine['renewError']>().toEqualTypeOf<C.CgErrorView | undefined>();
+    const [plain, failed] = CLAIM_RENEW_SAMPLES.valid;
+    expect(plain?.s === 'mine' && plain.renewError).toBeUndefined();
+    expect(failed?.s === 'mine' && failed.renewError?.code).toBe('CG-HUB-TIMEOUT');
+    expect(failed?.s === 'mine' && C.CgErrorViewSchema.safeParse(failed.renewError).success).toBe(true);
+    // The deadline and the buttons are the lease's own, with or without the error.
+    expect(failed).toMatchObject({ s: 'mine', until: 1_790_000_119_000, renew: { action: { type: 'RenewClaim' } }, release: { action: { type: 'ReleaseClaim' } } });
+    expect(CLAIM_RENEW_SAMPLES.invalid).toHaveLength(1);
   });
 });

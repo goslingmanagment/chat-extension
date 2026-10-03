@@ -243,6 +243,25 @@ export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStats
 };
 
 /**
+ * A lease of ours whose last renewal failed (1.2.0, NF-021): the card may
+ * say so while the lease still runs. Optional: without it the card is as before.
+ */
+const CLAIM_MINE: Extract<C.ClaimVM, { s: 'mine' }> = {
+  s: 'mine',
+  until: 1_790_000_119_000,
+  renew: { label: { key: 'newcomers.claim.renew' }, action: { type: 'RenewClaim', targetHandle: 'newcomers:11:2010' }, enabled: true, reason: null, hotkey: null },
+  release: { label: { key: 'newcomers.claim.release' }, action: { type: 'ReleaseClaim', targetHandle: 'newcomers:11:2010' }, enabled: true, reason: null, hotkey: null },
+};
+const RENEW_ERROR: C.CgErrorView = { code: 'CG-HUB-TIMEOUT', title: 'Хаб не ответил', body: 'Повторите позже.' };
+export const CLAIM_RENEW_SAMPLES: { readonly valid: readonly C.ClaimVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [CLAIM_MINE, { ...CLAIM_MINE, renewError: RENEW_ERROR }],
+  invalid: [
+    // @ts-expect-error the failed renewal is an error view with its code, not a flag
+    { ...CLAIM_MINE, renewError: true } satisfies C.ClaimVM,
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */
