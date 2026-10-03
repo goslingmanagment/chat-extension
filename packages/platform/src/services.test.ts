@@ -5,7 +5,6 @@ import { clientOsOf, majorVersionOf, readClientEnv } from './env';
 import { createConsent, createHostPermissions, originPermission, TECHNICAL_CONSENT } from './permissions';
 import { extensionId, extensionUrl, isExtensionContextAlive } from './runtime';
 import { mainScriptRegistration, syncDynamicMainScript } from './scripting';
-import { connectTabPort, onTabPortConnect } from './messaging';
 import { TAB_MATCHES, createFakeBrowser, flush, pageSender, tabSender } from './test-support/fake-browser';
 
 const HUB = 'https://hub.example.test';
@@ -167,36 +166,5 @@ describe('[EX-018] Firefox specifics', () => {
     expect(isExtensionContextAlive(tab.api)).toBe(false);
     // No real `browser` in this process: the default reads as "not alive".
     expect(isExtensionContextAlive()).toBe(false);
-  });
-
-  it('keeps the R00 raw port plumbing: top-frame cg-tab ports only', async () => {
-    const fake = createFakeBrowser();
-    const background = fake.startBackground();
-    const seen: unknown[] = [];
-    onTabPortConnect((port) => {
-      expect(port.tabId).toBe(7);
-      port.onMessage((message) => {
-        seen.push(message);
-        port.post({ t: 'status' });
-      });
-      port.onDisconnect(() => seen.push('gone'));
-    }, background.api);
-    const client = connectTabPort(fake.context(tabSender(fake)).api);
-    const replies: unknown[] = [];
-    client.onMessage((message) => replies.push(message));
-    client.post({ t: 'hello', v: 1 });
-    await flush();
-    expect(seen).toEqual([{ t: 'hello', v: 1 }]);
-    expect(replies).toEqual([{ t: 'status' }]);
-    const closed: string[] = [];
-    const sub = connectTabPort(fake.context(tabSender(fake, { frameId: 2 })).api);
-    sub.onDisconnect(() => closed.push('sub'));
-    const other = fake.context(tabSender(fake)).api.runtime.connect({ name: 'other' });
-    other.onDisconnect.addListener(() => closed.push('other'));
-    await flush();
-    expect(closed).toEqual(['sub']);
-    client.close();
-    await flush();
-    expect(seen).toEqual([{ t: 'hello', v: 1 }, 'gone']);
   });
 });

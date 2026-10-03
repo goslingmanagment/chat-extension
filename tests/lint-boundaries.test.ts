@@ -26,7 +26,7 @@ describe('ESLint package graph (§4)', () => {
     ['core imports platform', 'packages/core/src/domain/bad.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
     ['core calls fetch', 'packages/core/src/services/bad.ts', "export const x = () => fetch('/x');", ['no-restricted-globals']],
     ['core touches window.localStorage', 'packages/core/src/application/bad.ts', "export const x = () => window.localStorage;", ['no-restricted-properties']],
-    ['ui imports platform', 'packages/ui/src/bad.tsx', "import { connectTabPort } from '@cg/platform';\nexport const x = connectTabPort;", ['no-restricted-imports']],
+    ['ui imports platform', 'packages/ui/src/bad.tsx', "import { createTabRpcClient } from '@cg/platform';\nexport const x = createTabRpcClient;", ['no-restricted-imports']],
     ['core imports the light platform entry', 'packages/core/src/domain/bad.ts', "import { extensionUrl } from '@cg/platform/runtime';\nexport const x = extensionUrl;", ['no-restricted-imports']],
     ['ui opens a WebSocket', 'packages/ui/src/bad.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
     ['ui uses preact/compat', 'packages/ui/src/bad.ts', "import { forwardRef } from 'preact/compat';\nexport const x = forwardRef;", ['no-restricted-imports']],

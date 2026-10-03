@@ -14,7 +14,6 @@
 export { defaultBrowser, type BrowserApi, type MessageSenderApi, type PortApi } from './browser-api';
 export { createExtensionPages, type ExtensionPagesPort, type OpenPageResult, type TabExtensionPage } from './pages';
 export { extensionUrl, extensionId, isExtensionContextAlive } from './runtime';
-export { connectTabPort, onTabPortConnect, type TabPortClient, type TabPortServerSide } from './messaging';
 export { syncDynamicMainScript, mainScriptRegistration, type DynamicMainScriptSpec, type DynamicScriptSync } from './scripting';
 export {
   createKeyValueStore,
