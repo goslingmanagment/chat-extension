@@ -89,6 +89,12 @@ export const HubOriginSchema = z.string().check(z.maxLength(256), z.regex(HUB_OR
 export const TIME_ZONE_PATTERN = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+){0,2}$/;
 export const TimeZoneSchema = z.string().check(z.maxLength(64), z.regex(TIME_ZONE_PATTERN));
 
+/** Persona key of the hub catalog (`aiPersonaCatalog.key`, body `personaKey`): 1–120. */
+export const PersonaKeySchema = z.string().check(z.minLength(1), z.maxLength(120));
+
+/** Persona definition identity (`definitionId`, opaque, 16–100 as the hub has it). Compared, never parsed. */
+export const PersonaDefinitionIdSchema = z.string().check(z.minLength(16), z.maxLength(100));
+
 /** Display-only text from the host or the hub (names, handles, labels). */
 export const displayText = (max: number) => z.string().check(z.maxLength(max));
 /** Non-empty bounded text. */

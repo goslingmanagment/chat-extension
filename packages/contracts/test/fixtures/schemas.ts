@@ -235,8 +235,8 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'GenerationIdentity',
     C.GenerationIdentitySchema,
-    [{ target, feature: 'reply', personaKey: 'lora', personaDefinitionId: 'def-1', operationId: uuid(2), clientRequestId: uuid(2), tabSessionId: uuid(4), requestDigest: DIGEST }],
-    [{ target, feature: 'help', personaKey: 'lora', personaDefinitionId: 'def-1', operationId: uuid(2), clientRequestId: uuid(2), tabSessionId: uuid(4), requestDigest: DIGEST }],
+    [{ target, feature: 'reply', personaKey: 'lora', personaDefinitionId: 'pdef_0123456789abcdef', operationId: uuid(2), clientRequestId: uuid(2), tabSessionId: uuid(4), requestDigest: DIGEST }],
+    [{ target, feature: 'help', personaKey: 'lora', personaDefinitionId: 'pdef_0123456789abcdef', operationId: uuid(2), clientRequestId: uuid(2), tabSessionId: uuid(4), requestDigest: DIGEST }],
   ),
   fixture('HostIdentity', C.HostIdentitySchema, [hostIdentity, { ...hostIdentity, chat: null, composerInstanceId: null }], [{ ...hostIdentity, routeEpoch: -1 }]),
   fixture('DraftProvenance', C.DraftProvenanceSchema, ['our-insert'], ['ours']),
@@ -263,7 +263,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   // ── settings ──
   fixture('SettingsSection', C.SettingsSectionSchema, ['status', 'diagnostics'], ['advanced']),
   fixture('ToneId', C.ToneIdSchema, ['chime', 'blip'], ['beep']),
-  fixture('PersonaAssignment', C.PersonaAssignmentSchema, [{ key: 'lora', definitionId: 'def-1' }], [{ key: '', definitionId: 'def-1' }]),
+  fixture('PersonaAssignment', C.PersonaAssignmentSchema, [{ key: 'lora', definitionId: 'pdef_0123456789abcdef' }], [{ key: '', definitionId: 'pdef_0123456789abcdef' }]),
   fixture(
     'SettingsV1',
     C.SettingsV1Schema,
@@ -273,7 +273,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...C.DEFAULT_SETTINGS, sound: { ...C.DEFAULT_SETTINGS.sound, volume: 7 } },
       { ...C.DEFAULT_SETTINGS, generation: { ...C.DEFAULT_SETTINGS.generation, windows: { quick: 100, ping: 100, improve: 25, deep: 3001 } } },
       { ...C.DEFAULT_SETTINGS, accounts: { labels: { [IDS.acc]: repeat('x', 61) } } },
-      { ...C.DEFAULT_SETTINGS, personas: { byPageId: { '0': { key: 'lora', definitionId: 'def-1' } } } },
+      { ...C.DEFAULT_SETTINGS, personas: { byPageId: { '0': { key: 'lora', definitionId: 'pdef_0123456789abcdef' } } } },
       { ...C.DEFAULT_SETTINGS, extra: true },
     ],
   ),
@@ -424,7 +424,13 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   // ── operations ──
   fixture('OpState', C.OpStateSchema, ['interrupted'], ['queued']),
   fixture('Phase', C.PhaseSchema, [{ name: 'awaiting-meta', since: T0 }, { name: 'retry-wait', since: T0, retryAt: T0 + 5000 }], [{ name: 'waiting', since: T0 }]),
-  fixture('CoachTurn', C.CoachTurnSchema, [{ question: 'What next?', answer: 'Ask about her day.' }], [{ question: '', answer: 'x' }]),
+  fixture(
+    'CoachTurn',
+    C.CoachTurnSchema,
+    [{ question: 'What next?', answer: 'Ask about her day.' }, { question: repeat('q', 2000), answer: 'x' }],
+    // The hub's coachHistory[].question stops at 2000 characters (AI-082).
+    [{ question: '', answer: 'x' }, { question: repeat('q', 2001), answer: 'x' }],
+  ),
   fixture('OpDraft', C.OpDraftSchema, [{ text: 'my draft', revision: 4, digest: DIGEST }], [{ text: '', revision: 4, digest: DIGEST }]),
   fixture(
     'StartOp',
@@ -450,6 +456,10 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { feature: 'fix', surface: 'dock', target, cause, tone: null, split: false, window: 25 },
       { ...startReply, fresh: undefined, variantCount: 3 },
       { ...startReply, window: 0 },
+      // The hub body's messageCount starts at 5; a valid StartOp must be a valid hub request.
+      { ...startReply, window: 4 },
+      { ...startReply, window: 3001 },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: repeat('q', 2001), history: [] } },
       { ...startReply, fresh: undefined, checkpoint },
       { feature: 'ping', surface: 'dock', target, cause, tone: 'casual', split: false, window: 100 },
     ],

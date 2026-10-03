@@ -6,6 +6,7 @@
 import * as z from 'zod/mini';
 
 import { FeatureIdSchema } from './features';
+import { PART_LIMITS } from './limits';
 import {
   ActionTokenSchema,
   CountSchema,
@@ -15,6 +16,8 @@ import {
   HubOriginSchema,
   NATIVE_ID_PATTERN,
   NativeIdSchema,
+  PersonaDefinitionIdSchema,
+  PersonaKeySchema,
   UuidSchema,
   boundedText,
   displayText,
@@ -129,8 +132,8 @@ export type Target = z.infer<typeof TargetSchema>;
 export const GenerationIdentitySchema = z.strictObject({
   target: TargetSchema,
   feature: FeatureIdSchema,
-  personaKey: boundedText(64),
-  personaDefinitionId: boundedText(128),
+  personaKey: PersonaKeySchema,
+  personaDefinitionId: PersonaDefinitionIdSchema,
   operationId: UuidSchema,
   /** Equals operationId (hub `clientRequestId = opId`, §8.4). */
   clientRequestId: UuidSchema,
@@ -179,11 +182,7 @@ export const HumanCauseSchema = z.strictObject({
 });
 export type HumanCause = z.infer<typeof HumanCauseSchema>;
 
-/**
- * One part of one result: `variant` for Hi (up to 3 variants), `index` for
- * Split parts (up to 10). Same bounds as the hub's claim group (H-7).
- */
-export const PART_LIMITS = { maxVariants: 3, maxParts: 10 } as const;
+/** One part of one result: `variant` for Hi (PART_LIMITS), `index` for Split parts. */
 export const PartRefSchema = z.strictObject({
   variant: z.optional(z.int().check(z.gte(0), z.lte(PART_LIMITS.maxVariants - 1))),
   index: z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1)),

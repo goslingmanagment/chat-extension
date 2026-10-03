@@ -9,7 +9,7 @@ import { CgCodeSchema, CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, HumanCauseSchema } from './ids';
-import { DEBUG_LIMITS, LOG_LIMITS, STORAGE_LIMITS } from './limits';
+import { DEBUG_LIMITS, LOG_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
 import {
@@ -22,6 +22,8 @@ import {
   IsoTimestampSchema,
   NativeIdSchema,
   OpenTokenSchema,
+  PersonaDefinitionIdSchema,
+  PersonaKeySchema,
   TimeZoneSchema,
   UuidSchema,
   boundedText,
@@ -175,7 +177,7 @@ export const TAB_REQUESTS = {
   'session.get': { req: Empty, res: z.strictObject({ session: z.nullable(SessionIdentitySchema) }), from: ANY },
   /** The password goes page → background once and is never logged or stored. */
   'session.signIn': {
-    req: z.strictObject({ login: boundedText(128), password: boundedText(256) }),
+    req: z.strictObject({ login: boundedText(SIGN_IN_LIMITS.loginMaxChars), password: boundedText(SIGN_IN_LIMITS.passwordMaxChars) }),
     res: z.strictObject({ session: SessionIdentitySchema }),
     from: PAGE,
     pages: ['options', 'popup'],
@@ -187,7 +189,7 @@ export const TAB_REQUESTS = {
   'binding.resolve': { req: z.strictObject({ account: HostAccountSchema }), res: z.strictObject({ binding: HubBindingSchema }), from: ANY },
   'catalog.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: PersonaCatalogSchema, from: ANY },
   'persona.set': {
-    req: z.strictObject({ pageId: HubIntIdSchema, key: boundedText(64), definitionId: boundedText(128) }),
+    req: z.strictObject({ pageId: HubIntIdSchema, key: PersonaKeySchema, definitionId: PersonaDefinitionIdSchema }),
     res: z.strictObject({ revision: CountSchema }),
     from: ANY,
   },
@@ -195,9 +197,10 @@ export const TAB_REQUESTS = {
   // ── operations ──
   'op.start': { req: StartOpSchema, res: AdmissionSchema, from: TAB },
   'op.cancel': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ state: OpStateSchema }), from: ANY },
+  /** `tab`: this tab's results (≤ resultsPerTab); `all`: newest first across tabs, at most opListMax. */
   'op.list': {
     req: z.strictObject({ scope: z.enum(['tab', 'all']), chatKey: z.optional(ChatKeySchema) }),
-    res: z.strictObject({ ops: z.array(OpViewSchema).check(z.maxLength(STORAGE_LIMITS.resultsPerTab)) }),
+    res: z.strictObject({ ops: z.array(OpViewSchema).check(z.maxLength(STORAGE_LIMITS.opListMax)), truncated: z.boolean() }),
     from: ANY,
   },
   /** The result was really visible (telemetry `shown`). */
@@ -242,8 +245,8 @@ export const TAB_REQUESTS = {
   },
 
   // ── recaps ──
-  'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), res: RecapStatusSchema, from: ANY },
-  'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: boundedText(128) }), res: SharedRecapsSchema, from: ANY },
+  'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: RecapStatusSchema, from: ANY },
+  'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: SharedRecapsSchema, from: ANY },
 
   // ── hub data ──
   /** The whole board up to 1000 rows; the background pages through the hub (§8.5). */

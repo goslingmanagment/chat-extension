@@ -105,7 +105,17 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
     'UserOptions',
     C.UserOptionsSchema,
     [{}, { tone: 'flirty', split: true }, { tone: null }, { variants: 3 }, { window: 3000 }, { question: 'Что ему предложить?', attachMyDraft: true, preset: 'situation' }],
-    [{ persona: 'lora' }, { model: 'claude-sonnet' }, { providerUrl: 'https://x.test' }, { variants: 2 }, { window: 0 }, { question: '' }, { tone: 'rude' }],
+    [
+      { persona: 'lora' },
+      { model: 'claude-sonnet' },
+      { providerUrl: 'https://x.test' },
+      { variants: 2 },
+      { window: 0 },
+      { window: 4 },
+      { question: '' },
+      { question: 'q'.repeat(2001) },
+      { tone: 'rude' },
+    ],
   ),
   fixture(
     'NavigationTarget',

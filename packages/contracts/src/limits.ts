@@ -2,6 +2,13 @@
 // §9.6, §6.7). Every world reads the same numbers; the MAIN bridge repeats the
 // ones it needs as literals and its tests pin them to these. Limits that the
 // hub hands out at run time (bootstrap `limits`) are not here.
+//
+// Plain data only, no schema constructors: a bundle that needs a number pays
+// for the number, not for the schema module next to it (zod/mini builders are
+// not pure-annotated, so importing a constant from a schema module keeps the
+// whole module).
+
+import { type FeatureId } from './features';
 
 const KiB = 1024;
 const MiB = 1024 * KiB;
@@ -48,6 +55,8 @@ export const OP_LIMITS = {
 /** Storage caps (§9.4 «Пределы хранилищ»). */
 export const STORAGE_LIMITS = {
   resultsPerTab: 24,
+  /** `op.list` with scope `all`: the newest across tabs, the rest cut and flagged `truncated`. */
+  opListMax: 200,
   resultsTotalBytes: 4 * MiB,
   coachSessions: 5,
   coachExchangesPerSession: 50,
@@ -128,3 +137,68 @@ export const DEBUG_LIMITS = {
   promptBlockMaxChars: 500_000,
   promptManifestMaxChars: 100_000,
 } as const;
+
+/**
+ * Bounds of the hub's AI stream body (`aiFeatureStreamBodySchema`, vendored
+ * SDK) that our own boundaries repeat, so that a StartOp or a UserOptions the
+ * schemas accept is a body the hub accepts too (§8.4).
+ */
+export const AI_REQUEST_LIMITS = {
+  /** `messageCount` (Б5). */
+  messageCountMin: 5,
+  messageCountMax: 3000,
+  /** `personaKey` and the catalog's `key`. */
+  personaKeyMaxChars: 120,
+  /** `draftText`: Fix's source, Coach's attached draft. */
+  draftMaxChars: 20_000,
+} as const;
+
+/** Sign-in fields as the hub's device-token route takes them (`authIssueDeviceTokenWithPassword`). */
+export const SIGN_IN_LIMITS = { loginMaxChars: 100, passwordMaxChars: 1024 } as const;
+
+/** Coach (AI-080…AI-100). Question and history bounds are the hub body's (`chatterQuestion`, `coachHistory`). */
+export const COACH_LIMITS = {
+  /** AI-082 «до 2000 символов»; hub `chatterQuestion` and `coachHistory[].question`. */
+  questionMaxChars: 2000,
+  /** Hub COACH_ANSWER_MAX_CHARS. */
+  answerMaxChars: 64_000,
+  historyMaxTurns: 20,
+  draftMaxChars: 1500,
+  draftsMax: 2,
+} as const;
+
+/**
+ * One part of one result: `variant` for Hi (up to 3 variants), `index` for
+ * Split parts (up to 10). Same bounds as the hub's claim group (H-7).
+ */
+export const PART_LIMITS = { maxVariants: 3, maxParts: 10 } as const;
+
+/** Hub limits for fresh text (H-4c `AI_LIVE_TEXT_MAX_ITEMS` / `_MAX_CHARS`). */
+export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
+
+/** Starting timeouts per feature, ms (§7 «Тайм-ауты»); refined by lab measurements. */
+export interface OpTimeouts {
+  /** From the request until the `meta` frame. */
+  readonly untilMetaMs: number;
+  /** From `meta` until the first output chunk. */
+  readonly firstChunkAfterMetaMs: number;
+  /** Longest silence between frames. */
+  readonly silenceMs: number;
+  /** Whole operation. */
+  readonly maxMs: number;
+}
+
+const s = (seconds: number): number => seconds * SECOND;
+const QUICK: OpTimeouts = { untilMetaMs: s(30), firstChunkAfterMetaMs: s(30), silenceMs: s(30), maxMs: s(60) };
+const DEEP: OpTimeouts = { untilMetaMs: s(180), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(300) };
+
+export const OP_TIMEOUTS: Readonly<Record<FeatureId, OpTimeouts>> = {
+  reply: QUICK,
+  fix: QUICK,
+  hi: QUICK,
+  ping: QUICK,
+  'recap-short': { untilMetaMs: s(60), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(120) },
+  review: DEEP,
+  recap: DEEP,
+  coach: { untilMetaMs: s(60), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(180) },
+};

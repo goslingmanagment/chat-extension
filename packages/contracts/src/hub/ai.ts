@@ -7,14 +7,24 @@
 import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
-import { LIVE_TEXT_LIMITS } from '../host';
-import { CountSchema, IsoTimestampSchema, MicroUsdSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText } from '../primitives';
-import { AI_STREAM_CAPABILITIES, AiStreamCapabilitySchema, PageLabelSchema, PersonaDefinitionIdSchema } from './wire';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS } from '../limits';
+import {
+  CountSchema,
+  IsoTimestampSchema,
+  MicroUsdSchema,
+  NativeIdSchema,
+  OpenTokenSchema,
+  PersonaDefinitionIdSchema,
+  PersonaKeySchema,
+  UuidSchema,
+  boundedText,
+} from '../primitives';
+import { AI_STREAM_CAPABILITIES, AiStreamCapabilitySchema, PageLabelSchema } from './wire';
 
 // ── Persona catalog (`aiPersonaCatalog`: metadata only, never prompt text) ──
 
 export const PersonaCatalogItemSchema = z.object({
-  key: boundedText(120),
+  key: PersonaKeySchema,
   displayName: boundedText(120),
   version: z.int().check(z.gte(1)),
   definitionId: PersonaDefinitionIdSchema,
@@ -72,8 +82,8 @@ export const SPLIT_MARKERS = { next: '[NEXT]', variant: '[VARIANT]' } as const;
 
 // ── Request body (`aiFeatureStreamBodySchema` + H-4b/H-4c) ─────────────────
 
-export const AI_MESSAGE_COUNT = { min: 5, max: 3000 } as const;
-export const COACH_ANSWER_MAX_CHARS = 64_000;
+export const AI_MESSAGE_COUNT = { min: AI_REQUEST_LIMITS.messageCountMin, max: AI_REQUEST_LIMITS.messageCountMax } as const;
+export const COACH_ANSWER_MAX_CHARS = COACH_LIMITS.answerMaxChars;
 /** `none` = persona only (the hub's own word); the rest are the client's tones. */
 export const HUB_REPLY_TONES = ['none', ...TONES] as const;
 
@@ -105,18 +115,18 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   platform: z.enum(['fansly', 'onlyfans']),
   conversationRef: NativeIdSchema,
   fanRef: z.optional(z.nullable(NativeIdSchema)),
-  personaKey: z.optional(z.nullable(boundedText(120))),
+  personaKey: z.optional(z.nullable(PersonaKeySchema)),
   expectedPersonaDefinitionId: z.optional(PersonaDefinitionIdSchema),
   replyTone: z.optional(z.enum(HUB_REPLY_TONES)),
   replyMode: z.optional(z.enum(['default', 'preferSplit'])),
   messageCount: z.optional(z.int().check(z.gte(AI_MESSAGE_COUNT.min), z.lte(AI_MESSAGE_COUNT.max))),
-  draftText: z.optional(boundedText(20_000)),
+  draftText: z.optional(boundedText(AI_REQUEST_LIMITS.draftMaxChars)),
   isRegeneration: z.optional(z.boolean()),
-  chatterQuestion: z.optional(boundedText(2000)),
+  chatterQuestion: z.optional(boundedText(COACH_LIMITS.questionMaxChars)),
   coachHistory: z.optional(
     z
-      .array(z.strictObject({ question: boundedText(2000), answer: boundedText(COACH_ANSWER_MAX_CHARS) }))
-      .check(z.maxLength(20)),
+      .array(z.strictObject({ question: boundedText(COACH_LIMITS.questionMaxChars), answer: boundedText(COACH_ANSWER_MAX_CHARS) }))
+      .check(z.maxLength(COACH_LIMITS.historyMaxTurns)),
   ),
   preset: z.optional(z.literal('situation')),
   summaryMode: z.optional(z.literal('short')),

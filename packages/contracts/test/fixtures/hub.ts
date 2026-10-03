@@ -508,7 +508,8 @@ export const HUB_SCHEMA_FIXTURES = [
   fixture('PageParams', C.PageParamsSchema, [{ pageLabel: PAGE }], [{ pageLabel: PAGE, fanRef: IDS.fan }]),
   fixture('PageFanParams', C.PageFanParamsSchema, [{ pageLabel: PAGE, fanRef: IDS.fan }], [{ pageLabel: PAGE, fanRef: 'fan_two' }]),
   fixture('HubCursor', C.HubCursorSchema, ['cur-1'], ['', 'c'.repeat(2049)]),
-  fixture('PersonaDefinitionId', C.PersonaDefinitionIdSchema, [PDEF], ['too-short']),
+  fixture('PersonaDefinitionId', C.PersonaDefinitionIdSchema, [PDEF], ['too-short', 'd'.repeat(101)]),
+  fixture('PersonaKey', C.PersonaKeySchema, ['default', 'k'.repeat(120)], ['', 'k'.repeat(121)]),
   fixture(
     'HubErrorBody',
     C.HubErrorBodySchema,

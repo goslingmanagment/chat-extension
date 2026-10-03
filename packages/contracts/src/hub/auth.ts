@@ -7,6 +7,7 @@
 import * as z from 'zod/mini';
 
 import { KNOWN_PLATFORMS, KNOWN_ROLES } from '../ids';
+import { SIGN_IN_LIMITS } from '../limits';
 import { HubIntIdSchema, IsoTimestampSchema, boundedText } from '../primitives';
 
 /** The client name a narrow token is issued for (H-3); the hub echoes it back. */
@@ -22,8 +23,8 @@ export const DEVICE_TOKEN_ISSUE_MODES = ['active', 'pending'] as const;
  */
 export const DeviceTokenIssueRequestSchema = z
   .strictObject({
-    username: boundedText(100),
-    password: boundedText(1024),
+    username: boundedText(SIGN_IN_LIMITS.loginMaxChars),
+    password: boundedText(SIGN_IN_LIMITS.passwordMaxChars),
     /** «Firefox · OS · ChatSpace» (§8.2). */
     label: boundedText(120),
     mode: z.enum(DEVICE_TOKEN_ISSUE_MODES),

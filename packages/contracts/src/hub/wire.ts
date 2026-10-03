@@ -41,9 +41,6 @@ export const PageFanParamsSchema = z.strictObject({ pageLabel: PageLabelSchema, 
 /** Opaque signed cursor of the hub's client lists (feed, awaiting reply, audience-new). */
 export const HubCursorSchema = boundedText(2048);
 
-/** Persona definition identity (`definitionId`, opaque, 16–100). Compared, never parsed. */
-export const PersonaDefinitionIdSchema = z.string().check(z.minLength(16), z.maxLength(100));
-
 /** The hub's error body (`errorResponseSchema`): exactly code, message, status, plus the documented `reason`/`statusUrl`. */
 export const HubErrorBodySchema = z.object({
   error: z.string(),

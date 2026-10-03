@@ -9,11 +9,9 @@ import * as z from 'zod/mini';
 
 import { CgCodeSchema, SettingsRouteSchema } from '../errors';
 import { FeatureIdSchema, ToneSchema } from '../features';
-import { PART_LIMITS } from '../ids';
-import { COACH_LIMITS } from '../ops';
-import { UuidSchema, boundedText, displayText } from '../primitives';
+import { PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
 import { SettingsV1Schema } from '../settings';
-import { SEND_LIMITS } from '../limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { HandleSchema, JOURNAL_KINDS, MOUNT_SURFACES, OVERLAY_SURFACES, ViewSelectorSchema } from './selectors';
 
@@ -68,7 +66,7 @@ export type PreferenceValues = { readonly [K in PreferenceKey]: z.infer<(typeof 
 export const UserOptionsSchema = z.strictObject({
   tone: z.optional(z.nullable(ToneSchema)),
   split: z.optional(z.boolean()),
-  window: z.optional(z.int().check(z.gte(1), z.lte(3000))),
+  window: z.optional(z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax))),
   variants: z.optional(z.union([z.literal(1), z.literal(3)])),
   question: z.optional(boundedText(COACH_LIMITS.questionMaxChars)),
   preset: z.optional(z.literal('situation')),
@@ -214,9 +212,9 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   SetPreferenceActionSchema,
   act('SetAccountLabel', { accountHandle: HandleSchema, label: z.nullable(boundedText(60)) }),
   act('SetAccountMuted', { accountHandle: HandleSchema, muted: z.boolean() }),
-  act('ChoosePersona', { pageHandle: HandleSchema, personaKey: boundedText(64) }),
+  act('ChoosePersona', { pageHandle: HandleSchema, personaKey: PersonaKeySchema }),
   /** Only from the options page; the password goes to the background and is never stored. */
-  act('SignIn', { login: boundedText(128), password: boundedText(256) }),
+  act('SignIn', { login: boundedText(SIGN_IN_LIMITS.loginMaxChars), password: boundedText(SIGN_IN_LIMITS.passwordMaxChars) }),
   act('SignOut', {}),
   /** «Проверить всё» (not more often than every 10 s) and the popup's «Обновить статус». */
   act('RecheckStatus', {}),

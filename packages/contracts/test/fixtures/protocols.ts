@@ -75,7 +75,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: { valid: [{ session }, { session: null }], invalid: [{ session: { ...session, login: '' } }] },
   },
   'session.signIn': {
-    req: { valid: [{ login: 'chatter1', password: 'synthetic-pass' }], invalid: [{ login: 'chatter1', password: '' }] },
+    req: {
+      valid: [{ login: 'chatter1', password: 'synthetic-pass' }, { login: 'c'.repeat(100), password: 'p'.repeat(1024) }],
+      // The hub's device-token route takes a username of up to 100 and a password of up to 1024.
+      invalid: [{ login: 'chatter1', password: '' }, { login: 'c'.repeat(101), password: 'synthetic-pass' }, { login: 'chatter1', password: 'p'.repeat(1025) }],
+    },
     res: { valid: [{ session }], invalid: [{ session: null }] },
   },
   'session.signOut': {
@@ -95,7 +99,10 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: dto({ personas: [H.persona] }, { personas: [{ ...H.persona, definitionId: 'short' }] }),
   },
   'persona.set': {
-    req: { valid: [{ pageId: 11, key: 'lora', definitionId: 'def-1' }], invalid: [{ pageId: 11, key: 'lora' }] },
+    req: {
+      valid: [{ pageId: 11, key: 'lora', definitionId: 'pdef_0123456789abcdef' }, { pageId: 11, key: 'k'.repeat(120), definitionId: 'pdef_0123456789abcdef' }],
+      invalid: [{ pageId: 11, key: 'lora' }, { pageId: 11, key: 'k'.repeat(121), definitionId: 'pdef_0123456789abcdef' }, { pageId: 11, key: 'lora', definitionId: 'def-1' }],
+    },
     res: { valid: [{ revision: 4 }], invalid: [{ revision: -1 }] },
   },
   'op.start': {
@@ -108,7 +115,10 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'op.list': {
     req: { valid: [{ scope: 'all' }, { scope: 'tab', chatKey: 'chatspace:1001:2002' }], invalid: [{ scope: 'window' }] },
-    res: { valid: [{ ops: [opView] }, { ops: [] }], invalid: [{ ops: Array.from({ length: 25 }, () => opView) }] },
+    res: {
+      valid: [{ ops: [opView], truncated: false }, { ops: [], truncated: false }, { ops: Array.from({ length: 200 }, () => opView), truncated: true }],
+      invalid: [{ ops: [opView] }, { ops: Array.from({ length: 201 }, () => opView), truncated: true }],
+    },
   },
   'op.reportShown': {
     req: { valid: [{ opId: uuid(2) }, { opId: uuid(2), part: { index: 1 } }], invalid: [{ opId: uuid(2), part: { index: 12 } }] },
@@ -151,11 +161,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: ack,
   },
   'recap.status': {
-    req: { valid: [{ ...pageFan, personaDefinitionId: 'def-1' }], invalid: [pageFan] },
+    req: { valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }], invalid: [pageFan] },
     res: dto(H.recapStatus, { ...H.recapStatus, extra: 1 }),
   },
   'recap.read': {
-    req: { valid: [{ ...pageFan, personaDefinitionId: 'def-1' }], invalid: [{ ...pageFan, fanRef: 2002, personaDefinitionId: 'def-1' }] },
+    req: { valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }], invalid: [{ ...pageFan, fanRef: 2002, personaDefinitionId: 'pdef_0123456789abcdef' }] },
     res: dto(H.sharedRecaps, { ...H.sharedRecaps, fullSavedToProfile: 'no' }),
   },
   'spenders.board': {

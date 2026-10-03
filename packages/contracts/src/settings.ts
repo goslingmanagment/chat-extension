@@ -6,7 +6,7 @@
 import * as z from 'zod/mini';
 
 import { LOCALES } from './i18n/keys';
-import { NativeIdSchema, boundedText, displayText, HubOriginSchema, CountSchema } from './primitives';
+import { CountSchema, HubOriginSchema, NativeIdSchema, PersonaDefinitionIdSchema, PersonaKeySchema, boundedText, displayText } from './primitives';
 
 export const SETTINGS_SCHEMA_VERSION = 1;
 
@@ -52,8 +52,8 @@ const VolumeSchema = intIn(SETTINGS_RANGES.volume).check(
 
 /** Persona assignment of a page: a reference, never a prompt body (§8.2). */
 export const PersonaAssignmentSchema = z.strictObject({
-  key: boundedText(64),
-  definitionId: boundedText(128),
+  key: PersonaKeySchema,
+  definitionId: PersonaDefinitionIdSchema,
 });
 
 /** Hub pageId as a record key (JSON object keys are strings). */

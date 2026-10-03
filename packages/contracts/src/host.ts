@@ -21,7 +21,7 @@ import {
   type HostKind,
   type Platform,
 } from './ids';
-import { BRIDGE_LIMITS } from './limits';
+import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -190,9 +190,6 @@ export const NavigationReceiptSchema = z.discriminatedUnion('state', [
   z.strictObject({ state: z.literal('failed'), code: CgCodeSchema }),
 ]);
 export type NavigationReceipt = z.infer<typeof NavigationReceiptSchema>;
-
-/** Hub limits for fresh text (H-4c `AI_LIVE_TEXT_MAX_ITEMS` / `_MAX_CHARS`). */
-export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 
 export const LiveTextMessageSchema = z.strictObject({
   platformMessageId: NativeIdSchema,

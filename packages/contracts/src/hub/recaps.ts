@@ -6,9 +6,9 @@
 
 import * as z from 'zod/mini';
 
-import { CountSchema, HubIntIdSchema, IsoTimestampSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText } from '../primitives';
+import { CountSchema, HubIntIdSchema, IsoTimestampSchema, NativeIdSchema, OpenTokenSchema, PersonaDefinitionIdSchema, UuidSchema, boundedText } from '../primitives';
 import { HUB_PLATFORMS } from './auth';
-import { PageLabelSchema, PersonaDefinitionIdSchema } from './wire';
+import { PageLabelSchema } from './wire';
 
 // ── `aiRecapStatus` (existing; strict in the SDK) ──────────────────────────
 

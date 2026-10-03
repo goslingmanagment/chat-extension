@@ -6,10 +6,10 @@
 import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
-import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature, type FeatureId } from './features';
+import { FeatureIdSchema, SurfaceSchema, ToneSchema, isFreshTextFeature } from './features';
 import { LiveTextTailSchema } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema } from './ids';
-import { OP_LIMITS } from './limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, OP_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -65,15 +65,6 @@ export const PhaseSchema = z.strictObject({
 });
 export type Phase = z.infer<typeof PhaseSchema>;
 
-export const COACH_LIMITS = {
-  questionMaxChars: 4000,
-  /** Hub COACH_ANSWER_MAX_CHARS. */
-  answerMaxChars: 64_000,
-  historyMaxTurns: 20,
-  draftMaxChars: 1500,
-  draftsMax: 2,
-} as const;
-
 /** One past exchange sent as `coachHistory` (long answers are compressed before, AI-088). */
 export const CoachTurnSchema = z.strictObject({
   question: boundedText(COACH_LIMITS.questionMaxChars),
@@ -83,7 +74,7 @@ export type CoachTurn = z.infer<typeof CoachTurnSchema>;
 
 /** Draft text attached to an operation: Fix's source, Coach's «приложить мой ответ». */
 export const OpDraftSchema = z.strictObject({
-  text: boundedText(20_000),
+  text: boundedText(AI_REQUEST_LIMITS.draftMaxChars),
   revision: CountSchema,
   digest: DigestSchema,
 });
@@ -98,8 +89,8 @@ export const StartOpSchema = z
     tone: z.nullable(ToneSchema),
     /** Б7: snapshot of the setting at start. */
     split: z.boolean(),
-    /** Б5: messageCount. */
-    window: z.int().check(z.gte(1), z.lte(3000)),
+    /** Б5: messageCount, within the hub body's bounds. */
+    window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)),
     draft: z.optional(OpDraftSchema),
     /** Hi in the dock — 3, «Новые» — 1. */
     variantCount: z.optional(z.union([z.literal(1), z.literal(3)])),
@@ -108,7 +99,7 @@ export const StartOpSchema = z
         question: z.optional(boundedText(COACH_LIMITS.questionMaxChars)),
         preset: z.optional(z.literal('situation')),
         history: z.array(CoachTurnSchema).check(z.maxLength(COACH_LIMITS.historyMaxTurns)),
-        attachDraft: z.optional(boundedText(20_000)),
+        attachDraft: z.optional(boundedText(AI_REQUEST_LIMITS.draftMaxChars)),
       }),
     ),
     /** Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14). */
@@ -325,30 +316,3 @@ export const OpViewSchema = z.strictObject({
   debug: z.optional(OpDebugViewSchema),
 });
 export type OpView = z.infer<typeof OpViewSchema>;
-
-/** Starting timeouts per feature, ms (§7 «Тайм-ауты»); refined by lab measurements. */
-export interface OpTimeouts {
-  /** From the request until the `meta` frame. */
-  readonly untilMetaMs: number;
-  /** From `meta` until the first output chunk. */
-  readonly firstChunkAfterMetaMs: number;
-  /** Longest silence between frames. */
-  readonly silenceMs: number;
-  /** Whole operation. */
-  readonly maxMs: number;
-}
-
-const s = (seconds: number): number => seconds * 1000;
-const QUICK: OpTimeouts = { untilMetaMs: s(30), firstChunkAfterMetaMs: s(30), silenceMs: s(30), maxMs: s(60) };
-const DEEP: OpTimeouts = { untilMetaMs: s(180), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(300) };
-
-export const OP_TIMEOUTS: Readonly<Record<FeatureId, OpTimeouts>> = {
-  reply: QUICK,
-  fix: QUICK,
-  hi: QUICK,
-  ping: QUICK,
-  'recap-short': { untilMetaMs: s(60), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(120) },
-  review: DEEP,
-  recap: DEEP,
-  coach: { untilMetaMs: s(60), firstChunkAfterMetaMs: s(45), silenceMs: s(45), maxMs: s(180) },
-};
