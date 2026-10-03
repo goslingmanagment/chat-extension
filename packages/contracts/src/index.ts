@@ -17,6 +17,8 @@ export * from './settings';
 export * from './send';
 export * from './host';
 export * from './ops';
+export * from './telemetry';
+export * from './logs';
 export * from './bridge';
 export * from './tab-protocol';
 
