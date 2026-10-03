@@ -287,6 +287,49 @@ describe('fake hub routes: the model’s own checks', () => {
     expect(() => hub.control({ op: 'grantPages', userId: WORLD.otherUser.userId, pages: ['not-a-page'] })).toThrow(/no page/);
   });
 
+  it('pageAccount: the owner links a page to a platform account; bootstrap follows with a newer revision, an unknown page throws', async () => {
+    const before = (await ok('clientBootstrap', null)) as { configRevision: number; pages: Array<{ pageLabel: string; platformAccountId: string | null; bindingRevision: number }> };
+    const was = before.pages.find((page) => page.pageLabel === PAGE);
+    expect(hub.control({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: '830000101' })).toEqual({ ok: true, configRevision: before.configRevision + 1 });
+    const after = (await ok('clientBootstrap', null)) as typeof before;
+    expect(after.configRevision).toBe(before.configRevision + 1);
+    expect(after.pages.find((page) => page.pageLabel === PAGE)).toMatchObject({ platformAccountId: '830000101', bindingRevision: (was?.bindingRevision ?? 0) + 1 });
+    // The other pages are as they were.
+    expect(after.pages.filter((page) => page.pageLabel !== PAGE)).toEqual(before.pages.filter((page) => page.pageLabel !== PAGE));
+    hub.control({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: null });
+    expect(((await ok('clientBootstrap', null)) as typeof before).pages.find((page) => page.pageLabel === PAGE)?.platformAccountId).toBeNull();
+    await refused('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }, 409, 'client_feature_disabled', 'binding_missing');
+    expect(() => hub.control({ op: 'pageAccount', pageLabel: 'not-a-page', platformAccountId: '1' })).toThrow(/no page/);
+    hub.control({ op: 'reset' });
+    token = hub.issueToken();
+    expect(((await ok('clientBootstrap', null)) as typeof before).pages).toEqual(before.pages);
+  });
+
+  it('a hub before H-2 (clientBootstrap off) answers client/bootstrap 404; its page list serves a full token and is forbidden to a narrow one', async () => {
+    hub.control({ op: 'config', patch: { clientBootstrap: false, narrowTokens: false } });
+    const full = hub.issueToken();
+    const mark = hub.journal.mark();
+    const boot = await call('clientBootstrap', null, full);
+    expect({ status: boot.status, body: (await boot.json()) as unknown }).toMatchObject({ status: 404, body: { error: 'not_found', reason: 'route_not_deployed' } });
+    // `pages` of the vendored SDK, with its own schema: what the client's dev/compat mode builds a bootstrap from.
+    const pages = (await (createClient({ baseUrl: hub.origin, fetch: hub.fetch, auth: { mode: 'bearer', token: () => full } }) as unknown as Sdk)['pages']?.()) as Array<{ label: string; displayName: string }>;
+    expect(pages.map((page) => page.label)).toEqual([PAGE, WORLD.pages.vip.pageLabel, WORLD.pages.fansly.pageLabel]);
+    expect(hub.read(mark).entries.map((entry) => [entry.path, entry.kind, entry.status])).toEqual([
+      ['/api/v1/client/bootstrap', 'route', 404],
+      ['/api/v1/pages', 'legacy', 200],
+    ]);
+    expect(hub.violations(mark)).toEqual([]);
+
+    // The narrow token (H-3) reaches only its allow-list: the page list is a call the client must never make.
+    hub.control({ op: 'config', patch: { narrowTokens: true } });
+    const narrow = hub.issueToken();
+    const later = hub.journal.mark();
+    const refusedPages = await hub.fetch(`${hub.origin}/api/v1/pages`, { headers: { authorization: `Bearer ${narrow}` } });
+    expect(refusedPages.status).toBe(403);
+    expect(hub.violations(later).map((entry) => [entry.kind, entry.operation])).toEqual([['forbidden', 'pages']]);
+    expect((await hub.fetch(`${hub.origin}/api/v1/pages`)).status).toBe(401);
+  });
+
   it('an owner flag off refuses its route with client_feature_disabled and the reason; Fansly is platform_unsupported', async () => {
     hub.control({ op: 'config', patch: { pageFlags: { [PAGE]: { stats: false } } } });
     await refused('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }, 409, 'client_feature_disabled', 'flag_off');

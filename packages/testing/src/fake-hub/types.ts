@@ -65,6 +65,8 @@ export interface FakeHubConfigPatch {
   readonly limits?: Readonly<Record<string, unknown>>;
   /** H-3 deployed: `client: 'chat-extension'` issues a narrow token and echoes it. Off: the hub drops `client` (a full token, no echo). */
   readonly narrowTokens?: boolean;
+  /** H-2 deployed: `client/bootstrap` exists. Off: 404, as on a hub before H-2 (the client's dev/compat mode). */
+  readonly clientBootstrap?: boolean;
   /** AI quota left today for every user (null = unlimited); 0 → 429 `quota_denied`. */
   readonly quotaRequestsToday?: number | null;
   /** A finished generation becomes visible to H-5 this long after `done` (`generation_not_ready` before). */
@@ -115,6 +117,11 @@ export type FakeHubCommand =
   | { readonly op: 'archiveMessage'; readonly pageLabel: string; readonly fanRef: string; readonly sender?: 'fan' | 'model'; readonly messageId?: string }
   /** The pages granted to a user (by username or userId), replacing the current grant: `me`, bootstrap and every page route follow it (404 outside it). */
   | { readonly op: 'grantPages'; readonly username?: string; readonly userId?: number; readonly pages: readonly string[] }
+  /**
+   * The owner links a page to a platform account (`pages.external_page_id`; null — unlinks it): bootstrap,
+   * `me` and every page route follow it, and the page's binding revision grows.
+   */
+  | { readonly op: 'pageAccount'; readonly pageLabel: string; readonly platformAccountId: string | null }
   /** The fan's archive is rebuilt (the hub's archive generation moves): every feed cursor of the fan is `cursor_invalid` from now on. */
   | { readonly op: 'archiveRebuild'; readonly pageLabel: string; readonly fanRef: string }
   /** A subscription event lands in «Новые». */
@@ -150,9 +157,11 @@ export interface FakeHubStatus {
  * - `route` — one of the client's routes (HUB_ROUTES);
  * - `forbidden` — an operation or route family the client must never call (§8.1 «Никогда»);
  * - `unknown` — any other path or method;
- * - `foreign-origin` — the in-process fetch was asked for another origin (the request never left).
+ * - `foreign-origin` — the in-process fetch was asked for another origin (the request never left);
+ * - `legacy` — `GET /pages`, which only the client's dev/compat mode reads from a hub without
+ *   `client/bootstrap` (docs/hub-layer.md): served to a full token, refused to a narrow one.
  */
-export type FakeHubCallKind = 'route' | 'forbidden' | 'unknown' | 'foreign-origin';
+export type FakeHubCallKind = 'route' | 'forbidden' | 'unknown' | 'foreign-origin' | 'legacy';
 
 /** Who answered: the model, a script, or the hub's own checks before either (auth, schema, grant, flag, capability). */
 export type FakeHubServedBy = 'model' | 'script' | 'check' | 'unscripted';

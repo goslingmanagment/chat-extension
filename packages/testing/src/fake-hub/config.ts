@@ -54,6 +54,8 @@ export interface FakeHubConfig {
   /** Grows on every owner change (= custody `flagRevision`). */
   readonly configRevision: number;
   readonly narrowTokens: boolean;
+  /** H-2: `client/bootstrap` is deployed. */
+  readonly clientBootstrap: boolean;
   readonly quotaRequestsToday: number | null;
   readonly generationVisibleAfterMs: number;
   readonly spendersTotal: number;
@@ -68,6 +70,7 @@ export const PILOT_CAPABILITIES: readonly string[] = CLIENT_HUB_CAPABILITY_NAMES
 const BASE = {
   pageFlags: {},
   narrowTokens: true,
+  clientBootstrap: true,
   quotaRequestsToday: 120,
   generationVisibleAfterMs: 0,
   spendersTotal: 1240,
@@ -122,6 +125,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.bindingsByHost === undefined ? {} : { bindingsByHost: { ...patch.bindingsByHost } }),
     ...(patch.limits === undefined ? {} : { limits: { ...config.limits, ...(patch.limits as Partial<BootstrapLimits>) } }),
     ...(patch.narrowTokens === undefined ? {} : { narrowTokens: patch.narrowTokens }),
+    ...(patch.clientBootstrap === undefined ? {} : { clientBootstrap: patch.clientBootstrap }),
     ...(patch.quotaRequestsToday === undefined ? {} : { quotaRequestsToday: patch.quotaRequestsToday }),
     ...(patch.generationVisibleAfterMs === undefined ? {} : { generationVisibleAfterMs: patch.generationVisibleAfterMs }),
     ...(patch.spendersTotal === undefined ? {} : { spendersTotal: patch.spendersTotal }),

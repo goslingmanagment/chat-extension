@@ -49,6 +49,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   archiveMessage: { ...PAGE_FAN, sender: oneOf('fan', 'model'), messageId: isString },
   archiveRebuild: PAGE_FAN,
   grantPages: { username: isString, userId: isNumber, pages: isStringArray },
+  pageAccount: { pageLabel: isString, platformAccountId: either(isString, oneOf(null)) },
   audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean },
   status: {},
 };
@@ -68,6 +69,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   archiveMessage: ['pageLabel', 'fanRef'],
   archiveRebuild: ['pageLabel', 'fanRef'],
   grantPages: ['pages'],
+  pageAccount: ['pageLabel', 'platformAccountId'],
   audienceEvent: ['pageLabel', 'fanRef'],
 };
 
@@ -81,6 +83,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'bindingsByHost',
   'limits',
   'narrowTokens',
+  'clientBootstrap',
   'quotaRequestsToday',
   'generationVisibleAfterMs',
   'spendersTotal',

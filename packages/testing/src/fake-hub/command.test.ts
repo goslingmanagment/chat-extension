@@ -29,6 +29,9 @@ describe('fake hub control commands', () => {
       { op: 'clock', advanceMs: 1_000 },
       { op: 'resolveCustody', pageLabel: PAGE, fanRef: WORLD.newFan, attemptId: 'a', outcome: 'not_sent' },
       { op: 'grantPages', userId: WORLD.otherUser.userId, pages: [PAGE] },
+      { op: 'pageAccount', pageLabel: PAGE, platformAccountId: '830000101' },
+      { op: 'pageAccount', pageLabel: PAGE, platformAccountId: null },
+      { op: 'config', patch: { clientBootstrap: false, narrowTokens: false } },
       { op: 'health', compatibleClientSdks: null },
       { op: 'status' },
     ];
@@ -44,6 +47,8 @@ describe('fake hub control commands', () => {
     expect(() => hub.control(bad({ op: 'preset', name: 'pilot' }))).toThrow(/preset\.name is not valid/);
     expect(() => hub.control(bad({ op: 'release' }))).toThrow(/release needs «gate»/);
     expect(() => hub.control(bad({ op: 'grantPages', pages: [PAGE] }))).toThrow(/needs «username» or «userId»/);
+    expect(() => hub.control(bad({ op: 'pageAccount', pageLabel: PAGE }))).toThrow(/pageAccount needs «platformAccountId»/);
+    expect(() => hub.control(bad({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: 830000101 }))).toThrow(/pageAccount\.platformAccountId is not valid/);
     expect(() => hub.control(bad({ op: 'config', patch: { masterr: false } }))).toThrow(/config patch has no field «masterr»/);
     expect(() => hub.control(bad({ op: 'clock', advanceMs: Number.NaN }))).toThrow(/clock\.advanceMs is not valid/);
     expect(() => hub.control(bad(null))).toThrow(/JSON object with an `op`/);

@@ -122,6 +122,8 @@ interface State {
   readonly generations: Map<string, Generation>;
   /** Pages granted per user id (FakeUser.pages, changed by `grantPages`). */
   readonly grants: Map<number, readonly string[]>;
+  /** Platform accounts the owner linked to pages after the fact (`pageAccount`), by page label. */
+  readonly pageAccounts: Map<string, string | null>;
   catalog: PersonaCatalogItem[];
   health: HealthState;
   httpScript: HttpScriptEntry[];
@@ -175,6 +177,9 @@ function pageLabelOf(route: HubRouteKey, request: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+/** `pages` of the vendored SDK: the hub's page list, read only by the client's dev/compat mode. */
+const LEGACY_PAGES_PATH = '/api/v1/pages';
+
 const AI_FEATURE_FLAGS: Partial<Record<HubAiFeature, ClientFeatureFlag>> = { 'coach-chat': 'coach', 'fan-summary': 'recap', 'chat-review': 'review' };
 
 /** Why the hub refuses an AI body before the generic 400 (hub-pr-plan.md §4.11). */
@@ -221,6 +226,7 @@ export class FakeHub {
       data: new DataModel(new CursorSigner(crypto.randomUUID()), now),
       generations: new Map(),
       grants: new Map(FAKE_USERS.map((user) => [user.userId, user.pages])),
+      pageAccounts: new Map(),
       catalog: [...DEFAULT_CATALOG],
       health: { status: 'ok', compatibleClientSdks: SCENARIO_DATA.health.compatibleClientSdks, contractHash: SCENARIO_DATA.health.contractHash },
       httpScript: [],
@@ -348,6 +354,13 @@ export class FakeHub {
         s.grants.set(user.userId, [...command.pages]);
         return { ok: true, pages: [...command.pages] };
       }
+      case 'pageAccount': {
+        this.page(command.pageLabel);
+        s.pageAccounts.set(command.pageLabel, command.platformAccountId);
+        // What bootstrap shows changed: its revision grows, as after any owner change.
+        s.config = { ...s.config, configRevision: s.config.configRevision + 1 };
+        return { ok: true, configRevision: s.config.configRevision };
+      }
       case 'archiveMessage':
         return { ok: true, messageId: s.data.addArchiveMessage(this.page(command.pageLabel), command.fanRef, command.sender ?? 'fan', now, command.messageId) };
       case 'archiveRebuild':
@@ -449,6 +462,25 @@ export class FakeHub {
       return json(status, hubErrorBody(error, status, reason, issues.length > 0 ? `fake hub: ${issues.join('; ')}` : undefined), retryAfterSec);
     };
 
+    if (match.kind !== 'route' && method === 'GET' && url.pathname === LEGACY_PAGES_PATH) {
+      // The hub's own page list: the client reads it only in its dev/compat mode, with a full token (docs/hub-layer.md).
+      const principal = verdict.ok ? { token: verdict.token, user: verdict.user } : null;
+      if (principal === null) return refuse({ kind: 'legacy', servedBy: 'check' }, 'unauthorized', verdict.ok ? undefined : (verdict.reason ?? undefined));
+      // H-3: `pages` is not on the narrow token's allow-list — a call the client must never make.
+      if (principal.token.client !== null) return refuse({ kind: 'forbidden', operation: 'pages', servedBy: 'check', token: tokenOf(principal) }, 'forbidden');
+      const body = this.grantedPages(principal.user.userId).map((page) => ({
+        ...pageRefOf(page),
+        username: null,
+        displayName: page.title,
+        followerCount: { value: null, available: false },
+        subscriberCount: { value: null, available: false },
+        lastLightSyncAt: null,
+        lastFollowerSyncAt: null,
+      }));
+      this.journal.record({ ...base, kind: 'legacy', status: 200, servedBy: 'model', token: tokenOf(principal) });
+      return json(200, body);
+    }
+
     if (match.kind !== 'route') {
       const principal = verdict.ok ? { token: verdict.token, user: verdict.user } : null;
       const record = { kind: match.kind, operation: match.kind === 'forbidden' ? match.operation : null, servedBy: 'check' as const, token: tokenOf(principal) };
@@ -502,8 +534,10 @@ export class FakeHub {
 
     // The model's own checks: deployed (capability), page granted, owner flag.
     if (!spec.capabilities.every((capability) => s.config.capabilities.includes(capability))) return refuse({ ...record, servedBy: 'check' }, 'not_found', 'route_not_deployed');
+    // A hub before H-2 has no `client/bootstrap` at all.
+    if (route === 'clientBootstrap' && !s.config.clientBootstrap) return refuse({ ...record, servedBy: 'check' }, 'not_found', 'route_not_deployed');
     const pageLabel = pageLabelOf(route, valid.request);
-    const page = pageLabel === null ? null : (FAKE_PAGES.find((candidate) => candidate.pageLabel === pageLabel) ?? null);
+    const page = pageLabel === null ? null : (this.pages().find((candidate) => candidate.pageLabel === pageLabel) ?? null);
     // A page the hub does not know, or one not granted to the caller: 404 either way (the hub never tells them apart).
     if (pageLabel !== null && (page === null || (principal !== null && !this.granted(principal.user.userId, page)))) return refuse({ ...record, servedBy: 'check' }, 'not_found');
     if (spec.flag !== null && page !== null) {
@@ -615,9 +649,15 @@ export class FakeHub {
 
   // ── the model ────────────────────────────────────────────────────────────
 
+  /** The pages as the owner has them now: the synthetic ones, with the accounts linked by `pageAccount`. */
+  private pages(): FakePage[] {
+    const linked = this.state.pageAccounts;
+    return FAKE_PAGES.map((page) => (linked.has(page.pageLabel) ? { ...page, platformAccountId: linked.get(page.pageLabel) ?? null, bindingRevision: page.bindingRevision + 1 } : page));
+  }
+
   private grantedPages(userId: number): FakePage[] {
     const labels = this.state.grants.get(userId) ?? [];
-    return FAKE_PAGES.filter((page) => labels.includes(page.pageLabel));
+    return this.pages().filter((page) => labels.includes(page.pageLabel));
   }
 
   private granted(userId: number, page: FakePage): boolean {
@@ -625,7 +665,7 @@ export class FakeHub {
   }
 
   private page(pageLabel: string): FakePage {
-    const page = FAKE_PAGES.find((candidate) => candidate.pageLabel === pageLabel);
+    const page = this.pages().find((candidate) => candidate.pageLabel === pageLabel);
     if (page === undefined) throw new Error(`fake hub: no page ${pageLabel}`);
     return page;
   }
@@ -821,7 +861,7 @@ export class FakeHub {
     this.recordUsage(request, principal, end === 'done' ? 'completed' : end === 'aborted' ? 'cancelled' : 'failed');
     if (generation.outcome !== 'done' || generation.feature !== 'fan-summary') return;
     const requested = generation.messageCount ?? 100;
-    const page = FAKE_PAGES.find((candidate) => candidate.pageLabel === generation.pageLabel);
+    const page = this.pages().find((candidate) => candidate.pageLabel === generation.pageLabel);
     const total = page === undefined ? 0 : this.state.data.archiveFacts(page, generation.fanRef).total;
     this.state.data.storeRecap(generation.pageLabel, generation.fanRef, generation.summaryMode === 'short' ? 'short' : 'full', {
       generationRef: generation.requestId,
