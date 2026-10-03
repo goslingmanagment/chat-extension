@@ -1,10 +1,12 @@
 // Presence of the ChatSpace tabs (architecture.md §9.8 «присутствие
 // вкладок», §9.9 «Аккаунты, которые видел этот браузер», §5.6 `presence`):
 //
-// - Tabs: what each registered tab shows (`tab.presence`), in memory only —
-//   a tab session lives as long as its port, and after the event page
-//   unloads every tab registers again and reports anew. Out-of-order
-//   reports (an older route epoch) are ignored.
+// - Tabs: every registered tab (`tabRegistered`, wired from the RPC's
+//   onTabRegistered) counts as listening from its registration; what it
+//   shows comes with its `tab.presence` reports. In memory only — a tab
+//   session lives as long as its port, and after the event page unloads
+//   every tab registers again and reports anew. Out-of-order reports (an
+//   older route epoch) are ignored.
 // - Seen host accounts: the `presence` key of storage.local, newest first,
 //   at most 500 (PresenceStoreSchema). One set per change, and a known
 //   account's time is refreshed at most every 10 minutes, so reports do not
@@ -50,12 +52,15 @@ export interface SeenAccountView {
 export interface PresenceService {
   /** Load the seen accounts; the readiness barrier runs it. */
   start(): Promise<{ readonly readable: boolean; readonly accounts: number }>;
+  /** A tab registered (the RPC's onTabRegistered): it listens before its first report. */
+  tabRegistered(tabSessionId: string): void;
   /** `tab.presence`: `recorded` false — an out-of-order report, ignored. */
   report(tabSessionId: string, report: TabPresenceReport): Promise<{ readonly recorded: boolean }>;
-  /** The tab's port closed. */
+  /** The tab's port closed (the RPC's onTabGone). */
   tabGone(tabSessionId: string): void;
+  /** Tabs that reported what they show. */
   tabs(): readonly TabPresence[];
-  /** Registered ChatSpace tabs: sound and diagnostics count them as listening (SN-015). */
+  /** Registered ChatSpace tabs, reported or not: sound and diagnostics count them as listening (SN-015). */
   listeningTabs(): number;
   /** The chat is open in a visible tab that has the focus (no sound for it, §9.8). */
   isChatInFocus(chatKey: ChatKey): boolean;
@@ -87,6 +92,8 @@ export function createPresence(deps: PresenceDeps): PresenceService {
   const refreshMs = deps.refreshMs ?? PRESENCE_REFRESH_MS;
   const chain = createWriteChain();
   const tabs = new Map<string, TabPresence>();
+  /** Every registered tab session (a report registers too, in case the hook was not wired). */
+  const registered = new Set<string>();
   const listeners = new Set<() => void>();
   /** Newest first. */
   let seen: SeenHostAccount[] = [];
@@ -153,7 +160,13 @@ export function createPresence(deps: PresenceDeps): PresenceService {
       });
       return started;
     },
+    tabRegistered(tabSessionId) {
+      if (registered.has(tabSessionId)) return;
+      registered.add(tabSessionId);
+      notify();
+    },
     async report(tabSessionId, report) {
+      registered.add(tabSessionId);
       const previous = tabs.get(tabSessionId);
       if (previous && report.routeEpoch < previous.routeEpoch) return { recorded: false };
       const now = clock.now();
@@ -184,10 +197,11 @@ export function createPresence(deps: PresenceDeps): PresenceService {
       return { recorded: true };
     },
     tabGone(tabSessionId) {
-      if (tabs.delete(tabSessionId)) notify();
+      const known = registered.delete(tabSessionId);
+      if (tabs.delete(tabSessionId) || known) notify();
     },
     tabs: () => [...tabs.values()],
-    listeningTabs: () => tabs.size,
+    listeningTabs: () => registered.size,
     isChatInFocus(chatKey) {
       for (const tab of tabs.values()) if (tab.chatKey === chatKey && tab.visible && tab.focused) return true;
       return false;

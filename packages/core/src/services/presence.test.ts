@@ -45,6 +45,35 @@ describe('[SN-015] presence of the ChatSpace tabs (§9.8)', () => {
     off();
     expect(changes).toBe(5);
   });
+
+  it('a registered tab listens before its first report; its port closing ends it', async () => {
+    const { presence } = setup();
+    let changes = 0;
+    presence.onChange(() => (changes += 1));
+    presence.tabRegistered('tab-a');
+    presence.tabRegistered('tab-a');
+    presence.tabRegistered('tab-b');
+    expect(presence.listeningTabs()).toBe(2);
+    expect(presence.tabs()).toEqual([]);
+    await presence.report('tab-a', { chat, routeEpoch: 1, visible: true, focused: true });
+    expect(presence.listeningTabs()).toBe(2);
+    presence.tabGone('tab-b');
+    expect(presence.listeningTabs()).toBe(1);
+    presence.tabGone('tab-a');
+    expect(presence.listeningTabs()).toBe(0);
+    expect(presence.tabs()).toEqual([]);
+    expect(changes).toBe(5);
+  });
+
+  it('the chat is «in focus» only in a tab that is both visible and focused (no sound for it)', async () => {
+    const { presence } = setup();
+    await presence.report('tab-a', { chat, routeEpoch: 1, visible: false, focused: true });
+    expect(presence.isChatInFocus(chatKeyOf(chat))).toBe(false);
+    await presence.report('tab-a', { chat, routeEpoch: 2, visible: true, focused: false });
+    expect(presence.isChatInFocus(chatKeyOf(chat))).toBe(false);
+    await presence.report('tab-a', { chat, routeEpoch: 3, visible: true, focused: true });
+    expect(presence.isChatInFocus(chatKeyOf(chat))).toBe(true);
+  });
 });
 
 describe('seen host accounts in storage.local `presence` (§9.9)', () => {
