@@ -4,10 +4,10 @@
 // it does not have yet. Background-only (§4): the token, the network and the
 // SDK never reach a content script, a page or a lazy chunk.
 //
-// Never called: `/ofapi/*`, the event streams, full personas, the raw AI
-// gateway, Fansly's outreach route, pageTopSpenders (§8.1, AU-029) — the
-// transports only know the contract's operations (+ `pages` for the dev
-// compat bootstrap).
+// Never called: the hub's OFAPI routes, the event streams, full personas,
+// the raw AI gateway, Fansly's outreach route, pageTopSpenders (§8.1,
+// AU-029) — the transports only know the contract's operations (+ `pages`
+// for the dev compat bootstrap).
 
 import {
   CHAT_EXTENSION_CLIENT,

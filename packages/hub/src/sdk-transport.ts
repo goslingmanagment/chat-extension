@@ -19,9 +19,9 @@ export type SdkRouteKey = {
 
 /**
  * SDK operations this client may call at all: the contract's SDK routes,
- * plus `pages` for the dev/compat bootstrap only. Anything else — `/ofapi/*`,
- * the event streams, full personas, the raw gateway — is refused before a
- * request exists (§8.1 «Никогда», AU-029).
+ * plus `pages` for the dev/compat bootstrap only. Anything else — the hub's
+ * OFAPI routes, the event streams, full personas, the raw gateway — is
+ * refused before a request exists (§8.1 «Никогда», AU-029).
  */
 export const SDK_ALLOWED_OPERATIONS: readonly string[] = [
   ...(Object.keys(HUB_ROUTES) as HubRouteKey[]).filter((key) => HUB_ROUTES[key].since === 'sdk'),

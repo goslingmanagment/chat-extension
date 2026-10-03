@@ -112,7 +112,7 @@ function walk(request: IDBRequest<IDBCursorWithValue | null>, visit: (cursor: ID
   });
 }
 
-function openDatabase(idb: IDBFactory, name: string, storeName: string): Promise<IDBDatabase> {
+function openIdb(idb: IDBFactory, name: string, storeName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
@@ -151,7 +151,7 @@ export async function openBoundedStore(options: BoundedStoreOptions): Promise<Bo
   const idb = options.idb ?? globalThis.indexedDB;
   try {
     if (!idb) throw new Error('no indexedDB');
-    db = await openDatabase(idb, options.dbName, storeName);
+    db = await openIdb(idb, options.dbName, storeName);
   } catch {
     db = null;
   }

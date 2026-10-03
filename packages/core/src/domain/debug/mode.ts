@@ -4,7 +4,7 @@
 // line, the model's reasoning, the context card, the journals, the host
 // contract details, the AI spend by feature and «AI сегодня $» in the popup.
 // The render trace has its own switch under it and is stored by us, never in
-// the page's localStorage. Turning debug off or signing out clears every
+// the page's web storage. Turning debug off or signing out clears every
 // debug store (core/services/diagnostics). In a collapsed dock there are no
 // debug blocks: they show only when the result is expanded.
 
