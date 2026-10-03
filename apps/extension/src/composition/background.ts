@@ -6,7 +6,8 @@
 //
 // Order (an event page is woken by a listener, so the listeners come first):
 // 1. synchronously: the RPC (`runtime.onConnect` / `onMessage`), the alarm
-//    listener, the consent and storage listeners, every request handler;
+//    listener, the lifecycle listeners (installed, browser start, suspend),
+//    the consent and storage listeners, every request handler;
 // 2. the readiness barrier runs the start steps in order — logs, settings,
 //    the hub (it needs the hub address of the settings), results and
 //    operations, the send journal and coordinator, presence, consent,
@@ -59,6 +60,7 @@ import {
   createResultsStore,
   createSendJournal,
   createSettingsOwner,
+  onInstalledPlan,
   settingsChangePlan,
   settingsRequestHandlers,
   type SettingsOwner,
@@ -72,10 +74,14 @@ import {
   createBackgroundRpc,
   createConsent,
   createKeyValueStore,
+  createLifecycle,
+  defaultBrowser,
   readClientEnv,
   syncDynamicMainScript,
+  type BrowserApi,
   type ClientEnv,
   type DynamicMainScriptSpec,
+  type InstalledDetails,
   type KeyValueStore,
   type RpcResult,
   type RpcSenderContext,
@@ -84,6 +90,7 @@ import {
 import { CHATSPACE_MATCHES, LOOPBACK_MATCHES } from '../hosts';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
+import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
 import { createBackgroundLogging } from './background/logging';
 import { opsStoreOver } from './background/ops-store';
 import { CLOCK, IDS, TIMERS, eventSinkOf, hubLogOf, keyOf, logSinkOf, serviceLogOf } from './background/ports';
@@ -176,13 +183,26 @@ function withTokenTap(store: KeyValueStore, onToken: (token: string) => void): P
   };
 }
 
-export function composeBackground(): void {
+/**
+ * What the composition root takes from outside. The extension passes nothing: the real `browser` and the
+ * real `fetch`. A test hands in a fake browser context and a fake hub, one pair per instance of the event page.
+ */
+export interface BackgroundDeps {
+  readonly api?: BrowserApi;
+  readonly fetch?: (input: string, init?: RequestInit) => Promise<Response>;
+}
+
+export function composeBackground(deps: BackgroundDeps = {}): void {
   const testBuild = __CG_TEST_HOSTS__;
 
   // ── platform ───────────────────────────────────────────────────────────────
-  const local = createKeyValueStore('local', { budgetOf: storageBudgetOf });
-  const session = createKeyValueStore('session', { budgetOf: storageBudgetOf });
-  const alarms = createAlarms();
+  const api = deps.api ?? defaultBrowser();
+  const hubFetch = deps.fetch ?? ((input: string, init?: RequestInit): Promise<Response> => fetch(input, init));
+  const local = createKeyValueStore('local', { api, budgetOf: storageBudgetOf });
+  const session = createKeyValueStore('session', { api, budgetOf: storageBudgetOf });
+  const alarms = createAlarms(api);
+  /** When this instance of the event page began. */
+  const started = Date.now();
   let env: ClientEnv = { extensionVersion: '0.0.0', browser: 'firefox', browserMajor: null, os: 'other' };
 
   // The hub exists once the settings are read (it takes its address from them).
@@ -213,6 +233,7 @@ export function composeBackground(): void {
   let healthAskedAt = 0;
 
   const rpc = createBackgroundRpc({
+    api,
     // The loopback stand counts as ChatSpace in a test build only (the constant keeps it out of release).
     tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES },
     ready: barrier.ready,
@@ -268,7 +289,7 @@ export function composeBackground(): void {
   const results = createResultsStore({ session, log: serviceLog });
   const sendJournal = createSendJournal({ local, log: serviceLog });
   const presence = createPresence({ local, log: serviceLog });
-  const consentPort = createConsent();
+  const consentPort = createConsent(api);
   const consent = createConsentState({ port: consentPort, log: serviceLog });
 
   // ── R10: tokens, operations, preview sends ─────────────────────────────────
@@ -464,7 +485,7 @@ export function composeBackground(): void {
 
   // ── WS tap switch ──────────────────────────────────────────────────────────
   // The tap script itself is R09 part B's; the switch already follows the owner's `wsTap` flag (§6.8 п. 10).
-  const wsTap = new WsTapSwitch({ sync: (enabled) => syncDynamicMainScript(wsTapSpec(), enabled).then(() => undefined) }, coreLog);
+  const wsTap = new WsTapSwitch({ sync: (enabled) => syncDynamicMainScript(wsTapSpec(), enabled, api).then(() => undefined) }, coreLog);
 
   // ── alarms ─────────────────────────────────────────────────────────────────
   let armed = false;
@@ -508,6 +529,35 @@ export function composeBackground(): void {
   });
 
   consent.onChange((granted) => telemetry.onConsentChanged(granted));
+
+  // ── lifecycle (LG-016, LG-018, UP-008) ─────────────────────────────────────
+  const lifecycle = createLifecycle(api);
+  let installed: InstalledDetails | null = null;
+  let browserStarted = false;
+  let lifecycleSeen: () => void = () => undefined;
+  /** Settles with the first `onInstalled` / `onStartup`: the start record waits a moment for it. */
+  const lifecycleEvent = new Promise<void>((resolve) => {
+    lifecycleSeen = resolve;
+  });
+  lifecycle.onInstalled((details) => {
+    installed = details;
+    lifecycleSeen();
+    // UP-008: an install or an update only logs — nothing talks to the hub until a human signs in or opens ChatSpace.
+    const plan = onInstalledPlan(details.reason);
+    if (details.reason === 'install') logEvent(logger, 'extensionInstalled', { fields: { temporary: details.temporary, onboarding: plan.openOnboarding } });
+    else if (details.reason === 'update') logEvent(logger, 'extensionUpdated', { fields: { previousVersion: details.previousVersion, temporary: details.temporary } });
+  });
+  lifecycle.onStartup(() => {
+    browserStarted = true;
+    lifecycleSeen();
+    logEvent(logger, 'browserStarted');
+  });
+  lifecycle.onSuspend(() => {
+    // The last word of this instance: what was logged goes to the store now, nothing later is guaranteed.
+    logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.active().length, sends: sends.counts().open, uptimeMs: Date.now() - started } });
+    void logging.logs.flush();
+  });
+  lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
 
   // ── the hub's events (wired when the hub exists) ───────────────────────────
   function wireHub(instance: ChatExtensionHub): void {
@@ -731,14 +781,31 @@ export function composeBackground(): void {
   }
 
   // ── start ──────────────────────────────────────────────────────────────────
-  const started = Date.now();
+  /** Starts of the event page since the extension was loaded, this one included (0 — not counted yet). */
+  let starts = 0;
   void barrier.start([
     {
       name: 'logs',
       async run() {
-        env = await readClientEnv();
+        const [client, counted] = await Promise.all([readClientEnv(api), session.get([STARTS_KEY])]);
+        env = client;
         await logging.start();
-        logStart(logger, { version: env.extensionVersion, contractsVersion: CONTRACTS_VERSION, browser: 'firefox', browserMajor: env.browserMajor, os: env.os, testBuild, reason: 'wake' });
+        const earlierStarts = earlierStartsOf(counted.ok ? { ok: true, value: counted.value[STARTS_KEY] } : { ok: false });
+        starts = (earlierStarts ?? 0) + 1;
+        if (earlierStarts !== null) void session.set({ [STARTS_KEY]: starts });
+        // The first start after a load: `onInstalled` / `onStartup` say why, and they come right behind the first run.
+        if (earlierStarts === 0 && installed === null && !browserStarted) await Promise.race([lifecycleEvent, new Promise<void>((done) => TIMERS.set(done, LIFECYCLE_EVENT_WAIT_MS))]);
+        const reason = startReasonOf({ earlierStarts, installed: installed?.reason ?? null, browserStarted });
+        logStart(logger, {
+          version: env.extensionVersion,
+          contractsVersion: CONTRACTS_VERSION,
+          browser: 'firefox',
+          browserMajor: env.browserMajor,
+          os: env.os,
+          testBuild,
+          reason,
+          ...(reason === 'update' ? { previousVersion: installed?.previousVersion ?? null } : {}),
+        });
       },
     },
     {
@@ -765,7 +832,7 @@ export function composeBackground(): void {
           session,
           // Quiet mode (§2, X3): whatever the settings say, no request of the hub layer goes to the host platform.
           fetch: quietFetch(
-            (input, init) => fetch(input, init),
+            hubFetch,
             () => logger.warn('bg.hub', 'request to the host platform refused', { code: 'CG-HUB-URL' }),
           ),
           log: hubLogOf(logger),
@@ -787,7 +854,7 @@ export function composeBackground(): void {
     { name: 'telemetry', run: () => Promise.all([telemetry.start(), spend.start()]) },
     { name: 'ws-tap', run: () => wsTap.fromBootstrap(hubInstance?.cachedBootstrap()?.bootstrap ?? null) },
   ]).then((report) => {
-    logger.info('bg.ready', 'start steps', { fields: { ms: Date.now() - started, deadline: report.deadline, late: report.steps.filter((step) => step.outcome !== 'ok').map((step) => `${step.name}:${step.outcome}`) } });
+    logger.info('bg.ready', 'start steps', { fields: { ms: Date.now() - started, starts, deadline: report.deadline, late: report.steps.filter((step) => step.outcome !== 'ok').map((step) => `${step.name}:${step.outcome}`) } });
     // What the tabs counted while the page was away goes out now (the queue's own start flushed what was stored).
     if (rpc.tabs().length > 0) armAlarms();
   });
