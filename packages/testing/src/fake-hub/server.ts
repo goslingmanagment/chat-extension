@@ -62,7 +62,8 @@ async function serve(hub: FakeHub, origin: string, req: IncomingMessage, res: Se
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      res.write(value);
+      // Wait until the chunk is handed to the socket: a reset right after must not swallow frames already sent.
+      await new Promise<void>((resolve) => res.write(value, () => resolve()));
     }
     res.end();
   } catch {

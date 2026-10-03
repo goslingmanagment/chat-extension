@@ -161,6 +161,34 @@ export interface UsageRecord {
 }
 
 const SPENDER_FAN_BASE = 5000;
+
+const TEXT_SORT_KEYS: ReadonlySet<string> = new Set(['platformUserId', 'username', 'displayName']);
+
+/** The board's sort keys (SPENDER_SORT_KEYS) read off one row. */
+function sortValue(sortBy: NonNullable<SpendersQuery['sortBy']>): (row: SpenderListItem) => string | number {
+  const window = (row: SpenderListItem) => row.metrics.window;
+  switch (sortBy) {
+    case 'grossAmountMills':
+    case 'creatorNetAmountMills':
+    case 'postedGrossAmountMills':
+    case 'pendingGrossAmountMills':
+    case 'postedCreatorNetAmountMills':
+    case 'pendingCreatorNetAmountMills':
+      return (row) => window(row)?.[sortBy] ?? 0;
+    case 'lifetimeGrossAmountMills':
+      return (row) => row.metrics.lifetime.scopeGrossAmountMills;
+    case 'lifetimeCreatorNetAmountMills':
+      return (row) => row.metrics.lifetime.scopeCreatorNetAmountMills;
+    case 'lastTransactionAt':
+      return (row) => Date.parse(window(row)?.lastTransactionAt ?? '') || 0;
+    case 'platformUserId':
+      return (row) => row.fan.platformUserId.padStart(30, '0');
+    case 'username':
+      return (row) => row.fan.username ?? '';
+    case 'displayName':
+      return (row) => row.fan.displayName ?? '';
+  }
+}
 const AUDIENCE_SEEDS = 5;
 const QUEUE_SEEDS = 5;
 
@@ -245,9 +273,15 @@ export class DataModel {
         (needle === undefined || (row.fan.username ?? '').toLowerCase().includes(needle) || (row.fan.displayName ?? '').toLowerCase().includes(needle)) &&
         (query.retentionStatus === undefined || query.retentionStatus === 'all' || row.retentionStatus === query.retentionStatus),
     );
-    if (query.sortBy === 'username') rows = rows.sort((a, b) => (a.fan.username ?? '').localeCompare(b.fan.username ?? ''));
-    else if (query.sortBy === 'lastTransactionAt') rows = rows.sort((a, b) => (b.metrics.window?.lastTransactionAt ?? '').localeCompare(a.metrics.window?.lastTransactionAt ?? ''));
-    if (query.sortDir === 'asc') rows = rows.reverse();
+    const sortBy = query.sortBy ?? 'grossAmountMills';
+    const text = TEXT_SORT_KEYS.has(sortBy);
+    const value = sortValue(sortBy);
+    // By the key in the asked direction (text keys default to ascending, amounts and times to descending), ties by rank.
+    const sign = (query.sortDir ?? (text ? 'asc' : 'desc')) === 'desc' ? -1 : 1;
+    rows = rows
+      .map((row, rank) => ({ row, rank, key: value(row) }))
+      .sort((a, b) => sign * (text ? String(a.key).localeCompare(String(b.key)) : Number(a.key) - Number(b.key)) || a.rank - b.rank)
+      .map(({ row }) => row);
     return ok({
       scope: this.scopeOf(page),
       period: this.periodMeta(query.period, query.from, query.to, now),

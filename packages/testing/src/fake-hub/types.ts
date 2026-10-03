@@ -109,6 +109,8 @@ export type FakeHubCommand =
     }
   /** The desktop holds an unresolved new-follower command for this fan (blocks a greeting dispatch). */
   | { readonly op: 'desktopHold'; readonly pageLabel: string; readonly fanRef: string; readonly held: boolean }
+  /** The desktop's new-follower command for this fan succeeded: the greeting is confirmed outside this client (source `desktop-outbox`). */
+  | { readonly op: 'desktopGreeting'; readonly pageLabel: string; readonly fanRef: string }
   /** A fan message lands in the archive (the feed's head moves, a new snapshot). */
   | { readonly op: 'archiveMessage'; readonly pageLabel: string; readonly fanRef: string; readonly sender?: 'fan' | 'model'; readonly messageId?: string }
   /** A subscription event lands in «Новые». */

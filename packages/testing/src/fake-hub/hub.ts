@@ -322,6 +322,9 @@ export class FakeHub {
       case 'desktopHold':
         s.claims.setDesktopHold(command.pageLabel, command.fanRef, command.held);
         return { ok: true };
+      case 'desktopGreeting':
+        s.claims.confirmFromDesktop(command.pageLabel, command.fanRef, now);
+        return { ok: true };
       case 'archiveMessage':
         return { ok: true, messageId: s.data.addArchiveMessage(this.page(command.pageLabel), command.fanRef, command.sender ?? 'fan', now, command.messageId) };
       case 'audienceEvent':
