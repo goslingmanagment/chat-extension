@@ -43,6 +43,8 @@
   "scripts": {
     "build:stand": "vite build --config fixture-chatspace.vite.config.ts",
     "stand": "pnpm build:stand && tsx src/stand-cli.ts",
-    "e2e": "pnpm build:stand && wdio run e2e/wdio.conf.ts"
+    "e2e": "pnpm build:stand && pnpm build:gallery && wdio run e2e/wdio.conf.ts",
+    "build:gallery": "vite build --config kit-gallery.vite.config.ts",
+    "gallery": "pnpm build:stand && pnpm build:gallery && tsx src/stand-cli.ts"
   }
 }
