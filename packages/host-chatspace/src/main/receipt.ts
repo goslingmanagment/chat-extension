@@ -9,7 +9,9 @@
 //   account queue is free (§6.6) — `fetch` of the page is replaced by an
 //   observer. ChatSpace's HTTP client takes `globalThis.fetch` when it creates
 //   the request, synchronously inside that call; right after the call
-//   returned or threw the previous value is put back, if the global is still ours.
+//   returned or threw the previous value is put back, if the global is still
+//   ours — and for a human send once more at the end of the stack, should the
+//   queue's action ever stop being synchronous.
 // - The observer passes EVERY call through to the previous function with the
 //   same `this` and arguments and returns its result as is. It never calls
 //   fetch on its own, never delays, repeats or changes a request or a
@@ -258,6 +260,8 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
       // request later, outside this stack. Both go out as facts without a receipt: attribution unknown.
       const followed = from.draft.insertIntentId && !queueBusy(host, queue, acc) ? follow(acc, fan, args['text'], null, fact) : null;
       const release = followed?.capture();
+      // The observer never outlives this synchronous stack, even if the queue's action stopped being synchronous.
+      if (release) void Promise.resolve().then(release);
       // Both run inside ChatSpace's own action: the page's fetch goes back first, and nothing of ours may throw into it.
       after((entry) => {
         release?.();

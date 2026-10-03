@@ -537,6 +537,9 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
       () => undefined,
     );
     void (live.win.fetch as unknown as (...args: unknown[]) => unknown)(new Request(`https://api.example.test/api/v0/accounts/${ACC}/chats/${OPEN_FAN}/messages`, { method: 'POST', body: JSON.stringify({ text }) }), {});
+    // The observer does not wait for the action to finish: the page's fetch is back when this stack ends.
+    await Promise.resolve();
+    expect(live.win.fetch).toBe(live.nativeFetch);
     live.calls[0]?.respond(200, { id: '8105' });
     await live.settle();
     expect(facts(live)).toEqual([]);
