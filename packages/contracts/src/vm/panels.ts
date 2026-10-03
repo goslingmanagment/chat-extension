@@ -4,6 +4,7 @@
 // it unchanged.
 
 import { type CgCode } from '../errors';
+import { type SPENDER_RETENTION_STATUSES } from '../hub/spenders';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type UiAction } from './actions';
 import { type HotkeyLabel, type HotkeyPlatform, type ReasonVM } from './catalog';
@@ -11,7 +12,25 @@ import { type Msg } from './i18n';
 import { type ToastId } from './selectors';
 import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 
-/** The fan panel (CS-031…CS-038): who this is, money by kind, subscription, ChatSpace's own scores if in memory, bio, Recap tab. */
+/**
+ * The hub's retention status of the fan's board row (`spenders` v2) → the
+ * panel's «Риск ухода»; null when the board has no row for the fan.
+ */
+export const CHURN_RISK_BY_RETENTION = {
+  active: 'low',
+  cooling: 'medium',
+  inactive: 'high',
+  needs_reactivation: 'high',
+} as const satisfies Record<(typeof SPENDER_RETENTION_STATUSES)[number], 'low' | 'medium' | 'high'>;
+
+/**
+ * The fan panel (CS-031…CS-038): who this is, money by kind, subscription,
+ * ChatSpace's own scores if in memory, bio, Recap tab. Sources (D-29): money
+ * and subscription — `fan.card` (spenderDetail of the target page, 30 days
+ * and lifetime); `lastSeenAt`, `online`, `host`, `bio`, `lists` — HostFan,
+ * only what ChatSpace already holds; `churnRisk` — CHURN_RISK_BY_RETENTION;
+ * the dossier — `fan.dossier`. A missing source is null, never a guess.
+ */
 export interface FanPanelVM {
   /** `empty` — «Выберите чат»; `partial` — some blocks unknown (no dossier, host scores not loaded). */
   readonly view: VmView;

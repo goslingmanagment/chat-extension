@@ -480,9 +480,26 @@ const LEASE: AppClientScenario[] = [
           NEWCOMERS_PREVIEW,
           preview(ctx, 'newcomers', views.ready(), {
             fan: FANS.leo,
-            claim: { s: 'other', by: 'Анна', error: cgError(ctx, 'CG-CLAIM-BUSY') },
-            greeting: { s: 'claim-other', by: 'Анна' },
-            barPatch: { hi: { enabled: false, busy: false, active: false, reason: reason('claim-busy', { name: 'Анна' }), hotkey: null, badge: null } },
+            claim: { s: 'other', error: cgError(ctx, 'CG-CLAIM-BUSY') },
+            greeting: { s: 'claim-other' },
+            barPatch: { hi: { enabled: false, busy: false, active: false, reason: reason('claim-busy'), hotkey: null, badge: null } },
+          }),
+        ),
+      ],
+    };
+  }),
+  make({ id: 'claim-elsewhere', title: 'You hold the fan in another tab: no second greeting here', covers: ['claim-elsewhere'] }, (ctx) => {
+    const rows = defaultNewcomerRows(ctx).map((r) => (r.name === FANS.leo.name ? { ...r, greeting: { s: 'claim-elsewhere' } as const, selected: true } : r));
+    return {
+      views: [
+        entry(NEWCOMERS_LIST, newcomers(ctx, views.ready(), rows)),
+        entry(
+          NEWCOMERS_PREVIEW,
+          preview(ctx, 'newcomers', views.ready(), {
+            fan: FANS.leo,
+            claim: { s: 'elsewhere', note: msg('newcomers.claim.elsewhere') },
+            greeting: { s: 'claim-elsewhere' },
+            barPatch: { hi: { enabled: false, busy: false, active: false, reason: reason('claim-elsewhere'), hotkey: null, badge: null } },
           }),
         ),
       ],

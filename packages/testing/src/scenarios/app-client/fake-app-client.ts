@@ -72,6 +72,7 @@ export const EXTRA_TOPICS = [
   'coach',
   'review',
   'state-gallery',
+  'claim-elsewhere',
 ] as const;
 
 export type ScenarioTopic = (typeof REQUIRED_TOPICS)[number] | (typeof EXTRA_TOPICS)[number];

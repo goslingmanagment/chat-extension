@@ -69,7 +69,11 @@ export const fan = {
   canReceiveMessages: true,
   isRestricted: null,
   isOnline: true,
+  lastSeenAt: ISO,
   buyingPowerLabel: null,
+  insights: [{ label: 'Spend tier', value: 'High' }],
+  bio: null,
+  lists: ['VIP'],
 } as const;
 export const navItem = { chat, position: 0, displayName: 'Fan Two', username: 'fan_two', unreadCount: 2, isOnline: null } as const;
 export const chatWindow = {
@@ -481,7 +485,12 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   ),
   fixture('TailSnapshot', C.TailSnapshotSchema, [{ capturedAt: ISO, messages: messages(200) }], [{ capturedAt: ISO, messages: messages(201) }]),
   fixture('ChatWindow', C.ChatWindowSchema, [chatWindow, { ...chatWindow, state: 'loading', loaded: 0, lastFanMessageId: null, hasOlder: null }], [{ ...chatWindow, loaded: 201 }]),
-  fixture('HostFan', C.HostFanSchema, [fan], [{ ...fan, isOnline: undefined }]),
+  fixture(
+    'HostFan',
+    C.HostFanSchema,
+    [fan, { ...fan, lastSeenAt: null, insights: null, bio: 'Hi, I like cats', lists: null }],
+    [{ ...fan, isOnline: undefined }, { ...fan, insights: Array.from({ length: 17 }, () => ({ label: 'x', value: 'y' })) }, { ...fan, lastSeenAt: undefined }],
+  ),
   fixture('NavigationItem', C.NavigationItemSchema, [navItem], [{ ...navItem, position: -1 }]),
   fixture(
     'HostTheme',

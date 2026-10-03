@@ -149,6 +149,20 @@ describe('«Отправить» row (previewSendStateOf)', () => {
   });
 });
 
+describe('lease holders and the fan panel', () => {
+  it('every hub lease holder has its own greeting and claim state', () => {
+    for (const holder of C.LEASE_HOLDERS) {
+      const states = C.LEASE_HOLDER_STATES[holder];
+      expect(C.GREETING_STATUSES as readonly string[]).toContain(states.greeting);
+      expect(C.CLAIM_STATES as readonly string[]).toContain(states.claim);
+    }
+  });
+
+  it('every retention status reads as a churn risk', () => {
+    expect(Object.keys(C.CHURN_RISK_BY_RETENTION).sort()).toEqual([...C.SPENDER_RETENTION_STATUSES].sort());
+  });
+});
+
 describe('views', () => {
   it('declares the produced states of every view', () => {
     expect(Object.keys(C.VM_STATE_SUPPORT).sort()).toEqual([...C.VIEW_NAMES].sort());

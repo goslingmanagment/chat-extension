@@ -313,8 +313,16 @@ export const HostFanSchema = z.strictObject({
   canReceiveMessages: z.nullable(z.boolean()),
   isRestricted: z.nullable(z.boolean()),
   isOnline: z.nullable(z.boolean()),
+  /** «был 6 мин назад»: the fan's last activity as ChatSpace holds it. */
+  lastSeenAt: z.nullable(IsoTimestampSchema),
   /** ChatSpace's own buying-power label, if loaded. */
   buyingPowerLabel: z.nullable(displayText(64)),
+  /** ChatSpace's fan insights (`["fanInsights",acc]`) as label/value pairs, if loaded (В16). */
+  insights: z.nullable(z.array(z.strictObject({ label: displayText(64), value: displayText(64) })).check(z.maxLength(16))),
+  /** The fan's «О себе» as ChatSpace shows it (CS-035), if loaded. */
+  bio: z.nullable(displayText(2000)),
+  /** The OnlyFans lists the fan is in, if ChatSpace holds them. */
+  lists: z.nullable(z.array(displayText(64)).check(z.maxLength(50))),
 });
 export type HostFan = z.infer<typeof HostFanSchema>;
 

@@ -19,11 +19,13 @@ import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 
 export interface FeedItemVM {
   readonly id: string;
-  readonly at: IsoTimestamp;
+  /** null — the archive has no time for it (the hub's `at`): no time under the bubble. */
+  readonly at: IsoTimestamp | null;
   readonly sender: FeedSender;
   readonly text: string;
   readonly deleted: boolean;
-  readonly automatic: boolean;
+  /** null — unknown: the OF archive has no automation signal (hub `automatic`). */
+  readonly automatic: boolean | null;
   /** «, чаевые +$50». */
   readonly tip: MoneyMills | null;
   /** «, $30, куплено» / not bought; null — not a priced message. */

@@ -201,7 +201,7 @@ describe('preview sends (X8)', () => {
     const claims = new Set<string>();
     for (const e of [...of('newcomers'), ...of('preview')])
       walk(e.vm, (node) => {
-        if (node['s'] === 'claim-other' || (node['s'] === 'other' && 'by' in node)) expect('until' in node).toBe(false);
+        if (node['s'] === 'claim-other' || node['s'] === 'claim-elsewhere' || node['s'] === 'other' || node['s'] === 'elsewhere') expect('until' in node).toBe(false);
       });
     for (const p of previews) {
       if (p.greeting !== null) greetings.add(p.greeting.s);

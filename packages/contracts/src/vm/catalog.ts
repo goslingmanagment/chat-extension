@@ -109,6 +109,8 @@ export const UNAVAILABLE_REASONS = {
   'host-degraded': { key: 'dock.reason.hostDegraded', code: 'CG-HOST-CONTRACT' },
   'composer-missing': { key: 'dock.reason.composerMissing', code: 'CG-HOST-COMPOSER-MISSING' },
   'claim-busy': { key: 'dock.reason.claimedBy', code: 'CG-CLAIM-BUSY' },
+  /** The same person holds the lease in another tab or on another device (H-7 `you-elsewhere`). */
+  'claim-elsewhere': { key: 'dock.reason.claimElsewhere', code: null },
   'claim-expired': { key: 'dock.reason.claimExpired', code: 'CG-CLAIM-EXPIRED' },
   /** Tone and Split are frozen while a generation runs (AI-009). */
   'locked-during-generation': { key: 'dock.reason.lockedDuringGeneration', code: null },
@@ -133,7 +135,7 @@ export const UNAVAILABLE_REASONS = {
 export type UnavailableReasonId = keyof typeof UNAVAILABLE_REASONS;
 export const UNAVAILABLE_REASON_IDS = Object.keys(UNAVAILABLE_REASONS) as UnavailableReasonId[];
 
-/** A reason as a view model carries it: which one, its code, and the text with parameters («фан забронирован: Анна»). */
+/** A reason as a view model carries it: which one, its code, and the text with parameters («Reply недоступен: нужен черновик»). */
 export interface ReasonVM {
   readonly id: UnavailableReasonId;
   readonly code: CgCode | null;

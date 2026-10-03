@@ -28,7 +28,7 @@ import {
   type VmView,
 } from '@cg/contracts';
 
-import { button, DAY, FANS, handles, hotkey, HOUR, iso, MIN, msg, PERSONA, reason, usd, views, type FanFixture, type ScenarioCtx } from './base';
+import { button, DAY, FANS, handles, hotkey, HOUR, iso, MIN, msg, PERSONA, usd, views, type FanFixture, type ScenarioCtx } from './base';
 
 const SPENDERS_FILTER_KEYS: Record<SpendersFilter, I18nKey> = {
   all: 'spenders.filter.all',
@@ -257,7 +257,7 @@ export function newcomerRow(ctx: ScenarioCtx, fan: FanFixture, kind: NewcomerRow
 const FILTER_STATES: Record<GreetingFilter, readonly GreetingStatusVM['s'][]> = {
   any: GREETING_STATUSES,
   none: ['none'],
-  claimed: ['claim-mine', 'claim-other'],
+  claimed: ['claim-mine', 'claim-other', 'claim-elsewhere'],
   sending: ['sending'],
   stopped: ['stopped'],
   greeted: ['greeted'],
@@ -291,7 +291,7 @@ export function newcomers(ctx: ScenarioCtx, view: VmView, rows: readonly Newcome
 
 export const defaultNewcomerRows = (ctx: ScenarioCtx): NewcomerRowVM[] => [
   newcomerRow(ctx, FANS.tomasz, 'new', 14, { s: 'claim-mine' }, { selected: true }),
-  newcomerRow(ctx, FANS.leo, 'renewed', 41, { s: 'claim-other', by: 'Анна' }),
+  newcomerRow(ctx, FANS.leo, 'renewed', 41, { s: 'claim-other' }),
   newcomerRow(ctx, FANS.jake, 'returning', 180, { s: 'none' }),
   newcomerRow(ctx, FANS.marco, 'new', 600, { s: 'greeted', at: iso(ctx.now - 9 * HOUR) }),
 ];
@@ -303,5 +303,4 @@ export const claimMine = (ctx: ScenarioCtx, fan: FanFixture): ClaimVM => ({
   release: button('newcomers.claim.release', { type: 'ReleaseClaim', targetHandle: handles.newcomers(fan) }),
 });
 
-export const hiClaimedBy = (name: string) => reason('claim-busy', { name });
 export const loadingView = (ctx: ScenarioCtx) => views.loading(ctx.now - 300);
