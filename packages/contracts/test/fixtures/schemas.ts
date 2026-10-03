@@ -287,6 +287,8 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   // ── settings ──
   fixture('SettingsSection', C.SettingsSectionSchema, ['status', 'diagnostics'], ['advanced']),
   fixture('ToneId', C.ToneIdSchema, ['chime', 'blip'], ['beep']),
+  fixture('HostAccountKey', C.HostAccountKeySchema, ['chatspace:1001', 'fansly-web:7007'], ['1001', 'onlymonster:1001', 'chatspace:01']),
+  fixture('PersonaScope', C.PersonaScopeSchema, [{ hubOrigin: HUB, userId: 7 }], [{ hubOrigin: HUB }, { hubOrigin: 'hub', userId: 7 }]),
   fixture('PersonaAssignment', C.PersonaAssignmentSchema, [{ key: 'lora', definitionId: 'pdef_0123456789abcdef' }], [{ key: '', definitionId: 'pdef_0123456789abcdef' }]),
   fixture(
     'SettingsV1',
@@ -296,16 +298,21 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...C.DEFAULT_SETTINGS, schemaVersion: 2 },
       { ...C.DEFAULT_SETTINGS, sound: { ...C.DEFAULT_SETTINGS.sound, volume: 7 } },
       { ...C.DEFAULT_SETTINGS, generation: { ...C.DEFAULT_SETTINGS.generation, windows: { quick: 100, ping: 100, improve: 25, deep: 3001 } } },
-      { ...C.DEFAULT_SETTINGS, accounts: { labels: { [IDS.acc]: repeat('x', 61) } } },
-      { ...C.DEFAULT_SETTINGS, personas: { byPageId: { '0': { key: 'lora', definitionId: 'pdef_0123456789abcdef' } } } },
+      { ...C.DEFAULT_SETTINGS, accounts: { labels: { [`chatspace:${IDS.acc}`]: repeat('x', 61) } } },
+      { ...C.DEFAULT_SETTINGS, personas: { scope: null, byPageId: { '0': { key: 'lora', definitionId: 'pdef_0123456789abcdef' } } } },
+      // Per-account settings are keyed by host and account: a bare id could be any host's.
+      { ...C.DEFAULT_SETTINGS, accounts: { labels: { [IDS.acc]: 'Main model' } } },
+      { ...C.DEFAULT_SETTINGS, sound: { ...C.DEFAULT_SETTINGS.sound, mutedAccounts: [IDS.acc] } },
+      // Persona choices belong to one hub and user.
+      { ...C.DEFAULT_SETTINGS, personas: { byPageId: {} } },
       { ...C.DEFAULT_SETTINGS, extra: true },
     ],
   ),
   fixture(
     'SettingsPatch',
     C.SettingsPatchSchema,
-    [{}, { ui: { theme: 'dark' } }, { personas: { byPageId: { '11': null } } }, { generation: { windows: { deep: 1500 } } }],
-    [{ ui: { theme: 'neon' } }, { extra: 1 }, { sound: { volume: 101 } }],
+    [{}, { ui: { theme: 'dark' } }, { personas: { byPageId: { '11': null } } }, { generation: { windows: { deep: 1500 } } }, { accounts: { labels: { 'fansly-web:1001': 'Fansly' } } }],
+    [{ ui: { theme: 'neon' } }, { extra: 1 }, { sound: { volume: 101 } }, { personas: { scope: null, byPageId: {} } }],
   ),
   fixture('SettingsState', C.SettingsStateSchema, [{ settings: C.DEFAULT_SETTINGS, revision: 0, readOnly: false }], [{ settings: C.DEFAULT_SETTINGS, revision: -1, readOnly: false }]),
 
@@ -695,7 +702,19 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   // ── logs ──
   fixture('LogLevel', C.LogLevelSchema, ['warn'], ['trace']),
   fixture('LogFields', C.LogFieldsSchema, [{ textLength: 5 }], [Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`k${i}`, i]))]),
-  fixture('LogRecord', C.LogRecordSchema, [logRecord, { ts: ISO, seq: 0, level: 'error', scope: 'bg', msg: 'hub down', code: 'CG-HUB-UNAVAILABLE' }], [{ ...logRecord, scope: 'Bad Scope' }, { ...logRecord, msg: '' }]),
+  fixture(
+    'LogRecord',
+    C.LogRecordSchema,
+    [logRecord, { ts: ISO, seq: 0, level: 'error', scope: 'bg', msg: 'hub down', code: 'CG-HUB-UNAVAILABLE' }, { ...logRecord, fields: { note: repeat('x', 6000) } }],
+    [{ ...logRecord, scope: 'Bad Scope' }, { ...logRecord, msg: '' }, { ...logRecord, fields: { note: repeat('x', 9000) } }, { ...logRecord, fields: { at: new Date(T0) } }],
+  ),
+  fixture(
+    'LogRecordFromUi',
+    C.LogRecordFromUiSchema,
+    [logRecord],
+    // A tab or page sends at most 4 KiB a record; the background still re-redacts and re-truncates.
+    [{ ...logRecord, fields: { note: repeat('x', 5000) } }, { ...logRecord, fields: { deep: { a: { b: { c: { d: { e: { f: { g: { h: 1 } } } } } } } } } }],
+  ),
 
   // ── bridge ──
   fixture('MainProbe', C.MainProbeSchema, [probe], [{ ...probe, evil: true }, { ...probe, readyStateAtStart: 'unloaded' }]),

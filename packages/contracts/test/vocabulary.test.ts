@@ -54,6 +54,21 @@ describe('bridge writes that may have run', () => {
   });
 });
 
+describe('logs', () => {
+  it('redact secrets by name and suffix, not ids or counts (LG-003)', () => {
+    for (const key of ['token', 'leaseToken', 'actionToken', 'promptToken', 'ticket', 'dispatchTicket', 'Authorization', 'set-cookie', 'refresh_token', 'password', 'apiKey', 'session'])
+      expect(C.isRedactedLogField(key), key).toBe(true);
+    for (const key of ['tabSessionId', 'inputTokens', 'tokenCount', 'attemptId', 'textLength', 'chatKey']) expect(C.isRedactedLogField(key), key).toBe(false);
+  });
+});
+
+describe('settings keys', () => {
+  it('a host account key names the host, as ChatKey does', () => {
+    expect(C.hostAccountKeyOf('chatspace', '1001')).toBe('chatspace:1001');
+    for (const host of C.HOST_KINDS) expect(C.HostAccountKeySchema.safeParse(C.hostAccountKeyOf(host, '1001')).success, host).toBe(true);
+  });
+});
+
 describe('X8 attempt machine (§6.7.7)', () => {
   const T = C.SEND_ATTEMPT_TRANSITIONS as Record<C.SendAttemptState, readonly C.SendAttemptState[]>;
 

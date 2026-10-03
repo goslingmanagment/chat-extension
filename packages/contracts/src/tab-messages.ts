@@ -10,7 +10,7 @@ import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
-import { LogRecordSchema } from './logs';
+import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
 import {
   ActionTokenSchema,
@@ -378,7 +378,7 @@ export const TAB_REQUESTS = {
     pages: ['options'],
   },
   'log.write': {
-    req: z.strictObject({ records: z.array(LogRecordSchema).check(z.minLength(1), z.maxLength(LOG_LIMITS.maxRecordsPerWrite)) }),
+    req: z.strictObject({ records: z.array(LogRecordFromUiSchema).check(z.minLength(1), z.maxLength(LOG_LIMITS.maxRecordsPerWrite)) }),
     res: z.strictObject({ accepted: CountSchema, dropped: CountSchema }),
     from: ANY,
   },

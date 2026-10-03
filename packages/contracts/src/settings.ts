@@ -6,7 +6,8 @@
 import * as z from 'zod/mini';
 
 import { LOCALES } from './i18n/keys';
-import { CountSchema, HubOriginSchema, NativeIdSchema, PersonaDefinitionIdSchema, PersonaKeySchema, boundedText, displayText } from './primitives';
+import { type HostKind } from './ids';
+import { CountSchema, HubIntIdSchema, HubOriginSchema, PersonaDefinitionIdSchema, PersonaKeySchema, boundedText, displayText } from './primitives';
 
 export const SETTINGS_SCHEMA_VERSION = 1;
 
@@ -56,6 +57,29 @@ export const PersonaAssignmentSchema = z.strictObject({
   definitionId: PersonaDefinitionIdSchema,
 });
 
+/** HOST_KINDS of ids.ts, repeated so the settings module stays light (a test pins them equal). */
+const SETTINGS_HOST_KINDS = ['chatspace', 'fansly-web'] as const satisfies readonly HostKind[];
+
+/**
+ * A host account across hosts, `${host}:${hostAccountId}` (ChatKey without
+ * the fan): the key of the per-account settings, so the fansly-web accounts
+ * of R20 never land on an OnlyMonster account with the same number.
+ */
+export type HostAccountKey = `${HostKind}:${string}`;
+export const HOST_ACCOUNT_KEY_PATTERN = new RegExp(`^(?:${SETTINGS_HOST_KINDS.join('|')}):[1-9]\\d{0,29}$`);
+export const HostAccountKeySchema = z.custom<HostAccountKey>((value) => typeof value === 'string' && HOST_ACCOUNT_KEY_PATTERN.test(value));
+
+export function hostAccountKeyOf(host: HostKind, hostAccountId: string): HostAccountKey {
+  return `${host}:${hostAccountId}`;
+}
+
+/**
+ * Whose persona choices `personas.byPageId` holds: pageIds are numbers of
+ * one hub, so the background clears the map (and sets this) whenever another
+ * hub origin or another user signs in. Written by the background only.
+ */
+export const PersonaScopeSchema = z.strictObject({ hubOrigin: HubOriginSchema, userId: HubIntIdSchema });
+
 /** Hub pageId as a record key (JSON object keys are strings). */
 export const PAGE_ID_KEY_PATTERN = /^[1-9]\d{0,15}$/;
 const PageIdKeySchema = z.string().check(z.regex(PAGE_ID_KEY_PATTERN));
@@ -88,17 +112,18 @@ export const SettingsV1Schema = z.strictObject({
     messages: z.strictObject({ on: z.boolean(), tone: ToneIdSchema }),
     subscribers: z.strictObject({ on: z.boolean(), tone: ToneIdSchema }),
     volume: VolumeSchema,
-    /** Host accounts (OnlyMonster ids) whose sounds are muted. */
-    mutedAccounts: z.array(NativeIdSchema).check(z.maxLength(SETTINGS_RANGES.mutedAccountsMax)),
+    /** Host accounts whose sounds are muted. */
+    mutedAccounts: z.array(HostAccountKeySchema).check(z.maxLength(SETTINGS_RANGES.mutedAccountsMax)),
   }),
   personas: z.strictObject({
+    scope: z.nullable(PersonaScopeSchema),
     byPageId: z.record(PageIdKeySchema, PersonaAssignmentSchema).check(
       z.refine((r) => Object.keys(r).length <= SETTINGS_RANGES.personasMax, { message: 'too many persona assignments' }),
     ),
   }),
   accounts: z.strictObject({
     /** Local labels of host accounts, ≤ 60 characters. */
-    labels: z.record(NativeIdSchema, boundedText(SETTINGS_RANGES.accountLabelMaxChars)).check(
+    labels: z.record(HostAccountKeySchema, boundedText(SETTINGS_RANGES.accountLabelMaxChars)).check(
       z.refine((r) => Object.keys(r).length <= SETTINGS_RANGES.accountLabelsMax, { message: 'too many account labels' }),
     ),
   }),
@@ -137,7 +162,7 @@ export const DEFAULT_SETTINGS: SettingsV1 = {
     volume: 50,
     mutedAccounts: [],
   },
-  personas: { byPageId: {} },
+  personas: { scope: null, byPageId: {} },
   accounts: { labels: {} },
   debug: { enabled: false, renderTrace: false },
   onboarding: { checklistDismissed: false, lastSeenVersion: null, keysFooter: { shown: 0, dismissed: false } },
@@ -148,7 +173,8 @@ export const SETTINGS_OPTIONS_ONLY_SECTIONS = ['hub', 'debug'] as const;
 
 /**
  * A change request. Sections merge shallowly; in the two maps a `null` value
- * removes the key. `mutedAccounts` is replaced as a whole.
+ * removes the key. `mutedAccounts` is replaced as a whole. `personas.scope`
+ * is never patched: the background owns it.
  */
 export const SettingsPatchSchema = z.strictObject({
   hub: z.optional(z.partial(SettingsV1Schema.shape.hub)),
@@ -172,7 +198,7 @@ export const SettingsPatchSchema = z.strictObject({
     z.strictObject({ byPageId: z.record(PageIdKeySchema, z.nullable(PersonaAssignmentSchema)) }),
   ),
   accounts: z.optional(
-    z.strictObject({ labels: z.record(NativeIdSchema, z.nullable(boundedText(SETTINGS_RANGES.accountLabelMaxChars))) }),
+    z.strictObject({ labels: z.record(HostAccountKeySchema, z.nullable(boundedText(SETTINGS_RANGES.accountLabelMaxChars))) }),
   ),
   debug: z.optional(z.partial(SettingsV1Schema.shape.debug)),
   onboarding: z.optional(z.partial(SettingsV1Schema.shape.onboarding)),
