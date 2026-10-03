@@ -510,6 +510,37 @@ describe('recap: the status line of the hub and the archive lag', () => {
     expect(h.bg.callsOf('recap.status')).toHaveLength(1);
   });
 
+  it('[AI-061] a failed status read is not asked again by itself — only on a new visit of the chat or «Повторить»', async () => {
+    const h = await start({ background: (bg) => (bg.recapStatus = { error: { code: 'CG-HUB-UNAVAILABLE' } }) });
+    await h.clock.advance(RECAP_STATUS.settleMs);
+    expect(h.bg.callsOf('recap.status')).toHaveLength(1);
+    expect(h.dock().actions.recap.badge).toBeNull();
+    // Minutes with the dock mounted and redrawn (within the ten the answer is kept): still the one read.
+    for (let i = 0; i < 9; i += 1) {
+      h.host.type(`typing ${i}`);
+      await h.clock.advance(60_000);
+    }
+    expect(h.bg.callsOf('recap.status')).toHaveLength(1);
+    // «Повторить» of the dock asks again — once.
+    h.bg.recapStatus = { full: { generatedAt: FULL_AT, ageMs: 3_600_000, transcriptCoverage: 'full-history', requestedCount: 3000, keptCount: 812 }, short: null };
+    await h.dispatch({ type: 'ReloadView', selector: { of: 'dock' } });
+    await h.clock.advance(RECAP_STATUS.settleMs);
+    expect(h.bg.callsOf('recap.status')).toHaveLength(2);
+    expect(h.dock().actions.recap.badge).toBe('recap-ready');
+
+    // A new visit of the chat asks what failed before.
+    const other = await start({ background: (bg) => (bg.recapStatus = { error: { code: 'CG-HUB-TIMEOUT' } }) });
+    await other.clock.advance(5 * 60_000);
+    expect(other.bg.callsOf('recap.status')).toHaveLength(1);
+    other.host.openChat(previewChat);
+    await other.settle();
+    other.host.openChat(openChat);
+    await other.clock.advance(RECAP_STATUS.settleMs);
+    expect(other.bg.callsOf('recap.status')).toHaveLength(2);
+    await other.clock.advance(5 * 60_000);
+    expect(other.bg.callsOf('recap.status')).toHaveLength(2);
+  });
+
   it('[AI-061] flipping through chats asks the hub nothing', async () => {
     const h = await start();
     await h.clock.advance(RECAP_STATUS.settleMs - 100);

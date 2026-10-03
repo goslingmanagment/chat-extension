@@ -709,6 +709,8 @@ export class AiWorkspace {
       if (key !== this.syncedChat && this.env.session) {
         this.syncedChat = key;
         void this.ops.syncChat(key);
+        // A new visit may ask again what failed before (never by itself while the person stays).
+        this.recaps.retryFailedStatuses();
       }
     } else this.syncedChat = null;
     this.bump();

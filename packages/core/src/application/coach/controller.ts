@@ -211,8 +211,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const mode = ready.settings.generation.coach.autoRecap;
     let recap: 'short' | 'full' | null = null;
     if (mode !== 'off' && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
-      const status = await ws.recaps.readStatus(ws.slotKey(ready));
-      recap = autoRecapFor({ mode, attempted: session.autoRecapAttempted, hasExchanges: false, status, deepWindow: windowFor('recap', undefined, ready.settings, ready.bootstrap) });
+      const read = await ws.recaps.readStatus(ws.slotKey(ready));
+      recap = autoRecapFor({ mode, attempted: session.autoRecapAttempted, hasExchanges: false, status: read.ok ? read.status : null, deepWindow: windowFor('recap', undefined, ready.settings, ready.bootstrap) });
       // The person left the chat while the status was read: nothing is started for another fan.
       if (stillOpen(session) === null) return refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' });
     }

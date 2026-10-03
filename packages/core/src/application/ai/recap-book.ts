@@ -51,7 +51,8 @@ const idOf = (key: RecapSlotKey): string => [key.hubOrigin, key.pageId, key.fanR
 export class RecapBook {
   readonly slots = new RecapSlots();
   private readonly reads = new Map<string, SharedRead>();
-  private readonly statuses = new Map<string, { status: RecapStatus | null; at: number | null }>();
+  /** `at` null — a read is on its way; `failed` — the last read failed (known as such until it expires or is retried). */
+  private readonly statuses = new Map<string, { status: RecapStatus | null; at: number | null; failed: boolean }>();
   private readonly saves = new Map<string, RecapSaveState>();
   private readonly owners = new Map<string, RecapSlotKey>();
   private readonly timers = new Set<unknown>();
@@ -170,7 +171,10 @@ export class RecapBook {
   /**
    * What the hub says about saved recaps of the open chat. Asked once the
    * chat stayed open for a moment — fast chat switching asks nothing — and
-   * kept ten minutes. null — not known (yet).
+   * kept ten minutes. A failed read is kept as failed just as long: nothing
+   * asks it again by itself; a new visit of the chat or an explicit action
+   * (the Recap sheet, «Повторить») does (`retryFailedStatuses`). null — not
+   * known (yet).
    */
   status(owner: RecapOwner): RecapStatus | null {
     const { clock } = this.deps.ports;
@@ -178,7 +182,7 @@ export class RecapBook {
     const now = clock.now();
     const known = this.statuses.get(id);
     if (known !== undefined && (known.at === null || now - known.at < RECAP_STATUS.ttlMs)) return known.status;
-    this.statuses.set(id, { status: known?.status ?? null, at: null });
+    this.statuses.set(id, { status: known?.status ?? null, at: null, failed: false });
     const timer = clock.setTimer(RECAP_STATUS.settleMs, () => {
       this.timers.delete(timer);
       if (this.deps.openChat() !== owner.chatKey) {
@@ -191,15 +195,19 @@ export class RecapBook {
     return known?.status ?? null;
   }
 
-  /** Reads the status now (a Coach turn decides about its auto-recap); null — the read failed. */
-  async readStatus(key: RecapSlotKey): Promise<RecapStatus | null> {
+  /** Reads the status now (a Coach turn decides about its auto-recap). A failed read is remembered as failed. */
+  async readStatus(key: RecapSlotKey): Promise<{ readonly ok: true; readonly status: RecapStatus } | { readonly ok: false }> {
     const { clock, rpc } = this.deps.ports;
     const id = idOf(key);
     const answer = await rpc.request('recap.status', { pageId: key.pageId, fanRef: key.fanRef, personaDefinitionId: key.personaDefinitionId });
-    if (answer.ok) this.statuses.set(id, { status: answer.payload, at: clock.now() });
-    else this.statuses.delete(id);
+    this.statuses.set(id, answer.ok ? { status: answer.payload, at: clock.now(), failed: false } : { status: null, at: clock.now(), failed: true });
     this.deps.changed();
-    return answer.ok ? answer.payload : null;
+    return answer.ok ? { ok: true, status: answer.payload } : { ok: false };
+  }
+
+  /** A new visit of a chat, «Повторить», the Recap sheet: failed status reads may be asked again. */
+  retryFailedStatuses(): void {
+    for (const [id, known] of this.statuses) if (known.failed) this.statuses.delete(id);
   }
 
   /** UI-010: a recap of this chat can be opened at once. */

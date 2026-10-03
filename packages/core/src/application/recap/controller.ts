@@ -237,6 +237,8 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     const ui = uiOf(chat.key);
     const key = ready === null ? null : ws.slotKey(ready);
     if (key !== null) book.loadShared(key);
+    // The person asked to see recaps: a status read that failed may be asked again.
+    book.retryFailedStatuses();
     const slots = key === null ? { short: null, full: null } : book.both(key);
     // AI-065: when the asked length has nothing saved, the slot that exists opens.
     ui.length = length !== null && slots[length] !== null ? length : (latestLength(slots) ?? length ?? 'full');

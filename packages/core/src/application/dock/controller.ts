@@ -358,6 +358,7 @@ export function createDockController(ws: AiWorkspace): DockController {
     ReloadView(action) {
       if (action.selector.of !== 'dock') return null;
       ws.env.reload();
+      ws.recaps.retryFailedStatuses();
       return Promise.resolve(done(action.type));
     },
   };
