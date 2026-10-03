@@ -217,11 +217,47 @@ describe('the part row (ui-design §4.3)', () => {
     await flush(() => row.dispatchEvent(key('Enter', { isComposing: true })));
     await flush(() => row.dispatchEvent(key('Enter', { shiftKey: true })));
     expect(onInsert).toHaveBeenCalledTimes(1);
-    await flush(() => row.dispatchEvent(key('c', { metaKey: true })));
+    await flush(() => row.dispatchEvent(key('c', { metaKey: true, code: 'KeyC' })));
     expect(onCopy).toHaveBeenCalledTimes(1);
     // A key from a button inside the part belongs to the button.
     await flush(() => (row.querySelector('.cg-part__copy') as HTMLElement).dispatchEvent(key('Enter')));
     expect(onInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('[UI-023] ⌘C / Ctrl+C is the physical C key: the Russian layout copies too, another key under `c` does not', async () => {
+    const onCopy = vi.fn();
+    kit = await mountKitSettled(() => <PartRow part={part(0, 'Привет', { opId: OP })} mode="insert" onInsert={() => undefined} onCopy={onCopy} />);
+    const row = kit.$('.cg-part') as HTMLElement;
+    // ЙЦУКЕН: Ctrl+С gives the Cyrillic `с` on the KeyC key.
+    await flush(() => row.dispatchEvent(key('с', { ctrlKey: true, code: 'KeyC' })));
+    expect(onCopy).toHaveBeenCalledTimes(1);
+    // A layout that puts `c` on another key: not the copy key.
+    await flush(() => row.dispatchEvent(key('c', { metaKey: true, code: 'KeyJ' })));
+    await flush(() => row.dispatchEvent(key('с', { ctrlKey: true, shiftKey: true, code: 'KeyC' })));
+    expect(onCopy).toHaveBeenCalledTimes(1);
+  });
+
+  it('[UI-022] [UI-023] Enter never puts a collapsed part back: inserted needs «Вставить ещё раз», a sent part has none', async () => {
+    const onInsert = vi.fn();
+    const again = vi.fn();
+    const onCopy = vi.fn();
+    kit = await mountKitSettled(() => (
+      <>
+        <PartRow part={part(0, 'Inserted', { opId: OP, insert: 'done', collapsed: true })} mode="insert" onInsert={onInsert} onCopy={onCopy} onInsertAgain={again} />
+        <PartRow part={part(1, 'Sent', { opId: OP, collapsed: true, send: { s: 'sent', at: '2026-10-03T06:21:00.000Z' } })} mode="insert" onInsert={onInsert} onCopy={onCopy} onInsertAgain={again} />
+        {/* A sent part the view model forgot to collapse is still the one line, with no «Вставить». */}
+        <PartRow part={part(2, 'Sent too', { opId: OP, next: true, send: { s: 'sent', at: '2026-10-03T06:22:00.000Z' } })} mode="insert" onInsert={onInsert} onCopy={onCopy} />
+        <PartRow part={part(3, 'Copied only', { opId: OP, collapsed: true })} mode="copy-only" onInsert={onInsert} onCopy={onCopy} />
+      </>
+    ));
+    const rows = kit.$$('.cg-part');
+    for (const row of rows) await flush(() => row.dispatchEvent(key('Enter')));
+    expect(onInsert).not.toHaveBeenCalled();
+    expect(again).not.toHaveBeenCalled();
+    expect(onCopy).not.toHaveBeenCalled();
+    expect(rows[2]?.classList.contains('is-done')).toBe(true);
+    expect(rows[2]?.querySelector('.cg-ins')).toBeNull();
+    expect(rows[2]?.querySelector('.cg-part__state')?.textContent).toBe('Отправлено 06:22');
   });
 
   it('inserting: «Вставить» is off with a spinner, Copy still works; Enter does not insert twice', async () => {
@@ -267,8 +303,23 @@ describe('the part row (ui-design §4.3)', () => {
     expect(failed?.querySelector('.cg-card__code')?.textContent).toBe('ChatGoose · CG-CLIPBOARD');
     expect(failed?.querySelectorAll('.cg-part__card .cg-btn')).toHaveLength(0);
     expect(blocked?.querySelector('.cg-ins')?.getAttribute('aria-disabled')).toBe('true');
-    await flush(() => blocked?.dispatchEvent(key('Enter')));
-    expect(onCopy).toHaveBeenCalledTimes(2);
+  });
+
+  it('[UI-023] Enter on a part whose «Вставить» is unavailable inserts nothing, copies nothing, and says why', async () => {
+    const onInsert = vi.fn();
+    const onCopy = vi.fn();
+    const blockedPart = part(0, 'Hi there', { opId: OP, next: true, insertBlocked: { id: 'language', code: 'CG-GATE-LANGUAGE', text: { key: 'dock.reason.language' } } });
+    kit = await mountKitSettled(() => <PartRow part={blockedPart} mode="insert" onInsert={onInsert} onCopy={onCopy} />);
+    const row = kit.$('.cg-part') as HTMLElement;
+    await flush(() => row.dispatchEvent(key('Enter')));
+    expect(onInsert).not.toHaveBeenCalled();
+    expect(onCopy).not.toHaveBeenCalled();
+    const reason = kit.deps.i18n.t('dock.reason.language');
+    expect(reason).not.toBe('dock.reason.language');
+    expect(kit.$('[data-cg-live]')?.textContent).toBe(reason);
+    // Copy still works by its own button.
+    await flush(() => (row.querySelector('.cg-part__copy') as HTMLElement).click());
+    expect(onCopy).toHaveBeenCalledTimes(1);
   });
 
   it('[UI-022] copied shows the check; inserted collapses to one line with «✓ вставлено» and «Вставить ещё раз»; sent shows its time', async () => {

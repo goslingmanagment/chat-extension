@@ -4,7 +4,10 @@
 // focus), a spinner while inserting, an inline error card when inserting or
 // copying failed, and one collapsed line once a part is inserted or sent.
 // Clicking the text inserts nothing; Enter on the focused part inserts THIS
-// part; ⌘C / Ctrl+C copies it when nothing inside is selected. Surfaces put
+// part (never a collapsed one: «Вставить ещё раз» is a click of its own, and
+// a sent part has none; with «Вставить» unavailable Enter says why);
+// ⌘C / Ctrl+C — the physical C key, so the Russian layout works too —
+// copies it when nothing inside is selected. Surfaces put
 // their rows (the X8 send row, the Б2 question) in `children`. An ancestor
 // with the class `cg-bare` («Вид ответа: без подложки», §3.2) switches the
 // rules and the hover to the bare tokens.
@@ -13,7 +16,7 @@ import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent 
 
 import { type PartVM } from '@cg/contracts/vm';
 
-import { useHints, useI18n, useKit } from '../context';
+import { useAnnounce, useHints, useI18n, useKit } from '../context';
 import { isComposing } from '../focus';
 import { dark } from '../tokens';
 import { Button } from './Button';
@@ -53,10 +56,12 @@ export function PartRow(props: PartRowProps): JSX.Element {
   const i18n = useI18n();
   const hints = useHints();
   const { root } = useKit();
+  const announce = useAnnounce();
   const { part, mode } = props;
   const n = part.index + 1;
   const sentAt = part.send?.s === 'sent' ? part.send.at : null;
-  const collapsed = part.collapsed;
+  // A sent part is always the one collapsed line: nothing on it can put the text back into a composer.
+  const collapsed = part.collapsed || sentAt !== null;
   const fullText = useTooltip(collapsed ? part.text : null);
   const copyLabel = part.copy === 'done' ? i18n.t('common.copied') : i18n.t('part.copyN', { n });
   const insertKey = props.insertKey ?? '↵';
@@ -66,11 +71,15 @@ export function PartRow(props: PartRowProps): JSX.Element {
     if (event.defaultPrevented || event.target !== event.currentTarget || isComposing(event)) return;
     if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
       event.preventDefault();
-      if (mode === 'copy-only' || part.insertBlocked !== null) props.onCopy(part);
+      // Inserted or sent: inserting again is only ever the explicit «Вставить ещё раз» (UI-022).
+      if (collapsed) return;
+      if (mode === 'copy-only') props.onCopy(part);
+      else if (part.insertBlocked !== null) announce(i18n.text(part.insertBlocked.text));
       else if (part.insert !== 'pending') props.onInsert(part);
       return;
     }
-    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'c') {
+    // The physical key (architecture.md §9.1): Ctrl+С on ЙЦУКЕН is `с`, still KeyC.
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.code === 'KeyC') {
       if (hasSelectionInside(root, event.currentTarget)) return;
       event.preventDefault();
       props.onCopy(part);
