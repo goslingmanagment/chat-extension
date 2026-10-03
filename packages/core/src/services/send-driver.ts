@@ -5,13 +5,23 @@
 // ticket, then every state MAIN observes is reported back. A click while the
 // same part is in flight joins it (twenty fast clicks are one attempt). A
 // bridge failure of the queue call is `uncertain` and the command is never
-// sent again — not after a timeout, not with the same attemptId.
+// sent again — not after a timeout, not with the same attemptId. After an
+// `uncertain` the driver keeps listening to MAIN (bounded): the late linked
+// receipt and echo are the only automatic way out of it (§6.7.8, NF-022).
+// It stops listening at a final state, at the bound, or on dispose().
 
 import { type DispatchTicket, type PreviewSendPort, type PreviewSendRequest, type SendAttemptView } from '@cg/contracts/send';
+import { type SendAttemptState } from '@cg/contracts/send-rules';
 import { type SendBegin } from '@cg/contracts/tab-messages';
 
 import { attemptKeyOf } from '../domain/send';
-import { type IdSource } from './ports';
+import { type Clock, type IdSource, type TimerHandle } from './ports';
+
+/** How long MAIN is listened to after the queue call, for the late linked pair of an uncertain send. */
+export const LATE_PAIR_LISTEN_MS = 10 * 60_000;
+
+/** States after which MAIN has nothing more to say about an attempt. */
+const FINAL_STATES: readonly SendAttemptState[] = ['sentObserved', 'rejected', 'held', 'notEnqueued'];
 
 /** The background half, over the tab protocol (`send.begin`, `send.report`). */
 export interface BackgroundSendPort {
@@ -29,11 +39,19 @@ export interface SendDriverDeps {
   readonly ids: Pick<IdSource, 'uuid'>;
   /** Every view the driver learns, for the preview's «Отправить» row. */
   readonly onView?: (view: SendAttemptView) => void;
+  /** Bounds the listening (LATE_PAIR_LISTEN_MS); without a clock it lasts until a final state or dispose(). */
+  readonly clock?: Pick<Clock, 'setTimer' | 'clearTimer'>;
+  readonly lateListenMs?: number;
+}
+
+interface Subscription {
+  readonly unsubscribe: () => void;
+  timer: TimerHandle | null;
 }
 
 export class PreviewSendDriver {
   private readonly inflight = new Map<string, Promise<SendAttemptView>>();
-  private readonly subscriptions = new Map<string, () => void>();
+  private readonly subscriptions = new Map<string, Subscription>();
 
   constructor(private readonly deps: SendDriverDeps) {}
 
@@ -51,8 +69,34 @@ export class PreviewSendDriver {
 
   /** Stops listening to MAIN's states (the preview closed; the background keeps the attempt). */
   dispose(): void {
-    for (const unsubscribe of this.subscriptions.values()) unsubscribe();
-    this.subscriptions.clear();
+    for (const attemptId of [...this.subscriptions.keys()]) this.stop(attemptId);
+  }
+
+  /** Attempts whose MAIN states are still listened to (diagnostics, tests). */
+  get listening(): number {
+    return this.subscriptions.size;
+  }
+
+  private listen(attemptId: string, port: PreviewSendPort): void {
+    const subscription: Subscription = {
+      unsubscribe: port.onState(attemptId, (view) => {
+        this.deps.onView?.(view);
+        this.deps.background.report(view).catch(() => undefined);
+        if (FINAL_STATES.includes(view.state)) this.stop(attemptId);
+      }),
+      timer: null,
+    };
+    this.subscriptions.set(attemptId, subscription);
+    const clock = this.deps.clock;
+    if (clock !== undefined) subscription.timer = clock.setTimer(this.deps.lateListenMs ?? LATE_PAIR_LISTEN_MS, () => this.stop(attemptId));
+  }
+
+  private stop(attemptId: string): void {
+    const subscription = this.subscriptions.get(attemptId);
+    if (subscription === undefined) return;
+    this.subscriptions.delete(attemptId);
+    subscription.unsubscribe();
+    if (subscription.timer !== null) this.deps.clock?.clearTimer(subscription.timer);
   }
 
   private async run(click: SendClick): Promise<SendAttemptView> {
@@ -85,11 +129,7 @@ export class PreviewSendDriver {
       return begun.view;
     }
     // Listen before the queue call: an early state must not be lost.
-    const unsubscribe = port.onState(attemptId, (view) => {
-      this.deps.onView?.(view);
-      this.deps.background.report(view).catch(() => undefined);
-    });
-    this.subscriptions.set(attemptId, unsubscribe);
+    this.listen(attemptId, port);
     let view: SendAttemptView;
     let pendingId: string | undefined;
     try {
@@ -106,13 +146,11 @@ export class PreviewSendDriver {
           break;
       }
     } catch {
-      // The queue call may have run: uncertain, never sent again (BRIDGE_WRITE_FAILURES).
+      // The queue call may have run: uncertain, never sent again (BRIDGE_WRITE_FAILURES); MAIN may still see its pair.
       view = { attemptId, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' };
     }
-    if (view.state !== 'nativeEnqueued') {
-      unsubscribe();
-      this.subscriptions.delete(attemptId);
-    }
+    // Nothing reached the queue: MAIN has nothing more to say. Enqueued or uncertain: keep listening.
+    if (FINAL_STATES.includes(view.state)) this.stop(attemptId);
     this.deps.onView?.(view);
     try {
       await this.deps.background.report(view, pendingId);
