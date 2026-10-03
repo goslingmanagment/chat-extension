@@ -125,7 +125,8 @@ interface State {
   unscripted: UnscriptedPolicy | null;
   sseScript: SseScriptEntry[];
   readonly gates: Gates;
-  readonly streams: AbortController;
+  /** Aborted (and replaced) by closeStreams: every stream open at that moment ends like a reset connection. */
+  streams: AbortController;
   openStreams: number;
   generationSeq: number;
 }
@@ -230,7 +231,13 @@ export class FakeHub {
 
   // ── public API ───────────────────────────────────────────────────────────
 
-  /** A fetch implementation over the same pipeline (in-process mode). Other origins fail like a network error and are journaled. */
+  /**
+   * A fetch implementation over the same pipeline (in-process mode). Other
+   * origins fail like a network error and are journaled. The stream follows
+   * the caller's own signal: the copy a `new Request` makes stops following
+   * it once that Request is garbage-collected, and nothing keeps it alive
+   * after `handle` returns.
+   */
   readonly fetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
     const url = new URL(request.url);
@@ -239,7 +246,8 @@ export class FakeHub {
       throw new TypeError(`fetch failed: the fake hub serves ${this.origin_}, not ${url.origin}`);
     }
     if (request.signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
-    return this.handle(request);
+    const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : null);
+    return this.handle(request, callerSignal ?? request.signal);
   };
 
   /** Applies a control command (the same JSON the loopback control endpoint takes). */
@@ -385,9 +393,11 @@ export class FakeHub {
     return this.state.data.ingestedEvents();
   }
 
-  /** Ends every open stream like a reset connection (server close). */
+  /** Ends every open stream like a reset connection (server close). Streams opened later are closed by the next call. */
   closeStreams(): void {
-    this.state.streams.abort();
+    const closing = this.state.streams;
+    this.state.streams = new AbortController();
+    closing.abort();
   }
 
   // ── the pipeline ─────────────────────────────────────────────────────────
@@ -396,8 +406,12 @@ export class FakeHub {
     return { at: this.clock.now(), method: method.toUpperCase(), path, route: null, operation: null, error: null, reason: null, token: null, clientVersion, request: null, issues: [] };
   }
 
-  /** Every request of both modes. */
-  async handle(request: Request): Promise<Response> {
+  /**
+   * Every request of both modes. `signal` is the client's own (the loopback
+   * server's connection, the in-process caller's): an SSE body ends when it
+   * aborts.
+   */
+  async handle(request: Request, signal: AbortSignal = request.signal): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith(FAKE_HUB_CONTROL_PREFIX) && request.headers.get(FAKE_HUB_CONTROL_HEADER) === '1') return this.handleControl(request, url);
     const method = request.method.toUpperCase();
@@ -453,7 +467,7 @@ export class FakeHub {
     // Scripts answer before the model's checks: a scenario is self-contained.
     if (route === 'aiFeatureStream') {
       const scripted = this.takeSse(valid.request as HubStreamRequest);
-      if (scripted !== null) return this.respond({ kind: 'sse', response: scripted, request: valid.request as HubStreamRequest }, record, 'script', principal, request.signal, base);
+      if (scripted !== null) return this.respond({ kind: 'sse', response: scripted, request: valid.request as HubStreamRequest }, record, 'script', principal, signal, base);
     } else {
       const scripted = this.takeHttp(route, valid.request);
       if (scripted !== null) {
@@ -482,7 +496,7 @@ export class FakeHub {
     } catch (error) {
       return refuse({ ...record, servedBy: 'check' }, 'internal_error', 'fake_hub_bug', undefined, [`fake hub model: ${error instanceof Error ? error.message : String(error)}`]);
     }
-    return this.respond(outcome, record, 'model', principal, request.signal, base);
+    return this.respond(outcome, record, 'model', principal, signal, base);
   }
 
   private respond(

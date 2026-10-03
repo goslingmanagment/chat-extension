@@ -5,6 +5,9 @@
 // and every SSE scenario of @cg/testing/hub replayed byte for byte. The
 // journal keeps the frame types and how each stream ended, never the text.
 
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
+
 import { type HubFrame } from '@cg/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -140,13 +143,37 @@ describe('fake hub SSE: failures of a real connection', () => {
     await expect(post({ signal: abort.signal })).rejects.toThrow(/abort/i);
   });
 
-  it('closeStreams (and reset) end open streams like a reset connection', async () => {
+  it('closeStreams (and reset) end open streams like a reset connection — every time, not only the first', async () => {
     script({ kind: 'stream', steps: [frame(meta('fast-reply')), { kind: 'stall' }] }, { kind: 'stream', steps: [frame(meta('fast-reply')), { kind: 'stall' }] });
     const first = readSse(await post());
     await until(() => hub.status().openStreams === 1, 'stream open');
     hub.closeStreams();
     expect((await first).end).toBe('error');
     expect(hub.read().entries.at(-1)?.stream?.outcome).toBe('reset');
+    // A stream opened after the first close is closed by the next one.
+    const second = readSse(await post());
+    await until(() => hub.status().openStreams === 1, 'second stream open');
+    hub.closeStreams();
+    expect((await second).end).toBe('error');
+    expect(hub.read().entries.at(-1)?.stream?.outcome).toBe('reset');
+    expect(hub.status().openStreams).toBe(0);
+  });
+
+  it('a client abort reaches the stream after the in-process Request copy is garbage-collected (the caller’s own signal is followed)', async () => {
+    setFlagsFromString('--expose-gc');
+    const gc = runInNewContext('gc') as () => void;
+    script({ kind: 'stream', steps: [frame(meta('fast-reply')), { kind: 'stall' }] });
+    const abort = new AbortController();
+    const reading = readSse(await post({ signal: abort.signal }));
+    await until(() => (lastStream()?.frames.length ?? 0) === 1, 'meta written');
+    for (let round = 0; round < 3; round += 1) {
+      gc();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    abort.abort();
+    await until(() => lastStream()?.outcome === 'aborted', 'the stream saw the abort');
+    expect((await reading).end).toBe('error');
+    expect(hub.status().openStreams).toBe(0);
   });
 
   it('raw bytes reach the client as they are: an unknown event, broken JSON', async () => {

@@ -101,6 +101,7 @@ export function sseBody(steps: readonly FakeSseStep[], ctx: SsePlayContext): Rea
     writer.abort(new TypeError('fake hub: connection reset (hub closed)')).catch(() => undefined);
   };
   if (ctx.signal?.aborted === true) onClientAbort();
+  else if (ctx.hubSignal.aborted) onHubClose();
   ctx.signal?.addEventListener('abort', onClientAbort, { once: true });
   ctx.hubSignal.addEventListener('abort', onHubClose, { once: true });
   // The reader cancelled the body (reader.cancel()): the writable side errors.

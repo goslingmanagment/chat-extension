@@ -46,7 +46,7 @@ async function serve(hub: FakeHub, origin: string, req: IncomingMessage, res: Se
     signal: abort.signal,
     ...(body === undefined || body.length === 0 ? {} : { body: new Uint8Array(body) }),
   });
-  const response = await hub.handle(request);
+  const response = await hub.handle(request, abort.signal);
   const out: Record<string, string> = {};
   response.headers.forEach((value, name) => {
     out[name] = value;
