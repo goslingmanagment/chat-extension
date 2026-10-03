@@ -4,7 +4,8 @@
 // says which banner and which reasons apply, `view` classifies it.
 
 import { type CgErrorView } from '../errors';
-import { type Tone } from '../features';
+import { type FeatureId, type Tone } from '../features';
+import { type UiResultStyle } from '../settings';
 import { type IsoTimestamp } from '../primitives';
 import { type ReasonVM, type HotkeyLabel } from './catalog';
 import { type RefusalVM, type ResultVM } from './result';
@@ -12,7 +13,7 @@ import { type TargetHandle } from './selectors';
 import { type RunningOpVM, type VmView } from './view';
 
 /** The seven strip buttons, in UI-002 order. */
-export const DOCK_ACTION_IDS = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach'] as const;
+export const DOCK_ACTION_IDS = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach'] as const satisfies readonly FeatureId[];
 export type DockActionId = (typeof DOCK_ACTION_IDS)[number];
 
 /**
@@ -105,7 +106,7 @@ export interface DockVM {
   /** The keys footer under the next result: first five results until dismissed (ui-design §4.3). */
   readonly keysFooter: boolean;
   /** «Вид ответа»: printed on the feed or on a sheet (ui-design §7). */
-  readonly resultStyle: 'bare' | 'sheet';
+  readonly resultStyle: UiResultStyle;
   /** «⌘K» hint at the right end of the strip. */
   readonly paletteHotkey: HotkeyLabel | null;
   /** Debug mode: what the expanded result may show. Never in a collapsed dock (DB-020). */

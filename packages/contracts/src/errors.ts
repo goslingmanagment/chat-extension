@@ -128,6 +128,30 @@ export function isCgCode(value: unknown): value is CgCode {
   return typeof value === 'string' && (CG_CODES as readonly string[]).includes(value);
 }
 
+/** Diagnostics grouping of the codes. */
+export const CG_KINDS = [
+  'auth',
+  'hub',
+  'page',
+  'context',
+  'quota',
+  'gate',
+  'op',
+  'provider',
+  'output',
+  'recap',
+  'data',
+  'host',
+  'insert',
+  'nav',
+  'claim',
+  'send',
+  'network',
+  'storage',
+  'system',
+] as const;
+export type CgKind = (typeof CG_KINDS)[number];
+
 export const CG_SEVERITIES = ['info', 'warn', 'error'] as const;
 export type CgSeverity = (typeof CG_SEVERITIES)[number];
 
@@ -176,8 +200,8 @@ export type I18nKey = UiTextKey | UiPluralKey | CgTitleKey<CgCode> | CgBodyKey<C
 /** One entry of the CG registry (§5.7). */
 export interface CgEntry {
   readonly code: CgCode;
-  /** Short machine kind for diagnostics grouping (auth, hub, gate, host, send…). */
-  readonly kind: string;
+  /** Diagnostics grouping (auth, hub, gate, host, send…). */
+  readonly kind: CgKind;
   readonly severity: CgSeverity;
   readonly title: I18nKey;
   readonly body: I18nKey;

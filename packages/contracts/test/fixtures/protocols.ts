@@ -163,7 +163,7 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: dto(H.spendersBoard, { ...H.spendersBoard, complete: undefined }),
   },
   'spenders.stats': {
-    req: { valid: [{ pageId: 11, windowDays: 30, timeZone: 'Europe/Moscow' }], invalid: [{ pageId: 11, windowDays: 0, timeZone: 'Europe/Moscow' }] },
+    req: { valid: [{ pageId: 11, windowDays: 30, timeZone: 'Europe/Moscow' }], invalid: [{ pageId: 11, windowDays: 0, timeZone: 'Europe/Moscow' }, { pageId: 11, windowDays: 90, timeZone: 'Europe/Moscow' }] },
     res: dto(H.stats, { ...H.stats, moneyUnit: 'USD' }),
   },
   'spenders.queue': {

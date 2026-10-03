@@ -5,7 +5,8 @@
 // fan's live text never enters the feed: a newer message shows as one line.
 
 import { type CgErrorView } from '../errors';
-import { type Tone } from '../features';
+import { SENDABLE_FEATURES, type Tone } from '../features';
+import { type FeedSender, type PingSegment } from '../hub/feed';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
@@ -19,7 +20,7 @@ import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 export interface FeedItemVM {
   readonly id: string;
   readonly at: IsoTimestamp;
-  readonly sender: 'fan' | 'model' | 'system' | 'unknown';
+  readonly sender: FeedSender;
   readonly text: string;
   readonly deleted: boolean;
   readonly automatic: boolean;
@@ -35,11 +36,12 @@ export interface FeedItemVM {
 
 /** The Ping segment chip (AI-038): computed by the hub with the generation's own window rules. */
 export interface PingSegmentVM {
-  readonly segment: 'active' | 'segment-a' | 'segment-b' | 'unknown';
+  readonly segment: PingSegment;
   readonly fanSilenceDays: number | null;
 }
 
-export const PREVIEW_ACTION_IDS = ['reply', 'fix', 'hi', 'ping'] as const;
+/** Reply, Fix, Hi, Ping: the features whose result a preview may send (D-14). */
+export const PREVIEW_ACTION_IDS = SENDABLE_FEATURES;
 export type PreviewActionId = (typeof PREVIEW_ACTION_IDS)[number];
 
 export interface PreviewVM {

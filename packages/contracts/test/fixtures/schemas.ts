@@ -489,8 +489,21 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'ServedContext',
     C.ServedContextSchema,
-    [{ source: 'archive', servedHead: null }, { source: 'union', servedHead: { messageRef: IDS.msg1, at: ISO }, knownFanMessage: { id: IDS.msg1, state: 'included' } }],
-    [{ source: 'live_union', servedHead: null }],
+    [
+      { source: 'archive', servedHead: null, live: { status: 'not_sent', accepted: 0, rejected: 0 } },
+      {
+        source: 'union',
+        servedHead: { messageRef: IDS.msg1, at: ISO },
+        knownFanMessage: { id: IDS.msg1, state: 'included' },
+        live: { status: 'served', accepted: 3, rejected: 1 },
+      },
+      { source: null, servedHead: null, live: { status: null, accepted: 0, rejected: 0 } },
+    ],
+    [
+      { source: 'live-overlay', servedHead: null, live: { status: 'served', accepted: 0, rejected: 0 } },
+      { source: 'archive', servedHead: null },
+      { source: 'archive', servedHead: null, live: { status: 'served', accepted: -1, rejected: 0 } },
+    ],
   ),
   fixture('OpDebugView', C.OpDebugViewSchema, [debugView], [{ ...debugView, usage: { ...debugView.usage, costMicroUsd: -1 } }]),
   fixture('OpView', C.OpViewSchema, [opView, { ...opView, state: 'failed', result: undefined, error: { code: 'CG-STREAM-TRUNCATED' } }], [{ ...opView, state: 'queued' }]),

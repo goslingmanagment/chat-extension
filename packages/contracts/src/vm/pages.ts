@@ -7,7 +7,7 @@ import { type CgCode, type CgErrorView, type SettingsSection } from '../errors';
 import { type Role } from '../ids';
 import { type LogLevel } from '../logs';
 import { type IsoTimestamp } from '../primitives';
-import { type ToneId, type UI_LOCALES, type UI_THEMES, type COACH_AUTO_RECAP } from '../settings';
+import { type CoachAutoRecap, type ToneId, type UiLocale, type UiResultStyle, type UiTheme } from '../settings';
 import { type UiAction } from './actions';
 import { type CatalogActionId, type HotkeyLabel, type HotkeyPlatform } from './catalog';
 import { type Msg } from './i18n';
@@ -168,7 +168,7 @@ export interface GenerationBodyVM {
     readonly savedAs: number | null;
   };
   readonly split: boolean;
-  readonly coach: { readonly historyLimit: number; readonly autoRecap: (typeof COACH_AUTO_RECAP)[number] };
+  readonly coach: { readonly historyLimit: number; readonly autoRecap: CoachAutoRecap };
   readonly debug: { readonly enabled: boolean; readonly renderTrace: boolean };
 }
 
@@ -186,12 +186,12 @@ export interface HotkeysBodyVM {
 
 export interface AppearanceBodyVM {
   readonly section: 'appearance';
-  readonly theme: (typeof UI_THEMES)[number];
+  readonly theme: UiTheme;
   /** «Система сейчас — светлая». */
   readonly systemScheme: ColorScheme;
-  readonly locale: (typeof UI_LOCALES)[number];
+  readonly locale: UiLocale;
   readonly hints: boolean;
-  readonly resultStyle: 'bare' | 'sheet';
+  readonly resultStyle: UiResultStyle;
   readonly sound: {
     readonly messages: { readonly on: boolean; readonly tone: ToneId };
     readonly subscribers: { readonly on: boolean; readonly tone: ToneId };

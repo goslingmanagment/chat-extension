@@ -33,7 +33,7 @@ import { BootstrapSchema } from './hub/bootstrap';
 import { FeedPageSchema } from './hub/feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
-import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema } from './hub/spenders';
+import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
 import { SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
 import { type ExtensionPage, type TabSender } from './tab-protocol';
 import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
@@ -46,7 +46,8 @@ const Ack = z.strictObject({ recorded: z.boolean() });
 /** A hub page + fan the tab asks about; the background re-checks the page is in the tab's binding. */
 const PageFan = { pageId: HubIntIdSchema, fanRef: NativeIdSchema };
 
-export const SPENDERS_PERIODS = ['lifetime', '30d', 'mtd', '7d', 'today'] as const;
+/** The board's periods: the hub's (H-8) the board offers. */
+export const SPENDERS_PERIODS = ['lifetime', '30d', 'mtd', '7d', 'today'] as const satisfies readonly HubSpenderPeriod[];
 export const SpendersPeriodSchema = z.enum(SPENDERS_PERIODS);
 
 export const ACTION_TOKEN_KINDS = ['generate', 'insert', 'navigate', 'send'] as const;
@@ -252,7 +253,8 @@ export const TAB_REQUESTS = {
     from: TAB,
   },
   'spenders.stats': {
-    req: z.strictObject({ pageId: HubIntIdSchema, windowDays: z.int().check(z.gte(1), z.lte(90)), timeZone: TimeZoneSchema }),
+    /** The hub's v1 serves only the 30-day window (H-8b); a longer one is a new contract. */
+    req: z.strictObject({ pageId: HubIntIdSchema, windowDays: StatsQuerySchema.shape.windowDays, timeZone: TimeZoneSchema }),
     res: SpendersStatsSchema,
     from: TAB,
   },

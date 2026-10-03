@@ -112,9 +112,6 @@ export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-al
 export const AiStreamCapabilitySchema = z.enum(AI_STREAM_CAPABILITIES);
 export type AiStreamCapability = z.infer<typeof AiStreamCapabilitySchema>;
 
-/** Coverage words of the hub's client routes (feed, stats, audience-new, context_v1). */
-export const HUB_COVERAGE_LEVELS = ['complete', 'partial', 'unknown'] as const;
-
 /** An unknown flag name, or a known one missing from the record, is off. */
 export function isFlagOn(flags: Readonly<Record<string, boolean>>, flag: ClientFeatureFlag): boolean {
   return Object.prototype.hasOwnProperty.call(flags, flag) && flags[flag] === true;

@@ -28,7 +28,7 @@ export type GreetingStatusVM =
   | { readonly s: 'stopped'; readonly sent: number; readonly total: number; readonly part: number }
   | { readonly s: 'greeted'; readonly at: IsoTimestamp | null };
 
-export const GREETING_STATES = ['none', 'claim-mine', 'claim-other', 'sending', 'stopped', 'greeted'] as const satisfies readonly GreetingStatusVM['s'][];
+export const GREETING_STATUSES = ['none', 'claim-mine', 'claim-other', 'sending', 'stopped', 'greeted'] as const satisfies readonly GreetingStatusVM['s'][];
 
 /** The greeting lease of the open card (H-7: 120 s, renewed every 40 s while the person works). */
 export type ClaimVM =

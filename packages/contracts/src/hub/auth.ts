@@ -6,6 +6,7 @@
 
 import * as z from 'zod/mini';
 
+import { KNOWN_PLATFORMS, KNOWN_ROLES } from '../ids';
 import { HubIntIdSchema, IsoTimestampSchema, boundedText } from '../primitives';
 
 /** The client name a narrow token is issued for (H-3); the hub echoes it back. */
@@ -61,9 +62,13 @@ export const DeviceTokenRevokeResponseSchema = z.object({ revoked: z.literal(tru
 export const SignOutOutcomeSchema = z.strictObject({ serverRevoked: z.nullable(z.boolean()) });
 export type SignOutOutcome = z.infer<typeof SignOutOutcomeSchema>;
 
-/** Hub roles as the existing SDK operations declare them (closed there; bootstrap carries an open token). */
-export const HUB_USER_ROLES = ['owner', 'team_lead', 'chatter'] as const;
-export const HUB_PLATFORMS = ['fansly', 'onlyfans'] as const;
+/**
+ * Roles and platforms as the existing SDK operations declare them: closed
+ * enums there, the client's known values (ids.ts); bootstrap and the new
+ * routes carry open tokens instead.
+ */
+export const HUB_USER_ROLES = KNOWN_ROLES;
+export const HUB_PLATFORMS = KNOWN_PLATFORMS;
 
 /** A page as the hub's existing routes reference it (`pageRefSchema`). */
 export const HubPageRefSchema = z.object({

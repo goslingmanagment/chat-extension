@@ -12,8 +12,13 @@ export type I18nMessage<L extends Locale> = string | PluralMessage<L>;
 
 export type I18nCatalog<L extends Locale> = { readonly [K in I18nTextKey]: string } & { readonly [K in UiPluralKey]: PluralMessage<L> };
 
-/** Parameters of a message: `{name}` placeholders; a plural message takes its count as `n`. */
-export type I18nParams = Readonly<Record<string, string | number>>;
+/**
+ * Parameters as the catalog substitutes them into `{name}`: already text or a
+ * number (a plural message takes its count as `n`). View models carry typed
+ * `I18nParams` (vm/i18n.ts); the UI's I18n port formats money, ages and times
+ * into these before it calls the translator.
+ */
+export type I18nPlainParams = Readonly<Record<string, string | number>>;
 
 /** Every key of the catalog, the CG ones in Appendix A order. */
 export const I18N_KEYS: readonly I18nKey[] = [

@@ -8,32 +8,8 @@
 // A code and its meaning never change after the first release: a removed
 // code keeps its entry with `retired` set. None is retired yet.
 
-import { CG_CODES, type CgCode, type CgEntry, type CgRecovery, type CgRetry, type CgSeverity, type CgTelemetryClass, type SettingsSection } from '../errors';
+import { CG_CODES, type CgCode, type CgEntry, type CgKind, type CgRecovery, type CgRetry, type CgSeverity, type CgTelemetryClass, type SettingsSection } from '../errors';
 import { cgBodyKey, cgTitleKey, type CgBodyKey, type CgTitleKey } from '../i18n/keys';
-
-/** Diagnostics grouping of the codes. */
-export const CG_KINDS = [
-  'auth',
-  'hub',
-  'page',
-  'context',
-  'quota',
-  'gate',
-  'op',
-  'provider',
-  'output',
-  'recap',
-  'data',
-  'host',
-  'insert',
-  'nav',
-  'claim',
-  'send',
-  'network',
-  'storage',
-  'system',
-] as const;
-export type CgKind = (typeof CG_KINDS)[number];
 
 /** Appendix A «Повтор» column word for each retry rule. */
 export const CG_RETRY_APPENDIX_A: Readonly<Record<CgRetry, string>> = {

@@ -191,7 +191,7 @@ export const opView: OpView = {
   result: { kind: 'parts', parts: ['hey', 'how are you'], splitRequested: true },
   generationRef: uuid(6),
   toneUsed: 'flirty',
-  servedContext: { source: 'union', servedHead: { messageRef: IDS.msg1, at: ISO } },
+  servedContext: { source: 'union', servedHead: { messageRef: IDS.msg1, at: ISO }, live: { status: 'served', accepted: 2, rejected: 0 } },
 };
 
 /** A histogram with its metric's fixed bounds and the given values. */

@@ -21,7 +21,9 @@ export const FEED_LIMITS = {
 } as const;
 
 export const FEED_SENDERS = ['fan', 'model', 'system', 'unknown'] as const;
+export type FeedSender = (typeof FEED_SENDERS)[number];
 export const PING_SEGMENTS = ['active', 'segment-a', 'segment-b', 'unknown'] as const;
+export type PingSegment = (typeof PING_SEGMENTS)[number];
 
 /** Path `pageLabel` + `fanRef`; query `cursor`, `limit`, `summaryWindow`. A fanRef is the OF fan id (= chat id). */
 export const FeedQuerySchema = z.strictObject({

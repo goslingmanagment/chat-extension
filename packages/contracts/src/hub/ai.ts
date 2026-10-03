@@ -6,7 +6,7 @@
 
 import * as z from 'zod/mini';
 
-import { type FeatureId } from '../features';
+import { TONES, type FeatureId } from '../features';
 import { LIVE_TEXT_LIMITS } from '../host';
 import { CountSchema, IsoTimestampSchema, MicroUsdSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText } from '../primitives';
 import { AI_STREAM_CAPABILITIES, AiStreamCapabilitySchema, PageLabelSchema, PersonaDefinitionIdSchema } from './wire';
@@ -74,7 +74,8 @@ export const SPLIT_MARKERS = { next: '[NEXT]', variant: '[VARIANT]' } as const;
 
 export const AI_MESSAGE_COUNT = { min: 5, max: 3000 } as const;
 export const COACH_ANSWER_MAX_CHARS = 64_000;
-export const HUB_REPLY_TONES = ['none', 'casual', 'flirty', 'upsell', 'spicy'] as const;
+/** `none` = persona only (the hub's own word); the rest are the client's tones. */
+export const HUB_REPLY_TONES = ['none', ...TONES] as const;
 
 /** H-4c `liveTextContext`: confirmed messages of the open OF chat, never queued or unsent ones. */
 export const LiveTextContextSchema = z.strictObject({
@@ -225,11 +226,9 @@ export const DebugInputFrameSchema = z.strictObject({
   ),
 });
 
-/** Readers that may have served a generation (`context_v1.source`); `live_union` is the Fansly socket overlay. */
-export const CONTEXT_SOURCES = ['archive', 'union', 'live_union'] as const;
-/** What happened to our fresh text (`context_v1.live.status`). */
-export const LIVE_TEXT_STATUSES = ['not_sent', 'disabled', 'shadow', 'served', 'rejected'] as const;
-export const KNOWN_FAN_MESSAGE_STATES = ['included', 'absent', 'deleted', 'unknown'] as const;
+// Known values of `source`, `live.status`, `coverage` and `knownFanMessage.state`
+// are ops.ts CONTEXT_SOURCES, LIVE_TEXT_STATUSES, COVERAGE_LEVELS and
+// KNOWN_FAN_MESSAGE_STATES: the tab's ServedContext narrows to them.
 export const FAN_LANGUAGE_EVIDENCE = ['latin', 'cyrillic', 'mixed', 'unknown'] as const;
 
 const ContextHeadSchema = z.object({

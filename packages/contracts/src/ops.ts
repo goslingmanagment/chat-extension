@@ -158,9 +158,13 @@ export const AdmissionSchema = z.discriminatedUnion('ok', [
 ]);
 export type Admission = z.infer<typeof AdmissionSchema>;
 
+/** How much of the history a number or a result covers; the hub's coverage words (§8.5, `context_v1`). */
+export const COVERAGE_LEVELS = ['complete', 'partial', 'unknown'] as const;
+export type CoverageLevel = (typeof COVERAGE_LEVELS)[number];
+
 /** Coverage of the history a result was built from; null fields = unknown. */
 export const CoverageSchema = z.strictObject({
-  level: z.enum(['complete', 'partial', 'unknown']),
+  level: z.enum(COVERAGE_LEVELS),
   requested: z.nullable(CountSchema),
   served: z.nullable(CountSchema),
   asOf: z.nullable(IsoTimestampSchema),
@@ -243,13 +247,23 @@ export const OpResultSchema = z.discriminatedUnion('kind', [
 ]);
 export type OpResult = z.infer<typeof OpResultSchema>;
 
-/** Which snapshot actually served the generation (`context_v1`, H-4). */
+/** Hub readers that may have served a generation (`context_v1.source`); `live_union` is the hub's Fansly socket overlay. */
+export const CONTEXT_SOURCES = ['archive', 'union', 'live_union'] as const;
+/** What the hub did with our fresh text (`context_v1.live.status`, H-4c). */
+export const LIVE_TEXT_STATUSES = ['not_sent', 'disabled', 'shadow', 'served', 'rejected'] as const;
+export const KNOWN_FAN_MESSAGE_STATES = ['included', 'absent', 'deleted', 'unknown'] as const;
+
+/**
+ * Which snapshot actually served the generation (`context_v1`, H-4b), as the
+ * background narrowed the hub's open tokens: the hub reader in `source`, our
+ * fresh text in the separate `live` block (hub-pr-plan.md §5: `live-overlay`
+ * is the hub's Fansly socket reader). A token this client does not know becomes null.
+ */
 export const ServedContextSchema = z.strictObject({
-  source: z.enum(['archive', 'union', 'live-overlay']),
+  source: z.nullable(z.enum(CONTEXT_SOURCES)),
   servedHead: z.nullable(z.strictObject({ messageRef: NativeIdSchema, at: IsoTimestampSchema })),
-  knownFanMessage: z.optional(
-    z.strictObject({ id: NativeIdSchema, state: z.enum(['included', 'absent', 'deleted', 'unknown']) }),
-  ),
+  knownFanMessage: z.optional(z.strictObject({ id: NativeIdSchema, state: z.enum(KNOWN_FAN_MESSAGE_STATES) })),
+  live: z.strictObject({ status: z.nullable(z.enum(LIVE_TEXT_STATUSES)), accepted: CountSchema, rejected: CountSchema }),
 });
 export type ServedContext = z.infer<typeof ServedContextSchema>;
 

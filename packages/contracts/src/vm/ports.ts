@@ -5,6 +5,7 @@
 // and never sends telemetry: it only marks what became visible or painted.
 
 import { type CgCode } from '../errors';
+import { type UiResultStyle } from '../settings';
 import { type PerfMetric } from '../telemetry';
 import { type Uuid } from '../primitives';
 import { type AppClient } from './app-client';
@@ -38,7 +39,7 @@ export const RESULT_CAP = { maxPx: 360, viewportShare: 0.45, feedReservePx: 160,
  * ui-design §3.2, §9.1): max(112, floor(min(360, 0.45 × innerHeight, H − 160 − g)))
  * with g = 2 px «на подложке», 0 «без подложки». Unknown H drops that term.
  */
-export function resultCap(geometry: Pick<SurfaceGeometry, 'feedHeight' | 'viewportHeight'>, style: 'bare' | 'sheet'): number {
+export function resultCap(geometry: Pick<SurfaceGeometry, 'feedHeight' | 'viewportHeight'>, style: UiResultStyle): number {
   const gap = style === 'sheet' ? RESULT_CAP.sheetGapPx : 0;
   const byFeed = geometry.feedHeight === null ? Infinity : geometry.feedHeight - RESULT_CAP.feedReservePx - gap;
   const cap = Math.floor(Math.min(RESULT_CAP.maxPx, RESULT_CAP.viewportShare * geometry.viewportHeight, byFeed));

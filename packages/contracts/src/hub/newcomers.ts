@@ -11,6 +11,7 @@
 import * as z from 'zod/mini';
 
 import { CountSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText } from '../primitives';
+import { SendPurposeSchema } from '../send';
 import { HubCursorSchema, PageLabelSchema } from './wire';
 
 // ── Claim and custody ──────────────────────────────────────────────────────
@@ -48,7 +49,6 @@ export function isCustodyTransition(from: CustodyState | null, to: CustodyState)
 }
 /** Where a confirmed greeting came from; `desktop-outbox` = the desktop's succeeded new-follower command (critic item 1). */
 export const GREETING_SOURCES = ['preview-send', 'native-register', 'resolve', 'desktop-outbox'] as const;
-export const CUSTODY_PURPOSES = ['greeting', 'preview-reply'] as const;
 export const SEND_FAILURE_REASONS = ['not_enqueued', 'native_rejected'] as const;
 
 /** One generation's parts form one group (§6.7.9); `partIndex < partCount`. */
@@ -60,7 +60,6 @@ export const ClaimGroupSchema = z.strictObject({
 export type ClaimGroup = z.infer<typeof ClaimGroupSchema>;
 
 const PartIndexSchema = z.int().check(z.gte(0), z.lte(9));
-const PurposeSchema = z.enum(CUSTODY_PURPOSES);
 /** Lease actions carry the lease token and the client install id (`instanceId`, a UUID per install). */
 const leaseAction = <A extends 'claim' | 'renew' | 'release'>(action: A) =>
   z.strictObject({ action: z.literal(action), leaseToken: UuidSchema, instanceId: UuidSchema });
@@ -81,7 +80,7 @@ export const ClaimBodySchema = z
       action: z.literal('dispatch'),
       attemptId: UuidSchema,
       instanceId: UuidSchema,
-      purpose: PurposeSchema,
+      purpose: SendPurposeSchema,
       group: ClaimGroupSchema,
       partIndex: PartIndexSchema,
       textRevision: CountSchema,
@@ -109,7 +108,7 @@ export const ClaimBodySchema = z
       action: z.literal('registerNativeSend'),
       attemptId: UuidSchema,
       instanceId: UuidSchema,
-      purpose: PurposeSchema,
+      purpose: SendPurposeSchema,
       group: ClaimGroupSchema,
       partIndex: PartIndexSchema,
       platformMessageId: NativeIdSchema,

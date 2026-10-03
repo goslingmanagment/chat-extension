@@ -5,6 +5,7 @@
 
 import * as z from 'zod/mini';
 
+import { LOCALES } from './i18n/keys';
 import { NativeIdSchema, boundedText, displayText, HubOriginSchema, CountSchema } from './primitives';
 
 export const SETTINGS_SCHEMA_VERSION = 1;
@@ -15,10 +16,15 @@ export const ToneIdSchema = z.enum(SOUND_TONE_IDS);
 export type ToneId = z.infer<typeof ToneIdSchema>;
 
 export const UI_THEMES = ['host', 'system', 'light', 'dark'] as const;
-export const UI_LOCALES = ['system', 'ru', 'en'] as const;
+export type UiTheme = (typeof UI_THEMES)[number];
+/** `system` resolves to one of the catalog locales by the browser's languages. */
+export const UI_LOCALES = ['system', ...LOCALES] as const;
+export type UiLocale = (typeof UI_LOCALES)[number];
 /** «Вид ответа» (ui-design §7, X10): the dock result printed on the feed, or on a sheet. */
 export const UI_RESULT_STYLES = ['bare', 'sheet'] as const;
+export type UiResultStyle = (typeof UI_RESULT_STYLES)[number];
 export const COACH_AUTO_RECAP = ['off', 'short', 'full'] as const;
+export type CoachAutoRecap = (typeof COACH_AUTO_RECAP)[number];
 
 /** Inclusive ranges of the numeric settings (ST-090…ST-096, ST-130). */
 export const SETTINGS_RANGES = {

@@ -5,11 +5,8 @@
 // notation everywhere (ui-design §1 п. 6).
 
 import { type I18nKey } from '../errors';
+import { type Locale } from '../i18n/keys';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
-
-/** Languages of the catalogs; `ui.locale: 'system'` resolves to one of them. */
-export const UI_LANGUAGES = ['ru', 'en'] as const;
-export type UiLanguage = (typeof UI_LANGUAGES)[number];
 
 /**
  * A typed parameter. Plain strings and numbers are inserted as they are;
@@ -50,8 +47,8 @@ export type TimeStyle = 'time' | 'date' | 'datetime' | 'day';
 export type DurationStyle = 'm:ss' | 'h:mm:ss' | 'seconds';
 
 export interface I18n {
-  /** The resolved language; changes on the fly (I18-001). */
-  readonly language: UiLanguage;
+  /** The resolved language (`ui.locale: 'system'` resolves to one); changes on the fly (I18-001). */
+  readonly language: Locale;
   /** Plain text, never markup. A missing key renders the key itself and is logged. */
   t(key: I18nKey, params?: I18nParams): string;
   /** `Intl.PluralRules` forms one/few/many/other of the key («1 часть / 2 части / 5 частей»). */
@@ -65,5 +62,5 @@ export interface I18n {
   formatTime(at: number | IsoTimestamp, style?: TimeStyle): string;
   formatDuration(ms: number, style: DurationStyle): string;
   /** Called after a language switch; the views re-render with new texts. */
-  subscribe(listener: (language: UiLanguage) => void): () => void;
+  subscribe(listener: (language: Locale) => void): () => void;
 }

@@ -6,6 +6,7 @@
 import { type CgCode, type CgErrorView } from '../errors';
 import { type FeatureId } from '../features';
 import { type HostCapability } from '../host';
+import { type CoverageLevel } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
 import { type UiAction } from './actions';
 import { type HotkeyLabel, type ReasonVM } from './catalog';
@@ -38,7 +39,7 @@ export type VmView =
 
 /** Why a view is `partial`; each gap is shown, none is hidden behind a full-looking list. */
 export type PartialGap =
-  | { readonly kind: 'coverage'; readonly level: 'partial' | 'unknown' }
+  | { readonly kind: 'coverage'; readonly level: Exclude<CoverageLevel, 'complete'> }
   /** A list cut at the visible limit (1000 rows) with the rest behind the server cursor. */
   | { readonly kind: 'truncated'; readonly shown: number; readonly total: number | null }
   /** The hub archive is behind the chat; null = by an unknown amount. */
@@ -48,9 +49,6 @@ export type PartialGap =
   | { readonly kind: 'host-degraded'; readonly capabilities: readonly HostCapability[] }
   /** Cached data older than its refresh period is shown while a new read runs. */
   | { readonly kind: 'stale-cache'; readonly asOf: IsoTimestamp | null };
-
-export const COVERAGE_LEVELS = ['complete', 'partial', 'unknown'] as const;
-export type CoverageLevel = (typeof COVERAGE_LEVELS)[number];
 
 /** «данные на 09:18, охват полный»: every number from the hub carries this (SpendersStatsVM, footers). */
 export interface DataStamp {
