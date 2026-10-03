@@ -24,10 +24,11 @@ export * from './bridge-messages';
 export * from './tab-protocol';
 export * from './tab-messages';
 export * from './tab-liveness';
+export * from './errors/registry';
+export * from './i18n/keys';
+export * from './i18n/catalog';
 export * from './vm/index';
 export * from './hub';
-
-// TODO(R01-2c): export cg-registry.ts and the i18n key catalog (Appendix A, §9.7).
 
 /** Bumped when the integration step tags `contracts-v1.0`. */
 export const CONTRACTS_VERSION = '0.0.0-r00';
