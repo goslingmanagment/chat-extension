@@ -16,7 +16,9 @@
     "@cg/host-chatspace": "workspace:*",
     "@cg/hub": "workspace:*",
     "@cg/platform": "workspace:*",
-    "@cg/ui": "workspace:*"
+    "@cg/ui": "workspace:*",
+    "@preact/signals": "2.11.3",
+    "preact": "11.0.0"
   },
   "devDependencies": {
     "@tiptap/core": "3.31.4",
