@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ClaimBodySchema,
   SendJournalEntrySchema,
+  SendListItemSchema,
   STORAGE_KEYS,
   sendLockKey,
   type ClaimBody,
@@ -370,11 +371,12 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     // The one that holds the fan comes first.
     expect(listed).toEqual({
       attempts: [
-        { opId: OP, purpose: 'preview-reply', group, partIndex: 1, view: { attemptId: B, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' } },
-        { opId: OP, purpose: 'preview-reply', group, partIndex: 0, view: { attemptId: A, state: 'sentObserved', platformMessageId: WORLD.messages.sentByUs } },
+        { opId: OP, purpose: 'preview-reply', group, partIndex: 1, view: { attemptId: B, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: NOW_MS + 1000 },
+        { opId: OP, purpose: 'preview-reply', group, partIndex: 0, view: { attemptId: A, state: 'sentObserved', platformMessageId: WORLD.messages.sentByUs }, updatedAt: NOW_MS },
       ],
       truncated: false,
     });
+    for (const item of listed.attempts) expect(SendListItemSchema.safeParse(item).success).toBe(true);
     expect(JSON.stringify(listed)).not.toContain('part text');
     expect(h.coordinator.attemptsOf(lock, 1)).toMatchObject({ attempts: [{ view: { attemptId: B } }], truncated: true });
     expect(h.coordinator.attemptsOf(sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: '9999' })).attempts).toEqual([]);
@@ -383,10 +385,15 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     second.hub.statusScript.push(okAnswer(B, 'uncertain-held'));
     await second.coordinator.restore();
     expect(second.coordinator.attemptsOf(lock).attempts.map((item) => [item.partIndex, item.view.state])).toEqual([[1, 'uncertain'], [0, 'sentObserved']]);
-    // The hub resolved the uncertain one: it no longer holds the fan and leaves the list.
+    // The hub resolved the uncertain one: it no longer holds the fan, and the list says how it was resolved.
     second.hub.statusScript.push(okAnswer(B, 'resolved-not-sent'));
+    await clock.advance(1000);
     await second.coordinator.reconcileFan(lock);
-    expect(second.coordinator.attemptsOf(lock).attempts.map((item) => item.view.attemptId)).toEqual([A]);
+    expect(second.coordinator.attemptsOf(lock).attempts.map((item) => [item.view.attemptId, item.resolved])).toEqual([[B, 'not-sent'], [A, undefined]]);
+    // A background that restarts after the resolve no longer knows the attempt at all.
+    const third = sendHarness({ clock, store });
+    await third.coordinator.restore();
+    expect(third.coordinator.attemptsOf(lock).attempts.map((item) => item.view.attemptId)).toEqual([A]);
   });
 
   it('[X8-01] a stale token does not burn the part; after a hub resolve «not sent» the same part may be clicked again', async () => {

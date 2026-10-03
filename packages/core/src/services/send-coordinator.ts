@@ -426,17 +426,27 @@ export class SendCoordinator {
   }
 
   /**
-   * `send.list`: the journaled attempts to one fan that the hub has not
-   * resolved — what a tab that lost its own tracking (a reload) holds the
-   * fan by. Attempts that still hold the fan first, then the newest; at most
-   * `max`. An attempt that never reached the journal reached nothing and is
-   * not listed.
+   * `send.list`: what is known of the sends to one fan — what a tab that
+   * lost its own tracking (a reload) holds the fan by. Journaled attempts,
+   * and those the hub resolved for as long as they are remembered (with the
+   * resolution: they no longer hold the fan). Attempts that still hold the
+   * fan first, then the newest; at most `max`. An attempt that never reached
+   * the journal reached nothing and is not listed.
    */
   attemptsOf(lockKey: SendLockKey, max: number = SEND_LIST_MAX): { readonly attempts: SendListItem[]; readonly truncated: boolean } {
-    const known = [...this.attempts.values()].filter((attempt) => attempt.lockKey === lockKey && attempt.entry !== null && attempt.resolved === undefined);
-    known.sort((a, b) => Number(holdsLock(b.track.view.state)) - Number(holdsLock(a.track.view.state)) || b.updatedAt - a.updatedAt);
+    const holds = (attempt: Attempt): boolean => attempt.resolved === undefined && holdsLock(attempt.track.view.state);
+    const known = [...this.attempts.values()].filter((attempt) => attempt.lockKey === lockKey && (attempt.entry !== null || attempt.resolved !== undefined));
+    known.sort((a, b) => Number(holds(b)) - Number(holds(a)) || b.updatedAt - a.updatedAt);
     return {
-      attempts: known.slice(0, max).map((attempt) => ({ opId: attempt.opId, purpose: attempt.purpose, group: attempt.group, partIndex: attempt.partIndex, view: attempt.track.view })),
+      attempts: known.slice(0, max).map((attempt) => ({
+        opId: attempt.opId,
+        purpose: attempt.purpose,
+        group: attempt.group,
+        partIndex: attempt.partIndex,
+        view: attempt.track.view,
+        updatedAt: attempt.updatedAt,
+        ...(attempt.resolved === undefined ? {} : { resolved: attempt.resolved }),
+      })),
       truncated: known.length > max,
     };
   }
