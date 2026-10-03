@@ -12,6 +12,8 @@
 /* eslint-disable @typescript-eslint/require-await */
 
 import type {
+  ExtensionContextApi,
+  TabApi,
   AlarmApi,
   AlarmCreateInfoApi,
   BrowserApi,
@@ -108,6 +110,8 @@ export interface FakeBrowser {
   readonly scripts: Map<string, RegisteredContentScriptApi>;
   /** Quota of an area in JSON bytes (Firefox session: 10 MiB). */
   readonly quota: Partial<Record<AreaName, number>>;
+  /** tabs.create / tabs.update / windows.update / runtime.openOptionsPage calls, in order. */
+  readonly tabCalls: string[];
   /** Whether permissions.request grants (the person clicks «Allow»). */
   grantRequests: boolean;
   /** Storage answers after this many ms (a real timer), or never ('hang'); default: next microtask. */
@@ -142,6 +146,8 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
   const alarms = new Map<string, AlarmApi>();
   const scripts = new Map<string, RegisteredContentScriptApi>();
   const quota: Partial<Record<AreaName, number>> = {};
+  const tabCalls: string[] = [];
+  let nextTabId = 100;
   let backgroundContext: FakeContext | null = null;
   let wake: ((context: FakeContext) => void) | null = null;
   let extensionAlive = true;
@@ -291,9 +297,34 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
       },
       onConnect: events.onConnect,
       onMessage: events.onMessage,
+      async getContexts(filter: { contextTypes?: string[] }): Promise<ExtensionContextApi[]> {
+        if (filter.contextTypes && !filter.contextTypes.includes('TAB')) return [];
+        return live()
+          .filter((context) => typeof context.sender?.tab?.id === 'number' && context.sender.url?.startsWith(base) === true)
+          .map((context) => ({ contextType: 'TAB', documentUrl: context.sender?.url ?? '', tabId: context.sender?.tab?.id ?? -1, windowId: 1 }));
+      },
+      async openOptionsPage(): Promise<void> {
+        tabCalls.push('openOptionsPage');
+      },
     };
     const api: BrowserApi = {
       runtime,
+      tabs: {
+        async create(properties: { url: string; active?: boolean }): Promise<TabApi> {
+          tabCalls.push(`create ${properties.url}`);
+          return { id: nextTabId++, url: properties.url };
+        },
+        async update(tabId: number, properties: { url?: string; active?: boolean }): Promise<TabApi> {
+          tabCalls.push(`update ${tabId}${properties.url === undefined ? '' : ` ${properties.url}`}`);
+          return properties.url === undefined ? { id: tabId } : { id: tabId, url: properties.url };
+        },
+      },
+      windows: {
+        async update(windowId: number): Promise<unknown> {
+          tabCalls.push(`focus window ${windowId}`);
+          return {};
+        },
+      },
       storage: { local: areaApi('local', () => self), session: areaApi('session', () => self), onChanged: events.storageChanged },
       alarms: {
         create(name: string, info: AlarmCreateInfoApi) {
@@ -377,6 +408,7 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
     alarms,
     scripts,
     quota,
+    tabCalls,
     grantRequests: true,
     latency: null,
     background: () => (backgroundContext?.alive ? backgroundContext : null),

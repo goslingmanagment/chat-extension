@@ -48,6 +48,14 @@ export interface PlatformInfoApi {
   readonly arch?: string;
 }
 
+/** `runtime.getContexts` (Firefox 129+): our own documents, with the tab they live in. */
+export interface ExtensionContextApi {
+  readonly contextType: string;
+  readonly documentUrl?: string;
+  readonly tabId: number;
+  readonly windowId: number;
+}
+
 export type RuntimeMessageListener = (message: unknown, sender: MessageSenderApi, sendResponse: (response: unknown) => void) => unknown;
 
 export interface RuntimeApi {
@@ -59,6 +67,8 @@ export interface RuntimeApi {
   getPlatformInfo(): Promise<PlatformInfoApi>;
   connect(connectInfo: { name: string }): PortApi;
   sendMessage(message: unknown): Promise<unknown>;
+  getContexts?(filter: { contextTypes?: string[] }): Promise<ExtensionContextApi[]>;
+  openOptionsPage?(): Promise<void>;
   readonly onConnect: EventApi<(port: PortApi) => void>;
   readonly onMessage: EventApi<RuntimeMessageListener>;
 }
@@ -133,8 +143,20 @@ export interface ScriptingApi {
   unregisterContentScripts(filter?: { ids?: string[] }): Promise<void>;
 }
 
+/** Without the `tabs` permission: create, and update a tab of our own page. */
+export interface TabsApi {
+  create(properties: { url: string; active?: boolean }): Promise<TabApi>;
+  update(tabId: number, properties: { url?: string; active?: boolean }): Promise<TabApi>;
+}
+
+export interface WindowsApi {
+  update(windowId: number, info: { focused?: boolean }): Promise<unknown>;
+}
+
 export interface BrowserApi {
   readonly runtime: RuntimeApi;
+  readonly tabs: TabsApi;
+  readonly windows: WindowsApi;
   readonly storage: StorageApi;
   readonly alarms: AlarmsApi;
   readonly permissions: PermissionsApi;
