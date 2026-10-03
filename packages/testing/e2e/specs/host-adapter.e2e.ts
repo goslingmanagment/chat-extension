@@ -18,6 +18,7 @@ import { Key } from 'webdriverio';
 
 import type { StandBreak } from '../../fixture-chatspace/src/protocol';
 import { harness, installHostHarness, waitForHarness, waitForHarnessState, type InstalledHarness } from '../support/host-harness';
+import { setViewport } from '../support/visual';
 import { useNetworkTrap } from '../support/network-trap';
 import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -192,6 +193,65 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       await browser.waitUntil(async () => (await dockPlacement()).parentKey === first, { timeout: 3000, timeoutMsg: 'dock back in the first composer' });
       expect(await harness<boolean>('dockMarker')).toBe(true);
       expect((await callStand('messageList'))?.atBottom).toBe(true);
+    });
+
+    it('[UI-016] with our dock growing ChatSpace’s list keeps its bottom, its anchor in the middle of history, and its bottom on a resize', async () => {
+      await setViewport({ width: 1280, height: 600 });
+      try {
+        await browser.waitUntil(async () => (await callStand('messageList'))?.atBottom === true, { timeout: 3000, timeoutMsg: 'list not at the bottom after the resize' });
+        const twoFrames = (): Promise<unknown> => browser.execute(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        // At the bottom: the dock grows (our UI opens), the list stays at the bottom.
+        expect(await harness<number>('growDock', 120)).toBeGreaterThanOrEqual(120);
+        await twoFrames();
+        await browser.waitUntil(async () => (await callStand('messageList'))?.atBottom === true, { timeout: 2000, timeoutMsg: 'the list lost its bottom when the dock grew' });
+        await harness('growDock', 0);
+        await twoFrames();
+        // In the middle of history: the message at the top stays where it was.
+        const anchor = (): Promise<{ id: string | null; offset: number }> =>
+          browser.execute(() => {
+            const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
+            const first = [...document.querySelectorAll<HTMLElement>('[data-stand-message-id]')].find((node) => scroller !== null && node.offsetTop + node.offsetHeight > scroller.scrollTop + 1);
+            return { id: first?.dataset['standMessageId'] ?? null, offset: first === undefined || scroller === null ? 0 : first.offsetTop - scroller.scrollTop };
+          });
+        expect(
+          await browser.execute(async () => {
+            const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
+            if (scroller === null) return 'no list';
+            const scrolled = new Promise<string>((resolve) => {
+              scroller.addEventListener('scroll', () => requestAnimationFrame(() => requestAnimationFrame(() => resolve('scrolled'))), { once: true });
+              setTimeout(() => resolve('no scroll event in 2 s'), 2000);
+            });
+            scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) / 2);
+            return scrolled;
+          }),
+        ).toBe('scrolled');
+        const before = await anchor();
+        await harness('growDock', 120);
+        await twoFrames();
+        let after = await anchor();
+        await browser.waitUntil(
+          async () => {
+            after = await anchor();
+            return after.id === before.id && Math.abs(after.offset - before.offset) <= 1;
+          },
+          { timeout: 2000, interval: 50, timeoutMsg: `the anchor moved when the dock grew: ${JSON.stringify(before)} → ${JSON.stringify(after)}` },
+        );
+        expect((await callStand('messageList'))?.atBottom).toBe(false);
+        await harness('growDock', 0);
+        // Back at the bottom, a window resize with the dock mounted keeps the bottom.
+        await browser.execute(() => {
+          const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
+          if (scroller) scroller.scrollTop = scroller.scrollHeight;
+        });
+        await twoFrames();
+        await harness('growDock', 80);
+        await setViewport({ width: 1100, height: 700 });
+        await browser.waitUntil(async () => (await callStand('messageList'))?.atBottom === true, { timeout: 2000, timeoutMsg: 'the list lost its bottom on a resize with the dock mounted' });
+        expect((await dockPlacement()).firstChild).toBe(true);
+      } finally {
+        await harness('growDock', 0);
+        await setViewport(null);
+      }
     });
 
     it('[UI-027] a blocked fan: a narrow copy-only row at the end of the composers container', async () => {

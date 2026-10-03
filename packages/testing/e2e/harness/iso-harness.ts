@@ -195,6 +195,18 @@ const api = {
     started.mounts.dock.root.append(marker);
     return true;
   },
+  /** Gives the dock's content a height (what our UI does when it opens), or removes it (0). */
+  growDock(px: number) {
+    const root = started.mounts.dock.root;
+    root.querySelector('[data-e2e="dock-growth"]')?.remove();
+    if (px > 0) {
+      const block = document.createElement('div');
+      block.setAttribute('data-e2e', 'dock-growth');
+      block.style.height = `${px}px`;
+      root.append(block);
+    }
+    return started.mounts.dock.host.getBoundingClientRect().height;
+  },
   raceSkipped: () => racesSkipped,
   /**
    * A chat tab clicked while the route follows late (the stand's async router

@@ -266,7 +266,7 @@ describe('[BG-002] state from MAIN', () => {
     expect(lists()).toBe(listedAfterRead + 1);
   });
 
-  it('[UI-016] the fresh tail goes to the hub trimmed to its 60-message limit and the asked max', async () => {
+  it('the fresh tail goes to the hub trimmed to its 60-message limit and the asked max', async () => {
     const messages = Array.from({ length: 80 }, (_, i) => ({ platformMessageId: String(5000 + i), direction: 'fan', sentAt: '2026-10-03T10:00:00.000Z', text: `m${i}` }));
     const { host, bridge } = await port({ readTail: () => ({ capturedAt: '2026-10-03T10:00:00.000Z', messages }) });
     const tail = LiveTextTailSchema.parse(await host.readVisibleTail(host.identity() as never, 100));

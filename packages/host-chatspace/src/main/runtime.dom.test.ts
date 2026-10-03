@@ -161,7 +161,7 @@ describe('MAIN runtime — reads (§6.1)', () => {
     expect(await (harness as Harness).call('chatWindow', { acc: ACC, fan: '2999', max: 10 })).toBeNull();
   });
 
-  it('[UI-016] fresh tail (D-14): plain text, oldest first, never queued or non-numeric messages', async () => {
+  it('fresh tail (D-14): plain text, oldest first, never queued or non-numeric messages', async () => {
     const h = harness as Harness;
     const tail = TailSnapshotSchema.parse(await h.call('readTail', { expected: identity(h), max: 60 }));
     expect(tail.messages).toEqual([
