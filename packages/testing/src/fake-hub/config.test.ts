@@ -96,7 +96,11 @@ describe('fake hub config: owner changes and configRevision', () => {
     const hub = createFakeHub();
     expect(hub.control({ op: 'config', patch: { flags: { previewSend: true } } })).toEqual({ ok: true, configRevision: WORLD.configRevision + 1 });
     expect(hub.config().flags['previewSend']).toBe(true);
-    expect(hub.control({ op: 'preset', name: 'all-off' })).toEqual({ ok: true, configRevision: 0 });
+    // A preset is an owner change too: the revision only grows, even when the preset's own is lower.
+    expect(hub.control({ op: 'preset', name: 'all-off' })).toEqual({ ok: true, configRevision: WORLD.configRevision + 2 });
+    expect(hub.config()).toEqual({ ...presetConfig('all-off'), configRevision: WORLD.configRevision + 2 });
+    expect(hub.control({ op: 'preset', name: 'pilot-on' })).toEqual({ ok: true, configRevision: WORLD.configRevision + 3 });
+    expect(hub.config()).toEqual({ ...presetConfig('pilot-on'), configRevision: WORLD.configRevision + 3 });
     expect(hub.control({ op: 'reset' })).toEqual({ ok: true });
     expect(hub.config().configRevision).toBe(WORLD.configRevision);
   });

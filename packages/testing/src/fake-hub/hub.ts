@@ -48,6 +48,7 @@ import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
+import { checkCommand } from './command';
 import { bootstrapOf, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
 import { CursorSigner, DataModel, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
@@ -253,8 +254,9 @@ export class FakeHub {
     return this.handle(request, callerSignal ?? request.signal);
   };
 
-  /** Applies a control command (the same JSON the loopback control endpoint takes). */
+  /** Applies a control command (the same JSON the loopback control endpoint takes); an unknown op or field throws. */
   control(command: FakeHubCommand): unknown {
+    checkCommand(command);
     const s = this.state;
     const now = this.clock.now();
     switch (command.op) {
@@ -264,9 +266,12 @@ export class FakeHub {
         if (this.options.clock === 'system') this.clock.useSystem();
         return { ok: true };
       }
-      case 'preset':
-        s.config = presetConfig(command.name);
+      case 'preset': {
+        // An owner change: the revision only grows (a client skips a bootstrap that is not newer).
+        const preset = presetConfig(command.name);
+        s.config = { ...preset, configRevision: Math.max(s.config.configRevision + 1, preset.configRevision) };
         return { ok: true, configRevision: s.config.configRevision };
+      }
       case 'config':
         s.config = patchConfig(s.config, command.patch);
         return { ok: true, configRevision: s.config.configRevision };
@@ -351,6 +356,8 @@ export class FakeHub {
         return { ok: true, eventRef: s.data.addAudienceEvent(this.page(command.pageLabel), command.fanRef, command.kind ?? 'new', command.trial ?? false, now) };
       case 'status':
         return this.status();
+      default:
+        throw new Error(`fake hub control: unknown op «${String((command as { readonly op?: unknown }).op)}»`);
     }
   }
 
@@ -864,7 +871,7 @@ export class FakeHub {
     try {
       if (url.pathname === `${FAKE_HUB_CONTROL_PREFIX}journal`) return json(200, this.journal.read(Number(url.searchParams.get('since') ?? '0') || 0));
       if (url.pathname === `${FAKE_HUB_CONTROL_PREFIX}control` && request.method.toUpperCase() === 'POST') {
-        return json(200, this.control((await request.json()) as FakeHubCommand) ?? { ok: true });
+        return json(200, this.control(checkCommand(await request.json())) ?? { ok: true });
       }
       return json(404, { error: 'not_found', message: 'fake hub: no such control endpoint', statusCode: 404 });
     } catch (error) {

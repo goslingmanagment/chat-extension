@@ -8,6 +8,7 @@
 export { FakeHub, createFakeHub, hubErrorBody, FAKE_HUB_CONTROL_HEADER, FAKE_HUB_CONTROL_PREFIX, type FakeHubOptions } from './hub';
 export { startFakeHub, type FakeHubServer, type FakeHubServerOptions } from './server';
 export { fakeHubControl, type FakeHubControlClient } from './control-client';
+export { checkCommand } from './command';
 export { callsTo, describeCalls, forbiddenCalls, invalidCalls, journalViolations, JOURNAL_KEPT_STRING_KEYS, redact, unscriptedCalls } from './journal';
 export { AI_CAPABILITIES_HEADER, FORBIDDEN_OPERATION_ROUTES, FORBIDDEN_ROUTE_FAMILIES, facadeRequestOf, matchRoute, routePath, validateRequest, WIRE_SPECS, wireOf, type WireCall } from './routing';
 export { FAKE_PAGES, PILOT_CAPABILITIES, bootstrapOf, featureVerdict, presetConfig, type FakeHubConfig, type FakePage } from './config';
