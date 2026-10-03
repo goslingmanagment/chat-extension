@@ -61,7 +61,7 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     review: 'cancelable',
     split: 'delivered',
     spenders: 'delivered',
-    coach: 'cancelable',
+    coach: 'delivered',
     palette: 'unverified',
     cheatsheet: 'delivered',
     settings: 'unverified',
