@@ -40,7 +40,7 @@ const HTML_SINKS = new Set(['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'cre
 const UI_TEXT_ATTRIBUTES = new Set(['title', 'placeholder', 'aria-label', 'alt', 'label', 'aria-description']);
 
 function parse(file: SourceFile): ts.SourceFile {
-  const kind = file.path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const kind = file.path.endsWith('.tsx') ? ts.ScriptKind.TSX : /\.[cm]?js$/.test(file.path) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
   return ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true, kind);
 }
 
@@ -217,22 +217,112 @@ export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
   return violations;
 }
 
+/** What marks vendored @kernel/sdk code in a bundle (most telling first); every kind must be found in the SDK. */
+export const SDK_MARKER_KINDS = ['error-class', 'kernel-header', 'contract-hash', 'hub-route'] as const;
+export type SdkMarkerKind = (typeof SDK_MARKER_KINDS)[number];
+
+export interface SdkMarker {
+  readonly kind: SdkMarkerKind;
+  readonly text: string;
+}
+
+const CONTRACT_HASH = /^[0-9a-f]{64}$/;
+const KERNEL_HEADER = /^x-kernel-[a-z0-9-]+$/;
+const HUB_ROUTE = /^\/api\/v\d+\/\S+$/;
+
+function isErrorNameAssignment(node: ts.Node): node is ts.BinaryExpression & { right: ts.StringLiteralLike } {
+  return (
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    ts.isPropertyAccessExpression(node.left) &&
+    node.left.expression.kind === ts.SyntaxKind.ThisKeyword &&
+    node.left.name.text === 'name' &&
+    ts.isStringLiteralLike(node.right)
+  );
+}
+
 /**
- * 7. SDK custody (§4 «hub только в фоне», D-13): the vendored SDK — identified
- * by its contract hash — may be bundled only into the background script, never
- * into a content script, a lazy chunk or an extension page.
+ * Markers of SDK code, derived at gate time from the vendored dist itself (a
+ * re-vendor brings its own). Only strings a minifier keeps verbatim count —
+ * string literals and template heads, never comments or identifiers:
+ * - `contract-hash`: KERNEL_CONTRACT_HASH (bundled only when code reads it);
+ * - `error-class`: `this.name = "KernelApiError"` — every request, stream and
+ *   read-gateway helper constructs the SDK error, so any of them carries it;
+ * - `kernel-header`: `x-kernel-*` request headers;
+ * - `hub-route`: hub API paths — the operation table, the stream and gateway
+ *   helpers, the route schemas.
+ * A lone pure helper or schema may carry none of them: the dependency-cruiser
+ * rule `hub-unreachable-outside-background` owns the graph, this gate checks
+ * what actually got bundled.
  */
-export function checkSdkCustody(files: readonly SourceFile[], contractHash: string, allowed: readonly string[] = ['background.js']): Violation[] {
+export function deriveSdkMarkers(sdkFiles: readonly SourceFile[]): SdkMarker[] {
+  const markers = new Map<string, SdkMarkerKind>();
+  for (const file of sdkFiles) {
+    walk(parse(file), (node) => {
+      if (isErrorNameAssignment(node)) {
+        markers.set(node.right.text, 'error-class');
+      } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)) {
+        const kind = CONTRACT_HASH.test(node.text)
+          ? 'contract-hash'
+          : KERNEL_HEADER.test(node.text)
+            ? 'kernel-header'
+            : HUB_ROUTE.test(node.text)
+              ? 'hub-route'
+              : null;
+        if (kind !== null && !markers.has(node.text)) markers.set(node.text, kind);
+      }
+    });
+  }
+  return [...markers].map(([text, kind]) => ({ kind, text })).sort((a, b) => a.text.localeCompare(b.text));
+}
+
+/** Kinds the SDK no longer yields: the gate must fail closed rather than check nothing. */
+export function missingSdkMarkerKinds(markers: readonly SdkMarker[]): SdkMarkerKind[] {
+  return SDK_MARKER_KINDS.filter((kind) => !markers.some((marker) => marker.kind === kind));
+}
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A marker counts only as a whole token: not inside a longer name, path or
+ * URL (`/api/v1/pages/7`, `https://host/api/…`, `KernelApiErrorView` do not
+ * match). Longest first, so the most specific route is the one reported.
+ */
+function sdkMarkerPattern(markers: readonly SdkMarker[]): RegExp {
+  const texts = markers.map((marker) => marker.text).sort((a, b) => b.length - a.length);
+  return new RegExp(`(?<![\\w./-])(?:${texts.map(escapeRegExp).join('|')})(?![\\w./-])`, 'g');
+}
+
+/** The only built file that may carry the SDK (§4 «hub только в фоне», D-13). */
+export const SDK_BUNDLES_ALLOWED: readonly string[] = ['background.js'];
+
+/**
+ * 7. SDK custody (§4, D-13): no built JS file but background.js — no content
+ * script, WS tap, lazy chunk or extension page — carries vendored SDK code.
+ */
+export function checkSdkCustody(
+  files: readonly SourceFile[],
+  markers: readonly SdkMarker[],
+  allowed: readonly string[] = SDK_BUNDLES_ALLOWED,
+): Violation[] {
+  if (markers.length === 0) throw new Error('checkSdkCustody: no SDK markers (derive them from vendor/kernel-sdk/dist).');
+  const pattern = sdkMarkerPattern(markers);
+  const kindOf = new Map(markers.map((marker) => [marker.text, marker.kind]));
+  const order = (text: string): number => SDK_MARKER_KINDS.indexOf(kindOf.get(text) ?? 'hub-route');
   const violations: Violation[] = [];
   for (const file of files) {
-    if (allowed.includes(file.path)) continue;
-    const index = file.text.indexOf(contractHash);
-    if (index < 0) continue;
+    if (!/\.[cm]?js$/.test(file.path) || allowed.includes(file.path)) continue;
+    const hits = [...file.text.matchAll(pattern)];
+    const first = hits[0];
+    if (first === undefined) continue;
+    const found = [...new Set(hits.map((hit) => hit[0]))].sort((a, b) => order(a) - order(b));
+    const shown = found.slice(0, 3).map((text) => `${kindOf.get(text) ?? 'marker'} «${text}»`);
+    const more = found.length > 3 ? ` and ${found.length - 3} more` : '';
     violations.push({
       gate: 'sdk-custody',
       path: file.path,
-      line: file.text.slice(0, index).split('\n').length,
-      message: 'the vendored @kernel/sdk is bundled outside the background (§4, D-13).',
+      line: file.text.slice(0, first.index).split('\n').length,
+      message: `the vendored @kernel/sdk is bundled outside the background (§4, D-13): ${shown.join(', ')}${more}.`,
     });
   }
   return violations;

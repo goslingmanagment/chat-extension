@@ -41,6 +41,11 @@ describe('ESLint package graph (§4)', () => {
     ['the page composition root imports the SDK', 'apps/extension/src/composition/pages.ts', "import { KERNEL_CONTRACT_HASH } from '@kernel/sdk';\nexport const x = KERNEL_CONTRACT_HASH;", ['no-restricted-imports']],
     ['a lazy chunk re-exports hub', 'apps/extension/lazy/entries/dock.ts', "export * as hubProbe from '@cg/hub';", ['no-restricted-imports']],
     ['the isolated content script imports hub', 'apps/extension/src/entrypoints/chatspace.content.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;", ['no-restricted-imports']],
+    // …nor through the background composition root, which imports hub
+    ['the tab composition root imports the background root', 'apps/extension/src/composition/tab.ts', "import { composeBackground } from './background';\nexport const x = composeBackground;", ['no-restricted-imports']],
+    ['a page entry imports the background root', 'apps/extension/src/entrypoints/popup/main.ts', "import { composeBackground } from '../../composition/background';\nexport const x = composeBackground;", ['no-restricted-imports']],
+    ['a lazy chunk re-exports the background root', 'apps/extension/lazy/entries/dock.ts', "export { composeBackground } from '../../src/composition/background';", ['no-restricted-imports']],
+    ['a content script imports the background entry', 'apps/extension/src/entrypoints/chatspace.content.ts', "import definition from './background';\nexport const x = definition;", ['no-restricted-imports']],
     // MAIN-world entry points are self-contained (§4, D-06)
     ['the MAIN entry imports platform', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
     ['the WS tap entry imports contracts', 'apps/extension/src/entrypoints/chatspace-ws.ts', "import { BRIDGE_TAGS } from '@cg/contracts';\nexport const x = BRIDGE_TAGS;", ['no-restricted-imports']],
@@ -63,6 +68,7 @@ describe('ESLint package graph (§4)', () => {
     ['ui imports preact', 'packages/ui/src/ok.ts', "import { render } from 'preact';\nexport const x = render;"],
     ['platform imports the browser API', 'packages/platform/src/ok.ts', "import { browser } from '@wxt-dev/browser';\nexport const x = browser;"],
     ['the background composition root imports hub', 'apps/extension/src/composition/background.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;"],
+    ['the background entry imports the background root', 'apps/extension/src/entrypoints/background.ts', "import { composeBackground } from '../composition/background';\nexport const x = composeBackground;"],
     [
       'the MAIN entry imports the bridge, a WXT define helper and the hosts list',
       'apps/extension/src/entrypoints/chatspace-main.content.ts',
@@ -75,16 +81,22 @@ describe('ESLint package graph (§4)', () => {
 });
 
 describe('dependency-cruiser package graph (§4)', () => {
+  const ruleSet = createRequire(import.meta.url)('../.dependency-cruiser.cjs') as IConfiguration;
+
   it('reports cycles, relative cross-package imports and forbidden edges in the fixture tree', async () => {
-    const ruleSet = createRequire(import.meta.url)('../.dependency-cruiser.cjs') as IConfiguration;
     const baseDir = fileURLToPath(new URL('fixtures/depcruise/', import.meta.url));
     const result = await cruise(['packages', 'apps'], { ...ruleSet.options, baseDir, ruleSet: { forbidden: ruleSet.forbidden ?? [] }, validate: true });
     const output = result.output as ICruiseResult;
     const violations = output.summary.violations.map((violation) => `${violation.rule.name}: ${violation.from} → ${violation.to}`).sort();
     expect(violations).toEqual([
+      'background-root-only-from-background-entry: apps/extension/lazy/entries/dock.ts → apps/extension/src/composition/background.ts',
+      'background-root-only-from-background-entry: apps/extension/src/composition/pages.ts → apps/extension/src/composition/background.ts',
       'core-domain-pure: packages/core/src/domain/index.ts → packages/platform/src/index.ts',
       'host-main-self-contained: packages/host-chatspace/src/main/index.ts → packages/contracts/src/index.ts',
       'hub-only-in-background: apps/extension/src/composition/tab.ts → packages/hub/src/index.ts',
+      // Transitive: no single edge is wrong from these bundle roots, the graph below them is.
+      'hub-unreachable-outside-background: apps/extension/lazy/entries/dock.ts → packages/hub/src/index.ts',
+      'hub-unreachable-outside-background: apps/extension/src/entrypoints/popup/main.ts → packages/hub/src/index.ts',
       'main-world-entries-self-contained: apps/extension/src/entrypoints/chatspace-main.content.ts → packages/platform/src/index.ts',
       'no-circular: packages/core/src/domain/cycle-a.ts → packages/core/src/domain/cycle-b.ts',
       'no-relative-cross-package: apps/extension/src/composition/background.ts → packages/hub/src/index.ts',
@@ -96,5 +108,17 @@ describe('dependency-cruiser package graph (§4)', () => {
       'no-relative-cross-package: packages/ui/src/index.ts → packages/host-chatspace/src/main/index.ts',
       'ui-views-only: packages/ui/src/index.ts → packages/host-chatspace/src/main/index.ts',
     ]);
+  });
+
+  it('sees the vendored packages in the real graph', async () => {
+    // They resolve to their `types` entry (dist/index.d.ts); were those files
+    // excluded with our own .d.ts, every rule about the SDK and the hotkey
+    // engine — `sdk-only-in-hub`, `hub-unreachable-outside-background` — would pass vacuously.
+    const result = await cruise(['packages/hub/src', 'packages/core/src/domain'], { ...ruleSet.options, baseDir: repoRoot });
+    const modules = (result.output as ICruiseResult).modules;
+    const resolved = (source: string): string[] =>
+      modules.find((module) => module.source === source)?.dependencies.map((dependency) => dependency.resolved) ?? [];
+    expect(resolved('packages/hub/src/index.ts')).toContain('vendor/kernel-sdk/dist/index.d.ts');
+    expect(resolved('packages/core/src/domain/index.ts')).toContain('vendor/chatgoose-hotkeys/dist/index.d.ts');
   });
 });

@@ -53,13 +53,13 @@ pnpm install --frozen-lockfile
 |---|---|
 | `pnpm check` | всё, что должно быть зелёным перед коммитом, по порядку и до первой ошибки: `typecheck` → `lint` → `test` → `build` → `webext-lint` → `size` → `gates` → `parity` → `archive-check` |
 | `pnpm typecheck` | `tsc -b` по всем пакетам (project references) |
-| `pnpm lint` | ESLint (граф пакетов, запрещённые глобалы) и dependency-cruiser (граф, циклы) |
+| `pnpm lint` | ESLint (граф пакетов, запрещённые глобалы) и dependency-cruiser (граф, циклы, достижимость: `hub` и SDK не достижимы ни из одной точки входа, кроме фона) |
 | `pnpm test` | Vitest: юнит-тесты, тест манифеста (сам собирает обе сборки), проверка вендоринга |
 | `pnpm build` | выпускная сборка: `wxt zip -b firefox --mv3` (из корня репозитория) → `apps/extension/.output/firefox-mv3/`, XPI и архив исходников для AMO; архивы прошлых версий удаляет |
 | `pnpm build:test` | тестовая сборка (`CG_TEST_HOSTS=1`) → `.output/firefox-mv3-test/` |
 | `pnpm webext-lint` | `web-ext lint --self-hosted` по выпускной сборке |
 | `pnpm size` | бюджеты размера из architecture.md §11 (gzip) |
-| `pnpm gates` | статические инварианты: нет `onlymonster.ai` вне списка (строки, шаблоны, регулярки), нет `innerHTML`, `browser.*` только в `platform`, нет слов token/key/API/bearer в текстах UI, очередь отправки только из порта отправки, выпускной манифест и бандл без тестовых адресов, SDK только в фоне, мост MAIN и тап без API расширения и zod |
+| `pnpm gates` | статические инварианты: нет `onlymonster.ai` вне списка (строки, шаблоны, регулярки), нет `innerHTML`, `browser.*` только в `platform`, нет слов token/key/API/bearer в текстах UI, очередь отправки только из порта отправки, выпускной манифест и бандл без тестовых адресов, код SDK только в `background.js` (маркеры — имя класса ошибки, заголовки `x-kernel-*`, пути API хаба, хеш контракта — берутся из `vendor/kernel-sdk` при запуске), мост MAIN и тап без API расширения и zod |
 | `pnpm parity` | манифест паритета (пока заглушка: без манифеста — предупреждение, но только пока версия контрактов `0.0.0-r00`; после R01 — ошибка) |
 | `pnpm archive-check` | архивы последней сборки (по версии в её манифесте): XPI совпадает с папкой сборки байт в байт; в XPI и архиве исходников нет кода/шрифтов/картинок OnlyMonster, реальных id (сверка по sha256) и секретов |
 | `pnpm e2e` | обе сборки + WebdriverIO 9 и geckodriver: Firefox без окна ставит выпускной XPI (id, popup, ответ фона) и тестовую сборку (спайк M0 на локальном стенде) временными дополнениями |

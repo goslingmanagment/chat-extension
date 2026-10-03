@@ -1,6 +1,7 @@
 // dependency-cruiser: the package graph of architecture.md §4 on RESOLVED paths
-// (workspace symlinks resolve to packages/<name>/src/...), plus cycles and
-// cross-package relative imports. ESLint checks the same graph on import
+// (workspace symlinks resolve to packages/<name>/src/...), plus cycles,
+// cross-package relative imports and what each bundle root can reach (`hub`
+// and the SDK only from the background). ESLint checks single import
 // specifiers; tests/lint-boundaries.test.ts proves both go red.
 
 /** A path inside a workspace package / app / vendored package. */
@@ -13,6 +14,16 @@ const PREACT = [npm('preact'), npm('@preact/signals'), npm('@preact/signals-core
 const HOTKEYS = '^vendor/chatgoose-hotkeys/';
 const SDK = '^vendor/kernel-sdk/';
 const WXT_BROWSER = npm('@wxt-dev/browser');
+
+/** The background entry point and its composition root: the only modules that may import `hub` (§4, D-13). */
+const BACKGROUND_ENTRY = '^apps/extension/src/entrypoints/background\\.ts$';
+const BACKGROUND_ROOTS = '^apps/extension/src/(entrypoints|composition)/background\\.ts$';
+/**
+ * Every other bundle root: the content scripts, the WS tap, the extension pages
+ * and the lazy chunks. Everything under entrypoints/ counts, so a new entry
+ * point is covered before anyone remembers to list it.
+ */
+const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/'], pathNot: BACKGROUND_ENTRY };
 
 /** `from` may depend only on paths matching `allowed` (plus itself). */
 function only(name, from, allowed, comment) {
@@ -92,8 +103,24 @@ module.exports = {
       name: 'hub-only-in-background',
       comment: '`hub` (and with it the SDK and the token) is used only by the background composition (§4, D-13).',
       severity: 'error',
-      from: { pathNot: [pkg('hub'), pkg('testing'), '^apps/extension/src/(entrypoints|composition)/background\\.ts$'] },
+      from: { pathNot: [pkg('hub'), pkg('testing'), BACKGROUND_ROOTS] },
       to: { path: pkg('hub') },
+    },
+    {
+      name: 'background-root-only-from-background-entry',
+      comment:
+        'The background composition root imports `hub`; any other importer would carry the hub, the SDK and the token into its bundle. Only the background entry point imports it, and nothing imports that entry point (§4, D-13).',
+      severity: 'error',
+      from: { pathNot: BACKGROUND_ENTRY },
+      to: { path: BACKGROUND_ROOTS },
+    },
+    {
+      name: 'hub-unreachable-outside-background',
+      comment:
+        'No content script, WS tap, extension page or lazy chunk may reach `hub` or the vendored SDK, however indirectly: the import rules above check single edges, this one the whole graph below each bundle root (§4, D-13).',
+      severity: 'error',
+      from: NON_BACKGROUND_ENTRIES,
+      to: { path: [pkg('hub'), SDK], reachable: true },
     },
     {
       name: 'main-world-entries-self-contained',
@@ -133,7 +160,10 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: ['node_modules', '^vendor/'] },
-    exclude: { path: ['\\.test\\.tsx?$', '\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand)/'] },
+    // Our own .d.ts files are not code. The vendored packages resolve to theirs
+    // (`types` comes first in their `exports`): excluding those would hide every
+    // SDK and hotkey-engine edge from the rules above.
+    exclude: { path: ['\\.test\\.tsx?$', '^(?!vendor/).*\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand)/'] },
     tsPreCompilationDeps: true,
     combinedDependencies: false,
     enhancedResolveOptions: {

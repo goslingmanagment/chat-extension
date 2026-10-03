@@ -100,6 +100,15 @@ const HUB_BACKGROUND_ONLY: Restriction = {
   group: flat(CG.hub, SDK),
   message: '`hub` and the SDK are background-only: the token and the network never reach a content script, a page or a lazy chunk (§4, D-13).',
 };
+/**
+ * The background composition root (and entry) imports `hub`: importing it from
+ * anywhere else carries the hub into that bundle. ESLint sees one specifier;
+ * dependency-cruiser checks the whole graph (`hub-unreachable-outside-background`).
+ */
+const BACKGROUND_ROOT_IMPORT: Restriction = {
+  regex: '^\\.{1,2}/(?:.*/)?background(?:\\.ts)?$',
+  message: 'Only the background entry point imports the background composition root: it carries `hub` and the SDK (§4, D-13).',
+};
 
 export default defineConfig(
   {
@@ -258,7 +267,7 @@ export default defineConfig(
     // Content-script and page composition roots, entry points, lazy chunks.
     files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts'],
     ignores: BACKGROUND_FILES,
-    rules: restrict(APP_RESTRICTION, HUB_BACKGROUND_ONLY),
+    rules: restrict(APP_RESTRICTION, HUB_BACKGROUND_ONLY, BACKGROUND_ROOT_IMPORT),
   },
   {
     files: BACKGROUND_FILES,
