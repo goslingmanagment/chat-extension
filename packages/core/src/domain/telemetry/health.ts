@@ -138,6 +138,11 @@ export class HealthWindow {
     this.host = hostSummary(report);
   }
 
+  /** Carries a known contract result into a new window. */
+  setHostSummary(summary: HostSummary): void {
+    this.host = { ...summary, missing: [...summary.missing], degraded: [...summary.degraded] };
+  }
+
   /** Flags and features turned off (`flag:<name>`, a page feature…). */
   setDisabled(names: Iterable<string>): void {
     this.disabled = new Set(names);
@@ -236,5 +241,61 @@ export class HandlerSampler {
     const take = this.calls % Math.max(1, this.rate) === 0;
     this.calls += 1;
     return take;
+  }
+}
+
+/**
+ * A tab's side of client_health: measures into its own window, samples
+ * synchronous handlers 1 in 20, and hands the background its deltas
+ * (`health.report`) — the window starts over after each report. No timers
+ * here: the tab's composition root reports every minute and on pagehide.
+ */
+export class TabHealthCollector {
+  private window: HealthWindow;
+  private readonly sampler: HandlerSampler;
+
+  constructor(
+    private readonly now: () => number,
+    rate: number = TELEMETRY_LIMITS.handlerSampleRate,
+  ) {
+    this.window = new HealthWindow(now());
+    this.sampler = new HandlerSampler(rate);
+  }
+
+  /** Any non-handler metric, every time (rare latency events are all kept). */
+  record(metric: PerfMetric, ms: number): void {
+    this.window.recordPerf(metric, ms);
+  }
+
+  /** Runs a synchronous handler; every 20th run is timed into `handlerMs`. Exceptions pass through untouched. */
+  handler<T>(fn: () => T): T {
+    if (!this.sampler.sample()) return fn();
+    const start = this.now();
+    try {
+      return fn();
+    } finally {
+      this.window.recordPerf('handlerMs', Math.max(0, this.now() - start));
+    }
+  }
+
+  count(name: string, by = 1): void {
+    this.window.count(name, by);
+  }
+
+  countCode(code: CgCode, by = 1): void {
+    this.window.countCode(code, by);
+  }
+
+  /** Nothing to report since the last one. */
+  isEmpty(): boolean {
+    return this.window.isEmpty();
+  }
+
+  /** The deltas since the last report; the next window starts now. */
+  takeReport(host: HostContractReport | null, footprint: { readonly cachesKB: number; readonly domNodes: number }): TabHealthReport {
+    const to = this.now();
+    const report = this.window.toTabReport(to, host, footprint);
+    this.window = new HealthWindow(to);
+    return report;
   }
 }

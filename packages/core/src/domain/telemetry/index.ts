@@ -18,6 +18,7 @@ export {
   HEALTH_SAMPLES_PER_METRIC_MAX,
   HandlerSampler,
   HealthWindow,
+  TabHealthCollector,
   hostSignature,
   hostSummary,
   type HealthClient,
