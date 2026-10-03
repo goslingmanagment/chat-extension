@@ -1,0 +1,263 @@
+// Bootstrap (architecture.md §8.3, H-2): fetch, checks, cache and refresh.
+// - The cache lives `ttlSec` from our fetch, in memory and in `cache.bootstrap`
+//   (owner-marked: hub origin + user + epoch, AU-022).
+// - Refreshed at start, on expiry, at sign-in, on focus at most once per
+//   60 s and on «Проверить связь»; after a failure: 5 / 15 / 60 s, then
+//   every 60 s (AU-017, HUB_FACADE_TIMING).
+// - An expired bootstrap blocks new sensitive actions (the facade refreshes
+//   before them) but keeps whatever results exist.
+// - A hub without `client/bootstrap` (404, prod today) gets the DEV-ONLY
+//   synthesized bootstrap when the compat mode is allowed, else
+//   CG-HUB-OUTDATED (`bootstrapMissing`).
+
+import {
+  BootstrapSchema,
+  CHAT_EXTENSION_CLIENT,
+  HUB_FACADE_TIMING,
+  HubAuthStateSchema,
+  HubIntIdSchema,
+  HubOriginSchema,
+  STORAGE_KEYS,
+  CountSchema,
+  type Bootstrap,
+  type BootstrapOptions,
+  type HubAuthState,
+} from '@cg/contracts';
+import * as z from 'zod/mini';
+
+import { protocolSupported, synthesizeCompatBootstrap, type CompatPage } from './bootstrap-rules';
+import { type CallOptions, type Connection, type HubContext } from './context';
+import { FacadeCallError, FacadeCheckError, toError, transportFailure } from './errors';
+import { type HubKeyValueStore } from './ports';
+
+export type BootstrapSource = 'hub' | 'compat';
+
+export interface BootstrapEntry {
+  readonly bootstrap: Bootstrap;
+  readonly source: BootstrapSource;
+  /** Our clock at the fetch: the cache lives `ttlSec` from here. */
+  readonly fetchedAt: number;
+  readonly epoch: number;
+  readonly hubOrigin: string;
+  readonly userId: number;
+}
+
+const BootstrapCacheSchema = z.strictObject({
+  v: z.literal(1),
+  bootstrap: BootstrapSchema,
+  source: z.enum(['hub', 'compat']),
+  fetchedAt: CountSchema,
+  epoch: CountSchema,
+  hubOrigin: HubOriginSchema,
+  userId: HubIntIdSchema,
+});
+
+const CompatPagesSchema = z.array(
+  z.object({ id: HubIntIdSchema, label: z.string(), platform: z.string(), modelName: z.string(), displayName: z.nullable(z.string()) }),
+);
+
+export interface BootstrapDeps {
+  readonly ctx: HubContext;
+  readonly local: HubKeyValueStore;
+  readonly compatPageAccounts: Readonly<Record<string, string>>;
+}
+
+export class BootstrapService {
+  private entry: BootstrapEntry | null = null;
+  private inFlight: { readonly epoch: number; readonly promise: Promise<BootstrapEntry> } | null = null;
+  private timer: unknown = null;
+  private failures = 0;
+  private lastFocusRefreshAt = Number.NEGATIVE_INFINITY;
+  private lastFailure: unknown = null;
+  private readonly listeners = new Set<(entry: BootstrapEntry) => void>();
+
+  constructor(private readonly deps: BootstrapDeps) {}
+
+  private get ctx(): HubContext {
+    return this.deps.ctx;
+  }
+
+  /** The cached bootstrap of the CURRENT sign-in, fresh or not. */
+  cached(): BootstrapEntry | null {
+    const entry = this.entry;
+    const session = this.ctx.custody.session();
+    if (entry === null || session === null) return null;
+    if (entry.epoch !== session.epoch || entry.hubOrigin !== session.hubOrigin || entry.userId !== session.userId) return null;
+    if (entry.source === 'compat' && !this.ctx.compatAllowed()) return null;
+    return entry;
+  }
+
+  isFresh(entry: BootstrapEntry): boolean {
+    return this.ctx.clock.now() < entry.fetchedAt + entry.bootstrap.ttlSec * 1000;
+  }
+
+  /** The last refresh failure (a FacadeCallError / FacadeCheckError), null after a success. */
+  lastError(): unknown {
+    return this.lastFailure;
+  }
+
+  onChange(listener: (entry: BootstrapEntry) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** HubFacade.bootstrap. */
+  async get(options: BootstrapOptions = {}): Promise<Bootstrap> {
+    // Signed in, the right hub, a token this build may keep — before any cache.
+    this.ctx.connection('clientBootstrap');
+    const cached = this.cached();
+    if (options.force !== true && cached !== null && this.isFresh(cached) && (options.ifRevision === undefined || options.ifRevision === cached.bootstrap.configRevision)) {
+      return cached.bootstrap;
+    }
+    return (await this.refresh()).bootstrap;
+  }
+
+  /** A fresh bootstrap for a sensitive action: the cache when fresh, otherwise a refresh that must succeed. */
+  async fresh(): Promise<BootstrapEntry> {
+    this.ctx.connection('clientBootstrap');
+    const cached = this.cached();
+    if (cached !== null && this.isFresh(cached)) return cached;
+    return this.refresh();
+  }
+
+  /** One fetch per sign-in epoch at a time; the result is adopted only while that sign-in lasts. */
+  refresh(): Promise<BootstrapEntry> {
+    let connection: Connection;
+    try {
+      connection = this.ctx.connection('clientBootstrap');
+    } catch (error) {
+      return Promise.reject(toError(error));
+    }
+    if (this.inFlight !== null && this.inFlight.epoch === connection.epoch) return this.inFlight.promise;
+    const promise = this.fetchFor(connection, {})
+      .then((entry) => {
+        if (this.ctx.isCurrent(connection)) this.adopt(entry);
+        return entry;
+      })
+      .catch((error: unknown) => {
+        if (this.ctx.isCurrent(connection)) this.failed(error, connection);
+        throw error;
+      })
+      .finally(() => {
+        if (this.inFlight?.promise === promise) this.inFlight = null;
+      });
+    this.inFlight = { epoch: connection.epoch, promise };
+    return promise;
+  }
+
+  /**
+   * Fetches and checks a bootstrap for `connection` (also a sign-in not
+   * committed yet). Refuses: another user than the token's (contract), an
+   * unknown protocol, a full token (no `identity.tokenClient`) outside the
+   * compat mode, a missing route outside the compat mode.
+   */
+  async fetchFor(connection: Connection, options: CallOptions): Promise<BootstrapEntry> {
+    const now = this.ctx.clock.now();
+    let bootstrap: Bootstrap;
+    let source: BootstrapSource = 'hub';
+    try {
+      bootstrap = (await this.ctx.client('clientBootstrap', null, options, connection)) as Bootstrap;
+    } catch (error) {
+      if (!(error instanceof FacadeCallError) || error.failure.kind !== 'http' || error.failure.status !== 404) throw error;
+      if (!this.ctx.compatAllowed()) throw new FacadeCheckError('bootstrapMissing', 'clientBootstrap', connection.epoch);
+      bootstrap = await this.synthesize(connection, options, now);
+      source = 'compat';
+    }
+    if (bootstrap.identity.userId !== connection.userId) throw this.ctx.failure('clientBootstrap', transportFailure('contract'), connection);
+    if (!protocolSupported(bootstrap)) throw new FacadeCheckError('bootstrapProtocol', 'clientBootstrap', connection.epoch);
+    if (source === 'hub' && bootstrap.identity.tokenClient !== CHAT_EXTENSION_CLIENT && !this.ctx.compatAllowed()) {
+      throw new FacadeCheckError('narrowTokenMissing', 'clientBootstrap', connection.epoch);
+    }
+    return { bootstrap, source, fetchedAt: now, epoch: connection.epoch, hubOrigin: connection.hubOrigin, userId: connection.userId };
+  }
+
+  private async synthesize(connection: Connection, options: CallOptions, now: number): Promise<Bootstrap> {
+    this.ctx.log('warn', 'hub: no client/bootstrap — using the DEV-ONLY compat bootstrap', { epoch: connection.epoch });
+    const me = (await this.ctx.sdk('me', {}, options, connection)) as HubAuthState;
+    const pages = CompatPagesSchema.parse(await this.ctx.sdk('pages', {}, options, connection)) as CompatPage[];
+    return synthesizeCompatBootstrap({ me: HubAuthStateSchema.parse(me), pages, issuedAt: new Date(now).toISOString(), pageAccounts: this.deps.compatPageAccounts });
+  }
+
+  /** Takes a checked bootstrap as the current one, persists it and schedules its expiry refresh. */
+  adopt(entry: BootstrapEntry): void {
+    const previous = this.entry;
+    this.entry = entry;
+    this.failures = 0;
+    this.lastFailure = null;
+    this.schedule(Math.max(1_000, entry.fetchedAt + entry.bootstrap.ttlSec * 1000 - this.ctx.clock.now()));
+    void this.deps.local.set({ [STORAGE_KEYS.cacheBootstrap]: { v: 1, ...entry } }).then((written) => {
+      if (!written.ok) this.ctx.log('warn', 'hub: bootstrap cache write failed', { code: written.code });
+    });
+    if (previous === null || previous.bootstrap.configRevision !== entry.bootstrap.configRevision || previous.epoch !== entry.epoch || previous.bootstrap.issuedAt !== entry.bootstrap.issuedAt) {
+      for (const listener of [...this.listeners]) listener(entry);
+    }
+  }
+
+  /** A bootstrap that did not arrive (at sign-in: CG-LOGIN-INCOMPLETE): retry by the backoff (AU-017). */
+  failed(error: unknown, connection: Connection): void {
+    this.lastFailure = error;
+    this.failures += 1;
+    const pauses = HUB_FACADE_TIMING.bootstrapRetryPausesMs;
+    const pause = pauses[Math.min(this.failures - 1, pauses.length - 1)] ?? 60_000;
+    if (error instanceof FacadeCheckError && error.check === 'narrowTokenMissing') {
+      this.ctx.hooks.dropFullToken(connection);
+      return;
+    }
+    if (error instanceof FacadeCallError && error.failure.kind === 'transport' && error.failure.failure === 'aborted') return;
+    this.schedule(pause);
+  }
+
+  private schedule(ms: number): void {
+    this.cancelTimer();
+    this.timer = this.ctx.clock.setTimeout(() => {
+      this.timer = null;
+      if (this.ctx.custody.current() === null) return;
+      this.refresh().catch(() => undefined);
+    }, ms);
+  }
+
+  private cancelTimer(): void {
+    if (this.timer !== null) this.ctx.clock.clearTimeout(this.timer);
+    this.timer = null;
+  }
+
+  /** Focus of a ChatSpace tab: refresh at most once per 60 s (§8.3). */
+  onFocus(): void {
+    const now = this.ctx.clock.now();
+    if (this.ctx.custody.current() === null || now - this.lastFocusRefreshAt < HUB_FACADE_TIMING.bootstrapFocusRefreshMinMs) return;
+    this.lastFocusRefreshAt = now;
+    this.refresh().catch(() => undefined);
+  }
+
+  /** A sign-in transition: forget the previous sign-in's bootstrap and its timers. */
+  reset(): void {
+    this.cancelTimer();
+    this.entry = null;
+    this.inFlight = null;
+    this.failures = 0;
+    this.lastFailure = null;
+  }
+
+  async clearStored(): Promise<void> {
+    const removed = await this.deps.local.remove([STORAGE_KEYS.cacheBootstrap]);
+    if (!removed.ok) this.ctx.log('warn', 'hub: bootstrap cache erase failed', { code: removed.code });
+  }
+
+  /** Background start: the stored bootstrap of THIS sign-in (same hub, user and epoch) is used until the refresh lands. */
+  async loadStored(): Promise<void> {
+    const read = await this.deps.local.get([STORAGE_KEYS.cacheBootstrap]);
+    if (!read.ok) {
+      this.ctx.log('warn', 'hub: bootstrap cache read failed', { code: read.code });
+      return;
+    }
+    const parsed = BootstrapCacheSchema.safeParse(read.value[STORAGE_KEYS.cacheBootstrap]);
+    if (!parsed.success) return;
+    const { v: _v, ...entry } = parsed.data;
+    this.entry = entry;
+    if (this.cached() === null) this.entry = null;
+  }
+
+  dispose(): void {
+    this.cancelTimer();
+  }
+}
