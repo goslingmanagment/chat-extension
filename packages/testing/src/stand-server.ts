@@ -5,7 +5,7 @@
 //   fixture-chatspace, built into .cache/fixture-chatspace) on `/`,
 //   `/accounts/...` and its assets, the session-token endpoint, control
 //   endpoints for tests (`/__stand/...`), the M0 spike page (`/spike.html`)
-//   and the ui/kit gallery (`/kit-gallery/`, built into .cache/kit-gallery);
+//   and the UI galleries (`/kit-gallery/`, `/dock-gallery/`, built into .cache/*-gallery);
 // - the API origin: the native API (`/api/...`, CORS for the page origin with
 //   preflights) and the socket (`/api/chat-space/ws`), with synthetic data.
 // A journal labels every call by who made it (protocol.ts CallOrigin).
@@ -28,7 +28,7 @@ import {
 import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
-import { FIXTURE_BUILD_DIR, KIT_GALLERY_BUILD_DIR, KIT_GALLERY_PATH, SPIKE_STAND_DIR } from './stand/paths';
+import { FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
 import { SocketHub } from './stand/socket-hub';
 import { StandState } from './stand/state';
 
@@ -152,6 +152,11 @@ async function listen(server: Server, port: number): Promise<number> {
   return address.port;
 }
 
+/** The gallery a normalized relative path belongs to (`kit-gallery/x.js` → `/kit-gallery/`), or null. */
+function galleryOf(relative: string): string | null {
+  return Object.keys(GALLERIES).find((base) => `/${relative}/`.startsWith(base)) ?? null;
+}
+
 export async function startStandServer(options: StandServerOptions = {}): Promise<StandServer> {
   const state = new StandState();
   const journal = new ServerJournal();
@@ -193,10 +198,11 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       status = 404;
     } else if (SPIKE_FILES.has(path)) {
       status = await serveFile(response, join(SPIKE_STAND_DIR, relative), url.searchParams.get('csp') === 'strict' ? STRICT_STAND_CSP : null);
-    } else if (`/${relative}/`.startsWith(KIT_GALLERY_PATH)) {
-      // The ui/kit gallery (normalized path, so no `..` leaves its folder): the index for the folder, assets by name.
-      const inside = relative.slice(KIT_GALLERY_PATH.length - 1);
-      status = await serveFile(response, join(KIT_GALLERY_BUILD_DIR, inside === '' || inside.endsWith('/') ? `${inside}index.html` : inside), null);
+    } else if (galleryOf(relative) !== null) {
+      // A gallery of our UI (normalized path, so no `..` leaves its folder): the index for the folder, assets by name.
+      const base = galleryOf(relative) as string;
+      const inside = relative.slice(base.length - 1);
+      status = await serveFile(response, join(GALLERIES[base] as string, inside === '' || inside.endsWith('/') ? `${inside}index.html` : inside), null);
     } else if (path === '/favicon.ico') {
       response.writeHead(204).end();
       status = 204;

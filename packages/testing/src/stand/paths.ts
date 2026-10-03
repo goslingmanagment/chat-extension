@@ -16,5 +16,12 @@ export const KIT_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../kit/gallery/', i
 /** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /kit-gallery/. */
 export const KIT_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/kit-gallery/`;
 export const KIT_GALLERY_PATH = '/kit-gallery/';
+/** Sources of the dock and overlays gallery page (R14). */
+export const DOCK_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../dock/gallery/', import.meta.url));
+/** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /dock-gallery/. */
+export const DOCK_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/dock-gallery/`;
+export const DOCK_GALLERY_PATH = '/dock-gallery/';
+/** Gallery pages the stand serves, by their path: built folders of our own UI over synthetic view models. */
+export const GALLERIES: Readonly<Record<string, string>> = { [KIT_GALLERY_PATH]: KIT_GALLERY_BUILD_DIR, [DOCK_GALLERY_PATH]: DOCK_GALLERY_BUILD_DIR };
 /** Screenshots, timings and other e2e evidence. */
 export const E2E_EVIDENCE_DIR = `${REPO_ROOT}.cache/e2e/`;
