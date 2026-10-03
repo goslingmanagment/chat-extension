@@ -12,7 +12,15 @@
 // (the background emits the first batch while it still handles the start):
 // they wait in a small buffer. An admitted id that came with no event is an
 // operation this tab session did not start — another tab's cached result, a
-// run that outlived a reload — and is read with `op.list`.
+// run that outlived a reload — and is read with `op.list`; batches that
+// landed while that read was on its way are counted in (their text is in
+// the answer), so the next batch is not taken for a gap. Two starts of one
+// chat in flight at once (a double click) are told apart: the later one
+// waits for the earlier before it decides whether its operation is new.
+//
+// What the tab holds is bounded: results live 30 minutes and at most the
+// tab's share of them, the early buffer and the followed chats are capped,
+// and whoever keeps state by operation hears which ones were dropped.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
@@ -73,6 +81,10 @@ const EARLY_OPS_MAX = 16;
 const EARLY_EVENTS_MAX = 400;
 /** Dropped operations remembered so that a later read of the background does not bring them back. */
 const TOMBSTONES_MAX = 256;
+/** Chats whose results this tab follows (terminal views of their other operations are adopted); the least recently used goes first. */
+export const WATCHED_CHATS_MAX = 64;
+/** A read that failed right after the port came back is made once more after this long. */
+export const RESYNC_RETRY_MS = 2_000;
 
 interface Entry {
   mirror: OpMirror;
@@ -95,7 +107,11 @@ export class OpStore {
   private readonly early = new Map<string, EarlyEvent[]>();
   private readonly watched = new Set<ChatKey>();
   private readonly inFlight = new Map<ChatKey, number>();
+  /** The starts of a chat still being handled, as one chain: a later one may wait for the earlier. */
+  private readonly starting = new Map<ChatKey, Promise<void>>();
   private readonly listeners = new Set<(event: OpStoreEvent) => void>();
+  private readonly dropListeners = new Set<(opIds: readonly string[]) => void>();
+  private resyncTimer: unknown = null;
   private readonly keepers = new Set<(opId: string) => boolean>();
   /** Operations a sign-in or persona change dropped, and when: the background may still list them for half an hour. */
   private readonly tombstones = new Map<string, number>();
@@ -116,12 +132,23 @@ export class OpStore {
   dispose(): void {
     for (const off of this.unsubscribe.splice(0)) off();
     this.listeners.clear();
+    this.dropListeners.clear();
+    if (this.resyncTimer !== null) this.clock.clearTimer(this.resyncTimer);
+    this.resyncTimer = null;
   }
 
   subscribe(listener: (event: OpStoreEvent) => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
+    };
+  }
+
+  /** Results that left the store by age or by the tab's cap: whoever keeps state by operation drops it too. */
+  onDropped(listener: (opIds: readonly string[]) => void): () => void {
+    this.dropListeners.add(listener);
+    return () => {
+      this.dropListeners.delete(listener);
     };
   }
 
@@ -162,8 +189,25 @@ export class OpStore {
 
   async start(start: StartOp, memo: Omit<StartMemo, 'start' | 'split'>): Promise<StartOutcome> {
     const chatKey = chatKeyOf(start.target.chat);
-    this.watched.add(chatKey);
+    this.watch(chatKey);
     this.inFlight.set(chatKey, (this.inFlight.get(chatKey) ?? 0) + 1);
+    // The starts of one chat are a chain: this one ends when it returns, whatever it returns.
+    const earlier = this.starting.get(chatKey) ?? null;
+    let finished: () => void = () => undefined;
+    const mine = new Promise<void>((resolve) => {
+      finished = resolve;
+    });
+    const chain = (earlier ?? Promise.resolve()).then(() => mine);
+    this.starting.set(chatKey, chain);
+    try {
+      return await this.runStart(start, memo, chatKey, earlier);
+    } finally {
+      finished();
+      if (this.starting.get(chatKey) === chain) this.starting.delete(chatKey);
+    }
+  }
+
+  private async runStart(start: StartOp, memo: Omit<StartMemo, 'start' | 'split'>, chatKey: ChatKey, earlier: Promise<void> | null): Promise<StartOutcome> {
     let answer: RpcAnswer<Admission>;
     try {
       answer = await this.rpc.request('op.start', start);
@@ -182,10 +226,13 @@ export class OpStore {
       return { kind: 'refused', admission };
     }
     const opId = admission.opId;
-    const now = this.clock.now();
     const fullMemo: StartMemo = { ...memo, split: start.split, start: withoutCause(start) };
     // The admission is for this very request — its persona included: whatever dropped the operation before, it is valid again.
     this.tombstones.delete(opId);
+    // Nothing announced this operation yet and an earlier start of this chat is still being handled (a double
+    // click): it may be that start's own operation, admitted a moment ago. Let it say so first.
+    if (earlier !== null && !this.entries.has(opId) && (this.early.get(opId)?.length ?? 0) === 0) await earlier;
+    const now = this.clock.now();
     let reopened = true;
     const known = this.entries.get(opId);
     if (known === undefined) {
@@ -241,7 +288,7 @@ export class OpStore {
    * operation whose text must be taken from the answer (a take-over).
    */
   async syncChat(chatKey: ChatKey, reseed?: string): Promise<void> {
-    this.watched.add(chatKey);
+    this.watch(chatKey);
     const answer = await this.rpc.request('op.list', { scope: 'tab', chatKey });
     if (!answer.ok) return;
     for (const view of answer.payload.ops) {
@@ -249,8 +296,11 @@ export class OpStore {
       if (entry === undefined) {
         if (this.tombstones.has(view.opId)) continue;
         this.entries.set(view.opId, { mirror: mirrorFromView(view), view, memo: this.adoptedMemo(view), own: false, reopenedAt: null, desynced: false });
+        this.absorbEarly(view.opId);
         this.emit({ kind: 'changed', opId: view.opId });
-        if (isTerminalOpState(view.state)) this.emit({ kind: 'done', record: this.recordOf(this.entries.get(view.opId) as Entry) });
+        const adopted = this.entries.get(view.opId);
+        // A view that was terminal in the answer; one that ended in the buffer meanwhile already said so.
+        if (adopted !== undefined && isTerminalOpState(view.state)) this.emit({ kind: 'done', record: this.recordOf(adopted) });
         continue;
       }
       if (isTerminalOpState(view.state)) {
@@ -259,12 +309,42 @@ export class OpStore {
       }
       // The tab's own mirror is fresher than a read unless it is taking the run over.
       if (entry.own && view.opId !== reseed) continue;
-      entry.mirror = mirrorFromView(view);
+      // Batches that already came here (the background attached this tab meanwhile) are in the answer's text:
+      // the count goes on from them, so the next batch is not taken for a gap.
+      entry.mirror = { ...mirrorFromView(view), seq: entry.mirror.seq };
       entry.view = view;
       entry.desynced = false;
       this.emit({ kind: 'changed', opId: view.opId });
     }
     this.prune();
+  }
+
+  /**
+   * Batches of an operation that landed before its record existed (while
+   * `op.list` was on its way): their text is in the view the record was
+   * made from, so only their count and a terminal view among them matter.
+   */
+  private absorbEarly(opId: string): void {
+    const events = this.early.get(opId);
+    const entry = this.entries.get(opId);
+    if (events === undefined || entry === undefined) return;
+    this.early.delete(opId);
+    let seq = entry.mirror.seq;
+    for (const event of events) if (event.kind === 'update' && event.update.seq > seq) seq = event.update.seq;
+    if (entry.mirror.done === null) entry.mirror = { ...entry.mirror, seq };
+    const done = events.findLast((event) => event.kind === 'done');
+    if (done !== undefined && done.kind === 'done') this.onDone(done.view);
+  }
+
+  /** Follows a chat; the least recently used one goes when there are too many. */
+  private watch(chatKey: ChatKey): void {
+    this.watched.delete(chatKey);
+    this.watched.add(chatKey);
+    while (this.watched.size > WATCHED_CHATS_MAX) {
+      const oldest = this.watched.values().next().value;
+      if (oldest === undefined) break;
+      this.watched.delete(oldest);
+    }
   }
 
   /**
@@ -274,16 +354,22 @@ export class OpStore {
    * background no longer knows ended without a word — it is interrupted, so
    * nothing spins forever.
    */
-  async resync(): Promise<void> {
+  async resync(retry = true): Promise<void> {
+    if (this.resyncTimer !== null) this.clock.clearTimer(this.resyncTimer);
+    this.resyncTimer = null;
     const running = [...this.entries.values()].filter((entry) => !isTerminalOpState(entry.view.state));
     const chats = new Map<ChatKey, string[]>();
     for (const entry of running) {
       const chatKey = chatKeyOf(entry.view.target.chat);
       chats.set(chatKey, [...(chats.get(chatKey) ?? []), entry.view.opId]);
     }
+    let unread = false;
     for (const [chatKey, opIds] of chats) {
       const answer = await this.rpc.request('op.list', { scope: 'tab', chatKey });
-      if (!answer.ok) continue;
+      if (!answer.ok) {
+        unread = true;
+        continue;
+      }
       const known = new Map(answer.payload.ops.map((view) => [view.opId, view]));
       for (const opId of opIds) {
         const entry = this.entries.get(opId);
@@ -302,6 +388,14 @@ export class OpStore {
           this.emit({ kind: 'changed', opId });
         }
       }
+    }
+    // The background's own list could not be read (no hub is asked here): once more after a moment, so a run
+    // whose end was lost with the port does not keep spinning until the next reconnect.
+    if (unread && retry) {
+      this.resyncTimer = this.clock.setTimer(RESYNC_RETRY_MS, () => {
+        this.resyncTimer = null;
+        void this.resync(false);
+      });
     }
   }
 
@@ -371,9 +465,11 @@ export class OpStore {
       // An answer to a start of this chat is still on its way: this may be its operation.
       if ((this.inFlight.get(chatKey) ?? 0) > 0) this.buffer(view.opId, { kind: 'done', view });
       else if (this.watched.has(chatKey)) {
-        this.entries.set(view.opId, { mirror: mirrorFromView(view), view, memo: NO_MEMO, own: false, reopenedAt: null, desynced: false });
+        const adopted: Entry = { mirror: mirrorFromView(view), view, memo: NO_MEMO, own: false, reopenedAt: null, desynced: false };
+        this.entries.set(view.opId, adopted);
         this.emit({ kind: 'changed', opId: view.opId });
-        if (isTerminalOpState(view.state)) this.emit({ kind: 'done', record: this.recordOf(this.entries.get(view.opId) as Entry) });
+        if (isTerminalOpState(view.state)) this.emit({ kind: 'done', record: this.recordOf(adopted) });
+        this.prune();
       }
       return;
     }
@@ -419,17 +515,21 @@ export class OpStore {
     }
   }
 
-  /** Results live 30 minutes; a tab keeps at most its share of them. */
+  /** Results live 30 minutes; a tab keeps at most its share of them. Whoever keeps state by operation hears what went. */
   private prune(): void {
     const now = this.clock.now();
     const kept = (opId: string): boolean => [...this.keepers].some((keeper) => keeper(opId));
     const finished = [...this.entries.values()]
       .filter((entry) => isTerminalOpState(entry.view.state) && !kept(entry.view.opId))
       .sort((a, b) => b.view.startedAt - a.view.startedAt);
+    const dropped: string[] = [];
     finished.forEach((entry, index) => {
       const expired = entry.view.endedAt !== undefined && now - entry.view.endedAt >= OP_LIMITS.resultTtlMs;
-      if (expired || index >= STORAGE_LIMITS.resultsPerTab) this.entries.delete(entry.view.opId);
+      if (!expired && index < STORAGE_LIMITS.resultsPerTab) return;
+      this.entries.delete(entry.view.opId);
+      dropped.push(entry.view.opId);
     });
+    if (dropped.length > 0) for (const listener of [...this.dropListeners]) listener(dropped);
   }
 
   private recordOf(entry: Entry): OpRecord {

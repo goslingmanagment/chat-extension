@@ -142,11 +142,11 @@ export function createAiSurfaces(ports: AiPorts): AiSurfaces {
 
 export { createCoachController, type CoachController } from '../coach/controller';
 export { KEYS_FOOTER_RESULTS, createDockController, type DockController } from '../dock/controller';
-export { createRecapController, type RecapController } from '../recap/controller';
+export { RECAP_UI_CHATS_MAX, createRecapController, type RecapController } from '../recap/controller';
 export { createReviewController, type ReviewController } from '../review/controller';
 export { TabEnvironment, type EnvironmentChange, type Loaded, type PersonaState } from './environment';
 export { artifactHandle, readArtifactHandle, readTargetHandle, targetHandle, type Artifact, type TargetSurface } from './handles';
-export { OpStore, type OpRecord, type OpStoreEvent, type StartMemo, type StartOutcome } from './op-store';
+export { OpStore, RESYNC_RETRY_MS, WATCHED_CHATS_MAX, type OpRecord, type OpStoreEvent, type StartMemo, type StartOutcome } from './op-store';
 export {
   type AiPorts,
   type IdPort,
@@ -162,4 +162,4 @@ export {
 } from './ports';
 export { RECAP_STATUS, SHARED_RECAPS_TTL_MS, RecapBook, type RecapOwner, type SharedRead } from './recap-book';
 export { type AiController, type CauseKind } from './surface';
-export { AiWorkspace, COPIED_MARK_MS, QUOTA_LOW_AT, type ReadyTarget, type RefusalState, type Sheet, type Situation, type StartRequest, type StartResult } from './workspace';
+export { AiWorkspace, CHAT_UI_MAX, COPIED_MARK_MS, QUOTA_LOW_AT, isOwnSurface, type ReadyTarget, type RefusalState, type Sheet, type Situation, type StartRequest, type StartResult } from './workspace';

@@ -97,11 +97,12 @@ export function createDockController(ws: AiWorkspace): DockController {
     if (event.kind !== 'done') return;
     const { view } = event.record;
     if (view.state !== 'done' || !isDraftFeature(view.feature) || !event.record.own || counted.has(view.opId)) return;
-    counted.add(view.opId);
     const settings = ws.env.settings;
     if (settings === null || settings.readOnly) return;
     const footer = settings.settings.onboarding.keysFooter;
+    // Past the first results nothing is counted or kept any more.
     if (footer.dismissed || footer.shown >= KEYS_FOOTER_RESULTS) return;
+    counted.add(view.opId);
     footerOps.add(view.opId);
     void ws.env.patchSettings({ onboarding: { keysFooter: { shown: footer.shown + 1, dismissed: footer.dismissed } } });
   });

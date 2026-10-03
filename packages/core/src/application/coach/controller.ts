@@ -88,6 +88,13 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   const keyOf = (ready: ReadyTarget): CoachSessionKey => ({ chatKey: chatKeyOf(ready.target.chat), personaDefinitionId: ready.persona.definitionId });
 
+  /** The page of a session; pages of sessions the store no longer keeps (five at most) go. */
+  function rememberPage(sessionId: string, pageId: number): void {
+    pages.set(sessionId, pageId);
+    const kept = new Set(sessions.all().map((session) => session.sessionId));
+    for (const id of [...pages.keys()]) if (!kept.has(id)) pages.delete(id);
+  }
+
   // The answers of the dialogs are kept as long as their sessions are.
   const offKeep = ws.ops.keep((opId) => sessions.all().some((session) => session.pending?.opId === opId || session.feed.some((item) => item.opId === opId)));
 
@@ -203,7 +210,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const preset = action.options.preset ?? null;
     const now = clock.now();
     const session = sessions.open(keyOf(ready), now);
-    pages.set(session.sessionId, ready.page.pageId);
+    rememberPage(session.sessionId, ready.page.pageId);
     // One turn at a time: the question stays in the field (AI-099).
     if (session.pending !== null) return refused(ws, action.type, { code: 'CG-OP-COACH-BUSY' });
 
@@ -465,7 +472,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       if (ready === null) return Promise.resolve(refused(ws, action.type, { code: 'CG-GATE-CHAT-LOADING' }));
       const fresh = sessions.newDialog(keyOf(ready), clock.now());
       if (!fresh.ok) return Promise.resolve(refused(ws, action.type, { code: 'CG-OP-COACH-BUSY' }));
-      pages.set(fresh.session.sessionId, ready.page.pageId);
+      rememberPage(fresh.session.sessionId, ready.page.pageId);
       ws.bump();
       return Promise.resolve(done(action.type));
     },

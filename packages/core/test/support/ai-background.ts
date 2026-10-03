@@ -114,6 +114,8 @@ export class FakeBackground {
   bindingError: CgErrorWire | null = null;
   /** Hold the answers of these request types until `release()`: an RPC that is slow. */
   readonly held = new Set<string>();
+  /** Handle these request types at once but hold their answers until `release()`: what the background emits meanwhile arrives first. */
+  readonly slow = new Set<string>();
   private readonly waiting: (() => void)[] = [];
 
   sharedRecaps: Scripted<SharedRecaps> = { full: null, short: null, fullSavedToProfile: false };
@@ -121,6 +123,8 @@ export class FakeBackground {
   feed: Scripted<FeedPage> | null = null;
   /** What `op.list` answers instead of the scheduler's own list (a background that forgot its runs). */
   opList: { readonly ops: OpView[]; readonly truncated: boolean } | null = null;
+  /** Failures of the next `op.list` requests, in order. */
+  readonly opListErrors: CgErrorWire[] = [];
   /** Answers of `recap.save`, in order; an empty queue answers `saved`. */
   readonly saveAnswers: ({ readonly state: 'saved' | 'not-ready' | 'rejected'; readonly savedAt: string | null } | { readonly error: CgErrorWire })[] = [];
 
@@ -237,6 +241,7 @@ export class FakeBackground {
         if (this.connection === 'reloaded') return { ok: false, error: { code: 'CG-RUNTIME-RELOADED' } };
         if (this.held.has(type)) await new Promise<void>((resume) => this.waiting.push(resume));
         const answer = (await this.answer(tab, type, payload)) as RpcAnswer<TabResponsePayload<T>>;
+        if (this.slow.has(type)) await new Promise<void>((resume) => this.waiting.push(resume));
         if (answer.ok && !parseTabPayload('res', type, answer.payload).ok) throw new ContractViolation(`response of ${type} breaks its schema: ${JSON.stringify(answer.payload)}`);
         return answer;
       },
@@ -326,8 +331,11 @@ export class FakeBackground {
         const state = this.scheduler.cancel(request['opId'] as string);
         return state === null ? { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } } : ok({ state });
       }
-      case 'op.list':
+      case 'op.list': {
+        const failure = this.opListErrors.shift();
+        if (failure !== undefined) return { ok: false, error: failure };
         return ok(this.opList ?? this.scheduler.list(tab, request['scope'] as 'tab', request['chatKey'] as never));
+      }
       case 'op.reportShown':
       case 'op.reportCopy':
       case 'op.reportInsert':

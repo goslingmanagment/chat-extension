@@ -48,6 +48,9 @@ const FEATURE_OF: Readonly<Record<RecapLength, FeatureId>> = { short: 'recap-sho
 const lengthOf = (feature: FeatureId): RecapLength => (feature === 'recap-short' ? 'short' : 'full');
 const isRecap = (feature: FeatureId): boolean => feature === 'recap' || feature === 'recap-short';
 
+/** Chats whose Recap sheet state (the shown length, the followed build) is remembered. */
+export const RECAP_UI_CHATS_MAX = 32;
+
 interface RecapUi {
   length: RecapLength;
   /** The generation the sheet follows (running, failed, or just finished); null — a saved slot is shown. */
@@ -68,6 +71,12 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     if (ui === undefined) {
       ui = { length: 'full', opId: null, sheetId: ids.uuid() };
       uis.set(key, ui);
+      // The sheet state of the chats visited longest ago goes: a shift opens hundreds of chats.
+      while (uis.size > RECAP_UI_CHATS_MAX) {
+        const oldest = uis.keys().next().value;
+        if (oldest === undefined) break;
+        uis.delete(oldest);
+      }
     }
     return ui;
   }

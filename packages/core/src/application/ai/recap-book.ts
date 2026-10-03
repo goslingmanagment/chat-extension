@@ -95,6 +95,15 @@ export class RecapBook {
   private remember(key: RecapSlotKey, copy: RecapCopy): RecapCopy {
     const stored = this.slots.put(key, copy);
     this.owners.set(stored.id, key);
+    // What the slots no longer hold (a newer recap took the slot, the oldest entries were evicted) keeps nothing here.
+    for (const [id, owner] of this.owners) {
+      if (this.slots.get(owner, 'full')?.id === id || this.slots.get(owner, 'short')?.id === id) continue;
+      this.owners.delete(id);
+      this.saves.delete(id);
+      const timer = this.saveTimers.get(id);
+      if (timer !== undefined) this.deps.ports.clock.clearTimer(timer);
+      this.saveTimers.delete(id);
+    }
     return stored;
   }
 

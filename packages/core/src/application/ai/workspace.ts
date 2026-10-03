@@ -124,6 +124,8 @@ export const isOwnSurface = (surface: Surface): boolean => surface !== 'preview'
 
 /** How long «Скопировано» stays on a part (ui-design §4.3). */
 export const COPIED_MARK_MS = 2_000;
+/** Chats whose tone or open sheet the tab remembers. */
+export const CHAT_UI_MAX = 64;
 /** UI-031: «AI: осталось N» from this many requests down. */
 export const QUOTA_LOW_AT = 25;
 
@@ -191,6 +193,11 @@ export class AiWorkspace {
     this.offs.push(
       this.env.subscribe((change) => this.onEnvironment(change)),
       this.ops.subscribe((event) => this.onOp(event)),
+      // A result that left the store by age or by the tab's cap takes what was kept for it along.
+      this.ops.onDropped((opIds) => {
+        this.forget(opIds);
+        this.bump();
+      }),
       host.subscribe((event) => {
         switch (event.type) {
           case 'route':
@@ -411,6 +418,12 @@ export class AiWorkspace {
     if (ui === undefined) {
       ui = { tone: null, sheet: null, pageId: null };
       this.chats.set(key, ui);
+      // A sheet left open in a chat visited long ago is not kept for ever: the oldest go.
+      while (this.chats.size > CHAT_UI_MAX) {
+        const oldest = this.chats.keys().next().value;
+        if (oldest === undefined || oldest === key) break;
+        this.chats.delete(oldest);
+      }
     }
     return ui;
   }
@@ -576,16 +589,19 @@ export class AiWorkspace {
   /**
    * The visible tail of the open chat, read from page memory only when a
    * view needs it (the archive lag, the language of the fan) and again after
-   * the chat's cache changed. Never sent anywhere from here.
+   * the chat's cache changed. Never sent anywhere from here, and kept only
+   * while that chat is open (it is text of the conversation).
    */
   pageTail(key: ChatKey): LiveTextTail | null {
+    const chat = this.situation().chat;
+    // Only the open chat has a page to read; nothing is kept for any other.
+    if (chat === null || chat.key !== key) return null;
     let entry = this.tails.get(key);
     if (entry === undefined) {
       entry = { tail: null, dirty: true, reading: false, known: false };
       this.tails.set(key, entry);
     }
-    const chat = this.situation().chat;
-    if (entry.dirty && !entry.reading && chat !== null && chat.key === key && chat.identity !== null) {
+    if (entry.dirty && !entry.reading && chat.identity !== null) {
       const slot = entry;
       slot.reading = true;
       slot.dirty = false;
@@ -728,6 +744,10 @@ export class AiWorkspace {
   private routeChanged(): void {
     const route = this.ports.host.current().route;
     const key = route.name === 'chat' && route.chat !== null ? chatKeyOf(route.chat) : null;
+    // The page tail is kept for the open chat only: a chat that was left is read again when it is opened.
+    for (const other of [...this.tails.keys()]) if (other !== key) this.tails.delete(other);
+    // A chat without a chosen tone or an open sheet keeps nothing.
+    for (const [other, ui] of this.chats) if (other !== key && ui.tone === null && ui.sheet === null) this.chats.delete(other);
     if (key !== null) {
       const tail = this.tails.get(key);
       if (tail !== undefined) tail.dirty = true;
@@ -789,6 +809,10 @@ export class AiWorkspace {
         this.recaps.reset(!session);
         if (!session) {
           this.chats.clear();
+          this.tails.clear();
+          this.copies.clear();
+          this.shown.clear();
+          this.expanded.clear();
           this.syncedChat = null;
         }
         this.reset(() => true);
@@ -818,10 +842,13 @@ export class AiWorkspace {
     this.bump();
   }
 
+  /** Operations that left the store: every per-operation state the tab kept for them goes too. */
   private forget(opIds: readonly string[]): void {
     for (const opId of opIds) {
       this.inserts.dropOp(opId);
       this.expanded.delete(opId);
+      this.shown.delete(opId);
+      for (const handle of [...this.copies.keys()]) if (readArtifactHandle(handle)?.kind !== 'recap' && handle.includes(opId)) this.copies.delete(handle);
       for (const ui of this.chats.values()) if (ui.sheet !== null && ui.sheet.kind === 'draft' && ui.sheet.opId === opId) ui.sheet = null;
     }
   }
