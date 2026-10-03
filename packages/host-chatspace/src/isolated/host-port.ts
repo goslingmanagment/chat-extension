@@ -55,8 +55,13 @@ export interface ChatSpaceHostOptions {
   /** The page's localStorage, read only (the composition root gives it; §6.1). */
   readonly drafts?: DraftStorage | null;
   readonly adapterVersion?: string;
-  /** Bootstrap `limits.navInsertTimeoutSec` × 1000 (§5.3); 20 s by default. */
-  readonly navInsertTimeoutMs?: number;
+  /**
+   * Bootstrap `limits.navInsertTimeoutSec` × 1000 (§5.3); 20 s by default.
+   * A function is read at each «Открыть и вставить»: the host starts at
+   * document_start, before the tab has a bootstrap, and the owner may change
+   * the limit while the tab is open.
+   */
+  readonly navInsertTimeoutMs?: number | (() => number | undefined);
   readonly onDiagnostic?: (diagnostic: HostDiagnostic) => void;
 }
 
@@ -90,7 +95,11 @@ const NAV_GRACE_MS = 1000;
 export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpaceHostPort {
   const { bridge, mounts, theme, redeem } = options;
   const drafts = options.drafts ?? null;
-  const navTimeoutMs = options.navInsertTimeoutMs ?? BRIDGE_LIMITS.navInsertTimeoutDefaultMs;
+  const navTimeout = (): number => {
+    const option = options.navInsertTimeoutMs;
+    const value = typeof option === 'function' ? option() : option;
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : BRIDGE_LIMITS.navInsertTimeoutDefaultMs;
+  };
   const diag = (diagnostic: HostDiagnostic): void => options.onDiagnostic?.(diagnostic);
   const clock = (): number => Date.now();
 
@@ -470,6 +479,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
             : null;
       // MAIN waits for the composer until the insert's own deadline: never later than this side waits for MAIN's answer, or the
       // insert could land after the person was told it timed out.
+      const navTimeoutMs = navTimeout();
       const thenInsert = then && !skipped ? { ...then, expiresAt: Math.max(then.createdAt + 1, Math.min(then.expiresAt, clock() + navTimeoutMs)) } : undefined;
       const timeoutMs = thenInsert ? Math.min(Math.max(0, thenInsert.expiresAt - clock()), navTimeoutMs) + NAV_GRACE_MS : navTimeoutMs;
       // Canceled while MAIN waits for the composer: MAIN drops the insert unless it was written already; the receipt tells which.

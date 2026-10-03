@@ -80,7 +80,7 @@ function storage(entries: Record<string, string> = {}) {
 }
 const storedDraft = (text: string) => JSON.stringify({ body: { json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] }, gif: null, media: null, taggedCreators: [] }, updatedAt: 1 });
 
-async function port(answers: Partial<Record<ToMainType, Answer>> = {}, options: { redeem?: boolean; drafts?: ReturnType<typeof storage> } = {}) {
+async function port(answers: Partial<Record<ToMainType, Answer>> = {}, options: { redeem?: boolean; drafts?: ReturnType<typeof storage>; navInsertTimeoutMs?: number | (() => number | undefined) } = {}) {
   const bridge = fakeBridge({ snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [], ...answers });
   const { mounts, updates, setFrame } = fakeMounts();
   const redeemed: string[] = [];
@@ -95,7 +95,7 @@ async function port(answers: Partial<Record<ToMainType, Answer>> = {}, options: 
     mounts,
     theme: themeStub,
     drafts: options.drafts ?? null,
-    navInsertTimeoutMs: 20_000,
+    navInsertTimeoutMs: options.navInsertTimeoutMs ?? 20_000,
     onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
   });
   await host.ready;
@@ -392,6 +392,24 @@ describe('navigation (§6.5, §6.9)', () => {
     expect(sent.expiresAt).toBeGreaterThanOrEqual(started + 20_000);
     expect(call?.timeoutMs).toBeLessThanOrEqual(21_000);
     expect(call?.timeoutMs).toBeGreaterThanOrEqual(sent.expiresAt - Date.now());
+  });
+
+  it('[NEW-01] the navigation timeout may come later than the host: a getter is read at each «Открыть и вставить» (bootstrap limits.navInsertTimeoutSec)', async () => {
+    let limitMs: number | undefined = undefined;
+    const { host, bridge } = await port({ navigate: () => ({ state: 'navigated', routeEpoch: 5, insert: { state: 'rejected', code: 'CG-NAV-TIMEOUT' } }) }, { navInsertTimeoutMs: () => limitMs });
+    const far = (intentId: string) => ({ ...thenInsert, intentId, expiresAt: Date.now() + 120_000 });
+    const sentBy = (index: number) => (bridge.calls.filter((item) => item.t === 'navigate')[index]?.payload['intent'] as { thenInsert: { expiresAt: number } }).thenInsert;
+    // No bootstrap yet: the default 20 s.
+    let started = Date.now();
+    await host.navigate(nav({ intentId: uuid(31), thenInsert: far(uuid(32)) as never }));
+    expect(sentBy(0).expiresAt).toBeGreaterThanOrEqual(started + 20_000);
+    expect(sentBy(0).expiresAt).toBeLessThanOrEqual(Date.now() + 20_000);
+    // The bootstrap arrived with a shorter limit.
+    limitMs = 7000;
+    started = Date.now();
+    await host.navigate(nav({ intentId: uuid(33), cause: { kind: 'click', actionToken: `${TOKEN.slice(0, -1)}b` }, thenInsert: far(uuid(34)) as never }));
+    expect(sentBy(1).expiresAt).toBeGreaterThanOrEqual(started + 7000);
+    expect(sentBy(1).expiresAt).toBeLessThanOrEqual(Date.now() + 7000);
   });
 
   it('[NEW-01] the deferred insert’s applied receipt is checked against the target’s draft key too', async () => {

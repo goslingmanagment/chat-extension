@@ -18,8 +18,8 @@ export interface StartChatSpaceHostOptions {
   readonly win: Window;
   readonly redeem: TokenRedeemer;
   readonly drafts?: DraftStorage | null;
-  /** Bootstrap `limits.navInsertTimeoutSec` × 1000. */
-  readonly navInsertTimeoutMs?: number;
+  /** Bootstrap `limits.navInsertTimeoutSec` × 1000; a function is read at each «Открыть и вставить» (the bootstrap arrives after the start). */
+  readonly navInsertTimeoutMs?: number | (() => number | undefined);
   /** How long the handshake waits for MAIN. */
   readonly handshakeTimeoutMs?: number;
   /** The document-wide observer of the first composer search, ms (§6.3). */
