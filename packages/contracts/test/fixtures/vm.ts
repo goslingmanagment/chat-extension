@@ -209,6 +209,7 @@ export const BOARDS_I18N_KEYS: { readonly text: readonly C.UiTextKey[]; readonly
     'spenders.truncated',
     'spenders.truncatedNoTotal',
     'stats.newPayersObserved',
+    'stats.regionLabel',
     'preview.metaOurUnknown',
     'preview.notOpenedAfterSendTooltip',
     'preview.feed.label',
@@ -229,6 +230,8 @@ export const BOARDS_I18N_KEYS: { readonly text: readonly C.UiTextKey[]; readonly
     'newcomers.draftStale',
     'newcomers.scanProgress',
     'newcomers.window.label',
+    'newcomers.greetingDraft.placeholder',
+    'newcomers.greetingDraft.aria',
     'fanPanel.subscribedLabel',
     'fanPanel.subscribedValue',
     'fanPanel.subscribedMonths',
@@ -254,5 +257,7 @@ export const BOARDS_I18N_KEYS: { readonly text: readonly C.UiTextKey[]; readonly
     'newcomers.claim.other' satisfies C.I18nKey,
     // @ts-expect-error «Отправить» has no «send all» text
     'send.all' satisfies C.I18nKey,
+    // @ts-expect-error the greeting draft field has a placeholder and a label, each under its own key
+    'newcomers.greetingDraft' satisfies C.I18nKey,
   ],
 };

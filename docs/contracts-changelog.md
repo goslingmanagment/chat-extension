@@ -35,8 +35,10 @@
 
 ### R15 — доски, превью, «Новые», панель фана, палитра
 
-- **46 ключей i18n** (43 текста и 3 с множественным числом) для того, что
+- **49 ключей i18n** (46 текстов и 3 с множественным числом) для того, что
   `ui-design.md` рисует или требует в §10, а в каталоге 1.1.0 названо не было.
+  Три из них добавлены после проверки R15: `stats.regionLabel`,
+  `newcomers.greetingDraft.placeholder`, `newcomers.greetingDraft.aria`.
   Тексты ru/en — в `core/domain/i18n`; фикстура — `BOARDS_I18N_KEYS`.
   - **Доска Spenders:** `spenders.col.lifetimeShort` («Всего» в колонке списка
     ≤ 620 px, §3.5); подпись полки по границам корзины хаба —
@@ -45,7 +47,9 @@
     `spenders.truncated`, `spenders.truncatedNoTotal` (SP-021); подвал, когда
     общее число фанов неизвестно, — `spenders.footerNoTotal`.
   - **Статистика:** `stats.newPayersObserved` — «первая наблюдённая покупка»
-    при неполном прошлом (SP-048).
+    при неполном прошлом (SP-048); `stats.regionLabel` — имя области
+    «Статистика Spenders» для экранного диктора (`ui-design.md` §6.1; на экране
+    заголовок остаётся «Статистика»).
   - **Превью:** `preview.metaOurUnknown`; `preview.notOpenedAfterSendTooltip`
     (§4.16); лента архива — `preview.feed.label`, `.fanPrefix`, `.deleted`,
     `.automatic`, `.priced`, `.notBought`, `.older` (SP-053, NF-010); сегмент
@@ -55,7 +59,11 @@
   - **«Новые»:** `newcomers.claim.mine` (своя бронь с отсчётом; у брони
     коллеги отсчёта нет, §12 п. 5), `newcomers.incomplete` (NF-025),
     `newcomers.draft`, `newcomers.draftStale` (NF-012, NF-018),
-    `newcomers.scanProgress` (NF-008), `newcomers.window.label` (NF-003).
+    `newcomers.scanProgress` (NF-008), `newcomers.window.label` (NF-003);
+    поле черновика приветствия в карточке — `newcomers.greetingDraft.placeholder`
+    («Черновик приветствия. Остаётся в карточке, в чат не уходит» — его модель
+    карточки отдаёт в `PreviewVM.draft.placeholder` вместо текста про Fix) и
+    `newcomers.greetingDraft.aria` (имя поля; NF-012, `ui-design.md` §10).
   - **Панель фана:** `fanPanel.subscribedLabel`, `.subscribedValue`,
     `.subscribedMonths`, `.subscribedSince` (строка «ключ — значение» вместо
     одной фразы `fanPanel.subscribed`, §4.18); значения риска ухода

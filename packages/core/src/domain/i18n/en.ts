@@ -329,6 +329,7 @@ export const EN: I18nCatalog<'en'> = {
   'stats.tile.payersSub': 'average purchase {money}',
   'stats.footer': 'Data as of {time}, {coverage}',
   'stats.footerFull': 'Data as of {time}, {coverage}. Time zone: {tz}.',
+  'stats.regionLabel': 'Spenders statistics',
 
   // ── Fan preview ──
   'preview.label': 'Fan preview',
@@ -450,6 +451,8 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.draftStale': 'draft is stale',
   'newcomers.scanProgress': '{done} of {total}',
   'newcomers.window.label': 'How far back to show new fans',
+  'newcomers.greetingDraft.placeholder': 'Greeting draft. Stays in the card, not in the chat',
+  'newcomers.greetingDraft.aria': 'Greeting draft',
 
   // ── Fan panel and Coach ──
   'fanPanel.label': 'ChatGoose: fan',

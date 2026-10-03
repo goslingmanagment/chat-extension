@@ -352,6 +352,7 @@ export const RU: I18nCatalog<'ru'> = {
   'stats.tile.payersSub': 'средний чек {money}',
   'stats.footer': 'Данные на {time}, {coverage}',
   'stats.footerFull': 'Данные на {time}, {coverage}. Часовой пояс: {tz}.',
+  'stats.regionLabel': 'Статистика Spenders',
 
   // ── Fan preview ──
   'preview.label': 'Превью фана',
@@ -473,6 +474,8 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.draftStale': 'черновик устарел',
   'newcomers.scanProgress': '{done} из {total}',
   'newcomers.window.label': 'За какой срок показывать новых',
+  'newcomers.greetingDraft.placeholder': 'Черновик приветствия. Остаётся в карточке, в чат не уходит',
+  'newcomers.greetingDraft.aria': 'Черновик приветствия',
 
   // ── Fan panel and Coach ──
   'fanPanel.label': 'ChatGoose: фан',

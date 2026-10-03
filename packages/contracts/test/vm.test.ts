@@ -260,5 +260,8 @@ describe('boards, preview, «Новые», fan panel and palette texts (1.2.0)',
     for (const key of BOARDS_I18N_KEYS.invalid) expect(C.I18N_KEYS as readonly unknown[]).not.toContain(key);
     // The narrow list column prints «Всего» for «Всё время» (ui-design §3.5).
     expect(C.UI_TEXT_KEYS).toContain('spenders.col.lifetimeShort');
+    // The statistics region is named «Статистика Spenders» (ui-design §6.1); the greeting draft of «Новые»
+    // is a field of its own, not the Fix draft (NF-012).
+    expect(BOARDS_I18N_KEYS.text).toEqual(expect.arrayContaining(['stats.regionLabel', 'newcomers.greetingDraft.placeholder', 'newcomers.greetingDraft.aria']));
   });
 });
