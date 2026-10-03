@@ -17,6 +17,7 @@ import {
   Caret,
   CheckGlyph,
   Checkbox,
+  ConfirmDialog,
   Countdown,
   Divider,
   Dot,
@@ -322,6 +323,15 @@ function Parts({ ctx, bare }: { readonly ctx: ScenarioCtx; readonly bare: boolea
           {texts[0]}
           <Caret />
         </div>
+        {bare ? null : (
+          <div class="gal-head gal-head--top">
+            <span class="gal-head__g">
+              <Spinner />
+            </span>
+            <b>{t('dock.action.reply')}</b>
+            <StageLine phase={phase(OP, ctx.now - 2_000, [], 'context', ctx.now + 5_000)} startedAt={ctx.now - 2_000} />
+          </div>
+        )}
       </div>
       <div class={bare ? 'gal-bare cg-bare' : 'gal-sheet'}>
         {partsOf(ctx).map((vm) => (
@@ -568,6 +578,25 @@ function List(): JSX.Element {
   );
 }
 
+function DialogSection(): JSX.Element {
+  return (
+    <Section id="dialog" title="Диалог подтверждения · DialogPort">
+      <div class="gal-dialog-frame">
+        <ConfirmDialog
+          request={{
+            title: { key: 'settings.diagnostics.clear' },
+            body: { key: 'settings.diagnostics.clearConfirm' },
+            confirm: { key: 'settings.diagnostics.clear' },
+            cancel: { key: 'common.cancel' },
+            tone: 'destructive',
+          }}
+          onAnswer={() => undefined}
+        />
+      </div>
+    </Section>
+  );
+}
+
 function MarkdownSection({ ctx }: { readonly ctx: ScenarioCtx }): JSX.Element {
   return (
     <Section id="markdown" title="Markdown (безопасный AST)">
@@ -578,7 +607,7 @@ function MarkdownSection({ ctx }: { readonly ctx: ScenarioCtx }): JSX.Element {
   );
 }
 
-const SECTIONS = ['buttons', 'strip', 'tooltip', 'toasts', 'errors', 'parts-sheet', 'parts-bare', 'choices', 'fields', 'values', 'marks', 'states', 'list', 'markdown'] as const;
+const SECTIONS = ['buttons', 'strip', 'tooltip', 'toasts', 'errors', 'parts-sheet', 'parts-bare', 'choices', 'fields', 'values', 'marks', 'states', 'list', 'dialog', 'markdown'] as const;
 export type GallerySection = (typeof SECTIONS)[number];
 export const GALLERY_SECTIONS: readonly GallerySection[] = SECTIONS;
 
@@ -599,6 +628,7 @@ export function Gallery({ ctx, only }: { readonly ctx: ScenarioCtx; readonly onl
       {show('marks') ? <Marks /> : null}
       {show('states') ? <States ctx={ctx} /> : null}
       {show('list') ? <List /> : null}
+      {show('dialog') ? <DialogSection /> : null}
       {show('markdown') ? <MarkdownSection ctx={ctx} /> : null}
     </div>
   );
@@ -644,6 +674,10 @@ export const GALLERY_CSS = `
 .gal-bare .gal-head { border-color: var(--cg-bare-rule); }
 .gal-head__g { width: calc(var(--cg-gutter) - 1px); display: inline-flex; justify-content: center; margin-right: -10px; flex: none; }
 .gal-head b { font-weight: 600; color: var(--cg-ink-strong); }
+.gal-head--top { border-top: 1px solid var(--cg-rule); border-bottom: 0; }
+/* The dialog is a fixed layer-950 window over a scrim; the gallery shows it in place. */
+.gal-dialog-frame .cg-scrim { display: none; }
+.gal-dialog-frame .cg-dialog { position: relative; left: auto; top: auto; translate: none; width: 100%; max-width: 420px; }
 .gal-stream { padding: 9px 10px 11px var(--cg-gutter); font-size: var(--cg-text-lg); line-height: 20px; color: var(--cg-ink); }
 .gal-sheet > .cg-card + .cg-card, .gal-sheet > .cg-banner + .cg-banner { border-top: 1px solid var(--cg-rule); }
 .gal-note { margin: 0; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); }
@@ -654,7 +688,7 @@ export const GALLERY_CSS = `
 .gal-lrow > :last-child { text-align: right; }
 .gal-lrow--head { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); border-top: 0; border-bottom: 1px solid var(--cg-rule); }
 .gal-lrow--shelf { background: var(--cg-surface); color: var(--cg-ink-strong); }
-.gal-lrow--shelf > b { grid-column: 1 / -1; text-align: left; font-weight: 600; }
+.gal-lrow.gal-lrow--shelf > b { grid-column: 1 / -1; text-align: left; font-weight: 600; }
 /* Pictures never catch an entrance mid-fade (the mockup's ?shot=1). */
 .gal .cg-toast, .gal .cg-menu, .gal .cg-dialog { animation: none; }
 .gal-empty { color: var(--cg-ink-faint); }
