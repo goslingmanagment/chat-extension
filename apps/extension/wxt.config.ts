@@ -53,10 +53,19 @@ export default defineConfig({
     'build:manifestGenerated': (_wxt, manifest) => {
       finalizeManifest(manifest as ManifestLike, { flavor, lazyFiles: lazyChunks.map((chunk) => chunk.file) });
     },
-    // Spike timing marks around the isolated content script (test builds only).
     'vite:build:extendConfig': (entrypoints, config) => {
-      if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace')) return;
-      config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
+      if (!entrypoints.some((entry) => entry.name === 'chatspace')) return;
+      // The isolated content script starts without WXT's ContentScriptContext:
+      // it touches the WebExtension API while loading (~3 ms cold), see
+      // src/composition/content-script-context.ts (§11, R09).
+      const alias = { find: /^wxt\/utils\/content-script-context$/, replacement: resolve(import.meta.dirname, 'src/composition/content-script-context.ts') };
+      const current: unknown = config.resolve?.alias;
+      const aliases: Array<{ find: string | RegExp; replacement: string }> = Array.isArray(current)
+        ? (current as Array<{ find: string | RegExp; replacement: string }>)
+        : Object.entries((current ?? {}) as Record<string, string>).map(([find, replacement]) => ({ find, replacement }));
+      config.resolve = { ...config.resolve, alias: [alias, ...aliases] };
+      // Spike timing marks around the isolated content script (test builds only).
+      if (flavor === 'test') config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },
     // WXT never deletes older versions' archives. Drop this flavor's before
     // zipping, so .output/ holds exactly the archives of this build.
