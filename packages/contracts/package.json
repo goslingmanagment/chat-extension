@@ -18,6 +18,7 @@
     "./telemetry": "./src/telemetry.ts",
     "./logs": "./src/logs.ts",
     "./bridge": "./src/bridge.ts",
+    "./bridge-messages": "./src/bridge-messages.ts",
     "./tab-protocol": "./src/tab-protocol.ts"
   },
   "dependencies": {

@@ -20,6 +20,7 @@ export * from './ops';
 export * from './telemetry';
 export * from './logs';
 export * from './bridge';
+export * from './bridge-messages';
 export * from './tab-protocol';
 
 // TODO(R01-2a): export vm/* — view models, AppClient, UiAction, ActionReceipt (§10.2).
