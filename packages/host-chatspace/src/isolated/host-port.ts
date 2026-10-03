@@ -390,6 +390,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       }
     },
 
+    /** `max` does not narrow the window: it covers what ChatSpace has loaded, up to the snapshot limit (ui-contract.md п. 11). */
     chatWindow(chat: ChatRef): ChatWindow | null {
       if (!sameChat(chat, route.chat)) return null;
       const cached = windows.get(keyOf(chat));
