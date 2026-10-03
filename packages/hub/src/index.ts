@@ -29,6 +29,7 @@ export {
   type HubFacadeOptions,
   type HubState,
   type HubStatus,
+  type IngestOutcome,
 } from './facade';
 export {
   SILENT_LOG,

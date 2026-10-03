@@ -134,6 +134,12 @@ export interface HubStatus {
   readonly sdk: { readonly vendoredHash: string; readonly hubHash: string | null; readonly compatible: boolean | null };
 }
 
+/** `ingest`: the hub's counts, plus the client_health events refused locally (no `client-health-perf-v1`). */
+export interface IngestOutcome extends IngestResult {
+  /** Not sent and never to be retried: the hub has not declared `client-health-perf-v1`. */
+  readonly healthRefused: number;
+}
+
 export type CheckResult = { readonly ok: true } | { readonly ok: false; readonly error: CgErrorWire | null };
 
 /** «Проверить связь» (HB-001, HB-002, ST-045). */
@@ -739,10 +745,17 @@ export class ChatExtensionHub implements HubFacade {
 
   /**
    * `ai_acceptance` always; `client_health` only under `client-health-perf-v1`
-   * and in its own batches; at most 100 events a batch. The caller's queue
-   * keeps `clientEventId` stable across retries (the hub deduplicates).
+   * and in its own batches; at most 100 events a batch. The acceptance
+   * batches go out first and never wait on the health part: without the
+   * capability the health events are not sent and come back counted in
+   * `healthRefused` (CG-HUB-CAPABILITY, logged) — the caller drops them like
+   * a refused batch, never retries them. The caller's queue keeps
+   * `clientEventId` stable across retries (the hub deduplicates). A health
+   * report's id comes from its kind, version and window: one report per
+   * window — a second, different report of the same window is dropped by the
+   * hub as a duplicate.
    */
-  async ingest(events: readonly (AcceptanceEvent | ClientHealthV1)[]): Promise<IngestResult> {
+  async ingest(events: readonly (AcceptanceEvent | ClientHealthV1)[]): Promise<IngestOutcome> {
     await this.ready;
     const connection = this.ctx.connection('ingestObservations');
     const acceptance: IngestEvent[] = [];
@@ -756,24 +769,38 @@ export class ChatExtensionHub implements HubFacade {
         health.push({ clientEventId: stableEventId(`${kind}|${event.client.version}|${event.window.from}|${event.window.to}`), kind, observedAt: event.window.to, payload });
       }
     }
-    if (health.length > 0) {
-      const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
-      if (!hasCapability(entry.bootstrap.capabilities, 'client-health-perf-v1')) throw new FacadeCheckError('capabilityMissing', 'ingestObservations', connection.epoch, 'client-health-perf-v1');
-    }
-    const batches: { events: IngestEvent[] }[] = [];
-    for (const group of [acceptance, health]) {
+    const batchesOf = (group: readonly IngestEvent[]) => {
+      const batches: { events: IngestEvent[] }[] = [];
       for (let start = 0; start < group.length; start += INGEST_LIMITS.maxEventsPerBatch) batches.push({ events: group.slice(start, start + INGEST_LIMITS.maxEventsPerBatch) });
-    }
+      return batches;
+    };
+    const acceptanceBatches = batchesOf(acceptance);
+    const healthBatches = batchesOf(health);
     // Nothing goes out unless every batch is inside the contract (HB-006).
-    if (batches.some((batch) => !IngestBatchSchema.safeParse(batch).success)) throw this.ctx.failure('ingestObservations', transportFailure('contract'), connection);
+    if ([...acceptanceBatches, ...healthBatches].some((batch) => !IngestBatchSchema.safeParse(batch).success)) {
+      throw this.ctx.failure('ingestObservations', transportFailure('contract'), connection);
+    }
     let accepted = 0;
     let duplicates = 0;
-    for (const batch of batches) {
-      const result = (await this.ctx.sdk('ingestObservations', { body: batch }, {}, connection)) as IngestResult;
-      accepted += result.accepted;
-      duplicates += result.duplicates;
+    const send = async (batches: readonly { events: IngestEvent[] }[]) => {
+      for (const batch of batches) {
+        const result = (await this.ctx.sdk('ingestObservations', { body: batch }, {}, connection)) as IngestResult;
+        accepted += result.accepted;
+        duplicates += result.duplicates;
+      }
+    };
+    await send(acceptanceBatches);
+    let healthRefused = 0;
+    if (health.length > 0) {
+      const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+      if (hasCapability(entry.bootstrap.capabilities, 'client-health-perf-v1')) {
+        await send(healthBatches);
+      } else {
+        healthRefused = health.length;
+        this.ctx.log('warn', 'hub: client_health not sent, the hub lacks its capability', { code: 'CG-HUB-CAPABILITY', count: healthRefused, epoch: connection.epoch });
+      }
     }
-    return { accepted, duplicates };
+    return { accepted, duplicates, healthRefused };
   }
 
   /** H-15, debug only: refused locally without `ai-usage-v1`. */

@@ -48,17 +48,30 @@ describe('[TL-009] [TL-012] ingest: acceptance always, client_health only under 
     await signIn(h, WORLD_PILOT);
     h.hub.on('ingestObservations', (request) => json(200, { accepted: (request.body as { events: unknown[] }).events.length - 1, duplicates: 1 }));
     const events = Array.from({ length: 250 }, (_, n) => acceptance(n));
-    await expect(h.facade.ingest(events)).resolves.toEqual({ accepted: 247, duplicates: 3 });
+    await expect(h.facade.ingest(events)).resolves.toEqual({ accepted: 247, duplicates: 3, healthRefused: 0 });
     const batches = h.hub.of('ingestObservations').map((request) => (request.body as { events: Record<string, unknown>[] }).events);
     expect(batches.map((batch) => batch.length)).toEqual([INGEST_LIMITS.maxEventsPerBatch, 100, 50]);
     expect(batches[0]?.[0]).toEqual({ clientEventId: events[0]?.clientEventId, kind: 'ai_acceptance', observedAt: events[0]?.observedAt, pageLabel: PAGE, payload: events[0]?.payload });
   });
 
-  it('[TL-012] client_health without client-health-perf-v1 is refused locally (CG-HUB-CAPABILITY)', async () => {
+  it('[TL-012] client_health without client-health-perf-v1 is refused locally (CG-HUB-CAPABILITY), never sent', async () => {
     await signIn(h, WORLD_PILOT);
-    const error = await h.facade.ingest([clientHealth]).catch((reason: unknown) => reason);
-    expect(errorWireOf(error)).toEqual({ code: 'CG-HUB-CAPABILITY', detail: 'client-health-perf-v1' });
+    await expect(h.facade.ingest([clientHealth])).resolves.toEqual({ accepted: 0, duplicates: 0, healthRefused: 1 });
     expect(h.hub.of('ingestObservations')).toEqual([]);
+    expect(h.logs.lines.some((line) => line.fields?.['code'] === 'CG-HUB-CAPABILITY' && line.fields['count'] === 1)).toBe(true);
+  });
+
+  it('[TL-009] [TL-012] a mixed call without the capability still delivers its acceptance events', async () => {
+    await signIn(h, WORLD_PILOT);
+    h.hub.on('ingestObservations', (request) => json(200, { accepted: (request.body as { events: unknown[] }).events.length, duplicates: 0 }));
+    const events = [acceptance(1), clientHealth, acceptance(2)];
+    await expect(h.facade.ingest(events)).resolves.toEqual({ accepted: 2, duplicates: 0, healthRefused: 1 });
+    const bodies = h.hub.of('ingestObservations').map((request) => (request.body as { events: { kind: string; clientEventId: string }[] }).events);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.map((event) => [event.kind, event.clientEventId])).toEqual([
+      ['ai_acceptance', acceptance(1).clientEventId],
+      ['ai_acceptance', acceptance(2).clientEventId],
+    ]);
   });
 
   it('[TL-012] with the capability: its own batch, a stable id per report so a retry is deduplicated', async () => {
@@ -83,7 +96,7 @@ describe('[TL-009] [TL-012] ingest: acceptance always, client_health only under 
     const bad = { ...acceptance(2), clientEventId: 'not-a-uuid' };
     expect(errorWireOf(await h.facade.ingest([bad]).catch((reason: unknown) => reason))?.code).toBe('CG-HUB-REQUEST');
     expect(h.hub.of('ingestObservations')).toHaveLength(before);
-    await expect(h.facade.ingest([])).resolves.toEqual({ accepted: 0, duplicates: 0 });
+    await expect(h.facade.ingest([])).resolves.toEqual({ accepted: 0, duplicates: 0, healthRefused: 0 });
   });
 
   it('[TL-012] the stable id is a UUID that depends only on the report', () => {
