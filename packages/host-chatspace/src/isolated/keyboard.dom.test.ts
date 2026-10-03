@@ -165,7 +165,11 @@ describe('handing a key to our UI', () => {
     const original = trustedKey('keydown', { key: 'Escape', code: 'Escape', ctrlKey: true, altKey: true, metaKey: true, repeat: true, keyCode: 27 });
     expect(probe.deliver(original)).toBe(true);
     const copy = seen as KeyboardEvent | null;
-    expect(copy).toMatchObject({ type: 'keydown', key: 'Escape', code: 'Escape', ctrlKey: true, altKey: true, metaKey: true, shiftKey: false, repeat: true, composed: false, bubbles: true });
+    expect(copy).toMatchObject({ type: 'keydown', key: 'Escape', code: 'Escape', ctrlKey: true, altKey: true, metaKey: true, shiftKey: false, repeat: true, keyCode: 27, composed: false, bubbles: true, cancelable: true });
+    // A plain Event with the key's fields: Gecko would make a KeyboardEvent of type keydown composed again.
+    expect(copy instanceof KeyboardEvent).toBe(false);
+    expect(copy?.getModifierState('Control')).toBe(true);
+    expect(copy?.getModifierState('Shift')).toBe(false);
     expect(copy !== null && probe.isDelivered(copy)).toBe(true);
     expect(probe.isDelivered(original)).toBe(false);
   });

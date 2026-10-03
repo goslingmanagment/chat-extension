@@ -12,7 +12,8 @@
 //   listener of ChatSpace — its global one runs on `window` right after ours.
 //   The dispatcher stops the event there, so our own elements would not get
 //   it either: `deliver` gives them a copy that cannot leave our shadow root
-//   (`composed: false`). Only trusted keys are ever copied.
+//   (`composed: false`) — a `keydown` event with the key's fields, which our
+//   own handlers read the same way. Only trusted keys are ever copied.
 
 import { EDITOR_SELECTOR, FRAME_SELECTOR } from './host-contract';
 import type { ShadowRootRegistry } from './shadow-registry';
@@ -89,9 +90,13 @@ export function createKeyboardProbe(doc: Document, registry: ShadowRootRegistry)
       const target = registry.focusedInside(doc);
       const key = event as KeyboardEvent;
       if (target === null || !event.isTrusted || typeof key.code !== 'string') return false;
-      const Constructor = doc.defaultView?.KeyboardEvent;
+      const Constructor = doc.defaultView?.Event;
       if (Constructor === undefined) return false;
-      const copy = new Constructor(event.type, {
+      // Never past our shadow root: ChatSpace's listeners cannot see the copy. It is a plain Event carrying the
+      // key's fields, not a KeyboardEvent: Gecko makes every KeyboardEvent of type `keydown` composed whatever
+      // its init says (measured in Firefox 157), and a composed copy would reach `window` again.
+      const copy = new Constructor(event.type, { bubbles: true, cancelable: true, composed: false });
+      const fields: Record<string, unknown> = {
         key: key.key,
         code: key.code,
         location: key.location,
@@ -104,11 +109,9 @@ export function createKeyboardProbe(doc: Document, registry: ShadowRootRegistry)
         keyCode: key.keyCode,
         charCode: key.charCode,
         which: key.which,
-        bubbles: true,
-        cancelable: true,
-        // Never past our shadow root: ChatSpace's listeners cannot see the copy.
-        composed: false,
-      });
+        getModifierState: (name: string): boolean => key.getModifierState(name),
+      };
+      for (const [name, value] of Object.entries(fields)) Object.defineProperty(copy, name, { value, enumerable: true });
       delivered.add(copy);
       target.dispatchEvent(copy);
       return copy.defaultPrevented;
