@@ -16,6 +16,12 @@ export interface SpenderRowVM {
   /** @handle without the «@»; null — unknown. */
   readonly username: string | null;
   readonly lifetime: MoneyMills | null;
+  /**
+   * The lifetime prints with cents (MoneyFormat.cents): whole dollars would
+   * show it across its shelf's bound, e.g. «$600» on the $350–600 shelf
+   * (SP-013). 1.2.0; absent — whole dollars.
+   */
+  readonly lifetimeCents?: boolean;
   /** Spent in the selected period, shown as «+$N» in green; zero is blank. */
   readonly period: MoneyMills | null;
   /** The `новый` tag (SP-014). */

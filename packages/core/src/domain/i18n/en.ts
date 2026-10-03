@@ -287,6 +287,8 @@ export const EN: I18nCatalog<'en'> = {
   'spenders.footerShown': '. Shown: {n}',
   'spenders.shelfMore': 'Show {n} more',
   'spenders.empty': 'Nobody found. Check the filter or the search.',
+  'spenders.keys.row': 'row',
+  'spenders.resetFilters': 'Reset filters',
   'stats.title': 'Statistics',
   'stats.titleFull': 'Statistics, {period}',
   'stats.expand': 'Expand',
@@ -422,6 +424,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.claim.renew': 'Extend the hold',
   'newcomers.claim.release': 'Release the hold',
   'newcomers.claim.elsewhere': 'You are already greeting this fan in another tab or on another device. Continue there: a second greeting will not start from here.',
+  'newcomers.incomplete': 'The result is incomplete: part of the list is shown. The hub has not collected everyone who subscribed in this time yet.',
 
   // ── Fan panel and Coach ──
   'fanPanel.label': 'ChatGoose: fan',

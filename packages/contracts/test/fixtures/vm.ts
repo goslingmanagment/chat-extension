@@ -183,6 +183,39 @@ export const TOAST_VM_SAMPLES: { readonly valid: readonly C.ToastVM[]; readonly 
 };
 
 /**
+ * Cents of an amount on its shelf's bound (1.2.0, SP-013): the row says so,
+ * the port's format prints it. Both are optional: without them whole dollars.
+ */
+const ROW_BASE: C.SpenderRowVM = {
+  handle: 'spenders:11:5001',
+  name: 'Fan 1',
+  username: 'fan_1',
+  lifetime: 599_600,
+  period: 25_000,
+  isNew: false,
+  deleted: false,
+  weWroteAt: null,
+  fanWroteAt: null,
+  waiting: false,
+  lastMessage: null,
+  selected: false,
+};
+export const MONEY_CENTS_SAMPLES: {
+  readonly rows: readonly C.SpenderRowVM[];
+  readonly formats: readonly C.MoneyFormat[];
+  readonly invalid: readonly unknown[];
+} = {
+  rows: [ROW_BASE, { ...ROW_BASE, lifetimeCents: true }],
+  formats: [{}, { cents: true }, { cents: true, sign: 'plus' }],
+  invalid: [
+    // @ts-expect-error the mark is a boolean, not the formatted amount
+    { ...ROW_BASE, lifetimeCents: '$599.60' } satisfies C.SpenderRowVM,
+    // @ts-expect-error cents is a switch, not a number of digits
+    { cents: 2 } satisfies C.MoneyFormat,
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */

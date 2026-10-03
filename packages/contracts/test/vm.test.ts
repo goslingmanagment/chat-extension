@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -246,5 +246,23 @@ describe('spoken money (1.1.0)', () => {
     expect(C.isPluralKey('common.money.dollars')).toBe(true);
     expect(SPOKEN_MONEY_SAMPLES.valid[0]?.(320_000, { sign: 'plus' })).toBe('плюс 320 долларов');
     expect(SPOKEN_MONEY_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('cents on a shelf bound (1.2.0)', () => {
+  it('[SP-013] a board row may ask for cents and the money format may print them; both are optional', () => {
+    expectTypeOf<C.SpenderRowVM['lifetimeCents']>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<C.MoneyFormat['cents']>().toEqualTypeOf<boolean | undefined>();
+    const [plain, exact] = MONEY_CENTS_SAMPLES.rows;
+    expect(plain?.lifetimeCents).toBeUndefined();
+    expect(exact?.lifetimeCents).toBe(true);
+    expect(MONEY_CENTS_SAMPLES.formats.filter((format) => format.cents === true)).toHaveLength(2);
+    expect(MONEY_CENTS_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('the catalog has the keys footer label of the board, its «Сбросить фильтры» and the «Результат неполный» text', () => {
+    expect(C.UI_TEXT_KEYS).toContain('spenders.keys.row');
+    expect(C.UI_TEXT_KEYS).toContain('spenders.resetFilters');
+    expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete');
   });
 });
