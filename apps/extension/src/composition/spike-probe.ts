@@ -5,7 +5,6 @@
 
 import type { ClosedHost } from '@cg/host-chatspace/isolated';
 import { mountClosedHost } from '@cg/host-chatspace/isolated';
-import { extensionUrl } from '@cg/platform';
 
 import type * as SpikeChunk from '../../lazy/entries/spike';
 
@@ -75,6 +74,8 @@ export function createSpikeProbe(win: Window): SpikeProbe {
 
 async function loadSpikeList(doc: Document): Promise<Record<string, unknown>> {
   const started = performance.now();
+  // Lazily, like the composition root: the browser API stays out of the synchronous start.
+  const { extensionUrl } = await import('@cg/platform');
   const chunk = (await import(/* @vite-ignore */ extensionUrl(LAZY_SPIKE_PATH))) as typeof SpikeChunk;
   const loadMs = performance.now() - started;
   const overlay = mountClosedHost(doc.documentElement, 'overlay', 'last');
