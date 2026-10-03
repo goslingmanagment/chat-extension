@@ -22,11 +22,10 @@ const LAZY_ROOT = dirname(fileURLToPath(import.meta.url));
 /** Entry name → source. Output: lazy/<name>.js. */
 export const LAZY_ENTRIES = {
   dock: 'entries/dock.ts',
-} as const;
-
-/** Entries built only into a CG_TEST_HOSTS build (spike M0); never shipped. */
-export const TEST_ONLY_LAZY_ENTRIES = {
-  spike: 'entries/spike.ts',
+  'tab-app': 'entries/tab-app.ts',
+  'tab-protocol': 'entries/tab-protocol.ts',
+  'i18n-ru': 'entries/i18n-ru.ts',
+  'i18n-en': 'entries/i18n-en.ts',
 } as const;
 
 /** Folder inside the extension output that holds every lazy file. */
@@ -43,12 +42,12 @@ export interface LazyChunkInfo {
 
 export interface LazyBuildOptions {
   readonly extensionOutDir: string;
-  /** Adds TEST_ONLY_LAZY_ENTRIES (CG_TEST_HOSTS=1 build). */
+  /** A CG_TEST_HOSTS=1 build (the chunks are the same; kept for the build's symmetry). */
   readonly testBuild: boolean;
 }
 
 export function createLazyConfig(options: LazyBuildOptions): InlineConfig {
-  const entries: Record<string, string> = { ...LAZY_ENTRIES, ...(options.testBuild ? TEST_ONLY_LAZY_ENTRIES : {}) };
+  const entries: Record<string, string> = { ...LAZY_ENTRIES };
   return {
     configFile: false,
     root: LAZY_ROOT,

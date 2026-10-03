@@ -1,32 +1,12 @@
-import { render } from 'preact';
+// TEMPORARY (integration step M1): mounts the status row of TempDockStatus
+// into the dock host's closed shadow root through the kit's MountPort helper
+// (shared sheets, scheme attribute, error boundary). R14's dock replaces it.
 
-import { BASE_TOKENS_CSS } from '../kit/tokens';
-import { adoptStyles, type StyleMode } from '../kit/styles';
-import { DOCK_CSS, Dock, type DockModel } from './Dock';
+import { type MountDeps, type ValueSignal } from '@cg/contracts/vm';
 
-export interface DockHandle {
-  readonly styleMode: StyleMode;
-  /** Wall time of the first synchronous render, ms. */
-  readonly renderMs: number;
-  update(model: DockModel): void;
-  unmount(): void;
-}
+import { mountKitSurface, type KitMount, type KitMountOptions } from '../kit/mount';
+import { TEMP_DOCK_STYLES, TempDockStatus, type TempDockSmokeModel } from './TempDockStatus';
 
-/** Renders the dock into a (closed) shadow root owned by the host adapter. */
-export function mountDock(root: ShadowRoot, model: DockModel): DockHandle {
-  const styleMode = adoptStyles(root, BASE_TOKENS_CSS + DOCK_CSS);
-  const container = root.ownerDocument.createElement('div');
-  root.append(container);
-  const started = performance.now();
-  render(<Dock model={model} />, container);
-  const renderMs = performance.now() - started;
-  return {
-    styleMode,
-    renderMs,
-    update: (next) => render(<Dock model={next} />, container),
-    unmount: () => {
-      render(null, container);
-      container.remove();
-    },
-  };
+export function mountTempDock(root: ShadowRoot, deps: MountDeps, smoke: ValueSignal<TempDockSmokeModel>, options: KitMountOptions = {}): KitMount {
+  return mountKitSurface('dock', root, deps, { view: () => <TempDockStatus smoke={smoke} />, styles: [TEMP_DOCK_STYLES] }, options);
 }

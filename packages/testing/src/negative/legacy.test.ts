@@ -48,10 +48,11 @@ const STORAGE_VALUES: readonly string[] = Object.values(STORAGE_KEYS);
 /**
  * architecture.md §6.1: the isolated side reads ChatSpace's own composer draft
  * (`localStorage['chat-space:draft:of:…']`, same origin, read-only through the
- * `DraftStorage` port). That is the host's storage, not ours: these sources may
- * name it, nothing may write it.
+ * `DraftStorage` port). That is the host's storage, not ours: the host adapter
+ * and the tab's composition root — the one place that hands the page's
+ * storage to that port (`getItem` only) — may name it, nothing may write it.
  */
-const HOST_DRAFT_READERS = /^packages\/host-chatspace\/src\/isolated\//;
+const HOST_DRAFT_READERS = /^(?:packages\/host-chatspace\/src\/isolated\/|apps\/extension\/src\/composition\/tab\.ts:)/;
 const tabRequest = (type: string) => (TAB_REQUESTS as unknown as Record<string, { readonly req: { safeParse(value: unknown): { success: boolean } } }>)[type];
 
 describe('[HB-010] [RB-027] NEG-NO-LOCAL-ARCHIVE', () => {
