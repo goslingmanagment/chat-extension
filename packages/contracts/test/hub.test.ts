@@ -222,6 +222,24 @@ describe('hub routes, flags and the feature map', () => {
     expect(HUB_SAMPLES.bootstrap.bindingsByHost['onlymonster:1001']).toBe(11);
   });
 
+  it('every route has its request and answer schemas, and the samples pass them', () => {
+    expect(Object.keys(C.HUB_ROUTE_SCHEMAS).sort()).toEqual([...C.HUB_ROUTE_KEYS].sort());
+    const answers: Partial<Record<C.HubRouteKey, unknown>> = {
+      clientBootstrap: HUB_SAMPLES.bootstrap,
+      me: HUB_SAMPLES.authState,
+      health: HUB_SAMPLES.health,
+      spenders: HUB_SAMPLES.spendersPage,
+      clientConversationFeed: HUB_SAMPLES.feedPage,
+      clientFanClaim: HUB_SAMPLES.claimState,
+      clientAudienceNew: HUB_SAMPLES.audiencePage,
+      aiFeatureStream: HUB_SAMPLES.frames.context,
+    };
+    for (const [key, answer] of Object.entries(answers)) {
+      expect(C.HUB_ROUTE_SCHEMAS[key as C.HubRouteKey].response.safeParse(answer).success, key).toBe(true);
+    }
+    expect(C.HUB_ROUTE_SCHEMAS.aiFeatureStream.request.safeParse(HUB_SAMPLES.streamRequest).success).toBe(true);
+  });
+
   it('keeps hub URL paths out of contracts (sdk-custody gate)', () => {
     const serialized = JSON.stringify({ routes: C.HUB_ROUTES, forbidden: C.HUB_FORBIDDEN_OPERATIONS });
     expect(serialized).not.toMatch(/\/api\/v\d+\//);

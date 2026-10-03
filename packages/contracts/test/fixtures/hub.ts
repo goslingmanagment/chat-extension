@@ -505,6 +505,8 @@ export const HUB_SCHEMA_FIXTURES = [
   // ── wire ──
   fixture('BusinessDate', C.BusinessDateSchema, ['2026-10-03', '2024-02-29'], ['2026-02-30', '2026-1-3', '2026-10-03T00:00:00Z']),
   fixture('PageLabel', C.PageLabelSchema, [PAGE], ['', 'x'.repeat(121)]),
+  fixture('PageParams', C.PageParamsSchema, [{ pageLabel: PAGE }], [{ pageLabel: PAGE, fanRef: IDS.fan }]),
+  fixture('PageFanParams', C.PageFanParamsSchema, [{ pageLabel: PAGE, fanRef: IDS.fan }], [{ pageLabel: PAGE, fanRef: 'fan_two' }]),
   fixture('HubCursor', C.HubCursorSchema, ['cur-1'], ['', 'c'.repeat(2049)]),
   fixture('PersonaDefinitionId', C.PersonaDefinitionIdSchema, [PDEF], ['too-short']),
   fixture(

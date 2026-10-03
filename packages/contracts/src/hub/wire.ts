@@ -15,7 +15,7 @@
 import * as z from 'zod/mini';
 
 import { type HostKind } from '../ids';
-import { boundedText, type NativeId } from '../primitives';
+import { NativeIdSchema, boundedText, type NativeId } from '../primitives';
 
 /** Hub local business date `YYYY-MM-DD` (hub `businessDate`): a real calendar date. */
 export const BUSINESS_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -32,6 +32,11 @@ export const BusinessDateSchema = z.string().check(z.refine(isCalendarDate, { me
 
 /** Hub page label (`pageLabelSchema`, 1–120); the hub's page key in paths and queries. */
 export const PageLabelSchema = boundedText(120);
+
+/** Path params of a page route. */
+export const PageParamsSchema = z.strictObject({ pageLabel: PageLabelSchema });
+/** Path params of a page + fan route; fanRef is the OF fan id (= chat id). */
+export const PageFanParamsSchema = z.strictObject({ pageLabel: PageLabelSchema, fanRef: NativeIdSchema });
 
 /** Opaque signed cursor of the hub's client lists (feed, awaiting reply, audience-new). */
 export const HubCursorSchema = boundedText(2048);

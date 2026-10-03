@@ -13,5 +13,6 @@ export * from './feed';
 export * from './newcomers';
 export * from './usage';
 export * from './routes';
+export * from './registry';
 export * from './error-map';
 export * from './facade';
