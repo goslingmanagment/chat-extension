@@ -11,3 +11,14 @@ export {
   type RouterFailure,
   type SurfaceController,
 } from './router';
+// TEMPORARY (M1 integration): the dock's status until R11's dock controller lands.
+export {
+  TEMP_DOCK_INITIAL,
+  createTempDockStatus,
+  type TempDockFacts,
+  type TempDockSmoke,
+  type TempDockStatusController,
+  type TempDockStatusDeps,
+} from './temp-dock-status';
+// TEMPORARY (M1 integration): the action catalog without keys until R17's hotkey layer lands.
+export { createUnboundCatalog } from './temp-catalog';
