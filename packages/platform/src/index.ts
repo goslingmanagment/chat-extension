@@ -5,7 +5,8 @@
 //
 // - storage: storage.local / storage.session with budgets and CG-STORAGE-* results
 // - rpc-background / rpc-tab / rpc-page: the typed §5.4 protocol with sender checks
-// - alarms, permissions (hub host access, technicalAndInteraction consent)
+// - alarms, lifecycle (installed, browser start, suspend), permissions (hub
+//   host access, technicalAndInteraction consent)
 // - idb: a bounded IndexedDB store (logs, R18 owns the record format)
 // - audio (event page), clipboard (on a gesture), scripting (MAIN WS tap),
 //   env (browser major, OS), download (Blob from an extension page)
@@ -61,6 +62,7 @@ export {
 } from './rpc-tab';
 export { createPageRpcClient, DEFAULT_PAGE_REQUEST_TIMEOUT_MS, type PageEventsState, type PageRpcClient, type PageRpcClientOptions } from './rpc-page';
 export { alarmCreateInfo, createAlarms, type AlarmSchedule, type AlarmsPort } from './alarms';
+export { createLifecycle, INSTALL_REASONS, type InstalledDetails, type InstallReason, type LifecyclePort } from './lifecycle';
 export {
   createConsent,
   createHostPermissions,

@@ -44,6 +44,10 @@ describe('[ST-006] one settings tab: our pages are reused, never opened twice', 
         sendMessage: (message) => real.sendMessage(message),
         onConnect: real.onConnect,
         onMessage: real.onMessage,
+        onInstalled: real.onInstalled,
+        onStartup: real.onStartup,
+        onSuspend: real.onSuspend,
+        onSuspendCanceled: real.onSuspendCanceled,
       },
     };
     expect(await createExtensionPages(older).open('options')).toEqual({ ok: true, reused: false });

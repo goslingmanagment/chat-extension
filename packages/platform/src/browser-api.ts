@@ -58,6 +58,13 @@ export interface ExtensionContextApi {
 
 export type RuntimeMessageListener = (message: unknown, sender: MessageSenderApi, sendResponse: (response: unknown) => void) => unknown;
 
+/** `runtime.onInstalled` details; `temporary` is Firefox's (an about:debugging or web-ext install). */
+export interface InstalledDetailsApi {
+  readonly reason: string;
+  readonly previousVersion?: string;
+  readonly temporary?: boolean;
+}
+
 export interface RuntimeApi {
   readonly id: string;
   getURL(path: string): string;
@@ -71,6 +78,11 @@ export interface RuntimeApi {
   openOptionsPage?(): Promise<void>;
   readonly onConnect: EventApi<(port: PortApi) => void>;
   readonly onMessage: EventApi<RuntimeMessageListener>;
+  readonly onInstalled: EventApi<(details: InstalledDetailsApi) => void>;
+  readonly onStartup: EventApi<() => void>;
+  /** The event page is about to be unloaded. */
+  readonly onSuspend: EventApi<() => void>;
+  readonly onSuspendCanceled: EventApi<() => void>;
 }
 
 export interface StorageChangeApi {

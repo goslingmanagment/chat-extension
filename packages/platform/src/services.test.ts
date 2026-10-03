@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { alarmCreateInfo, createAlarms } from './alarms';
 import { clientOsOf, majorVersionOf, readClientEnv } from './env';
 import { createConsent, createHostPermissions, originPermission, TECHNICAL_CONSENT } from './permissions';
+import { createLifecycle } from './lifecycle';
 import { extensionId, extensionUrl, isExtensionContextAlive } from './runtime';
 import { mainScriptRegistration, syncDynamicMainScript } from './scripting';
 import { TAB_MATCHES, createFakeBrowser, flush, pageSender, tabSender } from './test-support/fake-browser';
@@ -166,5 +167,36 @@ describe('[EX-018] Firefox specifics', () => {
     expect(isExtensionContextAlive(tab.api)).toBe(false);
     // No real `browser` in this process: the default reads as "not alive".
     expect(isExtensionContextAlive()).toBe(false);
+  });
+
+  it('[LG-018] lifecycle: installed, updated, browser start and suspend reach the background that wired them', () => {
+    const fake = createFakeBrowser();
+    const background = fake.startBackground();
+    const lifecycle = createLifecycle(background.api);
+    const seen: unknown[] = [];
+    const offInstalled = lifecycle.onInstalled((details) => seen.push(details));
+    lifecycle.onStartup(() => seen.push('startup'));
+    lifecycle.onSuspend(() => seen.push('suspend'));
+    lifecycle.onSuspendCanceled(() => seen.push('suspend-canceled'));
+    fake.fireInstalled({ reason: 'install', temporary: true });
+    fake.fireInstalled({ reason: 'update', previousVersion: '0.9.0' });
+    fake.fireInstalled({ reason: 'browser_update' });
+    // A reason this build does not know is «other», never passed through as is.
+    fake.fireInstalled({ reason: 'shared_module_update' });
+    fake.fireStartup();
+    background.events.onSuspendCanceled.emit();
+    offInstalled();
+    fake.fireInstalled({ reason: 'install' });
+    fake.suspendBackground();
+    expect(seen).toEqual([
+      { reason: 'install', previousVersion: null, temporary: true },
+      { reason: 'update', previousVersion: '0.9.0', temporary: false },
+      { reason: 'browser_update', previousVersion: null, temporary: false },
+      { reason: 'other', previousVersion: null, temporary: false },
+      'startup',
+      'suspend-canceled',
+      'suspend',
+    ]);
+    expect(fake.background()).toBeNull();
   });
 });

@@ -5,14 +5,16 @@
 // with structured clones, the event page being unloaded and woken again by a
 // port or a message, the extension being reloaded under an open tab,
 // storage.local/session with change events across contexts and injected
-// failures, permissions with Firefox's data_collection, alarms and dynamic
-// content scripts.
+// failures, permissions with Firefox's data_collection, alarms, dynamic
+// content scripts, and the lifecycle events of the event page (installed,
+// browser start, suspend).
 //
 // The fake's async API methods are `async` for the shape, not because they await.
 /* eslint-disable @typescript-eslint/require-await */
 
 import type {
   ExtensionContextApi,
+  InstalledDetailsApi,
   TabApi,
   AlarmApi,
   AlarmCreateInfoApi,
@@ -93,6 +95,10 @@ export interface FakeContext {
     readonly onMessage: FakeEvent<RuntimeMessageListener>;
     readonly storageChanged: FakeEvent<(changes: Record<string, StorageChangeApi>, area: string) => void>;
     readonly onAlarm: FakeEvent<(alarm: AlarmApi) => void>;
+    readonly onInstalled: FakeEvent<(details: InstalledDetailsApi) => void>;
+    readonly onStartup: FakeEvent<() => void>;
+    readonly onSuspend: FakeEvent<() => void>;
+    readonly onSuspendCanceled: FakeEvent<() => void>;
     readonly permissionsAdded: FakeEvent<(permissions: PermissionsSetApi) => void>;
     readonly permissionsRemoved: FakeEvent<(permissions: PermissionsSetApi) => void>;
   };
@@ -122,6 +128,11 @@ export interface FakeBrowser {
   startBackground(): FakeContext;
   /** The event page goes away: its ports disconnect, its listeners are gone. */
   unloadBackground(): void;
+  /** The browser suspends an idle event page: `runtime.onSuspend` first, then it goes away. */
+  suspendBackground(): void;
+  /** `runtime.onInstalled` / `runtime.onStartup` of the running background (delivered after its first run). */
+  fireInstalled(details: InstalledDetailsApi): void;
+  fireStartup(): void;
   /** Called when a port, message or alarm needs a background that is not running. */
   onWake(start: (context: FakeContext) => void): void;
   /** A content script of a tab, or an extension page. */
@@ -244,6 +255,10 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
       onMessage: new FakeEvent<RuntimeMessageListener>(),
       storageChanged: new FakeEvent<(changes: Record<string, StorageChangeApi>, area: string) => void>(),
       onAlarm: new FakeEvent<(alarm: AlarmApi) => void>(),
+      onInstalled: new FakeEvent<(details: InstalledDetailsApi) => void>(),
+      onStartup: new FakeEvent<() => void>(),
+      onSuspend: new FakeEvent<() => void>(),
+      onSuspendCanceled: new FakeEvent<() => void>(),
       permissionsAdded: new FakeEvent<(permissions: PermissionsSetApi) => void>(),
       permissionsRemoved: new FakeEvent<(permissions: PermissionsSetApi) => void>(),
     };
@@ -297,6 +312,10 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
       },
       onConnect: events.onConnect,
       onMessage: events.onMessage,
+      onInstalled: events.onInstalled,
+      onStartup: events.onStartup,
+      onSuspend: events.onSuspend,
+      onSuspendCanceled: events.onSuspendCanceled,
       async getContexts(filter: { contextTypes?: string[] }): Promise<ExtensionContextApi[]> {
         if (filter.contextTypes && !filter.contextTypes.includes('TAB')) return [];
         return live()
@@ -416,6 +435,18 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
     unloadBackground() {
       if (backgroundContext) kill(backgroundContext);
       backgroundContext = null;
+    },
+    suspendBackground() {
+      if (!backgroundContext) return;
+      backgroundContext.events.onSuspend.emit();
+      kill(backgroundContext);
+      backgroundContext = null;
+    },
+    fireInstalled(details) {
+      backgroundContext?.events.onInstalled.emit(structuredClone(details));
+    },
+    fireStartup() {
+      backgroundContext?.events.onStartup.emit();
     },
     onWake(start) {
       wake = start;
