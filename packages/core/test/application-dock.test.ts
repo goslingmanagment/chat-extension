@@ -796,6 +796,47 @@ describe('dock: inserting a part', () => {
     expect((h.bg.callsOf('op.reportInsert') as { receipt: InsertReceipt }[]).map((call) => call.receipt.state)).toEqual(['rejected', 'uncertain']);
   });
 
+  it('a host call that was lost after it may have run: one call, CG-INSERT-UNCERTAIN, never repeated by itself', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one');
+    h.host.insertThrows = true;
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-INSERT-UNCERTAIN' });
+    expect(h.host.inserts).toBe(1);
+    expect(partsOf(h)[0]).toMatchObject({ insert: 'failed', collapsed: false });
+    expect(partsOf(h)[0]?.insertError?.code).toBe('CG-INSERT-UNCERTAIN');
+    expect((h.bg.callsOf('op.reportInsert') as { receipt: InsertReceipt }[]).map((call) => call.receipt)).toEqual([{ state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' }]);
+    // Time, redraws and other events write nothing again.
+    h.host.type('still typing');
+    await h.clock.advance(60_000);
+    expect(h.host.inserts).toBe(1);
+  });
+
+  it('a double click is one write: the second call changes nothing and is not an error', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one [NEXT] two', { split: true });
+    const insert = { type: 'InsertPart', operationId: opId, part: 0 } as const;
+    const receipts = await Promise.all([h.dispatch(insert), h.dispatch(insert)]);
+    expect(receipts).toEqual([
+      { ok: true, type: 'InsertPart', outcome: 'done', opId },
+      { ok: true, type: 'InsertPart', outcome: 'noop', opId },
+    ]);
+    expect(h.host.inserts).toBe(1);
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect((h.bg.callsOf('token.issue') as { kind: string }[]).filter((call) => call.kind === 'insert')).toHaveLength(1);
+    expect(h.bg.callsOf('op.reportInsert')).toHaveLength(1);
+    expect(result(h).confirm).toBeNull();
+    expect(h.host.draftOf(openChat)?.plainText).toBe('one');
+    // Another part of the same result clicked while the first is on its way waits for its own click too.
+    const other = await start();
+    const second = await reply(other, 'one [NEXT] two', { split: true });
+    const both = await Promise.all([other.dispatch({ type: 'InsertPart', operationId: second, part: 0 }), other.dispatch({ type: 'InsertPart', operationId: second, part: 1 })]);
+    expect(both.map((receipt) => (receipt.ok ? receipt.outcome : receipt.code))).toEqual(['done', 'noop']);
+    expect(other.host.inserts).toBe(1);
+    // Once the write ended the next click works.
+    expect(await other.dispatch({ type: 'InsertPart', operationId: second, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(other.host.inserts).toBe(2);
+  });
+
   it('MAIN found another draft than the intent was built on: nothing was written, the question is asked', async () => {
     const h = await start({}, { insert: [{ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-changed-draft' }] });
     const opId = await reply(h, 'one');
@@ -920,6 +961,42 @@ describe('dock: Fix', () => {
     await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'replace' });
     expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'replace', text: 'I miss you so much', expected: { draftRevision: 6 } });
     expect(result(h).fix).toMatchObject({ replaced: true });
+  });
+
+  it('a replacement of a draft that changed meanwhile: «Вернуть мой текст» brings back the text that was replaced, not the older source', async () => {
+    const h = await withDraft();
+    h.script(h.streamOf('improve-draft', ['I miss you so much']));
+    const receipt = await h.generate('fix');
+    await h.finish();
+    const opId = (receipt as { opId: string }).opId;
+    h.host.type('i mis you so much — and I added a whole new thought here');
+    await h.settle();
+    await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 });
+    await h.dispatch({ type: 'AnswerConfirm', confirmationId: result(h).confirm?.confirmationId as string, choice: 'replace' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you so much');
+    expect(result(h).fix).toMatchObject({ replaced: true, sourceDraft: 'i mis you so much' });
+    expect(result(h).fix?.restoreUntil).not.toBeNull();
+    expect(await h.dispatch({ type: 'RestoreMyDraft', operationId: opId })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('i mis you so much — and I added a whole new thought here');
+    // The Fix text is no longer in the field: its part is not «вставлено» any more, and nothing is left «вставляю…».
+    expect(partsOf(h)[0]).toMatchObject({ insert: 'idle', collapsed: false });
+  });
+
+  it('a double click on «Заменить мой черновик» or «Вернуть мой текст» is one write', async () => {
+    const h = await withDraft();
+    h.script(h.streamOf('improve-draft', ['I miss you so much']));
+    const receipt = await h.generate('fix');
+    await h.finish();
+    const opId = (receipt as { opId: string }).opId;
+    const replace = { type: 'ReplaceMyDraft', operationId: opId, part: 0 } as const;
+    const replaced = await Promise.all([h.dispatch(replace), h.dispatch(replace)]);
+    expect(replaced.map((r) => (r.ok ? r.outcome : r.code))).toEqual(['done', 'noop']);
+    expect(h.host.inserts).toBe(1);
+    const restore = { type: 'RestoreMyDraft', operationId: opId } as const;
+    const restored = await Promise.all([h.dispatch(restore), h.dispatch(restore)]);
+    expect(restored.map((r) => (r.ok ? r.outcome : r.code))).toEqual(['done', 'noop']);
+    expect(h.host.inserts).toBe(2);
+    expect(h.host.draftOf(openChat)?.plainText).toBe('i mis you so much');
   });
 
   it('the person typed after the replacement: «Вернуть мой текст» asks instead of overwriting silently', async () => {

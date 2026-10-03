@@ -50,6 +50,10 @@ export class MutableHost implements HostPort {
   /** How many times the page memory was read, by kind (to prove nothing is read without need). */
   readonly reads = { draft: 0, tail: 0 };
   failDraftRead = false;
+  /** How many times `insert` was called on the host, whatever it answered. */
+  inserts = 0;
+  /** The bridge call is lost after it may have run: `insert` rejects, the outcome is unknown. */
+  insertThrows = false;
 
   constructor(
     private readonly base: HostPort,
@@ -207,6 +211,8 @@ export class MutableHost implements HostPort {
 
   /** The scripted host checks the intent and answers; an applied write becomes our draft, as on the page. */
   async insert(intent: InsertIntent): Promise<InsertReceipt> {
+    this.inserts += 1;
+    if (this.insertThrows) throw new Error('the bridge call was lost');
     const receipt = await this.base.insert(intent);
     if (receipt.state === 'applied') {
       const key = chatKeyOf(intent.target);

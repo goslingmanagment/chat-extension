@@ -8,6 +8,10 @@
 // and its 30-second «Вернуть мой текст», the receipt, and the telemetry
 // report (`inserted` only for an applied write).
 //
+// One write of an operation at a time: the mark is taken synchronously when
+// the click arrives, before anything is awaited, so a double click or a key
+// repeat is one write and one report — the second call answers `busy`.
+//
 // The action token of every write is issued for the surface `dock`: the
 // write goes into the open chat's composer whichever of our panels shows
 // the part.
@@ -49,6 +53,8 @@ export type WriteOutcome =
   /** Б2: the person must answer first (ResultVM.confirm). */
   | { readonly kind: 'needs-confirm'; readonly confirmationId: string }
   | { readonly kind: 'canceled' }
+  /** A write of this operation is already on its way: this click changes nothing. */
+  | { readonly kind: 'busy' }
   | { readonly kind: 'failed'; readonly error: CgErrorWire };
 
 export interface FixView {
@@ -120,7 +126,10 @@ export class InsertService {
   private readonly parts = new Map<string, PartState>();
   private readonly book: ConfirmationBook;
   private readonly writes = new Map<string, PendingWrite>();
-  private readonly fixes = new Map<string, FixSession>();
+  /** Fix: the session of a replacement and the text «Вернуть мой текст» writes back (what the replacement replaced). */
+  private readonly fixes = new Map<string, { readonly session: FixSession; readonly restoreText: string }>();
+  /** Operations with a write in flight. */
+  private readonly busy = new Set<string>();
   /** Insert intents by id: a human send is linked to its part by the intent the draft descends from (§6.6). */
   private readonly intents = new Map<string, { readonly opId: string; readonly part: PartRef }>();
   /** Hi: the variant the person started inserting. */
@@ -149,7 +158,7 @@ export class InsertService {
   }
 
   fix(record: OpRecord): FixView {
-    const session = this.fixes.get(record.view.opId);
+    const session = this.fixes.get(record.view.opId)?.session;
     const now = this.deps.ports.clock.now();
     return {
       sourceDraft: record.memo.fixSource?.text ?? null,
@@ -178,8 +187,23 @@ export class InsertService {
 
   // ── commands ─────────────────────────────────────────────────────────────
 
+  /** Runs one write of an operation; a second one arriving meanwhile is `busy` and touches nothing. */
+  private async exclusive(opId: string, run: () => Promise<WriteOutcome>): Promise<WriteOutcome> {
+    if (this.busy.has(opId)) return { kind: 'busy' };
+    this.busy.add(opId);
+    try {
+      return await run();
+    } finally {
+      this.busy.delete(opId);
+    }
+  }
+
   /** «Вставить»: one part into the operation's own chat. */
-  async insertPart(opId: string, part: PartRef, cause: HumanCause['kind']): Promise<WriteOutcome> {
+  insertPart(opId: string, part: PartRef, cause: HumanCause['kind']): Promise<WriteOutcome> {
+    return this.exclusive(opId, () => this.runInsertPart(opId, part, cause));
+  }
+
+  private async runInsertPart(opId: string, part: PartRef, cause: HumanCause['kind']): Promise<WriteOutcome> {
     const record = this.deps.record(opId);
     if (record === null) return failed('CG-CONTEXT-CHANGED');
     const text = partText(record, part);
@@ -187,7 +211,6 @@ export class InsertService {
     if (text === null) return failed('CG-OUTPUT-UNUSABLE');
     const block = this.blockOf(record, part);
     if (block !== null) return failed(block.code);
-    if (this.partState(opId, part).insert === 'pending') return failed('CG-INSERT-FAILED');
     const ready = await this.prepare(record, part);
     if (!ready.ok) return ready.outcome;
     const decision = decideDraft(ready.draft, { editorObserved: this.deps.context(record).editorObserved });
@@ -196,7 +219,11 @@ export class InsertService {
   }
 
   /** Fix «Заменить мой черновик»: the click is the consent for the revision the Fix was made from. */
-  async replaceMyDraft(opId: string, index: number, cause: HumanCause['kind']): Promise<WriteOutcome> {
+  replaceMyDraft(opId: string, index: number, cause: HumanCause['kind']): Promise<WriteOutcome> {
+    return this.exclusive(opId, () => this.runReplaceMyDraft(opId, index, cause));
+  }
+
+  private async runReplaceMyDraft(opId: string, index: number, cause: HumanCause['kind']): Promise<WriteOutcome> {
     const record = this.deps.record(opId);
     if (record === null || record.view.feature !== 'fix') return failed('CG-CONTEXT-CHANGED');
     const part: PartRef = { index };
@@ -208,8 +235,7 @@ export class InsertService {
     const source = record.memo.fixSource;
     // Without the source revision or an observed editor there is no CAS to make: copy instead (§6.4).
     if (source === null || !ctx.editorObserved) return failed('CG-HOST-NOT-READY');
-    if (this.partState(opId, part).insert === 'pending') return failed('CG-INSERT-FAILED');
-    if (this.fixes.get(opId)?.wasReplaced === true) return failed('CG-INSERT-FAILED');
+    if (this.fixes.get(opId)?.session.wasReplaced === true) return failed('CG-INSERT-FAILED');
     const ready = await this.prepare(record, part);
     if (!ready.ok) return ready.outcome;
     // The draft changed during the generation: the consent is void, the person is asked again.
@@ -221,23 +247,33 @@ export class InsertService {
     const step = session.replace(ready.draft, text, { intentId: ids.uuid(), confirmationId: ids.uuid() }, token.payload, clock.now());
     if (step.kind === 'unavailable') return this.fail(record, part, step.code);
     if (step.kind === 'confirm') return this.ask(record, part, text, 'fix-replace', 'draft-changed', ready.draft, false);
-    this.fixes.set(opId, session);
     const receipt = await this.send(record, part, step.intent);
-    session.onReplaced(receipt, clock.now());
-    const until = session.restoreUntil(clock.now());
-    if (until !== null) this.deps.wakeAt(until);
+    this.replaced(session, source.text, receipt);
     return this.settle(record, part, receipt, { text, purpose: 'fix-replace' });
   }
 
+  /** The host answered a Fix replacement: an applied one opens the restore window for the text it replaced. */
+  private replaced(session: FixSession, restoreText: string, receipt: InsertReceipt): void {
+    const { clock } = this.deps.ports;
+    session.onReplaced(receipt, clock.now());
+    if (!session.wasReplaced) return;
+    this.fixes.set(session.opId, { session, restoreText });
+    const until = session.restoreUntil(clock.now());
+    if (until !== null) this.deps.wakeAt(until);
+  }
+
   /** «Вернуть мой текст»: within 30 s, a CAS on the revision the replacement produced. */
-  async restoreMyDraft(opId: string, cause: HumanCause['kind']): Promise<WriteOutcome> {
+  restoreMyDraft(opId: string, cause: HumanCause['kind']): Promise<WriteOutcome> {
+    return this.exclusive(opId, () => this.runRestoreMyDraft(opId, cause));
+  }
+
+  private async runRestoreMyDraft(opId: string, cause: HumanCause['kind']): Promise<WriteOutcome> {
     const record = this.deps.record(opId);
-    const session = this.fixes.get(opId);
-    if (record === null || session === undefined) return failed('CG-CONTEXT-CHANGED');
+    const fix = this.fixes.get(opId);
+    if (record === null || fix === undefined) return failed('CG-CONTEXT-CHANGED');
+    const { session, restoreText } = fix;
     const part = session.part;
-    const source = record.memo.fixSource;
-    if (source === null) return failed('CG-CONTEXT-CHANGED');
-    const ready = await this.prepare(record, part);
+    const ready = await this.prepare(record, part, false);
     if (!ready.ok) return ready.outcome;
     const token = await this.deps.token('insert', cause);
     if (!token.ok) return failed(token.error.code);
@@ -245,18 +281,30 @@ export class InsertService {
     const step = session.restore(ready.draft, ids.uuid(), token.payload, clock.now());
     if (step.kind === 'unavailable') return failed(step.code);
     // The person typed after the Fix: a question, never a silent overwrite.
-    if (step.kind === 'confirm') return this.ask(record, part, source.text, 'fix-restore', 'draft-changed', ready.draft, false);
-    const receipt = await this.send(record, part, step.intent);
-    session.onRestored(receipt);
+    if (step.kind === 'confirm') return this.ask(record, part, restoreText, 'fix-restore', 'draft-changed', ready.draft, false);
+    return this.restored(record, part, await this.send(record, part, step.intent));
+  }
+
+  /** The host answered «Вернуть мой текст»: the person's text is back, or the Fix text stays where it was. */
+  private restored(record: OpRecord, part: PartRef, receipt: InsertReceipt): WriteOutcome {
+    const key = keyOf(record.view.opId, part);
+    this.fixes.get(record.view.opId)?.session.onRestored(receipt);
     const outcome = interpretInsertReceipt(receipt);
+    // The part is no longer in the field once the person's text is back; otherwise it still is.
+    if (outcome.kind === 'applied') this.parts.delete(key);
+    else this.parts.set(key, { insert: 'done', insertError: null });
     this.deps.changed();
     return outcome.kind === 'applied' ? { kind: 'applied' } : failed(outcome.kind === 'needs-confirm' ? 'CG-DRAFT-CHANGED' : outcome.code);
   }
 
   /** Б2: «Заменить / Добавить в конец / Отмена», valid only for the revision it was asked about. */
-  async answerConfirm(confirmationId: string, choice: ConfirmChoice, cause: HumanCause['kind']): Promise<WriteOutcome> {
+  answerConfirm(confirmationId: string, choice: ConfirmChoice, cause: HumanCause['kind']): Promise<WriteOutcome> {
     const pending = this.writes.get(confirmationId);
-    if (pending === undefined) return failed('CG-DRAFT-CHANGED');
+    if (pending === undefined) return Promise.resolve(failed('CG-DRAFT-CHANGED'));
+    return this.exclusive(pending.opId, () => this.runAnswerConfirm(confirmationId, pending, choice, cause));
+  }
+
+  private async runAnswerConfirm(confirmationId: string, pending: PendingWrite, choice: ConfirmChoice, cause: HumanCause['kind']): Promise<WriteOutcome> {
     const record = this.deps.record(pending.opId);
     if (record === null) {
       this.writes.delete(confirmationId);
@@ -268,7 +316,7 @@ export class InsertService {
       this.deps.changed();
       return { kind: 'canceled' };
     }
-    const ready = await this.prepare(record, pending.part);
+    const ready = await this.prepare(record, pending.part, pending.purpose !== 'fix-restore');
     if (!ready.ok) {
       this.book.dropOp(pending.opId);
       this.writes.delete(confirmationId);
@@ -307,10 +355,12 @@ export class InsertService {
   // ── internals ────────────────────────────────────────────────────────────
 
   /** The isolated-side checks of §6.4 п. 1, then the draft as the host holds it now. */
-  private async prepare(record: OpRecord, part: PartRef): Promise<{ readonly ok: true; readonly draft: DraftSnapshot } | { readonly ok: false; readonly outcome: WriteOutcome }> {
+  private async prepare(record: OpRecord, part: PartRef, mark = true): Promise<{ readonly ok: true; readonly draft: DraftSnapshot } | { readonly ok: false; readonly outcome: WriteOutcome }> {
     const { host, journal } = this.deps.ports;
     const snapshot = host.current();
     const ctx = this.deps.context(record);
+    // «Вернуть мой текст» that cannot run leaves the part as it is: the Fix text is still in the field.
+    const fail = (code: CgCode): WriteOutcome => (mark ? this.fail(record, part, code) : failed(code));
     const code = insertGuard({
       op: { target: record.view.target, personaDefinitionId: record.memo.personaDefinitionId ?? ctx.current.personaDefinitionId ?? '', signInEpoch: record.view.target.binding.loginEpoch },
       current: ctx.current,
@@ -318,12 +368,12 @@ export class InsertService {
     });
     if (code !== null || snapshot.identity === null) {
       journal?.write(insertGuardEntry(record.view.opId, code ?? 'CG-HOST-NOT-READY', snapshot.route.epoch));
-      return { ok: false, outcome: this.fail(record, part, code ?? 'CG-HOST-NOT-READY') };
+      return { ok: false, outcome: fail(code ?? 'CG-HOST-NOT-READY') };
     }
     try {
       return { ok: true, draft: await host.readDraft(snapshot.identity) };
     } catch {
-      return { ok: false, outcome: this.fail(record, part, 'CG-HOST-NOT-READY') };
+      return { ok: false, outcome: fail('CG-HOST-NOT-READY') };
     }
   }
 
@@ -353,21 +403,12 @@ export class InsertService {
     const built = buildOpenInsert({ intentId: ids.uuid(), operationId: record.view.opId, part, text, mode, target: record.view.target.chat, draft, confirmationId, cause: token.payload, now: clock.now() });
     if (!built.ok) return this.fail(record, part, built.code);
     const receipt = await this.send(record, part, built.intent);
-    if (purpose === 'fix-restore') {
-      this.fixes.get(record.view.opId)?.onRestored(receipt);
-      const outcome = interpretInsertReceipt(receipt);
-      this.deps.changed();
-      return outcome.kind === 'applied' ? { kind: 'applied' } : failed(outcome.kind === 'needs-confirm' ? 'CG-DRAFT-CHANGED' : outcome.code);
-    }
-    if (purpose === 'fix-replace') {
-      const source = record.memo.fixSource;
-      if (source !== null && mode === 'replace') {
-        const session = this.fixes.get(record.view.opId) ?? new FixSession(record.view.opId, part, record.view.target.chat, source, true);
-        this.fixes.set(record.view.opId, session);
-        session.onReplaced(receipt, clock.now());
-        const until = session.restoreUntil(clock.now());
-        if (until !== null) this.deps.wakeAt(until);
-      }
+    if (purpose === 'fix-restore') return this.restored(record, part, receipt);
+    if (purpose === 'fix-replace' && mode === 'replace') {
+      // The person agreed to replace the draft as it was at the answer — changed since the Fix was made:
+      // «Вернуть мой текст» brings back that text, not the older one the Fix was made from.
+      const replacedDraft = { text: draft.plainText, revision: draft.revision, digest: draft.digest };
+      this.replaced(new FixSession(record.view.opId, part, record.view.target.chat, replacedDraft, true), draft.plainText, receipt);
     }
     return this.settle(record, part, receipt, { text, purpose });
   }
