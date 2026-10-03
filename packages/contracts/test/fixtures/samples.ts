@@ -67,6 +67,8 @@ export const binding: HubBinding = {
   hubOrigin: HUB,
   principalId: 7,
   loginEpoch: 3,
+  host: 'chatspace',
+  hostAccountId: IDS.acc,
   platform: 'onlyfans',
   platformAccountId: IDS.creator,
   pageId: 11,

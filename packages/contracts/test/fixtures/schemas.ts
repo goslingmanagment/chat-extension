@@ -226,7 +226,12 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ ...account, platform: 'fansly-web' }, { ...account, username: repeat('x', 129) }],
   ),
   fixture('SessionIdentity', C.SessionIdentitySchema, [session], [{ ...session, userId: 0 }, { ...session, role: 'admin' }]),
-  fixture('HubBinding', C.HubBindingSchema, [binding], [{ ...binding, platformAccountId: null }, { ...binding, pageLabel: '' }]),
+  fixture(
+    'HubBinding',
+    C.HubBindingSchema,
+    [binding],
+    [{ ...binding, platformAccountId: null }, { ...binding, pageLabel: '' }, { ...binding, hostAccountId: undefined }, { ...binding, host: 'onlymonster' }],
+  ),
   fixture(
     'Target',
     C.TargetSchema,
@@ -235,6 +240,9 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...target, fanRef: IDS.otherFan },
       { ...target, conversationRef: IDS.otherFan },
       { ...target, binding: { ...binding, platform: 'fansly' } },
+      // A binding resolved for another host account would send page Y's reply from account X.
+      { ...target, binding: { ...binding, hostAccountId: '1099' } },
+      { ...target, binding: { ...binding, host: 'fansly-web' } },
     ],
   ),
   fixture(

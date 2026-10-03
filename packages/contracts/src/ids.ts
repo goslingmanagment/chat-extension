@@ -94,11 +94,22 @@ export const SessionIdentitySchema = z.strictObject({
 });
 export type SessionIdentity = z.infer<typeof SessionIdentitySchema>;
 
-/** A host account bound to exactly one hub page (by platformAccountId, §8.3). */
+/**
+ * A host account bound to exactly one hub page (§8.3), and which host
+ * account it was resolved for. `platformAccountId` is the PAGE's (bootstrap
+ * `pages[].platformAccountId`), never copied from the host account: X8
+ * condition 5 checks it against ChatSpace's loaded accounts, which is a real
+ * check only because it comes from the hub. `binding.resolve` refuses with
+ * CG-BINDING-MISSING when the page has none, and with CG-BINDING-AMBIGUOUS
+ * when the host account's known platformAccountId differs from the page's —
+ * an explicit `bindingsByHost` entry included.
+ */
 export const HubBindingSchema = z.strictObject({
   hubOrigin: HubOriginSchema,
   principalId: HubIntIdSchema,
   loginEpoch: CountSchema,
+  host: HostKindSchema,
+  hostAccountId: NativeIdSchema,
   platform: PlatformSchema,
   platformAccountId: NativeIdSchema,
   pageId: HubIntIdSchema,
@@ -124,6 +135,9 @@ export const TargetSchema = z
     }),
     z.refine((t) => (t.chat.host === 'chatspace') === (t.binding.platform === 'onlyfans'), {
       message: 'ChatSpace chats bind to OnlyFans pages only',
+    }),
+    z.refine((t) => t.binding.host === t.chat.host && t.binding.hostAccountId === t.chat.hostAccountId, {
+      message: "the binding was resolved for the chat's own host account",
     }),
   );
 export type Target = z.infer<typeof TargetSchema>;
