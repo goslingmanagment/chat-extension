@@ -26,6 +26,7 @@ export {
   type Timers,
 } from './storage/ports';
 export {
+  READINESS_DEADLINE_MS,
   READINESS_STEP_TIMEOUT_MS,
   createReadinessBarrier,
   type ReadinessBarrier,

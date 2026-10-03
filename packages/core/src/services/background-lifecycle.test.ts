@@ -17,6 +17,7 @@ import { createSendJournal } from './send-journal';
 import { createSettingsOwner } from './settings-owner';
 import type { ServiceLogEntry } from './storage/ports';
 import { createMemoryKv, manualClock, settle, type MemoryKv } from './test-support/memory-kv';
+import { manualTimers } from './test-support/timers';
 
 function consentPort(initial: boolean) {
   const listeners = new Set<(granted: boolean) => void>();
@@ -58,7 +59,7 @@ function eventPage(local: MemoryKv, session: MemoryKv, at: number, consent = con
     telemetryQueue.purged += telemetryQueue.pending;
     telemetryQueue.pending = 0;
   });
-  const barrier = createReadinessBarrier({ clock, log });
+  const barrier = createReadinessBarrier({ timers: manualTimers(), clock, log });
   /** A request handler of the RPC: answers only after the barrier. */
   const request = <T>(handler: () => Promise<T>): Promise<T> => barrier.ready.then(handler);
   const start = (): Promise<unknown> =>
