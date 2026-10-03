@@ -344,6 +344,51 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     }
   });
 
+  it('[NF-022] `send.list`: a tab that lost its tracking reads the fan’s journaled attempts back — after a restart too; a resolved one and one that never reached the journal are not listed', async () => {
+    const lock = sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: previewTarget.fanRef });
+    const clock = new FakeClock(NOW_MS);
+    const store = new MemoryStore();
+    const h = sendHarness({ clock, store });
+    expect(h.coordinator.attemptsOf(lock)).toEqual({ attempts: [], truncated: false });
+    // Part 0 is proven sent, part 1 ends with an unknown outcome.
+    h.hub.claimScript.push(ticketFor(A), okAnswer(A, 'sent'));
+    await h.coordinator.begin(TAB, h.begin());
+    await report(h, 'a', 'nativeEnqueued', {}, 'p');
+    await report(h, 'a', 'nativeAccepted', { platformMessageId: WORLD.messages.sentByUs });
+    await report(h, 'a', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs });
+    await h.coordinator.idle();
+    await clock.advance(1000);
+    const B = uuid(0x501);
+    h.hub.claimScript.push(ticketFor(B));
+    await h.coordinator.begin(TAB, h.begin({ attemptId: B, part: { index: 1 } }));
+    await h.coordinator.report(TAB, { attemptId: B, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    // A click refused before the journal (no token) reached nothing.
+    await h.coordinator.begin(TAB, { ...h.begin({ attemptId: uuid(0x502), part: { index: 1 }, previewRevision: 3 }), cause: { kind: 'click', actionToken: 'stale-token-000000000000' } });
+    await h.coordinator.idle();
+    const group = { generationRef: GEN, variant: 0, partCount: 2 };
+    const listed = h.coordinator.attemptsOf(lock);
+    // The one that holds the fan comes first.
+    expect(listed).toEqual({
+      attempts: [
+        { opId: OP, purpose: 'preview-reply', group, partIndex: 1, view: { attemptId: B, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' } },
+        { opId: OP, purpose: 'preview-reply', group, partIndex: 0, view: { attemptId: A, state: 'sentObserved', platformMessageId: WORLD.messages.sentByUs } },
+      ],
+      truncated: false,
+    });
+    expect(JSON.stringify(listed)).not.toContain('part text');
+    expect(h.coordinator.attemptsOf(lock, 1)).toMatchObject({ attempts: [{ view: { attemptId: B } }], truncated: true });
+    expect(h.coordinator.attemptsOf(sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: '9999' })).attempts).toEqual([]);
+    // The event page unloads; the next instance answers the same from the journal.
+    const second = sendHarness({ clock, store });
+    second.hub.statusScript.push(okAnswer(B, 'uncertain-held'));
+    await second.coordinator.restore();
+    expect(second.coordinator.attemptsOf(lock).attempts.map((item) => [item.partIndex, item.view.state])).toEqual([[1, 'uncertain'], [0, 'sentObserved']]);
+    // The hub resolved the uncertain one: it no longer holds the fan and leaves the list.
+    second.hub.statusScript.push(okAnswer(B, 'resolved-not-sent'));
+    await second.coordinator.reconcileFan(lock);
+    expect(second.coordinator.attemptsOf(lock).attempts.map((item) => item.view.attemptId)).toEqual([A]);
+  });
+
   it('[X8-01] a stale token does not burn the part; after a hub resolve «not sent» the same part may be clicked again', async () => {
     const h = sendHarness();
     expect(await h.coordinator.begin(TAB, { ...h.begin(), cause: { kind: 'click', actionToken: 'tok_expired_0000000000' } })).toMatchObject({ ok: false, view: { code: 'CG-SEND-PART' } });

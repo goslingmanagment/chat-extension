@@ -28,7 +28,7 @@ import { type OpView } from '@cg/contracts/ops';
 import { sendLockKey, type DispatchTicket, type FreshnessCheckpoint, type SendAttemptView, type SendJournalEntry, type SendLockKey } from '@cg/contracts/send';
 import { isRetryableEnd } from '@cg/contracts/send-rules';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
-import { type SendBegin } from '@cg/contracts/tab-messages';
+import { SEND_LIST_MAX, type SendBegin, type SendListItem } from '@cg/contracts/tab-messages';
 
 import { flagUsable, type OpEnvTag, type OpsEnvironment } from '../domain/ops';
 import {
@@ -423,6 +423,22 @@ export class SendCoordinator {
   /** `send.status`. */
   status(attemptId: string): SendAttemptView | null {
     return this.attempts.get(attemptId)?.track.view ?? null;
+  }
+
+  /**
+   * `send.list`: the journaled attempts to one fan that the hub has not
+   * resolved — what a tab that lost its own tracking (a reload) holds the
+   * fan by. Attempts that still hold the fan first, then the newest; at most
+   * `max`. An attempt that never reached the journal reached nothing and is
+   * not listed.
+   */
+  attemptsOf(lockKey: SendLockKey, max: number = SEND_LIST_MAX): { readonly attempts: SendListItem[]; readonly truncated: boolean } {
+    const known = [...this.attempts.values()].filter((attempt) => attempt.lockKey === lockKey && attempt.entry !== null && attempt.resolved === undefined);
+    known.sort((a, b) => Number(holdsLock(b.track.view.state)) - Number(holdsLock(a.track.view.state)) || b.updatedAt - a.updatedAt);
+    return {
+      attempts: known.slice(0, max).map((attempt) => ({ opId: attempt.opId, purpose: attempt.purpose, group: attempt.group, partIndex: attempt.partIndex, view: attempt.track.view })),
+      truncated: known.length > max,
+    };
   }
 
   /** Open and uncertain attempts (diagnostics `sends`). */
