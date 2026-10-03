@@ -1,0 +1,12 @@
+html, body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #f4f5f7; }
+.chat { display: flex; flex-direction: column; height: 100vh; width: 640px; margin: 0 auto; background: #fff; }
+.messages { flex: 1 1 auto; overflow: auto; padding: 12px; }
+.msg { max-width: 70%; padding: 6px 10px; border-radius: 10px; margin: 6px 0; }
+.msg.in { background: #eef1f5; }
+.msg.out { background: #dce8ff; margin-left: auto; }
+.composer-block { flex-shrink: 0; padding: 8px 12px 12px; }
+.relative { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.composer-frame { border: 1px solid #ccd; border-radius: 10px; overflow: hidden; }
+.editor { min-height: 48px; padding: 8px 10px; outline: none; }
+.strip { display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 8px; border-top: 1px solid #eee; }
+[data-id='browser-composer-translator'] { display: inline-flex; }

@@ -1,0 +1,9 @@
+{
+  "name": "@cg/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": { "./domain": "./src/domain/index.ts", "./domain/text": "./src/domain/text/index.ts", "./services": "./src/services/index.ts", "./application": "./src/application/index.ts" },
+  "dependencies": { "@cg/contracts": "workspace:*", "@chatgoose/hotkeys": "workspace:*" }
+}

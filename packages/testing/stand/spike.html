@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru" data-cg-stand="spike">
+  <head>
+    <meta charset="utf-8" />
+    <title>Стенд M0</title>
+    <link rel="stylesheet" href="/stand.css" />
+    <script src="/stand.js"></script>
+  </head>
+  <body>
+    <!-- Synthetic stand (our code, our CSS, synthetic fans). Mirrors only the
+         observable composer structure from architecture.md §6.3. -->
+    <div id="app">
+      <main class="chat">
+        <section class="messages" aria-label="Лента">
+          <p class="msg in">Синтетический фан: привет!</p>
+          <p class="msg out">Синтетический ответ.</p>
+        </section>
+        <div class="composer-block">
+          <div class="relative" id="composer-root">
+            <div class="composer-frame overflow-hidden">
+              <div class="editor" contenteditable="true" aria-label="Поле ввода"></div>
+              <div class="strip h-10">
+                <div class="emoji">☺</div>
+                <div data-id="browser-composer-translator"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
