@@ -22,6 +22,8 @@ import {
   useReducedMotion,
   useResultCap,
   useT,
+  useKit,
+  useValueSignal,
   useView,
   Age,
 } from '@cg/ui/kit';
@@ -145,6 +147,19 @@ describe('useView: AppClient subscriptions become signals inside ui/ only', () =
     expect(kit.$('[data-count]')?.getAttribute('data-count')).toBe('0');
     await flush(() => kit.client.advance());
     expect(kit.$('[data-count]')?.textContent).toBe('Recap сохранён в хаб');
+  });
+});
+
+describe('port signals inside ui/', () => {
+  it('useValueSignal follows a port ValueSignal and lets go with the component', async () => {
+    function Width() {
+      const geometry = useValueSignal(useKit().deps.geometry);
+      return <span class="cg-w">{geometry.value.width ?? 'none'}</span>;
+    }
+    const kit = track(await mountKitSettled(Width));
+    expect(kit.$('.cg-w')?.textContent).toBe('853');
+    await flush(() => kit.deps.geometry.set({ width: 489, feedHeight: 574, viewportHeight: 900, container: null }));
+    expect(kit.$('.cg-w')?.textContent).toBe('489');
   });
 });
 

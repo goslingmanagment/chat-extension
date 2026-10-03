@@ -108,6 +108,39 @@ describe('the board list: 1000 rows, at most 150 in the DOM (architecture.md §1
     expect(first?.getAttribute('aria-setsize')).toBe('1000');
   });
 
+  it('without a height it fills its parent and follows the parent’s size', async () => {
+    const observed: Element[] = [];
+    let resize: () => void = () => undefined;
+    class FakeObserver {
+      constructor(callback: () => void) {
+        resize = callback;
+      }
+      observe(element: Element): void {
+        observed.push(element);
+      }
+      disconnect(): void {
+        observed.length = 0;
+      }
+    }
+    const original = window.ResizeObserver;
+    Object.assign(window, { ResizeObserver: FakeObserver });
+    try {
+      const host = document.createElement('div');
+      container = host;
+      document.body.append(host);
+      await act(() => render(<VirtualList<Row> items={ROWS} rowHeight={36} getKey={(row) => row.id} renderRow={(row) => row.id} />, host));
+      const scroller = host.querySelector('.cg-vlist') as HTMLElement;
+      expect(observed).toEqual([scroller]);
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 360 });
+      await act(() => resize());
+      expect(scroller.querySelectorAll('[data-cg-row]').length).toBe(10 + 6);
+      await act(() => render(null, host));
+      expect(observed).toEqual([]);
+    } finally {
+      Object.assign(window, { ResizeObserver: original });
+    }
+  });
+
   it('active index scrolls into view on keyboard movement', async () => {
     const host = document.createElement('div');
     container = host;
