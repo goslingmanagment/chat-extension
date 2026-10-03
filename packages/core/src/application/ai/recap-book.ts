@@ -1,0 +1,292 @@
+// What the tab holds of recaps (architecture.md §7 «Recap: общий и досье»,
+// §8.5; AI-061, AI-065…AI-068, AI-071, REC-01, UI-010). Recaps are shared
+// artifacts of the hub (H-13): this book keeps their local copies (two
+// slots per page, fan and persona), reads them (`recap.read`), knows the
+// hub's status line (`recap.status`: metadata only, no AI spend), turns a
+// recap generated in this tab into a copy, and follows the dossier save of
+// a full recap (H-5): «сохранено в хаб» or CG-RECAP-SAVE, with the
+// idempotent link write repeated by the §7 schedule while the tab is open.
+// The strip (the «Recap готов» dot), the Recap sheet and the Coach header
+// all read it, so it lives with the workspace, not with one controller.
+
+import { type CgErrorWire } from '@cg/contracts/errors';
+import { type RecapStatus } from '@cg/contracts/hub';
+import { type ChatKey } from '@cg/contracts/ids';
+import { UUID_PATTERN } from '@cg/contracts/primitives';
+import { type RecapLength } from '@cg/contracts/vm';
+
+import { RecapSlots, copiesOfShared, copyOfResult, saveAnswered, saveStarted, type RecapCopy, type RecapSaveState, type RecapSlotKey } from '../../domain/recap';
+import { type OpRecord } from './op-store';
+import { type AiPorts } from './ports';
+
+/** The recap status of a chat is asked this long after the chat settled, and kept this long. */
+export const RECAP_STATUS = { settleMs: 1_500, ttlMs: 10 * 60_000 } as const;
+/** A read of the shared recaps is fresh for this long. */
+export const SHARED_RECAPS_TTL_MS = 60_000;
+
+/** The page, fan and persona a recap belongs to, with what the hub requests need. */
+export interface RecapOwner {
+  readonly key: RecapSlotKey;
+  readonly chatKey: ChatKey;
+}
+
+export interface SharedRead {
+  readonly state: 'loading' | 'ready' | 'error';
+  readonly error: CgErrorWire | null;
+  readonly at: number;
+}
+
+export interface RecapBookDeps {
+  readonly ports: AiPorts;
+  /** Something a view shows changed. */
+  changed(): void;
+  /** The chat that is open now (a status is not asked for a chat the person already left). */
+  openChat(): ChatKey | null;
+  /** The persona definition a finished recap belongs to, when its start is not remembered. */
+  personaOf(pageId: number): string | null;
+}
+
+const idOf = (key: RecapSlotKey): string => [key.hubOrigin, key.pageId, key.fanRef, key.personaDefinitionId].join('\u0000');
+
+export class RecapBook {
+  readonly slots = new RecapSlots();
+  private readonly reads = new Map<string, SharedRead>();
+  private readonly statuses = new Map<string, { status: RecapStatus | null; at: number | null }>();
+  private readonly saves = new Map<string, RecapSaveState>();
+  private readonly owners = new Map<string, RecapSlotKey>();
+  private readonly timers = new Set<unknown>();
+  private readonly saveTimers = new Map<string, unknown>();
+  private readonly offToast: () => void;
+
+  constructor(private readonly deps: RecapBookDeps) {
+    // The background writes the dossier link of a full recap itself and says how it ended.
+    this.offToast = deps.ports.rpc.onEvent('toast', ({ toast }) => {
+      if (toast.scope !== 'recap.profile' || toast.opId === undefined) return;
+      const copy = this.byOp(toast.opId);
+      if (copy === null) return;
+      if (toast.kind === 'success') this.markSaved(copy.id, new Date(deps.ports.clock.now()).toISOString());
+      else this.setSave(copy.id, { s: 'failed', reason: 'error' });
+    });
+  }
+
+  dispose(): void {
+    this.offToast();
+    const { clock } = this.deps.ports;
+    for (const timer of [...this.timers, ...this.saveTimers.values()]) clock.clearTimer(timer);
+    this.timers.clear();
+    this.saveTimers.clear();
+  }
+
+  /** A sign-out drops everything; a new sign-in or persona reads again. */
+  reset(everything: boolean): void {
+    this.reads.clear();
+    this.statuses.clear();
+    if (!everything) return;
+    this.slots.clear();
+    this.saves.clear();
+    this.owners.clear();
+  }
+
+  // ── copies ───────────────────────────────────────────────────────────────
+
+  both(key: RecapSlotKey): { readonly short: RecapCopy | null; readonly full: RecapCopy | null } {
+    return this.slots.both(key);
+  }
+
+  private remember(key: RecapSlotKey, copy: RecapCopy): RecapCopy {
+    const stored = this.slots.put(key, copy);
+    this.owners.set(stored.id, key);
+    return stored;
+  }
+
+  private byOp(opId: string): RecapCopy | null {
+    for (const key of this.owners.values()) {
+      const { short, full } = this.slots.both(key);
+      if (full?.opId === opId) return full;
+      if (short?.opId === opId) return short;
+    }
+    return null;
+  }
+
+  /** A recap finished in this tab: it is now the shared artifact, and the slot holds its copy. */
+  generated(record: OpRecord): RecapCopy | null {
+    const { view } = record;
+    const { clock, ids } = this.deps.ports;
+    const copy = copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
+    if (copy === null) return null;
+    const binding = view.target.binding;
+    const personaDefinitionId = record.memo.personaDefinitionId ?? this.deps.personaOf(binding.pageId);
+    if (personaDefinitionId === null) return null;
+    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef: view.target.fanRef, personaDefinitionId }, copy);
+    // The background's saver is on it for the tab that owns the operation; its toast ends the wait.
+    if (stored.length === 'full' && record.own && !this.saves.has(stored.id)) this.saves.set(stored.id, saveStarted(clock.now()));
+    this.deps.changed();
+    return stored;
+  }
+
+  // ── shared recaps (H-13) ─────────────────────────────────────────────────
+
+  read(key: RecapSlotKey): SharedRead | null {
+    return this.reads.get(idOf(key)) ?? null;
+  }
+
+  /** `recap.read`: the hub's two shared recaps become the two local copies. */
+  loadShared(key: RecapSlotKey, force = false): void {
+    const { clock, ids, rpc } = this.deps.ports;
+    const id = idOf(key);
+    const known = this.reads.get(id);
+    const now = clock.now();
+    if (known !== undefined && (known.state === 'loading' || (!force && known.state === 'ready' && now - known.at < SHARED_RECAPS_TTL_MS))) return;
+    this.reads.set(id, { state: 'loading', error: null, at: now });
+    this.deps.changed();
+    void rpc.request('recap.read', { pageId: key.pageId, fanRef: key.fanRef, personaDefinitionId: key.personaDefinitionId }).then((answer) => {
+      // The sign-in changed meanwhile: this answer belongs to nobody.
+      if (this.reads.get(id)?.at !== now) return;
+      if (!answer.ok) {
+        this.reads.set(id, { state: 'error', error: answer.error, at: clock.now() });
+        this.deps.changed();
+        return;
+      }
+      const copies = copiesOfShared(answer.payload, { newLocalId: () => ids.uuid(), now: clock.now() });
+      for (const length of ['short', 'full'] as const) {
+        const copy = copies[length];
+        if (copy !== null) {
+          const stored = this.remember(key, copy);
+          // AI-068: a full recap the dossier does not hold yet is sent after — the link write only.
+          if (length === 'full' && stored.savedToProfile === false && !this.saves.has(stored.id)) void this.save(key, stored);
+          continue;
+        }
+        // A copy never outlives the shared artifact — except one this tab has just generated,
+        // which the hub may not list yet.
+        if (this.slots.get(key, length)?.source === 'hub') this.slots.drop(key, length);
+      }
+      this.reads.set(id, { state: 'ready', error: null, at: clock.now() });
+      this.deps.changed();
+    });
+  }
+
+  // ── the hub's status line (AI-061, UI-010) ───────────────────────────────
+
+  /**
+   * What the hub says about saved recaps of the open chat. Asked once the
+   * chat stayed open for a moment — fast chat switching asks nothing — and
+   * kept ten minutes. null — not known (yet).
+   */
+  status(owner: RecapOwner): RecapStatus | null {
+    const { clock } = this.deps.ports;
+    const id = idOf(owner.key);
+    const now = clock.now();
+    const known = this.statuses.get(id);
+    if (known !== undefined && (known.at === null || now - known.at < RECAP_STATUS.ttlMs)) return known.status;
+    this.statuses.set(id, { status: known?.status ?? null, at: null });
+    const timer = clock.setTimer(RECAP_STATUS.settleMs, () => {
+      this.timers.delete(timer);
+      if (this.deps.openChat() !== owner.chatKey) {
+        this.statuses.delete(id);
+        return;
+      }
+      void this.readStatus(owner.key);
+    });
+    this.timers.add(timer);
+    return known?.status ?? null;
+  }
+
+  /** Reads the status now (a Coach turn decides about its auto-recap); null — the read failed. */
+  async readStatus(key: RecapSlotKey): Promise<RecapStatus | null> {
+    const { clock, rpc } = this.deps.ports;
+    const id = idOf(key);
+    const answer = await rpc.request('recap.status', { pageId: key.pageId, fanRef: key.fanRef, personaDefinitionId: key.personaDefinitionId });
+    if (answer.ok) this.statuses.set(id, { status: answer.payload, at: clock.now() });
+    else this.statuses.delete(id);
+    this.deps.changed();
+    return answer.ok ? answer.payload : null;
+  }
+
+  /** UI-010: a recap of this chat can be opened at once. */
+  hasAny(owner: RecapOwner, askHub: boolean): boolean {
+    const { short, full } = this.slots.both(owner.key);
+    if (short !== null || full !== null) return true;
+    const status = askHub ? this.status(owner) : null;
+    return status !== null && (status.full !== null || status.short !== null);
+  }
+
+  // ── the dossier save (H-5) ───────────────────────────────────────────────
+
+  saveState(copy: RecapCopy): RecapSaveState {
+    if (copy.length !== 'full') return { s: 'not-applicable' };
+    const state = this.saves.get(copy.id);
+    if (copy.savedToProfile === true) return { s: 'saved', at: state?.s === 'saved' ? state.at : null };
+    // Nothing is known about the dossier of this copy (another tab generated it): the line is not shown.
+    return state ?? { s: 'not-applicable' };
+  }
+
+  private setSave(id: string, state: RecapSaveState): void {
+    this.saves.set(id, state);
+    const timer = this.saveTimers.get(id);
+    if (timer !== undefined) {
+      this.deps.ports.clock.clearTimer(timer);
+      this.saveTimers.delete(id);
+    }
+    this.deps.changed();
+  }
+
+  private markSaved(id: string, at: string | null): void {
+    this.setSave(id, { s: 'saved', at });
+    const key = this.owners.get(id);
+    if (key !== undefined) this.slots.markSaved(key, id, true);
+  }
+
+  /**
+   * One attempt of the idempotent link write (`recap.save`). `not-ready`
+   * schedules the next attempt — 5 s, 15 s, 60 s, then every 3 minutes, at
+   * most 30 minutes — for as long as the tab lives; a refusal or a
+   * transport failure ends in CG-RECAP-SAVE and is not repeated by itself.
+   */
+  async save(key: RecapSlotKey, copy: RecapCopy, restart = false): Promise<RecapSaveState> {
+    const { clock, rpc } = this.deps.ports;
+    const id = copy.id;
+    if (copy.length !== 'full') return { s: 'not-applicable' };
+    if (!UUID_PATTERN.test(id)) {
+      this.setSave(id, { s: 'failed', reason: 'rejected' });
+      return { s: 'failed', reason: 'rejected' };
+    }
+    const current = restart ? undefined : this.saves.get(id);
+    const state: RecapSaveState = current !== undefined && current.s === 'saving' ? { ...current, nextAt: null } : saveStarted(clock.now());
+    this.setSave(id, state);
+    const answer = await rpc.request('recap.save', { pageId: key.pageId, fanRef: key.fanRef, generationRef: id, ...(copy.opId === null ? {} : { opId: copy.opId }) });
+    const next = saveAnswered(state, answer.ok ? answer.payload.state : 'error', clock.now(), answer.ok ? answer.payload.savedAt : null);
+    if (next.s === 'saved') this.markSaved(id, next.at);
+    else this.setSave(id, next);
+    if (next.s === 'saving' && next.nextAt !== null) {
+      const timer = clock.setTimer(Math.max(0, next.nextAt - clock.now()), () => {
+        this.saveTimers.delete(id);
+        const latest = this.slots.get(key, 'full');
+        // A newer recap took the slot: its own save is the one that matters now.
+        if (latest !== null && latest.id === id) void this.save(key, latest);
+      });
+      this.saveTimers.set(id, timer);
+    }
+    return next;
+  }
+
+  /**
+   * The port to the background came back: its own save schedule may be gone
+   * with the event page. Every save still waiting for the background's word
+   * is asked again from here — the write is idempotent, so a second one
+   * changes nothing on the hub.
+   */
+  resume(): void {
+    for (const [id, state] of this.saves) {
+      if (state.s !== 'saving' || this.saveTimers.has(id)) continue;
+      const key = this.owners.get(id);
+      const copy = key === undefined ? null : this.slots.get(key, 'full');
+      if (key === undefined || copy === null || copy.id !== id) continue;
+      void this.save(key, copy, true);
+    }
+  }
+
+  /** The copy of a length, for callers that only have the slot key. */
+  get(key: RecapSlotKey, length: RecapLength): RecapCopy | null {
+    return this.slots.get(key, length);
+  }
+}
