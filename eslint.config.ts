@@ -89,6 +89,13 @@ const BACKGROUND_FILES = ['apps/extension/src/entrypoints/background.ts', 'apps/
 const MAIN_WORLD_ENTRIES = ['apps/extension/src/entrypoints/chatspace-main.content.ts', 'apps/extension/src/entrypoints/chatspace-ws.ts'];
 /** The tap is the one MAIN file that wraps the page's WebSocket constructor (§6.8). */
 const WS_TAP_FILE = 'packages/host-chatspace/src/main/ws-tap.ts';
+/**
+ * The receipt observer is the one MAIN file that touches the page's `fetch`
+ * property (§6.7.6): it puts an observer in its place for one synchronous
+ * queue call and passes every call through. The global `fetch` stays banned
+ * there too: it never makes a request of its own.
+ */
+const RECEIPT_FILE = 'packages/host-chatspace/src/main/receipt.ts';
 
 const APP_RESTRICTION: Restriction = {
   // `wxt` and `wxt/utils/*` stay allowed for the define helpers and types;
@@ -220,6 +227,12 @@ export default defineConfig(
         ...BANNED_GLOBAL_PROPERTIES.filter((rule) => rule.property !== 'WebSocket'),
         ...hostNetworkProperties(['WebSocket']),
       ],
+    },
+  },
+  {
+    files: [RECEIPT_FILE],
+    rules: {
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['fetch'])],
     },
   },
   {
