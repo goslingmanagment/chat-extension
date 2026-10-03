@@ -2,7 +2,8 @@
 // EX-012): the tokens, the base and every component's CSS, adopted in this
 // order into each of our roots. One CSSStyleSheet per source and document is
 // shared by all roots (`sharedSheet`), so a second, third, tenth root costs
-// no parse. Surfaces add their own sources after these.
+// no parse. Surfaces add their own sources after these. A mounted surface
+// retains its sources; they leave a root with the last surface using them.
 
 import { BASE_CSS } from './base';
 import { BOUNDARY_CSS } from './components/Boundary';
@@ -23,7 +24,7 @@ import { VALUES_CSS } from './components/Values';
 import { VIEW_STATE_CSS } from './components/ViewState';
 import { VIRTUAL_LIST_CSS } from './components/VirtualList';
 import { MARKDOWN_CSS } from './markdown/Markdown';
-import { adoptSheets, type StyleMode, type StyleSource } from './styles';
+import { adoptSheets, dropSheets, type StyleMode, type StyleSource } from './styles';
 import { THEME_CSS } from './tokens';
 
 /** The token values: light on `:host` / `:root`, dark under `data-cg-scheme="dark"`. */
@@ -59,4 +60,41 @@ export const KIT_STYLE_SOURCES: readonly StyleSource[] = [TOKENS_SOURCE, BASE_SO
 /** Adopts the kit's sheets and then `extra` (a surface's own CSS) into `root`. */
 export function adoptKitStyles(root: ShadowRoot | Document, extra: readonly StyleSource[] = []): StyleMode {
   return adoptSheets(root, [...KIT_STYLE_SOURCES, ...extra]);
+}
+
+/** Which surfaces of a root use which sources: a source leaves the root with its last user. */
+const users = new WeakMap<ShadowRoot | Document, Map<string, number>>();
+
+export interface RetainedStyles {
+  readonly mode: StyleMode;
+  /** Idempotent: takes out of the root the sources no other surface there still uses. */
+  readonly release: () => void;
+}
+
+/** adoptKitStyles for one surface, with its release (MountPort: Unmount releases everything the surface holds). */
+export function retainKitStyles(root: ShadowRoot | Document, extra: readonly StyleSource[] = []): RetainedStyles {
+  const ids = [...new Set([...KIT_STYLE_SOURCES, ...extra].map((source) => source.id))];
+  const mode = adoptKitStyles(root, extra);
+  let counts = users.get(root);
+  if (counts === undefined) {
+    counts = new Map();
+    users.set(root, counts);
+  }
+  const byId = counts;
+  for (const id of ids) byId.set(id, (byId.get(id) ?? 0) + 1);
+  let released = false;
+  return {
+    mode,
+    release: () => {
+      if (released) return;
+      released = true;
+      const unused = ids.filter((id) => {
+        const left = (byId.get(id) ?? 1) - 1;
+        if (left > 0) byId.set(id, left);
+        else byId.delete(id);
+        return left <= 0;
+      });
+      dropSheets(root, unused);
+    },
+  };
 }

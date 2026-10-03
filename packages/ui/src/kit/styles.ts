@@ -74,6 +74,33 @@ export function adoptSheets(root: StyleRoot, sources: readonly StyleSource[]): S
   }
 }
 
+/**
+ * Takes the shared sheets of `ids` (or their fallback <style> elements) out
+ * of `root`, leaving everything else it has; the sheets stay cached for the
+ * next root of the document.
+ */
+export function dropSheets(root: StyleRoot, ids: readonly string[]): void {
+  if (ids.length === 0) return;
+  const wanted = new Set(ids);
+  const cached = sheetsByDocument.get(documentOf(root));
+  const sheets = new Set<CSSStyleSheet>();
+  for (const id of wanted) {
+    const entry = cached?.get(id);
+    if (entry !== undefined) sheets.add(entry.sheet);
+  }
+  try {
+    const current = [...root.adoptedStyleSheets];
+    const kept = current.filter((sheet) => !sheets.has(sheet));
+    if (kept.length !== current.length) root.adoptedStyleSheets = kept;
+  } catch {
+    // Adoption is refused here (Firefox Xray): the sources are <style> elements, removed below.
+  }
+  const parent: ParentNode = 'head' in root ? (root.head ?? root.documentElement) : root;
+  for (const node of [...parent.querySelectorAll('style[data-cg-style]')]) {
+    if (wanted.has(node.getAttribute('data-cg-style') ?? '')) node.remove();
+  }
+}
+
 /** A short content hash (djb2): the same CSS text is the same shared sheet. */
 function hashOf(text: string): string {
   let hash = 5381;

@@ -3,7 +3,9 @@
 // it over; the kit adopts the shared sheets, mirrors the scheme on the host
 // element as `data-cg-scheme`, renders the surface into one `.cg-root`
 // element inside KitRoot, and gives back an Unmount that releases everything
-// it took: the Preact tree, the element, the subscriptions, the attributes.
+// it took: the Preact tree, the element, the subscriptions, the attributes
+// and the sheets. Several surfaces may share one root (the overlay host):
+// the sheets and the host's attributes go with the last of them.
 // Extension pages (popup, options, debug) mount the same way into a
 // container of their own document. Embedding into ChatSpace's DOM is the
 // host side's job, never the UI's.
@@ -14,10 +16,10 @@ import { SCHEME_ATTRIBUTE, type MountDeps, type MountPort, type MountSurfaceKind
 
 import { ROOT_CLASS } from './base';
 import { createKitEnv, type KitEnv, type KitFailure } from './context';
-import { DISMISSIBLE_OPEN_ATTRIBUTE } from './layers';
+import { holdAttribute } from './holds';
 import { KitRoot } from './root';
 import { bindScheme } from './scheme';
-import { adoptKitStyles } from './sheets';
+import { retainKitStyles } from './sheets';
 import { type StyleMode, type StyleSource } from './styles';
 
 /** A surface as the kit mounts it: its root component and its own CSS. */
@@ -51,7 +53,8 @@ function envOptions(options: KitMountOptions): { now?: () => number; report?: (f
 /** Mounts one surface into a closed shadow root the host side created. */
 export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: MountDeps, definition: SurfaceDefinition, options: KitMountOptions = {}): KitMount {
   const host = root.host as HTMLElement;
-  const styleMode = adoptKitStyles(root, definition.styles ?? []);
+  const styles = retainKitStyles(root, definition.styles ?? []);
+  const releaseScheme = holdAttribute(host, SCHEME_ATTRIBUTE, deps.scheme.value);
   const offScheme = bindScheme(host, deps.scheme);
   const container = root.ownerDocument.createElement('div');
   container.className = ROOT_CLASS;
@@ -73,9 +76,10 @@ export function mountKitSurface(kind: MountSurfaceKind, root: ShadowRoot, deps: 
     container.remove();
     env.dispose();
     offScheme();
-    host.removeAttribute(DISMISSIBLE_OPEN_ATTRIBUTE);
+    releaseScheme();
+    styles.release();
   };
-  return { styleMode, env, container, unmount };
+  return { styleMode: styles.mode, env, container, unmount };
 }
 
 /** The UI's MountPort over surface definitions: `mountSurface(kind, root, deps) => Unmount`. */
@@ -101,7 +105,8 @@ export function mountKitPage(
   options: KitMountOptions & { readonly surface?: MountSurfaceKind | null } = {},
 ): KitMount {
   const document = container.ownerDocument;
-  const styleMode = adoptKitStyles(document, definition.styles ?? []);
+  const styles = retainKitStyles(document, definition.styles ?? []);
+  const releaseScheme = holdAttribute(document.documentElement, SCHEME_ATTRIBUTE, deps.scheme.value);
   const offScheme = bindScheme(document.documentElement, deps.scheme);
   container.classList.add(ROOT_CLASS, 'cg-root--page');
   const env = createKitEnv({ deps, root: document, host: null, surface: options.surface ?? null, ...envOptions(options) });
@@ -120,9 +125,10 @@ export function mountKitPage(
     container.classList.remove(ROOT_CLASS, 'cg-root--page');
     env.dispose();
     offScheme();
-    document.documentElement.removeAttribute(SCHEME_ATTRIBUTE);
+    releaseScheme();
+    styles.release();
   };
-  return { styleMode, env, container, unmount };
+  return { styleMode: styles.mode, env, container, unmount };
 }
 
 /**

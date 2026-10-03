@@ -1,4 +1,5 @@
 import { act } from 'preact/test-utils';
+import { useState } from 'preact/hooks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SCHEME_ATTRIBUTE, type ToastsVM } from '@cg/contracts';
@@ -26,6 +27,7 @@ import {
   useValueSignal,
   useView,
   Age,
+  attributeHolds,
 } from '@cg/ui/kit';
 
 import { entry, toast, toasts, views, cgError, type AppClientScenario } from '../scenarios/app-client';
@@ -61,6 +63,31 @@ describe('[EX-012] the kit mounts a surface into the closed shadow root the host
     kit.mount.unmount();
     kit.mount.unmount();
     expect(kit.root.querySelector(`.${ROOT_CLASS}`)).toBeNull();
+  });
+
+  it('surfaces sharing one root (the overlay host): the sheets and data-cg-scheme go with the last of them', () => {
+    const world = kitWorld();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = host.attachShadow({ mode: 'closed' });
+    const own = new CSSStyleSheet();
+    root.adoptedStyleSheets = [own];
+    const panelCss = { id: 'kit-test-panel', css: '.cg-panel { color: red; }' };
+    const port = createMountPort({ palette: { view: () => <p>palette</p> }, 'fan-panel': { view: () => <p>fan</p>, styles: [panelCss] } });
+    const closePalette = port.mountSurface('palette', root, world.deps);
+    const closePanel = port.mountSurface('fan-panel', root, world.deps);
+    expect(root.adoptedStyleSheets).toHaveLength(1 + KIT_STYLE_SOURCES.length + 1);
+    expect(attributeHolds(host, SCHEME_ATTRIBUTE)).toBe(2);
+    closePanel();
+    closePanel();
+    // The palette still draws: the kit's sheets and the scheme stay; the panel's own sheet goes.
+    expect(root.adoptedStyleSheets).toHaveLength(1 + KIT_STYLE_SOURCES.length);
+    expect(host.getAttribute(SCHEME_ATTRIBUTE)).toBe('light');
+    closePalette();
+    // Only what the host side put there is left.
+    expect(root.adoptedStyleSheets).toEqual([own]);
+    expect(host.hasAttribute(SCHEME_ATTRIBUTE)).toBe(false);
+    expect(attributeHolds(host, SCHEME_ATTRIBUTE)).toBe(0);
   });
 
   it('createMountPort is the UI’s MountPort: one definition per surface, an unknown one is an error', () => {
@@ -125,7 +152,7 @@ describe('[I18-005] [I18-006] the scheme reaches every surface through data-cg-s
     page.unmount();
     expect(container.classList.contains('cg-root--page')).toBe(false);
     expect(document.documentElement.hasAttribute(SCHEME_ATTRIBUTE)).toBe(false);
-    document.adoptedStyleSheets = [];
+    expect(document.adoptedStyleSheets).toHaveLength(0);
   });
 });
 
@@ -240,6 +267,55 @@ describe('[CS-005] our windows are overlays outside #app, stacked as ui-design �
     expect(kit.root.activeElement).toBe(kit.$('.cg-in'));
     dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('a nested confirmation closing keeps the window’s data-dismissible-open; the last one to close drops it', async () => {
+    let setInner: (open: boolean) => void = () => undefined;
+    let setOuter: (open: boolean) => void = () => undefined;
+    function Coach() {
+      const [outer, setO] = useState(true);
+      const [inner, setI] = useState(true);
+      setInner = setI;
+      setOuter = setO;
+      return (
+        <OverlayLayer>
+          <Dialog open={outer} label="Coach" size="window" onClose={() => setO(false)}>
+            <button class="cg-in">in</button>
+            <Dialog open={inner} label="Новый диалог" onClose={() => setI(false)}>
+              <button class="cg-ok">ok</button>
+            </Dialog>
+          </Dialog>
+        </OverlayLayer>
+      );
+    }
+    const kit = track(await mountKitSettled(Coach, { kind: 'coach' }));
+    expect(attributeHolds(kit.host, DISMISSIBLE_OPEN_ATTRIBUTE)).toBe(2);
+    await flush(() => setInner(false));
+    expect(kit.host.hasAttribute(DISMISSIBLE_OPEN_ATTRIBUTE)).toBe(true);
+    await flush(() => setOuter(false));
+    expect(kit.host.hasAttribute(DISMISSIBLE_OPEN_ATTRIBUTE)).toBe(false);
+  });
+
+  it('a window open in one surface keeps the mark when another surface of the same host unmounts', async () => {
+    const world = kitWorld();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = host.attachShadow({ mode: 'closed' });
+    const port = createMountPort({
+      spenders: { view: () => <Dialog open label="Spenders" size="window" onClose={() => undefined}><button>x</button></Dialog> },
+      palette: { view: () => <Dialog open label="Палитра" onClose={() => undefined}><input /></Dialog> },
+    });
+    let closeSpenders: () => void = () => undefined;
+    let closePalette: () => void = () => undefined;
+    await flush(() => {
+      closeSpenders = port.mountSurface('spenders', root, world.deps);
+      closePalette = port.mountSurface('palette', root, world.deps);
+    });
+    expect(attributeHolds(host, DISMISSIBLE_OPEN_ATTRIBUTE)).toBe(2);
+    await flush(() => closePalette());
+    expect(host.hasAttribute(DISMISSIBLE_OPEN_ATTRIBUTE)).toBe(true);
+    await flush(() => closeSpenders());
+    expect(host.hasAttribute(DISMISSIBLE_OPEN_ATTRIBUTE)).toBe(false);
   });
 
   it('a side panel stands at the right edge of the container and closes on Esc with focus going back', async () => {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { KIT_STYLE_SOURCES, adoptKitStyles } from './sheets';
+import { KIT_STYLE_SOURCES, adoptKitStyles, retainKitStyles } from './sheets';
 import { adoptSheets, adoptStyles, sharedSheet } from './styles';
 
 function shadowHost(): { host: HTMLElement; root: ShadowRoot } {
@@ -62,6 +62,33 @@ describe('[EX-012] styles and roots: constructable sheets shared by every shadow
     const styles = root.querySelectorAll('style[data-cg-style]');
     expect(styles).toHaveLength(KIT_STYLE_SOURCES.length);
     expect(document.head.querySelectorAll('style')).toHaveLength(0);
+  });
+
+  it('a retained surface lets go of what no other surface of its root uses, in either mode', () => {
+    const { root } = shadowHost();
+    const a = retainKitStyles(root, [{ id: 'only-a', css: '.cg-a { color: red; }' }]);
+    const b = retainKitStyles(root);
+    expect(root.adoptedStyleSheets).toHaveLength(KIT_STYLE_SOURCES.length + 1);
+    a.release();
+    a.release();
+    expect(root.adoptedStyleSheets).toHaveLength(KIT_STYLE_SOURCES.length);
+    b.release();
+    expect(root.adoptedStyleSheets).toHaveLength(0);
+
+    const refused = shadowHost().root;
+    Object.defineProperty(refused, 'adoptedStyleSheets', {
+      get: () => {
+        throw new TypeError('Xray: not allowed');
+      },
+      set: () => {
+        throw new TypeError('Xray: not allowed');
+      },
+    });
+    const c = retainKitStyles(refused);
+    expect(c.mode).toBe('style-element');
+    expect(refused.querySelectorAll('style[data-cg-style]')).toHaveLength(KIT_STYLE_SOURCES.length);
+    c.release();
+    expect(refused.querySelectorAll('style[data-cg-style]')).toHaveLength(0);
   });
 
   it('extension pages adopt into their own document', () => {

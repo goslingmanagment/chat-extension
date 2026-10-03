@@ -6,7 +6,7 @@
 
 import { signal, type ReadonlySignal, type Signal } from '@preact/signals';
 import { createContext, type ComponentChildren } from 'preact';
-import { useCallback, useContext, useEffect, useMemo } from 'preact/hooks';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo } from 'preact/hooks';
 
 import { type CgCode, type I18nKey } from '@cg/contracts/errors';
 import { type Locale } from '@cg/contracts/i18n/keys';
@@ -23,6 +23,8 @@ import {
   type ViewSelector,
 } from '@cg/contracts/vm';
 
+import { holdAttribute } from './holds';
+import { DISMISSIBLE_OPEN_ATTRIBUTE } from './layers';
 import { useViewFrom } from './signals';
 import { TooltipManager } from './tooltip-manager';
 
@@ -56,6 +58,13 @@ export interface KitEnv {
   readonly reducedMotion: ReadonlySignal<boolean>;
   readonly announcement: ReadonlySignal<{ readonly seq: number; readonly text: string }>;
   announce(text: string): void;
+  /**
+   * One holder of `data-dismissible-open` on our host while a window is open
+   * (§6.3); the attribute goes when the last holder on that host lets go —
+   * a nested confirmation closing leaves its window's mark. Idempotent release.
+   */
+  holdDismissible(): () => void;
+  /** Ends the subscriptions and lets go of every hold this surface still has. */
   dispose(): void;
 }
 
@@ -106,6 +115,7 @@ export function createKitEnv(options: KitEnvOptions): KitEnv {
     reducedMotion.value = motion?.matches ?? false;
   };
   motion?.addEventListener('change', onMotion);
+  const holds = new Set<() => void>();
   return {
     deps,
     root: options.root,
@@ -123,10 +133,20 @@ export function createKitEnv(options: KitEnvOptions): KitEnv {
       if (text === '') return;
       announcement.value = { seq: announcement.value.seq + 1, text };
     },
+    holdDismissible() {
+      if (options.host === null) return () => undefined;
+      const release = holdAttribute(options.host, DISMISSIBLE_OPEN_ATTRIBUTE);
+      const once = (): void => {
+        if (holds.delete(once)) release();
+      };
+      holds.add(once);
+      return once;
+    },
     dispose() {
       for (const off of offs) off();
       motion?.removeEventListener('change', onMotion);
       tooltips.dispose();
+      for (const release of [...holds]) release();
     },
   };
 }
@@ -219,14 +239,15 @@ export function useNowFn(): () => number {
   return useKit().now;
 }
 
-/** While `open`, our host carries `data-dismissible-open` (§6.3: ChatSpace's Esc leaves its tab alone). */
+/**
+ * While `open`, our host carries `data-dismissible-open` (§6.3: ChatSpace's
+ * Esc leaves its tab alone). Counted per host: an inner dialog closing keeps
+ * the mark of the window still open under it. Set before paint, dropped at
+ * once on close.
+ */
 export function useDismissibleOpen(open: boolean): void {
-  const { host } = useKit();
-  useEffect(() => {
-    if (!open || host === null) return undefined;
-    host.setAttribute('data-dismissible-open', '');
-    return () => host.removeAttribute('data-dismissible-open');
-  }, [open, host]);
+  const env = useKit();
+  useLayoutEffect(() => (open ? env.holdDismissible() : undefined), [open, env]);
 }
 
 /** A stable environment for a component tree; disposed with it. */

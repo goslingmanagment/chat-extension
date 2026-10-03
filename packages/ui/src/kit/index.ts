@@ -21,7 +21,8 @@ export {
 } from './tokens';
 export { adoptSheets, adoptStyles, sharedSheet, type StyleMode, type StyleSource } from './styles';
 export { BASE_CSS, KIT_CONTAINER, ROOT_CLASS } from './base';
-export { BASE_SOURCE, COMPONENTS_SOURCE, KIT_STYLE_SOURCES, TOKENS_SOURCE, adoptKitStyles } from './sheets';
+export { BASE_SOURCE, COMPONENTS_SOURCE, KIT_STYLE_SOURCES, TOKENS_SOURCE, adoptKitStyles, retainKitStyles, type RetainedStyles } from './sheets';
+export { attributeHolds, holdAttribute } from './holds';
 export {
   SettableSignal,
   bindScheme,
