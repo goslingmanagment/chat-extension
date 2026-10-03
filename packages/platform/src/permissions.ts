@@ -33,8 +33,10 @@ export interface HostPermissionsPort {
 }
 
 export interface ConsentPort {
-  /** Whether `technicalAndInteraction` is granted now (permissions.getAll().data_collection). */
+  /** Whether `technicalAndInteraction` is granted now (permissions.getAll().data_collection); fails closed. */
   granted(): Promise<boolean>;
+  /** The same check without folding a failure into "no": null — the browser could not tell (not a revoke). */
+  check(): Promise<boolean | null>;
   /** On a user gesture only. */
   request(): Promise<boolean>;
   revoke(): Promise<boolean>;
@@ -86,8 +88,16 @@ export function createHostPermissions(api: BrowserApi = defaultBrowser()): HostP
 }
 
 export function createConsent(api: BrowserApi = defaultBrowser()): ConsentPort {
+  const check = async (): Promise<boolean | null> => {
+    try {
+      return (await api.permissions.getAll()).data_collection?.includes(TECHNICAL_CONSENT) === true;
+    } catch {
+      return null;
+    }
+  };
   return {
-    granted: () => quietly(async () => (await api.permissions.getAll()).data_collection?.includes(TECHNICAL_CONSENT) === true),
+    granted: async () => (await check()) === true,
+    check,
     request: () => quietly(() => api.permissions.request({ data_collection: [TECHNICAL_CONSENT] })),
     revoke: () => quietly(() => api.permissions.remove({ data_collection: [TECHNICAL_CONSENT] })),
     onChange(listener) {

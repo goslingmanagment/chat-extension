@@ -81,4 +81,4 @@ export {
   type TabPresence,
   type TabPresenceReport,
 } from './presence';
-export { createConsentState, type ConsentDeps, type ConsentState } from './consent';
+export { createConsentState, type ConsentDeps, type ConsentState, type ConsentStatus } from './consent';

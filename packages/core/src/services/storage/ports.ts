@@ -57,7 +57,8 @@ export const NO_LOG: ServiceLog = () => undefined;
 
 /** Firefox's technicalAndInteraction consent (platform `ConsentPort`). */
 export interface ConsentPortLike {
-  granted(): Promise<boolean>;
+  /** null — the browser could not tell (a failed check, never a revoke). */
+  check(): Promise<boolean | null>;
   onChange(listener: (granted: boolean) => void): () => void;
 }
 

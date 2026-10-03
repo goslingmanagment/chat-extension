@@ -65,6 +65,10 @@ describe('permissions (§3, §9.6)', () => {
     off();
     vi.spyOn(background.permissions, 'getAll').mockRejectedValueOnce(new Error('broken'));
     expect(await consent.granted()).toBe(false);
+    // check() tells a failure (null) from a "no" (false): a failed check is not a revoke.
+    expect(await consent.check()).toBe(false);
+    vi.spyOn(background.permissions, 'getAll').mockRejectedValueOnce(new Error('broken'));
+    expect(await consent.check()).toBeNull();
   });
 });
 

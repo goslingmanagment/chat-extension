@@ -23,7 +23,7 @@ function consentPort(initial: boolean) {
   let granted = initial;
   return {
     port: {
-      granted: () => Promise.resolve(granted),
+      check: (): Promise<boolean | null> => Promise.resolve(granted),
       onChange(listener: (value: boolean) => void) {
         listeners.add(listener);
         return () => listeners.delete(listener);
