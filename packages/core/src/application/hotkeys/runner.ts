@@ -279,6 +279,11 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
         toasts.show({ kind: 'info', code: UNAVAILABLE_REASONS['help-removed'].code, scope: 'hotkey.help', title: { key: 'dock.helpRemoved' }, body: null });
         return;
       }
+      if (refusal === 'in-field') {
+        // «{action} недоступен: курсор в поле, где это сочетание не работает» — the same sentence as every other reason.
+        toasts.show({ kind: 'warning', code: null, scope: `hotkey.${command}`, title: { key: 'dock.action.unavailable', params: { action: labelOf(command), reason: i18n.t('dock.reason.keyInField') } }, body: null });
+        return;
+      }
       unavailable(command, reasonOf('overlay-open'));
     },
     quickJump(open: boolean) {

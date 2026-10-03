@@ -61,8 +61,10 @@ export type OverlayKind = OverlaySurface | 'dialog' | 'result-expanded';
 
 /** Why a claimed key runs nothing. */
 export type KeyRefusal =
-  /** HK-027: «сначала закройте открытое окно». */
+  /** HK-027: «сначала закройте открытое окно» — a window of ours, or a modal window of ChatSpace itself. */
   | 'overlay-open'
+  /** HK-026: the cursor is in a field where the combination does not work (⌘U and ⌘1–9 while typing, an AI key in a field that is not the message field). */
+  | 'in-field'
   /** ⌘⇧H: Help is removed (Б3). */
   | 'help-removed';
 
@@ -128,6 +130,16 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
 
   if (verdict.kind === 'swallow') return ourContext ? claim(null) : PASS;
 
+  // ── a native modal window: its Esc and its letters are not touched, and nothing of ours runs over it ──
+  if (context.nativeModal) {
+    if (verdict.command === 'close' || verdict.plain) return PASS;
+    const without = decideKey(verdict, { ...context, nativeModal: false });
+    // A combination that is ours without their window stays ours — the browser prints nothing and opens no
+    // page source over it — and says why it runs nothing (HK-026); the scheme's keys and the rows outside it alike.
+    if (without.act !== 'claim' || without.run === null) return without;
+    return claim(without.command, null, 'overlay-open');
+  }
+
   const id = verdict.command;
   const command = (target: KeyCommand['target']): KeyCommand => ({ id, slot: verdict.slot, target });
   /** Auto-repeat keeps the key ours and runs nothing again (HK-019). */
@@ -136,7 +148,6 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
 
   // ── Esc: the top of ours first (HK-029) ──
   if (id === 'close') {
-    if (context.nativeModal) return PASS;
     const ours = context.overlays.length > 0 || context.dockSheet;
     // Focus inside our UI: its own Esc first (a menu, a confirmation, a search); only then the window.
     if (inOurs(context.focus)) return { act: 'isolate', otherwise: ours && !verdict.repeat ? command('global') : null };
@@ -145,7 +156,7 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
 
   // ── keys without ⌘/Ctrl/Alt: J, K, `]`, `?` ──
   if (verdict.plain) {
-    if (context.nativeModal || typing(context.focus)) return PASS;
+    if (typing(context.focus)) return PASS;
     if (id === 'cheatsheet') return run('global');
     // Under a window of ours these letters belong to that window's own lists.
     if (windowOpen) return decideUnmatched(context);
@@ -153,12 +164,15 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
     return context.route === 'other' ? PASS : run('global');
   }
 
-  // ── a native modal window: our combinations stay ours in a chat, but run nothing ──
-  if (context.nativeModal) return inChat && verdict.scheme ? refuse('overlay-open') : PASS;
-
-  // ── chat navigation on ⌘/Ctrl/Alt: outside the composer and any field only (the table's «вне composer») ──
+  // ── chat navigation on ⌘/Ctrl/Alt: it runs outside the composer and any field only (the table's «вне composer») ──
   if (LIST_COMMANDS.includes(id)) {
-    if (typing(context.focus) || context.route === 'other') return decideUnmatched(context);
+    if (context.route === 'other') return decideUnmatched(context);
+    if (typing(context.focus)) {
+      // Outside a chat only the global keys are ours. The Alt fallbacks type characters in a field (⌥U is a dead key on macOS): never ours there.
+      if (!inChat || verdict.fallback) return decideUnmatched(context);
+      // HK-026: in a chat ⌘U and ⌘1–9 stay ours while a person types — Firefox opens no page source and switches no tab — and say why they do nothing.
+      return refuse(windowOpen ? 'overlay-open' : 'in-field');
+    }
     return windowOpen ? refuse('overlay-open') : run('global');
   }
 
@@ -178,7 +192,7 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   if (cover === 'preview') return PREVIEW_COMMANDS.includes(id) ? run('preview') : refuse('overlay-open');
   if (covered) return refuse('overlay-open');
   if (!inChat) return PASS;
-  // AI keys work in ChatSpace's own message field and in our UI, not in an arbitrary field of the site.
-  if (context.focus === 'field') return claim(id);
+  // AI keys work in ChatSpace's own message field and in our UI, not in an arbitrary field of the site: taken there, with the reason (HK-026).
+  if (context.focus === 'field') return refuse('in-field');
   return run('dock');
 }

@@ -390,11 +390,18 @@ describe('whose key is it', () => {
       expect(ran(decideKey(cmd(id), ctx({ focus: 'page' })))).not.toBeNull();
       expect(ran(decideKey(cmd(id), ctx({ focus: 'ours' })))).not.toBeNull();
     }
-    // An arbitrary field of the site is not ChatSpace's composer: the AI key is ours there, and runs nothing.
-    expect(decideKey(cmd('reply'), ctx({ focus: 'field' }))).toEqual({ act: 'claim', run: null, refusal: null, command: 'reply' });
   });
 
-  it('[HK-037] chat navigation needs the chat list on screen and no field under the cursor; the browser keeps ⌘U and ⌘1–9 while a person types', () => {
+  it('[HK-026] an AI key in a field of the site that is not the message field is taken and says why it runs nothing', () => {
+    for (const id of AI) expect(decideKey(cmd(id), ctx({ focus: 'field' }))).toEqual({ act: 'claim', run: null, refusal: 'in-field', command: id });
+    // Held down: still ours, the reason is not said again.
+    expect(decideKey(cmd('reply', { repeat: true }), ctx({ focus: 'field' }))).toEqual({ act: 'claim', run: null, refusal: null, command: 'reply' });
+    // Help says its own reason there too; outside a chat the field's keys are the browser's.
+    expect(decideKey(cmd('help'), ctx({ focus: 'field' }))).toMatchObject({ refusal: 'help-removed' });
+    expect(decideKey(cmd('reply'), ctx({ focus: 'field', route: 'account' }))).toEqual({ act: 'pass' });
+  });
+
+  it('[HK-037] chat navigation needs the chat list on screen and runs only with no field under the cursor', () => {
     for (const id of ['chat-next', 'chat-previous'] as const) {
       expect(ran(decideKey(cmd(id), ctx({ route: 'account' })))).toBe(`${id}@global`);
       expect(decideKey(cmd(id), ctx({ route: 'other' }))).toEqual({ act: 'pass' });
@@ -403,13 +410,28 @@ describe('whose key is it', () => {
       expect(ran(decideKey(verdict, ctx()))).not.toBeNull();
       expect(ran(decideKey(verdict, ctx({ route: 'account' })))).not.toBeNull();
       expect(decideKey(verdict, ctx({ route: 'other' }))).toEqual({ act: 'pass' });
-      // «вне composer»: in the message field and in any field of the site the key is not ours at all.
-      expect(decideKey(verdict, ctx({ focus: 'composer' }))).toEqual({ act: 'pass' });
-      expect(decideKey(verdict, ctx({ focus: 'field' }))).toEqual({ act: 'pass' });
-      // In a field of our own it is kept from ChatSpace and left to that field.
-      expect(decideKey(verdict, ctx({ focus: 'ours-field' }))).toEqual({ act: 'isolate', otherwise: null });
+      // «вне composer»: with the cursor in any field it never runs.
+      for (const focus of ['composer', 'field', 'ours-field'] as const) for (const route of ['chat', 'account', 'other'] as const) expect(ran(decideKey(verdict, ctx({ focus, route })))).toBeNull();
     }
     expect(decideKey(cmd('quick-jump', { slot: 7 }), ctx())).toMatchObject({ run: { id: 'quick-jump', slot: 7, target: 'global' } });
+  });
+
+  it('[HK-026] in a chat ⌘U and ⌘1–9 pressed while a person types stay ours — Firefox opens no page source and switches no tab — and say why; the Alt fallbacks stay typing', () => {
+    for (const [id, slot] of [['next-unread', null], ['quick-jump', 4]] as const) {
+      for (const focus of ['composer', 'field', 'ours-field'] as const) {
+        expect(decideKey(cmd(id, { slot }), ctx({ focus }))).toEqual({ act: 'claim', run: null, refusal: 'in-field', command: id });
+        expect(decideKey(cmd(id, { slot, repeat: true }), ctx({ focus }))).toEqual({ act: 'claim', run: null, refusal: null, command: id });
+      }
+      // In the search field of a window of ours the reason is the window.
+      expect(decideKey(cmd(id, { slot }), ctx({ focus: 'ours-field', overlays: ['palette'] }))).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
+      // ⌥U is a dead key and ⌥1 a character on macOS: in a field the fallback is not ours at all.
+      expect(decideKey(cmd(id, { slot, fallback: true }), ctx({ focus: 'composer' }))).toEqual({ act: 'pass' });
+      expect(decideKey(cmd(id, { slot, fallback: true }), ctx({ focus: 'field' }))).toEqual({ act: 'pass' });
+      expect(decideKey(cmd(id, { slot, fallback: true }), ctx({ focus: 'ours-field' }))).toEqual({ act: 'isolate', otherwise: null });
+      // Outside a chat only the global keys are ours: in a field of an account's list the browser keeps these.
+      expect(decideKey(cmd(id, { slot }), ctx({ focus: 'field', route: 'account' }))).toEqual({ act: 'pass' });
+      expect(decideKey(cmd(id, { slot }), ctx({ focus: 'ours-field', route: 'account' }))).toEqual({ act: 'isolate', otherwise: null });
+    }
   });
 
   it('[HK-039] ] toggles the fan panel only in an open chat', () => {
@@ -432,11 +454,29 @@ describe('whose key is it', () => {
   it('[HK-029] a native modal window and IME come first: their Esc and their letters are not touched', () => {
     const modal = ctx({ nativeModal: true, overlays: ['spenders'] });
     expect(decideKey(cmd('close'), modal)).toEqual({ act: 'pass' });
-    for (const id of ['chat-next', 'chat-previous', 'fan-panel', 'cheatsheet', 'next-unread', 'palette'] as const) expect(decideKey(cmd(id), ctx({ nativeModal: true }))).toEqual({ act: 'pass' });
-    // Our own combinations stay ours in a chat (no print dialog over their modal) and run nothing.
-    expect(decideKey(cmd('ping'), ctx({ nativeModal: true }))).toEqual({ act: 'claim', run: null, refusal: 'overlay-open', command: 'ping' });
+    for (const route of ['chat', 'account', 'other'] as const) for (const id of ['chat-next', 'chat-previous', 'fan-panel', 'cheatsheet', 'close'] as const) expect(decideKey(cmd(id), ctx({ nativeModal: true, route }))).toEqual({ act: 'pass' });
     for (const id of DISPATCHER_COMMAND_IDS) expect(decideKey(cmd(id), ctx({ composing: true }))).toEqual({ act: 'pass' });
     expect(decideUnmatched({ composing: true, focus: 'ours', combo: true })).toEqual({ act: 'pass' });
+  });
+
+  it('[HK-026] under a native modal window nothing of ours runs, and every combination that is ours without it stays ours with the reason — the scheme\'s keys and the rows outside it alike', () => {
+    const modal = (patch: Partial<KeyContext> = {}): KeyContext => ctx({ nativeModal: true, ...patch });
+    // No command at all runs under their window, wherever the focus is.
+    for (const route of ['chat', 'account', 'other'] as const) for (const focus of FOCUSES) for (const id of DISPATCHER_COMMAND_IDS) expect(ran(decideKey(cmd(id), modal({ route, focus })))).toBeNull();
+    // In a chat: ⌘E prints nothing, ⌘K does not go to Firefox's search bar, ⌘U opens no page source, ⌘3 switches no tab.
+    for (const id of [...AI, 'cancel', 'spenders', 'palette', 'settings', 'next-unread', 'quick-jump'] as const) {
+      expect(decideKey(cmd(id), modal())).toEqual({ act: 'claim', run: null, refusal: 'overlay-open', command: id });
+      expect(decideKey(cmd(id, { repeat: true }), modal())).toEqual({ act: 'claim', run: null, refusal: null, command: id });
+    }
+    expect(decideKey(cmd('help'), modal())).toMatchObject({ act: 'claim', refusal: 'help-removed' });
+    // Outside a chat only what is ours there: the global windows, and navigation where there is a chat list.
+    for (const id of ['spenders', 'palette', 'settings'] as const) expect(decideKey(cmd(id), modal({ route: 'other' }))).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
+    expect(decideKey(cmd('next-unread'), modal({ route: 'account' }))).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
+    for (const id of [...AI, 'next-unread', 'quick-jump'] as const) expect(decideKey(cmd(id), modal({ route: 'other' }))).toEqual({ act: 'pass' });
+    // A fallback typed into a field of their window is a character.
+    expect(decideKey(cmd('next-unread', { fallback: true }), modal({ focus: 'field' }))).toEqual({ act: 'pass' });
+    // A retired habit is swallowed in a chat as without the window.
+    expect(decideKey({ kind: 'swallow', reason: 'legacy' }, modal())).toEqual({ act: 'claim', run: null, refusal: null, command: null });
   });
 
   it('[HK-042] in a preview ⌘E/I/G/P generate there, ⌘. cancels there, the rest is refused; nothing sends', () => {

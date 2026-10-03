@@ -128,8 +128,7 @@ describe('the early dispatcher', () => {
       tap(r, 'KeyK'),
       tap(r, 'BracketRight', { key: ']' }),
       tap(r, 'Slash', { shiftKey: true, key: '?' }),
-      chord(r, 'KeyU'),
-      chord(r, 'Digit3'),
+      // ⌥U is a dead key and ⌥3 a character on macOS: in a field the fallbacks are typing.
       tap(r, 'KeyU', { altKey: true }),
       tap(r, 'Digit3', { altKey: true }),
     ];
@@ -144,6 +143,37 @@ describe('the early dispatcher', () => {
     const outside = chord(r, 'KeyP');
     expect([outside.defaultPrevented, outside.stopped]).toEqual([false, false]);
     expect(r.sink.ran).toEqual([]);
+  });
+
+  it.each(['mac', 'win'] as const)('[HK-026] %s: in a chat ⌘U / Ctrl+U and ⌘1–9 / Ctrl+1–9 pressed while typing never reach the browser — no page source, no tab switch — and say why', (platform) => {
+    const r = rig(platform);
+    for (const focus of ['composer', 'field', 'ours-field'] as const) {
+      r.own.kind = focus;
+      for (const event of [chord(r, 'KeyU'), chord(r, 'Digit3')]) {
+        expect([focus, event.code, event.defaultPrevented, event.stopped]).toEqual([focus, event.code, true, true]);
+        expect(r.native).not.toContain(event);
+      }
+    }
+    expect(r.sink.ran).toEqual([]);
+    expect(r.sink.refused).toEqual(['composer', 'field', 'ours-field'].flatMap(() => [{ command: 'next-unread', refusal: 'in-field' }, { command: 'quick-jump', refusal: 'in-field' }]));
+    // An AI key in a field that is not the message field: ours, with the same reason.
+    r.own.kind = 'field';
+    const reply = chord(r, 'KeyE');
+    expect([reply.defaultPrevented, reply.stopped]).toEqual([true, true]);
+    expect(r.sink.refused[r.sink.refused.length - 1]).toEqual({ command: 'reply', refusal: 'in-field' });
+    // Outside a chat the browser keeps them.
+    r.page.route = 'account';
+    const outside = chord(r, 'KeyU');
+    expect([outside.defaultPrevented, outside.stopped]).toEqual([false, false]);
+  });
+
+  it('[HK-026] under a modal window of ChatSpace itself our combinations stay ours and run nothing — ⌘⇧M and ⌘K alike; its Esc and its letters are not touched', () => {
+    const r = rig('mac');
+    r.own.modal = true;
+    for (const event of [chord(r, 'KeyE'), chord(r, 'KeyM', { shiftKey: true }), chord(r, 'KeyK'), chord(r, 'Comma'), chord(r, 'KeyU')]) expect([event.code, event.defaultPrevented, event.stopped]).toEqual([event.code, true, true]);
+    expect(r.sink.ran).toEqual([]);
+    expect(r.sink.refused.map((item) => `${item.command}:${item.refusal}`)).toEqual(['reply:overlay-open', 'spenders:overlay-open', 'palette:overlay-open', 'settings:overlay-open', 'next-unread:overlay-open']);
+    for (const event of [tap(r, 'Escape'), tap(r, 'KeyJ'), tap(r, 'Slash', { shiftKey: true, key: '?' })]) expect([event.code, event.defaultPrevented, event.stopped]).toEqual([event.code, false, false]);
   });
 
   it('[HK-023] one engine per tab: every trusted keydown and keyup goes through the single resolver, the lazy part gets commands, never keys', () => {
@@ -590,12 +620,20 @@ describe('the hotkey runner', () => {
     expect(busy.toasts.shown[0]?.toast.code).toBe('CG-OP-CHAT-BUSY');
   });
 
-  it('[HK-027] a refused key says «сначала закройте открытое окно»; ⌘⇧H says «пока убран»', () => {
+  it('[HK-027] a refused key says «сначала закройте открытое окно»; ⌘⇧H says «пока убран»; [HK-026] a key in a field where it does not work says so', () => {
     const r = runnerRig();
     r.runner.refuse('reply', 'overlay-open');
     r.runner.refuse('help', 'help-removed');
+    r.runner.refuse('next-unread', 'in-field');
+    r.runner.refuse('reply', 'in-field');
     expect(r.toasts.shown[0]?.toast).toMatchObject({ kind: 'warning', code: 'CG-GATE-OVERLAY', scope: 'hotkey.reply' });
-    expect(toastTitles(r.toasts, r.i18n)).toEqual(['Reply недоступен: сначала закройте открытое окно', 'Help пока убран']);
+    expect(r.toasts.shown[2]?.toast).toMatchObject({ kind: 'warning', code: null, scope: 'hotkey.next-unread', body: null });
+    expect(toastTitles(r.toasts, r.i18n)).toEqual([
+      'Reply недоступен: сначала закройте открытое окно',
+      'Help пока убран',
+      'Следующий непрочитанный чат недоступен: курсор в поле, где это сочетание не работает',
+      'Reply недоступен: курсор в поле, где это сочетание не работает',
+    ]);
     expect(r.client.dispatched).toEqual([]);
   });
 
