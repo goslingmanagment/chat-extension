@@ -306,6 +306,10 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       expect(await harness<Receipt>('insert', { text: 'AI text' })).toEqual({ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' });
       expect(await harness<Receipt>('insert', { text: 'appended', mode: 'append', confirm: true })).toMatchObject({ state: 'applied' });
       expect(await composerText(a4)).toBe('my words\nappended');
+      // The person's words are still in the draft: a plain «Вставить» asks again instead of wiping them.
+      expect((await harness<DraftView>('draft')).provenance).toBe('human-or-unknown');
+      expect(await harness<Receipt>('insert', { text: 'replaced' })).toEqual({ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' });
+      expect(await composerText(a4)).toBe('my words\nappended');
       expect(await harness<Receipt>('insert', { text: 'replaced', confirm: true })).toMatchObject({ state: 'applied' });
       expect(await composerText(a4)).toBe('replaced');
     });

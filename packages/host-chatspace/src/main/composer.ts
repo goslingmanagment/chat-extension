@@ -256,13 +256,18 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
       if (!bridge || !editorElement(composer.slot)) return rejected(CG_COMPOSER_MISSING);
       const draft = read(composer);
       if (expected && (composer.revision !== expected.revision || draft.digest !== expected.digest)) return rejected(CG_DRAFT_CHANGED, 'confirm-changed-draft');
-      if (!draft.empty && !(composer.editor && composer.provenance === 'our-insert' && composer.ours)) {
+      /** The whole document is our own unchanged insert (observed editor only). */
+      const ours = !draft.empty && !!composer.editor && composer.provenance === 'our-insert' && !!composer.ours;
+      if (!draft.empty && !ours) {
         const consent = intent.confirmationId;
         if (!expected || !consent || consents.has(consent)) return rejected(CG_DRAFT_CHANGED, 'confirm-human-draft');
         consents.add(consent);
       }
       const before = composer.revision;
       const append = intent.mode === 'append' && !draft.empty;
+      // After the write the document is ours only if all of it came from us: a replace, or an append to our own unchanged insert.
+      // An append to a human draft keeps the human's text in it — a later plain «Вставить» must ask again (Б2).
+      const wholeOurs = !append || ours;
       writing = composer;
       stray = false;
       try {
@@ -276,7 +281,10 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
         writing = null;
       }
       if (stray) return { state: 'uncertain', code: CG_MISPLACED };
-      if (composer.editor && composer.revision !== before) composer.ours = intent.intentId;
+      if (composer.editor && composer.revision !== before) {
+        composer.provenance = wholeOurs ? 'our-insert' : 'human-or-unknown';
+        composer.ours = wholeOurs ? intent.intentId : null;
+      }
       const wanted = normalize(intent.text);
       return Promise.resolve().then(
         () =>
@@ -284,8 +292,12 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
             frame(() => {
               const after = read(composer);
               const value = normalize(after.text);
-              if (append ? value.endsWith(wanted) : value === wanted) {
-                if (!composer.editor) composer.seen = after.digest;
+              // An append must also have changed the document: a draft that already ended with the text proves nothing.
+              if (append ? value.endsWith(wanted) && after.digest !== draft.digest : value === wanted) {
+                if (!composer.editor) {
+                  composer.seen = after.digest;
+                  composer.provenance = wholeOurs ? 'our-insert' : 'human-or-unknown';
+                }
                 resolve({ state: 'applied', draftRevision: composer.revision, draftDigest: after.digest, ms: Math.max(0, win.performance.now() - started) });
               } else resolve(after.digest === draft.digest ? rejected(CG_INSERT_FAILED) : { state: 'uncertain', code: CG_UNCERTAIN });
             }),

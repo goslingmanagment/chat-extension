@@ -294,6 +294,35 @@ describe('MAIN runtime — guarded insert (§6.4)', () => {
     expect(await h.call('insertGuarded', { intent: reused })).toEqual({ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' });
   });
 
+  it('[UI-020] [NEW-05] an append keeps the human’s text in the draft: a later plain insert asks again, never wipes it', async () => {
+    const h = harness as Harness;
+    composer.editor?.type('my words');
+    const append = await openIntent(h, { mode: 'append', confirmationId: uuid(91) }, 'and more');
+    expect(await settleWrite(h, h.call('insertGuarded', { intent: append }))).toMatchObject({ state: 'applied' });
+    expect((await draft(h)).provenance).toBe('human-or-unknown');
+    expect(await h.call('insertGuarded', { intent: await openIntent(h, {}, 'second part') })).toEqual({ state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' });
+    expect(composer.editor?.text).toBe('my words\nand more');
+  });
+
+  it('[UI-023] an append to our own unchanged insert keeps the whole draft ours (the next part replaces it without asking)', async () => {
+    const h = harness as Harness;
+    await settleWrite(h, h.call('insertGuarded', { intent: await openIntent(h, {}, 'part one') }));
+    expect(await settleWrite(h, h.call('insertGuarded', { intent: await openIntent(h, { mode: 'append' }, 'part two') }))).toMatchObject({ state: 'applied' });
+    expect(composer.editor?.text).toBe('part one\npart two');
+    expect((await draft(h)).provenance).toBe('our-insert');
+    expect(await settleWrite(h, h.call('insertGuarded', { intent: await openIntent(h, {}, 'variant b') }))).toMatchObject({ state: 'applied' });
+    expect(composer.editor?.text).toBe('variant b');
+  });
+
+  it('[RB-009] an append that changed nothing is not applied, even when the draft already ended with the text', async () => {
+    const h = harness as Harness;
+    composer.editor?.type('hello again');
+    const bridge = (composer.slot as unknown as { __omComposerBridge: Record<string, unknown> }).__omComposerBridge;
+    Object.defineProperty(composer.slot, '__omComposerBridge', { configurable: true, value: { ...bridge, insertText: () => undefined } });
+    const append = await openIntent(h, { mode: 'append', confirmationId: uuid(92) }, 'again');
+    expect(await settleWrite(h, h.call('insertGuarded', { intent: append }))).toEqual({ state: 'rejected', code: 'CG-INSERT-FAILED' });
+  });
+
   it('our unchanged insert is replaced without consent; once the person edits it, consent again', async () => {
     const h = harness as Harness;
     await settleWrite(h, h.call('insertGuarded', { intent: await openIntent(h) }));
