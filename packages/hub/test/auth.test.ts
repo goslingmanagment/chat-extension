@@ -200,13 +200,43 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
     await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
     expect(h.facade.session()?.userId).toBe(WORLD.user.userId);
     expect(h.facade.status().compat).toBe(true);
-    // Debug turned off: a full token is not kept in a release build.
+    // Debug off: a read refuses the full token but never erases it…
     h.env.debug = false;
     expect(await codeOf(h.facade.bootstrap())).toBe('CG-HUB-OUTDATED');
     await flush(20);
+    expect(h.facade.session()).not.toBeNull();
+    expect(h.facade.status()).toMatchObject({ state: 'stopped', lastError: { code: 'CG-HUB-OUTDATED' } });
+    expect(h.hub.of('authRevokeCurrentDeviceToken')).toEqual([]);
+    // …the explicit debug-off transition does: not kept in a release build.
+    await h.facade.notifyDebugChanged();
     expect(h.facade.session()).toBeNull();
     expect(h.facade.status().lastEnd).toMatchObject({ reason: 'outdated', code: 'CG-HUB-OUTDATED' });
     expect(h.hub.of('authRevokeCurrentDeviceToken')).toHaveLength(1);
+    expect(h.changes.at(-1)).toMatchObject({ session: null, code: 'CG-HUB-OUTDATED' });
+  });
+
+  it('[HB-011] a background restart before the settings load never erases the developer\'s full token', async () => {
+    h.env.debug = true;
+    const bootstrap = { ...BOOTSTRAP_PILOT_ON, identity: { ...BOOTSTRAP_PILOT_ON.identity, tokenClient: null } };
+    await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
+    // The restarted background reads debug as off until the settings arrive.
+    const env = testEnv({ debug: false });
+    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub, env });
+    await restarted.facade.ready;
+    await flush(20);
+    expect(restarted.facade.session()).not.toBeNull();
+    expect(h.local.data.has(STORAGE_KEYS.authToken)).toBe(true);
+    expect(h.hub.of('authRevokeCurrentDeviceToken')).toEqual([]);
+    expect(restarted.facade.status()).toMatchObject({ state: 'stopped', lastError: { code: 'CG-HUB-OUTDATED' } });
+    // The settings land with debug on: the compat sign-in works again.
+    const asked = h.hub.of('clientBootstrap').length;
+    env.debug = true;
+    await restarted.facade.notifyDebugChanged();
+    await flush(20);
+    expect(h.hub.of('clientBootstrap')).toHaveLength(asked + 1);
+    expect(restarted.facade.status()).toMatchObject({ compat: true, lastError: null });
+    expect(restarted.facade.status().state).not.toBe('stopped');
+    restarted.facade.dispose();
   });
 });
 

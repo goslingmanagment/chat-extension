@@ -12,6 +12,7 @@
 import {
   CHAT_EXTENSION_CLIENT,
   DeviceTokenIssueRequestSchema,
+  HUB_CLIENT_CHECK_CODES,
   HUB_FACADE_TIMING,
   HUB_ROUTE_SCHEMAS,
   HUB_ROUTES,
@@ -190,7 +191,7 @@ export class ChatExtensionHub implements HubFacade {
   private readonly wire: HubWire;
   private readonly inFlight = new Map<string, Promise<unknown>>();
   private readonly notices = new Set<(notice: StreamNotice) => void>();
-  private droppingFullToken = false;
+  private droppingFullToken: Promise<void> | null = null;
   private configRevision: number | null = null;
   private healthState: { reachable: boolean | null; checkedAt: string | null; hubHash: string | null; compatible: boolean | null } = {
     reachable: null,
@@ -240,7 +241,7 @@ export class ChatExtensionHub implements HubFacade {
       grantedPages: () => this.bootstrapService.cached()?.bootstrap.pages.map((page) => page.pageLabel) ?? null,
       refreshBootstrap: () => void this.bootstrapService.refresh().catch(() => undefined),
       refreshCatalog: () => this.catalogService.invalidate(),
-      dropFullToken: (connection) => this.dropFullToken(connection),
+      dropFullToken: (connection) => void this.dropFullToken(connection),
     };
     // Every sign-in transition forgets what belonged to the previous one (§9.4).
     this.custody.onChange((change) => this.forgetPreviousSignIn(change));
@@ -413,18 +414,44 @@ export class ChatExtensionHub implements HubFacade {
   }
 
   /** A full token met a release build (PR 9 rule): wipe it with CG-HUB-OUTDATED and revoke it. */
-  private dropFullToken(connection: Connection): void {
-    if (this.droppingFullToken) return;
-    this.droppingFullToken = true;
-    void this.custody
+  private dropFullToken(connection: Connection): Promise<void> {
+    if (this.droppingFullToken !== null) return this.droppingFullToken;
+    const dropping = this.custody
       .transition(async () => {
         if (!this.custody.isCurrent(connection.epoch, connection.token)) return;
         await this.custody.wipe('outdated', 'CG-HUB-OUTDATED');
         await this.revoke(connection.hubOrigin, connection.token);
       })
       .finally(() => {
-        this.droppingFullToken = false;
+        this.droppingFullToken = null;
       });
+    this.droppingFullToken = dropping;
+    return dropping;
+  }
+
+  /**
+   * `settings.debug.enabled` changed — and once after the settings load at
+   * start. A full token (dev/compat mode) is erased only here, by this
+   * explicit transition, never by a read: with debug off in a release build
+   * it is wiped with CG-HUB-OUTDATED and revoked (PR 9 rule), and the prompt
+   * echoes go (§9.3). With debug on, a sign-in reads its bootstrap and
+   * catalog again (the compat bootstrap is allowed now).
+   */
+  async notifyDebugChanged(): Promise<void> {
+    await this.ready;
+    const debug = this.options.env.debugEnabled();
+    if (!debug) this.echo.clear();
+    const stored = this.custody.current();
+    if (stored === null) return;
+    if (!stored.narrow && !this.ctx.compatAllowed()) {
+      const epoch = this.custody.epoch();
+      await this.dropFullToken({ epoch, token: stored.token, hubOrigin: stored.hubOrigin, userId: stored.user.userId, narrow: false });
+      return;
+    }
+    if (debug) {
+      this.bootstrapService.refresh().catch(() => undefined);
+      this.catalogService.refresh().catch(() => undefined);
+    }
   }
 
   // ── status and connection (HB-001…HB-007) ────────────────────────────────
@@ -487,13 +514,16 @@ export class ChatExtensionHub implements HubFacade {
     const lastError = this.bootstrapService.lastError();
     const lastEnd = this.custody.lastEnd();
     const stopChecks = new Set(['narrowTokenMissing', 'bootstrapMissing', 'bootstrapProtocol']);
+    const stored = this.custody.current();
+    // A full token outside the dev/compat mode: refused until notifyDebugChanged erases it (or debug comes back on).
+    const fullTokenRefused = stored !== null && !stored.narrow && !this.ctx.compatAllowed();
     let state: HubState;
     if (auth === 'unreadable' || auth === 'mismatch') state = 'auth-failed';
+    else if (fullTokenRefused) state = 'stopped';
     else if (session === null) state = lastEnd?.reason === 'outdated' ? 'stopped' : lastEnd?.reason === 'revoked' || lastEnd?.reason === 'expired' ? 'auth-failed' : 'off';
     else if ((lastError instanceof FacadeCheckError && stopChecks.has(lastError.check)) || (entry !== null && belowMinVersion(entry.bootstrap, this.options.env.extensionVersion))) state = 'stopped';
     else if (entry === null) state = lastError === null ? 'connecting' : 'degraded';
     else state = this.bootstrapService.isFresh(entry) && entry.source === 'hub' && lastError === null ? 'live' : 'degraded';
-    const stored = this.custody.current();
     return {
       state,
       auth,
@@ -503,7 +533,7 @@ export class ChatExtensionHub implements HubFacade {
         entry === null
           ? null
           : { source: entry.source, configRevision: entry.bootstrap.configRevision, issuedAt: entry.bootstrap.issuedAt, fresh: this.bootstrapService.isFresh(entry) },
-      lastError: this.statusError(lastError, session !== null && entry === null),
+      lastError: fullTokenRefused ? { code: HUB_CLIENT_CHECK_CODES.narrowTokenMissing } : this.statusError(lastError, session !== null && entry === null),
       lastEnd,
       token: this.custody.tokenMeta(),
       reachable: this.healthState.reachable,

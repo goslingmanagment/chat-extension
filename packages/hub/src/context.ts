@@ -49,7 +49,7 @@ export interface ContextHooks {
   grantedPages(): readonly string[] | null;
   refreshBootstrap(): void;
   refreshCatalog(): void;
-  /** A full token met a release build: wipe and revoke it (CG-HUB-OUTDATED). */
+  /** The hub denied a narrow token after all (bootstrap without `identity.tokenClient`): wipe and revoke it (CG-HUB-OUTDATED). */
   dropFullToken(connection: Connection): void;
 }
 
@@ -89,10 +89,10 @@ export class HubContext {
       userId: stored.user.userId,
       narrow: stored.narrow,
     };
-    if (!connection.narrow && !this.compatAllowed()) {
-      this.hooks.dropFullToken(connection);
-      throw new FacadeCheckError('narrowTokenMissing', route, connection.epoch);
-    }
+    // Refused, never erased here: this runs on every read, and the debug switch may not be loaded
+    // yet (a background restart) — a read must not wipe and revoke a developer's sign-in. Erasing
+    // a full token is the explicit debug-off transition's job (facade.notifyDebugChanged).
+    if (!connection.narrow && !this.compatAllowed()) throw new FacadeCheckError('narrowTokenMissing', route, connection.epoch);
     return connection;
   }
 
