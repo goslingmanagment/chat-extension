@@ -32,9 +32,9 @@ export const SOUND_OUTCOMES = [
   'no-time',
   /** Older than 180 s: a redelivery, not news (SN-005). */
   'stale',
-  /** The first snapshot of a tab's store, not a live event. */
+  /** What a tab's store held before the tab began to listen: its first snapshot, however late it is reported. */
   'first-snapshot',
-  /** Came with a reconnect: what the socket missed, not what just happened. */
+  /** Sent before the socket came back: what it missed, not what just happened. */
   'reconnect',
   /** The account is not one this browser knows: its mute cannot be checked (SN-006). */
   'account-unknown',
@@ -62,7 +62,10 @@ export const STALE_SUBSCRIBER_MS = 300_000;
 export const MESSAGE_THROTTLE_MS = 2000;
 /** SN-012: a wave of subscriptions must not ring non-stop. */
 export const SUBSCRIBER_THROTTLE_MS = 10_000;
-/** A store fact this fresh is a live message even when it arrives with a snapshot or a reconnect. */
+/**
+ * A store fact this fresh is a live message even when it arrives with a snapshot or a reconnect; the same
+ * allowance (delivery lag, clocks apart) decides whether a message was sent before the tab began to listen.
+ */
 export const LIVE_EDGE_MS = 15_000;
 
 /** The platform a host shows: ChatSpace is OnlyFans, fansly.com is Fansly. */
@@ -202,6 +205,8 @@ export function consumesEvent(outcome: SoundOutcome): boolean {
 /** What the arbiter remembers per tab and account. */
 export interface SourceState {
   readonly socketEpoch: number;
+  /** When this tab was first heard on this socket epoch (epoch ms): what was sent before it is not news from here. */
+  readonly since: number;
   /** A snapshot or reconnect burst is assumed to last until here (epoch ms). */
   readonly quietUntil: number;
   readonly quietPhase: Exclude<FactPhase, 'live'>;
@@ -212,24 +217,26 @@ export const BURST_WINDOW_MS = 1500;
 
 /**
  * A frame the WS tap saw is a push that just happened: always live. A fact
- * read from ChatSpace's stores is live only after the tab's first read of
- * that account on this socket epoch — the first read is a snapshot, the
- * first after a new epoch is a reconnect — unless the message itself is
- * seconds old (`LIVE_EDGE_MS`): then it is news whatever brought it.
+ * read from ChatSpace's stores is live only when the message is seconds old
+ * (`LIVE_EDGE_MS`: news whatever brought it) or was sent after this tab began
+ * to listen on this socket epoch. Everything older is what the tab found
+ * when it looked — its first snapshot, or what the socket missed before a
+ * reconnect — however late the store hands it over: a second report of the
+ * same message, the next page of the list, a slow resync (§9.8).
+ *
+ * The epoch begins with the first fact of either source, so the verdict does
+ * not depend on which of them reports first.
  */
 export function classifyFact(fact: IncomingFact, previous: SourceState | null, now: number): { readonly phase: FactPhase; readonly next: SourceState } {
-  if (fact.source === 'ws-tap') {
-    return { phase: 'live', next: previous !== null && previous.socketEpoch >= fact.socketEpoch ? previous : { socketEpoch: fact.socketEpoch, quietUntil: 0, quietPhase: 'reconnect' } };
-  }
+  const begins = previous === null || fact.socketEpoch > previous.socketEpoch;
+  const state: SourceState = begins
+    ? { socketEpoch: fact.socketEpoch, since: now, quietUntil: now + BURST_WINDOW_MS, quietPhase: previous === null ? 'first-snapshot' : 'reconnect' }
+    : previous;
+  if (fact.source === 'ws-tap') return { phase: 'live', next: state };
   const sentAt = timeOf(fact.sentAt);
-  const fresh = sentAt !== null && now - sentAt <= LIVE_EDGE_MS;
-  if (previous === null || fact.socketEpoch > previous.socketEpoch) {
-    const quietPhase = previous === null ? 'first-snapshot' : 'reconnect';
-    const next: SourceState = { socketEpoch: fact.socketEpoch, quietUntil: now + BURST_WINDOW_MS, quietPhase };
-    return { phase: fresh ? 'live' : quietPhase, next };
-  }
-  if (now < previous.quietUntil && !fresh) return { phase: previous.quietPhase, next: previous };
-  return { phase: 'live', next: previous };
+  if (sentAt !== null && now - sentAt <= LIVE_EDGE_MS) return { phase: 'live', next: state };
+  const beforeListening = sentAt === null || sentAt < state.since - LIVE_EDGE_MS;
+  return { phase: beforeListening || now < state.quietUntil ? state.quietPhase : 'live', next: state };
 }
 
 /** `chatspace:<OnlyMonster account id>` of a fact. */

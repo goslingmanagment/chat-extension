@@ -132,34 +132,73 @@ describe('which messages ring', () => {
   });
 });
 
-describe('is a fact live', () => {
+describe('[SN-005] is a fact live', () => {
   it('a frame the WS tap saw is a push that just happened: live from the first one, on any epoch', () => {
     const first = classifyFact(fact({ source: 'ws-tap', socketEpoch: 3 }), null, NOW);
     expect(first.phase).toBe('live');
-    expect(classifyFact(fact({ source: 'ws-tap', socketEpoch: 4 }), first.next, NOW).phase).toBe('live');
+    const next = classifyFact(fact({ source: 'ws-tap', socketEpoch: 4 }), first.next, NOW + 1000);
+    expect([next.phase, next.next.socketEpoch, next.next.since]).toEqual(['live', 4, NOW + 1000]);
+    // A late frame of the old socket is still a push, but the tab stays on the newer epoch.
+    const late = classifyFact(fact({ source: 'ws-tap', socketEpoch: 3 }), next.next, NOW + 2000);
+    expect([late.phase, late.next]).toEqual(['live', next.next]);
   });
 
-  it('the first read of a tab\'s store is a snapshot and the first after a reconnect is a reconnect — with everything that comes in the same burst', () => {
-    const old = iso(60_000);
-    const first = classifyFact(fact({ source: 'store', sentAt: old }), null, NOW);
+  it('[SN-005] what the store held before the tab began to listen is its first snapshot — in the first burst, on a second report, on the next page of the list', () => {
+    const first = classifyFact(fact({ source: 'store', sentAt: iso(100_000) }), null, NOW);
     expect(first.phase).toBe('first-snapshot');
-    expect(classifyFact(fact({ source: 'store', sentAt: old, platformMessageId: '4005' }), first.next, NOW + BURST_WINDOW_MS - 1).phase).toBe('first-snapshot');
-    // After the burst the store's facts are live.
-    expect(classifyFact(fact({ source: 'store', sentAt: old }), first.next, NOW + BURST_WINDOW_MS).phase).toBe('live');
-    const reconnected = classifyFact(fact({ source: 'store', sentAt: old, socketEpoch: 2 }), first.next, NOW + 60_000);
+    expect(first.next).toEqual({ socketEpoch: 1, since: NOW, quietUntil: NOW + BURST_WINDOW_MS, quietPhase: 'first-snapshot' });
+    expect(classifyFact(fact({ source: 'store', sentAt: iso(100_000), platformMessageId: '4005' }), first.next, NOW + BURST_WINDOW_MS - 1).phase).toBe('first-snapshot');
+    // The same fact reported again two seconds later; an older chat from the next page of the list after five.
+    const again = classifyFact(fact({ source: 'store', sentAt: iso(100_000) }), first.next, NOW + 2000);
+    expect([again.phase, again.next]).toEqual(['first-snapshot', first.next]);
+    expect(classifyFact(fact({ source: 'store', sentAt: iso(120_000), platformMessageId: '4006' }), first.next, NOW + 5000).phase).toBe('first-snapshot');
+    // The line is «sent LIVE_EDGE_MS before the tab began to listen», wherever the clock is now.
+    expect(classifyFact(fact({ source: 'store', sentAt: iso(LIVE_EDGE_MS + 1) }), first.next, NOW + 60_000).phase).toBe('first-snapshot');
+    expect(classifyFact(fact({ source: 'store', sentAt: iso(LIVE_EDGE_MS) }), first.next, NOW + 60_000).phase).toBe('live');
+    // Sent after the tab began to listen: live even when the store hands it over late (a slow push, clocks apart).
+    expect(classifyFact(fact({ source: 'store', sentAt: iso(-10_000) }), first.next, NOW + 60_000).phase).toBe('live');
+    // The burst itself still covers what the line lets through: 14.5 s before the tab began, read one second in.
+    expect(classifyFact(fact({ source: 'store', sentAt: iso(14_500) }), first.next, NOW + 1000).phase).toBe('first-snapshot');
+    expect(classifyFact(fact({ source: 'store', sentAt: iso(14_500) }), first.next, NOW + BURST_WINDOW_MS).phase).toBe('live');
+  });
+
+  it('[SN-005] what the socket missed before a reconnect stays silent however slowly the resync brings it', () => {
+    const first = classifyFact(fact({ source: 'store', sentAt: iso(100_000) }), null, NOW);
+    const back = NOW + 600_000;
+    const before = (ms: number): string => new Date(back - ms).toISOString();
+    const reconnected = classifyFact(fact({ source: 'store', sentAt: before(60_000), socketEpoch: 2 }), first.next, back);
     expect(reconnected.phase).toBe('reconnect');
-    expect(classifyFact(fact({ source: 'store', sentAt: old, socketEpoch: 2 }), reconnected.next, NOW + 60_100).phase).toBe('reconnect');
-    // An older epoch arriving late is not a reconnect.
-    expect(classifyFact(fact({ source: 'store', sentAt: old, socketEpoch: 1 }), reconnected.next, NOW + 120_000).phase).toBe('live');
+    expect(reconnected.next).toEqual({ socketEpoch: 2, since: back, quietUntil: back + BURST_WINDOW_MS, quietPhase: 'reconnect' });
+    expect(classifyFact(fact({ source: 'store', sentAt: before(60_000), socketEpoch: 2 }), reconnected.next, back + 100).phase).toBe('reconnect');
+    // A slow REST resync: five seconds after the socket came back, a message missed two minutes before it.
+    expect(classifyFact(fact({ source: 'store', sentAt: before(120_000), socketEpoch: 2, platformMessageId: '4007' }), reconnected.next, back + 5000).phase).toBe('reconnect');
+    // An older epoch arriving late starts no reconnect of its own and is judged by the same line.
+    const late = classifyFact(fact({ source: 'store', sentAt: before(120_000), socketEpoch: 1 }), reconnected.next, back + 20_000);
+    expect([late.phase, late.next]).toEqual(['reconnect', reconnected.next]);
+    // Sent after the socket came back: live.
+    expect(classifyFact(fact({ source: 'store', sentAt: before(-20_000), socketEpoch: 2 }), reconnected.next, back + 60_000).phase).toBe('live');
+  });
+
+  it('[SN-005] the verdict does not depend on which source reports first: a tap frame begins the epoch as a store fact does', () => {
+    // First snapshot: one pushed frame, then the store's read of what was there before the tab.
+    const tap = classifyFact(fact({ source: 'ws-tap', socketEpoch: 5 }), null, NOW);
+    expect(tap.phase).toBe('live');
+    expect(tap.next).toEqual({ socketEpoch: 5, since: NOW, quietUntil: NOW + BURST_WINDOW_MS, quietPhase: 'first-snapshot' });
+    expect(classifyFact(fact({ source: 'store', socketEpoch: 5, sentAt: iso(60_000), platformFanId: '2003' }), tap.next, NOW + 10_000).phase).toBe('first-snapshot');
+    // Reconnect: a pushed frame on the new epoch first, then the refetch of a message missed a minute before it.
+    const back = NOW + 300_000;
+    const again = classifyFact(fact({ source: 'ws-tap', socketEpoch: 6 }), tap.next, back);
+    expect([again.phase, again.next.since, again.next.quietPhase]).toEqual(['live', back, 'reconnect']);
+    expect(classifyFact(fact({ source: 'store', socketEpoch: 6, sentAt: new Date(back - 60_000).toISOString() }), again.next, back + 3000).phase).toBe('reconnect');
   });
 
   it('a message seconds old is news whatever brought it; without a time it cannot be', () => {
     expect(classifyFact(fact({ source: 'store', sentAt: iso(LIVE_EDGE_MS) }), null, NOW).phase).toBe('live');
     expect(classifyFact(fact({ source: 'store', sentAt: iso(LIVE_EDGE_MS + 1) }), null, NOW).phase).toBe('first-snapshot');
     expect(classifyFact(fact({ source: 'store', sentAt: null }), null, NOW).phase).toBe('first-snapshot');
-    // The tap after the store: the tap's epoch is remembered, the store's next fact on it is live.
-    const tap = classifyFact(fact({ source: 'ws-tap', socketEpoch: 5 }), null, NOW);
-    expect(classifyFact(fact({ source: 'store', socketEpoch: 5, sentAt: iso(60_000) }), tap.next, NOW + 10_000).phase).toBe('live');
+    const begun = classifyFact(fact({ source: 'store' }), null, NOW);
+    expect(begun.phase).toBe('live');
+    expect(classifyFact(fact({ source: 'store', sentAt: null }), begun.next, NOW + 60_000).phase).toBe('first-snapshot');
   });
 });
 

@@ -3,7 +3,7 @@
 // titles carry the parity rows; ids are synthetic.
 
 import { DEFAULT_SETTINGS, TAB_REQUESTS, type AudienceNewPage, type HostAccount, type IncomingFact, type SettingsV1 } from '@cg/contracts';
-import { BURST_WINDOW_MS, MESSAGE_THROTTLE_MS, SEEN_TTL_MS, STALE_SUBSCRIBER_MS, SUBSCRIBER_THROTTLE_MS, TONES, volumeToGain, type SoundTone } from '@cg/core/domain/sound';
+import { MESSAGE_THROTTLE_MS, SEEN_TTL_MS, STALE_SUBSCRIBER_MS, SUBSCRIBER_THROTTLE_MS, TONES, volumeToGain, type SoundTone } from '@cg/core/domain/sound';
 import {
   SOUND_COUNTER_NAMES,
   SOUND_SESSION_KEY,
@@ -205,21 +205,53 @@ describe('the sound arbiter: messages', () => {
     expect(await w.arbiter.handleIncoming('tab-2', { ...stray, sentAt: new Date(w.clock.now()).toISOString() })).toBe('played');
   });
 
-  it('a first snapshot and a reconnect are silent per tab and account; a closed tab starts over', async () => {
+  it('[SN-005] a first snapshot and a reconnect are silent per tab and account — on a second report, a late page and a slow resync too; a closed tab starts over', async () => {
     const w = world();
-    const old = (): string => new Date(w.clock.now() - 60_000).toISOString();
-    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: old() }))).toBe('first-snapshot');
-    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: old() }))).toBe('first-snapshot');
-    await w.clock.advance(BURST_WINDOW_MS);
-    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: old() }))).toBe('played');
+    const ago = (ms: number): string => new Date(w.clock.now() - ms).toISOString();
+    const snapshot = fact({ source: 'store', sentAt: ago(100_000) });
+    expect(await w.arbiter.handleIncoming('tab-1', snapshot)).toBe('first-snapshot');
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(60_000) }))).toBe('first-snapshot');
+    // After the burst: the same fact reported again, then an older chat from the next page of the list.
+    await w.clock.advance(2000);
+    expect(await w.arbiter.handleIncoming('tab-1', snapshot)).toBe('first-snapshot');
+    await w.clock.advance(3000);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(120_000) }))).toBe('first-snapshot');
+    // A message sent after the tab began to listen rings even when the store hands it over 40 s late.
+    await w.clock.advance(60_000);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(40_000) }))).toBe('played');
     await w.clock.advance(MESSAGE_THROTTLE_MS);
-    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: old(), socketEpoch: 2 }))).toBe('reconnect');
+    // The socket came back: what it missed is silent, in the burst and in a resync five seconds later.
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(60_000), socketEpoch: 2 }))).toBe('reconnect');
+    await w.clock.advance(5000);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(100_000), socketEpoch: 2 }))).toBe('reconnect');
     // Another account of the same tab has its own first snapshot.
-    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: old(), hostAccountId: '1002' }))).toBe('first-snapshot');
-    await w.clock.advance(BURST_WINDOW_MS);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(60_000), hostAccountId: '1002' }))).toBe('first-snapshot');
     w.arbiter.tabGone('tab-1');
-    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: old(), socketEpoch: 2 }))).toBe('first-snapshot');
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(60_000), socketEpoch: 2 }))).toBe('first-snapshot');
     expect(w.played).toHaveLength(1);
+    expect(w.arbiter.diagnostics().outcomes).toEqual({ 'first-snapshot': 6, reconnect: 2, played: 1 });
+  });
+
+  it('[SN-005] a pushed frame first does not make the store\'s snapshot or its refetch after a reconnect live', async () => {
+    const w = world();
+    const ago = (ms: number): string => new Date(w.clock.now() - ms).toISOString();
+    expect(await w.arbiter.handleIncoming('tab-1', fact({}, w))).toBe('played');
+    await w.clock.advance(MESSAGE_THROTTLE_MS);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(60_000), platformFanId: '2003' }))).toBe('first-snapshot');
+    await w.clock.advance(300_000);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ socketEpoch: 2 }, w))).toBe('played');
+    await w.clock.advance(MESSAGE_THROTTLE_MS);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ source: 'store', sentAt: ago(60_000), socketEpoch: 2 }))).toBe('reconnect');
+    expect(w.played).toHaveLength(2);
+  });
+
+  it('[SN-005] a tab is heard from its first fact on, a duplicate included: what was sent after it is live from that tab', async () => {
+    const w = world();
+    const message = fact({}, w);
+    expect(await w.arbiter.handleIncoming('tab-1', message)).toBe('played');
+    expect(await w.arbiter.handleIncoming('tab-2', { ...message, source: 'store' })).toBe('duplicate');
+    await w.clock.advance(60_000);
+    expect(await w.arbiter.handleIncoming('tab-2', fact({ source: 'store', sentAt: new Date(w.clock.now() - 40_000).toISOString() }))).toBe('played');
   });
 
   it('[SN-011] the audio may take 1.5 s to wake: everything is looked at again after it, and a player that will not wake is an audio error', async () => {

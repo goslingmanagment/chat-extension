@@ -6,11 +6,12 @@
 // sounds: two events can never pass the throttle on the same stale
 // timestamp, and a copy of an event delivered by a second tab or source
 // waits behind the first and finds it already settled. Order of one decision:
-//   duplicate → the pure gate (off, not a fan, automatic, a tip, stale,
-//   snapshot or reconnect, unknown or muted account) → a tab still listens,
-//   the chat is not open in focus → the audio wakes up (≤ 1.5 s, SN-011) →
-//   a fresh look at everything that may have changed meanwhile → one
-//   synchronous section: throttle, reserve, start.
+//   the tab is heard (its socket epoch begins with its first fact, a
+//   duplicate included) → duplicate → the pure gate (off, not a fan,
+//   automatic, a tip, stale, snapshot or reconnect, unknown or muted account)
+//   → a tab still listens, the chat is not open in focus → the audio wakes up
+//   (≤ 1.5 s, SN-011) → a fresh look at everything that may have changed
+//   meanwhile → one synchronous section: throttle, reserve, start.
 //
 // The message sound needs no hub sign-in: a live ChatSpace identity, the
 // host permission and the switch are enough. The subscriber sound comes from
@@ -260,11 +261,11 @@ export class SoundArbiter {
       }
       return outcome;
     };
-    if (this.seen.has(key, this.deps.clock.now())) return 'duplicate';
-
+    // The tab is heard from this fact on, whatever becomes of it: a duplicate too tells when the tab began to listen.
     const sourceKey = `${tabSessionId}|${accountKeyOf(fact)}`;
     const classified = classifyFact(fact, this.sources.get(sourceKey) ?? null, this.deps.clock.now());
     this.remember(sourceKey, classified.next);
+    if (this.seen.has(key, this.deps.clock.now())) return 'duplicate';
 
     const gated = await this.gate(fact, classified.phase);
     if (gated !== null) return settle(gated);
