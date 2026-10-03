@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, STATS_ATTENTION_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -264,5 +264,22 @@ describe('cents on a shelf bound (1.2.0)', () => {
     expect(C.UI_TEXT_KEYS).toContain('spenders.keys.row');
     expect(C.UI_TEXT_KEYS).toContain('spenders.resetFilters');
     expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete');
+  });
+});
+
+describe('the statistics\' attention block (1.2.0)', () => {
+  it('[SP-046] may carry «ждёт ответа; прочтение неизвестно» and the lifetime spend of fans silent for more than 21 days; both are optional', () => {
+    type Attention = C.SpendersStatsVM['attention'];
+    expectTypeOf<Attention['awaitingUnknown']>().toEqualTypeOf<C.CountStat | undefined>();
+    expectTypeOf<Attention['silentOver21']['lifetime']>().toEqualTypeOf<C.MoneyMills | null | undefined>();
+    const [plain, full, unknown] = STATS_ATTENTION_SAMPLES.valid;
+    expect(plain?.awaitingUnknown).toBeUndefined();
+    expect(plain?.silentOver21.lifetime).toBeUndefined();
+    expect(full?.awaitingUnknown?.count).toBe(2);
+    expect(full?.silentOver21.lifetime).toBe(1_840_000);
+    // Unknown stays unknown, never zero.
+    expect(unknown?.awaitingUnknown?.count).toBeNull();
+    expect(unknown?.silentOver21.lifetime).toBeNull();
+    expect(STATS_ATTENTION_SAMPLES.invalid).toHaveLength(2);
   });
 });

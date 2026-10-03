@@ -115,9 +115,20 @@ export interface SpendersStatsVM {
   }[];
   readonly attention: {
     readonly awaiting: CountStat;
+    /**
+     * Of `awaiting`: fans whose read state the hub does not know — «ждёт
+     * ответа; прочтение неизвестно», a category of its own (§8.7). 1.2.0;
+     * absent — the two are not told apart.
+     */
+    readonly awaitingUnknown?: CountStat;
     readonly newPayers: CountStat & { readonly firstObserved: boolean };
     readonly silent8to21: CountStat;
-    readonly silentOver21: CountStat;
+    /**
+     * `lifetime` (1.2.0): what these fans spent in all — «сумма трат молчащих
+     * >21 д» (SP-046); not lost revenue and not a forecast (§8.7). null —
+     * unknown; absent — not given.
+     */
+    readonly silentOver21: CountStat & { readonly lifetime?: MoneyMills | null };
     readonly noData: CountStat;
   };
   readonly stamp: DataStamp;

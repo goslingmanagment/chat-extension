@@ -216,6 +216,33 @@ export const MONEY_CENTS_SAMPLES: {
 };
 
 /**
+ * Two numbers of §8.7 the statistics may carry (1.2.0): «ждёт ответа;
+ * прочтение неизвестно» and the lifetime spend of fans silent for more than
+ * 21 days (SP-046). Both optional: a model without them is as before.
+ */
+const STAMP: C.DataStamp = { asOf: '2026-10-03T06:18:00.000Z', coverage: 'complete' };
+const ATTENTION_BASE: C.SpendersStatsVM['attention'] = {
+  awaiting: { count: 12, stamp: STAMP },
+  newPayers: { count: 3, stamp: STAMP, firstObserved: false },
+  silent8to21: { count: 10, stamp: STAMP },
+  silentOver21: { count: 6, stamp: STAMP },
+  noData: { count: 4, stamp: STAMP },
+};
+export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStatsVM['attention'][]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    ATTENTION_BASE,
+    { ...ATTENTION_BASE, awaitingUnknown: { count: 2, stamp: STAMP }, silentOver21: { count: 6, stamp: STAMP, lifetime: 1_840_000 } },
+    { ...ATTENTION_BASE, awaitingUnknown: { count: null, stamp: STAMP }, silentOver21: { count: null, stamp: STAMP, lifetime: null } },
+  ],
+  invalid: [
+    // @ts-expect-error the unknown-read category is a count with its stamp, not a bare number
+    { ...ATTENTION_BASE, awaitingUnknown: 2 } satisfies C.SpendersStatsVM['attention'],
+    // @ts-expect-error the sum is integer mills, never a formatted amount
+    { ...ATTENTION_BASE, silentOver21: { count: 6, stamp: STAMP, lifetime: '$1,840' } } satisfies C.SpendersStatsVM['attention'],
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */
