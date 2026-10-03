@@ -37,3 +37,12 @@ describe('size budgets', () => {
     expect(lines.filter((line) => !line.ok)).toHaveLength(1);
   });
 });
+
+describe('MAIN runtime probes', () => {
+  it('[EX-007] measure the boot with the runtime and the runtime alone (the shipped boot has its own line)', async () => {
+    const { probeMain } = await import('./main-probes.ts');
+    const lines = await probeMain();
+    expect(lines.map((line) => line.label)).toEqual([expect.stringContaining('boot + runtime'), expect.stringContaining('second script')]);
+    for (const line of lines) expect(line.gzipBytes).toBeGreaterThan(BUDGETS.mainBridge / 2);
+  });
+});

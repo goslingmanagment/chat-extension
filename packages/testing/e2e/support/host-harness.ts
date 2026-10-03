@@ -45,7 +45,9 @@ export interface InstalledHarness {
 export async function installHostHarness(): Promise<InstalledHarness> {
   const [main, isolated] = await Promise.all([bundle('main-harness.ts'), bundle('iso-harness.ts')]);
   const wrap = (code: string): string => `() => {\n${code}\n}`;
-  const mainScript = await browser.scriptAddPreloadScript({ functionDeclaration: wrap(main) });
+  // The MAIN bundle's evaluation at document_start (boot + runtime), beyond the boot's own installMs: read by the spec.
+  const timed = (code: string): string => `() => {\nconst cgStarted = performance.now();\n${code}\nObject.defineProperty(window, '__cgMainEvalMs', { value: performance.now() - cgStarted, configurable: true });\n}`;
+  const mainScript = await browser.scriptAddPreloadScript({ functionDeclaration: timed(main) });
   const isoScript = await browser.scriptAddPreloadScript({ functionDeclaration: wrap(isolated), sandbox: ISO_SANDBOX });
   return {
     mainBytes: main.length,

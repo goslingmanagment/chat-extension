@@ -116,6 +116,8 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
     it('[EX-007] [EX-008] MAIN runs at document_start in the page realm and hands its port to the isolated side', async () => {
       const probe = await harness<{ readyStateAtStart: string; installMs: number }>('probe');
       evidence['mainInstallMs'] = probe.installMs;
+      // The whole MAIN bundle (boot + runtime) evaluated at document_start, for the owner's shipping decision (README).
+      evidence['mainEvalMs'] = await browser.execute(() => (window as unknown as { __cgMainEvalMs?: number }).__cgMainEvalMs ?? null);
       expect(probe.readyStateAtStart).toBe('loading');
       expect(probe.installMs).toBeLessThan(1);
       const s = await settledOn(a1);
