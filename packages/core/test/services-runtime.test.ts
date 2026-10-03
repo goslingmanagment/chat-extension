@@ -4,15 +4,17 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_TOKEN_PATTERN, DEFAULT_SETTINGS, type Bootstrap, type SettingsV1 } from '@cg/contracts';
+import { ACTION_TOKEN_PATTERN, DEFAULT_SETTINGS, PresenceStoreSchema, STORAGE_KEYS, STORAGE_LIMITS, type Bootstrap, type HostAccount, type SettingsV1 } from '@cg/contracts';
 import {
   AbortSwitch,
+  AccountPresence,
   ACTION_TOKEN_TTL_MS,
   ACTION_TOKENS_PER_TAB,
   ActionTokens,
   LAZY_TIMING,
   LazyLoadStatus,
   NO_CHANGE,
+  PRESENCE_WRITE_WINDOW_MS,
   Readiness,
   TabSessions,
   WriteQueue,
@@ -23,7 +25,7 @@ import {
 } from '@cg/core/services';
 import { BOOTSTRAP_PILOT_ON } from '@cg/testing/hub';
 
-import { FakeClock, LogRecorder, sequentialIds, settle } from './support/clock';
+import { FakeClock, LogRecorder, MemoryStore, sequentialIds, settle } from './support/clock';
 import { NOW_MS, chatOf, uuid } from './support/world';
 
 const TAB = uuid(0xa1);
@@ -144,6 +146,90 @@ describe('[BG-002] [BG-003] [BG-006] [RB-019] [UP-009] tab sessions', () => {
     expect(s.close(again.response.tabSessionId)).toBe(true);
     expect(s.close(again.response.tabSessionId)).toBe(false);
     expect(s.chatOf(again.response.tabSessionId)).toBeNull();
+  });
+});
+
+describe('[AU-034] [AU-035] accounts this browser has seen, and the tabs that show them', () => {
+  const account = (hostAccountId: string, platformAccountId: string | null = null): HostAccount => ({ host: 'chatspace', hostAccountId, platform: 'onlyfans', platformAccountId, username: `acc_${hostAccountId}`, displayName: null });
+  const presence = (store = new MemoryStore(), clock = new FakeClock(NOW_MS), log = new LogRecorder()): { p: AccountPresence; store: MemoryStore; clock: FakeClock; log: LogRecorder } => ({
+    p: new AccountPresence({ clock, store, log }),
+    store,
+    clock,
+    log,
+  });
+
+  it('[AU-034] a tab holds several accounts at once; each account counts the open tabs that show it; the route binds the tab\'s chat to its account', () => {
+    const { p } = presence();
+    p.report(TAB, [account('1001'), account('1002')]);
+    p.report(OTHER_TAB, [account('1002')]);
+    expect(p.list().map((row) => [row.account.hostAccountId, row.openTabs])).toEqual([
+      ['1001', 1],
+      ['1002', 2],
+    ]);
+    // The tab switched its ChatSpace to one account only.
+    p.report(TAB, [account('1002')]);
+    expect(p.list().find((row) => row.account.hostAccountId === '1001')?.openTabs).toBe(0);
+    p.tabClosed(OTHER_TAB);
+    expect(p.list().find((row) => row.account.hostAccountId === '1002')?.openTabs).toBe(1);
+    // The same fan id on another account is another chat: the tab context follows the route's account.
+    const s = new TabSessions(new FakeClock(NOW_MS), sequentialIds(0xc80), { contractsVersion: '1.0.0', testBuild: false });
+    const reg = s.register({ tabId: 3, frameId: 0, documentId: null }, { host: 'chatspace', lateInjection: false, contractsVersion: '1.0.0' });
+    if (!reg.ok) throw new Error('register');
+    s.setPresence(reg.response.tabSessionId, { chat: chatOf('2002'), routeEpoch: 1, visible: true, focused: true });
+    expect(s.setPresence(reg.response.tabSessionId, { chat: { ...chatOf('2002'), hostAccountId: '1002' }, routeEpoch: 2, visible: true, focused: true }).chatChanged).toBe(true);
+  });
+
+  it('[AU-035] a new account is registered at once; lastSeenAt updates are written once per 30 s window; the store survives a restart', async () => {
+    const { p, store, clock } = presence();
+    p.report(TAB, [account('1001')]);
+    await settle();
+    expect(store.writes).toBe(1);
+    clock.t += 5_000;
+    p.report(TAB, [account('1001', '3003')]);
+    p.report(OTHER_TAB, [account('1001', '3003')]);
+    await settle();
+    expect(store.writes).toBe(1);
+    await clock.advance(PRESENCE_WRITE_WINDOW_MS);
+    expect(store.writes).toBe(2);
+    const stored = store.data.get(STORAGE_KEYS.presence);
+    expect(PresenceStoreSchema.safeParse(stored).success).toBe(true);
+    expect(stored).toEqual({ v: 1, accounts: [{ account: account('1001', '3003'), lastSeenAt: new Date(NOW_MS + 5_000).toISOString() }] });
+    // Nothing changed: a flush writes nothing.
+    await p.flush();
+    expect(store.writes).toBe(2);
+    const next = presence(store, clock);
+    expect(await next.p.restore()).toEqual({ kept: 1, damaged: false });
+    expect(next.p.list()).toEqual([{ account: account('1001', '3003'), lastSeenAt: new Date(NOW_MS + 5_000).toISOString(), openTabs: 0 }]);
+  });
+
+  it('[AU-035] a damaged store starts empty and is logged; a failed write is tried again with the next one', async () => {
+    const store = new MemoryStore();
+    store.data.set(STORAGE_KEYS.presence, { v: 2, accounts: 'x' });
+    const { p, log } = presence(store);
+    expect(await p.restore()).toEqual({ kept: 0, damaged: true });
+    expect(log.entries.some((e) => e.msg === 'presence store unreadable, starting empty')).toBe(true);
+    expect(await presence(new MemoryStore()).p.restore()).toEqual({ kept: 0, damaged: false });
+    store.failWrites = true;
+    p.report(TAB, [account('1001')]);
+    await settle();
+    expect(log.entries.some((e) => e.msg === 'presence store write failed')).toBe(true);
+    store.failWrites = false;
+    await p.flush();
+    expect(store.data.get(STORAGE_KEYS.presence)).toMatchObject({ v: 1, accounts: [{ account: { hostAccountId: '1001' } }] });
+  });
+
+  it('[AU-035] the newest seenAccountsMax stay; an account an open tab shows is never dropped', () => {
+    const { p, clock } = presence();
+    p.report(TAB, [account('9000')]);
+    for (let i = 0; i < STORAGE_LIMITS.seenAccountsMax + 3; i += 1) {
+      clock.t += 1;
+      p.report(OTHER_TAB, [account(String(10_000 + i))]);
+    }
+    const rows = p.list();
+    expect(rows.length).toBeLessThanOrEqual(STORAGE_LIMITS.seenAccountsMax + 1);
+    expect(rows.some((row) => row.account.hostAccountId === '9000')).toBe(true);
+    expect(rows.some((row) => row.account.hostAccountId === '10000')).toBe(false);
+    expect(rows[0]?.account.hostAccountId).toBe(String(10_000 + STORAGE_LIMITS.seenAccountsMax + 2));
   });
 });
 
