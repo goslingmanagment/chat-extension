@@ -98,6 +98,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.reason.claimExpired': 'бронь истекла, нажмите Hi ещё раз',
   'dock.reason.lockedDuringGeneration': 'нельзя менять, пока идёт генерация',
   'dock.reason.hotkeyReserved': 'браузер оставляет это сочетание себе',
+  'dock.reason.keyInField': 'курсор в поле, где это сочетание не работает',
   'dock.option.tone': 'Тон',
   'dock.option.toneValue': 'Тон: {tone}',
   'dock.option.toneTooltip': 'Тон на один ответ  {hotkey}',

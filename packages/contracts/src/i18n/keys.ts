@@ -40,7 +40,7 @@ export const UI_TEXT_KEYS = [
   'dock.reason.noBinding', 'dock.reason.notGranted', 'dock.reason.noPersona', 'dock.reason.featureDisabled', 'dock.reason.chatBusy',
   'dock.reason.needsDraft', 'dock.reason.noHistory', 'dock.reason.hiGate', 'dock.reason.pingGate', 'dock.reason.language', 'dock.reason.fanBlocked',
   'dock.reason.fanUnknown', 'dock.reason.overlayOpen', 'dock.reason.hostDegraded', 'dock.reason.composerMissing', 'dock.reason.claimExpired',
-  'dock.reason.lockedDuringGeneration', 'dock.reason.hotkeyReserved', 'dock.option.tone',
+  'dock.reason.lockedDuringGeneration', 'dock.reason.hotkeyReserved', 'dock.reason.keyInField', 'dock.option.tone',
   'dock.option.toneValue', 'dock.option.toneTooltip', 'dock.option.toneLocked', 'dock.option.toneUnavailable', 'dock.option.toneMenuTitle',
   'dock.option.toneNone', 'dock.tone.casual', 'dock.tone.flirty', 'dock.tone.upsell', 'dock.tone.spicy', 'dock.option.split',
   'dock.option.splitTooltip', 'dock.option.splitLocked', 'dock.option.splitUnavailable', 'dock.option.splitNotMessage', 'dock.persona.tooltip',

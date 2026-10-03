@@ -94,6 +94,7 @@ export const EN: I18nCatalog<'en'> = {
   'dock.reason.claimExpired': 'the hold expired, press Hi again',
   'dock.reason.lockedDuringGeneration': 'cannot be changed while a generation runs',
   'dock.reason.hotkeyReserved': 'the browser keeps this shortcut for itself',
+  'dock.reason.keyInField': 'the cursor is in a field where this shortcut does not work',
   'dock.option.tone': 'Tone',
   'dock.option.toneValue': 'Tone: {tone}',
   'dock.option.toneTooltip': 'Tone for one answer  {hotkey}',
