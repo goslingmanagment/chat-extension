@@ -391,14 +391,46 @@ export const IncomingFactSchema = z.strictObject({
 });
 export type IncomingFact = z.infer<typeof IncomingFactSchema>;
 
-/** A human pressed ChatSpace's Send in the composer (§6.6); the link to our insert is by id, never by text. */
+/**
+ * The composer's draft as MAIN recorded it inside the queue action's
+ * handler, before the native send (§6.6 п. 1–2): whether the text descends
+ * from our insert (the revision chain of this composer, never the text) and
+ * whether it changed after it (`edited`, D-17).
+ */
+export const SentDraftSchema = z
+  .strictObject({
+    revision: CountSchema,
+    provenance: DraftProvenanceSchema,
+    /** The insert intent the draft descends from; null — not ours, or not known. */
+    insertIntentId: z.nullable(UuidSchema),
+    /** Changed after that insert; null when there is no insert or the editor was not observed (no `sent`). */
+    editedSinceInsert: z.nullable(z.boolean()),
+  })
+  .check(
+    z.refine((d) => d.insertIntentId !== null || d.editedSinceInsert === null, { message: 'edited is known only for a draft from our insert' }),
+    z.refine((d) => d.provenance !== 'our-insert' || (d.insertIntentId !== null && d.editedSinceInsert === false), {
+      message: 'an unchanged insert of ours names its intent and is not edited',
+    }),
+  );
+export type SentDraft = z.infer<typeof SentDraftSchema>;
+
+/**
+ * A human pressed ChatSpace's Send in the composer (§6.6); the link to our
+ * insert is by id, never by text. MAIN emits it once per send, when the
+ * native chain settled (the intercepted response of exactly this send, a
+ * refusal or the native timeout), with the draft recorded at the queue
+ * action; the outgoing echo with the same id may come before it (the
+ * isolated side keeps a short buffer). `platformMessageId: null` or a draft
+ * without `insertIntentId` — attribution unknown: no `sent`, no greeting.
+ */
 export const HumanSendFactSchema = z.strictObject({
   chat: ChatRefSchema,
   pendingId: boundedText(128),
-  /** From the intercepted response of exactly this attempt; null when attribution is unknown. */
+  /** From the intercepted response of exactly this send; null when attribution is unknown. */
   platformMessageId: z.nullable(NativeIdSchema),
-  /** Integrity check of an already linked attempt only. */
+  /** Integrity check of an already linked send only. */
   textDigest: DigestSchema,
+  draft: SentDraftSchema,
 });
 export type HumanSendFact = z.infer<typeof HumanSendFactSchema>;
 

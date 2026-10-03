@@ -32,10 +32,12 @@ import {
   contractWire,
   diagnostics,
   fan,
+  humanDraft,
   incomingFact,
   mainSend,
   messages,
   navItem,
+  ourDraft,
   probe,
   promptSnapshot,
   routeState,
@@ -353,8 +355,15 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
   },
   coverage: { valid: [{ acc: IDS.acc, state: 'unknown', reason: 'socket-closed' }], invalid: [{ acc: IDS.acc, state: 'ok' }] },
   humanSend: {
-    valid: [{ ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST }],
-    invalid: [{ ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, text: 'hey' }],
+    valid: [
+      { ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, draft: humanDraft },
+      { ...accFan, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST, draft: ourDraft },
+    ],
+    invalid: [
+      { ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, draft: humanDraft, text: 'hey' },
+      // Without the draft recorded at the queue action, `sent` and `edited` would be guessed.
+      { ...accFan, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST },
+    ],
   },
   previewSendState: { valid: [{ view: sendView }], invalid: [{ view: { attemptId: uuid(5) } }] },
 };

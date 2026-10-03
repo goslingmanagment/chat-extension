@@ -215,7 +215,11 @@ export const TAB_REQUESTS = {
   'op.reportCopy': { req: z.strictObject({ opId: UuidSchema, part: z.optional(PartRefSchema) }), res: Ack, from: TAB },
   /** A guarded insert finished; `inserted` only for `applied`. */
   'op.reportInsert': { req: z.strictObject({ opId: UuidSchema, part: PartRefSchema, receipt: InsertReceiptSchema }), res: Ack, from: TAB },
-  /** A human send from the composer proven by receipt + echo with the same id (§6.6). */
+  /**
+   * A human send from the composer proven by receipt + echo with the same id
+   * (§6.6); `edited` is HumanSendFact.draft.editedSinceInsert, the op and part
+   * come from the insert intent the draft descends from.
+   */
   'op.reportSent': {
     req: z.strictObject({
       opId: UuidSchema,

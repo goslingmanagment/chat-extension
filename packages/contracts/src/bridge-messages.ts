@@ -20,6 +20,7 @@ import {
   NavigationItemSchema,
   NavigationReceiptSchema,
   RouteStateSchema,
+  SentDraftSchema,
   TailSnapshotSchema,
   thenInsertFits,
 } from './host';
@@ -178,12 +179,13 @@ export const FROM_MAIN = {
     fanSequence: CountSchema,
   }),
   coverage: z.strictObject({ acc: NativeIdSchema, state: z.enum(['ok', 'unknown']), reason: boundedText(64) }),
-  /** A human send from the composer (§6.6). */
+  /** A human send from the composer (§6.6): once per send, after the native chain settled (HumanSendFact). */
   humanSend: z.strictObject({
     ...AccFan,
     pendingId: PendingIdSchema,
     platformMessageId: z.nullable(NativeIdSchema),
     textDigest: DigestSchema,
+    draft: SentDraftSchema,
   }),
   previewSendState: z.strictObject({ view: SendAttemptViewSchema }),
 } as const satisfies Record<FromMainType, z.ZodMiniType>;

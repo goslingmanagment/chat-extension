@@ -117,6 +117,9 @@ export const incomingFact = {
   source: 'ws-tap',
 } as const;
 export const contractWire = { build: 'index-0000test', missing: ['fansMap'], shape: [], receiptModules: { queue: 'mod-queue-0000' } } as const;
+/** The draft at Send: our unchanged insert, and a draft nobody can attribute. */
+export const ourDraft = { revision: 5, provenance: 'our-insert', insertIntentId: uuid(1), editedSinceInsert: false } as const;
+export const humanDraft = { revision: 7, provenance: 'human-or-unknown', insertIntentId: null, editedSinceInsert: null } as const;
 export const mainSend = {
   attemptId: uuid(5),
   acc: IDS.acc,
@@ -474,10 +477,25 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   ),
   fixture('IncomingFact', C.IncomingFactSchema, [incomingFact], [{ ...incomingFact, platformMessageId: 4004 }, { ...incomingFact, text: 'hey' }]),
   fixture(
+    'SentDraft',
+    C.SentDraftSchema,
+    [ourDraft, { ...ourDraft, provenance: 'human-or-unknown', revision: 6, editedSinceInsert: true }, humanDraft, { ...humanDraft, provenance: 'empty' }],
+    [
+      // An unchanged insert of ours names its intent; `edited` exists only for a draft from our insert.
+      { ...ourDraft, insertIntentId: null, editedSinceInsert: null },
+      { ...ourDraft, editedSinceInsert: true },
+      { ...humanDraft, editedSinceInsert: false },
+      { ...ourDraft, provenance: 'typed' },
+    ],
+  ),
+  fixture(
     'HumanSendFact',
     C.HumanSendFactSchema,
-    [{ chat, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST }],
-    [{ chat, pendingId: uuid(7), platformMessageId: IDS.msg2 }],
+    [
+      { chat, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST, draft: ourDraft },
+      { chat, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, draft: humanDraft },
+    ],
+    [{ chat, pendingId: uuid(7), platformMessageId: IDS.msg2, textDigest: DIGEST }, { chat, pendingId: uuid(7), platformMessageId: IDS.msg2, draft: ourDraft }],
   ),
   fixture('CoverageEvent', C.CoverageEventSchema, [{ hostAccountId: IDS.acc, state: 'unknown', reason: 'reconnect' }], [{ hostAccountId: IDS.acc, state: 'partial', reason: 'x' }]),
 
