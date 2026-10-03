@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ZipEntry } from '../lib/zip.ts';
 import { isStandSource, STAND_SOURCE_GLOBS, STAND_SOURCE_KEPT } from '../../apps/extension/build/sources-archive.ts';
-import { checkArchive, compareWithBuild, danglingReferences, REAL_ID_SHA256, sha256 } from './rules.ts';
+import { checkArchive, compareWithBuild, danglingReferences, MAX_BACKGROUND_JS_BYTES, MAX_JS_BYTES, REAL_ID_SHA256, sha256 } from './rules.ts';
 
 const entry = (name: string, text = ''): ZipEntry => ({ name, data: Buffer.from(text) });
 /** A synthetic "real" id: tests never carry the owner's ids. */
@@ -15,6 +15,21 @@ const syntheticHashes = new Set([sha256(SYNTHETIC_ID)]);
 describe('archive check', () => {
   it('passes our own build', () => {
     expect(checkArchive('x.zip', [entry('background.js', 'console.log(1)'), entry('icons/48.png')], 'xpi')).toEqual([]);
+  });
+
+  it('a script of the XPI over its ceiling is flagged: 400 KiB for any file, the background (the vendored hub SDK lives there) has its own', () => {
+    const sized = (name: string, bytes: number): ZipEntry => ({ name, data: Buffer.alloc(bytes, 0x61) });
+    const rules = (entries: ZipEntry[], kind: 'xpi' | 'sources' = 'xpi'): string[] => checkArchive('x.zip', entries, kind).map((problem) => `${problem.rule}:${problem.file}`);
+    expect(rules([sized('lazy/dock.js', MAX_JS_BYTES), sized('background.js', MAX_BACKGROUND_JS_BYTES)])).toEqual([]);
+    expect(rules([sized('lazy/dock.js', MAX_JS_BYTES + 1), sized('content-scripts/chatspace.js', MAX_JS_BYTES + 1), sized('background.js', MAX_BACKGROUND_JS_BYTES + 1)])).toEqual([
+      'oversized-js:lazy/dock.js',
+      'oversized-js:content-scripts/chatspace.js',
+      'oversized-js:background.js',
+    ]);
+    // Only the file at the root of the XPI is the background; the rule is about what ships.
+    expect(rules([sized('lazy/background.js', MAX_JS_BYTES + 1)])).toEqual(['oversized-js:lazy/background.js']);
+    expect(rules([sized('background.js', MAX_BACKGROUND_JS_BYTES + 1)], 'sources')).toEqual([]);
+    expect(MAX_BACKGROUND_JS_BYTES).toBeGreaterThan(MAX_JS_BYTES);
   });
 
   it('flags OnlyMonster code, real data, fonts, foreign images and sourcemaps', () => {

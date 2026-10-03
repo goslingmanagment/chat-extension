@@ -96,7 +96,16 @@ const ALLOWED_IMAGES = /^(?:icons?\/|apps\/extension\/public\/icons?\/)/;
 /** The checker's own rule file names the OnlyMonster markers it looks for (only those). */
 const SELF = /^tools\/archive-check\//;
 /** A single minified file this large means someone bundled something foreign. */
-const MAX_JS_BYTES = 400 * 1024;
+export const MAX_JS_BYTES = 400 * 1024;
+/**
+ * The background is the one file that is larger by design: it alone carries
+ * the vendored hub SDK (D-13) — the hub's whole route contract with its zod
+ * schemas, about 450 KiB minified — next to the hub layer and the services
+ * (682 KiB when the M1 skeleton was wired). Its own ceiling keeps the
+ * tripwire: a re-vendored SDK fits, a foreign bundle on top of it does not.
+ */
+export const MAX_BACKGROUND_JS_BYTES = 800 * 1024;
+const jsCeiling = (name: string): number => (name === 'background.js' ? MAX_BACKGROUND_JS_BYTES : MAX_JS_BYTES);
 
 export interface ArchiveCheckOptions {
   /** Defaults to REAL_ID_SHA256 (tests pass synthetic ids). */
@@ -118,8 +127,8 @@ export function checkArchive(
     for (const [pattern, what] of FORBIDDEN_FILES) if (pattern.test(entry.name)) add(entry.name, 'forbidden-file', what);
     if (IMAGE_FILE.test(entry.name) && !ALLOWED_IMAGES.test(entry.name)) add(entry.name, 'foreign-image', 'image outside our icons folder');
     if (kind === 'xpi' && entry.name.endsWith('.map')) add(entry.name, 'sourcemap', 'sourcemaps do not ship in the XPI');
-    if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > MAX_JS_BYTES) {
-      add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${MAX_JS_BYTES}`);
+    if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > jsCeiling(entry.name)) {
+      add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${jsCeiling(entry.name)}`);
     }
     if (kind === 'sources' && isStandSource(entry.name)) add(entry.name, 'stand-in-sources', 'the ChatSpace-like stand stays out of the AMO sources archive (apps/extension/build/sources-archive.ts)');
     for (const [dir, allowed, kinds] of STAND_SOURCE_DIRS) {
