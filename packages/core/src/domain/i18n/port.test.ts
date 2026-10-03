@@ -52,6 +52,22 @@ describe('[I18-004] nothing untranslated: every key renders text in both languag
   it('an unknown key shows itself instead of vanishing', () => {
     expect(make().t('no.such.key' as never)).toBe('no.such.key');
   });
+
+  it('a missing key is reported once per key and language, by its name only', () => {
+    const heard: Array<[string, Locale]> = [];
+    const i18n = createI18n({ language: 'ru', now: () => NOW, onMissing: (key, language) => heard.push([key, language]) });
+    expect(i18n.t('no.such.key' as never, { name: 'Hubert' })).toBe('no.such.key');
+    expect(i18n.plural('no.such.plural' as never, 3)).toBe('no.such.plural');
+    i18n.t('no.such.key' as never);
+    expect(i18n.t('common.copy')).toBe('Копировать');
+    i18n.setLanguage('en');
+    i18n.text({ key: 'no.such.key' as never });
+    expect(heard).toEqual([
+      ['no.such.key', 'ru'],
+      ['no.such.plural', 'ru'],
+      ['no.such.key', 'en'],
+    ]);
+  });
 });
 
 describe('I18n port: texts and parameters', () => {

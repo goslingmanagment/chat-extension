@@ -34,6 +34,12 @@ export interface I18nOptions {
   readonly now?: () => number;
   /** IANA zone for times and dates; defaults to the runtime's own (the chatter's clock). */
   readonly timeZone?: string;
+  /**
+   * A key the catalog of `language` does not have (it renders as the key
+   * itself): the composition root logs it (I18-004). Once per key and
+   * language; the key name only, never a text.
+   */
+  readonly onMissing?: (key: string, language: Locale) => void;
 }
 
 /** The port plus the switch the composition root calls when `ui.locale` (or the system language) changes. */
@@ -107,6 +113,15 @@ export function createI18n(options: I18nOptions): LiveI18n {
     ...(options.timeZone === undefined ? {} : { timeZone: options.timeZone }),
   });
   const pluralRules = new Map<Locale, Intl.PluralRules>();
+  const reported = new Set<string>();
+  const missing = (key: string): string => {
+    const id = `${language}\u0000${key}`;
+    if (options.onMissing !== undefined && !reported.has(id)) {
+      reported.add(id);
+      options.onMissing(key, language);
+    }
+    return key;
+  };
 
   const rulesFor = (locale: Locale): Intl.PluralRules => {
     let rules = pluralRules.get(locale);
@@ -144,10 +159,10 @@ export function createI18n(options: I18nOptions): LiveI18n {
       const forms = message as Readonly<Record<string, string>>;
       const n = count ?? (typeof params?.['n'] === 'number' ? params['n'] : null);
       const form = n === null ? forms['other'] : (forms[rulesFor(language).select(n)] ?? forms['other']);
-      return interpolate(form ?? key, n === null ? params : { ...params, n });
+      return form === undefined ? missing(key) : interpolate(form, n === null ? params : { ...params, n });
     }
-    // A key the catalog does not have shows itself: visible in review, never blank (§9.7).
-    return key;
+    // A key the catalog does not have shows itself: visible in review, never blank (§9.7), and reported.
+    return missing(key);
   };
 
   // «плюс 320 долларов» for screen readers (ui-design §6.2): the same rounding and blanks as the printed form.
