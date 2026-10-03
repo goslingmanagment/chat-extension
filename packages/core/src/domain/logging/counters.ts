@@ -47,21 +47,29 @@ export class CodeCounters {
     this.day = localDayKey(now);
   }
 
+  /** Moves to a later day only: a late record from before midnight never rolls the count back. */
   private roll(now: number): void {
     const day = localDayKey(now);
-    if (day === this.day) return;
+    // `YYYY-MM-DD` keys compare as dates.
+    if (day <= this.day) return;
     this.previousDay = this.day;
     this.previous = this.today;
     this.today = new Map();
     this.day = day;
   }
 
-  /** Counts one occurrence; an unknown code is ignored (never throws). */
+  /**
+   * Counts one occurrence at `now` (a tab record brings its own time); an
+   * unknown code is ignored (never throws). A late record of the previous day
+   * counts there; an older one only since the start.
+   */
   count(code: unknown, now: number, by = 1): void {
     if (!isCgCode(code) || !Number.isFinite(by) || by <= 0) return;
     this.roll(now);
+    const day = localDayKey(now);
     const step = Math.floor(by);
-    this.today.set(code, Math.min(MAX_COUNT, (this.today.get(code) ?? 0) + step));
+    const bucket = day === this.day ? this.today : day === this.previousDay ? this.previous : null;
+    if (bucket !== null) bucket.set(code, Math.min(MAX_COUNT, (bucket.get(code) ?? 0) + step));
     this.session.set(code, Math.min(MAX_COUNT, (this.session.get(code) ?? 0) + step));
   }
 

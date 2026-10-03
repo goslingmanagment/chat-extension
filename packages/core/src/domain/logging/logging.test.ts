@@ -386,6 +386,59 @@ describe('[LG-011] records from a tab or page', () => {
     expect(batches).toEqual([50, 50, 20]);
     expect(forwarder.stats()).toEqual({ pending: 0, sent: 117, lost: 13, failures: 1 });
   });
+
+  it('[LG-011] an overflow while a batch is on its way trims only the waiting records', async () => {
+    const batches: string[][] = [];
+    const gate = { open: (): void => undefined, fail: false };
+    const forwarder = createLogForwarder({
+      send: (records) => {
+        batches.push(records.map((r) => r.msg));
+        if (batches.length > 1) return Promise.resolve({ accepted: records.length, dropped: 0 });
+        return new Promise((resolve) => {
+          gate.open = () => resolve({ accepted: records.length, dropped: 0 });
+        });
+      },
+      schedule: () => undefined,
+      batchMax: 2,
+      backlogMax: 4,
+    });
+    const record = (msg: string): LogRecord => ({ ts: new Date(T0).toISOString(), seq: 1, level: 'info', scope: 'tab.x', msg });
+    forwarder.push(record('a'));
+    const first = forwarder.flush();
+    for (const msg of ['b', 'c', 'd', 'e', 'f']) forwarder.push(record(msg));
+    // `a` travels; of the five waiting, the oldest (`b`) goes.
+    expect(forwarder.stats()).toMatchObject({ pending: 5, lost: 1 });
+    gate.open();
+    await first;
+    expect(batches).toEqual([['a'], ['c', 'd'], ['e', 'f']]);
+    expect(forwarder.stats()).toEqual({ pending: 0, sent: 5, lost: 1, failures: 0 });
+
+    // A failed batch returns to the head, and the bound still holds: the oldest go.
+    batches.length = 0;
+    const second = createLogForwarder({
+      send: (records) => {
+        batches.push(records.map((r) => r.msg));
+        if (!gate.fail) return Promise.resolve({ accepted: records.length, dropped: 0 });
+        return new Promise((_resolve, reject) => {
+          gate.open = () => reject(new Error('away'));
+        });
+      },
+      schedule: () => undefined,
+      batchMax: 2,
+      backlogMax: 4,
+    });
+    gate.fail = true;
+    second.push(record('a'));
+    second.push(record('b'));
+    const pendingSend = second.flush();
+    for (const msg of ['c', 'd', 'e', 'f', 'g']) second.push(record(msg));
+    gate.open();
+    await pendingSend;
+    expect(second.stats()).toEqual({ pending: 4, sent: 0, lost: 3, failures: 1 });
+    gate.fail = false;
+    await second.flush();
+    expect(batches).toEqual([['a', 'b'], ['d', 'e'], ['f', 'g']]);
+  });
 });
 
 describe('[LG-009] error fields', () => {
@@ -509,6 +562,32 @@ describe('[LG-010] error counters by CG code for the day', () => {
     expect(h.logger.counters.todayCounts(tomorrow)).toEqual([]);
     expect(h.logger.counters.snapshot(tomorrow).previous).toEqual({ 'CG-HUB-UNAVAILABLE': 2, 'CG-PROVIDER-STREAM': 1 });
     expect(h.logger.counters.sessionCounts()).toHaveLength(2);
+  });
+
+  it('[LG-010] a late record from before midnight never wipes today’s counts', () => {
+    const midnight = new Date(2026, 9, 4, 0, 0, 0).getTime();
+    const counters = new CodeCounters(midnight);
+    counters.count('CG-NETWORK', midnight + 5000);
+    counters.count('CG-NETWORK', midnight + 5000);
+    // A tab's record of 23:59:59 the day before, delivered late.
+    counters.count('CG-NETWORK', midnight - 1000);
+    counters.count('CG-NETWORK', midnight + 6000);
+    // Two days back: only since the start.
+    counters.count('CG-TIMEOUT', midnight - 2 * 86_400_000);
+    const snapshot = counters.snapshot(midnight + 7000);
+    expect(snapshot.today).toEqual({ 'CG-NETWORK': 3 });
+    expect(snapshot.day).toBe(localDayKey(midnight));
+    expect(snapshot.previous).toEqual({});
+    expect(counters.sessionCounts()).toEqual([
+      { code: 'CG-NETWORK', count: 4 },
+      { code: 'CG-TIMEOUT', count: 1 },
+    ]);
+    // After a real roll, a late record of the previous day lands there.
+    const later = new CodeCounters(midnight - 3_600_000);
+    later.count('CG-NETWORK', midnight - 3_600_000);
+    later.count('CG-TIMEOUT', midnight + 1000);
+    later.count('CG-NETWORK', midnight - 500);
+    expect(later.snapshot(midnight + 2000)).toMatchObject({ today: { 'CG-TIMEOUT': 1 }, previous: { 'CG-NETWORK': 2 } });
   });
 
   it('[LG-010] survives a background restart through a snapshot, ignoring junk', () => {

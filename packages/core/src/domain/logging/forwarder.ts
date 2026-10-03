@@ -19,6 +19,7 @@ export interface ForwarderOptions {
 }
 
 export interface ForwarderStats {
+  /** Waiting records plus the batch on its way. */
   readonly pending: number;
   readonly sent: number;
   /** Lost: backlog overflow, plus what the background reported as dropped. */
@@ -42,22 +43,36 @@ export function createLogForwarder(options: ForwarderOptions): LogForwarder {
   const pending: LogRecord[] = [];
   let scheduled = false;
   let inFlight: Promise<void> | null = null;
+  /** Records of the batch on its way: out of `pending`, so an overflow meanwhile never trims them. */
+  let travelling = 0;
   let sent = 0;
   let lost = 0;
   let failures = 0;
 
+  /** The oldest beyond the backlog bound go, counted. */
+  const trim = (): void => {
+    if (pending.length <= backlogMax) return;
+    const over = pending.length - backlogMax;
+    pending.splice(0, over);
+    lost += over;
+  };
+
   const drain = async (): Promise<void> => {
     while (pending.length > 0) {
-      const batch = pending.slice(0, batchMax);
+      const batch = pending.splice(0, batchMax);
+      travelling = batch.length;
       try {
         const answer = await options.send(batch);
-        pending.splice(0, batch.length);
         sent += Math.max(0, answer.accepted);
         lost += Math.max(0, answer.dropped);
       } catch {
-        // The background is away: keep the backlog, try again with the next record.
+        // The background is away: the batch goes back to the head of the backlog (still bounded); the next record tries again.
+        pending.unshift(...batch);
+        trim();
         failures += 1;
         return;
+      } finally {
+        travelling = 0;
       }
     }
   };
@@ -73,11 +88,7 @@ export function createLogForwarder(options: ForwarderOptions): LogForwarder {
   const push = (record: LogRecord): void => {
     try {
       pending.push(record);
-      if (pending.length > backlogMax) {
-        const over = pending.length - backlogMax;
-        pending.splice(0, over);
-        lost += over;
-      }
+      trim();
       if (scheduled) return;
       scheduled = true;
       options.schedule(() => {
@@ -92,6 +103,6 @@ export function createLogForwarder(options: ForwarderOptions): LogForwarder {
   return {
     push,
     flush,
-    stats: () => ({ pending: pending.length, sent, lost, failures }),
+    stats: () => ({ pending: pending.length + travelling, sent, lost, failures }),
   };
 }
