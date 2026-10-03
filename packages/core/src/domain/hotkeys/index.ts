@@ -5,6 +5,7 @@
 // (`@cg/core/application/hotkeys`) feeds it what it saw.
 
 export {
+  CHATSPACE_KEYS,
   DISPATCHER_COMMAND_IDS,
   EXTRA_KEYS,
   hotkeyPlatformOf,

@@ -20,6 +20,9 @@
 //    on sign-out. R12's own «Новые» poll may feed `handleSubscribers` instead.
 // 4. `diagnostics.get`: sound = arbiter.diagnostics() (listeningTabs,
 //    lastIncomingAt, outcomes).
+// 5. Tab side: every HostPort `incoming` event goes to the background as it
+//    is — `rpc.request('sound.event', { fact: event.fact })`; the tab decides
+//    nothing about sound.
 
 export {
   SOUND_COUNTER_NAMES,

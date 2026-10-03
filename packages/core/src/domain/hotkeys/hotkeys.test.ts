@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { EN, RU } from '../i18n';
 import {
+  CHATSPACE_KEYS,
   COVERING_OVERLAYS,
   DELIVERY,
   DELIVERY_KEYS,
@@ -135,6 +136,35 @@ describe('the vendored scheme through the tab resolver', () => {
     // strikethrough (⇧S) are Fix, Reply and Recap — taken before TipTap sees them (§9.1 table).
     expect(press('mac', 'KeyB')).toBeNull();
     expect(press('win', 'KeyB')).toBeNull();
+  });
+
+  it('[HK-016] ChatSpace\'s own keys: the three we take on purpose are ours on their scheme, every other one is never a command of ours', () => {
+    const event = (item: (typeof CHATSPACE_KEYS)[number], platform: HotkeyPlatform): HotkeyKeyEvent => {
+      const mod = item.mods.includes('mod');
+      return ev(item.code, {
+        metaKey: mod && platform === 'mac',
+        ctrlKey: (mod && platform === 'win') || item.mods.includes('ctrl'),
+        altKey: item.mods.includes('alt'),
+        shiftKey: item.mods.includes('shift'),
+        key: item.code === 'Slash' ? '/' : item.code,
+      });
+    };
+    for (const platform of ['mac', 'win'] as const) {
+      for (const item of CHATSPACE_KEYS) {
+        const resolver = createKeyResolver(platform);
+        resolver.keydown(platform === 'mac' ? META : CTRL);
+        const verdict = resolver.keydown(event(item, platform));
+        if (item.status === 'theirs') expect([platform, item.what, verdict]).toEqual([platform, item.what, null]);
+        if (item.status === 'shared') expect(command(verdict)).toBe('close');
+      }
+    }
+    // Taken on purpose, before TipTap: inline code is Reply, italic is Fix; strikethrough is Recap on the mac scheme
+    // (on Windows ⌘⇧S does not exist and Ctrl+Shift+S carries nothing, HK-015).
+    const ours = CHATSPACE_KEYS.filter((item) => item.status === 'ours');
+    expect(ours.map((item) => command(press('mac', item.code, item.mods.includes('shift') ? { shiftKey: true } : {})))).toEqual(['reply', 'fix', 'recap']);
+    expect(ours.map((item) => command(press('win', item.code, item.mods.includes('shift') ? { shiftKey: true } : {})))).toEqual(['reply', 'fix', null]);
+    // The translator's Alt+S «with any other modifiers» meets the Windows scheme's Ctrl+Alt+S: that one is Recap, taken first.
+    expect(command(press('win', 'KeyS', { altKey: true }))).toBe('recap');
   });
 
   it('[HK-017] the physical key decides: ⌘+«у» on ЙЦУКЕН is Reply, a Latin «e» on another physical key is not', () => {

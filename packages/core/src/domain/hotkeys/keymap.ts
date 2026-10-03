@@ -82,6 +82,37 @@ export const EXTRA_KEYS: readonly ExtraKeyDef[] = [
   { command: 'close', codes: ['Escape'], mods: 'none', fallback: false, keycap: 'Esc', ariaKey: 'Escape' },
 ];
 
+/**
+ * ChatSpace's own keys (0.172.0: TipTap marks and Enter in the composer, the
+ * translator on the composer root, the layout's global listener — research
+ * `client-internals.md` §5). HK-016 for this host: a key here is either one
+ * we take on purpose, before ChatSpace sees it (`ours`), one we take only
+ * while something of ours is open (`shared`), or never ours (`theirs`). A new
+ * row of ours must not land on a `theirs` key; hotkeys.test.ts holds that.
+ */
+export const CHATSPACE_KEYS: readonly {
+  readonly what: string;
+  readonly code: string;
+  /** `mod` — ⌘ on macOS, Ctrl elsewhere (TipTap's Mod). */
+  readonly mods: readonly ('mod' | 'ctrl' | 'alt' | 'shift')[];
+  readonly status: 'ours' | 'shared' | 'theirs';
+}[] = [
+  { what: 'TipTap inline code', code: 'KeyE', mods: ['mod'], status: 'ours' },
+  { what: 'TipTap italic', code: 'KeyI', mods: ['mod'], status: 'ours' },
+  { what: 'TipTap strikethrough (Recap of the mac scheme)', code: 'KeyS', mods: ['mod', 'shift'], status: 'ours' },
+  { what: 'TipTap bold', code: 'KeyB', mods: ['mod'], status: 'theirs' },
+  { what: 'send', code: 'Enter', mods: [], status: 'theirs' },
+  { what: 'hard break', code: 'Enter', mods: ['shift'], status: 'theirs' },
+  { what: 'hard break', code: 'Enter', mods: ['mod'], status: 'theirs' },
+  { what: 'translator on / off', code: 'KeyS', mods: ['alt'], status: 'theirs' },
+  { what: 'translator, second key', code: 'KeyA', mods: ['alt'], status: 'theirs' },
+  { what: 'next chat tab', code: 'Tab', mods: ['ctrl'], status: 'theirs' },
+  { what: 'previous chat tab', code: 'Tab', mods: ['ctrl', 'shift'], status: 'theirs' },
+  { what: 'templates', code: 'Slash', mods: [], status: 'theirs' },
+  { what: 'templates, focus', code: 'Tab', mods: [], status: 'theirs' },
+  { what: 'close the chat tab', code: 'Escape', mods: [], status: 'shared' },
+];
+
 export interface ExtraKeyMatch {
   readonly def: ExtraKeyDef;
   /** 1–9 for a chat slot. */
