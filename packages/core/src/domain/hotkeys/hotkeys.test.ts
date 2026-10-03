@@ -566,9 +566,16 @@ describe('the action catalog', () => {
     for (const platform of ['mac', 'win'] as const) {
       expect(Object.keys(DELIVERY[platform]).sort()).toEqual([...DELIVERY_KEYS].sort());
       for (const key of DELIVERY_KEYS) expect(values).toContain(DELIVERY[platform][key]);
-      // Nothing measured says «the browser keeps it» yet; the unmeasured ones are named unverified.
-      for (const key of ['palette', 'next-unread', 'quick-jump', 'settings'] as const) expect(DELIVERY[platform][key]).toBe('unverified');
+      // Not pressed in a real browser yet: named unverified, never printed as measured.
+      for (const key of ['palette', 'next-unread', 'next-unread:fallback', 'quick-jump', 'quick-jump:fallback'] as const) expect(DELIVERY[platform][key]).toBe('unverified');
     }
+    // ⌘, on macOS is Firefox's own «Settings…» menu item (§9.1): reserved until a hand check says otherwise — it is not printed as working.
+    expect([DELIVERY.mac.settings, DELIVERY.win.settings]).toEqual(['reserved', 'unverified']);
+    expect(createActionCatalog('mac').entry('settings').hotkey).toEqual({ display: '⌘,', aria: 'Meta+,', delivery: 'reserved', fallback: null });
+    expect(printableHotkey(createActionCatalog('mac').entry('settings').hotkey)).toBeNull();
+    expect(printableHotkey(createActionCatalog('win').entry('settings').hotkey)).toMatchObject({ display: 'Ctrl+,' });
+    const macWindows = cheatsheetGroups(createActionCatalog('mac')).find((group) => group.id === 'windows')?.rows ?? [];
+    expect(macWindows[macWindows.length - 1]).toEqual({ label: { key: 'palette.item.settings' }, hotkey: null, note: { key: 'dock.reason.hotkeyReserved' } });
     // A measurement comes in as an override: a reserved main key gives way to its fallback, or to nothing.
     const measured = createActionCatalog('win', { delivery: { 'next-unread': 'reserved', 'next-unread:fallback': 'delivered', settings: 'reserved' } });
     expect(printableHotkey(measured.entry('next-unread').hotkey)).toEqual({ display: 'Alt+U', aria: 'Alt+U', delivery: 'delivered' });
@@ -587,13 +594,17 @@ describe('the action catalog', () => {
     const preview = groups[5]?.rows ?? [];
     expect(preview[preview.length - 1]).toEqual({ label: { key: 'send.button' }, hotkey: null, note: { key: 'cheatsheet.row.sendNote' } });
     const printed = groups.flatMap((group) => group.rows.map((row) => row.hotkey?.display));
-    for (const key of ['⌘E', '⌘K', '⌘⇧M', '?', '⌘,', '⌘⇧O', '⌘⇧L', '⌘.', 'J', 'K', '⌘U', '⌘1–9', ']', 'Esc', '↵']) expect(printed).toContain(key);
+    for (const key of ['⌘E', '⌘K', '⌘⇧M', '?', '⌘⇧O', '⌘⇧L', '⌘.', 'J', 'K', '⌘U', '⌘1–9', ']', 'Esc', '↵']) expect(printed).toContain(key);
+    // Firefox keeps ⌘, on macOS: not printed there; on Windows Ctrl+, is.
+    expect(printed).not.toContain('⌘,');
+    expect(cheatsheetGroups(createActionCatalog('win')).flatMap((group) => group.rows.map((row) => row.hotkey?.display))).toContain('Ctrl+,');
     for (const group of groups) {
       expect(typeof RU[group.title.key]).toBe('string');
       for (const row of group.rows) expect(typeof EN[row.label.key]).toBe('string');
     }
-    // Some rows are not measured on a real browser yet: the view says so.
-    expect(cheatsheetView(catalog)).toMatchObject({ view: { s: 'partial', gaps: [] }, platform: 'mac', note: { key: 'cheatsheet.note' } });
+    // Some rows are reserved or not measured on a real browser yet: the view says so, with its reason — never a bare «partial».
+    expect(cheatsheetView(catalog)).toMatchObject({ view: { s: 'partial', gaps: [{ kind: 'host-degraded', capabilities: [] }] }, platform: 'mac', note: { key: 'cheatsheet.note' } });
+    expect(cheatsheetView(createActionCatalog('win')).view).toEqual({ s: 'partial', gaps: [{ kind: 'host-degraded', capabilities: [] }] });
     const allMeasured = Object.fromEntries(DELIVERY_KEYS.map((key) => [key, 'delivered'])) as Record<(typeof DELIVERY_KEYS)[number], HotkeyDelivery>;
     expect(cheatsheetView(createActionCatalog('mac', { delivery: allMeasured })).view).toEqual({ s: 'ready' });
     // A combination the browser keeps is printed as its fallback with the note, or not printed.

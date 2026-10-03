@@ -70,14 +70,20 @@ export function cheatsheetGroups(catalog: ActionCatalog): readonly Group[] {
   ];
 }
 
-/** `partial` — a combination is reserved or not yet measured on a real browser. */
+/**
+ * `partial` — a combination is reserved or not yet measured on a real
+ * browser (CheatsheetVM). The reason travels with the state: the gap is the
+ * host's — the browser under ChatSpace does not, or may not, hand these
+ * combinations to the page — and names no ChatSpace capability; the rows say
+ * which combinations (their note and `HotkeyLabel.delivery`).
+ */
 export function cheatsheetView(catalog: ActionCatalog): CheatsheetVM {
   const unsure = catalog.entries().some((entry) => {
     const hotkey = entry.hotkey;
     return hotkey !== null && (hotkey.delivery === 'reserved' || hotkey.delivery === 'unverified');
   });
   return {
-    view: unsure ? { s: 'partial', gaps: [] } : { s: 'ready' },
+    view: unsure ? { s: 'partial', gaps: [{ kind: 'host-degraded', capabilities: [] }] } : { s: 'ready' },
     platform: catalog.platform,
     groups: cheatsheetGroups(catalog),
     note: msg('cheatsheet.note'),

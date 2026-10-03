@@ -6,10 +6,13 @@
 //   extension in production Firefox on both systems — `cancelable` where the
 //   browser has an action of its own on them, `delivered` where it has none;
 // - plain keys (J, K, `]`, `?`, Esc) always reach the page — `delivered`;
-// - the rows this client adds on ⌘/Ctrl (⌘K, ⌘U, ⌘1–9, ⌘,) and their Alt
+// - the rows this client adds on ⌘/Ctrl (⌘K, ⌘U, ⌘1–9, Ctrl+,) and their Alt
 //   fallbacks are `unverified` until somebody presses them in a real Firefox
 //   on winpc and the Mac: the headless e2e proves only that the page gets a
-//   synthetic key, never that the browser or the OS gives up a real one.
+//   synthetic key, never that the browser or the OS gives up a real one;
+// - ⌘, on macOS is Firefox's own «Settings…» item of the application menu
+//   (§9.1 table): `reserved` until a hand check says otherwise. It has no
+//   fallback — the popup, the dock and the palette open the settings.
 //
 // `reserved` is never printed as working; `unverified` is printed together
 // with its fallback. A measured result goes into DELIVERY (and the doc) — the
@@ -64,7 +67,7 @@ export const DELIVERY: Readonly<Record<HotkeyPlatform, Readonly<Record<DeliveryK
     coach: 'delivered',
     palette: 'unverified',
     cheatsheet: 'delivered',
-    settings: 'unverified',
+    settings: 'reserved',
     close: 'delivered',
     'chat-next': 'delivered',
     'chat-previous': 'delivered',
