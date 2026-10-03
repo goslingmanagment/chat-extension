@@ -30,6 +30,8 @@ export const BROWSER_API_ALLOWED: readonly RegExp[] = [/^packages\/platform\/src
 /** The only file that may reference ChatSpace's send queue method (§6.7, D-07). */
 export const SEND_PORT_FILE = 'packages/host-chatspace/src/main/send-port.ts';
 const SEND_QUEUE_METHOD = 'enqueue';
+/** The method name as a whole identifier inside a string or template: `not_enqueued` (a hub wire token) is not it. */
+const SEND_QUEUE_IN_TEXT = new RegExp(`(?<![\\w$])${SEND_QUEUE_METHOD}(?![\\w$])`);
 
 /** Where user-visible UI text lives until the i18n catalogs exist (R13/R16). */
 export const UI_TEXT_SCOPES: readonly RegExp[] = [/^packages\/ui\/src\/.*\.tsx$/, /^apps\/extension\/src\/composition\/pages\.ts$/];
@@ -183,7 +185,7 @@ export function checkSendQueueReferences(files: readonly SourceFile[]): Violatio
       const hit =
         (ts.isIdentifier(node) && node.text === SEND_QUEUE_METHOD) ||
         (ts.isPrivateIdentifier(node) && node.text === `#${SEND_QUEUE_METHOD}`) ||
-        (isTextNode(node) && node.text.includes(SEND_QUEUE_METHOD));
+        (isTextNode(node) && SEND_QUEUE_IN_TEXT.test(node.text));
       if (hit) {
         violations.push({
           gate: 'send-queue-scope',
