@@ -272,25 +272,30 @@ describe('the debug pages', () => {
   });
 
 
-  it('[DB-001] [NF-029] ask nothing while debug is off; with it on the journal page reads its journal, and another journal in the address remounts it', async () => {
+  it('[DB-001] [NF-029] ask nothing while debug is off; with it on the journal page reads the journal of its address, and another journal in the address is read in the same page', async () => {
     const w = start({ settings: settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale: 'ru' } }) });
     await signInWithPersona(w);
-    const background = w.fake.background();
     const asked: string[] = [];
-    background?.events.onMessage.addListener(((message: { type?: string }) => {
-      if (typeof message.type === 'string') asked.push(message.type);
+    w.fake.background()?.events.onMessage.addListener(((message: { type?: string; payload?: { journal?: string } }) => {
+      if (message.type === 'journal.read') asked.push(`journal.read:${message.payload?.journal ?? '?'}`);
+      else if (message.type === 'debug.prompt') asked.push('debug.prompt');
       return undefined;
     }) as never);
     const { root } = open(w, 'debug-journal', '#hub-calls');
     await until(() => text(root).length > 0, 'the journal page drew something');
     await sleep(50);
-    expect(asked.filter((type) => type === 'journal.read' || type === 'debug.prompt')).toEqual([]);
+    expect(asked).toEqual([]);
+    expect(root.querySelector('[data-pg-journal="debug-off"]')).not.toBeNull();
     expect(document.title).toBe('ChatGoose · Журнал');
 
     expect(await w.page().request('settings.patchRestricted', { patch: { debug: { enabled: true } }, baseRevision: null })).toMatchObject({ ok: true });
-    await until(() => asked.includes('journal.read'), 'the journal is read once debug is on');
+    // The journal the address names, and no other.
+    await until(() => asked.length > 0, 'the journal is read once debug is on');
+    expect([...new Set(asked)]).toEqual(['journal.read:hub-calls']);
+    // «Журналы» of the settings point the open journal tab at another journal: the page follows its address.
     window.location.hash = '#operations';
     window.dispatchEvent(new Event('hashchange'));
-    await until(() => asked.filter((type) => type === 'journal.read').length >= 2, 'the other journal is read');
+    await until(() => asked.includes('journal.read:operations'), 'the other journal is read');
+    expect(asked).not.toContain('debug.prompt');
   });
 });
