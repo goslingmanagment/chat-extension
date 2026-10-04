@@ -66,14 +66,14 @@ describe('release manifest (§3)', () => {
     expect(checkManifest(release.manifest, 'release')).toEqual([]);
   });
 
-  it('is MV3 with an event-page background', () => {
+  it('[EX-001] is MV3 with an event-page background', () => {
     const m = release.manifest;
     expect(m['manifest_version']).toBe(3);
     expect(m['name']).toBe(EXTENSION_NAME);
     expect(m['background']).toEqual({ scripts: ['background.js'] });
   });
 
-  it('pins the gecko id, minimum Firefox, update feed and data consent', () => {
+  it('[EX-002] [EX-006] pins the gecko id, minimum Firefox, update feed and data consent', () => {
     expect(release.manifest['browser_specific_settings']).toEqual({
       gecko: {
         id: GECKO_ID,
@@ -84,7 +84,7 @@ describe('release manifest (§3)', () => {
     });
   });
 
-  it('asks only for storage, alarms, scripting and the two hosts', () => {
+  it('[EX-003] asks only for storage, alarms, scripting and the two hosts', () => {
     expect(release.manifest['permissions']).toEqual(['storage', 'alarms', 'scripting']);
     expect(release.manifest['host_permissions']).toEqual(['https://chat.onlymonster.ai/*', 'https://gosling-agency.ru/*']);
     expect(release.manifest['optional_host_permissions']).toEqual(['https://*/*']);
@@ -109,7 +109,7 @@ describe('release manifest (§3)', () => {
     expect(existsSync(join(release.dir, 'chatspace-ws.js'))).toBe(true);
   });
 
-  it('exposes only the lazy chunks, and they exist', () => {
+  it('[EX-010] exposes only the lazy chunks, and they exist', () => {
     const war = release.manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
     expect(war).toHaveLength(1);
     expect(war[0]?.matches).toEqual(['https://chat.onlymonster.ai/*']);
@@ -121,14 +121,14 @@ describe('release manifest (§3)', () => {
     expect(war[0]?.resources).not.toContain('lazy/spike.js');
   });
 
-  it('has the popup, the options page in a tab, icons, and the default CSP', () => {
+  it('[EX-017] has the popup, the options page in a tab, icons, and the default CSP', () => {
     expect((release.manifest['action'] as Record<string, unknown>)['default_popup']).toBe('popup.html');
     expect(release.manifest['options_ui']).toEqual({ open_in_tab: true, page: 'options.html' });
     expect(release.manifest['icons']).toEqual({ '48': 'icons/48.png', '96': 'icons/96.png', '128': 'icons/128.png' });
     expect(release.manifest['content_security_policy']).toBeUndefined();
   });
 
-  it('ships the four pages, each loading the pages’ three chunks — the texts, the contracts, the pages — none over the size of a foreign bundle', () => {
+  it('[EX-016] the build ships the four pages, each loading the pages’ three chunks — the texts, the contracts, the pages — none over the size of a foreign bundle', () => {
     const chunks = readdirSync(join(release.dir, 'chunks'));
     for (const group of PAGE_CHUNK_GROUPS) expect(chunks.filter((file) => file.startsWith(`${group.name}-`)), group.name).toHaveLength(1);
     for (const file of chunks) expect(statSync(join(release.dir, 'chunks', file)).size, file).toBeLessThanOrEqual(MAX_PAGE_JS_BYTES);
