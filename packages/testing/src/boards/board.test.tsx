@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_DOM_ROWS, SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
 import { createI18n } from '@cg/core/domain/i18n';
-import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel, statsDayName } from '@cg/ui/spenders';
+import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel, statsDayName, zoneLabel } from '@cg/ui/spenders';
 
 import { board, button, cgError, ctxOf, entry, stats, views } from '../scenarios/app-client';
 import { BOARD_FANS, boardShelves, manyFans, type BoardFan } from './data';
@@ -163,6 +163,20 @@ describe('Spenders board: shelves and rows', () => {
     expect(cells(row('b001')).slice(2, 4)).toEqual(['—', '—']);
   });
 
+  it('[SP-013] green is income only: an unknown period amount «—» is muted and a known sum with a plus is green', async () => {
+    const vm = boardOf(ctx, BOARD_FANS);
+    const unknown = vm.shelves.map((shelf, index) => (index === 0 ? { ...shelf, rows: shelf.rows.map((item, n) => (n === 0 ? { ...item, period: null } : item)) } : shelf));
+    ui = await mountBoardSettled('spenders', boardOnly({ ...vm, shelves: unknown }));
+    const period = (handle: string): DOMTokenList => (row(handle).querySelector('.cg-bd__per') as HTMLElement).classList;
+    expect(textOf(row('b001').querySelector('.cg-bd__per'))).toBe('—');
+    expect([period('b001').contains('is-unknown'), period('b001').contains('is-in')]).toEqual([true, false]);
+    expect([period('b002').contains('is-unknown'), period('b002').contains('is-in')]).toEqual([false, true]);
+    // The colour is the class's, not the column's: the sheet paints only `.is-in` green.
+    const sheet = [...ui.root.querySelectorAll('style')].map((style) => style.textContent ?? '').join('\n') + ui.root.adoptedStyleSheets.map((item) => [...item.cssRules].map((rule) => rule.cssText).join('\n')).join('\n');
+    expect(sheet).toMatch(/\.cg-bd__per\.is-in\s*\{\s*color:\s*var\(--cg-money\)/);
+    expect(sheet).not.toMatch(/\.cg-bd__per\s*\{[^}]*--cg-money/);
+  });
+
   it('[SP-014] a new payer carries the word «новый»', async () => {
     ui = await mountBoardSettled('spenders', boardOnly(boardOf(ctx, BOARD_FANS.filter((fan) => fan.isNew === true))));
     const jake = row('b021');
@@ -224,11 +238,11 @@ describe('Spenders board: shelves and rows', () => {
 
   it('[SP-021] the footer: «40 из 40 фанов, охват полный», «данные на 09:18», and «Показано: 7» under a filter', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
-    expect(ui.$$('.cg-bd > .cg-sp__foot span').map(textOf)).toEqual(['40 из 40 фанов, охват полный', 'данные на 09:18']);
+    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 из 40 фанов, охват полный', 'данные на 09:18']);
     ui.unmount();
     const vm = boardOf(ctx, BOARD_FANS);
     ui = await mountBoardSettled('spenders', boardOnly({ ...vm, footer: { ...vm.footer, shown: 7 }, reset: button('spenders.filter.all', { type: 'ResetFilters', list: 'spenders' }) }));
-    expect(ui.text('.cg-bd > .cg-sp__foot span')).toBe('40 из 40 фанов, охват полный. Показано: 7');
+    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('40 из 40 фанов, охват полный. Показано: 7');
     await flush(() => (ui?.$('.cg-sp__line .cg-btn') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'ResetFilters', list: 'spenders' });
   });
@@ -236,11 +250,11 @@ describe('Spenders board: shelves and rows', () => {
   it('[SP-021] the 1000-row cut is said in words, and a total the hub does not know is not invented', async () => {
     ui = await mountBoardSettled('spenders', 'board-1000');
     expect(ui.text('.cg-sp__line')).toBe('Показаны первые 1000 из 1340. Сузьте поиск или фильтр.');
-    expect(ui.text('.cg-bd > .cg-sp__foot span')).toBe('1000 из 1340 фанов, охват неполный');
+    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('1000 из 1340 фанов, охват неполный');
     ui.unmount();
     const vm = boardOf(ctx, BOARD_FANS);
     ui = await mountBoardSettled('spenders', boardOnly({ ...vm, footer: { ...vm.footer, total: null, stamp: { asOf: null, coverage: 'unknown' } } }));
-    expect(ui.$$('.cg-bd > .cg-sp__foot span').map(textOf)).toEqual(['40 фанов, охват неизвестен']);
+    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 фанов, охват неизвестен']);
   });
 
   it('[SP-034] the keys footer of the model stands under the list', async () => {
@@ -309,7 +323,7 @@ describe('Spenders board: states of the source', () => {
   it('nothing after a filter: the words and «Сбросить»', async () => {
     ui = await mountBoardSettled('spenders', 'board-empty');
     expect(ui.text('.cg-bd .cg-state--empty')).toBe('Никого не нашли. Проверьте фильтр или поиск.');
-    expect(ui.text('.cg-bd > .cg-sp__foot span')).toBe('40 из 40 фанов, охват полный. Показано: 0');
+    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe('40 из 40 фанов, охват полный. Показано: 0');
     expect(ui.$('.cg-bd__reset .cg-btn')).not.toBeNull();
   });
 
@@ -328,7 +342,7 @@ describe('Spenders board: states of the source', () => {
   it('[SP-043] the board speaks the chosen language', async () => {
     ui = await mountBoardSettled('spenders', 'board-list', { language: 'en' });
     expect(ui.$$('.cg-sp__tools .cg-flt').map((filter) => filter.firstChild?.textContent)).toEqual(['All', 'Awaiting reply', 'New']);
-    expect(ui.$$('.cg-bd > .cg-sp__foot span').map(textOf)).toEqual(['40 of 40 fans, full coverage', 'data as of 09:18']);
+    expect(ui.$$('.cg-bd > .cg-sp__foot > span').map(textOf)).toEqual(['40 of 40 fans, full coverage', 'data as of 09:18']);
     expect(textOf(row('b012').querySelector('.cg-bd__tag'))).toBe('deleted');
   });
 });
@@ -500,6 +514,51 @@ describe('Spenders board: keyboard', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'SetStatsExpanded', expanded: false });
   });
 
+  it('[SP-049] S keeps the keyboard inside the window: the statistics take the focus when they replace the list, and the fan’s row takes it back', async () => {
+    const collapsed = stats(ctx, views.ready());
+    const scenario = {
+      ...boardOnly(boardOf(ctx, BOARD_FANS), collapsed),
+      steps: [
+        { at: 0, label: 'the statistics expanded', views: [entry({ of: 'spenders.stats' }, { ...collapsed, expanded: true })] },
+        { at: 0, label: 'the list is back', views: [entry({ of: 'spenders.stats' }, collapsed)] },
+      ],
+    };
+    ui = await mountBoardSettled('spenders', scenario);
+    expect(ui.root.activeElement).toBe(row('b001'));
+    await flush(() => keydown(ui?.root.activeElement as HTMLElement, 's', { code: 'KeyS' }));
+    expect(ui.actions().at(-1)).toEqual({ type: 'SetStatsExpanded', expanded: true });
+    // The controller expands them: the list — and the row that had the focus — is gone.
+    await flush(() => ui?.client.advance());
+    expect(ui.$('.cg-bd')).toBeNull();
+    expect(textOf(ui.root.activeElement)).toContain('Свернуть к списку');
+    // The focus is still ours, so the second S is heard and brings the list back.
+    await flush(() => keydown(ui?.root.activeElement as HTMLElement, 's', { code: 'KeyS' }));
+    expect(ui.actions().at(-1)).toEqual({ type: 'SetStatsExpanded', expanded: false });
+    await flush(() => ui?.client.advance());
+    await settle();
+    expect(ui.$('.cg-stx')).toBeNull();
+    expect(ui.root.activeElement).toBe(row('b001'));
+  });
+
+  it('[SP-024] «Обновить» of the board’s footer reads the list and the statistics again; of the expanded statistics — the statistics', async () => {
+    ui = await mountBoardSettled('spenders', 'board-list');
+    const refresh = ui.$('.cg-bd > .cg-sp__foot .cg-sp__refresh button') as HTMLElement;
+    expect(textOf(refresh)).toBe('Обновить');
+    await flush(() => refresh.click());
+    expect(ui.actionsOf('ReloadView')).toEqual([
+      { type: 'ReloadView', selector: { of: 'spenders.board' } },
+      { type: 'ReloadView', selector: { of: 'spenders.stats' } },
+    ]);
+    await settle();
+    expect(refresh.getAttribute('aria-busy')).not.toBe('true');
+    ui.unmount();
+
+    ui = await mountBoardSettled('spenders', '11i');
+    const again = ui.$('.cg-stx__foot .cg-sp__refresh button') as HTMLElement;
+    await flush(() => again.click());
+    expect(ui.actionsOf('ReloadView')).toEqual([{ type: 'ReloadView', selector: { of: 'spenders.stats' } }]);
+  });
+
   it('a click on a row opens its preview', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     await flush(() => row('b004').click());
@@ -518,7 +577,7 @@ describe('Spenders board: keyboard', () => {
     const expected = fans.filter((fan) => fan.name.toLowerCase().includes('aaron')).length;
     expect(expected).toBeGreaterThan(10);
     await settle();
-    expect(ui.text('.cg-bd > .cg-sp__foot span')).toBe(`1000 из 1000 фанов, охват полный. Показано: ${expected}`);
+    expect(ui.text('.cg-bd > .cg-sp__foot > span')).toBe(`1000 из 1000 фанов, охват полный. Показано: ${expected}`);
     // Said, not only printed (ui-design §6.2).
     expect(textOf(ui.$('[data-cg-live]'))).toBe(`Показано: ${expected}`);
     expect(ui.$$('.cg-vlist__inner [data-cg-fan]').length).toBeLessThanOrEqual(expected);
@@ -597,7 +656,8 @@ describe('Spenders statistics', () => {
     ]);
     expect(ui.$$('.cg-stx__table thead th').map(textOf)).toEqual(['Полка', 'Фанов', 'Всё время', '30 дней']);
     expect(ui.$$('.cg-stx__table tbody tr').map((line) => [...line.children].map(textOf))[0]).toEqual(['$600+', '8', '$78,690', '$4,005']);
-    expect(ui.text('.cg-stx__foot')).toBe('Данные на 09:18, охват полный. Часовой пояс: Europe/Moscow.');
+    // The zone is said by its offset, never by the hub's raw zone id.
+    expect(ui.text('.cg-stx__foot > span')).toBe('Данные на 09:18, охват полный. Часовой пояс: UTC+3.');
     expect(ui.$$('.cg-stx .cg-spark__ax span').map(textOf)).toEqual(['4 сен', '18 сен', 'сегодня']);
     await flush(() => (ui?.$('.cg-stx__head .cg-btn') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetStatsExpanded', expanded: false });
@@ -627,6 +687,17 @@ describe('Spenders statistics', () => {
       expect(statsDayName(i18n, '2020-02-20'), timeZone).toBe('20 фев 2020');
     }
     expect(statsDayName(createI18n({ language: 'en', now: () => now, timeZone: 'Pacific/Kiritimati' }), '2026-09-04')).toBe(createI18n({ language: 'en', now: () => now, timeZone: 'UTC' }).formatTime('2026-09-04T12:00:00Z', 'day'));
+  });
+
+  it('a time zone is said by its offset from UTC at the data’s moment, never by the raw zone id', () => {
+    const at = '2026-10-03T06:18:00Z';
+    expect(zoneLabel('Europe/Moscow', at)).toBe('UTC+3');
+    expect(zoneLabel('UTC', at)).toBe('UTC');
+    expect(zoneLabel('America/Los_Angeles', at)).toBe('UTC−7');
+    expect(zoneLabel('America/Los_Angeles', '2026-12-03T06:18:00Z')).toBe('UTC−8');
+    expect(zoneLabel('Asia/Kolkata', at)).toBe('UTC+5:30');
+    // A zone the browser does not know keeps its last word, readable.
+    expect(zoneLabel('Mars/Olympus_Mons', at)).toBe('Olympus Mons');
   });
 
   it('percent changes read «+4%», «−12%», «0%»', () => {

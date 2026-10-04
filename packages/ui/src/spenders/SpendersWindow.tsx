@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { type SpendersPeriod } from '@cg/contracts/vm';
 
-import { Boundary, Dialog, OverlayLayer, SearchBox, Tabs, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
+import { Boundary, Dialog, OverlayLayer, SearchBox, Tabs, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
 import { BOARD_CSS, Board, PERIOD_KEYS, focusIsIdle, type BoardHandle } from './Board';
 import { Preview } from './preview/Preview';
 import { STATS_CSS, StatsColumn, StatsExpanded } from './Stats';
@@ -85,6 +85,16 @@ export function SpendersWindow(): JSX.Element {
     if (previewWasOpen.current && !board.previewOpen) boardRef.current?.focusActiveRow();
     previewWasOpen.current = board.previewOpen;
   }, [board.previewOpen]);
+
+  // The statistics took the place of the list (S, «Развернуть»): the row that had the focus is gone with it, and
+  // the focus would fall out of the window — to the page, where no key of ours is heard, so a second S could
+  // not bring the list back. It goes to «Свернуть к списку», and back to the fan's row when the list returns.
+  const statsWereExpanded = useRef(stats.expanded);
+  useLayoutEffect(() => {
+    if (stats.expanded && !statsWereExpanded.current) focusQuietly(frameRef.current?.querySelector<HTMLElement>('.cg-stx__head .cg-btn'));
+    else if (!stats.expanded && statsWereExpanded.current) boardRef.current?.focusActiveRow();
+    statsWereExpanded.current = stats.expanded;
+  }, [stats.expanded]);
 
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
     if (event.defaultPrevented || isComposing(event) || isTextEntry(event.target) || !isPlainKey(event)) return;

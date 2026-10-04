@@ -32,7 +32,7 @@ import {
 } from '../kit';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
-import { DataFooter, FilterChip, ageOrUnknown, coverageWord, isPlainKey } from './window';
+import { DataFooter, FilterChip, ageOrUnknown, coverageWord, isPlainKey, type RefreshableView } from './window';
 
 export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
   lifetime: 'spenders.period.lifetime',
@@ -44,6 +44,8 @@ export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
 
 /** The first row of filters (ui-design §4.14); the others stand in a second row (§10, SP-020). */
 const PRIMARY_FILTERS: readonly SpendersFilter[] = ['all', 'waiting', 'new'];
+/** What «Обновить» of the board's footer reads again: the list and the statistics column next to it. */
+const BOARD_REFRESH: readonly RefreshableView[] = ['spenders.board', 'spenders.stats'];
 /** Ask for the next page this many rows before the end of the loaded list. */
 const LOAD_MORE_MARGIN = 20;
 
@@ -201,7 +203,8 @@ function FanRow({ row, itemKey, index, rowIndex, active, onPick }: FanRowProps):
         {row.lastMessage === null ? null : row.lastMessage.fromUs ? `${i18n.t('spenders.ourPrefix')} ${row.lastMessage.text}` : row.lastMessage.text}
       </span>
       <Money mills={row.lifetime} cell class="cg-bd__num cg-bd__life" />
-      <span role="cell" class="cg-bd__num cg-bd__per cg-num" {...(period === null ? {} : { 'aria-label': period })}>
+      {/* Green is income only (ui-design §1 п. 4): a sum with a plus. An unknown «—» is muted, a loss is plain ink. */}
+      <span role="cell" class={`cg-bd__num cg-bd__per cg-num${row.period === null ? ' is-unknown' : row.period > 0 ? ' is-in' : ''}`} {...(period === null ? {} : { 'aria-label': period })}>
         {i18n.formatMoneyMills(row.period, { sign: 'plus' })}
       </span>
       <span role="cell" class="cg-bd__num cg-bd__age cg-num">
@@ -458,7 +461,8 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
           hints={board.keys.map((entry) => ({ keys: hotkeyText(entry.hotkey)?.display ?? '', label: i18n.text(entry.label) })).filter((hint) => hint.keys !== '')}
         />
       )}
-      <DataFooter left={footerText} stamp={board.footer.stamp} />
+      {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
+      <DataFooter left={footerText} stamp={board.footer.stamp} refresh={BOARD_REFRESH} />
     </section>
   );
 }
@@ -505,7 +509,9 @@ export const BOARD_CSS = `
 .cg-bd__row.is-deleted .cg-bd__name { color: var(--cg-ink-muted); font-weight: 400; }
 .cg-bd__row.is-deleted .cg-bd__tag { color: var(--cg-ink-muted); }
 .cg-bd__life { color: var(--cg-ink); }
-.cg-bd__per { color: var(--cg-money); font-weight: 500; }
+.cg-bd__per { color: var(--cg-ink); font-weight: 500; }
+.cg-bd__per.is-in { color: var(--cg-money); }
+.cg-bd__per.is-unknown { color: var(--cg-ink-muted); font-weight: 400; }
 .cg-bd__age { color: var(--cg-ink-muted); }
 .cg-bd__age.is-wait { color: var(--cg-ink-strong); font-weight: 500; }
 .cg-bd__last { display: block; overflow: hidden; visibility: hidden; color: var(--cg-ink-muted); text-overflow: ellipsis; }

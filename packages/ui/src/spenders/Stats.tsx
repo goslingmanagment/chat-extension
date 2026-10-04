@@ -11,7 +11,7 @@ import { type CountStat, type DataStamp, type I18n, type MoneyStat, type Spender
 
 import { Button, Money, ViewState, useDispatch, useHints, useI18n, useTooltip } from '../kit';
 import { shelfLabel } from './rows';
-import { coverageWord, timeOrUnknown, unknownMark } from './window';
+import { RefreshButton, coverageWord, timeOrUnknown, unknownMark, type RefreshableView } from './window';
 
 /**
  * A calendar date of the statistics window («2026-09-04») as the I18n port
@@ -34,6 +34,31 @@ export function formatPct(pct: number): string {
   const value = Math.round(pct);
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}%`;
 }
+
+/**
+ * A time zone as a person reads it: its offset from UTC at the moment of the
+ * data («UTC+3», «UTC−5:30», «UTC») — the same in every language, and never
+ * the raw zone id («Europe/Moscow») the hub names it by. A zone this browser
+ * does not know keeps its last word («Moscow»).
+ */
+export function zoneLabel(timeZone: string, at: string | number | null): string {
+  try {
+    const moment = at === null ? new Date() : new Date(at);
+    const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' }).formatToParts(moment).find((part) => part.type === 'timeZoneName')?.value ?? '';
+    if (name === 'GMT' || name === 'UTC') return 'UTC';
+    const offset = /^(?:GMT|UTC)([+-])(\d{1,2})(?::(\d{2}))?$/.exec(name);
+    if (offset !== null) {
+      const zero = Number(offset[2]) === 0 && (offset[3] === undefined || Number(offset[3]) === 0);
+      return zero ? 'UTC' : `UTC${offset[1] === '-' ? '−' : '+'}${offset[2] ?? ''}${offset[3] === undefined ? '' : `:${offset[3]}`}`;
+    }
+  } catch {
+    // Not a zone Intl knows: named by its last word below.
+  }
+  return (timeZone.split('/').pop() ?? timeZone).replaceAll('_', ' ');
+}
+
+/** What «Обновить» of the expanded statistics reads again. */
+const STATS_REFRESH: readonly RefreshableView[] = ['spenders.stats'];
 
 function stampText(i18n: I18n, stamp: DataStamp): string {
   return i18n.t('stats.footer', { time: timeOrUnknown(i18n, stamp.asOf), coverage: coverageWord(i18n, stamp.coverage) });
@@ -298,7 +323,8 @@ export function StatsExpanded({ stats }: { readonly stats: SpendersStatsVM }): J
                     <tr key={shelf.id}>
                       <td>{shelfLabel(i18n, shelf.range)}</td>
                       <td>{shelf.fans === null ? unknownMark(i18n) : shelf.fans}</td>
-                      <td>{i18n.formatMoneyMills(shelf.lifetime, { zero: 'show' })}</td>
+                      {/* A known zero is not drawn (ui-design §1 п. 6, §4.15): an empty cell, as in the period column. */}
+                      <td>{i18n.formatMoneyMills(shelf.lifetime)}</td>
                       <td>{i18n.formatMoneyMills(shelf.period)}</td>
                     </tr>
                   ))}
@@ -311,7 +337,9 @@ export function StatsExpanded({ stats }: { readonly stats: SpendersStatsVM }): J
               </div>
               <Attention stats={stats} full />
               <div class="cg-stx__foot">
-                {stats.timeZone === null ? i18n.t('stats.footer', { time, coverage }) : i18n.t('stats.footerFull', { time, coverage, tz: stats.timeZone })}
+                <span>{stats.timeZone === null ? i18n.t('stats.footer', { time, coverage }) : i18n.t('stats.footerFull', { time, coverage, tz: zoneLabel(stats.timeZone, stats.stamp.asOf) })}</span>
+                {/* SP-024: with the statistics expanded the board's footer is not on screen. */}
+                <RefreshButton views={STATS_REFRESH} />
               </div>
             </div>
           </div>
@@ -375,7 +403,8 @@ export const STATS_CSS = `
 .cg-stx__table th { font-weight: 400; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); text-align: right; padding: 0 0 6px; }
 .cg-stx__table th:first-child, .cg-stx__table td:first-child { text-align: left; }
 .cg-stx__table td { padding: 0; height: 32px; border-top: 1px solid var(--cg-rule); text-align: right; color: var(--cg-ink); }
-.cg-stx__foot { padding: 12px 0 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-stx__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 12px 0 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-stx__foot .cg-sp__refresh { margin: 0 -8px 0 0; }
 @media (max-width: 1360px) {
   .cg-st__head { padding-left: 14px; }
   .cg-st__sec, .cg-st__foot { padding-left: 14px; padding-right: 14px; }

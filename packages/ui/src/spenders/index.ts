@@ -11,7 +11,7 @@ import { WINDOW_STYLES } from './window';
 
 export { SpendersWindow, SPENDERS_PAINT_MARKS } from './SpendersWindow';
 export { Board, PERIOD_KEYS, type BoardHandle, type BoardProps } from './Board';
-export { StatsColumn, StatsExpanded, formatPct, statsDayName, type StatsProps } from './Stats';
+export { StatsColumn, StatsExpanded, formatPct, statsDayName, zoneLabel, type StatsProps } from './Stats';
 export { useRowFocus, type RowFocus } from './rowFocus';
 export { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, fanCount, initialStop, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
 export { PREVIEW_STYLES, Preview, matchesHotkey, type PreviewProps } from './preview/Preview';
@@ -19,7 +19,7 @@ export { PreviewResult, type PreviewResultProps } from './preview/Result';
 export { SendRow, codeLineParts, sendStateWords, type SendRowProps } from './preview/SendRow';
 export { MiniStrip, generateAction, pingHint, type MiniStripProps } from './preview/MiniStrip';
 export { Feed, type FeedProps } from './preview/Feed';
-export { DataFooter, FilterChip, WINDOW_STYLES, WindowHeader, ageOrUnknown, coverageWord, isPlainKey, isTextEntry, timeOrUnknown, unknownMark, type WindowHeaderProps } from './window';
+export { DataFooter, FilterChip, RefreshButton, WINDOW_STYLES, WindowHeader, ageOrUnknown, coverageWord, isPlainKey, isTextEntry, timeOrUnknown, unknownMark, type RefreshableView, type WindowHeaderProps } from './window';
 
 export const SPENDERS_STYLES: StyleSource = { id: 'cg-spenders', css: SPENDERS_CSS };
 

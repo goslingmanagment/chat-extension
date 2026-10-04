@@ -5,11 +5,12 @@
 // «is the person typing in one of our fields».
 
 import { type ComponentChildren, type JSX } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type DataStamp, type I18n } from '@cg/contracts/vm';
 
-import { Button, useHints, useI18n, type StyleSource } from '../kit';
+import { Button, useDispatch, useHints, useI18n, type StyleSource } from '../kit';
 
 const COVERAGE_KEYS: Readonly<Record<DataStamp['coverage'], I18nKey>> = {
   complete: 'common.coverage.complete',
@@ -95,13 +96,55 @@ export function FilterChip({ label, count, pressed, onPress }: { readonly label:
   );
 }
 
-/** The 32 px footer under a list: what is loaded on the left, «данные на 09:18» on the right. */
-export function DataFooter({ left, stamp }: { readonly left: string; readonly stamp: DataStamp }): JSX.Element {
+/** Views whose data «Обновить» reads again (the controllers take `ReloadView` for them). */
+export type RefreshableView = 'spenders.board' | 'spenders.stats';
+
+/**
+ * «Обновить» (SP-024): the hub's data read again past the board's cache. A read, never a generation — the
+ * tooltip says so. Quiet and small: it stands next to «данные на 09:18», which it makes newer. Busy until every
+ * read answered; a second press meanwhile does nothing.
+ */
+export function RefreshButton({ views }: { readonly views: readonly RefreshableView[] }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const [busy, setBusy] = useState(false);
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+  return (
+    <div class="cg-sp__refresh">
+      <Button
+        label={i18n.t('spenders.refresh')}
+        icon="refresh"
+        size="sm"
+        variant="quiet"
+        busy={busy}
+        tooltip={i18n.t('spenders.refreshTooltip')}
+        onClick={() => {
+          if (busy) return;
+          setBusy(true);
+          const done = (): void => {
+            if (alive.current) setBusy(false);
+          };
+          void Promise.all(views.map((of) => dispatch({ type: 'ReloadView', selector: { of } }))).then(done, done);
+        }}
+      />
+    </div>
+  );
+}
+
+/** The 32 px footer under a list: what is loaded on the left, «данные на 09:18» — and «Обновить», when the list has one — on the right. */
+export function DataFooter({ left, stamp, refresh }: { readonly left: string; readonly stamp: DataStamp; readonly refresh?: readonly RefreshableView[] }): JSX.Element {
   const i18n = useI18n();
   return (
     <div class="cg-sp__foot">
       <span>{left}</span>
       {stamp.asOf === null ? null : <span>{i18n.t('common.dataAsOf', { time: { time: stamp.asOf } })}</span>}
+      {refresh === undefined ? null : <RefreshButton views={refresh} />}
     </div>
   );
 }
@@ -132,7 +175,11 @@ export const WINDOW_CSS = `
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 32px; padding: 0 16px 0 20px;
   border-top: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap;
 }
-.cg-sp__foot span { overflow: hidden; text-overflow: ellipsis; }
+.cg-sp__foot > span { overflow: hidden; text-overflow: ellipsis; }
+/* What is loaded takes the room; «данные на 09:18» and «Обновить» stand together at the right. */
+.cg-sp__foot > span:first-child { flex: 1 1 auto; min-width: 0; }
+.cg-sp__foot > span + span { flex: none; }
+.cg-sp__refresh { flex: none; display: inline-flex; margin: 0 -8px; }
 .cg-sp__line {
   flex: none; display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 4px 16px 4px 20px;
   border-top: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-2);
