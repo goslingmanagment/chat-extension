@@ -654,11 +654,16 @@ describe('a running generation', () => {
     expect(kit.$('[data-cg-draft]')).toBeNull();
     await flush(() => (kit?.$('.cg-cancel') as HTMLElement).click());
     expect(kit.client.dispatched).toEqual([{ type: 'CancelGeneration', operationId: OP }]);
-    // ⌘. inside the sheet cancels too; Esc does not.
+    // ⌘. inside the sheet cancels too; Esc does not, and neither does a plain «.» nor ⌘⇧. .
     await flush(() => sheet().dispatchEvent(keydown('.', { code: 'Period', metaKey: true })));
     await flush(() => sheet().dispatchEvent(keydown('Escape')));
+    await flush(() => sheet().dispatchEvent(keydown('.', { code: 'Period' })));
+    await flush(() => sheet().dispatchEvent(keydown('>', { code: 'Period', metaKey: true, shiftKey: true })));
     expect(kit.client.dispatched).toHaveLength(2);
     expect(kit.client.dispatched[1]).toEqual({ type: 'CancelGeneration', operationId: OP });
+    // Ctrl+. is the same key on Windows.
+    await flush(() => sheet().dispatchEvent(keydown('.', { code: 'Period', ctrlKey: true })));
+    expect(kit.client.dispatched).toHaveLength(3);
   });
 
   it('[AI-138] the live region says each stage as it is entered and then «Ответ готов: 3 части»; the streamed text is never read out', async () => {
@@ -802,6 +807,32 @@ describe('a running generation', () => {
     expect(partRows()).toHaveLength(3);
     expect(kit.$('.cg-keys')).not.toBeNull();
     expect(kit.deps.marks.shown).toEqual([OP]);
+    vi.unstubAllGlobals();
+  });
+
+  it('a finished result that is not on screen is not reported shown: it arrived, nobody saw it', async () => {
+    const watched: { report: ((entries: { isIntersecting: boolean }[]) => void) | null; disconnected: number } = { report: null, disconnected: 0 };
+    class Hidden {
+      constructor(private readonly report: (entries: { isIntersecting: boolean }[]) => void) {}
+      observe(): void {
+        watched.report = this.report;
+        this.report([{ isIntersecting: false }]);
+      }
+      disconnect(): void {
+        watched.disconnected += 1;
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', Hidden);
+    kit = mountDock('streaming');
+    await flush(() => kit?.client.goTo(3));
+    await settle(1);
+    expect(partRows()).toHaveLength(3);
+    expect(kit.deps.marks.shown).toEqual([]);
+    expect(watched.disconnected).toBe(0);
+    // It scrolls into view: reported once, and the observer is let go.
+    await flush(() => watched.report?.([{ isIntersecting: true }]));
+    expect(kit.deps.marks.shown).toEqual([OP]);
+    expect(watched.disconnected).toBe(1);
     vi.unstubAllGlobals();
   });
 
