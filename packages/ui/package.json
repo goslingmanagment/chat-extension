@@ -12,6 +12,7 @@
     "./dock/debug": "./src/dock/debug/index.tsx",
     "./overlays": "./src/overlays/index.ts",
     "./overlays/toasts": "./src/overlays/toasts/index.tsx",
+    "./overlays/dialogs": "./src/overlays/dialogs/index.tsx",
     "./overlays/coach": "./src/overlays/coach/index.tsx",
     "./overlays/cheatsheet": "./src/overlays/cheatsheet/index.tsx",
     "./overlays/result-expanded": "./src/overlays/expanded/index.tsx",
