@@ -967,6 +967,7 @@ describe('the hotkey runner', () => {
     r.client.set({ of: 'quick-jump' }, { ...shown, items: shown.items.map((row, index) => ({ ...row, action: rowAction(String(2003 + index)) })) });
     // ⌘2 pressed at once, before the popup: the second row of the list as it is.
     expect(await r.run('quick-jump', 'global', 2)).toEqual({ type: 'Navigate', to: { kind: 'chat-slot', slot: 2 } });
+    expect(r.cause.take()).toBe('key');
     r.overlays.set('quick-jump', true);
     expect(await r.run('quick-jump', 'global', 2)).toEqual(rowAction('2004'));
     // Still a key, for the navigation's cause.
