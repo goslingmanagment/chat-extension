@@ -966,7 +966,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('data.clear', async () => {
     const results = scheduler.clearFinished();
     clearDebug();
-    const done = await Promise.allSettled([hub().clearCaches(), logging.logs.clear(), sendJournal.removeFinished(), scheduler.idle()]);
+    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), sendJournal.removeFinished(), scheduler.idle()]);
     const cleared = done.every((step) => step.status === 'fulfilled');
     logger.info('bg.data', 'local data cleared', { fields: { results, cleared } });
     return ok({ cleared });
@@ -976,7 +976,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('token.issue', async ({ kind, surface }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     // §8.3: an expired bootstrap blocks a new insert or navigation until it is read again; results stay.
-    const refusal = await tokenRefusal(kind, hub(), wireOf);
+    // Without a hub layer (its start step failed) there is no sign-in to insert a result of; ChatSpace's own
+    // list still navigates.
+    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, hubInstance, wireOf);
     if (refusal !== null) {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
       return { ok: false, error: refusal };
