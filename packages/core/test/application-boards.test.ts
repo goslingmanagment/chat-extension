@@ -1655,6 +1655,12 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     await lost.h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
     await lost.h.dispatch({ type: 'OpenPreview', targetHandle: lost.handle });
     expect(lost.h.boards.preview.getSnapshot(preview('spenders')).result).toBeNull();
+    // While the journal does not answer, nothing is generated for the fan: its sends are asked for again, and no answer is a refusal.
+    const asked = count(lost.h, 'send.list');
+    lost.h.bg.failNext('send.list', { code: 'CG-TIMEOUT' });
+    expect(await lost.h.dispatch({ type: 'Generate', targetHandle: lost.handle, feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(count(lost.h, 'op.start')).toBe(1);
+    expect(count(lost.h, 'send.list')).toBe(asked + 1);
     // «Обновить архив» reads the journal again: the fan is held, though the result itself is not on the card.
     await lost.h.dispatch({ type: 'RefreshArchive', targetHandle: lost.handle });
     const vm = lost.h.boards.preview.getSnapshot(preview('spenders'));

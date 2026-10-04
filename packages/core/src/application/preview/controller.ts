@@ -1307,6 +1307,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   async function generate(type: UiActionType, state: TargetState, feature: FeatureId, options: UserOptions, regenerateOf: OpTrack | null): Promise<ActionReceipt> {
+    // §6.7.8: a part with an unknown outcome holds the fan even when this tab does not remember it (a reload, another tab).
+    // So nothing is generated for a fan whose sends were not read from the background's journal: it is asked now, and no answer is a refusal.
+    if (!listed.has(fanKey(state.pageId, state.fanRef))) {
+      const atStart = epoch;
+      const known = await loadSends(state.pageId, state.fanRef);
+      if (disposed || atStart !== epoch || targets.get(state.handle) !== state) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+      if (!known) return refused(type, localError('CG-RUNTIME-UNREACHABLE', i18n));
+    }
     const ctx = context.current();
     const allowed = featuresOf(state.source);
     const known = allowed.find((f) => f === feature);
