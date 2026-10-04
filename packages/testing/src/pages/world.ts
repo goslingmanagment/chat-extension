@@ -278,6 +278,16 @@ export interface FakeBrowser {
   focus(): void;
   pageHide(): void;
   setConsent(granted: boolean): void;
+  /**
+   * `permissions.has` is answered by hand: every call waits for its own
+   * function in `releases` (in the order the calls came) and reads what is
+   * granted at that moment. `stop` ends it for the calls still to come.
+   */
+  parkPermissions(): { readonly releases: (() => void)[]; stop(): void };
+  /** `permissions.has` throws: the browser could not tell. */
+  permissionsFail: boolean;
+  /** How many listeners the page still holds on the browser's ports: a disposed page holds none. */
+  listenerCount(): number;
 }
 
 export interface PagesWorldOptions {
@@ -322,9 +332,22 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
   const hideListeners = new Set<() => void>();
   const consentListeners = new Set<(granted: boolean) => void>();
   const permissionListeners = new Set<(change: { added: readonly string[]; removed: readonly string[] }) => void>();
+  let permissionPark: (() => void)[] | null = null;
   const shell: FakeBrowser = {
     granted: new Set([DEFAULT_SETTINGS.hub.baseUrl, PAGES_HOST_ORIGIN]),
     grantOnRequest: true,
+    permissionsFail: false,
+    parkPermissions() {
+      const releases: (() => void)[] = [];
+      permissionPark = releases;
+      return {
+        releases,
+        stop: () => {
+          permissionPark = null;
+        },
+      };
+    },
+    listenerCount: () => hashListeners.size + focusListeners.size + hideListeners.size + consentListeners.size + permissionListeners.size,
     consent: state.diagnostics.telemetry.consent,
     clipboardFails: false,
     downloadFails: false,
@@ -367,7 +390,13 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     clock: { now },
     timers: options.timers ?? { set: (callback, ms) => setTimeout(callback, ms), clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>) },
     permissions: {
-      has: (origin) => Promise.resolve(shell.granted.has(origin)),
+      has: async (origin) => {
+        // What the browser says is read when it answers, not when it was asked.
+        const park = permissionPark;
+        if (park !== null) await new Promise<void>((resolve) => park.push(resolve));
+        if (shell.permissionsFail) throw new Error('permissions.contains failed');
+        return shell.granted.has(origin);
+      },
       request: (origin) => {
         record.permissionRequests.push(origin);
         if (shell.grantOnRequest) shell.granted.add(origin);

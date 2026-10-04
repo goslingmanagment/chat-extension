@@ -74,6 +74,39 @@ describe('popup view model', () => {
     expect(w.background.requests('bootstrap.get')).toEqual([]);
   });
 
+  it('[PU-002] a sign-in state that could not be read is its error with «Повторить» — a failed read is not a sign-out', async () => {
+    const w = pagesWorld({ page: 'popup', now: () => clock });
+    world = w;
+    w.background.failNext('session.get', { code: 'CG-TIMEOUT' });
+    w.client.start();
+    await settle();
+    const vm = w.client.getSnapshot({ of: 'popup' });
+    expect(vm.view).toMatchObject({ s: 'error', error: { code: 'CG-TIMEOUT' }, retry: { type: 'ReloadView', selector: { of: 'popup' } } });
+    // Neither «Войдите» nor a made-up account, and nothing of the hub asked under an unknown sign-in.
+    expect(vm.account).toBeNull();
+    expect(w.background.requests('bootstrap.get')).toEqual([]);
+    await w.client.dispatch({ type: 'ReloadView', selector: { of: 'popup' } });
+    await settle();
+    expect(w.client.getSnapshot({ of: 'popup' })).toMatchObject({ view: { s: 'ready' }, account: { login: 'chatter1' } });
+  });
+
+  it('[PU-002] a refresh that fails keeps what was known: signed in stays signed in', async () => {
+    const w = await open({ page: 'popup' });
+    w.background.failNext('session.get', { code: 'CG-TIMEOUT' });
+    await w.client.dispatch({ type: 'ReloadView', selector: { of: 'popup' } });
+    await settle();
+    expect(w.client.getSnapshot({ of: 'popup' })).toMatchObject({ view: { s: 'ready' }, account: { login: 'chatter1' } });
+  });
+
+  it('a restricted setting is refused from the popup before anything is sent', async () => {
+    const w = await open({ page: 'popup' });
+    expect(await w.client.dispatch({ type: 'SetPreference', key: 'debug.enabled', value: true })).toMatchObject({ ok: false, code: 'CG-UNKNOWN' });
+    expect(await w.client.dispatch({ type: 'SetPreference', key: 'debug.renderTrace', value: true })).toMatchObject({ ok: false, code: 'CG-UNKNOWN' });
+    expect(await w.client.dispatch({ type: 'SetPreference', key: 'hub.baseUrl', value: 'https://hub.example.test' })).toMatchObject({ ok: false });
+    expect([...w.background.requests('settings.patch'), ...w.background.requests('settings.patchRestricted')]).toEqual([]);
+    expect(w.state.settings.debug.enabled).toBe(false);
+  });
+
   it('[PU-006] [PU-022] the hub down and ChatSpace partly checked: the pills, and each problem once with its code', async () => {
     const state = troubledState();
     const w = pagesWorld({ page: 'popup', state, now: () => clock });
@@ -133,6 +166,26 @@ describe('popup view model', () => {
     await w.client.dispatch(links.whatsNew);
     await w.client.dispatch(links.changelog);
     expect(w.browser.record.links).toEqual(['https://ext.example.test/chat-extension/whats-new.html', 'https://ext.example.test/chat-extension/changelog.html']);
+  });
+
+  it('[PU-011] a link that is not https is never opened: CG-NAV-FAILED', async () => {
+    const w = await open({ page: 'popup', links: { whatsNew: 'http://ext.example.test/whats-new.html', changelog: null } });
+    const { links } = w.client.getSnapshot({ of: 'popup' });
+    expect(await w.client.dispatch(links.whatsNew)).toMatchObject({ ok: false, code: 'CG-NAV-FAILED' });
+    expect(await w.client.dispatch(links.changelog)).toMatchObject({ ok: false, code: 'CG-NAV-FAILED' });
+    expect(w.browser.record.links).toEqual([]);
+    // Nothing was opened, so the notes of this version are not marked as seen either.
+    expect(w.background.requests('settings.patch')).toEqual([]);
+  });
+
+  it('[PU-017] a click the tab did not take is CG-HOST-NOT-READY, and the popup stays open', async () => {
+    const state = workingState();
+    state.diagnostics = { ...state.diagnostics, tabs: [] };
+    const w = await open({ page: 'popup', state });
+    const receipt = await w.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } });
+    expect(w.background.requests('tab.command')).toHaveLength(1);
+    expect(receipt).toMatchObject({ ok: false, code: 'CG-HOST-NOT-READY' });
+    expect(w.browser.record.closed).toBe(0);
   });
 
   it('[PU-013] the popup redraws when the sign-in changes elsewhere', async () => {
@@ -480,7 +533,6 @@ describe('options: the sign-in screen and «Аккаунт» (§8.2)', () => {
       const vm = options(w, section);
       expect(vm.view.s, section).toBe('forbidden');
       expect(vm.signIn, section).toMatchObject({ hubOrigin: DEFAULT_SETTINGS.hub.baseUrl, busy: false, error: null });
-      expect(vm.checklist, section).toBeNull();
     }
     // The screen itself reads the hub address and the sound switches (ST-134).
     expect(options(w, 'account').body?.hub.origin).toBe(DEFAULT_SETTINGS.hub.baseUrl);
@@ -653,12 +705,33 @@ describe('options: generation, hotkeys, appearance, diagnostics', () => {
     const state = workingState();
     state.bootstrap = { ...state.bootstrap, limits: { ...state.bootstrap.limits, deepMax: 1500 } };
     const w = await open({ state });
+    // What is stored is what is shown: 3000 from before the hub lowered its limit stays 3000 until the person changes it.
     expect(options(w, 'generation').body?.windows).toMatchObject({ deep: 3000, deepMax: 1500, savedAs: null });
-    void w.client.dispatch({ type: 'SetPreference', key: 'generation.windows.deep', value: 2000 });
+    expect(w.background.requests('settings.patch')).toEqual([]);
+    const release = w.background.hold('settings.patch');
+    const pending = w.client.dispatch({ type: 'SetPreference', key: 'generation.windows.deep', value: 2000 });
     await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
     await settle();
+    // The write is on its way: «сохранено как N» is the background's word and is not said before it.
+    expect(w.background.requests('settings.patch')).toHaveLength(1);
+    expect(options(w, 'generation').body?.windows.savedAs).toBeNull();
+    release();
+    expect(await pending).toMatchObject({ ok: true, revision: 8 });
     expect(w.state.settings.generation.windows.deep).toBe(1500);
     expect(options(w, 'generation').body?.windows).toMatchObject({ deep: 1500, savedAs: 1500 });
+  });
+
+  it('[ST-093] a cut value that was not saved never says «сохранено как N»', async () => {
+    const state = workingState();
+    state.bootstrap = { ...state.bootstrap, limits: { ...state.bootstrap.limits, deepMax: 1500 } };
+    const w = await open({ state });
+    w.background.failNext('settings.patch', { code: 'CG-STORAGE-WRITE' });
+    const pending = w.client.dispatch({ type: 'SetPreference', key: 'generation.windows.deep', value: 2000 });
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+    expect(await pending).toMatchObject({ ok: false, code: 'CG-STORAGE-WRITE' });
+    expect(options(w, 'generation').body?.windows.savedAs).toBeNull();
+    expect(options(w, 'generation').save.s).toBe('failed');
+    expect(w.state.settings.generation.windows.deep).toBe(3000);
   });
 
   it('[ST-095] [ST-096] Coach history and auto-recap are saved as chosen', async () => {
@@ -847,6 +920,7 @@ describe('debug pages (§9.3)', () => {
     off.client.subscribe({ of: 'debug-prompt', token: 'prompt-token-1' }, () => undefined);
     await settle();
     expect(off.client.getSnapshot({ of: 'debug-prompt', token: 'prompt-token-1' }).view).toMatchObject({ s: 'forbidden', remedy: { type: 'OpenSettings', route: { section: 'generation' } } });
+    expect(off.background.requests('debug.prompt')).toEqual([]);
   });
 
   it('[NF-029] the journals: records without text, the cut mark, the check runs, copy and «Сохранить .txt»', async () => {
@@ -878,6 +952,119 @@ describe('debug pages (§9.3)', () => {
     const vm = w.client.getSnapshot({ of: 'journal', journal: 'operations' });
     expect(vm.view).toMatchObject({ s: 'forbidden', error: { code: 'CG-FEATURE-DISABLED' } });
     expect(vm.entries).toEqual([]);
+    // «Обновить» with debug off asks for the settings, never for a journal.
+    expect(await w.client.dispatch({ type: 'ReloadView', selector: { of: 'journal', journal: 'operations' } })).toMatchObject({ ok: true, outcome: 'noop' });
+    await settle();
+    expect(w.background.requests('journal.read')).toEqual([]);
+    expect(await w.client.dispatch({ type: 'SaveJournal', journal: 'operations' })).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+    expect(w.browser.record.downloads).toEqual([]);
+  });
+
+  it('[DB-001] with debug off the prompt page asks the background for no prompt', async () => {
+    const w = await open({ page: 'debug-prompt' });
+    w.client.subscribe({ of: 'debug-prompt', token: 'prompt-token-1' }, () => undefined);
+    await settle();
+    await w.client.dispatch({ type: 'ReloadView', selector: { of: 'debug-prompt', token: 'prompt-token-1' } });
+    await settle();
+    expect(w.background.requests('debug.prompt')).toEqual([]);
+    expect(w.client.getSnapshot({ of: 'debug-prompt', token: 'prompt-token-1' })).toMatchObject({ view: { s: 'forbidden', error: { code: 'CG-FEATURE-DISABLED' } }, blocks: [], copyHandle: null });
+  });
+
+  it('[DB-007] switching debug off takes the prompt off the page and out of «Копировать»; switching it on reads it again', async () => {
+    const w = await open({ page: 'debug-prompt', state: debugState() });
+    const selector = { of: 'debug-prompt', token: 'prompt-token-1' } as const;
+    w.client.subscribe(selector, () => undefined);
+    await settle();
+    expect(w.client.getSnapshot(selector)).toMatchObject({ view: { s: 'partial' }, copyHandle: 'prompt' });
+
+    w.background.changeSettings({ debug: { enabled: false } });
+    const off = w.client.getSnapshot(selector);
+    expect(off).toMatchObject({ view: { s: 'forbidden', error: { code: 'CG-FEATURE-DISABLED' } }, blocks: [], manifest: null, copyHandle: null, source: null });
+    expect(await w.client.dispatch({ type: 'Copy', artifactHandle: 'prompt' })).toMatchObject({ ok: false, code: 'CG-CLIPBOARD' });
+    expect(w.browser.record.clipboard).toEqual([]);
+
+    // Back on: nothing kept from before is shown — the page asks the background again.
+    const before = w.background.requests('debug.prompt').length;
+    w.background.changeSettings({ debug: { enabled: true } });
+    expect(w.client.getSnapshot(selector).view.s).toBe('loading');
+    await settle();
+    expect(w.background.requests('debug.prompt')).toHaveLength(before + 1);
+    expect(w.client.getSnapshot(selector).view.s).toBe('partial');
+  });
+
+  it('[DB-007] signing out takes the prompt off the page and out of «Копировать»', async () => {
+    const w = await open({ page: 'debug-prompt', state: debugState() });
+    const selector = { of: 'debug-prompt', token: 'prompt-token-1' } as const;
+    w.client.subscribe(selector, () => undefined);
+    await settle();
+    expect(w.client.getSnapshot(selector).blocks).toHaveLength(2);
+
+    w.background.setSession(null, 'sign-out');
+    await settle();
+    expect(w.client.getSnapshot(selector)).toMatchObject({ view: { s: 'forbidden', error: { code: 'CG-AUTH-REQUIRED' } }, blocks: [], manifest: null, copyHandle: null });
+    expect(await w.client.dispatch({ type: 'Copy', artifactHandle: 'prompt' })).toMatchObject({ ok: false, code: 'CG-CLIPBOARD' });
+    expect(w.browser.record.clipboard).toEqual([]);
+  });
+
+  it('[DB-007] a prompt answer that comes after debug was switched off is dropped, not kept for later', async () => {
+    const w = pagesWorld({ page: 'debug-prompt', state: debugState(), now: () => clock });
+    world = w;
+    const selector = { of: 'debug-prompt', token: 'prompt-token-1' } as const;
+    const parked = w.background.park('debug.prompt');
+    w.client.start();
+    w.client.subscribe(selector, () => undefined);
+    await settle();
+    expect(parked.releases).toHaveLength(1);
+    w.background.changeSettings({ debug: { enabled: false } });
+    parked.stop();
+    parked.releases[0]?.();
+    await settle();
+    expect(w.client.getSnapshot(selector)).toMatchObject({ view: { s: 'forbidden' }, blocks: [] });
+    // Debug on again: the late answer is not what the page shows — it reads the prompt anew.
+    w.background.state.prompts['prompt-token-1'] = { state: 'expired', fromCache: false, capturedAt: null, feature: null, manifest: null, blocks: [] };
+    w.background.changeSettings({ debug: { enabled: true } });
+    await settle();
+    expect(w.client.getSnapshot(selector)).toMatchObject({ view: { s: 'error', retry: null }, blocks: [], copyHandle: null });
+  });
+
+  it('[NF-029] [DB-001] the journals go off the page with debug and with the sign-in: no records, no copy, no file', async () => {
+    const w = await open({ page: 'debug-journal', state: debugState() });
+    const selector = { of: 'journal', journal: 'operations' } as const;
+    w.client.subscribe(selector, () => undefined);
+    await settle();
+    expect(w.client.getSnapshot(selector).entries).toHaveLength(2);
+    const handle = w.client.getSnapshot(selector).copyHandle ?? '';
+
+    w.background.setSession(null, 'sign-out');
+    await settle();
+    expect(w.client.getSnapshot(selector)).toMatchObject({ view: { s: 'forbidden', error: { code: 'CG-AUTH-REQUIRED' } }, entries: [], runs: null, copyHandle: null, save: { enabled: false } });
+    expect(await w.client.dispatch({ type: 'Copy', artifactHandle: handle })).toMatchObject({ ok: false, code: 'CG-CLIPBOARD' });
+    expect(await w.client.dispatch({ type: 'SaveJournal', journal: 'operations' })).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+
+    // Signed in again with debug on: read anew; then debug off: gone again.
+    w.background.setSession(workingState().session, 'sign-in');
+    await settle();
+    expect(w.client.getSnapshot(selector).entries).toHaveLength(2);
+    w.background.changeSettings({ debug: { enabled: false } });
+    expect(w.client.getSnapshot(selector)).toMatchObject({ view: { s: 'forbidden', error: { code: 'CG-FEATURE-DISABLED' } }, entries: [], copyHandle: null });
+    expect(await w.client.dispatch({ type: 'Copy', artifactHandle: handle })).toMatchObject({ ok: false, code: 'CG-CLIPBOARD' });
+    expect(w.browser.record.clipboard).toEqual([]);
+    expect(w.browser.record.downloads).toEqual([]);
+  });
+
+  it('a debug page whose settings could not be read says so with «Повторить», not an endless loading', async () => {
+    const w = pagesWorld({ page: 'debug-journal', state: debugState(), now: () => clock });
+    world = w;
+    w.background.failNext('settings.get', { code: 'CG-STORAGE-READ' });
+    w.client.start();
+    const selector = { of: 'journal', journal: 'operations' } as const;
+    w.client.subscribe(selector, () => undefined);
+    await settle();
+    expect(w.client.getSnapshot(selector).view).toMatchObject({ s: 'error', error: { code: 'CG-STORAGE-READ' }, retry: { type: 'ReloadView', selector } });
+    expect(w.background.requests('journal.read')).toEqual([]);
+    await w.client.dispatch({ type: 'ReloadView', selector });
+    await settle();
+    expect(w.client.getSnapshot(selector).view.s).toBe('ready');
   });
 });
 

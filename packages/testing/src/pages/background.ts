@@ -101,6 +101,7 @@ export class FakePageBackground implements PageRpc {
   readonly delays = new Map<PageRequestType, number>();
   private readonly failures = new Map<PageRequestType, CgErrorWire[]>();
   private readonly gates = new Map<PageRequestType, { promise: Promise<void>; open: () => void }>();
+  private readonly parks = new Map<PageRequestType, (() => void)[]>();
   private readonly listeners = new Map<TabEventType, Set<Listener>>();
 
   constructor(
@@ -128,8 +129,28 @@ export class FakePageBackground implements PageRpc {
     };
   }
 
+  /**
+   * Requests of this type are answered by hand, one by one: each gets the
+   * answer the background had at the moment it came, and that answer arrives
+   * when its own function in `releases` is called — in any order. A late
+   * answer of an earlier request is how a race is staged. `stop` ends the
+   * parking for requests still to come.
+   */
+  park(type: PageRequestType): { readonly releases: (() => void)[]; stop(): void } {
+    const releases: (() => void)[] = [];
+    this.parks.set(type, releases);
+    return { releases, stop: () => void this.parks.delete(type) };
+  }
+
   requests(type: PageRequestType): unknown[] {
     return this.calls.filter((call) => call.type === type).map((call) => call.payload);
+  }
+
+  /** How many event listeners pages still hold: a disposed page holds none. */
+  listenerCount(): number {
+    let count = 0;
+    for (const set of this.listeners.values()) count += set.size;
+    return count;
   }
 
   emit<T extends TabEventType>(type: T, payload: TabEventPayload<T>): void {
@@ -174,20 +195,33 @@ export class FakePageBackground implements PageRpc {
     const request = parseTabPayload('req', type, payload);
     if (!request.ok) throw new ContractBreach(`«${type}» was sent with a payload its schema refuses`);
     this.calls.push({ type, payload: type === 'session.signIn' ? { ...(payload as { login: string; password: string }), password: `[${(payload as { password: string }).password.length}]` } : payload });
+    const parked = this.parks.get(type);
+    if (parked !== undefined) {
+      // Answered now, delivered when the test says so.
+      const early = this.respond(type, request.payload as TabRequestPayload<TabRequestType>);
+      await new Promise<void>((resolve) => parked.push(resolve));
+      return early as PageAnswer<TabResponsePayload<T>>;
+    }
     const gate = this.gates.get(type);
     if (gate !== undefined) await gate.promise;
     const delay = this.delays.get(type);
     if (delay !== undefined) await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    return this.respond(type, request.payload as TabRequestPayload<TabRequestType>) as PageAnswer<TabResponsePayload<T>>;
+  }
+
+  private respond(type: PageRequestType, payload: TabRequestPayload<TabRequestType>): PageAnswer<unknown> {
     if (this.unreachable) return refuse('CG-RUNTIME-UNREACHABLE', `${type} not delivered`);
     const planned = this.failures.get(type);
     const failure = planned?.shift();
     if (failure !== undefined) return { ok: false, error: failure };
-    const answer = this.answer(type, request.payload as TabRequestPayload<TabRequestType>);
+    const answer = this.answer(type, payload);
     if (answer.ok) {
       const checked = parseTabPayload('res', type, answer.payload);
       if (!checked.ok) throw new ContractBreach(`the scripted background answered «${type}» with a payload its schema refuses`);
+      // A parked answer is what the background knew then: later changes of the scripted state do not reach it.
+      return { ok: true, payload: structuredClone(answer.payload) };
     }
-    return answer as PageAnswer<TabResponsePayload<T>>;
+    return answer;
   }
 
   private bindingOf(account: HostAccount): HubBinding | CgCode {
