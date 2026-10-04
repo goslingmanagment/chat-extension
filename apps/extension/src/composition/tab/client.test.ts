@@ -7,6 +7,7 @@ import { createAppRouter } from '@cg/core/application';
 import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
+import type { TokenAnswer } from './action-gate';
 import { adopt, controllerRpc, createTabClient, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
@@ -113,24 +114,30 @@ describe('the background’s client of the controllers', () => {
   it('[BG-001] `token.issue` never reaches the background by itself: the gate decides, and a refusal is an answer with a code', async () => {
     const { sent, real } = rpc();
     const asked: string[] = [];
-    let token: string | null = null;
+    let answer: TokenAnswer = { ok: false, error: null };
     const gated = controllerRpc(real, {
-      issue(kind, surface) {
+      ask(kind, surface) {
         asked.push(`${kind}:${surface}`);
-        return Promise.resolve(token);
+        return Promise.resolve(answer);
       },
     });
     expect(await gated.request('token.issue', { kind: 'insert', surface: 'dock' })).toEqual({ ok: false, error: { code: 'CG-UI-FAILED', detail: 'no action token' } });
-    token = 'tok_0123456789abcdef0123';
-    expect(await gated.request('token.issue', { kind: 'send', surface: 'preview' })).toMatchObject({ ok: true, payload: { actionToken: token } });
+    answer = { ok: true, actionToken: 'tok_0123456789abcdef0123' };
+    expect(await gated.request('token.issue', { kind: 'send', surface: 'preview' })).toMatchObject({ ok: true, payload: { actionToken: 'tok_0123456789abcdef0123' } });
     expect(asked).toEqual(['insert:dock', 'send:preview']);
     expect(sent).toEqual([]);
+  });
+
+  it('a refusal of the background itself reaches the controller with the background’s code: an expired bootstrap is not «Сбой интерфейса»', async () => {
+    const { real } = rpc();
+    const gated = controllerRpc(real, { ask: () => Promise.resolve({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } }) });
+    expect(await gated.request('token.issue', { kind: 'insert', surface: 'dock' })).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } });
   });
 
   it('every other request goes to the background as it is; `observe` hears its type and what was sent', async () => {
     const { sent, real } = rpc();
     const seen: string[] = [];
-    const gated = controllerRpc(real, { issue: () => Promise.resolve(null) }, (type) => void seen.push(type));
+    const gated = controllerRpc(real, { ask: () => Promise.resolve({ ok: false, error: null }) }, (type) => void seen.push(type));
     expect(await gated.request('session.get', {})).toEqual({ ok: true, payload: { recorded: true } });
     await gated.request('token.issue', { kind: 'generate', surface: 'dock' });
     expect(sent).toEqual([['session.get', {}]]);

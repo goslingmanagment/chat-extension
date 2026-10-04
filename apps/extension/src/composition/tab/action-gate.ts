@@ -40,7 +40,15 @@
 // A key the early dispatcher kept until the lazy part was ready (HK-024,
 // HK-025) runs after its keydown is over; `resume` lets exactly that keydown
 // open a grant, within the dispatcher's own freshness bound.
+//
+// One human action happens outside this document: a click on our own popup
+// or options page that acts in ChatSpace (`tab.command`, §9.9). The
+// background brings this tab to the front and hands the command over its
+// port — a channel the page cannot write to. `vouch` opens a grant for it:
+// a navigation only, once, like a key pressed on the page. It can never
+// insert, send or generate.
 
+import type { CgErrorWire } from '@cg/contracts/errors';
 import type { Surface } from '@cg/contracts/features';
 import type { UiAction } from '@cg/contracts/vm';
 import type { MountManager } from '@cg/host-chatspace/isolated';
@@ -180,6 +188,12 @@ export interface GestureGate {
    * key counts as the action in flight.
    */
   resume(event: Event, at: number): () => void;
+  /**
+   * A click made on one of our extension pages was brought to this tab by the
+   * background (`tab.command`): the navigation it asks for may get its token
+   * — once, within the grant's time. No other kind.
+   */
+  vouch(): void;
   /** `click` or `key`: what the action in flight is (HumanCause); `click` when there is none. */
   cause(): 'click' | 'key';
   dispose(): void;
@@ -257,6 +271,11 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         if (resumed === event) resumed = null;
       };
     },
+    vouch() {
+      // No DOM event of this document stands behind it: the marker only keeps «one token per action» true.
+      const gesture: Gesture = { event: new Event('cg-command'), click: true, via: null };
+      grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set<ActionKind>(['navigate']), at: now() }].slice(-GRANTS_KEPT);
+    },
     cause() {
       const gesture = inFlight();
       return typeof gesture !== 'string' && !gesture.click ? 'key' : 'click';
@@ -270,6 +289,13 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   };
 }
 
+/**
+ * What became of a request for a token. `error` null — no human action stands behind it (see GestureRefusal) or the
+ * background did not answer; otherwise the background's own reason (the sign-in is gone, the owner's switch is off,
+ * the bootstrap expired and the hub is silent, §8.3). Either way nothing may be written.
+ */
+export type TokenAnswer = { readonly ok: true; readonly actionToken: string } | { readonly ok: false; readonly error: CgErrorWire | null };
+
 /** Action tokens of this tab (§14): one per human action of one surface, spent once by the background. */
 export interface TabActionTokens {
   /**
@@ -278,16 +304,20 @@ export interface TabActionTokens {
    * nothing may be written.
    */
   issue(kind: ActionKind, surface: Surface): Promise<string | null>;
+  /** The same, with the background's reason when it is the one that refused. */
+  ask(kind: ActionKind, surface: Surface): Promise<TokenAnswer>;
   /** The AppClient took `action` from the UI or the hotkey runner, in the step of the click or the key. */
   granted(action: UiAction['type']): void;
   /** The hotkey dispatcher hands in a key press it stopped before this chunk's listeners could see it (§9.1). */
   noteGesture(event: Event): void;
+  /** A click on an extension page, brought here by the background (`tab.command`): its navigation may get a token. */
+  vouched(): void;
 }
 
 export interface ActionTokensDeps {
   readonly gate: GestureGate;
-  /** `token.issue`; null — refused or no answer. */
-  readonly request: (kind: ActionKind, surface: Surface) => Promise<string | null>;
+  /** `token.issue`: the token; null — no answer; an error — the background's refusal with its code. */
+  readonly request: (kind: ActionKind, surface: Surface) => Promise<string | null | { readonly error: CgErrorWire }>;
   /** `token.redeem` for the surface the token was issued for. */
   readonly spend: (request: { readonly kind: 'insert' | 'navigate'; readonly surface: Surface; readonly actionToken: string; readonly intentId: string }) => Promise<boolean>;
   /** Facts only: what was asked and why not. */
@@ -305,29 +335,33 @@ export function createActionTokens(deps: ActionTokensDeps): {
   readonly redeem: (request: { readonly kind: 'insert' | 'navigate'; readonly actionToken: string; readonly intentId: string }) => Promise<boolean>;
 } {
   const surfaceOfToken = new Map<string, Surface>();
+  const ask = async (kind: ActionKind, surface: Surface): Promise<TokenAnswer> => {
+    // Synchronously, before the first await. The action that was granted this kind when it was dispatched
+    // gets it; without a grant the event must still be in flight.
+    const granted = deps.gate.claim(kind, surface);
+    const refusal = granted === 'not-granted' ? deps.gate.take(kind, surface) : granted;
+    if (refusal !== null) {
+      deps.onRefused?.({ kind, surface, refusal });
+      return { ok: false, error: null };
+    }
+    const answer = await deps.request(kind, surface);
+    if (answer === null) return { ok: false, error: null };
+    if (typeof answer !== 'string') return { ok: false, error: answer.error };
+    surfaceOfToken.set(answer, surface);
+    if (surfaceOfToken.size > TOKENS_KEPT) surfaceOfToken.delete(surfaceOfToken.keys().next().value ?? '');
+    return { ok: true, actionToken: answer };
+  };
   return {
     tokens: {
-      async issue(kind, surface) {
-        // Synchronously, before the first await. The action that was granted this kind when it was dispatched
-        // gets it; without a grant the event must still be in flight.
-        const granted = deps.gate.claim(kind, surface);
-        const refusal = granted === 'not-granted' ? deps.gate.take(kind, surface) : granted;
-        if (refusal !== null) {
-          deps.onRefused?.({ kind, surface, refusal });
-          return null;
-        }
-        const actionToken = await deps.request(kind, surface);
-        if (actionToken === null) return null;
-        surfaceOfToken.set(actionToken, surface);
-        if (surfaceOfToken.size > TOKENS_KEPT) surfaceOfToken.delete(surfaceOfToken.keys().next().value ?? '');
-        return actionToken;
-      },
+      issue: (kind, surface) => ask(kind, surface).then((answer) => (answer.ok ? answer.actionToken : null)),
+      ask,
       granted(action) {
         const refusal = deps.gate.open(action);
         // An action without a person behind it gets no grant; whether it needed one shows when it asks.
         if (refusal !== null) deps.onUngranted?.({ action, refusal });
       },
       noteGesture: (event) => deps.gate.note(event),
+      vouched: () => deps.gate.vouch(),
     },
     async redeem(request) {
       const surface = surfaceOfToken.get(request.actionToken);

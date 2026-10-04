@@ -6,6 +6,7 @@
 
 export { createHotkeyRunner } from '@cg/core/application/hotkeys';
 export {
+  accountHandle,
   chatHandle,
   createCheatsheetController,
   createNavigationController,

@@ -106,6 +106,9 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   let registry: TabPayloadValidator | null = null;
   const validate: TabPayloadValidator = (kind, type, payload) => {
     if (registry !== null) return registry(kind, type, payload);
+    // A page command may come before the registry is loaded (the tab shows no chat yet): it is kept as it came
+    // and checked against its schema once the application — and the registry with it — is in (below).
+    if (kind === 'evt' && type === 'tab.command') return { ok: true, payload };
     if (kind !== 'res') return { ok: false };
     if (type === 'tab.register') {
       const parsed = TabRegisterResponseSchema.safeParse(payload);
@@ -219,6 +222,22 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
       probe?.set('appError', String(error));
     });
   };
+  // A click on the popup or the options page that acts here (`tab.command`, §9.9): the application is loaded for
+  // it, composer or not — Spenders, «Новые» and the cheatsheet open on the whole of ChatSpace.
+  const offCommand = rpc.onEvent('tab.command', (raw) => {
+    if (life.aborted) return;
+    ensureApp().then(
+      (ready) => {
+        const checked = registry?.('evt', 'tab.command', raw) ?? { ok: false as const };
+        if (checked.ok) ready.command((checked.payload as typeof raw).command);
+      },
+      (error: unknown) => {
+        app = null;
+        probe?.set('appError', String(error));
+      },
+    );
+  });
+  life.addEventListener('abort', offCommand);
   const onMounts = (): void => {
     if (host.mounts.points().dock.kind !== 'none') wake();
   };

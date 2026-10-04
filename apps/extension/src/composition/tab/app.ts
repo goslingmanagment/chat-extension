@@ -25,6 +25,7 @@ import type { HostContractReport } from '@cg/contracts/host';
 import type { Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import type { UiLocale, UiTheme } from '@cg/contracts/settings';
+import type { PageCommand } from '@cg/contracts/tab-messages';
 import type { TabHealthReport } from '@cg/contracts/telemetry';
 import type { ActionReceipt, ColorScheme, MountDeps, MountSurfaceKind, SurfaceGeometry, UiAction } from '@cg/contracts/vm';
 import { createAppRouter } from '@cg/core/application';
@@ -86,6 +87,8 @@ export interface TabApp {
   readonly redeem: TokenRedeemer;
   /** The tokens of the human action in flight, as the gate gives them. */
   readonly tokens: TabActionTokens;
+  /** A click on the popup or the options page that acts in this tab (`tab.command`): a window of ours, or an account. */
+  command(command: PageCommand): void;
   dispose(): void;
 }
 
@@ -189,7 +192,10 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     gate,
     async request(kind, surface) {
       const answer = await rpc.request('token.issue', { kind, surface });
-      return answer.ok ? answer.payload.actionToken : null;
+      // A refusal reaches the person with its own code: the background's (§8.3: the sign-in is gone, the owner's
+      // switch, a bootstrap that expired while the hub is silent) or the port's (the event page did not answer,
+      // the extension was reloaded under the tab).
+      return answer.ok ? answer.payload.actionToken : { error: answer.error };
     },
     async spend(request) {
       const answer = await rpc.request('token.redeem', request);
@@ -668,5 +674,25 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     void forwarder.flush();
   });
 
-  return { redeem, tokens, dispose };
+  /**
+   * The person clicked on our popup or options page; the background brought this tab to the front and handed the
+   * click over its port (§9.9; PU-017, ST-076). It runs as that click: the gate opens a navigation grant for it —
+   * nothing else — and the router does the rest, loading the boards if the window is theirs.
+   */
+  const command = (asked: PageCommand): void => {
+    if (disposed) return;
+    const action: UiAction =
+      asked.kind === 'surface'
+        ? { type: 'Navigate', to: { kind: 'surface', surface: asked.surface, open: true } }
+        : { type: 'Navigate', to: { kind: 'account', accountHandle: navigationChunk.accountHandle(asked.hostAccountId) } };
+    tokens.vouched();
+    void client.dispatch(action).then(
+      (receipt) => {
+        if (!receipt.ok) logger.warn('tab.command', 'a page command was refused', { code: receipt.code, fields: { kind: asked.kind } });
+      },
+      () => undefined,
+    );
+  };
+
+  return { redeem, tokens, command, dispose };
 }

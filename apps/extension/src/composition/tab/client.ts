@@ -79,13 +79,14 @@ export type ControllerRpc = Pick<TabRpcClient, 'request' | 'onEvent' | 'onState'
  * `observe` hears what a controller asks (the type and the payload it sent,
  * nothing of the answer): the tab's own measurements ride on it.
  */
-export function controllerRpc(rpc: TabRpcClient, tokens: Pick<TabActionTokens, 'issue'>, observe?: (type: string, payload: unknown) => void): ControllerRpc {
-  const issue = async (payload: { readonly kind: ActionKind; readonly surface: Parameters<TabActionTokens['issue']>[1] }): Promise<Answer<{ actionToken: string; expiresAt: number }>> => {
-    const actionToken = await tokens.issue(payload.kind, payload.surface);
-    // No human action behind the request, or the background did not answer: nothing may be written.
-    if (actionToken === null) return { ok: false, error: { code: 'CG-UI-FAILED', detail: 'no action token' } };
+export function controllerRpc(rpc: TabRpcClient, tokens: Pick<TabActionTokens, 'ask'>, observe?: (type: string, payload: unknown) => void): ControllerRpc {
+  const issue = async (payload: { readonly kind: ActionKind; readonly surface: Parameters<TabActionTokens['ask']>[1] }): Promise<Answer<{ actionToken: string; expiresAt: number }>> => {
+    const answer = await tokens.ask(payload.kind, payload.surface);
+    // No human action behind the request, or the background did not answer: nothing may be written. When the
+    // background itself refused (the sign-in is gone, the owner's switch, an expired bootstrap), its reason is the answer.
+    if (!answer.ok) return { ok: false, error: answer.error ?? { code: 'CG-UI-FAILED', detail: 'no action token' } };
     // The deadline is the background's to hold; the controllers never read it.
-    return { ok: true, payload: { actionToken, expiresAt: 0 } };
+    return { ok: true, payload: { actionToken: answer.actionToken, expiresAt: 0 } };
   };
   const request = ((type: string, payload: unknown, options?: { readonly timeoutMs?: number }) => {
     if (type === 'token.issue') return issue(payload as Parameters<typeof issue>[0]);

@@ -244,6 +244,45 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
+  it('[PU-017] [ST-076] a click on an extension page brought here by the background: one navigation token, never an insert, a send or a generation', async () => {
+    const s = seam();
+    // Without the background's word nothing is granted: no event of this document stands behind the request.
+    expect(await s.tokens.issue('navigate', 'overlay')).toBeNull();
+    s.tokens.vouched();
+    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
+    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(await s.tokens.issue('navigate', 'overlay')).toBe('token-1-0123456789abcdef');
+    // Once: a second navigation needs a second click.
+    expect(await s.tokens.issue('navigate', 'overlay')).toBeNull();
+    expect(s.asked).toEqual([['navigate', 'overlay']]);
+    s.gate.dispose();
+  });
+
+  it('a vouched grant is as short-lived as a click’s: after ten seconds it gives nothing', async () => {
+    let clock = 1_000_000;
+    const s = seam(() => clock);
+    s.tokens.vouched();
+    clock += GRANT_TTL_MS + 1;
+    expect(await s.tokens.issue('navigate', 'overlay')).toBeNull();
+    expect(s.asked).toEqual([]);
+    s.gate.dispose();
+  });
+
+  it('the background’s own refusal comes back as its reason; no answer and no human action are «no token»', async () => {
+    const w = (current = world());
+    const gate = createGestureGate(window, w.env);
+    let answer: string | null | { readonly error: { readonly code: 'CG-FEATURE-DISABLED'; readonly detail: string } } = { error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } };
+    const { tokens } = createActionTokens({ gate, request: () => Promise.resolve(answer), spend: () => Promise.resolve(true) });
+    expect(await during(w.dockButton, event('click', true), () => tokens.ask('insert', 'dock'))).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'bootstrap_expired' } });
+    answer = null;
+    expect(await during(w.dockButton, event('click', true), () => tokens.ask('insert', 'dock'))).toEqual({ ok: false, error: null });
+    expect(await tokens.ask('insert', 'dock')).toEqual({ ok: false, error: null });
+    answer = 'token-9-0123456789abcdef';
+    expect(await during(w.dockButton, event('click', true), () => tokens.ask('insert', 'dock'))).toEqual({ ok: true, actionToken: 'token-9-0123456789abcdef' });
+    gate.dispose();
+  });
+
   it('the hotkey dispatcher hands a key press in; a disposed gate sees nothing', async () => {
     const s = seam();
     s.gate.dispose();
