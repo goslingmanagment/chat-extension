@@ -196,7 +196,7 @@ describe('client gates', () => {
     expect(planStart(plan({ feature: 'fix' }))).toEqual({ ok: false, code: 'CG-GATE-DRAFT' });
   });
 
-  it('[AI-031] Hi stops being offered once the fan wrote more than ten messages', () => {
+  it('[AI-031] [NF-015] Hi stops being offered once the fan wrote more than ten messages: it is a dialog, the hub is not asked', () => {
     expect(featureGate('hi', facts({ window: windowOf({ fanMessages: 10 }) }))).toBeNull();
     expect(featureGate('hi', facts({ window: windowOf({ fanMessages: 11 }) }))).toEqual({ reason: 'hi-gate', code: 'CG-GATE-HI' });
     // Model messages may be welcome or mass messages: they never gate here (the hub counts personal ones).
@@ -302,7 +302,7 @@ describe('the plan from a click to a StartOp', () => {
     expect(start.tone).toBeNull();
   });
 
-  it('[AI-030] Hi asks for three variants in the dock and one in «Новые»', () => {
+  it('[AI-030] [NF-013] Hi asks for three variants in the dock and one in «Новые»', () => {
     expect(hiVariantCount('dock')).toBe(3);
     expect(hiVariantCount('preview')).toBe(3);
     expect(hiVariantCount('newcomers')).toBe(1);
@@ -323,8 +323,9 @@ describe('the plan from a click to a StartOp', () => {
     expect(planned({ feature: 'fix', draft: draft('x'), fresh }).fresh).toEqual(fresh);
     for (const feature of ['review', 'recap', 'recap-short'] as const) expect(planned({ feature, fresh }).fresh, feature).toBeUndefined();
     expect(planned({ feature: 'coach', options: { question: 'what now?' }, fresh }).fresh).toBeUndefined();
-    // Never from a preview or «Новые».
+    // Never from a preview or «Новые» ([NF-013]: the greeting of a new subscriber goes without page text).
     expect(planned({ surface: 'preview', fresh, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
+    expect(planned({ feature: 'hi', surface: 'newcomers', fresh, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
     // The owner's switch and the hub capability both gate it.
     const flagOff: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, freshText: false } };
     const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_ON, capabilities: BOOTSTRAP_PILOT_ON.capabilities.filter((c) => c !== 'context-v1') };

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM } from '@cg/contracts';
-import { KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle } from '@cg/core/application/ai';
+import { COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_ON, meta, resolveHubErrorReference } from '@cg/testing/hub';
@@ -307,6 +307,113 @@ describe('dock: where it shows and what state it is in', () => {
   it('debug mode shows the contract line; outside it there is none', async () => {
     const h = await start({ settings: { ...settingsWithPersona(), debug: { enabled: true, renderTrace: true } } });
     expect(h.dock().debug).toEqual({ renderTrace: true, contract: 'index-0000fake · ok' });
+  });
+});
+
+describe('dock: R11\'s part of the strip\'s shared rows — what the controller hands the UI (the look is R14\'s)', () => {
+  it('[UI-002] the strip is seven actions in one order — Reply, Fix, Hi, Ping, Review, Recap, Coach — in every state, and Help is not one of them', async () => {
+    const order = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach'];
+    const h = await start();
+    expect([...DOCK_ACTION_IDS]).toEqual(order);
+    expect(Object.keys(h.dock().actions)).toEqual(order);
+    expect(Object.keys((await start({ session: null })).dock().actions)).toEqual(order);
+    expect(Object.keys((await start({ background: (bg) => (bg.bindingError = { code: 'CG-BINDING-MISSING' }) })).dock().actions)).toEqual(order);
+    // A button dispatches `Generate` with its own name for the open chat: Recap and Coach open, the rest start.
+    expect(await h.generate('recap')).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(await h.generate('coach')).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.bg.callsOf('op.start')).toEqual([]);
+    h.script(h.streamOf('ping', ['hey, you there?']));
+    expect(await h.generate('ping')).toMatchObject({ ok: true, outcome: 'started' });
+    expect(h.bg.callsOf('op.start')[0]).toMatchObject({ feature: 'ping', surface: 'dock' });
+  });
+
+  it('[UI-003] «Chat review» of the predecessor\'s header menu is a button of our strip: it starts for the open chat and takes the sheet', async () => {
+    const h = await start();
+    expect(h.dock().actions.review).toMatchObject({ enabled: true, active: false });
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('chat-review') }, { kind: 'stall' }] });
+    expect(await h.generate('review')).toMatchObject({ ok: true, outcome: 'started' });
+    expect(h.bg.callsOf('op.start')[0]).toMatchObject({ feature: 'review', surface: 'dock', target: { chat: openChat } });
+    expect(h.dock()).toMatchObject({ analysis: 'review', actions: { review: { busy: true, active: true } } });
+  });
+
+  it('[UI-004] the hints switch of the settings reaches the strip and changes on the fly', async () => {
+    const h = await start();
+    expect(h.dock().hints).toBe(true);
+    h.bg.changeSettings({ ui: { hints: false } });
+    await h.settle();
+    expect(h.dock().hints).toBe(false);
+    const off = await start({ settings: { ...settingsWithPersona(), ui: { ...settingsWithPersona().ui, hints: false } } });
+    expect(off.dock().hints).toBe(false);
+  });
+
+  it('[UI-005] the state hints: Fix says it needs a draft, the strip names the persona and its page, a saved recap is announced on its button', async () => {
+    const h = await start({ background: (bg) => (bg.recapStatus = { full: { generatedAt: '2026-10-03T09:00:00.000Z', ageMs: 3_600_000, transcriptCoverage: 'full-history', requestedCount: 3000, keptCount: 812 }, short: null }) });
+    const fix = h.dock().actions.fix;
+    expect(fix).toMatchObject({ enabled: false, hotkey: null, reason: { id: 'needs-draft', code: 'CG-GATE-DRAFT' } });
+    expect(fix.reason?.text.key).toBeTruthy();
+    expect(h.dock().persona).toEqual({ label: PERSONA_LABEL, pageName: 'Model One' });
+    expect(h.dock().actions.recap.badge).toBeNull();
+    await h.clock.advance(1_500);
+    // «Рекап можно открыть сразу».
+    expect(h.dock().actions.recap.badge).toBe('recap-ready');
+    for (const id of DOCK_ACTION_IDS) if (id !== 'recap') expect(h.dock().actions[id].badge, id).toBeNull();
+    h.host.type('my draft');
+    await h.settle();
+    expect(h.dock().actions.fix).toMatchObject({ enabled: true, reason: null });
+  });
+
+  it('[UI-006] a button carries the catalog\'s key — its printed form and its `aria-keyshortcuts` — only while the key does something', async () => {
+    const catalog = createFakeCatalog(ctxOf({ now: NOW_MS }));
+    const h = await start();
+    const vm = h.dock();
+    for (const id of ['reply', 'ping', 'review', 'recap', 'coach'] as const) {
+      expect(vm.actions[id].hotkey, id).toEqual(catalog.entry(id).hotkey);
+      expect(vm.actions[id].hotkey?.display, id).toBeTruthy();
+      expect(vm.actions[id].hotkey?.aria, id).toBeTruthy();
+    }
+    // Off — no key is printed: Fix without a draft, Hi past its time.
+    expect(vm.actions.fix.hotkey).toBeNull();
+    expect(vm.actions.hi.hotkey).toBeNull();
+    expect(vm.options).toMatchObject({ toneHotkey: catalog.entry('tone').hotkey, splitHotkey: catalog.entry('split').hotkey });
+    expect(vm.paletteHotkey).toEqual(catalog.entry('palette').hotkey);
+    h.host.type('my draft');
+    await h.settle();
+    expect(h.dock().actions.fix.hotkey).toEqual(catalog.entry('fix').hotkey);
+  });
+
+  it('[UI-009] the options capsule follows the status: no sign-in or no hub — off with that reason (the UI hides it by the status); no binding — listed but off; ready — on', async () => {
+    const out = (await start({ session: null })).dock();
+    expect(out.status).toBe('not-signed-in');
+    expect(out.options).toMatchObject({ toneReason: { id: 'not-signed-in' }, splitReason: { id: 'not-signed-in' } });
+    const down = (await start({ background: (bg) => (bg.bootstrap = { error: { code: 'CG-HUB-UNAVAILABLE' } }) })).dock();
+    expect(down.status).toBe('hub-down');
+    expect(down.options).toMatchObject({ toneReason: { id: 'hub-down' }, splitReason: { id: 'hub-down' } });
+    // Without a mapping the tones and Split are still there to see — and say why they do nothing.
+    const unbound = (await start({ background: (bg) => (bg.bindingError = { code: 'CG-BINDING-MISSING' }) })).dock();
+    expect(unbound.status).toBe('no-binding');
+    expect(unbound.options).toMatchObject({ tones: ['casual', 'flirty', 'upsell', 'spicy'], locked: false, toneReason: { id: 'no-binding', code: 'CG-BINDING-MISSING' }, splitReason: { id: 'no-binding', code: 'CG-BINDING-MISSING' } });
+    const ready = (await start()).dock();
+    expect(ready.options).toMatchObject({ tones: ['casual', 'flirty', 'upsell', 'spicy'], toneReason: null, splitReason: null, locked: false });
+  });
+
+  it('[UI-022] after an insert the part stays «вставлено» and can be inserted again; «скопировано» is a mark that goes by itself after two seconds', async () => {
+    const h = await start();
+    const opId = await reply(h, 'hey you');
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(partsOf(h)[0]).toMatchObject({ insert: 'done', insertError: null, collapsed: true });
+    // «Вставить ещё раз»: our own unchanged insert is replaced without a question, and the mark stays.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(2);
+    expect(partsOf(h)[0]).toMatchObject({ insert: 'done' });
+    await h.clock.advance(10_000);
+    expect(partsOf(h)[0]).toMatchObject({ insert: 'done' });
+
+    await h.dispatch({ type: 'Copy', artifactHandle: partsOf(h)[0]?.copyHandle as string });
+    expect(partsOf(h)[0]?.copy).toBe('done');
+    await h.clock.advance(COPIED_MARK_MS - 1);
+    expect(partsOf(h)[0]?.copy).toBe('done');
+    await h.clock.advance(1);
+    expect(partsOf(h)[0]?.copy).toBe('idle');
   });
 });
 
