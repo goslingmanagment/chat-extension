@@ -147,7 +147,8 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
       stamp: { asOf: head?.at ?? null, coverage },
       splitReason: catalog.reason('not-a-message'),
       expanded,
-      debug: view === null ? null : debugVm(view, { enabled: debugOn, expanded, now, i18n }),
+      // The sheet is the opened result: the same footer in the sheet and in the window, so unfolding moves nothing.
+      debug: view === null ? null : debugVm(view, { enabled: debugOn, opened: true, now, i18n }),
     };
   }
 

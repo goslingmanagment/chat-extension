@@ -5,8 +5,9 @@
 // contract details, the AI spend by feature and «AI сегодня $» in the popup.
 // The render trace has its own switch under it and is stored by us, never in
 // the page's web storage. Turning debug off or signing out clears every
-// debug store (core/services/diagnostics). In a collapsed dock there are no
-// debug blocks: they show only when the result is expanded.
+// debug store (core/services/diagnostics). In a collapsed dock — the strip
+// alone — there are no debug blocks: they show only with an opened result,
+// in the dock's sheet or in the «Развернуть ↗» window.
 
 import { type AiStreamCapability } from '@cg/contracts/hub';
 import { type SettingsV1 } from '@cg/contracts/settings';
@@ -54,9 +55,15 @@ export function withDebugCapability(capabilities: readonly AiStreamCapability[],
   return out;
 }
 
-/** DB-020: debug blocks of a result appear only once it is expanded. */
-export function showDebugBlock(debug: boolean, expanded: boolean): boolean {
-  return debug && expanded;
+/**
+ * DB-020: debug blocks of a result appear only once the result is opened —
+ * the dock's sheet above the strip (ui-design §4.12, `final-10`: the footer
+ * of the open sheet) or the «Развернуть ↗» window. The collapsed dock is the
+ * strip alone and shows none. The old extension's «inline» panel was the
+ * collapsed form; here the sheet is the opened one.
+ */
+export function showDebugBlock(debug: boolean, opened: boolean): boolean {
+  return debug && opened;
 }
 
 /** LG-027: a render trace writer — debug-level records `ui.render`, only while both switches are on. */

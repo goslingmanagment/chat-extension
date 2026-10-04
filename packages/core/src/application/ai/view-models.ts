@@ -138,8 +138,12 @@ export interface ErrorActionContext {
  */
 export function errorActions(wire: CgErrorWire, ctx: ErrorActionContext): ActionButtonVM[] {
   const out: ActionButtonVM[] = [];
+  // The day's quota is gone (ui-design §4.8, `final-7a`): the card counts down to the reset and offers the code —
+  // a «Повторить» that stays off for hours and a link to settings that cannot add quota are not offered.
+  const quota = wire.code === 'CG-QUOTA-DAILY';
   for (const action of recoveryActions(wire, ctx.now)) {
     if (action.label === null) continue;
+    if (quota && action.kind !== 'copy-code') continue;
     switch (action.kind) {
       case 'retry':
       case 'again': {
@@ -208,7 +212,12 @@ function profilerMarks(stages: OpDebugView['stages']): StageMark[] {
 export interface DebugContext {
   /** `debug.enabled`; false — no debug block at all. */
   readonly enabled: boolean;
-  readonly expanded: boolean;
+  /**
+   * The result is opened: shown in the dock's sheet, in a panel's turn or in
+   * the «Развернуть ↗» window. Every view model of a result is built for such
+   * a place, so the controllers say `true`; a collapsed dock builds none.
+   */
+  readonly opened: boolean;
   readonly now: number;
   readonly i18n: I18n;
 }
@@ -216,12 +225,12 @@ export interface DebugContext {
 /**
  * The debug footer of a result: the cost line, the stage profile, the hub's
  * stages, the prompt snapshot's opaque token, reasoning and the context
- * card. Only in debug mode and only in the expanded result — a collapsed
+ * card. Only in debug mode and only with an opened result — a collapsed
  * dock has no debug block at all (DB-020); while the generation runs only
  * the live timer (every 100 ms) is known.
  */
 export function debugVm(view: OpView, ctx: DebugContext): ResultDebugVM | null {
-  if (!showDebugBlock(ctx.enabled, ctx.expanded)) return null;
+  if (!showDebugBlock(ctx.enabled, ctx.opened)) return null;
   const running = !isTerminalOpState(view.state);
   const debug = view.debug;
   if (debug === undefined) {

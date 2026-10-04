@@ -594,6 +594,19 @@ describe('dock: Reply from the click to the parts', () => {
     expect(h.bg.callsOf('op.start').length).toBe(1);
   });
 
+  it('the day’s quota refused by the hub: the card counts to the reset and offers the code — no «Повторить» that stays off for hours, no settings link', async () => {
+    const h = await start();
+    // The hub's own refusal of the stream: 429 `quota_denied`.
+    h.script({ kind: 'http-error', status: 429, body: { error: 'quota_denied' } });
+    await h.generate('reply');
+    await h.finish();
+    const failed = result(h);
+    expect(failed).toMatchObject({ state: 'failed', error: { code: 'CG-QUOTA-DAILY' } });
+    // The reset is the next 00:00 UTC, counted down on the card.
+    expect(failed.error?.retryAt).toBe(Date.parse('2026-10-04T00:00:00.000Z'));
+    expect(failed.errorActions.map((action) => action.action.type)).toEqual(['CopyReport']);
+  });
+
   it('[AI-132] an answer with nothing usable is CG-OUTPUT-UNUSABLE, never an empty result', async () => {
     const h = await start();
     h.script(h.streamOf('fast-reply', ['<think>only thoughts</think>']));
@@ -1723,7 +1736,7 @@ describe('dock: quota, stale results, debug', () => {
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
   });
 
-  it('[UI-030] [DB-020] the debug footer — usage line, stage profile, prompt token — exists only in debug mode and only in the expanded result', async () => {
+  it('[UI-030] [DB-013] [DB-020] the debug footer — usage line, stage profile, prompt token — exists only in debug mode, in the opened result: the sheet above the strip; the collapsed dock has none', async () => {
     const debugFrame: HubFrame = { type: 'debug_input_v1', systemBlocks: [{ text: 'system', cache: 'none' }], userBlocks: [{ text: 'user', cache: 'none' }], contextManifest: null };
     const script = (): ScriptResponse => ({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply'), afterMs: 300 }, { kind: 'frame', frame: debugFrame }, delta('hey', 100), { kind: 'frame', frame: usage }, doneStep] });
 
@@ -1737,16 +1750,22 @@ describe('dock: quota, stale results, debug', () => {
     const h = await start({ settings: { ...settingsWithPersona(), debug: { enabled: true, renderTrace: false } } });
     h.script(script());
     await h.generate('reply');
-    // A collapsed result has no debug block at all, running or finished.
-    expect(result(h).debug).toBeNull();
-    await h.dispatch({ type: 'ExpandResult', operationId: result(h).opId, expanded: true });
-    // While it runs only the live timer is known.
+    // The sheet is open: while the generation runs only the live timer is known (DB-012).
     expect(result(h).debug).toMatchObject({ costLine: null, liveTimer: true, prompt: null });
     await h.finish();
-    await h.dispatch({ type: 'ExpandResult', operationId: result(h).opId, expanded: false });
-    expect(result(h).debug).toBeNull();
-    expect(JSON.stringify(h.dock().result)).not.toMatch(/tok|\$0\.0/);
-    await h.dispatch({ type: 'ExpandResult', operationId: result(h).opId, expanded: true });
+    const opId = result(h).opId;
+    // «Развернуть ↗» and back change nothing of the sheet's footer: the sheet does not jump under the window.
+    const inSheet = result(h).debug;
+    await h.dispatch({ type: 'ExpandResult', operationId: opId, expanded: true });
+    expect(result(h).debug).toEqual(inSheet);
+    await h.dispatch({ type: 'ExpandResult', operationId: opId, expanded: false });
+    expect(result(h).debug).toEqual(inSheet);
+    // «Скрыть»: the collapsed dock is the strip alone — no result, no debug block, no cost anywhere (DB-020).
+    await h.dispatch({ type: 'HideResult', operationId: opId });
+    expect(h.dock().result).toBeNull();
+    expect(JSON.stringify(h.dock())).not.toMatch(/tok|\$0\.0/);
+    // The same click opens the kept result again, with its footer.
+    await h.generate('reply');
     const debug = result(h).debug;
     // Intl groups digits with no-break spaces.
     expect(debug?.costLine?.replace(/\s/gu, ' ')).toBe('in 3 412 tok • out 286 tok • cache r 3 000 / w 0 • $0.0143 • 0,4 с');

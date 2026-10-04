@@ -932,23 +932,41 @@ describe('review', () => {
     expect(vm.meta).toEqual([{ key: 'review.meta', params: { n: 412, name: 'Fan Two' } }]);
     expect(vm.stamp.coverage).toBe('partial');
     expect(vm.view).toMatchObject({ s: 'partial', gaps: [{ kind: 'coverage', level: 'partial' }] });
-    // [DB-020] the debug block itself only in the expanded sheet.
-    expect(vm.debug).toBeNull();
+    // [DB-013] the debug block stands in the open sheet, and unfolding it into the window changes nothing of it.
+    expect(vm.debug).not.toBeNull();
     await h.dispatch({ type: 'ExpandResult', operationId: vm.opId as string, expanded: true });
-    expect(h.review().debug).not.toBeNull();
+    expect(h.review().debug).toEqual(vm.debug);
   });
 
-  it('[DB-020] a Recap built in debug mode shows its debug block only when the sheet is expanded', async () => {
+  it('[DB-013] [DB-020] a Recap built in debug mode shows its debug block in the open sheet — short or full — and the same one in the window; without debug mode there is none', async () => {
     const h = await start({ settings: { ...settingsWithPersona(), debug: { enabled: true, renderTrace: false } } });
     h.bg.hub.profileScript.push(saved);
     await openRecap(h);
     h.script(recapStream(FULL_TEXT));
     await h.dispatch({ type: 'RefreshRecap', length: 'full' });
     await h.finish();
-    expect(h.recapView()).toMatchObject({ markdown: FULL_TEXT, expanded: false, debug: null });
-    await h.dispatch({ type: 'ExpandResult', operationId: h.recapView().opId as string, expanded: true });
+    const inSheet = h.recapView();
+    expect(inSheet).toMatchObject({ markdown: FULL_TEXT, expanded: false });
+    expect(inSheet.debug).not.toBeNull();
+    await h.dispatch({ type: 'ExpandResult', operationId: inSheet.opId as string, expanded: true });
     expect(h.recapView().expanded).toBe(true);
+    // The same footer under the window: the sheet's height does not change when it is unfolded.
+    expect(h.recapView().debug).toEqual(inSheet.debug);
+    // A short Recap has no «Развернуть ↗»: its footer is in the sheet all the same.
+    await h.dispatch({ type: 'ExpandResult', operationId: inSheet.opId as string, expanded: false });
+    h.script(recapStream(SHORT_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'short' });
+    await h.finish();
+    expect(h.recapView()).toMatchObject({ length: 'short', markdown: SHORT_TEXT, blocks: null });
     expect(h.recapView().debug).not.toBeNull();
+
+    const plain = await start();
+    plain.bg.hub.profileScript.push(saved);
+    await openRecap(plain);
+    plain.script(recapStream(FULL_TEXT));
+    await plain.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await plain.finish();
+    expect(plain.recapView().debug).toBeNull();
   });
 
   it('the Review key starts it; while it runs the key brings the sheet back and ⌘. cancels', async () => {

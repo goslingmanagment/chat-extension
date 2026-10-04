@@ -94,6 +94,59 @@ const feed = (over: Partial<FeedPage> = {}): FeedPage => ({
   ...over,
 });
 
+describe('coach: the debug footer of a turn', () => {
+  const usage: HubFrame = { type: 'usage', usage: { inputTokens: 3412, outputTokens: 286, cacheWriteTokens: 0, cacheReadTokens: 3000, costMicroUsd: 14_300, costApproximate: false }, providerResponseId: null, cacheHit: false };
+
+  it('[DB-019] in debug mode a turn carries its debug footer — the live timer while it waits, then time, tokens, cost and the stage profile; without debug mode there is none', async () => {
+    const h = await start({ settings: { ...settingsWithPersona(), debug: { enabled: true, renderTrace: false } } });
+    h.script(coachStream(ANSWER, [usage]));
+    await ask(h, 'what next?');
+    await h.clock.advance(150);
+    // The wait: only the live timer is known (DB-012).
+    expect(lastTurn(h).debug).toMatchObject({ liveTimer: true, costLine: null });
+    await h.finish();
+    const done = lastTurn(h);
+    expect(done.state).toBe('done');
+    expect(done.debug?.liveTimer).toBe(false);
+    expect(done.debug?.costLine?.replace(/\s/gu, ' ')).toContain('in 3 412 tok • out 286 tok');
+    expect(done.debug?.costLine).toContain('$0.0143');
+    expect(done.debug?.stages.map((stage) => stage.name)).toContain('meta');
+    // The footer of a finished turn is built once: a later redraw hands out the same view.
+    h.ai.workspace.bump();
+    await h.settle();
+    expect(lastTurn(h)).toBe(done);
+
+    // Debug mode off: no footer, and nothing of the cost in the panel.
+    const plain = await start();
+    plain.script(coachStream(ANSWER, [usage]));
+    await ask(plain, 'what next?');
+    await plain.finish();
+    expect(lastTurn(plain).debug ?? null).toBeNull();
+    expect(JSON.stringify(plain.coach())).not.toMatch(/tok|\$0\.0/);
+  });
+
+  it('[DB-019] switching debug mode off takes the footer of the turns already there away; a turn made without it has none to show later', async () => {
+    const h = await start({ settings: { ...settingsWithPersona(), debug: { enabled: true, renderTrace: false } } });
+    h.script(coachStream(ANSWER, [usage]));
+    await ask(h, 'what next?');
+    await h.finish();
+    expect(lastTurn(h).debug).not.toBeNull();
+    h.bg.changeSettings({ debug: { enabled: false } });
+    await h.settle();
+    expect(lastTurn(h).debug ?? null).toBeNull();
+    expect(JSON.stringify(h.coach())).not.toMatch(/tok|\$0\.0/);
+
+    // Made without debug mode: the background kept no stages and no usage for it — nothing is invented afterwards.
+    const plain = await start();
+    plain.script(coachStream(ANSWER, [usage]));
+    await ask(plain, 'what next?');
+    await plain.finish();
+    plain.bg.changeSettings({ debug: { enabled: true } });
+    await plain.settle();
+    expect(lastTurn(plain).debug ?? null).toBeNull();
+  });
+});
+
 describe('coach: opening and the empty dialog', () => {
   it('[AI-080] the Coach button opens the panel and generates nothing', async () => {
     const h = await start();

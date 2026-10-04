@@ -243,7 +243,8 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       refresh: buildButton(situation, length, 'recap.refresh'),
       splitReason: catalog.reason('not-a-message'),
       expanded,
-      debug: op === null ? null : debugVm(op.view, { enabled: debugOn, expanded, now, i18n }),
+      // The sheet is the opened result: the same footer in the sheet and in the window, so unfolding moves nothing.
+      debug: op === null ? null : debugVm(op.view, { enabled: debugOn, opened: true, now, i18n }),
     };
   }
 

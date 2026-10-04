@@ -175,6 +175,7 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
     unparsed,
     cachedAt: record.reopenedAt === null ? null : (view.endedAt ?? null),
     expanded,
-    debug: debugVm(view, { enabled: debugOn, expanded, now, i18n }),
+    // The sheet is the opened result (ui-design §4.12): its footer is there in debug mode, window or not.
+    debug: debugVm(view, { enabled: debugOn, opened: true, now, i18n }),
   };
 }

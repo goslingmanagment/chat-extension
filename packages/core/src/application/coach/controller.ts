@@ -59,7 +59,7 @@ import { latestLength, type ArchivePoint } from '../../domain/recap';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
 import { confirmVm, partVms } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
-import { button, errorActions, errorVm, msg, phaseVm, views } from '../ai/view-models';
+import { button, debugVm, errorActions, errorVm, msg, phaseVm, views } from '../ai/view-models';
 import { type AiWorkspace, type ReadyTarget, type Situation } from '../ai/workspace';
 
 type CoachBlockKind = (typeof COACH_BLOCK_KINDS)[number];
@@ -335,7 +335,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   function exchangeState(exchange: CoachExchange, outside: boolean, record: OpRecord | null, situation: Situation): string {
     const asked = ws.inserts.confirmation(exchange.opId);
-    const state: unknown[] = [outside, record !== null, i18n.language, situation.copyOnly?.code ?? '', situation.chat === null ? '' : ws.fanScript(situation.chat.key), asked?.confirmationId ?? ''];
+    const state: unknown[] = [outside, record !== null, i18n.language, situation.copyOnly?.code ?? '', situation.chat === null ? '' : ws.fanScript(situation.chat.key), asked?.confirmationId ?? '', debugOn()];
     for (const draft of exchange.answer.drafts) {
       for (let index = 0; index < draft.parts.length; index += 1) {
         const part = { variant: draft.index, index };
@@ -355,6 +355,15 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     built.set(exchange.turnId, { state, vm });
     return vm;
   }
+
+  /** `debug.enabled` as the tab knows it. */
+  const debugOn = (): boolean => ws.env.settings?.settings.debug.enabled ?? false;
+  /**
+   * DB-019: the debug footer of a turn — time, tokens, cost, «Промпт», the stage profile — from its operation's
+   * own debug view, in debug mode only. A turn in the panel is an opened result. null — debug is off, or the
+   * operation is no longer held.
+   */
+  const turnDebug = (record: OpRecord | null): NonNullable<CoachTurnVM['debug']> | null => (record === null ? null : debugVm(record.view, { enabled: debugOn(), opened: true, now: clock.now(), i18n }));
 
   function buildExchange(exchange: CoachExchange, outside: ReadonlySet<string>, record: OpRecord | null): CoachTurnVM {
     const answer = exchange.answer;
@@ -379,6 +388,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       errorActions: [],
       // AI-086: Б2 for one of the draft parts — the id `AnswerConfirm` takes.
       confirm: confirmVm(ws, exchange.opId),
+      debug: turnDebug(record),
     };
   }
 
@@ -404,6 +414,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       error: wire === null ? null : errorVm(wire, i18n),
       errorActions: actions,
       confirm: null,
+      // A failed turn's stages say where it stopped.
+      debug: turnDebug(turn.opId === null ? null : ws.ops.get(turn.opId)),
     };
   }
 
@@ -431,6 +443,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       error: null,
       errorActions: [],
       confirm: null,
+      // DB-012: the live timer of the wait — of the answer step; the recap step in front of it has its own sheet.
+      debug: answering ? turnDebug(record) : null,
     };
   }
 
