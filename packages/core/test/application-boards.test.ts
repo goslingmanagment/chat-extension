@@ -2353,7 +2353,7 @@ describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting leas
     const claims = (): string[] => h.bg.requests.filter((r) => r.type === 'newcomers.claim').map((r) => (r.payload as { action: string }).action);
     // The background was unloaded mid-stream: the end of the operation is never told to the tab.
     const emit = h.bg.emit.bind(h.bg) as (type: string, payload: unknown) => void;
-    h.bg.emit = ((type: string, payload: unknown) => (type === 'op.done' ? undefined : emit(type, payload))) as typeof h.bg.emit;
+    h.bg.emit = (type: string, payload: unknown) => (type === 'op.done' ? undefined : emit(type, payload));
     h.script(0, 'hi-greeting', 'Hi there!');
     expect((await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).ok).toBe(true);
     await h.advance(200);
