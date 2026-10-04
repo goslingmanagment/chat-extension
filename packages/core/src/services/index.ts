@@ -130,5 +130,6 @@ export * from './change-policy';
 export * from './lazy-status';
 export * from './scheduler';
 export * from './profile-saver';
+export * from './greeting-leases';
 export * from './send-coordinator';
 export * from './send-driver';
