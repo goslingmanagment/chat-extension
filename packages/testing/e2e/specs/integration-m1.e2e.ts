@@ -319,19 +319,33 @@ describe('integration M1 — the test build on the stand against the fake hub', 
   });
 
   it('the dock follows chat switches: one host, always the first child of the active composer', async () => {
+    /**
+     * The dock stands in this composer, and stays there. On a switch the adapter moves the host, takes it out
+     * for a moment (about 25 ms on the stand: it sees no active composer in the middle of the switch) and puts
+     * it back; a single read can land in that gap, so the placement is read once it holds for two reads.
+     */
+    const standsIn = async (parentKey: string | undefined, message: string): Promise<void> => {
+      const wanted = { hosts: 1, parentKey: parentKey ?? null, firstChild: true, visible: true };
+      await browser.waitUntil(
+        async () => {
+          if (JSON.stringify(await dockPlacement()) !== JSON.stringify(wanted)) return false;
+          await browser.pause(120);
+          return JSON.stringify(await dockPlacement()) === JSON.stringify(wanted);
+        },
+        { timeout: 5000, timeoutMsg: message },
+      );
+    };
     const first = (await composerRoots()).active[0] ?? '';
     expect(first.endsWith(`:${accountA}:${a1}`)).toBe(true);
     await callStand('openChat', accountA, a2, { newTab: true });
     await browser.waitUntil(async () => (await composerRoots()).active[0]?.endsWith(`:${accountA}:${a2}`) === true, { timeout: 5000, timeoutMsg: 'the second chat tab' });
-    await browser.waitUntil(async () => (await dockPlacement()).parentKey === (await composerRoots()).active[0], { timeout: 5000, timeoutMsg: 'the dock did not move to the second composer' });
     const second = await composerRoots();
     expect(second.all).toHaveLength(2);
-    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: second.active[0], firstChild: true, visible: true });
+    await standsIn(second.active[0], 'the dock did not move to the second composer');
     await dockIs((dock) => dock.status === 'ready' && dock.page === PAGE, 'still bound after the switch');
 
     await callStand('openChat', accountA, a1);
-    await browser.waitUntil(async () => (await dockPlacement()).parentKey === first, { timeout: 5000, timeoutMsg: 'the dock did not come back to the first composer' });
-    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: first, firstChild: true, visible: true });
+    await standsIn(first, 'the dock did not come back to the first composer');
   });
 
   it('an account no hub page is linked to shows its CG-BINDING-* code, and the bound one comes back', async () => {
@@ -369,7 +383,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     );
     // The account ChatSpace shows is bound to its hub page; the other one has no page (nothing is matched by name).
     expect(accounts.find((row) => row.handle === `chatspace:${accountA}`)?.page).toBe(WORLD.pages.one.title);
-    expect(accounts.find((row) => row.handle === `chatspace:${accountB}`)?.page).toBe('нет страницы');
+    expect(accounts.find((row) => row.handle === `chatspace:${accountB}`)?.page).toBe('не привязан');
 
     const popup = await openPopup();
     const settled = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.pills.some((pill) => pill.includes('на связи')), 'the popup of a working shift');
