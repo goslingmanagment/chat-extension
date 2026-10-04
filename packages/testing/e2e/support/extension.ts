@@ -108,9 +108,22 @@ export type SpikeReport = Record<string, unknown> & {
   runtime?: string;
   runtimeError?: string;
   ignoredInvalidations?: number;
+  /** Writes that passed our own check of the chat and reached the point where their action token is spent (tab/probe.ts `holdWrite`). */
+  writesReached?: number;
   startedAt?: number;
   readyStateAtStart?: string;
 };
+
+/**
+ * Asks the TEST build to hold every write for `ms` between its own check of the chat and MAIN's (tab/probe.ts
+ * `HOLD_WRITE_ATTRIBUTE`); 0 — no hold.
+ */
+export async function holdWrites(ms: number): Promise<void> {
+  await browser.execute((value: number) => {
+    if (value > 0) document.documentElement.setAttribute('data-cg-spike-hold', String(value));
+    else document.documentElement.removeAttribute('data-cg-spike-hold');
+  }, ms);
+}
 
 /** Reads the report the extension writes to <html data-cg-spike> (test builds only). */
 export async function readReport(): Promise<SpikeReport | null> {

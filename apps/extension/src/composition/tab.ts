@@ -74,7 +74,12 @@ export function composeTab(env: TabEnv): void {
     // The bridge's schemas are a lazy chunk (§11): this file is one classic script and would carry them whole.
     validation: () => importWithRetry<Validation>(extensionUrl(lazyPath('bridge-validation')), (url) => import(/* @vite-ignore */ url)),
     // A write spends the action token of its click before anything reaches MAIN (§14); no runtime — no write.
-    redeem: (request) => (runtime === null ? Promise.resolve(false) : runtime.then((ready) => ready.redeem(request)).catch(() => false)),
+    redeem(request) {
+      if (runtime === null) return Promise.resolve(false);
+      const spend = (): Promise<boolean> => (runtime === null ? Promise.resolve(false) : runtime.then((ready) => ready.redeem(request)).catch(() => false));
+      // A TEST build on the loopback stand may hold the write here, between our check of the chat and MAIN's (the probe; release has none).
+      return probe === null ? spend() : probe.holdWrite().then(spend);
+    },
     // ChatSpace's own draft key, read only (§6.1): the isolated world shares the page's localStorage.
     drafts: { getItem: (key) => win.localStorage.getItem(key) },
     // Bootstrap `limits.navInsertTimeoutSec`, once it arrived (the host starts before any bootstrap).

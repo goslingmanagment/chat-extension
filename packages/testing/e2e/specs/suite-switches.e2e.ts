@@ -16,8 +16,27 @@
 // - the extension's P1 counter of misplaced inserts stays at zero;
 // - inserts did happen (the race was real), and nothing of ours talked to
 //   the stand's server.
+//
+// WebDriver cannot click faster than our insert path runs, so in the two
+// hundred switches every press is answered before the chat changes. The
+// overtaken press is therefore staged, at the two moments a switch can fall
+// into:
+// - `under` — the page itself opens another chat while the click on
+//   «Вставить» is being delivered (the click's own task): our side sees the
+//   other chat before it builds the write, and refuses it itself;
+// - `held` (its own test) — the write passed our side's check and is held
+//   on its way to MAIN (the TEST build's hook, tab/probe.ts `holdWrite`),
+//   and the chat changes in that time. The two fields are both untouched —
+//   empty, the same draft revision — so the draft's own compare-and-set
+//   cannot tell them apart: only MAIN's check of the chat and of the
+//   composer, made in the one step with the write, stands between the text
+//   and the field of the chat that opened.
+// Both must write nothing (CG-INSERT-CHAT-CHANGED) — and never into the
+// chat that opened under them. Without the adapter's checks of the chat
+// (MAIN `insertGuarded`) the held presses write into that chat and this
+// spec fails.
 // The adapter's own race — intents aimed at a chat that is no longer open —
-// has its spec without the extension (host-adapter.e2e.ts, 200 switches).
+// has its spec without the extension too (host-adapter.e2e.ts, 200 switches).
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 
@@ -26,9 +45,10 @@ import { browser, expect } from '@wdio/globals';
 import { callsTo } from '../../src/fake-hub/journal';
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
 import { bridgeWrites, composerText, pageJournal, pageJournalMark } from '../support/chat';
+import { holdWrites, readReport, waitForReport } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { oursText, pressOurs, pressOursNow } from '../support/ours';
+import { oursExists, oursText, pressOurs, pressOursNow } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -36,6 +56,13 @@ const ACC = STAND_IDS.accounts.a;
 const { a1, a2, a4 } = STAND_IDS.fans;
 const FANS = [a1, a2, a4] as const;
 const SWITCHES = 200;
+/** Presses of «Вставить» a switch overtakes under the click. */
+const OVERTAKEN = 6;
+/** Chats nobody typed in, opened one after another in one ChatSpace tab: each press is held while the next one opens. */
+const UNTOUCHED = [STAND_IDS.fans.a5, STAND_IDS.fans.a6, STAND_IDS.fans.a7, STAND_IDS.fans.a8, '74001009', '74001010', '74001011'] as const;
+/** How long a held write waits between our check and MAIN's: the switch is made in that time. */
+const HOLD_MS = 1200;
+const INSERTABLE = '.cg-part.is-next .cg-ins:not([aria-disabled="true"])';
 
 interface Watch {
   /** Frames the watcher looked at. */
@@ -71,8 +98,8 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
     expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
   });
 
-  it('[RB-014] [RB-015] [NEW-06] not one insert lands in a chat it was not written for; the P1 counter stays at zero', async function () {
-    this.timeout(240_000);
+  it('[RB-014] [RB-015] [NEW-06] not one insert lands in a chat it was not written for — a press the switch overtakes is refused; the P1 counter stays at zero', async function () {
+    this.timeout(300_000);
     // Every message field the page has mounted, read on each frame: the chat of the field against the signature of its text.
     await browser.execute(() => {
       const state = { frames: 0, misplaced: [] as Array<{ field: string; signedFor: string; frame: number }>, seen: {} as Record<string, string[]>, stop: false };
@@ -136,6 +163,49 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
       }
     }
 
+    // The presses a switch overtakes under the click (see the head of this file): the page opens the next chat the
+    // moment a click on our dock is delivered — before our own handler runs.
+    await browser.waitUntil(async () => (await hub().status()).openStreams === 0, { timeout: 30_000, timeoutMsg: 'generations are still running at the hub' });
+    const overtaken = { pressed: 0, writes: 0, reachedMain: 0 };
+    for (let round = 0; round < OVERTAKEN; round += 1) {
+      const from = FANS[round % FANS.length] ?? a1;
+      const next = FANS[(round + 1) % FANS.length] ?? a2;
+      await callStand('openChat', ACC, from);
+      await dockIs((d) => d.target?.endsWith(`:${from}`) === true && d.status === 'ready', `the dock of chat ${from} before an overtaken press`);
+      if (!(await oursExists('dock', INSERTABLE))) {
+        // Its result is used up: a new one.
+        if (!(await pressOursNow('dock', '.cg-again:not([aria-disabled="true"])'))) await pressOurs('dock', '.cg-strip button', /^Reply/);
+        await browser.waitUntil(() => oursExists('dock', INSERTABLE), { timeout: 30_000, timeoutMsg: `chat ${from} offers nothing to insert` });
+      }
+      const before = await pageJournalMark();
+      const reached = (await readReport())?.writesReached ?? 0;
+      await browser.execute(
+        (account: string, fan: string) => {
+          const stand = (window as unknown as { __stand: { openChat(account: string, fan: string): unknown } }).__stand;
+          const onClick = (event: Event): void => {
+            // A click inside our closed root reaches the page as a click on its host.
+            if (!(event.target instanceof Element) || event.target.closest('[data-cg="dock"]') === null) return;
+            window.removeEventListener('click', onClick, true);
+            void stand.openChat(account, fan);
+          };
+          window.addEventListener('click', onClick, true);
+        },
+        ACC,
+        next,
+      );
+      expect([round, await pressOursNow('dock', INSERTABLE)]).toEqual([round, true]);
+      overtaken.pressed += 1;
+      await browser.waitUntil(async () => (await callStand('route')).chatId === next, { timeout: 5000, timeoutMsg: `chat ${next} did not open under the press` });
+      await dockIs((d) => d.target?.endsWith(`:${next}`) === true && d.status === 'ready', `the dock of chat ${next} after an overtaken press`);
+      // The insert that was on its way has ended one way or the other.
+      await browser.pause(200);
+      const landed = bridgeWrites(await pageJournal(before));
+      // Whatever was written went into the field of the chat the part was made for — never into the one that opened.
+      expect([round, landed.filter((write) => write.chatId !== from)]).toEqual([round, []]);
+      overtaken.writes += landed.length;
+      if (((await readReport())?.writesReached ?? 0) > reached) overtaken.reachedMain += 1;
+    }
+
     // Everything that was started ends; then the three chats are looked at one by one.
     await browser.waitUntil(async () => (await hub().status()).openStreams === 0, { timeout: 30_000, timeoutMsg: 'generations are still running at the hub' });
     await browser.pause(1000);
@@ -157,7 +227,7 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
     const diagnostics = await shift.rpc<{ counters: Record<string, number> }>('diagnostics.get');
     const counters = diagnostics.ok ? diagnostics.payload.counters : null;
 
-    const evidence = { switches: SWITCHES, pressed, generations: generations.length, writes: writes.length, writesByChat: Object.fromEntries(FANS.map((fan) => [fan, writes.filter((write) => write.chatId === fan).length])), frames: watch.frames, seen: watch.seen, counters };
+    const evidence = { switches: SWITCHES, pressed, overtaken, generations: generations.length, writes: writes.length, writesByChat: Object.fromEntries(FANS.map((fan) => [fan, writes.filter((write) => write.chatId === fan).length])), frames: watch.frames, seen: watch.seen, counters };
     mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
     writeFileSync(`${E2E_EVIDENCE_DIR}suite-switches.json`, `${JSON.stringify(evidence, null, 2)}\n`);
 
@@ -165,7 +235,10 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
     // overtaken by the switch and wrote nothing —, generations ended under other chats.
     expect(pressed.insert).toBeGreaterThanOrEqual(20);
     expect(writes.length).toBeGreaterThanOrEqual(10);
-    expect(writes.length).toBeLessThanOrEqual(pressed.insert);
+    expect(writes.length).toBeLessThanOrEqual(pressed.insert + overtaken.pressed);
+    // The overtaken presses were real and the switch won every one of them: nothing was written, and our own side
+    // refused each before a write was even on its way to MAIN.
+    expect(overtaken).toEqual({ pressed: OVERTAKEN, writes: 0, reachedMain: 0 });
     expect(generations.length).toBeGreaterThan(FANS.length);
     expect(watch.frames).toBeGreaterThan(100);
     // Not one frame with a text signed for another chat in any message field.
@@ -184,5 +257,47 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
     // §0.4, §9.6: the P1 counters — the exact proof of an insert into another chat among them — are not there.
     expect(counters).not.toBeNull();
     expect(Object.entries(counters ?? {}).filter(([name, count]) => (name.startsWith('p1.') || name === 'CG-INSERT-MISPLACED') && count > 0)).toEqual([]);
+  });
+
+  it('[RB-014] [NEW-06] a write that is already on its way when the chat changes is stopped by MAIN’s own check of the chat — the two fields are both untouched, nothing else tells them apart', async function () {
+    this.timeout(180_000);
+    const held = { pressed: 0, reachedMain: 0, writes: 0 };
+    try {
+      for (let round = 0; round + 1 < UNTOUCHED.length; round += 1) {
+        const from = UNTOUCHED[round] ?? '';
+        const next = UNTOUCHED[round + 1] ?? '';
+        // The chat replaces the one in the active ChatSpace tab: its message field is new and empty.
+        await callStand('openChat', ACC, from);
+        await waitForChatReady(ACC, from);
+        await dockIs((d) => d.target?.endsWith(`:${from}`) === true && d.status === 'ready' && d.actions['reply'] === true, `the dock of chat ${from}`);
+        expect([from, await composerText(ACC, from)]).toEqual([from, '']);
+        await pressOurs('dock', '.cg-strip button', /^Reply/);
+        await browser.waitUntil(() => oursExists('dock', INSERTABLE), { timeout: 30_000, timeoutMsg: `chat ${from} offers nothing to insert` });
+
+        const before = await pageJournalMark();
+        const reached = (await readReport())?.writesReached ?? 0;
+        await holdWrites(HOLD_MS);
+        expect([round, await pressOursNow('dock', INSERTABLE)]).toEqual([round, true]);
+        held.pressed += 1;
+        // Our side checked the chat and let the write go; it waits on its way to MAIN — and the chat changes.
+        await waitForReport((report) => (report.writesReached ?? 0) > reached, `the write of round ${round} did not reach the hold`, 5000);
+        held.reachedMain += 1;
+        await callStand('openChat', ACC, next);
+        await waitForChatReady(ACC, next);
+        await dockIs((d) => d.target?.endsWith(`:${next}`) === true && d.status === 'ready', `the dock of chat ${next}`);
+        await browser.pause(HOLD_MS + 300);
+        await holdWrites(0);
+        const landed = bridgeWrites(await pageJournal(before));
+        held.writes += landed.length;
+        // Nothing was written anywhere — least of all into the empty field of the chat that opened.
+        expect([round, landed]).toEqual([round, []]);
+        expect([next, await composerText(ACC, next)]).toEqual([next, '']);
+      }
+    } finally {
+      await holdWrites(0);
+    }
+    expect(held).toEqual({ pressed: UNTOUCHED.length - 1, reachedMain: UNTOUCHED.length - 1, writes: 0 });
+    const diagnostics = await shift.rpc<{ counters: Record<string, number> }>('diagnostics.get');
+    expect(Object.entries(diagnostics.ok ? diagnostics.payload.counters : { missing: 1 }).filter(([name, count]) => (name.startsWith('p1.') || name === 'CG-INSERT-MISPLACED' || name === 'missing') && count > 0)).toEqual([]);
   });
 });
