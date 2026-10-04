@@ -45,6 +45,8 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
   useNetworkTrap();
   const { hub } = useFakeHub();
   let journalStart = 0;
+  /** The fake hub is one for the whole run: its journal is read from here on. */
+  let hubStart = 0;
   let standTab = '';
   let pagesTab = '';
 
@@ -72,6 +74,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     await standServer.reset();
     journalStart = await standServer.mark();
     await hub().command({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: STAND_IDS.platformAccounts.a });
+    hubStart = await hub().mark();
     // Slow enough to see the stream: the model sends its answer sixteen characters at a time. And a hub as the
     // vendored SDK can talk to today: its stream transport cannot declare `context-v1` yet (docs/hub-layer.md),
     // so a hub that offers it would have every generation refused with CG-HUB-CAPABILITY.
@@ -111,7 +114,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     expect(Object.keys(dock.hits).filter((name) => name.startsWith('action:'))).toEqual(expect.arrayContaining(['action:reply', 'action:fix']));
     // Fix has nothing to fix: the composer is empty.
     expect(dock.actions['fix']).toBe(false);
-    expect(callsTo((await hub().journal()).entries, 'aiFeatureStream')).toEqual([]);
+    expect(callsTo((await hub().journal(hubStart)).entries, 'aiFeatureStream')).toEqual([]);
   });
 
   it('[AI-001] [AI-137] [BG-001] Reply by a click on the strip: the background admits it, the hub’s stream is shown while it runs, then its two parts', async () => {
@@ -164,6 +167,15 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     // While our window is open, ChatSpace's Esc must not close the chat tab: the host says so.
     const hosts = await browser.execute(() => [...document.querySelectorAll('[data-cg="overlay"]')].map((host) => host.hasAttribute('data-dismissible-open')));
     expect(hosts.some(Boolean)).toBe(true);
+    // The window's host is a child of <html>, outside the page's application root: it is given the font of the
+    // place the dock sits in, so our window is drawn in the same font as our dock.
+    const fonts = await browser.execute(() => {
+      const dock = document.querySelector('[data-cg="dock"]');
+      const modal = document.querySelector<HTMLElement>('[data-cg="overlay"][data-cg-layer="modal"]');
+      return { beside: dock?.parentElement ? getComputedStyle(dock.parentElement).fontFamily : null, modal: modal ? getComputedStyle(modal).fontFamily : null, inline: modal?.style.fontFamily ?? '' };
+    });
+    expect(fonts.inline).not.toBe('');
+    expect(fonts.modal).toBe(fonts.beside);
     await browser.keys(Key.Escape);
     const closed = await dockIs((d) => !d.overlays.includes('palette') && !d.surfaces.includes('palette'), 'the palette is closed');
     expect(closed.status).toBe('ready');
