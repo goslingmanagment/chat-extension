@@ -9,7 +9,7 @@ import { MAX_DOM_ROWS, SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
 import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel } from '@cg/ui/spenders';
 
 import { board, button, cgError, ctxOf, entry, stats, views } from '../scenarios/app-client';
-import { BOARD_FANS, boardShelves, manyFans } from './data';
+import { BOARD_FANS, boardShelves, manyFans, type BoardFan } from './data';
 import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
 import { LiveBoardClient } from './live-client';
 import { boardOf, boardScenario } from './states';
@@ -331,6 +331,69 @@ describe('Spenders board: keyboard', () => {
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'chat', targetHandle: 'spenders:b001' } });
     await press('KeyO', 'щ');
     expect(ui.actionsOf('Navigate')).toHaveLength(2);
+  });
+
+  it('[SP-033] a key acts on the fan of the focused row when the list changed above it: Enter, O and Space never reach a neighbour', async () => {
+    const newcomer: BoardFan = { ...(BOARD_FANS[0] as BoardFan), key: 'b900', name: 'Zed Newcomer', username: 'zed', lifetime: 50_000 };
+    const scenario = {
+      ...boardOnly(boardOf(ctx, BOARD_FANS)),
+      steps: [
+        // A fan lands on top of the first shelf: every row below moves one place down.
+        { label: 'a row above', at: 1_000, views: [entry({ of: 'spenders.board' }, boardOf(ctx, [newcomer, ...BOARD_FANS]))] },
+        // The two top fans leave: every row moves two places up.
+        { label: 'rows gone above', at: 2_000, views: [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS.slice(1)))] },
+        // The focused fan itself leaves the list.
+        { label: 'the fan left', at: 3_000, views: [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS.filter((fan) => fan.key !== 'b003').slice(1)))] },
+      ],
+    };
+    ui = await mountBoardSettled('spenders', scenario);
+    const focused = (): HTMLElement => ui?.root.activeElement as HTMLElement;
+    const press = async (code: string, key = code): Promise<void> => flush(() => keydown(focused(), key, { code }));
+    const tabStops = (): (string | null)[] => (ui?.$$('.cg-vlist__inner [data-cg-item][tabindex="0"]') ?? []).map((element) => element.getAttribute('data-cg-fan'));
+    await press('ArrowDown');
+    await press('ArrowDown');
+    expect(focused().getAttribute('data-cg-fan')).toBe('spenders:b003');
+
+    for (const step of [0, 1]) {
+      await flush(() => ui?.client.goTo(step));
+      await settle();
+      // Focus and the one tab stop stay on the fan, wherever its row went.
+      expect(focused().getAttribute('data-cg-fan')).toBe('spenders:b003');
+      expect(tabStops()).toEqual(['spenders:b003']);
+      const before = ui.actions().length;
+      await press('Enter');
+      await press('KeyO', 'щ');
+      await press('Space', ' ');
+      expect(ui.actions().slice(before)).toEqual([
+        { type: 'Navigate', to: { kind: 'chat', targetHandle: 'spenders:b003' } },
+        { type: 'Navigate', to: { kind: 'chat', targetHandle: 'spenders:b003' } },
+        { type: 'OpenPreview', targetHandle: 'spenders:b003' },
+      ]);
+    }
+    // The arrows go on from the fan, not from where it used to stand.
+    await press('ArrowDown');
+    expect(focused().getAttribute('data-cg-fan')).toBe('spenders:b004');
+    await press('ArrowUp');
+    expect(focused().getAttribute('data-cg-fan')).toBe('spenders:b003');
+
+    // The key is the row's it came from, whatever row the board remembers as the keyboard's: here it still
+    // remembers b003, and the key comes from b005.
+    const elsewhere = ui.actions().length;
+    await flush(() => keydown(row('b005'), 'Enter', { code: 'Enter' }));
+    await flush(() => keydown(row('b005'), ' ', { code: 'Space' }));
+    expect(ui.actions().slice(elsewhere)).toEqual([
+      { type: 'Navigate', to: { kind: 'chat', targetHandle: 'spenders:b005' } },
+      { type: 'OpenPreview', targetHandle: 'spenders:b005' },
+    ]);
+    expect(tabStops()).toEqual(['spenders:b003']);
+
+    // The fan left the list: its row is gone, the tab stop goes back to the start, and no key opens anybody.
+    const before = ui.actions().length;
+    await flush(() => ui?.client.goTo(2));
+    await settle();
+    expect(row('b003')).toBeNull();
+    expect(tabStops()).toEqual(['spenders:b002']);
+    expect(ui.actions().slice(before)).toEqual([]);
   });
 
   it('[SP-033] the last row of a shelf is followed by the first row of the next one', () => {

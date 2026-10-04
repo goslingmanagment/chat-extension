@@ -8,7 +8,7 @@
 // из M» is the model's.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type GreetingStatusVM, type I18n, type NewcomerRowVM, type NewcomersTab, type NewcomersVM, type UiAction } from '@cg/contracts/vm';
@@ -40,7 +40,7 @@ import {
   type MenuItem,
 } from '../kit';
 import { Preview } from '../spenders/preview/Preview';
-import { useRowFocus } from '../spenders/rowFocus';
+import { rowKeyOf, useRowFocus } from '../spenders/rowFocus';
 import { DataFooter, FilterChip, WindowHeader, coverageWord, isPlainKey, isTextEntry } from '../spenders/window';
 
 const ROW_HEIGHT = 52;
@@ -108,7 +108,7 @@ function Greeting({ status }: { readonly status: GreetingStatusVM }): JSX.Elemen
   }
 }
 
-function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; readonly index: number; readonly active: boolean; readonly onPick: (index: number) => void }): JSX.Element {
+function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; readonly index: number; readonly active: boolean; readonly onPick: (handle: string) => void }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   return (
@@ -119,11 +119,12 @@ function Row({ row, index, active, onPick }: { readonly row: NewcomerRowVM; read
       {...(row.selected ? { 'aria-current': 'true' as const } : {})}
       tabIndex={active ? 0 : -1}
       data-cg-item={index}
+      data-cg-key={row.handle}
       data-cg-fan={row.handle}
       data-cg-greeting={row.greeting.s}
-      onFocus={() => onPick(index)}
+      onFocus={() => onPick(row.handle)}
       onClick={() => {
-        onPick(index);
+        onPick(row.handle);
         void dispatch(openCard(row.handle));
       }}
     >
@@ -212,16 +213,26 @@ export function NewcomersWindow(): JSX.Element {
   const vm = useView({ of: 'newcomers' }).value;
   // «14 мин», «2 ч» move with the clock.
   useMinuteClock(vm.rows.length > 0);
-  const { wrapRef, listRef, focusRow, settle } = useRowFocus();
   const frameRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const askedMore = useRef(-1);
   const rows = vm.rows;
-  const [active, setActive] = useState(() => Math.max(0, rows.findIndex((row) => row.selected)));
-  const current = active < rows.length ? active : Math.max(0, rows.findIndex((row) => row.selected));
+  // The keyboard's row is a fan, remembered by its handle and never by its place: the list changes under the
+  // person (a new subscriber on top, a fan greeted and gone from «К обработке») and the row stays on its fan.
+  const [activeHandle, setActiveHandle] = useState<string | null>(() => (rows.find((row) => row.selected) ?? rows[0])?.handle ?? null);
+  const current = useMemo(() => {
+    const at = activeHandle === null ? -1 : rows.findIndex((row) => row.handle === activeHandle);
+    // Its fan left the list: back to the selected row, else the first.
+    return at >= 0 ? at : Math.max(0, rows.findIndex((row) => row.selected));
+  }, [rows, activeHandle]);
+  const currentHandle = rows[current]?.handle ?? null;
   useEffect(() => {
-    if (current !== active) setActive(current);
-  }, [current, active]);
+    if (currentHandle !== activeHandle) setActiveHandle(currentHandle);
+  }, [currentHandle, activeHandle]);
+  const { wrapRef, listRef, focusRow, settle } = useRowFocus(currentHandle);
+  const focusCurrent = useCallback((): void => {
+    if (currentHandle !== null) focusRow(current, currentHandle);
+  }, [current, currentHandle, focusRow]);
 
   const close = useCallback((): void => {
     // Esc in turn: the search, the card, the window.
@@ -233,9 +244,9 @@ export function NewcomersWindow(): JSX.Element {
   // The card closed: focus goes back to the fan's row.
   const cardWasOpen = useRef(vm.cardOpen);
   useLayoutEffect(() => {
-    if (cardWasOpen.current && !vm.cardOpen && rows.length > 0) focusRow(current);
+    if (cardWasOpen.current && !vm.cardOpen) focusCurrent();
     cardWasOpen.current = vm.cardOpen;
-  }, [vm.cardOpen, rows.length, current, focusRow]);
+  }, [vm.cardOpen, focusCurrent]);
 
   // The window opens on the selected row, or the first — also when the rows arrive later, unless the person
   // has moved focus meanwhile.
@@ -245,7 +256,7 @@ export function NewcomersWindow(): JSX.Element {
     const first = openedOn.current === undefined;
     const box = frameRef.current?.closest<HTMLElement>('.cg-dialog') ?? null;
     const focused = root.activeElement;
-    if (hasRows && (first || focused === openedOn.current || focused === null || focused === box)) focusRow(current);
+    if (hasRows && (first || focused === openedOn.current || focused === null || focused === box)) focusCurrent();
     if (first) openedOn.current = root.activeElement;
     // Only when rows first appear.
   }, [hasRows]);
@@ -261,32 +272,36 @@ export function NewcomersWindow(): JSX.Element {
     [vm.canLoadMore, rows.length, dispatch, settle],
   );
 
-  const move = (to: number): void => {
-    if (to < 0 || to >= rows.length || to === current) return;
-    setActive(to);
-    focusRow(to);
+  const move = (from: number, to: number): void => {
+    const row = rows[to];
+    if (row === undefined || to === from) return;
+    setActiveHandle(row.handle);
+    focusRow(to, row.handle);
   };
 
   const onListKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
     if (event.defaultPrevented || isComposing(event) || !isPlainKey(event)) return;
-    const target = event.target as HTMLElement | null;
-    if (target === null || target.closest('[data-cg-item]') === null) return;
+    // The keys act on the row that HAS focus, found by its fan in the list as it is now — never on a
+    // remembered place, which may hold another fan after the list changed.
+    const handle = rowKeyOf(event.target);
+    if (handle === null) return;
+    const at = rows.findIndex((entry) => entry.handle === handle);
+    const row = rows[at];
+    if (row === undefined) return;
     // Letters by the physical key: J / K work on any layout.
     const step = event.code === 'ArrowDown' || event.code === 'KeyJ' ? 1 : event.code === 'ArrowUp' || event.code === 'KeyK' ? -1 : 0;
     if (step !== 0) {
       event.preventDefault();
-      move(current + step);
+      move(at, at + step);
       return;
     }
-    const edge = rovingIndex(event.key, current, rows.length, 'vertical', false);
+    const edge = rovingIndex(event.key, at, rows.length, 'vertical', false);
     if ((event.key === 'Home' || event.key === 'End') && edge !== null) {
       event.preventDefault();
-      move(edge);
+      move(at, edge);
       return;
     }
     if (event.code === 'Enter' || event.code === 'NumpadEnter' || event.code === 'Space') {
-      const row = rows[current];
-      if (row === undefined) return;
       event.preventDefault();
       void dispatch(openCard(row.handle));
     }
@@ -363,7 +378,7 @@ export function NewcomersWindow(): JSX.Element {
                     listRef={listRef}
                     onRangeChange={onRange}
                     onKeyDown={onListKeyDown}
-                    renderRow={(row, index) => <Row row={row} index={index} active={index === current} onPick={setActive} />}
+                    renderRow={(row, index) => <Row row={row} index={index} active={index === current} onPick={setActiveHandle} />}
                   />
                 </div>
               ) : vm.view.s === 'offline' ? null : (

@@ -11,7 +11,7 @@ import { MAX_DOM_ROWS, SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
 import { windowText } from '@cg/ui/newcomers';
 
 import { cgError, claimMine, ctxOf, entry, FANS, iso, MIN, msg, newcomerRow, views, type AppClientScenario } from '../scenarios/app-client';
-import { flush, keydown, mountBoardSettled, textOf, type MountedBoard } from './harness';
+import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
 import { boardScenario } from './states';
 import { boardWorld } from './world';
 
@@ -194,6 +194,56 @@ describe('«Новые»: the window and the list', () => {
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, cardOpen: false })));
     await flush(() => keydown(ui?.$('[role="dialog"]') as HTMLElement, 'Escape'));
     expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+  });
+
+  it('a key acts on the fan of the focused row when the list changed above it: Enter and Space never open a neighbour’s card', async () => {
+    const base = change('13a', (vm) => ({ ...vm, cardOpen: false }));
+    const list = base.views.find((view) => view.selector.of === 'newcomers')?.vm as NewcomersVM;
+    const fresh = newcomerRow(ctx, { key: 'f2777', name: 'Just Subscribed', username: 'just_sub' }, 'new', 1, { s: 'none' });
+    ui = await mountBoardSettled('newcomers', {
+      ...base,
+      steps: [
+        // A new subscriber lands on top: every row moves one place down.
+        { label: 'a row above', at: 1_000, views: [entry({ of: 'newcomers' }, { ...list, rows: [fresh, ...list.rows] })] },
+        // The first two leave «К обработке»: every row moves up.
+        { label: 'rows gone above', at: 2_000, views: [entry({ of: 'newcomers' }, { ...list, rows: list.rows.slice(1) })] },
+        // The focused fan leaves too.
+        { label: 'the fan left', at: 3_000, views: [entry({ of: 'newcomers' }, { ...list, rows: list.rows.slice(2) })] },
+      ],
+    });
+    const focused = (): HTMLElement => ui?.root.activeElement as HTMLElement;
+    const press = async (code: string, key = code): Promise<void> => flush(() => keydown(focused(), key, { code }));
+    const tabStops = (): (string | null)[] => (ui?.$$('.cg-nc [data-cg-item][tabindex="0"]') ?? []).map((element) => element.getAttribute('data-cg-fan'));
+    await press('ArrowDown');
+    expect(focused()).toBe(row('n002'));
+    for (const step of [0, 1]) {
+      await flush(() => ui?.client.goTo(step));
+      await settle();
+      expect(focused().getAttribute('data-cg-fan')).toBe('newcomers:n002');
+      expect(tabStops()).toEqual(['newcomers:n002']);
+      const before = ui.actions().length;
+      await press('Enter');
+      await press('Space', ' ');
+      expect(ui.actions().slice(before)).toEqual([
+        { type: 'OpenPreview', targetHandle: 'newcomers:n002' },
+        { type: 'OpenPreview', targetHandle: 'newcomers:n002' },
+      ]);
+    }
+    await press('ArrowDown');
+    expect(focused().getAttribute('data-cg-fan')).toBe('newcomers:n003');
+    await press('ArrowUp');
+    expect(focused().getAttribute('data-cg-fan')).toBe('newcomers:n002');
+    // The key is the row's it came from, whatever row the window remembers as the keyboard's (n002 here).
+    const elsewhere = ui.actions().length;
+    await flush(() => keydown(row('n003'), 'Enter', { code: 'Enter' }));
+    expect(ui.actions().slice(elsewhere)).toEqual([{ type: 'OpenPreview', targetHandle: 'newcomers:n003' }]);
+    expect(tabStops()).toEqual(['newcomers:n002']);
+    const before = ui.actions().length;
+    await flush(() => ui?.client.goTo(2));
+    await settle();
+    expect(row('n002')).toBeNull();
+    expect(tabStops()).toEqual(['newcomers:n003']);
+    expect(ui.actions().slice(before)).toEqual([]);
   });
 
   it('[NF-006] a long list is virtual and asks for the next page of 100 near its end', async () => {

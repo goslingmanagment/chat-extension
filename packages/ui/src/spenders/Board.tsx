@@ -30,7 +30,7 @@ import {
   useSpokenMoney,
   useTooltip,
 } from '../kit';
-import { useRowFocus } from './rowFocus';
+import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
 import { DataFooter, FilterChip, ageOrUnknown, coverageWord, isPlainKey } from './window';
 
@@ -158,13 +158,15 @@ function ShelfRow({ shelf, rowIndex }: { readonly shelf: ShelfVM; readonly rowIn
 
 interface FanRowProps {
   readonly row: SpenderRowVM;
+  /** The row's key in the list: what the keyboard's row is remembered by. */
+  readonly itemKey: string;
   readonly index: number;
   readonly rowIndex: number;
   readonly active: boolean;
-  readonly onPick: (index: number) => void;
+  readonly onPick: (key: string) => void;
 }
 
-function FanRow({ row, index, rowIndex, active, onPick }: FanRowProps): JSX.Element {
+function FanRow({ row, itemKey, index, rowIndex, active, onPick }: FanRowProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const fullName = row.username === null ? row.name : `${row.name} @${row.username}`;
@@ -180,12 +182,13 @@ function FanRow({ row, index, rowIndex, active, onPick }: FanRowProps): JSX.Elem
       {...(row.selected ? { 'aria-current': 'true' as const } : {})}
       tabIndex={active ? 0 : -1}
       data-cg-item={index}
+      data-cg-key={itemKey}
       data-cg-fan={row.handle}
       onClick={() => {
-        onPick(index);
+        onPick(itemKey);
         void dispatch(openPreview(row.handle));
       }}
-      onFocus={() => onPick(index)}
+      onFocus={() => onPick(itemKey)}
     >
       <span role="cell" class="cg-bd__who" {...who.props}>
         <span class="cg-bd__name">{row.name}</span>
@@ -212,7 +215,7 @@ function FanRow({ row, index, rowIndex, active, onPick }: FanRowProps): JSX.Elem
   );
 }
 
-function MoreRow({ item, index, rowIndex, active, onPick }: { readonly item: Extract<BoardItem, { kind: 'more' }>; readonly index: number; readonly rowIndex: number; readonly active: boolean; readonly onPick: (index: number) => void }): JSX.Element {
+function MoreRow({ item, index, rowIndex, active, onPick }: { readonly item: Extract<BoardItem, { kind: 'more' }>; readonly index: number; readonly rowIndex: number; readonly active: boolean; readonly onPick: (key: string) => void }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const reveal = item.shelf.collapsed?.reveal;
@@ -224,7 +227,8 @@ function MoreRow({ item, index, rowIndex, active, onPick }: { readonly item: Ext
           class="cg-bd__morebtn"
           tabIndex={active ? 0 : -1}
           data-cg-item={index}
-          onFocus={() => onPick(index)}
+          data-cg-key={item.key}
+          onFocus={() => onPick(item.key)}
           onClick={() => {
             if (reveal !== undefined && reveal.enabled) void dispatch(reveal.action);
           }}
@@ -256,20 +260,27 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
   useMinuteClock(true);
 
   const items = useMemo(() => boardItems(board.shelves), [board.shelves]);
-  const [active, setActive] = useState(() => initialStop(items));
-  const { wrapRef, listRef, focusRow, settle } = useRowFocus();
+  // The keyboard's row is a fan (or «ещё N»), remembered by its key and never by its place: the list changes
+  // under the person — a refresh, a fan who wrote and moved up — and the row must stay on its fan.
+  const [activeKey, setActiveKey] = useState<string | null>(() => items[initialStop(items)]?.key ?? null);
   const askedMore = useRef(-1);
 
-  // The keyboard's row survives a new list as long as it is still a stop; else it goes back to the start.
-  const current = isStop(items[active]) ? active : initialStop(items);
+  // It survives a new list as long as its fan is still there; else it goes back to the start.
+  const current = useMemo(() => {
+    const at = activeKey === null ? -1 : items.findIndex((item) => item.key === activeKey);
+    return at >= 0 && isStop(items[at]) ? at : initialStop(items);
+  }, [items, activeKey]);
+  const currentKey = items[current]?.key ?? null;
   useEffect(() => {
-    if (current !== active) setActive(current);
-  }, [current, active]);
+    if (currentKey !== activeKey) setActiveKey(currentKey);
+  }, [currentKey, activeKey]);
+  const { wrapRef, listRef, focusRow, settle } = useRowFocus(currentKey);
 
-  const move = (to: number): void => {
-    if (to < 0 || to === current) return;
-    setActive(to);
-    focusRow(to);
+  const move = (from: number, to: number): void => {
+    const item = items[to];
+    if (item === undefined || to === from) return;
+    setActiveKey(item.key);
+    focusRow(to, item.key);
   };
 
   useImperativeHandle(
@@ -280,12 +291,12 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
         if (index >= 0) listRef.current?.scrollToIndex(index, 'start');
       },
       focusActiveRow() {
-        if (current < 0) return false;
-        focusRow(current);
+        if (currentKey === null) return false;
+        focusRow(current, currentKey);
         return true;
       },
     }),
-    [items, current, focusRow, listRef],
+    [items, current, currentKey, focusRow, listRef],
   );
 
   // «Показано 7» is said, not only printed (ui-design §6.2).
@@ -310,39 +321,44 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
     if (event.defaultPrevented || isComposing(event) || !isPlainKey(event)) return;
     // The list's keys work on its rows, not inside the header's sort buttons.
-    const target = event.target as HTMLElement | null;
-    if (target === null || target.closest('[data-cg-item]') === null) return;
-    const item = items[current];
+    const key = rowKeyOf(event.target);
+    if (key === null) return;
+    // They act on the row that HAS focus, found by its key in the list as it is now — never on a remembered
+    // place: after a change above it that place holds another fan, and Enter would open (and mark read) a chat
+    // the person did not choose.
+    const at = items.findIndex((entry) => entry.key === key);
+    const item = items[at];
+    if (item === undefined) return;
     // Letters go by the physical key, so J/K and O work on any layout (SP-033).
     switch (event.code) {
       case 'ArrowDown':
       case 'KeyJ':
         event.preventDefault();
-        move(nextStop(items, current, 1));
+        move(at, nextStop(items, at, 1));
         return;
       case 'ArrowUp':
       case 'KeyK':
         event.preventDefault();
-        move(nextStop(items, current, -1));
+        move(at, nextStop(items, at, -1));
         return;
       case 'Home':
         event.preventDefault();
-        move(edgeStop(items, 1));
+        move(at, edgeStop(items, 1));
         return;
       case 'End':
         event.preventDefault();
-        move(edgeStop(items, -1));
+        move(at, edgeStop(items, -1));
         return;
       case 'Enter':
       case 'NumpadEnter':
       case 'KeyO':
-        if (item?.kind !== 'fan') return;
+        if (item.kind !== 'fan') return;
         event.preventDefault();
         // Opening the chat is the person's own act: ChatSpace marks it read (А7); the controller closes the board (SP-035).
         void dispatch(openChat(item.row.handle));
         return;
       case 'Space':
-        if (item?.kind !== 'fan') return;
+        if (item.kind !== 'fan') return;
         event.preventDefault();
         void dispatch(openPreview(item.row.handle));
         return;
@@ -409,9 +425,9 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
                 case 'shelf':
                   return <ShelfRow shelf={item.shelf} rowIndex={rowIndex} />;
                 case 'fan':
-                  return <FanRow row={item.row} index={index} rowIndex={rowIndex} active={index === current} onPick={setActive} />;
+                  return <FanRow row={item.row} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
                 case 'more':
-                  return <MoreRow item={item} index={index} rowIndex={rowIndex} active={index === current} onPick={setActive} />;
+                  return <MoreRow item={item} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
               }
             }}
           />
