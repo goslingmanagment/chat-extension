@@ -70,7 +70,7 @@ export function confirms(confirm: ConfirmVM | null, part: PartVM): confirm is Co
  * in its place, so focus is given once the question is gone — after the
  * render that removed it, never to an element still off screen.
  */
-export function useConfirmFocus(confirm: ConfirmVM | null): (target: () => HTMLElement | null) => void {
+export function useConfirmFocus(confirm: ConfirmVM | null): (target: (() => HTMLElement | null) | null) => void {
   const back = useRef<(() => HTMLElement | null) | null>(null);
   const id = confirm?.confirmationId ?? null;
   useLayoutEffect(() => {
@@ -87,8 +87,12 @@ export interface ConfirmRowProps {
   readonly confirm: ConfirmVM;
   /** True while the person's own action waits for its answer: the question takes focus. */
   readonly takeFocus: { current: boolean };
-  /** Told on «Отмена» where focus goes once the question is gone (useConfirmFocus). */
-  readonly onCancel: (target: () => HTMLElement | null) => void;
+  /**
+   * Told with every answer where focus goes once the question is gone
+   * (useConfirmFocus): the button that asked after «Отмена», nowhere (null)
+   * after «Заменить» and «Добавить в конец» — the host puts it into the composer.
+   */
+  readonly onCancel: (target: (() => HTMLElement | null) | null) => void;
   /** The element that outlives the question (the part, the sheet's body) and, inside it, the button that asked. */
   readonly home: string;
   readonly asker: string;
@@ -107,11 +111,9 @@ export function ConfirmRow({ confirm, takeFocus, onCancel, home, asker }: Confir
     takeFocus.current = false;
   }, [confirm.confirmationId]);
   const answer = (choice: 'replace' | 'append' | 'cancel'): void => {
-    if (choice === 'cancel') {
-      // «Отмена» gives focus back to the button that asked (ui-design §6.3).
-      const scope = box.current?.closest<HTMLElement>(home) ?? null;
-      onCancel(() => scope?.querySelector<HTMLElement>(asker) ?? scope);
-    }
+    // «Отмена» gives focus back to the button that asked (ui-design §6.3); the last answer given is the one that counts.
+    const scope = choice === 'cancel' ? (box.current?.closest<HTMLElement>(home) ?? null) : null;
+    onCancel(scope === null ? null : () => scope.querySelector<HTMLElement>(asker) ?? scope);
     void dispatch({ type: 'AnswerConfirm', confirmationId: confirm.confirmationId, choice });
   };
   const question = i18n.t(confirm.kind === 'draft-changed' ? 'confirm.draftChanged' : 'confirm.humanDraft');

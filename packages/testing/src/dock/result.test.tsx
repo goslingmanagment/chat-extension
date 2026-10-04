@@ -356,6 +356,20 @@ describe('Б2: the composer already has the person\'s text', () => {
     expect(kit.root.activeElement).not.toBe(partRows()[0]?.querySelector('.cg-ins'));
   });
 
+  it('[UI-020] the last answer counts: «Отмена» that did not close the question, then «Добавить в конец» — focus is not pulled back from the composer', async () => {
+    // The first answer leaves the question standing (the controller was slow or refused it); the second closes it.
+    kit = mountDock({ ...withResult(asking('human-draft')), steps: [{ label: 'answered', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply() }))] }] });
+    await flush(() => byLabel('Отмена').click());
+    expect(kit.$('.cg-confirm')).not.toBeNull();
+    const append = byLabel('Добавить в конец');
+    append.focus();
+    await flush(() => append.click());
+    await flush(() => kit?.client.goTo(0));
+    expect(kit.$('.cg-confirm')).toBeNull();
+    expect(kit.root.activeElement).not.toBe(partRows()[0]?.querySelector('.cg-ins'));
+    expect(kit.client.dispatched.map((action) => (action.type === 'AnswerConfirm' ? action.choice : action.type))).toEqual(['cancel', 'append']);
+  });
+
   it('[UI-020] [AI-030] a question about a part of one Hi variant opens in that variant only', () => {
     const hi = result(ctx, {
       opId: uuid(102),
