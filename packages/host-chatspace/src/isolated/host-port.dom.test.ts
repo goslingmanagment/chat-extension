@@ -138,7 +138,8 @@ describe('[BG-002] state from MAIN', () => {
     const report = HostContractReportSchema.parse(host.probe());
     expect(report.capabilities.identity).toEqual({ state: 'on' });
     expect(report.capabilities.insert).toEqual({ state: 'on' });
-    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'not-yet' });
+    // Not configured, no tap script: the live side is off, each capability with its reason.
+    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
     expect(host.previewSend).toBeNull();
     expect(await host.checkpoint(chat())).toBeNull();
   });

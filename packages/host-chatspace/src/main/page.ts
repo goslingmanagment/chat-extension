@@ -4,7 +4,7 @@
 // may throw. Nothing here creates stores, calls ensure*/refresh*/fetch/
 // invalidate*, or writes to a store or the cache (§6.10).
 
-import { isId, isPlain, type Plain } from './check';
+import { idOf, isId, isPlain, type Plain } from './check';
 import {
   APP_SELECTOR,
   BUILD_PATTERN,
@@ -29,12 +29,12 @@ import {
   STORE_TABS,
   STORE_TRANSLATOR,
 } from './protocol';
+import { type Entry, type PageStore, type Route } from './live';
 import { queueShape } from './send-port';
 
+export type { ActionListener, Entry, PageStore, Route } from './live';
+
 type Fn = (...args: unknown[]) => unknown;
-// Page objects are described with function-valued properties: they are
-// ChatSpace's, and we only ever call them on their own object.
-export type ActionListener = (context: { name: string; args: unknown[]; after: (cb: () => void) => void }) => void;
 
 export interface PageRouter {
   readonly currentRoute: { readonly value: { readonly name?: unknown; readonly params?: Plain } };
@@ -42,31 +42,15 @@ export interface PageRouter {
   readonly push: (to: unknown) => Promise<unknown>;
   readonly hasRoute?: (name: string) => boolean;
 }
-export interface PageStore {
-  readonly $id: string;
-  readonly $onAction: (listener: ActionListener, detached?: boolean) => unknown;
-  readonly [member: string]: unknown;
-}
 export interface PagePinia {
   readonly _s: Map<string, PageStore>;
   readonly use: (plugin: (context: { store: PageStore }) => void) => unknown;
-}
-interface Entry {
-  readonly state?: { readonly value?: { readonly data?: unknown } };
-  readonly asyncStatus?: { readonly value?: unknown };
-  readonly active?: boolean;
-  readonly when?: number;
 }
 
 const isFn = (value: unknown): value is Fn => typeof value === 'function';
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? (value as unknown[]) : []);
 const text = (value: unknown, max: number): string | null => (typeof value === 'string' ? value.slice(0, max) : null);
 const flag = (value: unknown): boolean | null => (typeof value === 'boolean' ? value : null);
-/** Numeric ids of the host may come as numbers (the account's `id`); the wire wants the string form. */
-const idOf = (value: unknown): string | null => {
-  const id = typeof value === 'number' ? String(value) : value;
-  return isId(id) ? id : null;
-};
 /** UTF-8 bytes of a text (a frame's limit counts the bytes of its JSON). */
 export const utf8Bytes = (text: string): number => {
   let bytes = 0;
@@ -105,13 +89,6 @@ export function findApp(doc: Document): App | null {
   } catch {
     return null;
   }
-}
-
-export interface Route {
-  readonly name: 'chat' | 'accounts-overview' | 'other';
-  readonly acc: string | null;
-  /** The open chat's fan; only on the `chat` route. */
-  readonly fan: string | null;
 }
 
 export function readRoute(router: PageRouter | null): Route {
@@ -209,6 +186,8 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
 
   return {
     store,
+    data,
+    entry,
     rawFan,
     accounts() {
       const accounts = [];

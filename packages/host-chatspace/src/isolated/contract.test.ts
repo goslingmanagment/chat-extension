@@ -21,9 +21,51 @@ describe('[DB-031] the host contract check (§6.2)', () => {
     expect(report.build).toBe('index-0000fake');
     const on = HOST_CAPABILITIES.filter((name) => report.capabilities[name].state === 'on');
     expect(on.sort()).toEqual(['accounts', 'chatList', 'chatWindow', 'dockMount', 'draftRead', 'fan', 'freshText', 'identity', 'insert', 'navigate', 'route', 'theme'].sort());
-    // Part B: unchecked, off with a reason — not broken.
-    expect(report.capabilities.receipt).toEqual({ state: 'off', reason: 'not-yet' });
-    expect(report.anchors.wsFrames).toBe('missing');
+    // The live side without a tap script, flags or a profile: off, each with its reason — not broken.
+    expect(report.capabilities.receipt).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
+    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
+    expect(report.capabilities.incoming).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
+    expect(report.capabilities.sendObserve).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
+    expect(report.anchors.receiptProfile).toBe('missing');
+  });
+
+  it('[X8-06] the live capabilities: the tap, the flag, every anchor a condition is read from, and the receipt profile (§6.2)', () => {
+    const live = { tap: true, previewSend: true, receipt: true };
+    const all = HostContractReportSchema.parse(buildContractReport(input({ live })));
+    for (const name of ['incoming', 'sendObserve', 'receipt', 'previewSend'] as const) expect([name, all.capabilities[name]]).toEqual([name, { state: 'on' }]);
+    expect(all.anchors.receiptProfile).toBe('ok');
+
+    const of = (over: Partial<ContractInput>) => buildContractReport(input({ live, ...over })).capabilities;
+    // The flag first: off on the server is off here, whatever the page looks like.
+    expect(of({ live: { ...live, previewSend: false } }).previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
+    // An approved profile is the only way in (§6.2 «Исключение — X8»); open-and-insert does not need it.
+    const noProfile = of({ live: { ...live, receipt: false } });
+    expect(noProfile.previewSend).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
+    expect(noProfile.receipt).toEqual(noProfile.previewSend);
+    expect(noProfile.insert).toEqual({ state: 'on' });
+    expect(noProfile.navigate).toEqual({ state: 'on' });
+    expect(noProfile.sendObserve).toEqual({ state: 'on' });
+    // No tap script: no facts, no freshness, no X8.
+    const noTap = of({ live: { ...live, tap: false } });
+    expect(noTap.previewSend).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
+    expect(noTap.incoming).toEqual(noTap.previewSend);
+    expect(noTap.sendObserve).toEqual(noTap.previewSend);
+    // A condition that cannot be read keeps X8 off (CG-SEND-HOST), one anchor at a time.
+    for (const anchor of ['pendingMessages', 'composerTranslator', 'mimic', 'userPermissions'] as const) {
+      const missing = of({ wire: { build: null, missing: [anchor], shape: [] } });
+      expect([anchor, missing.previewSend]).toEqual([anchor, { state: 'off', reason: anchor, code: 'CG-SEND-HOST' }]);
+      const shape = of({ wire: { build: null, missing: [], shape: [anchor] } });
+      expect([anchor, shape.previewSend]).toEqual([anchor, { state: 'off', reason: anchor, code: 'CG-SEND-HOST' }]);
+    }
+    expect(of({ wire: { build: null, missing: ['pendingMessages'], shape: [] } }).sendObserve).toEqual({ state: 'off', reason: 'pendingMessages', code: 'CG-SEND-HOST' });
+    // The socket not being armed (yet) only degrades the facts: the capability does not flap with reconnects — the
+    // preflight answers CG-SEND-FRESHNESS.
+    const cold = of({ wire: { build: null, missing: ['wsFrames'], shape: [] } });
+    expect(cold.incoming).toEqual({ state: 'degraded', reason: 'wsFrames', code: 'CG-SEND-FRESHNESS' });
+    expect(cold.previewSend).toEqual({ state: 'on' });
+    expect(of({ wire: { build: null, missing: [], shape: ['wsFrames'] } }).incoming).toEqual({ state: 'degraded', reason: 'wsFrames', code: 'CG-SEND-FRESHNESS' });
+    // Without the host nothing of it is on.
+    expect(of({ wire: null }).previewSend).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
   });
 
   it('[ER-048] [ER-049] no MAIN or no #app: CG-HOST-NOT-READY; a broken router or accounts: CG-HOST-CONTRACT', () => {

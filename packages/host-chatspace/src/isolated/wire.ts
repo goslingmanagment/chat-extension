@@ -23,4 +23,5 @@ export const UNDROPPABLE_EVENTS: readonly string[] = ['incoming', 'coverage', 'h
 export const WRITE_FAILURES = {
   insertGuarded: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' },
   navigate: { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } },
-} as const satisfies Record<'insertGuarded' | 'navigate', { readonly state: string; readonly code: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } }>;
+  previewSendCommit: { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' },
+} as const satisfies Record<'insertGuarded' | 'navigate' | 'previewSendCommit', { readonly state: string; readonly code: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } }>;
