@@ -71,10 +71,21 @@ export const FEATURE_LABEL_KEYS = {
   coach: 'dock.action.coach',
 } as const satisfies Record<FeatureId, string>;
 
+/**
+ * Anchors of what the owner switches on separately — the WebSocket tap
+ * (`wsTap`) and the receipt profile of the preview send (X8). While the
+ * switch is off the host adapter reports them `missing` (§6.2: nothing of
+ * that part is in the page), and that is the normal state of a shift, not a
+ * ChatSpace that changed. What is wrong with them when the switch is on is
+ * said by their capabilities: `incoming` is `degraded` when the tap cannot
+ * read the frames, and the X8 row of «Статус» names a missing profile.
+ */
+const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
+
 /** What a host report lacks: anchors that are not `ok` and capabilities the contract check closed. */
 export function hostGaps(report: HostContractReport): { readonly anchors: string[]; readonly broken: string[]; readonly insert: boolean } {
   const anchors = Object.entries(report.anchors)
-    .filter(([, state]) => state !== 'ok')
+    .filter(([anchor, state]) => state !== 'ok' && !SWITCHED_ANCHORS.includes(anchor))
     .map(([anchor]) => anchor);
   const broken = Object.entries(report.capabilities)
     .filter(([, capability]) => capability.state === 'contractBroken' || capability.state === 'degraded')

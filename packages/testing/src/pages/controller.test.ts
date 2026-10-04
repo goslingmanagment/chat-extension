@@ -446,6 +446,48 @@ describe('options: «Статус»', () => {
     expect(text(w, row(w, 'contract')?.note)).toBe('Не найдено: composerBridge.');
   });
 
+  it('[ST-025] [PU-006] the tap and the preview send switched off are not a partly checked ChatSpace: their anchors are absent by design', async () => {
+    // What the host adapter reports on a shift where the owner has not switched X8 on and the tap is not in the
+    // document: both anchors `missing`, their capabilities `off` — nothing of ChatSpace changed.
+    const offByDesign = (): ReturnType<typeof hostReport> => {
+      const report = hostReport(PAGES_NOW);
+      return {
+        ...report,
+        anchors: { ...report.anchors, wsFrames: 'missing', receiptProfile: 'missing' },
+        capabilities: {
+          ...report.capabilities,
+          incoming: { state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' },
+          sendObserve: { state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' },
+          receipt: { state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' },
+          previewSend: { state: 'off', reason: 'flag', code: 'CG-SEND-OFF' },
+        },
+      };
+    };
+    const state = workingState();
+    const tab = state.diagnostics.tabs[0];
+    state.diagnostics = { ...state.diagnostics, tabs: tab === undefined ? [] : [{ ...tab, host: offByDesign() }] };
+    const w = await open({ state });
+    expect(row(w, 'chatspace')).toMatchObject({ level: 'ok' });
+    const readiness = options(w, 'status').body?.readiness;
+    expect(readiness?.s).toBe('ready');
+    expect(readiness?.s === 'ready' ? readiness.warnings : null).not.toContainEqual({ key: 'settings.status.warning.hostPartial' });
+    await w.client.dispatch({ type: 'SetPreference', key: 'debug.enabled', value: true });
+    expect(row(w, 'contract')).toMatchObject({ level: 'ok' });
+    world?.client.dispose();
+
+    const popup = await open({ page: 'popup', state });
+    expect(popup.client.getSnapshot({ of: 'popup' })).toMatchObject({ view: { s: 'ready' }, pills: { host: 'connected' }, problems: [] });
+    world?.client.dispose();
+
+    // The tap is in the page and cannot read the frames: that is a ChatSpace that changed, said by the capability.
+    const broken = workingState();
+    const report = offByDesign();
+    broken.diagnostics = { ...broken.diagnostics, tabs: tab === undefined ? [] : [{ ...tab, host: { ...report, capabilities: { ...report.capabilities, incoming: { state: 'degraded', reason: 'wsFrames', code: 'CG-SEND-FRESHNESS' } } } }] };
+    const degraded = await open({ state: broken });
+    expect(row(degraded, 'chatspace')).toMatchObject({ level: 'warn' });
+    expect(text(degraded, row(degraded, 'chatspace')?.note)).toContain('incoming');
+  });
+
   it('[ST-026] the hub not answering is «нет связи» with the hub error, and the page is offline over what it knew', async () => {
     const w = await open();
     w.background.failNext('bootstrap.get', { code: 'CG-HUB-UNAVAILABLE' }, 3);
