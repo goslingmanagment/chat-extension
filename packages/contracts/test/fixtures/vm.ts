@@ -262,6 +262,36 @@ export const CLAIM_RENEW_SAMPLES: { readonly valid: readonly C.ClaimVM[]; readon
 };
 
 /**
+ * The fan panel's bio with its source (1.2.0, CS-035): the hub's profile of
+ * the fan, or ChatSpace's own «О себе» while the hub has none. Optional: a
+ * panel without `bioSource` draws as before.
+ */
+const FAN_PANEL_BASE: C.FanPanelVM = {
+  view: { s: 'ready' },
+  tab: 'fan',
+  personaLabel: 'Лора · VIP',
+  fan: { name: 'Hubert', username: 'hubert_pl', initials: 'H', lastSeenAt: null, online: null },
+  spent: null,
+  subscription: null,
+  host: null,
+  bio: null,
+  lists: [],
+  footer: { stamp: STAMP, archiveMessages: null },
+  close: { type: 'Navigate', to: { kind: 'surface', surface: 'fan-panel', open: false } },
+};
+export const FAN_PANEL_BIO_SAMPLES: { readonly valid: readonly C.FanPanelVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    FAN_PANEL_BASE,
+    { ...FAN_PANEL_BASE, bio: '## Fan\nLikes short replies.', bioSource: 'hub' },
+    { ...FAN_PANEL_BASE, bio: 'Works shifts, writes in the evening.', bioSource: 'host' },
+  ],
+  invalid: [
+    // @ts-expect-error the source is one of the two, not a free word
+    { ...FAN_PANEL_BASE, bio: 'x', bioSource: 'fansMap' } satisfies C.FanPanelVM,
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */

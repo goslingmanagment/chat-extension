@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { CLAIM_RENEW_SAMPLES, MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, STATS_ATTENTION_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { CLAIM_RENEW_SAMPLES, FAN_PANEL_BIO_SAMPLES, MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, STATS_ATTENTION_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -295,5 +295,17 @@ describe('a lease whose renewal failed (1.2.0)', () => {
     // The deadline and the buttons are the lease's own, with or without the error.
     expect(failed).toMatchObject({ s: 'mine', until: 1_790_000_119_000, renew: { action: { type: 'RenewClaim' } }, release: { action: { type: 'ReleaseClaim' } } });
     expect(CLAIM_RENEW_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('the fan panel\'s bio names its source (1.2.0)', () => {
+  it('[CS-035] the bio is the hub profile or ChatSpace\'s own «О себе», and the panel may say which', () => {
+    expectTypeOf<C.FanPanelVM['bioSource']>().toEqualTypeOf<'hub' | 'host' | undefined>();
+    const [none, hub, host] = FAN_PANEL_BIO_SAMPLES.valid;
+    expect(none).toMatchObject({ bio: null });
+    expect(none?.bioSource).toBeUndefined();
+    expect(hub).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
+    expect(host).toMatchObject({ bioSource: 'host' });
+    expect(FAN_PANEL_BIO_SAMPLES.invalid).toHaveLength(1);
   });
 });
