@@ -1,8 +1,8 @@
 // core/services — background services over ports (architecture.md §4, §7,
 // §6.7, §14): the operation scheduler, the send coordinator and its tab-side
-// driver, one-time action tokens, the readiness barrier, tab presence and the
-// accounts this browser saw, the recap dossier save, the greeting leases of
-// «Новые», the WS tap switch, the settings owner, the results store, the X8
+// driver, the registration of a proven human send, one-time action tokens,
+// the readiness barrier, tab presence and the accounts this browser saw, the
+// recap dossier save, the greeting leases of «Новые», the WS tap switch, the settings owner, the results store, the X8
 // send journal and the consent state. They import only @cg/contracts and
 // core/domain; the composition roots give them the clock, storage, the hub
 // facade, the tab event sink and ids. R17's sound and R18's logs, telemetry
@@ -129,3 +129,4 @@ export * from './profile-saver';
 export * from './greeting-leases';
 export * from './send-coordinator';
 export * from './send-driver';
+export * from './native-send';
