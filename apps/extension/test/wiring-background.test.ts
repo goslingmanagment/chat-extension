@@ -146,6 +146,42 @@ describe('operations (§7)', () => {
     expect(await startReply(tab, binding)).toMatchObject({ ok: false, error: { code: 'CG-AUTH-REQUIRED' } });
   });
 
+  it('[BG-006] [AI-124] a tab that goes away in the middle of a stream detaches from its run: the generation goes on, and the reloaded tab that asks for it again is attached to it — one POST, the text from its first batch', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    slowStreams(w, 300);
+    const first = await workingTab(w);
+    const binding = await bindingOf(first);
+    const opId = admitted(await startReply(first, binding));
+    await until(async () => (await opsOf(first)).some((op) => op.opId === opId && op.state === 'streaming'), 'the stream is running');
+    const tabsOf = async () => {
+      const diagnostics = await w.page().request('diagnostics.get', {});
+      return diagnostics.ok ? diagnostics.payload.tabs.length : -1;
+    };
+
+    // The tab is reloaded: its port is gone, the run has no owner.
+    first.client.close();
+    await until(async () => (await tabsOf()) === 0, 'the background saw the tab go');
+    const reloaded = await workingTab(w);
+    expect(reloaded.tabSessionId()).not.toBe(first.tabSessionId());
+    const updates: { opId: string; seq: number }[] = [];
+    const ended: string[] = [];
+    reloaded.client.onEvent('op.update', (update) => updates.push({ opId: update.opId, seq: update.seq }));
+    reloaded.client.onEvent('op.done', ({ view }) => ended.push(`${view.opId}:${view.state}`));
+    expect((await opsOf(reloaded)).find((op) => op.opId === opId)?.state).toBe('streaming');
+
+    // The same request from the tab that came back: not «another tab's run» (CG-OP-CHAT-BUSY), not a second generation.
+    expect(admitted(await startReply(reloaded, binding))).toBe(opId);
+    await until(() => ended.length === 1, 'the reloaded tab heard the end', 15_000);
+    expect(ended).toEqual([`${opId}:done`]);
+    expect(updates.length).toBeGreaterThan(0);
+    expect(updates.every((update) => update.opId === opId)).toBe(true);
+    // The batches of the new owner start again at 1 (its mirror is seeded from the view it attached to).
+    expect(updates[0]?.seq).toBe(1);
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(1);
+  });
+
   it('[TL-012] [AU-018] what waited in the telemetry queue for the previous sign-in is dropped at the sign-out, not sent under the next one', async () => {
     const w = world();
     // The person agreed to technical data: `ai_acceptance` may be queued.
