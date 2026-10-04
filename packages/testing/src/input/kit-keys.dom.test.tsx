@@ -70,9 +70,20 @@ describe('ui/kit under the early dispatcher', () => {
     wire(kit);
     const row = kit.$('.cg-part') as HTMLElement;
     row.focus();
+    // What the part's handler is given: the copy, never the real key. A surface that gates a write on the person's
+    // own action (§14) reads it as one by the rule of ui-contract.md, decision 12 — `isTrusted` alone would refuse it.
+    const seen: { trusted: boolean; person: boolean }[] = [];
+    row.addEventListener('keydown', (event) => seen.push({ trusted: event.isTrusted === true, person: event.isTrusted === true || (event as unknown as Record<symbol, unknown>)[Symbol.for('cg.key.delivered')] === true }));
     const enter = await press(row, { key: 'Enter', code: 'Enter' });
     expect(onInsert).toHaveBeenCalledTimes(1);
     expect(onInsert.mock.calls[0]?.[0]).toMatchObject({ index: 2 });
+    expect(seen).toEqual([{ trusted: false, person: true }]);
+    // A key the page scripts at our host never becomes one: it is not copied, and the part hears nothing.
+    kit.host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true, composed: true }));
+    expect([onInsert.mock.calls.length, seen.length]).toEqual([1, 1]);
+    // (The page hears its own scripted key, as it always could.)
+    expect(page).toEqual(['Enter']);
+    page = [];
     // The part took the key: the browser's own action on the real key is cancelled too.
     expect(enter.defaultPrevented).toBe(true);
     await press(row, { key: 'Enter', code: 'Enter', shiftKey: true });

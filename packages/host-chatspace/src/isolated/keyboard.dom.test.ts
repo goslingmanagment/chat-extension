@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { KEY_PENDING_ATTRIBUTE, createKeyPendingMark, createKeyboardProbe, isTypingTarget, routeOfLocation, type KeyboardProbe } from './keyboard';
+import { DELIVERED_KEY_MARK, KEY_PENDING_ATTRIBUTE, createKeyPendingMark, createKeyboardProbe, isTypingTarget, routeOfLocation, type KeyboardProbe } from './keyboard';
 import { mountClosedHost, type ClosedHost } from './mount';
 import { createShadowRootRegistry, type ShadowRootRegistry } from './shadow-registry';
 
@@ -172,6 +172,29 @@ describe('handing a key to our UI', () => {
     expect(copy?.getModifierState('Shift')).toBe(false);
     expect(copy !== null && probe.isDelivered(copy)).toBe(true);
     expect(probe.isDelivered(original)).toBe(false);
+  });
+
+  it('a copy is the person\'s own key for §14 although its isTrusted is false: it carries the mark our UI can read without importing the adapter, and nothing else does', () => {
+    const row = inOurRoot('div');
+    row.tabIndex = 0;
+    row.focus();
+    const seen: Event[] = [];
+    row.addEventListener('keydown', (event) => seen.push(event));
+    const original = trustedKey('keydown', { key: 'Enter', code: 'Enter' });
+    probe.deliver(original);
+    const copy = seen[0] as unknown as Record<symbol, unknown>;
+    // What a surface writes: no import of this package, the registry symbol by its name.
+    const personKey = (event: Event): boolean => event.isTrusted || (event as unknown as Record<symbol, unknown>)[Symbol.for('cg.key.delivered')] === true;
+    expect(DELIVERED_KEY_MARK).toBe(Symbol.for('cg.key.delivered'));
+    expect([seen[0]?.isTrusted === true, copy[DELIVERED_KEY_MARK], personKey(seen[0] as Event)]).toEqual([false, true, true]);
+    // Read-only and out of sight of spreads and loops over the event's own fields.
+    expect(Object.getOwnPropertyDescriptor(copy, DELIVERED_KEY_MARK)).toEqual({ value: true, writable: false, enumerable: false, configurable: false });
+    // Neither the real key nor a scripted event carries it; a scripted event is not a person's key.
+    const scripted = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true });
+    expect([(original as unknown as Record<symbol, unknown>)[DELIVERED_KEY_MARK], (scripted as unknown as Record<symbol, unknown>)[DELIVERED_KEY_MARK], personKey(scripted)]).toEqual([undefined, undefined, false]);
+    // A scripted key is never copied, so it never gets the mark either.
+    probe.deliver(scripted);
+    expect(seen).toHaveLength(1);
   });
 
   it('a synthetic key of the page is never copied into our UI, and nothing is delivered when our UI has no focus', () => {

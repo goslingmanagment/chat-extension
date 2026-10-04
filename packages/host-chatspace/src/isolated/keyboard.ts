@@ -14,6 +14,11 @@
 //   it either: `deliver` gives them a copy that cannot leave our shadow root
 //   (`composed: false`) — a `keydown` event with the key's fields, which our
 //   own handlers read the same way. Only trusted keys are ever copied.
+// - A copy is a scripted event, so its `isTrusted` is false — and yet it is
+//   the person's own key: made from a trusted keydown only, in the same
+//   synchronous step, for the element that has the focus inside our closed
+//   root. For «a write only on a trusted action» (§14) it counts as one; our
+//   UI tells it by DELIVERED_KEY_MARK (ui-contract.md, decision 12).
 
 import { EDITOR_SELECTOR, FRAME_SELECTOR } from './host-contract';
 import type { ShadowRootRegistry } from './shadow-registry';
@@ -30,6 +35,20 @@ export interface KeyboardProbe {
   /** True for a copy `deliver` made: our UI may treat it as the person's own key. */
   isDelivered(event: Event): boolean;
 }
+
+/**
+ * On every copy `deliver` makes and on nothing else: a read-only,
+ * non-enumerable own property with the value `true`. `@cg/ui` cannot import
+ * this package (§4), so the key is a registry symbol the UI names by itself:
+ * `event[Symbol.for('cg.key.delivered')] === true`. A handler that issues a
+ * write token for a key accepts `event.isTrusted || <the mark>`.
+ *
+ * The mark is a label, not a secret. What makes a copy the person's key is
+ * that only this probe makes one, only from a trusted keydown, and that it
+ * never leaves our closed root: the page can neither read the copy nor send
+ * an event of its own to a listener inside the root.
+ */
+export const DELIVERED_KEY_MARK: unique symbol = Symbol.for('cg.key.delivered');
 
 /**
  * What ChatSpace's own Esc rule treats as «something of ours is open»
@@ -134,6 +153,7 @@ export function createKeyboardProbe(doc: Document, registry: ShadowRootRegistry)
         getModifierState: (name: string): boolean => key.getModifierState(name),
       };
       for (const [name, value] of Object.entries(fields)) Object.defineProperty(copy, name, { value, enumerable: true });
+      Object.defineProperty(copy, DELIVERED_KEY_MARK, { value: true });
       delivered.add(copy);
       target.dispatchEvent(copy);
       return copy.defaultPrevented;

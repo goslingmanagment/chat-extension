@@ -24,7 +24,7 @@ export {
   type OverlayLayer,
   type WaitForComposerOptions,
 } from './mount';
-export { CHAT_PATH_PATTERN, KEY_PENDING_ATTRIBUTE, NATIVE_OVERLAY_SELECTOR, createKeyPendingMark, createKeyboardProbe, isTypingTarget, routeOfLocation, type KeyFocus, type KeyboardProbe } from './keyboard';
+export { CHAT_PATH_PATTERN, DELIVERED_KEY_MARK, KEY_PENDING_ATTRIBUTE, NATIVE_OVERLAY_SELECTOR, createKeyPendingMark, createKeyboardProbe, isTypingTarget, routeOfLocation, type KeyFocus, type KeyboardProbe } from './keyboard';
 export { createShadowRootRegistry, type ShadowRootRegistry } from './shadow-registry';
 export { startChatSpaceHost, type StartChatSpaceHostOptions, type StartedChatSpaceHost } from './start';
 export { createThemeReader, readTheme, type ThemeReader } from './theme';
