@@ -69,7 +69,8 @@ export type SpikeReport = Record<string, unknown> & {
   mainError?: string;
   bootstrap?: { composeMs: number; bundleMs: number | null; evalMs: number | null };
   lifecycle?: { staleHosts: number; lateInjection: boolean };
-  rpc?: { state: string; registered: boolean };
+  /** `registrations` — how many times the background answered `tab.register`: more than one, and it started again under this tab. */
+  rpc?: { state: string; registered: boolean; registrations?: number };
   app?: { loadMs: number };
   appError?: string;
   dock?: DockReport;
