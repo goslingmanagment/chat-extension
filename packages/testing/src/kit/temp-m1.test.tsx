@@ -1,177 +1,24 @@
-// The TEMPORARY surfaces of integration step M1 (R14 replaces the dock row,
-// R16 the pages): the dock status row driven by the real router and the real
-// temporary controller of core/application, and the minimal options page and
-// popup over a fake page port. What the live smoke reads is checked here in
-// the DOM: who is signed in, which hub page the open account is bound to (or
-// its CG-BINDING-* code), the host contract, and «перезагрузите вкладку».
+// The TEMPORARY pages of integration step M1 (R16's pages replace them when
+// the pages are wired): the minimal options page and popup over a fake page
+// port. What the live smoke reads is checked here in the DOM: who is signed
+// in, the pages of the bootstrap, each binding with its page or its
+// CG-BINDING-* code, the host contract.
 
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { type CgCode, type CgErrorView } from '@cg/contracts/errors';
-import { ANCHOR_IDS, HOST_CAPABILITIES, HostContractReportSchema, type CapabilityState, type HostCapability, type HostContractReport, type RouteState } from '@cg/contracts/host';
-import { type HubBinding, type SessionIdentity } from '@cg/contracts/ids';
-import { type Locale } from '@cg/contracts';
-import { createAppRouter, createTempDockStatus, type TempDockFacts, type TempDockStatusController } from '@cg/core/application';
 import { viewOfCode } from '@cg/core/domain/errors';
 import { createTranslator } from '@cg/core/domain/i18n';
-import { mountTempDock, mountTempPage, type TempDockSmokeModel, type TempPagePort, type TempPageStatus } from '@cg/ui';
+import { mountTempPage, type TempPagePort, type TempPageStatus } from '@cg/ui';
 import { SettableSignal, type KitMount } from '@cg/ui/kit';
 
 import { flush, kitWorld } from './harness';
-
-const session: SessionIdentity = { hubOrigin: 'https://hub.example.test', userId: 7, login: 'chatter1', role: 'chatter', epoch: 3 };
-const binding: HubBinding = {
-  hubOrigin: session.hubOrigin,
-  principalId: session.userId,
-  loginEpoch: session.epoch,
-  host: 'chatspace',
-  hostAccountId: '910101',
-  platform: 'onlyfans',
-  platformAccountId: '830000101',
-  pageId: 11,
-  pageLabel: 'model-one',
-  bindingRevision: 3,
-};
-const route: RouteState = {
-  epoch: 1,
-  name: 'chat',
-  account: { host: 'chatspace', hostAccountId: '910101', platform: 'onlyfans', platformAccountId: '830000101', username: null, displayName: null },
-  chat: { host: 'chatspace', hostAccountId: '910101', platformFanId: '74001001' },
-};
-
-function report(overrides: Partial<Record<HostCapability, CapabilityState>> = {}): HostContractReport {
-  // Part B is off until it lands: X8, the WS tap and the receipt observer.
-  const partB = { previewSend: { state: 'off' }, incoming: { state: 'off' }, receipt: { state: 'off' }, sendObserve: { state: 'off' } } as const;
-  return HostContractReportSchema.parse({
-    build: 'index-Synthetic1',
-    adapterVersion: '0.1.0',
-    checkedAt: 1_700_000_000_000,
-    anchors: { ...Object.fromEntries(ANCHOR_IDS.map((id) => [id, 'ok'])), wsFrames: 'missing', receiptProfile: 'missing' },
-    capabilities: { ...Object.fromEntries(HOST_CAPABILITIES.map((name) => [name, { state: 'on' }])), ...partB, ...overrides },
-  });
-}
-
-const READY: Partial<TempDockFacts> = {
-  runtime: 'ready',
-  session,
-  hub: { state: 'ok' },
-  route,
-  binding: { state: 'bound', binding, pageTitle: 'Model One' },
-  contract: report(),
-  composer: { ready: true, hidden: false },
-};
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
   document.body.replaceChildren();
-});
-
-interface MountedDock {
-  readonly controller: TempDockStatusController;
-  readonly root: ShadowRoot;
-  readonly mount: KitMount;
-  row(): HTMLElement;
-  marker(name: string): string | null;
-  banner(): HTMLElement | null;
-}
-
-/** The tab's wiring in small: the router serves `dock` from the temporary controller, the view reads it through AppClient. */
-async function mountDock(language: Locale, facts: Partial<TempDockFacts>): Promise<MountedDock> {
-  const errorOf = (code: CgCode): CgErrorView => viewOfCode(code, createTranslator(language));
-  const router = createAppRouter({ errorOf });
-  const controller = createTempDockStatus({ errorOf });
-  router.register(controller);
-  controller.update(facts);
-  const smoke = new SettableSignal<TempDockSmokeModel>(controller.smoke());
-  const off = controller.onSmoke((next) => smoke.set(next));
-  const world = kitWorld('gallery-ready', language);
-  const host = document.createElement('div');
-  host.setAttribute('data-cg', 'dock');
-  document.body.append(host);
-  const root = host.attachShadow({ mode: 'closed' });
-  let mount: KitMount | null = null;
-  await act(() => {
-    mount = mountTempDock(root, { ...world.deps, client: router }, smoke);
-  });
-  const mounted = mount as unknown as KitMount;
-  cleanups.push(() => {
-    mounted.unmount();
-    off();
-    router.dispose();
-  });
-  const row = (): HTMLElement => root.querySelector('[data-cg-temp="dock-status"]') as HTMLElement;
-  return {
-    controller,
-    root,
-    mount: mounted,
-    row,
-    marker: (name) => root.querySelector(`[${name}]`)?.getAttribute(name) ?? null,
-    banner: () => root.querySelector<HTMLElement>('[data-cg-code]'),
-  };
-}
-
-describe('TEMPORARY dock status row (M1): the router, the temporary controller and the view together', () => {
-  it('[AU-001] not signed in: «вход не выполнен» and the CG-AUTH-REQUIRED banner', async () => {
-    const dock = await mountDock('ru', { ...READY, session: null, binding: { state: 'none' } });
-    expect(dock.mount.styleMode).toBe('adopted');
-    expect(dock.row().getAttribute('data-cg-status')).toBe('not-signed-in');
-    expect(dock.marker('data-cg-temp-login')).toBe('');
-    expect(dock.row().textContent).toContain('вход не выполнен');
-    expect(dock.banner()?.getAttribute('data-cg-code')).toBe('CG-AUTH-REQUIRED');
-    expect(dock.marker('data-cg-temp-contract')).toBe('ok');
-  });
-
-  it('signed in and bound: the login, the hub page of the open account, no banner; a sign-out is heard at once', async () => {
-    const dock = await mountDock('ru', READY);
-    expect(dock.row().getAttribute('data-cg-status')).toBe('ready');
-    expect(dock.row().getAttribute('data-cg-mode')).toBe('insert');
-    expect(dock.marker('data-cg-temp-login')).toBe('chatter1');
-    expect(dock.marker('data-cg-temp-page')).toBe('model-one');
-    expect(dock.marker('data-cg-temp-binding-code')).toBe('');
-    expect(dock.marker('data-cg-temp-build')).toBe('index-Synthetic1');
-    expect(dock.row().textContent).toContain('chatter1');
-    expect(dock.row().textContent).toContain('model-one · Model One');
-    expect(dock.banner()).toBeNull();
-
-    await flush(() => dock.controller.update({ session: null, binding: { state: 'none' }, hub: { state: 'unknown' } }));
-    expect(dock.row().getAttribute('data-cg-status')).toBe('not-signed-in');
-    expect(dock.marker('data-cg-temp-login')).toBe('');
-    expect(dock.marker('data-cg-temp-page')).toBe('');
-    expect(dock.banner()?.getAttribute('data-cg-code')).toBe('CG-AUTH-REQUIRED');
-  });
-
-  it('an account no hub page is linked to: the CG-BINDING-* code in the row and in the banner', async () => {
-    const dock = await mountDock('en', { ...READY, binding: { state: 'refused', code: 'CG-BINDING-MISSING' } });
-    expect(dock.row().getAttribute('data-cg-status')).toBe('no-binding');
-    expect(dock.marker('data-cg-temp-binding-code')).toBe('CG-BINDING-MISSING');
-    expect(dock.marker('data-cg-temp-page')).toBe('');
-    expect(dock.row().textContent).toContain('CG-BINDING-MISSING');
-    expect(dock.banner()?.getAttribute('data-cg-code')).toBe('CG-BINDING-MISSING');
-    // Still signed in: the binding is what is missing.
-    expect(dock.marker('data-cg-temp-login')).toBe('chatter1');
-  });
-
-  it('[UP-009] a tab that predates the extension instance: the «reload the tab» banner wins over everything else', async () => {
-    const dock = await mountDock('ru', { ...READY, needsReload: true });
-    expect(dock.row().getAttribute('data-cg-status')).toBe('reload-needed');
-    expect(dock.banner()?.getAttribute('data-cg-code')).toBe('CG-RUNTIME-RELOADED');
-    expect(dock.banner()?.querySelector('.cg-dot--danger')).not.toBeNull();
-  });
-
-  it('a broken host contract: the state of the contract and its code, copy-only', async () => {
-    const dock = await mountDock('ru', { ...READY, contract: report({ identity: { state: 'contractBroken', code: 'CG-HOST-CONTRACT' } }) });
-    expect(dock.row().getAttribute('data-cg-status')).toBe('host-degraded');
-    expect(dock.row().getAttribute('data-cg-mode')).toBe('copy-only');
-    expect(dock.marker('data-cg-temp-contract')).toBe('broken');
-    expect(dock.banner()?.getAttribute('data-cg-code')).toBe('CG-HOST-CONTRACT');
-  });
-
-  it('nothing in the row is an AI action: no button, no input', async () => {
-    const dock = await mountDock('ru', READY);
-    expect(dock.root.querySelectorAll('button, input, textarea, [role="button"]')).toHaveLength(0);
-  });
 });
 
 // ── pages ──────────────────────────────────────────────────────────────────

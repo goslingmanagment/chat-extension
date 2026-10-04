@@ -4,11 +4,13 @@
 // What runs synchronously at document_start is as little as the page allows
 // (§11: ≤ 3 ms): stale hosts of a dead instance go, the ChatSpace host starts
 // — its mount manager and theme reader at once, the MAIN handshake behind
-// them — and that is all. One task later the rest of the early bundle wakes
-// up (tab/runtime.ts): the port to the background, the tab's registration and
-// presence. The application itself — the protocol registry, the controllers,
-// the texts, the UI — is lazy chunks, loaded when ChatSpace shows a composer
-// and never outside a chat (EX-011).
+// them — and the early key dispatcher takes `window` before ChatSpace's own
+// listeners exist (§9.1; tab/keys.ts). That is all. One task later the rest
+// of the early bundle wakes up (tab/runtime.ts): the port to the background,
+// the tab's registration and presence. The application itself — the protocol
+// registry, the controllers, the texts, the UI — is lazy chunks, loaded when
+// ChatSpace shows a composer or a key of ours waits for it (HK-024), and
+// never before either (EX-011).
 //
 // Lifecycle is OURS, not WXT's: WXT invalidates its ContentScriptContext when
 // a `<runtime id>:chatspace:wxt:content-script-started` CustomEvent reaches the
@@ -17,11 +19,13 @@
 // invalidation only ever reaches an instance whose runtime is gone; while our
 // runtime is alive, an invalidation is a spoof and is ignored.
 
-import { loadValidation, removeStaleHosts, startChatSpaceHost, type HostDiagnostic, type MountDiagnostic } from '@cg/host-chatspace/isolated';
+import { removeStaleHosts, startChatSpaceHost, type HostDiagnostic, type MountDiagnostic, type Validation } from '@cg/host-chatspace/isolated';
 // The light entry of the platform: its index would evaluate the RPC client and the protocol schemas at document_start (§11).
-import { isExtensionContextAlive } from '@cg/platform/runtime';
+import { extensionUrl, isExtensionContextAlive } from '@cg/platform/runtime';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 
+import { startTabKeys } from './tab/keys';
+import { importWithRetry, lazyPath } from './tab/lazy';
 import { tabProbeFor, type TabProbe } from './tab/probe';
 import type { TabRuntime } from './tab/runtime';
 
@@ -67,7 +71,8 @@ export function composeTab(env: TabEnv): void {
 
   const host = startChatSpaceHost({
     win,
-    validation: loadValidation,
+    // The bridge's schemas are a lazy chunk (§11): this file is one classic script and would carry them whole.
+    validation: () => importWithRetry<Validation>(extensionUrl(lazyPath('bridge-validation')), (url) => import(/* @vite-ignore */ url)),
     // A write spends the action token of its click before anything reaches MAIN (§14); no runtime — no write.
     redeem: (request) => (runtime === null ? Promise.resolve(false) : runtime.then((ready) => ready.redeem(request)).catch(() => false)),
     // ChatSpace's own draft key, read only (§6.1): the isolated world shares the page's localStorage.
@@ -79,8 +84,19 @@ export function composeTab(env: TabEnv): void {
       else if (diagnostics.length < DIAGNOSTICS_KEPT) diagnostics.push(diagnostic);
     },
   });
+  // The keys of the tab, in the same synchronous step: a key pressed in the first moments of the page is ours.
+  let wakeAsked = false;
+  const keys = startTabKeys({
+    win,
+    mounts: host.mounts,
+    onWaiting() {
+      wakeAsked = true;
+      void runtime?.then((ready) => ready.wake()).catch(() => undefined);
+    },
+  });
   life.signal.addEventListener('abort', () => {
     probe?.set('runtime', 'shut-down');
+    keys.dispose();
     host.mounts.dispose();
     host.theme.dispose();
     void host.bridge.then((bridge) => bridge?.close());
@@ -103,6 +119,7 @@ export function composeTab(env: TabEnv): void {
         life: life.signal,
         abort: (reason) => life.abort(reason),
         host,
+        keys,
         lateInjection,
         staleHosts,
         probe,
@@ -115,7 +132,11 @@ export function composeTab(env: TabEnv): void {
         },
       }),
     );
-    runtime.catch((error: unknown) => probe?.set('runtimeError', String(error)));
+    runtime.then(
+      // A key that came before the runtime existed is still waiting.
+      (ready) => (wakeAsked ? ready.wake() : undefined),
+      (error: unknown) => probe?.set('runtimeError', String(error)),
+    );
   }, 0);
 
   // The body of composeTab only; the probe adds the whole synchronous start of

@@ -44,19 +44,46 @@ export function standUrl(path = '/spike.html'): string {
   return `${origin}${path}`;
 }
 
-/** What the dock shows, read by the extension inside its own closed root (apps/extension/src/composition/tab/app.ts). */
+/**
+ * What the dock shows, written by the extension itself (apps/extension/src/composition/tab/app.ts): its view
+ * model as the controller serves it, and what its closed root really holds. WebDriver cannot look inside.
+ */
 export interface DockReport {
   readonly styleMode: string;
   readonly kind: string;
   readonly inFlowFirstChild: boolean;
-  /** `data-cg-status` of the TEMPORARY status row (packages/core/src/application/temp-dock-status.ts). */
-  readonly status: string | null;
-  readonly mode: string | null;
-  readonly login: string | null;
-  readonly page: string | null;
-  readonly bindingCode: string | null;
-  readonly contract: string | null;
+  /** DockVM: whether a chat is open, the status and its banner's code, insert or copy-only. */
+  readonly visible: boolean;
+  readonly status: string;
+  readonly view: string;
+  readonly mode: string;
+  /** Who is signed in (the tab's own knowledge; the dock does not print it). */
+  readonly login: string;
+  /** The persona's label and the hub page's name of the open account; '' — none. */
+  readonly persona: string;
+  /** The label of the hub page the open account is bound to, once a generation could start for it. */
+  readonly page: string;
   readonly banner: string | null;
+  /** Part A of the host contract in one word: `ok`, `degraded`, `broken`. */
+  readonly contract: string;
+  readonly target: string | null;
+  /** The seven strip actions: enabled or not. */
+  readonly actions: Readonly<Record<string, boolean>>;
+  readonly result: { readonly opId: string; readonly feature: string; readonly state: string; readonly streaming: boolean; readonly parts: number; readonly inserted: number; readonly error: string | null } | null;
+  /** The code of a start that was not admitted. */
+  readonly refusal: string | null;
+  /** Where to point at what is inside the closed root, in viewport pixels: `action:<id>`, `insert:<part>`. */
+  readonly hits: Readonly<Record<string, { readonly x: number; readonly y: number }>>;
+  readonly analysis: string | null;
+  readonly resultStyle: string;
+  /** Our open overlays, bottom first, and the surfaces mounted for them. */
+  readonly overlays: readonly string[];
+  readonly surfaces: readonly string[];
+  /** View names the router serves: which controllers are in. */
+  readonly views: readonly string[];
+  /** Rendered: the dock's tree is in its closed root, with this many buttons and this text. */
+  readonly strip: boolean;
+  readonly buttons: number;
   readonly text: string | null;
   readonly height: number;
   readonly scheme: string | null;
@@ -174,4 +201,22 @@ export function summarize(values: readonly number[]): Summary {
   const median = sorted.length % 2 === 1 ? (sorted[mid] ?? NaN) : ((sorted[mid - 1] ?? NaN) + (sorted[mid] ?? NaN)) / 2;
   const round = (value: number): number => Math.round(value * 100) / 100;
   return { n: sorted.length, median: round(median), min: round(sorted[0] ?? NaN), max: round(sorted.at(-1) ?? NaN) };
+}
+
+/**
+ * Assigns the page its persona, as «Персоны» of the settings will (ST-061): the first active persona of the
+ * hub's catalog for the page with this label. Called from an extension page of a signed-in build.
+ */
+export async function assignPersona(pageLabel: string): Promise<{ readonly pageId: number; readonly key: string; readonly displayName: string }> {
+  const bootstrap = await pageRpc<{ pages: ReadonlyArray<{ pageId: number; pageLabel: string }> }>('bootstrap.get');
+  if (!bootstrap.ok) throw new Error(`bootstrap.get: ${bootstrap.error.code}`);
+  const page = bootstrap.payload.pages.find((item) => item.pageLabel === pageLabel);
+  if (page === undefined) throw new Error(`the bootstrap has no page «${pageLabel}»`);
+  const catalog = await pageRpc<{ personas: ReadonlyArray<{ key: string; definitionId: string; displayName: string; status: string }> }>('catalog.get');
+  if (!catalog.ok) throw new Error(`catalog.get: ${catalog.error.code}`);
+  const persona = catalog.payload.personas.find((item) => item.status === 'active');
+  if (persona === undefined) throw new Error('the catalog has no active persona');
+  const saved = await pageRpc('persona.set', { pageId: page.pageId, key: persona.key, definitionId: persona.definitionId });
+  if (!saved.ok) throw new Error(`persona.set: ${saved.error.code}`);
+  return { pageId: page.pageId, key: persona.key, displayName: persona.displayName };
 }

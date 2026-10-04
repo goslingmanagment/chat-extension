@@ -8,27 +8,25 @@
 // loaded the port checks only the two answers it needs — `tab.register` (its
 // own light schema) and the acknowledgement of `tab.presence`. Everything
 // else waits for the lazy chunks, and those load when ChatSpace shows a
-// composer, never outside a chat (EX-011).
+// composer — or when a key of ours waits for them (HK-024: ⌘K and ⌘⇧M work
+// on the whole of ChatSpace) — and never before either (EX-011).
 
 import { CONTRACTS_VERSION } from '@cg/contracts';
 import type { HostAccount } from '@cg/contracts/ids';
 import { TabRegisterResponseSchema } from '@cg/contracts/tab-protocol';
 import type { HostDiagnostic, MountDiagnostic, StartedChatSpaceHost, TokenRedeemer } from '@cg/host-chatspace/isolated';
-import { createTabRpcClient, extensionUrl, isExtensionContextAlive, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
+import { createTabRpcClient, defaultBrowser, extensionUrl, isExtensionContextAlive, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
 
 import type * as TabAppChunk from '../../../lazy/entries/tab-app';
 import type * as TabProtocolChunk from '../../../lazy/entries/tab-protocol';
 import type { TabApp } from './app';
-import { importWithRetry } from './lazy';
+import type { DraftStore } from './controllers';
+import type { TabKeys } from './keys';
+import { importWithRetry, lazyPath } from './lazy';
 import type { TabProbe } from './probe';
 
-/** Lazy ESM chunks, loaded with import(moz-extension://…) — see lazy/vite.config.ts. */
-export const LAZY = {
-  protocol: 'lazy/tab-protocol.js',
-  app: 'lazy/tab-app.js',
-  dock: 'lazy/dock.js',
-  i18n: (language: string): string => `lazy/i18n-${language}.js`,
-} as const;
+/** The two chunks the early bundle loads itself; the application loads the rest (tab/app.ts). */
+export const LAZY = { protocol: lazyPath('tab-protocol'), app: lazyPath('tab-app') } as const;
 
 /** Presence reports are coalesced: a burst of route, focus and account events is one request. */
 const PRESENCE_DELAY_MS = 200;
@@ -48,6 +46,8 @@ export interface TabRuntimeEnv {
   readonly life: AbortSignal;
   readonly abort: (reason: string) => void;
   readonly host: StartedChatSpaceHost;
+  /** The early key dispatcher and what it reads (tab/keys.ts). */
+  readonly keys: TabKeys;
   readonly lateInjection: boolean;
   readonly staleHosts: number;
   readonly probe: TabProbe | null;
@@ -62,11 +62,37 @@ export interface TabRuntimeEnv {
 
 export interface TabRuntime {
   redeem: TokenRedeemer;
+  /** Loads the application now, composer or not: a key of ours waits for it (HK-024). */
+  wake(): void;
 }
 
 /** Loads a lazy chunk; one retry under `?retry` (EX-009). */
 export function loadLazy<T>(path: string): Promise<T> {
   return importWithRetry<T>(extensionUrl(path), (url) => import(/* @vite-ignore */ url));
+}
+
+/** `STORAGE_KEYS.newcomersDrafts`, spelled out: the contracts' settings module is schemas the early bundle must not carry (§11). */
+export const NEWCOMER_DRAFTS_KEY = 'newcomers.drafts';
+
+/**
+ * The local drafts of previews and «Новые» cards (NF-012, NEW-10) as R12's
+ * controller keeps them: one key of storage.local every ChatSpace tab of the
+ * browser shares. The lazy chunks have no browser API, so the port is made
+ * here. Never ChatSpace's own storage; never a text in a log.
+ */
+export function draftStoreOf(api: BrowserApi = defaultBrowser()): DraftStore {
+  return {
+    load: async () => (await api.storage.local.get(NEWCOMER_DRAFTS_KEY))[NEWCOMER_DRAFTS_KEY],
+    save: (value) => api.storage.local.set({ [NEWCOMER_DRAFTS_KEY]: value }),
+    onChanged(listener) {
+      const onChanged = (changes: Record<string, { readonly newValue?: unknown }>, area: string): void => {
+        const change = area === 'local' ? changes[NEWCOMER_DRAFTS_KEY] : undefined;
+        if (change !== undefined) listener(change.newValue);
+      };
+      api.storage.onChanged.addListener(onChanged);
+      return () => api.storage.onChanged.removeListener(onChanged);
+    },
+  };
 }
 
 const isAck = (value: unknown): value is { recorded: boolean } =>
@@ -171,8 +197,9 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         host: port,
         mounts: host.mounts,
         theme: host.theme,
-        lazy: loadLazy,
-        chunks: LAZY,
+        keys: env.keys,
+        lazy: (entry) => loadLazy(lazyPath(entry)),
+        drafts: draftStoreOf(env.api),
         ownOrigin: extensionUrl('').replace(/\/$/, ''),
         contractsVersion: CONTRACTS_VERSION,
         lateInjection: env.lateInjection,
@@ -184,13 +211,16 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
       probe?.set('app', { loadMs: performance.now() - loadStarted });
       return started;
     })());
-  const onMounts = (): void => {
-    if (host.mounts.points().dock.kind === 'none' || life.aborted) return;
+  const wake = (): void => {
+    if (life.aborted) return;
     ensureApp().catch((error: unknown) => {
-      // Nothing reloads by itself (UP-016): the next composer asks again.
+      // Nothing reloads by itself (UP-016): the next composer or the next key of ours asks again.
       app = null;
       probe?.set('appError', String(error));
     });
+  };
+  const onMounts = (): void => {
+    if (host.mounts.points().dock.kind !== 'none') wake();
   };
   const offMounts = host.mounts.onChange(onMounts);
   life.addEventListener('abort', offMounts);
@@ -199,5 +229,6 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   return {
     // A token is spent by the application that issued it; without it nothing is written.
     redeem: (request) => (app === null ? Promise.resolve(false) : app.then((ready) => ready.redeem(request)).catch(() => false)),
+    wake,
   };
 }

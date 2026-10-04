@@ -1,6 +1,6 @@
 // Integration step M1 (architecture.md §2, §5.4, §8, §12 п. 4): the TEST build
 // as a whole — background, isolated and MAIN content scripts, lazy chunks,
-// the TEMPORARY options page and dock status — on the ChatSpace-like stand,
+// the TEMPORARY options page and the real dock — on the ChatSpace-like stand,
 // against the fake hub on loopback. What it proves end to end:
 // - the background is ready and answers the page protocol before any sign-in;
 // - the hub address changes in «Дополнительно» only while signed out (ST-042);
@@ -10,8 +10,9 @@
 //   (EX-011); with a composer the lazy chunks come by import() (EX-009) and
 //   the dock sits above the active composer in a closed shadow root with its
 //   own sheets, nothing global (EX-012), and follows chat switches;
-// - the status shows who is signed in and which hub page the open account is
-//   bound to — or the CG-BINDING-* code of an account no page is linked to;
+// - the dock follows what the hub says about the open account: nobody signed
+//   in → signed in without a persona → the page's persona and its name — or
+//   the CG-BINDING-* code of an account no page is linked to;
 // - the WS tap is registered only by the bootstrap flag;
 // - a sign-out revokes the token, clears the session and every tab hears it;
 // - a hub without `client/bootstrap` (404) runs on the DEV-ONLY synthesized
@@ -26,7 +27,7 @@ import { browser, expect } from '@wdio/globals';
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { DEV_COMPAT_PAGES_KEY } from '../support/constants';
-import { installTestBuild, pageRpc, readLocalStorage, readReport, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
+import { assignPersona, installTestBuild, pageRpc, readLocalStorage, readReport, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
 import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady, waitForStandReady } from '../support/stand';
@@ -51,6 +52,15 @@ async function registeredScripts(): Promise<string[]> {
     const api = (globalThis as unknown as { browser: { scripting: { getRegisteredContentScripts(): Promise<Array<{ id: string }>> } } }).browser;
     return (await api.scripting.getRegisteredContentScripts()).map((script) => script.id);
   });
+}
+
+/** Where a dynamically registered content script runs: its match patterns and its world. */
+async function registeredScript(id: string): Promise<{ readonly matches: string[]; readonly world: string | null; readonly runAt: string | null } | null> {
+  return browser.execute(async (wanted: string) => {
+    const api = (globalThis as unknown as { browser: { scripting: { getRegisteredContentScripts(): Promise<Array<{ id: string; matches?: string[]; world?: string; runAt?: string }>> } } }).browser;
+    const script = (await api.scripting.getRegisteredContentScripts()).find((item) => item.id === wanted);
+    return script === undefined ? null : { matches: [...(script.matches ?? [])].sort(), world: script.world ?? null, runAt: script.runAt ?? null };
+  }, id);
 }
 
 /** The style elements and sheets of the page, by what they are (never their text). */
@@ -155,7 +165,11 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await waitForChatReady(accountA, a1);
     const report = await dockIs((dock) => dock.status === 'not-signed-in', 'the dock says «not signed in»');
     expect(report.app?.loadMs).toBeGreaterThan(0);
-    expect(report.dock).toMatchObject({ kind: 'in-flow', inFlowFirstChild: true, styleMode: 'adopted', login: '', banner: 'CG-AUTH-REQUIRED', contract: 'ok' });
+    expect(report.dock).toMatchObject({ kind: 'in-flow', inFlowFirstChild: true, styleMode: 'adopted', visible: true, login: '', banner: 'CG-AUTH-REQUIRED', contract: 'ok', strip: true });
+    // The strip is drawn with its seven actions, all off: nobody is signed in.
+    expect(Object.keys(report.dock?.actions ?? {})).toEqual(['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach']);
+    expect(Object.values(report.dock?.actions ?? {}).some(Boolean)).toBe(false);
+    expect(report.dock?.surfaces).toEqual(['dock', 'toasts']);
     expect(report.dock?.height).toBeGreaterThan(30);
 
     const roots = await composerRoots();
@@ -240,14 +254,26 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(state.ok && state.payload.settings.hub.baseUrl).toBe(fakeHubOrigin());
   });
 
-  it('the open ChatSpace tab hears the sign-in without a reload: the dock shows who is signed in and the hub page of the open account', async () => {
+  it('the open ChatSpace tab hears the sign-in without a reload: the account is bound, and the dock asks for the page’s persona', async () => {
     await toStand();
-    const report = await dockIs((dock) => dock.status === 'ready', 'the dock is ready after the sign-in');
-    expect(report.dock).toMatchObject({ login: WORLD.user.username, page: PAGE, bindingCode: '', contract: 'ok', banner: null, mode: 'insert' });
-    expect(report.dock?.text).toContain(WORLD.user.username);
-    expect(report.dock?.text).toContain(PAGE);
+    const report = await dockIs((dock) => dock.status === 'no-persona', 'the dock after the sign-in: bound, no persona yet');
+    expect(report.dock).toMatchObject({ login: WORLD.user.username, persona: '', contract: 'ok', banner: 'CG-PERSONA-UNASSIGNED' });
+    expect(Object.values(report.dock?.actions ?? {}).some(Boolean)).toBe(false);
     const roots = await composerRoots();
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
+  });
+
+  it('the page gets its persona in the settings: the dock is ready, with the persona’s name and the actions of the open chat', async () => {
+    await toPages();
+    await openTempPage('options');
+    const persona = await assignPersona(PAGE);
+    await toStand();
+    const report = await dockIs((dock) => dock.status === 'ready', 'the dock is ready once the page has a persona');
+    expect(report.dock).toMatchObject({ login: WORLD.user.username, page: PAGE, persona: persona.displayName, contract: 'ok', banner: null, mode: 'insert' });
+    expect(report.dock?.text).toContain(persona.displayName);
+    expect(report.dock?.target).not.toBeNull();
+    // Recap, Review and Coach came in behind the dock: their views are served.
+    await dockIs((dock) => ['recap.picker', 'recap.view', 'review', 'coach'].every((view) => dock.views.includes(view)), 'the analysis controllers are in');
   });
 
   it('the dock follows chat switches: one host, always the first child of the active composer', async () => {
@@ -270,9 +296,9 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await callStand('openChat', accountB, b1, { newTab: true });
     await waitForChatReady(accountB, b1);
     const refused = await dockIs((dock) => dock.status === 'no-binding', 'the unbound account');
-    expect(refused.dock?.bindingCode).toMatch(/^CG-BINDING-/);
-    expect(refused.dock?.banner).toBe(refused.dock?.bindingCode);
+    expect(refused.dock?.banner).toMatch(/^CG-BINDING-/);
     expect(refused.dock?.page).toBe('');
+    expect(refused.dock?.persona).toBe('');
     expect(refused.dock?.login).toBe(WORLD.user.username);
     await callStand('openChat', accountA, a1);
     await dockIs((dock) => dock.status === 'ready' && dock.page === PAGE, 'back on the bound account');
@@ -301,6 +327,16 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     const diagnostics = await pageRpc<Diagnostics>('diagnostics.get');
     expect(diagnostics.ok && diagnostics.payload.hub.flags['wsTap']).toBe(true);
     expect(await registeredScripts()).toEqual(['cg-ws-tap']);
+    // A TEST build taps wherever its content scripts run — the real ChatSpace (the owner's dev profile, X9) and
+    // the loopback stand: the same match patterns as the manifest's own content scripts. The release build's
+    // tap is ChatSpace alone (the manifest test and `pnpm gates`).
+    const manifestMatches = await browser.execute(() => {
+      const api = (globalThis as unknown as { browser: { runtime: { getManifest(): { content_scripts?: Array<{ matches?: string[] }> } } } }).browser;
+      return [...(api.runtime.getManifest().content_scripts?.[0]?.matches ?? [])].sort();
+    });
+    expect(manifestMatches.filter((pattern) => pattern.startsWith('http://'))).toEqual(['http://127.0.0.1/*', 'http://localhost/*']);
+    expect(manifestMatches.filter((pattern) => pattern.startsWith('https://'))).toHaveLength(1);
+    expect(await registeredScript('cg-ws-tap')).toEqual({ matches: manifestMatches, world: 'MAIN', runAt: 'document_start' });
     await toStand();
     await browser.refresh();
     await waitForStandReady();
@@ -390,7 +426,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
 
     await toStand();
     const report = await dockIs((dock) => dock.status === 'ready' && dock.login === WORLD.user.username, 'the dock on the compat bootstrap');
-    expect(report.dock).toMatchObject({ page: PAGE, bindingCode: '' });
+    expect(report.dock).toMatchObject({ page: PAGE, banner: null });
 
     // Leave as found: signed out, debug off, the hub as deployed.
     await toPages();

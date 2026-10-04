@@ -20,7 +20,7 @@ import { browser, expect } from '@wdio/globals';
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { backgroundState, setBackgroundIdleTimeout, suspendBackground, waitForBackgroundState } from '../support/background';
-import { installTestBuild, pageRpc, readReport, standUrl, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
+import { assignPersona, installTestBuild, pageRpc, readReport, standUrl, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
 import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
@@ -114,6 +114,8 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     // The sign-in is the options page's request; the page itself is left at once (it keeps asking for the status).
     await browser.url(testBuildPage('options.html'));
     expect(await pageRpc('session.signIn', { login: WORLD.user.username, password: PASSWORD })).toMatchObject({ ok: true });
+    // The page has its persona: the dock of its chats is ready to work.
+    await assignPersona(PAGE);
     await browser.url(testBuildPage('debug-journal.html'));
     pagesTab = await browser.getWindowHandle();
     standTab = (await browser.createWindow('tab')).handle;
