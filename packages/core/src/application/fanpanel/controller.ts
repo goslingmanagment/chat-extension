@@ -164,7 +164,11 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     const nothing = { fan: null, spent: null, subscription: null, host: null, bio: null, lists: [], footer: { stamp: stamp(null, 'unknown'), archiveMessages: null } } as const;
     const retry: UiAction = { type: 'ReloadView', selector: SELECTOR };
 
-    if (ctx.phase === 'blocked') return { ...base, ...nothing, view: failureView(ctx.blocker ?? { code: 'CG-UNKNOWN' }, i18n, retry) };
+    const blocker = ctx.phase === 'blocked' ? (ctx.blocker ?? { code: 'CG-UNKNOWN' as const }) : null;
+    // A read of the page identity that merely failed keeps the identity (SP-042): the panel says «нет связи» over the fan
+    // it last showed. Any other block — no sign-in, no binding, no right — shows nobody.
+    const offlineOver = blocker !== null && ctx.binding !== null && chat !== null && failureClass(blocker.code) === 'offline';
+    if (blocker !== null && !offlineOver) return { ...base, ...nothing, view: failureView(blocker, i18n, retry) };
     if (ctx.phase === 'ready' && !pageFlag(ctx, 'fanPanel')) {
       const why = flagReason(ctx, 'fanPanel');
       return { ...base, ...nothing, view: failureView(why === null ? { code: 'CG-FEATURE-DISABLED' } : { code: 'CG-FEATURE-DISABLED', detail: why }, i18n, retry) };
@@ -189,7 +193,8 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     });
 
     let view: VmView;
-    if (ctx.phase === 'loading' || card === null || (card.loadedAt === null && card.error === null)) view = loadingView(card?.since ?? null);
+    if (blocker !== null) view = failureView(blocker, i18n, retry, card?.loadedAt ?? null);
+    else if (ctx.phase === 'loading' || card === null || (card.loadedAt === null && card.error === null)) view = loadingView(card?.since ?? null);
     else {
       const gaps: PartialGap[] = [];
       const fanCapability = host.current().contract.capabilities.fan.state;

@@ -2875,6 +2875,38 @@ describe('[CS-031] [CS-033] [CS-034] [CS-035] [CS-036] [CS-037] the fan panel fo
     expect(failing.boards.fanPanel.getSnapshot(PANEL)).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
   });
 
+  it('[SP-042] [CS-036] a read of the page identity that merely failed: the panel says «нет связи» over the fan it showed, and shows nobody once the access is gone', async () => {
+    const h = await harness();
+    await h.dispatch(open('fan-panel'));
+    h.hostEvent(routeTo('5001'));
+    await h.flush();
+    const loadedAt = h.clock.now();
+    expect(h.boards.fanPanel.getSnapshot(PANEL).view).toEqual({ s: 'ready' });
+    const reads = count(h, 'fan.card');
+    await h.advance(5_000);
+    // The background's port dropped while the context was read again.
+    h.bg.failNext('bootstrap.get', { code: 'CG-RUNTIME-UNREACHABLE' });
+    reread(h);
+    await h.flush();
+    const lost = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(lost.view).toMatchObject({ s: 'offline', error: { code: 'CG-RUNTIME-UNREACHABLE' }, retry: { type: 'ReloadView', selector: PANEL }, lastGoodAt: loadedAt });
+    expect(lost.fan).toMatchObject({ name: 'Fan 1', username: 'fan_1' });
+    expect(lost.spent?.total).toBe(3_717_000);
+    expect(count(h, 'fan.card')).toBe(reads);
+    // The next read answers: the same fan, nothing read twice.
+    reread(h);
+    await h.flush();
+    expect(h.boards.fanPanel.getSnapshot(PANEL)).toMatchObject({ view: { s: 'ready' }, fan: { name: 'Fan 1' } });
+    expect(count(h, 'fan.card')).toBe(reads);
+    // The access itself is gone: nobody is shown.
+    h.bg.failNext('bootstrap.get', { code: 'CG-AUTH-REVOKED' });
+    reread(h);
+    await h.flush();
+    const revoked = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(revoked.view).toMatchObject({ s: 'forbidden', error: { code: 'CG-AUTH-REVOKED' } });
+    expect(revoked).toMatchObject({ fan: null, spent: null, bio: null });
+  });
+
   it('[CS-031] a chat of another OnlyMonster account is not this page’s fan: under this binding the panel shows nobody and reads nothing for it', async () => {
     const h = await harness();
     await h.dispatch(open('fan-panel'));
