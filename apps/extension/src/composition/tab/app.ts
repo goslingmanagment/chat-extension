@@ -55,6 +55,7 @@ import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts'
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
 import { mountSurfaces, overlayRoot } from './surfaces';
+import { toastOfTab, type ToastFacts } from './toast-events';
 import { Value } from './values';
 
 export type { TabActionTokens } from './action-gate';
@@ -100,6 +101,9 @@ interface UiSettings {
   readonly debug: boolean;
 }
 const UNKNOWN_SETTINGS: UiSettings = { locale: 'system', theme: 'host', debug: false };
+
+/** Rows of ChatSpace's cached chat list read for the name of a toast's fan. */
+const TOAST_NAME_ROWS = 200;
 
 /** Part B of the adapter (X8 and the WS tap) is off until the owner's flags switch it on: not a degraded contract. */
 const PART_B: readonly string[] = ['previewSend', 'incoming', 'receipt', 'sendObserve'];
@@ -323,8 +327,23 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   const setOverlay = (overlay: 'result-expanded' | 'dialog', isOpen: boolean): void => {
     if (keys.overlays.isOpen(overlay) !== isOpen) keys.overlays.set(overlay, isOpen);
   };
+  /** A toast of the background, read by where this tab is at the moment it arrives (tab/toast-events.ts). */
+  const toastFacts: ToastFacts = {
+    showing: () => host.current().route.chat,
+    visible: () => doc.visibilityState === 'visible',
+    fanName(chat) {
+      const fan = host.fan(chat) ?? host.listCachedChats(chat.hostAccountId, TOAST_NAME_ROWS).find((row) => row.chat.platformFanId === chat.platformFanId) ?? null;
+      return fan === null ? null : (fan.displayName ?? fan.username);
+    },
+  };
   const shell = createShellController({
-    rpc,
+    rpc: {
+      onEvent: (type, listener) =>
+        rpc.onEvent(type, ({ toast }) => {
+          const shown = toastOfTab(toast, toastFacts);
+          if (shown !== null) listener({ toast: shown });
+        }),
+    },
     i18n,
     clock,
     chatHandle: (chat) => navigationChunk.chatHandle(chat),
