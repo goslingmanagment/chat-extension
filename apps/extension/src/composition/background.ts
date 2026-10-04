@@ -787,9 +787,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('session.get', () => ok({ session: hub().session() }));
   rpc.handle('session.signIn', async ({ login, password }) => {
     // The password is in memory for this call only; neither it nor the login is logged.
-    const answer = await hubCall(async () => ({ session: await hub().signIn(login, password) }));
-    if (!answer.ok) logEvent(logger, 'signInFailed', { code: answer.error.code });
-    return answer;
+    try {
+      return ok({ session: await hub().signIn(login, password) });
+    } catch (error) {
+      const wire = wireOf(error);
+      // One failure is one count in «Ошибки хаба за сегодня» (ST-056): a call the hub refused is already in the
+      // log with its code (the hub layer's own record of the call); a refusal before any call is counted here.
+      logEvent(logger, 'signInFailed', isHubCallError(error) ? { fields: { code: wire.code } } : { code: wire.code });
+      return { ok: false, error: wire };
+    }
   });
   rpc.handle('session.signOut', () => hubCall(() => hub().signOut()));
   rpc.handle('bootstrap.get', ({ force }) => hubCall(() => hub().bootstrap(force === true ? { force: true } : undefined)));

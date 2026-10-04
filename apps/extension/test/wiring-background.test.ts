@@ -598,6 +598,24 @@ describe('«Очистить локальные данные» and the update re
   });
 });
 
+describe('today’s error counters (ST-056)', () => {
+  it('[ST-056] [LG-013] a sign-in the hub refused is one count of its code, not two: the hub layer’s record of the call and the sign-in event are one failure', async () => {
+    const w = world();
+    w.start();
+    const options = w.page();
+    expect(await options.request('session.signIn', { login: WORLD.user.username, password: 'not-the-password' })).toMatchObject({ ok: false, error: { code: 'CG-LOGIN-CREDENTIALS' } });
+    expect(await options.request('session.signIn', { login: WORLD.user.username, password: 'still-not-it' })).toMatchObject({ ok: false, error: { code: 'CG-LOGIN-CREDENTIALS' } });
+    const diagnostics = await options.request('diagnostics.get', {});
+    expect(diagnostics.ok && diagnostics.payload.counters['CG-LOGIN-CREDENTIALS']).toBe(2);
+    // The sign-in event is in the log all the same, with the code among its facts.
+    const file = await options.request('diagnostics.export', { format: 'json' });
+    const records = file.ok ? ((JSON.parse(file.payload.body) as { logs?: { recent?: Array<{ msg: string; code?: string; fields?: Record<string, unknown> }> } }).logs?.recent ?? []) : [];
+    const failed = records.filter((record) => record.msg === 'sign-in failed');
+    expect(failed).toHaveLength(2);
+    expect(failed.every((record) => record.code === undefined && record.fields?.['code'] === 'CG-LOGIN-CREDENTIALS')).toBe(true);
+  });
+});
+
 describe('an expired bootstrap (§8.3)', () => {
   /** The stored bootstrap of this sign-in, made `ms` older; the next instance of the event page finds it expired. */
   function ageBootstrap(w: World, ms: number): void {
