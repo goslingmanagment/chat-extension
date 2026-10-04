@@ -247,6 +247,43 @@ describe('chat navigation', () => {
     expect(w.targets()).toEqual([`${ACC}/2003`, `${ACC}/2003`]);
   });
 
+  it('[HK-037] a key\'s mark is spent by its own navigation whatever came of it: nothing to open, a router still moving, a refusal — the next click is a click', async () => {
+    const click: UiAction = { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(chat('2004')) } };
+    const causes = (w: ReturnType<typeof world>): string[] => w.host.calls.navigations.map((intent) => intent.cause.kind);
+    // The end of the list, the chat already open, an empty slot, no unread chat: nothing opened.
+    for (const nothing of [step('next'), slot(2), slot(9), NEXT_UNREAD]) {
+      const w = world({ chatList: [item('2005', 0, 'Jake Morrison'), item('2002', 1, 'Fan Two')] });
+      w.cause.mark('key');
+      expect(await w.go(nothing)).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+      await w.go(click);
+      expect(causes(w)).toEqual(['click']);
+    }
+    // A second key while the router still moves is not queued — and its mark is not left behind either.
+    const busy = world();
+    await busy.go(step('next'));
+    busy.cause.mark('key');
+    const first = busy.navigation.dispatch(step('next'));
+    busy.cause.mark('key');
+    const second = busy.navigation.dispatch(step('previous'));
+    await settle();
+    expect([(await first)?.ok, await second]).toEqual([true, { ok: true, type: 'Navigate', outcome: 'noop' }]);
+    await busy.go(click);
+    expect(causes(busy)).toEqual(['click', 'key', 'click']);
+    // Refused before anything is asked: the owner's switch, a broken list, no account on screen.
+    for (const refusing of [world({ ownerSwitch: false }), world({ snapshot: { contract: contractReport({ chatList: { state: 'off' } }) } })]) {
+      refusing.cause.mark('key');
+      expect((await refusing.go(step('next')))?.ok).toBe(false);
+      expect(refusing.cause.take()).toBe('click');
+    }
+    // A key that opens a chat by its handle (a digit under the quick jump) is a key; `open()` called directly is a click unless told.
+    const named = world();
+    named.cause.mark('key');
+    await named.go(click);
+    await named.navigation.open({ hostAccountId: ACC, platformFanId: '2003' });
+    await named.navigation.open({ hostAccountId: ACC, platformFanId: '2005' }, 'key');
+    expect(causes(named)).toEqual(['key', 'click', 'key']);
+  });
+
   it('[CS-006] a chat or an account is opened by its handle — only by ours; a foreign handle and a foreign surface are not this controller\'s', async () => {
     const w = world();
     w.overlays.set('palette', true);

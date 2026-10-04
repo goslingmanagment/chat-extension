@@ -84,8 +84,8 @@ export interface NavigationControllerDeps {
 }
 
 export interface NavigationController extends SurfaceController {
-  /** Opens a chat (or an account, `platformFanId: null`) through ChatSpace's router; for the palette and the quick jump. */
-  open(target: { readonly hostAccountId: string; readonly platformFanId: string | null }): Promise<ActionReceipt>;
+  /** Opens a chat (or an account, `platformFanId: null`) through ChatSpace's router; `cause` — a click unless said otherwise. */
+  open(target: { readonly hostAccountId: string; readonly platformFanId: string | null }, cause?: 'click' | 'key'): Promise<ActionReceipt>;
   /** The account whose chat list is on screen, or null. */
   currentAccountId(): string | null;
 }
@@ -115,7 +115,7 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     return host.listCachedChats(accountId, NAVIGATION_LIST_LIMIT);
   };
 
-  const open: NavigationController['open'] = async (target) => {
+  const open: NavigationController['open'] = async (target, cause = 'click') => {
     if (deps.ownerSwitch?.() === false) return fail('CG-FEATURE-DISABLED');
     const capability = host.current().contract.capabilities.navigate;
     if (capability.state === 'off' || capability.state === 'contractBroken') return fail('CG-HOST-CONTRACT');
@@ -127,7 +127,7 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
       if (!issued.ok) return fail(issued.error.code);
       const receipt = await host.navigate({
         intentId: deps.ids.uuid(),
-        cause: { kind: deps.cause?.take() ?? 'click', actionToken: issued.payload.actionToken },
+        cause: { kind: cause, actionToken: issued.payload.actionToken },
         target: { hostAccountId: target.hostAccountId, platformFanId: target.platformFanId },
       });
       if (receipt.state !== 'navigated') return fail(receipt.code);
@@ -142,7 +142,7 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     }
   };
 
-  const walk = async (to: Extract<NavigationTarget, { kind: 'chat-step' | 'next-unread' | 'chat-slot' }>): Promise<ActionReceipt> => {
+  const walk = async (to: Extract<NavigationTarget, { kind: 'chat-step' | 'next-unread' | 'chat-slot' }>, cause: 'click' | 'key'): Promise<ActionReceipt> => {
     if (deps.ownerSwitch?.() === false) return fail('CG-FEATURE-DISABLED');
     const snapshot = host.current();
     const accountId = currentAccountId();
@@ -158,20 +158,23 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
       return done('noop');
     }
     if (target.chat.platformFanId === here) return done('noop');
-    return open({ hostAccountId: target.chat.hostAccountId, platformFanId: target.chat.platformFanId });
+    return open({ hostAccountId: target.chat.hostAccountId, platformFanId: target.chat.platformFanId }, cause);
   };
 
   const dispatch = (action: UiAction): Promise<ActionReceipt> | null => {
     if (action.type !== 'Navigate') return null;
     const to = action.to;
-    if (to.kind === 'chat-step' || to.kind === 'next-unread' || to.kind === 'chat-slot') return walk(to);
+    // The key's mark belongs to this very dispatch. It is taken here, whatever comes of the navigation — nothing to
+    // open, a router still moving, a refusal — so it never rides on a later click.
+    const cause = deps.cause?.take() ?? 'click';
+    if (to.kind === 'chat-step' || to.kind === 'next-unread' || to.kind === 'chat-slot') return walk(to, cause);
     if (to.kind === 'chat') {
       const chat = parseChatHandle(to.targetHandle);
-      return chat === null ? null : open(chat);
+      return chat === null ? null : open(chat, cause);
     }
     if (to.kind === 'account') {
       const hostAccountId = parseAccountHandle(to.accountHandle);
-      return hostAccountId === null ? null : open({ hostAccountId, platformFanId: null });
+      return hostAccountId === null ? null : open({ hostAccountId, platformFanId: null }, cause);
     }
     if (to.kind === 'surface' && OWN_SURFACES.includes(to.surface)) {
       const was = overlays.isOpen(to.surface);
