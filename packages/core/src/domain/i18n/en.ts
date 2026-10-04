@@ -480,6 +480,7 @@ export const EN: I18nCatalog<'en'> = {
   'fanPanel.sub': '{handle}, seen {age} ago',
   'fanPanel.spent': 'Spent in total',
   'fanPanel.spentIn': '{moneyIn} in 30 days',
+  'fanPanel.spentNone': 'no spend',
   'fanPanel.byKind.messages': 'Messages',
   'fanPanel.byKind.tips': 'Tips',
   'fanPanel.byKind.subscription': 'Subscription',

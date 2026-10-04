@@ -103,7 +103,7 @@ export const UI_TEXT_KEYS = [
   'newcomers.filter.claimed', 'newcomers.filter.sending', 'newcomers.filter.stopped', 'newcomers.filter.greeted', 'newcomers.claim.renew',
   'newcomers.claim.release', 'newcomers.claim.elsewhere', 'newcomers.claim.mine', 'newcomers.incomplete', 'newcomers.incomplete.body', 'newcomers.draft', 'newcomers.draftStale',
   'newcomers.scanProgress', 'newcomers.window.label', 'newcomers.greetingDraft.placeholder', 'newcomers.greetingDraft.aria',
-  'fanPanel.label', 'fanPanel.tab.fan', 'fanPanel.tab.recap', 'fanPanel.sub', 'fanPanel.spent', 'fanPanel.spentIn', 'fanPanel.byKind.messages',
+  'fanPanel.label', 'fanPanel.tab.fan', 'fanPanel.tab.recap', 'fanPanel.sub', 'fanPanel.spent', 'fanPanel.spentIn', 'fanPanel.spentNone', 'fanPanel.byKind.messages',
   'fanPanel.byKind.tips', 'fanPanel.byKind.subscription', 'fanPanel.subscription', 'fanPanel.subscribed', 'fanPanel.autoRenew',
   'fanPanel.autoRenew.on', 'fanPanel.autoRenew.off', 'fanPanel.churn', 'fanPanel.bio', 'fanPanel.lists', 'fanPanel.recap.made', 'fanPanel.recap.hub',
   'fanPanel.recap.hubSaved', 'fanPanel.recap.archive', 'fanPanel.recap.archiveComplete', 'fanPanel.recap.refresh', 'fanPanel.empty.title',

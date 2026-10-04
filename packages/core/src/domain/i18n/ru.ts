@@ -508,6 +508,7 @@ export const RU: I18nCatalog<'ru'> = {
   'fanPanel.sub': '{handle}, был {age} назад',
   'fanPanel.spent': 'Потратил всего',
   'fanPanel.spentIn': '{moneyIn} за 30 дней',
+  'fanPanel.spentNone': 'трат нет',
   'fanPanel.byKind.messages': 'Сообщения',
   'fanPanel.byKind.tips': 'Чаевые',
   'fanPanel.byKind.subscription': 'Подписка',
