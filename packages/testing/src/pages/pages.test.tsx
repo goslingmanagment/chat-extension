@@ -8,8 +8,8 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS, SCHEME_ATTRIBUTE, SETTINGS_SECTIONS, type Unmount } from '@cg/contracts';
-import { AUTOSAVE_DEBOUNCE_MS } from '@cg/core/application/pages';
-import { mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
+import { AUTOSAVE_DEBOUNCE_MS, SCHEME_ACTIONS } from '@cg/core/application/pages';
+import { JOURNAL_PAGE_SIZE, JOURNAL_REFRESH_MS, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
 
 import { PAGES_NOW, pagesWorld, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
 
@@ -144,12 +144,23 @@ describe('popup (ui-design §4.23)', () => {
     expect(page.world.browser.record.opened).toEqual([{ page: 'options', hash: 'account:CG-AUTH-REQUIRED' }]);
   });
 
+  it('[PU-002] the sign-in state could not be read: the error with its code and «Повторить», not «Войдите»', async () => {
+    const page = await mount('popup', { before: (world) => world.background.failNext('session.get', { code: 'CG-TIMEOUT' }) });
+    expect(page.$('[data-cg-code="CG-TIMEOUT"]')).not.toBeNull();
+    expect(page.$('[data-cg-code="CG-AUTH-REQUIRED"]')).toBeNull();
+    expect(page.$$('button').map((node) => (node.textContent ?? '').trim())).not.toContain('Войти');
+    await flush(() => button(page, 'Повторить').click());
+    expect(page.$$('.pg-pill')).toHaveLength(2);
+    expect(page.text()).toContain('chatter1');
+  });
+
   it('[PU-007] a click on the account number copies it', async () => {
     const page = await mount('popup');
     await flush(() => button(page, 'OnlyMonster 1001').click());
     expect(page.world.browser.record.clipboard).toEqual(['1001']);
     expect(page.$('.cg-toast')?.textContent).toContain('Номер скопирован');
   });
+
 
   it('[PU-012] the popup takes its theme from the settings', async () => {
     const state = workingState();
@@ -267,6 +278,35 @@ describe('options: the shell (ui-design §4.24)', () => {
     expect(hints?.getAttribute('aria-disabled')).toBe('true');
     await flush(() => hints?.click());
     expect(page.world.background.requests('settings.patch')).toEqual([]);
+
+    // The volume: a drag is put back and nothing is written.
+    const volume = page.$<HTMLInputElement>('input[type="range"]');
+    expect(volume?.getAttribute('aria-disabled')).toBe('true');
+    const stored = String(state.settings.sound.volume);
+    await flush(() => type(volume as HTMLElement, '35'));
+    await flush(() => volume?.dispatchEvent(new Event('change', { bubbles: true })));
+    expect(volume?.value).toBe(stored);
+    expect(page.$('.pg-range__v')?.textContent).toBe(stored);
+
+    // The numbers: the buttons, a typed value with Enter and with a blur — nothing is written.
+    await flush(() => page.world.browser.go('#generation'));
+    const input = page.$<HTMLInputElement>('input[aria-label="Reply и Coach"]');
+    expect(input?.readOnly).toBe(true);
+    for (const stepButton of input?.closest('.pg-step')?.querySelectorAll('button') ?? []) await flush(() => stepButton.click());
+    await flush(() => type(input as HTMLElement, '60'));
+    await flush(() => input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await flush(() => type(input as HTMLElement, '70'));
+    await flush(() => input?.dispatchEvent(new FocusEvent('blur')));
+    await flush(() => input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS * 2);
+      await settle();
+    });
+    expect(input?.value).toBe('100');
+    expect(page.$('.pg-chip')).toBeNull();
+    expect(page.world.background.requests('settings.patch')).toEqual([]);
+    expect(page.world.background.requests('settings.patchRestricted')).toEqual([]);
+    expect(page.world.state.revision).toBe(7);
   });
 
   it('[ST-017] settings that cannot be read: an error card with «Повторить», no section with made-up values', async () => {
@@ -286,6 +326,31 @@ describe('options: the shell (ui-design §4.24)', () => {
     await flush(() => button(page, 'Скрыть навсегда').click());
     expect(page.$('.pg-check')).toBeNull();
     expect(page.world.state.settings.onboarding.checklistDismissed).toBe(true);
+  });
+
+  it('[ST-012] the first run starts on the sign-in screen: the checklist stands there with what is to do before the sign-in', async () => {
+    const state = signedOutState();
+    state.diagnostics = { ...state.diagnostics, telemetry: { ...state.diagnostics.telemetry, consent: false } };
+    const page = await mount('options', { state, before: (world) => world.browser.granted.clear() });
+    expect(page.$('[data-pg-gate]')).not.toBeNull();
+    expect(page.$$('.pg-check__item')).toHaveLength(8);
+    const todo = (id: string): HTMLElement | null => page.$(`.pg-check__item[data-pg-step="${id}"]`);
+    expect(todo('install')?.classList.contains('is-done')).toBe(true);
+    for (const id of ['host-permission', 'sign-in', 'consent']) expect(todo(id)?.classList.contains('is-done'), id).toBe(false);
+    // «Дать права на хосты» and the consent are asked from here, inside the click.
+    await flush(() => todo('host-permission')?.querySelector('button')?.click());
+    await flush(() => todo('host-permission')?.querySelector('button')?.click());
+    expect(page.world.browser.record.permissionRequests).toEqual(['https://chatspace.example.test', DEFAULT_SETTINGS.hub.baseUrl]);
+    expect(todo('host-permission')?.classList.contains('is-done')).toBe(true);
+    await flush(() => todo('consent')?.querySelector('button')?.click());
+    expect(page.world.browser.record.consentRequests).toBe(1);
+    expect(todo('consent')?.classList.contains('is-done')).toBe(true);
+    // «Войти в хаб» points at the form on this screen.
+    await flush(() => todo('sign-in')?.querySelector('button')?.click());
+    expect(page.$('[data-pg-anchor="sign-in"]')?.classList.contains('is-target')).toBe(true);
+    expect(page.$('[data-pg-anchor="sign-in"] form')).not.toBeNull();
+    // A step that needs the sign-in has nothing to press yet.
+    expect(todo('persona')?.querySelector('button')).toBeNull();
   });
 
   it('[ST-005] the footer: the version, «Что нового» with «нов.», «История версий»', async () => {
@@ -363,8 +428,73 @@ describe('options: the sign-in screen and «Аккаунт» (§8.2)', () => {
     expect(page.$('form input[type="password"]')).not.toBeNull();
     await flush(() => button(page, 'Выйти…').click());
     expect(page.$('[role="alertdialog"]')).not.toBeNull();
+    // «Отмена» is a no: nothing is sent and the person stays signed in.
+    await flush(() => button(page, 'Отмена').click());
+    expect(page.world.background.requests('session.signOut')).toEqual([]);
+    expect(page.world.state.session?.login).toBe('chatter1');
+    expect(page.$('.pg-nav')).not.toBeNull();
+    await flush(() => button(page, 'Выйти…').click());
     await flush(() => page.$<HTMLElement>('.cg-confirm-dlg__go')?.click());
+    expect(page.world.background.requests('session.signOut')).toHaveLength(1);
     expect(page.$('h1')?.textContent).toBe('Вход в ChatGoose');
+  });
+
+  it('[ST-046] [AU-009] a second submit while the sign-in is on its way sends nothing', async () => {
+    const page = await mount('options', { state: signedOutState() });
+    const release = page.world.background.hold('session.signIn');
+    const [login, password] = page.$$('form input');
+    await flush(() => type(login as HTMLElement, 'chatter1'));
+    await flush(() => type(password as HTMLElement, 'synthetic-pass'));
+    await flush(() => {
+      button(page, 'Войти').click();
+      password?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    await flush(() => page.$<HTMLFormElement>('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(page.world.background.requests('session.signIn')).toHaveLength(1);
+    // The button says the sign-in is on its way; a password typed meanwhile is not taken by a click or by Enter.
+    expect(button(page, 'Входим…').getAttribute('aria-busy')).toBe('true');
+    await flush(() => type(page.$$('form input')[1] as HTMLElement, 'typed-meanwhile'));
+    await flush(() => button(page, 'Входим…').click());
+    await flush(() => page.$$('form input')[1]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(page.$$<HTMLInputElement>('form input')[1]?.value).toBe('typed-meanwhile');
+    expect(page.world.background.requests('session.signIn')).toHaveLength(1);
+    await flush(release);
+    expect(page.world.background.requests('session.signIn')).toHaveLength(1);
+    expect(page.$('.pg-nav')).not.toBeNull();
+  });
+
+  it('[ST-042] an address that was not saved: the field shows the stored one and the form says why', async () => {
+    const page = await mount('options', { state: signedOutState() });
+    page.world.background.failNext('settings.patchRestricted', { code: 'CG-STORAGE-WRITE' });
+    const address = page.$<HTMLInputElement>('input[aria-label="Адрес хаба"]');
+    await flush(() => type(address as HTMLElement, 'hub.custom.example.test'));
+    await flush(() => address?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(page.world.background.requests('settings.patchRestricted')).toHaveLength(1);
+    // The address the sign-in would go to is the one on screen.
+    expect(address?.value).toBe(DEFAULT_SETTINGS.hub.baseUrl);
+    expect(page.$('form [data-cg-code="CG-STORAGE-WRITE"]')).not.toBeNull();
+    expect(page.world.state.settings.hub.baseUrl).toBe(DEFAULT_SETTINGS.hub.baseUrl);
+  });
+
+  it('[ST-043] host access the browser has not answered about is «неизвестно», with the way to ask', async () => {
+    const page = await mount('options', { hash: '#account', before: (world) => (world.browser.permissionsFail = true) });
+    const access = page.$('[data-pg-anchor="hub-access"] [data-pg-access]');
+    expect(access?.getAttribute('data-pg-access')).toBe('unknown');
+    expect(access?.textContent).toContain('неизвестно');
+    expect(access?.textContent).not.toContain('разрешён');
+    page.world.browser.permissionsFail = false;
+    await flush(() => access?.querySelector('button')?.click());
+    expect(page.$('[data-pg-anchor="hub-access"] [data-pg-access]')?.getAttribute('data-pg-access')).toBe('granted');
+  });
+
+  it('[ST-042] [PU-002] a sign-in state that could not be read: an error card with «Повторить», no sign-in screen', async () => {
+    const page = await mount('options', { before: (world) => world.background.failNext('session.get', { code: 'CG-STORAGE-READ' }) });
+    expect(page.$('[data-pg-gate]')).toBeNull();
+    expect(page.$('form')).toBeNull();
+    expect(page.$('input[aria-label="Адрес хаба"]')).toBeNull();
+    expect(page.$('[data-cg-code="CG-STORAGE-READ"]')).not.toBeNull();
+    await flush(() => button(page, 'Повторить').click());
+    expect(page.$('[data-pg-section="status"]')?.textContent).toContain('Готово к смене');
   });
 });
 
@@ -381,12 +511,16 @@ describe('options: the sections', () => {
     await flush(() => type(input as HTMLElement, '900'));
     await flush(() => input?.dispatchEvent(new FocusEvent('blur')));
     expect(input?.value).toBe('200');
-    expect(page.$('.pg-chip')?.textContent).toBe('сохранено как 200');
+    // Brought into range, on its way: «сохранено как 200» is not said before the background confirmed it.
+    expect(page.$('.pg-chip')).toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
       await settle();
     });
+    await flush();
     expect(page.world.state.settings.generation.windows.quick).toBe(200);
+    expect(page.$('.pg-chip')?.textContent).toBe('сохранено как 200');
+    expect(page.$('.pg-chip')?.getAttribute('data-pg-chip')).toBe('saved');
 
     // The stepper buttons move by the step and stop at the edge.
     const more = page.$$('.pg-step')[0]?.querySelectorAll('button')[1];
@@ -408,11 +542,68 @@ describe('options: the sections', () => {
     expect(page.$('.pg-chip')?.textContent).toBe('сохранено как 1500');
   });
 
-  it('[ST-120] [ST-121] the hotkey reference: the scheme, the rows outside it, the platform', async () => {
+  it('[ST-093] a deep window stored above the hub limit is shown as it is stored, with what the hub takes; nothing is rewritten by itself', async () => {
+    const state = workingState();
+    state.bootstrap = { ...state.bootstrap, limits: { ...state.bootstrap.limits, deepMax: 1500 } };
+    const page = await mount('options', { state, hash: '#generation' });
+    const input = page.$<HTMLInputElement>('input[aria-label="Review и полный Recap"]');
+    // 3000 is what the settings hold: the field says 3000, not a clipped 1500 that is stored nowhere.
+    expect(input?.value).toBe('3000');
+    expect(page.$('[data-pg-deep="over"]')?.textContent).toBe('В настройках 3000, но хаб возьмёт не больше 1500. Измените число, чтобы сохранить новое.');
+    expect(page.$('.pg-chip')).toBeNull();
+    expect(page.world.background.requests('settings.patch')).toEqual([]);
+    const [less, more] = [...(input?.closest('.pg-step')?.querySelectorAll('button') ?? [])];
+    expect(more?.getAttribute('aria-disabled')).toBe('true');
+    await flush(() => more?.click());
+    expect(page.world.background.requests('settings.patch')).toEqual([]);
+    // The person steps down: the limit is saved, by that click.
+    await flush(() => less?.click());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+      await settle();
+    });
+    await flush();
+    expect(page.world.state.settings.generation.windows.deep).toBe(1500);
+    expect(input?.value).toBe('1500');
+    expect(page.$('[data-pg-deep="clipped"]')?.textContent).toContain('Хаб принимает не больше 1500 сообщений');
+  });
+
+  it('[ST-014] [ST-094] a number that was brought into range and not saved says «Не сохранено», never «сохранено как N»', async () => {
+    const page = await mount('options', { hash: '#generation' });
+    page.world.background.failNext('settings.patch', { code: 'CG-STORAGE-WRITE' });
+    const input = page.$<HTMLInputElement>('input[aria-label="Reply и Coach"]');
+    await flush(() => type(input as HTMLElement, '900'));
+    await flush(() => input?.dispatchEvent(new FocusEvent('blur')));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_DEBOUNCE_MS);
+      await settle();
+    });
+    await flush();
+    expect(page.world.state.settings.generation.windows.quick).toBe(100);
+    expect(page.$('.pg-chip')?.getAttribute('data-pg-chip')).toBe('failed');
+    expect(page.$('.pg-chip')?.textContent).toBe('Не сохранено');
+    expect(page.text()).not.toContain('сохранено как');
+  });
+
+  it('[ST-120] [ST-121] the hotkey reference: the scheme in the four groups of the cheatsheet, the rows outside it, the platform', async () => {
     const page = await mount('options', { hash: '#hotkeys' });
     expect(page.text()).toContain('Подписи для macOS');
     const scheme = page.$$('table')[0];
     const outside = page.$$('table')[1];
+    // ST-120 «4 группы»: each with its heading row and its actions, in the order of use.
+    const groups = [...(scheme?.querySelectorAll('tbody[data-pg-hotkeys]') ?? [])].map((group) => [
+      group.getAttribute('data-pg-hotkeys'),
+      group.querySelector('th[scope="rowgroup"]')?.textContent,
+      [...group.querySelectorAll('[data-pg-hotkey]')].map((entry) => entry.getAttribute('data-pg-hotkey')),
+    ]);
+    expect(groups).toEqual([
+      ['ai', 'AI в открытом чате', ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach']],
+      ['before', 'Перед генерацией', ['tone', 'split']],
+      ['result', 'Результат', ['cancel']],
+      ['windows', 'Окна', ['spenders', 'help']],
+    ]);
+    // Every action of the vendored scheme stands in exactly one group.
+    expect(scheme?.querySelectorAll('[data-pg-hotkey]')).toHaveLength(SCHEME_ACTIONS.length);
     expect(scheme?.querySelector('[data-pg-hotkey="reply"] kbd')?.textContent).toBe('⌘E');
     expect(scheme?.querySelector('[data-pg-hotkey="help"]')?.textContent).toContain('пока убран');
     expect(outside?.querySelector('[data-pg-hotkey="insert-part"] kbd')?.textContent).toBe('↵');
@@ -420,6 +611,10 @@ describe('options: the sections', () => {
     // A combination the browser keeps is never printed as a working one.
     expect(outside?.querySelector('[data-pg-hotkey="settings"]')?.textContent).not.toContain('⌘,');
     expect(page.$('[data-pg-hotkey="send"]')).toBeNull();
+    // Every action is named as a sentence: no row starts with a small letter.
+    const names = page.$$('[data-pg-hotkey] td:first-child').map((cell) => cell.textContent ?? '');
+    expect(names.filter((name) => name === '' || name[0] !== name[0]?.toUpperCase())).toEqual([]);
+    expect(outside?.querySelector('[data-pg-hotkey="variant-step"] td')?.textContent).toBe('Другой вариант');
   });
 
   it('[ST-122] [ST-123] [ST-135] theme, «Система сейчас — …», the language on the fly', async () => {
@@ -510,6 +705,24 @@ describe('options: the sections', () => {
     expect(page.text()).toContain('Кэши: 0 КБ');
   });
 
+  it('[ER-012] the same failure said twice is one toast; a failure with another code is another toast', async () => {
+    const page = await mount('options', { hash: '#diagnostics' });
+    const codes = (): (string | null)[] => page.$$('.cg-toast').map((toast) => toast.querySelector('[data-cg-code]')?.getAttribute('data-cg-code') ?? toast.getAttribute('data-cg-code'));
+    page.world.browser.clipboardFails = true;
+    await flush(() => button(page, 'Скопировать отчёт для тимлида').click());
+    await flush(() => button(page, 'Скопировать отчёт для тимлида').click());
+    await flush(() => button(page, 'Скопировать отчёт для тимлида').click());
+    expect(page.$$('.cg-toast')).toHaveLength(1);
+    expect(page.$('.cg-toast')?.textContent).toContain('CG-CLIPBOARD');
+    // A different failure stands next to it and replaces only itself.
+    page.world.background.failNext('diagnostics.export', { code: 'CG-TIMEOUT' }, 2);
+    await flush(() => button(page, 'Выгрузить диагностику').click());
+    await flush(() => button(page, 'Выгрузить диагностику').click());
+    expect(page.$$('.cg-toast')).toHaveLength(2);
+    expect(page.$$('.cg-toast').map((toast) => (toast.textContent ?? '').includes('CG-TIMEOUT'))).toEqual([true, false]);
+    expect(codes()).toHaveLength(2);
+  });
+
   it('[LG-025] [ST-036] «Выгрузить диагностику» and «Скопировать отчёт» say what they did', async () => {
     const page = await mount('options', { hash: '#diagnostics' });
     await flush(() => button(page, 'Выгрузить диагностику').click());
@@ -574,6 +787,16 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     const signIn = await mount('options', { state: signedOutState() });
     const help = signIn.$$<HTMLAnchorElement>('a').find((link) => link.textContent === 'Нужна помощь со входом');
     expect(help?.getAttribute('href')).toBe('https://ext.example.test/chat-extension/start.html');
+  });
+
+  it('[ST-049] a hub address that is not https never becomes a link', async () => {
+    const state = workingState();
+    state.settings = { ...state.settings, hub: { baseUrl: 'http://hub.example.test' } };
+    state.session = state.session === null ? null : { ...state.session, hubOrigin: 'http://hub.example.test' };
+    const page = await mount('options', { state, hash: '#account' });
+    expect(page.$('[data-pg-anchor="hub-address"]')?.textContent).toContain('http://hub.example.test');
+    expect(page.$$<HTMLAnchorElement>('main a').filter((link) => (link.getAttribute('href') ?? '').includes('hub.example.test'))).toEqual([]);
+    expect(page.text()).not.toContain('hub.example.test/account');
   });
 
   it('[ST-063] [ST-064] [ST-065] «Персоны»: when the catalog was read, «Проверить связь и обновить», «К аккаунтам →», and an honest empty catalog', async () => {
@@ -696,6 +919,128 @@ describe('debug pages (§9.3)', () => {
     expect(off.$('[data-pg-prompt="debug-off"]')?.textContent).toContain('Режим отладки выключен');
     await flush(() => button(off, 'Настройки').click());
     expect(off.world.browser.record.opened).toEqual([{ page: 'options', hash: 'generation' }]);
+  });
+
+  it('[DB-007] debug switched off, or a sign-out: the prompt leaves the page at once, and so does «Копировать промпт»', async () => {
+    const page = await mount('debug-prompt', { state: debugOn(), token: 'prompt-token-1' });
+    expect(page.$$('pre').length).toBeGreaterThan(0);
+    await flush(() => page.world.background.changeSettings({ debug: { enabled: false } }));
+    expect(page.$('pre')).toBeNull();
+    expect(page.$('.pg-block')).toBeNull();
+    expect(page.root.textContent).not.toContain('synthetic system block');
+    expect(page.$$('button').map((node) => (node.textContent ?? '').trim())).not.toContain('Копировать промпт');
+    expect(page.$('[data-pg-prompt="debug-off"]')?.textContent).toContain('Режим отладки выключен');
+    expect(page.world.browser.record.clipboard).toEqual([]);
+    close(page);
+
+    const out = await mount('debug-prompt', { state: debugOn(), token: 'prompt-token-1' });
+    expect(out.$$('pre').length).toBeGreaterThan(0);
+    await flush(() => out.world.background.setSession(null, 'sign-out'));
+    expect(out.$('pre')).toBeNull();
+    expect(out.root.textContent).not.toContain('synthetic system block');
+    expect(out.$('[data-pg-prompt="signed-out"]')?.getAttribute('data-cg-code')).toBe('CG-AUTH-REQUIRED');
+    await flush(() => button(out, 'Войти').click());
+    expect(out.world.browser.record.opened).toEqual([{ page: 'options', hash: 'account:CG-AUTH-REQUIRED' }]);
+  });
+
+  it('[NF-029] the journal page: filters by level and scope, pages of records, and the count of what matches', async () => {
+    const state = debugOn();
+    const base = state.journals.operations?.records[0];
+    if (base === undefined) throw new Error('the working state has an operations journal');
+    const total = JOURNAL_PAGE_SIZE * 2 + 5;
+    state.journals.operations = {
+      truncated: false,
+      runs: null,
+      records: Array.from({ length: total }, (_, index) => ({ ...base, seq: index + 1, level: index % 10 === 0 ? 'warn' : 'info', scope: index % 2 === 0 ? 'bg.ops' : 'bg.hub', msg: `record ${String(index + 1)}` })),
+    };
+    const page = await mount('debug-journal', { state });
+    const rows = (): number => page.$$('.pg-journal tbody tr').length;
+    const pager = (): string => page.$('[data-pg-journal="pager"] [role="status"]')?.textContent ?? '';
+    expect(rows()).toBe(JOURNAL_PAGE_SIZE);
+    expect(pager()).toBe('Страница 1 из 3');
+    expect(button(page, 'Назад').getAttribute('aria-disabled')).toBe('true');
+    await flush(() => button(page, 'Вперёд').click());
+    await flush(() => button(page, 'Вперёд').click());
+    expect(pager()).toBe('Страница 3 из 3');
+    expect(rows()).toBe(5);
+    expect(button(page, 'Вперёд').getAttribute('aria-disabled')).toBe('true');
+
+    // A filter starts from the first page and says how many records match.
+    const choose = async (label: 'Уровень' | 'Область', option: string): Promise<void> => {
+      // The two pickers of the filter row, in the order they stand: the level, then the scope.
+      const trigger = page.$$('[data-pg-journal="filters"] button[aria-haspopup="menu"]')[label === 'Уровень' ? 0 : 1];
+      await flush(() => trigger?.click());
+      const item = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((node) => (node.textContent ?? '').trim() === option);
+      if (item === undefined) throw new Error(`no «${option}» in the «${label}» filter`);
+      await flush(() => item.click());
+    };
+    await choose('Уровень', 'warn');
+    expect(pager()).toBe('');
+    expect(rows()).toBe(Math.ceil(total / 10));
+    expect(page.$$('.pg-journal tbody tr').every((entry) => entry.classList.contains('is-warn'))).toBe(true);
+    expect(page.text()).toContain(`Записей: ${String(Math.ceil(total / 10))} из ${String(total)}`);
+    await choose('Область', 'bg.hub');
+    // Every tenth record is a warning and has an even index: none of them is in bg.hub.
+    expect(rows()).toBe(0);
+    expect(page.text()).toContain('Под фильтр не попала ни одна запись.');
+    await choose('Уровень', 'все');
+    expect(pager()).toBe('Страница 1 из 2');
+    expect(page.$$('.pg-journal tbody tr td:nth-child(3)').every((cell) => cell.textContent === 'bg.hub')).toBe(true);
+    // «Копировать» and «Сохранить .txt» take the journal as it was read, not the filtered page.
+    await flush(() => button(page, 'Сохранить .txt').click());
+    expect(page.world.browser.record.downloads[0]?.body.split('\n')).toHaveLength(total);
+  });
+
+  it('[NF-029] the journal page reads itself again while it is on screen; the switch stops that, and so does debug off', async () => {
+    const page = await mount('debug-journal', { state: debugOn() });
+    const reads = (): number => page.world.background.requests('journal.read').length;
+    const tick = async (): Promise<void> => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(JOURNAL_REFRESH_MS);
+        await settle();
+      });
+      await flush();
+    };
+    expect(reads()).toBe(1);
+    expect(page.$$('.pg-journal tbody tr')).toHaveLength(2);
+    const record = page.world.state.journals.operations?.records[0];
+    if (record !== undefined && page.world.state.journals.operations !== undefined) {
+      page.world.state.journals.operations = { ...page.world.state.journals.operations, records: [...page.world.state.journals.operations.records, { ...record, seq: 43, msg: 'operation started' }] };
+    }
+    await tick();
+    expect(reads()).toBe(2);
+    expect(page.$$('.pg-journal tbody tr')).toHaveLength(3);
+
+    const auto = page.$$('[role="checkbox"]').find((node) => (node.textContent ?? '').includes('Обновлять автоматически'));
+    expect(auto?.getAttribute('aria-checked')).toBe('true');
+    await flush(() => auto?.click());
+    await tick();
+    await tick();
+    expect(reads()).toBe(2);
+    // «Обновить» is still there for a read by hand.
+    await flush(() => button(page, 'Обновить').click());
+    expect(reads()).toBe(3);
+
+    await flush(() => auto?.click());
+    await flush(() => page.world.background.changeSettings({ debug: { enabled: false } }));
+    expect(page.$('[data-pg-journal="debug-off"]')).not.toBeNull();
+    expect(page.$('.pg-journal')).toBeNull();
+    // A page that shows no records asks nothing by itself — not even whether debug is back on.
+    const calls = page.world.background.calls.length;
+    await tick();
+    await tick();
+    expect(reads()).toBe(3);
+    expect(page.world.background.calls).toHaveLength(calls);
+  });
+
+  it('[NF-029] after a sign-out the journal page shows no record of the last sign-in', async () => {
+    const page = await mount('debug-journal', { state: debugOn() });
+    expect(page.$$('.pg-journal tbody tr')).toHaveLength(2);
+    await flush(() => page.world.background.setSession(null, 'sign-out'));
+    expect(page.$('.pg-journal')).toBeNull();
+    expect(page.$('[data-pg-journal="signed-out"]')?.getAttribute('data-cg-code')).toBe('CG-AUTH-REQUIRED');
+    expect(page.$$('button').map((node) => (node.textContent ?? '').trim())).not.toContain('Копировать');
+    expect(button(page, 'Сохранить .txt').getAttribute('aria-disabled')).toBe('true');
   });
 
   it('[NF-029] the journal page: one journal per tab, service records only, «Копировать» and «Сохранить .txt»', async () => {
