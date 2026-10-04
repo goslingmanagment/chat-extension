@@ -163,8 +163,11 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null } =
   };
 }
 
-/** Waits (real time) until `check` holds; the composition runs on real timers, IndexedDB and storage latency. */
-export async function until(check: () => boolean | Promise<boolean>, message: string, timeoutMs = 3000): Promise<void> {
+/**
+ * Waits (real time) until `check` holds; the composition runs on real timers, IndexedDB and storage latency.
+ * The limit is generous on purpose: it is reached only by a failure, and a loaded machine must not make one.
+ */
+export async function until(check: () => boolean | Promise<boolean>, message: string, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     if (await check()) return;

@@ -208,7 +208,7 @@ describe('[BG-003] the keepalive', () => {
     world.fake.background()?.events.onConnect.addListener((port) => port.onMessage.addListener(() => void (fromTab += 1)));
     const focus = vi.spyOn(ChatExtensionHub.prototype, 'notifyFocus');
     world.tabRuntime({ keepaliveMs: 40 });
-    await until(() => fromTab >= 6, 'the tab keeps sending', 3000);
+    await until(() => fromTab >= 6, 'the tab keeps sending');
     expect(world.fake.background()).toBe(background);
     expect(world.starts()).toBe(1);
     const diagnostics = await page.request('diagnostics.get', {});
