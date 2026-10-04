@@ -3,7 +3,9 @@
 // `dock` view model and nothing else. Outside an open chat there is no dock
 // (UI-012). The sheet's height limit is `--cg-cap` from MountPort's geometry
 // (ui-design §3.2); «Вид ответа» switches the sheet between printed on the
-// feed (`bare`) and a sheet with a frame (§7).
+// feed (`bare`) and a sheet with a frame (§7). In the document the strip
+// precedes the sheet, which is the order of Tab and of reading (§6.3); on
+// screen the sheet stands above it.
 
 import { type JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
@@ -53,8 +55,10 @@ export function DockView({ parts }: DockViewProps): JSX.Element | null {
   return (
     <Hints value={vm.hints}>
       <div class={`cg-dock cg-dock--${vm.resultStyle}${vm.resultStyle === 'bare' ? ' cg-bare' : ''}`} style={cap.style} data-cg-dock={vm.status} data-cg-mode={vm.mode}>
-        <Sheet vm={vm} view={view} parts={all} refusalHidden={hidden !== null && hidden === refusal} onHideRefusal={() => setHidden(refusal)} />
+        {/* The strip comes first in the document and stands under the sheet on screen (column-reverse):
+            Tab goes strip → head buttons → parts → footer buttons (ui-design §6.3). */}
         <Strip vm={vm} onRefused={() => setHidden(null)} />
+        <Sheet vm={vm} view={view} parts={all} refusalHidden={hidden !== null && hidden === refusal} onHideRefusal={() => setHidden(refusal)} />
       </div>
     </Hints>
   );

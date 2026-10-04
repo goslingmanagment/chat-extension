@@ -19,7 +19,8 @@ import { dark, type StyleSource } from '../kit';
 const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;';
 
 export const DOCK_CSS = `
-.cg-dock { position: relative; display: flex; flex-direction: column; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
+/* The strip is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. */
+.cg-dock { position: relative; display: flex; flex-direction: column-reverse; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
 
 /* ── the strip: one line of words ── */
 .cg-strip { display: flex; align-items: center; height: 34px; min-width: 0; }

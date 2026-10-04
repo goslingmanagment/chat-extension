@@ -7,7 +7,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
-import { DEFAULT_PARTS, preloadPart, useSteadyView } from '@cg/ui/dock';
+import { DEFAULT_PARTS, DOCK_CSS, preloadPart, useSteadyView } from '@cg/ui/dock';
+import { tabbables } from '@cg/ui/kit';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
@@ -53,7 +54,9 @@ describe('the collapsed dock and the sheet', () => {
     const section = sheet();
     expect(section.tagName).toBe('SECTION');
     expect(section.getAttribute('aria-label')).toBe('Результат ChatGoose');
-    expect(section.nextElementSibling?.classList.contains('cg-strip')).toBe(true);
+    // On screen the sheet stands above the strip; in the document the strip comes first (the order of Tab).
+    expect(section.previousElementSibling?.classList.contains('cg-strip')).toBe(true);
+    expect(DOCK_CSS).toContain('.cg-dock { position: relative; display: flex; flex-direction: column-reverse;');
     expect(text(kit.$('.cg-head__title'))).toBe('Reply');
     expect(kit.$$('.cg-head__meta').map(text)).toEqual(['3 части']);
     expect(text(kit.$('[data-cg-draft]'))).toBe('черновик · не отправлено');
@@ -93,6 +96,26 @@ describe('the collapsed dock and the sheet', () => {
 });
 
 describe('parts', () => {
+  it('Tab goes strip → head buttons → parts → footer buttons (ui-design §6.3)', () => {
+    kit = mountDock(withResult(reply(), { keysFooter: true }));
+    const order = tabbables(kit.root);
+    const at = (element: Element | null | undefined): number => order.indexOf(element as HTMLElement);
+    const strip = kit.$$('.cg-strip .cg-act');
+    const rows = partRows();
+    // The strip is one stop, and the first one.
+    expect(order.filter((element) => strip.includes(element))).toEqual([strip[0]]);
+    expect(at(strip[0])).toBe(0);
+    // Then the head: «Ещё раз», «Скрыть».
+    expect([at(kit.$('.cg-again')), at(kit.$('.cg-hide'))]).toEqual([1, 2]);
+    // Then the parts: one stop for the rows — the next part — before its own buttons.
+    expect(order.filter((element) => rows.includes(element))).toEqual([rows[0]]);
+    expect(at(rows[0])).toBe(3);
+    expect(at(rows[0]?.querySelector('.cg-ins'))).toBeGreaterThan(at(rows[0]));
+    // The footer's «Скрыть» is the last stop.
+    expect(at(kit.$('.cg-keys__hide'))).toBe(order.length - 1);
+    expect(at(kit.$('.cg-keys__hide'))).toBeGreaterThan(at(rows[2]?.querySelector('.cg-part__copy')));
+  });
+
   it('[UI-018] each part has its number, its text and a Copy icon; «Вставить ↵» stands on the next part only', () => {
     kit = mountDock(withResult(reply()));
     const rows = partRows();
