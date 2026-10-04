@@ -7,7 +7,7 @@
 // the bundler puts them in. They also keep zod (which the contracts' schema
 // modules build at load) out of every surface.
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,44 +22,19 @@ const KIB = 1024;
 const LAZY_CHUNK = 30 * KIB;
 
 /**
- * What the docked strip and the result sheet use from the kit — the list of
- * src/kit/size.test.ts (R13), which guards the kit's share of the first dock
- * chunk. A surface is charged for everything outside it.
+ * What the docked strip and the result sheet use from the kit: the
+ * DOCK_IMPORTS of ../kit/size.test.ts (R13), which guards the kit's share of
+ * the first dock chunk. It is read from that file's source, so there is one
+ * list and no copy to keep in step (a test file is not imported: that would
+ * run its tests here). A surface is charged for everything outside it.
  */
-const DOCK_IMPORTS = [
-  'createMountPort',
-  'useView',
-  'useDispatch',
-  'useI18n',
-  'useAnnounce',
-  'useHints',
-  'useNowFn',
-  'useResultCap',
-  'useTooltip',
-  'StripButton',
-  'Button',
-  'ActionButton',
-  'Divider',
-  'Kbd',
-  'Menu',
-  'MenuAnchor',
-  'menuTriggerKeys',
-  'Checkbox',
-  'PartRow',
-  'StageLine',
-  'ErrorCard',
-  'StatusBanner',
-  'KeysFooter',
-  'ElapsedTimer',
-  'Countdown',
-  'Dot',
-  'Spinner',
-  'ReadyBadge',
-  'Icon',
-  'GooseMark',
-  'rovingIndex',
-  'focusQuietly',
-] as const;
+function kitDockImports(): string[] {
+  const source = readFileSync(fileURLToPath(new URL('../kit/size.test.ts', import.meta.url)), 'utf8');
+  const list = /const DOCK_IMPORTS = \[([^\]]*)\] as const;/.exec(source)?.[1] ?? '';
+  return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1] ?? '');
+}
+
+const DOCK_IMPORTS = kitDockImports();
 
 /** Lazy entry → what it exports for the composition root. */
 const SURFACES = {
@@ -135,6 +110,16 @@ describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §1
     expect(sizes['newcomers']).toBeLessThanOrEqual(22 * KIB);
     expect(sizes['fan-panel']).toBeLessThanOrEqual(10 * KIB);
     expect(sizes['palette']).toBeLessThanOrEqual(8 * KIB);
+  });
+
+  it('«the dock» here is the dock of the kit’s own size guard: its list of imports, read and not copied', () => {
+    // An empty or cut list would charge the surfaces for the whole kit — or for nothing.
+    expect(DOCK_IMPORTS.length).toBeGreaterThan(20);
+    expect(DOCK_IMPORTS).toEqual(expect.arrayContaining(['createMountPort', 'useView', 'useDispatch', 'Button', 'PartRow', 'ErrorCard']));
+    for (const name of DOCK_IMPORTS) expect(name).toMatch(/^[A-Za-z][A-Za-z0-9]*$/);
+    expect(new Set(DOCK_IMPORTS).size).toBe(DOCK_IMPORTS.length);
+    // The dock really is bundled from it.
+    expect([...dock.keys()].some((id) => /kit[/\\]components[/\\]PartRow/.test(id))).toBe(true);
   });
 
   it('no surface carries zod, and each one shares Preact with the dock instead of bringing its own', () => {
