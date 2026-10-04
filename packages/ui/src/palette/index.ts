@@ -6,7 +6,7 @@ import { type StyleSource, type SurfaceDefinition } from '../kit';
 import { PALETTE_CSS, Palette } from './Palette';
 import { QUICK_JUMP_CSS, QuickJump } from './QuickJump';
 
-export { Palette, matchPieces, paletteRows, type PaletteRow } from './Palette';
+export { Palette, matchPieces, paletteRows, resolveSelection, type PaletteRow, type PaletteSelection } from './Palette';
 export { QuickJump } from './QuickJump';
 
 export const PALETTE_STYLES: StyleSource = { id: 'cg-palette', css: PALETTE_CSS };

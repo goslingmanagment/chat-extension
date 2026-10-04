@@ -7,11 +7,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { type PaletteItemVM, type PaletteVM } from '@cg/contracts';
 import { MAX_DOM_ROWS } from '@cg/ui/kit';
-import { matchPieces, paletteRows } from '@cg/ui/palette';
+import { matchPieces, paletteRows, resolveSelection, type PaletteSelection } from '@cg/ui/palette';
 
 import { ctxOf, entry, reason, type AppClientScenario } from '../scenarios/app-client';
 import { manyFans, paletteChat } from './data';
-import { flush, keydown, mountBoardSettled, textOf, type MountedBoard } from './harness';
+import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
 import { boardScenario } from './states';
 import { boardWorld } from './world';
 
@@ -163,6 +163,154 @@ describe('⌘K palette', () => {
     expect(field.getAttribute('aria-activedescendant')).toBe('cg-pal-opt-19');
     // Focus never leaves the field.
     expect(ui.root.activeElement).toBe(field);
+  });
+
+  it('the selection is a row, not a place: when «Идут сейчас» loses a row above it, Enter still runs the row the person chose', async () => {
+    const base = boardScenario('15a');
+    const vm = base.views.find((view) => view.selector.of === 'palette')?.vm as PaletteVM;
+    // A generation ends: its row leaves «Идут сейчас» and every row below moves one place up.
+    const without = (id: string): PaletteVM => ({ ...vm, groups: vm.groups.map((group) => (group.id === 'running' ? { ...group, items: group.items.filter((item) => item.id !== id) } : group)) });
+    ui = await mountBoardSettled('palette', { ...base, steps: [{ label: 'Reply for Theodore is done', at: 1_000, views: [entry({ of: 'palette' }, without('r1'))] }] });
+    const field = input();
+    // To the first chat: «Theodore Whitfield», the 17th row.
+    for (let n = 0; n < 16; n += 1) await flush(() => keydown(field, 'ArrowDown'));
+    expect(selected()).toBe('Theodore Whitfield@theo_whitfield');
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    expect(options()).toHaveLength(19);
+    // The place it stood on now holds Hubert; the selection stayed with Theodore.
+    expect(selected()).toBe('Theodore Whitfield@theo_whitfield');
+    expect(field.getAttribute('aria-activedescendant')).toBe(ui.$('.cg-pal [role="option"][aria-selected="true"]')?.id);
+    await flush(() => keydown(field, 'Enter'));
+    expect(ui.actions()).toEqual([{ type: 'Navigate', to: { kind: 'chat', targetHandle: 'palette:b001' } }]);
+  });
+
+  it('the selected row left the list: the selection falls to its neighbour, and the first Enter only takes it', async () => {
+    const base = boardScenario('15a');
+    const vm = base.views.find((view) => view.selector.of === 'palette')?.vm as PaletteVM;
+    const gone: PaletteVM = { ...vm, groups: vm.groups.map((group) => (group.id === 'running' ? { ...group, items: group.items.filter((item) => item.id !== 'r2') } : group)) };
+    ui = await mountBoardSettled('palette', { ...base, steps: [{ label: 'Recap for Marco is done', at: 1_000, views: [entry({ of: 'palette' }, gone)] }] });
+    const field = input();
+    for (let n = 0; n < 14; n += 1) await flush(() => keydown(field, 'ArrowDown'));
+    expect(selected()).toBe('Recap для Marco Rinaldi');
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    // The row that took its place is selected — «Hi для Jake Morrison», another fan's chat.
+    expect(selected()).toBe('Hi для Jake Morrison');
+    // An Enter already on its way to the row that left opens nobody's chat.
+    await flush(() => keydown(field, 'Enter'));
+    expect(ui.actions()).toEqual([]);
+    expect(selected()).toBe('Hi для Jake Morrison');
+    // The person saw the new selection and pressed again.
+    await flush(() => keydown(field, 'Enter'));
+    expect(ui.actions()).toEqual([{ type: 'Navigate', to: { kind: 'chat', targetHandle: 'dock:r3' } }]);
+  });
+
+  it('a selection the list moved is the person’s again once they move it themselves', async () => {
+    const base = boardScenario('15a');
+    const vm = base.views.find((view) => view.selector.of === 'palette')?.vm as PaletteVM;
+    const gone: PaletteVM = { ...vm, groups: vm.groups.map((group) => (group.id === 'running' ? { ...group, items: group.items.filter((item) => item.id !== 'r2') } : group)) };
+    ui = await mountBoardSettled('palette', { ...base, steps: [{ label: 'Recap for Marco is done', at: 1_000, views: [entry({ of: 'palette' }, gone)] }] });
+    const field = input();
+    for (let n = 0; n < 14; n += 1) await flush(() => keydown(field, 'ArrowDown'));
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    await flush(() => keydown(field, 'ArrowUp'));
+    expect(selected()).toBe('Reply для Theodore Whitfield');
+    await flush(() => keydown(field, 'Enter'));
+    expect(ui.actions()).toEqual([{ type: 'Navigate', to: { kind: 'chat', targetHandle: 'dock:r1' } }]);
+  });
+
+  it('Enter before the answer to the typed query runs nothing: the rows on screen answer an older query', async () => {
+    const base = boardScenario('15a');
+    const vm = base.views.find((view) => view.selector.of === 'palette')?.vm as PaletteVM;
+    const marco = vm.groups.find((group) => group.id === 'waiting')?.items.find((item) => item.id === 'chat:b004') as PaletteItemVM;
+    const answer: PaletteVM = { ...vm, query: 'marco', groups: [{ id: 'chats', title: { key: 'palette.group.chats' }, items: [{ ...marco, match: [[0, 5]] }] }] };
+    ui = await mountBoardSettled('palette', { ...base, steps: [{ label: 'the answer for «marco»', at: 150, views: [entry({ of: 'palette' }, answer)] }] });
+    const field = input();
+    // The usual way to use a palette: type the name and press Enter at once.
+    await flush(() => {
+      field.value = 'marco';
+      field.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      keydown(field, 'Enter');
+    });
+    // The first row on screen is still «Reply» of the open chat: it was not started.
+    expect(selected()).toBe('Reply');
+    expect(ui.actions()).toEqual([{ type: 'Search', list: 'palette', query: 'marco' }]);
+    await flush(() => keydown(field, 'Enter'));
+    expect(ui.actionsOf('Generate')).toEqual([]);
+    // The answer arrived: Enter runs its first row.
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    expect(field.value).toBe('marco');
+    expect(selected()).toBe('Marco Rinaldi@marco.rinaldi');
+    await flush(() => keydown(field, 'Enter'));
+    expect(ui.actions().at(-1)).toEqual({ type: 'Navigate', to: { kind: 'chat', targetHandle: 'palette:b004' } });
+    expect(ui.actions()).toHaveLength(2);
+  });
+
+  it('an answer to an earlier query never takes back what was typed since; a change from outside is taken', async () => {
+    const base = boardScenario('15a');
+    const vm = base.views.find((view) => view.selector.of === 'palette')?.vm as PaletteVM;
+    const answer = (query: string) => entry({ of: 'palette' }, { ...vm, query });
+    ui = await mountBoardSettled('palette', {
+      ...base,
+      steps: [
+        { label: 'the answer for «ma»', at: 100, views: [answer('ma')] },
+        { label: 'the answer for «marc»', at: 200, views: [answer('marc')] },
+        { label: 'the palette was reset from outside', at: 300, views: [answer('')] },
+      ],
+    });
+    const field = input();
+    const type = async (text: string): Promise<void> =>
+      flush(() => {
+        field.value = text;
+        field.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      });
+    await type('ma');
+    await type('marc');
+    // The late answer for «ma»: the field keeps «marc», and Enter still waits for its answer.
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    expect(field.value).toBe('marc');
+    await flush(() => keydown(field, 'Enter'));
+    expect(ui.actions()).toEqual([
+      { type: 'Search', list: 'palette', query: 'ma' },
+      { type: 'Search', list: 'palette', query: 'marc' },
+    ]);
+    await flush(() => ui?.client.goTo(1));
+    await settle();
+    expect(field.value).toBe('marc');
+    // Not an echo of anything typed: the field follows the model.
+    await flush(() => ui?.client.goTo(2));
+    await settle();
+    expect(field.value).toBe('');
+    // The same text typed twice in a row is asked once (Firefox reports it again after a composition).
+    await type('m');
+    await type('m');
+    expect(ui.actionsOf('Search')).toHaveLength(3);
+  });
+
+  it('resolveSelection: a new query starts from its first row; the same query keeps the row by its key', () => {
+    const start = resolveSelection(null, '', ['a', 'b', 'c']);
+    expect(start).toEqual({ query: '', key: 'a', index: 0, displaced: false });
+    // Nothing changed: the same object, so nothing re-renders.
+    expect(resolveSelection(start, '', ['a', 'b', 'c'])).toBe(start);
+    const onC: PaletteSelection = { query: '', key: 'c', index: 2, displaced: false };
+    // A row above left, a row above came: the selection stays on «c».
+    expect(resolveSelection(onC, '', ['b', 'c'])).toEqual({ query: '', key: 'c', index: 1, displaced: false });
+    expect(resolveSelection(onC, '', ['x', 'a', 'b', 'c'])).toEqual({ query: '', key: 'c', index: 3, displaced: false });
+    // «c» left: the row now in its place, or the last one, marked as moved by the list.
+    expect(resolveSelection(onC, '', ['a', 'b', 'd', 'e'])).toEqual({ query: '', key: 'd', index: 2, displaced: true });
+    expect(resolveSelection(onC, '', ['a'])).toEqual({ query: '', key: 'a', index: 0, displaced: true });
+    expect(resolveSelection(onC, '', [])).toEqual({ query: '', key: null, index: 0, displaced: false });
+    // A moved selection stays marked while its row stays.
+    const moved = resolveSelection(onC, '', ['a', 'b', 'd']);
+    expect(resolveSelection(moved, '', ['b', 'd']).displaced).toBe(true);
+    // Another query: its first row, whatever was selected.
+    expect(resolveSelection(moved, 'ma', ['c', 'd'])).toEqual({ query: 'ma', key: 'c', index: 0, displaced: false });
+    // Rows arrive for a query that had none: the first one, nothing was moved.
+    expect(resolveSelection({ query: 'ma', key: null, index: 0, displaced: false }, 'ma', ['m1', 'm2'])).toEqual({ query: 'ma', key: 'm1', index: 0, displaced: false });
   });
 
   it('a click runs a row; an unavailable row says why and runs nothing', async () => {

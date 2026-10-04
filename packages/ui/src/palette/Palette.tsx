@@ -6,6 +6,15 @@
 // field, ↑ ↓ move the selection, Enter runs it, `?` on an empty field opens
 // the cheatsheet. Every row carries the action its controller prepared; the
 // palette dispatches it unchanged. Lists longer than 50 rows are virtual.
+//
+// Enter may open another fan's chat, and opening a chat marks it read on
+// OnlyFans, so Enter runs only the row the person can see selected:
+// - the selection is a row (its key), never a place in the list: when a
+//   group loses or gains rows, it stays on its row;
+// - when that row leaves the list, the selection falls to its neighbour and
+//   the next Enter only takes it — the one after runs it;
+// - while the field holds a query the list has not answered yet, Enter runs
+//   nothing: the rows on screen answer an older query.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -13,6 +22,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import { type I18n, type PaletteItemVM, type PaletteVM } from '@cg/contracts/vm';
 
 import { Dialog, Icon, OverlayLayer, Spinner, ViewState, VirtualList, hotkeyText, isComposing, useDispatch, useGeometry, useI18n, useNowFn, useRenderAfter, useView, type VirtualListHandle } from '../kit';
+import { useOwnEchoes } from '../spenders/ownEchoes';
 
 const GROUP_HEIGHT = 32;
 const ITEM_HEIGHT = 34;
@@ -38,6 +48,33 @@ export function paletteRows(i18n: I18n, groups: PaletteVM['groups']): PaletteRow
     }
   }
   return rows;
+}
+
+/** The selected row of the palette: a row of the answer to `query`, by its key. */
+export interface PaletteSelection {
+  readonly query: string;
+  /** null — the answer has no rows. */
+  readonly key: string | null;
+  readonly index: number;
+  /** The row the person stood on left the list; the selection fell to its neighbour and waits to be taken. */
+  readonly displaced: boolean;
+}
+
+/**
+ * Where the selection stands in the rows as they are now (`keys`, in order).
+ * A new query starts from its first row; the same query keeps the selected
+ * row wherever it moved; a row that left hands the selection to the row now
+ * in its place, marked `displaced`. Returns `previous` itself when nothing changed.
+ */
+export function resolveSelection(previous: PaletteSelection | null, query: string, keys: readonly string[]): PaletteSelection {
+  if (previous === null || previous.query !== query || previous.key === null) {
+    const first = keys[0] ?? null;
+    return previous !== null && previous.query === query && previous.key === first ? previous : { query, key: first, index: 0, displaced: false };
+  }
+  const at = keys.indexOf(previous.key);
+  if (at >= 0) return at === previous.index ? previous : { ...previous, index: at };
+  const index = Math.max(0, Math.min(previous.index, keys.length - 1));
+  return { query, key: keys[index] ?? null, index, displaced: keys.length > 0 };
 }
 
 /** A label cut into plain and matched pieces by the model's [start, end) ranges. */
@@ -122,28 +159,44 @@ export function Palette(): JSX.Element {
   const composing = useRef(false);
   const rows = useMemo(() => paletteRows(i18n, vm.groups), [vm.groups, i18n, i18n.language]);
   const options = useMemo(() => rows.filter((row): row is Extract<PaletteRow, { kind: 'item' }> => row.kind === 'item'), [rows]);
-  const [selected, setSelected] = useState(0);
-  const current = Math.min(selected, Math.max(0, options.length - 1));
+  const keys = useMemo(() => options.map((row) => row.key), [options]);
+  const [stored, setStored] = useState<PaletteSelection | null>(null);
+  // Derived at render, so a key pressed before the effect below has run still sees it.
+  const selection = useMemo(() => resolveSelection(stored, vm.query, keys), [stored, vm.query, keys]);
+  useEffect(() => {
+    if (selection !== stored) setStored(selection);
+  }, [selection, stored]);
+  const current = selection.index;
 
-  // A new answer starts from its first row.
-  useEffect(() => setSelected(0), [vm.query]);
-
-  // The field shows the model's query unless the person is typing into it.
+  // The field shows the model's query unless the person is typing into it: an answer to an earlier query
+  // never takes back what was typed since.
+  const echo = useOwnEchoes(vm.query);
   useLayoutEffect(() => {
     const input = inputRef.current;
-    if (input !== null && !composing.current && input.value !== vm.query) input.value = vm.query;
-  }, [vm.query]);
+    if (input !== null && !composing.current && input.value !== echo.shown) input.value = echo.shown;
+  }, [vm.query, echo.shown]);
 
   const close = (): void => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'palette', open: false } });
-  const search = (query: string): void => void dispatch({ type: 'Search', list: 'palette', query });
+  const search = (query: string): void => {
+    // Firefox reports the text again after a composition ends: one query is asked once.
+    if (query === echo.latest()) return;
+    echo.sent(query);
+    void dispatch({ type: 'Search', list: 'palette', query });
+  };
   const run = (row: Extract<PaletteRow, { kind: 'item' }> | undefined): void => {
     if (row === undefined || !row.item.enabled) return;
     void dispatch(row.item.action);
   };
+  /** The person chose a row (arrows, the pointer): the selection is theirs again. */
+  const pick = (index: number): void => {
+    const row = options[index];
+    if (row === undefined) return;
+    if (row.key !== selection.key || selection.displaced) setStored({ query: vm.query, key: row.key, index, displaced: false });
+  };
   const select = (to: number): void => {
     if (options.length === 0) return;
     const next = (to + options.length) % options.length;
-    setSelected(next);
+    pick(next);
     const index = rows.findIndex((row) => row.kind === 'item' && row.option === next);
     if (index >= 0) listRef.current?.scrollToIndex(index);
   };
@@ -171,6 +224,14 @@ export function Palette(): JSX.Element {
         return;
       case 'Enter':
         event.preventDefault();
+        // The rows on screen answer `vm.query`. A field that holds a newer query is still waiting for its
+        // answer: running the old list's row is not what the person asked for.
+        if (event.currentTarget.value !== vm.query) return;
+        // The selected row left the list under the person: this Enter takes its neighbour, the next one runs it.
+        if (selection.displaced) {
+          setStored({ ...selection, displaced: false });
+          return;
+        }
         run(options[current]);
         return;
       case '?':
@@ -251,7 +312,7 @@ export function Palette(): JSX.Element {
                   {row.title}
                 </div>
               ) : (
-                <Item row={row} selected={row.option === current} id={`cg-pal-opt-${row.option}`} onPick={() => setSelected(row.option)} onRun={() => run(row)} />
+                <Item row={row} selected={row.option === current} id={`cg-pal-opt-${row.option}`} onPick={() => pick(row.option)} onRun={() => run(row)} />
               )
             }
           />
