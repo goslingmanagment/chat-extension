@@ -56,6 +56,8 @@ export const OVERLAY_MOUNTS: Readonly<Partial<Record<OverlayKind, OverlaySpec>>>
 export interface SurfaceMountsEnv {
   readonly mounts: MountManager;
   readonly deps: MountDeps;
+  /** What the side panels (layer `panel`) are mounted with: `deps` with their own geometry (tab/panel-geometry.ts). `deps` when absent. */
+  readonly panelDeps?: MountDeps;
   readonly ui: typeof DockChunk;
   readonly toasts: DockChunk.ToastHost;
   readonly overlays: OverlayState;
@@ -160,7 +162,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     // Closed, or the tab went away, while the chunk was loading.
     if (!wanted || disposed || !overlays.isOpen(overlay)) return;
     try {
-      put(spec.kind, () => ui.mountKitSurface(spec.kind, layerRoot(spec.layer), deps, surface, options));
+      put(spec.kind, () => ui.mountKitSurface(spec.kind, layerRoot(spec.layer), spec.layer === 'panel' ? (env.panelDeps ?? deps) : deps, surface, options));
     } catch (error) {
       // The mount itself failed (not a render inside its boundary): the window is not there, and says so.
       env.report({ kind: 'render', surface: spec.kind, code: 'CG-UI-FAILED', name: error instanceof Error ? error.name : typeof error });

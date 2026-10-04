@@ -23,6 +23,8 @@ export const DIALOG_CSS = `
 .cg-side {
   position: fixed; z-index: ${LAYERS.panel}; top: 44px; right: 0; bottom: 0; width: 320px; max-width: 100vw;
   display: flex; flex-direction: column; overflow: hidden; background: var(--cg-surface); border-left: 1px solid var(--cg-rule);
+  /* A panel that ends above the dock (the composer stays free) closes with the same hairline. */
+  border-bottom: 1px solid var(--cg-rule);
 }
 .cg-confirm-dlg { padding: 16px 18px 14px; }
 .cg-confirm-dlg__title { margin: 0 0 4px; font-size: var(--cg-text-xl); line-height: 22px; font-weight: 600; color: var(--cg-ink-strong); }
