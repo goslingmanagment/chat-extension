@@ -39,7 +39,7 @@ import {
   type StyleSource,
   type SurfaceDefinition,
 } from '../../kit';
-import { errorToneOf, isRunning, msgOf } from '../../dock/model';
+import { isRunning, msgOf, toneOf } from '../../dock/model';
 import { Parts } from '../../dock/Parts';
 import { StreamText, useSteadyView, useStreamText } from '../../dock/Stream';
 import { DOCK_STYLE } from '../../dock/styles';
@@ -89,7 +89,7 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
             ))}
           </>
         )}
-        {turn.error === null ? null : <ErrorCard error={turn.error} tone={errorToneOf(turn.error.code)} actions={turn.errorActions} inline />}
+        {turn.error === null ? null : <ErrorCard error={turn.error} tone={toneOf(turn.error)} actions={turn.errorActions} inline />}
       </div>
     </>
   );

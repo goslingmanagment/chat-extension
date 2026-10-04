@@ -19,4 +19,4 @@ export { ConfirmRow, Parts, Variants, confirms, useConfirmFocus, usePartActions,
 export { FixBody, type FixBodyProps } from './Fix';
 export { AgainButton, DraftLabel, Head, HideButton, Meta, type AgainButtonProps, type HeadProps } from './Head';
 export { StreamText, useSteadyView, useStreamText, type StreamTextProps } from './Stream';
-export { STREAM_KEY, actionOf, deepEqual, errorToneOf, featureKey, isCrowded, isRunning, metaTexts, quotaSlot, stripAction } from './model';
+export { STREAM_KEY, actionOf, deepEqual, errorToneOf, featureKey, isCrowded, isRunning, metaTexts, quotaSlot, stripAction, toneOf } from './model';

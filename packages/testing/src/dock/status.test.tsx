@@ -6,9 +6,9 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { CG_CODES, DOCK_STATUSES, type DockStatus, type DockVM, type UiAction } from '@cg/contracts';
-import { DEFAULT_PARTS, errorToneOf, preloadPart } from '@cg/ui/dock';
+import { DEFAULT_PARTS, errorToneOf, preloadPart, toneOf } from '@cg/ui/dock';
 
-import { cgError, scenarioById } from '../scenarios/app-client';
+import { cgError, failedResult, scenarioById, uuid } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, mountDock, settle, text } from './harness';
 
 let kit: MountedKit | null = null;
@@ -197,5 +197,19 @@ describe('the dot of an error', () => {
     for (const code of failure) expect(errorToneOf(code), code).toBe('failure');
     // Every code the rule names exists in the registry.
     for (const code of [...state, ...failure]) expect(CG_CODES as readonly string[], code).toContain(code);
+  });
+
+  it('[ER-005] the view says its own dot when its producer decided it (CgErrorView.tone); the list is read only for a view without one', () => {
+    expect(toneOf({ code: 'CG-QUOTA-DAILY' })).toBe('state');
+    expect(toneOf({ code: 'CG-QUOTA-DAILY', tone: 'failure' })).toBe('failure');
+    expect(toneOf({ code: 'CG-PROVIDER-STREAM', tone: 'state' })).toBe('state');
+    // In the sheet: a result card and a refusal draw the dot the view carries, whatever the list says of the code.
+    const failed = failedResult(ctx, uuid(101), 'reply', { ...cgError(ctx, 'CG-PROVIDER-STREAM'), tone: 'state' }, []);
+    kit = mountDock(dockScenario(dockVm('ready', { result: failed })));
+    expect(kit.$('.cg-card .cg-gut .cg-dot--ring')).not.toBeNull();
+    expect(kit.$('.cg-card .cg-dot--danger')).toBeNull();
+    kit.unmount();
+    kit = mountDock(dockScenario(dockVm('ready', { refusal: { feature: 'reply', error: { ...cgError(ctx, 'CG-OP-TAB-LIMIT'), tone: 'failure' }, running: [] } })));
+    expect(kit.$('.cg-card .cg-gut .cg-dot--danger')).not.toBeNull();
   });
 });

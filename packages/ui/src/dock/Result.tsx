@@ -15,7 +15,7 @@ import { Button, Caret, Dot, ErrorCard, KeysFooter, Spinner, StageLine, hotkeyTe
 import { FixBody } from './Fix';
 import { AgainButton, DraftLabel, Head, Meta } from './Head';
 import { DebugSlot, type DebugProps, type PartLoader } from './lazy-part';
-import { actionOf, errorToneOf, featureKey, isRunning, metaTexts } from './model';
+import { actionOf, featureKey, isRunning, metaTexts, toneOf } from './model';
 import { Parts, Variants } from './Parts';
 import { StreamText } from './Stream';
 
@@ -91,7 +91,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
         <Head title={title} acts={props.close}>
           <Meta texts={metaTexts(i18n, result)} />
         </Head>
-        <div class="cg-body">{result.error === null ? null : <ErrorCard error={result.error} tone={errorToneOf(result.error.code)} actions={result.errorActions} />}</div>
+        <div class="cg-body">{result.error === null ? null : <ErrorCard error={result.error} tone={toneOf(result.error)} actions={result.errorActions} />}</div>
         {debug}
       </>
     );

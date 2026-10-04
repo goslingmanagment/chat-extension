@@ -4,7 +4,7 @@
 // strip button dispatches, and when two view models differ only by streamed
 // text.
 
-import { type CgErrorView, type I18nKey } from '@cg/contracts/errors';
+import { type CgErrorTone, type CgErrorView, type I18nKey } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
 import { type DockActionId, type DockVM, type I18n, type Msg, type ResultVM, type UiAction } from '@cg/contracts/vm';
 
@@ -43,10 +43,12 @@ export function quotaSlot(vm: DockVM): 'zero' | 'low' | null {
 }
 
 /**
- * Codes that are a state, not a failure of our work: a ring instead of the red
- * dot (ui-design §4.8) — quota 0, the limit of three generations, a busy chat,
- * a lease, «расширение обновилось», no sign-in, no binding, no persona,
- * ChatSpace updated, a gate (a blocked fan, no draft…).
+ * The reading of ui-design §4.8 for an error view that does not say its dot
+ * itself (`toneOf`): codes that are a state, not a failure of our work, carry
+ * a ring instead of the red dot — quota 0, the limit of three generations, a
+ * busy chat, a lease, «расширение обновилось», no sign-in, no binding, no
+ * persona, ChatSpace updated, a gate (a blocked fan, no draft…). Everything
+ * else is red.
  */
 const STATE_CODES: ReadonlySet<string> = new Set([
   'CG-QUOTA-DAILY',
@@ -62,8 +64,18 @@ const STATE_CODES: ReadonlySet<string> = new Set([
 ]);
 const STATE_PREFIXES = ['CG-GATE-', 'CG-BINDING-', 'CG-PERSONA-', 'CG-CLAIM-'] as const;
 
-export function errorToneOf(code: string): 'failure' | 'state' {
+export function errorToneOf(code: string): CgErrorTone {
   return STATE_CODES.has(code) || STATE_PREFIXES.some((prefix) => code.startsWith(prefix)) ? 'state' : 'failure';
+}
+
+/**
+ * The dot of an error card: red — our operation failed, a ring — a state
+ * (ui-design §4.8). The view carries it when its producer decided it
+ * (`CgErrorView.tone`, contracts 1.2.0) and that is final; only a view
+ * without it is read by the code list above.
+ */
+export function toneOf(error: Pick<CgErrorView, 'code' | 'tone'>): CgErrorTone {
+  return error.tone ?? errorToneOf(error.code);
 }
 
 /** The name of a function as the strip and a result head print it (Latin, never translated). */

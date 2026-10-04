@@ -28,7 +28,7 @@ import {
 } from '../kit';
 import { Head, HideButton, Meta } from './Head';
 import { type AnalysisProps, type DebugProps, type DockParts, type PartLoader, useLazyPart } from './lazy-part';
-import { errorToneOf, featureKey, isRunning, msgOf, withBody } from './model';
+import { featureKey, isRunning, msgOf, toneOf, withBody } from './model';
 import { ResultContent } from './Result';
 import { useStreamText } from './Stream';
 
@@ -123,7 +123,7 @@ function RefusalContent({ refusal, onHide }: { readonly refusal: RefusalVM; read
         <Meta texts={[i18n.t('result.meta.notStarted')]} />
       </Head>
       <div class="cg-body">
-        <ErrorCard error={refusal.error} tone={errorToneOf(refusal.error.code)} copyCode={false} />
+        <ErrorCard error={refusal.error} tone={toneOf(refusal.error)} copyCode={false} />
         {refusal.running.length === 0 ? null : (
           <div class="cg-ops" role="group" aria-label={i18n.t('cg.opTabLimit.listLabel')}>
             {refusal.running.map((op) => (
