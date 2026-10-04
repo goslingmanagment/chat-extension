@@ -114,7 +114,7 @@ describe('the extension pages wired: the popup and the settings of the installed
     await hub().command({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: STAND_IDS.platformAccounts.a });
     hubStart = await hub().mark();
     await installTestBuild();
-    // The address of the fake hub, set from a page that asks the background nothing by itself.
+    // The address of the fake hub, set from the journal page, which asks the background for no status.
     await browser.url(testBuildPage('debug-journal.html'));
     const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: fakeHubOrigin() } };
     await writeLocalStorage({ [STORAGE_KEYS.settings]: settings });

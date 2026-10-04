@@ -104,7 +104,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     hubStart = await hub().mark();
     await installTestBuild();
     // The build's default hub is the real one. Before any status surface asks for its health, the address
-    // goes to a dead loopback port — from a page that asks the background nothing by itself.
+    // goes to a dead loopback port — from the journal page, which asks the background for no status.
     await browser.url(testBuildPage('debug-journal.html'));
     const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: DEAD_HUB } };
     await writeLocalStorage({ [STORAGE_KEYS.settings]: settings });

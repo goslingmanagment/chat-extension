@@ -40,7 +40,7 @@ const rpcOf = (report: SpikeReport | null): SpikeReport['rpc'] => report?.rpc;
 
 /**
  * The records of the diagnostics export, oldest first. The export is the options page's request alone
- * (§5.4), so the pages tab goes there for it and comes back to the page that asks the background nothing.
+ * (§5.4), so the pages tab goes there for it and comes back to the journal page, which asks for no status.
  */
 async function exportedLogs(): Promise<LogRecord[]> {
   await browser.url(testBuildPage('options.html'));
@@ -100,7 +100,7 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     journalStart = await standServer.mark();
     await hub().command({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: STAND_IDS.platformAccounts.a });
     await installTestBuild();
-    // The hub address goes in from a page that asks the background nothing by itself, before anything reads it.
+    // The hub address goes in from the journal page (it asks the background for no status), before anything reads it.
     await browser.url(testBuildPage('debug-journal.html'));
     const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: fakeHubOrigin() } };
     await writeLocalStorage({ [STORAGE_KEYS.settings]: settings });
@@ -241,8 +241,11 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
 
     // And once more with the tab in the background, where the browser slows its timers down: another tab is
     // selected, and that tab asks the background nothing (the state is read on the browser's privileged side).
+    // A page of ours would not do for it: every one of them holds an event port, and a page whose port was
+    // cut by the unload connects again at once — which starts the event page. A blank page holds nothing.
     await toPages();
     expect(await standInBackground()).toBe(true);
+    await browser.url('about:blank');
     const background = new Set<string>();
     const hiddenUntil = Date.now() + IDLE_TIMEOUT_MS + 8000;
     while (Date.now() < hiddenUntil) {
@@ -250,6 +253,7 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
       await browser.pause(1000);
     }
     expect([...background]).toEqual(['running']);
+    await browser.url(testBuildPage('debug-journal.html'));
     // The same instance all along: nothing read the bootstrap or the catalog again…
     const entries = (await hub().journal(mark)).entries;
     expect(callsTo(entries, 'clientBootstrap')).toEqual([]);
@@ -260,9 +264,11 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     await toStand();
     expect(rpcOf(await readReport())).toMatchObject({ state: 'ready', registrations: registrations + 1 });
 
-    // The tab leaves ChatSpace: nothing holds the page now, and the same timeout unloads it.
+    // The tab leaves ChatSpace: nothing holds the page now, and the same timeout unloads it. No page of ours is
+    // open either: an open settings or journal page would start the event page again the moment it stopped.
     await browser.url('about:blank');
     await toPages();
+    await browser.url('about:blank');
     await waitForBackgroundState('stopped', 'no ChatSpace tab is open', IDLE_TIMEOUT_MS + 15_000);
 
     // And the tab coming back wakes it.
@@ -273,6 +279,7 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     await dockIs((dock) => dock.status === 'ready' && dock.login === WORLD.user.username && dock.page === PAGE, 'the tab came back and is signed in');
     await toPages();
     expect(await backgroundState()).toBe('running');
+    await browser.url(testBuildPage('debug-journal.html'));
   });
 
   it('a new instance with another sign-in state: the tab asks again when it registers and shows «not signed in»', async () => {
