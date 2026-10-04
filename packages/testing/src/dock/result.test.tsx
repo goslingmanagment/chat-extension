@@ -13,7 +13,7 @@ import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 
-import { FANS, MIN, button, cgError, entry, failedResult, iso, meta, msg, part, parts, phase, reason, result, running, uuid, variants } from '../scenarios/app-client';
+import { FANS, MIN, button, cgError, entry, failedResult, iso, meta, msg, part, parts, phase, reason, result, running, uuid, variants, type FanFixture } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, keydown, mountDock, mountDockSettled, settle, text } from './harness';
 
 let kit: MountedKit | null = null;
@@ -803,6 +803,23 @@ describe('a running generation', () => {
     expect(kit.$('.cg-keys')).not.toBeNull();
     expect(kit.deps.marks.shown).toEqual([OP]);
     vi.unstubAllGlobals();
+  });
+
+  it('[AI-137] the first painted chunk is marked for each operation: a second generation in another chat gets its own mark', async () => {
+    const other = uuid(120);
+    const writing = (opId: string, streamText: string, fan: FanFixture = FANS.hubert) =>
+      entry({ of: 'dock' }, dockVm('ready', { fan, actionsOptions: { busy: 'reply' }, result: result(ctx, { opId, feature: 'reply', state: 'streaming', phase: phase(opId, ctx.now, ['context'], 'writing'), streamText }) }));
+    kit = mountDock({ ...dockScenario(dockVm()), views: [writing(OP, 'Hey you')], steps: [{ label: 'the other chat', at: 10, views: [writing(other, 'Good morning', FANS.theodore)] }] });
+    await frame();
+    expect(kit.deps.marks.paints.filter((mark) => mark.metric === 'firstChunkPaintMs')).toEqual([{ metric: 'firstChunkPaintMs', mark: OP }]);
+    // The person switches to another chat whose generation streams too: the sheet shows that one now.
+    await flush(() => kit?.client.goTo(0));
+    await frame();
+    expect(text(kit.$('[data-cg-stream]'))).toBe('Good morning');
+    expect(kit.deps.marks.paints.filter((mark) => mark.metric === 'firstChunkPaintMs')).toEqual([
+      { metric: 'firstChunkPaintMs', mark: OP },
+      { metric: 'firstChunkPaintMs', mark: other },
+    ]);
   });
 
   it('a canceled operation closes the sheet', () => {

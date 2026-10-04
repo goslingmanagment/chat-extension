@@ -82,7 +82,8 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
           <div class="cg-stream">
             <span />
             <div class="cg-part__t">
-              <StreamText text={props.streamText} {...(props.onFirstPaint === undefined ? {} : { onFirstPaint: props.onFirstPaint })} />
+              {/* One StreamText per operation: its first painted chunk is marked once for each (firstChunkPaintMs). */}
+              <StreamText key={result.opId} text={props.streamText} {...(props.onFirstPaint === undefined ? {} : { onFirstPaint: props.onFirstPaint })} />
               <Caret />
             </div>
           </div>
