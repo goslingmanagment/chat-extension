@@ -19,7 +19,9 @@ additive, in its own `contract-change:` commit with fixtures and a line in
 `docs/contracts-changelog.md`. Still ahead: the hub PRs H-* in prod and the
 SDK re-vendor, the owner's live checks (X9), CI and release (R19), Fansly
 (R20). What works and what is left: `README.md` «Что уже работает»; decisions
-taken without the owner: `docs/decisions.md` X12.
+taken without the owner: `docs/decisions.md` X12; what is proven end to end on
+the stand, what waits for the hub and the owner's smoke checklist:
+`docs/pilot-readiness.md`.
 
 ## Layout
 
