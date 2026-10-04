@@ -171,6 +171,7 @@ ${dark('.pg-nav__a[aria-current="page"]')} { box-shadow: none; }
 .pg-table th { padding: 6px 12px 6px 0; border-bottom: 1px solid var(--cg-rule-2); text-align: left; font-size: var(--cg-text-sm); line-height: 18px; font-weight: 500; color: var(--cg-ink-muted); white-space: nowrap; }
 .pg-table td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--cg-rule); vertical-align: top; color: var(--cg-ink); overflow-wrap: anywhere; }
 .pg-table td:last-child, .pg-table th:last-child { padding-right: 0; }
+.pg-table__group th { padding: 14px 0 4px; border-bottom-color: var(--cg-rule); }
 .pg-table kbd { font-size: var(--cg-text-sm); color: var(--cg-ink-strong); font-variant-numeric: tabular-nums; }
 .pg-table .pg-strong { color: var(--cg-ink-strong); font-weight: 500; }
 .pg-list { margin: 0; padding: 0; list-style: none; }
