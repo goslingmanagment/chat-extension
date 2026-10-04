@@ -607,7 +607,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       rows: rowVMs,
       cardOpen: surfaces.current().preview.newcomers !== null,
       scan: loading || loadingMore ? { stage: msg('common.loading'), done: walk.started ? walk.items.length : null, total: null } : null,
-      incomplete: walkIncomplete(walk) ? msg('newcomers.incomplete') : null,
+      // The reason only: the window prints the title «Результат неполный» (`newcomers.incomplete`) itself.
+      incomplete: walkIncomplete(walk) ? msg('newcomers.incomplete.body') : null,
       footer: { count: rows.length, stamp: stamp(walk.snapshotAt, walk.coverage) },
       canLoadMore: walkHasMore(walk) && !loading && !loadingMore,
       hint: msg('newcomers.hint', { window: windowText(windowHours) }),

@@ -189,6 +189,13 @@ describe('«Новые»: the window and the list', () => {
     expect(ui.text('.cg-nc > .cg-sp__foot span')).toBe('3 за 48 часов, охват неполный');
   });
 
+  it('[NF-025] with the reason the controller sends, the title is said once', async () => {
+    // The controller (core/application/newcomers) puts `newcomers.incomplete.body` into the model; the title is the window's own.
+    ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, view: views.partial({ kind: 'coverage', level: 'partial' }), incomplete: msg('newcomers.incomplete.body') })));
+    const line = ui.$('.cg-nc__incomplete') as HTMLElement;
+    expect([...line.children].map(textOf)).toEqual(['Результат неполный', 'Показана часть списка. Хаб ещё не собрал всех, кто подписался за это время.']);
+  });
+
   it('[NF-028] «AI ничего не отправляет сам» stands under the list and at the Hi button', async () => {
     ui = await mountBoardSettled('newcomers', '13a');
     expect(ui.$$('.cg-nc__hint p').map(textOf)).toEqual([

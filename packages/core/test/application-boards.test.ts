@@ -2227,7 +2227,7 @@ describe('[NF-001] [NF-002] [NF-004] [NF-007] [NF-008] «Новые»', () => {
     });
     await cut.dispatch(open('newcomers'));
     const vm = cut.boards.newcomers.getSnapshot(NEWCOMERS);
-    expect(vm.incomplete).toEqual({ key: 'newcomers.incomplete' });
+    expect(vm.incomplete).toEqual({ key: 'newcomers.incomplete.body' });
     expect(vm.footer.stamp.coverage).toBe('partial');
   });
 });
