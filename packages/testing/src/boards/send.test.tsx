@@ -6,7 +6,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { PREVIEW_SEND_STATES, type ActionReceipt, type PreviewSendView, type UiAction } from '@cg/contracts';
+import { PREVIEW_SEND_STATES, type ActionReceipt, type PreviewSendView, type PreviewVM, type UiAction } from '@cg/contracts';
 
 import { cgError, ctxOf, entry, iso, MIN, msg, NOW, preview, scenarioById, uuid, views, withResult, type AppClientScenario } from '../scenarios/app-client';
 import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
@@ -28,6 +28,19 @@ function previewOf(states: readonly PreviewSendView[], patch: Partial<AppClientS
   const base = boardScenario('11a');
   const vm = withResult(preview(ctx, 'spenders', views.ready()), sendResult(ctx, OP, 'reply', TEXTS.slice(0, states.length), states, []));
   return { ...base, views: [...base.views.filter((view) => view.selector.of !== 'preview'), entry({ of: 'preview', from: 'spenders' }, vm)], ...patch };
+}
+
+/** The same preview with every part's `openInsert` set to `available`: what a controller may send, whatever the part's send state. */
+function everyPartInsertable(scenario: AppClientScenario): AppClientScenario {
+  return {
+    ...scenario,
+    views: scenario.views.map((view) => {
+      if (view.selector.of !== 'preview') return view;
+      const vm = view.vm as PreviewVM;
+      if (vm.result === null) return view;
+      return entry({ of: 'preview', from: 'spenders' }, { ...vm, result: { ...vm.result, parts: (vm.result.parts ?? []).map((item) => ({ ...item, openInsert: { s: 'available' as const } })) } });
+    }),
+  };
 }
 
 /** The board with Hubert's preview open, and in that preview the «x8-lifecycle» scenario: its steps and its reaction to a click. */
@@ -218,15 +231,63 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
   it('[HK-042] Enter and ⌘↵ on a focused part are «Открыть и вставить» for that part, never a send', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     await flush(() => keydown(part(0), 'Enter'));
-    expect(ui.actions().at(-1)).toEqual({ type: 'OpenAndInsertPart', operationId: OP, part: 0 });
+    expect(ui.actions()).toEqual([{ type: 'OpenAndInsertPart', operationId: OP, part: 0 }]);
+    await flush(() => keydown(part(0), 'Enter', { metaKey: true }));
+    await flush(() => keydown(part(0), 'Enter', { ctrlKey: true }));
+    expect(ui.actionsOf('OpenAndInsertPart')).toHaveLength(3);
+    // Part 2 waits behind part 1: its row shows no «Открыть и вставить», so the key offers none either.
+    expect(buttons(1)).toEqual(['Копировать часть 2']);
+    await flush(() => keydown(part(1), 'Enter'));
     await flush(() => keydown(part(1), 'Enter', { metaKey: true }));
-    expect(ui.actions().at(-1)).toEqual({ type: 'OpenAndInsertPart', operationId: OP, part: 1 });
+    expect(ui.actionsOf('OpenAndInsertPart')).toHaveLength(3);
     expect(sends()).toEqual([]);
     // ↑ ↓ move between the parts; one of them is the tab stop.
     part(0).focus();
     await flush(() => keydown(part(0), 'ArrowDown'));
     expect(ui.root.activeElement).toBe(part(1));
     expect(ui.$$('.cg-pvp[tabindex="0"]')).toHaveLength(1);
+  });
+
+  it('[HK-042] [NF-022] Enter opens-and-inserts only where the row shows that button: never on an uncertain, held or waiting part, whatever the model sent', async () => {
+    const uncertain: PreviewSendView = { s: 'uncertain', since: SENT_AT, attemptId: uuid(711) };
+    const cases: readonly { readonly name: string; readonly states: readonly PreviewSendView[]; readonly rows: readonly (string | null)[] }[] = [
+      // One uncertain part holds the group (§6.7.8, §6.7.9).
+      { name: 'uncertain and the parts held behind it', states: [{ s: 'sent', at: SENT_AT }, uncertain, { s: 'available' }], rows: [null, 'uncertain', 'held-group'] },
+      // A part in work: itself and the ones waiting behind it.
+      { name: 'in work and the parts after it', states: [{ s: 'sending' }, { s: 'available' }, { s: 'available' }], rows: ['sending', 'after', 'after'] },
+      { name: 'queued', states: [{ s: 'queued' }], rows: ['queued'] },
+      { name: 'accepted', states: [{ s: 'accepted' }], rows: ['accepted'] },
+      // «Фан написал новое»: only a new answer.
+      { name: 'held-stale', states: [{ s: 'held-stale', at: SENT_AT }], rows: ['held-stale'] },
+      // A retry the model allows is «Отправить ещё раз», not an insert.
+      { name: 'rejected with a retry', states: [{ s: 'rejected', code: 'CG-SEND-QUEUE', canRetry: true }], rows: ['rejected-retry'] },
+    ];
+    for (const item of cases) {
+      ui = await mountBoardSettled('spenders', everyPartInsertable(previewOf(item.states)));
+      expect(ui.$$('.cg-pvp').map((element) => element.querySelector('.cg-pvs')?.getAttribute('data-cg-send') ?? null), item.name).toEqual(item.rows);
+      // The model says `openInsert: available` on every part; no row of these shows the button…
+      expect(ui.$$('.cg-pvs__open'), item.name).toEqual([]);
+      // …and no key reaches it.
+      for (const element of ui.$$('.cg-pvp')) {
+        for (const init of [{}, { metaKey: true }, { ctrlKey: true }]) await flush(() => keydown(element, 'Enter', init));
+      }
+      expect(ui.actionsOf('OpenAndInsertPart'), item.name).toEqual([]);
+      expect(sends(), item.name).toEqual([]);
+      ui.unmount();
+      ui = null;
+    }
+  });
+
+  it('[HK-042] Enter opens-and-inserts where the row shows the button: available, unavailable, refused without a retry', async () => {
+    const states: readonly PreviewSendView[] = [{ s: 'available' }, { s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.host') }, { s: 'rejected', code: 'CG-SEND-REJECTED', canRetry: false }];
+    for (const state of states) {
+      ui = await mountBoardSettled('spenders', previewOf([state]));
+      expect(ui.$$('.cg-pvs__open')).toHaveLength(1);
+      await flush(() => keydown(part(0), 'Enter'));
+      expect(ui.actions()).toEqual([{ type: 'OpenAndInsertPart', operationId: OP, part: 0 }]);
+      ui.unmount();
+      ui = null;
+    }
   });
 
   it('Enter on the focused «Отправить» is its click: the event is the button’s, the part does not take it', async () => {

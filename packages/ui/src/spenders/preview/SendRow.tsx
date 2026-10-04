@@ -10,7 +10,11 @@
 // - an unknown outcome offers only «Открыть чат для проверки»: no retry, no
 //   «Открыть и вставить», no copy in the row;
 // - a held send («фан написал новое») offers «Ещё раз» — a new answer — and
-//   nothing that would send the stale one.
+//   nothing that would send the stale one;
+// - «Открыть и вставить» exists only where `offersOpenInsert` says so — for
+//   the button here and for Enter on the part alike: never on a part whose
+//   outcome is unknown, that is in work, that is held, or that waits behind
+//   another part (§6.7.8, §6.7.9), whatever `openInsert` the model sent.
 
 import { type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -67,6 +71,26 @@ export function CopyIcon({ part }: { readonly part: PartVM }): JSX.Element {
   );
 }
 
+/** The queue has not reached this part: it waits behind an earlier one, or is held by an uncertain one (§6.7.9). */
+function waitsForEarlierPart(part: PartVM): boolean {
+  const send = part.send;
+  return send !== undefined && (part.sendOrder ?? null) !== null && (send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale');
+}
+
+/**
+ * Whether this part's row carries «Открыть и вставить» (ui-design §4.13): only
+ * a part that can be sent now, cannot be sent, or was refused with no safe
+ * retry. A part in work, sent, uncertain, held («фан написал новое») or
+ * waiting behind another part has none — one uncertain part holds its whole
+ * group (§6.7.8, §6.7.9). The button and Enter on the part both ask here, so
+ * the keyboard never offers what the row does not show.
+ */
+export function offersOpenInsert(part: PartVM): boolean {
+  const send = part.send;
+  if (send === undefined || waitsForEarlierPart(part)) return false;
+  return send.s === 'available' || send.s === 'unavailable' || (send.s === 'rejected' && !send.canRetry);
+}
+
 /** «Открыть и вставить»: the chat opens in ChatSpace by this click, then the part goes into its composer (§6.5). */
 function OpenAndInsert({ part, opId }: { readonly part: PartVM; readonly opId: string }): JSX.Element | null {
   const i18n = useI18n();
@@ -76,7 +100,7 @@ function OpenAndInsert({ part, opId }: { readonly part: PartVM; readonly opId: s
   const state = part.openInsert;
   const waiting = state?.s === 'waiting' ? state.until : null;
   const remaining = useCountdown(waiting, now);
-  if (state === undefined || state.s === 'hidden') return null;
+  if (state === undefined || state.s === 'hidden' || !offersOpenInsert(part)) return null;
   if (state.s === 'waiting') {
     return (
       <State strong={false}>
@@ -159,7 +183,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
   const order = part.sendOrder ?? null;
 
   // The queue has not reached this part: it waits for an earlier one (§6.7.9).
-  if (order !== null && (send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale')) {
+  if (order !== null && waitsForEarlierPart(part)) {
     return (
       <div class="cg-pvs" data-cg-send={order.kind === 'held' ? 'held-group' : 'after'}>
         {order.kind === 'held' ? (

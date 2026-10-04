@@ -2,8 +2,8 @@
 // §4.4; SP-054, SP-055, UI-029): a sticky head without key labels, the stage
 // line while it streams, then the parts — each with its «Отправить» row — or
 // the error card. Nothing here inserts or sends by itself: Enter on a focused
-// part is «Открыть и вставить» for THAT part, a send is only a click on a
-// part's own button.
+// part is «Открыть и вставить» for THAT part — and only where its row shows
+// that button —, a send is only a click on a part's own button.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -12,7 +12,7 @@ import { type I18nKey } from '@cg/contracts/errors';
 import { type I18n, type Msg, type PartVM, type PreviewSendView, type ResultVM } from '@cg/contracts/vm';
 
 import { Button, Caret, ErrorCard, Spinner, StageLine, focusQuietly, isComposing, useAnnounce, useDispatch, useHints, useI18n, useKit, useTooltip } from '../../kit';
-import { SendRow, SentLine, openAndInsert, sendStateWords } from './SendRow';
+import { SendRow, SentLine, offersOpenInsert, openAndInsert, sendStateWords } from './SendRow';
 
 /** Function names are Latin and the same in every language (ui-design §1 п. 13). */
 const FEATURE_KEYS: Readonly<Partial<Record<ResultVM['feature'], I18nKey>>> = {
@@ -118,10 +118,11 @@ function PreviewPart({ result, part, tabStop, onStep }: PreviewPartProps): JSX.E
       return;
     }
     if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
-      // Enter and ⌘↵ / Ctrl+↵: «Открыть и вставить» this part — never a send (ui-design §6.4, HK-042).
+      // Enter and ⌘↵ / Ctrl+↵: «Открыть и вставить» this part — never a send (ui-design §6.4, HK-042) —, and
+      // only what the row's own button offers: nothing on a part that is uncertain, held or waiting (§6.7.8).
       event.preventDefault();
       const open = part.openInsert;
-      if (collapsed || open === undefined) return;
+      if (collapsed || open === undefined || !offersOpenInsert(part)) return;
       if (open.s === 'available') void dispatch(openAndInsert(result.opId, part));
       else if (open.s === 'unavailable') announce(i18n.text(open.reason.text));
       return;
