@@ -298,6 +298,7 @@ describe('R17 — the early key dispatcher on the stand', () => {
     it('[HK-020] text of another layout typed into our field arrives as typed, and nothing of ours fires', async () => {
       // WebDriver cannot run a real IME composition (the composing branch itself is proven on trusted events in
       // dispatcher.dom.test.ts); what a browser can show: non-Latin typing inside a closed root is left alone.
+      // A real IME is a hand check on winpc and the Mac: docs/hotkeys-delivery.md «Ввод через IME».
       await input('overlay', 'palette', true);
       await focusOurs('overlay-field');
       await browser.keys(['П', 'р', 'и', 'в', 'е', 'т', ' ', 'ё', '?', 'j']);
