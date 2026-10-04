@@ -505,7 +505,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // The person closed the preview before the chat opened: the pending insert is given up (§6.5).
     if (pendingInsert !== null && pendingInsert.track.handle === handle && !closingForNavigation) cancelInsert('preview-closed');
     // What the journal listed for the fan is read again when a card of the fan opens.
-    if (![...targets.values()].some((other) => other.pageId === state.pageId && other.fanRef === state.fanRef)) listed.delete(fanKey(state.pageId, state.fanRef));
+    if (!cardOpen(state.pageId, state.fanRef)) listed.delete(fanKey(state.pageId, state.fanRef));
     pruneTracks();
   }
 
@@ -699,7 +699,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     for (const track of touched) reportProgress(track);
   }
 
-  /** Reads what the background's journal knows of the sends to a fan; false — it did not answer. */
+  /** A card of the fan is open in this tab. */
+  const cardOpen = (pageId: number, fanRef: string): boolean => [...targets.values()].some((target) => target.pageId === pageId && target.fanRef === fanRef);
+
+  /** Reads what the background's journal knows of the sends to a fan; false — it did not answer (or the fan's card is gone). */
   async function loadSends(pageId: number, fanRef: string): Promise<boolean> {
     const atEpoch = epoch;
     const uncertainNow = new Set<string>();
@@ -708,7 +711,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       for (const attempt of track.attempts.values()) if (attempt.view.state === 'uncertain' && attempt.resolved === undefined) uncertainNow.add(attempt.attemptId);
     }
     const answer = await rpc.request('send.list', { pageId, fanRef });
-    if (disposed || atEpoch !== epoch || !answer.ok) return false;
+    // The list is kept only while a card of the fan is open (it is read again when one opens).
+    if (disposed || atEpoch !== epoch || !answer.ok || !cardOpen(pageId, fanRef)) return false;
     const before = listed.get(fanKey(pageId, fanRef))?.items;
     const items = new Map<string, SendListItem>();
     for (const item of answer.payload.attempts) {
@@ -720,6 +724,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     adoptSends(pageId, fanRef, answer.payload.truncated ? new Set() : uncertainNow);
     changed();
     return true;
+  }
+
+  /**
+   * The fan's sends as the journal has them at this click; the code to refuse
+   * the click with when it does not tell (another identity meanwhile, or no
+   * answer), null — they are known.
+   */
+  async function sendsNow(pageId: number, fanRef: string): Promise<CgCode | null> {
+    const atStart = epoch;
+    const known = await loadSends(pageId, fanRef);
+    if (disposed || atStart !== epoch) return 'CG-CONTEXT-CHANGED';
+    return known ? null : 'CG-RUNTIME-UNREACHABLE';
   }
 
   /**
@@ -1307,14 +1323,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   async function generate(type: UiActionType, state: TargetState, feature: FeatureId, options: UserOptions, regenerateOf: OpTrack | null): Promise<ActionReceipt> {
-    // §6.7.8: a part with an unknown outcome holds the fan even when this tab does not remember it (a reload, another tab).
-    // So nothing is generated for a fan whose sends were not read from the background's journal: it is asked now, and no answer is a refusal.
-    if (!listed.has(fanKey(state.pageId, state.fanRef))) {
-      const atStart = epoch;
-      const known = await loadSends(state.pageId, state.fanRef);
-      if (disposed || atStart !== epoch || targets.get(state.handle) !== state) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
-      if (!known) return refused(type, localError('CG-RUNTIME-UNREACHABLE', i18n));
-    }
+    // §6.7.8: a part with an unknown outcome holds the fan even when this tab does not remember it (a reload) or never
+    // made it (another tab). So every Generate asks the background's journal for the fan's sends first — one local read —
+    // and nothing is generated for a fan whose sends it did not tell.
+    const journal = await sendsNow(state.pageId, state.fanRef);
+    if (journal !== null || targets.get(state.handle) !== state) return refused(type, localError(journal ?? 'CG-CONTEXT-CHANGED', i18n));
     const ctx = context.current();
     const allowed = featuresOf(state.source);
     const known = allowed.find((f) => f === feature);
@@ -1522,6 +1535,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   async function openAndInsert(type: UiActionType, track: OpTrack, variant: number, index: number): Promise<ActionReceipt> {
     const text = partsOfResult(track.mirror.done?.result, variant)?.[index];
     if (text === undefined) return refused(type, localError('CG-INSERT-FAILED', i18n));
+    // The click puts a text into the fan's chat: the fan's sends are asked of the journal first (another tab may hold the fan, §6.7.8).
+    const journal = await sendsNow(track.pageId, track.fanRef);
+    if (journal !== null || tracks.get(track.opId) !== track) return refused(type, localError(journal ?? 'CG-CONTEXT-CHANGED', i18n));
     const rows = rowsOf(track, variant, index);
     if (rows.openInsert.s !== 'available') {
       const code: CgCode = rows.openInsert.s === 'unavailable' ? reasonCode(rows.openInsert.reason) : rows.send.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-INSERT-FAILED';

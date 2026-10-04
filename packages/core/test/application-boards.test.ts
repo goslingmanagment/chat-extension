@@ -69,6 +69,8 @@ interface Harness {
   readonly driver: PreviewSendDriver;
   /** F5: the tab's controllers and send driver are gone with their memory; new ones start over the same background, host and storage. */
   reload(): Promise<void>;
+  /** Another ChatSpace tab of the same person: controllers of its own (and a memory of its own) over the same background and storage. */
+  secondTab(): Promise<BoardsControllers>;
   readonly clicks: PreviewSendClick[];
   readonly notes: { readonly code: CgCode; readonly scope: string }[];
   readonly copied: string[];
@@ -92,7 +94,9 @@ interface Harness {
 }
 
 const live: Harness[] = [];
+const extraTabs: BoardsControllers[] = [];
 afterEach(() => {
+  for (const tab of extraTabs.splice(0)) tab.dispose();
   for (const h of live.splice(0)) {
     h.boards.dispose();
     h.driver.dispose();
@@ -280,6 +284,12 @@ async function harness(options: Options = {}): Promise<Harness> {
       driver = newDriver();
       boards = mount(newBoards());
       await flush();
+    },
+    async secondTab() {
+      const tab = mount(newBoards());
+      extraTabs.push(tab);
+      await flush();
+      return tab;
     },
     clicks,
     notes,
@@ -1843,15 +1853,55 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect(await lost.h.dispatch({ type: 'Generate', targetHandle: lost.handle, feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
     expect(count(lost.h, 'op.start')).toBe(1);
     expect(count(lost.h, 'send.list')).toBe(asked + 1);
-    // «Обновить архив» reads the journal again: the fan is held, though the result itself is not on the card.
-    await lost.h.dispatch({ type: 'RefreshArchive', targetHandle: lost.handle });
+    // The journal answers the next click: Generate is refused by what it says, though the card itself never learned it.
+    expect(lost.h.boards.preview.getSnapshot(preview('spenders')).bar.actions.reply?.enabled).toBe(true);
+    expect(await lost.h.dispatch({ type: 'Generate', targetHandle: lost.handle, feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(count(lost.h, 'op.start')).toBe(1);
+    // …and from then on the card says so: the fan is held, though the result itself is not on the card.
     const vm = lost.h.boards.preview.getSnapshot(preview('spenders'));
     expect(vm.result).toBeNull();
     expect(vm.bar.actions.reply).toMatchObject({ enabled: false, reason: { id: 'part-uncertain', text: { params: { n: 1 } } } });
     expect(vm.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
     expect(vm.unread).toBe('read-after-send');
-    expect(await lost.h.dispatch({ type: 'Generate', targetHandle: lost.handle, feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
-    expect(count(lost.h, 'op.start')).toBe(1);
+    // «Обновить архив» reads the journal as well.
+    const asked2 = count(lost.h, 'send.list');
+    await lost.h.dispatch({ type: 'RefreshArchive', targetHandle: lost.handle });
+    expect(count(lost.h, 'send.list')).toBe(asked2 + 1);
+  });
+
+  it('two tabs of one person: a part whose outcome became unknown in one tab holds the fan in the other at its next click', async () => {
+    const { h, opId, handle } = await withReply(UNCERTAIN);
+    // The second tab opens the same fan and shows the same finished result, nothing sent yet.
+    const second = await h.secondTab();
+    const act = async (action: UiAction) => {
+      for (const controller of second.controllers) {
+        const receipt = controller.dispatch(action);
+        if (receipt !== null) {
+          const answered = await receipt;
+          await h.flush();
+          return answered;
+        }
+      }
+      throw new Error(`nobody took ${action.type}`);
+    };
+    await act(open('spenders'));
+    await act({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await act({ type: 'OpenPreview', targetHandle: handle });
+    const there = (): readonly PartVM[] => second.preview.getSnapshot(preview('spenders')).result?.parts ?? [];
+    expect(second.preview.getSnapshot(preview('spenders')).result?.opId).toBe(opId);
+    expect(there().map((part) => part.openInsert)).toEqual([{ s: 'available' }, { s: 'available' }]);
+    // In the first tab part 1 is sent, and its outcome is unknown.
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain' });
+    // The second tab has not been told. Its next click asks the journal first: nothing is put into the chat, nothing is generated.
+    const navigations = h.host.calls.navigations.length;
+    expect(await act({ type: 'OpenAndInsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(h.host.calls.navigations).toHaveLength(navigations);
+    expect(there()[0]?.send).toMatchObject({ s: 'uncertain', attemptId: uuid(0x500) });
+    expect(there()[1]?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'part-uncertain' } });
+    expect(await act({ type: 'Generate', targetHandle: handle, feature: 'ping', options: {} })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(count(h, 'op.start')).toBe(1);
+    expect(h.host.calls.commits).toHaveLength(1);
   });
 });
 
