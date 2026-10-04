@@ -148,7 +148,7 @@ export class FakePageBackground implements PageRpc {
 
   /** How many event listeners pages still hold: a disposed page holds none. */
   listenerCount(): number {
-    let count = 0;
+    let count = this.eventsStateListeners.size;
     for (const set of this.listeners.values()) count += set.size;
     return count;
   }
@@ -165,6 +165,36 @@ export class FakePageBackground implements PageRpc {
     set.add(wrapped);
     this.listeners.set(type, set);
     return () => set.delete(wrapped);
+  }
+
+  private readonly eventsStateListeners = new Set<(state: string) => void>();
+
+  /** The page's own event channel as the platform client reports it (`parked` while the background sleeps). */
+  onEventsState(listener: (state: string) => void): () => void {
+    this.eventsStateListeners.add(listener);
+    return () => this.eventsStateListeners.delete(listener);
+  }
+
+  /** The event channel changes its state: the background slept (`parked`), the channel is there again (`open`). */
+  eventsState(state: 'open' | 'parked' | 'reconnecting' | 'lost'): void {
+    for (const listener of [...this.eventsStateListeners]) listener(state);
+  }
+
+  /**
+   * What happened elsewhere while this page's event channel was parked: the
+   * state changes, and nobody tells the page (no event reaches a parked port).
+   */
+  changeUnheard(change: { readonly session?: SessionIdentity | null; readonly settings?: SettingsPatch }): void {
+    if (change.session !== undefined) {
+      this.state.session = change.session;
+      this.state.diagnostics = { ...this.state.diagnostics, session: { signedIn: change.session !== null, hubOrigin: change.session?.hubOrigin ?? null, role: change.session?.role ?? null } };
+    }
+    if (change.settings !== undefined) {
+      const outcome = applySettingsPatch(this.state.settings, change.settings, { restricted: true });
+      if (!outcome.ok) throw new ContractBreach('the scripted settings change is not a valid settings patch');
+      this.state.settings = outcome.settings;
+      this.state.revision += 1;
+    }
   }
 
   /** Signs a person in or out from elsewhere (another page, the hub revoking the device). */

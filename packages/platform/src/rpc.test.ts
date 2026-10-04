@@ -519,7 +519,7 @@ describe('page client', () => {
     vi.useRealTimers();
   });
 
-  it('times out, maps a missing background to CG-RUNTIME-UNREACHABLE and reopens its event port', async () => {
+  it('times out, maps a missing background to CG-RUNTIME-UNREACHABLE, and gives up on a background that never comes', async () => {
     const w = world();
     const context = w.fake.context(pageSender(w.fake, 'options'));
     const page = createPageRpcClient({ api: context.api, validate: parseTabPayload, requestTimeoutMs: 300 });
@@ -529,17 +529,8 @@ describe('page client', () => {
     expect(await slow).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'catalog.get timeout' } });
     const states: string[] = [];
     page.onEventsState((state) => states.push(state));
-    const revisions: number[] = [];
-    page.onEvent('settings.changed', (state) => revisions.push(state.revision));
-    await vi.advanceTimersByTimeAsync(1500);
-    w.fake.unloadBackground();
-    await vi.advanceTimersByTimeAsync(100);
-    await vi.waitFor(() => expect(w.rpc.pagePorts()).toBe(1));
-    w.rpc.emit('settings.changed', { ...settingsState, revision: 9 });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(revisions).toEqual([9]);
-    expect(states).toEqual(['open', 'reconnecting', 'open']);
-    // No background at all: sendMessage rejects.
+    page.onEvent('settings.changed', () => undefined);
+    // A port that dies young (the background cannot start) is tried again 100/200/400 ms later, then given up.
     w.fake.onWake(() => undefined);
     w.fake.unloadBackground();
     expect(await page.request('settings.get', {})).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'settings.get not delivered' } });
@@ -547,6 +538,53 @@ describe('page client', () => {
     expect(states.at(-1)).toBe('lost');
     page.close();
     expect(await page.request('settings.get', {})).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'closed' } });
+  });
+
+  it('[BG-003] an open page does not wake the event page after its idle unload: the event port is parked, and opened again by the page’s next request, a new subscription or `resume`', async () => {
+    const w = world();
+    const page = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate: parseTabPayload, requestTimeoutMs: 300 });
+    const states: string[] = [];
+    page.onEventsState((state) => states.push(state));
+    const revisions: number[] = [];
+    page.onEvent('settings.changed', (state) => revisions.push(state.revision));
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(w.rpc.pagePorts()).toBe(1);
+    expect(w.starts).toHaveLength(1);
+
+    // The background unloads by its idle timeout: the port of the open page goes with it.
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(60_000);
+    // Nothing connected again by itself — for a whole minute, and for ever: the event page stays asleep.
+    expect(states).toEqual(['open', 'parked']);
+    expect(w.starts).toHaveLength(1);
+
+    // The page is back on screen: the port is opened, the background wakes once.
+    page.resume();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(states.at(-1)).toBe('open');
+    expect(w.starts).toHaveLength(2);
+    // `resume` of an open port does nothing.
+    page.resume();
+    expect(states.filter((state) => state === 'open')).toHaveLength(2);
+  });
+
+  it('a parked event port is opened again by the page’s next request, so the events that request causes are heard', async () => {
+    const w = world();
+    const page = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate: parseTabPayload, requestTimeoutMs: 300 });
+    const states: string[] = [];
+    page.onEventsState((state) => states.push(state));
+    const revisions: number[] = [];
+    page.onEvent('settings.changed', (state) => revisions.push(state.revision));
+    await vi.advanceTimersByTimeAsync(1500);
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(states.at(-1)).toBe('parked');
+    expect((await page.request('settings.get', {})).ok).toBe(true);
+    expect(states.at(-1)).toBe('open');
+    await vi.waitFor(() => expect(w.rpc.pagePorts()).toBe(1));
+    w.rpc.emit('settings.changed', { ...settingsState, revision: 9 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(revisions).toEqual([9]);
   });
 
   it('refuses an answer that is not the reply to this request', async () => {

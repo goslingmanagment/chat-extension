@@ -160,6 +160,30 @@ describe('alarms', () => {
   });
 });
 
+describe('an extension page left open without a ChatSpace tab', () => {
+  it('[BG-003] does not restart the event page after its idle unload: the page’s event port is parked — its next request wakes the background, and the events are heard again', async () => {
+    world = createWorld();
+    world.start();
+    const page = world.page();
+    const revisions: number[] = [];
+    page.onEvent('settings.changed', (state) => revisions.push(state.revision));
+    expect(await page.request('settings.get', {})).toMatchObject({ ok: true });
+    // The port lives (a connection that died young would be a background that cannot start, and is retried).
+    await sleep(1_100);
+    world.fake.suspendBackground();
+    await sleep(400);
+    // Nobody woke the event page: with the old reconnect it started again 5 ms after the unload — and again
+    // after every idle timeout, for as long as the page stayed open.
+    expect(world.starts()).toBe(1);
+
+    // The person does something on the page: one start, and the page hears what it changed.
+    const saved = await page.request('settings.patch', { patch: { ui: { hints: false } }, baseRevision: null });
+    expect(saved).toMatchObject({ ok: true });
+    expect(world.starts()).toBe(2);
+    await until(() => revisions.length > 0, 'the page heard `settings.changed` of the new instance');
+  });
+});
+
 describe('settings', () => {
   it('[BG-005] a change made on a page reaches every tab and every page', async () => {
     world = createWorld();

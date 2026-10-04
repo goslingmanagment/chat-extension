@@ -680,6 +680,59 @@ describe('a page that is gone, a section that is closed', () => {
     await settle();
     expect(reads()).toBe(quiet + 2);
   });
+
+  it('[DB-007] the events’ channel was parked while the background slept: when it is open again the page reads the sign-in and the settings anew — a sign-out or «отладка выключена» it never heard of still clears a debug page', async () => {
+    const debugState = workingState();
+    debugState.settings = { ...debugState.settings, debug: { enabled: true, renderTrace: false } };
+    const w = await open({ page: 'debug-prompt', state: debugState });
+    w.client.subscribe({ of: 'debug-prompt', token: 'prompt-token-1' }, () => undefined);
+    await settle();
+    expect(w.client.getSnapshot({ of: 'debug-prompt', token: 'prompt-token-1' }).blocks.length).toBeGreaterThan(0);
+    // The background sleeps; meanwhile the person signs out from the popup. No event reaches this page.
+    w.background.eventsState('parked');
+    w.background.changeUnheard({ session: null });
+    await settle();
+    expect(w.client.getSnapshot({ of: 'debug-prompt', token: 'prompt-token-1' }).blocks.length).toBeGreaterThan(0);
+    // The page is back on screen: the channel opens, and what it missed is read.
+    w.background.eventsState('open');
+    await settle();
+    const after = w.client.getSnapshot({ of: 'debug-prompt', token: 'prompt-token-1' });
+    expect(after.view).toMatchObject({ s: 'forbidden', error: { code: 'CG-AUTH-REQUIRED' } });
+    expect(after.blocks).toEqual([]);
+    expect(after.copyHandle).toBeNull();
+
+    // An `open` that follows no `parked` (the first connection) reads nothing extra.
+    world?.client.dispose();
+    const fresh = await open();
+    const reads = fresh.background.requests('session.get').length;
+    fresh.background.eventsState('open');
+    await settle();
+    expect(fresh.background.requests('session.get')).toHaveLength(reads);
+  });
+
+  it('[ST-133] a settings tab left open on «Статус» behind another tab reads nothing: the polling stops while it is hidden and starts again when it is back on screen', async () => {
+    const w = await open();
+    const reads = (): number => w.background.requests('diagnostics.get').length;
+    w.client.subscribe({ of: 'options', section: 'status' }, () => undefined);
+    await vi.advanceTimersByTimeAsync(SOUND_STATE_POLL_MS);
+    await settle();
+    const shown = reads();
+    // The person went to the ChatSpace tab: this one is hidden.
+    w.browser.visible = false;
+    await vi.advanceTimersByTimeAsync(SOUND_STATE_POLL_MS * 6);
+    await settle();
+    expect(reads()).toBe(shown);
+    // Back on screen (visibilitychange → the page's focus listener): one re-check now, then the poll again.
+    w.browser.visible = true;
+    clock += FOCUS_RECHECK_MIN_INTERVAL_MS;
+    w.browser.focus();
+    await settle();
+    const back = reads();
+    expect(back).toBeGreaterThan(shown);
+    await vi.advanceTimersByTimeAsync(SOUND_STATE_POLL_MS);
+    await settle();
+    expect(reads()).toBe(back + 1);
+  });
 });
 
 describe('the first run (ST-012)', () => {

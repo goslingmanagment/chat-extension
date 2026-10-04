@@ -20,6 +20,12 @@ export type PageRequestType = Exclude<TabRequestType, 'tab.register'>;
 export interface PageRpc {
   request<T extends PageRequestType>(type: T, payload: TabRequestPayload<T>, options?: { readonly timeoutMs?: number }): Promise<PageAnswer<TabResponsePayload<T>>>;
   onEvent<T extends TabEventType>(type: T, listener: (payload: TabEventPayload<T>) => void): () => void;
+  /**
+   * The state of the events' own channel (platform `PageRpcClient`): `parked` — the background went to sleep
+   * and the channel waits for the page's next word; `open` — it is there (again). What changed elsewhere while
+   * it was parked reached nobody here: the controller reads its state anew when it is open again.
+   */
+  onEventsState?(listener: (state: string) => void): () => void;
 }
 
 export interface PageClock {
@@ -60,6 +66,8 @@ export interface PageWindow {
   onHashChange(listener: () => void): () => void;
   /** The page became visible or focused again (ST-038). */
   onFocus(listener: () => void): () => void;
+  /** The page is on screen now (`document.visibilityState`): a hidden tab polls nothing. Absent — taken as visible. */
+  visible?(): boolean;
   /** `pagehide`: the last chance for a best-effort write (§9.4). */
   onPageHide(listener: () => void): () => void;
   /** The popup closes itself after it handed a click to a tab. */

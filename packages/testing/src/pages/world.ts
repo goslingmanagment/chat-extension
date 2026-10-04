@@ -272,6 +272,8 @@ export interface FakeBrowser {
   clipboardFails: boolean;
   downloadFails: boolean;
   hash: string;
+  /** The tab is on screen (`document.visibilityState`); `focus()` is what the page hears when it comes back. */
+  visible: boolean;
   readonly record: PortsRecord;
   /** A hash change from outside (the address bar, a link from an error toast). */
   go(hash: string): void;
@@ -352,6 +354,7 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     clipboardFails: false,
     downloadFails: false,
     hash: options.hash ?? '',
+    visible: true,
     record,
     go(hash) {
       shell.hash = hash;
@@ -421,6 +424,7 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
       },
       onHashChange: subscribe(hashListeners),
       onFocus: subscribe(focusListeners),
+      visible: () => shell.visible,
       onPageHide: subscribe(hideListeners),
       close: () => {
         record.closed += 1;

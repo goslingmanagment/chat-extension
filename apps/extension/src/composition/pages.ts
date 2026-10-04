@@ -145,16 +145,23 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
       },
       onHashChange: (listener) => on(win, 'hashchange', listener),
       onFocus(listener) {
-        const visible = (): void => {
-          if (doc.visibilityState === 'visible') listener();
+        // Back on screen or in focus: the events' port, parked while the background slept, is opened first —
+        // what the page then reads and what is announced after it both arrive (platform rpc-page.ts).
+        const focused = (): void => {
+          rpc.resume();
+          listener();
         };
-        const offFocus = on(win, 'focus', listener);
+        const visible = (): void => {
+          if (doc.visibilityState === 'visible') focused();
+        };
+        const offFocus = on(win, 'focus', focused);
         const offVisible = on(doc, 'visibilitychange', visible);
         return () => {
           offFocus();
           offVisible();
         };
       },
+      visible: () => doc.visibilityState === 'visible',
       onPageHide: (listener) => on(win, 'pagehide', listener),
       // Only the popup gets out of the way after it handed a click to a tab.
       ...(page === 'popup' ? { close: () => win.close() } : {}),

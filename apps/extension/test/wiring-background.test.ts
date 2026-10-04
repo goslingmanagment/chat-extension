@@ -20,7 +20,7 @@ import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { pageSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
-import { UPDATED_KEY } from '../src/composition/background.ts';
+import { HEALTH_FRESH_MS, UPDATED_KEY } from '../src/composition/background.ts';
 import { admitted, bindingOf, opsOf, signInWithPersona, startReply, workingTab } from './support/tabs.ts';
 import { CHATSPACE_ORIGIN, PASSWORD, createWorld, settingsFor, sleep, until, type World } from './support/world.ts';
 
@@ -754,6 +754,23 @@ describe('today’s error counters (ST-056)', () => {
     const failed = records.filter((record) => record.msg === 'sign-in failed');
     expect(failed).toHaveLength(2);
     expect(failed.every((record) => record.code === undefined && record.fields?.['code'] === 'CG-LOGIN-CREDENTIALS')).toBe(true);
+  });
+});
+
+describe('the hub’s health for a status surface', () => {
+  it('[ST-044] a status surface that reads the diagnostics again and again asks the hub’s `health` once in a while, not with every read; without a sign-in — never', async () => {
+    const w = world();
+    w.start();
+    const page = w.page();
+    for (let i = 0; i < 3; i += 1) expect(await page.request('diagnostics.get', {})).toMatchObject({ ok: true });
+    expect(callsTo(w.hub.read().entries, 'health')).toHaveLength(0);
+
+    await signInWithPersona(w);
+    const before = callsTo(w.hub.read().entries, 'health').length;
+    // «Статус» left open polls its live state every 10 s: each poll is one `diagnostics.get`.
+    for (let i = 0; i < 6; i += 1) expect(await page.request('diagnostics.get', {})).toMatchObject({ ok: true });
+    expect(callsTo(w.hub.read().entries, 'health').length - before).toBe(1);
+    expect(HEALTH_FRESH_MS).toBeGreaterThanOrEqual(60_000);
   });
 });
 

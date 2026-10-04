@@ -196,6 +196,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let translator: Translator = createTranslator(locale);
   const i18n: LiveI18n = createI18n({ language: locale, now: () => clock.now(), ...(env.timeZone === undefined ? {} : { timeZone: env.timeZone }) });
 
+  /** The events' channel is parked (the background sleeps): its next opening is followed by a re-read. */
+  let eventsParked = false;
   let version = 0;
   let cachedModel: { readonly version: number; readonly model: PagesModel } | null = null;
   const views = new Map<string, { readonly version: number; readonly vm: unknown }>();
@@ -670,11 +672,14 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   function watchingLive(): boolean {
     return [...listeners.values()].some((entry) => entry.set.size > 0 && entry.selector.of === 'options' && LIVE_SECTIONS.includes(entry.selector.section));
   }
+  /** A tab nobody looks at reads nothing: its requests would also keep the event page from ever going idle. */
+  const onScreen = (): boolean => ports.window.visible?.() !== false;
   function armPoll(): void {
-    if (pollTimer !== null || disposed || env.page !== 'options' || !watchingLive()) return;
+    if (pollTimer !== null || disposed || env.page !== 'options' || !watchingLive() || !onScreen()) return;
     pollTimer = timers.set(() => {
       pollTimer = null;
-      if (disposed || !watchingLive()) return;
+      // Hidden meanwhile: the polling stops, and starts again when the page is back on screen (`onFocus`).
+      if (disposed || !watchingLive() || !onScreen()) return;
       void loadDiagnostics().then(armPoll);
     }, SOUND_STATE_POLL_MS);
   }
@@ -1145,6 +1150,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         rpc.onEvent('op.done', scheduleOps),
         ports.window.onHashChange(moved),
         ports.window.onFocus(() => {
+          // Back on screen: the live state is polled again (it stopped while the tab was hidden).
+          armPoll();
           if (clock.now() - lastFocusCheck < FOCUS_RECHECK_MIN_INTERVAL_MS) return;
           lastFocusCheck = clock.now();
           void Promise.all([loadSession(), refresh(false)]);
@@ -1156,6 +1163,16 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
           emit();
         }),
         ports.systemScheme.subscribe(() => emit()),
+        // The events' channel was parked while the background slept, and is open again: whatever another page or
+        // a tab changed meanwhile was announced to nobody here. The settings and the sign-in — what every page
+        // shows or hides its data by (§9.3: debug off or a sign-out clears a debug page) — are read anew.
+        ports.rpc.onEventsState?.((state) => {
+          if (state === 'parked') eventsParked = true;
+          else if (state === 'open' && eventsParked) {
+            eventsParked = false;
+            void Promise.all([loadSettings(), loadSession()]);
+          }
+        }) ?? ((): void => undefined),
       );
       lastFocusCheck = clock.now();
       for (const entry of listeners.values()) ensureLoaded(entry.selector);

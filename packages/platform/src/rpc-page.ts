@@ -3,6 +3,21 @@
 // through a `cg-page` port opened on the first subscription. A background
 // that does not answer is CG-RUNTIME-UNREACHABLE (the popup's card instead
 // of an endless spinner, PU-*); nothing is resent by itself.
+//
+// The event port and the event page's idle unload (§7 «Фон и выгрузка»).
+// Firefox unloads the background after its idle timeout, and an open port
+// does not hold it: the port of an open page is then disconnected. Opening
+// it again at once would start the background again — which unloads again
+// after the next timeout: a settings tab left open without any ChatSpace tab
+// restarted the event page once per idle timeout for as long as it stayed
+// open (about 2,900 starts a day at Firefox's 30 s), each start writing its
+// records into the log. So a port that lived and was dropped is PARKED: no
+// timer opens it. It is opened again with the page's next word to the
+// background — a request (which wakes the background anyway), a new
+// subscription, or `resume()` when the page comes back on screen. A sleeping
+// background emits nothing, so nothing is missed while it sleeps; what
+// another page or tab changed while this one was parked is read by the
+// page's controller when the port is open again (`onEventsState`).
 
 import { PAGE_PORT_NAME, TabEnvelopeSchema } from '@cg/contracts/tab-protocol';
 import type { TabEventPayload, TabEventType, TabRequestPayload, TabResponsePayload } from '@cg/contracts/tab-messages';
@@ -18,7 +33,8 @@ export interface PageRpcClientOptions {
   readonly reconnectDelaysMs?: readonly number[];
 }
 
-export type PageEventsState = 'idle' | 'open' | 'reconnecting' | 'lost' | 'closed';
+/** `parked` — the port lived and the background went away (its idle unload): it waits for the page's next word. */
+export type PageEventsState = 'idle' | 'open' | 'reconnecting' | 'parked' | 'lost' | 'closed';
 
 export interface PageRpcClient {
   request<T extends TabClientRequestType>(
@@ -28,6 +44,8 @@ export interface PageRpcClient {
   ): Promise<RpcResult<TabResponsePayload<T>>>;
   onEvent<T extends TabEventType>(type: T, listener: (payload: TabEventPayload<T>) => void): () => void;
   onEventsState(listener: (state: PageEventsState) => void): () => void;
+  /** The page is on screen or in focus again: a parked event port is opened. Anything else — nothing. */
+  resume(): void;
   close(): void;
 }
 
@@ -81,11 +99,21 @@ export function createPageRpcClient(options: PageRpcClientOptions): PageRpcClien
     next.onDisconnect.addListener(() => {
       if (port !== next) return;
       port = null;
-      // A port that lived is a background that came and went: a fresh series of attempts.
-      if (Date.now() - openedAt >= STABLE_PORT_MS) attempt = 0;
+      // A port that lived is a background that came and went — an event page after its idle timeout. It is not
+      // woken for the port's sake: the port waits for the page's next word (see the head of this file).
+      if (Date.now() - openedAt >= STABLE_PORT_MS) {
+        attempt = 0;
+        setEventsState('parked');
+        return;
+      }
       scheduleRetry();
     });
   }
+
+  /** A parked port is opened again: the page talks to the background, or is back on screen. */
+  const unpark = (): void => {
+    if (eventsState === 'parked') openEvents();
+  };
 
   function scheduleRetry(): void {
     if (eventsState === 'closed') return;
@@ -105,6 +133,8 @@ export function createPageRpcClient(options: PageRpcClientOptions): PageRpcClien
   return {
     async request(type, payload, requestOptions) {
       if (eventsState === 'closed') return rpcError('CG-RUNTIME-UNREACHABLE', 'closed');
+      // The request wakes the background anyway: the events it may cause are heard.
+      unpark();
       const id = nextId++;
       let timer: ReturnType<typeof setTimeout> | null = null;
       const timeout = new Promise<'timeout'>((resolve) => {
@@ -136,13 +166,14 @@ export function createPageRpcClient(options: PageRpcClientOptions): PageRpcClien
       const wrapped = listener as (payload: unknown) => void;
       set.add(wrapped);
       if (eventsState === 'lost') attempt = 0;
-      if (eventsState === 'idle' || eventsState === 'lost') openEvents();
+      if (eventsState === 'idle' || eventsState === 'lost' || eventsState === 'parked') openEvents();
       return () => set.delete(wrapped);
     },
     onEventsState(listener) {
       stateListeners.add(listener);
       return () => stateListeners.delete(listener);
     },
+    resume: unpark,
     close() {
       if (retryTimer !== null) clearTimeout(retryTimer);
       retryTimer = null;

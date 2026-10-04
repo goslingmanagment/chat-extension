@@ -176,8 +176,13 @@ function updateRecordOf(value: unknown): { readonly at: string; readonly from: s
   return typeof at === 'string' && !Number.isNaN(Date.parse(at)) && typeof from === 'string' && from !== '' && from.length <= 32 ? { at, from } : null;
 }
 
-/** A status surface reads the hub's health again when the last read is older than this («Проверить всё» — at most every 10 s). */
-const HEALTH_FRESH_MS = 10_000;
+/**
+ * A status surface that merely reads the diagnostics (the popup opened, «Статус» polling its live state every
+ * 10 s) asks the hub's `health` again only when the last read is older than this. Not every poll: a settings tab
+ * left open on «Статус» would otherwise ask the hub six times a minute for as long as it stays open. «Проверить
+ * всё» and opening the settings read the health themselves, at once (`catalog.get` with `force`).
+ */
+export const HEALTH_FRESH_MS = 60_000;
 /** How long `diagnostics.get` waits for that read before it answers with what is known. */
 const HEALTH_WAIT_MS = 5_000;
 
