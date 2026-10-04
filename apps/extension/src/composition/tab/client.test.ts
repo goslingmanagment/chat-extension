@@ -8,7 +8,7 @@ import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import type { TokenAnswer } from './action-gate';
-import { adopt, boardReceiptToast, controllerRpc, createTabClient, type LooseController } from './client';
+import { adopt, boardReceiptToast, controllerRpc, createTabClient, heldSilently, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
 const done = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
@@ -163,6 +163,18 @@ describe('what a click on a board’s part came to, when the board has no place 
     // The preview's controller says these itself as it closes (its notifier): «Вставка отменена», «Чат открывается слишком долго».
     expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-INSERT-CANCELED'))).toBeNull();
     expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-NAV-TIMEOUT'))).toBeNull();
+  });
+
+  it('[X8-03] an attempt held before ChatSpace’s queue for a passing reason is said — its row goes back to «Отправить»; what the row keeps is not', () => {
+    const view = (state: string, code?: string) => ({ attemptId: '00000000-0000-4000-8000-000000000002', state, ...(code === undefined ? {} : { code }) }) as never;
+    // The fan is busy with a send of another tab: the button comes back, the reason would be lost.
+    expect(heldSilently(view('held', 'CG-SEND-BUSY'))).toBe('CG-SEND-BUSY');
+    // The row itself says these: a fan who wrote («Удержано…»), the owner's switch and the page's lasting conditions, a refusal.
+    for (const code of ['CG-SEND-STALE', 'CG-SEND-OFF', 'CG-SEND-FAN', 'CG-SEND-MIMIC', 'CG-SEND-FRESHNESS', 'CG-HUB-RATE-LIMIT', 'CG-TIMEOUT']) expect([code, heldSilently(view('held', code))]).toEqual([code, null]);
+    // An attempt that went on, or one nobody knows, has nothing to say here.
+    for (const state of ['preparing', 'nativeEnqueued', 'nativeAccepted', 'sentObserved', 'uncertain', 'rejected']) expect(heldSilently(view(state))).toBeNull();
+    expect(heldSilently(view('held'))).toBeNull();
+    expect(heldSilently(null)).toBeNull();
   });
 
   it('the dock’s own actions are the dock’s to show', () => {

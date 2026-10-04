@@ -15,6 +15,7 @@
 //   the router's; their shapes at run time are the router's.
 
 import type { CgCode, CgErrorWire, I18nKey } from '@cg/contracts/errors';
+import type { SendAttemptView } from '@cg/contracts/send';
 import { VIEW_NAMES, type ActionReceipt, type AppClient, type UiAction, type ViewName } from '@cg/contracts/vm';
 import type { AppRouter, SurfaceController } from '@cg/core/application';
 import type { TabRpcClient } from '@cg/platform';
@@ -88,6 +89,19 @@ export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { r
   if (action.type === 'SendPart' && !receipt.ok) return { code: receipt.code, scope: 'board.send', title: null };
   if (action.type === 'OpenAndInsertPart' && receipt.ok && receipt.outcome === 'needs-confirm') return { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' };
   return null;
+}
+
+/** Holds that pass by themselves, so the part's row keeps nothing of them: the fan or the account is busy with another send. */
+const PASSING_HOLDS: readonly CgCode[] = ['CG-SEND-BUSY'];
+
+/**
+ * An attempt that «Отправить» began and that was stopped before ChatSpace's queue for a reason the part's row
+ * does not keep: the row is «Отправить» again the moment the other send is over (a fan busy with a send of
+ * another tab, a queue busy for a moment). The code to say, or null — the row says it itself (a held-stale
+ * part, a switch that is off, a refusal) or there is nothing to say.
+ */
+export function heldSilently(view: Pick<SendAttemptView, 'state' | 'code'> | null): CgCode | null {
+  return view !== null && view.state === 'held' && view.code !== undefined && PASSING_HOLDS.includes(view.code) ? view.code : null;
 }
 
 type Answer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire };

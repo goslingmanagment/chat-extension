@@ -20,7 +20,7 @@
 // (action-gate.ts). Nothing here keeps a text of a conversation, a draft, a
 // prompt or an answer, and nothing of the kind is logged.
 
-import type { CgCode, CgErrorView } from '@cg/contracts/errors';
+import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { HostContractReport } from '@cg/contracts/host';
 import type { Locale } from '@cg/contracts/i18n/keys';
@@ -49,7 +49,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
-import { adopt, boardReceiptToast, controllerRpc, createTabClient } from './client';
+import { adopt, boardReceiptToast, controllerRpc, createTabClient, heldSilently } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
@@ -257,10 +257,18 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     onAction: (action) => health?.action(action.type, action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open ? action.to.surface : undefined),
     onReceipt(action, receipt) {
       // A click on a board's part that came to nothing the board itself shows: the reason, as a toast.
+      const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
+        const entry = CG_REGISTRY[code];
+        toasts.show({ kind: toastKindOf(code), code, scope, title: { key: title ?? entry.title }, body: title === null ? { key: entry.body } : null });
+      };
       const said = boardReceiptToast(action, receipt);
-      if (said === null) return;
-      const entry = CG_REGISTRY[said.code];
-      toasts.show({ kind: toastKindOf(said.code), code: said.code, scope: said.scope, title: { key: said.title ?? entry.title }, body: said.title === null ? { key: entry.body } : null });
+      if (said !== null) return say(said.code, said.scope, said.title);
+      // «Отправить» began an attempt: if it was stopped before ChatSpace's queue and its row will not say why, we do.
+      if (action.type !== 'SendPart' || !receipt.ok || receipt.attemptId === undefined) return;
+      void rpc.request('send.status', { attemptId: receipt.attemptId }).then((answer) => {
+        const code = heldSilently(answer.ok ? answer.payload.view : null);
+        if (code !== null && !disposed) say(code, 'board.send', null);
+      });
     },
   });
 
