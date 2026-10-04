@@ -277,7 +277,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       if (typeof set?.forEach !== 'function') return null;
       const ids: string[] = [];
       set.forEach((id) => ids.push(String(id)));
-      return { has: (acc) => ids.includes(acc) };
+      // Only the accounts the port serves: ChatSpace subscribes other platforms on the same socket.
+      return { has: (acc) => ids.includes(acc) && !!accountOf(acc) };
     },
     /** §6.6 п. 1–2: called inside the queue action, before the native send clears the field. */
     draft: (acc, fan) => {

@@ -174,10 +174,12 @@ describe('[X8-04] [SN-001] counters and facts (§6.7.5, §6.8 п. 4–5)', () =>
 
     expect(h.checkpoint()).toMatchObject({ fanSequence: 2, lastFanMessageId: '5002', knownFanMessageIds: ['5002', '5001'], coverage: 'ok' });
     expect(h.checkpoint('2004')).toMatchObject({ fanSequence: 1, lastFanMessageId: '5003' });
+    // A fan's message goes out once; an outgoing one as it came (a redelivery is not told apart, and moves no counter).
     expect(h.facts.map((fact) => [fact.fan, fact.msgId, fact.fromFan, fact.fanSequence])).toEqual([
       [FAN, '5001', true, 1],
       [FAN, '5002', true, 2],
       ['2004', '5003', true, 1],
+      [FAN, '5004', false, 2],
       [FAN, '5004', false, 2],
     ]);
     expect(h.facts[1]).toMatchObject({ tip: true, automatic: false, sentAt: '2026-10-03T10:00:00.000Z', socketEpoch: 1 });
@@ -203,7 +205,7 @@ describe('[X8-04] [SN-001] counters and facts (§6.7.5, §6.8 п. 4–5)', () =>
     expect(checkpoint.lastFanMessageId).toBe('6013');
   });
 
-  it('tells duplicates by the last 32 ids of a chat, and keeps the last 64 outgoing ids', () => {
+  it('tells duplicates by the last 32 ids of a chat', () => {
     const h = begin();
     const socket = h.armed();
     for (let n = 0; n < 33; n += 1) socket.receive(frames.message(ACC, FAN, String(5000 + n), true));
@@ -212,23 +214,43 @@ describe('[X8-04] [SN-001] counters and facts (§6.7.5, §6.8 п. 4–5)', () =>
     // The oldest id left the window: its redelivery cannot be told from a new message, and holds a send.
     socket.receive(frames.message(ACC, FAN, '5000', true));
     expect(h.checkpoint().fanSequence).toBe(34);
-
-    for (let n = 0; n < 65; n += 1) socket.receive(frames.message(ACC, FAN, String(7000 + n), false));
-    expect(h.tap.echoed(ACC, FAN, '7000')).toBe(false);
-    expect(h.tap.echoed(ACC, FAN, '7001')).toBe(true);
-    expect(h.tap.echoed(ACC, FAN, '7064')).toBe(true);
   });
 
-  it('remembers outgoing ids for a receipt that comes after its echo, by account, fan and id', () => {
+  it('a numeric id too large to be exact is no id: two fan messages never read as one', () => {
     const h = begin();
     const socket = h.armed();
-    socket.receive(frames.message(ACC, FAN, '7001', false));
-    expect(h.tap.echoed(ACC, FAN, '7001')).toBe(true);
-    expect(h.tap.echoed(ACC, '2004', '7001')).toBe(false);
-    expect(h.tap.echoed(OTHER_ACC, FAN, '7001')).toBe(false);
-    // A fan's message with that id is not an echo.
-    socket.receive(frames.message(ACC, FAN, '7002', true));
-    expect(h.tap.echoed(ACC, FAN, '7002')).toBe(false);
+    const before = h.checkpoint();
+    // As the server would write them: two different ids, the same number once parsed.
+    const raw = (id: string): string => JSON.stringify(frames.message(ACC, FAN, '1', true)).replace('"id":"1"', `"id":${id}`);
+    socket.receive(raw('12345678901234567890'));
+    socket.receive(raw('12345678901234567891'));
+    // Neither was counted as «the same message again»: the account's coverage is unknown, a send is held.
+    expect(h.facts).toEqual([]);
+    expect(h.coverage.at(-1)).toEqual([ACC, 'unknown', 'schema']);
+    expect(h.tap.fresh(before)).toBe('CG-SEND-FRESHNESS');
+    // The same ids as strings are two messages.
+    socket.receive(frames.message(ACC, FAN, '12345678901234567890', true));
+    socket.receive(frames.message(ACC, FAN, '12345678901234567891', true));
+    expect(h.checkpoint().fanSequence).toBe(2);
+  });
+
+  it('frames of an account that is not the port’s — another platform on the same socket — are not ours: nothing counted, nothing «unreadable»', () => {
+    const h = begin();
+    const socket = h.armed();
+    const before = h.checkpoint();
+    // ChatSpace subscribes its Telegram accounts on this socket too; their chats and messages have other ids.
+    const telegram = frames.message('5555', FAN, '1', true);
+    socket.receive({ ...telegram, message: { ...telegram.message, chatId: '-100123', id: 'abc' } });
+    socket.receive(frames.message('5555', FAN, '5001', true));
+    expect(h.tap.anchor()).toBe('ok');
+    expect(h.facts).toEqual([]);
+    expect(h.coverage).toEqual([[ACC, 'ok', 'armed']]);
+    expect(h.checkpoint(FAN, '5555')).toMatchObject({ coverage: 'unknown', fanSequence: 0 });
+    expect(h.tap.fresh(before)).toBeNull();
+    // The same odd frame for an account of ours is a frame we cannot read.
+    socket.receive({ ...telegram, account: { account_id: ACC }, message: { ...telegram.message, chatId: '-100123', id: 'abc' } });
+    expect(h.tap.anchor()).toBe('shape');
+    expect(h.tap.fresh(before)).toBe('CG-SEND-FRESHNESS');
   });
 });
 
@@ -270,7 +292,7 @@ describe('[X8-04] an account is armed only with proof (§6.7.5 «Готовно�
     socket.receive(frames.summary(OTHER_ACC));
     const coverage: Array<[string, string, string]> = [];
     tap.connect({ fact: () => undefined, coverage: (acc, state, reason) => coverage.push([acc, state, reason]), changed: () => undefined, members: () => new Set([ACC]) });
-    expect(coverage).toEqual([[ACC, 'ok', 'armed']]);
+    expect(coverage).toEqual([[ACC, 'ok', 'sync']]);
     expect(tap.checkpoint(ACC, FAN).coverage).toBe('ok');
     // Not in ChatSpace's set: its frame proved nothing.
     expect(tap.checkpoint(OTHER_ACC, FAN).coverage).toBe('unknown');
@@ -313,9 +335,63 @@ describe('[X8-04] an account is armed only with proof (§6.7.5 «Готовно�
     expect(h.tap.fresh(after)).toBeNull();
   });
 
-  it('a new socket while the old one never said it closed: nothing of the old socket arms the new one', () => {
+  it('a new socket while the old one is still open: no account is armed until the old one is closed', () => {
     const h = begin();
-    h.armed();
+    const first = h.armed();
+    const second = h.connect();
+    expect(h.coverage.at(-1)).toEqual([ACC, 'unknown', 'reconnect']);
+    second.receive(frames.authenticated);
+    second.receive(frames.summary(ACC));
+    // ChatSpace closes its socket before it makes the next. One left open may still get the frames the tap no longer hears.
+    expect(h.checkpoint().coverage).toBe('unknown');
+    expect(h.tap.fresh(h.checkpoint())).toBe('CG-SEND-FRESHNESS');
+    first.readyState = FakeSocket.CLOSING;
+    const after = h.checkpoint();
+    expect(after.coverage).toBe('ok');
+    expect(h.coverage.at(-1)).toEqual([ACC, 'ok', 'sync']);
+    expect(h.tap.fresh(after)).toBeNull();
+  });
+
+  it('a foreign socket on ChatSpace’s path can only hold a send: the real one’s fan message is never «nothing new»', () => {
+    const h = begin();
+    const real = h.armed();
+    const before = h.checkpoint();
+    // Code of the page opens its own socket whose URL ends the same way, and feeds it what arms an account.
+    const forged = h.connect('wss://evil.example.test/api/chat-space/ws');
+    forged.receive(frames.authenticated);
+    forged.receive(frames.summary(ACC));
+    // The fan writes on ChatSpace's real socket, where the tap no longer listens.
+    real.receive(frames.message(ACC, FAN, '5001', true));
+    expect(h.checkpoint()).toMatchObject({ coverage: 'unknown', fanSequence: 0 });
+    expect(h.tap.fresh(before)).toBe('CG-SEND-FRESHNESS');
+    // ChatSpace reconnects (it closes its socket first): while the foreign one stays open, nothing is armed.
+    real.close();
+    const next = h.connect();
+    next.receive(frames.authenticated);
+    next.receive(frames.summary(ACC));
+    expect(h.checkpoint().coverage).toBe('unknown');
+    forged.close();
+    expect(h.checkpoint().coverage).toBe('ok');
+  });
+
+  it('every socket left open counts, not only the last one replaced', () => {
+    const h = begin();
+    const real = h.armed();
+    // Two foreign sockets in a row; the second replaces the first, which then closes. ChatSpace's own is open all along.
+    const first = h.connect('wss://evil.example.test/api/chat-space/ws');
+    const second = h.connect('wss://evil.example.test/api/chat-space/ws');
+    first.close();
+    second.receive(frames.authenticated);
+    second.receive(frames.summary(ACC));
+    expect(h.checkpoint().coverage).toBe('unknown');
+    real.close();
+    expect(h.checkpoint().coverage).toBe('ok');
+  });
+
+  it('a new socket after the old one closed (ChatSpace’s own order): nothing of the old socket arms the new one', () => {
+    const h = begin();
+    const first = h.armed();
+    first.readyState = FakeSocket.CLOSING;
     const second = h.connect();
     expect(h.coverage.at(-1)).toEqual([ACC, 'unknown', 'reconnect']);
     second.receive(frames.authenticated);
@@ -413,6 +489,27 @@ describe('[X8-04] an account is armed only with proof (§6.7.5 «Готовно�
     expect(h.tap.fresh(third)).toBe('CG-SEND-FRESHNESS');
   });
 
+  it('a frame that names a message under another envelope is not «an ordinary frame»: it may have carried a fan’s message', () => {
+    const h = begin();
+    const socket = h.armed();
+    const before = h.checkpoint();
+    const good = frames.message(ACC, FAN, '5001', true);
+    // A renamed event with the same body, and the message wrapped one level deeper: neither arms, both void.
+    for (const odd of [
+      { ...good, event: 'account_new_message_v2' },
+      { event: 'batch', account: good.account, items: [{ event: 'account_new_message', message: good.message }] },
+    ]) {
+      socket.receive(frames.summary(ACC));
+      expect(h.checkpoint().coverage).toBe('ok');
+      socket.receive(odd);
+      expect(h.coverage.at(-1)).toEqual([ACC, 'unknown', 'schema']);
+      expect(h.tap.anchor()).toBe('shape');
+      expect(h.checkpoint().fanSequence).toBe(0);
+    }
+    expect(h.facts).toEqual([]);
+    expect(h.tap.fresh(before)).toBe('CG-SEND-FRESHNESS');
+  });
+
   it('too many chats: the counters start over and every checkpoint is void', () => {
     const h = begin();
     const socket = h.armed();
@@ -460,6 +557,53 @@ describe('[X8-04] freshness: «the fan wrote something new» (§6.7.5)', () => {
     expect(h.tap.fresh(later)).toBeNull();
     expect(h.tap.fresh({ ...later, fanSequence: later.fanSequence - 1 })).toBe('CG-SEND-STALE');
     expect(h.tap.fresh({ ...later, lastFanMessageId: '4999', knownFanMessageIds: ['4999'] })).toBe('CG-SEND-STALE');
+  });
+});
+
+describe('[X8-04] the time a frame costs is measured (§6.8 п. 3, §11 `handlerMs`)', () => {
+  it('counts every frame of ChatSpace’s socket, the time our listener spent in all and on the slowest one', () => {
+    let clock = 100;
+    const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const h = begin();
+    h.tap.connect({
+      // A slow consumer: the time it takes is the listener's time on that frame.
+      fact: (fact) => void (clock += fact.fromFan ? 3 : 5),
+      coverage: () => undefined,
+      changed: () => undefined,
+      members: () => h.subscribed,
+    });
+    expect(h.tap.frameTime()).toEqual([0, 0, 0]);
+    const socket = h.armed();
+    socket.receive(frames.message(ACC, FAN, '5001', true));
+    socket.receive(frames.message(ACC, FAN, '7001', false));
+    // A binary frame is the page's alone, and still a frame our listener was called for.
+    socket.dispatchEvent(new MessageEvent('message', { data: new ArrayBuffer(8) }));
+    expect(h.tap.frameTime()).toEqual([5, 8, 5]);
+    // Another socket's frames are not ours to measure.
+    h.connect('wss://elsewhere.example.test/live').receive(frames.summary(ACC));
+    expect(h.tap.frameTime()[0]).toBe(5);
+    now.mockRestore();
+  });
+
+  it('the budget: a frame costs 0.1 ms on average at most, message frames of 1 KB included', () => {
+    vi.useRealTimers();
+    const h = begin();
+    const socket = h.armed();
+    const pad = 'x'.repeat(900);
+    const batch = (round: number): number => {
+      const [, before] = h.tap.frameTime();
+      for (let n = 0; n < 1000; n += 1) {
+        // Half of the traffic are messages of fifty chats (parsed, counted, forwarded), half are other frames (filtered out).
+        socket.receive(JSON.stringify(frames.message(ACC, String(2100 + (n % 50)), String(1_000_000 * round + n), n % 3 !== 0, { content: pad })));
+        socket.receive(JSON.stringify({ ...frames.summary(ACC), pad }));
+      }
+      return (h.tap.frameTime()[1] - before) / 2000;
+    };
+    // The best of five batches: a busy machine may stall one of them, the code is the same in all.
+    const averages = Array.from({ length: 5 }, (_, round) => batch(round + 1));
+    expect(h.tap.frameTime()[0]).toBe(10_002);
+    expect(Math.min(...averages)).toBeLessThan(0.1);
+    expect(h.facts).toHaveLength(10_000 / 2);
   });
 });
 

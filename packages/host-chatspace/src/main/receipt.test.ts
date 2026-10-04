@@ -692,8 +692,10 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     expect(facts(live)).toEqual([]);
     (finish as unknown as (entry: unknown) => void)({ id: 'entry-1' });
     expect(live.win.fetch).toBe(live.nativeFetch);
-    // The entry came after the echo: what was seen for the chat before is not this send's to claim.
     expect(facts(live)).toEqual([]);
+    // The entry came after the echo: what was seen for the chat before is not this send's to claim; the next echo is.
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8105', false));
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: 'entry-1', platformMessageId: '8105', textDigest: ours.digest, draft: ours.draft }]);
   });
 
   it('the queue’s state is watched only while a send is followed', async () => {

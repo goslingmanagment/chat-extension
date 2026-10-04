@@ -5,19 +5,31 @@
 // - Only the constructor is wrapped (`new Proxy` + Reflect.construct):
 //   instances, `instanceof`, statics and the prototype stay native.
 // - A `message` and a `close` listener go only onto ChatSpace's own socket
-//   (its URL path). We never send, connect, subscribe or reconnect, never
-//   change a frame or stop its propagation; our failures stay inside.
-// - A cheap substring filter comes before JSON.parse: `account_new_message`
-//   and `authenticated` frames are parsed, any other frame only says which
-//   account it is for. Counters of fan messages per (account, fan), without
-//   duplicates by id, are updated before anything is forwarded; the text of a
-//   message never leaves this file.
+//   (its URL path), one socket at a time. We never send, connect, subscribe
+//   or reconnect, never change a frame or stop its propagation; our failures
+//   stay inside.
+// - A cheap substring filter comes before JSON.parse: frames that name
+//   `account_new_message` and the `authenticated` frame are parsed, any other
+//   frame only says which account it is for. Counters of fan messages per
+//   (account, fan), without duplicates by id, are updated before anything is
+//   forwarded; the text of a message never leaves this file. An outgoing
+//   message is forwarded as it comes (a redelivery is not told apart).
+// - A message frame of an account that is not in the set the runtime gives
+//   (the OnlyFans accounts ChatSpace subscribed; it subscribes other
+//   platforms on the same socket) is not ours: not counted, not forwarded,
+//   never «unreadable».
 // - An account is «armed» (§6.8 п. 6) when the current socket saw
 //   `authenticated`, the account is in ChatSpace's `subscribedAccountIds`
 //   (which the tap watches) and a frame of that account came on this socket
 //   since it was last subscribed. A new socket, a lost subscription, a sleep
-//   gap, an overflow or an unreadable frame void every checkpoint taken
-//   before: coverage is `unknown`, never «nothing new».
+//   gap, an overflow or a frame that names a message and cannot be read as
+//   one void every checkpoint taken before: coverage is `unknown`, never
+//   «nothing new». So does a second socket on that path while the previous
+//   one is still open (ChatSpace closes its socket before it makes the next):
+//   frames may then come where the tap no longer listens.
+// - The time our handler takes is bounded by the frame length it parses
+//   (MAX_FRAME) and measured (§6.8 п. 3, §11): frames seen, their total and
+//   the longest one, read through the handle (`frameTime`).
 // - Cleanup restores the global only if it is still ours (п. 11).
 //
 // The same script carries the rest of §6.6–§6.8 — the send port, the receipt
@@ -27,7 +39,7 @@
 
 import { idOf, isPlain } from './check';
 import { createLivePort } from './live-port';
-import { type LiveHost, type Tap, type TapSink, type WsTapHandle } from './live';
+import { type Checkpoint, type LiveHost, type Tap, type TapSink, type WsTapHandle } from './live';
 import { iso } from './page';
 import { CG_SEND_FRESHNESS, CG_SEND_STALE, KNOWN_FAN_MESSAGES, WS_AUTHENTICATED, WS_NEW_MESSAGE, WS_PATH, WS_TAP_KEY } from './protocol';
 
@@ -37,8 +49,6 @@ export { type WsTapHandle } from './live';
 const MAX_CHATS = 5000;
 /** Fan message ids kept per chat, newest first: duplicates are told by them. */
 const MAX_IDS = 32;
-/** Outgoing ids kept for a receipt that comes after its echo. */
-const MAX_ECHOES = 64;
 /** A longer frame is not parsed; one that names a message voids the coverage. */
 const MAX_FRAME = 262_144;
 /** The sleep check: a tick this late means the observation had a gap. */
@@ -63,25 +73,33 @@ interface Chat {
   ids: string[];
 }
 
+/** A socket that can still deliver frames: connecting or open (a closing one delivers none). */
+const delivers = (socket: WebSocket): boolean => socket.readyState <= SOCKET_OPEN;
+
 export function createTap(win: Window & typeof globalThis): Tap & { readonly constructed: () => number } {
   const Native = win.WebSocket;
   const clock = Date.now;
   const accounts = new Map<string, Account>();
   const chats = new Map<string, Chat>();
-  const echoes: string[] = [];
   let sink: TapSink | null = null;
   let on = true;
   let constructed = 0;
   let epoch = 0;
   let socket: WebSocket | null = null;
+  /** Sockets that were replaced while they could still deliver frames. */
+  let left: WebSocket[] = [];
   let authed = false;
-  /** A message frame could not be read since the last good one. */
+  /** A frame that names a message could not be read since the last good one. */
   let bad = false;
   /** The subscription set was readable at the last sync. */
   let observable = false;
   let tickAt = clock();
+  /** §11 `handlerMs`: frames our listener got, the time it spent on them in all and on the slowest one (ms). */
+  let frames = 0;
+  let spent = 0;
+  let slowest = 0;
 
-  const armed = (state: Account | undefined): boolean => on && authed && socket?.readyState === SOCKET_OPEN && !!state && state.subscribed && state.framed;
+  const armed = (state: Account | undefined): boolean => on && authed && socket?.readyState === SOCKET_OPEN && !left.some(delivers) && !!state && state.subscribed && state.framed;
   const report = (acc: string, state: Account, reason: string): void => {
     const ok = armed(state);
     if (ok === state.ok) return;
@@ -105,11 +123,12 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   const sync = (): void => {
     const members = sink?.members() ?? null;
     for (const [acc, state] of accounts) {
-      if ((members?.has(acc) === true) === state.subscribed) continue;
-      state.subscribed = !state.subscribed;
+      const moved = (members?.has(acc) === true) !== state.subscribed;
+      if (moved) state.subscribed = !state.subscribed;
       // The first readable set is the baseline: until it no account was armed, so no checkpoint could be compared.
-      if (observable) lose('subscription', acc);
-      else report(acc, state, 'armed');
+      if (moved && observable) lose('subscription', acc);
+      // What else arms an account may have changed without an event of ours (a replaced socket closed at last).
+      else report(acc, state, 'sync');
     }
     observable = members !== null;
   };
@@ -120,10 +139,15 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     tickAt = now;
   };
   const timer = win.setInterval(tick, TICK_MS);
+  /** The `wsFrames` anchor follows the last frame that named a message. */
+  const readable = (ok: boolean): void => {
+    if (bad !== ok) return;
+    bad = !ok;
+    sink?.changed();
+  };
   const unreadable = (acc?: string): void => {
     lose('schema', acc);
-    if (!bad) sink?.changed();
-    bad = true;
+    readable(false);
   };
   /** A frame of this account on the current socket (one small record per account ChatSpace's own socket names). */
   const touch = (acc: string): void => {
@@ -133,22 +157,20 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     report(acc, state, 'armed');
   };
 
+  /** A frame that names a message. */
   const message = (frame: unknown): void => {
     const root = isPlain(frame) ? frame : {};
     const acc = idOf(isPlain(root['account']) ? root['account']['account_id'] : null);
-    if (root['event'] !== WS_NEW_MESSAGE) {
-      if (acc) touch(acc);
-      return;
-    }
-    const body = isPlain(root['message']) ? root['message'] : {};
+    // Not an account of this port (another platform's, or not subscribed): the frame is not ours, readable or not.
+    if (acc && observable && !account(acc).subscribed) return;
+    // Anything but a message frame as we know it — another envelope, an id or a direction we cannot read — may have
+    // carried a fan's message: «unknown», never «nothing new» (§6.7.5).
+    const body = root['event'] === WS_NEW_MESSAGE && isPlain(root['message']) ? root['message'] : {};
     const fan = idOf(body['chatId']);
     const id = idOf(body['id']);
     const fromFan = body['is_from_fan'];
     if (!acc || !fan || !id || typeof fromFan !== 'boolean') return unreadable(acc ?? undefined);
-    if (bad) {
-      bad = false;
-      sink?.changed();
-    }
+    readable(true);
     touch(acc);
     const key = `${acc}:${fan}`;
     let chat = chats.get(key);
@@ -163,10 +185,6 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       }
       chat.seq += 1;
       if (chat.ids.unshift(id) > MAX_IDS) chat.ids.pop();
-    } else {
-      const tag = `${key}:${id}`;
-      if (echoes.includes(tag)) return;
-      if (echoes.push(tag) > MAX_ECHOES) echoes.shift();
     }
     const meta = isPlain(body['platformMetadata']) ? body['platformMetadata'] : {};
     sink?.fact({ acc, fan, msgId: id, fromFan, automatic: meta['isFromQueue'] === true, tip: meta['isTip'] === true, sentAt: iso(body['sentAt']), socketEpoch: epoch, fanSequence: chat?.seq ?? 0 });
@@ -188,7 +206,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       else message(frame);
     } else if (!authed && data.includes(WS_AUTHENTICATED) && (parse(data) as { event?: unknown } | null | undefined)?.event === WS_AUTHENTICATED) {
       authed = true;
-      for (const [acc, state] of accounts) report(acc, state, 'authenticated');
+      for (const [acc, state] of accounts) report(acc, state, WS_AUTHENTICATED);
       sink?.changed();
     } else {
       const acc = ACCOUNT_OF.exec(data)?.[1];
@@ -197,11 +215,16 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   };
   // Both listen on one socket at a time: `adopt` takes them off the previous one.
   const onMessage = (event: MessageEvent): void => {
+    const from = performance.now();
     try {
       read(event.data);
     } catch {
       // A failure of ours stays here: the frame is the page's.
     }
+    const took = performance.now() - from;
+    frames += 1;
+    spent += took;
+    if (took > slowest) slowest = took;
   };
   const onClose = (): void => {
     authed = false;
@@ -219,6 +242,9 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   /** ChatSpace creates a new socket on every (re)connect: a new socket epoch. */
   const adopt = (next: WebSocket): void => {
     release();
+    // ChatSpace closes its socket before it makes the next one. One left open may still get the frames the tap now
+    // misses: no account is armed until it is closed (a foreign socket on this path can only hold a send, §6.8).
+    left = left.concat(socket ?? []).filter(delivers);
     socket = next;
     epoch += 1;
     authed = false;
@@ -242,38 +268,38 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   });
   win.WebSocket = Tapped;
 
+  /** The counters of one chat as they are now. */
+  const checkpoint = (acc: string, fan: string): Omit<Checkpoint, 'documentEpoch'> => {
+    tick();
+    sync();
+    const state = account(acc);
+    const chat = chats.get(`${acc}:${fan}`);
+    return {
+      socketEpoch: epoch,
+      subscriptionEpoch: state.epoch,
+      hostAccountId: acc,
+      platformFanId: fan,
+      fanSequence: chat?.seq ?? 0,
+      lastFanMessageId: chat?.ids[0] ?? null,
+      knownFanMessageIds: chat?.ids.slice(0, KNOWN_FAN_MESSAGES) ?? [],
+      observedAt: clock(),
+      coverage: armed(state) ? 'ok' : 'unknown',
+    };
+  };
+
   return {
     constructed: () => constructed,
     on: () => on,
     anchor: () => (bad ? 'shape' : on && authed ? 'ok' : 'missing'),
+    frameTime: () => [frames, spent, slowest],
     sync,
-    checkpoint(acc, fan) {
-      tick();
-      sync();
-      const state = account(acc);
-      const chat = chats.get(`${acc}:${fan}`);
-      return {
-        socketEpoch: epoch,
-        subscriptionEpoch: state.epoch,
-        hostAccountId: acc,
-        platformFanId: fan,
-        fanSequence: chat?.seq ?? 0,
-        lastFanMessageId: chat?.ids[0] ?? null,
-        knownFanMessageIds: chat?.ids.slice(0, KNOWN_FAN_MESSAGES) ?? [],
-        observedAt: clock(),
-        coverage: armed(state) ? 'ok' : 'unknown',
-      };
+    checkpoint,
+    /** A checkpoint is fresh when one taken now tells the same: both covered, the same epochs, no new fan message. */
+    fresh(then) {
+      const now = checkpoint(then.hostAccountId, then.platformFanId);
+      if (then.coverage !== 'ok' || now.coverage !== 'ok' || then.socketEpoch !== now.socketEpoch || then.subscriptionEpoch !== now.subscriptionEpoch || now.fanSequence < then.fanSequence) return CG_SEND_FRESHNESS;
+      return now.fanSequence > then.fanSequence || now.lastFanMessageId !== then.lastFanMessageId ? CG_SEND_STALE : null;
     },
-    fresh(checkpoint) {
-      tick();
-      sync();
-      const state = accounts.get(checkpoint.hostAccountId);
-      const chat = chats.get(`${checkpoint.hostAccountId}:${checkpoint.platformFanId}`);
-      const seq = chat?.seq ?? 0;
-      if (checkpoint.coverage !== 'ok' || !armed(state) || checkpoint.socketEpoch !== epoch || checkpoint.subscriptionEpoch !== state?.epoch || seq < checkpoint.fanSequence) return CG_SEND_FRESHNESS;
-      return seq > checkpoint.fanSequence || (chat?.ids[0] ?? null) !== checkpoint.lastFanMessageId ? CG_SEND_STALE : null;
-    },
-    echoed: (acc, fan, id) => echoes.includes(`${acc}:${fan}:${id}`),
     connect(next) {
       sink = next;
       sync();
@@ -293,23 +319,26 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
 /** Installs the tap and leaves its handle under the non-enumerable `Symbol.for('chatgoose.wsTap')`; null when one is there already. */
 export function installWsTap(win: Window & typeof globalThis = window): WsTapHandle | null {
   const key = Symbol.for(WS_TAP_KEY);
-  if (Object.prototype.hasOwnProperty.call(win, key)) return null;
+  if (key in win) return null;
   const tap = createTap(win);
   let taken = false;
+  const page = win as unknown as Record<symbol, unknown>;
   const dispose = (): void => {
     tap.off();
-    if (Reflect.get(win, key) === handle) Reflect.deleteProperty(win, key);
+    if (page[key] === handle) delete page[key];
   };
-  const handle: WsTapHandle = Object.freeze({
-    version: 1 as const,
+  const handle: WsTapHandle = {
+    version: 1,
     socketCount: tap.constructed,
+    frameTime: tap.frameTime,
     attach: (host: LiveHost) => {
       if (taken || !tap.on()) return null;
       taken = true;
       return createLivePort(win, tap, host, dispose);
     },
     dispose,
-  });
-  Object.defineProperty(win, key, { value: handle, enumerable: false, configurable: true, writable: false });
+  };
+  // Not enumerable, not writable (the defaults); configurable, so `dispose` can take it away.
+  Object.defineProperty(win, key, { value: handle, configurable: true });
   return handle;
 }

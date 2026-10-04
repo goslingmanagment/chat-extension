@@ -77,7 +77,10 @@ export interface LiveHost {
   readonly queue: () => PageStore | null;
   /** The account's entries in the queue (`messagesByAccountId[acc]`). */
   readonly entries: (acc: string) => Plain[];
-  /** The accounts ChatSpace asked its socket to subscribe (`subscribedAccountIds`); null — not observable. */
+  /**
+   * The OnlyFans accounts ChatSpace asked its socket to subscribe (`subscribedAccountIds`, of the accounts the port
+   * serves: other platforms share the socket); null — not observable.
+   */
   readonly members: () => { has(acc: string): boolean } | null;
   /** The open chat's draft and the digest of its text, when acc/fan is the open chat with an observed editor; else null. */
   readonly draft: (acc: string, fan: string) => { readonly draft: SentDraft; readonly digest: string } | null;
@@ -114,7 +117,7 @@ export interface Checkpoint {
 
 /** Where the tap reports to, once the live port is attached. */
 export interface TapSink {
-  /** A message frame seen for the first time; the counters are already updated. */
+  /** A message frame: a fan's message seen for the first time (the counters are already updated), or an outgoing one as it came. */
   readonly fact: (fact: Fact) => void;
   /** An account's coverage changed (contracts FROM_MAIN.coverage). */
   readonly coverage: (acc: string, state: 'ok' | 'unknown', reason: string) => void;
@@ -130,14 +133,14 @@ export interface Tap {
   readonly on: () => boolean;
   /** `wsFrames` (LivePort.anchor). */
   readonly anchor: () => string;
+  /** §6.8 п. 3, §11 `handlerMs`: frames the listener got, the time it spent on them in all and on the slowest one (ms). */
+  readonly frameTime: () => readonly [frames: number, totalMs: number, maxMs: number];
   /** The subscription set may have changed. */
   readonly sync: () => void;
   /** The counters of one chat now, without the document epoch (§6.7.5). */
   readonly checkpoint: (acc: string, fan: string) => Omit<Checkpoint, 'documentEpoch'>;
   /** A checkpoint against the counters now: null — nothing new; else CG-SEND-STALE or CG-SEND-FRESHNESS. */
   readonly fresh: (checkpoint: Checkpoint) => string | null;
-  /** An outgoing message with this id was seen for this chat (the echo may come before the response, §6.7.6). */
-  readonly echoed: (acc: string, fan: string, id: string) => boolean;
   readonly connect: (sink: TapSink) => void;
   readonly off: () => void;
 }
@@ -163,6 +166,8 @@ export interface WsTapHandle {
   readonly version: 1;
   /** Sockets constructed through the tap since install. */
   readonly socketCount: () => number;
+  /** Tap.frameTime: the tap's own instrumentation, for the debug mode and the e2e (nothing reads it on a frame). */
+  readonly frameTime: () => readonly [frames: number, totalMs: number, maxMs: number];
   /** The bridge's runtime takes the live port; only the first call gets one. */
   readonly attach: (host: LiveHost) => LivePort | null;
   /** «Выключись» (§6.8 п. 10–11): stops listening and restores the constructor if it is still ours. */

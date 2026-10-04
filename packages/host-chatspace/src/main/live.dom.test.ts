@@ -164,6 +164,28 @@ describe('[X8-04] the runtime and the tap script find each other (§6.8)', () =>
     expect(h.queue.sends).toHaveLength(1);
   });
 
+  it('only the port’s own accounts are the tap’s: a Telegram account ChatSpace subscribed on the same socket is not ours', async () => {
+    const h = await start();
+    h.call('flags', { wsTap: true, previewSend: true });
+    h.page.cache.set(['accounts'], [
+      { id: Number(ACC), platformAccountId: '3003', platform: 'onlyfans' },
+      { id: 5555, platformAccountId: 'tg-1', platform: 'telegram_v2' },
+    ]);
+    const accounts = h.page.stores.get('accounts');
+    if (accounts) accounts['subscribedAccountIds'] = new Set([ACC, '5555']);
+    accounts?.$changed();
+    const socket = h.socket();
+    const before = h.call('checkpoint', { acc: ACC, fan: TARGET });
+    const telegram = frames.message('5555', TARGET, '1', true);
+    socket.receive({ ...telegram, message: { ...telegram.message, chatId: '-100123', id: 'abc' } });
+    socket.receive(frames.message('5555', TARGET, '5001', true));
+    // Not counted, not forwarded, and the frames of our accounts still read well.
+    expect(h.of('incoming')).toEqual([]);
+    expect(h.of('coverage')).toEqual([{ acc: ACC, state: 'ok', reason: 'armed' }]);
+    expect((h.call('snapshot', {}) as { contract: { missing: string[]; shape: string[] } }).contract).toMatchObject({ missing: [], shape: [] });
+    expect(h.call('previewSendPreflight', sendRequest(h, 4, { checkpoint: before }))).toEqual({ ok: true });
+  });
+
   it('every payload is checked by hand before the live port sees it', async () => {
     const h = await start();
     h.call('flags', { wsTap: true, previewSend: true });
