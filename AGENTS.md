@@ -10,13 +10,16 @@ pilot. Client of the Agency Hub (`~/code/1-platform/hub`): all AI and all
 platform data go through the hub via the vendored `@kernel/sdk`.
 
 **Status: R00 scaffold, the M0 spike, R01 and wave 1 are done; the M1 skeleton
-is wired** (`docs/spike-m0.md`; contracts frozen at 1.1.0:
+is wired; the wave 2 packages (R09b, R11, R12, R14, R15, R16, R17) are merged
+but not wired yet** (`docs/spike-m0.md`; contracts frozen at 1.2.0:
 `docs/protocols/README.md`, changes only by the rule in
 `docs/contracts-changelog.md`). Background, tab and pages run together
-(README «Каркас M1»); the dock status row and the options/popup pages are
-TEMPORARY until R11/R14/R16. Read `docs/architecture.md` and
-`docs/hub-integration-plan.md` first; developer commands are in `README.md`.
-`pnpm check` must be green before a commit, `pnpm e2e` before Ready.
+(README «Каркас M1»); the composition roots still mount the TEMPORARY dock
+status row and options/popup pages — the controllers and surfaces of wave 2
+sit in their packages (README «Волна 2») until the wiring step plugs them in.
+Read `docs/architecture.md` and `docs/hub-integration-plan.md` first;
+developer commands are in `README.md`. `pnpm check` must be green before a
+commit, `pnpm e2e` before Ready.
 
 ## Where the truth is
 
