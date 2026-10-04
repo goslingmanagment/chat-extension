@@ -1,10 +1,12 @@
 // Integration step M1 (architecture.md §2, §5.4, §8, §12 п. 4): the TEST build
 // as a whole — background, isolated and MAIN content scripts, lazy chunks,
-// the TEMPORARY options page and the real dock — on the ChatSpace-like stand,
-// against the fake hub on loopback. What it proves end to end:
+// the real settings page and popup, the real dock — on the ChatSpace-like
+// stand, against the fake hub on loopback. What it proves end to end:
 // - the background is ready and answers the page protocol before any sign-in;
+//   the settings page is the sign-in screen with the first-run checklist, and
+//   nothing asks the hub while nobody is signed in;
 // - the hub address changes in «Дополнительно» only while signed out (ST-042);
-// - a sign-in through the options page reaches the fake hub, the bootstrap
+// - a sign-in through the settings page reaches the fake hub, the bootstrap
 //   arrives, and an already open ChatSpace tab learns it without a reload;
 // - the tab registers; outside a chat nothing of the application is loaded
 //   (EX-011); with a composer the lazy chunks come by import() (EX-009) and
@@ -27,11 +29,11 @@ import { browser, expect } from '@wdio/globals';
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { DEV_COMPAT_PAGES_KEY } from '../support/constants';
-import { assignPersona, installTestBuild, pageRpc, readLocalStorage, readReport, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
+import { installTestBuild, pageRpc, readLocalStorage, readReport, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
 import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
+import { capturePage, choosePersona, openOptions, openPopup, readOptions, saveHubAddress, signOutFromAccount, submitSignIn, waitForOptions, waitForPopup } from '../support/pages';
 import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady, waitForStandReady } from '../support/stand';
-import { clickSignOut, openTempPage, rowNamed, rowsNamed, saveHubAddress, submitSignIn, waitForTempPage } from '../support/temp-pages';
 
 const { a: accountA, b: accountB } = STAND_IDS.accounts;
 const { a1, a2, b1 } = STAND_IDS.fans;
@@ -123,17 +125,21 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
   });
 
-  it('the background is ready before any sign-in: the page protocol answers, the options page shows «not signed in» and a hub that does not answer', async () => {
+  it('[ST-011] [ST-012] the background is ready before any sign-in: the page protocol answers, the settings page is the sign-in screen with the first-run checklist, and nothing asks a hub', async () => {
     await toPages();
-    const page = await openTempPage('options');
-    expect(page.signedIn).toBe(false);
+    const page = await openOptions();
+    // Nobody is signed in: the sign-in screen stands instead of the settings, whatever the address says.
+    expect(page).toMatchObject({ gate: true, section: null, hubAddress: DEAD_HUB, lang: 'ru' });
+    expect(page.documentTitle).toBe('Настройки ChatGoose');
+    // The first run starts here: eight steps, the install done, the sign-in still to do.
+    expect(page.checklist.map((step) => step.id)).toEqual(['install', 'host-permission', 'sign-in', 'persona', 'open-chatspace', 'binding', 'consent', 'sound-hotkeys']);
+    expect(page.checklist.find((step) => step.id === 'install')?.done).toBe(true);
+    expect(page.checklist.find((step) => step.id === 'sign-in')?.done).toBe(false);
     const diagnostics = await pageRpc<Diagnostics>('diagnostics.get');
-    expect(diagnostics).toMatchObject({ ok: true, payload: { extension: { testBuild: true, contractsVersion: CONTRACTS_VERSION }, session: { signedIn: false, hubOrigin: null }, tabs: [] } });
-    const shown = await waitForTempPage((state) => rowNamed(state, 'hub')?.state === 'bad', 'the dead hub address shows as not answering');
-    expect(rowNamed(shown, 'hub')?.value).toContain(DEAD_HUB);
-    expect(rowNamed(shown, 'account')?.state).toBe('bad');
-    expect(rowNamed(shown, 'bootstrap')?.state).toBe('none');
-    // Nothing reached the fake hub yet: the extension talks to no hub it was not pointed at.
+    expect(diagnostics).toMatchObject({ ok: true, payload: { extension: { testBuild: true, contractsVersion: CONTRACTS_VERSION }, session: { signedIn: false, hubOrigin: null }, hub: { reachable: null }, tabs: [] } });
+    await capturePage('ext-options-sign-in');
+    // Nobody is signed in, so no hub was asked anything — not the fake one, not the dead address (the network
+    // trap would have seen any other). The hub's health is read for a sign-in only.
     expect((await hub().journal(hubStart)).entries).toEqual([]);
   });
 
@@ -152,7 +158,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect((await dockPlacement()).visible).toBe(false);
     // The background knows the tab (and the creator accounts ChatSpace showed in it).
     await toPages();
-    await openTempPage('options');
+    await openOptions();
     const diagnostics = await pageRpc<Diagnostics>('diagnostics.get');
     expect(diagnostics.ok && diagnostics.payload.tabs).toHaveLength(1);
     const seen = await pageRpc<{ accounts: ReadonlyArray<{ account: { hostAccountId: string; platformAccountId: string | null }; openTabs: number }> }>('accounts.seen');
@@ -197,7 +203,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(sheets.nodes.filter((node) => node.startsWith('link:') && node !== 'link:http:')).toEqual([]);
   });
 
-  it('[ST-006] [ST-007] «Войти» in the dock’s banner leads to the settings: the one settings tab is pointed at «Аккаунт» with the code, no second tab opens', async () => {
+  it('[ST-006] [ST-007] [ST-009] «Войти» in the dock’s banner leads to the settings: the one settings tab is pointed at «Аккаунт» with the code, the sign-in form is highlighted, no second tab opens', async () => {
     await toStand();
     const report = await dockIs((dock) => dock.status === 'not-signed-in' && dock.hits['banner'] !== undefined, 'the banner shows its button');
     const point = report.dock?.hits['banner'];
@@ -208,35 +214,49 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await toPages();
     await browser.waitUntil(async () => (await browser.getUrl()).endsWith('options.html#account:CG-AUTH-REQUIRED'), { timeout: 10_000, timeoutMsg: 'the settings tab was not pointed at the account section' });
     expect(await browser.getWindowHandles()).toEqual(before);
+    // The page heard the new address without a reload: what the code is about — the sign-in form — carries the
+    // highlight (for two seconds).
+    const shown = await waitForOptions((state) => state.targets.includes('sign-in'), 'the sign-in form is highlighted', 5000);
+    expect(shown.gate).toBe(true);
+    await browser.waitUntil(async () => (await readOptions()).targets.length === 0, { timeout: 5000, timeoutMsg: 'the highlight did not fade' });
   });
 
   it('[ST-042] the hub address is saved in «Дополнительно» while signed out, and the fake hub answers', async () => {
     await toPages();
-    await openTempPage('options');
+    await openOptions();
+    const mark = await hub().mark();
     await saveHubAddress(fakeHubOrigin());
-    const page = await waitForTempPage((state) => rowNamed(state, 'hub')?.state === 'ok', 'the hub row shows the fake hub answering');
-    expect(rowNamed(page, 'hub')?.value).toContain(fakeHubOrigin());
-    expect(page.errors).toEqual([]);
-    const stored = (await readLocalStorage([STORAGE_KEYS.settings]))[STORAGE_KEYS.settings] as SettingsV1;
-    expect(stored.hub.baseUrl).toBe(fakeHubOrigin());
+    // The page asked the browser for the host's access inside the click, and the background confirmed the write.
+    const page = await waitForOptions((state) => state.hubAddress === fakeHubOrigin() && state.access === 'granted', 'the address is saved and the host access is there');
+    expect(page.codes).toEqual([]);
+    await browser.waitUntil(async () => ((await readLocalStorage([STORAGE_KEYS.settings]))[STORAGE_KEYS.settings] as SettingsV1).hub.baseUrl === fakeHubOrigin(), { timeout: 5000, timeoutMsg: 'the address did not reach the settings' });
+    // Saving an address asks the hub nothing: nobody is signed in yet.
+    expect((await hub().journal(mark)).entries).toEqual([]);
   });
 
   it('a wrong password is refused with the hub’s code and nothing is stored', async () => {
     await submitSignIn(WORLD.user.username, 'not-the-password');
-    const page = await waitForTempPage((state) => state.errors.length > 0, 'the sign-in error card');
-    expect(page.signedIn).toBe(false);
-    expect(page.errors).toEqual(['CG-LOGIN-CREDENTIALS']);
+    const page = await waitForOptions((state) => state.codes.length > 0, 'the sign-in error card');
+    expect(page.gate).toBe(true);
+    expect(page.codes).toEqual(['CG-LOGIN-CREDENTIALS']);
+    // The password left the form with the attempt.
+    expect(await browser.execute(() => document.querySelector<HTMLInputElement>('form.pg-form input[type="password"]')?.value)).toBe('');
     expect(await readLocalStorage([STORAGE_KEYS.authToken, STORAGE_KEYS.authMeta])).toEqual({});
   });
 
-  it('sign-in through the options page reaches the fake hub; the bootstrap arrives with the page linked to the stand account', async () => {
+  it('[ST-046] [AU-001] sign-in through the settings page reaches the fake hub; the settings replace the sign-in screen, and the bootstrap arrives with the page linked to the stand account', async () => {
     const mark = await hub().mark();
     await submitSignIn(WORLD.user.username, PASSWORD);
-    const page = await waitForTempPage((state) => state.signedIn && rowNamed(state, 'bootstrap')?.state === 'ok', 'signed in with a bootstrap');
-    expect(page.login).toBe(WORLD.user.username);
-    expect(rowNamed(page, 'account')).toMatchObject({ state: 'ok', value: `${WORLD.user.username} · ${WORLD.user.role}` });
-    expect(rowNamed(page, 'bootstrap')?.value).toContain(PAGE);
-    expect(page.errors).toEqual([]);
+    // The sign-in screen gives way to «Статус»: the hub answers, the person is named, the open account is bound.
+    const page = await waitForOptions((state) => !state.gate && state.rows['hub']?.level === 'ok' && state.rows['account']?.level === 'ok' && state.rows['binding']?.level === 'ok', 'signed in: «Статус» with the hub, the account and the binding');
+    expect(page.section).toBe('status');
+    expect(page.rows['account']?.text).toContain(WORLD.user.username);
+    expect(page.rows['binding']?.text).toContain(WORLD.pages.one.title);
+    // The page has no persona yet: one thing left to do before a shift.
+    expect(page.rows['persona']?.level).toBe('error');
+    expect(page.readiness).toBe('actions-needed');
+    expect(page.codes).toEqual([]);
+    await capturePage('ext-options-status-no-persona');
 
     const entries = (await hub().journal(mark)).entries;
     expect(callsTo(entries, 'authIssueDeviceTokenWithPassword').map((entry) => entry.status)).toEqual([200]);
@@ -255,12 +275,13 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(JSON.stringify(stored)).not.toContain(PASSWORD);
   });
 
-  it('[ST-042] while signed in the hub address does not change: the field is locked and the background refuses the request', async () => {
-    const locked = await browser.execute(() => {
-      const details = document.querySelector('[data-cg-temp="advanced"]');
-      return { field: details?.querySelector('input')?.getAttribute('aria-disabled') ?? null, readOnly: details?.querySelector('input')?.readOnly ?? null };
-    });
-    expect(locked).toEqual({ field: 'true', readOnly: true });
+  it('[ST-042] while signed in the hub address does not change: «Аккаунт» shows it as text, and the background refuses the request', async () => {
+    await openOptions('account');
+    const account = await waitForOptions((state) => state.section === 'account' && state.hubAddress !== null, '«Аккаунт» of a signed-in person');
+    expect(account.hubAddress).toBe(fakeHubOrigin());
+    expect(account.text).toContain('Перед сменой адреса выйдите');
+    // No field to type another address into.
+    expect(await browser.execute(() => document.querySelectorAll('[data-pg-anchor="hub-address"] input').length)).toBe(0);
     const refused = await pageRpc('settings.patchRestricted', { patch: { hub: { baseUrl: DEAD_HUB } }, baseRevision: null });
     expect(refused).toEqual({ ok: false, error: { code: 'CG-HUB-URL', detail: 'signed in' } });
     const state = await pageRpc<{ settings: SettingsV1 }>('settings.get');
@@ -276,10 +297,18 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
   });
 
-  it('the page gets its persona in the settings: the dock is ready, with the persona’s name and the actions of the open chat', async () => {
+  it('[ST-061] the page gets its persona on «Персоны» of the settings: «Сохранено ✓», the dock is ready, with the persona’s name and the actions of the open chat', async () => {
     await toPages();
-    await openTempPage('options');
-    const persona = await assignPersona(PAGE);
+    await openOptions('personas');
+    const catalog = await pageRpc<{ personas: ReadonlyArray<{ key: string; displayName: string; status: string }> }>('catalog.get');
+    const persona = catalog.ok ? catalog.payload.personas.find((item) => item.status === 'active') : undefined;
+    if (persona === undefined) throw new Error('the fake hub has no active persona');
+    await choosePersona(WORLD.pages.one.title, persona.displayName);
+    // The choice is a settings write: the page says «Сохранено ✓» with the revision the background gave it.
+    const saved = await waitForOptions((state) => state.save?.state === 'saved', 'the persona choice is confirmed');
+    const stored = await pageRpc<{ revision: number; settings: SettingsV1 }>('settings.get');
+    expect(stored.ok && saved.save?.revision).toBe(stored.ok ? stored.payload.revision : -1);
+    expect(stored.ok && stored.payload.settings.personas.byPageId[String(WORLD.pages.one.pageId)]?.key).toBe(persona.key);
     await toStand();
     const report = await dockIs((dock) => dock.status === 'ready', 'the dock is ready once the page has a persona');
     expect(report.dock).toMatchObject({ login: WORLD.user.username, page: PAGE, persona: persona.displayName, contract: 'ok', banner: null, mode: 'insert' });
@@ -317,23 +346,40 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await dockIs((dock) => dock.status === 'ready' && dock.page === PAGE, 'back on the bound account');
   });
 
-  it('the options page lists the bindings and the host contract of the open tab; the popup shows the same status', async () => {
+  it('[ST-020] [ST-067] [PU-005] the settings say «Готово к смене» and list the accounts with their hub pages; the popup shows the same shift', async () => {
     await toPages();
-    await openTempPage('options');
-    const page = await waitForTempPage((state) => rowsNamed(state, 'binding').some((row) => row.state === 'ok') && rowsNamed(state, 'contract').some((row) => row.state === 'ok'), 'bindings and contract rows');
-    const bindings = rowsNamed(page, 'binding');
-    expect(bindings.find((row) => row.value.includes(accountA))).toMatchObject({ state: 'ok' });
-    expect(bindings.find((row) => row.value.includes(accountA))?.value).toContain(PAGE);
-    expect(bindings.find((row) => row.value.includes(accountB))?.state).toBe('bad');
-    expect(bindings.find((row) => row.value.includes(accountB))?.value).toMatch(/CG-BINDING-/);
-    expect(rowsNamed(page, 'contract')).toHaveLength(1);
+    await openOptions('status');
+    const status = await waitForOptions((state) => state.readiness === 'ready', '«Статус» of a ready shift');
+    expect(status.rows['chatspace']).toMatchObject({ level: 'ok' });
+    expect(status.rows['hub']?.level).toBe('ok');
+    expect(status.rows['binding']).toMatchObject({ level: 'ok' });
+    expect(status.rows['binding']?.text).toContain(WORLD.pages.one.title);
+    expect(status.rows['persona']?.level).toBe('ok');
+    // Signed in, the first-run checklist stands over «Статус» with the steps already done.
+    expect(status.checklist.filter((step) => step.done).map((step) => step.id)).toEqual(expect.arrayContaining(['install', 'host-permission', 'sign-in', 'persona', 'open-chatspace', 'binding']));
+    await capturePage('ext-options-status-ready');
 
-    const popup = await openTempPage('popup');
-    const settled = await waitForTempPage((state) => state.signedIn && rowNamed(state, 'bootstrap')?.state === 'ok', 'the popup status');
-    expect(popup.ready).toBe(true);
-    expect(rowNamed(settled, 'account')?.value).toContain(WORLD.user.username);
-    // Status only: no sign-in form and no hub address on the popup.
-    expect(await browser.execute(() => document.querySelectorAll('[data-cg-temp="sign-in"], [data-cg-temp="advanced"], input').length)).toBe(0);
+    await openOptions('accounts');
+    await waitForOptions((state) => state.section === 'accounts' && state.text.includes(WORLD.pages.one.title), '«Аккаунты» with the bound account');
+    const accounts = await browser.execute(() =>
+      [...document.querySelectorAll('[data-pg-account]')].map((row) => ({
+        handle: row.getAttribute('data-pg-account') ?? '',
+        page: (row.querySelector('.pg-acc__grid dd.pg-value, .pg-acc__grid dd.pg-muted')?.textContent ?? '').trim(),
+      })),
+    );
+    // The account ChatSpace shows is bound to its hub page; the other one has no page (nothing is matched by name).
+    expect(accounts.find((row) => row.handle === `chatspace:${accountA}`)?.page).toBe(WORLD.pages.one.title);
+    expect(accounts.find((row) => row.handle === `chatspace:${accountB}`)?.page).toBe('нет страницы');
+
+    const popup = await openPopup();
+    const settled = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.pills.some((pill) => pill.includes('на связи')), 'the popup of a working shift');
+    expect(popup.drawn).toBe(true);
+    expect(settled.pills).toEqual(['ChatSpace: подключён', 'Хаб: на связи']);
+    expect(settled.codes).toEqual([]);
+    expect(settled.spinners).toBe(0);
+    // No sign-in form and no hub address on the popup.
+    expect(await browser.execute(() => document.querySelectorAll('input').length)).toBe(0);
+    await capturePage('ext-popup-working');
   });
 
   it('the WS tap is registered by the bootstrap flag `wsTap`: documents loaded after the sign-in get it at document_start', async () => {
@@ -368,7 +414,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
   it('the owner switches the tap off: the next bootstrap unregisters it', async () => {
     await hub().command({ op: 'config', patch: { flags: { wsTap: false } } });
     await toPages();
-    await openTempPage('options');
+    await openOptions();
     const refreshed = await pageRpc<{ flags: Readonly<Record<string, boolean>> }>('bootstrap.get', { force: true });
     expect(refreshed.ok && refreshed.payload.flags['wsTap']).toBe(false);
     await browser.waitUntil(async () => (await registeredScripts()).length === 0, { timeout: 5000, timeoutMsg: 'the WS tap stayed registered after the flag went off' });
@@ -392,12 +438,10 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await dockIs((dock) => dock.status === 'ready', 'signed in before the sign-out');
     const mark = await hub().mark();
     await toPages();
-    await openTempPage('options');
-    await clickSignOut();
-    const page = await waitForTempPage((state) => !state.signedIn, 'signed out');
-    expect(rowNamed(page, 'account')?.state).toBe('bad');
-    expect(rowNamed(page, 'bootstrap')?.state).toBe('none');
-    expect(page.errors).toEqual([]);
+    await signOutFromAccount();
+    // The sign-in screen is back, and it says nothing went wrong: the hub confirmed the revoke.
+    const page = await waitForOptions((state) => state.gate, 'signed out: the sign-in screen');
+    expect(page.codes).toEqual([]);
     expect(callsTo((await hub().journal(mark)).entries, 'authRevokeCurrentDeviceToken').map((entry) => entry.status)).toEqual([200]);
     expect(await pageRpc('session.get')).toEqual({ ok: true, payload: { session: null } });
     expect(await pageRpc('bootstrap.get')).toMatchObject({ ok: false, error: { code: 'CG-AUTH-REQUIRED' } });
@@ -416,14 +460,14 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     // A hub before H-2 and H-3: no `client/bootstrap`, no narrow token.
     await hub().command({ op: 'config', patch: { clientBootstrap: false, narrowTokens: false } });
     await toPages();
-    await openTempPage('options');
+    await openOptions();
     expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: true } }, baseRevision: null })).toMatchObject({ ok: true });
     // The dev map of a test build: the prod hub's pages carry no creator id, and nothing is matched by name.
     await writeLocalStorage({ [DEV_COMPAT_PAGES_KEY]: { [PAGE]: STAND_IDS.platformAccounts.a } });
     const mark = await hub().mark();
     await submitSignIn(WORLD.user.username, PASSWORD);
-    const page = await waitForTempPage((state) => state.signedIn && rowNamed(state, 'bootstrap')?.state === 'ok', 'signed in on the compat bootstrap');
-    expect(rowNamed(page, 'bootstrap')?.value).toContain(PAGE);
+    const page = await waitForOptions((state) => !state.gate && state.rows['account']?.level === 'ok' && state.rows['binding']?.level === 'ok', 'signed in on the compat bootstrap');
+    expect(page.codes).toEqual([]);
 
     const entries = (await hub().journal(mark)).entries;
     expect(callsTo(entries, 'clientBootstrap').map((entry) => entry.status)).toContain(404);
@@ -443,9 +487,8 @@ describe('integration M1 — the test build on the stand against the fake hub', 
 
     // Leave as found: signed out, debug off, the hub as deployed.
     await toPages();
-    await openTempPage('options');
-    await clickSignOut();
-    await waitForTempPage((state) => !state.signedIn, 'signed out of the compat hub');
+    await signOutFromAccount();
+    await waitForOptions((state) => state.gate, 'signed out of the compat hub');
     expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: false } }, baseRevision: null })).toMatchObject({ ok: true });
     await hub().command({ op: 'config', patch: { clientBootstrap: true, narrowTokens: true } });
   });

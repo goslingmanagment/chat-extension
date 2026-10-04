@@ -11,8 +11,6 @@ export {
   type RouterFailure,
   type SurfaceController,
 } from './router';
-// TEMPORARY (M1 integration): the action catalog without keys for the temporary extension pages (R16's pages bring their own).
-export { createUnboundCatalog } from './temp-catalog';
 
 // The surface controllers are NOT re-exported here: each family has its own
 // subpath, so a lazy entry takes one family and this barrel stays the router's

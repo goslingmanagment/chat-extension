@@ -4,7 +4,7 @@
 // Builds both flavors into temp dirs; the release one must carry no test hosts.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +20,12 @@ import {
   UPDATE_URL,
   type BuildFlavor,
 } from '../build/manifest.ts';
+import { PAGE_CHUNK_GROUPS, PAGE_ENTRY_NAMES } from '../build/page-chunks.ts';
 import { LOOPBACK_MATCHES } from '../src/hosts.ts';
+import { SITE_BASE, SITE_PAGES } from '../src/site.ts';
+
+/** tools/archive-check takes a JS file over this for a foreign bundle (`MAX_JS_BYTES`). */
+const MAX_PAGE_JS_BYTES = 400 * 1024;
 
 const appRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const wxtBin = join(appRoot, 'node_modules/.bin/wxt');
@@ -121,6 +126,27 @@ describe('release manifest (§3)', () => {
     expect(release.manifest['options_ui']).toEqual({ open_in_tab: true, page: 'options.html' });
     expect(release.manifest['icons']).toEqual({ '48': 'icons/48.png', '96': 'icons/96.png', '128': 'icons/128.png' });
     expect(release.manifest['content_security_policy']).toBeUndefined();
+  });
+
+  it('ships the four pages, each loading the pages’ three chunks — the texts, the contracts, the pages — none over the size of a foreign bundle', () => {
+    const chunks = readdirSync(join(release.dir, 'chunks'));
+    for (const group of PAGE_CHUNK_GROUPS) expect(chunks.filter((file) => file.startsWith(`${group.name}-`)), group.name).toHaveLength(1);
+    for (const file of chunks) expect(statSync(join(release.dir, 'chunks', file)).size, file).toBeLessThanOrEqual(MAX_PAGE_JS_BYTES);
+    for (const page of PAGE_ENTRY_NAMES) {
+      const html = readFileSync(join(release.dir, `${page}.html`), 'utf8');
+      const scripts = [...html.matchAll(/(?:src|href)="\/(chunks\/[^"]+\.js)"/g)].map((match) => match[1] ?? '');
+      expect(scripts.some((file) => file.startsWith(`chunks/${page}-`)), page).toBe(true);
+      for (const group of PAGE_CHUNK_GROUPS) expect(scripts.some((file) => file.startsWith(`chunks/${group.name}-`)), `${page}: ${group.name}`).toBe(true);
+      for (const file of scripts) expect(existsSync(join(release.dir, file)), file).toBe(true);
+      // No inline script and nothing from the network: the default CSP of an extension page.
+      expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/);
+      expect(html).not.toMatch(/https?:\/\//);
+    }
+  });
+
+  it('links to the site pages next to the update feed, https only', () => {
+    expect(UPDATE_URL.startsWith(SITE_BASE)).toBe(true);
+    for (const url of Object.values(SITE_PAGES)) expect(url).toMatch(new RegExp(`^${SITE_BASE.replace(/[.]/g, '\\.')}[a-z-]+\\.html$`));
   });
 
   it('carries no loopback stand, fake hub or test id', () => {
