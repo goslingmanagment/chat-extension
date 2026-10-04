@@ -207,8 +207,16 @@ describe('coach: a turn', () => {
     // Whitespace alone opens the panel instead of asking; too long a question never passes the UI contract.
     expect(UiActionSchema.safeParse({ type: 'Generate', targetHandle: h.dock().targetHandle, feature: 'coach', options: { question: 'x'.repeat(COACH_LIMITS.questionMaxChars + 1) } }).success).toBe(false);
     expect(UiActionSchema.safeParse({ type: 'Generate', targetHandle: h.dock().targetHandle, feature: 'coach', options: { question: 'x'.repeat(COACH_LIMITS.questionMaxChars) } }).success).toBe(true);
+    const turns = h.coach().turns;
+    let redraws = 0;
+    const off = h.ai.coach.subscribe({ of: 'coach' }, () => (redraws += 1));
     expect(await ask(h, '   ')).toMatchObject({ ok: false, code: 'CG-UI-FAILED' });
+    off();
     expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    // Not even for a moment did a turn of it appear in the dialog.
+    expect(redraws).toBe(0);
+    expect(h.coach().turns).toEqual(turns);
+    expect(h.bg.callsOf('token.issue')).toHaveLength(1);
   });
 
   it('[AI-083] [AI-093] the waiting turn: «Отправлено коучу…» until the hub\'s first frame, then the stages and a preview', async () => {

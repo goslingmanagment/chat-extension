@@ -207,6 +207,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     if (ready === null) return refused(ws, action.type, situation.statusError ?? { code: 'CG-GATE-CHAT-LOADING' });
     const question = action.options.question?.trim() ?? '';
     const preset = action.options.preset ?? null;
+    // AI-082: whitespace is not a question — nothing is asked and no turn appears.
+    if (question.length === 0 && preset === null) return refused(ws, action.type, { code: 'CG-UI-FAILED' });
     const now = clock.now();
     const session = sessions.open(keyOf(ready), now);
     rememberPage(session.sessionId, ready.page.pageId);
