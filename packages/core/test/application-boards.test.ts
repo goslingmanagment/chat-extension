@@ -1052,6 +1052,17 @@ describe('[NEW-10] [NF-012] the local draft of a preview', () => {
     expect(h.boards.preview.getSnapshot(preview('spenders')).draft.text).toBe('hey you, miss me?');
   });
 
+  it('[NF-012] the draft field of a «Новые» card is the greeting\'s own: its placeholder says so, a preview\'s talks about Fix', async () => {
+    const h = await harness();
+    await h.boards.preview.ready();
+    await h.dispatch(open('newcomers'));
+    // No fan on the card yet, and one opened: the same words either way.
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).draft.placeholder).toEqual({ key: 'newcomers.greetingDraft.placeholder' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).draft.placeholder).toEqual({ key: 'newcomers.greetingDraft.placeholder' });
+    expect(h.boards.preview.getSnapshot(preview('spenders')).draft.placeholder).toEqual({ key: 'preview.draft.placeholder' });
+  });
+
   it('[NF-012] a sign-out erases the drafts from memory and storage; another user signing in finds none', async () => {
     const h = await harness();
     await h.boards.preview.ready();

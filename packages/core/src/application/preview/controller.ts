@@ -16,7 +16,7 @@
 // «Открыть и вставить» — whichever result is on the card, and after a tab
 // reload too (the background's journal is read back with `send.list`).
 
-import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
+import { type CgCode, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { TONES, type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import { type HostEvent, type HostPort, type NavigationReceipt } from '@cg/contracts/host';
 import { type SpenderDetail } from '@cg/contracts/hub';
@@ -87,6 +87,8 @@ export const RATE_LIMIT_HOLD_MS = 60_000;
 const SOURCES = ['spenders', 'newcomers', 'palette'] as const satisfies readonly PreviewSource[];
 const DRAFT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
 const CLOSE_PREVIEW: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } };
+/** The words in the empty draft field: a Fix source in a preview, the greeting's own draft on a «Новые» card (NF-012). */
+const draftPlaceholder = (source: PreviewSource): I18nKey => (source === 'newcomers' ? 'newcomers.greetingDraft.placeholder' : 'preview.draft.placeholder');
 
 interface OpTrack {
   readonly opId: string;
@@ -1159,7 +1161,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       fanWroteNew: false,
       feed: { items: [], hasOlder: false, loadingOlder: false, olderError: null },
       ping: null,
-      draft: { text: '', maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg('preview.draft.placeholder') },
+      draft: { text: '', maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg(draftPlaceholder(source)) },
       bar: { actions: {}, tone: null, tones: TONES, split: false, locked: false, toneReason: null, splitReason: null },
       result: null,
       idleHint: null,
@@ -1262,7 +1264,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         olderError: state.olderError === null ? null : errorOf(state.olderError, i18n),
       },
       ping: source === 'newcomers' || feed === null || feed.ping === null ? null : { segment: feed.ping.segment, fanSilenceDays: feed.ping.fanSilenceDays },
-      draft: { text: draftText(state), maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg('preview.draft.placeholder') },
+      draft: { text: draftText(state), maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg(draftPlaceholder(source)) },
       bar: barOf(state, track),
       result,
       idleHint: result === null && feed !== null && blocked === null ? msg('preview.empty') : null,
