@@ -83,6 +83,8 @@ const HINT_GROUPS: readonly { readonly label: I18nKey; readonly questions: reado
 ];
 /** Built views of exchanges of other dialogs are dropped once this many pile up beyond the shown feed. */
 const COACH_BUILT_SLACK = 50;
+/** Chats whose archive point («Переписка на 09:20») is remembered; the one refreshed longest ago goes first. */
+export const COACH_ARCHIVES_MAX = 32;
 /** AI-094: follow-ups under the latest answer. */
 const FOLLOW_UP_CHIPS: readonly I18nKey[] = ['coach.chip.another', 'coach.chip.shorter', 'coach.chip.refusal'];
 
@@ -266,21 +268,32 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   // ── «Обновить переписку» (AI-097, Б6) ────────────────────────────────────
 
+  /** What is known of a chat's archive; a shift opens hundreds of chats, a bounded number of them is remembered. */
+  function setArchive(key: ChatKey, read: ArchiveRead): void {
+    archives.delete(key);
+    archives.set(key, read);
+    while (archives.size > COACH_ARCHIVES_MAX) {
+      const oldest = archives.keys().next().value;
+      if (oldest === undefined) break;
+      archives.delete(oldest);
+    }
+  }
+
   async function refreshArchive(action: UiActionOf<'RefreshArchive'>): Promise<ActionReceipt> {
     const { chat, ready } = ws.situation();
     if (chat === null || ready === null) return refused(ws, action.type, { code: 'CG-GATE-CHAT-LOADING' });
     const before = archives.get(chat.key);
-    archives.set(chat.key, { state: 'loading', asOf: before?.asOf ?? null, head: before?.head ?? null });
+    setArchive(chat.key, { state: 'loading', asOf: before?.asOf ?? null, head: before?.head ?? null });
     ws.bump();
     // The head of the hub archive: database only on the hub, so nothing is marked read.
     const answer = await rpc.request('feed.read', { pageId: ready.page.pageId, fanRef: ready.target.fanRef, cursor: null, limit: 1 });
     if (!answer.ok) {
-      archives.set(chat.key, { state: 'error', asOf: before?.asOf ?? null, head: before?.head ?? null });
+      setArchive(chat.key, { state: 'error', asOf: before?.asOf ?? null, head: before?.head ?? null });
       ws.bump();
       return refused(ws, action.type, answer.error);
     }
     const head = answer.payload.head;
-    archives.set(chat.key, { state: 'ready', asOf: answer.payload.asOf, head: head === null ? { messageRef: null, at: answer.payload.newestKnownAt } : { messageRef: head.messageRef, at: head.at } });
+    setArchive(chat.key, { state: 'ready', asOf: answer.payload.asOf, head: head === null ? { messageRef: null, at: answer.payload.newestKnownAt } : { messageRef: head.messageRef, at: head.at } });
     ws.bump();
     return done(action.type);
   }

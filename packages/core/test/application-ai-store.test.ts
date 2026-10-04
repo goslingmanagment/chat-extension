@@ -6,8 +6,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { OP_LIMITS, STORAGE_LIMITS, chatKeyOf, type AiQuotaSnapshot, type CoachVM, type OpView, type RecapBody } from '@cg/contracts';
-import { CHAT_UI_MAX, RECAP_UI_CHATS_MAX, RESYNC_RETRY_MS, WATCHED_CHATS_MAX, sameView } from '@cg/core/application/ai';
+import { OP_LIMITS, STORAGE_LIMITS, chatKeyOf, type AiQuotaSnapshot, type CoachVM, type FeedPage, type OpView, type RecapBody } from '@cg/contracts';
+import { CHAT_UI_MAX, COACH_ARCHIVES_MAX, RECAP_UI_CHATS_MAX, RESYNC_RETRY_MS, WATCHED_CHATS_MAX, sameView } from '@cg/core/application/ai';
 import { RECAP_SLOT_LIMITS } from '@cg/core/domain/recap';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
@@ -266,6 +266,41 @@ describe('what the tab keeps is bounded', () => {
     h.bg.changeSession(null, 'sign-out');
     await h.settle();
     expect(tails.size).toBe(0);
+  });
+
+  it('the Coach remembers the archive point of a bounded number of chats: the one refreshed longest ago is asked again', async () => {
+    const page = (fan: string): FeedPage => ({
+      target: { pageLabel: WORLD.pages.one.pageLabel, fanRef: fan },
+      source: 'archive',
+      snapshotRevision: 'snap-1',
+      asOf: '2026-10-03T09:20:00.000Z',
+      coverage: 'complete',
+      head: null,
+      newestKnownAt: null,
+      nextOlderCursor: null,
+      items: [],
+      summary: null,
+    });
+    const h = await start();
+    h.mount({ of: 'coach' });
+    const coach = (): CoachVM => h.ai.coach.getSnapshot({ of: 'coach' }) as CoachVM;
+    h.bg.feed = page(HOST_IDS.fan);
+    await h.dispatch(coach().freshness.refresh.action);
+    expect(coach().freshness.asOf).toBe('2026-10-03T09:20:00.000Z');
+    for (let n = 0; n < COACH_ARCHIVES_MAX; n += 1) {
+      const fan = String(5000 + n);
+      await visit(h, { ...openChat, platformFanId: fan });
+      h.bg.feed = page(fan);
+      await h.dispatch(coach().freshness.refresh.action);
+      expect(coach().freshness.asOf).toBe('2026-10-03T09:20:00.000Z');
+    }
+    // The last one refreshed is still known when the person comes back to it; the first one is not.
+    await visit(h, { ...openChat, platformFanId: String(5000 + COACH_ARCHIVES_MAX - 2) });
+    expect(coach().freshness.asOf).toBe('2026-10-03T09:20:00.000Z');
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(coach().freshness.asOf).toBeNull();
+    expect(h.bg.callsOf('feed.read')).toHaveLength(COACH_ARCHIVES_MAX + 1);
   });
 
   it('recap copies, their dossier saves and the sheet state of old chats do not outlive their caps', async () => {
