@@ -562,6 +562,28 @@ describe('[AI-124] [AI-126] [AI-130] [AI-131] [BG-006] the run lives in the back
     expect(h.scheduler.view(a)).toBeNull();
   });
 
+  it('[AI-126] the hub layer cut the stream of a sign-in that ended before anyone heard of the change: canceled with CG-CONTEXT-CHANGED, not a hub failure, never retried', async () => {
+    const h = harness();
+    let posts = 0;
+    // The custody erased the sign-in and aborted its streams; `session.changed` has not been emitted yet.
+    h.hub.stream = () => {
+      posts += 1;
+      h.env = { ...h.env, session: null };
+      return Promise.reject(hubError('aiFeatureStream', { kind: 'transport', failure: 'aborted' }, session.epoch));
+    };
+    const aborted = opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(10_000);
+    expect(h.scheduler.view(aborted)).toMatchObject({ state: 'canceled', error: { code: 'CG-CONTEXT-CHANGED' } });
+    expect(posts).toBe(1);
+    expect(h.events.of('toast').map((toast) => toast.payload.toast.code)).toEqual([]);
+    // An abort while the sign-in stands is not that: it is read as any other failure of the stream.
+    const standing = harness();
+    standing.hub.stream = () => Promise.reject(hubError('aiFeatureStream', { kind: 'transport', failure: 'aborted' }, session.epoch));
+    const failed = opIdOf(await standing.start(TAB, startOf()));
+    await standing.clock.advance(100);
+    expect(standing.scheduler.view(failed)?.state).toBe('failed');
+  });
+
   it('[AU-018] a re-sign-in of the same user keeps nothing of the old epoch', async () => {
     const h = harness();
     const op = h.nextOp();

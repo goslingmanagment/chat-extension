@@ -517,6 +517,13 @@ export class OpScheduler {
       }
       const failure: HubFailure = isHubCallError(error) ? error.failure : { kind: 'transport', failure: 'network' };
       if (!isHubCallError(error)) this.log.write({ level: 'error', scope: 'bg.ops', msg: 'stream failed outside the facade contract', ctx: { opId: run.view.opId } });
+      // §7 «Отмена»: the hub layer cuts the streams of a sign-in that ended before it announces the change
+      // (its epoch signal goes first, the event follows the storage writes). That abort is the automatic
+      // cancel itself, not a failure of the hub: the operation ends as the session change would end it.
+      if (failure.kind === 'transport' && failure.failure === 'aborted' && this.environmentLost(run)) {
+        this.settle(run, { state: 'canceled', code: 'CG-CONTEXT-CHANGED', toast: true });
+        return null;
+      }
       const resolution = this.resolve(run, failure, isHubCallError(error) ? error.epoch : null);
       const retry = retryDecision({
         disposition: resolution.disposition,
