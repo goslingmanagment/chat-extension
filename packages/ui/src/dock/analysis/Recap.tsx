@@ -202,6 +202,7 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
     <>
       <Head
         title={title}
+        tools
         acts={
           <>
             <CopyAll handle={recap.copyHandle} label={i18n.t('recap.copy')} />

@@ -81,6 +81,7 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
     <>
       <Head
         title={title}
+        tools
         acts={
           <>
             <CopyAll handle={review.copyHandle} label={i18n.t('review.copy')} />

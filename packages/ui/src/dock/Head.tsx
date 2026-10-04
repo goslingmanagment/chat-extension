@@ -2,7 +2,8 @@
 // streaming), the function's name, then meta, «черновик · не отправлено» and
 // on the right «Ещё раз ⌘E» and «Скрыть Esc». Narrow rules are CSS: meta and
 // key labels hide at 600 px, «Скрыть» becomes × at 420 px, «Ещё раз» becomes
-// ↻ below 360 px so that the draft label always fits whole (§3.3, §9.5 п. 4).
+// ↻ below 360 px so that the draft label always fits whole (§3.3, §9.5 п. 4);
+// below 360 px the buttons of a Recap or Review head take a second line.
 
 import { type ComponentChildren, type JSX } from 'preact';
 
@@ -18,11 +19,17 @@ export interface HeadProps {
   readonly children?: ComponentChildren;
   /** The right side. */
   readonly acts?: ComponentChildren;
+  /**
+   * A head with tools of its own after the title (Recap's segment, Review's
+   * score) and up to four buttons on the right: below 360 px the buttons take
+   * a second line instead of running out of the dock (ui-design §3.3, §6.5).
+   */
+  readonly tools?: boolean;
 }
 
-export function Head({ title, gutter, children, acts }: HeadProps): JSX.Element {
+export function Head({ title, gutter, children, acts, tools = false }: HeadProps): JSX.Element {
   return (
-    <header class="cg-head">
+    <header class={tools ? 'cg-head cg-head--tools' : 'cg-head'}>
       <span class="cg-gut">{gutter}</span>
       <span class="cg-head__title">{title}</span>
       {children}

@@ -5,7 +5,7 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { type ResultDebugVM } from '@cg/contracts';
-import { DEFAULT_PARTS, preloadPart, type DockParts } from '@cg/ui/dock';
+import { DEFAULT_PARTS, DOCK_CSS, preloadPart, type DockParts } from '@cg/ui/dock';
 import { ANALYSIS_STYLE } from '@cg/ui/dock/analysis';
 
 import { cgError, entry, handles, FANS, msg, phase, reason, recapPicker, recapView, review, scenarioById, uuid, views } from '../scenarios/app-client';
@@ -85,6 +85,9 @@ describe('Recap', () => {
     expect(text(kit.$('.cg-prose'))).toContain('Hubert, 34, Warsaw.');
     expect(kit.$('.cg-blocks')).toBeNull();
     expect(facts()).toEqual(['Сделан 1 д назад', 'архив полный']);
+    // Its head holds a segment and up to four buttons: below 360 px they take a second line (the e2e measures it at 320 px).
+    expect(kit.$('.cg-head')?.classList.contains('cg-head--tools')).toBe(true);
+    expect(DOCK_CSS).toMatch(/@container cg \(max-width: 359px\) \{[^@]*\.cg-head--tools \{ flex-wrap: wrap;/);
     // No Insert, no parts: a Recap is not a message to the fan.
     expect(kit.$$('.cg-part')).toEqual([]);
     expect(kit.$('[data-cg-draft]')).toBeNull();
@@ -215,6 +218,7 @@ describe('Review', () => {
     kit = mountDock('review');
     await settle(1);
     expect(text(kit.$('.cg-head__title'))).toBe('Review');
+    expect(kit.$('.cg-head')?.classList.contains('cg-head--tools')).toBe(true);
     expect(text(kit.$('.cg-head__score'))).toBe('7/10');
     expect(kit.$$('.cg-head__meta').map(text)).toEqual(['последние 40 сообщений с Hubert']);
     expect(kit.$$('.cg-block').map((block) => block.getAttribute('data-cg-section'))).toEqual(['verdict', 'money', 'persona', 'mistakes', 'recommendations']);

@@ -11,7 +11,9 @@
 //   < 680  Hi variants in a column instead of side by side
 //   ≤ 600  Review, Recap, Coach in «Ещё»; head without meta and key labels
 //   ≤ 420  no quota, no tone value, no lock; «Скрыть» is ×; Insert under the text
-//   < 360  «Ещё раз» is ↻, so «черновик · не отправлено» fits whole
+//   < 360  «Ещё раз» is ↻, so «черновик · не отправлено» fits whole; the
+//          buttons of a Recap or Review head take a second line; the strip's
+//          buttons stand closer (a 320 px column, §6.5)
 
 import { dark, type StyleSource } from '../kit';
 
@@ -179,6 +181,14 @@ ${dark('.cg-banner > .cg-btn--quiet')} { box-shadow: inset 0 0 0 1px var(--cg-ru
   .cg-again { width: 26px; padding: 0; justify-content: center; }
   .cg-again .cg-ico { display: block; }
   .cg-again .cg-btn__t { ${VISUALLY_HIDDEN} }
+  /* The strip in a 320 px column (ui-design §6.5): its buttons stand closer, so that Split stays inside the dock in both languages. */
+  .cg-strip .cg-act { padding: 0 4px; }
+  .cg-strip__acts { margin-left: -4px; }
+  .cg-strip__opts { padding-left: 4px; }
+  /* Recap and Review: a segment or a score and up to four buttons. They do not fit one line here, and nothing may run out of the dock. */
+  .cg-head--tools { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 3px; }
+  .cg-head--tools > .cg-head__sp { display: none; }
+  .cg-head--tools > .cg-head__acts { margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .cg-sheet { animation: none; } }
 `;
