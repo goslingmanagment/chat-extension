@@ -15,6 +15,7 @@
 //
 // Facts only: ids, digests, booleans. Never a message text.
 
+import type { HostContractReport } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
@@ -30,6 +31,29 @@ export interface HostFacts {
   /** The bootstrap as the tab knows it now; null — nobody is signed in, or it is not read yet. */
   configure(bootstrap: Bootstrap | null): void;
   dispose(): void;
+}
+
+/**
+ * Anchors of what the owner switches on separately — the WebSocket tap (`wsTap`) and the receipt profile of the
+ * preview send (X8). With the switch off the adapter reports them `missing` (§6.2: nothing of that part is in
+ * the page): the normal state of a shift, not a ChatSpace that changed — the same rule «Статус» reads the
+ * report by (core `hostGaps`). What is wrong with them while the switch is on is said by their capabilities.
+ */
+const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
+
+/**
+ * The host contract as the tab's log says it (DB-031): every anchor that is not `ok`, every capability that is
+ * not `on` — and `ok` false, which makes the record a CG-HOST-CONTRACT of «ошибки за сегодня», only when an
+ * anchor of ChatSpace itself is gone.
+ */
+export function contractFactsOf(report: HostContractReport): { readonly build: string | null; readonly adapterVersion: string; readonly ok: boolean; readonly missing: string[]; readonly degraded: string[] } {
+  const missing = Object.entries(report.anchors)
+    .filter(([, state]) => state !== 'ok')
+    .map(([anchor]) => anchor);
+  const degraded = Object.entries(report.capabilities)
+    .filter(([, capability]) => capability.state !== 'on')
+    .map(([name]) => name);
+  return { build: report.build, adapterVersion: report.adapterVersion, ok: missing.every((anchor) => SWITCHED_ANCHORS.includes(anchor)), missing, degraded };
 }
 
 const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] };

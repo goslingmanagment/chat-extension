@@ -1,12 +1,12 @@
 // What the page tells the tab and the tab passes on (tab/host-facts.ts).
 
-import type { HostEvent } from '@cg/contracts/host';
+import type { HostContractReport, HostEvent } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { describe, expect, it } from 'vitest';
 
 import type { ControllerRpc } from './client';
-import { forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
+import { contractFactsOf, forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
 
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
 const PROFILE = { adapterVersion: '0.2.0', modules: { notificationEntry: 'a', composables: 'b', messages: 'c', accounts: 'd', inbox: 'e' } };
@@ -160,5 +160,21 @@ describe('what the adapter is told while the tab learns who is signed in', () =>
       if (known !== undefined) w.facts.configure(known);
     }
     expect(w.configured.map((config) => config.wsTap)).toEqual([true]);
+  });
+});
+
+describe('the host contract in the tab’s log', () => {
+  const report = (anchors: Record<string, string>, capabilities: Record<string, { state: string }> = {}): HostContractReport =>
+    ({ build: 'index-abc', adapterVersion: '0.2.0', checkedAt: 1, anchors: { app: 'ok', router: 'ok', ...anchors }, capabilities: { insert: { state: 'on' }, ...capabilities } }) as unknown as HostContractReport;
+
+  it('[DB-031] the tap and the preview send switched off are not a ChatSpace that changed: the record lists them and carries no error', () => {
+    const off = contractFactsOf(report({ wsFrames: 'missing', receiptProfile: 'missing' }, { previewSend: { state: 'off' }, incoming: { state: 'off' } }));
+    expect(off).toEqual({ build: 'index-abc', adapterVersion: '0.2.0', ok: true, missing: ['wsFrames', 'receiptProfile'], degraded: ['previewSend', 'incoming'] });
+    expect(contractFactsOf(report({})).ok).toBe(true);
+  });
+
+  it('[ER-049] [DB-031] an anchor of ChatSpace itself that is gone is CG-HOST-CONTRACT, with or without the switched ones', () => {
+    expect(contractFactsOf(report({ pendingMessages: 'missing' }))).toMatchObject({ ok: false, missing: ['pendingMessages'] });
+    expect(contractFactsOf(report({ wsFrames: 'missing', composerBridge: 'changed' }))).toMatchObject({ ok: false, missing: ['wsFrames', 'composerBridge'] });
   });
 });

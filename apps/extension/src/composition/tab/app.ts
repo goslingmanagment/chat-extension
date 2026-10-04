@@ -50,7 +50,7 @@ import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
 import { adopt, controllerRpc, createTabClient } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
-import { forwardHostFacts, knownBootstrap } from './host-facts';
+import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
 import { mountSurfaces, overlayRoot } from './surfaces';
@@ -480,13 +480,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   };
   let contractLogged = false;
   const reportContract = (report: HostContractReport): void => {
-    const missing = Object.entries(report.anchors)
-      .filter(([, state]) => state !== 'ok')
-      .map(([anchor]) => anchor);
-    const degraded = Object.entries(report.capabilities)
-      .filter(([, capability]) => capability.state !== 'on')
-      .map(([name]) => name);
-    logHostContract(logger, { build: report.build, adapterVersion: report.adapterVersion, ok: missing.length === 0, missing, degraded }, contractLogged);
+    logHostContract(logger, contractFactsOf(report), contractLogged);
     contractLogged = true;
     sendHealth();
   };
