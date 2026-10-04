@@ -1,8 +1,9 @@
 // A fan's preview without opening the chat (architecture.md §6.5, §6.7, D-27;
 // ui-design §4.16, §4.17; SP-050…SP-056, NF-009, NF-010, NEW-10): the header,
 // «Чат не открыт, останется непрочитанным», the archive line with its
-// coverage and lag, the hub's archive feed, then the work zone — the local
-// draft for Fix, the mini strip, the result with «Отправить» on every part.
+// coverage and lag, the hub's archive feed, then the tools — the local draft
+// for Fix and the mini strip, which stay in place — and under them the work
+// zone, which scrolls: the result with «Отправить» on every part.
 // The same pane is the card of «Новые», where the draft is the greeting
 // draft (NF-012). It renders PreviewVM and nothing else: it never reads
 // ChatSpace and never loads a chat's history.
@@ -234,7 +235,9 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
           <ArchiveLine vm={vm} />
           {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
           <Feed handle={handle} feed={vm.feed} empty={vm.view.s === 'empty' ? vm.view.why : vm.view.s === 'loading' ? null : { key: 'preview.feed.empty' }} loading={vm.view.s === 'loading'} />
-          <div class="cg-pv__work">
+          {/* The draft, the lease and the strip never scroll: the strip's «Тон» menu opens upward over the feed,
+              and a scrolling box would clip it to its own height (only «Без тона» stayed reachable). */}
+          <div class="cg-pv__tools">
             {showDraft ? (
               <div class="cg-pv__draft">
                 <TextField
@@ -256,6 +259,8 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
             ) : null}
             {vm.claim !== null && vm.claim.s === 'mine' ? <OwnLease claim={vm.claim} /> : null}
             <MiniStrip vm={vm} hiHint={hiHint ?? null} />
+          </div>
+          <div class="cg-pv__work">
             {vm.claim === null ? null : <LeaseNote claim={vm.claim} hasResult={vm.result !== null} stoppedNote={vm.stoppedNote} />}
             {vm.result !== null ? (
               <PreviewResult result={vm.result} stoppedNote={vm.stoppedNote} />
@@ -296,7 +301,8 @@ export const PREVIEW_CSS = `
 .cg-pv__asof { min-width: 0; }
 .cg-pv__cov::before { content: " · "; white-space: pre; }
 .cg-pv__lag { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-strong); font-weight: 500; }
-.cg-pv__work { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; overscroll-behavior: contain; display: flex; flex-direction: column; border-top: 1px solid var(--cg-rule); }
+.cg-pv__tools { flex: none; display: flex; flex-direction: column; min-width: 0; border-top: 1px solid var(--cg-rule); }
+.cg-pv__work { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; overscroll-behavior: contain; display: flex; flex-direction: column; }
 .cg-pv__work > * { flex: none; }
 .cg-pv__draft { margin: 10px 12px 0 16px; }
 .cg-pv__draft .cg-field--area { min-height: 36px; }
