@@ -189,7 +189,8 @@ function RecapNote({ recap }: { readonly recap: NonNullable<CoachVM['recap']> })
         <b>{i18n.t('dock.action.recap')}</b>
         <span>{i18n.t('recap.madeAgo', { age: i18n.formatAge(recap.generatedAt, now()) })}</span>
       </summary>
-      <p>{recap.summary}</p>
+      {/* The Recap is a Markdown document: read as one, not as its source. */}
+      <Markdown source={recap.summary} class="cg-co__recap-text" />
     </details>
   );
 }
@@ -356,7 +357,8 @@ ${overlayRootCss('coach', 'panel')}
 .cg-co__recap { flex: none; padding: 0 16px 8px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-co__recap summary { display: flex; gap: 8px; cursor: pointer; list-style: none; }
 .cg-co__recap summary b { font-weight: 500; color: var(--cg-ink-2); }
-.cg-co__recap p { margin-top: 4px; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink-2); }
+.cg-co__recap-text { margin-top: 4px; max-height: 40vh; overflow-y: auto; overflow-wrap: anywhere; scrollbar-width: thin; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink-2); }
+.cg-co__recap-text p, .cg-co__recap-text li { max-width: none; }
 .cg-co__bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: 32px; padding: 3px 8px 3px 16px; border-top: 1px solid var(--cg-rule); border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-co__bar .is-lag { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-strong); font-weight: 500; }
 .cg-co__bar .cg-btn { margin-left: auto; }

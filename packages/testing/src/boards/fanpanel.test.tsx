@@ -87,6 +87,30 @@ describe('fan panel', () => {
     expect(ui.$$('.cg-fp__kv .cg-money')).toEqual([]);
   });
 
+  it('[CS-033] a known zero of money is not drawn: «трат нет» under the caption and no rows of kinds that brought nothing — never «$0»', async () => {
+    ui = await mountBoardSettled(
+      'fan-panel',
+      panel((vm) => ({ ...vm, spent: { total: 0, period30: 0, byKind: [{ kind: 'messages', mills: 0 }, { kind: 'tips', mills: 0 }] } })),
+    );
+    expect(ui.text('.cg-fp__none')).toBe('трат нет');
+    expect(ui.$('.cg-fp__big')).toBeNull();
+    expect(ui.$('.cg-fp__in')).toBeNull();
+    expect(textOf(ui.$('.cg-fp__body'))).not.toContain('$0');
+    // Only the subscription's rows are left.
+    expect(ui.$$('.cg-fp__kv')).toHaveLength(1);
+    ui.unmount();
+    // Some kinds are zero, the total is not: the zero rows go, the rest stay.
+    ui = await mountBoardSettled(
+      'fan-panel',
+      panel((vm) => ({ ...vm, spent: { total: 480_000, period30: null, byKind: [{ kind: 'messages', mills: 0 }, { kind: 'subscription', mills: 480_000 }, { kind: 'tips', mills: null }] } })),
+    );
+    expect(ui.text('.cg-fp__big')).toBe('$480');
+    expect(rows(0)).toEqual([
+      ['Подписка', '$480'],
+      ['Чаевые', '—'],
+    ]);
+  });
+
   it('[CS-017] [CS-034] the subscription: «18 мес, с 14 мар 2024», auto-renew, the churn risk in words', async () => {
     ui = await mountBoardSettled('fan-panel', '14a');
     expect(rows(1)).toEqual([
@@ -135,6 +159,17 @@ describe('fan panel', () => {
   it('[CS-035] the bio and the lists', async () => {
     ui = await mountBoardSettled('fan-panel', '14a');
     expect(ui.$$('.cg-fp__text').map(textOf)).toEqual(['logistics guy from Poland ✈️ always somewhere between two airports. coffee first, then everything else', 'VIP, Travels a lot']);
+  });
+
+  it('[CS-035] the hub’s profile of the fan is a Markdown document and is read as one, not printed as its source; ChatSpace’s own «О себе» is plain text', async () => {
+    ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, bio: '## Кто он\nHubert, 34.\n\n- любит сеты\n- пишет по вечерам', bioSource: 'hub' as const })));
+    const bio = ui.$$('.cg-fp__sec').find((section) => textOf(section.querySelector('.cg-fp__cap')) === 'Био') as HTMLElement;
+    expect(textOf(bio)).not.toContain('##');
+    expect(bio.querySelectorAll('li')).toHaveLength(2);
+    expect(textOf(bio)).toContain('Кто он');
+    ui.unmount();
+    ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, bio: '## not a heading here', bioSource: 'host' as const })));
+    expect(ui.$$('.cg-fp__text').map(textOf)[0]).toBe('## not a heading here');
   });
 
   it('[CS-036] the footer says how old and how complete the data is', async () => {

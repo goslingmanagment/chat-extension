@@ -51,7 +51,7 @@ import { IDLE, accountKeyOf, boundPageOf, currentAccountOf, valueOf, type Bindin
 import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType } from './ports';
 import { hashOfRoute, routeOfHash } from './route';
 import { SettingsWriter, settingsWithPending, type WriteMode, type WriteOutcome } from './settings-writer';
-import { debugPromptView, journalArtifact, journalText, journalView, promptText, PROMPT_ARTIFACT } from './view-debug';
+import { debugPromptView, isPromptToken, journalArtifact, journalText, journalView, promptText, PROMPT_ARTIFACT } from './view-debug';
 import { optionsView } from './view-options';
 import { popupView } from './view-popup';
 import { pageIdOfHandle } from './view-sections';
@@ -661,7 +661,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   /** A debug page reads its data once debug is known to be on — never while it is off or after a sign-out (DB-001, §9.3). */
   function ensureLoaded(selector: ViewSelector): void {
     if (!started || !debugOpen()) return;
-    if (selector.of === 'debug-prompt' && (prompts.get(selector.token)?.s ?? 'idle') === 'idle') void loadPrompt(selector.token);
+    if (selector.of === 'debug-prompt' && isPromptToken(selector.token) && (prompts.get(selector.token)?.s ?? 'idle') === 'idle') void loadPrompt(selector.token);
     if (selector.of === 'journal' && (journals.get(selector.journal)?.s ?? 'idle') === 'idle') void loadJournal(selector.journal);
   }
 

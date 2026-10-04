@@ -42,7 +42,8 @@ export const RU: I18nCatalog<'ru'> = {
   'common.coverage.unknown': 'охват неизвестен',
   'common.seconds': '{n} с',
   'common.key.esc': 'Esc',
-  'common.age.now': 'сейчас',
+  // Reads alone in a column («Фан писал») and before «назад» alike: «был < 1 мин назад», never «сейчас назад».
+  'common.age.now': '< 1 мин',
   'common.age.minutes': '{n} мин',
   'common.age.hours': '{n} ч',
   'common.age.days': '{n} д',

@@ -227,6 +227,15 @@ describe('popup view model', () => {
     const debug = { ...state, settings: { ...state.settings, debug: { enabled: true, renderTrace: false } } };
     const w2 = await open({ page: 'popup', state: debug });
     expect(w2.client.getSnapshot({ of: 'popup' }).aiTodayLine).toBe('AI сегодня $0.4200');
+
+    // A known zero of money is not drawn: before the day's first generation the line is not there at all.
+    world?.client.dispose();
+    const usage = state.usage;
+    const day = usage?.days[0];
+    if (usage === null || usage === undefined || day === undefined) throw new Error('the state has no usage day');
+    const nothingYet = { ...debug, usage: { ...usage, days: [{ ...day, totals: { ...day.totals, requestCount: 0, costMicroUsd: 0, completed: 0 } }] } };
+    const w3 = await open({ page: 'popup', state: nothingYet });
+    expect(w3.client.getSnapshot({ of: 'popup' }).aiTodayLine).toBeNull();
   });
 });
 

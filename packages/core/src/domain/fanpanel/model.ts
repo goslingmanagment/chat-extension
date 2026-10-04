@@ -146,6 +146,32 @@ export interface FanPanelModel {
   readonly archiveMessages: number | null;
 }
 
+/** A field of ChatSpace's insights that is bookkeeping, not an estimate of the fan: a moment, an id, a version. */
+const META_LABEL = /(^|[a-z_])(at|id|ids|version|revision)$|^(updated|created|generated|fetched|expires)/i;
+const MOMENT_VALUE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+
+/**
+ * «buyingPower» → «Buying power»: a field name of ChatSpace's own data as a
+ * person reads it. The names are ChatSpace's (D-29: «shown as it names
+ * them»); only their spelling is ours — words apart, the first one
+ * capitalized. Which fields the real ChatSpace sends is checked live.
+ */
+export function insightLabel(key: string): string {
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_\-.]+/g, ' ')
+    .trim()
+    .toLowerCase();
+  return words.length === 0 ? key : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** ChatSpace's estimates of the fan as rows of the panel: without its bookkeeping fields, with readable names. */
+export function hostScores(insights: readonly { readonly label: string; readonly value: string }[]): { readonly label: string; readonly value: string }[] {
+  return insights
+    .filter((item) => !META_LABEL.test(item.label) && !MOMENT_VALUE.test(item.value) && item.value.trim() !== '')
+    .map((item) => ({ label: insightLabel(item.label), value: item.value }));
+}
+
 const text = (value: string | null | undefined): string | null => {
   const trimmed = value?.trim() ?? '';
   return trimmed.length > 0 ? trimmed : null;
@@ -182,7 +208,7 @@ export function fanPanelModel(input: FanPanelInput): FanPanelModel {
           churnRisk: churnRisk(page, retention),
         };
 
-  const scores = host?.insights ?? [];
+  const scores = hostScores(host?.insights ?? []);
   const buyingPower = text(host?.buyingPowerLabel);
   // CS-035, D-29: the bio is the hub's profile of the fan; ChatSpace's own «О себе» is decoration, shown while the hub has none.
   const hubBio = text(dossier?.profile?.body);

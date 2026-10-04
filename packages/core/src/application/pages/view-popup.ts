@@ -94,7 +94,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
           },
     quota: bound === null ? null : { remaining: quota?.remainingRequestsToday ?? null, resetsAt: quota?.resetsAt ?? null, low: quota !== null && quota.remainingRequestsToday !== null && quota.remainingRequestsToday <= QUOTA_LOW },
     // Money of AI only in debug (Б4, PU-016); the hub's own number for this person and page.
-    aiTodayLine: debug && model.aiTodayMicroUsd !== null ? model.t.text('popup.aiCostToday', { money: formatMicroUsd(model.aiTodayMicroUsd) }) : null,
+    // A known zero of money is not drawn (ui-design §1 п. 6): the line appears with the first cent of the day.
+    aiTodayLine: debug && model.aiTodayMicroUsd !== null && model.aiTodayMicroUsd > 0 ? model.t.text('popup.aiCostToday', { money: formatMicroUsd(model.aiTodayMicroUsd) }) : null,
     newcomersCount: model.newcomers,
     buttons: [
       button('popup.btn.spenders', surface('spenders'), { reason: noTab, hotkey: hotkeyOf('spenders', platform, ports.catalog) }),

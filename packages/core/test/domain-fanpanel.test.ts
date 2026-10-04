@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CHURN_RISK_BY_RETENTION, type Dossier, type HostFan, type SpenderDetail } from '@cg/contracts';
-import { churnRisk, fanPanelModel, initials, spendByKind, subscriptionMonths, targetPage } from '@cg/core/domain/fanpanel';
+import { churnRisk, fanPanelModel, hostScores, initials, insightLabel, spendByKind, subscriptionMonths, targetPage } from '@cg/core/domain/fanpanel';
 import { NOW, SCENARIO_DATA } from '@cg/testing/hub';
 
 const NOW_MS = Date.parse(NOW);
@@ -151,6 +151,30 @@ describe('[CS-031] [CS-033] [CS-034] the fan panel', () => {
     expect(fanPanelModel({ ...base, hostFan, dossier: profile('x') }).lists).toEqual(['VIP', 'Whales']);
     // With no money read, the hub's profile still names the fan before ChatSpace's memory is all there is.
     expect(fanPanelModel({ ...base, lifetime: null, last30: null, hostFan: null, dossier: profile('x') })).toMatchObject({ name: 'Hubert K.', username: 'hubert_hub' });
+  });
+
+  it('ChatSpace’s estimates are shown as it names them, in readable spelling — and without its bookkeeping fields (a moment, an id)', () => {
+    const insights = [
+      { label: 'buyingPower', value: '5' },
+      { label: 'temperature', value: '1' },
+      { label: 'reply_rate', value: '0.4' },
+      { label: 'generatedAt', value: '2026-09-01T00:00:00Z' },
+      { label: 'updated', value: '2026-09-01 10:00' },
+      { label: 'fanId', value: '74001001' },
+      { label: 'Tips', value: '8/10' },
+      { label: 'note', value: '  ' },
+    ];
+    expect(hostScores(insights)).toEqual([
+      { label: 'Buying power', value: '5' },
+      { label: 'Temperature', value: '1' },
+      { label: 'Reply rate', value: '0.4' },
+      { label: 'Tips', value: '8/10' },
+    ]);
+    expect(insightLabel('focus')).toBe('Focus');
+    const model = fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: null, hostFan: { ...hostFan, buyingPowerLabel: null, insights }, row: null, now: NOW_MS });
+    expect(model.host?.scores.map((score) => score.label)).toEqual(['Buying power', 'Temperature', 'Reply rate', 'Tips']);
+    // Nothing but bookkeeping: the block is not shown at all.
+    expect(fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: null, hostFan: { ...hostFan, buyingPowerLabel: null, insights: [{ label: 'generatedAt', value: '2026-09-01T00:00:00Z' }] }, row: null, now: NOW_MS }).host).toBeNull();
   });
 
   it('[CS-036] [DB-026] ChatSpace memory is decoration only; the archive coverage is the archive\'s own word, then the board row\'s; the message count comes with the row', () => {

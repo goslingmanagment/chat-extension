@@ -62,18 +62,25 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
   const i18n = useI18n();
   const { spent, subscription, host } = vm;
   const mark = unknown(i18n);
+  const kinds = (spent?.byKind ?? []).filter((entry) => entry.mills !== 0);
   return (
     <>
       <div class="cg-fp__sec">
         <div class="cg-fp__cap">{i18n.t('fanPanel.spent')}</div>
-        <div class="cg-fp__hero">
-          <Money mills={spent?.total ?? null} zero="show" class="cg-fp__big" />
-          {spent !== null && spent.period30 !== null && spent.period30 > 0 ? <span class="cg-fp__in cg-money cg-num">{i18n.t('fanPanel.spentIn', { moneyIn: { money: spent.period30, sign: 'plus' } })}</span> : null}
-        </div>
-        {spent === null || spent.byKind.length === 0 ? null : (
+        {/* A known zero of money is not drawn (ui-design §1 п. 6): «трат нет» under the caption, and no rows of
+            kinds that brought nothing. Unknown stays «—». */}
+        {spent !== null && spent.total === 0 ? (
+          <div class="cg-fp__none">{i18n.t('fanPanel.spentNone')}</div>
+        ) : (
+          <div class="cg-fp__hero">
+            <Money mills={spent?.total ?? null} class="cg-fp__big" />
+            {spent !== null && spent.period30 !== null && spent.period30 > 0 ? <span class="cg-fp__in cg-money cg-num">{i18n.t('fanPanel.spentIn', { moneyIn: { money: spent.period30, sign: 'plus' } })}</span> : null}
+          </div>
+        )}
+        {kinds.length === 0 ? null : (
           <dl class="cg-fp__kv">
-            {spent.byKind.map((entry) => (
-              <Kv key={entry.kind} label={i18n.t(KIND_KEYS[entry.kind])} value={i18n.formatMoneyMills(entry.mills, { zero: 'show' })} />
+            {kinds.map((entry) => (
+              <Kv key={entry.kind} label={i18n.t(KIND_KEYS[entry.kind])} value={i18n.formatMoneyMills(entry.mills)} />
             ))}
           </dl>
         )}
@@ -95,7 +102,8 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
       {vm.bio === null || vm.bio === '' ? null : (
         <div class="cg-fp__sec">
           <div class="cg-fp__cap">{i18n.t('fanPanel.bio')}</div>
-          <p class="cg-fp__text">{vm.bio}</p>
+          {/* The hub's profile of the fan is a Markdown document (the saved full Recap); ChatSpace's own «О себе» is plain text. */}
+          {vm.bioSource === 'hub' ? <Markdown source={vm.bio} class="cg-fp__md" /> : <p class="cg-fp__text">{vm.bio}</p>}
         </div>
       )}
       {vm.lists.length === 0 ? null : (
@@ -279,6 +287,7 @@ export const FAN_PANEL_CSS = `
 /* The total and «+$320 за 30 дней» share one line of text, on the big number's baseline. */
 .cg-fp__hero { font-size: var(--cg-text-3xl); line-height: 28px; }
 .cg-fp__big { font-weight: 600; color: var(--cg-ink-strong); letter-spacing: -0.01em; }
+.cg-fp__none { color: var(--cg-ink-2); line-height: 24px; }
 .cg-fp__in { margin-left: 8px; font-size: var(--cg-text-base); font-weight: 500; letter-spacing: 0; white-space: nowrap; }
 .cg-fp__kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; margin: 6px 0 0; }
 .cg-fp__kv--flush { margin-top: 0; }

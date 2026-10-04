@@ -140,6 +140,10 @@ describe('popup (ui-design §4.23)', () => {
     const page = await mount('popup', { state: signedOutState() });
     expect(page.$('[data-cg-code="CG-AUTH-REQUIRED"]')).not.toBeNull();
     expect(page.$$('.pg-pill')).toHaveLength(0);
+    // The popup says where to sign in — not «через значок расширения», which is the popup the person is looking at.
+    expect(page.text()).toContain('Войдите в настройках');
+    expect(page.text()).not.toContain('через значок расширения');
+    expect(page.text().split('Войдите в настройках')).toHaveLength(2);
     await flush(() => button(page, 'Войти').click());
     expect(page.world.browser.record.opened).toEqual([{ page: 'options', hash: 'account:CG-AUTH-REQUIRED' }]);
   });
@@ -908,6 +912,12 @@ describe('debug pages (§9.3)', () => {
     const expired = await mount('debug-prompt', { state: debugOn(), token: 'lost-token' });
     expect(expired.$('[data-pg-prompt="expired"]')?.textContent).toContain('Снимок истёк');
     expect(expired.$('pre')).toBeNull();
+    unmount?.();
+    // The page opened without a snapshot's token: the same words, no raw «invalid request», and nothing asked.
+    const bare = await mount('debug-prompt', { state: debugOn(), token: '' });
+    expect(bare.$('[data-pg-prompt="expired"]')?.textContent).toContain('Снимок истёк');
+    expect(bare.text()).not.toContain('CG-UNKNOWN');
+    expect(bare.world.background.requests('debug.prompt')).toEqual([]);
     unmount?.();
     const echo = await mount('debug-prompt', { state: debugOn(), token: 'prompt-no-echo' });
     expect(echo.$('[data-pg-prompt="no-echo"]')?.textContent).toContain('эхо отдаёт только окно, которое открыл владелец');

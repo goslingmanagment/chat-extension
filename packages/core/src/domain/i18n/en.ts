@@ -38,7 +38,8 @@ export const EN: I18nCatalog<'en'> = {
   'common.coverage.unknown': 'coverage unknown',
   'common.seconds': '{n} s',
   'common.key.esc': 'Esc',
-  'common.age.now': 'now',
+  // Reads alone in a column and before «ago» alike: «seen < 1 min ago», never «now ago».
+  'common.age.now': '< 1 min',
   'common.age.minutes': '{n} min',
   'common.age.hours': '{n} h',
   'common.age.days': '{n} d',

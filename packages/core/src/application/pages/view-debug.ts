@@ -14,7 +14,7 @@
 import { type LogRecord } from '@cg/contracts/logs';
 import { DEBUG_LIMITS } from '@cg/contracts/limits';
 import { type PromptSnapshotView } from '@cg/contracts/tab-messages';
-import { type DebugPromptVM, type JournalKind, type JournalVM, type UiAction, type VmView } from '@cg/contracts/vm';
+import { HANDLE_PATTERN, type DebugPromptVM, type JournalKind, type JournalVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { formatRecordLine } from '../../domain/logging';
 import { button, codeError, errorOf, msg, signedOutOf, valueOf, type JournalData, type PagesModel, type Slot } from './model';
@@ -22,6 +22,9 @@ import { button, codeError, errorOf, msg, signedOutOf, valueOf, type JournalData
 /** The artifact «Копировать промпт» writes. */
 export const PROMPT_ARTIFACT = 'prompt';
 export const journalArtifact = (journal: JournalKind): string => `journal:${journal}`;
+
+/** A token a prompt snapshot may have: an opaque handle. Anything else names no snapshot, and is not asked for. */
+export const isPromptToken = (token: string): boolean => HANDLE_PATTERN.test(token);
 
 const NO_PROMPT: Omit<DebugPromptVM, 'view'> = { source: null, createdAt: null, expiresAt: null, blocks: [], manifest: null, copyHandle: null };
 
@@ -54,6 +57,10 @@ export function debugPromptView(model: DebugModel, token: string): DebugPromptVM
   const reload: UiAction = { type: 'ReloadView', selector: { of: 'debug-prompt', token } };
   const closed = closedView(model, reload);
   if (closed !== null) return { ...NO_PROMPT, view: closed };
+  // The page was opened without a snapshot's token (by hand, from the history, a cut address): there is nothing
+  // to ask the background for — the same honest «Снимок истёк» as for a snapshot that is gone, never a raw
+  // «invalid request».
+  if (!isPromptToken(token)) return { ...NO_PROMPT, view: { s: 'error', error: codeError(model, 'CG-DATA-UNAVAILABLE', 'prompt snapshot expired'), retry: null } };
   if (slot.s === 'idle' || slot.s === 'loading') return { ...NO_PROMPT, view: { s: 'loading', since: slot.s === 'loading' ? slot.since : null, stage: null } };
   if (slot.s === 'error') return { ...NO_PROMPT, view: { s: 'offline', error: errorOf(model, slot.error), retry: reload, lastGoodAt: null } };
   const snapshot = slot.value;

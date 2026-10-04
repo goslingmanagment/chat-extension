@@ -232,6 +232,7 @@ export function Popup(): JSX.Element {
   const dispatch = useDispatch();
   const view = vm.view;
   const settings = vm.buttons.find((button) => button.action.type === 'OpenSettings') ?? null;
+  const plainSignIn = view.s === 'forbidden' && view.error.code === 'CG-AUTH-REQUIRED';
   return (
     <div class="pg-popup" role="main" aria-label="ChatGoose">
       <div class="pg-popup__head">
@@ -254,10 +255,13 @@ export function Popup(): JSX.Element {
       ) : view.s === 'forbidden' ? (
         // PU-002: not signed in — the one thing to do is to sign in on the settings page.
         <div class="pg-popup__state">
-          <ErrorCard tone="state" error={view.error} copyCode={false} alert={false} inline>
+          {/* «Нужно войти»: the registry's sentence sends the person to the extension's icon — which is this very
+              popup. Here the card says the popup's own: where to sign in. Any other reason (revoked, expired)
+              keeps its own words, and the lead follows it. */}
+          <ErrorCard tone="state" error={plainSignIn ? { ...view.error, body: i18n.t('popup.signInLead') } : view.error} copyCode={false} alert={false} inline>
             {view.remedy === null ? null : <Button label={i18n.t('common.signIn')} variant="line" onClick={() => void dispatch(view.remedy ?? { type: 'OpenSettings', route: { section: 'account' } })} />}
           </ErrorCard>
-          <p class="pg-popup__lead pg-sub">{i18n.t('popup.signInLead')}</p>
+          {plainSignIn ? null : <p class="pg-popup__lead pg-sub">{i18n.t('popup.signInLead')}</p>}
         </div>
       ) : (
         <>

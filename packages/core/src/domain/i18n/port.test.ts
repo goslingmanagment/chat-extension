@@ -159,8 +159,13 @@ describe('I18n port: one money notation (ui-design §1 п. 6)', () => {
 describe('I18n port: ages, times and durations', () => {
   it('ages: now, minutes, hours, days; future and unknown', () => {
     const ru = make('ru');
-    expect(ru.formatAge(NOW - 30_000)).toBe('сейчас');
-    expect(ru.formatAge(NOW + 60_000)).toBe('сейчас');
+    expect(ru.formatAge(NOW - 30_000)).toBe('< 1 мин');
+    expect(ru.formatAge(NOW + 60_000)).toBe('< 1 мин');
+    // Under a minute the age reads before «назад» too: never «сейчас назад» / «now ago».
+    expect(ru.t('common.agoSuffix', { age: { age: NOW - 30_000 } })).toBe('< 1 мин назад');
+    expect(ru.t('fanPanel.lastSeen', { age: { age: NOW - 5_000 } })).toBe('был < 1 мин назад');
+    expect(ru.t('recap.madeAgo', { age: { age: NOW - 5_000 } })).toBe('Сделан < 1 мин назад');
+    expect(make('en').t('recap.madeAgo', { age: { age: NOW - 5_000 } })).toBe('Made < 1 min ago');
     expect(ru.formatAge(NOW - 59 * 60_000)).toBe('59 мин');
     expect(ru.formatAge(new Date(NOW - 3 * 3_600_000).toISOString())).toBe('3 ч');
     expect(ru.formatAge(NOW - 12 * 86_400_000)).toBe('12 д');
