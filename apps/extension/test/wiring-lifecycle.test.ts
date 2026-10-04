@@ -195,6 +195,17 @@ describe('settings', () => {
     // The rest of a tab's patch is as open as before.
     expect(await tab.client.request('settings.patch', { patch: { ui: { locale: 'ru' } }, baseRevision: null })).toMatchObject({ ok: true });
   });
+
+  it('[ST-006] [ST-007] «Настройки» from a ChatSpace tab: the background opens the settings tab at the section and its code', async () => {
+    world = createWorld();
+    world.start();
+    const tab = world.tabClient();
+    await until(() => tab.client.state() === 'ready', 'the tab registered');
+    const base = world.fake.base;
+    expect(await tab.client.request('settings.open', { route: { section: 'account', code: 'CG-AUTH-REQUIRED' } })).toEqual({ ok: true, payload: { opened: true } });
+    expect(await tab.client.request('settings.open', { route: { section: 'hotkeys' } })).toEqual({ ok: true, payload: { opened: true } });
+    expect(world.fake.tabCalls.filter((call) => call.startsWith('create '))).toEqual([`create ${base}options.html#account:CG-AUTH-REQUIRED`, `create ${base}options.html#hotkeys`]);
+  });
 });
 
 describe('[BG-003] the keepalive', () => {

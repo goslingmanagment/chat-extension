@@ -44,6 +44,7 @@ import {
   type SettingsV1,
   type TabRequestType,
 } from '@cg/contracts';
+import { hashOfRoute } from '@cg/core/application/pages';
 import { resolveHubError, storageBudgetOf } from '@cg/core/domain';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
@@ -74,6 +75,7 @@ import {
   createAudioPlayer,
   createBackgroundRpc,
   createConsent,
+  createExtensionPages,
   createKeyValueStore,
   createLifecycle,
   defaultBrowser,
@@ -736,6 +738,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const refusal = hubAddressRefusal({ next: request.patch.hub?.baseUrl, current: settings.current().hub.baseUrl, signedIn: hub().status().auth !== 'none', testBuild: __CG_TEST_HOSTS__ });
     return refusal === null ? settingsHandlers['settings.patchRestricted'](request) : fail('CG-HUB-URL', refusal);
   });
+
+  // «Настройки» / «Войти» from a ChatSpace tab (ST-006, ST-007): a content script cannot open our pages itself,
+  // so the background does — the open settings tab is focused and pointed at the section, otherwise one opens.
+  const extensionPages = createExtensionPages(api);
+  rpc.handle('settings.open', async ({ route }) => ok({ opened: (await extensionPages.open('options', hashOfRoute(route))).ok }));
 
   // logs, diagnostics, debug
   rpc.handle('log.write', ({ records }, sender) => ok(logging.acceptUi(records, sender.kind === 'tab' ? sender.tabSessionId : null)));
