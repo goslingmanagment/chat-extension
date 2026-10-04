@@ -404,8 +404,9 @@ describe('[SP-002] [SP-003] [SP-004] the Spenders board opens', () => {
     expect(shelf.collapsed?.reveal.action).toEqual({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
     await h.dispatch(shelf.collapsed!.reveal.action);
     const revealed = h.boards.spenders.getSnapshot(BOARD).shelves;
-    // The count is the hub bucket's over the whole page, not the number of loaded rows.
-    expect(revealed.map((s) => [s.id, s.fans])).toEqual([['shelf-600-plus', 31]]);
+    // SP-011: the fake hub counts 31 fans on a bucket the board lists 1000 rows on. A count its own rows disprove is not shown,
+    // and a cut list is never summed as the shelf: the header says «—» instead of «31» next to the sum of a thousand rows.
+    expect(revealed.map((s) => [s.id, s.fans, s.lifetime, s.period])).toEqual([['shelf-600-plus', null, null, null]]);
     expect(revealed[0]?.rows).toHaveLength(1000);
     expect(revealed[0]?.collapsed).toBeNull();
     expect(revealed[0]?.rows[0]).toMatchObject({ handle: spender('5000'), name: 'fan_0', lifetime: 3_720_000, period: 1_240_000, selected: false });

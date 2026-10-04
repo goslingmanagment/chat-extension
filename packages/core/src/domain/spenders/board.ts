@@ -14,7 +14,7 @@ import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
 
 import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, type BoardFilters } from './filters';
 import { spenderRows, type SpenderRow } from './rows';
-import { buildShelves, needsCents, shelfPreviewCount, shelfTotals, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
+import { UNBOUNDED, buildShelves, needsCents, shelfPreviewCount, shelfTotals, type BucketBasis, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
 
 export interface BoardIndex {
   readonly pageLabel: string;
@@ -31,6 +31,8 @@ export interface BoardIndex {
   readonly complete: boolean;
   /** Every payer of the scope is on the board: sums over rows are the scope's sums. */
   readonly wholeScope: boolean;
+  /** How the hub's buckets relate to this board (ShelfScope.basis). */
+  readonly basis: BucketBasis;
   /** The hub's tier buckets; null — their read failed and there are no shelves. */
   readonly tiers: AutoLists | null;
   readonly asOf: IsoTimestamp | null;
@@ -38,6 +40,21 @@ export interface BoardIndex {
   readonly timeZone: string | null;
   readonly coverage: CoverageLevel;
   readonly byFan: ReadonlyMap<string, SpenderRow>;
+}
+
+/**
+ * How the buckets relate to the board. The hub's buckets are by the lifetime
+ * spend over the whole page unless a period is asked for (this client asks
+ * for none): they are a lifetime board's own, and wider than a board of a
+ * period. Buckets by a period's spend are the board's own only on the very
+ * same dates.
+ */
+function bucketBasis(board: SpendersBoard): BucketBasis {
+  const tiers = board.tiers;
+  if (tiers === null) return 'scope';
+  if (tiers.metric === 'lifetimeGrossAmountMills') return board.period === 'lifetime' ? 'scope' : 'page';
+  const sameDates = tiers.period.fromBusinessDate === board.periodMeta.fromBusinessDate && tiers.period.toBusinessDateInclusive === board.periodMeta.toBusinessDateInclusive;
+  return board.period !== 'lifetime' && sameDates ? 'scope' : 'foreign';
 }
 
 /** Shelves and rows of a board; rows beyond the visible limit are dropped and counted as cut. */
@@ -56,6 +73,7 @@ export function indexBoard(board: SpendersBoard): BoardIndex {
     truncated,
     complete: board.complete,
     wholeScope,
+    basis: bucketBasis(board),
     tiers: board.tiers,
     asOf: board.periodMeta.asOf,
     fetchedAt: board.fetchedAt,
@@ -113,6 +131,9 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
   const own = new Map(index.shelves.map((shelf) => [shelf.id, shelf]));
   // A sourced row is shelved by the same buckets; its shelf's totals stay those of the board's own shelf.
   const placed: readonly Shelf[] = source === undefined ? index.shelves : buildShelves(source, index.tiers);
+  // SP-013: the lifetime can cross a shelf bound only when the rows are shelved by it (buckets by a period's spend shelve by that spend,
+  // which is the lifetime itself on a lifetime board).
+  const lifetimeShelved = index.tiers === null || index.tiers.metric !== 'grossAmountMills' || index.period === 'lifetime';
   for (const shelf of placed) {
     if (shelf.rows.length === 0) continue;
     const matching = narrowed ? shelf.rows.filter((row) => rowMatches(row, query.filters, needle)) : shelf.rows;
@@ -126,10 +147,10 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
     shelves.push({
       id: shelf.id,
       range: shelf.range,
-      totals: shelfTotals(own.get(shelf.id) ?? shelf, index.wholeScope),
+      totals: shelfTotals(own.get(shelf.id) ?? shelf, index),
       rows,
       hidden: sorted.length - rows.length,
-      cents: new Set(rows.filter((row) => needsCents(row.lifetime, shelf.range)).map((row) => row.fanRef)),
+      cents: new Set(rows.filter((row) => needsCents(row.lifetime, lifetimeShelved ? shelf.range : UNBOUNDED)).map((row) => row.fanRef)),
     });
   }
   return { shelves, shown: narrowed ? shown : null, narrowed, order };

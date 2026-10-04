@@ -261,12 +261,70 @@ describe('[SP-007] [SP-008] [SP-011] shelves are the hub buckets', () => {
     const index = indexBoard(cut);
     expect(index.wholeScope).toBe(false);
     const [whale, top] = index.shelves;
-    expect(shelfTotals(whale!, index.wholeScope)).toEqual({ fans: 3, lifetime: null, period: null });
-    expect(shelfTotals(top!, index.wholeScope)).toEqual({ fans: 2, lifetime: 949_600, period: 0 });
-    // The whole scope on the board: every sum is the scope's own.
-    const whole = indexBoard(smallBoard(specs));
-    expect(whole.wholeScope).toBe(true);
-    expect(shelfTotals(whole.shelves[0]!, whole.wholeScope)).toEqual({ fans: 0, lifetime: 1_800_000, period: 0 });
+    expect(shelfTotals(whale!, index)).toEqual({ fans: 3, lifetime: null, period: null });
+    expect(shelfTotals(top!, index)).toEqual({ fans: 2, lifetime: 949_600, period: 0 });
+  });
+
+  it('[SP-011] the hub counts a bucket over the whole page: on a board of a period its count never stands next to the lifetime sum of the period payers', () => {
+    // A 30-day board, whole: two of the five fans the hub counts on $600+ paid in the period.
+    const board = smallBoard(
+      [
+        { id: '101', lifetime: usd(1200), period: usd(300) },
+        { id: '102', lifetime: usd(600), period: usd(20) },
+      ],
+      {},
+      { '600-plus': 5 },
+    );
+    const index = indexBoard(board);
+    expect(index).toMatchObject({ period: '30d', wholeScope: true, basis: 'page' });
+    // The count is the bucket's; the lifetime of two fans is not the bucket's sum; the three not listed paid nothing in the period.
+    expect(shelfTotals(index.shelves[0]!, index)).toEqual({ fans: 5, lifetime: null, period: usd(320) });
+    expect(viewBoard(index, query()).shelves[0]?.totals).toEqual({ fans: 5, lifetime: null, period: usd(320) });
+    // Every member paid in the period: the listed rows are the bucket, and its lifetime sum is theirs.
+    const all = indexBoard(smallBoard([{ id: '101', lifetime: usd(1200), period: usd(300) }], {}, { '600-plus': 1 }));
+    expect(shelfTotals(all.shelves[0]!, all)).toEqual({ fans: 1, lifetime: usd(1200), period: usd(300) });
+    // «Вне полок» has no hub count: its listed rows are not known to be all of it.
+    const outside = indexBoard(smallBoard([{ id: '109', lifetime: 400, period: 400 }]));
+    expect(shelfTotals(outside.shelves.at(-1)!, outside)).toEqual({ fans: null, lifetime: null, period: 400 });
+  });
+
+  it('[SP-011] the whole lifetime board is its own shelves: the count and the sums are of the very rows listed', () => {
+    // The hub's bucket counts were read apart from the ranking and say 0 and 7: the header never pairs them with the rows' sums.
+    const whole = indexBoard(smallBoard(specs, { period: 'lifetime' }, { '350-600': 7 }));
+    expect(whole).toMatchObject({ wholeScope: true, basis: 'scope' });
+    expect(shelfTotals(whole.shelves[0]!, whole)).toEqual({ fans: 2, lifetime: 1_800_000, period: 1_800_000 });
+    expect(shelfTotals(whole.shelves[1]!, whole)).toEqual({ fans: 2, lifetime: 949_600, period: 949_600 });
+    expect(shelfTotals(whole.shelves.at(-1)!, whole)).toEqual({ fans: 1, lifetime: 400, period: 400 });
+  });
+
+  it('[SP-011] rows that outnumber the hub count disprove it: the count is unknown and nothing is summed', () => {
+    // The fake hub's own board: 1000 rows of 1240 on a shelf the buckets count 31 fans on.
+    const index = indexBoard(scenarioBoard());
+    const whale = index.shelves.find((shelf) => shelf.id === 'shelf-600-plus');
+    expect(whale?.hubCount).toBe(31);
+    expect(whale?.rows.length).toBeGreaterThan(31);
+    expect(shelfTotals(whale!, index)).toEqual({ fans: null, lifetime: null, period: null });
+  });
+
+  it('[SP-011] buckets by the spend of other dates say nothing about the rows of this board', () => {
+    const base = smallBoard(specs, {}, { '600-plus': 2, '350-600': 2 });
+    const tiers = base.tiers as AutoLists;
+    const byPeriod: AutoLists = { ...tiers, metric: 'grossAmountMills' };
+    // The board's own dates: the buckets are the board's own.
+    expect(indexBoard({ ...base, tiers: byPeriod }).basis).toBe('scope');
+    // A lifetime board, or other dates: the hub's counts are of other fans.
+    expect(indexBoard({ ...base, period: 'lifetime', tiers: byPeriod }).basis).toBe('foreign');
+    const other: AutoLists = { ...byPeriod, period: { ...byPeriod.period, fromBusinessDate: '2026-01-01', toBusinessDateInclusive: '2026-01-31' } };
+    const cut = indexBoard({ ...base, total: 12, tiers: other });
+    expect(cut).toMatchObject({ basis: 'foreign', wholeScope: false });
+    // Shelved by the period's spend (0 here): everyone is «вне полок», and a cut board vouches for nothing.
+    expect(cut.shelves.map((shelf) => shelfTotals(shelf, cut))).toEqual(cut.shelves.map(() => ({ fans: null, lifetime: null, period: null })));
+    // The whole scope on the board: a shelf is the board's own rows in the range, counted and summed as listed.
+    const whole = indexBoard({ ...base, tiers: other });
+    expect(shelfTotals(whole.shelves.at(-1)!, whole)).toEqual({ fans: specs.length, lifetime: specs.reduce((total, spec) => total + spec.lifetime, 0), period: 0 });
+    expect(shelfTotals(whole.shelves[0]!, whole)).toEqual({ fans: 0, lifetime: 0, period: 0 });
+    // No buckets at all: the one shelf is the scope.
+    expect(indexBoard({ ...base, tiers: null }).basis).toBe('scope');
   });
 
   it('[SP-011] an unknown amount makes the shelf sum unknown, not smaller', () => {
@@ -275,7 +333,7 @@ describe('[SP-007] [SP-008] [SP-011] shelves are the hub buckets', () => {
       { id: '202', lifetime: usd(650), period: null },
     ]);
     const index = indexBoard(board);
-    expect(shelfTotals(index.shelves[0]!, true)).toMatchObject({ lifetime: 1_350_000, period: null });
+    expect(shelfTotals(index.shelves[0]!, { wholeScope: true, basis: 'scope' })).toMatchObject({ fans: 2, lifetime: 1_350_000, period: null });
   });
 
   it('[SP-007] without the buckets (their read failed) the ranking still shows, as one shelf without bounds', () => {
@@ -313,6 +371,23 @@ describe('[SP-013] money stays mills; cents only where whole dollars would cross
     ]);
     const view = viewBoard(indexBoard(board), query({ revealed: new Set(['shelf-350-600', OUTSIDE_SHELF_ID]) }));
     expect(view.shelves.map((shelf) => [...shelf.cents])).toEqual([['301'], ['303']]);
+  });
+
+  it('the bound is the one the row was shelved by: under buckets by a period spend the lifetime has no bound to cross', () => {
+    const base = smallBoard([
+      { id: '301', lifetime: 599_600, period: 400_000 },
+      { id: '302', lifetime: 400, period: 400_000 },
+    ]);
+    const byPeriod: AutoLists = { ...(base.tiers as AutoLists), metric: 'grossAmountMills' };
+    const view = viewBoard(indexBoard({ ...base, tiers: byPeriod }), query());
+    // Both sit on $350–600 by their period spend; $599.60 of a lifetime is not on that shelf's bound, 40 cents still print as cents.
+    expect(view.shelves.map((shelf) => [shelf.id, shelf.rows.map((row) => row.fanRef), [...shelf.cents]])).toEqual([['shelf-350-600', ['301', '302'], ['302']]]);
+    // On a lifetime board the period spend IS the lifetime: the bound applies again.
+    const lifetime = viewBoard(indexBoard({ ...base, period: 'lifetime', tiers: byPeriod }), query({ revealed: new Set([OUTSIDE_SHELF_ID]) }));
+    expect(lifetime.shelves.map((shelf) => [shelf.id, [...shelf.cents]])).toEqual([
+      ['shelf-350-600', ['301']],
+      [OUTSIDE_SHELF_ID, ['302']],
+    ]);
   });
 });
 
@@ -383,9 +458,23 @@ describe('[SP-010] [SP-018] [SP-019] [SP-020] the visible list', () => {
     const revealed = viewBoard(index, query({ revealed: new Set(['shelf-600-plus']) }));
     expect(revealed.shelves[0]).toMatchObject({ hidden: 0 });
     expect(revealed.shelves[0]?.rows).toHaveLength(5);
-    expect(shelfPreviewCount(0, 60)).toBe(0);
-    expect(shelfPreviewCount(1, 50)).toBe(2);
     expect(shelfPreviewCount(1, 1)).toBe(1);
+  });
+
+  it('[SP-010] a shelf of more than fifty fans starts collapsed; exactly fifty still previews, as on the desktop', () => {
+    // The desktop's `shelfPresentation` is `usersCount > 50`, and its own test pins fifty as a preview.
+    expect(shelfPreviewCount(0, 49)).toBe(4);
+    expect(shelfPreviewCount(0, 50)).toBe(4);
+    expect(shelfPreviewCount(1, 50)).toBe(2);
+    expect(shelfPreviewCount(0, 51)).toBe(0);
+    expect(shelfPreviewCount(1, 51)).toBe(0);
+    expect(shelfPreviewCount(0, 60)).toBe(0);
+    const fans = (n: number): FanSpec[] => Array.from({ length: n }, (_, i) => ({ id: String(700 + i), lifetime: usd(900) - i }));
+    const shelf = (n: number) => viewBoard(indexBoard(smallBoard(fans(n))), query()).shelves[0];
+    expect(shelf(50)).toMatchObject({ hidden: 46 });
+    expect(shelf(50)?.rows).toHaveLength(4);
+    expect(shelf(51)).toMatchObject({ hidden: 51 });
+    expect(shelf(51)?.rows).toHaveLength(0);
   });
 
   it('[SP-018] inside a shelf: by the sum, or by how recently the fan wrote with never-wrote last', () => {
