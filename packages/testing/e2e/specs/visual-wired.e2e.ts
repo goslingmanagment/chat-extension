@@ -204,15 +204,22 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
   };
   /** The keys of ours that are not typed into ChatSpace's field are pressed with the focus on the chat's header. */
   const leaveField = (): Promise<void> => browser.$('[data-stand-conversation-header]').click();
-  /** How much of ChatSpace's own Send button a side panel of ours covers, in pixels of its width. */
-  const sendCovered = async (selector: string): Promise<{ readonly panel: Box | null; readonly send: Box | null; readonly coveredPx: number }> => {
+  /**
+   * How much of ChatSpace's own Send button a side panel of ours covers, in square pixels, and what a pointer
+   * finds in the middle of that button: the button itself, or something of ours over it.
+   */
+  const sendCovered = async (selector: string): Promise<{ readonly panel: Box | null; readonly send: Box | null; readonly coveredPx: number; readonly sendReached: boolean }> => {
     const panel = await oursBox('panel', selector);
-    const send = await browser.execute((sel: string) => {
-      const rect = document.querySelector(sel)?.getBoundingClientRect();
-      return rect === undefined ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    const { send, reached } = await browser.execute((sel: string) => {
+      const node = document.querySelector(sel);
+      const rect = node?.getBoundingClientRect();
+      if (node === null || rect === undefined) return { send: null, reached: false };
+      const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      return { send: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, reached: hit !== null && (hit === node || node.contains(hit)) };
     }, SEND);
-    const coveredPx = panel === null || send === null ? 0 : Math.max(0, Math.round(send.x + send.width - Math.max(panel.x, send.x)));
-    return { panel, send, coveredPx };
+    const across = panel === null || send === null ? 0 : Math.min(panel.x + panel.width, send.x + send.width) - Math.max(panel.x, send.x);
+    const down = panel === null || send === null ? 0 : Math.min(panel.y + panel.height, send.y + send.height) - Math.max(panel.y, send.y);
+    return { panel, send, coveredPx: across > 0 && down > 0 ? Math.round(across * down) : 0, sendReached: reached };
   };
 
   before(async () => {
@@ -379,8 +386,9 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await browser.url(testBuildPage(QUIET_PAGE));
       await shift.toStand();
       await generate(/^Reply/);
-      // DB-020 as built: a draft's sheet in the dock carries no debug footer (the mockup's `final-10` shows one).
+      // The open sheet of a draft carries its debug footer, as the mockup's `final-10` shows (DB-013); the collapsed strip none (DB-020).
       facts['debugFooterInDockSheet'] = await oursExists('dock', '.cg-debug');
+      expect(facts['debugFooterInDockSheet']).toBe(true);
       await look('dock-15-debug', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
       await hideResult();
       // The long chat's full Recap is made anew with debug on, then unfolded into its dialog.
@@ -486,7 +494,10 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await leaveField();
       await browser.keys([']']);
       await waitOursText('panel', 'Fan Alder', 'the fan panel of the open chat');
-      facts['fanPanelOverSend'] = await sendCovered('.cg-fp');
+      // §12 п. 6 «composer не перекрыт»: the panel ends above the dock, ChatSpace's Send is the pointer's.
+      const overSend = await sendCovered('.cg-fp');
+      facts['fanPanelOverSend'] = overSend;
+      expect([overSend.coveredPx, overSend.sendReached]).toEqual([0, true]);
       await look('panel-01-fan', { check: async () => void (await inWindow('panel', '.cg-fp')) });
       await ours('panel', '.cg-fp__tabs [role="tab"]:last-child').click();
       await waitOursText('panel', 'Hubert, 34', 'the Recap of the fan panel', { timeout: 20_000 });
@@ -520,7 +531,9 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await browser.keys('Стоит ли сейчас предлагать ему новый сет?'.split(''));
       await browser.keys(Key.Enter);
       await waitOursText('panel', 'Сегодня можно, но не первым сообщением', 'the Coach answer', { timeout: 20_000 });
-      facts['coachOverSend'] = await sendCovered('.cg-coach');
+      const overSend = await sendCovered('.cg-coach');
+      facts['coachOverSend'] = overSend;
+      expect([overSend.coveredPx, overSend.sendReached]).toEqual([0, true]);
       await look('panel-04-coach-answer', { check: async () => void (await inWindow('panel', '.cg-coach')) });
       await closeAll();
     });
@@ -564,7 +577,8 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       this.timeout(240_000);
       await lookAtPage('page-popup', async () => {
         await openPopup();
-        await waitForPopup((state) => state.view === 'ready', 'the popup of a signed-in person');
+        // The popup asks the ChatSpace tab what it shows: photographed once its buttons came on, not while they are still grey.
+        await waitForPopup((state) => state.view === 'ready' && state.buttons['Spenders'] === true, 'the popup of a signed-in person, its buttons on');
       });
       await lookAtPage('page-options-status', async () => {
         await openOptions('status');

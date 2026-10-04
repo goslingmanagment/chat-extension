@@ -298,7 +298,16 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     } finally {
       await browser.switchToWindow(secondTab);
       await browser.closeWindow();
-      await browser.switchToWindow(firstTab);
+      // The second tab is gone and the first one is in front before anything is read again: a tab that is still
+      // closing answers as the hidden document it was — the same chat, our windows already taken down.
+      await browser.waitUntil(async () => !(await browser.getWindowHandles()).includes(secondTab), { timeout: 10_000, timeoutMsg: 'the second tab did not close' });
+      await browser.waitUntil(
+        async () => {
+          await browser.switchToWindow(firstTab);
+          return browser.execute(() => document.visibilityState === 'visible');
+        },
+        { timeout: 10_000, interval: 100, timeoutMsg: 'the first tab is not in front again' },
+      );
     }
   });
 

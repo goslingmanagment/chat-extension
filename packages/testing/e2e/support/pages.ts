@@ -245,7 +245,8 @@ export async function readPopup(): Promise<PopupState> {
         : popup.querySelector('.cg-state--loading') !== null
           ? 'loading'
           : state !== null
-            ? state.querySelector('.pg-popup__lead') !== null
+            ? // «Нужно войти» is a state, not a failure: its card is not an alert (and the lead under it stands only for the other reasons).
+              state.querySelector('.pg-popup__lead') !== null || state.querySelector('.cg-card:not([role="alert"])') !== null
               ? 'forbidden'
               : 'error'
             : popup.querySelector('.pg-pills') !== null
