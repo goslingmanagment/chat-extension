@@ -100,7 +100,7 @@ export const UI_TEXT_KEYS = [
   'newcomers.status.greeted', 'newcomers.hint', 'newcomers.footer', 'newcomers.cardMeta', 'newcomers.stopped', 'newcomers.listLabel',
   'newcomers.cardLabel', 'newcomers.noAutoSend', 'newcomers.tab.todo', 'newcomers.tab.all', 'newcomers.filter.any', 'newcomers.filter.none',
   'newcomers.filter.claimed', 'newcomers.filter.sending', 'newcomers.filter.stopped', 'newcomers.filter.greeted', 'newcomers.claim.renew',
-  'newcomers.claim.release', 'newcomers.claim.elsewhere', 'newcomers.claim.mine', 'newcomers.incomplete', 'newcomers.draft', 'newcomers.draftStale',
+  'newcomers.claim.release', 'newcomers.claim.elsewhere', 'newcomers.claim.mine', 'newcomers.incomplete', 'newcomers.incomplete.body', 'newcomers.draft', 'newcomers.draftStale',
   'newcomers.scanProgress', 'newcomers.window.label', 'newcomers.greetingDraft.placeholder', 'newcomers.greetingDraft.aria',
   'fanPanel.label', 'fanPanel.tab.fan', 'fanPanel.tab.recap', 'fanPanel.sub', 'fanPanel.spent', 'fanPanel.spentIn', 'fanPanel.byKind.messages',
   'fanPanel.byKind.tips', 'fanPanel.byKind.subscription', 'fanPanel.subscription', 'fanPanel.subscribed', 'fanPanel.autoRenew',

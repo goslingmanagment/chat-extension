@@ -491,6 +491,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.claim.elsewhere': 'Вы уже здороваетесь с этим фаном в другой вкладке или на другом устройстве. Продолжите там: второе приветствие отсюда не начнётся.',
   'newcomers.claim.mine': 'Бронь за вами, ещё {mss}',
   'newcomers.incomplete': 'Результат неполный',
+  'newcomers.incomplete.body': 'Показана часть списка. Хаб ещё не собрал всех, кто подписался за это время.',
   'newcomers.draft': 'черновик',
   'newcomers.draftStale': 'черновик устарел',
   'newcomers.scanProgress': '{done} из {total}',

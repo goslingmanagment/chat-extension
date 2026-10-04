@@ -495,3 +495,19 @@ export const BOARDS_I18N_KEYS: { readonly text: readonly C.UiTextKey[]; readonly
     'newcomers.greetingDraft' satisfies C.I18nKey,
   ],
 };
+
+/**
+ * «Результат неполный» in «Новые» (1.2.0, NF-025; the wave-2 merge): the
+ * window prints the title itself (`newcomers.incomplete`), the view model
+ * carries why. The reason has a key of its own, so the title is not said twice.
+ */
+type NewcomersIncomplete = NonNullable<C.NewcomersVM['incomplete']>;
+export const NEWCOMERS_INCOMPLETE_SAMPLES: { readonly valid: readonly NewcomersIncomplete[]; readonly invalid: readonly unknown[] } = {
+  valid: [{ key: 'newcomers.incomplete.body' }, { key: 'common.coverage.partial' }],
+  invalid: [
+    // @ts-expect-error the reason is a catalog message, not a ready text
+    'Показана часть списка' satisfies NewcomersIncomplete,
+    // @ts-expect-error there is no key of this name: the reason is `newcomers.incomplete.body`
+    { key: 'newcomers.incomplete.reason' } satisfies NewcomersIncomplete,
+  ],
+};

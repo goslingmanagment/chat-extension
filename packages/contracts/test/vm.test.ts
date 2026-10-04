@@ -12,6 +12,7 @@ import {
   COACH_TURN_VM_SAMPLES,
   FAN_PANEL_BIO_SAMPLES,
   MONEY_CENTS_SAMPLES,
+  NEWCOMERS_INCOMPLETE_SAMPLES,
   OPTIONS_FOOTER_SAMPLES,
   REFUSAL_VM_SAMPLES,
   SPOKEN_MONEY_SAMPLES,
@@ -437,5 +438,17 @@ describe('boards, preview, «Новые», fan panel and palette texts (1.2.0)',
     // The statistics region is named «Статистика Spenders» (ui-design §6.1); the greeting draft of «Новые»
     // is a field of its own, not the Fix draft (NF-012).
     expect(BOARDS_I18N_KEYS.text).toEqual(expect.arrayContaining(['stats.regionLabel', 'newcomers.greetingDraft.placeholder', 'newcomers.greetingDraft.aria']));
+  });
+});
+
+describe('«Результат неполный» in «Новые» (1.2.0, the wave-2 merge)', () => {
+  it('[NF-025] the title and the reason are two keys: the window prints the title, the view model carries why', () => {
+    expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete');
+    expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete.body');
+    expectTypeOf<C.NewcomersVM['incomplete']>().toEqualTypeOf<C.Msg | null>();
+    expect(NEWCOMERS_INCOMPLETE_SAMPLES.valid[0]?.key).toBe('newcomers.incomplete.body');
+    // The view model never repeats the title the window already prints.
+    expect(NEWCOMERS_INCOMPLETE_SAMPLES.valid.map((msg) => msg.key)).not.toContain('newcomers.incomplete');
+    expect(NEWCOMERS_INCOMPLETE_SAMPLES.invalid).toHaveLength(2);
   });
 });

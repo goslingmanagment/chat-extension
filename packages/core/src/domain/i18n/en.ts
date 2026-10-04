@@ -463,6 +463,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.claim.elsewhere': 'You are already greeting this fan in another tab or on another device. Continue there: a second greeting will not start from here.',
   'newcomers.claim.mine': 'The fan is held for you, {mss} left',
   'newcomers.incomplete': 'The result is incomplete',
+  'newcomers.incomplete.body': 'Part of the list is shown. The hub has not collected everyone who subscribed in this time yet.',
   'newcomers.draft': 'draft',
   'newcomers.draftStale': 'draft is stale',
   'newcomers.scanProgress': '{done} of {total}',
