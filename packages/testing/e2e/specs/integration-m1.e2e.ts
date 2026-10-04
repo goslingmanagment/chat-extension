@@ -197,6 +197,19 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(sheets.nodes.filter((node) => node.startsWith('link:') && node !== 'link:http:')).toEqual([]);
   });
 
+  it('[ST-006] [ST-007] «Войти» in the dock’s banner leads to the settings: the one settings tab is pointed at «Аккаунт» with the code, no second tab opens', async () => {
+    await toStand();
+    const report = await dockIs((dock) => dock.status === 'not-signed-in' && dock.hits['banner'] !== undefined, 'the banner shows its button');
+    const point = report.dock?.hits['banner'];
+    if (point === undefined) throw new Error('the banner shows no button to press');
+    const before = await browser.getWindowHandles();
+    // A real pointer press: a content script cannot open our pages, the background does (`settings.open`).
+    await browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ x: point.x, y: point.y, origin: 'viewport' }).down().up().perform();
+    await toPages();
+    await browser.waitUntil(async () => (await browser.getUrl()).endsWith('options.html#account:CG-AUTH-REQUIRED'), { timeout: 10_000, timeoutMsg: 'the settings tab was not pointed at the account section' });
+    expect(await browser.getWindowHandles()).toEqual(before);
+  });
+
   it('[ST-042] the hub address is saved in «Дополнительно» while signed out, and the fake hub answers', async () => {
     await toPages();
     await openTempPage('options');

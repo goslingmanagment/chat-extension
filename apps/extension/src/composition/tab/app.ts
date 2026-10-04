@@ -583,8 +583,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
         const dock = router.getSnapshot({ of: 'dock' });
         const session = ai.workspace.env.session ?? null;
         const result = dock.result;
-        // Where a pointer has to go to press what is inside the closed root: the centres of the strip's actions and
-        // of each part's «Вставить», in viewport pixels. Nothing of a text.
+        // Where a pointer has to go to press what is inside the closed root: the centres of the strip's actions,
+        // of each part's «Вставить» and of the banner's button, in viewport pixels. Nothing of a text.
         const hits: Record<string, { x: number; y: number }> = {};
         const hit = (name: string, element: Element | null | undefined): void => {
           const rect = element?.getBoundingClientRect();
@@ -593,6 +593,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
         const slots = [...root.querySelectorAll('.cg-strip__acts > .cg-slot:not(.cg-slot--more)')];
         Object.keys(dock.actions).forEach((id, index) => hit(`action:${id}`, slots[index]?.querySelector('button')));
         for (const row of root.querySelectorAll('[data-cg-part]')) hit(`insert:${row.getAttribute('data-cg-part') ?? ''}`, row.querySelector('.cg-ins'));
+        // The one button of the status banner («Войти», «Назначить персону», «Повторить», «Подробнее»).
+        hit('banner', root.querySelector('.cg-banner > .cg-btn--line'));
         probe.set('dock', {
           styleMode: mounted.dockStyleMode,
           kind: mounts.points().dock.kind,
