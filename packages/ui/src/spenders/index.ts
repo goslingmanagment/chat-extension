@@ -11,7 +11,7 @@ import { WINDOW_STYLES } from './window';
 
 export { SpendersWindow, SPENDERS_PAINT_MARKS } from './SpendersWindow';
 export { Board, PERIOD_KEYS, type BoardHandle, type BoardProps } from './Board';
-export { StatsColumn, StatsExpanded, formatPct, type StatsProps } from './Stats';
+export { StatsColumn, StatsExpanded, formatPct, statsDayName, type StatsProps } from './Stats';
 export { useRowFocus, type RowFocus } from './rowFocus';
 export { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, fanCount, initialStop, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
 export { PREVIEW_STYLES, Preview, matchesHotkey, type PreviewProps } from './preview/Preview';

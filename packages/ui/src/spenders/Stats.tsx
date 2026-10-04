@@ -13,9 +13,20 @@ import { Button, Money, ViewState, useDispatch, useHints, useI18n, useTooltip } 
 import { shelfLabel } from './rows';
 import { coverageWord, timeOrUnknown, unknownMark } from './window';
 
-/** A calendar date of the statistics window («2026-09-04») as a moment the I18n port can print as «4 сен». */
-function dayMoment(date: string): number {
-  return Date.parse(`${date}T12:00:00Z`);
+/**
+ * A calendar date of the statistics window («2026-09-04») as the I18n port
+ * prints a day («4 сен»). The port prints moments, in its own time zone, so
+ * the moment is taken inside that date there: noon UTC is the same date
+ * everywhere west of UTC+12, midnight UTC from UTC+12 to UTC+14 (Tongatapu,
+ * Kiritimati). The one whose text carries the date's day number is the day.
+ */
+export function statsDayName(i18n: I18n, date: string): string {
+  const day = Number(date.slice(8, 10));
+  const noon = i18n.formatTime(Date.parse(`${date}T12:00:00Z`), 'day');
+  const hasDay = (text: string): boolean => new RegExp(`(^|\\D)${day}(\\D|$)`).test(text);
+  if (!Number.isInteger(day) || hasDay(noon)) return noon;
+  const midnight = i18n.formatTime(Date.parse(`${date}T00:00:00Z`), 'day');
+  return hasDay(midnight) ? midnight : noon;
 }
 
 /** «+4%», «−12%», «0%»: a share, no words in it. */
@@ -77,7 +88,7 @@ function Chart({ stats, axisMiddle }: { readonly stats: SpendersStatsVM; readonl
   const max = days.reduce((top, day) => Math.max(top, day.gross ?? 0), 0);
   const first = days[0];
   const middle = days[Math.floor((days.length - 1) / 2)];
-  const dayName = (date: string): string => i18n.formatTime(dayMoment(date), 'day');
+  const dayName = (date: string): string => statsDayName(i18n, date);
   return (
     <>
       <div class="cg-spark" role="img" aria-label={i18n.t('stats.chart.title')}>

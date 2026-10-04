@@ -6,7 +6,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_DOM_ROWS, SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
-import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel } from '@cg/ui/spenders';
+import { createI18n } from '@cg/core/domain/i18n';
+import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel, statsDayName } from '@cg/ui/spenders';
 
 import { board, button, cgError, ctxOf, entry, stats, views } from '../scenarios/app-client';
 import { BOARD_FANS, boardShelves, manyFans, type BoardFan } from './data';
@@ -591,6 +592,19 @@ describe('Spenders statistics', () => {
     expect(values.at(-2)?.firstChild?.textContent).toBe('—');
     expect(ui.root.getElementById(values[0]?.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Данные на 09:18, охват неполный');
     expect(textOf(ui.$('.cg-st__foot'))).toBe('Данные на 09:18, охват неполный');
+  });
+
+  it('[SP-044] a day of the chart is its calendar date in any time zone, also east of UTC+12', () => {
+    // The dates are the page's calendar days; the I18n port prints moments in its own zone.
+    const now = Date.parse('2026-10-03T06:20:00Z');
+    for (const timeZone of ['Europe/Moscow', 'UTC', 'America/Los_Angeles', 'Pacific/Pago_Pago', 'Etc/GMT+12', 'Asia/Kamchatka', 'Pacific/Tongatapu', 'Pacific/Kiritimati']) {
+      const i18n = createI18n({ language: 'ru', now: () => now, timeZone });
+      expect(['2026-09-04', '2026-09-30', '2026-10-01', '2026-10-03'].map((date) => statsDayName(i18n, date)), timeZone).toEqual(['4 сен', '30 сен', '1 окт', '3 окт']);
+      // Another year carries its year, as every date of the port does.
+      expect(statsDayName(i18n, '2025-12-31'), timeZone).toBe('31 дек 2025');
+      expect(statsDayName(i18n, '2020-02-20'), timeZone).toBe('20 фев 2020');
+    }
+    expect(statsDayName(createI18n({ language: 'en', now: () => now, timeZone: 'Pacific/Kiritimati' }), '2026-09-04')).toBe(createI18n({ language: 'en', now: () => now, timeZone: 'UTC' }).formatTime('2026-09-04T12:00:00Z', 'day'));
   });
 
   it('percent changes read «+4%», «−12%», «0%»', () => {
