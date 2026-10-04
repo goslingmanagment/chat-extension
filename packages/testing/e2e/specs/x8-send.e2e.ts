@@ -744,6 +744,18 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       expect(third.preflight).toEqual({ ok: false, code: 'CG-SEND-STALE' });
       expect(sendsOf(await serverSince(server), a8).map((entry) => shown(entry.detail?.['text']))).toEqual(['Part one', 'Part two']);
     });
+
+    it('[X8-04] the tap measures the time its listener takes per frame (§6.8 п. 3, §11 `handlerMs`)', async () => {
+      const [frames, totalMs, maxMs] = await browser.execute(() => {
+        const handle = (window as unknown as Record<symbol, { frameTime?: () => [number, number, number] } | undefined>)[Symbol.for('chatgoose.wsTap')];
+        return handle?.frameTime?.() ?? [0, 0, 0];
+      });
+      evidence['tapFrameTime'] = { frames, totalMs, maxMs, averageMs: frames > 0 ? totalMs / frames : null };
+      expect(frames).toBeGreaterThan(0);
+      // The browser's clock is coarse (1 ms and more): this only trips on a gross regression. The 0.1 ms budget itself
+      // is asserted on a fine clock in ws-tap.test.ts.
+      expect(totalMs / frames).toBeLessThan(1);
+    });
   });
 
   describe('§6.6: a human send from the composer', () => {
@@ -777,15 +789,16 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       expect(fact).toMatchObject({ chat: { platformFanId: a1 }, draft: { provenance: 'our-insert', editedSinceInsert: false } });
       expect(fact?.draft.insertIntentId).toMatch(/^[0-9a-f-]{36}$/);
       expect(fact?.platformMessageId).toMatch(/^\d+$/);
-      // The server's own id of that send, and the outgoing echo with the same id: the pair a `sent` needs.
+      // The server's own id of that send, and the outgoing echo with the same id: the pair a `sent` needs. A fact with
+      // an id IS that pair (§6.6 п. 4): it went out only after the echo of the same id, account and fan was heard.
       const sends = sendsOf(await serverSince(server), a1);
       expect(sends).toHaveLength(1);
       expect(sends[0]?.origin).toBe('native');
-      await waitForHarnessState(
-        () => liveEvents('incoming'),
-        (events) => events.some((event) => !event.fact.fromFan && event.fact.platformFanId === a1 && event.fact.platformMessageId === fact?.platformMessageId),
-        'the echo of the human send',
-      );
+      const all = await harness<LiveEvent[]>('liveEvents');
+      const echoAt = all.findIndex((event) => event.type === 'incoming' && !event.fact.fromFan && event.fact.platformFanId === a1 && event.fact.platformMessageId === fact?.platformMessageId);
+      const factAt = all.findIndex((event) => event.type === 'humanSend' && event.fact.pendingId === fact?.pendingId);
+      expect(echoAt).toBeGreaterThanOrEqual(0);
+      expect(factAt).toBeGreaterThan(echoAt);
       // The person's own request took our observer for that one send (and it was the only request that did).
       expect((await pageSince(page)).filter((entry) => entry.type === 'http-request' && entry['fetchCapture'] === 'substituted').map((entry) => entry['method'])).toEqual(['POST']);
       // What the composer queued is its own: the adapter added nothing to the request.
