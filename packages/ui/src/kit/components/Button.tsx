@@ -3,13 +3,14 @@
 // mini strip. Unavailable is never `disabled`: it is `aria-disabled="true"`,
 // keeps focus, drops its key label and explains itself in the tooltip and
 // through `aria-describedby` (ui-design §4, §6.1). A busy button shows a
-// spinner and does nothing on a click.
+// spinner and does nothing on a click. A held Enter clicks once.
 
 import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent, type TargetedMouseEvent } from 'preact';
 
 import { type ActionButtonVM, type HotkeyLabel } from '@cg/contracts/vm';
 
 import { useDispatch, useHints, useI18n } from '../context';
+import { swallowHeldEnter } from '../focus';
 import { dark } from '../tokens';
 import { Icon, type IconName } from './Icon';
 import { ReadyBadge, Spinner } from './Indicators';
@@ -103,6 +104,7 @@ export function Button(props: ButtonProps): JSX.Element {
           props.onClick?.(event);
         }}
         onKeyDown={(event) => {
+          swallowHeldEnter(event);
           tip.props.onKeyDown(event);
           props.onKeyDown?.(event);
         }}
@@ -203,6 +205,7 @@ export function StripButton(props: StripButtonProps): JSX.Element {
           props.onClick?.();
         }}
         onKeyDown={(event) => {
+          swallowHeldEnter(event);
           tip.props.onKeyDown(event);
           props.onKeyDown?.(event);
         }}

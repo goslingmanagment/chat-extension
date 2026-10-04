@@ -222,6 +222,24 @@ describe('menus (ui-design §4.1 «Тон», «Ещё»; §6.4)', () => {
     expect(kit.root.activeElement).toBe(kit.$('.cg-trigger'));
   });
 
+  it('a held Enter that opened the menu chooses nothing in it: the repeat lands on the focused item and is swallowed', async () => {
+    kit = await mountKitSettled(ToneMenu);
+    await flush(() => kit?.$$('[role="menuitemradio"]')[0]?.dispatchEvent(key('Escape')));
+    const trigger = kit.$('.cg-trigger') as HTMLElement;
+    await flush(() => trigger.dispatchEvent(key('Enter')));
+    const items = kit.$$('[role="menuitemradio"]');
+    expect(kit.root.activeElement).toBe(items[1]);
+    const held = key('Enter', { repeat: true });
+    await flush(() => items[0]?.dispatchEvent(held));
+    expect(held.defaultPrevented).toBe(true);
+    expect(kit.$('.cg-tone')?.textContent).toBe('flirty');
+    expect(kit.$('[role="menu"]')).not.toBeNull();
+    // A repeat on the trigger opens nothing either.
+    await flush(() => items[1]?.dispatchEvent(key('Escape')));
+    await flush(() => trigger.dispatchEvent(key('Enter', { repeat: true })));
+    expect(kit.$('[role="menu"]')).toBeNull();
+  });
+
   it('Esc closes and returns focus; a press outside closes; Tab closes without stealing focus', async () => {
     kit = await mountKitSettled(ToneMenu);
     await flush(() => kit?.$$('[role="menuitemradio"]')[0]?.dispatchEvent(key('Escape')));

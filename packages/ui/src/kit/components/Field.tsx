@@ -8,7 +8,7 @@
 import { type JSX, type Ref, type TargetedCompositionEvent, type TargetedInputEvent, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 
-import { isComposing } from '../focus';
+import { isComposing, isHeldKey } from '../focus';
 import { Icon } from './Icon';
 import { useTooltip } from './Tooltip';
 
@@ -122,7 +122,8 @@ export function TextField(props: TextFieldProps): JSX.Element {
       if (isComposing(event) || field.isComposingNow()) return;
       if (event.key === 'Enter' && !event.shiftKey && props.onEnter !== undefined) {
         event.preventDefault();
-        props.onEnter();
+        // A held Enter asks once.
+        if (!isHeldKey(event)) props.onEnter();
       } else if (event.key === 'Escape' && props.onEscape?.() === true) {
         event.preventDefault();
         event.stopPropagation();

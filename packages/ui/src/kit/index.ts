@@ -70,7 +70,7 @@ export {
   type KitMountOptions,
   type SurfaceDefinition,
 } from './mount';
-export { activeIn, containsFocus, focusQuietly, isComposing, rovingIndex, tabbables, trapTab, type RovingOrientation } from './focus';
+export { activeIn, containsFocus, focusQuietly, isComposing, isHeldKey, rovingIndex, swallowHeldEnter, tabbables, trapTab, type RovingOrientation } from './focus';
 export {
   HOUR,
   MINUTE,
