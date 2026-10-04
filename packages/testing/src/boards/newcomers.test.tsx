@@ -138,6 +138,43 @@ describe('«Новые»: the window and the list', () => {
     expect(row('n001').querySelector('.cg-nc__tag')).toBeNull();
   });
 
+  it('[NF-012] the card has the greeting draft field — Fix or not — and typing saves the draft and does nothing else', async () => {
+    for (const state of ['13a', '13c']) {
+      // 13c: a colleague holds the fan and Hi is off; the draft is still the person's own.
+      ui = await mountBoardSettled('newcomers', state);
+      const handle = state === '13c' ? 'newcomers:n003' : 'newcomers:n001';
+      // The strip has only Hi: the field does not hang on a Fix button.
+      expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Тон', 'Split']);
+      const field = ui.$('.cg-pv__draft textarea') as HTMLTextAreaElement;
+      expect(field.getAttribute('aria-label'), state).toBe('Черновик приветствия');
+      expect(field.getAttribute('placeholder'), state).toBe('Черновик приветствия. Остаётся здесь, в чат не уходит');
+      expect(field.maxLength).toBe(5000);
+      expect(field.value).toBe('');
+      // Above the strip, as in the preview.
+      expect(field.compareDocumentPosition(ui.$('.cg-pvb') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const before = ui.actions().length;
+      await flush(() => {
+        field.value = 'hey Tomasz, welcome';
+        field.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      });
+      // Enter in the draft is a new line: it starts no Hi and sends nothing.
+      await flush(() => keydown(field, 'Enter'));
+      expect(ui.actions().slice(before), state).toEqual([{ type: 'SetPreviewDraft', targetHandle: handle, text: 'hey Tomasz, welcome' }]);
+      ui.unmount();
+      ui = null;
+    }
+  });
+
+  it('[NF-012] a saved greeting draft comes back into the field; in English the field is the greeting’s too', async () => {
+    ui = await mountBoardSettled('newcomers', change('13a', (vm) => vm, (vm) => ({ ...vm, draft: { ...vm.draft, text: 'hi there, glad you came' } })));
+    expect((ui.$('.cg-pv__draft textarea') as HTMLTextAreaElement).value).toBe('hi there, glad you came');
+    ui.unmount();
+    ui = await mountBoardSettled('newcomers', '13a', { language: 'en' });
+    const field = ui.$('.cg-pv__draft textarea') as HTMLTextAreaElement;
+    expect(field.getAttribute('aria-label')).toBe('Greeting draft');
+    expect(field.getAttribute('placeholder')).toBe('Greeting draft. Stays here, not in the chat');
+  });
+
   it('[NF-008] the scan shows its phase and progress in the header', async () => {
     ui = await mountBoardSettled('newcomers', change('13a', (vm) => ({ ...vm, scan: { stage: msg('common.loading'), done: 12, total: 40 } })));
     expect(textOf(ui.$('.cg-nc__scan'))).toBe('Загрузка…12 из 40');
@@ -268,9 +305,9 @@ describe('«Новые»: the card', () => {
     expect(ui.$('.cg-pv__note span')?.firstChild?.textContent).toBe('Чат не открыт, останется непрочитанным');
     expect(ui.text('.cg-pv__asof')).toBe('Архив на 09:18');
     expect(ui.text('.cg-feed__empty')).toBe('Сообщений пока нет. Tomasz подписался 14 мин назад.');
-    // The card has no × of its own and no Fix draft: only Hi, Tone and Split.
+    // The card has no × of its own and no Fix: only Hi, Tone and Split — and the greeting draft above them (NF-012).
     expect(ui.$$('.cg-pv__head .cg-btn').map(textOf)).toEqual(['Открыть чат']);
-    expect(ui.$('.cg-pv__draft')).toBeNull();
+    expect(ui.$$('.cg-pv__draft textarea')).toHaveLength(1);
     expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Тон', 'Split']);
   });
 

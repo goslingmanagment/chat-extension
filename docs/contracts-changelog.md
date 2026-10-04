@@ -61,7 +61,7 @@
     `newcomers.draft`, `newcomers.draftStale` (NF-012, NF-018),
     `newcomers.scanProgress` (NF-008), `newcomers.window.label` (NF-003);
     поле черновика приветствия в карточке — `newcomers.greetingDraft.placeholder`
-    («Черновик приветствия. Остаётся в карточке, в чат не уходит» — его модель
+    («Черновик приветствия. Остаётся здесь, в чат не уходит» — его модель
     карточки отдаёт в `PreviewVM.draft.placeholder` вместо текста про Fix) и
     `newcomers.greetingDraft.aria` (имя поля; NF-012, `ui-design.md` §10).
   - **Панель фана:** `fanPanel.subscribedLabel`, `.subscribedValue`,

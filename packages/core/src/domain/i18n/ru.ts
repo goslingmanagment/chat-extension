@@ -474,7 +474,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.draftStale': 'черновик устарел',
   'newcomers.scanProgress': '{done} из {total}',
   'newcomers.window.label': 'За какой срок показывать новых',
-  'newcomers.greetingDraft.placeholder': 'Черновик приветствия. Остаётся в карточке, в чат не уходит',
+  'newcomers.greetingDraft.placeholder': 'Черновик приветствия. Остаётся здесь, в чат не уходит',
   'newcomers.greetingDraft.aria': 'Черновик приветствия',
 
   // ── Fan panel and Coach ──

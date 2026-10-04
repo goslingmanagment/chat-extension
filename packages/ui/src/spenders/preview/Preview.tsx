@@ -3,8 +3,9 @@
 // «Чат не открыт, останется непрочитанным», the archive line with its
 // coverage and lag, the hub's archive feed, then the work zone — the local
 // draft for Fix, the mini strip, the result with «Отправить» on every part.
-// The same pane is the card of «Новые». It renders PreviewVM and nothing
-// else: it never reads ChatSpace and never loads a chat's history.
+// The same pane is the card of «Новые», where the draft is the greeting
+// draft (NF-012). It renders PreviewVM and nothing else: it never reads
+// ChatSpace and never loads a chat's history.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 
@@ -193,8 +194,11 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
   const vm = useView({ of: 'preview', from }).value;
   // «Мы писали 10 ч назад» moves with the clock.
   useMinuteClock(vm.header !== null);
-  const showDraft = vm.bar.actions.fix !== undefined || vm.draft.text !== '';
+  // The local draft: the Fix source in a Spenders preview, the greeting draft in the card of «Новые» (NF-012,
+  // ui-design §10 «черновик — поле как в превью») — there the field is always at hand, Fix or not.
+  const greetingDraft = from === 'newcomers';
   const handle = vm.handle;
+  const showDraft = greetingDraft || vm.bar.actions.fix !== undefined || vm.draft.text !== '';
 
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLElement>): void => {
     if (event.defaultPrevented || isComposing(event)) return;
@@ -232,7 +236,7 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
               <div class="cg-pv__draft">
                 <TextField
                   value={vm.draft.text}
-                  label={i18n.t('preview.draft.aria')}
+                  label={i18n.t(greetingDraft ? 'newcomers.greetingDraft.aria' : 'preview.draft.aria')}
                   placeholder={i18n.text(vm.draft.placeholder)}
                   multiline
                   minHeight={36}
