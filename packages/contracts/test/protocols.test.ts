@@ -83,6 +83,20 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(C.parseTabPayload('evt', 'tab.command', { command: { kind: 'chat', host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } })).toEqual({ ok: false });
   });
 
+  it('[DB-006] [DB-007] `debug.open` is a ChatSpace tab’s request: the opaque token of a prompt snapshot, never an address; the prompt itself is read by the page', () => {
+    expect(C.mayRequest('debug.open', 'tab', null)).toBe(true);
+    // An extension page opens its own pages by itself; the prompt is read only by `debug-prompt.html`.
+    expect(C.mayRequest('debug.open', 'page', 'options')).toBe(false);
+    expect(C.mayRequest('debug.prompt', 'tab', null)).toBe(false);
+    const { req, res } = C.TAB_REQUESTS['debug.open'];
+    expect(req.safeParse({ token: 'prompt-token-1' }).success).toBe(true);
+    expect(req.safeParse({ token: 'prompt-token-1', page: 'debug-prompt' }).success).toBe(false);
+    expect(req.safeParse({ url: 'debug-prompt.html?t=prompt-token-1' }).success).toBe(false);
+    expect(res.safeParse({ opened: false }).success).toBe(true);
+    // The answer says whether the page opened and carries nothing of the snapshot.
+    expect(res.safeParse({ opened: true, blocks: [] }).success).toBe(false);
+  });
+
   it('parses in two stages and rejects unknown types', () => {
     const envelope = C.TabEnvelopeSchema.parse({ v: 1, kind: 'req', id: 4, type: 'op.cancel', tabSessionId: '00000000-0000-4000-8000-000000000004', payload: { opId: '00000000-0000-4000-8000-000000000002' } });
     expect(envelope.kind).toBe('req');

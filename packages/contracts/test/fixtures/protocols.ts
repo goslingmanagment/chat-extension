@@ -344,6 +344,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ token: 'prompt-token-1' }], invalid: [{ token: '' }] },
     res: { valid: [promptSnapshot], invalid: [{ ...promptSnapshot, blocks: [{ name: 'system', text: 'x' }] }] },
   },
+  'debug.open': {
+    // The opaque token of a prompt snapshot and nothing else: no address, no page name.
+    req: { valid: [{ token: 'prompt-token-1' }], invalid: [{}, { token: '' }, { token: 'prompt-token-1', url: 'debug-prompt.html?t=prompt-token-1' }, { token: 'x'.repeat(129) }] },
+    res: { valid: [{ opened: true }, { opened: false }], invalid: [{}, { opened: 'yes' }] },
+  },
   'health.report': {
     req: { valid: [{ report: tabHealth }], invalid: [{ report: { ...tabHealth, windowFrom: -1 } }] },
     res: ack,

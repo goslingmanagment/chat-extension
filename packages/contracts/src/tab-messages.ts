@@ -551,6 +551,15 @@ export const TAB_REQUESTS = {
     pages: ['options'],
   },
   'debug.prompt': { req: z.strictObject({ token: boundedText(128) }), res: PromptSnapshotViewSchema, from: PAGE, pages: ['debug-prompt'] },
+  /**
+   * 1.2.0. «Промпт» of a result's debug block in a ChatSpace tab (DB-007):
+   * the prompt echo is read on `debug-prompt.html?t=<token>`, an extension
+   * page, and a content script cannot open one — the background does. Only
+   * the opaque token of the snapshot travels (DB-006): never an address, and
+   * the prompt itself never reaches a tab. `opened: false` — debug mode is
+   * off, or the browser refused.
+   */
+  'debug.open': { req: z.strictObject({ token: boundedText(128) }), res: z.strictObject({ opened: z.boolean() }), from: TAB },
   'health.report': { req: z.strictObject({ report: TabHealthReportSchema }), res: Ack, from: TAB },
   /** One-time action token for a trusted (`isTrusted`) event inside our closed shadow root (§14). */
   'token.issue': {

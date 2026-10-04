@@ -141,7 +141,7 @@ R01 делали четыре исполнителя, интегратор св�
 
 ## Протокол вкладки и страниц с фоном (§5.4)
 
-50 запросов (`TAB_REQUESTS`; `recap.save`, `send.list`, `tab.command`, `data.clear` и `settings.open` — с 1.2.0) и 12 событий
+51 запрос (`TAB_REQUESTS`; `recap.save`, `send.list`, `tab.command`, `data.clear`, `settings.open` и `debug.open` — с 1.2.0) и 12 событий
 (`TAB_EVENTS`; `tab.command` — с 1.2.0). Страницы шлют запросы
 через `runtime.sendMessage`, события получают по порту `cg-page`. Ошибка ответа —
 `kind: 'res'`, `ok: false`, `CgErrorWire` (код и факты): текст ошибки
