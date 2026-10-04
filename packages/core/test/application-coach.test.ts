@@ -667,6 +667,49 @@ describe('coach: failures, cancel, a question that is not lost', () => {
     expect(await busy.generate('reply')).toMatchObject({ ok: false, code: 'CG-OP-CHAT-BUSY' });
     expect(busy.overlays.closed).toEqual([]);
   });
+
+  it('[AI-100] a turn in flight keeps the panel when another feature really starts — a Reply in another chat', async () => {
+    const h = await start();
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('coach-chat') }, { kind: 'stall' }] });
+    await ask(h, 'How do I reply?');
+    // The person goes to another chat and starts a Reply there: it is admitted, the Coach still answers for the first.
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
+    h.host.openChat(previewChat);
+    await h.settle();
+    h.script(h.streamOf('fast-reply', ['hey']));
+    expect(await h.generate('reply')).toMatchObject({ ok: true, outcome: 'started' });
+    await h.clock.advance(200);
+    expect(h.dock().result).toMatchObject({ feature: 'reply', state: 'done' });
+    expect(h.overlays.closed).toEqual([]);
+    // Once the turn is over the panel yields again.
+    h.host.openChat(openChat);
+    await h.settle();
+    await h.dispatch(lastTurn(h).phase?.cancel as never);
+    h.script(h.streamOf('fast-reply', ['hey']));
+    expect(await h.generate('reply')).toMatchObject({ ok: true, outcome: 'started' });
+    expect(h.overlays.closed).toEqual(['coach']);
+  });
+
+  it('the answers of a dialog are kept as long as the dialog is: their drafts still insert after the half hour other results live', async () => {
+    const h = await start();
+    const answer = await exchange(h, 'How do I reply?');
+    h.script(h.streamOf('fast-reply', ['hey']));
+    const reply = (await h.generate('reply')) as { opId: string };
+    await h.finish();
+    await h.clock.advance(31 * 60_000);
+    // A new generation makes the tab look at its shelf: the old Reply goes, the Coach's answer stays.
+    h.script(h.streamOf('fast-reply', ['hey again']));
+    await h.generate('reply', { tone: 'casual' });
+    await h.finish();
+    expect(h.ai.workspace.ops.get(reply.opId)).toBeNull();
+    expect(h.ai.workspace.ops.get(answer)).not.toBeNull();
+    expect(lastTurn(h).answer?.drafts.map((draft) => draft.parts.length)).toEqual([2, 1]);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: answer, variant: 1, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    // A dialog that is gone releases its answers: after a sign-out nothing of it is held.
+    h.bg.changeSession(null, 'sign-out');
+    await h.settle();
+    expect(h.ai.workspace.ops.get(answer)).toBeNull();
+  });
 });
 
 describe('coach: the recap it stands on', () => {
