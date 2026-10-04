@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BrowserApi } from './browser-api';
-import { createExtensionPages, createTabFocus } from './pages';
+import { createExtensionPages, createLinkOpener, createTabFocus } from './pages';
 import { createFakeBrowser, pageSender } from './test-support/fake-browser';
 
 describe('[ST-006] one settings tab: our pages are reused, never opened twice', () => {
@@ -70,5 +70,36 @@ describe('a ChatSpace tab brought to the front', () => {
     expect(await createTabFocus(api).focus(9)).toBe(false);
     const stubborn: BrowserApi = { ...api, windows: { update: () => Promise.reject(new Error('no')) } };
     expect(await createTabFocus(stubborn).focus(7)).toBe(true);
+  });
+});
+
+describe('a link of ours to the open web', () => {
+  it('[ST-005] [ST-050] opens an https address in a new tab on the click; anything else opens nothing', () => {
+    const fake = createFakeBrowser();
+    const links = createLinkOpener(fake.context(pageSender(fake, 'options')).api);
+    expect(links.open('https://ext.example.test/chat-extension/whats-new.html')).toBe(true);
+    expect(fake.tabCalls).toEqual(['create https://ext.example.test/chat-extension/whats-new.html']);
+    fake.tabCalls.length = 0;
+    for (const refused of ['http://ext.example.test/', 'javascript:alert(1)', 'moz-extension://x/options.html', 'https://user:secret@ext.example.test/', 'not an address', '']) {
+      expect(links.open(refused)).toBe(false);
+    }
+    expect(fake.tabCalls).toEqual([]);
+  });
+
+  it('never throws: a browser that refuses the tab still answers', () => {
+    const fake = createFakeBrowser();
+    const api = fake.context(pageSender(fake, 'popup')).api;
+    const rejecting: BrowserApi = { ...api, tabs: { ...api.tabs, create: () => Promise.reject(new Error('no')) } };
+    expect(createLinkOpener(rejecting).open('https://ext.example.test/')).toBe(true);
+    const throwing: BrowserApi = {
+      ...api,
+      tabs: {
+        ...api.tabs,
+        create: () => {
+          throw new Error('no');
+        },
+      },
+    };
+    expect(createLinkOpener(throwing).open('https://ext.example.test/')).toBe(false);
   });
 });

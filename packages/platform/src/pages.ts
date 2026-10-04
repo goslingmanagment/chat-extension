@@ -9,6 +9,9 @@
 // popup or on «к вкладке» of the options acts in ChatSpace): the tab is known
 // by the id of its `cg-tab` port's sender, and `tabs.update(id, { active })`
 // needs no permission either. Nothing is loaded, navigated or read.
+//
+// A link of ours to the open web («Что нового», «История версий», the help
+// page; ST-005, ST-050): a new tab, https only, on the person's click.
 
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 
@@ -72,6 +75,38 @@ export function createTabFocus(api: BrowserApi = defaultBrowser()): TabFocusPort
       } catch {
         return false;
       }
+    },
+  };
+}
+
+export interface LinkOpenerPort {
+  /** Opens an https address in a new tab; false — not an https address, nothing was opened. */
+  open(url: string): boolean;
+}
+
+/** `https://host/path` and nothing else: no other scheme, no credentials in the address. */
+function httpsAddress(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  return parsed.protocol === 'https:' && parsed.username === '' && parsed.password === '' ? parsed.href : null;
+}
+
+export function createLinkOpener(api: BrowserApi = defaultBrowser()): LinkOpenerPort {
+  return {
+    open(url) {
+      const address = httpsAddress(url);
+      if (address === null) return false;
+      // The answer does not wait for the tab: the caller is a click handler and says «opened» at once.
+      try {
+        void api.tabs.create({ url: address, active: true }).catch(() => undefined);
+      } catch {
+        return false;
+      }
+      return true;
     },
   };
 }
