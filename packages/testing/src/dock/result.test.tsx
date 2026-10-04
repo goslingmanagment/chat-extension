@@ -12,7 +12,7 @@ import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 
-import { FANS, MIN, cgError, entry, iso, meta, msg, part, parts, phase, reason, result, running, uuid, variants } from '../scenarios/app-client';
+import { FANS, MIN, button, cgError, entry, failedResult, iso, meta, msg, part, parts, phase, reason, result, running, uuid, variants } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, keydown, mountDock, mountDockSettled, settle, text } from './harness';
 
 let kit: MountedKit | null = null;
@@ -34,6 +34,7 @@ const byLabel = (label: string, scope: ParentNode = kit?.root as ShadowRoot): HT
   if (found === undefined) throw new Error(`no button «${label}»`);
   return found;
 };
+const live = (): string => text(kit?.$('[data-cg-live]'));
 const frame = async (): Promise<void> => {
   await flush();
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -637,6 +638,40 @@ describe('a running generation', () => {
     expect(kit.client.dispatched[1]).toEqual({ type: 'CancelGeneration', operationId: OP });
   });
 
+  it('[AI-138] the live region says each stage as it is entered and then «Ответ готов: 3 части»; the streamed text is never read out', async () => {
+    kit = await mountDockSettled('streaming');
+    expect(kit.$('[data-cg-live]')?.getAttribute('aria-live')).toBe('polite');
+    expect(live()).toBe('Reply: читаю переписку');
+    await flush(() => kit?.client.goTo(0));
+    expect(live()).toBe('Reply: думает');
+    await flush(() => kit?.client.goTo(1));
+    expect(live()).toBe('Reply: пишет ответ');
+    // More text of the same stage is not a new stage: nothing is said again.
+    const said = kit.$('[data-cg-live] span');
+    await flush(() => kit?.client.goTo(2));
+    expect(kit.$('[data-cg-live] span')).toBe(said);
+    expect(live()).not.toContain('Hey you');
+    await flush(() => kit?.client.goTo(3));
+    expect(live()).toBe('Ответ готов: 3 части');
+  });
+
+  it('a result that was already there when the dock appeared is no news: nothing is said; Hi says how many variants there are', async () => {
+    kit = await mountDockSettled(withResult(reply()));
+    expect(live()).toBe('');
+    kit.unmount();
+    const hi = (state: ResultVM['state']): ResultVM =>
+      result(ctx, {
+        opId: uuid(102),
+        feature: 'hi',
+        state,
+        ...(state === 'done' ? { variants: variants(uuid(102), [['a1', 'a2'], ['b1', 'b2'], ['c1', 'c2']]) } : { phase: phase(uuid(102), ctx.now, ['context'], 'writing'), streamText: 'a1' }),
+      });
+    kit = await mountDockSettled({ ...withResult(hi('streaming')), steps: [{ label: 'done', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: hi('done') }))] }] });
+    expect(live()).toBe('Hi: пишет ответ');
+    await flush(() => kit?.client.goTo(0));
+    expect(live()).toBe('Ответ готов: 2 части. 3 варианта');
+  });
+
   it('[AI-137] a batch of streamed text changes one text node inside a frame and re-renders nothing else', async () => {
     kit = mountDock('streaming');
     await flush(() => kit?.client.goTo(1));
@@ -717,11 +752,13 @@ describe('a running generation', () => {
     expect(writes).toEqual(['one two three']);
   });
 
-  it('the one transparent retry after a 503 replaces the stages with a countdown; «Отменить» stays', () => {
-    kit = mountDock('retry-503');
+  it('the one transparent retry after a 503 replaces the stages with a countdown; «Отменить» stays', async () => {
+    kit = await mountDockSettled('retry-503');
     expect(kit.$$('.cg-stage').map(text)).toEqual(['Сервис недоступен, повтор через 5 с…']);
     expect(kit.$('.cg-cancel')).not.toBeNull();
     expect(text(kit.$('[data-cg-stream]'))).toBe('');
+    // Said once, as the stage it is; its seconds are not read out.
+    expect(live()).toBe('Reply: сервис недоступен, повтор через 5 с');
   });
 
   it('when the result is done the stream gives way to parts; it is reported shown once it is really on screen', async () => {
@@ -783,6 +820,29 @@ describe('errors in the sheet', () => {
     expect(kit.client.dispatched).toEqual([]);
     await flush(() => retry().click());
     expect(kit.client.dispatched).toEqual([{ type: 'Regenerate', operationId: OP }]);
+  });
+
+  it('[ER-006] of the countdown to a retry the live region says its start and its end, nothing in between; the quota\'s countdown is not a retry', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(ctx.now);
+    kit = await mountDockSettled('provider-rate-limit', { now: () => Date.now() });
+    expect(live()).toBe('Повторить можно через 24 секунды');
+    const said = kit.$('[data-cg-live] span');
+    await flush(() => vi.advanceTimersByTime(10_000));
+    expect(kit.$('[data-cg-live] span')).toBe(said);
+    await flush(() => vi.advanceTimersByTime(15_000));
+    expect(live()).toBe('Можно повторить');
+    // Nothing ticks once it is over.
+    expect(vi.getTimerCount()).toBe(0);
+    kit.unmount();
+    vi.setSystemTime(ctx.now);
+    // The quota: «До обновления 17 ч 0 мин» is a reset, not a retry — even with a button that waits for it.
+    const quota = failedResult(ctx, OP, 'reply', cgError(ctx, 'CG-QUOTA-DAILY', { retryAt: ctx.now + 17 * 60 * MIN }), [
+      button('common.retry', { type: 'Regenerate', operationId: OP }, { enabled: false, reason: reason('wait-until', { n: 61_200 }) }),
+    ]);
+    kit = await mountDockSettled(withResult(quota), { now: () => Date.now() });
+    expect(text(kit.$('.cg-card .cg-count'))).toBe('До обновления 17 ч 0 мин');
+    expect(live()).toBe('');
   });
 
   it('quota 0 is a state, not a failure: a ring and the countdown to the reset written as «17 ч 0 мин»', () => {

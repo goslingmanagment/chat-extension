@@ -220,6 +220,17 @@ describe('the Coach panel', () => {
     expect(kit.$('.cg-co__chips')).toBeNull();
   });
 
+  it('[AI-083] the live region says the stages of the wait and that the answer came with a draft: «Ответ готов: 2 части»', async () => {
+    const session = scenarioById('coach-session');
+    const answered = coach(ctx, views.ready(), [coachTurn(ctx, 1), coachTurn(ctx, 2, { opId: uuid(402) })]);
+    kit = mountSurface(coachSurface.view, { ...session, steps: [{ label: 'answered', at: 10, views: [entry({ of: 'coach' }, answered)] }] }, 'coach', coachSurface.styles ?? []);
+    await settle(1);
+    expect(text(kit.$('[data-cg-live]'))).toBe('Coach: пишет ответ');
+    await flush(() => kit?.client.goTo(0));
+    await settle(1);
+    expect(text(kit.$('[data-cg-live]'))).toBe('Ответ готов: 2 части');
+  });
+
   it('[AI-084] [AI-085] an answer: prose, then drafts split into parts, inserted one at a time by the operation of that turn', async () => {
     kit = mount(coach(ctx, views.ready(), [coachTurn(ctx, 1)]));
     expect(kit.$$('.cg-co__who').map(text)).toEqual(['Вы', 'Coach']);

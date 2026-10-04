@@ -29,6 +29,7 @@ import {
   useNowFn,
   useView,
 } from '../../kit';
+import { useReadyAnnouncement, useStageAnnouncements } from '../announce';
 import { Head, Meta } from '../Head';
 import { useSteadyView, useStreamText } from '../Stream';
 import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
@@ -175,6 +176,10 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
   const forFan = name === null ? [] : [i18n.t('result.meta.forFan', { name })];
 
   const debug = debugFooter(debugPart, recap.debug, recap.state, recap.phase);
+  // The live region: the stages while it is built, then «Recap готов». The sheet says it; the window stays quiet.
+  const said = place === 'sheet' ? (recap.opId ?? 'recap') : null;
+  useStageAnnouncements(title, running(recap.state) ? said : null, recap.phase);
+  useReadyAnnouncement(place === 'sheet' ? 'recap' : null, running(recap.state), recap.markdown !== null, () => i18n.t('dock.badge.recapReady'));
 
   if (running(recap.state)) return <Running title={title} opId={recap.opId} phase={recap.phase} text={text} debug={debug} />;
 

@@ -43,6 +43,7 @@ import {
   type StyleSource,
   type SurfaceDefinition,
 } from '../../kit';
+import { RetryAnnouncer, useReadyAnnouncement, useStageAnnouncements } from '../../dock/announce';
 import { DEFAULT_PARTS } from '../../dock/lazy';
 import { DebugSlot } from '../../dock/lazy-part';
 import { isRunning, msgOf, toneOf } from '../../dock/model';
@@ -86,6 +87,14 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
   const answer = turn.answer;
   const confirm = turn.confirm ?? null;
   const debug = turn.debug ?? null;
+  // The live region: the stages of the wait, then «Ответ готов: 2 части» when the answer brought a draft.
+  const said = turn.opId ?? turn.id;
+  const waiting = isRunning(turn.state);
+  useStageAnnouncements(i18n.t('coach.title'), waiting ? said : null, turn.phase);
+  useReadyAnnouncement(said, waiting, turn.state === 'done', () => {
+    const parts = answer?.drafts[0]?.parts.length ?? 0;
+    return parts === 0 ? null : i18n.plural('result.announce.ready', parts);
+  });
   return (
     <>
       <div class="cg-co__turn is-you" data-cg-turn={turn.id}>
@@ -130,6 +139,7 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
           </>
         )}
         {turn.error === null ? null : <ErrorCard error={turn.error} tone={toneOf(turn.error)} actions={turn.errorActions} inline />}
+        <RetryAnnouncer error={turn.error} actions={turn.errorActions} />
         {debug === null ? null : (
           <div class="cg-co__debug">
             <DebugSlot loader={DEFAULT_PARTS.debug} debug={debug} startedAt={turn.phase?.startedAt ?? turn.askedAt} running={isRunning(turn.state)} />

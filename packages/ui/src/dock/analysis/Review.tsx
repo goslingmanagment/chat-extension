@@ -9,6 +9,7 @@ import { type JSX } from 'preact';
 import { type ReviewSectionVM } from '@cg/contracts/vm';
 
 import { Markdown, ViewState, useDispatch, useI18n, useView } from '../../kit';
+import { spokenStage, useReadyAnnouncement, useStageAnnouncements } from '../announce';
 import { AgainButton, Head, Meta } from '../Head';
 import { useSteadyView, useStreamText } from '../Stream';
 import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
@@ -50,6 +51,10 @@ export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
   const close = <Close which="review" place={place} />;
 
   const debug = debugFooter(debugPart, review.debug, review.state, review.phase);
+  // The live region: the stages while it is written, then «Review: сделан только что». The sheet says it; the window stays quiet.
+  const said = place === 'sheet' ? (review.opId ?? 'review') : null;
+  useStageAnnouncements(title, running(review.state) ? said : null, review.phase);
+  useReadyAnnouncement(place === 'sheet' ? 'review' : null, running(review.state), review.sections.length > 0 || review.raw !== null, () => spokenStage(i18n, title, i18n.t('review.madeNow')));
 
   if (running(review.state)) return <Running title={title} opId={review.opId} phase={review.phase} text={text} debug={debug} />;
 

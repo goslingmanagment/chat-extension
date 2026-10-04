@@ -12,6 +12,7 @@ import { type JSX } from 'preact';
 import { type DockVM, type ResultVM } from '@cg/contracts/vm';
 
 import { Button, Caret, Dot, ErrorCard, KeysFooter, Spinner, StageLine, hotkeyText, useDispatch, useI18n, useKit, type KeyHint } from '../kit';
+import { RetryAnnouncer, spokenReady, useReadyAnnouncement, useStageAnnouncements } from './announce';
 import { FixBody } from './Fix';
 import { AgainButton, DraftLabel, Head, Meta } from './Head';
 import { DebugSlot, type DebugProps, type PartLoader } from './lazy-part';
@@ -31,6 +32,8 @@ export interface ResultContentProps {
   /** «Скрыть Esc» (the sheet) or «Свернуть Esc» (the window); null while the generation runs. */
   readonly close: JSX.Element | null;
   readonly onFirstPaint?: () => void;
+  /** The «Развернуть ↗» window: the dock sheet already says the stages and the readiness of this operation. */
+  readonly quiet?: boolean;
 }
 
 /** «Фан написал новое» above the parts (ui-design §4.7): the answer does not know the new message; inserting stays allowed. */
@@ -56,6 +59,10 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
   const dispatch = useDispatch();
   const title = i18n.t(featureKey(result.feature));
   const running = isRunning(result.state);
+  // The live region (ui-design §6.2): the stage entered, then «Ответ готов: 3 части»; never the streamed text.
+  const said = props.quiet === true ? null : result.opId;
+  useStageAnnouncements(title, running ? said : null, result.phase);
+  useReadyAnnouncement(said, running, result.state === 'done', () => spokenReady(i18n, result));
   const again = (): void => void dispatch({ type: 'Regenerate', operationId: result.opId });
   const againReason = result.canRegenerate ? null : result.regenerateReason === null ? i18n.t('common.unknown') : i18n.text(result.regenerateReason.text);
   const debug = result.debug === null ? null : <DebugSlot loader={props.debugPart} debug={result.debug} startedAt={result.startedAt} running={running} />;
@@ -92,6 +99,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
           <Meta texts={metaTexts(i18n, result)} />
         </Head>
         <div class="cg-body">{result.error === null ? null : <ErrorCard error={result.error} tone={toneOf(result.error)} actions={result.errorActions} />}</div>
+        {said === null ? null : <RetryAnnouncer error={result.error} actions={result.errorActions} />}
         {debug}
       </>
     );

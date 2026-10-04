@@ -8,7 +8,7 @@ import { DISMISSIBLE_OPEN_ATTRIBUTE } from '@cg/ui/kit';
 import { LAZY_OVERLAY_KINDS, lazyOverlays } from '@cg/ui/overlays';
 import { expandedSurface } from '@cg/ui/overlays/result-expanded';
 
-import { dock, entry, meta, parts, recapView, result, review, scenarioById, uuid, views } from '../scenarios/app-client';
+import { dock, entry, meta, parts, phase, recapView, result, review, scenarioById, uuid, views } from '../scenarios/app-client';
 import { type MountedKit, ctx, flush, keydown, mountSurface, scenarioOf, settle, text } from '../dock/harness';
 
 let kit: MountedKit | null = null;
@@ -89,6 +89,20 @@ describe('the expanded result', () => {
     kit = mount(scenarioOf([recapDock, entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'full', { expanded: true }))]));
     await settle(2);
     expect(kit.$('.cg-debug')).toBeNull();
+  });
+
+  it('the window stays quiet: the dock sheet already says the stages and the readiness of the same operation', async () => {
+    const op = uuid(101);
+    const writing = result(ctx, { opId: op, feature: 'reply', state: 'streaming', phase: phase(op, ctx.now, ['context'], 'writing'), streamText: 'one', expanded: true });
+    const done = result(ctx, { opId: op, feature: 'reply', state: 'done', parts: parts(op, ['one', 'two']), meta: [meta.parts(2)], expanded: true });
+    kit = mount(scenarioOf([entry({ of: 'dock' }, dock(ctx, 'ready', { result: writing }))], { steps: [{ label: 'done', at: 10, views: [entry({ of: 'dock' }, dock(ctx, 'ready', { result: done }))] }] }));
+    await settle(1);
+    expect(kit.$('[role="dialog"] [data-cg-stream]')).not.toBeNull();
+    expect(text(kit.$('[data-cg-live]'))).toBe('');
+    await flush(() => kit?.client.goTo(0));
+    await settle(1);
+    expect(kit.$$('[role="dialog"] .cg-part')).toHaveLength(2);
+    expect(text(kit.$('[data-cg-live]'))).toBe('');
   });
 
   it('a result that is not expanded stays in the dock only', async () => {

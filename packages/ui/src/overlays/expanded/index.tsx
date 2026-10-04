@@ -85,6 +85,7 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
             result={result}
             mode={dock.mode}
             keysFooter={false}
+            quiet
             streamText={streamText}
             debugPart={all.debug}
             close={

@@ -8,7 +8,7 @@ import { type ResultDebugVM } from '@cg/contracts';
 import { DEFAULT_PARTS, preloadPart, type DockParts } from '@cg/ui/dock';
 import { ANALYSIS_STYLE } from '@cg/ui/dock/analysis';
 
-import { cgError, entry, handles, FANS, msg, phase, reason, recapPicker, recapView, review, uuid, views } from '../scenarios/app-client';
+import { cgError, entry, handles, FANS, msg, phase, reason, recapPicker, recapView, review, scenarioById, uuid, views } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, keydown, mountDock, mountDockSettled, settle, text } from './harness';
 
 let kit: MountedKit | null = null;
@@ -184,6 +184,19 @@ describe('Recap', () => {
     expect(kit.client.dispatched).toEqual([{ type: 'CancelGeneration', operationId: uuid(601) }]);
   });
 
+  it('the live region says the stages of a Recap being built and then «Recap готов»; a saved Recap that is just shown says nothing', async () => {
+    const built = recapView(ctx, views.ready(), 'full');
+    kit = await mountDockSettled({ ...scenarioById('recap-generating'), steps: [{ label: 'built', at: 10, views: [entry({ of: 'dock' }, recapDock()), entry({ of: 'recap.view' }, built)] }] });
+    await settle(1);
+    expect(text(kit.$('[data-cg-live]'))).toBe('Recap: пишет ответ');
+    await flush(() => kit?.client.goTo(0));
+    expect(text(kit.$('[data-cg-live]'))).toBe('Recap готов');
+    kit.unmount();
+    kit = await mountDockSettled('recap-full');
+    await settle(1);
+    expect(text(kit.$('[data-cg-live]'))).toBe('');
+  });
+
   it('a failed Recap read is an error card with its own retry, never an empty sheet', async () => {
     kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, recapView(ctx, views.error(cgError(ctx, 'CG-PROVIDER-STREAM'), { type: 'ReloadView', selector: { of: 'recap.view' } }), 'full'))]));
     await settle(1);
@@ -241,11 +254,15 @@ describe('Review', () => {
 
   it('a Review being written streams as plain text under its stage line', async () => {
     const running = review(ctx, views.loading(ctx.now, null), { opId: uuid(301), state: 'streaming', phase: phase(uuid(301), ctx.now - 2_000, ['context'], 'writing'), streamText: 'Warm and', sections: [], raw: null });
-    kit = mountDock(dockScenario(dockVm('ready', { analysis: 'review', actionsOptions: { busy: 'review' } }), {}, [entry({ of: 'review' }, running)]));
+    kit = mountDock(dockScenario(dockVm('ready', { analysis: 'review', actionsOptions: { busy: 'review' } }), { steps: [{ label: 'written', at: 10, views: [entry({ of: 'review' }, review(ctx, views.ready()))] }] }, [entry({ of: 'review' }, running)]));
     await settle(1);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(text(kit.$('[data-cg-stream]'))).toBe('Warm and');
     expect(kit.$('.cg-body')?.getAttribute('aria-busy')).toBe('true');
+    // The live region: the stage, then that the Review is there.
+    expect(text(kit.$('[data-cg-live]'))).toBe('Review: пишет ответ');
+    await flush(() => kit?.client.goTo(0));
+    expect(text(kit.$('[data-cg-live]'))).toBe('Review: сделан только что');
   });
 });
 
