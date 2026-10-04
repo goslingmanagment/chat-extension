@@ -273,6 +273,46 @@ describe('fan preview: the work zone', () => {
     expect(ui.actions().filter((action) => action.type !== 'SetPreviewDraft')).toEqual([]);
   });
 
+  it('[NEW-10] the model’s echo of an earlier keystroke never takes back what was typed since; another fan’s draft is taken', async () => {
+    const base = boardScenario('11a');
+    const vm = base.views.find((view) => view.selector.of === 'preview')?.vm as PreviewVM;
+    const draft = (text: string, handle = vm.handle) => entry({ of: 'preview', from: 'spenders' }, { ...vm, handle, draft: { ...vm.draft, text } });
+    ui = await mountBoardSettled('spenders', {
+      ...base,
+      steps: [
+        { label: 'the echo of «hey»', at: 100, views: [draft('hey')] },
+        { label: 'the echo of «hey there»', at: 200, views: [draft('hey there')] },
+        { label: 'the draft was restored from storage', at: 300, views: [draft('saved yesterday')] },
+        { label: 'the next fan with a draft of its own', at: 400, views: [draft('for Chris', 'spenders:b003')] },
+      ],
+    });
+    const field = (): HTMLTextAreaElement => ui?.$('.cg-pv__draft textarea') as HTMLTextAreaElement;
+    const type = async (text: string): Promise<void> =>
+      flush(() => {
+        field().value = text;
+        field().dispatchEvent(new InputEvent('input', { bubbles: true }));
+      });
+    await type('hey');
+    await type('hey there');
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    // The late echo of «hey» did not eat « there».
+    expect(field().value).toBe('hey there');
+    await flush(() => ui?.client.goTo(1));
+    await settle();
+    expect(field().value).toBe('hey there');
+    // Not an echo: the field follows the model.
+    await flush(() => ui?.client.goTo(2));
+    await settle();
+    expect(field().value).toBe('saved yesterday');
+    // Typing for one fan, then the next fan's preview: its own draft, not the last fan's unanswered text.
+    await type('saved yesterday, and more');
+    await flush(() => ui?.client.goTo(3));
+    await settle();
+    expect(field().value).toBe('for Chris');
+    expect(ui.actionsOf('SetPreviewDraft').map((action) => action.text)).toEqual(['hey', 'hey there', 'saved yesterday, and more']);
+  });
+
   it('[SP-055] the mini strip: Reply · Fix · Hi · Ping without key labels, Tone and Split; a click generates for this fan', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const strip = ui.$('.cg-pvb') as HTMLElement;

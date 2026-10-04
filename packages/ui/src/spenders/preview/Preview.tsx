@@ -12,6 +12,7 @@ import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { type ClaimVM, type I18n, type Msg, type PreviewActionId, type PreviewSource, type PreviewVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, Dot, ErrorCard, Icon, Money, TextField, ViewState, isComposing, useCountdown, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView, type StyleSource } from '../../kit';
+import { useOwnEchoes } from '../ownEchoes';
 import { coverageWord, isPlainKey, isTextEntry, timeOrUnknown } from '../window';
 import { Feed, FEED_CSS } from './Feed';
 import { MINI_STRIP_CSS, MiniStrip, generateAction } from './MiniStrip';
@@ -198,7 +199,9 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
   // ui-design §10 «черновик — поле как в превью») — there the field is always at hand, Fix or not.
   const greetingDraft = from === 'newcomers';
   const handle = vm.handle;
-  const showDraft = greetingDraft || vm.bar.actions.fix !== undefined || vm.draft.text !== '';
+  // The model echoes every change of the draft; an echo of an earlier one never undoes what was typed since.
+  const draft = useOwnEchoes(vm.draft.text, handle);
+  const showDraft = greetingDraft || vm.bar.actions.fix !== undefined || draft.shown !== '';
 
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLElement>): void => {
     if (event.defaultPrevented || isComposing(event)) return;
@@ -235,15 +238,18 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
             {showDraft ? (
               <div class="cg-pv__draft">
                 <TextField
-                  value={vm.draft.text}
+                  value={draft.shown}
                   label={i18n.t(greetingDraft ? 'newcomers.greetingDraft.aria' : 'preview.draft.aria')}
                   placeholder={i18n.text(vm.draft.placeholder)}
                   multiline
                   minHeight={36}
                   maxHeight={120}
                   maxLength={vm.draft.maxChars}
-                  onValue={(text) => {
-                    if (handle !== null) void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text: text.slice(0, vm.draft.maxChars) });
+                  onValue={(typed) => {
+                    if (handle === null) return;
+                    const text = typed.slice(0, vm.draft.maxChars);
+                    draft.sent(text);
+                    void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text });
                   }}
                 />
               </div>
