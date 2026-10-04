@@ -33,6 +33,9 @@ describe('fake hub control commands', () => {
       { op: 'pageAccount', pageLabel: PAGE, platformAccountId: null },
       { op: 'config', patch: { clientBootstrap: false, narrowTokens: false } },
       { op: 'health', compatibleClientSdks: null },
+      { op: 'spenderFans', fans: [{ fanRef: '74001001', displayName: null, lifetimeUsd: 12, windowUsd: null, fanWroteAgoSec: 60, awaiting: true }] },
+      { op: 'spenderFans', fans: [] },
+      { op: 'config', patch: { aiNameFan: true } },
       { op: 'status' },
     ];
     for (const command of valid) expect(checkCommand(command)).toBe(command);
@@ -51,6 +54,9 @@ describe('fake hub control commands', () => {
     expect(() => hub.control(bad({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: 830000101 }))).toThrow(/pageAccount\.platformAccountId is not valid/);
     expect(() => hub.control(bad({ op: 'config', patch: { masterr: false } }))).toThrow(/config patch has no field «masterr»/);
     expect(() => hub.control(bad({ op: 'clock', advanceMs: Number.NaN }))).toThrow(/clock\.advanceMs is not valid/);
+    expect(() => hub.control(bad({ op: 'spenderFans' }))).toThrow(/spenderFans needs «fans»/);
+    expect(() => hub.control(bad({ op: 'spenderFans', fans: [{ fanRef: '74001001', lifetimeUSD: 5 }] }))).toThrow(/spenderFans\.fans is not valid/);
+    expect(() => hub.control(bad({ op: 'spenderFans', fans: [{ username: 'nobody' }] }))).toThrow(/spenderFans\.fans is not valid/);
     expect(() => hub.control(bad(null))).toThrow(/JSON object with an `op`/);
     expect(hub.status()).toEqual(before);
   });

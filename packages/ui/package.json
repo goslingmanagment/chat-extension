@@ -6,7 +6,21 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./kit": "./src/kit/index.ts"
+    "./kit": "./src/kit/index.ts",
+    "./dock": "./src/dock/index.ts",
+    "./dock/analysis": "./src/dock/analysis/index.tsx",
+    "./dock/debug": "./src/dock/debug/index.tsx",
+    "./overlays": "./src/overlays/index.ts",
+    "./overlays/toasts": "./src/overlays/toasts/index.tsx",
+    "./overlays/dialogs": "./src/overlays/dialogs/index.tsx",
+    "./overlays/coach": "./src/overlays/coach/index.tsx",
+    "./overlays/cheatsheet": "./src/overlays/cheatsheet/index.tsx",
+    "./overlays/result-expanded": "./src/overlays/expanded/index.tsx",
+    "./spenders": "./src/spenders/index.ts",
+    "./newcomers": "./src/newcomers/index.ts",
+    "./fanpanel": "./src/fanpanel/index.ts",
+    "./palette": "./src/palette/index.ts",
+    "./pages": "./src/pages/index.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",

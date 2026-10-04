@@ -2,9 +2,10 @@
 // RELEASE XPI itself (the other specs install only the test build, which has
 // another gecko id, no update_url, extra hosts and the e2e probe). No
 // ChatSpace page is opened: the release build matches only the real origin.
-// And no status surface is opened either: the popup and the options page ask
-// for the hub's health when they open, and a release build's hub is the real
-// one — this spec makes no request at all.
+// A release build's hub is the real one, and this spec makes no request at
+// all: nobody signs in, and without a sign-in neither the settings page nor
+// the popup asks the hub anything — the network trap fails the spec if one
+// of them does.
 
 import { browser, expect } from '@wdio/globals';
 
@@ -21,13 +22,32 @@ describe('release XPI', () => {
 
   it('its page renders and its background answers the page protocol: ready, nobody signed in, default settings', async () => {
     await browser.url(`moz-extension://${E2E_RELEASE_ADDON_UUID}/debug-journal.html`);
-    await expect($('#app')).toHaveText(expect.stringContaining('Отладка'));
+    // The journal page of a build nobody switched debug mode on in: it says so and reads no journal.
+    await expect($('#app')).toHaveText(expect.stringContaining('Режим отладки выключен'));
     // From our own extension page (sender id = ours, top frame); the event page wakes up and answers after its start steps.
     expect(await pageRpc('session.get')).toEqual({ ok: true, payload: { session: null } });
     const settings = await pageRpc<{ settings: { hub: { baseUrl: string }; debug: { enabled: boolean } }; readOnly: boolean }>('settings.get');
     expect(settings).toMatchObject({ ok: true, payload: { settings: { hub: { baseUrl: 'https://gosling-agency.ru' }, debug: { enabled: false } }, readOnly: false } });
     // A request only a ChatSpace tab may send is refused to a page.
     await expect(pageRpc('token.issue', { kind: 'insert', surface: 'dock' })).rejects.toThrow(/no answer/);
+  });
+
+  it('[ST-011] [PU-002] [UP-008] its settings page is the sign-in screen and its popup says «Нужно войти» — with the stock hub address, and without one request to it', async () => {
+    await browser.url(`moz-extension://${E2E_RELEASE_ADDON_UUID}/options.html`);
+    await browser.waitUntil(async () => (await browser.execute(() => document.querySelector('.pg-page[data-pg-gate] .pg-signin') !== null)) === true, { timeout: 15_000, timeoutMsg: 'the release build did not draw its sign-in screen' });
+    const screen = await browser.execute(() => ({
+      steps: document.querySelectorAll('.pg-check__item').length,
+      address: document.querySelector<HTMLInputElement>('details[data-pg-anchor="hub-address"] input')?.value ?? null,
+      access: document.querySelector('[data-pg-access]')?.getAttribute('data-pg-access') ?? null,
+      title: document.title,
+    }));
+    // The hub of the manifest: its host access comes with the install, nothing is asked of the person.
+    expect(screen).toEqual({ steps: 8, address: 'https://gosling-agency.ru', access: 'granted', title: 'Настройки ChatGoose' });
+    await browser.url(`moz-extension://${E2E_RELEASE_ADDON_UUID}/popup.html`);
+    await browser.waitUntil(async () => (await browser.execute(() => document.querySelector('.pg-popup [data-cg-code="CG-AUTH-REQUIRED"]') !== null)) === true, { timeout: 15_000, timeoutMsg: 'the release build’s popup did not say that nobody is signed in' });
+    // The status was read (the background answered), and the hub was not: the background knows nothing of its health.
+    const diagnostics = await pageRpc<{ hub: { reachable: boolean | null }; extension: { testBuild: boolean } }>('diagnostics.get');
+    expect(diagnostics).toMatchObject({ ok: true, payload: { hub: { reachable: null }, extension: { testBuild: false } } });
   });
 
   it('is a release build: no loopback host in its manifest, no e2e probe', async () => {

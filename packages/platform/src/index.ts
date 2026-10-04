@@ -10,10 +10,11 @@
 // - idb: a bounded IndexedDB store (logs, R18 owns the record format)
 // - audio (event page), clipboard (on a gesture), scripting (MAIN WS tap),
 //   env (browser major, OS), download (Blob from an extension page)
-// - pages: open our options/debug pages in a tab, reusing the one open
+// - pages: open our options/debug pages in a tab, reusing the one open; bring a
+//   ChatSpace tab to the front; open an https link of ours in a new tab
 
 export { defaultBrowser, type BrowserApi, type MessageSenderApi, type PortApi } from './browser-api';
-export { createExtensionPages, type ExtensionPagesPort, type OpenPageResult, type TabExtensionPage } from './pages';
+export { createExtensionPages, createLinkOpener, createTabFocus, type ExtensionPagesPort, type LinkOpenerPort, type OpenPageResult, type TabExtensionPage, type TabFocusPort } from './pages';
 export { extensionUrl, extensionId, isExtensionContextAlive } from './runtime';
 export { syncDynamicMainScript, mainScriptRegistration, type DynamicMainScriptSpec, type DynamicScriptSync } from './scripting';
 export {
@@ -94,5 +95,5 @@ export {
   type ToneWave,
 } from './audio';
 export { writeClipboardText, type ClipboardNavigator, type ClipboardResult } from './clipboard';
-export { clientOsOf, majorVersionOf, readClientEnv, type ClientEnv, type ClientOs } from './env';
+export { clientOsOf, extensionVersionOf, majorVersionOf, readClientEnv, type ClientEnv, type ClientOs } from './env';
 export { downloadFile, safeFileName, DOWNLOAD_URL_TTL_MS, type DownloadDeps, type DownloadFile } from './download';

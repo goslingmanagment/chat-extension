@@ -1,5 +1,5 @@
 import { ANCHOR_IDS, HOST_CAPABILITIES, type HostContractReport } from '@cg/contracts/host';
-import { DEBUG_LIMITS, LOG_LIMITS } from '@cg/contracts/limits';
+import { LOG_LIMITS } from '@cg/contracts/limits';
 import { LogRecordFromUiSchema, LogRecordSchema, type LogRecord } from '@cg/contracts/logs';
 import { OpDebugViewSchema } from '@cg/contracts/ops';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
@@ -7,7 +7,7 @@ import { DiagnosticsSnapshotSchema, PromptSnapshotViewSchema } from '@cg/contrac
 import { AcceptanceEventSchema, ClientHealthV1Schema, TabHealthReportSchema } from '@cg/contracts/telemetry';
 import { describe, expect, it } from 'vitest';
 
-import { OpDebugBuilder, snapshotFromFrame, type DebugInputFrame, type UsageNumbers } from '../../domain/debug';
+import { OpDebugBuilder, promptView, snapshotFromFrame, type DebugInputFrame, type UsageNumbers } from '../../domain/debug';
 import { CodeCounters, createLogger, createRedactor, utf8Length } from '../../domain/logging';
 import { AcceptanceTracker, HealthWindow, TabHealthCollector } from '../../domain/telemetry';
 import { DebugJournals, LogService, MemoryLogStore, acceptUiRecords } from '../logs';
@@ -16,8 +16,6 @@ import { type TelemetryQueueStats } from '../telemetry';
 import {
   COPY_REPORT_MAX_CHARS,
   DiagnosticsService,
-  PROMPT_STORE_MAX_CHARS,
-  PromptSnapshotStore,
   SpendService,
   clearDebugData,
   copyReport,
@@ -296,89 +294,6 @@ describe('[LG-020] the diagnostics service', () => {
   });
 });
 
-function frame(text: string): DebugInputFrame {
-  return { type: 'debug_input_v1', systemBlocks: [{ text, cache: 'none' }], userBlocks: [{ text: 'u', cache: 'none' }], contextManifest: null };
-}
-
-function promptStore(debug = { on: true }) {
-  let now = T0;
-  let n = 0;
-  const store = new PromptSnapshotStore({ now: () => now, token: () => `tok-${String(++n).padStart(8, '0')}`, debugEnabled: () => debug.on });
-  return {
-    store,
-    advance(ms: number) {
-      now += ms;
-    },
-  };
-}
-
-describe('[DB-004] [DB-006] [DB-007] [DB-008] the prompt snapshot store', () => {
-  it('[DB-004] only in memory: 12 minutes, at most 10, the oldest goes first', () => {
-    const p = promptStore();
-    const tokens = Array.from({ length: 11 }, (_, i) => p.store.put(snapshotFromFrame(frame(`prompt ${i}`), { feature: 'reply', capturedAt: T0 })));
-    expect(p.store.stats().count).toBe(DEBUG_LIMITS.promptSnapshotsKept);
-    expect(p.store.view(tokens[0] ?? '').state).toBe('expired');
-    expect(p.store.view(tokens[10] ?? '').state).toBe('ok');
-    p.advance(DEBUG_LIMITS.promptSnapshotTtlMs);
-    expect(p.store.view(tokens[10] ?? '').state).toBe('expired');
-    expect(p.store.stats()).toEqual({ count: 0, chars: 0 });
-  });
-
-  it('[DB-004] a total budget keeps a few huge prompts from filling the event page', () => {
-    const p = promptStore();
-    const huge = 'x'.repeat(DEBUG_LIMITS.promptBlockMaxChars);
-    const big = { ...frame(huge), userBlocks: Array.from({ length: 4 }, () => ({ text: huge, cache: 'none' as const })) };
-    for (let i = 0; i < 5; i += 1) p.store.put(snapshotFromFrame(big, { feature: 'review', capturedAt: T0 }));
-    expect(p.store.stats().chars).toBeLessThanOrEqual(PROMPT_STORE_MAX_CHARS);
-    expect(p.store.stats().count).toBeGreaterThanOrEqual(1);
-  });
-
-  it('[DB-006] [DB-007] the tab gets an opaque token; the text comes back only by it, valid for debug-prompt.html', () => {
-    const p = promptStore();
-    const token = p.store.put(snapshotFromFrame(frame('synthetic system prompt'), { feature: 'fix', capturedAt: T0 })) ?? '';
-    expect(token).toMatch(/^tok-/);
-    expect(token).not.toContain('synthetic');
-    const view = p.store.view(token);
-    expect(PromptSnapshotViewSchema.safeParse(view).success).toBe(true);
-    expect(view).toMatchObject({ state: 'ok', feature: 'fix', blocks: [{ name: 'system 1 · cache none', text: 'synthetic system prompt', truncated: false }, { text: 'u' }] });
-    expect(p.store.view('<script>').state).toBe('not-found');
-    expect(p.store.view('tok-unknown-123').state).toBe('expired');
-  });
-
-  it('[DB-008] echo off and from cache are explained; outside debug nothing is kept', () => {
-    const debug = { on: true };
-    const p = promptStore(debug);
-    const token = p.store.putNoEcho({ feature: 'reply', capturedAt: T0, fromCache: true }) ?? '';
-    expect(p.store.view(token)).toMatchObject({ state: 'echo-off', fromCache: true, feature: 'reply', capturedAt: '2026-10-03T12:00:00.000Z' });
-    debug.on = false;
-    expect(p.store.put(snapshotFromFrame(frame('p'), { feature: 'reply', capturedAt: T0 }))).toBeNull();
-    expect(p.store.putNoEcho({ feature: null, capturedAt: T0, fromCache: false })).toBeNull();
-    expect(p.store.view(token).state).toBe('debug-off');
-    debug.on = true;
-    expect(p.store.view(token).state).toBe('expired');
-    const broken = new PromptSnapshotStore({
-      now: () => T0,
-      token: () => {
-        throw new Error('no crypto');
-      },
-      debugEnabled: () => {
-        throw new Error('settings');
-      },
-    });
-    expect(broken.put(snapshotFromFrame(frame('p'), { feature: 'reply', capturedAt: T0 }))).toBeNull();
-    const junkToken = new PromptSnapshotStore({ now: () => T0, token: () => 'x', debugEnabled: () => true });
-    expect(junkToken.put(snapshotFromFrame(frame('p'), { feature: 'reply', capturedAt: T0 }))).toBeNull();
-    const failingToken = new PromptSnapshotStore({
-      now: () => T0,
-      token: () => {
-        throw new Error('no crypto');
-      },
-      debugEnabled: () => true,
-    });
-    expect(failingToken.putNoEcho({ feature: null, capturedAt: T0, fromCache: false })).toBeNull();
-  });
-});
-
 class MemoryKv implements KeyValuePort {
   value: unknown = null;
   fail = false;
@@ -420,16 +335,13 @@ describe('[DB-022] [DB-018] the local spend journal service', () => {
 });
 
 describe('[DB-001] debug off and sign-out clear the debug data', () => {
-  it('[DB-001] debug off or sign-out: prompts, journals and the local spend journal all go (§9.3)', async () => {
-    const p = promptStore();
-    const token = p.store.put(snapshotFromFrame(frame('p'), { feature: 'reply', capturedAt: T0 })) ?? '';
+  it('[DB-001] debug off or sign-out: the journals and the local spend journal go (§9.3); the prompt snapshots go in the hub layer that keeps them', async () => {
     const journals = new DebugJournals(() => true);
     journals.sink({ ts: new Date(T0).toISOString(), seq: 1, level: 'info', scope: 'bg.ops', msg: 'op' });
     const kv = new MemoryKv();
     const spend = new SpendService(kv);
     spend.recordUsage('reply', usage, T0);
-    clearDebugData({ prompts: p.store, journals, spend });
-    expect(p.store.view(token).state).toBe('expired');
+    clearDebugData({ journals, spend });
     expect(journals.read('operations', 10).records).toEqual([]);
     expect(spend.report(T0).total.runs).toBe(0);
     await spend.saved();
@@ -449,11 +361,11 @@ describe('[DB-029] what crosses a runtime boundary passes its contract schema', 
     acceptUiRecords(fromTab === null ? [] : [fromTab], { tabSessionId: TAB }, { redactor: r, sinks: [(rec) => stored.push(rec)], debugEnabled: () => false });
     expect(stored.every((rec) => LogRecordSchema.safeParse(rec).success)).toBe(true);
     expect(DiagnosticsSnapshotSchema.safeParse(diagnosticsSnapshot(facts())).success).toBe(true);
-    const p = promptStore();
-    const token = p.store.put(snapshotFromFrame(frame('p'), { feature: 'reply', capturedAt: T0 })) ?? '';
-    for (const t of [token, 'tok-missing-1', '!']) expect(PromptSnapshotViewSchema.safeParse(p.store.view(t)).success).toBe(true);
+    const echo: DebugInputFrame = { type: 'debug_input_v1', systemBlocks: [{ text: 'p', cache: 'none' }], userBlocks: [{ text: 'u', cache: 'none' }], contextManifest: null };
+    const views = [promptView('ok', snapshotFromFrame(echo, { feature: 'reply', capturedAt: T0 })), promptView('expired', null), promptView('not-found', null), promptView('debug-off', null)];
+    for (const view of views) expect(PromptSnapshotViewSchema.safeParse(view).success).toBe(true);
     const builder = new OpDebugBuilder(T0);
-    builder.setPromptToken(token);
+    builder.setPromptToken('tok-00000001');
     expect(OpDebugViewSchema.safeParse(builder.view()).success).toBe(true);
     const window = new HealthWindow(T0);
     window.recordPerf('ttfcMs', 1200);

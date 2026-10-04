@@ -1,0 +1,58 @@
+/* The boards gallery page plays ChatSpace's frame: the --color-om-* triplets
+   of 0.172.0 on <html> (identical in both themes), its page background, the
+   `dark` class, a 44 px top bar and a 64 px account rail. Our surfaces read
+   only the triplets; the scheme reaches them as data-cg-scheme on their host.
+   Nothing here is ChatSpace's code or CSS. */
+:root {
+  --color-om-white: 255 255 255;
+  --color-om-neutral-0: 255 255 255;
+  --color-om-neutral-50: 246 245 244;
+  --color-om-neutral-75: 241 241 238;
+  --color-om-neutral-100: 234 233 229;
+  --color-om-neutral-200: 225 224 218;
+  --color-om-neutral-300: 203 202 195;
+  --color-om-neutral-400: 171 168 156;
+  --color-om-neutral-500: 114 112 100;
+  --color-om-neutral-600: 83 81 70;
+  --color-om-neutral-700: 61 59 50;
+  --color-om-neutral-750: 51 49 41;
+  --color-om-neutral-800: 42 40 32;
+  --color-om-neutral-850: 34 32 25;
+  --color-om-neutral-900: 26 24 19;
+  --color-om-neutral-950: 19 18 15;
+  --color-om-brand-50: 235 243 255;
+  --color-om-brand-75: 200 223 255;
+  --color-om-brand-300: 71 145 255;
+  --color-om-brand-400: 10 109 255;
+  --color-om-brand-500: 0 82 204;
+  --color-om-brand-600: 0 57 143;
+  --color-om-brand-800: 0 24 61;
+  --color-om-success-400: 97 189 100;
+  --color-om-success-600: 53 129 58;
+  --color-om-error-400: 234 95 93;
+  --color-om-error-500: 217 32 28;
+  --bg-page: rgb(var(--color-om-neutral-50));
+  --bg-main: rgb(var(--color-om-neutral-0));
+  --bg-line: rgb(var(--color-om-neutral-100));
+  color-scheme: light;
+}
+html.dark {
+  --bg-page: rgb(var(--color-om-neutral-950));
+  --bg-main: rgb(0 0 0);
+  --bg-line: rgb(var(--color-om-neutral-850));
+  color-scheme: dark;
+}
+/* The font is ChatSpace's own, with its smoothing (the mockup's backdrop sets both), set on <html>: our
+   overlay host lives outside <body> and inherits them from there. */
+html {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg-page); }
+.bg-top { position: fixed; top: 0; left: 0; right: 0; height: 44px; }
+.bg-rail { position: fixed; top: 0; left: 0; bottom: 0; width: 64px; }
+.bg-main { position: fixed; top: 44px; left: 64px; right: 8px; bottom: 8px; border-radius: 8px; background: var(--bg-main); box-shadow: inset 0 0 0 1px var(--bg-line); }
+/* The overlay host as host-chatspace makes it (ui-design §3.4): outside the app, fixed, clicks pass through. */
+[data-cg="overlay"] { position: fixed; inset: 0; pointer-events: none; z-index: 900; }

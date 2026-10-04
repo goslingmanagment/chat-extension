@@ -15,6 +15,13 @@
 // gap) gets the text so far in the view and the batches start again at seq 1
 // for it (mirrorFromView). Usage goes to the log always (no text), to the
 // screen only in debug mode (§8.4).
+//
+// A Coach turn with auto-recap is one composite slot (§7, AI-096): one start
+// (`StartOp.coach.autoRecap`), one token, one admission. The recap runs as an
+// operation of its own; the moment it ends — and the question still goes —
+// the answer step takes the chat's slot in the same synchronous step, so no
+// other start can be admitted in between, and the recap's terminal view
+// names it (`OpView.continuedBy`).
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
@@ -68,8 +75,9 @@ import {
   type StreamState,
   type StreamTimes,
 } from '../domain/ops';
+import { coachTurnSteps, recapStepVerdict } from '../domain/coach';
 import { type ActionTokens } from './tokens';
-import { type TabPresence } from './tabs';
+import { type TabPresence } from './presence';
 import { AbortSwitch, NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink, type TabEventSink, type TimerHandle } from './ports';
 
 /** storage.session key of the operation journal and results. */
@@ -96,6 +104,8 @@ export interface OpSchedulerHooks {
   recapDone?(view: OpView, ownerTab: string | null): void;
   /** debug_input_v1 arrived: the debug store keeps it and answers an opaque token (DB-004). */
   debugInput?(opId: string, frame: Extract<HubFrame, { type: 'debug_input_v1' }>): string | null;
+  /** A `usage` frame arrived (numbers only): the local spend journal of debug mode counts it (DB-022). */
+  usage?(feature: FeatureId, usage: Extract<HubFrame, { type: 'usage' }>['usage']): void;
 }
 
 export interface OpSchedulerDeps {
@@ -109,8 +119,8 @@ export interface OpSchedulerDeps {
   readonly events: TabEventSink;
   /** storage.session. */
   readonly store: KeyValueStore;
-  /** Where a tab is now (toasts «AI готово · {фан}»). */
-  readonly presence: (tabSessionId: string) => TabPresence | null;
+  /** Where a tab is now (toasts «AI готово · {фан}»): the chat it shows and whether it is visible. */
+  readonly presence: (tabSessionId: string) => Pick<TabPresence, 'chat' | 'visible'> | null;
   readonly log?: LogSink;
   readonly drivers?: Partial<Record<FeatureId, Partial<OpDriver>>>;
   readonly hooks?: OpSchedulerHooks;
@@ -155,6 +165,8 @@ interface Run {
   readonly split: boolean;
   /** Kept only while running: the request may hold draft or fresh text. */
   start: StartOp | null;
+  /** The answer step of a composite Coach turn whose recap step this run is; kept only while running (it holds the question). */
+  then: StartOp | null;
   request: HubStreamRequest | null;
   stream: StreamState;
   attempt: number;
@@ -247,6 +259,7 @@ export class OpScheduler {
       checkpoint: meta.checkpoint,
       split: meta.split,
       start: null,
+      then: null,
       request: null,
       stream: INITIAL_STREAM_STATE,
       attempt: 0,
@@ -266,19 +279,27 @@ export class OpScheduler {
 
   // ── start ────────────────────────────────────────────────────────────────
 
-  async start(tabSessionId: string, start: StartOp, options: StartOptions = {}): Promise<StartOutcome> {
+  async start(tabSessionId: string, asked: StartOp, options: StartOptions = {}): Promise<StartOutcome> {
     const { clock, tokens } = this.deps;
     // BG-001, AI-120: only a trusted click of our own UI starts a generation.
-    if (!tokens.redeem({ tabSessionId, kind: 'generate', surface: start.surface, actionToken: start.cause.actionToken })) {
+    if (!tokens.redeem({ tabSessionId, kind: 'generate', surface: asked.surface, actionToken: asked.cause.actionToken })) {
       this.log.write({ level: 'warn', scope: 'bg.ops', msg: 'start without a valid action token', code: 'CG-UI-FAILED', ctx: { tabSessionId } });
       return { kind: 'refused', code: 'CG-UI-FAILED' };
     }
     const env = this.deps.environment();
-    const precondition = startPrecondition(env, start);
+    const precondition = startPrecondition(env, asked);
     if (precondition !== null) return { kind: 'refused', code: precondition };
     const session = env.session;
-    const persona = env.persona(start.target.binding.pageId);
+    const persona = env.persona(asked.target.binding.pageId);
     if (session === null || persona === null) return { kind: 'refused', code: 'CG-AUTH-REQUIRED' };
+
+    // §7 «ход Coach с авто-рекапом — один составной слот»: this one start and its one token admit the recap
+    // step now and the answer step after it. A recap that may not run here at all (its owner switch is off)
+    // is not a reason to lose the question: the Coach is asked right away.
+    const steps = coachTurnSteps(asked);
+    const composite = steps !== null && startPrecondition(env, steps.recap) === null;
+    const start = steps === null ? asked : composite ? steps.recap : steps.answer;
+    const then = steps !== null && composite ? steps.answer : null;
 
     const identity = requestIdentityOf({ session, start, persona, archiveHead: options.archiveHead ?? null });
     const requestKey = requestKeyOf(identity);
@@ -303,6 +324,7 @@ export class OpScheduler {
 
     const opId = this.deps.ids.uuid();
     const run = this.newRun(opId, tabSessionId, start, requestKey, chatKey, persona, session, options.fanLabel ?? null, now);
+    run.then = then;
     this.runs.set(opId, run);
 
     // The admission and its identity reach storage.session before the hub request.
@@ -314,9 +336,47 @@ export class OpScheduler {
       return { kind: 'refused', code: 'CG-STORAGE-WRITE' };
     }
     if (run.ended) return { kind: 'admission', admission: { ok: true, opId }, reopened: false };
-    this.log.write({ level: 'info', scope: 'bg.ops', msg: 'operation admitted', fields: { feature: start.feature, surface: start.surface }, ctx: { opId, chatKey, tabSessionId, session: session.epoch } });
+    this.log.write({
+      level: 'info',
+      scope: 'bg.ops',
+      msg: 'operation admitted',
+      fields: { feature: start.feature, surface: start.surface, ...(then === null ? {} : { composite: true }) },
+      ctx: { opId, chatKey, tabSessionId, session: session.epoch },
+    });
     void this.drive(run);
     return { kind: 'admission', admission: { ok: true, opId }, reopened: false };
+  }
+
+  /**
+   * The recap step of a composite Coach turn ended (§7): when the question
+   * still goes — the recap is done, or could not be made for reasons of the
+   * conversation itself — the answer step takes the chat's slot here, in the
+   * same synchronous step that ends the recap. No admission can come in
+   * between, no second token is spent, and nothing is queued. A canceled or
+   * stopped recap ends the turn; so does a tab that went away (the dialog
+   * lives in its memory: an answer nobody can read is not paid for) and an
+   * environment that is no longer the one the turn was admitted in.
+   */
+  private continuation(run: Run, answer: StartOp, settled: Settled, now: number): Run | null {
+    const proceeds = settled.state === 'done' || (settled.state === 'failed' && settled.code !== undefined && recapStepVerdict(settled.code) === 'proceed');
+    const owner = run.ownerTab;
+    if (!proceeds || owner === null || this.tagLost(run.tag)) return null;
+    const env = this.deps.environment();
+    const session = env.session;
+    const persona = env.persona(run.tag.pageId);
+    if (session === null || persona === null || startPrecondition(env, answer) !== null) return null;
+    const opId = this.deps.ids.uuid();
+    const requestKey = requestKeyOf(requestIdentityOf({ session, start: answer, persona, archiveHead: null }));
+    const next = this.newRun(opId, owner, answer, requestKey, run.chatKey, persona, session, run.fanLabel, now);
+    this.runs.set(opId, next);
+    this.log.write({
+      level: 'info',
+      scope: 'bg.ops',
+      msg: 'operation admitted',
+      fields: { feature: answer.feature, surface: answer.surface, continues: true },
+      ctx: { opId, chatKey: run.chatKey, tabSessionId: owner, session: session.epoch },
+    });
+    return next;
   }
 
   private newRun(
@@ -361,6 +421,7 @@ export class OpScheduler {
       checkpoint: start.checkpoint ?? null,
       split: start.split,
       start,
+      then: null,
       request: null,
       stream: INITIAL_STREAM_STATE,
       attempt: 0,
@@ -456,6 +517,13 @@ export class OpScheduler {
       }
       const failure: HubFailure = isHubCallError(error) ? error.failure : { kind: 'transport', failure: 'network' };
       if (!isHubCallError(error)) this.log.write({ level: 'error', scope: 'bg.ops', msg: 'stream failed outside the facade contract', ctx: { opId: run.view.opId } });
+      // §7 «Отмена»: the hub layer cuts the streams of a sign-in that ended before it announces the change
+      // (its epoch signal goes first, the event follows the storage writes). That abort is the automatic
+      // cancel itself, not a failure of the hub: the operation ends as the session change would end it.
+      if (failure.kind === 'transport' && failure.failure === 'aborted' && this.environmentLost(run)) {
+        this.settle(run, { state: 'canceled', code: 'CG-CONTEXT-CHANGED', toast: true });
+        return null;
+      }
       const resolution = this.resolve(run, failure, isHubCallError(error) ? error.epoch : null);
       const retry = retryDecision({
         disposition: resolution.disposition,
@@ -544,6 +612,7 @@ export class OpScheduler {
           },
           ctx: { opId: run.view.opId },
         });
+        if (frame.type === 'usage') this.deps.hooks?.usage?.(run.view.feature, frame.usage);
         break;
       }
       case 'reasoning':
@@ -658,17 +727,48 @@ export class OpScheduler {
       canceled.push(run.view.opId);
     }
     if (change.kind !== 'persona') {
-      // The cache never crosses users or sign-ins (AI-128): results of the old sign-in go.
+      // The cache never crosses users or sign-ins (AI-128): results of the old sign-in go — and its quota with them.
       const keep = (run: Run): boolean =>
         !run.ended || (change.kind === 'session' && change.next !== null && change.next.hubOrigin === run.tag.hubOrigin && change.next.userId === run.tag.userId && change.next.epoch === run.tag.signInEpoch);
+      let kept = true;
       for (const [opId, run] of this.runs) {
         if (keep(run)) continue;
+        kept = false;
         this.runs.delete(opId);
         this.cache.forgetOp(opId);
       }
+      if (!kept || change.kind === 'hub') this.quotas.clear();
       void this.persist().catch(() => undefined);
     }
     return canceled;
+  }
+
+  /**
+   * «Очистить локальные данные» (ST-110): finished results leave memory and
+   * storage; what is running stays and ends as usual. Answers how many went.
+   */
+  clearFinished(): number {
+    let dropped = 0;
+    for (const [opId, run] of this.runs) {
+      if (!run.ended) continue;
+      this.runs.delete(opId);
+      this.cache.forgetOp(opId);
+      dropped += 1;
+    }
+    if (dropped > 0) void this.persist().catch(() => undefined);
+    return dropped;
+  }
+
+  /**
+   * The hub layer waits before its one transparent retry of this operation's
+   * stream (§7 «Сервис недоступен, повтор через 5 с…»): the phase says so
+   * until the next frame. The retry itself is the hub layer's; nothing is
+   * POSTed from here.
+   */
+  noteRetry(opId: string, retryAt: number): void {
+    const run = this.runs.get(opId);
+    if (run === undefined || run.ended || run.stream.frames > 0) return;
+    this.setPhase(run, { name: 'retry-wait', since: this.deps.clock.now(), retryAt });
   }
 
   /** The owning tab closed: the surface detaches, the generation goes on (BG-006, AI-124). */
@@ -781,12 +881,16 @@ export class OpScheduler {
   }
 
   private environmentLost(run: Run): boolean {
-    if (run.ended) return true;
+    return run.ended || this.tagLost(run.tag);
+  }
+
+  /** The sign-in or the page's persona is no longer the one an operation was admitted under. */
+  private tagLost(tag: OpEnvTag): boolean {
     const env = this.deps.environment();
     const session = env.session;
-    if (session === null || session.hubOrigin !== run.tag.hubOrigin || session.userId !== run.tag.userId || session.epoch !== run.tag.signInEpoch) return true;
-    const persona = env.persona(run.tag.pageId);
-    return persona === null || persona.definitionId !== run.tag.personaDefinitionId || persona.key !== run.tag.personaKey;
+    if (session === null || session.hubOrigin !== tag.hubOrigin || session.userId !== tag.userId || session.epoch !== tag.signInEpoch) return true;
+    const persona = env.persona(tag.pageId);
+    return persona === null || persona.definitionId !== tag.personaDefinitionId || persona.key !== tag.personaKey;
   }
 
   private move(run: Run, state: OpState, phase: Phase): void {
@@ -916,8 +1020,13 @@ export class OpScheduler {
     const debug = this.deps.environment().debug ? this.debugView(run) : undefined;
     if (debug !== undefined) run.view = { ...run.view, debug };
     // Texts the request carried (draft, fresh tail, Coach question) leave memory with the run.
+    const then = run.then;
     run.start = null;
     run.request = null;
+    run.then = null;
+    // A composite Coach turn: the answer step holds the chat's slot from this very moment.
+    const next = then === null ? null : this.continuation(run, then, settled, now);
+    if (next !== null) run.view = { ...run.view, continuedBy: next.view.opId };
     if (settled.state === 'done') {
       this.cache.remember({ requestKey: run.requestKey, opId: run.view.opId, startedAt: run.view.startedAt, endedAt: now });
       if (run.view.feature === 'recap') this.deps.hooks?.recapDone?.(run.view, run.ownerTab);
@@ -931,10 +1040,25 @@ export class OpScheduler {
       ctx: { opId: run.view.opId, chatKey: run.chatKey },
     });
     this.deps.events.emit(null, 'op.done', { view: this.publicView(run) });
-    if (settled.toast) this.toast(run, settled);
-    void this.persist().catch(() => {
-      this.log.write({ level: 'error', scope: 'bg.ops', msg: 'result journal write failed', code: 'CG-STORAGE-WRITE', ctx: { opId: run.view.opId } });
-    });
+    // The turn is not over while its answer step runs: that one says «AI готово» or «не получилось».
+    if (settled.toast && next === null) this.toast(run, settled);
+    const written = this.persist();
+    if (next === null) {
+      void written.catch(() => {
+        this.log.write({ level: 'error', scope: 'bg.ops', msg: 'result journal write failed', code: 'CG-STORAGE-WRITE', ctx: { opId: run.view.opId } });
+      });
+      return;
+    }
+    // As for any admission: the answer step and its identity reach storage.session before its hub request.
+    void written.then(
+      () => {
+        if (!next.ended) void this.drive(next);
+      },
+      () => {
+        this.log.write({ level: 'error', scope: 'bg.ops', msg: 'admission journal write failed', code: 'CG-STORAGE-WRITE', ctx: { opId: next.view.opId } });
+        this.settle(next, { state: 'failed', code: 'CG-STORAGE-WRITE', toast: true });
+      },
+    );
   }
 
   /** «AI готово · {фан}» / «AI: не получилось · {фан}» when the owning tab shows another chat (§7). */

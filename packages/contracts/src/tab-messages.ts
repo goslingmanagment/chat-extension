@@ -5,11 +5,11 @@
 
 import * as z from 'zod/mini';
 
-import { CgCodeSchema, CgErrorWireSchema } from './errors';
+import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
-import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
-import { DEBUG_LIMITS, LOG_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
+import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
+import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
 import {
@@ -17,6 +17,7 @@ import {
   CountSchema,
   EpochMsSchema,
   EpochTokenSchema,
+  GenerationRefSchema,
   HubIntIdSchema,
   HubOriginSchema,
   IsoTimestampSchema,
@@ -52,6 +53,29 @@ const Ack = z.strictObject({ recorded: z.boolean() });
 
 /** A hub page + fan the tab asks about; the background re-checks the page is in the tab's binding. */
 const PageFan = { pageId: HubIntIdSchema, fanRef: NativeIdSchema };
+
+/** Attempts one `send.list` answer carries. */
+export const SEND_LIST_MAX = 100;
+
+/** One attempt of `send.list`: which operation, group and part it is, its state and when that state was reached. */
+export const SendListItemSchema = z
+  .strictObject({
+    opId: UuidSchema,
+    purpose: SendPurposeSchema,
+    group: SendGroupSchema,
+    partIndex: z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1)),
+    view: SendAttemptViewSchema,
+    /** The background's clock at the attempt's last change: «Отправлено 09:21», «с 09:21». */
+    updatedAt: EpochMsSchema,
+    /**
+     * The hub resolved the attempt in an audited support action (H-7
+     * `resolve`): it no longer holds the fan, whatever `view.state` says.
+     * `sent` — the part counts as delivered; `not-sent` — the part is free.
+     */
+    resolved: z.optional(z.enum(['sent', 'not-sent'])),
+  })
+  .check(z.refine((item) => item.partIndex < item.group.partCount, { message: 'partIndex must be below the group part count' }));
+export type SendListItem = z.infer<typeof SendListItemSchema>;
 
 /** The board's periods: the hub's (H-8) the board offers. */
 export const SPENDERS_PERIODS = ['lifetime', '30d', 'mtd', '7d', 'today'] as const satisfies readonly HubSpenderPeriod[];
@@ -96,7 +120,18 @@ const ContractHashSchema = z.string().check(z.regex(CONTRACT_HASH_PATTERN));
 /** `diagnostics.get`: versions, flags and states without secrets or texts (LG-020…LG-025, SN-015). */
 export const DiagnosticsSnapshotSchema = z.strictObject({
   generatedAt: IsoTimestampSchema,
-  extension: z.strictObject({ version: boundedText(32), contractsVersion: boundedText(32), testBuild: z.boolean() }),
+  extension: z.strictObject({
+    version: boundedText(32),
+    contractsVersion: boundedText(32),
+    testBuild: z.boolean(),
+    /**
+     * When this version replaced an older one (`runtime.onInstalled`, reason
+     * `update`) — the «Обновилось сегодня в 09:02 с 0.4.2» line of «Статус»;
+     * absent — a fresh install or not known. `staleTabs` — ChatSpace tabs still
+     * on the scripts of the old version (UP-009), null — not counted. 1.2.0.
+     */
+    updated: z.optional(z.strictObject({ at: IsoTimestampSchema, from: boundedText(32), staleTabs: z.nullable(CountSchema) })),
+  }),
   browser: z.strictObject({ name: z.literal('firefox'), major: z.nullable(z.int().check(z.gte(1))) }),
   os: z.enum(['windows', 'macos', 'linux', 'other']),
   session: z.strictObject({ signedIn: z.boolean(), hubOrigin: z.nullable(HubOriginSchema), role: z.nullable(RoleSchema) }),
@@ -132,8 +167,27 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
   }),
   ops: z.strictObject({ active: CountSchema }),
   sends: z.strictObject({ open: CountSchema, uncertain: CountSchema }),
+  /**
+   * Sizes of our own caches and logs, an estimate (ST-110, options
+   * «Диагностика»); absent — the background does not measure them. 1.2.0.
+   */
+  footprint: z.optional(z.strictObject({ cachesKB: CountSchema, logsKB: CountSchema })),
 });
 export type DiagnosticsSnapshot = z.infer<typeof DiagnosticsSnapshotSchema>;
+
+/**
+ * A click on an extension page that acts inside ChatSpace (§9.9; 1.2.0): the
+ * popup's «Spenders», «Новые» and «Клавиши», and «к вкладке» of an account
+ * in the options (Б13, ST-076). The background brings a ChatSpace tab to the
+ * front and has it run the command as that human action — the tab opens its
+ * overlay, or its router opens the account; nothing is loaded from the host.
+ */
+export const PAGE_COMMAND_SURFACES = ['spenders', 'newcomers', 'cheatsheet'] as const;
+export const PageCommandSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('surface'), surface: z.enum(PAGE_COMMAND_SURFACES) }),
+  z.strictObject({ kind: z.literal('account'), host: HostKindSchema, hostAccountId: NativeIdSchema }),
+]);
+export type PageCommand = z.infer<typeof PageCommandSchema>;
 
 /** `debug.prompt`: the prompt snapshot for debug-prompt.html only, by an opaque token (§9.3, DB-004…DB-008). */
 export const PromptSnapshotViewSchema = z.strictObject({
@@ -290,6 +344,23 @@ export const TAB_REQUESTS = {
   },
   'send.status': { req: z.strictObject({ attemptId: UuidSchema }), res: z.strictObject({ view: z.nullable(SendAttemptViewSchema) }), from: ANY },
   /**
+   * 1.2.0. The attempts the background knows for one fan of the page: open
+   * ones, uncertain ones until resolved, ended and resolved ones while it
+   * remembers them — those that hold the fan first, then newest, at most
+   * SEND_LIST_MAX. A tab that lost its own tracking (a reload) holds the
+   * fan, the group and «Открыть и вставить» by them, and learns here that
+   * the hub resolved an attempt (§6.7.8, §6.7.9). Ids and states, no text.
+   */
+  'send.list': {
+    req: z.strictObject(PageFan),
+    res: z.strictObject({
+      attempts: z.array(SendListItemSchema).check(z.maxLength(SEND_LIST_MAX)),
+      /** More attempts than SEND_LIST_MAX: the oldest ended ones are left out. */
+      truncated: z.boolean(),
+    }),
+    from: TAB,
+  },
+  /**
    * A state MAIN observed; the background journals it and reports to the hub
    * custody by SEND_CUSTODY_REPORTS only on proof (a refusal's status is
    * `view.httpStatus`).
@@ -303,6 +374,19 @@ export const TAB_REQUESTS = {
   // ── recaps ──
   'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: RecapStatusSchema, from: ANY },
   'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: SharedRecapsSchema, from: ANY },
+  /**
+   * 1.2.0 — «Сохранить ещё раз» (CG-RECAP-SAVE, UiAction RetryRecapSave) and
+   * the late save of a full recap opened from the hub (AI-068): one
+   * idempotent `profile/from-generation` link write (H-5), never a new
+   * generation. `not-ready` — the tab repeats by the §7 schedule while it is
+   * open; `rejected` — for good (CG-RECAP-SAVE). `opId` is the hub's
+   * `clientRequestId` when the tab knows the operation.
+   */
+  'recap.save': {
+    req: z.strictObject({ ...PageFan, generationRef: GenerationRefSchema, opId: z.optional(UuidSchema) }),
+    res: z.strictObject({ state: z.enum(['saved', 'not-ready', 'rejected']), savedAt: z.nullable(IsoTimestampSchema) }),
+    from: TAB,
+  },
 
   // ── hub data ──
   /** The whole board up to 1000 rows; the background pages through the hub (§8.5). */
@@ -370,6 +454,19 @@ export const TAB_REQUESTS = {
     res: SettingsStateSchema,
     from: ANY,
   },
+  /**
+   * 1.2.0. «Настройки» pressed in a ChatSpace tab — the remedy of a dock
+   * banner (CG-AUTH-REQUIRED, CG-PERSONA-UNASSIGNED), the button of an error
+   * card or of a toast, ⌘, — opens the settings page at the section of the
+   * route (`options.html#<раздел>:<CODE>`, ST-006…ST-010). A content script
+   * cannot open an extension page by itself; the background focuses the open
+   * settings tab or opens one. `opened: false` — the browser refused.
+   */
+  'settings.open': {
+    req: z.strictObject({ route: SettingsRouteSchema }),
+    res: z.strictObject({ opened: z.boolean() }),
+    from: TAB,
+  },
   /** Any section, the hub address and debug included; the options page only. */
   'settings.patchRestricted': {
     req: z.strictObject({ patch: SettingsPatchSchema, baseRevision: z.nullable(CountSchema) }),
@@ -419,6 +516,28 @@ export const TAB_REQUESTS = {
     from: PAGE,
     pages: ['options'],
   },
+  /**
+   * «Очистить локальные данные» (options «Диагностика», ST-110; 1.2.0): our
+   * caches and logs go — cached hub answers, finished results, the log store
+   * and the journals. The sign-in, the settings and open X8 attempts stay.
+   * The page asks the person first; `confirmed` records that it did.
+   */
+  'data.clear': {
+    req: z.strictObject({ confirmed: z.literal(true) }),
+    res: z.strictObject({ cleared: z.boolean() }),
+    from: PAGE,
+    pages: ['options'],
+  },
+  /**
+   * See PageCommandSchema; `delivered: false` — no ChatSpace tab is open to
+   * act in. The tab gets the command as the `tab.command` event. 1.2.0.
+   */
+  'tab.command': {
+    req: z.strictObject({ command: PageCommandSchema }),
+    res: z.strictObject({ delivered: z.boolean() }),
+    from: PAGE,
+    pages: ['popup', 'options'],
+  },
   /** An incoming-message fact for the one sound arbiter of the extension (§9.8). */
   'sound.event': {
     req: z.strictObject({ fact: IncomingFactSchema }),
@@ -432,6 +551,15 @@ export const TAB_REQUESTS = {
     pages: ['options'],
   },
   'debug.prompt': { req: z.strictObject({ token: boundedText(128) }), res: PromptSnapshotViewSchema, from: PAGE, pages: ['debug-prompt'] },
+  /**
+   * 1.2.0. «Промпт» of a result's debug block in a ChatSpace tab (DB-007):
+   * the prompt echo is read on `debug-prompt.html?t=<token>`, an extension
+   * page, and a content script cannot open one — the background does. Only
+   * the opaque token of the snapshot travels (DB-006): never an address, and
+   * the prompt itself never reaches a tab. `opened: false` — debug mode is
+   * off, or the browser refused.
+   */
+  'debug.open': { req: z.strictObject({ token: boundedText(128) }), res: z.strictObject({ opened: z.boolean() }), from: TAB },
   'health.report': { req: z.strictObject({ report: TabHealthReportSchema }), res: Ack, from: TAB },
   /** One-time action token for a trusted (`isTrusted`) event inside our closed shadow root (§14). */
   'token.issue': {
@@ -498,6 +626,15 @@ export const TAB_EVENTS = {
   'quota.changed': { payload: z.strictObject({ quota: AiQuotaSnapshotSchema }), to: ANY },
   /** Owner kill switches; unknown flag names mean "off" (open tokens, critic item 14). */
   'flags.changed': { payload: z.strictObject({ flags: z.record(OpenTokenSchema, z.boolean()), configRevision: CountSchema }), to: ANY },
+  /**
+   * 1.2.0. The second half of the `tab.command` request: the background
+   * brought this ChatSpace tab to the front and hands it the click a person
+   * made on an extension page (PageCommand: open Spenders, «Новые» or the
+   * key cheatsheet, go to an account). Sent to that one tab only, and only
+   * for a request of the popup or the options page; the tab runs it as that
+   * human action — a navigation, never an insert, a send or a generation.
+   */
+  'tab.command': { payload: z.strictObject({ command: PageCommandSchema }), to: TAB },
 } as const satisfies Record<string, EventSpec>;
 
 export type TabEventType = keyof typeof TAB_EVENTS;

@@ -1,21 +1,23 @@
 // core/services — background services over ports (architecture.md §4, §7,
 // §6.7, §14): the operation scheduler, the send coordinator and its tab-side
-// driver, one-time action tokens, tab sessions and the accounts they show,
-// the readiness barrier, the recap dossier save, the WS tap switch, the
-// settings owner, the results store, the X8 send journal and the consent
-// state. They import only @cg/contracts and core/domain; the composition
-// roots give them the clock, storage, the hub facade, the tab event sink and
-// ids. R17 and R18 fill in the rest (R18's logs, telemetry and diagnostics
-// have their own entries: `@cg/core/services/logs`, `/telemetry`,
-// `/diagnostics`).
+// driver, the registration of a proven human send, one-time action tokens,
+// the readiness barrier, tab presence and the accounts this browser saw, the
+// recap dossier save, the greeting leases of «Новые», the WS tap switch, the settings owner, the results store, the X8
+// send journal and the consent state. They import only @cg/contracts and
+// core/domain; the composition roots give them the clock, storage, the hub
+// facade, the tab event sink and ids. R17's sound and R18's logs, telemetry
+// and diagnostics have their own entries (`@cg/core/services/sound`,
+// `/logs`, `/telemetry`, `/diagnostics`).
 //
-// Wave-1 integration: R07 and R10 each brought ports and a readiness/presence
-// service of their own. Both stay until the composition root picks one; the
-// four names both used are exported once — R10's plain (its consumers import
-// them from here), R07's under an alias: `NowClock` (R07 `Clock`, `now()`
-// only), `NO_SERVICE_LOG` (R07 `NO_LOG`, a `ServiceLog`), `ReportedTabPresence`
-// (R07 `TabPresence`) and `RestoreStep` (R10 `ReadinessStep`, the steps of
-// `Readiness`; R07's barrier keeps `ReadinessStep`).
+// One implementation of each thing. Wave 1 brought two readiness barriers,
+// two tab-presence services and two styles of ports; the background's
+// composition root wired R07's barrier and presence (the platform's RPC mints
+// and checks the tab sessions), and the unused twins — R10's `Readiness`,
+// `TabSessions` and `AccountPresence` — are gone. What is left of the port
+// styles is what a living service takes: R07's storage results and `Timers`
+// (./storage/ports), R10's `Clock` with timers and the throwing key-value
+// store (./ports), R18's `Scheduler` and one-key port (./ports, re-exported
+// by `@cg/core/services/logs`).
 //
 // R07: the settings owner, the readiness barrier, the results store, the X8
 // send journal, tab presence and seen accounts, the consent state — all over
@@ -34,8 +36,8 @@
 // 3. rpc = platform createBackgroundRpc({ ready: barrier.ready, tabHosts:
 //    { chatspace: CHATSPACE_MATCHES (+ LOOPBACK_MATCHES in test builds) },
 //    onTabRegistered: (i) => presence.tabRegistered(i.tabSessionId),
-//    onTabGone: (i) => { presence.tabGone(i.tabSessionId); R10 cancels the
-//    tab's operations (RB-010) } , … }).
+//    onTabGone: (i) => { presence.tabGone(i.tabSessionId); the scheduler
+//    detaches the tab's operations (BG-006) } , … }).
 // 4. settings = createSettingsOwner({ local, session, onChange: (state) =>
 //    rpc.emit('settings.changed', state) }); rpc.handle each entry of
 //    settingsRequestHandlers(settings). journal, results, presence and
@@ -46,10 +48,6 @@
 
 // R07
 export {
-  NO_LOG as NO_SERVICE_LOG,
-  SYSTEM_CLOCK,
-  createWriteChain,
-  type Clock as NowClock,
   type ConsentPortLike,
   type KeyValuePort,
   type ServiceLog,
@@ -114,7 +112,7 @@ export {
   type PresenceDeps,
   type PresenceService,
   type SeenAccountView,
-  type TabPresence as ReportedTabPresence,
+  type TabPresence,
   type TabPresenceReport,
 } from './presence';
 export { createConsentState, type ConsentDeps, type ConsentState, type ConsentStatus } from './consent';
@@ -122,13 +120,13 @@ export { createConsentState, type ConsentDeps, type ConsentState, type ConsentSt
 // R10 (./ports also holds R18's `Scheduler` and `KeyValuePort`, served by `@cg/core/services/logs`)
 export { AbortSwitch, NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogEntry, type LogSink, type TabEventSink, type TimerHandle } from './ports';
 export * from './tokens';
-export * from './tabs';
-export * from './account-presence';
-export { Readiness, onInstalledPlan, type ReadinessStep as RestoreStep, type StepFailure } from './readiness-gate';
+export { onInstalledPlan } from './install-plan';
 export * from './ws-tap';
 export * from './change-policy';
 export * from './lazy-status';
 export * from './scheduler';
 export * from './profile-saver';
+export * from './greeting-leases';
 export * from './send-coordinator';
 export * from './send-driver';
+export * from './native-send';

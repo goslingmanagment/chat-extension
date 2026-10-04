@@ -137,6 +137,24 @@ describe('fake hub SSE: failures of a real connection', () => {
     await until(() => lastStream()?.outcome === 'aborted', 'aborted after cancel');
   });
 
+  it('a client that hangs up as it reads the terminal frame leaves the stream `done`: the generation is over, not aborted', async () => {
+    script({ kind: 'stream', steps: [frame(meta('fast-reply')), delta('a'), done, { kind: 'wait', ms: 50 }, { kind: 'eof' }] });
+    const abort = new AbortController();
+    const response = await post({ signal: abort.signal });
+    const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+    // The way the client's stream reader does it: the connection is closed in the step that sees `done`.
+    while (!text.includes('"type":"done"')) {
+      const read = await reader.read();
+      if (read.done) break;
+      text += decoder.decode(read.value, { stream: true });
+    }
+    abort.abort();
+    await until(() => lastStream()?.outcome !== null && lastStream()?.outcome !== undefined, 'the stream ended');
+    expect(lastStream()?.outcome).toBe('done');
+  });
+
   it('an aborted request never starts a stream', async () => {
     const abort = new AbortController();
     abort.abort();

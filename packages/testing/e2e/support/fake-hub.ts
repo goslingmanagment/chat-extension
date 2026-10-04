@@ -26,9 +26,11 @@ export function fakeHub(): FakeHubControlClient {
 
 /**
  * An extension page of the TEST build (its loopback host permission and
- * storage). The default is a page that asks the background nothing by itself:
- * the popup and the options page read the status when they open — the hub's
- * health included — and the build's default hub is the real one.
+ * storage). The default is the journal page: with debug mode off it asks the
+ * background only for the settings and the sign-in, never for a status. The
+ * popup and the options page read the status when they open — for a
+ * signed-in person the hub's health included — and the build's default hub
+ * is the real one.
  */
 export const QUIET_PAGE = 'debug-journal.html';
 export const testBuildPage = (path = QUIET_PAGE): string => `moz-extension://${E2E_ADDON_UUID}/${path}`;

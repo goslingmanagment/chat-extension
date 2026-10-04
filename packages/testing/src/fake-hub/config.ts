@@ -60,6 +60,10 @@ export interface FakeHubConfig {
   readonly generationVisibleAfterMs: number;
   readonly spendersTotal: number;
   readonly aiChunkDelayMs: number;
+  /** The model's drafts name the fan they were written for (`@<fanRef>` after every part). */
+  readonly aiNameFan: boolean;
+  /** The model's whole answer per hub feature, in place of the synthetic one. */
+  readonly aiTexts: Readonly<Record<string, string>>;
 }
 
 const allFlags = (on: (flag: ClientFeatureFlag) => boolean): Record<string, boolean> => Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, on(flag)]));
@@ -75,6 +79,8 @@ const BASE = {
   generationVisibleAfterMs: 0,
   spendersTotal: 1240,
   aiChunkDelayMs: 0,
+  aiNameFan: false,
+  aiTexts: {},
 } as const;
 
 export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
@@ -130,6 +136,8 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.generationVisibleAfterMs === undefined ? {} : { generationVisibleAfterMs: patch.generationVisibleAfterMs }),
     ...(patch.spendersTotal === undefined ? {} : { spendersTotal: patch.spendersTotal }),
     ...(patch.aiChunkDelayMs === undefined ? {} : { aiChunkDelayMs: patch.aiChunkDelayMs }),
+    ...(patch.aiNameFan === undefined ? {} : { aiNameFan: patch.aiNameFan }),
+    ...(patch.aiTexts === undefined ? {} : { aiTexts: { ...patch.aiTexts } }),
   };
   const owner = ['master', 'flags', 'pageFlags', 'capabilities', 'minVersion', 'bindingsByHost', 'limits'].some((key) => key in patch);
   return owner ? { ...next, configRevision: config.configRevision + 1 } : next;

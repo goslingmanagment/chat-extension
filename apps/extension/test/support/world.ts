@@ -24,15 +24,25 @@ export const PASSWORD = 'synthetic-password';
 /** A ChatSpace document: the release build's content scripts match only the real origin (named in hosts.ts alone). */
 export const CHATSPACE_ORIGIN = new URL(CHATSPACE_MATCHES[0] ?? '').origin;
 
+/** A tone the background's player was asked for (what would have rung). */
+export interface PlayedTone {
+  readonly notes: number;
+  readonly level: number;
+}
+
 export interface World {
   readonly fake: FakeBrowser;
   readonly hub: FakeHub;
+  /** Every tone the sound arbiter started, in order. */
+  readonly played: PlayedTone[];
+  /** The browser's network to the hub: `down` — every request of the background fails like an offline one. */
+  readonly net: { down: boolean };
   /** How many times the event page started. */
   starts(): number;
   /** Starts the event page now (it also starts by itself when a port, a message or an alarm needs it). */
   start(): FakeContext;
   /** An extension page's client. */
-  page(page?: 'options' | 'popup' | 'debug-journal'): PageRpcClient;
+  page(page?: 'options' | 'popup' | 'debug-journal' | 'debug-prompt'): PageRpcClient;
   /** A raw client of the tab protocol in a ChatSpace tab (no runtime): requests of a registered tab. */
   tabClient(tabId?: number): { readonly client: TabRpcClient; readonly context: FakeContext };
   /** The tab's own runtime (composition/tab/runtime.ts) in a ChatSpace tab. */
@@ -60,11 +70,15 @@ export function settingsFor(hubOrigin: string = HUB_ORIGIN, over: Partial<Settin
   return { ...DEFAULT_SETTINGS, ...over, hub: { baseUrl: hubOrigin } };
 }
 
-export function createWorld(options: { readonly settings?: SettingsV1 | null } = {}): World {
+export function createWorld(options: { readonly settings?: SettingsV1 | null; /** Another browser's hub: two installs, one hub. */ readonly hub?: FakeHub } = {}): World {
   const fake = createFakeBrowser();
-  const hub = createFakeHub({ clock: 'system' });
+  const hub = options.hub ?? createFakeHub({ clock: 'system' });
   // The owner linked the hub page to the creator account ChatSpace shows as the fixture account.
-  hub.control({ op: 'pageAccount', pageLabel: WORLD.pages.one.pageLabel, platformAccountId: account.platformAccountId });
+  if (options.hub === undefined) hub.control({ op: 'pageAccount', pageLabel: WORLD.pages.one.pageLabel, platformAccountId: account.platformAccountId });
+  // The extension may run on ChatSpace (the manifest's host permission): without it nothing of ours rings there.
+  for (const pattern of CHATSPACE_MATCHES) fake.permissions.origins.add(pattern);
+  const played: PlayedTone[] = [];
+  const net = { down: false };
   const settings = options.settings === undefined ? settingsFor() : options.settings;
   if (settings !== null) fake.areas.local.set(STORAGE_KEYS.settings, settings);
   let starts = 0;
@@ -73,10 +87,24 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null } =
 
   const compose = (context: FakeContext): void => {
     starts += 1;
+    let blocked = 0;
     composeBackground({
       api: context.api,
       // A dead instance's timers find no network, like a page that is gone.
-      fetch: (input, init) => (context.alive ? hub.fetch(input, init) : Promise.reject(new TypeError('NetworkError: the page is gone'))),
+      fetch: (input, init) => (context.alive && !net.down ? hub.fetch(input, init) : Promise.reject(new TypeError('NetworkError: the page is gone'))),
+      // The event page's AudioContext does not exist here: the tones are counted instead of played.
+      audio: {
+        prepare: () => Promise.resolve(true),
+        play(tone, level) {
+          if (!context.alive) {
+            blocked += 1;
+            return Promise.resolve({ played: false, code: 'CG-AUDIO-BLOCKED', reason: 'unavailable' });
+          }
+          played.push({ notes: tone.notes.length, level });
+          return Promise.resolve({ played: true });
+        },
+        stats: () => ({ played: played.length, blocked, contextState: 'running' }),
+      },
     });
   };
   fake.onWake(compose);
@@ -89,6 +117,8 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null } =
   return {
     fake,
     hub,
+    played,
+    net,
     starts: () => starts,
     start() {
       const context = fake.startBackground();
@@ -157,7 +187,7 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null } =
     dispose() {
       for (const life of lives) life.abort('test over');
       for (const client of clients) client.close();
-      hub.closeStreams();
+      if (options.hub === undefined) hub.closeStreams();
       fake.unloadBackground();
     },
   };

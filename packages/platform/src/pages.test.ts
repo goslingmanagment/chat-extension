@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BrowserApi } from './browser-api';
-import { createExtensionPages } from './pages';
+import { createExtensionPages, createLinkOpener, createTabFocus } from './pages';
 import { createFakeBrowser, pageSender } from './test-support/fake-browser';
 
 describe('[ST-006] one settings tab: our pages are reused, never opened twice', () => {
@@ -24,6 +24,22 @@ describe('[ST-006] one settings tab: our pages are reused, never opened twice', 
     // Another page is not the options page.
     expect(await pages.open('debug-journal')).toEqual({ ok: true, reused: false });
     expect(fake.tabCalls).toEqual([`create ${fake.base}debug-journal.html`]);
+  });
+
+  it('[DB-007] a page with its own parameters: the prompt page opens at `?t=<token>`, and the open one is loaded again with the next token', async () => {
+    const fake = createFakeBrowser();
+    const pages = createExtensionPages(fake.startBackground().api);
+    expect(await pages.open('debug-prompt', undefined, { t: 'token one/+&=' })).toEqual({ ok: true, reused: false });
+    // The token is a parameter of the address, escaped as one.
+    expect(fake.tabCalls).toEqual([`create ${fake.base}debug-prompt.html?t=token+one%2F%2B%26%3D`]);
+    fake.tabCalls.length = 0;
+    fake.context(pageSender(fake, 'debug-prompt', { url: `${fake.base}debug-prompt.html?t=token-1`, tab: { id: 52 }, frameId: 0 }));
+    expect(await pages.open('debug-prompt', undefined, { t: 'token-2' })).toEqual({ ok: true, reused: true });
+    expect(fake.tabCalls).toEqual([`update 52 ${fake.base}debug-prompt.html?t=token-2`, 'focus window 1']);
+    fake.tabCalls.length = 0;
+    // Parameters and a section together; an empty set of parameters is none.
+    expect(await pages.open('debug-journal', 'hub-calls', {})).toEqual({ ok: true, reused: false });
+    expect(fake.tabCalls).toEqual([`create ${fake.base}debug-journal.html#hub-calls`]);
   });
 
   it('never throws: a browser failure is { ok: false }; without getContexts it opens a tab', async () => {
@@ -52,5 +68,54 @@ describe('[ST-006] one settings tab: our pages are reused, never opened twice', 
     };
     expect(await createExtensionPages(older).open('options')).toEqual({ ok: true, reused: false });
     expect(fake.tabCalls).toEqual([`create ${fake.base}options.html`]);
+  });
+});
+
+describe('a ChatSpace tab brought to the front', () => {
+  it('[ST-076] the tab becomes the active one and its window comes forward; nothing is created or navigated', async () => {
+    const fake = createFakeBrowser();
+    const focus = createTabFocus(fake.startBackground().api);
+    expect(await focus.focus(7)).toBe(true);
+    expect(fake.tabCalls).toEqual(['update 7', 'focus window 1']);
+  });
+
+  it('never throws: a tab that is gone is `false`, and a window that will not come forward does not undo the tab', async () => {
+    const fake = createFakeBrowser();
+    const api = fake.startBackground().api;
+    fake.closedTabs.add(9);
+    expect(await createTabFocus(api).focus(9)).toBe(false);
+    const stubborn: BrowserApi = { ...api, windows: { update: () => Promise.reject(new Error('no')) } };
+    expect(await createTabFocus(stubborn).focus(7)).toBe(true);
+  });
+});
+
+describe('a link of ours to the open web', () => {
+  it('[ST-005] [ST-050] opens an https address in a new tab on the click; anything else opens nothing', () => {
+    const fake = createFakeBrowser();
+    const links = createLinkOpener(fake.context(pageSender(fake, 'options')).api);
+    expect(links.open('https://ext.example.test/chat-extension/whats-new.html')).toBe(true);
+    expect(fake.tabCalls).toEqual(['create https://ext.example.test/chat-extension/whats-new.html']);
+    fake.tabCalls.length = 0;
+    for (const refused of ['http://ext.example.test/', 'javascript:alert(1)', 'moz-extension://x/options.html', 'https://user:secret@ext.example.test/', 'not an address', '']) {
+      expect(links.open(refused)).toBe(false);
+    }
+    expect(fake.tabCalls).toEqual([]);
+  });
+
+  it('never throws: a browser that refuses the tab still answers', () => {
+    const fake = createFakeBrowser();
+    const api = fake.context(pageSender(fake, 'popup')).api;
+    const rejecting: BrowserApi = { ...api, tabs: { ...api.tabs, create: () => Promise.reject(new Error('no')) } };
+    expect(createLinkOpener(rejecting).open('https://ext.example.test/')).toBe(true);
+    const throwing: BrowserApi = {
+      ...api,
+      tabs: {
+        ...api.tabs,
+        create: () => {
+          throw new Error('no');
+        },
+      },
+    };
+    expect(createLinkOpener(throwing).open('https://ext.example.test/')).toBe(false);
   });
 });

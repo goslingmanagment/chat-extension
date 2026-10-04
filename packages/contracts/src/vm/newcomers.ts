@@ -41,8 +41,13 @@ export const GREETING_STATUSES = ['none', 'claim-mine', 'claim-other', 'claim-el
 /** The greeting lease of the open card (H-7: 120 s, renewed every 40 s while the person works). */
 export type ClaimVM =
   | { readonly s: 'none' }
-  /** `until`: the lease deadline on the local clock (send-rules localDeadline of `lease.expiresAt` and `serverNow`). */
-  | { readonly s: 'mine'; readonly until: number; readonly renew: ActionButtonVM; readonly release: ActionButtonVM }
+  /**
+   * `until`: the lease deadline on the local clock (send-rules localDeadline of `lease.expiresAt` and `serverNow`).
+   * `renewError` (1.2.0): the last renewal did not go through (the hub did
+   * not answer) — the lease still runs to `until`, the renewal is tried
+   * again while the person works with the fan, «Продлить бронь» tries now.
+   */
+  | { readonly s: 'mine'; readonly until: number; readonly renew: ActionButtonVM; readonly release: ActionButtonVM; readonly renewError?: CgErrorView }
   /** CG-CLAIM-BUSY: a colleague holds the lease (never named, H-7); Hi off while they do; no countdown. */
   | { readonly s: 'other'; readonly error: CgErrorView }
   /** This person holds it in another tab or on another device: Hi off here, no release from here (the lease token lives there). */

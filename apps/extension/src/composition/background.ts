@@ -10,30 +10,42 @@
 //    the consent and storage listeners, every request handler;
 // 2. the readiness barrier runs the start steps in order — logs, settings,
 //    the hub (it needs the hub address of the settings), results and
-//    operations, the send journal and coordinator, presence, consent,
-//    telemetry, the WS tap switch; every request waits for it (10 s at most);
+//    operations, the send journal and coordinator, presence, the greeting
+//    leases, the sound, consent, telemetry, the WS tap switch; every request
+//    waits for it (10 s at most);
 // 3. nothing here talks to the hub by itself after an install or an update:
-//    the facade refreshes a bootstrap only for an existing sign-in.
+//    the facade refreshes a bootstrap only for an existing sign-in, and a
+//    status surface reads the hub's health only for one. A real install
+//    opens the settings once (the onboarding); a temporary one does not.
 //
-// Where two wave-1 packages brought the same thing, one is wired and the
-// other is not (the report of the integration step lists them):
-// - readiness and presence: R07's barrier and presence (R10's `Readiness`,
-//   `TabSessions` and `AccountPresence` are not used — the RPC mints the tab
-//   sessions);
+// One implementation of each thing (the wave-1 duplicates are gone):
+// - readiness and presence: R07's barrier and presence; the RPC mints the
+//   tab sessions;
 // - operation results and the send journal: R07's stores are the single
 //   writers, R10's scheduler and coordinator write through adapters
 //   (background/ops-store.ts, background/send-journal-store.ts);
 // - the 503 retry of the AI stream: the facade's (the scheduler reads the
-//   facade's own resolution, which says the retry is spent);
+//   facade's own resolution, which says the retry is spent, and shows the
+//   facade's notice as its `retry-wait` phase);
 // - the prompt echo: the facade's store (`debug.prompt`, the echo token).
+//
+// What changes with the person (§8.2, §9.4): a sign-in, a sign-out, another
+// hub or another persona of a page cancels the operations bound to the old
+// one; a sign-out or another person also drops the results, the debug
+// journals, the local spend, the greeting leases, the subscriber baselines,
+// the preview drafts and the queued telemetry of the old binding. An expired
+// bootstrap blocks new sensitive actions (background/token-gate.ts and the
+// hub layer) and takes no result away.
 
 import {
+  AI_STREAM_CAPABILITIES,
   CONTRACTS_VERSION,
   HUB_CLIENT_CHECK_CODES,
   STORAGE_KEYS,
   hasCapability,
   isHubCallError,
   isHubCheckError,
+  type Bootstrap,
   type CgCode,
   type CgErrorWire,
   type HostContractReport,
@@ -42,14 +54,20 @@ import {
   type HubRouteKey,
   type ResolveHubError,
   type SettingsV1,
-  type TabRequestType,
 } from '@cg/contracts';
+import { narrowPlatform } from '@cg/contracts/ids';
+import { sendLockKey } from '@cg/contracts/send';
+import { hashOfRoute } from '@cg/core/application/pages';
 import { resolveHubError, storageBudgetOf } from '@cg/core/domain';
+import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
 import { type OpsEnvironment } from '@cg/core/domain/ops';
+import { profileRequestOf, recapSaveAnswer } from '@cg/core/domain/recap';
 import {
   ActionTokens,
+  GreetingLeases,
+  NativeSendRegistrar,
   OpScheduler,
   RecapProfileSaver,
   SendCoordinator,
@@ -65,7 +83,8 @@ import {
   settingsRequestHandlers,
   type SettingsOwner,
 } from '@cg/core/services';
-import { DiagnosticsService, SpendService, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
+import { DiagnosticsService, SpendService, clearDebugData, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
+import { soundRequestHandlers } from '@cg/core/services/sound';
 import { HEALTH_TICK_MS } from '@cg/core/services/telemetry';
 import { ChatExtensionHub, VENDORED_CONTRACT_HASH, errorWireOf } from '@cg/hub';
 import {
@@ -73,11 +92,15 @@ import {
   createAudioPlayer,
   createBackgroundRpc,
   createConsent,
+  createExtensionPages,
+  createHostPermissions,
   createKeyValueStore,
   createLifecycle,
+  createTabFocus,
   defaultBrowser,
   readClientEnv,
   syncDynamicMainScript,
+  type AudioPlayer,
   type BrowserApi,
   type ClientEnv,
   type DynamicMainScriptSpec,
@@ -93,20 +116,26 @@ import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
 import { createBackgroundLogging } from './background/logging';
 import { opsStoreOver } from './background/ops-store';
-import { CLOCK, IDS, TIMERS, eventSinkOf, hubLogOf, keyOf, logSinkOf, serviceLogOf } from './background/ports';
+import { CLOCK, IDS, TIMERS, eventSinkOf, hubLogOf, keyOf, logSinkOf, serviceLogOf, throwingStoreOf } from './background/ports';
 import { sendJournalStoreOver } from './background/send-journal-store';
 import { personaPatchRefusal } from './background/settings-guard';
+import { createBackgroundSound } from './background/sound';
+import { createTabAccountsGate } from './background/tab-accounts';
+import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
+import { tokenRefusal } from './background/token-gate';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
 
 export function wsTapSpec(): DynamicMainScriptSpec {
-  // Release taps ChatSpace; a test build taps only the loopback stand. Both
-  // only while the bootstrap flag `wsTap` is on. The compile-time constant
-  // keeps loopback hosts out of the release bundle.
-  return { id: WS_TAP_SCRIPT_ID, js: ['chatspace-ws.js'], matches: __CG_TEST_HOSTS__ ? LOOPBACK_MATCHES : CHATSPACE_MATCHES };
+  // Release taps ChatSpace. A test build taps wherever its content scripts run — ChatSpace itself and the
+  // loopback stand (its manifest matches both): the owner's dev profile (`pnpm dev`, X9) is a test build on
+  // the real ChatSpace, and without the tap there it could exercise neither the incoming facts nor X8. Both
+  // only while the bootstrap flag `wsTap` is on. The compile-time constant keeps loopback hosts out of the
+  // release bundle.
+  return { id: WS_TAP_SCRIPT_ID, js: ['chatspace-ws.js'], matches: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES };
 }
 
 /** Alarms survive the event page unloading; they are armed only while a ChatSpace tab is registered. */
@@ -137,14 +166,25 @@ function readCompatPages(target: Record<string, string>, stored: unknown): void 
 const SPEND_KEY = 'debug.spend';
 /** storage.local: this install's id for the hub's custody (`instanceId`, H-7). */
 const INSTANCE_KEY = 'install.instanceId';
+/** storage.local: when this version replaced an older one, and which (`runtime.onInstalled`, reason `update`; UP-009). */
+export const UPDATED_KEY = 'install.updated';
 
-/** A status surface reads the hub's health again when the last read is older than this («Проверить всё» — at most every 10 s). */
-const HEALTH_FRESH_MS = 10_000;
+/** The stored update record, when it is one. */
+function updateRecordOf(value: unknown): { readonly at: string; readonly from: string } | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { at, from } = value as { readonly at?: unknown; readonly from?: unknown };
+  return typeof at === 'string' && !Number.isNaN(Date.parse(at)) && typeof from === 'string' && from !== '' && from.length <= 32 ? { at, from } : null;
+}
+
+/**
+ * A status surface that merely reads the diagnostics (the popup opened, «Статус» polling its live state every
+ * 10 s) asks the hub's `health` again only when the last read is older than this. Not every poll: a settings tab
+ * left open on «Статус» would otherwise ask the hub six times a minute for as long as it stays open. «Проверить
+ * всё» and opening the settings read the health themselves, at once (`catalog.get` with `force`).
+ */
+export const HEALTH_FRESH_MS = 60_000;
 /** How long `diagnostics.get` waits for that read before it answers with what is known. */
 const HEALTH_WAIT_MS = 5_000;
-
-/** Requests of the frozen protocol that have no implementation behind them yet (the answer names the type). */
-export const NOT_IMPLEMENTED_REQUESTS = ['newcomers.claim', 'sound.preview'] as const satisfies readonly TabRequestType[];
 
 const ok = <T>(payload: T): RpcResult<T> => ({ ok: true, payload });
 const fail = (code: CgCode, detail?: string): { readonly ok: false; readonly error: CgErrorWire } => ({ ok: false, error: detail === undefined ? { code } : { code, detail } });
@@ -190,6 +230,8 @@ function withTokenTap(store: KeyValueStore, onToken: (token: string) => void): P
 export interface BackgroundDeps {
   readonly api?: BrowserApi;
   readonly fetch?: (input: string, init?: RequestInit) => Promise<Response>;
+  /** The sound player (the event page's AudioContext otherwise): a test hears what would have rung. */
+  readonly audio?: Pick<AudioPlayer, 'prepare' | 'play' | 'stats'>;
 }
 
 export function composeBackground(deps: BackgroundDeps = {}): void {
@@ -201,6 +243,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const local = createKeyValueStore('local', { api, budgetOf: storageBudgetOf });
   const session = createKeyValueStore('session', { api, budgetOf: storageBudgetOf });
   const alarms = createAlarms(api);
+  /** Our own pages in a tab: the one settings tab is focused and pointed at a section, else opened (ST-006). */
+  const extensionPages = createExtensionPages(api);
   /** When this instance of the event page began. */
   const started = Date.now();
   let env: ClientEnv = { extensionVersion: '0.0.0', browser: 'firefox', browserMajor: null, os: 'other' };
@@ -226,9 +270,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   /** A refused message is counted by the RPC; the log hears each kind on its 1st, 10th, 100th… occurrence. */
   const rejects = new Map<string, number>();
+  /** Which tabs have said what accounts they show: a request about a page waits for that (`pageOf`). */
+  const tabAccounts = createTabAccountsGate({ setTimer: (fn, ms) => TIMERS.set(fn, ms) });
   /** The host contract as each tab last reported it (`health.report`), for diagnostics. */
   const hostReports = new Map<string, HostContractReport | null>();
-  let lastIncomingAt: string | null = null;
   /** When a status surface last asked for the hub's health (epoch ms; 0 — ask at the next read). */
   let healthAskedAt = 0;
 
@@ -242,14 +287,19 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     onTabRegistered(info) {
       presence.tabRegistered(info.tabSessionId);
       armAlarms();
+      sound.sync();
       logger.info('bg.tabs', 'tab registered', { fields: { late: info.request.lateInjection, contracts: info.request.contractsVersion }, ctx: { tabSessionId: info.tabSessionId } });
     },
     onTabGone(info) {
       // BG-006: a closed tab only detaches its surfaces; its generations go on.
       presence.tabGone(info.tabSessionId);
+      tabAccounts.gone(info.tabSessionId);
       tokens.dropTab(info.tabSessionId);
       scheduler.detachTab(info.tabSessionId);
       hostReports.delete(info.tabSessionId);
+      // Its next facts are a first snapshot again; without a tab nobody is asked about subscribers.
+      sound.arbiter.tabGone(info.tabSessionId);
+      sound.sync();
     },
     onReject(reason, facts) {
       const key = `${reason}|${facts.type ?? ''}|${facts.sender}`;
@@ -278,12 +328,19 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       }
       if (before.debug.enabled !== state.settings.debug.enabled) {
         void hubInstance.notifyDebugChanged();
-        if (!state.settings.debug.enabled) clearDebugData();
+        if (!state.settings.debug.enabled) clearDebug();
       }
     },
   });
 
   settingsOwner = settings;
+  /**
+   * The settings are read. A store written by a newer build (a rollback of the extension) is read-only, and
+   * read: its personas, its sound and its debug switch are the person's own, so generations, the sound and the
+   * status go on as before — only a write is refused (CG-STORAGE-VERSION, RB-012). Only settings that could not
+   * be read at all stop a generation (CG-STORAGE-READ).
+   */
+  const settingsRead = (): boolean => settings.mode() === 'ok' || settings.mode() === 'newer';
 
   // ── R07 stores ─────────────────────────────────────────────────────────────
   const results = createResultsStore({ session, log: serviceLog });
@@ -322,6 +379,21 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   }
   const resolve: ResolveHubError = (failure, context) => readings.get(failure) ?? resolveHubError(failure, context);
 
+  /**
+   * The bootstrap as the operations read it. A request declares to the hub the stream capabilities its bootstrap
+   * names (`context-v1`, `split-all-v1`), and the hub layer refuses a request that declares one its transport
+   * cannot carry (CG-HUB-CAPABILITY) — the vendored SDK carries only the prompt echo until the hub's H-4 change
+   * is re-vendored (docs/hub-layer.md). So a capability the stream cannot carry is not shown to the operations:
+   * they run by the archive, without the fresh tail and without Split in Ping, Hi and Coach, instead of not at all.
+   */
+  const bootstrapForOps = (): Bootstrap | null => {
+    const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
+    if (bootstrap === null || hubInstance === null) return bootstrap;
+    const carried = hubInstance.streamCapabilities();
+    const uncarried = AI_STREAM_CAPABILITIES.filter((capability) => capability !== 'debug-input-v1' && !carried.includes(capability)) as readonly string[];
+    return bootstrap.capabilities.some((capability) => uncarried.includes(capability)) ? { ...bootstrap, capabilities: bootstrap.capabilities.filter((capability) => !uncarried.includes(capability)) } : bootstrap;
+  };
+
   const environment = (): OpsEnvironment => {
     const current = settings.current();
     const signedIn = hubInstance?.session() ?? null;
@@ -329,10 +401,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const ours = signedIn !== null && scope !== null && scope.hubOrigin === signedIn.hubOrigin && scope.userId === signedIn.userId;
     return {
       session: signedIn,
-      bootstrap: hubInstance?.cachedBootstrap()?.bootstrap ?? null,
+      bootstrap: bootstrapForOps(),
       persona: (pageId) => (ours ? (current.personas.byPageId[String(pageId)] ?? null) : null),
       debug: current.debug.enabled,
-      settingsLoaded: settings.mode() === 'ok',
+      settingsLoaded: settingsRead(),
     };
   };
 
@@ -356,11 +428,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     store: opsStoreOver(results, session),
     presence: (tabSessionId) => presence.tabs().find((tab) => tab.tabSessionId === tabSessionId) ?? null,
     log: coreLog,
+    // R11: how each feature's start becomes the hub's request and its answer a result ([NEXT] parts, Hi variants,
+    // the Review frame, Recap blocks, Coach drafts).
+    drivers: AI_FEATURE_DRIVERS,
     hooks: {
       // The facade refreshes its catalog itself when it reads such a failure.
       refreshBootstrap: () => void hubInstance?.bootstrap({ force: true }).catch(() => undefined),
       recapDone: (view, ownerTab) => saver.save(view, ownerTab),
       debugInput: (opId) => hubInstance?.promptEchoTicket(opId)?.token ?? null,
+      // The local spend journal exists only in debug mode (§9.3, DB-022): numbers of this browser, nothing else.
+      usage: (feature, usage) => {
+        if (debugEnabled()) spend.recordUsage(feature, usage, Date.now());
+      },
     },
   });
 
@@ -385,10 +464,62 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       void telemetry.report('sent', scheduler.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId }),
   });
 
+  /** Who is signed in, as the things that belong to a person are marked. */
+  const ownerOf = (signedIn: { readonly hubOrigin: string; readonly userId: number } | null): string | null => (signedIn === null ? null : `${signedIn.hubOrigin}|${signedIn.userId}`);
+
+  // A part of a preview or of a «Новые» card the person sent from ChatSpace's own composer (§6.6): the hub is
+  // told, so the greeting counts for everyone and the part is never offered for a second send (H-7). What the
+  // hub has not answered is owed and journaled (storage.local, ids only): the next instance of the event page
+  // and the next word of the hub deliver it again, with the same attempt id.
+  const nativeSends = new NativeSendRegistrar({
+    clock: CLOCK,
+    ids: IDS,
+    hub: { claim: (op) => hub().claim(op) },
+    instanceId: () => instanceId,
+    owner: () => ownerOf(hubInstance?.session() ?? null),
+    store: throwingStoreOf(local),
+    log: coreLog,
+  });
+
+  // ── «Новые»: the greeting leases of this install (H-7) ─────────────────────
+  const leases = new GreetingLeases({
+    clock: CLOCK,
+    ids: IDS,
+    // The facade's own errors as they are: the handler reads their wire form (the claim action is among its facts).
+    hub: { claim: (op) => hub().claim(op), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
+    instanceId: () => instanceId,
+    owner: () => ownerOf(hubInstance?.session() ?? null),
+    limits: () => hubInstance?.cachedBootstrap()?.bootstrap.limits ?? null,
+    events,
+    tabs: () => rpc.tabs().map((tab) => tab.tabSessionId),
+    store: throwingStoreOf(session),
+    log: coreLog,
+  });
+
   // ── sound ──────────────────────────────────────────────────────────────────
-  // The one player of the extension (§9.8; its AudioContext is created with the first tone). The policy
-  // that decides when a tone plays, and the tone tables, are R17's: until then nothing plays.
-  const audio = createAudioPlayer();
+  // The one player of the extension (§9.8; its AudioContext is created with the first tone) under R17's
+  // one arbiter: a fan's message from any tab, a new subscriber from «Новые».
+  const audio = deps.audio ?? createAudioPlayer();
+  const hostPermissions = createHostPermissions(api);
+  /** Where the content scripts of a host kind run: without the permission nothing of ours runs there. */
+  const hostOrigins: Readonly<Record<string, readonly string[]>> = {
+    chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
+  };
+  const sound = createBackgroundSound({
+    clock: CLOCK,
+    audio,
+    presence,
+    settings: () => (settingsRead() ? settings.current().sound : null),
+    bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
+    newcomersUsable: (pageLabel) => hubInstance?.flagState('newcomers', pageLabel).usable === true,
+    hostPermission: async (host) => (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
+    read: (pageLabel, windowHours) => hub().audienceNew({ pageLabel, windowHours }),
+    online: () => navigator.onLine,
+    events,
+    tabs: () => rpc.tabs().map((tab) => tab.tabSessionId),
+    session: throwingStoreOf(session),
+    log: coreLog,
+  });
 
   // ── R18: telemetry, debug, diagnostics ─────────────────────────────────────
   const capabilities = (): readonly string[] => hubInstance?.cachedBootstrap()?.bootstrap.capabilities ?? [];
@@ -416,10 +547,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const spend = new SpendService(keyOf(local, SPEND_KEY));
 
   /** §9.3 «Выключение отладки или выход очищают всё»: journals and the local spend; the facade drops its prompt echoes itself. */
-  function clearDebugData(): void {
-    logging.journals.clear();
-    spend.clear();
-  }
+  const clearDebug = (): void => clearDebugData({ journals: logging.journals, spend });
 
   /** Prompt snapshots held now, by the facade's own tickets (counts only). */
   const promptStats = (): { count: number; chars: number } => {
@@ -435,6 +563,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return { count, chars };
   };
 
+  /** SN-015, ST-133: the arbiter's decisions by name, and the tones the browser would not play. */
+  const soundFacts = (): DiagnosticsFacts['sound'] => {
+    const known = sound.arbiter.diagnostics();
+    const blocked = audio.stats().blocked;
+    return { listeningTabs: known.listeningTabs, lastIncomingAt: known.lastIncomingAt, outcomes: blocked > 0 ? { ...known.outcomes, 'audio.blocked': blocked } : known.outcomes };
+  };
+
   const facts = (): DiagnosticsFacts => {
     const now = Date.now();
     const status = hubInstance?.status() ?? null;
@@ -443,7 +578,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const active = scheduler.active();
     return {
       now,
-      extension: { version: env.extensionVersion, contractsVersion: CONTRACTS_VERSION, testBuild },
+      extension: {
+        version: env.extensionVersion,
+        contractsVersion: CONTRACTS_VERSION,
+        testBuild,
+        // UP-009: tabs that were open before this version got its scripts late and wait for a reload.
+        ...(updated === null ? {} : { updated: { at: updated.at, from: updated.from, staleTabs: rpc.tabs().filter((tab) => tab.request.lateInjection).length } }),
+      },
       browser: { major: env.browserMajor },
       os: env.os,
       locale: resolveLocale(current.ui.locale, navigator.languages),
@@ -456,14 +597,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         sdk: status?.sdk ?? { vendoredHash: VENDORED_CONTRACT_HASH, hubHash: null, compatible: null },
       },
       tabs: rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: shown.get(tab.tabSessionId) ?? null })),
-      settings: settings.mode() === 'ok' ? current : null,
+      settings: settingsRead() ? current : null,
       counters: logging.counters.snapshot(now),
       logs: logging.logs.stats(),
       logger: logger.stats(),
       telemetry: telemetry.queue.stats(),
       health: telemetry.health.stats(),
       acceptance: telemetry.acceptance.stats(),
-      sound: { listeningTabs: presence.listeningTabs(), lastIncomingAt, outcomes: { played: audio.stats().played, blocked: audio.stats().blocked } },
+      sound: soundFacts(),
       ops: { active: active.length, snapshot: active.map((op) => ({ opId: op.opId, feature: op.feature, surface: op.surface, state: op.state, phase: op.phase.name, startedAt: op.startedAt })) },
       sends: { ...sends.counts(), journal: sendJournal.list() },
       debug: { enabled: current.debug.enabled, prompts: promptStats() },
@@ -472,9 +613,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   };
   const diagnostics = new DiagnosticsService({ facts, logs: logging.logs, redactor: logging.redactor, logger });
 
-  /** `health` for a status surface: unauthenticated, bounded, and never an error of the status itself. */
+  /**
+   * `health` for a status surface: unauthenticated, bounded, and never an error of the status itself. Only
+   * while somebody is signed in: without a sign-in the settings are the sign-in screen and the popup says
+   * «Войдите» — neither shows the hub's health — and nothing talks to the hub before a person signs in
+   * (UP-008; after an install the settings open by themselves).
+   */
   async function refreshHealth(): Promise<void> {
-    if (hubInstance === null || Date.now() - healthAskedAt < HEALTH_FRESH_MS) return;
+    if (hubInstance === null || hubInstance.session() === null || Date.now() - healthAskedAt < HEALTH_FRESH_MS) return;
     healthAskedAt = Date.now();
     const asked = hubInstance.health().then(
       () => undefined,
@@ -533,6 +679,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // ── lifecycle (LG-016, LG-018, UP-008) ─────────────────────────────────────
   const lifecycle = createLifecycle(api);
   let installed: InstalledDetails | null = null;
+  /** When this version replaced an older one, and which: «Обновилось сегодня в 09:02 с 0.4.2» of «Статус». */
+  let updated: { readonly at: string; readonly from: string } | null = null;
   let browserStarted = false;
   let lifecycleSeen: () => void = () => undefined;
   /** Settles with the first `onInstalled` / `onStartup`: the start record waits a moment for it. */
@@ -544,8 +692,21 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     lifecycleSeen();
     // UP-008: an install or an update only logs — nothing talks to the hub until a human signs in or opens ChatSpace.
     const plan = onInstalledPlan(details.reason);
-    if (details.reason === 'install') logEvent(logger, 'extensionInstalled', { fields: { temporary: details.temporary, onboarding: plan.openOnboarding } });
-    else if (details.reason === 'update') logEvent(logger, 'extensionUpdated', { fields: { previousVersion: details.previousVersion, temporary: details.temporary } });
+    if (details.reason === 'install') {
+      // §9.9 «Онбординг»: a first run starts on the settings page — the sign-in screen with the first-run
+      // checklist (ST-011, ST-012). A temporary install is a developer's (`pnpm dev`, the e2e), not a first run.
+      const onboarding = plan.openOnboarding && !details.temporary;
+      logEvent(logger, 'extensionInstalled', { fields: { temporary: details.temporary, onboarding } });
+      updated = null;
+      void local.remove([UPDATED_KEY]);
+      if (onboarding) void extensionPages.open('options');
+    } else if (details.reason === 'update') {
+      logEvent(logger, 'extensionUpdated', { fields: { previousVersion: details.previousVersion, temporary: details.temporary } });
+      if (details.previousVersion !== null) {
+        updated = { at: new Date().toISOString(), from: details.previousVersion.slice(0, 32) };
+        void local.set({ [UPDATED_KEY]: updated });
+      }
+    }
   });
   lifecycle.onStartup(() => {
     browserStarted = true;
@@ -560,19 +721,35 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
 
   // ── the hub's events (wired when the hub exists) ───────────────────────────
+  /** Who the things of a person in storage belong to now (set when the hub layer has read its sign-in). */
+  let lastOwner: string | null = null;
   function wireHub(instance: ChatExtensionHub): void {
     instance.onSessionChange((change) => {
       rpc.emit('session.changed', { session: change.session, reason: change.reason });
+      // §8.2 «Любая смена входа увеличивает эпоху и отменяет операции»: the old sign-in's results go with them.
       scheduler.environmentChanged({ kind: 'session', next: change.session });
+      // The queue drops what was bound to the old sign-in (§9.6); a sign-out also the links and the health window.
       telemetry.onSessionChanged(change.session !== null);
       const event = change.reason === 'sign-in' ? 'signedIn' : change.reason === 'sign-out' ? 'signedOut' : 'signInLost';
       logEvent(logger, event, { ...(change.code === null ? {} : { code: change.code }), fields: { reason: change.reason, epoch: change.epoch } });
+      const owner = ownerOf(change.session);
+      const previous = lastOwner;
+      lastOwner = owner;
+      if (previous !== null && owner !== previous) {
+        // Another person, or nobody (§9.4 «При выходе всё, что связано с пользователем, очищается»): the lease
+        // tokens, the subscriber baselines and the preview drafts were the previous person's. A tab that is
+        // open erases its own copy of the drafts; without one the key would stay on disk.
+        leases.forgetAll();
+        sound.forget();
+        void local.remove([STORAGE_KEYS.newcomersDrafts]);
+      }
+      sound.sync();
       if (change.session !== null) {
         void settings.setPersonaScope({ hubOrigin: change.session.hubOrigin, userId: change.session.userId });
         return;
       }
       // §9.4: at sign-out everything that belongs to the person goes; open X8 records stay until resolved.
-      clearDebugData();
+      clearDebug();
       void sendJournal.removeFinished();
       void wsTap.fromBootstrap(null);
     });
@@ -580,38 +757,53 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       const { configRevision, issuedAt, flags } = entry.bootstrap;
       rpc.emit('bootstrap.changed', { configRevision, issuedAt });
       rpc.emit('flags.changed', { flags, configRevision });
+      // §6.8 п. 10: the registration follows the flag for future documents; a live tab hears the flags and tells
+      // its own tap to stand down (tab/host-facts.ts).
       void wsTap.fromBootstrap(entry.bootstrap);
       telemetry.onCapabilitiesChanged();
       void sends.bootstrapChanged();
+      // The hub answered: what it was not told while it was silent (or before this person signed in again) goes now.
+      nativeSends.resume();
+      sound.sync();
     });
     instance.onCatalogChange(() => rpc.emit('catalog.changed', {}));
     instance.onQuotaChange((quota) => rpc.emit('quota.changed', { quota }));
+    // §7 «Сервис недоступен, повтор через 5 с…»: the facade waits before its one retry; the operation says so.
+    instance.onStreamNotice((notice) => scheduler.noteRetry(notice.clientRequestId, notice.retryAt));
   }
 
   // ── request handlers (all registered now; each runs after the barrier) ─────
 
-  /** The page of a `pageId` for a sender: granted in the bootstrap, and for a tab — one of its own bindings. */
-  const pageOf = (pageId: number, sender: RpcSenderContext): PageLookup => {
+  /** One of the tab's own ChatSpace accounts is bound to the page — by what the tab reported so far. */
+  const tabBoundTo = (pageId: number, tabSessionId: string): boolean => {
+    const own = presence.tabs().find((tab) => tab.tabSessionId === tabSessionId)?.accounts ?? [];
+    return presence
+      .seenAccounts()
+      .filter((seen) => own.includes(`${seen.account.host}:${seen.account.hostAccountId}`))
+      .some((seen) => {
+        const resolution = hubInstance?.resolveBinding(seen.account);
+        return resolution?.state === 'bound' && resolution.binding.pageId === pageId;
+      });
+  };
+
+  /**
+   * The page of a `pageId` for a sender: granted in the bootstrap, and for a tab — one of its own bindings.
+   * A tab that has not said yet which accounts it shows is waited for (background/tab-accounts.ts): its
+   * request is answered by its report, never by the report's absence.
+   */
+  const pageOf = async (pageId: number, sender: RpcSenderContext): Promise<PageLookup> => {
     const cached = hubInstance?.cachedBootstrap() ?? null;
     if (hubInstance === null || hubInstance.session() === null) return { ok: false, code: 'CG-AUTH-REQUIRED' };
     if (cached === null) return { ok: false, code: 'CG-HUB-UNAVAILABLE' };
     const page = cached.bootstrap.pages.find((candidate) => candidate.pageId === pageId);
     if (page === undefined) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
-    if (sender.kind === 'tab') {
-      const own = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId)?.accounts ?? [];
-      const bound = presence
-        .seenAccounts()
-        .filter((seen) => own.includes(`${seen.account.host}:${seen.account.hostAccountId}`))
-        .some((seen) => {
-          const resolution = hubInstance?.resolveBinding(seen.account);
-          return resolution?.state === 'bound' && resolution.binding.pageId === pageId;
-        });
-      if (!bound) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
+    if (sender.kind === 'tab' && !tabBoundTo(pageId, sender.tabSessionId)) {
+      if (tabAccounts.has(sender.tabSessionId)) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
+      await tabAccounts.known(sender.tabSessionId);
+      if (!tabBoundTo(pageId, sender.tabSessionId)) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
     }
     return { ok: true, page: { pageId: page.pageId, pageLabel: page.pageLabel, platform: page.platform } };
   };
-
-  const notImplemented = (type: (typeof NOT_IMPLEMENTED_REQUESTS)[number]) => (): { readonly ok: false; readonly error: CgErrorWire } => fail('CG-FEATURE-DISABLED', `not implemented yet: ${type}`);
 
   // tab lifecycle
   rpc.handle('tab.presence', async (report, sender) => {
@@ -620,16 +812,25 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // this event page (BG-003) — and that is not a reason to read the bootstrap again.
     const before = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId);
     if (report.focused && before?.focused !== true) hubInstance?.notifyFocus();
-    return ok(await presence.report(sender.tabSessionId, report));
+    const recorded = await presence.report(sender.tabSessionId, report);
+    // From here the tab's own accounts are known: a request that waited for them is answered now.
+    if (report.accounts !== undefined && report.accounts.length > 0) tabAccounts.reported(sender.tabSessionId);
+    return ok(recorded);
   });
 
   // sign-in and bootstrap
   rpc.handle('session.get', () => ok({ session: hub().session() }));
   rpc.handle('session.signIn', async ({ login, password }) => {
     // The password is in memory for this call only; neither it nor the login is logged.
-    const answer = await hubCall(async () => ({ session: await hub().signIn(login, password) }));
-    if (!answer.ok) logEvent(logger, 'signInFailed', { code: answer.error.code });
-    return answer;
+    try {
+      return ok({ session: await hub().signIn(login, password) });
+    } catch (error) {
+      const wire = wireOf(error);
+      // One failure is one count in «Ошибки хаба за сегодня» (ST-056): a call the hub refused is already in the
+      // log with its code (the hub layer's own record of the call); a refusal before any call is counted here.
+      logEvent(logger, 'signInFailed', isHubCallError(error) ? { fields: { code: wire.code } } : { code: wire.code });
+      return { ok: false, error: wire };
+    }
   });
   rpc.handle('session.signOut', () => hubCall(() => hub().signOut()));
   rpc.handle('bootstrap.get', ({ force }) => hubCall(() => hub().bootstrap(force === true ? { force: true } : undefined)));
@@ -657,7 +858,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('quota.get', ({ pageId }) => ok({ quota: hub().quotaOf(pageId) ?? scheduler.quota(pageId) }));
   rpc.handle('accounts.seen', () => ok({ accounts: [...presence.seenAccounts()] }));
   rpc.handle('persona.set', async ({ pageId, key, definitionId }, sender) => {
-    const page = pageOf(pageId, sender);
+    const page = await pageOf(pageId, sender);
     if (!page.ok) return fail(page.code);
     const saved = await settings.patch({ personas: { byPageId: { [String(pageId)]: { key, definitionId } } } }, { baseRevision: null, restricted: false });
     return saved.ok ? ok({ revision: saved.state.revision }) : { ok: false, error: saved.error };
@@ -687,11 +888,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (view !== null) spend.recordInsert(view.feature, Date.now());
     return ok({ recorded: telemetry.report('inserted', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }) });
   });
-  rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }) =>
-    ok({
-      recorded: telemetry.report('sent', scheduler.view(opId), opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
-    }),
-  );
+  rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }) => {
+    const view = scheduler.view(opId);
+    // §6.6, §8.5: a human send proven by its receipt and echo. For a part of a preview or of a «Новые» card the
+    // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub —
+    // the registration is journaled and stays owed until the hub answers.
+    void nativeSends.register(view, part, platformMessageId);
+    return ok({
+      recorded: telemetry.report('sent', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
+    });
+  });
 
   // X8 preview send
   rpc.handle('send.begin', async (begin, sender) => {
@@ -699,6 +905,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok(await sends.begin(sender.tabSessionId, begin));
   });
   rpc.handle('send.status', ({ attemptId }) => ok({ view: sends.status(attemptId) }));
+  rpc.handle('send.list', async ({ pageId, fanRef }, sender) => {
+    // What a tab that lost its own tracking (a reload) holds the fan by (§6.7.8): the journal of this install.
+    const page = await pageOf(pageId, sender);
+    if (!page.ok) return fail(page.code);
+    const platform = narrowPlatform(page.page.platform);
+    const signedIn = hub().session();
+    if (platform === null || signedIn === null) return fail('CG-BINDING-NOT-GRANTED');
+    const known = sends.attemptsOf(sendLockKey({ hubOrigin: signedIn.hubOrigin, pageId, platform, fanRef }));
+    return ok({ attempts: [...known.attempts], truncated: known.truncated });
+  });
   rpc.handle('send.report', async ({ view, pendingId }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     return ok({ recorded: await sends.report(sender.tabSessionId, view, pendingId) });
@@ -708,28 +924,57 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const data = hubDataHandlers({ hub, page: pageOf, errorOf: wireOf, debugEnabled });
   rpc.handle('recap.status', data['recap.status']);
   rpc.handle('recap.read', data['recap.read']);
+  rpc.handle('recap.save', async (request, sender) => {
+    // «Сохранить ещё раз» and the late save of a recap opened from the hub (AI-068): one idempotent link write
+    // by the generation (H-5), never a new generation; the tab repeats a `not-ready` on the §7 schedule.
+    const page = await pageOf(request.pageId, sender);
+    if (!page.ok) return fail(page.code);
+    return hubCall(async () => recapSaveAnswer(await hub().profileFromGeneration(profileRequestOf(request, page.page.pageLabel))));
+  });
   rpc.handle('spenders.board', data['spenders.board']);
   rpc.handle('spenders.stats', data['spenders.stats']);
   rpc.handle('spenders.queue', data['spenders.queue']);
   rpc.handle('feed.read', data['feed.read']);
   rpc.handle('fan.card', data['fan.card']);
   rpc.handle('fan.dossier', data['fan.dossier']);
-  rpc.handle('newcomers.list', data['newcomers.list']);
+  rpc.handle('newcomers.list', async (request, sender) => {
+    const answer = await data['newcomers.list'](request, sender);
+    // The newest rows a tab read for its open window are the same the subscriber sound is decided by (SN-012).
+    if (answer.ok && request.cursor === null && sender.kind === 'tab') {
+      const page = hubInstance?.cachedBootstrap()?.bootstrap.pages.find((candidate) => candidate.pageId === request.pageId);
+      if (page !== undefined) sound.fed(page, answer.payload, sender.tabSessionId);
+    }
+    return answer;
+  });
   rpc.handle('usage.get', data['usage.get']);
-  rpc.handle('newcomers.claim', notImplemented('newcomers.claim'));
+  rpc.handle('newcomers.claim', async ({ pageId, fanRef, action }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    const page = await pageOf(pageId, sender);
+    if (!page.ok) return fail(page.code);
+    try {
+      const answer = await leases.act(sender.tabSessionId, page.page, fanRef, action);
+      return answer.ok ? ok(answer.state) : fail(answer.code);
+    } catch (error) {
+      return { ok: false, error: wireOf(error) };
+    }
+  });
 
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
   rpc.handle('settings.get', settingsHandlers['settings.get']);
-  rpc.handle('settings.patch', (request, sender) => {
+  rpc.handle('settings.patch', async (request, sender) => {
     // §14: a tab changes personas only of the pages of its own binding — the same check as `persona.set`.
-    const refusal = personaPatchRefusal(request.patch, sender, pageOf);
+    const refusal = await personaPatchRefusal(request.patch, sender, pageOf);
     return refusal === null ? settingsHandlers['settings.patch'](request) : fail(refusal, 'personas');
   });
   rpc.handle('settings.patchRestricted', (request) => {
     const refusal = hubAddressRefusal({ next: request.patch.hub?.baseUrl, current: settings.current().hub.baseUrl, signedIn: hub().status().auth !== 'none', testBuild: __CG_TEST_HOSTS__ });
     return refusal === null ? settingsHandlers['settings.patchRestricted'](request) : fail('CG-HUB-URL', refusal);
   });
+
+  // «Настройки» / «Войти» from a ChatSpace tab (ST-006, ST-007): a content script cannot open our pages itself,
+  // so the background does — the open settings tab is focused and pointed at the section, otherwise one opens.
+  rpc.handle('settings.open', async ({ route }) => ok({ opened: (await extensionPages.open('options', hashOfRoute(route))).ok }));
 
   // logs, diagnostics, debug
   rpc.handle('log.write', ({ records }, sender) => ok(logging.acceptUi(records, sender.kind === 'tab' ? sender.tabSessionId : null)));
@@ -744,6 +989,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok({ records: read.records, truncated: read.truncated, runs: read.runs === null ? null : [...read.runs] });
   });
   rpc.handle('debug.prompt', ({ token }) => ok(hub().promptEcho(token)));
+  // «Промпт» of a result's debug block (DB-007): the page is ours and a content script cannot open it. Only the
+  // opaque token goes into the page's address, and only while debug mode is on (§9.3).
+  rpc.handle('debug.open', async ({ token }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    if (!debugEnabled()) return ok({ opened: false });
+    return ok({ opened: (await extensionPages.open('debug-prompt', undefined, { t: token })).ok });
+  });
   rpc.handle('health.report', ({ report }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
     hostReports.set(sender.tabSessionId, report.host);
@@ -751,17 +1003,47 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok({ recorded: consent.granted() });
   });
 
-  // sound: the arbiter is R17's. The fact already feeds the freshness of results (§7 «Кэш»), nothing plays yet.
-  rpc.handle('sound.event', ({ fact }) => {
-    lastIncomingAt = new Date().toISOString();
-    scheduler.incoming(fact);
-    return ok({ played: false, reason: 'policy_not_wired' });
+  // sound (§9.8): one fact, two consumers — the freshness of results (§7 «Кэш», §6.7.5) and the arbiter.
+  const soundHandlers = soundRequestHandlers(sound.arbiter);
+  rpc.handle('sound.event', (request, sender) => {
+    scheduler.incoming(request.fact);
+    return soundHandlers['sound.event'](request, sender);
   });
-  rpc.handle('sound.preview', notImplemented('sound.preview'));
+  rpc.handle('sound.preview', soundHandlers['sound.preview']);
+
+  // a click on an extension page that acts in ChatSpace (§9.9; PU-017, ST-076)
+  const tabFocus = createTabFocus(api);
+  rpc.handle('tab.command', async ({ command }) => {
+    const target = pickCommandTab(command, rpc.tabs(), presence.tabs());
+    // The tab comes to the front first: the command is the person's click, seen where it acts.
+    if (target === null || !(await tabFocus.focus(target.tabId))) return ok({ delivered: false });
+    const delivered = rpc.emit('tab.command', { command }, { tabSessionId: target.tabSessionId }) > 0;
+    logger.info('bg.tabs', 'page command', { fields: { kind: command.kind, surface: command.kind === 'surface' ? command.surface : null, delivered }, ctx: { tabSessionId: target.tabSessionId } });
+    return ok({ delivered });
+  });
+
+  // «Очистить локальные данные» (ST-110): caches and logs; the sign-in, the settings, running operations and
+  // open X8 attempts stay.
+  rpc.handle('data.clear', async () => {
+    const results = scheduler.clearFinished();
+    clearDebug();
+    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), sendJournal.removeFinished(), scheduler.idle()]);
+    const cleared = done.every((step) => step.status === 'fulfilled');
+    logger.info('bg.data', 'local data cleared', { fields: { results, cleared } });
+    return ok({ cleared });
+  });
 
   // action tokens (§14)
-  rpc.handle('token.issue', ({ kind, surface }, sender) => {
+  rpc.handle('token.issue', async ({ kind, surface }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    // §8.3: an expired bootstrap blocks a new insert or navigation until it is read again; results stay.
+    // Without a hub layer (its start step failed) there is no sign-in to insert a result of; ChatSpace's own
+    // list still navigates.
+    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, hubInstance, wireOf);
+    if (refusal !== null) {
+      logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
+      return { ok: false, error: refusal };
+    }
     return ok(tokens.issue(sender.tabSessionId, kind, surface));
   });
   rpc.handle('token.redeem', ({ kind, surface, actionToken }, sender) => {
@@ -790,8 +1072,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     {
       name: 'logs',
       async run() {
-        const [client, counted] = await Promise.all([readClientEnv(api), session.get([STARTS_KEY])]);
+        const [client, counted, stored] = await Promise.all([readClientEnv(api), session.get([STARTS_KEY]), local.get([UPDATED_KEY])]);
         env = client;
+        // An update this instance did not hear itself (the page was unloaded since): the stored record.
+        if (updated === null && installed === null && stored.ok) updated = updateRecordOf(stored.value[UPDATED_KEY]);
         await logging.start();
         const earlierStarts = earlierStartsOf(counted.ok ? { ok: true, value: counted.value[STARTS_KEY] } : { ok: false });
         starts = (earlierStarts ?? 0) + 1;
@@ -815,7 +1099,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       name: 'settings',
       async run() {
         await settings.start();
-        previousSettings = settings.mode() === 'ok' ? settings.current() : null;
+        previousSettings = settingsRead() ? settings.current() : null;
       },
     },
     {
@@ -844,7 +1128,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         wireHub(instance);
         hubInstance = instance;
         await instance.ready;
-        // Once after the settings load: a full token of the dev/compat mode does not outlive debug mode in a release build.
+        lastOwner = ownerOf(instance.session());
+        // Once after the settings load: a full token does not outlive the dev/compat mode — debug off in a test
+        // build, and any release build, which has no such mode — it is erased and revoked.
         void instance.notifyDebugChanged();
       },
     },
@@ -852,7 +1138,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     { name: 'ops', run: () => scheduler.restore() },
     { name: 'send-journal', run: () => sendJournal.start() },
     { name: 'sends', run: () => sends.restore() },
+    { name: 'native-sends', run: () => nativeSends.restore() },
     { name: 'presence', run: () => presence.start() },
+    { name: 'leases', run: () => leases.restore() },
+    { name: 'sound', run: () => sound.start() },
     { name: 'consent', run: () => consent.start() },
     { name: 'telemetry', run: () => Promise.all([telemetry.start(), spend.start()]) },
     { name: 'ws-tap', run: () => wsTap.fromBootstrap(hubInstance?.cachedBootstrap()?.bootstrap ?? null) },
@@ -860,5 +1149,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     logger.info('bg.ready', 'start steps', { fields: { ms: Date.now() - started, starts, deadline: report.deadline, late: report.steps.filter((step) => step.outcome !== 'ok').map((step) => `${step.name}:${step.outcome}`) } });
     // What the tabs counted while the page was away goes out now (the queue's own start flushed what was stored).
     if (rpc.tabs().length > 0) armAlarms();
+    sound.sync();
   });
 }

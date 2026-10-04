@@ -33,7 +33,7 @@ describe('ESLint package graph (§4)', () => {
     ['the MAIN bridge imports a package', 'packages/host-chatspace/src/main/bad.ts', "import { BRIDGE_TAGS } from '@cg/contracts';\nexport const x = BRIDGE_TAGS;", ['no-restricted-imports']],
     ['the isolated host imports core/domain', 'packages/host-chatspace/src/isolated/bad.ts', "import { OP_LIMITS } from '@cg/core/domain';\nexport const x = OP_LIMITS;", ['no-restricted-imports']],
     ['contracts imports core', 'packages/contracts/src/bad.ts', "import { OP_LIMITS } from '@cg/core/domain';\nexport const x = OP_LIMITS;", ['no-restricted-imports']],
-    ['hub imports ui', 'packages/hub/src/bad.ts', "import { mountTempDock } from '@cg/ui';\nexport const x = mountTempDock;", ['no-restricted-imports']],
+    ['hub imports ui', 'packages/hub/src/bad.ts', "import { mountOptions } from '@cg/ui/pages';\nexport const x = mountOptions;", ['no-restricted-imports']],
     ['a deep import into src', 'apps/extension/src/composition/bad.ts', "import { x } from '@cg/core/src/domain/index';\nexport const y = x;", ['no-restricted-imports']],
     ['a relative import across packages', 'packages/hub/src/bad.ts', "import { x } from '../../core/src/domain/index';\nexport const y = x;", ['no-restricted-imports']],
     ['the app imports the test harness', 'apps/extension/src/composition/bad.ts', "import { startStandServer } from '@cg/testing';\nexport const x = startStandServer;", ['no-restricted-imports']],
@@ -59,6 +59,10 @@ describe('ESLint package graph (§4)', () => {
     ['the MAIN bridge calls win.fetch', 'packages/host-chatspace/src/main/bad.ts', "export const x = (win: Window) => win.fetch('/x');", ['no-restricted-properties']],
     ['the MAIN bridge opens a WebSocket', 'packages/host-chatspace/src/main/bridge.ts', "export const x = () => new WebSocket('wss://x');", ['no-restricted-globals']],
     ['the MAIN bridge uses navigator.sendBeacon', 'packages/host-chatspace/src/main/bad.ts', "export const x = () => navigator.sendBeacon('/x');", ['no-restricted-properties']],
+    // The receipt observer may hold the page's `fetch` property, nothing else of the network, and never the global.
+    ['the receipt observer calls the global fetch', 'packages/host-chatspace/src/main/receipt.ts', "export const x = () => fetch('/x');", ['no-restricted-globals']],
+    ['the receipt observer opens a WebSocket', 'packages/host-chatspace/src/main/receipt.ts', "export const x = (win: Window & typeof globalThis) => new win.WebSocket('wss://x');", ['no-restricted-properties']],
+    ['the send port touches win.fetch', 'packages/host-chatspace/src/main/send-port.ts', 'export const x = (win: Window) => win.fetch;', ['no-restricted-properties']],
   ])('%s → red', async (_label, filePath, code, expected) => {
     expect(await ruleIds(filePath, code)).toEqual(expected);
   });
@@ -76,6 +80,11 @@ describe('ESLint package graph (§4)', () => {
       "import { installMainBridge } from '@cg/host-chatspace/main';\nimport type { ContentScriptDefinition } from 'wxt';\nimport { defineContentScript } from 'wxt/utils/define-content-script';\nimport { CHATSPACE_MATCHES } from '../hosts';\nexport const x: ContentScriptDefinition = defineContentScript({ matches: [...CHATSPACE_MATCHES], main: installMainBridge });",
     ],
     ['the WS tap wraps win.WebSocket', 'packages/host-chatspace/src/main/ws-tap.ts', 'export const x = (win: Window & typeof globalThis) => { win.WebSocket = new Proxy(win.WebSocket, {}); };'],
+    [
+      'the receipt observer puts an observer in place of win.fetch and back',
+      'packages/host-chatspace/src/main/receipt.ts',
+      'export const x = (win: Window & typeof globalThis) => { const previous = win.fetch; win.fetch = previous; };',
+    ],
   ])('%s → green', async (_label, filePath, code) => {
     expect(await ruleIds(filePath, code)).toEqual([]);
   });

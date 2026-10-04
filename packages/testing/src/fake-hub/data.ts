@@ -43,6 +43,7 @@ import {
 import { SCENARIO_DATA, WORLD, spenderRow } from '../scenarios/hub';
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
+import { type SpenderSeed } from './types';
 
 export interface Refusal {
   readonly error: HubErrorCode;
@@ -195,6 +196,17 @@ function sortValue(sortBy: NonNullable<SpendersQuery['sortBy']>): (row: SpenderL
 const AUDIENCE_SEEDS = 5;
 const QUEUE_SEEDS = 5;
 
+/** The board's shelves once its first rows are seeded fans (`spenderFans`): six tiers by lifetime, in dollars. */
+const SEEDED_TIERS: ReadonlyArray<{ readonly key: string; readonly label: string; readonly min: number; readonly max: number | null }> = [
+  { key: '1-25', label: '$1–25', min: 1, max: 25 },
+  { key: '25-50', label: '$25–50', min: 25, max: 50 },
+  { key: '50-150', label: '$50–150', min: 50, max: 150 },
+  { key: '150-350', label: '$150–350', min: 150, max: 350 },
+  { key: '350-600', label: '$350–600', min: 350, max: 600 },
+  { key: '600-plus', label: '$600+', min: 600, max: null },
+];
+const MILLS = 1000;
+
 export class DataModel {
   private readonly archives = new Map<string, Archive>();
   private readonly audience = new Map<string, AudienceEvent[]>();
@@ -204,6 +216,8 @@ export class DataModel {
   private readonly dossierSource = new Map<string, string>();
   private readonly ingested = new Map<string, IngestBatch['events'][number]>();
   readonly usage: UsageRecord[] = [];
+  /** The fans at the top of every page's board (`spenderFans`); empty — the synthetic board. */
+  private seeds: readonly SpenderSeed[] = [];
   private archiveOrder = 0;
   private extraMessageId = 7000;
 
@@ -239,11 +253,20 @@ export class DataModel {
     return `${pageLabel}\u0000${fanRef}`;
   }
 
+  /** The first rows of the board become these fans (the stand's own, in e2e); `[]` — the synthetic board again. */
+  useSpenderFans(seeds: readonly SpenderSeed[]): void {
+    this.seeds = seeds.map((seed) => ({ ...seed }));
+  }
+
+  private seedOf(fanRef: string): SpenderSeed | null {
+    return this.seeds.find((seed) => seed.fanRef === fanRef) ?? null;
+  }
+
   // ── fans the archive knows ──
 
   /** Fans the page's archive and audience know (dossier lookups 404 for anyone else). */
   knowsFan(page: FakePage, fanRef: string, spendersTotal: number): boolean {
-    if (fanRef === WORLD.fan) return true;
+    if (fanRef === WORLD.fan || this.seedOf(fanRef) !== null) return true;
     const n = Number(fanRef);
     if (n >= SPENDER_FAN_BASE && n < SPENDER_FAN_BASE + spendersTotal) return true;
     if (this.audienceOf(page).some((event) => event.item.fanRef === fanRef)) return true;
@@ -265,13 +288,51 @@ export class DataModel {
     return { kind: 'page', platform: 'onlyfans', pageCount: 1, page: pageRefOf(page), model: null };
   }
 
-  private rows(total: number): SpenderListItem[] {
-    return Array.from({ length: total }, (_, rank) => spenderRow(rank));
+  /** A seeded fan's row: the synthetic row of its rank with the seed's fan, money and message ages. */
+  private seedRow(seed: SpenderSeed, rank: number, now: number): SpenderListItem {
+    const base = spenderRow(rank);
+    const ago = (seconds: number | null | undefined, fallback: string | null): string | null => (seconds === undefined ? fallback : seconds === null ? null : iso(now - seconds * 1000));
+    const lifetime = seed.lifetimeUsd === undefined ? base.metrics.lifetime.scopeGrossAmountMills : Math.round(seed.lifetimeUsd * MILLS);
+    const net = (mills: number): number => Math.round(mills * 0.8);
+    const windowGross = seed.windowUsd === undefined ? (base.metrics.window?.grossAmountMills ?? 0) : seed.windowUsd === null ? null : Math.round(seed.windowUsd * MILLS);
+    const fanWrote = ago(seed.fanWroteAgoSec, base.lastFanMessageAt);
+    const weWrote = ago(seed.weWroteAgoSec, base.conversation.lastModelMessageAt);
+    const last = [fanWrote, weWrote].filter((value): value is string => value !== null).sort().at(-1) ?? null;
+    return {
+      ...base,
+      fan: { ...base.fan, platformUserId: seed.fanRef, username: seed.username ?? `fan_${seed.fanRef}`, displayName: seed.displayName === undefined ? null : seed.displayName },
+      metrics: {
+        ...base.metrics,
+        window:
+          windowGross === null || base.metrics.window === null
+            ? null
+            : { ...base.metrics.window, grossAmountMills: windowGross, creatorNetAmountMills: net(windowGross), postedGrossAmountMills: windowGross, postedCreatorNetAmountMills: net(windowGross) },
+        lifetime: { scopeGrossAmountMills: lifetime, scopeCreatorNetAmountMills: net(lifetime), platformGrossAmountMills: lifetime, platformCreatorNetAmountMills: net(lifetime) },
+      },
+      lastFanMessageAt: fanWrote,
+      conversation: {
+        ...base.conversation,
+        platformConversationId: seed.fanRef,
+        unreadCount: seed.awaiting === true ? 1 : 0,
+        lastMessageAt: last,
+        lastFanMessageAt: fanWrote,
+        lastModelMessageAt: weWrote,
+        messageCoverageStatus: 'complete',
+        messageBackfillComplete: true,
+      },
+    };
+  }
+
+  private rows(total: number, now: number): SpenderListItem[] {
+    return Array.from({ length: Math.max(total, this.seeds.length) }, (_, rank) => {
+      const seed = this.seeds[rank];
+      return seed === undefined ? spenderRow(rank) : this.seedRow(seed, rank, now);
+    });
   }
 
   spenders(page: FakePage, query: SpendersQuery, now: number, total: number): Read<SpendersPage> {
     const needle = query.query?.toLowerCase();
-    let rows = this.rows(total).filter(
+    let rows = this.rows(total, now).filter(
       (row) =>
         (needle === undefined || (row.fan.username ?? '').toLowerCase().includes(needle) || (row.fan.displayName ?? '').toLowerCase().includes(needle)) &&
         (query.retentionStatus === undefined || query.retentionStatus === 'all' || row.retentionStatus === query.retentionStatus),
@@ -296,9 +357,13 @@ export class DataModel {
     });
   }
 
-  private row(platformUserId: string, total: number): SpenderListItem | null {
+  private row(platformUserId: string, total: number, now: number): SpenderListItem | null {
+    const seeded = this.seeds.findIndex((seed) => seed.fanRef === platformUserId);
+    const seed = this.seeds[seeded];
+    if (seed !== undefined) return this.seedRow(seed, seeded, now);
     const rank = Number(platformUserId) - SPENDER_FAN_BASE;
-    return Number.isInteger(rank) && rank >= 0 && rank < total ? spenderRow(rank) : null;
+    // A rank a seeded fan took has no synthetic fan any more.
+    return Number.isInteger(rank) && rank >= this.seeds.length && rank < total ? spenderRow(rank) : null;
   }
 
   private breakdown(row: SpenderListItem): SpenderDetail['typeBreakdown'] {
@@ -308,7 +373,7 @@ export class DataModel {
   }
 
   spenderDetail(page: FakePage, query: SpenderDetailQuery, now: number, total: number): Read<SpenderDetail> {
-    const row = query.platform === 'onlyfans' ? this.row(query.platformUserId, total) : null;
+    const row = query.platform === 'onlyfans' ? this.row(query.platformUserId, total, now) : null;
     if (row === null) return no('not_found');
     return ok({
       scope: this.scopeOf(page),
@@ -343,7 +408,7 @@ export class DataModel {
       scope: this.scopeOf(page),
       period: this.periodMeta(query.period ?? 'lifetime', query.from, query.to, now),
       items: query.fans.map((fan) => {
-        const row = fan.platform === 'onlyfans' ? this.row(fan.platformUserId, total) : null;
+        const row = fan.platform === 'onlyfans' ? this.row(fan.platformUserId, total, now) : null;
         return row === null
           ? { requestedFan: fan, found: false, fan: null, metrics: null, typeBreakdown: null, lifetimeLastTransactionAt: null, subscription: null }
           : {
@@ -359,7 +424,25 @@ export class DataModel {
     });
   }
 
-  autoLists(page: FakePage, now: number): Read<AutoLists> {
+  autoLists(page: FakePage, now: number, total: number): Read<AutoLists> {
+    if (this.seeds.length > 0) {
+      const lifetimes = this.rows(total, now).map((row) => row.metrics.lifetime.scopeGrossAmountMills);
+      const lists = SEEDED_TIERS.map((tier) => ({
+        key: tier.key,
+        label: tier.label,
+        minAmountMills: tier.min * MILLS,
+        maxAmountMillsExclusive: tier.max === null ? null : tier.max * MILLS,
+        entryCount: lifetimes.filter((mills) => mills >= tier.min * MILLS && (tier.max === null || mills < tier.max * MILLS)).length,
+      }));
+      return ok({
+        ...SCENARIO_DATA.tierBuckets,
+        page: pageRefOf(page),
+        period: this.periodMeta('lifetime', undefined, undefined, now),
+        asOf: iso(now),
+        totalEntries: lists.reduce((sum, list) => sum + list.entryCount, 0),
+        lists,
+      });
+    }
     return ok({ ...SCENARIO_DATA.tierBuckets, page: pageRefOf(page), period: this.periodMeta('lifetime', undefined, undefined, now), asOf: iso(now), lists: [...SCENARIO_DATA.tierBuckets.lists] });
   }
 
@@ -380,6 +463,20 @@ export class DataModel {
 
   private queue(page: FakePage, now: number): QueuePage['items'] {
     void page;
+    if (this.seeds.length > 0) {
+      return this.seeds
+        .filter((seed) => seed.awaiting === true)
+        .map((seed) => ({
+          fanRef: seed.fanRef,
+          username: seed.username ?? `fan_${seed.fanRef}`,
+          displayName: seed.displayName ?? null,
+          lifetimeGrossMills: Math.round((seed.lifetimeUsd ?? 0) * MILLS),
+          lastFanMessageAt: iso(now - (seed.fanWroteAgoSec ?? 0) * 1000),
+          lastModelMessageAt: seed.weWroteAgoSec === undefined || seed.weWroteAgoSec === null ? null : iso(now - seed.weWroteAgoSec * 1000),
+          unreadCount: 1,
+          readState: 'unread' as const,
+        }));
+    }
     return Array.from({ length: QUEUE_SEEDS }, (_, i) => ({
       fanRef: String(SPENDER_FAN_BASE + i * 3),
       username: `fan_${i * 3}`,
@@ -437,7 +534,7 @@ export class DataModel {
 
   private knowsFanStatic(fanRef: string): boolean {
     const n = Number(fanRef);
-    return fanRef === WORLD.fan || (n >= Number(WORLD.newFan) && n < Number(WORLD.newFan) + AUDIENCE_SEEDS) || (n >= SPENDER_FAN_BASE && n < SPENDER_FAN_BASE + 1240);
+    return fanRef === WORLD.fan || this.seedOf(fanRef) !== null || (n >= Number(WORLD.newFan) && n < Number(WORLD.newFan) + AUDIENCE_SEEDS) || (n >= SPENDER_FAN_BASE && n < SPENDER_FAN_BASE + 1240);
   }
 
   /** A message lands in the archive: the feed head moves and the snapshot changes. */
@@ -662,8 +759,16 @@ export class DataModel {
   dossier(page: FakePage, fanRef: string, spendersTotal: number): Read<Dossier> {
     if (!this.knowsFan(page, fanRef, spendersTotal)) return no('not_found');
     const named = fanRef === WORLD.fan;
+    const seed = this.seedOf(fanRef);
     return ok({
-      fan: { platform: 'onlyfans', platformUserId: fanRef, username: named ? 'fan_two' : `fan_${fanRef}`, displayName: named ? 'Fan Two' : null, createdAtExternal: null, pageAlias: null },
+      fan: {
+        platform: 'onlyfans',
+        platformUserId: fanRef,
+        username: seed?.username ?? (named ? 'fan_two' : `fan_${fanRef}`),
+        displayName: seed?.displayName ?? (named ? 'Fan Two' : null),
+        createdAtExternal: null,
+        pageAlias: null,
+      },
       profile: this.dossiers.get(this.key(page.pageLabel, fanRef)) ?? null,
     });
   }

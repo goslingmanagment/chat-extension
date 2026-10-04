@@ -12,11 +12,15 @@ import { type RpcSenderContext } from '@cg/platform';
 import { type PageLookup } from './hub-data';
 
 /** The code a tab's patch is refused with, or null when it may go on to the settings owner. */
-export function personaPatchRefusal(patch: SettingsPatch, sender: RpcSenderContext, pageOf: (pageId: number, sender: RpcSenderContext) => PageLookup): CgCode | null {
+export async function personaPatchRefusal(
+  patch: SettingsPatch,
+  sender: RpcSenderContext,
+  pageOf: (pageId: number, sender: RpcSenderContext) => PageLookup | Promise<PageLookup>,
+): Promise<CgCode | null> {
   if (sender.kind !== 'tab' || patch.personas === undefined) return null;
   // Setting and removing alike: every page the patch names must be one of the tab's own.
   for (const key of Object.keys(patch.personas.byPageId)) {
-    const page = pageOf(Number(key), sender);
+    const page = await pageOf(Number(key), sender);
     if (!page.ok) return page.code;
   }
   return null;

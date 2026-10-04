@@ -9,19 +9,25 @@
 // (it says yes unless the spec turns it off). Nothing here talks to the
 // network; the e2e network trap would catch it.
 
-import type { InsertIntent, InsertReceipt, NavigationReceipt } from '@cg/contracts/host';
-import type { HostIdentity } from '@cg/contracts/ids';
-import { startChatSpaceHost, type ChatSpaceHostPort, type OverlayLayer } from '@cg/host-chatspace/isolated';
+import type { HostEvent, InsertIntent, InsertReceipt, NavigationReceipt } from '@cg/contracts/host';
+import type { HostIdentity, Target } from '@cg/contracts/ids';
+import type { FreshnessCheckpoint, PreviewSendCommit, PreviewSendPreflight, PreviewSendRequest, SendAttemptView } from '@cg/contracts/send';
+import { ADAPTER_VERSION, aiGeneratedMark, loadValidation, loadedScriptUrls, receiptModules, startChatSpaceHost, type ChatSpaceHostPort, type ChatSpaceLiveConfig, type OverlayLayer } from '@cg/host-chatspace/isolated';
 
 const TOKEN = 'tok_e2e_harness_0000';
 let redeemAllowed = true;
 const redeemed: string[] = [];
 const diagnostics: unknown[] = [];
 const events: Record<string, number> = {};
+/** Facts of the live side as they came: incoming messages, coverage, human sends (never a text). */
+const liveEvents: HostEvent[] = [];
+/** Every state MAIN reported per preview send attempt, in order. */
+const sendStates: Record<string, SendAttemptView[]> = {};
 let host: ChatSpaceHostPort | null = null;
 
 const started = startChatSpaceHost({
   win: window,
+  validation: loadValidation,
   redeem: (request) => {
     redeemed.push(request.kind);
     return Promise.resolve(redeemAllowed);
@@ -34,6 +40,7 @@ void started.host.then((port) => {
   host = port;
   port.subscribe((event) => {
     events[event.type] = (events[event.type] ?? 0) + 1;
+    if (event.type === 'incoming' || event.type === 'coverage' || event.type === 'humanSend') liveEvents.push(event);
   });
 });
 
@@ -81,6 +88,48 @@ function buildIntent(base: HostIdentity, draft: { readonly revision: number; rea
 async function intentFor(options: InsertOptions): Promise<InsertIntent> {
   const base = options.from?.identity ?? identity();
   return buildIntent(base, options.from ?? (await need().readDraft(base)), options);
+}
+
+/** What the spec says about one preview send; the rest is filled in the way a controller would. */
+interface SendOptions {
+  readonly acc: string;
+  readonly fan: string;
+  readonly platformAccountId: string;
+  readonly text: string;
+  readonly attemptId?: string;
+  /** The checkpoint of Generate; taken now when absent. */
+  readonly checkpoint?: FreshnessCheckpoint;
+  /** The AI part the text came from (the mark is ChatSpace's own rule against it); the text itself by default. */
+  readonly original?: string;
+  readonly part?: number;
+  /** The hub ticket's lifetime from now, ms. */
+  readonly ticketMs?: number;
+  /** Skip the preflight (a click on a button that was ready a moment ago). */
+  readonly skipPreflight?: boolean;
+}
+
+/** A synthetic hub binding: the adapter never sends it to MAIN (the spec checks that nothing of it reaches the page). */
+const targetOf = (options: SendOptions): Target => ({
+  binding: { hubOrigin: 'https://hub.example.test', principalId: 7, loginEpoch: 1, host: 'chatspace', hostAccountId: options.acc, platform: 'onlyfans', platformAccountId: options.platformAccountId, pageId: 11, pageLabel: 'stand-page', bindingRevision: 1 },
+  chat: { host: 'chatspace', hostAccountId: options.acc, platformFanId: options.fan },
+  fanRef: options.fan,
+  conversationRef: options.fan,
+});
+
+async function sendRequest(options: SendOptions): Promise<PreviewSendRequest | null> {
+  const checkpoint = options.checkpoint ?? (await need().checkpoint({ host: 'chatspace', hostAccountId: options.acc, platformFanId: options.fan }));
+  if (!checkpoint) return null;
+  return {
+    attemptId: options.attemptId ?? crypto.randomUUID(),
+    target: targetOf(options),
+    generationRef: crypto.randomUUID(),
+    part: { index: options.part ?? 0 },
+    previewRevision: 0,
+    plainText: options.text,
+    isAiGenerated: aiGeneratedMark(options.text, options.original ?? options.text),
+    checkpoint,
+    cause: { kind: 'click', actionToken: TOKEN },
+  };
 }
 
 /** Iterations of the last race that had no identity to aim an insert at. */
@@ -209,6 +258,73 @@ const api = {
       root.append(block);
     }
     return started.mounts.dock.host.getBoundingClientRect().height;
+  },
+  // ── the live side (§6.6–§6.8): flags, checkpoint, preview send, facts ──
+
+  /** The bootstrap's flags and receipt profiles, as the composition root would pass them. */
+  async configure(config: ChatSpaceLiveConfig) {
+    const report = await need().configure(config);
+    return { capabilities: report.capabilities, anchors: report.anchors, adapterVersion: report.adapterVersion };
+  },
+  /** The fingerprints of the send-path modules this page has loaded: what a profile for this stand build must name. */
+  receiptProfile() {
+    return { id: 'stand', adapterVersion: ADAPTER_VERSION, modules: receiptModules(loadedScriptUrls(window), window.location.origin) };
+  },
+  previewSendAvailable() {
+    return need().previewSend !== null;
+  },
+  checkpoint(acc: string, fan: string) {
+    return need().checkpoint({ host: 'chatspace', hostAccountId: acc, platformFanId: fan });
+  },
+  async preflight(options: SendOptions): Promise<PreviewSendPreflight | { ok: false; code: 'no-port' | 'no-checkpoint' }> {
+    const port = need().previewSend;
+    if (!port) return { ok: false, code: 'no-port' };
+    const request = await sendRequest(options);
+    return request ? port.preflight(request) : { ok: false, code: 'no-checkpoint' };
+  },
+  /**
+   * One click of «Отправить»: the preflight, then (the hub's dispatch is the
+   * background's; here a ticket is simply at hand) the one queue call. Every
+   * state MAIN observes afterwards is kept for `sendStates`.
+   */
+  async send(options: SendOptions): Promise<{ attemptId: string | null; preflight: PreviewSendPreflight | null; commit: PreviewSendCommit | null; reason?: string }> {
+    const port = need().previewSend;
+    if (!port) return { attemptId: null, preflight: null, commit: null, reason: 'no-port' };
+    const request = await sendRequest(options);
+    if (!request) return { attemptId: null, preflight: null, commit: null, reason: 'no-checkpoint' };
+    const attemptId = request.attemptId;
+    const preflight = options.skipPreflight ? null : await port.preflight(request);
+    if (preflight && !preflight.ok) return { attemptId, preflight, commit: null };
+    sendStates[attemptId] ??= [];
+    port.onState(attemptId, (view) => sendStates[attemptId]?.push(view));
+    const commit = await port.commit(request, { attemptId, ticket: 'stand-ticket', expiresAt: Date.now() + (options.ticketMs ?? 10_000) });
+    return { attemptId, preflight, commit };
+  },
+  /** N clicks at once: the same attempt N times, or N attempts for N fans of one account. */
+  async burst(options: SendOptions & { readonly n: number; readonly fans?: readonly string[] }) {
+    const port = need().previewSend;
+    if (!port) return [];
+    const requests: PreviewSendRequest[] = [];
+    if (options.fans) {
+      for (const fan of options.fans) {
+        const request = await sendRequest({ ...options, fan });
+        if (request) requests.push(request);
+      }
+    } else {
+      const request = await sendRequest(options);
+      if (request) for (let i = 0; i < options.n; i += 1) requests.push(request);
+    }
+    for (const request of requests) {
+      sendStates[request.attemptId] ??= [];
+      if (sendStates[request.attemptId]?.length === 0) port.onState(request.attemptId, (view) => sendStates[request.attemptId]?.push(view));
+    }
+    return Promise.all(requests.map((request) => port.commit(request, { attemptId: request.attemptId, ticket: 'stand-ticket', expiresAt: Date.now() + 10_000 })));
+  },
+  sendStates(attemptId: string) {
+    return sendStates[attemptId] ?? [];
+  },
+  liveEvents(type?: string) {
+    return type === undefined ? liveEvents : liveEvents.filter((event) => event.type === type);
   },
   raceSkipped: () => racesSkipped,
   /**

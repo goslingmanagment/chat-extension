@@ -61,6 +61,9 @@ export const config: WebdriverIO.Config = {
           'privacy.reduceTimerPrecision': false,
           // No first-run prompt; the rest of the quiet profile comes with the egress prefs.
           'browser.shell.checkDefaultBrowser': false,
+          // The extension's notification tones are really played by the event page's AudioContext: the
+          // machine that runs the e2e stays silent, the decisions are read from the diagnostics.
+          'media.volume_scale': '0.0',
         },
       },
     },

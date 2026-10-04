@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { alarmCreateInfo, createAlarms } from './alarms';
-import { clientOsOf, majorVersionOf, readClientEnv } from './env';
+import { clientOsOf, extensionVersionOf, majorVersionOf, readClientEnv } from './env';
 import { createConsent, createHostPermissions, originPermission, TECHNICAL_CONSENT } from './permissions';
 import { createLifecycle } from './lifecycle';
 import { extensionId, extensionUrl, isExtensionContextAlive } from './runtime';
@@ -148,6 +148,9 @@ describe('[EX-018] Firefox specifics', () => {
       browserMajor: 142,
       os: 'other',
     });
+    // A page prints the version before anything answered: read at once, a placeholder when unreadable.
+    expect(extensionVersionOf(api)).toBe('1.2.3');
+    expect(extensionVersionOf(noInfo)).toBe('0.0.0');
     expect(clientOsOf('win')).toBe('windows');
     expect(clientOsOf('linux')).toBe('linux');
     expect(clientOsOf('android')).toBe('other');

@@ -188,7 +188,7 @@ describe('stand smoke — the test build on the ChatSpace-like fixture', () => {
 
   // Last: it leaves the stand for our own extension page.
   it('a request of the extension background shows in the egress sink (the BiDi log does not see background pages)', async () => {
-    // A page that asks the background nothing by itself; the probe is asked for through storage.local,
+    // The journal page, which asks the background for no status; the probe is asked for through storage.local,
     // which only our own pages can write.
     await browser.url(testBuildPage());
     await writeLocalStorage({ [EGRESS_PROBE_KEY]: Date.now() });

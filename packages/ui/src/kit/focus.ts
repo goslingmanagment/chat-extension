@@ -101,6 +101,23 @@ export function rovingIndex(key: string, current: number, count: number, orienta
   return null;
 }
 
+/**
+ * True for the auto-repeat of a held key. One press is one action (ui-design
+ * §6.3, architecture.md §6.4): Enter that inserted a part hands focus to
+ * ChatSpace's composer, where Enter sends, so nothing of ours acts on a
+ * repeat — not twice on the same thing, not on what took focus meanwhile.
+ * The first press on a button is the browser's own click; its repeats are
+ * swallowed by `swallowHeldEnter`.
+ */
+export function isHeldKey(event: KeyboardEvent): boolean {
+  return event.repeat;
+}
+
+/** For a <button>: the browser clicks it on every repeat of a held Enter; only the first press counts. */
+export function swallowHeldEnter(event: KeyboardEvent): void {
+  if (event.key === 'Enter' && event.repeat) event.preventDefault();
+}
+
 /** True for a key event that is part of an IME composition (never act on it). */
 export function isComposing(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;

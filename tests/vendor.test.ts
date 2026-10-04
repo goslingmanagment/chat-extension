@@ -65,7 +65,7 @@ describe('vendored @chatgoose/hotkeys', () => {
   const manifest = readJson(join(hotkeysDir, 'chatgoose-hotkeys.vendor.json'));
   const files = manifest['files'] as Record<string, string>;
 
-  it('matches its manifest file by file', () => {
+  it('[HK-033] matches its manifest file by file', () => {
     for (const [file, hash] of Object.entries(files)) {
       expect(sha256(readFileSync(join(hotkeysDir, file))), file).toBe(hash);
     }

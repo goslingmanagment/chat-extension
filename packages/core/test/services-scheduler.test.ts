@@ -15,6 +15,9 @@ import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
 import { NOW_MS, WORLD, chatOf, checkpointFor, persona, session, startOf, targetOf, uuid } from './support/world';
 
+/** What the scheduler reads of a tab's presence, as a tab reports it. */
+type ShownTab = Pick<TabPresence, 'chat' | 'routeEpoch' | 'visible' | 'focused'>;
+
 const TAB = uuid(0xa1);
 const OTHER_TAB = uuid(0xa2);
 
@@ -46,8 +49,8 @@ interface Harness {
   readonly log: LogRecorder;
   readonly tokens: ActionTokens;
   readonly scheduler: OpScheduler;
-  readonly presence: Map<string, TabPresence>;
-  readonly hooks: { catalog: number; bootstrap: number; recaps: OpView[]; prompts: string[] };
+  readonly presence: Map<string, ShownTab>;
+  readonly hooks: { catalog: number; bootstrap: number; recaps: OpView[]; prompts: string[]; usages: { feature: string; costMicroUsd: number }[] };
   env: OpsEnvironment;
   start(tab: string, start: StartOp, opts?: { fanLabel?: string }): ReturnType<OpScheduler['start']>;
   /** The opId the next admission gets. */
@@ -62,8 +65,8 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
   const store = over.store ?? new MemoryStore();
   const log = new LogRecorder();
   const tokens = new ActionTokens(clock, ids);
-  const presence = new Map<string, TabPresence>();
-  const counters = { catalog: 0, bootstrap: 0, recaps: [] as OpView[], prompts: [] as string[] };
+  const presence = new Map<string, ShownTab>();
+  const counters = { catalog: 0, bootstrap: 0, recaps: [] as OpView[], prompts: [] as string[], usages: [] as { feature: string; costMicroUsd: number }[] };
   const hooks: OpSchedulerHooks = {
     refreshCatalog: () => {
       counters.catalog += 1;
@@ -77,6 +80,9 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
     debugInput: (opId) => {
       counters.prompts.push(opId);
       return `prompt_${opId.slice(-4)}`;
+    },
+    usage: (feature, usage) => {
+      counters.usages.push({ feature, costMicroUsd: usage.costMicroUsd });
     },
   };
   const h: Harness = {
@@ -559,6 +565,28 @@ describe('[AI-124] [AI-126] [AI-130] [AI-131] [BG-006] the run lives in the back
     expect(h.scheduler.view(a)).toBeNull();
   });
 
+  it('[AI-126] the hub layer cut the stream of a sign-in that ended before anyone heard of the change: canceled with CG-CONTEXT-CHANGED, not a hub failure, never retried', async () => {
+    const h = harness();
+    let posts = 0;
+    // The custody erased the sign-in and aborted its streams; `session.changed` has not been emitted yet.
+    h.hub.stream = () => {
+      posts += 1;
+      h.env = { ...h.env, session: null };
+      return Promise.reject(hubError('aiFeatureStream', { kind: 'transport', failure: 'aborted' }, session.epoch));
+    };
+    const aborted = opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(10_000);
+    expect(h.scheduler.view(aborted)).toMatchObject({ state: 'canceled', error: { code: 'CG-CONTEXT-CHANGED' } });
+    expect(posts).toBe(1);
+    expect(h.events.of('toast').map((toast) => toast.payload.toast.code)).toEqual([]);
+    // An abort while the sign-in stands is not that: it is read as any other failure of the stream.
+    const standing = harness();
+    standing.hub.stream = () => Promise.reject(hubError('aiFeatureStream', { kind: 'transport', failure: 'aborted' }, session.epoch));
+    const failed = opIdOf(await standing.start(TAB, startOf()));
+    await standing.clock.advance(100);
+    expect(standing.scheduler.view(failed)?.state).toBe('failed');
+  });
+
   it('[AU-018] a re-sign-in of the same user keeps nothing of the old epoch', async () => {
     const h = harness();
     const op = h.nextOp();
@@ -733,6 +761,79 @@ describe('[DB-018] [DB-022] AI spend in the log', () => {
     expect(typeof usage[0]?.fields?.['inputTokens']).toBe('number');
     expect(h.scheduler.view(op)?.debug).toBeUndefined();
     expect(JSON.stringify(usage)).not.toMatch(/Looking at spend/);
+    // The local spend journal of debug mode hears the same frame once, numbers only.
+    expect(h.hooks.usages).toEqual([{ feature: 'recap', costMicroUsd: 3100 }]);
+  });
+});
+
+describe('what a change of the person or a cleanup takes away (§9.4)', () => {
+  const finished = async (h: Harness, start: StartOp): Promise<string> => {
+    const op = `00000000-0000-4000-8000-${(0x100 + h.hub.streams.length).toString(16).padStart(12, '0')}`;
+    h.hub.streamScript.push(...forOp(scenario('reply-normal'), op, uuid(0x300 + h.hub.streams.length)));
+    const admitted = opIdOf(await h.start(TAB, start));
+    await h.clock.advance(1000);
+    expect(h.scheduler.view(admitted)?.state).toBe('done');
+    return admitted;
+  };
+
+  it('a sign-out takes the quota of the previous person with the results; the same sign-in keeps both', async () => {
+    const h = harness();
+    await finished(h, startOf());
+    expect(h.scheduler.quota(WORLD.pages.one.pageId)).not.toBeNull();
+    h.scheduler.environmentChanged({ kind: 'session', next: session });
+    expect(h.scheduler.quota(WORLD.pages.one.pageId)).not.toBeNull();
+    h.scheduler.environmentChanged({ kind: 'session', next: null });
+    expect(h.scheduler.quota(WORLD.pages.one.pageId)).toBeNull();
+  });
+
+  it('[ST-110] «Очистить локальные данные»: finished results leave memory and storage, a running operation stays and ends as usual', async () => {
+    const h = harness();
+    const done = await finished(h, startOf());
+    const op = `00000000-0000-4000-8000-${(0x101).toString(16).padStart(12, '0')}`;
+    h.hub.streamScript.push({ kind: 'stream', steps: [{ kind: 'frame', frame: { ...meta('fast-reply'), clientRequestId: op } }, deltaStep('Still here', 5000), doneStep] });
+    const running = opIdOf(await h.start(TAB, startOf({ target: targetOf(WORLD.otherFan) })));
+    await h.clock.advance(100);
+
+    expect(h.scheduler.clearFinished()).toBe(1);
+    expect(h.scheduler.view(done)).toBeNull();
+    expect(h.scheduler.view(running)?.state).toBe('streaming');
+    await h.scheduler.idle();
+    expect(JSON.stringify(h.store.data.get(OPS_STORE_KEY))).not.toContain(done);
+    // The same request is a new generation now: its cached result is gone.
+    expect(h.scheduler.clearFinished()).toBe(0);
+    await h.clock.advance(6000);
+    expect(h.scheduler.view(running)).toMatchObject({ state: 'done', result: { parts: ['Still here'] } });
+  });
+});
+
+describe('[AI-133] the hub layer’s own retry is shown by the operation', () => {
+  it('«Сервис недоступен, повтор через 5 с…»: the phase is retry-wait with its time until the next frame; nothing is POSTed from here', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    // The facade holds the stream open across its own pause and retry: one call, frames after 5 s.
+    h.hub.streamScript.push({ kind: 'stream', steps: [{ kind: 'frame', frame: { ...meta('fast-reply'), clientRequestId: op }, afterMs: 5000 }, deltaStep('Back online'), doneStep] });
+    opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(10);
+    h.scheduler.noteRetry(op, NOW_MS + 5010);
+    expect(h.scheduler.view(op)?.phase).toMatchObject({ name: 'retry-wait', retryAt: NOW_MS + 5010 });
+    expect(h.events.of('op.update').at(-1)?.payload.phase).toMatchObject({ name: 'retry-wait', retryAt: NOW_MS + 5010 });
+    await h.clock.advance(6000);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'done', result: { parts: ['Back online'] } });
+    expect(h.hub.streams).toHaveLength(1);
+  });
+
+  it('a notice for an operation that already got a frame, has ended or is unknown changes nothing', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    h.hub.streamScript.push({ kind: 'stream', steps: [{ kind: 'frame', frame: { ...meta('fast-reply'), clientRequestId: op } }, deltaStep('Hi', 3000), doneStep] });
+    opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(100);
+    h.scheduler.noteRetry(op, NOW_MS + 9000);
+    expect(h.scheduler.view(op)?.phase.name).toBe('awaiting-first-chunk');
+    await h.clock.advance(4000);
+    h.scheduler.noteRetry(op, NOW_MS + 9000);
+    expect(h.scheduler.view(op)?.phase.name).toBe('settled');
+    expect(() => h.scheduler.noteRetry(uuid(0xfff), NOW_MS)).not.toThrow();
   });
 });
 

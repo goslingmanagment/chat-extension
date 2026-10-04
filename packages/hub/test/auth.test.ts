@@ -7,7 +7,9 @@ import { STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode } from '@cg/
 import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, WORLD, at, streamBody } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthCustody } from '../src/auth';
 import { errorWireOf, sdkStreamTransport, type HubStatus } from '../src/index';
+import { SILENT_LOG, SYSTEM_CLOCK } from '../src/ports';
 import { MemoryStore, hubError, json, testEnv } from './support/fake-hub';
 import { flush, makeHarness, signIn, until, type Harness } from './support/harness';
 import { okBody, scenarioNamed, signInWorld } from './support/world';
@@ -194,7 +196,17 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
     expect(h.facade.session()).toBeNull();
   });
 
-  it('[HB-011] the documented dev/compat mode (debug on) keeps a full token and says so in the status', async () => {
+  it('[AU-029] a release build with debug mode on is still a release build: no `client` echo — the full token is revoked, nothing is stored', async () => {
+    h.env.debug = true;
+    await expect(signIn(h, { ...WORLD_PILOT, issued: fullToken })).rejects.toMatchObject({ name: 'HubCheckError', check: 'narrowTokenMissing', code: 'CG-HUB-OUTDATED' });
+    await flush();
+    expect(h.hub.of('authRevokeCurrentDeviceToken')).toHaveLength(1);
+    expect(h.local.writes).toEqual([]);
+    expect(h.facade.session()).toBeNull();
+  });
+
+  it('[HB-011] the documented dev/compat mode (a test build with debug on) keeps a full token and says so in the status', async () => {
+    h.env.testBuild = true;
     h.env.debug = true;
     const bootstrap = { ...BOOTSTRAP_PILOT_ON, identity: { ...BOOTSTRAP_PILOT_ON.identity, tokenClient: null } };
     await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
@@ -207,7 +219,7 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
     expect(h.facade.session()).not.toBeNull();
     expect(h.facade.status()).toMatchObject({ state: 'stopped', lastError: { code: 'CG-HUB-OUTDATED' } });
     expect(h.hub.of('authRevokeCurrentDeviceToken')).toEqual([]);
-    // …the explicit debug-off transition does: not kept in a release build.
+    // …the explicit debug-off transition does: a full token does not outlive debug mode.
     await h.facade.notifyDebugChanged();
     expect(h.facade.session()).toBeNull();
     expect(h.facade.status().lastEnd).toMatchObject({ reason: 'outdated', code: 'CG-HUB-OUTDATED' });
@@ -216,11 +228,12 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
   });
 
   it('[HB-011] a background restart before the settings load never erases the developer\'s full token', async () => {
+    h.env.testBuild = true;
     h.env.debug = true;
     const bootstrap = { ...BOOTSTRAP_PILOT_ON, identity: { ...BOOTSTRAP_PILOT_ON.identity, tokenClient: null } };
     await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
     // The restarted background reads debug as off until the settings arrive.
-    const env = testEnv({ debug: false });
+    const env = testEnv({ debug: false, testBuild: true });
     const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub, env });
     await restarted.facade.ready;
     await flush(20);
@@ -347,6 +360,77 @@ describe('[AU-014] an answer to an old token never touches a newer sign-in', () 
     expect(h.facade.session()).toEqual(sessionB);
     expect((h.local.data.get(STORAGE_KEYS.authToken) as { token: string }).token).toBe(tokenB);
     expect(h.changes.map((change) => change.reason)).toEqual(['sign-in', 'sign-in']);
+  });
+});
+
+describe('[AU-014] the 401 rule re-checks which sign-in is current, twice', () => {
+  const tokenB = 'cgx_synthetic_token_0002';
+
+  it('[AU-014] [AU-012] a late 401 token_revoked on the OLD sign-in\'s stream leaves the new sign-in intact', async () => {
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: sdkStreamTransport });
+    await signIn(h, WORLD_PILOT);
+    const late = deferred<Response>();
+    h.hub
+      .on('aiFeatureStream', () => late.promise)
+      .on('authIssueDeviceTokenWithPassword', () => json(200, { ...WORLD_PILOT.issued, token: tokenB, keyPrefix: 'cgx_syn2' }));
+    const request = { feature: 'fast-reply' as const, body: streamBody({ replyTone: 'none' }), capabilities: [] };
+    // The stream keeps its own signal here: only the hub's late answer ends it.
+    const oldStream = h.facade.stream(request, () => undefined, new AbortController().signal).catch((error: unknown) => error);
+    await until(() => h.hub.of('aiFeatureStream').length === 1);
+    const sessionB = await h.facade.signIn(WORLD.user.username, PASSWORD);
+    expect(sessionB.epoch).toBe(2);
+    late.resolve(hubError(401, 'unauthorized', 'token_revoked'));
+    await oldStream;
+    await flush(20);
+    expect(h.facade.session()).toEqual(sessionB);
+    expect((h.local.data.get(STORAGE_KEYS.authToken) as { token: string }).token).toBe(tokenB);
+    expect(h.changes.map((change) => change.reason)).toEqual(['sign-in', 'sign-in']);
+    expect(h.facade.status().lastEnd).toBeNull();
+  });
+
+  it('[AU-014] [AU-009] a 401 of the sign-in that is being replaced waits behind the new sign-in and is then dropped', async () => {
+    await signIn(h, WORLD_PILOT);
+    const gate = deferred<Response>();
+    h.hub
+      .on('authIssueDeviceTokenWithPassword', () => gate.promise)
+      .on('clientBootstrap', (request) => (request.headers['authorization'] === `Bearer ${TOKEN}` ? hubError(401, 'unauthorized', 'token_revoked') : json(200, BOOTSTRAP_PILOT_ON)));
+    // «Войти заново» is running: the old sign-in is still the current one when its 401 lands,
+    // so the erase is queued — behind the sign-in that replaces it.
+    const signingIn = h.facade.signIn(WORLD.user.username, PASSWORD);
+    await flush();
+    expect(await codeOf(h.facade.bootstrap({ force: true }))).toBe('CG-AUTH-REVOKED');
+    await flush(20);
+    expect(h.facade.session()?.epoch).toBe(1);
+    gate.resolve(json(200, { ...WORLD_PILOT.issued, token: tokenB, keyPrefix: 'cgx_syn2' }));
+    const sessionB = await signingIn;
+    await flush(20);
+    expect(sessionB.epoch).toBe(2);
+    expect(h.facade.session()).toEqual(sessionB);
+    expect((h.local.data.get(STORAGE_KEYS.authToken) as { token: string }).token).toBe(tokenB);
+    expect(h.changes.map((change) => change.reason)).toEqual(['sign-in', 'sign-in']);
+    expect(h.facade.status().lastEnd).toBeNull();
+  });
+
+  it('[AU-014] the custody refuses a report that names another epoch or another token before anything is queued', async () => {
+    const local = new MemoryStore();
+    const custody = new AuthCustody({ local, clock: SYSTEM_CLOCK, log: SILENT_LOG, configuredOrigin: () => 'https://hub.test' });
+    await custody.load();
+    const tokenMeta = { keyPrefix: 'cgx_syn1', issuedAt: NOW, expiresAt: NOW, label: 'Firefox · macOS · ChatSpace', version: '0.1.0' };
+    const user = { userId: WORLD.user.userId, login: WORLD.user.username, role: 'chatter' as const };
+    await custody.transition(() => custody.commitSignIn({ token: TOKEN, hubOrigin: 'https://hub.test', user, narrow: true, tokenMeta }));
+    const writes = local.writes.length;
+    // Nothing queued: the erase is not even put behind the transitions that run.
+    expect(custody.reportUnauthorized(0, TOKEN, 'token_revoked')).toBe(false);
+    expect(custody.reportUnauthorized(1, tokenB, 'token_revoked')).toBe(false);
+    expect(custody.reportUnauthorized(1, TOKEN, null)).toBe(false);
+    expect(custody.reportUnauthorized(1, TOKEN, 'something_else')).toBe(false);
+    await flush(20);
+    expect(custody.session()?.epoch).toBe(1);
+    expect(local.writes).toHaveLength(writes);
+    expect(custody.reportUnauthorized(1, TOKEN, 'token_expired')).toBe(true);
+    await flush(20);
+    expect(custody.session()).toBeNull();
+    expect(custody.lastEnd()).toMatchObject({ reason: 'expired', code: 'CG-AUTH-EXPIRED' });
   });
 });
 

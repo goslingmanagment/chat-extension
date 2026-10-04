@@ -22,3 +22,6 @@ export async function importWithRetry<T>(
     return (await importer(`${url}?retry=1`)) as T;
   }
 }
+
+/** A lazy ESM chunk by its entry name (lazy/vite.config.ts, LAZY_ENTRIES), as a path inside the extension. */
+export const lazyPath = (entry: string): string => `lazy/${entry}.js`;

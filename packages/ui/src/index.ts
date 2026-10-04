@@ -3,11 +3,11 @@
 // fetch or timers in idle (§4). Function components and hooks only — the
 // common subset of Preact 10 and 11 (D-05).
 //
-// What is here now is TEMPORARY scaffolding of the M1 integration step: a
-// status row for the dock (R14 builds the dock) and minimal options and popup
-// pages (R16 builds the pages). The kit they are made of is `@cg/ui/kit`.
+// Every surface has its own subpath, and a bundle takes only the one it
+// mounts: `@cg/ui/dock`, `@cg/ui/overlays`, `@cg/ui/spenders`,
+// `@cg/ui/newcomers`, `@cg/ui/fanpanel`, `@cg/ui/palette`, `@cg/ui/pages`.
+// The kit all of them use is `@cg/ui/kit`. This root entry exports nothing on
+// purpose: importing «the UI» as a whole would pull every surface into one
+// chunk.
 
-export { TEMP_DOCK_STYLES, TempDockStatus, mountTempDock, type TempDockSmokeModel, type TempDockStatusProps } from './dock';
-export { mountPagePlaceholder, mountTempPage } from './pages/mount';
-export { TEMP_PAGES_STYLES, TempOptions, TempPopup, type TempPagePort, type TempPageStatus } from './pages/TempPages';
-export type { PlaceholderProps } from './pages/Placeholder';
+export {};

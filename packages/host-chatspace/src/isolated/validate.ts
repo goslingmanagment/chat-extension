@@ -10,6 +10,7 @@
 import { BridgeEventEnvelopeSchema, BridgeResponseSchema, checkBridgeFrame, type BridgeError, type BridgeRejectReason, type FromMainType, type ToMainType } from '@cg/contracts/bridge';
 import { FROM_MAIN, parseBridgeData, type FromMainPayload, type ToMainData } from '@cg/contracts/bridge-messages';
 import { InsertIntentSchema, NavigationIntentSchema } from '@cg/contracts/host';
+import { DispatchTicketSchema, PreviewSendRequestSchema } from '@cg/contracts/send';
 
 export type CheckedFrame =
   | { readonly kind: 'res'; readonly id: number; readonly t: ToMainType; readonly documentEpoch: string; readonly ok: true; readonly data: unknown }
@@ -49,3 +50,5 @@ export function parseEvent<T extends FromMainType>(t: T, payload: unknown): From
 /** HostPort inputs from our own controllers: a broken one is a programming error, not a host refusal. */
 export const isInsertIntent = (value: unknown): boolean => InsertIntentSchema.safeParse(value).success;
 export const isNavigationIntent = (value: unknown): boolean => NavigationIntentSchema.safeParse(value).success;
+export const isPreviewSendRequest = (value: unknown): boolean => PreviewSendRequestSchema.safeParse(value).success;
+export const isDispatchTicket = (value: unknown): boolean => DispatchTicketSchema.safeParse(value).success;

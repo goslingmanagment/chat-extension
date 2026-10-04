@@ -20,27 +20,27 @@ const pageOf = (asked: Array<[number, string]>) => (pageId: number, sender: RpcS
 };
 
 describe('settings.patch from a tab', () => {
-  it('a tab sets and removes the persona of a page of its own binding', () => {
+  it('a tab sets and removes the persona of a page of its own binding', async () => {
     const asked: Array<[number, string]> = [];
-    expect(personaPatchRefusal({ personas: { byPageId: { '11': persona } } }, TAB, pageOf(asked))).toBeNull();
-    expect(personaPatchRefusal({ personas: { byPageId: { '11': null } } }, TAB, pageOf(asked))).toBeNull();
+    expect(await personaPatchRefusal({ personas: { byPageId: { '11': persona } } }, TAB, pageOf(asked))).toBeNull();
+    expect(await personaPatchRefusal({ personas: { byPageId: { '11': null } } }, TAB, pageOf(asked))).toBeNull();
     expect(asked).toEqual([[11, 'tab'], [11, 'tab']]);
   });
 
-  it('a tab is refused the persona of a page it is not bound to — set or removed, alone or next to its own page', () => {
+  it('a tab is refused the persona of a page it is not bound to — set or removed, alone or next to its own page', async () => {
     const patches: SettingsPatch[] = [
       { personas: { byPageId: { '12': persona } } },
       { personas: { byPageId: { '12': null } } },
       { personas: { byPageId: { '11': persona, '13': persona } } },
       { ui: { locale: 'en' }, personas: { byPageId: { '13': persona } } },
     ];
-    for (const patch of patches) expect(personaPatchRefusal(patch, TAB, pageOf([]))).toBe('CG-BINDING-NOT-GRANTED');
+    for (const patch of patches) expect(await personaPatchRefusal(patch, TAB, pageOf([]))).toBe('CG-BINDING-NOT-GRANTED');
   });
 
-  it('a patch without personas is not the guard’s business, and the options page is not limited here', () => {
+  it('a patch without personas is not the guard’s business, and the options page is not limited here', async () => {
     const asked: Array<[number, string]> = [];
-    expect(personaPatchRefusal({ ui: { locale: 'en' }, sound: { volume: 40 } }, TAB, pageOf(asked))).toBeNull();
-    expect(personaPatchRefusal({ personas: { byPageId: { '12': persona, '13': persona } } }, OPTIONS, pageOf(asked))).toBeNull();
+    expect(await personaPatchRefusal({ ui: { locale: 'en' }, sound: { volume: 40 } }, TAB, pageOf(asked))).toBeNull();
+    expect(await personaPatchRefusal({ personas: { byPageId: { '12': persona, '13': persona } } }, OPTIONS, pageOf(asked))).toBeNull();
     expect(asked).toEqual([]);
   });
 });

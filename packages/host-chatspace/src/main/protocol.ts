@@ -25,12 +25,13 @@ export const ERR_DISABLED = 'disabled';
 export const ERR_INTERNAL = 'internal';
 
 /**
- * The typed «not yet» of part A: the X8 send port and the freshness
- * checkpoint (§6.6–§6.8) land with part B. Until then MAIN refuses these
- * requests BEFORE executing anything, with `disabled` (contracts
- * BRIDGE_ERRORS_BEFORE_EXECUTION): a preview send is `held`, a checkpoint null.
+ * Requests the live port answers (live.ts): the freshness checkpoint, the X8
+ * send port and the flags (§6.6–§6.8). The port comes with the tap script
+ * (chatspace-ws); without it MAIN refuses them BEFORE executing anything, with
+ * `disabled` (contracts BRIDGE_ERRORS_BEFORE_EXECUTION): a preview send is
+ * `held`, a checkpoint null, both flags read back as off.
  */
-export const NOT_YET_REQUESTS: readonly string[] = ['checkpoint', 'previewSendPreflight', 'previewSendCommit'];
+export const LIVE_REQUESTS: readonly string[] = ['checkpoint', 'previewSendPreflight', 'previewSendCommit', 'flags'];
 
 /** contracts BRIDGE_WRITE_REQUESTS: deduplicated by request id. */
 export const WRITE_REQUESTS: readonly string[] = ['insertGuarded', 'navigate', 'previewSendCommit'];
@@ -59,6 +60,23 @@ export const KEY_MIMIC_CHATS = 'mimicChats';
 export const KEY_PERMISSIONS = 'userPermissions';
 export const KEY_BUYING_POWERS = 'onlyfansBuyingPowers';
 export const KEY_INSIGHTS = 'fanInsights';
+/** The accounts store: `subscribedAccountIds` — the accounts ChatSpace asked its socket to subscribe (§6.7.5). */
+export const STORE_ACCOUNTS = 'accounts';
+/** Path of ChatSpace's own socket URL; the tap listens on that socket only (§6.8 п. 2). */
+export const WS_PATH = '/api/chat-space/ws';
+export const WS_NEW_MESSAGE = 'account_new_message';
+export const WS_AUTHENTICATED = 'authenticated';
+/** The native send request, `POST api/v0/accounts/{acc}/chats/{chat}/messages` (§6.7.2): account and chat of a URL's path. */
+export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messages$/;
+/** The role permission that takes the Send button away (§6.7.4 п. 8). */
+export const PERMISSION_NO_SEND = 'of_block_message_sending';
+/** Server code of a Message Guard refusal (§6.7.4 п. 16). */
+export const GUARD_CODE = 'MESSAGE_GUARD_VIOLATION';
+/** Queue entry statuses and error kinds the receipt observer reads (§6.7.6). */
+export const ENTRY_FAILED = 'failed';
+export const ERROR_BLOCKED = 'blocked';
+export const MIMIC_ENABLED = 'enabled';
+export const PLATFORM = 'onlyfans';
 
 /** §6.1: after DOMContentLoaded every 100 ms until 15 s, then every 2 s until 60 s, then give up (CG-HOST-NOT-READY). */
 export const APP_SEARCH = { fastMs: 100, fastUntilMs: 15_000, slowMs: 2000, slowUntilMs: 60_000 } as const;
@@ -84,9 +102,14 @@ export const MAX_ARRAY = 1000;
 export const MAX_ACCOUNTS = 200;
 export const LIVE_TEXT_MAX_CHARS = 5000;
 /** Bytes of data MAIN puts into one answer: the frame limit (256 KiB of UTF-8 JSON) minus room for the envelope. */
-export const FRAME_DATA_BUDGET = 192 * 1024;
+export const FRAME_DATA_BUDGET = 196_608;
 export const MAX_PARTS = 10;
 export const MAX_VARIANTS = 3;
+/** contracts SEND_LIMITS. */
+export const SEND_MAX_CHARS = 5000;
+export const NATIVE_TIMEOUT_MS = 30_000;
+export const QUEUE_MAX_PER_CHAT = 50;
+export const KNOWN_FAN_MESSAGES = 10;
 
 /** CG codes MAIN answers with (contracts CG_CODES). */
 export const CG_CHAT_CHANGED = 'CG-INSERT-CHAT-CHANGED';
@@ -99,3 +122,21 @@ export const CG_NAV_FAILED = 'CG-NAV-FAILED';
 export const CG_NAV_TIMEOUT = 'CG-NAV-TIMEOUT';
 export const CG_COMPOSER_MISSING = 'CG-HOST-COMPOSER-MISSING';
 export const CG_FAN_BLOCKED = 'CG-GATE-FAN-BLOCKED';
+export const CG_SEND_OFF = 'CG-SEND-OFF';
+export const CG_SEND_HOST = 'CG-SEND-HOST';
+export const CG_SEND_RECEIPT = 'CG-SEND-RECEIPT';
+export const CG_SEND_ACTIVE_CHAT = 'CG-SEND-ACTIVE-CHAT';
+export const CG_SEND_HISTORY = 'CG-SEND-HISTORY';
+export const CG_SEND_PERMISSION = 'CG-SEND-PERMISSION';
+export const CG_SEND_FAN = 'CG-SEND-FAN';
+export const CG_SEND_MIMIC = 'CG-SEND-MIMIC';
+export const CG_SEND_TRANSLATOR = 'CG-SEND-TRANSLATOR';
+export const CG_SEND_STALE = 'CG-SEND-STALE';
+export const CG_SEND_FRESHNESS = 'CG-SEND-FRESHNESS';
+export const CG_SEND_BUSY = 'CG-SEND-BUSY';
+export const CG_SEND_QUEUE = 'CG-SEND-QUEUE';
+export const CG_SEND_PART = 'CG-SEND-PART';
+export const CG_SEND_GUARD = 'CG-SEND-GUARD';
+export const CG_SEND_REJECTED = 'CG-SEND-REJECTED';
+export const CG_SEND_UNCERTAIN = 'CG-SEND-UNCERTAIN';
+export const CG_TIMEOUT = 'CG-TIMEOUT';

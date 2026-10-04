@@ -117,6 +117,19 @@ describe('I18n port: one money notation (ui-design §1 п. 6)', () => {
     expect(formatMoneyMills(-400)).toBe('$0');
   });
 
+  it('[SP-013] prints cents on request: two digits, three when the mills need them', () => {
+    expect(formatMoneyMills(599_600, { cents: true })).toBe('$599.60');
+    expect(formatMoneyMills(599_600)).toBe('$600');
+    expect(formatMoneyMills(400, { cents: true })).toBe('$0.40');
+    expect(formatMoneyMills(405, { cents: true })).toBe('$0.405');
+    expect(formatMoneyMills(1_234_500, { cents: true })).toBe('$1,234.50');
+    expect(formatMoneyMills(25_000, { cents: true, sign: 'plus' })).toBe('+$25.00');
+    expect(formatMoneyMills(-45_500, { cents: true })).toBe(`${MINUS_SIGN}$45.50`);
+    expect(formatMoneyMills(0, { cents: true })).toBe('');
+    expect(formatMoneyMills(0, { cents: true, zero: 'show' })).toBe('$0.00');
+    expect(formatMoneyMills(null, { cents: true })).toBe('—');
+  });
+
   it('is the same in both languages', () => {
     expect(make('ru').formatMoneyMills(4_670_000)).toBe(make('en').formatMoneyMills(4_670_000));
   });
@@ -146,8 +159,13 @@ describe('I18n port: one money notation (ui-design §1 п. 6)', () => {
 describe('I18n port: ages, times and durations', () => {
   it('ages: now, minutes, hours, days; future and unknown', () => {
     const ru = make('ru');
-    expect(ru.formatAge(NOW - 30_000)).toBe('сейчас');
-    expect(ru.formatAge(NOW + 60_000)).toBe('сейчас');
+    expect(ru.formatAge(NOW - 30_000)).toBe('< 1 мин');
+    expect(ru.formatAge(NOW + 60_000)).toBe('< 1 мин');
+    // Under a minute the age reads before «назад» too: never «сейчас назад» / «now ago».
+    expect(ru.t('common.agoSuffix', { age: { age: NOW - 30_000 } })).toBe('< 1 мин назад');
+    expect(ru.t('fanPanel.lastSeen', { age: { age: NOW - 5_000 } })).toBe('был < 1 мин назад');
+    expect(ru.t('recap.madeAgo', { age: { age: NOW - 5_000 } })).toBe('Сделан < 1 мин назад');
+    expect(make('en').t('recap.madeAgo', { age: { age: NOW - 5_000 } })).toBe('Made < 1 min ago');
     expect(ru.formatAge(NOW - 59 * 60_000)).toBe('59 мин');
     expect(ru.formatAge(new Date(NOW - 3 * 3_600_000).toISOString())).toBe('3 ч');
     expect(ru.formatAge(NOW - 12 * 86_400_000)).toBe('12 д');
@@ -171,6 +189,23 @@ describe('I18n port: ages, times and durations', () => {
   it('honours the time zone it was given', () => {
     const moscow = createI18n({ language: 'ru', now: () => NOW, timeZone: 'Europe/Moscow' });
     expect(moscow.formatTime('2026-10-03T00:00:00Z')).toBe('03:00');
+  });
+
+  it('prints a time in a named zone whatever its own zone is: the quota resets «в 03:00 по Москве» (ui-design §4.1)', () => {
+    const reset = '2026-10-04T00:00:00Z';
+    for (const timeZone of ['UTC', 'Asia/Novosibirsk', 'America/New_York']) {
+      const port = createI18n({ language: 'ru', now: () => NOW, timeZone });
+      expect(port.formatTimeIn?.(reset, 'Europe/Moscow'), timeZone).toBe('03:00');
+    }
+    const ru = make('ru');
+    expect(ru.formatTime(reset)).toBe('00:00');
+    // The day is the zone's own: 21:30 UTC is already the next day in Moscow.
+    expect(ru.formatTimeIn?.('2026-10-03T21:30:00Z', 'Europe/Moscow', 'datetime')).toBe('4 окт, 00:30');
+    expect(ru.formatTimeIn?.(Date.parse(reset), 'Europe/Moscow', 'time')).toBe('03:00');
+    expect(ru.formatTimeIn?.('garbage', 'Europe/Moscow')).toBe('—');
+    // A zone the runtime does not know is unknown, never the port's own zone under a false name.
+    expect(ru.formatTimeIn?.(reset, 'Mars/Olympus')).toBe('—');
+    expect(ru.formatTimeIn?.(reset, 'Mars/Olympus')).toBe('—');
   });
 
   it('durations: m:ss timers, h:mm:ss countdowns, seconds; fractions round up, negatives are zero', () => {

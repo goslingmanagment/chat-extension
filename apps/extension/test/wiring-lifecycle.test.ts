@@ -63,8 +63,8 @@ describe('the readiness barrier', () => {
     expect(session).toEqual({ ok: true, payload: { session: null } });
     expect(settings).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'en' }, hub: { baseUrl: WORLD.hubOrigin } } } });
     expect(diagnostics).toMatchObject({ ok: true, payload: { session: { signedIn: false }, tabs: [] } });
-    // Nothing talked to the hub by itself: the one request is the status surface asking for the hub's health, unauthenticated.
-    expect(world.hub.read().entries.map((entry) => [entry.route, entry.token])).toEqual([['health', null]]);
+    // Nothing talked to the hub: nobody is signed in, and a status surface asks for the hub's health only for a sign-in.
+    expect(world.hub.read().entries).toEqual([]);
   });
 });
 
@@ -102,8 +102,8 @@ describe('a background that was unloaded', () => {
     expect(await page.request('send.status', { attemptId: attempt.attemptId })).toMatchObject({ ok: true, payload: { view: { attemptId: attempt.attemptId, state: 'uncertain' } } });
     const diagnostics = await page.request('diagnostics.get', {});
     expect(diagnostics).toMatchObject({ ok: true, payload: { ops: { active: 0 }, sends: { uncertain: 1 }, telemetry: { queued: 0, dropped: 5 } } });
-    // No POST to the hub for the interrupted operation: without a sign-in the status read of `health` is all there is.
-    expect(world.hub.read().entries.map((entry) => entry.route)).toEqual(['health']);
+    // No POST to the hub for the interrupted operation — and without a sign-in nothing else either.
+    expect(world.hub.read().entries).toEqual([]);
   });
 
   it('[BG-002] the open tab registers again with the new instance and says where it is: the same sign-in, the tab, its chat and its accounts', async () => {
@@ -160,6 +160,101 @@ describe('alarms', () => {
   });
 });
 
+describe('alarms with no ChatSpace tab left', () => {
+  it('[BG-003] the first alarm that finds no tab and nothing queued clears every alarm — nothing wakes the event page again; the next tab arms them anew', async () => {
+    world = createWorld();
+    world.start();
+    const tab = world.tabClient();
+    await until(() => world.fake.alarms.size === ALARM_NAMES.length, 'the alarms are armed');
+    // While the tab is there an alarm keeps the schedule.
+    world.fake.fireAlarm('cg.results.sweep');
+    await sleep(100);
+    expect([...world.fake.alarms.keys()].sort()).toEqual(ALARM_NAMES);
+
+    tab.client.close();
+    await sleep(50);
+    world.fake.fireAlarm('cg.results.sweep');
+    // The handler waits two seconds for a tab that is only re-registering after a wake.
+    await sleep(500);
+    expect(world.fake.alarms.size).toBe(ALARM_NAMES.length);
+    await until(() => world.fake.alarms.size === 0, 'every alarm is cleared', 6000);
+
+    // A tab opened later arms them again (the flag was reset, not left «armed»).
+    world.tabClient(8);
+    await until(() => world.fake.alarms.size === ALARM_NAMES.length, 'the alarms are armed again');
+    expect([...world.fake.alarms.keys()].sort()).toEqual(ALARM_NAMES);
+  });
+
+  it('[BG-003] a tab that registers within the two seconds keeps the alarms: a wake by an alarm is not «no tab»', async () => {
+    world = createWorld();
+    world.start();
+    const tab = world.tabClient();
+    await until(() => world.fake.alarms.size === ALARM_NAMES.length, 'the alarms are armed');
+    const due = new Map([...world.fake.alarms].map(([name, alarm]) => [name, alarm.scheduledTime]));
+    tab.client.close();
+    await sleep(50);
+    world.fake.fireAlarm('cg.hub.bootstrap');
+    await sleep(300);
+    world.tabClient(8);
+    await sleep(2500);
+    // Kept, not cleared and armed anew: the schedule did not move.
+    expect(new Map([...world.fake.alarms].map(([name, alarm]) => [name, alarm.scheduledTime]))).toEqual(due);
+  });
+});
+
+describe('[LG-003] the redactor knows the live token', () => {
+  /** A record a tab writes whose machine field names `value`. */
+  const recordWith = (seq: number, value: string): LogRecord => ({ ts: new Date().toISOString(), seq, level: 'warn', scope: 'tab.test', msg: 'probe', fields: { reason: value } });
+  const probes = (records: readonly LogRecord[]): unknown[] => records.filter((record) => record.msg === 'probe').map((record) => record.fields?.['reason']);
+
+  it('[LG-003] from the sign-in on, and again after the event page restarted: the stored record is read through the tap, so a token tail in a record of a tab is masked', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    const stored = world.fake.areas.local.get(STORAGE_KEYS.authToken) as { token: string };
+    // The tail is what a support screen would show (DB-027): no token SHAPE matches it — only the exact value does.
+    const tail = stored.token.slice(-8);
+    expect(tail).toHaveLength(8);
+    const tab = world.tabClient();
+    await until(() => tab.client.state() === 'ready', 'the tab registered');
+    expect(await tab.client.request('log.write', { records: [recordWith(1, `tail-${tail}`)] })).toMatchObject({ ok: true, payload: { accepted: 1 } });
+    expect(probes(await exportedLogs(world))).toEqual(['tail-[redacted]']);
+
+    // The next event page learns the token at its start, from the stored sign-in — before anybody signs in again.
+    world.fake.suspendBackground();
+    await until(() => world.starts() === 2 && tab.client.state() === 'ready', 'the tab registered with the new instance');
+    expect(await tab.client.request('log.write', { records: [recordWith(2, `again-${tail}`), recordWith(3, `whole-${stored.token}`)] })).toMatchObject({ ok: true, payload: { accepted: 2 } });
+    const after = probes(await exportedLogs(world));
+    expect(after).toContain('again-[redacted]');
+    expect(after).toContain('whole-[redacted]');
+    expect(JSON.stringify(await exportedLogs(world))).not.toContain(tail);
+  });
+});
+
+describe('an extension page left open without a ChatSpace tab', () => {
+  it('[BG-003] does not restart the event page after its idle unload: the page’s event port is parked — its next request wakes the background, and the events are heard again', async () => {
+    world = createWorld();
+    world.start();
+    const page = world.page();
+    const revisions: number[] = [];
+    page.onEvent('settings.changed', (state) => revisions.push(state.revision));
+    expect(await page.request('settings.get', {})).toMatchObject({ ok: true });
+    // The port lives (a connection that died young would be a background that cannot start, and is retried).
+    await sleep(1_100);
+    world.fake.suspendBackground();
+    await sleep(400);
+    // Nobody woke the event page: with the old reconnect it started again 5 ms after the unload — and again
+    // after every idle timeout, for as long as the page stayed open.
+    expect(world.starts()).toBe(1);
+
+    // The person does something on the page: one start, and the page hears what it changed.
+    const saved = await page.request('settings.patch', { patch: { ui: { hints: false } }, baseRevision: null });
+    expect(saved).toMatchObject({ ok: true });
+    expect(world.starts()).toBe(2);
+    await until(() => revisions.length > 0, 'the page heard `settings.changed` of the new instance');
+  });
+});
+
 describe('settings', () => {
   it('[BG-005] a change made on a page reaches every tab and every page', async () => {
     world = createWorld();
@@ -186,7 +281,8 @@ describe('settings', () => {
     const tab = world.tabClient();
     await until(() => tab.client.state() === 'ready', 'the tab registered');
     const persona = { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId };
-    // The tab shows no account yet: no page is «its own».
+    // The tab shows no account yet: its request waits for its report (background/tab-accounts.ts), and with none
+    // coming no page is «its own».
     expect(await tab.client.request('settings.patch', { patch: { personas: { byPageId: { [String(WORLD.pages.one.pageId)]: persona } } }, baseRevision: null })).toEqual({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED', detail: 'personas' } });
     expect(await tab.client.request('tab.presence', { chat: null, routeEpoch: 1, visible: true, focused: false, accounts: [account] })).toEqual({ ok: true, payload: { recorded: true } });
     expect(await tab.client.request('settings.patch', { patch: { personas: { byPageId: { [String(WORLD.pages.vip.pageId)]: persona } } }, baseRevision: null })).toEqual({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED', detail: 'personas' } });
@@ -194,6 +290,17 @@ describe('settings', () => {
     expect(own).toMatchObject({ ok: true, payload: { settings: { personas: { byPageId: { [String(WORLD.pages.one.pageId)]: persona } } } } });
     // The rest of a tab's patch is as open as before.
     expect(await tab.client.request('settings.patch', { patch: { ui: { locale: 'ru' } }, baseRevision: null })).toMatchObject({ ok: true });
+  });
+
+  it('[ST-006] [ST-007] «Настройки» from a ChatSpace tab: the background opens the settings tab at the section and its code', async () => {
+    world = createWorld();
+    world.start();
+    const tab = world.tabClient();
+    await until(() => tab.client.state() === 'ready', 'the tab registered');
+    const base = world.fake.base;
+    expect(await tab.client.request('settings.open', { route: { section: 'account', code: 'CG-AUTH-REQUIRED' } })).toEqual({ ok: true, payload: { opened: true } });
+    expect(await tab.client.request('settings.open', { route: { section: 'hotkeys' } })).toEqual({ ok: true, payload: { opened: true } });
+    expect(world.fake.tabCalls.filter((call) => call.startsWith('create '))).toEqual([`create ${base}options.html#account:CG-AUTH-REQUIRED`, `create ${base}options.html#hotkeys`]);
   });
 });
 
@@ -283,6 +390,27 @@ describe('[LG-016] [LG-018] the start record says why the event page started', (
     expect(lifecycle).toEqual(['extension updated', 'background started', 'background suspending', 'background started', 'background suspending', 'background started']);
     const ready = records.filter((record) => record.msg === 'start steps').map((record) => record.fields?.['starts']);
     expect(ready).toEqual([1, 2, 3]);
+  });
+
+  it('[ST-012] [UP-008] a real install opens the settings once — the first run starts on the sign-in screen with the checklist; a temporary install, an update and a browser start open nothing, and none of them talks to the hub', async () => {
+    for (const [fire, opened] of [
+      [(w: World) => w.fake.fireInstalled({ reason: 'install', temporary: false }), ['openOptionsPage']],
+      // `pnpm dev` and the e2e install the build temporarily: a developer's reload is not a first run.
+      [(w: World) => w.fake.fireInstalled({ reason: 'install', temporary: true }), []],
+      [(w: World) => w.fake.fireInstalled({ reason: 'update', previousVersion: '0.9.0', temporary: false }), []],
+      [(w: World) => w.fake.fireInstalled({ reason: 'browser_update', temporary: false }), []],
+      [(w: World) => w.fake.fireStartup(), []],
+    ] as const) {
+      const w = createWorld();
+      world = w;
+      w.start();
+      fire(w);
+      expect(await w.page().request('session.get', {})).toMatchObject({ ok: true });
+      await sleep(20);
+      expect(w.fake.tabCalls).toEqual(opened);
+      expect(w.hub.read().entries).toEqual([]);
+      w.dispose();
+    }
   });
 
   it('[LG-016] an install, a browser start and a reload are told apart; nothing talks to the hub on any of them (UP-008)', async () => {

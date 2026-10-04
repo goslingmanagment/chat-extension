@@ -63,6 +63,7 @@ const settingsState = { settings: DEFAULT_SETTINGS, revision: 3, readOnly: false
 const ack = { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] } as const;
 const empty = { valid: [{}], invalid: [{ extra: 1 }] } as const;
 const pageFan = { pageId: 11, fanRef: IDS.fan } as const;
+const sendListItem = { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0 } as const;
 /** A hub DTO answer: the sample and a broken copy of it. */
 const dto = (valid: object, invalid: object) => ({ valid: [valid], invalid: [invalid, { any: 'shape' }] }) as const;
 
@@ -169,6 +170,21 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ attemptId: uuid(5) }], invalid: [{}] },
     res: { valid: [{ view: sendView }, { view: null }], invalid: [{ view: { attemptId: uuid(5), state: 'lost' } }] },
   },
+  'send.list': {
+    req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
+    res: {
+      valid: [
+        { attempts: [], truncated: false },
+        { attempts: [sendListItem, { ...sendListItem, resolved: 'not-sent' }], truncated: false },
+      ],
+      invalid: [
+        { attempts: [] },
+        { attempts: [{ ...sendListItem, partIndex: sendBegin.group.partCount }], truncated: false },
+        { attempts: [{ ...sendListItem, text: 'Hi there' }], truncated: false },
+        { attempts: Array.from({ length: 101 }, () => sendListItem), truncated: true },
+      ],
+    },
+  },
   'send.report': {
     req: {
       valid: [
@@ -189,6 +205,19 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'recap.read': {
     req: { valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }], invalid: [{ ...pageFan, fanRef: 2002, personaDefinitionId: 'pdef_0123456789abcdef' }] },
     res: dto(H.sharedRecaps, { ...H.sharedRecaps, fullSavedToProfile: 'no' }),
+  },
+  'recap.save': {
+    req: {
+      valid: [
+        { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200' },
+        { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200', opId: '00000000-0000-4000-8000-000000000100' },
+      ],
+      invalid: [pageFan, { ...pageFan, generationRef: 'not-a-ref' }, { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200', text: 'never the recap text' }],
+    },
+    res: {
+      valid: [{ state: 'saved', savedAt: '2026-10-03T10:00:00.000Z' }, { state: 'not-ready', savedAt: null }, { state: 'rejected', savedAt: null }],
+      invalid: [{ state: 'saved' }, { state: 'pending', savedAt: null }],
+    },
   },
   'spenders.board': {
     req: { valid: [{ pageId: 11, period: '30d' }, { pageId: 11, period: 'lifetime', force: true }], invalid: [{ pageId: 11, period: 'year' }] },
@@ -229,6 +258,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: empty,
     res: { valid: [settingsState], invalid: [{ ...settingsState, readOnly: 'no' }] },
   },
+  'settings.open': {
+    req: {
+      valid: [{ route: { section: 'account', code: 'CG-AUTH-REQUIRED' } }, { route: { section: 'status' } }],
+      // A route is a section of the settings and a CG code — never an address or a free string.
+      invalid: [{}, { route: { section: 'billing' } }, { route: { section: 'status', code: 'CG-NOT-A-CODE' } }, { route: { section: 'status' }, url: 'options.html#status' }],
+    },
+    res: { valid: [{ opened: true }, { opened: false }], invalid: [{}, { opened: 'yes' }] },
+  },
   'settings.patch': {
     req: {
       valid: [{ patch: { ui: { locale: 'en' } }, baseRevision: 3 }, { patch: {}, baseRevision: null }],
@@ -250,7 +287,20 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'diagnostics.get': {
     req: empty,
-    res: { valid: [diagnostics], invalid: [{ ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } }] },
+    res: {
+      valid: [
+        diagnostics,
+        { ...diagnostics, footprint: { cachesKB: 412, logsKB: 1280 } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: null } } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: 2 } } },
+      ],
+      invalid: [
+        { ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } },
+        { ...diagnostics, footprint: { cachesKB: -1, logsKB: 0 } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2' } } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: 'today', from: '0.4.2', staleTabs: 0 } } },
+      ],
+    },
   },
   'journal.read': {
     req: { valid: [{ journal: 'send-attempts', limit: 200 }], invalid: [{ journal: 'prompts', limit: 200 }, { journal: 'operations', limit: 501 }] },
@@ -274,6 +324,18 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ fact: incomingFact }], invalid: [{ fact: { ...incomingFact, source: 'dom' } }] },
     res: { valid: [{ played: true }, { played: false, reason: 'chat-open' }], invalid: [{ reason: 'chat-open' }] },
   },
+  'data.clear': {
+    req: { valid: [{ confirmed: true }], invalid: [{ confirmed: false }, {}] },
+    res: { valid: [{ cleared: true }, { cleared: false }], invalid: [{ cleared: 'yes' }] },
+  },
+  'tab.command': {
+    req: {
+      valid: [{ command: { kind: 'surface', surface: 'spenders' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: IDS.acc } }],
+      // A page names a surface or an account, never a chat to open or a text to send.
+      invalid: [{ command: { kind: 'surface', surface: 'coach' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: 'acc' } }, { command: { kind: 'chat', fan: IDS.fan } }],
+    },
+    res: { valid: [{ delivered: true }, { delivered: false }], invalid: [{ delivered: 1 }] },
+  },
   'sound.preview': {
     req: { valid: [{ tone: 'bell', volume: 50 }], invalid: [{ tone: 'bell', volume: 52 }] },
     res: { valid: [{ played: true }, { played: false, code: 'CG-AUDIO-BLOCKED' }], invalid: [{ played: false, code: 'CG-NOPE' }] },
@@ -281,6 +343,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'debug.prompt': {
     req: { valid: [{ token: 'prompt-token-1' }], invalid: [{ token: '' }] },
     res: { valid: [promptSnapshot], invalid: [{ ...promptSnapshot, blocks: [{ name: 'system', text: 'x' }] }] },
+  },
+  'debug.open': {
+    // The opaque token of a prompt snapshot and nothing else: no address, no page name.
+    req: { valid: [{ token: 'prompt-token-1' }], invalid: [{}, { token: '' }, { token: 'prompt-token-1', url: 'debug-prompt.html?t=prompt-token-1' }, { token: 'x'.repeat(129) }] },
+    res: { valid: [{ opened: true }, { opened: false }], invalid: [{}, { opened: 'yes' }] },
   },
   'health.report': {
     req: { valid: [{ report: tabHealth }], invalid: [{ report: { ...tabHealth, windowFrom: -1 } }] },
@@ -320,6 +387,11 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   'flags.changed': {
     valid: [{ flags: { previewSend: false, someFutureFlag: true }, configRevision: 9 }],
     invalid: [{ flags: { previewSend: 'off' }, configRevision: 9 }],
+  },
+  'tab.command': {
+    valid: [{ command: { kind: 'surface', surface: 'newcomers' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: IDS.acc } }],
+    // The same closed set as the request: a window of ours or an account — never a chat, a text or an action token.
+    invalid: [{ command: { kind: 'surface', surface: 'coach' } }, { command: { kind: 'chat', fan: IDS.fan } }, { command: { kind: 'surface', surface: 'spenders' }, actionToken: 'x'.repeat(32) }, {}],
   },
 };
 

@@ -231,6 +231,16 @@ export const CgErrorWireSchema = z.strictObject({
 });
 export type CgErrorWire = z.infer<typeof CgErrorWireSchema>;
 
+/**
+ * The dot of an error card (ui-design §4.8): `failure` — red, our operation
+ * failed (AI overloaded, a generation interrupted, the hub down, an insert or
+ * a copy that did not happen); `state` — a ring, a state and not a failure
+ * (quota 0, the limit of three, a lease, «расширение обновилось», no sign-in,
+ * no binding, no persona, ChatSpace updated, a blocked fan).
+ */
+export const CG_ERROR_TONES = ['failure', 'state'] as const;
+export type CgErrorTone = (typeof CG_ERROR_TONES)[number];
+
 /** An error ready for display (§5.7): localized title and body, plain text only. */
 export const CgErrorViewSchema = z.strictObject({
   code: CgCodeSchema,
@@ -239,5 +249,11 @@ export const CgErrorViewSchema = z.strictObject({
   detail: z.optional(displayText(CG_DETAIL_MAX_CHARS)),
   retryAt: z.optional(EpochMsSchema),
   settings: z.optional(SettingsRouteSchema),
+  /**
+   * Which dot the card carries (1.2.0). Whoever renders the view decides it
+   * from the registry; a view without it leaves the choice to the surface's
+   * own reading of ui-design §4.8.
+   */
+  tone: z.optional(z.enum(CG_ERROR_TONES)),
 });
 export type CgErrorView = z.infer<typeof CgErrorViewSchema>;

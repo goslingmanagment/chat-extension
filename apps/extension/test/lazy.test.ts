@@ -1,9 +1,15 @@
 // The loader of the tab's lazy chunks (architecture.md §11): one retry under
 // another URL, never a third try.
 
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+import { STORAGE_KEYS } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { importWithRetry, LAZY_RETRY_DELAY_MS } from '../src/composition/tab/lazy';
+import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
+import { importWithRetry, lazyPath, LAZY_RETRY_DELAY_MS } from '../src/composition/tab/lazy.ts';
+import { LAZY, NEWCOMER_DRAFTS_KEY } from '../src/composition/tab/runtime.ts';
 
 const URL_OF_CHUNK = 'moz-extension://00000000-0000-4000-8000-000000000001/lazy/dock.js';
 
@@ -60,5 +66,28 @@ describe('lazy chunks', () => {
       ),
     ).rejects.toBe(failure);
     expect(asked).toHaveLength(2);
+  });
+});
+
+describe('the lazy entries of the tab', () => {
+  it('every entry has its source file, and a chunk is asked for by its entry name', () => {
+    for (const [name, source] of Object.entries(LAZY_ENTRIES)) {
+      expect(source).toBe(`entries/${name}.ts`);
+      expect(existsSync(fileURLToPath(new URL(`../lazy/${source}`, import.meta.url)))).toBe(true);
+    }
+    expect(lazyPath('dock')).toBe('lazy/dock.js');
+    // The two chunks the early bundle loads itself are entries of the build.
+    expect(Object.values(LAZY)).toEqual([lazyPath('tab-protocol'), lazyPath('tab-app')]);
+  });
+
+  it('[EX-009] the layers are the entries every chat tab loads, in the order their budgets stack: the dock first, then what loads before any other chunk', () => {
+    expect([...LAZY_LAYERS]).toEqual(['dock', 'bridge-validation', 'tab-protocol', 'tab-app', 'ai', 'navigation']);
+    for (const layer of LAZY_LAYERS) expect(Object.keys(LAZY_ENTRIES)).toContain(layer);
+    // What the dock shares with these goes to the kernel chunk: the dock never pulls the schemas in.
+    expect(BEFORE_THE_DOCK).toEqual(['bridge-validation', 'tab-protocol', 'tab-app']);
+  });
+
+  it('the early bundle names the drafts key of storage.local by hand (the settings module is schemas it must not carry): it is the contracts’ key', () => {
+    expect(NEWCOMER_DRAFTS_KEY).toBe(STORAGE_KEYS.newcomersDrafts);
   });
 });

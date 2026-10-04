@@ -1,0 +1,76 @@
+/* The gallery page plays ChatSpace around our surfaces: the --color-om-*
+   triplets of 0.172.0 on <html> (the same in both themes), its font, the
+   conversation background (neutral-50 light, black dark), the `dark` class, a
+   feed above and a composer frame below the dock host. None of it is
+   ChatSpace's code or CSS; our surfaces read only the triplets and get the
+   scheme as data-cg-scheme on their host. */
+:root {
+  --color-om-white: 255 255 255;
+  --color-om-neutral-0: 255 255 255;
+  --color-om-neutral-50: 246 245 244;
+  --color-om-neutral-75: 241 241 238;
+  --color-om-neutral-100: 234 233 229;
+  --color-om-neutral-200: 225 224 218;
+  --color-om-neutral-300: 203 202 195;
+  --color-om-neutral-400: 171 168 156;
+  --color-om-neutral-500: 114 112 100;
+  --color-om-neutral-600: 83 81 70;
+  --color-om-neutral-700: 61 59 50;
+  --color-om-neutral-750: 51 49 41;
+  --color-om-neutral-800: 42 40 32;
+  --color-om-neutral-850: 34 32 25;
+  --color-om-neutral-900: 26 24 19;
+  --color-om-neutral-950: 19 18 15;
+  --color-om-brand-50: 235 243 255;
+  --color-om-brand-75: 200 223 255;
+  --color-om-brand-300: 71 145 255;
+  --color-om-brand-400: 10 109 255;
+  --color-om-brand-500: 0 82 204;
+  --color-om-brand-600: 0 57 143;
+  --color-om-brand-800: 0 24 61;
+  --color-om-success-400: 97 189 100;
+  --color-om-success-600: 53 129 58;
+  --color-om-error-400: 234 95 93;
+  --color-om-error-500: 217 32 28;
+  --gal-bg: rgb(var(--color-om-neutral-50));
+  --gal-ink: rgb(var(--color-om-neutral-500));
+  --gal-card: rgb(var(--color-om-neutral-0));
+  --gal-line: rgb(var(--color-om-neutral-200));
+  color-scheme: light;
+}
+html.dark {
+  --gal-bg: rgb(0 0 0);
+  --gal-ink: rgb(var(--color-om-neutral-400));
+  --gal-card: rgb(var(--color-om-neutral-950));
+  --gal-line: rgb(var(--color-om-neutral-800));
+  color-scheme: dark;
+}
+/* The font sits on <html>, as a utility reset puts it: the overlay host is a child of <html>, outside <body>. */
+html { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+html, body { margin: 0; background: var(--gal-bg); }
+body {
+  font-size: 14px;
+  padding: 12px 16px 40px;
+}
+html[data-gal-single] body { padding: 0; }
+html[data-gal-single] .gal-top { display: none; }
+.gal-top { display: flex; gap: 12px; align-items: baseline; margin-bottom: 12px; font-size: 12px; color: var(--gal-ink); }
+.gal-top b { font-weight: 600; }
+.gal-stage { width: var(--gal-w, 853px); max-width: 100%; margin: 0 0 28px; }
+html[data-gal-single] .gal-stage { margin: 0; }
+.gal-cap { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--gal-ink); }
+html[data-gal-single] .gal-cap { display: none; }
+.gal-feed { height: var(--gal-feed, 56px); display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 4px; padding-bottom: 12px; overflow: hidden; }
+.gal-bubble { max-width: 70%; padding: 8px 12px; border-radius: 16px; background: var(--gal-card); color: rgb(var(--color-om-neutral-900)); font-size: 14px; line-height: 20px; }
+html.dark .gal-bubble { color: rgb(var(--color-om-neutral-200)); }
+/* ChatSpace keeps `contain: layout style` on our host (architecture.md §6.3). */
+[data-cg="dock"] { display: block; contain: layout style; }
+.gal-composer { height: 120px; border: 1px solid var(--gal-line); border-radius: 16px; background: var(--gal-card); box-sizing: border-box; padding: 14px 16px; color: var(--gal-ink); }
+/* Overlays: a page the size of the window with ChatSpace's top bar and account rail drawn as plain boxes. */
+.gal-page { position: fixed; inset: 0; display: grid; grid-template: 44px 1fr / 64px 1fr 64px; background: var(--gal-bg); }
+.gal-page__bar { grid-column: 1 / 4; border-bottom: 1px solid var(--gal-line); }
+.gal-page__rail { border-right: 1px solid var(--gal-line); }
+.gal-page__rail--right { border-right: 0; border-left: 1px solid var(--gal-line); }
+.gal-page__main { display: flex; flex-direction: column; justify-content: flex-end; padding: 0 20px 16px; min-width: 0; }
+.gal-page__main .gal-stage { width: auto; max-width: 853px; }
+[data-cg="overlay"] { position: fixed; inset: 0; pointer-events: none; contain: layout style; }

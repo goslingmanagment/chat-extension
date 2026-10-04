@@ -282,7 +282,20 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ code: 'CG-HUB-RATE-LIMIT', detail: 'HTTP 429 • rate_limit_exceeded', retryAt: T0, httpStatus: 429 }, { code: 'CG-UNKNOWN' }],
     [{ code: 'CG-HUB-RATE-LIMIT', detail: repeat('x', 401) }, { code: 'CG-NOPE' }, { code: 'CG-HUB-REQUEST', httpStatus: 99 }],
   ),
-  fixture('CgErrorView', C.CgErrorViewSchema, [{ code: 'CG-NETWORK', title: 'Нет связи', body: 'Проверьте подключение.' }], [{ code: 'CG-NETWORK', title: 'Нет связи' }]),
+  fixture(
+    'CgErrorView',
+    C.CgErrorViewSchema,
+    [
+      { code: 'CG-NETWORK', title: 'Нет связи', body: 'Проверьте подключение.' },
+      // 1.2.0: the card's dot travels with the view (ui-design §4.8).
+      { code: 'CG-QUOTA-DAILY', title: 'Дневная квота AI исчерпана', body: 'Квота обновится в 03:00 по Москве.', tone: 'state' },
+      { code: 'CG-OP-INTERRUPTED', title: 'Генерация прервалась', body: 'Ответ не сохранился.', tone: 'failure' },
+    ],
+    [
+      { code: 'CG-NETWORK', title: 'Нет связи' },
+      { code: 'CG-NETWORK', title: 'Нет связи', body: 'Проверьте подключение.', tone: 'warning' },
+    ],
+  ),
 
   // ── settings ──
   fixture('SettingsSection', C.SettingsSectionSchema, ['status', 'diagnostics'], ['advanced']),
@@ -566,6 +579,9 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
         window: 100,
         coach: { question: 'What next?', history: [{ question: 'Hi?', answer: 'Hello.' }], attachDraft: 'my draft' },
       },
+      // 1.2.0: a composite Coach turn — the recap first, then the question, under one admission (AI-096).
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 3000 } } },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { preset: 'situation', history: [], autoRecap: { length: 'short', window: 300 } } },
     ],
     [
       { ...startReply, surface: 'preview' },
@@ -580,6 +596,10 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...startReply, fresh: undefined, checkpoint },
       { feature: 'hi', surface: 'newcomers', target, cause, tone: null, split: true, window: 25, variantCount: 1, checkpoint: { ...checkpoint, platformFanId: '2099' } },
       { feature: 'ping', surface: 'dock', target, cause, tone: 'casual', split: false, window: 100 },
+      // The auto-recap is the short or the full one, with its own window within the hub body's bounds.
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'long', window: 3000 } } },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 4 } } },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: 'full' } },
     ],
   ),
   fixture('ActiveOpSummary', C.ActiveOpSummarySchema, [activeOp], [{ ...activeOp, fanLabel: undefined }]),
@@ -646,7 +666,17 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...debugView, hubStages: [{ name: '', ms: 5 }] },
     ],
   ),
-  fixture('OpView', C.OpViewSchema, [opView, { ...opView, state: 'failed', result: undefined, error: { code: 'CG-STREAM-TRUNCATED' } }], [{ ...opView, state: 'queued' }]),
+  fixture(
+    'OpView',
+    C.OpViewSchema,
+    [
+      opView,
+      { ...opView, state: 'failed', result: undefined, error: { code: 'CG-STREAM-TRUNCATED' } },
+      // 1.2.0: the recap step of a composite Coach turn names the answer step that took the slot.
+      { ...opView, feature: 'recap', surface: 'coach', toneUsed: null, text: '**Recap**', result: { kind: 'recap', markdown: '**Recap**', coverage, shared: { generationRef: uuid(6) } }, continuedBy: uuid(7) },
+    ],
+    [{ ...opView, state: 'queued' }, { ...opView, continuedBy: 'the-answer-step' }],
+  ),
 
   // ── telemetry ──
   fixture(
@@ -840,8 +870,34 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'DiagnosticsSnapshot',
     C.DiagnosticsSnapshotSchema,
-    [diagnostics, { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'a'.repeat(64), hubHash: null, compatible: null } } }],
-    [{ ...diagnostics, os: 'beos' }, { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'x', hubHash: null, compatible: null } } }],
+    [
+      diagnostics,
+      { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'a'.repeat(64), hubHash: null, compatible: null } } },
+      // 1.2.0: the sizes of our caches and logs, and when this version replaced which one.
+      { ...diagnostics, footprint: { cachesKB: 412, logsKB: 1280 }, extension: { ...diagnostics.extension, updated: { at: ISO, from: '0.4.2', staleTabs: 0 } } },
+    ],
+    [
+      { ...diagnostics, os: 'beos' },
+      { ...diagnostics, hub: { ...diagnostics.hub, sdk: { vendoredHash: 'x', hubHash: null, compatible: null } } },
+      { ...diagnostics, footprint: { cachesKB: 1.5, logsKB: 0 } },
+      { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: ISO, from: '', staleTabs: null } } },
+    ],
+  ),
+  fixture(
+    'PageCommand',
+    C.PageCommandSchema,
+    [
+      { kind: 'surface', surface: 'spenders' },
+      { kind: 'surface', surface: 'cheatsheet' },
+      { kind: 'account', host: 'chatspace', hostAccountId: '910101' },
+    ],
+    [
+      { kind: 'surface', surface: 'dock' },
+      { kind: 'account', host: 'chatspace' },
+      // A page names an account, never an address to load.
+      { kind: 'account', host: 'chatspace', hostAccountId: '910101', url: 'https://example.test/' },
+      { kind: 'chat', host: 'chatspace', hostAccountId: '910101', fanRef: '2002' },
+    ],
   ),
   fixture('AiQuotaSnapshot', C.AiQuotaSnapshotSchema, [quota, { ...quota, remainingRequestsToday: null, remainingMicroUsdToday: null }], [{ ...quota, remainingRequestsToday: -1 }, { ...quota, pageId: 0 }]),
   fixture('SeenHostAccount', C.SeenHostAccountSchema, [{ account, lastSeenAt: ISO }], [{ account, lastSeenAt: T0 }]),
@@ -866,6 +922,24 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       // The checkpoint is the target chat's and this document's.
       { ...sendBegin, checkpoint: { ...checkpoint, hostAccountId: '1099' } },
       { ...sendBegin, documentEpoch: 'doc2' },
+    ],
+  ),
+  fixture(
+    'SendListItem',
+    C.SendListItemSchema,
+    [
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0 },
+      { opId: uuid(2), purpose: 'preview-reply', group: sendBegin.group, partIndex: 1, view: { attemptId: uuid(5), state: 'sentObserved', platformMessageId: '4100' }, updatedAt: T0 },
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0, resolved: 'sent' },
+    ],
+    [
+      // The part belongs to the group.
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 2, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0 },
+      { opId: 'op-1', purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0 },
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' } },
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0, resolved: 'maybe' },
+      // Ids and states only: a text never travels with an attempt.
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0, plainText: 'Hi there' },
     ],
   ),
   fixture(

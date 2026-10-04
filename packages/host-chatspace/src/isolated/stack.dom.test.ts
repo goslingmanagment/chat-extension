@@ -12,6 +12,7 @@ import { installMainBridge, type MainBridgeHandle } from '../main/bridge';
 import { createMainRuntime } from '../main/runtime';
 import { createFakePage, seedCache, type FakePage } from '../testing/fake-page';
 import { startChatSpaceHost, type StartedChatSpaceHost } from './start';
+import { loadValidation } from './validation';
 
 type Listener = (event: { source: unknown; data: unknown; ports: readonly unknown[] }) => void;
 
@@ -66,7 +67,7 @@ describe('[EX-008] [BG-002] the adapter end to end in one document', () => {
     const win = shimWindow();
     main = installMainBridge(win, { runtime: createMainRuntime });
     const redeemed: string[] = [];
-    started = startChatSpaceHost({ win, redeem: (request) => (redeemed.push(request.kind), Promise.resolve(true)), drafts: { getItem: () => null }, firstSearchMs: 50 });
+    started = startChatSpaceHost({ win, validation: loadValidation, redeem: (request) => (redeemed.push(request.kind), Promise.resolve(true)), drafts: { getItem: () => null }, firstSearchMs: 50 });
     const host = await started.host;
     await until(() => Boolean(host.identity()?.composerInstanceId) && host.mounts().dock.kind === 'in-flow', 'identity and dock');
     expect(HostContractReportSchema.parse(host.probe()).capabilities.insert.state).toBe('on');
@@ -107,7 +108,7 @@ describe('[EX-008] [BG-002] the adapter end to end in one document', () => {
   it('[AU-030] [ER-048] without MAIN the port still answers: not ready, nothing written', async () => {
     const win = shimWindow();
     const diagnostics: Array<{ event: string }> = [];
-    started = startChatSpaceHost({ win, redeem: () => Promise.resolve(true), handshakeTimeoutMs: 20, onDiagnostic: (d) => diagnostics.push(d) });
+    started = startChatSpaceHost({ win, validation: loadValidation, redeem: () => Promise.resolve(true), handshakeTimeoutMs: 20, onDiagnostic: (d) => diagnostics.push(d) });
     const host = await started.host;
     expect(await started.bridge).toBeNull();
     expect(host.identity()).toBeNull();

@@ -16,6 +16,7 @@ import { defineConfig } from 'wxt';
 import { artifactNames, isFlavorArtifact } from './build/artifacts.ts';
 import { bundleTimingPlugin } from './build/bundle-timing.ts';
 import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from './build/manifest.ts';
+import { PAGE_ENTRY_NAMES, splitPageChunks, type PageBuildConfig } from './build/page-chunks.ts';
 import { SOURCE_DOTFILES, STAND_SOURCE_GLOBS } from './build/sources-archive.ts';
 import { buildLazyChunks, type LazyChunkInfo } from './lazy/vite.config.ts';
 
@@ -59,6 +60,8 @@ export default defineConfig({
     // reads the whole synchronous start of the isolated bundle (§11: ≤ 3 ms)
     // and of the MAIN bundle at document_start (X11: ≤ 1 ms).
     'vite:build:extendConfig': (entrypoints, config) => {
+      // The extension pages: their one shared bundle is cut into three files (build/page-chunks.ts).
+      if (entrypoints.some((entry) => PAGE_ENTRY_NAMES.includes(entry.name))) splitPageChunks(config as PageBuildConfig);
       if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace' || entry.name === 'chatspace-main')) return;
       config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },

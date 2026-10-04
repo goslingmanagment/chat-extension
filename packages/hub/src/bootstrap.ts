@@ -9,8 +9,8 @@
 // - An expired bootstrap blocks new sensitive actions (the facade refreshes
 //   before them) but keeps whatever results exist.
 // - A hub without `client/bootstrap` (404, prod today) gets the DEV-ONLY
-//   synthesized bootstrap when the compat mode is allowed, else
-//   CG-HUB-OUTDATED (`bootstrapMissing`).
+//   synthesized bootstrap when the compat mode is allowed (a test build with
+//   debug on), else CG-HUB-OUTDATED (`bootstrapMissing`).
 
 import {
   BootstrapSchema,

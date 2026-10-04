@@ -5,7 +5,22 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import {
+  ACCOUNT_HUB_SAMPLES,
+  BOARDS_I18N_KEYS,
+  CLAIM_RENEW_SAMPLES,
+  COACH_TURN_VM_SAMPLES,
+  FAN_PANEL_BIO_SAMPLES,
+  MONEY_CENTS_SAMPLES,
+  NEWCOMERS_INCOMPLETE_SAMPLES,
+  OPTIONS_FOOTER_SAMPLES,
+  REFUSAL_VM_SAMPLES,
+  SPOKEN_MONEY_SAMPLES,
+  STATS_ATTENTION_SAMPLES,
+  TOAST_VM_SAMPLES,
+  UI_ACTION_SAMPLES,
+  ZONED_TIME_SAMPLES,
+} from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -238,6 +253,61 @@ describe('toasts (1.1.0)', () => {
   });
 });
 
+describe('extension pages (1.2.0)', () => {
+  it('[ST-005] the options view may carry its footer: the links as actions and the «нов.» flag', () => {
+    expectTypeOf<NonNullable<C.OptionsVM['footer']>['whatsNew']>().toEqualTypeOf<C.UiAction | null>();
+    expectTypeOf<NonNullable<C.OptionsVM['footer']>['unseenNotes']>().toEqualTypeOf<boolean>();
+    const [full, bare] = OPTIONS_FOOTER_SAMPLES.valid;
+    for (const action of [full?.whatsNew, full?.changelog]) expect(C.UiActionSchema.safeParse(action).success).toBe(true);
+    expect(bare).toEqual({ whatsNew: null, changelog: null, unseenNotes: false });
+    expect(OPTIONS_FOOTER_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[ST-043] host access to the hub address is granted, missing or unknown — an unanswered check is never «granted»', () => {
+    expectTypeOf<C.AccountBodyVM['hub']['hostPermission']>().toEqualTypeOf<'granted' | 'missing' | 'unknown'>();
+    expect(ACCOUNT_HUB_SAMPLES.valid.map((sample) => sample.hostPermission)).toEqual(['granted', 'unknown', 'missing']);
+    const request = ACCOUNT_HUB_SAMPLES.valid[2]?.requestPermission;
+    expect(C.UiActionSchema.safeParse(request?.action).success).toBe(true);
+    expect(ACCOUNT_HUB_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[PU-017] [ST-076] a page hands a click to ChatSpace as a command: a surface to open, or an account to go to', () => {
+    expect(C.PAGE_COMMAND_SURFACES).toEqual(['spenders', 'newcomers', 'cheatsheet']);
+    expect(C.TAB_REQUESTS['tab.command']).toMatchObject({ from: ['page'], pages: ['popup', 'options'] });
+    expect(C.PageCommandSchema.safeParse({ kind: 'surface', surface: 'spenders' }).success).toBe(true);
+    expect(C.PageCommandSchema.safeParse({ kind: 'account', host: 'chatspace', hostAccountId: '1001' }).success).toBe(true);
+    // Nothing a page says can name an address to load or a chat to write to.
+    expect(C.PageCommandSchema.safeParse({ kind: 'surface', surface: 'https://example.test' }).success).toBe(false);
+    expect(C.PageCommandSchema.safeParse({ kind: 'account', host: 'chatspace', hostAccountId: '1001', url: 'https://example.test' }).success).toBe(false);
+  });
+
+  it('[ST-110] local data is cleared only from the options page and only with the confirmation', () => {
+    expect(C.TAB_REQUESTS['data.clear']).toMatchObject({ from: ['page'], pages: ['options'] });
+    expect(C.mayRequest('data.clear', 'page', 'popup')).toBe(false);
+    expect(C.mayRequest('data.clear', 'page', 'options')).toBe(true);
+    expect(C.mayRequest('data.clear', 'tab', null)).toBe(false);
+  });
+
+  it('the new page texts are keys of the catalog', () => {
+    for (const key of ['popup.dialogNone', 'settings.save.saved', 'settings.status.warningOne', 'signIn.lead', 'debugPage.journal.title'] as const) expect(C.UI_TEXT_KEYS).toContain(key);
+  });
+
+  it('[NF-029] [ST-093] [ST-120] the journal filters, pages and auto-refresh, the deep window above the hub limit and the reference row have their keys', () => {
+    for (const key of [
+      'debugPage.journal.filterAll',
+      'debugPage.journal.filterNone',
+      'debugPage.journal.matched',
+      'debugPage.journal.page',
+      'debugPage.journal.prev',
+      'debugPage.journal.next',
+      'debugPage.journal.auto',
+      'settings.generation.deepOver',
+      'settings.hotkeys.row.variant',
+    ] as const)
+      expect(C.UI_TEXT_KEYS).toContain(key);
+  });
+});
+
 describe('spoken money (1.1.0)', () => {
   it('the I18n port may say an amount in words; the catalog has the words', () => {
     expectTypeOf<C.I18n['formatMoneySpoken']>().toEqualTypeOf<((mills: C.MoneyMills | null, format?: C.MoneyFormat) => string) | undefined>();
@@ -246,5 +316,139 @@ describe('spoken money (1.1.0)', () => {
     expect(C.isPluralKey('common.money.dollars')).toBe(true);
     expect(SPOKEN_MONEY_SAMPLES.valid[0]?.(320_000, { sign: 'plus' })).toBe('плюс 320 долларов');
     expect(SPOKEN_MONEY_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('cents on a shelf bound (1.2.0)', () => {
+  it('[SP-013] a board row may ask for cents and the money format may print them; both are optional', () => {
+    expectTypeOf<C.SpenderRowVM['lifetimeCents']>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<C.MoneyFormat['cents']>().toEqualTypeOf<boolean | undefined>();
+    const [plain, exact] = MONEY_CENTS_SAMPLES.rows;
+    expect(plain?.lifetimeCents).toBeUndefined();
+    expect(exact?.lifetimeCents).toBe(true);
+    expect(MONEY_CENTS_SAMPLES.formats.filter((format) => format.cents === true)).toHaveLength(2);
+    expect(MONEY_CENTS_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('the catalog has the keys footer label of the board, its «Сбросить фильтры» and the «Результат неполный» text', () => {
+    expect(C.UI_TEXT_KEYS).toContain('spenders.keys.row');
+    expect(C.UI_TEXT_KEYS).toContain('spenders.resetFilters');
+    expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete');
+  });
+});
+
+describe('the statistics\' attention block (1.2.0)', () => {
+  it('[SP-046] may carry «ждёт ответа; прочтение неизвестно» and the lifetime spend of fans silent for more than 21 days; both are optional', () => {
+    type Attention = C.SpendersStatsVM['attention'];
+    expectTypeOf<Attention['awaitingUnknown']>().toEqualTypeOf<C.CountStat | undefined>();
+    expectTypeOf<Attention['silentOver21']['lifetime']>().toEqualTypeOf<C.MoneyMills | null | undefined>();
+    const [plain, full, unknown] = STATS_ATTENTION_SAMPLES.valid;
+    expect(plain?.awaitingUnknown).toBeUndefined();
+    expect(plain?.silentOver21.lifetime).toBeUndefined();
+    expect(full?.awaitingUnknown?.count).toBe(2);
+    expect(full?.silentOver21.lifetime).toBe(1_840_000);
+    // Unknown stays unknown, never zero.
+    expect(unknown?.awaitingUnknown?.count).toBeNull();
+    expect(unknown?.silentOver21.lifetime).toBeNull();
+    expect(STATS_ATTENTION_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('a lease whose renewal failed (1.2.0)', () => {
+  it('[NF-021] the card of a lease of ours may carry the error of its last renewal; the lease itself is unchanged', () => {
+    type Mine = Extract<C.ClaimVM, { s: 'mine' }>;
+    expectTypeOf<Mine['renewError']>().toEqualTypeOf<C.CgErrorView | undefined>();
+    const [plain, failed] = CLAIM_RENEW_SAMPLES.valid;
+    expect(plain?.s === 'mine' && plain.renewError).toBeUndefined();
+    expect(failed?.s === 'mine' && failed.renewError?.code).toBe('CG-HUB-TIMEOUT');
+    expect(failed?.s === 'mine' && C.CgErrorViewSchema.safeParse(failed.renewError).success).toBe(true);
+    // The deadline and the buttons are the lease's own, with or without the error.
+    expect(failed).toMatchObject({ s: 'mine', until: 1_790_000_119_000, renew: { action: { type: 'RenewClaim' } }, release: { action: { type: 'ReleaseClaim' } } });
+    expect(CLAIM_RENEW_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('the fan panel\'s bio names its source (1.2.0)', () => {
+  it('[CS-035] the bio is the hub profile or ChatSpace\'s own «О себе», and the panel may say which', () => {
+    expectTypeOf<C.FanPanelVM['bioSource']>().toEqualTypeOf<'hub' | 'host' | undefined>();
+    const [none, hub, host] = FAN_PANEL_BIO_SAMPLES.valid;
+    expect(none).toMatchObject({ bio: null });
+    expect(none?.bioSource).toBeUndefined();
+    expect(hub).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
+    expect(host).toMatchObject({ bioSource: 'host' });
+    expect(FAN_PANEL_BIO_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('the dock and Coach (1.2.0)', () => {
+  it('[UI-031] the I18n port may print a time in a named zone: the quota resets «в 03:00 по Москве» for every viewer', () => {
+    expectTypeOf<C.I18n['formatTimeIn']>().toEqualTypeOf<((at: number | C.IsoTimestamp, timeZone: string, style?: C.TimeStyle) => string) | undefined>();
+    expect(C.UI_TEXT_KEYS).toContain('dock.quota.zeroTooltip');
+    expect(ZONED_TIME_SAMPLES.valid[0]?.('2026-10-04T00:00:00Z', 'Europe/Moscow')).toBe('03:00');
+    expect(ZONED_TIME_SAMPLES.invalid).toHaveLength(1);
+  });
+
+  it('[UI-015] a refusal may say when its start was refused, so a second one is told from the first', () => {
+    expectTypeOf<C.RefusalVM['at']>().toEqualTypeOf<number | undefined>();
+    const [plain, timed] = REFUSAL_VM_SAMPLES.valid;
+    expect(plain?.at).toBeUndefined();
+    expect(timed?.at).toBeGreaterThan(0);
+    expect(REFUSAL_VM_SAMPLES.invalid).toHaveLength(1);
+  });
+
+  it('[AI-086] [DB-019] a Coach turn may carry the Б2 question of a draft part and its debug footer', () => {
+    expectTypeOf<C.CoachTurnVM['confirm']>().toEqualTypeOf<C.ConfirmVM | null | undefined>();
+    expectTypeOf<C.CoachTurnVM['debug']>().toEqualTypeOf<C.ResultDebugVM | null | undefined>();
+    const [plain, , asking] = COACH_TURN_VM_SAMPLES.valid;
+    expect(plain?.confirm).toBeUndefined();
+    expect(asking?.confirm?.kind).toBe('human-draft');
+    expect(asking?.debug?.stages).toHaveLength(1);
+    expect(COACH_TURN_VM_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[ER-005] an error view may carry the dot of its card: a failure or a state', () => {
+    expect(C.CG_ERROR_TONES).toEqual(['failure', 'state']);
+    expectTypeOf<C.CgErrorView['tone']>().toEqualTypeOf<C.CgErrorTone | undefined>();
+    const base = { code: 'CG-QUOTA-DAILY', title: 'Дневная квота AI исчерпана', body: 'Квота обновится в 03:00 по Москве.' };
+    expect(C.CgErrorViewSchema.safeParse(base).success).toBe(true);
+    expect(C.CgErrorViewSchema.safeParse({ ...base, tone: 'state' }).success).toBe(true);
+    expect(C.CgErrorViewSchema.safeParse({ ...base, tone: 'ring' }).success).toBe(false);
+  });
+
+  it('the live region and the failed Recap save have their words in the catalog', () => {
+    for (const key of ['result.announce.stage', 'result.announce.canRetry', 'cg.recapSave.line', 'cg.recapSave.action', 'cg.recapSave.actionTooltip'] as const) {
+      expect(C.UI_TEXT_KEYS).toContain(key);
+    }
+    expect(C.isPluralKey('result.announce.ready')).toBe(true);
+    expect(C.isPluralKey('result.announce.retryIn')).toBe(true);
+  });
+});
+
+describe('boards, preview, «Новые», fan panel and palette texts (1.2.0)', () => {
+  it('[SP-012] [NF-025] [CS-032] the catalog names every text those surfaces draw', () => {
+    expect(new Set(BOARDS_I18N_KEYS.text).size).toBe(BOARDS_I18N_KEYS.text.length);
+    for (const key of BOARDS_I18N_KEYS.text) {
+      expect(C.UI_TEXT_KEYS, key).toContain(key);
+      expect(C.isPluralKey(key), key).toBe(false);
+    }
+    for (const key of BOARDS_I18N_KEYS.plural) expect(C.isPluralKey(key), key).toBe(true);
+    for (const key of BOARDS_I18N_KEYS.invalid) expect(C.I18N_KEYS as readonly unknown[]).not.toContain(key);
+    // The narrow list column prints «Всего» for «Всё время» (ui-design §3.5).
+    expect(C.UI_TEXT_KEYS).toContain('spenders.col.lifetimeShort');
+    // The statistics region is named «Статистика Spenders» (ui-design §6.1); the greeting draft of «Новые»
+    // is a field of its own, not the Fix draft (NF-012).
+    expect(BOARDS_I18N_KEYS.text).toEqual(expect.arrayContaining(['stats.regionLabel', 'newcomers.greetingDraft.placeholder', 'newcomers.greetingDraft.aria']));
+  });
+});
+
+describe('«Результат неполный» in «Новые» (1.2.0, the wave-2 merge)', () => {
+  it('[NF-025] the title and the reason are two keys: the window prints the title, the view model carries why', () => {
+    expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete');
+    expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete.body');
+    expectTypeOf<C.NewcomersVM['incomplete']>().toEqualTypeOf<C.Msg | null>();
+    expect(NEWCOMERS_INCOMPLETE_SAMPLES.valid[0]?.key).toBe('newcomers.incomplete.body');
+    // The view model never repeats the title the window already prints.
+    expect(NEWCOMERS_INCOMPLETE_SAMPLES.valid.map((msg) => msg.key)).not.toContain('newcomers.incomplete');
+    expect(NEWCOMERS_INCOMPLETE_SAMPLES.invalid).toHaveLength(2);
   });
 });

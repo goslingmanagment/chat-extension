@@ -75,6 +75,31 @@ export interface FakeHubConfigPatch {
   readonly spendersTotal?: number;
   /** Delay before each model-stream content chunk, ms. */
   readonly aiChunkDelayMs?: number;
+  /** Every part of a draft the model writes ends with ` @<fanRef>`: a test can tell whose chat a text was written for. */
+  readonly aiNameFan?: boolean;
+  /**
+   * What the model answers for a hub feature (`fast-reply`, `hi-greeting`, `fan-summary`, `chat-review`,
+   * `coach-chat`…), as it is — `[NEXT]`, `[VARIANT]`, the Review frame and Coach's draft fences included.
+   * Features not named keep their synthetic answer; `{}` restores them all.
+   */
+  readonly aiTexts?: Readonly<Record<string, string>>;
+}
+
+/**
+ * One fan at the top of the Spenders board (`spenderFans`). Money in whole dollars; ages in seconds before the
+ * hub's «now» (null — never). Anything left out keeps the synthetic row's value.
+ */
+export interface SpenderSeed {
+  readonly fanRef: string;
+  readonly username?: string;
+  readonly displayName?: string | null;
+  readonly lifetimeUsd?: number;
+  /** Spent in the board's period; null — nothing in it. */
+  readonly windowUsd?: number | null;
+  readonly fanWroteAgoSec?: number | null;
+  readonly weWroteAgoSec?: number | null;
+  /** Stands in «ждут ответа» (the fan wrote last and nobody answered). */
+  readonly awaiting?: boolean;
 }
 
 export type FakeHubCommand =
@@ -126,6 +151,13 @@ export type FakeHubCommand =
   | { readonly op: 'archiveRebuild'; readonly pageLabel: string; readonly fanRef: string }
   /** A subscription event lands in «Новые». */
   | { readonly op: 'audienceEvent'; readonly pageLabel: string; readonly fanRef: string; readonly kind?: 'new' | 'returning'; readonly trial?: boolean }
+  /**
+   * The first rows of every page's Spenders board are these fans, in this order — fans the e2e's stand has, so
+   * a chat a preview names can be opened, inserted into and sent to. The board's shelves become the six
+   * standard tiers counted over its rows, and «ждут ответа» is the fans marked `awaiting`. `fans: []` — back
+   * to the synthetic board.
+   */
+  | { readonly op: 'spenderFans'; readonly fans: readonly SpenderSeed[] }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
 

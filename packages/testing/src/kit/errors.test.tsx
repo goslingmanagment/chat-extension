@@ -150,6 +150,24 @@ describe('the error card (ui-design §4.8; ER-005…ER-007 rendered)', () => {
     expect(kit.client.dispatched).toEqual([]);
   });
 
+  it('[ER-005] the actions row as §4.8 draws it: «Повторить», the countdown right after it, and ONE «Скопировать код» — the controller’s own copy action is not a second button', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(kitNow());
+    const error = cgError(ctx, 'CG-PROVIDER-RATE-LIMIT', { retryAt: kitNow() + 24_000 });
+    // What a controller builds from the registry: the recovery first, «Скопировать код» last.
+    const actions = [
+      button('common.retry', { type: 'Regenerate', operationId: '00000000-0000-4000-8000-000000000101' }, { enabled: false, reason: reason('wait-until', { n: 24 }) }),
+      button('common.copyCode', { type: 'CopyReport', scope: 'error', code: 'CG-PROVIDER-RATE-LIMIT' }),
+    ];
+    kit = await mountKitSettled(() => <ErrorCard error={error} tone="failure" actions={actions} />, { now: () => Date.now() });
+    const row = [...(kit.$('.cg-card__acts') as HTMLElement).children].filter((node) => node.matches('.cg-btn, .cg-count')).map((node) => node.textContent);
+    expect(row).toEqual(['Повторить', 'через 24 с', 'Скопировать код']);
+    // Where the card has no copy button of its own (the clipboard itself failed), the controller's action stays.
+    kit.unmount();
+    kit = await mountKitSettled(() => <ErrorCard error={error} tone="failure" actions={actions} copyCode={false} />, { now: () => Date.now() });
+    expect(kit.$$('.cg-card__acts .cg-btn').map((node) => node.textContent)).toEqual(['Повторить', 'Скопировать код']);
+  });
+
   it('the daily quota counts to its reset in hours and minutes, never as a time of day', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(kitNow());

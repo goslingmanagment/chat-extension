@@ -58,6 +58,45 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(C.mayRequest('settings.get', 'tab', null)).toBe(true);
   });
 
+  it('[ST-007] `settings.open` is a ChatSpace tab’s request: a section of the settings and a CG code, never an address', () => {
+    expect(C.mayRequest('settings.open', 'tab', null)).toBe(true);
+    // An extension page opens its own pages by itself.
+    expect(C.mayRequest('settings.open', 'page', 'popup')).toBe(false);
+    const { req, res } = C.TAB_REQUESTS['settings.open'];
+    expect(req.safeParse({ route: { section: 'personas', code: 'CG-PERSONA-UNASSIGNED' } }).success).toBe(true);
+    expect(req.safeParse({ route: { section: 'status' }, hash: '#status' }).success).toBe(false);
+    expect(req.safeParse({ route: 'options.html#status' }).success).toBe(false);
+    expect(res.safeParse({ opened: false }).success).toBe(true);
+  });
+
+  it('[PU-017] [ST-076] `tab.command`: only the popup and the options page ask, only a ChatSpace tab is told, and the command is the same closed set both ways', () => {
+    expect(C.mayRequest('tab.command', 'page', 'popup')).toBe(true);
+    expect(C.mayRequest('tab.command', 'page', 'options')).toBe(true);
+    expect(C.mayRequest('tab.command', 'page', 'debug-journal')).toBe(false);
+    // A tab cannot make another tab act.
+    expect(C.mayRequest('tab.command', 'tab', null)).toBe(false);
+    expect(C.TAB_EVENTS['tab.command'].to).toEqual(['tab']);
+    for (const command of [{ kind: 'surface', surface: 'cheatsheet' }, { kind: 'account', host: 'chatspace', hostAccountId: '1001' }]) {
+      expect(C.TAB_REQUESTS['tab.command'].req.safeParse({ command }).success).toBe(true);
+      expect(C.parseTabPayload('evt', 'tab.command', { command })).toEqual({ ok: true, payload: { command } });
+    }
+    expect(C.parseTabPayload('evt', 'tab.command', { command: { kind: 'chat', host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } })).toEqual({ ok: false });
+  });
+
+  it('[DB-006] [DB-007] `debug.open` is a ChatSpace tab’s request: the opaque token of a prompt snapshot, never an address; the prompt itself is read by the page', () => {
+    expect(C.mayRequest('debug.open', 'tab', null)).toBe(true);
+    // An extension page opens its own pages by itself; the prompt is read only by `debug-prompt.html`.
+    expect(C.mayRequest('debug.open', 'page', 'options')).toBe(false);
+    expect(C.mayRequest('debug.prompt', 'tab', null)).toBe(false);
+    const { req, res } = C.TAB_REQUESTS['debug.open'];
+    expect(req.safeParse({ token: 'prompt-token-1' }).success).toBe(true);
+    expect(req.safeParse({ token: 'prompt-token-1', page: 'debug-prompt' }).success).toBe(false);
+    expect(req.safeParse({ url: 'debug-prompt.html?t=prompt-token-1' }).success).toBe(false);
+    expect(res.safeParse({ opened: false }).success).toBe(true);
+    // The answer says whether the page opened and carries nothing of the snapshot.
+    expect(res.safeParse({ opened: true, blocks: [] }).success).toBe(false);
+  });
+
   it('parses in two stages and rejects unknown types', () => {
     const envelope = C.TabEnvelopeSchema.parse({ v: 1, kind: 'req', id: 4, type: 'op.cancel', tabSessionId: '00000000-0000-4000-8000-000000000004', payload: { opId: '00000000-0000-4000-8000-000000000002' } });
     expect(envelope.kind).toBe('req');

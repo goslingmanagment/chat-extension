@@ -367,6 +367,9 @@ export class FakeHub {
         return { ok: true, generation: s.data.rebuildArchive(this.page(command.pageLabel), command.fanRef) };
       case 'audienceEvent':
         return { ok: true, eventRef: s.data.addAudienceEvent(this.page(command.pageLabel), command.fanRef, command.kind ?? 'new', command.trial ?? false, now) };
+      case 'spenderFans':
+        s.data.useSpenderFans(command.fans);
+        return { ok: true, fans: command.fans.length };
       case 'status':
         return this.status();
       default:
@@ -752,7 +755,7 @@ export class FakeHub {
       case 'spenderBatch':
         return read(s.data.spenderBatch(need(page), request as SpenderBatchQuery, now, s.config.spendersTotal));
       case 'pageSpenderAutoLists':
-        return read(s.data.autoLists(need(page), now));
+        return read(s.data.autoLists(need(page), now, s.config.spendersTotal));
       case 'ingestObservations': {
         const { token, user } = need(principal);
         const allowed = token.client === null ? null : ['ai_acceptance', ...(s.config.capabilities.includes('client-health-perf-v1') ? ['client_health'] : [])];
@@ -830,6 +833,8 @@ export class FakeHub {
         state: archive.states,
       },
       chunkDelayMs: s.config.aiChunkDelayMs,
+      nameFan: s.config.aiNameFan,
+      texts: s.config.aiTexts,
     });
     return { kind: 'sse', response: { kind: 'stream', steps }, request };
   }

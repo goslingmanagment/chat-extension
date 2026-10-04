@@ -5,7 +5,8 @@
 // copying failed, and one collapsed line once a part is inserted or sent.
 // Clicking the text inserts nothing; Enter on the focused part inserts THIS
 // part (never a collapsed one: «Вставить ещё раз» is a click of its own, and
-// a sent part has none; with «Вставить» unavailable Enter says why);
+// a sent part has none; with «Вставить» unavailable Enter says why; a held
+// Enter counts once);
 // ⌘C / Ctrl+C — the physical C key, so the Russian layout works too —
 // copies it when nothing inside is selected. Surfaces put
 // their rows (the X8 send row, the Б2 question) in `children`. An ancestor
@@ -17,7 +18,7 @@ import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent 
 import { type PartVM } from '@cg/contracts/vm';
 
 import { useAnnounce, useHints, useI18n, useKit } from '../context';
-import { isComposing } from '../focus';
+import { isComposing, isHeldKey } from '../focus';
 import { dark } from '../tokens';
 import { Button } from './Button';
 import { ErrorCard } from './ErrorCard';
@@ -71,6 +72,8 @@ export function PartRow(props: PartRowProps): JSX.Element {
     if (event.defaultPrevented || event.target !== event.currentTarget || isComposing(event)) return;
     if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
       event.preventDefault();
+      // A held Enter is one press: its repeats insert nothing more.
+      if (isHeldKey(event)) return;
       // Inserted or sent: inserting again is only ever the explicit «Вставить ещё раз» (UI-022).
       if (collapsed) return;
       if (mode === 'copy-only') props.onCopy(part);

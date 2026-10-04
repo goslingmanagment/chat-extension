@@ -76,8 +76,8 @@ describe('[SN-015] presence of the ChatSpace tabs (§9.8)', () => {
   });
 });
 
-describe('seen host accounts in storage.local `presence` (§9.9)', () => {
-  it('stores the accounts a tab reported, newest first, with how many tabs show each now', async () => {
+describe('[AU-034] [AU-035] seen host accounts in storage.local `presence` (§9.9)', () => {
+  it('[AU-034] stores the accounts a tab reported, newest first, with how many tabs show each now', async () => {
     const { presence, local, clock } = setup();
     expect(await presence.start()).toEqual({ readable: true, accounts: 0 });
     await presence.report('tab-a', { chat, routeEpoch: 1, visible: true, focused: true, accounts: [account] });
@@ -98,7 +98,7 @@ describe('seen host accounts in storage.local `presence` (§9.9)', () => {
     expect(presence.seenAccounts().map((item) => item.openTabs)).toEqual([0, 1]);
   });
 
-  it('a known account is refreshed at most every 10 minutes, or when it changed; one set per change', async () => {
+  it('[AU-035] a known account is refreshed at most every 10 minutes, or when it changed; one set per change', async () => {
     const { presence, local, clock } = setup();
     await presence.report('tab-a', { chat, routeEpoch: 1, visible: true, focused: true, accounts: [account] });
     const writes = local.calls.set;
@@ -122,7 +122,7 @@ describe('seen host accounts in storage.local `presence` (§9.9)', () => {
     expect(seen[0]?.account.hostAccountId).toBe(`${10_000 + STORAGE_LIMITS.seenAccountsMax + 4}`);
   });
 
-  it('comes back after a restart; an unreadable store is not overwritten until a read succeeds', async () => {
+  it('[AU-035] comes back after a restart; an unreadable store is not overwritten until a read succeeds', async () => {
     const first = setup();
     await first.presence.report('tab-a', { chat, routeEpoch: 1, visible: true, focused: true, accounts: [account] });
     first.port.detach();

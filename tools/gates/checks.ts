@@ -358,6 +358,29 @@ export function checkMainWorldBundles(files: readonly SourceFile[]): Violation[]
   return violations;
 }
 
+/** Bundles that run in a ChatSpace tab's isolated world: the content script and every lazy chunk it loads. */
+const isTabBundle = (path: string): boolean => path === 'content-scripts/chatspace.js' || path.startsWith('lazy/');
+
+/**
+ * 8a. A ChatSpace tab listens to no storage change (architecture.md §14: the
+ * hub token is the background's alone). The browser hands a
+ * `storage.onChanged` listener every change of the area with its old and new
+ * values — the sign-in record with the token among them — into the page's
+ * own process. The tab reads and writes its one key by name.
+ */
+export function checkTabStorageListeners(files: readonly SourceFile[]): Violation[] {
+  const pattern = /\bstorage\s*(?:\?\.|\.)\s*(?:(?:local|session|sync|managed)\s*(?:\?\.|\.)\s*)?onChanged\b/;
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (!isTabBundle(file.path)) continue;
+    const match = pattern.exec(file.text);
+    if (!match) continue;
+    const line = file.text.slice(0, match.index).split('\n').length;
+    violations.push({ gate: 'tab-storage-listener', path: file.path, line, message: `a ChatSpace tab's bundle listens to storage changes («${match[0]}»): every change of the area — the sign-in record too — would be delivered into the tab (§14).` });
+  }
+  return violations;
+}
+
 /** The test stand's own package: the only code that may name its hooks. */
 export const STAND_PACKAGE = /^packages\/testing\//;
 /** Stand-only hooks: `data-stand-*` attributes, `window.__stand`, the `x-stand-*` headers. None exist on ChatSpace. */

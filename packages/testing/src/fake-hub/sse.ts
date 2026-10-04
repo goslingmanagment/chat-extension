@@ -85,6 +85,8 @@ export function sseBody(steps: readonly FakeSseStep[], ctx: SsePlayContext): Rea
   const encoder = new TextEncoder();
   const stop = new AbortController();
   let ended = false;
+  /** The terminal frame already written (`done` / `error`): what the stream was, whoever hangs up after it. */
+  let terminal: StreamOutcome | null = null;
   const end = (outcome: StreamOutcome): void => {
     if (ended) return;
     ended = true;
@@ -92,7 +94,8 @@ export function sseBody(steps: readonly FakeSseStep[], ctx: SsePlayContext): Rea
   };
   const onClientAbort = (): void => {
     stop.abort();
-    end('aborted');
+    // A client that read the terminal frame closes the connection at once: the generation is over, not aborted.
+    end(terminal ?? 'aborted');
     writer.abort(abortError()).catch(() => undefined);
   };
   const onHubClose = (): void => {
@@ -107,13 +110,12 @@ export function sseBody(steps: readonly FakeSseStep[], ctx: SsePlayContext): Rea
   // The reader cancelled the body (reader.cancel()): the writable side errors.
   writer.closed.catch(() => {
     stop.abort();
-    end('aborted');
+    end(terminal ?? 'aborted');
   });
   const scaled = (ms: number | undefined): number => Math.max(0, Math.round((ms ?? 0) * ctx.timeScale));
   const write = (text: string | Uint8Array): Promise<void> => writer.write(typeof text === 'string' ? encoder.encode(text) : text);
 
   void (async () => {
-    let terminal: StreamOutcome | null = null;
     try {
       for (const step of steps) {
         if (stop.signal.aborted) return;
@@ -122,10 +124,11 @@ export function sseBody(steps: readonly FakeSseStep[], ctx: SsePlayContext): Rea
             await sleep(scaled(step.afterMs), stop.signal);
             if (stop.signal.aborted) return;
             const frame = ctx.rewrite?.(step.frame) ?? step.frame;
-            await write(sseFrameText(frame));
-            ctx.onFrame(frame);
+            // Known before the write resolves: the reader may hang up in the very step it reads the frame.
             if (frame.type === 'done') terminal = 'done';
             if (frame.type === 'error') terminal = 'error-frame';
+            await write(sseFrameText(frame));
+            ctx.onFrame(frame);
             break;
           }
           case 'heartbeat':
@@ -169,7 +172,7 @@ export function sseBody(steps: readonly FakeSseStep[], ctx: SsePlayContext): Rea
     } catch {
       // A write failed: the client is gone (abort and cancel already ended the stream).
       stop.abort();
-      end('aborted');
+      end(terminal ?? 'aborted');
     } finally {
       ctx.signal?.removeEventListener('abort', onClientAbort);
       ctx.hubSignal.removeEventListener('abort', onHubClose);

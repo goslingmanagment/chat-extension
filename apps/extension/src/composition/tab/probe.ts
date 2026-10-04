@@ -9,10 +9,23 @@
 /** Same key as build/bundle-timing.ts (the marks around this bundle, test builds only). */
 const BUNDLE_MARKS_KEY = '__cgBundleMarks';
 
+/**
+ * The stand page asks for a write to be held: `<html data-cg-spike-hold="ms">`. The e2e opens another chat in
+ * that time — after our own check of the chat passed, before MAIN's (suite-switches.e2e.ts): the one moment of
+ * the insert path WebDriver cannot reach by clicking fast.
+ */
+export const HOLD_WRITE_ATTRIBUTE = 'data-cg-spike-hold';
+const HOLD_WRITE_MAX_MS = 2000;
+
 export interface TabProbe {
   set(key: string, value: unknown): void;
   /** composeTab's own synchronous time; the bundle-wide number follows a task later. */
   bootstrapped(composeMs: number): void;
+  /**
+   * A write reached the point where its action token is spent — our side's check of the chat is behind it,
+   * MAIN's is ahead. Counted in the report (`writesReached`), and held for as long as the stand page asked.
+   */
+  holdWrite(): Promise<void>;
 }
 
 interface BundleMarks {
@@ -40,8 +53,15 @@ export function createTabProbe(win: Window): TabProbe {
     flush();
   };
   flush();
+  let writesReached = 0;
   return {
     set,
+    holdWrite() {
+      writesReached += 1;
+      set('writesReached', writesReached);
+      const ms = Number(html.getAttribute(HOLD_WRITE_ATTRIBUTE) ?? '0');
+      return Number.isFinite(ms) && ms > 0 ? new Promise((resolve) => setTimeout(resolve, Math.min(ms, HOLD_WRITE_MAX_MS))) : Promise.resolve();
+    },
     bootstrapped(composeMs) {
       // The bundle's last statement (t1) runs after main() returns: read it a task later.
       setTimeout(() => {

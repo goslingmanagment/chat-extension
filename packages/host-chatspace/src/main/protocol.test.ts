@@ -17,12 +17,12 @@ import {
 } from '@cg/contracts/bridge';
 import { CG_CODES } from '@cg/contracts/errors';
 import { BRIDGE_REQUEST_FIXTURES } from '@cg/contracts/fixtures';
-import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, PART_LIMITS } from '@cg/contracts/limits';
+import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, PART_LIMITS, SEND_LIMITS } from '@cg/contracts/limits';
 import { describe, expect, it } from 'vitest';
 
 import * as contract from '../isolated/host-contract';
 import * as wire from '../isolated/wire';
-import { isRequestEnvelope } from './check';
+import { isRequestEnvelope } from './bridge';
 import * as protocol from './protocol';
 import { PAYLOAD } from './requests';
 
@@ -36,9 +36,13 @@ describe('[EX-008] MAIN bridge literals', () => {
     const errors = [protocol.ERR_UNKNOWN_REQUEST, protocol.ERR_BAD_REQUEST, protocol.ERR_NOT_READY, protocol.ERR_IDENTITY, protocol.ERR_STALE_DOCUMENT, protocol.ERR_DISABLED, protocol.ERR_INTERNAL];
     expect([...errors].sort()).toEqual([...BRIDGE_ERRORS].sort());
     expect(protocol.WRITE_REQUESTS).toEqual([...BRIDGE_WRITE_REQUESTS]);
-    for (const t of protocol.NOT_YET_REQUESTS) expect(TO_MAIN_TYPES).toContain(t);
-    // The «not yet» answer is a refusal before execution: a send is `held`, never uncertain.
+    for (const t of protocol.LIVE_REQUESTS) expect(TO_MAIN_TYPES).toContain(t);
+    // Without the tap script the answer is a refusal before execution: a send is `held`, never uncertain.
     expect(BRIDGE_ERRORS_BEFORE_EXECUTION).toContain(protocol.ERR_DISABLED);
+    expect(protocol.SEND_MAX_CHARS).toBe(SEND_LIMITS.previewDraftMaxChars);
+    expect(protocol.NATIVE_TIMEOUT_MS).toBe(SEND_LIMITS.nativeTimeoutMs);
+    expect(protocol.QUEUE_MAX_PER_CHAT).toBe(SEND_LIMITS.nativeQueueMaxPerChat);
+    expect(protocol.KNOWN_FAN_MESSAGES).toBe(SEND_LIMITS.knownFanMessagesMax);
     expect(protocol.MAX_STRING).toBe(BRIDGE_LIMITS.maxStringLength);
     expect(protocol.MAX_SNAPSHOT).toBe(BRIDGE_LIMITS.maxSnapshotMessages);
     expect(protocol.MAX_ARRAY).toBe(BRIDGE_LIMITS.maxArrayLength);
@@ -85,9 +89,16 @@ describe('[EX-008] MAIN bridge literals', () => {
       'KEY_PERMISSIONS',
       'KEY_BUYING_POWERS',
       'KEY_INSIGHTS',
+      'STORE_ACCOUNTS',
+      'WS_PATH',
+      'WS_NEW_MESSAGE',
+      'WS_AUTHENTICATED',
+      'PERMISSION_NO_SEND',
+      'GUARD_CODE',
     ] as const;
     for (const name of shared) expect([name, protocol[name]]).toEqual([name, contract[name]]);
     expect(protocol.BUILD_PATTERN.source).toBe(contract.BUILD_PATTERN.source);
+    expect(protocol.SEND_PATH.source).toBe(contract.SEND_PATH.source);
     expect(contract.draftKey('1001', '2002')).toBe('chat-space:draft:of:1001:2002');
   });
 
@@ -100,7 +111,7 @@ describe('[EX-008] MAIN bridge literals', () => {
 });
 
 describe('[EX-008] MAIN request checks agree with the contracts fixtures', () => {
-  const ownTypes = TO_MAIN_TYPES.filter((t) => t !== 'probe' && !protocol.NOT_YET_REQUESTS.includes(t));
+  const ownTypes = TO_MAIN_TYPES.filter((t) => t !== 'probe');
 
   it.each(ownTypes)('%s: valid payloads pass, invalid ones are refused', (t) => {
     const check = PAYLOAD[t];

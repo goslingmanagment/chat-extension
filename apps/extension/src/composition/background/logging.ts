@@ -12,12 +12,14 @@ import { DebugJournals, LogService, acceptUiRecords } from '@cg/core/services/lo
 import { openBoundedStore, type KeyValueStore } from '@cg/platform';
 
 import { LOG_STORE_BOUNDS, logStoreOver } from './log-store';
-import { SCHEDULER, keyOf } from './ports';
+import { IDS, SCHEDULER, keyOf } from './ports';
 
 /** storage.session: the log session survives the event page unloading, not a browser restart (§9.2). */
 export const LOG_SESSION_KEY = 'log.session';
 /** storage.session: today's counters by CG code (LG-010). */
 export const LOG_COUNTERS_KEY = 'log.counters';
+/** The scope of the background's «Новые» checks: the subscriber poll, a tab's list read, the greeting leases. */
+export const NEWCOMERS_SCOPE = 'bg.newcomers';
 /** The counters are saved at most this often after a change. */
 const COUNTERS_SAVE_DELAY_MS = 2000;
 
@@ -71,6 +73,10 @@ export function createBackgroundLogging(deps: BackgroundLoggingDeps): Background
     onFailure: (what) => logEvent(logger, 'logStoreFailed', { fields: { what } }),
   });
 
+  // NF-029 «Журнал проверки «Новых»»: one run per life of the event page — every read of the list for the
+  // subscriber sound and every move of a greeting lease, as metadata (page ids, counts, states).
+  const checkRun = journals.newcomersSink(IDS.uuid(), new Date().toISOString());
+
   const logger: Logger = createLogger({
     now: () => Date.now(),
     debugEnabled: deps.debugEnabled,
@@ -81,6 +87,9 @@ export function createBackgroundLogging(deps: BackgroundLoggingDeps): Background
     sinks: [
       logs.sink,
       journals.sink,
+      (record) => {
+        if (record.scope === NEWCOMERS_SCOPE) checkRun(record);
+      },
       (record) => {
         if (record.code !== undefined) saveCounters();
       },

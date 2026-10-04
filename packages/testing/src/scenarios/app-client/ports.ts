@@ -70,12 +70,12 @@ export function formatDuration(ms: number, style: DurationStyle): string {
   return `${Math.floor(total / 3600)}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
 
-/** UTC formatting keeps fixtures deterministic across machines. */
-export function formatTime(language: Locale, at: number | string, style: TimeStyle = 'time'): string {
+/** UTC formatting keeps fixtures deterministic across machines; `formatTimeIn` names its zone. */
+export function formatTime(language: Locale, at: number | string, style: TimeStyle = 'time', timeZone = 'UTC'): string {
   const locale = language === 'ru' ? 'ru-RU' : 'en-GB';
   const date = new Date(toMs(at));
-  const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-  const day = date.toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone });
+  const day = date.toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone });
   if (style === 'time') return time;
   if (style === 'datetime') return `${day}, ${time}`;
   return day;
@@ -111,6 +111,7 @@ export function createFakeI18n(initial: Locale, clock: () => number): FakeI18n {
     formatMoneySpoken: (mills, format) => `${language}:spoken(${formatMoneyMills(mills, format ?? {})})`,
     formatAge: (from, now) => formatAge(language, from, now ?? clock()),
     formatTime: (at, style) => formatTime(language, at, style),
+    formatTimeIn: (at, timeZone, style) => formatTime(language, at, style, timeZone),
     formatDuration,
     subscribe(listener) {
       listeners.add(listener);

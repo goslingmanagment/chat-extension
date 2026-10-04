@@ -13,6 +13,7 @@ import {
   checkSdkCustody,
   checkSendQueueReferences,
   checkStandHooks,
+  checkTabStorageListeners,
   checkUiTexts,
   deriveSdkMarkers,
   missingSdkMarkerKinds,
@@ -226,6 +227,23 @@ describe('gate: SDK custody (§4, D-13)', () => {
       ),
     ).toEqual([]);
     expect(() => checkSdkCustody(bundle, [])).toThrow(/no SDK markers/);
+  });
+});
+
+describe('gate: no storage listener in a ChatSpace tab (§14)', () => {
+  it('flags `storage.onChanged` in the content script and in a lazy chunk; the background and the pages may listen', () => {
+    const violations = checkTabStorageListeners([
+      file('content-scripts/chatspace.js', 'let a=e.storage.local.get(k);e.storage.onChanged.addListener(n)'),
+      file('lazy/boards-preview.js', 'b?.storage?.local?.onChanged.addListener(f)'),
+      file('lazy/chunks/shared.js', 'api.storage.local.set({k:v})'),
+      file('content-scripts/chatspace-main.js', 'x.storage.onChanged'),
+      file('background.js', 'e.storage.onChanged.addListener(n)'),
+      file('chunks/pages.js', 'e.storage.onChanged.addListener(n)'),
+    ]);
+    expect(violations.map((violation) => [violation.gate, violation.path])).toEqual([
+      ['tab-storage-listener', 'content-scripts/chatspace.js'],
+      ['tab-storage-listener', 'lazy/boards-preview.js'],
+    ]);
   });
 });
 

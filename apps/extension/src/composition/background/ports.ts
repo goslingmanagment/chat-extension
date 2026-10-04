@@ -8,7 +8,7 @@
 
 import { isCgCode } from '@cg/contracts/errors';
 import { type LogOptions, type Logger } from '@cg/core/domain/logging';
-import { type Clock, type IdSource, type LogSink, type ServiceLog, type TabEventSink, type Timers } from '@cg/core/services';
+import { type Clock, type IdSource, type KeyValueStore as ThrowingStore, type LogSink, type ServiceLog, type TabEventSink, type Timers } from '@cg/core/services';
 import { type KeyValuePort as KeyPort, type Scheduler } from '@cg/core/services/logs';
 import { type KeyValueStore } from '@cg/platform';
 
@@ -55,6 +55,21 @@ export class StorageCallError extends Error {
   ) {
     super(`${code} ${key}`);
   }
+}
+
+/** A storage area as R10's and R17's services take it: one key at a time, a failure rejects with its code. */
+export function throwingStoreOf(store: KeyValueStore): ThrowingStore {
+  return {
+    async get(key) {
+      const read = await store.get([key]);
+      if (!read.ok) throw new StorageCallError(read.code, key);
+      return read.value[key];
+    },
+    async set(key, value) {
+      const written = await store.set({ [key]: value });
+      if (!written.ok) throw new StorageCallError(written.code, key);
+    },
+  };
 }
 
 /** One key of a storage area as R18's port: read whatever is there, write the whole value; a failure rejects. */

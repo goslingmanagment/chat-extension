@@ -70,9 +70,15 @@ export class HubContext {
     readonly uuid: UuidSource,
   ) {}
 
-  /** The dev/compat mode (no narrow token, no client/* routes) is allowed only in debug or a test build, never in a release by default. */
+  /**
+   * The dev/compat mode (a full token kept, the bootstrap synthesized for a hub without `client/*` routes) is a
+   * developer's tool: only in a test build AND with debug mode on. A release build never has it, whatever its
+   * settings say — debug mode is a switch any chatter can flip, and the narrow token (H-3) is what bounds the
+   * damage of a stolen sign-in (architecture.md §14). A release build that meets a hub without H-2/H-3 says
+   * CG-HUB-OUTDATED and revokes what the hub issued.
+   */
   compatAllowed(): boolean {
-    return this.env.testBuild || this.env.debugEnabled();
+    return this.env.testBuild && this.env.debugEnabled();
   }
 
   /** The current sign-in or the check that refuses: not signed in, another hub, unreadable, a full token in a release build. */

@@ -14,6 +14,15 @@ export interface ClientEnv {
   readonly os: ClientOs;
 }
 
+/** The version of the manifest, read at once (an extension page prints it before anything answered); `0.0.0` — unreadable. */
+export function extensionVersionOf(api: BrowserApi = defaultBrowser()): string {
+  try {
+    return api.runtime.getManifest().version;
+  } catch {
+    return '0.0.0';
+  }
+}
+
 /** `runtime.getPlatformInfo().os` → our four values. */
 export function clientOsOf(os: string | undefined): ClientOs {
   switch (os ?? '') {
@@ -37,12 +46,7 @@ export function majorVersionOf(text: string | undefined): number | null {
 }
 
 export async function readClientEnv(api: BrowserApi = defaultBrowser(), userAgent: string | undefined = globalThis.navigator?.userAgent): Promise<ClientEnv> {
-  let extensionVersion = '0.0.0';
-  try {
-    extensionVersion = api.runtime.getManifest().version;
-  } catch {
-    // keep the placeholder
-  }
+  const extensionVersion = extensionVersionOf(api);
   let browserMajor: number | null = null;
   try {
     const info = await api.runtime.getBrowserInfo?.();

@@ -9,8 +9,10 @@ export type ToneWave = 'sine' | 'square' | 'triangle' | 'sawtooth';
 /** One oscillator of a tone. */
 export interface ToneNote {
   readonly frequencyHz: number;
-  /** Glide to this frequency by the end of the note. */
+  /** Glide to this frequency by the end of the note, or within `glideMs` of its start. */
   readonly endFrequencyHz?: number;
+  /** How long the glide to `endFrequencyHz` takes; the pitch then stays there. Default — the whole note. */
+  readonly glideMs?: number;
   readonly startMs: number;
   readonly durationMs: number;
   readonly wave?: ToneWave;
@@ -64,7 +66,13 @@ export interface AudioStats {
 }
 
 export interface AudioPlayer {
-  /** `volume` 0–1 (settings `sound.volume` / 100). */
+  /**
+   * Wakes the context within the resume timeout without playing anything
+   * (SN-011): true — it runs. The sound arbiter looks at its rules once more
+   * after this, then calls `play`, which starts at once on a running context.
+   */
+  prepare(): Promise<boolean>;
+  /** `volume` 0–1: the peak level of the tone (the sound policy's `volumeToGain` of settings `sound.volume`). */
   play(tone: ToneSpec, volume: number): Promise<AudioPlayResult>;
   stats(): AudioStats;
   close(): Promise<void>;
@@ -120,6 +128,12 @@ export function createAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayer
   };
 
   return {
+    async prepare() {
+      const ctx = ensure();
+      if (!ctx) return false;
+      if (ctx.state !== 'running') await resumeWithin(ctx, resumeTimeoutMs);
+      return ctx.state === 'running';
+    },
     async play(tone, volume) {
       const notes = tone.notes.slice(0, TONE_BOUNDS.maxNotes);
       if (notes.length === 0) return refuse('empty');
@@ -140,7 +154,8 @@ export function createAudioPlayer(options: AudioPlayerOptions = {}): AudioPlayer
           oscillator.type = note.wave ?? 'sine';
           oscillator.frequency.setValueAtTime(clamp(finite(note.frequencyHz, 440), TONE_BOUNDS.minHz, TONE_BOUNDS.maxHz), start);
           if (note.endFrequencyHz !== undefined) {
-            oscillator.frequency.exponentialRampToValueAtTime(clamp(finite(note.endFrequencyHz, 440), TONE_BOUNDS.minHz, TONE_BOUNDS.maxHz), start + duration);
+            const glide = note.glideMs === undefined ? duration : Math.min(duration, clamp(finite(note.glideMs, 0), 1, TONE_BOUNDS.maxMs) / 1000);
+            oscillator.frequency.exponentialRampToValueAtTime(clamp(finite(note.endFrequencyHz, 440), TONE_BOUNDS.minHz, TONE_BOUNDS.maxHz), start + glide);
           }
           gain.gain.setValueAtTime(TONE_BOUNDS.silence, start);
           gain.gain.linearRampToValueAtTime(peak, start + attack);

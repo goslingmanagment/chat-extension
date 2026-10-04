@@ -178,6 +178,11 @@ describe('text fields: IME-safe, Enter / Shift+Enter, Esc, a growing textarea', 
     expect(enter).not.toHaveBeenCalled();
     await flush(() => area.dispatchEvent(key('Enter')));
     expect(enter).toHaveBeenCalledTimes(1);
+    // A held Enter asks once and types no line breaks meanwhile.
+    const held = key('Enter', { repeat: true });
+    await flush(() => area.dispatchEvent(held));
+    expect(enter).toHaveBeenCalledTimes(1);
+    expect(held.defaultPrevented).toBe(true);
     const esc = key('Escape');
     await flush(() => area.dispatchEvent(esc));
     expect(escape).toHaveBeenCalledTimes(1);
@@ -258,6 +263,33 @@ describe('the part row (ui-design §4.3)', () => {
     // A key from a button inside the part belongs to the button.
     await flush(() => (row.querySelector('.cg-part__copy') as HTMLElement).dispatchEvent(key('Enter')));
     expect(onInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('[UI-023] a held Enter is one press: its auto-repeat inserts nothing more and never clicks a button again', async () => {
+    const onInsert = vi.fn();
+    const onCopy = vi.fn();
+    kit = await mountKitSettled(() => <PartRow part={part(0, 'First', { opId: OP, next: true })} mode="insert" onInsert={onInsert} onCopy={onCopy} />);
+    const row = kit.$('.cg-part') as HTMLElement;
+    await flush(() => row.dispatchEvent(key('Enter')));
+    const held = [key('Enter', { repeat: true }), key('Enter', { repeat: true })];
+    for (const event of held) await flush(() => row.dispatchEvent(event));
+    expect(onInsert).toHaveBeenCalledTimes(1);
+    // Swallowed, not passed on: nothing else acts on the repeat either.
+    expect(held.map((event) => event.defaultPrevented)).toEqual([true, true]);
+    // The browser clicks a focused <button> on every repeat of Enter unless the keydown is prevented.
+    const first = key('Enter');
+    const again = key('Enter', { repeat: true });
+    const insert = row.querySelector('.cg-ins') as HTMLElement;
+    await flush(() => insert.dispatchEvent(first));
+    await flush(() => insert.dispatchEvent(again));
+    expect(first.defaultPrevented).toBe(false);
+    expect(again.defaultPrevented).toBe(true);
+    // Copy-only: the repeat copies nothing more.
+    kit.unmount();
+    kit = await mountKitSettled(() => <PartRow part={part(0, 'First', { opId: OP, next: true })} mode="copy-only" onInsert={onInsert} onCopy={onCopy} />);
+    await flush(() => kit?.$('.cg-part')?.dispatchEvent(key('Enter')));
+    await flush(() => kit?.$('.cg-part')?.dispatchEvent(key('Enter', { repeat: true })));
+    expect(onCopy).toHaveBeenCalledTimes(1);
   });
 
   it('[UI-023] ⌘C / Ctrl+C is the physical C key: the Russian layout copies too, another key under `c` does not', async () => {

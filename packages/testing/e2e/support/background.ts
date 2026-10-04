@@ -80,3 +80,17 @@ export async function waitForBackgroundState(wanted: BackgroundState, message: s
     throw new Error(`${message}: the background is «${String(last)}», not «${wanted}», after ${timeout} ms`);
   }
 }
+
+const OPTIONAL_PROMPTS_PREF = 'extensions.webextOptionalPermissionPrompts';
+
+/**
+ * Whether `permissions.request` shows Firefox's own question. With `false` the browser grants what an add-on
+ * asks for on a user gesture without showing it — the answer a person gives by pressing «Allow», for a
+ * headless run that nobody can press in. The gesture check itself stays: a request outside a click is still
+ * refused. null — Firefox's default (the question is shown).
+ */
+export async function setOptionalPermissionPrompts(shown: boolean | null): Promise<void> {
+  await inChrome((driver) =>
+    driver.executeScript(`const [name, shown] = arguments; if (shown === null) Services.prefs.clearUserPref(name); else Services.prefs.setBoolPref(name, shown); return true;`, [OPTIONAL_PROMPTS_PREF, shown]),
+  );
+}

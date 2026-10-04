@@ -35,6 +35,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   RefreshRecap: { type: 'RefreshRecap', length: 'short' },
   NewCoachDialog: { type: 'NewCoachDialog' },
   RetryRecapSave: { type: 'RetryRecapSave', length: 'full' },
+  ShowAnalysis: { type: 'ShowAnalysis', view: 'recap', mode: 'expanded' },
   SetSpendersPeriod: { type: 'SetSpendersPeriod', period: '30d' },
   SetSpendersFilter: { type: 'SetSpendersFilter', filter: 'waiting' },
   SetSpendersSort: { type: 'SetSpendersSort', sort: 'fan-age' },
@@ -153,6 +154,9 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { type: 'ClearLocalData', confirmed: false },
       { type: 'SendAll', operationId: OP },
       { type: 'Navigate', to: { kind: 'chat-slot', slot: 0 } },
+      { type: 'ShowAnalysis', view: 'coach', mode: 'sheet' },
+      { type: 'ShowAnalysis', view: 'recap', mode: 'generate' },
+      { type: 'ShowAnalysis', view: 'review', mode: 'hidden', operationId: OP },
     ],
   ),
 ];
@@ -183,6 +187,158 @@ export const TOAST_VM_SAMPLES: { readonly valid: readonly C.ToastVM[]; readonly 
 };
 
 /**
+ * Cents of an amount on its shelf's bound (1.2.0, SP-013): the row says so,
+ * the port's format prints it. Both are optional: without them whole dollars.
+ */
+const ROW_BASE: C.SpenderRowVM = {
+  handle: 'spenders:11:5001',
+  name: 'Fan 1',
+  username: 'fan_1',
+  lifetime: 599_600,
+  period: 25_000,
+  isNew: false,
+  deleted: false,
+  weWroteAt: null,
+  fanWroteAt: null,
+  waiting: false,
+  lastMessage: null,
+  selected: false,
+};
+export const MONEY_CENTS_SAMPLES: {
+  readonly rows: readonly C.SpenderRowVM[];
+  readonly formats: readonly C.MoneyFormat[];
+  readonly invalid: readonly unknown[];
+} = {
+  rows: [ROW_BASE, { ...ROW_BASE, lifetimeCents: true }],
+  formats: [{}, { cents: true }, { cents: true, sign: 'plus' }],
+  invalid: [
+    // @ts-expect-error the mark is a boolean, not the formatted amount
+    { ...ROW_BASE, lifetimeCents: '$599.60' } satisfies C.SpenderRowVM,
+    // @ts-expect-error cents is a switch, not a number of digits
+    { cents: 2 } satisfies C.MoneyFormat,
+  ],
+};
+
+/**
+ * Two numbers of §8.7 the statistics may carry (1.2.0): «ждёт ответа;
+ * прочтение неизвестно» and the lifetime spend of fans silent for more than
+ * 21 days (SP-046). Both optional: a model without them is as before.
+ */
+const STAMP: C.DataStamp = { asOf: '2026-10-03T06:18:00.000Z', coverage: 'complete' };
+const ATTENTION_BASE: C.SpendersStatsVM['attention'] = {
+  awaiting: { count: 12, stamp: STAMP },
+  newPayers: { count: 3, stamp: STAMP, firstObserved: false },
+  silent8to21: { count: 10, stamp: STAMP },
+  silentOver21: { count: 6, stamp: STAMP },
+  noData: { count: 4, stamp: STAMP },
+};
+export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStatsVM['attention'][]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    ATTENTION_BASE,
+    { ...ATTENTION_BASE, awaitingUnknown: { count: 2, stamp: STAMP }, silentOver21: { count: 6, stamp: STAMP, lifetime: 1_840_000 } },
+    { ...ATTENTION_BASE, awaitingUnknown: { count: null, stamp: STAMP }, silentOver21: { count: null, stamp: STAMP, lifetime: null } },
+  ],
+  invalid: [
+    // @ts-expect-error the unknown-read category is a count with its stamp, not a bare number
+    { ...ATTENTION_BASE, awaitingUnknown: 2 } satisfies C.SpendersStatsVM['attention'],
+    // @ts-expect-error the sum is integer mills, never a formatted amount
+    { ...ATTENTION_BASE, silentOver21: { count: 6, stamp: STAMP, lifetime: '$1,840' } } satisfies C.SpendersStatsVM['attention'],
+  ],
+};
+
+/**
+ * The footer of the options page (1.2.0, ST-005): optional, so a view without
+ * it still is an OptionsVM; a link the build does not know is null, not a
+ * made-up address.
+ */
+type OptionsFooter = NonNullable<C.OptionsVM['footer']>;
+export const OPTIONS_FOOTER_SAMPLES: { readonly valid: readonly OptionsFooter[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    { whatsNew: { type: 'Navigate', to: { kind: 'page', page: 'whats-new' } }, changelog: { type: 'Navigate', to: { kind: 'page', page: 'changelog' } }, unseenNotes: true },
+    { whatsNew: null, changelog: null, unseenNotes: false },
+  ],
+  invalid: [
+    // @ts-expect-error a link is an action of the page, never a bare address
+    { whatsNew: 'https://example.test/whats-new', changelog: null, unseenNotes: false } satisfies OptionsFooter,
+    // @ts-expect-error whether the notes were opened is a flag, not the version
+    { whatsNew: null, changelog: null, unseenNotes: '0.4.3' } satisfies OptionsFooter,
+  ],
+};
+
+/**
+ * A lease of ours whose last renewal failed (1.2.0, NF-021): the card may
+ * say so while the lease still runs. Optional: without it the card is as before.
+ */
+const CLAIM_MINE: Extract<C.ClaimVM, { s: 'mine' }> = {
+  s: 'mine',
+  until: 1_790_000_119_000,
+  renew: { label: { key: 'newcomers.claim.renew' }, action: { type: 'RenewClaim', targetHandle: 'newcomers:11:2010' }, enabled: true, reason: null, hotkey: null },
+  release: { label: { key: 'newcomers.claim.release' }, action: { type: 'ReleaseClaim', targetHandle: 'newcomers:11:2010' }, enabled: true, reason: null, hotkey: null },
+};
+const RENEW_ERROR: C.CgErrorView = { code: 'CG-HUB-TIMEOUT', title: 'Хаб не ответил', body: 'Повторите позже.' };
+export const CLAIM_RENEW_SAMPLES: { readonly valid: readonly C.ClaimVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [CLAIM_MINE, { ...CLAIM_MINE, renewError: RENEW_ERROR }],
+  invalid: [
+    // @ts-expect-error the failed renewal is an error view with its code, not a flag
+    { ...CLAIM_MINE, renewError: true } satisfies C.ClaimVM,
+  ],
+};
+
+/**
+ * The fan panel's bio with its source (1.2.0, CS-035): the hub's profile of
+ * the fan, or ChatSpace's own «О себе» while the hub has none. Optional: a
+ * panel without `bioSource` draws as before.
+ */
+const FAN_PANEL_BASE: C.FanPanelVM = {
+  view: { s: 'ready' },
+  tab: 'fan',
+  personaLabel: 'Лора · VIP',
+  fan: { name: 'Hubert', username: 'hubert_pl', initials: 'H', lastSeenAt: null, online: null },
+  spent: null,
+  subscription: null,
+  host: null,
+  bio: null,
+  lists: [],
+  footer: { stamp: STAMP, archiveMessages: null },
+  close: { type: 'Navigate', to: { kind: 'surface', surface: 'fan-panel', open: false } },
+};
+export const FAN_PANEL_BIO_SAMPLES: { readonly valid: readonly C.FanPanelVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    FAN_PANEL_BASE,
+    { ...FAN_PANEL_BASE, bio: '## Fan\nLikes short replies.', bioSource: 'hub' },
+    { ...FAN_PANEL_BASE, bio: 'Works shifts, writes in the evening.', bioSource: 'host' },
+  ],
+  invalid: [
+    // @ts-expect-error the source is one of the two, not a free word
+    { ...FAN_PANEL_BASE, bio: 'x', bioSource: 'fansMap' } satisfies C.FanPanelVM,
+  ],
+};
+
+/**
+ * Host access to the hub address in «Аккаунт» (1.2.0, ST-043): three words —
+ * the browser's yes, its no, and «unknown» while it has not answered for the
+ * address on screen. A missing answer is never a yes.
+ */
+type AccountHub = C.AccountBodyVM['hub'];
+export const ACCOUNT_HUB_SAMPLES: { readonly valid: readonly AccountHub[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    { origin: 'https://hub.example.test', hostPermission: 'granted', requestPermission: null },
+    { origin: 'https://hub.example.test', hostPermission: 'unknown', requestPermission: null },
+    {
+      origin: 'https://hub.example.test',
+      hostPermission: 'missing',
+      requestPermission: { label: { key: 'settings.account.grantAccess' }, action: { type: 'RequestPermission', kind: 'hub-host' }, enabled: true, reason: null, hotkey: null },
+    },
+  ],
+  invalid: [
+    // @ts-expect-error an unanswered check is 'unknown', not null
+    { origin: 'https://hub.example.test', hostPermission: null, requestPermission: null } satisfies AccountHub,
+    // @ts-expect-error the access is one of three words, not a flag
+    { origin: 'https://hub.example.test', hostPermission: true, requestPermission: null } satisfies AccountHub,
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */
@@ -192,5 +348,166 @@ export const SPOKEN_MONEY_SAMPLES: { readonly valid: readonly SpokenMoney[]; rea
   invalid: [
     // @ts-expect-error the spoken form is words for aria-label, not the amount
     ((mills: number | null) => mills ?? 0) satisfies SpokenMoney,
+  ],
+};
+
+/**
+ * The I18n port's time in a named zone (1.2.0, ui-design §4.1): optional, so
+ * a port without it still is an I18n; when present it takes the zone by its
+ * IANA name and returns the printed time.
+ */
+type ZonedTime = NonNullable<C.I18n['formatTimeIn']>;
+export const ZONED_TIME_SAMPLES: { readonly valid: readonly ZonedTime[]; readonly invalid: readonly unknown[] } = {
+  valid: [(at, timeZone) => new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone })],
+  invalid: [
+    // @ts-expect-error the zone is an IANA name, not an offset in minutes
+    ((at: number | string, offsetMinutes: number) => `${at}+${offsetMinutes}`) satisfies ZonedTime,
+  ],
+};
+
+/**
+ * RefusalVM (a type, no schema), 1.2.0: `at` tells one refused start from the
+ * next, so a refusal hidden with «Скрыть» shows again when a start is refused
+ * anew — by a key as well as by a click.
+ */
+const REFUSAL_BASE: C.RefusalVM = {
+  feature: 'reply',
+  error: { code: 'CG-OP-TAB-LIMIT', title: 'Уже идут три генерации', body: 'Очереди нет.', tone: 'state' },
+  running: [],
+};
+
+export const REFUSAL_VM_SAMPLES: { readonly valid: readonly C.RefusalVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [REFUSAL_BASE, { ...REFUSAL_BASE, at: 1_790_000_000_000 }],
+  invalid: [
+    // @ts-expect-error the moment of the refused start is epoch ms, not an ISO string
+    { ...REFUSAL_BASE, at: '2026-10-04T00:00:00.000Z' } satisfies C.RefusalVM,
+  ],
+};
+
+/**
+ * CoachTurnVM (a type, no schema), 1.2.0: a turn may carry the Б2 question of
+ * one of its draft parts (AI-086) and its debug footer (DB-019).
+ */
+const COACH_TURN_BASE: C.CoachTurnVM = {
+  id: 'turn-1',
+  opId: OP,
+  question: 'how do I bring him back?',
+  askedAt: 1_790_000_000_000,
+  state: 'done',
+  phase: null,
+  sentToCoach: false,
+  streamText: null,
+  attachedDraft: false,
+  outsideMemory: false,
+  answer: { prose: 'Warm up first.', blocks: null, drafts: [] },
+  error: null,
+  errorActions: [],
+};
+
+const COACH_TURN_DEBUG: C.ResultDebugVM = {
+  costLine: 'in 3 412 tok • out 286 tok',
+  stages: [{ name: 'request', ms: 38 }],
+  totalMs: 38,
+  hubStages: [],
+  prompt: null,
+  reasoning: null,
+  context: null,
+  liveTimer: false,
+};
+
+export const COACH_TURN_VM_SAMPLES: { readonly valid: readonly C.CoachTurnVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    COACH_TURN_BASE,
+    { ...COACH_TURN_BASE, confirm: null, debug: null },
+    { ...COACH_TURN_BASE, confirm: { confirmationId: CONFIRMATION, kind: 'human-draft', part: { index: 0 }, formatLoss: false }, debug: COACH_TURN_DEBUG },
+  ],
+  invalid: [
+    // @ts-expect-error a confirmation is the whole ConfirmVM, not its id
+    { ...COACH_TURN_BASE, confirm: CONFIRMATION } satisfies C.CoachTurnVM,
+    // @ts-expect-error the debug footer is a ResultDebugVM, not a cost line
+    { ...COACH_TURN_BASE, debug: '$0.0143' } satisfies C.CoachTurnVM,
+  ],
+};
+
+/**
+ * The i18n keys of 1.2.0 (R15: Spenders, the preview, «Новые», the fan panel,
+ * the palette): texts ui-design.md draws or §10 asks for that 1.1.0 had no
+ * key for. Keys are the contract; the texts live in core/domain/i18n.
+ */
+export const BOARDS_I18N_KEYS: { readonly text: readonly C.UiTextKey[]; readonly plural: readonly C.UiPluralKey[]; readonly invalid: readonly unknown[] } = {
+  text: [
+    'spenders.col.lifetimeShort',
+    'spenders.shelf.from',
+    'spenders.shelf.range',
+    'spenders.shelf.none',
+    'spenders.truncated',
+    'spenders.truncatedNoTotal',
+    'stats.newPayersObserved',
+    'stats.regionLabel',
+    'preview.metaOurUnknown',
+    'preview.notOpenedAfterSendTooltip',
+    'preview.feed.label',
+    'preview.feed.fanPrefix',
+    'preview.feed.deleted',
+    'preview.feed.automatic',
+    'preview.feed.priced',
+    'preview.feed.notBought',
+    'preview.feed.older',
+    'preview.ping.segment',
+    'preview.ping.segmentNoDays',
+    'preview.ping.active',
+    'preview.ping.unknown',
+    'send.unavailableReason',
+    'newcomers.claim.mine',
+    'newcomers.incomplete',
+    'newcomers.draft',
+    'newcomers.draftStale',
+    'newcomers.scanProgress',
+    'newcomers.window.label',
+    'newcomers.greetingDraft.placeholder',
+    'newcomers.greetingDraft.aria',
+    'fanPanel.subscribedLabel',
+    'fanPanel.subscribedValue',
+    'fanPanel.subscribedMonths',
+    'fanPanel.subscribedSince',
+    'fanPanel.churn.low',
+    'fanPanel.churn.medium',
+    'fanPanel.churn.high',
+    'fanPanel.churn.unknown',
+    'fanPanel.byKind.posts',
+    'fanPanel.byKind.other',
+    'fanPanel.subOnline',
+    'fanPanel.lastSeen',
+    'fanPanel.online',
+    'fanPanel.buyingPower',
+    'fanPanel.recap.archivePartial',
+    'palette.partial',
+  ],
+  plural: ['spenders.footerNoTotal', 'fanPanel.footerCoverage', 'quickJump.unread'],
+  invalid: [
+    // @ts-expect-error the shelf label is built from its bounds: there is no one-piece key
+    'spenders.shelf' satisfies C.I18nKey,
+    // @ts-expect-error a colleague's lease has no countdown and no name (ui-design §12 п. 5)
+    'newcomers.claim.other' satisfies C.I18nKey,
+    // @ts-expect-error «Отправить» has no «send all» text
+    'send.all' satisfies C.I18nKey,
+    // @ts-expect-error the greeting draft field has a placeholder and a label, each under its own key
+    'newcomers.greetingDraft' satisfies C.I18nKey,
+  ],
+};
+
+/**
+ * «Результат неполный» in «Новые» (1.2.0, NF-025; the wave-2 merge): the
+ * window prints the title itself (`newcomers.incomplete`), the view model
+ * carries why. The reason has a key of its own, so the title is not said twice.
+ */
+type NewcomersIncomplete = NonNullable<C.NewcomersVM['incomplete']>;
+export const NEWCOMERS_INCOMPLETE_SAMPLES: { readonly valid: readonly NewcomersIncomplete[]; readonly invalid: readonly unknown[] } = {
+  valid: [{ key: 'newcomers.incomplete.body' }, { key: 'common.coverage.partial' }],
+  invalid: [
+    // @ts-expect-error the reason is a catalog message, not a ready text
+    'Показана часть списка' satisfies NewcomersIncomplete,
+    // @ts-expect-error there is no key of this name: the reason is `newcomers.incomplete.body`
+    { key: 'newcomers.incomplete.reason' } satisfies NewcomersIncomplete,
   ],
 };

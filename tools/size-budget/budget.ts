@@ -2,8 +2,17 @@
 // the baseline): MAIN bridge ≤ 10 KiB gzip (decision X11: the boot and the
 // runtime ship as one document_start bundle; §11 started at 5 KiB for the
 // boot alone), isolated early bootstrap ≤ 30 KiB, first dock chunk with
-// Preact ≤ 45 KiB, every other lazy chunk ≤ 30 KiB on top of what the dock
-// already loaded.
+// Preact ≤ 45 KiB, every other lazy chunk ≤ 30 KiB.
+//
+// What «a lazy chunk» weighs is what loading it adds to the tab. The entries
+// every chat tab loads form layers (apps/extension/lazy/vite.config.ts,
+// LAZY_LAYERS: the dock, the protocol registry, the application, the AI and
+// the navigation controllers): the first dock chunk is the dock's whole
+// static closure, and each next layer is measured on top of the layers before
+// it. Every other entry is loaded later, on demand, and is measured on top of
+// all the layers — code it shares with them is already in memory. Entries
+// loaded on demand share nothing for free: what two of them have in common is
+// counted in both.
 
 import { gzipSync } from 'node:zlib';
 
@@ -14,6 +23,8 @@ export interface LazyChunk {
   readonly kind: 'entry' | 'chunk' | 'asset';
   readonly name: string | null;
   readonly imports: readonly string[];
+  /** An entry every chat tab loads: its place among the layers (0 — the dock). Absent — loaded on demand. */
+  readonly layer?: number;
 }
 
 export interface BudgetLine {
@@ -81,11 +92,19 @@ export function computeBudgets(read: (file: string) => Uint8Array, chunks: reado
   }
   const dockClosure = staticClosure(DOCK_ENTRY, chunks);
   lines.push(line('first dock chunk with Preact (lazy/dock + shared)', dockClosure, BUDGETS.firstDockChunk));
+  // The layers after the dock, each on top of the ones before it.
   const loaded = new Set(dockClosure);
-  for (const chunk of chunks) {
-    if (chunk.kind !== 'entry' || chunk.file === DOCK_ENTRY) continue;
+  const entries = chunks.filter((chunk) => chunk.kind === 'entry' && chunk.file !== DOCK_ENTRY);
+  const layers = entries.filter((chunk) => chunk.layer !== undefined).sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
+  for (const chunk of layers) {
+    const closure = staticClosure(chunk.file, chunks);
+    lines.push(line(`lazy layer ${chunk.name ?? chunk.file} (beyond the layers before it)`, closure.filter((file) => !loaded.has(file)), BUDGETS.lazyChunk));
+    for (const file of closure) loaded.add(file);
+  }
+  // Everything else comes on demand, after all the layers.
+  for (const chunk of entries.filter((item) => item.layer === undefined)) {
     const extra = staticClosure(chunk.file, chunks).filter((file) => !loaded.has(file));
-    lines.push(line(`lazy chunk ${chunk.name ?? chunk.file} (beyond the dock)`, extra, BUDGETS.lazyChunk));
+    lines.push(line(`lazy chunk ${chunk.name ?? chunk.file} (beyond the layers)`, extra, BUDGETS.lazyChunk));
   }
   return lines;
 }

@@ -107,7 +107,9 @@ export function ErrorCard(props: ErrorCardProps): JSX.Element {
   const waiting = retryAt !== null && remaining > 0;
   const tech = technicalLine(error.detail);
   const dot = props.tone === 'failure' ? 'danger' : 'ring';
-  const actions = props.actions ?? [];
+  // «Скопировать код» is the card's own button, once, at the end of the row (ui-design §4.8): a controller's
+  // list of recovery actions ends with the same action (the registry's `copy-code`), which would print it twice.
+  const actions = (props.actions ?? []).filter((vm) => props.copyCode === false || vm.action.type !== 'CopyReport');
   // A «wait-until» button turns on by itself at the fixed deadline; the press stays the person's.
   const shown = actions.map((vm) => (vm.reason?.id === 'wait-until' && retryAt !== null && !waiting ? { ...vm, enabled: true, reason: null } : vm));
   const waitingRetry = waiting && countdownStyle === 'retry' && actions.some((vm) => vm.reason?.id === 'wait-until' || !vm.enabled);

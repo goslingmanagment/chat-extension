@@ -218,7 +218,8 @@ export function preview(ctx: ScenarioCtx, source: PreviewSource, view: VmView, o
     fanWroteNew: false,
     feed: { items: hasData && view.s !== 'empty' && source !== 'newcomers' ? feed(ctx) : [], hasOlder: hasData && source !== 'newcomers', loadingOlder: false, olderError: null },
     ping: source === 'newcomers' || !hasData ? null : { segment: 'active', fanSilenceDays: 0 },
-    draft: { text: '', maxChars: 5000, placeholder: msg('preview.draft.placeholder') },
+    // The card of «Новые» holds the greeting draft, not a Fix source (NF-012).
+    draft: { text: '', maxChars: 5000, placeholder: msg(source === 'newcomers' ? 'newcomers.greetingDraft.placeholder' : 'preview.draft.placeholder') },
     bar: previewBar(ctx, source, barPatch),
     result: null,
     idleHint: hasData ? msg('preview.empty') : null,

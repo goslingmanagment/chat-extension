@@ -38,6 +38,13 @@ export type MoneySign = 'auto' | 'plus';
 export interface MoneyFormat {
   readonly sign?: MoneySign;
   readonly zero?: 'blank' | 'show';
+  /**
+   * Print the cents (`$599.60`, `$0.40`) instead of whole dollars: for an
+   * amount whose whole-dollar rounding would cross the bound of its Spenders
+   * shelf or turn it into `$0` (SP-013). 1.2.0; a port without it prints
+   * whole dollars.
+   */
+  readonly cents?: boolean;
 }
 
 /** `time` 09:18, `date` 4 сен, `datetime` 4 сен, 09:18, `day` «30 сен» day separators. */
@@ -67,6 +74,14 @@ export interface I18n {
   /** «сейчас», «7 мин», «3 ч», «12 д»; `now` defaults to the clock of the port. */
   formatAge(from: number | IsoTimestamp, now?: number): string;
   formatTime(at: number | IsoTimestamp, style?: TimeStyle): string;
+  /**
+   * The same in a named IANA zone (1.2.0). The daily quota resets at 00:00 UTC
+   * and its tooltip says «Обновится в 03:00 по Москве» whatever zone the viewer
+   * is in (ui-design §4.1): that one time is printed in `Europe/Moscow`. A zone
+   * the runtime does not know gives `—`. Optional: a port without it can only
+   * print its own zone.
+   */
+  formatTimeIn?(at: number | IsoTimestamp, timeZone: string, style?: TimeStyle): string;
   formatDuration(ms: number, style: DurationStyle): string;
   /** Called after a language switch; the views re-render with new texts. */
   subscribe(listener: (language: Locale) => void): () => void;
