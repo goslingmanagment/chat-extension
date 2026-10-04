@@ -11,7 +11,7 @@ import { type ReviewSectionVM } from '@cg/contracts/vm';
 import { Markdown, ViewState, useDispatch, useI18n, useView } from '../../kit';
 import { AgainButton, Head, Meta } from '../Head';
 import { useSteadyView, useStreamText } from '../Stream';
-import { Close, CopyAll, Expand, Fact, Facts, Running, running, type Place } from './shared';
+import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
 
 function Section({ section }: { readonly section: ReviewSectionVM }): JSX.Element {
   const i18n = useI18n();
@@ -40,7 +40,7 @@ function Section({ section }: { readonly section: ReviewSectionVM }): JSX.Elemen
   );
 }
 
-export function ReviewView({ place }: { readonly place: Place }): JSX.Element {
+export function ReviewView({ place, debugPart }: ViewProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const raw = useView({ of: 'review' });
@@ -49,7 +49,9 @@ export function ReviewView({ place }: { readonly place: Place }): JSX.Element {
   const title = i18n.t('dock.action.review');
   const close = <Close which="review" place={place} />;
 
-  if (running(review.state)) return <Running title={title} opId={review.opId} phase={review.phase} text={text} />;
+  const debug = debugFooter(debugPart, review.debug, review.state, review.phase);
+
+  if (running(review.state)) return <Running title={title} opId={review.opId} phase={review.phase} text={text} debug={debug} />;
 
   const hasText = review.sections.length > 0 || review.raw !== null;
   if (!hasText) {
@@ -61,6 +63,7 @@ export function ReviewView({ place }: { readonly place: Place }): JSX.Element {
         <div class="cg-body">
           <ViewState view={review.view} />
         </div>
+        {debug}
       </>
     );
   }
@@ -124,6 +127,7 @@ export function ReviewView({ place }: { readonly place: Place }): JSX.Element {
         ))}
         {coverage === 'complete' ? null : <Fact>{i18n.t(coverage === 'partial' ? 'common.coverage.partial' : 'common.coverage.unknown')}</Fact>}
       </Facts>
+      {debug}
     </>
   );
 }

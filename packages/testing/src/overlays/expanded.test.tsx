@@ -80,6 +80,17 @@ describe('the expanded result', () => {
     ]);
   });
 
+  it('[UI-030] [DB-020] an expanded Recap in debug mode carries its debug footer; outside debug mode it has none', async () => {
+    const debug = { costLine: 'in 9 120 tok • out 640 tok', stages: [{ name: 'request', ms: 41 }], totalMs: 41, hubStages: [], prompt: null, reasoning: null, context: null, liveTimer: false };
+    kit = mount(scenarioOf([recapDock, entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'full', { expanded: true, debug }))]));
+    await settle(2);
+    expect(text(kit.$('[role="dialog"] .cg-debug .cg-debug__line span'))).toBe('in 9 120 tok • out 640 tok');
+    kit.unmount();
+    kit = mount(scenarioOf([recapDock, entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'full', { expanded: true }))]));
+    await settle(2);
+    expect(kit.$('.cg-debug')).toBeNull();
+  });
+
   it('a result that is not expanded stays in the dock only', async () => {
     const plain = result(ctx, { opId: uuid(101), feature: 'reply', state: 'done', parts: parts(uuid(101), ['one']), meta: [meta.single()] });
     kit = mount(scenarioOf([entry({ of: 'dock' }, dock(ctx, 'ready', { result: plain }))]));

@@ -28,19 +28,19 @@ import {
 } from '../../kit';
 import { Head } from '../../dock/Head';
 import { DEFAULT_PARTS } from '../../dock/lazy';
-import { useLazyPart, type AnalysisProps, type DockParts, type PartLoader } from '../../dock/lazy-part';
+import { useLazyPart, type AnalysisProps, type DebugProps, type DockParts, type PartLoader } from '../../dock/lazy-part';
 import { featureKey, isRunning } from '../../dock/model';
 import { ResultContent } from '../../dock/Result';
 import { useSteadyView, useStreamText } from '../../dock/Stream';
 import { DOCK_STYLE } from '../../dock/styles';
 import { overlayRootCss } from '../layer';
 
-function Analysis({ loader, which }: { readonly loader: PartLoader<AnalysisProps>; readonly which: AnalysisProps['which'] }): JSX.Element {
+function Analysis({ loader, which, debugPart }: { readonly loader: PartLoader<AnalysisProps>; readonly which: AnalysisProps['which']; readonly debugPart: PartLoader<DebugProps> }): JSX.Element {
   const i18n = useI18n();
   const part = useLazyPart(loader);
   if (part === null) return <Head title={i18n.t(featureKey(which))} gutter={<Spinner label={i18n.t('common.loading')} />} />;
   const View = part.view;
-  return <View which={which} place="dialog" />;
+  return <View which={which} place="dialog" debugPart={debugPart} />;
 }
 
 export interface ExpandedViewProps {
@@ -79,7 +79,7 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
         initialFocus={() => root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse')}
       >
         {which !== null ? (
-          <Analysis loader={all.analysis} which={which} />
+          <Analysis loader={all.analysis} which={which} debugPart={all.debug} />
         ) : result === null ? null : (
           <ResultContent
             result={result}

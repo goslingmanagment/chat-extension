@@ -10,8 +10,9 @@ import { RecapView } from './Recap';
 import { ReviewView } from './Review';
 import { ANALYSIS_STYLE } from './styles';
 
-export function AnalysisView({ which, place }: AnalysisProps): JSX.Element {
-  return which === 'recap' ? <RecapView place={place} /> : <ReviewView place={place} />;
+export function AnalysisView({ which, place, debugPart }: AnalysisProps): JSX.Element {
+  const debug = debugPart === undefined ? {} : { debugPart };
+  return which === 'recap' ? <RecapView place={place} {...debug} /> : <ReviewView place={place} {...debug} />;
 }
 
 export const analysisPart: LazyPart<AnalysisProps> = { view: AnalysisView, styles: [ANALYSIS_STYLE] };

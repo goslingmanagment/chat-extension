@@ -31,7 +31,7 @@ import {
 } from '../../kit';
 import { Head, Meta } from '../Head';
 import { useSteadyView, useStreamText } from '../Stream';
-import { Close, CopyAll, Expand, Fact, Facts, Running, running, type Place } from './shared';
+import { Close, CopyAll, Expand, Fact, Facts, Running, debugFooter, running, type ViewProps } from './shared';
 
 function SavedFact({ saved }: { readonly saved: RecapViewVM['saved'] }): JSX.Element | null {
   const i18n = useI18n();
@@ -162,7 +162,7 @@ function Picker({ picker, why }: { readonly picker: RecapPickerVM; readonly why:
   );
 }
 
-export function RecapView({ place }: { readonly place: Place }): JSX.Element {
+export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const raw = useView({ of: 'recap.view' });
@@ -174,7 +174,9 @@ export function RecapView({ place }: { readonly place: Place }): JSX.Element {
   const name = recap.targetName ?? picker.targetName;
   const forFan = name === null ? [] : [i18n.t('result.meta.forFan', { name })];
 
-  if (running(recap.state)) return <Running title={title} opId={recap.opId} phase={recap.phase} text={text} />;
+  const debug = debugFooter(debugPart, recap.debug, recap.state, recap.phase);
+
+  if (running(recap.state)) return <Running title={title} opId={recap.opId} phase={recap.phase} text={text} debug={debug} />;
 
   if (recap.markdown === null) {
     const failed = recap.view.s === 'error' || recap.view.s === 'forbidden' || recap.view.s === 'offline' || recap.view.s === 'loading';
@@ -184,6 +186,7 @@ export function RecapView({ place }: { readonly place: Place }): JSX.Element {
           <Meta texts={forFan} />
         </Head>
         <div class="cg-body">{failed ? <ViewState view={recap.view} /> : <Picker picker={picker} why={recap.view.s === 'empty' ? recap.view.why : null} />}</div>
+        {debug}
       </>
     );
   }
@@ -231,6 +234,7 @@ export function RecapView({ place }: { readonly place: Place }): JSX.Element {
         )}
       </div>
       <RecapFacts recap={recap} />
+      {debug}
     </>
   );
 }

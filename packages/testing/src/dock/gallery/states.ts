@@ -525,6 +525,41 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       ),
     ]),
   ),
+  state(
+    'x-recap-debug',
+    'extras',
+    'Recap в режиме отладки: стоимость и профайлер (UI-030)',
+    (ctx) =>
+      one(ctx, recapDock(ctx), [
+        entry(
+          { of: 'recap.view' },
+          recap(ctx, 'short', views.ready(), {
+            debug: {
+              costLine: 'in 9 120 tok • out 640 tok • $0.0312 • 6.2 s • model-test',
+              stages: [
+                { name: 'request', ms: 41 },
+                { name: 'meta', ms: 298 },
+                { name: 'first-chunk', ms: 1_380 },
+                { name: 'stream', ms: 4_420 },
+                { name: 'parse', ms: 11 },
+                { name: 'render', ms: 7 },
+              ],
+              totalMs: 6_157,
+              hubStages: [
+                { name: 'context', ms: 210 },
+                { name: 'provider', ms: 5_480 },
+                { name: 'stream', ms: 4_402 },
+              ],
+              prompt: { type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: 'snap-2' } },
+              reasoning: null,
+              context: null,
+              liveTimer: false,
+            },
+          }),
+        ),
+      ]),
+    { debug: true },
+  ),
   state('x-review-failed', 'extras', 'Review: мало переписки (AI-051)', (ctx) =>
     one(ctx, dock(ctx, 'ready', { analysis: 'review', options: withSplit(ctx), actionsOptions: { active: 'review' } }), [
       entry({ of: 'review' }, review(ctx, views.error(cgError(ctx, 'CG-GATE-HISTORY'), null))),

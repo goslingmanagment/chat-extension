@@ -7,11 +7,11 @@ import { type ReadonlySignal } from '@preact/signals';
 import { type ComponentChildren, type JSX } from 'preact';
 
 import { type OpState } from '@cg/contracts/ops';
-import { type PhaseVM, type UiAction } from '@cg/contracts/vm';
+import { type PhaseVM, type ResultDebugVM, type UiAction } from '@cg/contracts/vm';
 
 import { Button, Caret, Spinner, StageLine, useAnnounce, useDispatch, useI18n, useKit } from '../../kit';
 import { Head, HideButton } from '../Head';
-import { type AnalysisProps } from '../lazy-part';
+import { DebugSlot, type AnalysisProps, type DebugProps, type PartLoader } from '../lazy-part';
 import { isRunning } from '../model';
 import { StreamText } from '../Stream';
 
@@ -19,6 +19,22 @@ export type Place = AnalysisProps['place'];
 export type Which = AnalysisProps['which'];
 
 export const running = (state: OpState | null): boolean => state !== null && isRunning(state);
+
+/** What a Recap or a Review needs of its place: the sheet or the window, and where the debug footer loads from. */
+export interface ViewProps {
+  readonly place: Place;
+  readonly debugPart?: PartLoader<DebugProps>;
+}
+
+/**
+ * The debug footer of a Recap or a Review (ui-design §4.12; UI-030, DB-013):
+ * only when the controller sends `debug`, that is in debug mode. The live
+ * timer needs the moment the generation started, which the phase carries.
+ */
+export function debugFooter(loader: PartLoader<DebugProps> | undefined, debug: ResultDebugVM | null, state: OpState | null, phase: PhaseVM | null): JSX.Element | null {
+  if (loader === undefined || debug === null) return null;
+  return <DebugSlot loader={loader} debug={debug} startedAt={phase?.startedAt ?? 0} running={running(state) && phase !== null} />;
+}
 
 /** «Скрыть Esc» in the dock sheet; «Свернуть Esc» in the «Развернуть ↗» window (back to the sheet). */
 export function Close({ which, place }: AnalysisProps): JSX.Element {
@@ -82,10 +98,12 @@ export interface RunningProps {
   readonly opId: string | null;
   readonly phase: PhaseVM | null;
   readonly text: ReadonlySignal<string>;
+  /** The debug footer under the preliminary text. */
+  readonly debug?: JSX.Element | null;
 }
 
 /** A Recap or a Review being built: the stage line, «Отменить ⌘.» and the preliminary text (Markdown waits for the end, AI-137). */
-export function Running({ title, opId, phase, text }: RunningProps): JSX.Element {
+export function Running({ title, opId, phase, text, debug }: RunningProps): JSX.Element {
   const i18n = useI18n();
   const { deps } = useKit();
   const dispatch = useDispatch();
@@ -116,6 +134,7 @@ export function Running({ title, opId, phase, text }: RunningProps): JSX.Element
           </div>
         </div>
       </div>
+      {debug}
     </>
   );
 }

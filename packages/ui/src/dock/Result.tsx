@@ -14,7 +14,7 @@ import { type DockVM, type ResultVM } from '@cg/contracts/vm';
 import { Button, Caret, Dot, ErrorCard, KeysFooter, Spinner, StageLine, hotkeyText, useDispatch, useI18n, useKit, type KeyHint } from '../kit';
 import { FixBody } from './Fix';
 import { AgainButton, DraftLabel, Head, Meta } from './Head';
-import { type DebugProps, type PartLoader, useLazyPart } from './lazy-part';
+import { DebugSlot, type DebugProps, type PartLoader } from './lazy-part';
 import { actionOf, errorToneOf, featureKey, isRunning, metaTexts } from './model';
 import { Parts, Variants } from './Parts';
 import { StreamText } from './Stream';
@@ -31,13 +31,6 @@ export interface ResultContentProps {
   /** «Скрыть Esc» (the sheet) or «Свернуть Esc» (the window); null while the generation runs. */
   readonly close: JSX.Element | null;
   readonly onFirstPaint?: () => void;
-}
-
-function Debug({ loader, ...props }: DebugProps & { readonly loader: PartLoader<DebugProps> }): JSX.Element | null {
-  const part = useLazyPart(loader);
-  if (part === null) return null;
-  const View = part.view;
-  return <View {...props} />;
 }
 
 /** «Фан написал новое» above the parts (ui-design §4.7): the answer does not know the new message; inserting stays allowed. */
@@ -65,7 +58,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
   const running = isRunning(result.state);
   const again = (): void => void dispatch({ type: 'Regenerate', operationId: result.opId });
   const againReason = result.canRegenerate ? null : result.regenerateReason === null ? i18n.t('common.unknown') : i18n.text(result.regenerateReason.text);
-  const debug = result.debug === null ? null : <Debug loader={props.debugPart} debug={result.debug} startedAt={result.startedAt} running={running} />;
+  const debug = result.debug === null ? null : <DebugSlot loader={props.debugPart} debug={result.debug} startedAt={result.startedAt} running={running} />;
 
   if (running) {
     const cancel = result.phase === null ? ({ type: 'CancelGeneration', operationId: result.opId } as const) : result.phase.cancel;

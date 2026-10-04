@@ -870,6 +870,19 @@ describe('debug', () => {
     expect(kit.$('.cg-sheet')).toBeNull();
   });
 
+  it('[ER-020] a debug footer whose chunk fails to load leaves the result and its buttons where they are', async () => {
+    kit = await mountDockSettled('debug-on', { parts: { debug: () => Promise.reject(new TypeError('chunk')) } });
+    await settle(2);
+    // The answer is whole and works; «Сбой интерфейса» stands only where the footer would be.
+    expect(partRows()).toHaveLength(3);
+    expect(kit.$$('.cg-boundary')).toHaveLength(1);
+    expect(text(kit.$('.cg-boundary .cg-card__code'))).toBe('ChatGoose · CG-UI-FAILED');
+    expect(kit.$('.cg-boundary')?.previousElementSibling?.classList.contains('cg-body')).toBe(true);
+    await flush(() => byLabel('Вставить', partRows()[0]).click());
+    expect(kit.client.dispatched).toEqual([{ type: 'InsertPart', operationId: OP, part: 0 }]);
+    expect(kit.failures).toEqual([{ kind: 'render', surface: 'dock', code: 'CG-UI-FAILED', name: 'TypeError' }]);
+  });
+
   it('[DB-013] the profile stands under a failed result too, with the stages it got through', async () => {
     await preloadPart(DEFAULT_PARTS.debug);
     const failed = result(ctx, {

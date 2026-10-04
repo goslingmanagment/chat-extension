@@ -27,7 +27,7 @@ import {
   windowOf,
 } from '../kit';
 import { Head, HideButton, Meta } from './Head';
-import { type AnalysisProps, type DockParts, type PartLoader, useLazyPart } from './lazy-part';
+import { type AnalysisProps, type DebugProps, type DockParts, type PartLoader, useLazyPart } from './lazy-part';
 import { errorToneOf, featureKey, isRunning, msgOf, withBody } from './model';
 import { ResultContent } from './Result';
 import { useStreamText } from './Stream';
@@ -137,12 +137,12 @@ function RefusalContent({ refusal, onHide }: { readonly refusal: RefusalVM; read
 }
 
 /** Recap or Review in the sheet; the chunk with them (and Markdown) loads on first use. */
-function Analysis({ loader, which }: { readonly loader: PartLoader<AnalysisProps>; readonly which: 'recap' | 'review' }): JSX.Element {
+function Analysis({ loader, which, debugPart }: { readonly loader: PartLoader<AnalysisProps>; readonly which: 'recap' | 'review'; readonly debugPart: PartLoader<DebugProps> }): JSX.Element {
   const i18n = useI18n();
   const part = useLazyPart(loader);
   if (part === null) return <Head title={i18n.t(featureKey(which))} gutter={<Spinner label={i18n.t('common.loading')} />} />;
   const View = part.view;
-  return <View which={which} place="sheet" />;
+  return <View which={which} place="sheet" debugPart={debugPart} />;
 }
 
 export interface SheetProps {
@@ -206,7 +206,7 @@ export function Sheet({ vm, view, parts, refusalHidden, onHideRefusal }: SheetPr
   } else if (vm.analysis !== null) {
     const which = vm.analysis;
     hide = () => void dispatch({ type: 'ShowAnalysis', view: which, mode: 'hidden' });
-    content = <Analysis loader={parts.analysis} which={which} />;
+    content = <Analysis loader={parts.analysis} which={which} debugPart={parts.debug} />;
   } else if (result !== null) {
     hide = hideResult;
     content = (

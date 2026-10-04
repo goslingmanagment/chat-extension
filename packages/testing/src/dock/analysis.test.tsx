@@ -4,6 +4,7 @@
 
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
+import { type ResultDebugVM } from '@cg/contracts';
 import { DEFAULT_PARTS, preloadPart, type DockParts } from '@cg/ui/dock';
 import { ANALYSIS_STYLE } from '@cg/ui/dock/analysis';
 
@@ -16,7 +17,7 @@ afterEach(() => {
   kit = null;
 });
 beforeAll(async () => {
-  await preloadPart(DEFAULT_PARTS.analysis);
+  await Promise.all([preloadPart(DEFAULT_PARTS.analysis), preloadPart(DEFAULT_PARTS.debug)]);
 });
 
 const recapDock = () => dockVm('ready', { analysis: 'recap', actionsOptions: { active: 'recap' }, options: { ...dockVm().options, splitReason: reason('not-a-message') } });
@@ -245,5 +246,69 @@ describe('Review', () => {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(text(kit.$('[data-cg-stream]'))).toBe('Warm and');
     expect(kit.$('.cg-body')?.getAttribute('aria-busy')).toBe('true');
+  });
+});
+
+describe('debug under Recap and Review', () => {
+  const DEBUG: ResultDebugVM = {
+    costLine: 'in 9 120 tok • out 640 tok • $0.0312 • 6.2 s • model-test',
+    stages: [
+      { name: 'request', ms: 41 },
+      { name: 'stream', ms: 6_100 },
+    ],
+    totalMs: 6_141,
+    hubStages: [{ name: 'context', ms: 210 }],
+    prompt: { type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: 'snap-2' } },
+    reasoning: null,
+    context: null,
+    liveTimer: false,
+  };
+  const legend = (): string[] => kit?.$$('.cg-debug .cg-prof__legend:not(.cg-prof__legend--hub) span').map(text) ?? [];
+
+  it('[UI-030] [DB-007] in debug mode a Recap carries the cost line, «Промпт» and the stage profile under its facts; without `debug` nothing of it shows', async () => {
+    kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'full', { debug: DEBUG }))]));
+    await settle(2);
+    const foot = kit.$('.cg-debug') as HTMLElement;
+    expect(text(foot.querySelector('.cg-debug__line span'))).toBe(DEBUG.costLine);
+    expect(legend()).toEqual(['запрос 41', 'поток 6 100', 'мс, всего 6,14 с']);
+    // The footer of the sheet: under the facts row.
+    expect(kit.$('.cg-facts')?.nextElementSibling).toBe(foot);
+    await flush(() => (foot.querySelector('.cg-debug__link') as HTMLElement).click());
+    expect(kit.client.dispatched).toEqual([{ type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: 'snap-2' } }]);
+    kit.unmount();
+    // Outside debug mode the controller sends no `debug`: no cost, no counters, anywhere.
+    kit = mountDock('recap-full');
+    await settle(2);
+    expect(kit.$('.cg-debug')).toBeNull();
+    expect(kit.$('.cg-dock')?.textContent).not.toMatch(/\btok\b|\$0\./);
+  });
+
+  it('[UI-030] [DB-013] a Review carries it too — under its facts, and under the card when it failed', async () => {
+    kit = mountDock(dockScenario(reviewDock(), {}, [entry({ of: 'review' }, review(ctx, views.ready(), { debug: DEBUG }))]));
+    await settle(2);
+    expect(text(kit.$('.cg-debug .cg-debug__line span'))).toBe(DEBUG.costLine);
+    expect(kit.$('.cg-facts')?.nextElementSibling).toBe(kit.$('.cg-debug'));
+    kit.unmount();
+    const failed = review(ctx, views.error(cgError(ctx, 'CG-PROVIDER-STREAM'), null), { debug: { ...DEBUG, costLine: null, prompt: null, stages: [{ name: 'request', ms: 41 }], totalMs: 41 } });
+    kit = mountDock(dockScenario(reviewDock(), {}, [entry({ of: 'review' }, failed)]));
+    await settle(2);
+    expect(text(kit.$('.cg-card__code'))).toBe('ChatGoose · CG-PROVIDER-STREAM');
+    // The stages it got through, and no cost line the controller did not send.
+    expect(legend()).toEqual(['запрос 41', 'мс, всего 0,04 с']);
+    expect(kit.$('.cg-debug__line')).toBeNull();
+  });
+
+  it('[DB-012] a Recap being built shows the profile under the preliminary text', async () => {
+    const building = recapView(ctx, views.loading(ctx.now - 2_000, msg('result.stage.context')), 'full', {
+      opId: uuid(601),
+      state: 'streaming',
+      phase: phase(uuid(601), ctx.now - 2_000, ['context'], 'writing'),
+      streamText: '## Кто он',
+      debug: { ...DEBUG, costLine: null, prompt: null, stages: [], totalMs: null, hubStages: [], liveTimer: true },
+    });
+    kit = mountDock(dockScenario(dockVm('ready', { analysis: 'recap', actionsOptions: { busy: 'recap' } }), {}, [entry({ of: 'recap.view' }, building)]));
+    await settle(2);
+    expect(kit.$('.cg-body')?.getAttribute('aria-busy')).toBe('true');
+    expect(text(kit.$('.cg-debug [data-cg-total]'))).toBe('мс, всего 2,00 с');
   });
 });

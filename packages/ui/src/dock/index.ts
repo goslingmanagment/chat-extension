@@ -11,7 +11,7 @@ export { DockView, type DockViewProps } from './Dock';
 export { createDockSurface, dockSurface, mountDockSurface } from './surface';
 export { DOCK_CSS, DOCK_STYLE } from './styles';
 export { DEFAULT_PARTS } from './lazy';
-export { preloadPart, useLazyPart, type AnalysisProps, type DebugProps, type DockParts, type LazyPart, type PartLoader } from './lazy-part';
+export { DebugSlot, preloadPart, useLazyPart, type AnalysisProps, type DebugProps, type DockParts, type LazyPart, type PartLoader } from './lazy-part';
 export { Strip, type StripProps } from './Strip';
 export { Sheet, type SheetProps } from './Sheet';
 export { ResultContent, type ResultContentProps } from './Result';
