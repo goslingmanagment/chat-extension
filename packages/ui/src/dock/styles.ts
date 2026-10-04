@@ -98,6 +98,8 @@ ${dark('.cg-confirm')} { border-top-color: var(--cg-rule-2); }
 
 /* ── Fix ── */
 .cg-fixbox:focus-visible { outline: none; border-radius: 0; box-shadow: inset 2px 0 0 var(--cg-focus); background: var(--cg-sunk); }
+.cg-fixbox.is-confirm { background: var(--cg-sunk); }
+.cg-fixbox.is-confirm .cg-fix:last-child { padding-bottom: 10px; }
 .cg-fix { display: grid; grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr); padding: 9px 10px 4px 0; }
 .cg-fix + .cg-fix { border-top: 1px solid var(--cg-rule); padding-top: 9px; }
 .cg-cap { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-bottom: 2px; }
@@ -134,7 +136,7 @@ ${dark('.cg-banner > .cg-btn--quiet')} { box-shadow: inset 0 0 0 1px var(--cg-ru
 /* ── «Вид ответа: без подложки» (the default): inked onto the feed between two hairlines ── */
 .cg-bare .cg-sheet { background: transparent; border: 0; border-top: 1px solid var(--cg-rule-3); border-bottom: 1px solid var(--cg-bare-edge); border-radius: 0; box-shadow: none; margin-bottom: 0; }
 .cg-bare :is(.cg-head, .cg-vhead, .cg-hi__col, .cg-stale, .cg-fix + .cg-fix, .cg-card + .cg-ops, .cg-sheet > * + .cg-banner) { border-color: var(--cg-bare-rule); }
-.cg-bare .cg-fixbox:focus-visible { background: var(--cg-bare-hover); }
+.cg-bare :is(.cg-fixbox:focus-visible, .cg-fixbox.is-confirm) { background: var(--cg-bare-hover); }
 
 /* ── narrow composer (ui-design §3.3) ── */
 @container cg (max-width: 899px) {

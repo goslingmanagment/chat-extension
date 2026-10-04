@@ -12,7 +12,7 @@ import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 
-import { FANS, MIN, cgError, entry, iso, meta, msg, part, parts, phase, reason, result, running, scenarioById, uuid, variants } from '../scenarios/app-client';
+import { FANS, MIN, cgError, entry, iso, meta, msg, part, parts, phase, reason, result, running, uuid, variants } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, keydown, mountDock, mountDockSettled, settle, text } from './harness';
 
 let kit: MountedKit | null = null;
@@ -293,12 +293,18 @@ describe('Б2: the composer already has the person\'s text', () => {
   });
 
   it('[UI-020] the person\'s own insert puts focus on «Добавить в конец»; Esc is «Отмена» and gives focus back to «Вставить» of that part', async () => {
-    kit = mountDock('human-draft-conflict');
-    // The scenario answers InsertPart with `needs-confirm`; its first view already asks.
-    kit.unmount();
-    const scenario = scenarioById('human-draft-conflict');
-    const start = withResult(reply());
-    kit = mountDock({ ...start, steps: [{ label: 'asks', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: asking('human-draft') }))] }], reactions: [{ on: 'InsertPart', receipt: { ok: true, type: 'InsertPart', outcome: 'needs-confirm' }, thenStep: 0 }, ...(scenario.reactions ?? []).filter((item) => item.on === 'AnswerConfirm').map((item) => ({ on: item.on, receipt: item.receipt }))] });
+    // The insert is answered with `needs-confirm` and the question arrives through the view; the answer takes it away again.
+    kit = mountDock({
+      ...withResult(reply()),
+      steps: [
+        { label: 'asks', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: asking('human-draft') }))] },
+        { label: 'answered', at: 20, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply() }))] },
+      ],
+      reactions: [
+        { on: 'InsertPart', receipt: { ok: true, type: 'InsertPart', outcome: 'needs-confirm' }, thenStep: 0 },
+        { on: 'AnswerConfirm', receipt: { ok: true, type: 'AnswerConfirm', outcome: 'done' }, thenStep: 1 },
+      ],
+    });
     await flush(() => byLabel('Вставить', partRows()[0]).click());
     await settle(2);
     const append = byLabel('Добавить в конец');
@@ -306,9 +312,39 @@ describe('Б2: the composer already has the person\'s text', () => {
     await flush(() => append.dispatchEvent(keydown('Escape')));
     expect(kit.client.dispatched.map((action) => action.type)).toEqual(['InsertPart', 'AnswerConfirm']);
     expect(kit.client.dispatched[1]).toEqual({ type: 'AnswerConfirm', confirmationId: uuid(201), choice: 'cancel' });
+    // The question is gone and «Вставить» is back on screen: focus is on it, not lost with the row.
+    expect(kit.$('.cg-confirm')).toBeNull();
     expect(kit.root.activeElement).toBe(partRows()[0]?.querySelector('.cg-ins'));
     // Esc answered the question; it did not also hide the result.
     expect(kit.client.dispatched.some((action) => action.type === 'HideResult')).toBe(false);
+  });
+
+  it('[UI-020] «Заменить» and «Добавить в конец» move focus nowhere by themselves: the host puts it into the composer after the insert', async () => {
+    kit = mountDock({
+      ...withResult(asking('human-draft')),
+      steps: [{ label: 'answered', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply() }))] }],
+      reactions: [{ on: 'AnswerConfirm', receipt: { ok: true, type: 'AnswerConfirm', outcome: 'done' }, thenStep: 0 }],
+    });
+    const append = byLabel('Добавить в конец');
+    append.focus();
+    await flush(() => append.click());
+    expect(kit.$('.cg-confirm')).toBeNull();
+    expect(kit.root.activeElement).not.toBe(partRows()[0]?.querySelector('.cg-ins'));
+  });
+
+  it('[UI-020] [AI-030] a question about a part of one Hi variant opens in that variant only', () => {
+    const hi = result(ctx, {
+      opId: uuid(102),
+      feature: 'hi',
+      state: 'done',
+      variants: variants(uuid(102), [['a1', 'a2'], ['b1', 'b2'], ['c1', 'c2']]),
+      confirm: { confirmationId: uuid(204), kind: 'human-draft', part: { variant: 1, index: 0 }, formatLoss: false },
+    });
+    kit = mountDock(withResult(hi));
+    expect(kit.$$('.cg-confirm')).toHaveLength(1);
+    const row = kit.$('.cg-confirm')?.closest('.cg-part') as HTMLElement;
+    expect([row.getAttribute('data-cg-variant'), row.getAttribute('data-cg-part')]).toEqual(['1', '0']);
+    expect(kit.$$('.cg-part.is-confirm')).toEqual([row]);
   });
 
   it('a question that was already there when the dock appeared does not take focus from the composer', async () => {
@@ -346,6 +382,130 @@ describe('Fix', () => {
     await flush(() => box.dispatchEvent(keydown('Enter')));
     expect(kit.client.dispatched).toHaveLength(2);
     expect(kit.$('.cg-confirm')).toBeNull();
+  });
+
+  const changed = { confirmationId: uuid(203), kind: 'draft-changed', part: { index: 0 }, formatLoss: false } as const;
+
+  it('[AI-022] [NEW-05] the draft changed while Fix was made: the consent is void, and the question opens under «После Fix» with focus on «Добавить в конец»', async () => {
+    kit = mountDock({
+      ...withResult(fix()),
+      steps: [
+        { label: 'asks', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: { ...fix(), confirm: changed } }))] },
+        { label: 'answered', at: 20, views: [entry({ of: 'dock' }, dockVm('ready', { result: fix() }))] },
+      ],
+      reactions: [
+        { on: 'ReplaceMyDraft', receipt: { ok: true, type: 'ReplaceMyDraft', outcome: 'needs-confirm' }, thenStep: 0 },
+        { on: 'AnswerConfirm', receipt: { ok: true, type: 'AnswerConfirm', outcome: 'done' }, thenStep: 1 },
+      ],
+    });
+    await flush(() => byLabel('Заменить мой черновик').click());
+    await settle(2);
+    const group = kit.$('.cg-confirm') as HTMLElement;
+    expect(group.getAttribute('role')).toBe('group');
+    expect(group.getAttribute('data-cg-confirm')).toBe('draft-changed');
+    expect(text(group.querySelector('.cg-confirm__q'))).toBe('Текст в поле изменился после генерации.');
+    expect([...group.querySelectorAll('button')].map((element) => text(element.querySelector('.cg-btn__t')))).toEqual(['Заменить', 'Добавить в конец', 'Отмена']);
+    // Under the text of «После Fix», on the sunk background of the block it is about.
+    expect(text(group.parentElement?.querySelector('.cg-cap'))).toBe('После Fix');
+    expect(kit.$('.cg-fixbox')?.classList.contains('is-confirm')).toBe(true);
+    expect(kit.root.activeElement).toBe(byLabel('Добавить в конец', group));
+    // The button that asked gives its place to the question; «Копировать» stays.
+    expect(kit.$('.cg-fix__go')).toBeNull();
+    expect(kit.$('.cg-fix__acts .cg-copy-main')).not.toBeNull();
+    // Enter on the block does not ask to replace again over an open question.
+    await flush(() => kit?.$('.cg-fixbox')?.dispatchEvent(keydown('Enter')));
+    expect(kit.client.dispatched).toHaveLength(1);
+    await flush(() => byLabel('Добавить в конец', group).dispatchEvent(keydown('Escape')));
+    expect(kit.client.dispatched).toEqual([
+      { type: 'ReplaceMyDraft', operationId: uuid(103), part: 0 },
+      { type: 'AnswerConfirm', confirmationId: uuid(203), choice: 'cancel' },
+    ]);
+    // «Отмена»: the question is gone, focus is back on «Заменить мой черновик», the result stays open.
+    expect(kit.$('.cg-confirm')).toBeNull();
+    expect(kit.root.activeElement).toBe(kit.$('.cg-fix__go'));
+  });
+
+  it('[AI-022] [NEW-05] each answer of the question names its confirmation: «Заменить», «Добавить в конец»', async () => {
+    kit = mountDock(withResult({ ...fix(), confirm: { ...changed, formatLoss: true } }));
+    const group = kit.$('.cg-confirm') as HTMLElement;
+    expect(group.classList.contains('is-long')).toBe(true);
+    expect(text(group.querySelector('.cg-confirm__q'))).toBe('Текст в поле изменился после генерации. Форматирование черновика пропадёт.');
+    // A question that was there when the dock appeared takes no focus from the composer.
+    expect(kit.root.activeElement).toBeNull();
+    await flush(() => byLabel('Заменить', group).click());
+    await flush(() => byLabel('Добавить в конец', group).click());
+    expect(kit.client.dispatched).toEqual([
+      { type: 'AnswerConfirm', confirmationId: uuid(203), choice: 'replace' },
+      { type: 'AnswerConfirm', confirmationId: uuid(203), choice: 'append' },
+    ]);
+    // A question about another part is not this Fix's.
+    kit.unmount();
+    kit = mountDock(withResult({ ...fix(), confirm: { ...changed, part: { index: 1 } } }));
+    expect(kit.$('.cg-confirm')).toBeNull();
+    expect(kit.$('.cg-fix__go')).not.toBeNull();
+  });
+
+  it('[AI-022] [NEW-05] the person wrote on after Fix: «Вернуть мой текст» asks instead of putting the old text back silently', async () => {
+    const replaced = fix({ replaced: true, restoreUntil: ctx.now + 30_000 }, false);
+    kit = mountDock({
+      ...withResult(replaced),
+      steps: [
+        { label: 'asks', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: { ...replaced, confirm: changed } }))] },
+        { label: 'answered', at: 20, views: [entry({ of: 'dock' }, dockVm('ready', { result: replaced }))] },
+      ],
+      reactions: [
+        { on: 'RestoreMyDraft', receipt: { ok: true, type: 'RestoreMyDraft', outcome: 'needs-confirm' }, thenStep: 0 },
+        { on: 'AnswerConfirm', receipt: { ok: true, type: 'AnswerConfirm', outcome: 'done' }, thenStep: 1 },
+      ],
+    });
+    await flush(() => byLabel('Вернуть мой текст').click());
+    await settle(2);
+    const group = kit.$('.cg-confirm') as HTMLElement;
+    expect(text(group.parentElement?.querySelector('.cg-cap'))).toBe('После Fix, уже в поле ввода');
+    expect(kit.root.activeElement).toBe(byLabel('Добавить в конец', group));
+    // The offer still counts down; its button waits behind the question.
+    expect(kit.$('.cg-fix__back')).toBeNull();
+    expect(text(kit.$('.cg-fix__acts .cg-count'))).toBe('30 с');
+    await flush(() => byLabel('Отмена', group).click());
+    expect(kit.client.dispatched).toEqual([
+      { type: 'RestoreMyDraft', operationId: uuid(103) },
+      { type: 'AnswerConfirm', confirmationId: uuid(203), choice: 'cancel' },
+    ]);
+    expect(kit.root.activeElement).toBe(kit.$('.cg-fix__back'));
+  });
+
+  it('[UI-019] a replacement on its way takes no second Enter, and a held Enter replaces once', async () => {
+    kit = mountDock(withResult({ ...fix(), parts: parts(uuid(103), ['hey, sorry I was late — missed you'], () => ({ insert: 'pending' })) }));
+    const pending = kit.$('.cg-fixbox') as HTMLElement;
+    expect(byLabel('Заменить мой черновик').getAttribute('aria-busy')).toBe('true');
+    pending.focus();
+    await flush(() => pending.dispatchEvent(keydown('Enter')));
+    await flush(() => byLabel('Заменить мой черновик').click());
+    expect(kit.client.dispatched).toEqual([]);
+    kit.unmount();
+    kit = mountDock(withResult(fix()));
+    const box = kit.$('.cg-fixbox') as HTMLElement;
+    box.focus();
+    const held = keydown('Enter', { repeat: true });
+    await flush(() => box.dispatchEvent(keydown('Enter')));
+    await flush(() => box.dispatchEvent(held));
+    expect(kit.client.dispatched).toEqual([{ type: 'ReplaceMyDraft', operationId: uuid(103), part: 0 }]);
+    expect(held.defaultPrevented).toBe(true);
+  });
+
+  it('[UI-027] [AI-022] in copy-only mode nothing replaces the draft: «Заменить» is off, Enter on the block copies, and Fix has no keys footer', async () => {
+    kit = mountDock(dockScenario(dockVm('host-degraded', { result: fix(), keysFooter: true })));
+    const replace = byLabel('Заменить мой черновик');
+    expect(replace.getAttribute('aria-disabled')).toBe('true');
+    expect(replace.querySelector('kbd')).toBeNull();
+    expect(kit.$('.cg-fix__acts .cg-copy-main kbd')?.textContent).toBe('↵');
+    const box = kit.$('.cg-fixbox') as HTMLElement;
+    box.focus();
+    await flush(() => replace.click());
+    await flush(() => box.dispatchEvent(keydown('Enter')));
+    expect(kit.client.dispatched.map((action) => action.type)).toEqual(['Copy']);
+    // «↑↓ часть · ↵ вставить» is not Fix's: one block, its own Enter.
+    expect(kit.$('.cg-keys')).toBeNull();
   });
 
   it('[AI-022] after the replacement: «Черновик заменён», «Вернуть мой текст» and the seconds left of 30; then «Вернуть текст уже нельзя»', async () => {

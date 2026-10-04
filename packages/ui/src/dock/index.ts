@@ -15,7 +15,7 @@ export { preloadPart, useLazyPart, type AnalysisProps, type DebugProps, type Doc
 export { Strip, type StripProps } from './Strip';
 export { Sheet, type SheetProps } from './Sheet';
 export { ResultContent, type ResultContentProps } from './Result';
-export { Parts, Variants, usePartActions, type PartsScope } from './Parts';
+export { ConfirmRow, Parts, Variants, confirms, useConfirmFocus, usePartActions, type ConfirmRowProps, type PartsScope } from './Parts';
 export { FixBody, type FixBodyProps } from './Fix';
 export { AgainButton, DraftLabel, Head, HideButton, Meta, type AgainButtonProps, type HeadProps } from './Head';
 export { StreamText, useSteadyView, useStreamText, type StreamTextProps } from './Stream';

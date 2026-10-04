@@ -137,7 +137,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
       <div class="cg-body">
         {result.stale === null ? null : <StaleRow onAgain={again} reason={againReason} />}
         {fix !== null ? (
-          <FixBody opId={result.opId} fix={fix.vm} part={fix.part} mode={mode} />
+          <FixBody opId={result.opId} fix={fix.vm} part={fix.part} mode={mode} confirm={result.confirm} />
         ) : result.variants !== null ? (
           <Variants variants={result.variants} {...scope} />
         ) : (

@@ -147,6 +147,8 @@ describe('Recap', () => {
     expect(picker.querySelector('.cg-pick__acts button:last-child kbd')?.textContent).toBe('↵');
     picker.focus();
     await flush(() => picker.dispatchEvent(keydown('Enter')));
+    // A held Enter builds one Recap, not one per repeat.
+    await flush(() => picker.dispatchEvent(keydown('Enter', { repeat: true })));
     await flush(() => (picker.querySelector('.cg-pick__acts button') as HTMLElement).click());
     expect(kit.client.dispatched).toEqual([
       { type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'recap', options: {} },

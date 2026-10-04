@@ -470,6 +470,26 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   state('x-fix-expired', 'extras', 'Fix: вернуть текст уже нельзя', (ctx) =>
     one(ctx, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'fix' }, result: fixResult(ctx, { replaced: true, restoreExpired: true }, false) })),
   ),
+  state('x-fix-changed', 'extras', 'Fix: черновик изменился за время генерации — Б2 (AI-022)', (ctx) =>
+    one(
+      ctx,
+      dock(ctx, 'ready', {
+        options: withSplit(ctx),
+        actionsOptions: { active: 'fix' },
+        result: { ...fixResult(ctx, {}, true), confirm: { confirmationId: uuid(203), kind: 'draft-changed', part: { index: 0 }, formatLoss: false } },
+      }),
+    ),
+  ),
+  state('x-fix-restore-changed', 'extras', 'Fix: «Вернуть мой текст» после новой правки — Б2', (ctx) =>
+    one(
+      ctx,
+      dock(ctx, 'ready', {
+        options: withSplit(ctx),
+        actionsOptions: { active: 'fix' },
+        result: { ...fixResult(ctx, { replaced: true, restoreUntil: ctx.now + 22_000 }, false), confirm: { confirmationId: uuid(204), kind: 'draft-changed', part: { index: 0 }, formatLoss: true } },
+      }),
+    ),
+  ),
   state('x-hub-timeout', 'extras', 'Хаб не ответил вовремя (карточка с «Ещё раз»)', (ctx) =>
     one(ctx, replyDock(ctx, failedResult(ctx, OP.reply, 'reply', cgError(ctx, 'CG-HUB-TIMEOUT', { detail: 'no first chunk in 30 s' }), [{ ...again(OP.reply), hotkey: hotkey(ctx, 'reply') }]))),
   ),

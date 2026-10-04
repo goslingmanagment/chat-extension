@@ -21,6 +21,8 @@ import {
   Spinner,
   ViewState,
   hotkeyText,
+  isComposing,
+  isHeldKey,
   useDispatch,
   useI18n,
   useMinuteClock,
@@ -133,9 +135,10 @@ function Picker({ picker, why }: { readonly picker: RecapPickerVM; readonly why:
       tabIndex={0}
       onKeyDown={(event) => {
         // Enter builds the full Recap (AI-060); a focused button answers for itself.
-        if (event.target !== event.currentTarget || event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+        if (event.target !== event.currentTarget || event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isComposing(event)) return;
         event.preventDefault();
-        if (build.enabled) void dispatch(build.action);
+        // A held Enter builds one Recap.
+        if (build.enabled && !isHeldKey(event)) void dispatch(build.action);
       }}
     >
       <span class="cg-gut" />

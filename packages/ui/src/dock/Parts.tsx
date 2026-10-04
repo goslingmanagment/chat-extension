@@ -4,12 +4,13 @@
 // THAT part, never the next one by itself, and nothing is ever sent from
 // here. Parts are one tab stop: ↑ ↓ move between them, ← → between the
 // variants of Hi. The Б2 question («в поле уже есть ваш текст») opens inside
-// the part being inserted, with focus on «Добавить в конец».
+// the part being inserted, with focus on «Добавить в конец»; Fix and the
+// drafts of a Coach turn ask it the same way (ConfirmRow, useConfirmFocus).
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef } from 'preact/hooks';
 
-import { type ConfirmVM, type PartVM, type VariantVM } from '@cg/contracts/vm';
+import { type ConfirmVM, type PartVM, type UiAction, type VariantVM } from '@cg/contracts/vm';
 
 import { Button, PartRow, activeIn, focusQuietly, useAnnounce, useDispatch, useI18n, useKit } from '../kit';
 
@@ -24,24 +25,32 @@ export interface PartsScope {
 export function usePartActions(opId: string): {
   readonly insert: (part: PartVM) => void;
   readonly copy: (part: PartVM) => void;
-  /** True from the person's own insert until its answer: a Б2 question it raises may take focus. */
+  /**
+   * The person's own action that may be answered with the Б2 question (an
+   * insert, Fix's «Заменить мой черновик» and «Вернуть мой текст»); `said`
+   * is announced once it is done.
+   */
+  readonly run: (action: UiAction, said: string | null) => void;
+  /** True from the person's own action until its answer: a Б2 question it raises may take focus. */
   readonly asked: { current: boolean };
 } {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const announce = useAnnounce();
   const asked = useRef(false);
+  const run = (action: UiAction, said: string | null): void => {
+    // The question may arrive through the view before this receipt does.
+    asked.current = true;
+    void dispatch(action).then((receipt) => {
+      if (receipt?.ok === true && receipt.outcome === 'needs-confirm') return;
+      asked.current = false;
+      if (receipt?.ok === true && receipt.outcome === 'done' && said !== null) announce(said);
+    });
+  };
   return {
     asked,
-    insert: (part) => {
-      // The question may arrive through the view before this receipt does.
-      asked.current = true;
-      void dispatch({ type: 'InsertPart', operationId: opId, ...(part.variant === null ? {} : { variant: part.variant }), part: part.index }).then((receipt) => {
-        if (receipt?.ok === true && receipt.outcome === 'needs-confirm') return;
-        asked.current = false;
-        if (receipt?.ok === true && receipt.outcome === 'done') announce(i18n.t('part.inserted'));
-      });
-    },
+    run,
+    insert: (part) => run({ type: 'InsertPart', operationId: opId, ...(part.variant === null ? {} : { variant: part.variant }), part: part.index }, i18n.t('part.inserted')),
     copy: (part) => {
       void dispatch({ type: 'Copy', artifactHandle: part.copyHandle }).then((receipt) => {
         if (receipt?.ok === true) announce(i18n.t('common.copied'));
@@ -50,12 +59,43 @@ export function usePartActions(opId: string): {
   };
 }
 
-function confirms(confirm: ConfirmVM | null, part: PartVM): confirm is ConfirmVM {
+/** Whether the question is about this part: the same index in the same variant (a part without a variant is variant 0). */
+export function confirms(confirm: ConfirmVM | null, part: PartVM): confirm is ConfirmVM {
   return confirm !== null && confirm.part.index === part.index && (confirm.part.variant ?? 0) === (part.variant ?? 0);
 }
 
+/**
+ * Where focus goes when «Отмена» closes the question (ui-design §6.3): back
+ * to the button that asked. That button is hidden while the question stands
+ * in its place, so focus is given once the question is gone — after the
+ * render that removed it, never to an element still off screen.
+ */
+export function useConfirmFocus(confirm: ConfirmVM | null): (target: () => HTMLElement | null) => void {
+  const back = useRef<(() => HTMLElement | null) | null>(null);
+  const id = confirm?.confirmationId ?? null;
+  useLayoutEffect(() => {
+    const target = back.current;
+    back.current = null;
+    if (id === null && target !== null) focusQuietly(target());
+  }, [id]);
+  return (target) => {
+    back.current = target;
+  };
+}
+
+export interface ConfirmRowProps {
+  readonly confirm: ConfirmVM;
+  /** True while the person's own action waits for its answer: the question takes focus. */
+  readonly takeFocus: { current: boolean };
+  /** Told on «Отмена» where focus goes once the question is gone (useConfirmFocus). */
+  readonly onCancel: (target: () => HTMLElement | null) => void;
+  /** The element that outlives the question (the part, the sheet's body) and, inside it, the button that asked. */
+  readonly home: string;
+  readonly asker: string;
+}
+
 /** Б2: «Заменить», «Добавить в конец» (the default), «Отмена Esc» (ui-design §4.6). */
-function ConfirmRow({ confirm, takeFocus }: { readonly confirm: ConfirmVM; readonly takeFocus: { current: boolean } }): JSX.Element {
+export function ConfirmRow({ confirm, takeFocus, onCancel, home, asker }: ConfirmRowProps): JSX.Element {
   const i18n = useI18n();
   const { root, deps } = useKit();
   const dispatch = useDispatch();
@@ -67,10 +107,12 @@ function ConfirmRow({ confirm, takeFocus }: { readonly confirm: ConfirmVM; reado
     takeFocus.current = false;
   }, [confirm.confirmationId]);
   const answer = (choice: 'replace' | 'append' | 'cancel'): void => {
-    // «Отмена» gives focus back to «Вставить» of this part (ui-design §6.3); the row is gone once the answer lands.
-    const part = box.current?.closest<HTMLElement>('.cg-part') ?? null;
+    if (choice === 'cancel') {
+      // «Отмена» gives focus back to the button that asked (ui-design §6.3).
+      const scope = box.current?.closest<HTMLElement>(home) ?? null;
+      onCancel(() => scope?.querySelector<HTMLElement>(asker) ?? scope);
+    }
     void dispatch({ type: 'AnswerConfirm', confirmationId: confirm.confirmationId, choice });
-    if (choice === 'cancel') focusQuietly(part?.querySelector<HTMLElement>('.cg-ins') ?? part);
   };
   const question = i18n.t(confirm.kind === 'draft-changed' ? 'confirm.draftChanged' : 'confirm.humanDraft');
   return (
@@ -127,6 +169,7 @@ interface RowsProps extends PartsScope {
 }
 
 function Rows({ parts, stop, mode, confirm, actions }: RowsProps): JSX.Element {
+  const onCancel = useConfirmFocus(confirm);
   return (
     <>
       {parts.map((part) => {
@@ -143,7 +186,7 @@ function Rows({ parts, stop, mode, confirm, actions }: RowsProps): JSX.Element {
             onCopy={actions.copy}
             onKeyDown={movePartFocus}
           >
-            {asking ? <ConfirmRow confirm={confirm} takeFocus={actions.asked} /> : undefined}
+            {asking ? <ConfirmRow confirm={confirm} takeFocus={actions.asked} onCancel={onCancel} home=".cg-part" asker=".cg-ins" /> : undefined}
           </PartRow>
         );
       })}
