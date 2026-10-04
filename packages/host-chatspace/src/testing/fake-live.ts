@@ -15,6 +15,7 @@
 // - The queue's action is named by the send port's own constant: the queue
 //   method's name lives in one file only (tools/gates).
 
+import { idOf, isPlain } from '../main/check';
 import { type Entry, type LiveHost, type PageStore, type Route, type SentDraft } from '../main/live';
 import { QUEUE_SEND, queueShape } from '../main/send-port';
 import { fakeStore, type FakeStore } from './fake-page';
@@ -86,7 +87,10 @@ export function scriptedFetch(): { readonly fetch: typeof fetch; readonly calls:
     return new Promise<Response>((resolve, reject) => {
       const request = input as { url?: string; method?: string; signal?: AbortSignal } | string;
       const signal = typeof request === 'string' ? (init as { signal?: AbortSignal } | undefined)?.signal : request.signal;
-      signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+      const aborted = (): void => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      // As fetch does: a request whose signal is already aborted fails at once.
+      if (signal?.aborted) aborted();
+      signal?.addEventListener('abort', aborted);
       calls.push({
         url: typeof request === 'string' ? request : (request.url ?? ''),
         method: (typeof request === 'string' ? (init as { method?: string } | undefined)?.method : request.method) ?? 'GET',
@@ -108,6 +112,7 @@ export interface QueueEntry {
   readonly platform: string;
   status: 'pending' | 'sending' | 'failed' | 'confirmed';
   error: { kind: 'timeout' | 'blocked' | 'platform'; guard?: { words: string[]; topics: string[] } | null } | null;
+  readonly createdAt: string;
   readonly payload: Record<string, unknown>;
 }
 
@@ -122,6 +127,8 @@ export interface FakeQueue {
   refuseNext(): void;
   /** The next send action throws. */
   throwNext(): void;
+  /** What the send action returns in place of its entry (a new build's entry, say); the entry itself is queued as ever. */
+  reshape: ((entry: QueueEntry) => unknown) | null;
   /** The entry's own timeout fires: the request is aborted. */
   timeout(id: string): void;
   /** The session token the next request waits for; a test may hold it. */
@@ -161,6 +168,7 @@ export function fakeQueue(win: { fetch: typeof fetch }, options: FakeQueueOption
       fail = true;
     },
     timeout: (id) => controllers.get(id)?.abort(),
+    reshape: null,
     token: () => Promise.resolve('session-token'),
     during: null,
     requests: [],
@@ -256,11 +264,20 @@ export function fakeQueue(win: { fetch: typeof fetch }, options: FakeQueueOption
           return null;
         }
         seq += 1;
-        const entry: QueueEntry = { id: `00000000-0000-4000-9000-${String(seq).padStart(12, '0')}`, accountId: String(input['accountId']), chatId: String(input['chatId']), platform: String(input['platform']), status: 'pending', error: null, payload: { ...input } };
+        const entry: QueueEntry = {
+          id: `00000000-0000-4000-9000-${String(seq).padStart(12, '0')}`,
+          accountId: String(input['accountId']),
+          chatId: String(input['chatId']),
+          platform: String(input['platform']),
+          status: 'pending',
+          error: null,
+          createdAt: new Date().toISOString(),
+          payload: { ...input },
+        };
         (messagesByAccountId[entry.accountId] ??= []).push(entry);
         changed();
         void process(entry.accountId);
-        return entry;
+        return self.reshape ? (self.reshape(entry) as QueueEntry) : entry;
       },
       cancel: (acc: string, id: string) => {
         const entry = self.entries(acc).find((item) => item.id === id);
@@ -321,6 +338,17 @@ export function fakeLive(documentEpoch = 'doc1'): FakeLive {
     route: () => live.route,
     store: (id) => live.stores.get(id),
     data: (...key) => live.data.get(JSON.stringify(key)),
+    // As the runtime reads them (page.ts): an OnlyFans account of the loaded list, by its host id; the fan as the page holds it.
+    account: (acc) => {
+      const list = live.data.get(JSON.stringify(['accounts']));
+      const found = (Array.isArray(list) ? (list as unknown[]) : []).find((item) => isPlain(item) && idOf(item['id']) === acc && (item['platform'] ?? 'onlyfans') === 'onlyfans');
+      return isPlain(found) ? { platformAccountId: idOf(found['platformAccountId']) } : null;
+    },
+    fan: (acc, fan) => {
+      const fans = live.data.get(JSON.stringify(['fansMap', acc]));
+      const known = isPlain(fans) ? fans[fan] : null;
+      return isPlain(known) ? known : null;
+    },
     entry: (...key) => live.entries.get(JSON.stringify(key)) ?? null,
     queue: () => {
       const queue = live.stores.get('pendingMessages');

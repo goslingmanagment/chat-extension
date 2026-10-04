@@ -34,9 +34,12 @@ const matches =
 
 /** contracts NATIVE_ID_PATTERN — host and platform ids are strings, never numbers. */
 export const isId = /* @__PURE__ */ matches(/^[1-9]\d{0,29}$/) as (value: unknown) => value is string;
-/** Numeric ids of the host may come as numbers (the account's `id`); the wire wants the string form. */
+/**
+ * Numeric ids of the host may come as numbers (the account's `id`); the wire wants the string form. A number that is
+ * not a safe integer has already lost digits when it was parsed: it is no id (two different ids could read the same).
+ */
 export const idOf = (value: unknown): string | null => {
-  const id = typeof value === 'number' ? String(value) : value;
+  const id = Number.isSafeInteger(value) ? String(value) : value;
   return isId(id) ? id : null;
 };
 /** contracts UUID_PATTERN. */

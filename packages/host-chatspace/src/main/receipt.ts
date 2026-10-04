@@ -18,7 +18,9 @@
 //   response, never touches headers or cookies. For the exact
 //   `POST api/v0/accounts/{acc}/chats/{chat}/messages` of this send it keeps
 //   one clone of the request (taken before its body is read) and one of the
-//   response, both bounded; a failure to read them only costs our certainty.
+//   response. The copies are read whole and judged only up to MAX_BODY
+//   characters (a longer one is not ours to judge); a failure to read them
+//   only costs our certainty.
 // - Outcome: a 2xx with a message id is the receipt (`nativeAccepted`). A 401
 //   is not an outcome (the native client refreshes its token and re-runs the
 //   request outside the observer). `rejected` is only a proven final refusal:
@@ -27,20 +29,34 @@
 //   failures, the native 30 s timeout, an entry that vanished (cancel, reset,
 //   sign-out), a second or foreign POST through the observer, a text that is
 //   not the one queued — `uncertain`, and nothing is ever sent again.
-// - The echo is linked by id only: the tap keeps the ids of outgoing messages
-//   it saw (an echo may come before the response); `sentObserved` needs the
-//   receipt AND the outgoing echo with the same id, account and fan. A
-//   receipt waits for its echo without a deadline of its own (the background
-//   has one for a silent attempt, §6.7.8). While the kept copies are being
-//   read nothing is said: an entry taken away at that moment does not turn a
-//   receipt into «uncertain».
+// - The echo is linked by id only: while a send is followed, the outgoing
+//   ids seen for its chat are kept with it (an echo may come before the
+//   response; other chats cannot push them out). The linked pair — the
+//   receipt AND the outgoing echo with the same id, account and fan — is
+//   what says `sentObserved` for X8 and what a human send's fact with a
+//   message id means (§6.6 п. 4, TL-004): that fact goes out when the pair
+//   is whole, and at once, without an id, when the chain ended without a
+//   receipt. A receipt waits for its echo without a deadline of its own (the
+//   background has one for a silent attempt, §6.7.8). While the kept copies
+//   are being read nothing is said: an entry taken away at that moment does
+//   not turn a receipt into «uncertain».
+// - The client takes fetch for its request with `fetch.bind(globalThis)`
+//   (§6.7.6 п. 2; the receipt profile pins that module). The observer hears
+//   that `bind` on itself: a queue call whose request did not take it is not
+//   the profile's send path — `uncertain` at once, and no more X8 in this
+//   document. An entry that goes away before its request reached fetch
+//   (Cancel, a reset, a sign-out while the client waits for its token) is
+//   only `uncertain`.
+// - A page whose `fetch` cannot be replaced (none, or a property that takes
+//   no assignment) has no observable send path: X8 is refused there before
+//   anything is queued (CG-SEND-RECEIPT, the preflight says so too).
 // - The queue's state is watched (`$subscribe`, only while a send is
 //   followed) for the end of the native chain: FAILED, or the entry gone —
 //   `cancel`, a reset, a sign-out, or a success whose receipt was not seen.
 //   None of the queue's actions is ever called from here (§6.10).
 
 import { idOf, isPlain, type Plain } from './check';
-import { type Fact, type LiveHost, type QueueListener, type Tap } from './live';
+import { type Fact, type LiveHost, type QueueListener } from './live';
 import { CG_SEND_GUARD, CG_SEND_REJECTED, CG_SEND_UNCERTAIN, ENTRY_FAILED, ERROR_BLOCKED, GUARD_CODE, SEND_PATH } from './protocol';
 import { isRef, queueBusy, type SendObserver } from './send-port';
 
@@ -48,25 +64,40 @@ import { isRef, queueBusy, type SendObserver } from './send-port';
 const MAX_BODY = 65_536;
 /** Receipts whose echo has not come; the oldest goes first. */
 const MAX_AWAITING = 32;
+/** Outgoing ids kept with one followed send (its chat's, from the queue call to the receipt). */
+const MAX_EARLY = 64;
 
 /** Message Guard topics as the contract takes them: at most 16, 64 characters each. */
 const topics = (value: unknown): string[] => (Array.isArray(value) ? (value as unknown[]) : []).slice(0, 16).map((item) => String(item).slice(0, 64));
 
-/** Account and chat of a call that is the native send request (a Request, or a URL string with its options); null for any other call. */
+/** Account and chat of a call that is the native send request (a Request, or a URL with its options); null for any other call. */
 const sendTarget = (input: unknown, init: unknown): RegExpExecArray | null => {
-  const request = (input ?? {}) as { url?: unknown; method?: unknown };
-  const url = typeof input === 'string' ? input : request.url;
-  const method = (init as { method?: unknown } | undefined)?.method ?? request.method;
-  return typeof url === 'string' && /^post$/i.test(String(method)) ? SEND_PATH.exec(url.split(/[?#]/)[0] as string) : null;
+  const request = input as { url?: unknown; method?: unknown } | undefined;
+  const method = (init as { method?: unknown } | undefined)?.method ?? request?.method;
+  return /^post$/i.test(String(method)) ? SEND_PATH.exec(String(request?.url ?? input).split(/[?#]/)[0] as string) : null;
 };
 
-export function createReceipts(win: Window & typeof globalThis, host: LiveHost, tap: Tap): SendObserver & { readonly send: QueueListener; readonly echo: (fact: Fact) => void } {
-  /** Sends whose native chain has not ended: each one's «the queue changed». */
-  const open = new Set<() => void>();
+/** A send whose native chain has not ended. */
+interface Followed {
+  readonly chat: string;
+  /** Outgoing ids seen for its chat since its queue call. */
+  readonly seen: string[];
+  /** «The queue changed». */
+  readonly decide: () => void;
+}
+
+export function createReceipts(win: Window & typeof globalThis, host: LiveHost): SendObserver & { readonly send: QueueListener; readonly echo: (fact: Fact) => void } {
+  const open = new Set<Followed>();
   /** `acc:fan:id` of a receipt → what its outgoing echo completes. */
   const awaiting = new Map<string, () => void>();
   let broken = false;
   let stop: unknown = null;
+
+  /** The page's fetch cannot be put aside for one stack: none, or its own property takes no assignment (not writable, a getter alone). */
+  const fixed = (): boolean => {
+    const own = Object.getOwnPropertyDescriptor(win, 'fetch');
+    return typeof win.fetch !== 'function' || !(!own || own.writable || own.set);
+  };
 
   /**
    * Follows one send: `attempt` — the X8 attempt (its states go out as
@@ -75,6 +106,8 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
    */
   const follow = (acc: string, fan: string, text: unknown, attempt: string | null, fact: Plain | null) => {
     let pendingId: string | null = null;
+    /** The client took the observer for its request (`.bind`, the profile's capture), or called it. */
+    let taken = false;
     /** POSTs to the send path that went through the observer. */
     let calls = 0;
     /** Status of the intercepted response; 0 — none (yet). */
@@ -95,27 +128,27 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
     const human = (platformMessageId: string | null): void => host.post('humanSend', { ...fact, pendingId, platformMessageId });
     const close = (): void => {
       done = true;
-      open.delete(decide);
+      open.delete(self);
       if (open.size === 0 && typeof stop === 'function') {
         (stop as () => void)();
         stop = null;
       }
     };
 
-    /** The receipt of exactly this send. */
+    /** The receipt of exactly this send; with its outgoing echo it is the linked pair (§6.6 п. 4, §6.7.6 п. 6). */
     const accept = (receipt: string): void => {
       close();
       const view = { platformMessageId: receipt };
-      if (!attempt) return human(receipt);
-      say('nativeAccepted', view);
-      if (tap.echoed(acc, fan, receipt)) return say('sentObserved', view);
-      awaiting.set(`${acc}:${fan}:${receipt}`, () => say('sentObserved', view));
+      const paired = attempt ? (): void => say('sentObserved', view) : (): void => human(receipt);
+      if (attempt) say('nativeAccepted', view);
+      if (self.seen.includes(receipt)) return paired();
+      awaiting.set(`${self.chat}:${receipt}`, paired);
       if (awaiting.size > MAX_AWAITING) awaiting.delete(awaiting.keys().next().value as string);
     };
 
     /**
-     * One outcome per send, and only once the queue gave its entry: after an outcome nothing calls this again (the
-     * queue is no longer watched for it, the one read has ended).
+     * One outcome per send, and only once the queue gave its entry (a send that was never bound says nothing): after an
+     * outcome nothing calls this again (the queue is no longer watched for it, the one read has ended).
      */
     const decide = (): void => {
       if (reading || !pendingId) return;
@@ -126,8 +159,6 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
       // The chain ended without a receipt: a proven refusal, or nothing that can be claimed.
       close();
       if (!attempt) return human(null);
-      // The entry is gone and no request of it passed the observer: the send path is not the profile's.
-      if (!entry && !calls) broken = true;
       const error = failed && isPlain(entry['error']) ? entry['error'] : {};
       const blocked = error['kind'] === ERROR_BLOCKED;
       const refused = status >= 400 && status < 500 && status !== 401;
@@ -142,47 +173,49 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
     };
 
     /** Reads the kept copies of the one request of this send; the page's own objects are never read. */
-    const read = (copy: Request, answer: Promise<Response>): void => {
+    const read = async (copy: Request, answer: Promise<Response>): Promise<void> => {
       reading = true;
-      const body = copy
-        .text()
-        .then((raw) => {
-          if (raw.length > MAX_BODY || (JSON.parse(raw) as Plain)['text'] !== text) odd = true;
-        })
-        .catch(() => {
-          odd = true;
-        });
+      // The response's copy is taken the moment it arrives, before the page reads its own; no answer — no receipt.
       const reply = answer
         .then((response) => {
           status = response.status;
           // A 401 is not an outcome and a 5xx proves nothing: their bodies are left alone.
           return status === 401 || status >= 500 ? '' : response.clone().text();
         })
-        .then((raw) => {
-          const json: unknown = raw && raw.length <= MAX_BODY ? JSON.parse(raw) : null;
-          if (!isPlain(json)) return;
-          if (status >= 200 && status < 300) id = typeof json['id'] === 'number' && !Number.isSafeInteger(json['id']) ? null : idOf(json['id']);
+        .catch(() => '');
+      try {
+        const sent = await copy.text();
+        odd ||= sent.length > MAX_BODY || (JSON.parse(sent) as Plain)['text'] !== text;
+      } catch {
+        odd = true;
+      }
+      try {
+        const raw = await reply;
+        const json: unknown = raw.length <= MAX_BODY ? JSON.parse(raw) : null;
+        if (isPlain(json)) {
+          if (status >= 200 && status < 300) id = idOf(json['id']);
           else {
             code = typeof json['code'] === 'string' ? json['code'].slice(0, 64) : '';
             if (code === GUARD_CODE) guard = topics(json['topic_matches']);
           }
-        })
-        .catch(() => undefined);
-      void Promise.all([body, reply]).then(() => {
-        reading = false;
-        decide();
-      });
+        }
+      } catch {
+        // Not an answer we can read: no receipt.
+      }
+      reading = false;
+      decide();
     };
 
+    const self: Followed = { chat: `${acc}:${fan}`, seen: [], decide };
     return {
       /** Puts the observer in place of the page's fetch; the returned function puts the previous value back if the global is still ours. */
       capture(): () => void {
         // eslint-disable-next-line @typescript-eslint/unbound-method -- the page's function, only ever called with its caller's own `this`
         const previous = win.fetch;
-        if (typeof previous !== 'function') return () => undefined;
         const observer = function (this: unknown, ...args: unknown[]): unknown {
           let copy: Request | undefined;
           let hit = false;
+          taken = true;
           try {
             const target = done ? null : sendTarget(args[0], args[1]);
             if (target) {
@@ -198,7 +231,7 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
           if (hit) {
             odd ||= !copy;
             try {
-              if (copy) read(copy, result as Promise<Response>);
+              if (copy) void read(copy, result as Promise<Response>);
               else decide();
             } catch {
               odd = true;
@@ -206,21 +239,38 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
           }
           return result;
         };
+        // The client's capture (§6.7.6 п. 2) is heard on our own function only; what it gets is what `bind` gives.
+        // eslint-disable-next-line @typescript-eslint/unbound-method -- applied to the observer right below
+        const bind = observer.bind;
+        (observer as { bind: unknown }).bind = (...args: [unknown, ...unknown[]]): unknown => {
+          taken = true;
+          return bind.apply(observer, args);
+        };
         win.fetch = observer as typeof win.fetch;
         return () => {
           if (win.fetch === observer) win.fetch = previous;
         };
       },
-      /** The queue gave its entry: its chain is followed in the queue's own state until it ends. */
-      bind: (entryId: string): void => {
+      /**
+       * The queue gave its entry: its chain is followed in the queue's own state until it ends. False — its request
+       * did not take the observer, nothing of it can be seen: for X8 that is not the profile's send path (no more X8);
+       * for a human send, a fact without a receipt.
+       */
+      bind: (entryId: string): boolean => {
         pendingId = entryId;
-        open.add(decide);
+        if (!taken) {
+          done = true;
+          if (attempt) broken = true;
+          else human(null);
+          return false;
+        }
+        open.add(self);
         stop ??=
           host.queue()?.$subscribe?.(
             () => {
               for (const each of open) {
                 try {
-                  each();
+                  each.decide();
                 } catch {
                   // Inside ChatSpace's own state change: a failure of ours stays here.
                 }
@@ -229,19 +279,16 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
             { detached: true, flush: 'sync' },
           ) ?? null;
         decide();
-      },
-      /** Nothing was queued. */
-      drop: (): void => {
-        done = true;
+        return true;
       },
     };
   };
 
   return {
-    broken: () => broken,
+    broken: () => broken || fixed(),
     open(attemptId, acc, fan, html) {
       const followed = follow(acc, fan, html, attemptId, null);
-      return { release: followed.capture(), bind: followed.bind, drop: followed.drop };
+      return { release: followed.capture(), bind: followed.bind };
     },
     /**
      * §6.6: a send that is not ours. Only the open chat's composer counts: it passes its content along, and its draft
@@ -255,22 +302,19 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
       // The draft is read here, before the send clears the field.
       const from = acc && fan && queue && isPlain(args['composerContent']) ? host.draft(acc, fan) : null;
       if (!acc || !fan || !queue || !from) return;
-      const fact = { acc, fan, textDigest: from.digest, draft: from.draft };
-      // A draft that is not from our insert has nothing to attribute; a send that waits behind another creates its
-      // request later, outside this stack. Both go out as facts without a receipt: attribution unknown.
-      const followed = from.draft.insertIntentId && !queueBusy(host, queue, acc) ? follow(acc, fan, args['text'], null, fact) : null;
-      const release = followed?.capture();
+      const followed = follow(acc, fan, args['text'], null, { acc, fan, textDigest: from.digest, draft: from.draft });
+      // The observer goes in only when there is something to attribute and the request is created on this stack. A
+      // draft that is not from our insert, or a send that waits behind another (its request comes later), takes no
+      // observer: its fact goes out without a receipt — attribution unknown.
+      const release = from.draft.insertIntentId && !queueBusy(host, queue, acc) && !fixed() ? followed.capture() : null;
       // The observer never outlives this synchronous stack, even if the queue's action stopped being synchronous.
       if (release) void Promise.resolve().then(release);
       // Both run inside ChatSpace's own action: the page's fetch goes back first, and nothing of ours may throw into it.
       after((entry) => {
         release?.();
         try {
-          const pendingId = isPlain(entry) && isRef(entry['id']) ? entry['id'] : null;
-          // The queue refused: nothing was sent.
-          if (!pendingId) return;
-          if (followed) followed.bind(pendingId);
-          else host.post('humanSend', { ...fact, pendingId, platformMessageId: null });
+          // No entry — the queue refused: nothing was sent.
+          if (isPlain(entry) && isRef(entry['id'])) followed.bind(entry['id']);
         } catch {
           // The send went on; its fact is lost.
         }
@@ -278,9 +322,12 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
       onError(() => release?.());
     },
     echo(fact) {
-      const tag = `${fact.acc}:${fact.fan}:${fact.msgId}`;
-      const sent = fact.fromFan ? undefined : awaiting.get(tag);
-      if (sent && awaiting.delete(tag)) sent();
+      if (fact.fromFan) return;
+      const chat = `${fact.acc}:${fact.fan}`;
+      for (const each of open) if (each.chat === chat && each.seen.length < MAX_EARLY) each.seen.push(fact.msgId);
+      const tag = `${chat}:${fact.msgId}`;
+      const paired = awaiting.get(tag);
+      if (paired && awaiting.delete(tag)) paired();
     },
   };
 }

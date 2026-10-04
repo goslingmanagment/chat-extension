@@ -319,18 +319,22 @@ describe('[TL-004] a human send keeps the revision chain of our insert (§6.6)',
     if (entry) editor?.type('');
     return entry;
   };
-  const answer = async (h: Harness, index: number, id: string): Promise<void> => {
+  /** The server accepts the message: the response with its id, then the outgoing echo on ChatSpace's socket. */
+  const answer = async (h: Harness, socket: FakeSocket, index: number, id: string): Promise<void> => {
     await h.settle();
     h.calls[index]?.respond(200, { id });
     await h.settle();
+    // The receipt alone is not «sent»: the fact goes out with the echo of the same id (§6.6 п. 4).
+    expect(h.of('humanSend').some((fact) => fact['platformMessageId'] === id)).toBe(false);
+    socket.receive(frames.message(ACC, OPEN, id, false));
   };
 
   it('unchanged insert → sent, not edited; edited insert → edited; after the send the chain ends', async () => {
     const h = await start();
-    h.socket();
+    const socket = h.socket();
     expect(await insert(h, 0x60, 'Hello there')).toMatchObject({ state: 'applied' });
     const first = pressSend(h);
-    await answer(h, 0, '8101');
+    await answer(h, socket, 0, '8101');
     const facts = (): Array<Record<string, unknown>> => h.of('humanSend');
     expect(facts()).toHaveLength(1);
     expect(facts()[0]).toMatchObject({ acc: ACC, fan: OPEN, pendingId: first?.id, platformMessageId: '8101', draft: { provenance: 'our-insert', insertIntentId: uuid(0x60), editedSinceInsert: false } });
@@ -349,7 +353,7 @@ describe('[TL-004] a human send keeps the revision chain of our insert (§6.6)',
     expect(await insert(h, 0x61, 'Second one')).toMatchObject({ state: 'applied' });
     h.composer.editor?.type('Something else entirely');
     pressSend(h);
-    await answer(h, 2, '8103');
+    await answer(h, socket, 2, '8103');
     expect(facts()[2]).toMatchObject({ platformMessageId: '8103', draft: { provenance: 'human-or-unknown', insertIntentId: uuid(0x61), editedSinceInsert: true } });
     expect(FROM_MAIN.humanSend.safeParse(facts()[2]).success).toBe(true);
     // The digest is of the draft's text as it stood at the send: an integrity check only.
@@ -358,26 +362,26 @@ describe('[TL-004] a human send keeps the revision chain of our insert (§6.6)',
 
   it('an append into the person’s own draft is sent as «edited» of that insert; a formatting change counts as an edit', async () => {
     const h = await start();
-    h.socket();
+    const socket = h.socket();
     h.composer.editor?.type('mine');
     expect(await insert(h, 0x62, 'added', 'append', uuid(0x99))).toMatchObject({ state: 'applied' });
     pressSend(h);
-    await answer(h, 0, '8104');
+    await answer(h, socket, 0, '8104');
     expect(h.of('humanSend')[0]).toMatchObject({ platformMessageId: '8104', draft: { provenance: 'human-or-unknown', insertIntentId: uuid(0x62), editedSinceInsert: true } });
 
     expect(await insert(h, 0x63, 'Plain')).toMatchObject({ state: 'applied' });
     h.composer.editor?.format();
     pressSend(h);
-    await answer(h, 1, '8105');
+    await answer(h, socket, 1, '8105');
     expect(h.of('humanSend')[1]).toMatchObject({ draft: { insertIntentId: uuid(0x63), editedSinceInsert: true } });
   });
 
   it('the composer of another chat tab, or an editor that cannot be observed, gives no fact at all', async () => {
     const h = await start();
-    h.socket();
+    const socket = h.socket();
     // A send for a chat that is not the route's (its composer is not the visible one).
     h.queue.send({ accountId: ACC, chatId: '2009', platform: 'onlyfans', text: '<p>x</p>', composerContent: { html: '<p>x</p>' } });
-    await answer(h, 0, '8106');
+    await answer(h, socket, 0, '8106');
     expect(h.of('humanSend')).toEqual([]);
   });
 });

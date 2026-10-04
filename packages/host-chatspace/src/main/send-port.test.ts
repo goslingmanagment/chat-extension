@@ -20,7 +20,7 @@ afterEach(() => {
   h = null;
 });
 
-const failedEntry = (fan: string, n: number): QueueEntry => ({ id: `stuck-${n}`, accountId: ACC, chatId: fan, platform: 'onlyfans', status: 'failed', error: { kind: 'platform' }, payload: {} });
+const failedEntry = (fan: string, n: number): QueueEntry => ({ id: `stuck-${n}`, accountId: ACC, chatId: fan, platform: 'onlyfans', status: 'failed', error: { kind: 'platform' }, createdAt: '2026-10-03T10:00:00.000Z', payload: {} });
 
 describe('[X8-02] the one queue call (§6.7.1)', () => {
   it('[SP-054] [X8-05] a cold target — no composer, no chat tab, no cache — gets exactly one call with the §6.7.1 arguments', async () => {
@@ -76,6 +76,22 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
     ['the flag is off (the latch)', 'CG-SEND-OFF', (live) => void live.port.handle('flags', { wsTap: true, previewSend: false })],
     ['the queue store is missing', 'CG-SEND-HOST', (live) => void live.live.stores.delete('pendingMessages')],
     ['the queue store is not the one we know', 'CG-SEND-HOST', (live) => void live.live.stores.set('pendingMessages', fakeStore('pendingMessages', { messagesByAccountId: {} }))],
+    [
+      'the queue store has no per-account «processing» state (§6.2: condition 13 could not be read)',
+      'CG-SEND-HOST',
+      (live) => void live.live.stores.set('pendingMessages', fakeStore('pendingMessages', { messagesByAccountId: {}, [QUEUE_SEND]: () => null })),
+    ],
+    [
+      'a read of ours throws (a page we do not know)',
+      'CG-SEND-HOST',
+      (live) =>
+        void ((live.live.host as { route: unknown }).route = () => {
+          throw new Error('ours');
+        }),
+    ],
+    ['the page’s fetch takes no assignment (a getter alone): no send path that can be observed', 'CG-SEND-RECEIPT', (live) => void Object.defineProperty(live.win, 'fetch', { configurable: true, get: () => live.nativeFetch })],
+    ['the page’s fetch is not writable', 'CG-SEND-RECEIPT', (live) => void Object.defineProperty(live.win, 'fetch', { configurable: true, writable: false, value: live.nativeFetch })],
+    ['the page has no fetch', 'CG-SEND-RECEIPT', (live) => void ((live.win as { fetch?: unknown }).fetch = undefined)],
     ['the account is not among the loaded accounts', 'CG-SEND-PERMISSION', (live) => live.live.set(['accounts'], [{ id: 1002, platformAccountId: '3003' }])],
     ['the account is bound to another creator', 'CG-SEND-PERMISSION', (live) => live.live.set(['accounts'], [{ id: 1001, platformAccountId: '3999' }])],
     ['the accounts are not loaded', 'CG-SEND-PERMISSION', (live) => void live.live.data.delete(JSON.stringify(['accounts']))],
@@ -115,6 +131,7 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
     expect(live.preflight(req)).toEqual({ ok: true });
     breakIt(live);
     const before = JSON.stringify([...live.live.data]);
+    const fetchBefore = live.win.fetch;
     const preflight = live.preflight(req);
     expect(preflight).toEqual({ ok: false, code });
     expect(PreviewSendPreflightSchema.safeParse(preflight).success).toBe(true);
@@ -123,11 +140,13 @@ describe('[X8-03] every condition is checked in MAIN, with no side effect, and a
     expect(answer).toEqual({ state: 'held', code });
     expect(PreviewSendCommitSchema.safeParse(answer).success).toBe(true);
     await live.settle();
+    // «Held» is positive knowledge that the queue was not called (§6.7.7 п. 6): the same answer again, never «uncertain».
+    expect(live.commit(req)).toEqual({ state: 'held', code });
     // Nothing was sent, nothing in page memory was touched, the page's fetch is the page's.
     expect(live.queue.sends).toEqual([]);
     expect(live.calls).toEqual([]);
     expect(JSON.stringify([...live.live.data])).toBe(before);
-    expect(live.win.fetch).toBe(live.nativeFetch);
+    expect(live.win.fetch).toBe(fetchBefore);
     expect(live.states()).toEqual([]);
   });
 
@@ -200,7 +219,7 @@ describe('[X8-03] one attempt, one queue call (§6.7.7)', () => {
     expect(answers.slice(1)).toEqual(Array.from({ length: 19 }, () => ({ state: 'held', code: 'CG-SEND-BUSY' })));
   });
 
-  it('remembers the last 256 attempts; an older one is new again, and its own deadline still guards it', () => {
+  it('remembers the last 256 held attempts; an older one is new again, and its own deadline still guards it', () => {
     const live = start({ flags: false });
     const first = live.request(1);
     expect(live.commit(first)).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
@@ -210,6 +229,57 @@ describe('[X8-03] one attempt, one queue call (§6.7.7)', () => {
     expect(live.commit(live.request(1255))).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
     expect(live.commit({ ...first, checkpoint: live.checkpoint(), expiresAt: Date.now() - 1 })).toEqual({ state: 'held', code: 'CG-TIMEOUT' });
     expect(live.queue.sends).toEqual([]);
+  });
+
+  it('an attempt that may have reached the queue is never forgotten: its command after 300 others gets the first answer, not a second queue call', async () => {
+    const live = start();
+    const queued = live.request(1);
+    expect(live.commit(queued).state).toBe('nativeEnqueued');
+    live.queue.refuseNext();
+    await live.settle();
+    live.calls[0]?.respond(200, { id: '8001' });
+    await live.settle();
+    const refused = live.request(2, { fan: '2004' });
+    expect(live.commit(refused)).toEqual({ state: 'notEnqueued', code: 'CG-SEND-QUEUE' });
+    // Three hundred clicks that were held (the target became the open chat).
+    live.live.route = { name: 'chat', acc: ACC, fan: '2100' };
+    for (let n = 0; n < 300; n += 1) expect(live.commit(live.request(1000 + n, { fan: '2100' }))).toEqual({ state: 'held', code: 'CG-SEND-ACTIVE-CHAT' });
+    live.live.route = { name: 'chat', acc: ACC, fan: OPEN_FAN };
+    // The page would let both through now (a free queue, a fresh checkpoint, a ticket that has not expired).
+    expect(live.preflight({ ...queued, checkpoint: live.checkpoint() })).toEqual({ ok: true });
+    expect(live.commit({ ...queued, checkpoint: live.checkpoint() })).toMatchObject({ state: 'nativeEnqueued' });
+    expect(live.commit({ ...refused, checkpoint: live.checkpoint('2004') })).toEqual({ state: 'notEnqueued', code: 'CG-SEND-QUEUE' });
+    expect(live.queue.sends).toHaveLength(2);
+  });
+
+  it('a command of the same attempt that comes while its queue call runs does not reach the queue', () => {
+    const live = start();
+    const req = live.request(3);
+    let inner: unknown = null;
+    // Inside ChatSpace's own send action, on the stack of our one call.
+    live.queue.during = () => {
+      inner = live.commit(req);
+    };
+    expect(live.commit(req).state).toBe('nativeEnqueued');
+    // What is known at that moment: the queue may have been called, the result is not.
+    expect(inner).toEqual({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    expect(live.queue.sends).toHaveLength(1);
+  });
+
+  it('the observer cannot be put in place (the page’s fetch refuses the assignment): held, never «uncertain» — nothing reached the queue', () => {
+    const live = start();
+    Object.defineProperty(live.win, 'fetch', {
+      configurable: true,
+      get: () => live.nativeFetch,
+      set: () => {
+        throw new Error('not yours');
+      },
+    });
+    const req = live.request(4);
+    expect(live.commit(req)).toEqual({ state: 'held', code: 'CG-SEND-HOST' });
+    expect(live.commit(req)).toEqual({ state: 'held', code: 'CG-SEND-HOST' });
+    expect(live.queue.sends).toEqual([]);
+    expect(live.win.fetch).toBe(live.nativeFetch);
   });
 
   it('a held attempt stays held when its command comes again, even after the reason is gone', () => {
@@ -227,15 +297,41 @@ describe('[X8-03] one attempt, one queue call (§6.7.7)', () => {
     live.queue.refuseNext();
     expect(live.commit(live.request(22))).toEqual({ state: 'notEnqueued', code: 'CG-SEND-QUEUE' });
     expect(live.win.fetch).toBe(live.nativeFetch);
+    // A refusal of the queue is its own answer: the next send is not closed by it.
+    expect(live.preflight(live.request(27))).toEqual({ ok: true });
     live.queue.throwNext();
     expect(live.commit(live.request(23))).toEqual({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
     expect(live.win.fetch).toBe(live.nativeFetch);
     const odd = startLive();
-    odd.live.stores.set('pendingMessages', fakeStore('pendingMessages', { messagesByAccountId: {}, [QUEUE_SEND]: () => ({ id: 17 }) }));
+    odd.live.stores.set('pendingMessages', fakeStore('pendingMessages', { messagesByAccountId: {}, processingByAccountId: {}, [QUEUE_SEND]: () => ({ id: 17 }) }));
     expect(odd.commit(odd.request(24))).toEqual({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
     odd.dispose();
     await live.settle();
     expect(live.states()).toEqual([]);
+  });
+
+  it.each([
+    ['throws', (live: LiveHarness) => live.queue.throwNext()],
+    ['returns an entry without `status` (a renamed key)', (live: LiveHarness) => void (live.queue.reshape = ({ status: _status, ...rest }) => ({ ...rest, state: 'pending' }))],
+    ['returns an entry without `error`', (live: LiveHarness) => void (live.queue.reshape = ({ error: _error, ...rest }) => rest)],
+    ['returns an entry without `createdAt`', (live: LiveHarness) => void (live.queue.reshape = ({ createdAt: _createdAt, ...rest }) => rest)],
+    ['returns an entry without `payload`', (live: LiveHarness) => void (live.queue.reshape = ({ payload: _payload, ...rest }) => rest)],
+    ['returns an entry whose id is not a reference', (live: LiveHarness) => void (live.queue.reshape = (entry) => ({ ...entry, id: 17 }))],
+  ])('§6.2 `pendingMessages`: the queue %s — not the entry we know: uncertain, and X8 is off for the document with CG-SEND-HOST', async (_name, breakIt) => {
+    const live = start();
+    breakIt(live);
+    expect(live.commit(live.request(50))).toEqual({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    expect(live.win.fetch).toBe(live.nativeFetch);
+    live.queue.reshape = null;
+    // Its chain could not be read to its end, so nothing is said of it — and nothing more is sent this way.
+    await live.settle();
+    live.calls[0]?.respond(200, { id: '8001' });
+    await live.settle();
+    expect(live.states()).toEqual([]);
+    const next = live.request(51, { fan: '2004' });
+    expect(live.preflight(next)).toEqual({ ok: false, code: 'CG-SEND-HOST' });
+    expect(live.commit(next)).toEqual({ state: 'held', code: 'CG-SEND-HOST' });
+    expect(live.queue.sends).toHaveLength(1);
   });
 
   it('a fan message in the pause between the preflight and the click holds the send; editing the text does not lift it', () => {

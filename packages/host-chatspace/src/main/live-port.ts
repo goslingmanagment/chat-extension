@@ -17,7 +17,7 @@ import { createSendPort } from './send-port';
 export function createLivePort(win: Window & typeof globalThis, tap: Tap, host: LiveHost, switchOff: () => void): LivePort {
   /** The local latch of the `previewSend` flag (§6.7.11). */
   let sendOn = false;
-  const receipts = createReceipts(win, host, tap);
+  const receipts = createReceipts(win, host);
   const port = createSendPort(host, tap, receipts, () => sendOn && tap.on());
   tap.connect({
     fact(fact) {

@@ -67,6 +67,10 @@ export interface LiveHost {
   readonly store: (id: string) => PageStore | undefined;
   /** `getQueryData(key)` of the cache. */
   readonly data: (...key: string[]) => unknown;
+  /** The loaded OnlyFans account with this host id (`["accounts"]`), as far as a send needs it; null — none. */
+  readonly account: (acc: string) => { readonly platformAccountId: string | null } | null;
+  /** The fan as the page holds it (`["fansMap", acc][fan]`), raw; null — not held. */
+  readonly fan: (acc: string, fan: string) => Plain | null;
   /** The cache entry of a key; never created. */
   readonly entry: (...key: string[]) => Entry | null;
   /** The send queue, when it is shaped as §6.2 `pendingMessages` expects; else null. */

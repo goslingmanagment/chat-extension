@@ -12,9 +12,19 @@
 // - The text becomes HTML the way ChatSpace's own `setText` builds it: `&`
 //   first, then `<` and `>`, our line breaks as <br>, one outer <p>. Quotes
 //   stay: in a text node they mean the same characters.
+// - Whatever fails before the call (a read of ours that threw, the observer
+//   that could not be put in place) is `held` with CG-SEND-HOST, and the
+//   preflight says the same: nothing reached the queue (§6.7.7 п. 6).
+// - After the call the answer is what the queue returned: null —
+//   `notEnqueued`; an entry shaped as §6.2 says, whose request took the
+//   receipt observer — `nativeEnqueued`; anything else — `uncertain`, and no
+//   more X8 in this document: the queue threw or gave no id or other keys
+//   (CG-SEND-HOST from then on), or its request did not take the observer
+//   (CG-SEND-RECEIPT, receipt.ts).
 // - A used attempt id never reaches the queue twice: the first result is
-//   answered again. With the flag off (the latch of live-port.ts) nothing is
-//   sent at all.
+//   answered again. An answer that says the queue may have been called is
+//   never forgotten; of the `held` ones the last 256 are kept. With the flag
+//   off (the latch of live-port.ts) nothing is sent at all.
 // - The queue's send action is also where a human send shows (§6.6): the
 //   runtime listens for it by the name exported here; what follows is the
 //   receipt observer's.
@@ -24,7 +34,7 @@
 // hub's `dispatch`, the lease, the subscription the hub confirms (1–3, 9, 15)
 // — are checked before MAIN is asked.
 
-import { idOf, isPlain, type Plain } from './check';
+import { isPlain, type Plain } from './check';
 import { type LiveHost, type PageStore, type Tap } from './live';
 import {
   CG_SEND_ACTIVE_CHAT,
@@ -43,8 +53,6 @@ import {
   CG_SEND_UNCERTAIN,
   CG_TIMEOUT,
   ENTRY_FAILED,
-  KEY_ACCOUNTS,
-  KEY_FANS,
   KEY_MESSAGES,
   KEY_MIMIC_CHATS,
   KEY_MIMIC_SETTINGS,
@@ -60,22 +68,28 @@ import { type SendRequest } from './requests';
 /** The queue's action that sends; the bridge listens for it by this name and never calls it. */
 export const QUEUE_SEND = 'enqueue';
 
-/** §6.2 anchor `pendingMessages`: the queue action, its per-account state and the two ways to watch it; nothing called. */
+/** §6.2 anchor `pendingMessages`: the queue action, its two per-account states and the two ways to watch it; nothing called. */
 export function queueShape(store: Record<string, unknown>): 'ok' | 'shape' {
-  return typeof store[QUEUE_SEND] === 'function' && isPlain(store['messagesByAccountId']) && typeof store['$onAction'] === 'function' && typeof store['$subscribe'] === 'function' ? 'ok' : 'shape';
+  return typeof store[QUEUE_SEND] === 'function' && isPlain(store['messagesByAccountId']) && isPlain(store['processingByAccountId']) && typeof store['$onAction'] === 'function' && typeof store['$subscribe'] === 'function'
+    ? 'ok'
+    : 'shape';
 }
+
+/** §6.2 anchor `pendingMessages`, the entry's keys: checked on the entry the queue returns to a send of ours. */
+const ENTRY_KEYS = 'id,accountId,chatId,platform,status,error,createdAt,payload'.split(',');
 
 /** What the receipt observer does around the one queue call (receipt.ts). */
 export interface SendWatch {
   /** Right after the queue call returned or threw: the page's fetch is the page's again. */
   readonly release: () => void;
-  /** The queue gave its entry: its chain is followed to the receipt. */
-  readonly bind: (pendingId: string) => void;
-  /** Nothing was queued. */
-  readonly drop: () => void;
+  /**
+   * The queue gave its entry: its chain is followed to the receipt. False — its request did not take the observer:
+   * nothing of it can be seen. Never called (the queue refused, or gave no entry we know) — nothing is followed or said.
+   */
+  readonly bind: (pendingId: string) => boolean;
 }
 export interface SendObserver {
-  /** A send path that did not behave as its profile says: no more X8 in this document (§6.7.6). */
+  /** No send path that can be observed: one did not behave as its profile says (§6.7.6), or the page's fetch cannot be put aside. */
   readonly broken: () => boolean;
   /** Puts the observer onto the current synchronous stack for one queue call of ours. */
   readonly open: (attemptId: string, acc: string, fan: string, html: string) => SendWatch;
@@ -99,25 +113,31 @@ export const queueBusy = (host: LiveHost, queue: PageStore, acc: string): boolea
   return (isPlain(processing) && !!processing[acc]) || host.entries(acc).some((entry) => entry['status'] !== ENTRY_FAILED);
 };
 
+/** `held` answers kept for a repeated command. */
+const MAX_HELD = 256;
 const held = (code: string): Plain => ({ state: 'held', code });
+const UNCERTAIN: Plain = { state: 'uncertain', code: CG_SEND_UNCERTAIN };
 
 export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver, enabled: () => boolean) {
   /** Attempts that reached `commit`, with their first answer. */
   const used = new Map<string, Plain>();
+  /** The attempts answered `held`, oldest first: only these are ever forgotten. */
+  const heldIds: string[] = [];
+  /** The queue answered a send of ours with what §6.2 does not know: no more X8 in this document. */
+  let lost = false;
 
   /** Conditions 3–14 of §6.7.4 as the page shows them now; the first one that fails. */
-  const refusal = (req: SendRequest): string | null => {
+  const conditions = (req: SendRequest): string | null => {
     const { acc, fan } = req;
     if (!enabled()) return CG_SEND_OFF;
     if (observer.broken()) return CG_SEND_RECEIPT;
     if (req.plainText.trim() === '') return CG_SEND_PART;
     const queue = host.queue();
-    if (!queue) return CG_SEND_HOST;
-    // 5, 8: the account as loaded, bound to the same page; the role's permissions loaded and not blocking.
-    const accounts = host.data(KEY_ACCOUNTS);
-    const account = (Array.isArray(accounts) ? (accounts as unknown[]) : []).find((item) => isPlain(item) && idOf(item['id']) === acc);
+    if (!queue || lost) return CG_SEND_HOST;
+    // 5, 8: the account as loaded, bound to the same page; the role's permissions there and not blocking. «Loaded» is as
+    // far as page memory tells: ChatSpace keeps `[]` after a failed or cleared load too, and its own Send goes by the same list.
     const permissions = host.data(KEY_PERMISSIONS);
-    if (!isPlain(account) || idOf(account['platformAccountId']) !== req.platformAccountId || !Array.isArray(permissions) || permissions.includes(PERMISSION_NO_SEND)) return CG_SEND_PERMISSION;
+    if (host.account(acc)?.platformAccountId !== req.platformAccountId || !Array.isArray(permissions) || permissions.includes(PERMISSION_NO_SEND)) return CG_SEND_PERMISSION;
     // 6: the open chat has its composer and the dock.
     const route = host.route();
     if (route.acc === acc && route.fan === fan) return CG_SEND_ACTIVE_CHAT;
@@ -125,9 +145,8 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     const history = host.entry(KEY_MESSAGES, acc, fan);
     if (history && (history.active !== false || history.asyncStatus?.value !== 'idle')) return CG_SEND_HISTORY;
     // 9: what the page knows forbids; a fan it does not hold is not a refusal (the hub's subscription check is not MAIN's).
-    const fans = host.data(KEY_FANS, acc);
-    const known = isPlain(fans) ? fans[fan] : null;
-    if (isPlain(known) && (known['isBlocked'] === true || known['canReceiveMessages'] === false || known['isRestricted'] === true)) return CG_SEND_FAN;
+    const known = host.fan(acc, fan);
+    if (known && (known['isBlocked'] === true || known['canReceiveMessages'] === false || known['isRestricted'] === true)) return CG_SEND_FAN;
     // 10: Mimic data must be loaded; no data is not «off».
     const mimic = host.data(KEY_MIMIC_SETTINGS);
     const mimicChats = host.data(KEY_MIMIC_CHATS);
@@ -147,13 +166,27 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     // 14: the checkpoint of Generate against the counters now.
     return req.checkpoint.documentEpoch !== host.epoch() ? CG_SEND_FRESHNESS : tap.fresh(req.checkpoint);
   };
+  /** A read of ours that throws is a page we do not know: refused, for the button and for the click alike. */
+  const refusal = (req: SendRequest): string | null => {
+    try {
+      return conditions(req);
+    } catch {
+      return CG_SEND_HOST;
+    }
+  };
 
   const send = (req: SendRequest): Plain => {
     if (Date.now() > req.expiresAt) return held(CG_TIMEOUT);
     const code = refusal(req);
     if (code) return held(code);
     const html = toHtml(req.plainText);
-    const watch = observer.open(req.attemptId, req.acc, req.fan, html);
+    let watch: SendWatch;
+    try {
+      watch = observer.open(req.attemptId, req.acc, req.fan, html);
+    } catch {
+      // Nothing reached the queue: «held», never «uncertain» (§6.7.7 п. 6).
+      return held(CG_SEND_HOST);
+    }
     let entry: unknown;
     try {
       // The one write into ChatSpace's store (D-07, §6.7.1): still the synchronous step of the checks above.
@@ -173,17 +206,11 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     } finally {
       watch.release();
     }
-    if (entry === null) {
-      watch.drop();
-      return { state: 'notEnqueued', code: CG_SEND_QUEUE };
-    }
-    const pendingId = isPlain(entry) && isRef(entry['id']) ? entry['id'] : null;
-    if (pendingId === null) {
-      watch.drop();
-      return { state: 'uncertain', code: CG_SEND_UNCERTAIN };
-    }
-    watch.bind(pendingId);
-    return { state: 'nativeEnqueued', pendingId };
+    if (entry === null) return { state: 'notEnqueued', code: CG_SEND_QUEUE };
+    // §6.2: the queue threw, or gave what is not the entry we know — its chain cannot be read to its end.
+    const pendingId = isPlain(entry) && ENTRY_KEYS.every((key) => key in entry) && isRef(entry['id']) ? entry['id'] : null;
+    lost = pendingId === null;
+    return pendingId !== null && watch.bind(pendingId) ? { state: 'nativeEnqueued', pendingId } : UNCERTAIN;
   };
 
   return {
@@ -197,9 +224,10 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
       let result = used.get(req.attemptId);
       if (!result) {
         // Kept before the call: whatever happens inside, this attempt never runs again.
-        used.set(req.attemptId, { state: 'uncertain', code: CG_SEND_UNCERTAIN });
+        used.set(req.attemptId, UNCERTAIN);
         used.set(req.attemptId, (result = send(req)));
-        if (used.size > 256) used.delete(used.keys().next().value as string);
+        // Only «held» is ever forgotten, the oldest first: an attempt that may have reached the queue stays for the document's life.
+        if (result['state'] === 'held' && heldIds.push(req.attemptId) > MAX_HELD) used.delete(heldIds.shift() as string);
       }
       return result;
     },

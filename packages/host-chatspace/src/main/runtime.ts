@@ -260,6 +260,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     route,
     store: (id) => reader.store(id),
     data: (...key) => reader.data(...key),
+    account: accountOf,
+    fan: (acc, fan) => reader.rawFan(acc, fan),
     entry: (...key) => reader.entry(...key),
     queue: () => {
       const queue = reader.store(STORE_QUEUE);

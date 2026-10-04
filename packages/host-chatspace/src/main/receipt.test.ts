@@ -26,6 +26,16 @@ const valid = (live: LiveHarness): void => {
   for (const view of live.states()) expect([view, FROM_MAIN.previewSendState.safeParse({ view }).success]).toEqual([view, true]);
 };
 
+/** The native client took fetch for its request and now waits for its session token, until the test hands it over. */
+const holdToken = (live: LiveHarness): (() => void) => {
+  const waiting: Array<(token: string) => void> = [];
+  live.queue.token = () => new Promise<string>((resolve) => waiting.push(resolve));
+  return () => {
+    live.queue.token = () => Promise.resolve('session-token');
+    for (const resolve of waiting.splice(0)) resolve('session-token');
+  };
+};
+
 /** A committed send whose native request reached the page's fetch. */
 async function sent(live: LiveHarness, n: number, over: Parameters<LiveHarness['request']>[1] = {}) {
   const req = live.request(n, over);
@@ -87,8 +97,9 @@ describe('[X8-06] the observer only watches (§6.7.6 п. 1–3, §14)', () => {
   });
 
   it('never touches headers or cookies, never reads the page’s own request or response body', async () => {
-    // A client that took fetch early never calls the observer: the test calls it, with an instrumented request and response.
-    const quiet = start({ queue: { earlyFetch: true } });
+    // The client took the observer and waits for its token: the test calls it, with an instrumented request and response.
+    const quiet = start();
+    holdToken(quiet);
     const answer = new Response('{"id":"8001"}', { status: 200 });
     quiet.win.fetch = () => Promise.resolve(answer);
     let observer: ((...args: unknown[]) => unknown) | null = null;
@@ -162,7 +173,7 @@ describe('[X8-06] the observer only watches (§6.7.6 п. 1–3, §14)', () => {
     expect(live.states(uuid(4))[0]).toMatchObject({ platformMessageId: '8001' });
   });
 
-  it('a page without fetch stays without it: nothing is put in its place', () => {
+  it('a page without fetch stays without it: nothing is put in its place, for X8 or for a human send', () => {
     const live = start();
     (live.win as { fetch?: unknown }).fetch = undefined;
     let during: unknown = 'not asked';
@@ -170,9 +181,25 @@ describe('[X8-06] the observer only watches (§6.7.6 п. 1–3, §14)', () => {
     live.queue.store.$subscribe(() => {
       during = live.win.fetch;
     });
-    expect(live.commit(live.request(5)).state).toBe('nativeEnqueued');
+    // No send path that can be observed: X8 never reaches the queue there.
+    expect(live.commit(live.request(5))).toEqual({ state: 'held', code: 'CG-SEND-RECEIPT' });
+    expect(live.queue.sends).toEqual([]);
+    // The person's own send goes on as ChatSpace does it, unobserved; its fact has no receipt.
+    live.live.draft = { digest: 'feedbeef00000061', draft: { revision: 5, provenance: 'our-insert', insertIntentId: uuid(0x60), editedSinceInsert: false } };
+    const entry = live.queue.send({ accountId: ACC, chatId: OPEN_FAN, platform: 'onlyfans', text: '<p>x</p>', composerContent: { html: '<p>x</p>' } });
+    expect(live.posted('humanSend')).toMatchObject([{ pendingId: entry?.id, platformMessageId: null }]);
     expect(during).toBeUndefined();
     expect(live.win.fetch).toBeUndefined();
+  });
+
+  it('a fetch that takes no assignment is left alone: a human send goes on unobserved, with a fact without a receipt', async () => {
+    const live = start();
+    Object.defineProperty(live.win, 'fetch', { configurable: true, get: () => live.nativeFetch });
+    live.live.draft = { digest: 'feedbeef00000061', draft: { revision: 5, provenance: 'our-insert', insertIntentId: uuid(0x60), editedSinceInsert: false } };
+    const entry = live.queue.send({ accountId: ACC, chatId: OPEN_FAN, platform: 'onlyfans', text: '<p>x</p>', composerContent: { html: '<p>x</p>' } });
+    expect(live.posted('humanSend')).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: 'feedbeef00000061', draft: live.live.draft.draft }]);
+    await live.settle();
+    expect(live.calls).toHaveLength(1);
   });
 
   it('does not issue, repeat or delay anything: one click, one request', async () => {
@@ -223,6 +250,36 @@ describe('[X8-06] receipt and echo are linked by id, never by text (§6.7.6 п. 
     call.respond(200, { id: '8001' });
     await live.settle();
     expect(states(live, 11)).toEqual(['nativeAccepted', 'sentObserved']);
+  });
+
+  it('an early echo of another chat, or a fan’s message, with the receipt’s id is not this send’s echo', async () => {
+    const live = start();
+    const { call } = await sent(live, 8);
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8001', false));
+    live.socket.receive(frames.message(ACC, FAN, '8001', true));
+    call.respond(200, { id: '8001' });
+    await live.settle();
+    expect(states(live, 8)).toEqual(['nativeAccepted']);
+    live.socket.receive(frames.message(ACC, FAN, '8001', false));
+    expect(states(live, 8)).toEqual(['nativeAccepted', 'sentObserved']);
+  });
+
+  it('an early echo is kept with its send: any number of other chats’ outgoing messages in between cannot push it out', async () => {
+    const live = start();
+    const { call } = await sent(live, 19);
+    live.socket.receive(frames.message(ACC, FAN, '8001', false));
+    // A burst of outgoing frames of other chats and accounts (mass messages, queued ones) before the response.
+    for (let n = 0; n < 200; n += 1) live.socket.receive(frames.message(ACC, String(4000 + n), String(9000 + n), false));
+    call.respond(200, { id: '8001' });
+    await live.settle();
+    expect(states(live, 19)).toEqual(['nativeAccepted', 'sentObserved']);
+    // What is kept is this chat's, and bounded: the first 64 outgoing ids since the queue call.
+    const busy = await sent(live, 9, { fan: '2004' });
+    for (let n = 0; n < 64; n += 1) live.socket.receive(frames.message(ACC, '2004', String(7000 + n), false));
+    live.socket.receive(frames.message(ACC, '2004', '8002', false));
+    busy.call.respond(200, { id: '8002' });
+    await live.settle();
+    expect(states(live, 9)).toEqual(['nativeAccepted']);
   });
 
   it('two sends with the same text: each one’s echo completes only its own receipt', async () => {
@@ -456,7 +513,8 @@ describe('[X8-06] what is not a receipt (§6.7.6 п. 4, §6.7.8)', () => {
   });
 
   it('a request of another chat through the observer is not this send’s, whatever it carries', async () => {
-    const quiet = start({ queue: { earlyFetch: true } });
+    const quiet = start();
+    holdToken(quiet);
     quiet.win.fetch = () => Promise.resolve(new Response('{"id":"8001"}', { status: 200 }));
     let observer: ((...args: unknown[]) => unknown) | null = null;
     quiet.queue.during = () => {
@@ -471,7 +529,8 @@ describe('[X8-06] what is not a receipt (§6.7.6 п. 4, §6.7.8)', () => {
   });
 
   it('a text in the request that is not the one queued is not ours to confirm', async () => {
-    const quiet = start({ queue: { earlyFetch: true } });
+    const quiet = start();
+    holdToken(quiet);
     quiet.win.fetch = () => Promise.resolve(new Response('{"id":"8001"}', { status: 200 }));
     let observer: ((...args: unknown[]) => unknown) | null = null;
     quiet.queue.during = () => {
@@ -484,17 +543,66 @@ describe('[X8-06] what is not a receipt (§6.7.6 п. 4, §6.7.8)', () => {
     expect(quiet.states(uuid(31))).toEqual([{ attemptId: uuid(31), state: 'uncertain', code: 'CG-SEND-UNCERTAIN', detail: { upstream: 'HTTP 200' } }]);
   });
 
-  it('a send whose request never passed the observer closes X8 for the document (the send path is not the profile’s)', async () => {
+  it('a send whose request did not take the observer closes X8 for the document (the send path is not the profile’s)', async () => {
     const live = start({ queue: { earlyFetch: true } });
-    const { call } = await sent(live, 32);
-    // The client took fetch when it was built: the request went out, the observer saw nothing.
-    call.respond(200, { id: '8001' });
+    // The client took fetch when it was built, not for this request: the message is queued, and nothing of it can be seen.
+    expect(live.commit(live.request(32))).toEqual({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    expect(live.win.fetch).toBe(live.nativeFetch);
     await live.settle();
-    expect(live.states(uuid(32))).toEqual([{ attemptId: uuid(32), state: 'uncertain', code: 'CG-SEND-UNCERTAIN', detail: { upstream: 'no receipt' } }]);
+    live.calls[0]?.respond(200, { id: '8001' });
+    await live.settle();
+    live.socket.receive(frames.message(ACC, FAN, '8001', false));
+    expect(live.states()).toEqual([]);
     const next = live.request(33, { fan: '2004' });
     expect(live.preflight(next)).toEqual({ ok: false, code: 'CG-SEND-RECEIPT' });
     expect(live.commit(next)).toEqual({ state: 'held', code: 'CG-SEND-RECEIPT' });
     expect(live.queue.sends).toHaveLength(1);
+  });
+
+  it.each([
+    ['cancel', (live: LiveHarness, id: string) => (live.queue.store['cancel'] as (acc: string, id: string) => void)(ACC, id)],
+    ['resetForAccount', (live: LiveHarness) => (live.queue.store['resetForAccount'] as (acc: string) => void)(ACC)],
+    ['resetAll (a sign-out)', (live: LiveHarness) => (live.queue.store['resetAll'] as () => void)()],
+  ])('the entry is taken away by %s before its request reached fetch (the client waits for its token): uncertain, and X8 stays on', async (_name, take) => {
+    const live = start();
+    const handOver = holdToken(live);
+    const answer = live.commit(live.request(60));
+    expect(answer.state).toBe('nativeEnqueued');
+    await live.settle();
+    expect(live.calls).toEqual([]);
+    take(live, answer.pendingId as string);
+    await live.settle();
+    expect(live.states(uuid(60))).toEqual([{ attemptId: uuid(60), state: 'uncertain', code: 'CG-SEND-UNCERTAIN', detail: { upstream: 'no receipt' } }]);
+    // The token comes at last: the client's aborted request ends in its own way, and nothing more is said.
+    handOver();
+    await live.settle();
+    expect(states(live, 60)).toEqual(['uncertain']);
+    // The send path was the profile's (the client took the observer); the entry was simply taken away.
+    const next = live.request(61, { fan: '2004' });
+    expect(live.preflight(next)).toEqual({ ok: true });
+    expect(live.commit(next).state).toBe('nativeEnqueued');
+    valid(live);
+  });
+
+  it('after an outcome the kept function says nothing more: a later request through it is only passed on', async () => {
+    const live = start();
+    let observer: ((...args: unknown[]) => unknown) | null = null;
+    live.queue.during = () => {
+      observer = live.win.fetch as unknown as (...args: unknown[]) => unknown;
+    };
+    const { req, call } = await sent(live, 62);
+    call.respond(200, { id: '8001' });
+    await live.settle();
+    expect(states(live, 62)).toEqual(['nativeAccepted']);
+    // The function the client captured lives on in its closure; whatever goes through it now is not this attempt's.
+    const later = (observer as unknown as (...args: unknown[]) => unknown)(new Request(`https://api.example.test${SEND_URL}`, { method: 'POST', body: JSON.stringify({ text: toHtml(req.plainText) }) }), {});
+    expect(live.calls).toHaveLength(2);
+    live.calls[1]?.respond(403, { code: 'FORBIDDEN' });
+    await live.settle();
+    expect(((await later) as Response).status).toBe(403);
+    expect(states(live, 62)).toEqual(['nativeAccepted']);
+    live.socket.receive(frames.message(ACC, FAN, '8001', false));
+    expect(states(live, 62)).toEqual(['nativeAccepted', 'sentObserved']);
   });
 });
 
@@ -504,7 +612,7 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     live.queue.send({ accountId: ACC, chatId: fan, platform: 'onlyfans', text, hasAttachments: false, platformMetadata: {}, composerContent: { html: text, media: null, gif: null, taggedCreators: [] } });
   const facts = (live: LiveHarness) => live.posted('humanSend');
 
-  it('our unchanged insert, a free queue: the receipt of exactly this send goes out once, with the draft recorded before the send', async () => {
+  it('our unchanged insert, a free queue: the receipt of exactly this send and its echo go out as one fact, once, with the draft recorded before the send', async () => {
     const live = start();
     live.live.draft = ours;
     let during: unknown = null;
@@ -518,11 +626,49 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     await live.settle();
     live.calls[0]?.respond(200, { id: '8101' });
     await live.settle();
+    // The receipt alone is not «sent» (§6.6 п. 4): the fact waits for the outgoing echo with the same id, account and fan.
+    expect(facts(live)).toEqual([]);
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8102', false));
+    live.socket.receive(frames.message(ACC, FAN, '8101', false));
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8101', true));
+    expect(facts(live)).toEqual([]);
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8101', false));
     expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: '8101', textDigest: ours.digest, draft: ours.draft }]);
     expect(FROM_MAIN.humanSend.safeParse(facts(live)[0]).success).toBe(true);
+    // Once; and the isolated side heard of the echo before the fact that it completes.
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8101', false));
+    expect(facts(live)).toHaveLength(1);
+    const order = live.live.posted.map((event) => (event.t === 'incoming' ? `incoming:${String(event.payload['msgId'])}:${String(event.payload['fan'])}:${String(event.payload['fromFan'])}` : event.t));
+    const echo = order.indexOf(`incoming:8101:${OPEN_FAN}:false`);
+    expect(order.slice(echo, echo + 2)).toEqual([`incoming:8101:${OPEN_FAN}:false`, 'humanSend']);
     // Nothing of X8 was said, and the page's own fetch got the composer's own request.
     expect(live.states()).toEqual([]);
     expect(live.calls[0]?.input).toBe(live.queue.requests[0]);
+  });
+
+  it('the echo may come before the response: the fact goes out when the receipt arrives', async () => {
+    const live = start();
+    live.live.draft = ours;
+    const entry = composerSend(live);
+    await live.settle();
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8109', false));
+    expect(facts(live)).toEqual([]);
+    live.calls[0]?.respond(200, { id: '8109' });
+    await live.settle();
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: '8109', textDigest: ours.digest, draft: ours.draft }]);
+  });
+
+  it('a client that did not take the observer for a human send: a fact without a receipt, and X8 is not closed by it', async () => {
+    const live = start({ queue: { earlyFetch: true } });
+    live.live.draft = ours;
+    const entry = composerSend(live);
+    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: entry?.id, platformMessageId: null, textDigest: ours.digest, draft: ours.draft }]);
+    await live.settle();
+    live.calls[0]?.respond(200, { id: '8110' });
+    await live.settle();
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8110', false));
+    expect(facts(live)).toHaveLength(1);
+    expect(live.preflight(live.request(70))).toEqual({ ok: true });
   });
 
   it('the answer may be read before the queue hands over its entry: the fact waits for the entry and is said once', async () => {
@@ -542,10 +688,12 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     expect(live.win.fetch).toBe(live.nativeFetch);
     live.calls[0]?.respond(200, { id: '8105' });
     await live.settle();
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8105', false));
     expect(facts(live)).toEqual([]);
     (finish as unknown as (entry: unknown) => void)({ id: 'entry-1' });
     expect(live.win.fetch).toBe(live.nativeFetch);
-    expect(facts(live)).toEqual([{ acc: ACC, fan: OPEN_FAN, pendingId: 'entry-1', platformMessageId: '8105', textDigest: ours.digest, draft: ours.draft }]);
+    // The entry came after the echo: what was seen for the chat before is not this send's to claim.
+    expect(facts(live)).toEqual([]);
   });
 
   it('the queue’s state is watched only while a send is followed', async () => {
@@ -570,8 +718,11 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     await live.settle();
     live.calls[0]?.respond(200, { id: '8108' });
     await live.settle();
-    expect(facts(live)).toHaveLength(1);
+    // The native chain ended with the receipt: the queue is no longer watched while the fact waits for its echo.
     expect(watching).toBe(0);
+    expect(facts(live)).toEqual([]);
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8108', false));
+    expect(facts(live)).toHaveLength(1);
   });
 
   it('a text too long to compare is not ours to attribute', async () => {
@@ -591,6 +742,7 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     await live.settle();
     live.calls[0]?.respond(200, { id: '8102' });
     await live.settle();
+    live.socket.receive(frames.message(ACC, OPEN_FAN, '8102', false));
     expect(facts(live)[0]).toMatchObject({ platformMessageId: '8102', draft: { insertIntentId: uuid(0x60), editedSinceInsert: true } });
   });
 
