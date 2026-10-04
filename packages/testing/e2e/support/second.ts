@@ -21,9 +21,14 @@ const registry = (): Map<string, unknown> => {
   return globals;
 };
 
-/** Starts another Firefox with the capabilities of the suite's own session. End it with `deleteSession()`. */
-export async function startSecondBrowser(): Promise<WebdriverIO.Browser> {
-  return remote({ capabilities: browser.requestedCapabilities as WebdriverIO.Capabilities, logLevel: 'warn' });
+/**
+ * Starts another Firefox with the capabilities of the suite's own session, plus `prefs` of its own (a browser
+ * that says it runs on Windows, for one). End it with `deleteSession()`.
+ */
+export async function startSecondBrowser(prefs: Readonly<Record<string, string | number | boolean>> = {}): Promise<WebdriverIO.Browser> {
+  const own = browser.requestedCapabilities as WebdriverIO.Capabilities;
+  const firefox = own['moz:firefoxOptions'] ?? {};
+  return remote({ capabilities: { ...own, 'moz:firefoxOptions': { ...firefox, prefs: { ...firefox.prefs, ...prefs } } }, logLevel: 'warn' });
 }
 
 /** Runs `run` with the helpers of e2e/support driving `instance`; the suite's own browser is back after it. */
