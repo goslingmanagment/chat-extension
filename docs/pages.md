@@ -2,8 +2,8 @@
 
 Popup, страница настроек с восемью разделами и экраном входа, страница промпта и
 страница журналов. Что они показывают и как выглядят — `architecture.md` §9.9,
-§9.3–§9.6, §8.2 и `ui-design.md` §3.10, §4.23, §4.24, §10. Здесь — где что лежит, что
-подключает интегратор и чего страницы ждут от фона.
+§9.3–§9.6, §8.2 и `ui-design.md` §3.10, §4.23, §4.24, §10. Здесь — где что лежит, как
+страницы подключены в расширении и чего они ждут от фона.
 
 Страница ничего не знает о хабе и о ChatSpace напрямую: всё идёт запросами к фону
 (`TAB_REQUESTS`, отправитель `page`). Тексты переписки, черновики, промпты и секреты
@@ -16,8 +16,10 @@ Popup, страница настроек с восемью разделами и
 |---|---|---|
 | контроллеры | `packages/core/src/application/pages` (`@cg/core/application/pages`) | `createPagesClient(env, ports)` — `AppClient` страницы: модели `PopupVM`, `OptionsVM`, `DebugPromptVM`, `JournalVM` и исполнение `UiAction` |
 | вид | `packages/ui/src/pages` (`@cg/ui/pages`) | `mountPopup`, `mountOptions`, `mountDebugPrompt`, `mountDebugJournal`; стили `pg-*` поверх `ui/kit` |
+| сборка | `apps/extension/src/composition/pages.ts` | корень композиции: контроллер, порты браузера из `@cg/platform`, функция монтирования; точки входа — `src/entrypoints/{popup,options,debug-prompt,debug-journal}` |
 | стенд | `packages/testing/src/pages` | сценарный фон `FakePageBackground`, мир `pagesWorld`, тесты контроллеров и вёрстки, галерея страниц |
-| e2e | `packages/testing/e2e/specs/pages-gallery.e2e.ts` | страницы в headless Firefox, снимки в `.cache/e2e/pages-*.png` |
+| e2e | `packages/testing/e2e/specs/pages-gallery.e2e.ts` | страницы на сценарном фоне в headless Firefox, снимки в `.cache/e2e/pages-*.png` |
+| e2e | `packages/testing/e2e/specs/pages-wiring.e2e.ts`, `integration-m1.e2e.ts` | настоящие страницы установленного расширения против поддельного хаба, снимки `.cache/e2e/ext-*.png` |
 
 Внутри контроллеров:
 
@@ -72,21 +74,21 @@ Popup, страница настроек с восемью разделами и
 - **Чек-лист первого запуска (ST-012)** стоит и на экране входа: права на хосты, вход
   и согласие можно сделать оттуда; шаги, которым нужен вход, до входа без действия.
 
-## Что подключает интегратор
+## Как страницы подключены
 
-`apps/extension/src/composition/pages.ts` пока рисует заглушку. Замена — собрать
-порты и вызвать функцию монтирования. Рабочий образец той же сборки на сценарном
-фоне — `packages/testing/src/pages/world.ts` и `gallery/main.tsx`.
+`apps/extension/src/composition/pages.ts` — только сборка зависимостей: клиент
+протокола страницы, порты браузера и одна из функций монтирования. Тот же состав на
+сценарном фоне — `packages/testing/src/pages/world.ts` и `gallery/main.tsx`.
 
 ```ts
 const i18n = createI18n({ language, now: Date.now });           // @cg/core/domain/i18n
-const systemScheme = mediaSchemeSignal(window);                 // @cg/ui/kit
+const systemScheme = mediaSchemeSignal(matchMedia('(prefers-color-scheme: dark)')); // @cg/ui/kit
 const client = createPagesClient(
   { page, version, hotkeyPlatform, hostOrigin, links, systemLanguages: () => navigator.languages },
-  { rpc, clock, timers, permissions, consent, window: pageWindow, pages, openLink, download, clipboard, systemScheme, language: i18n },
+  { rpc, clock, timers, permissions, consent, window: pageWindow, pages, openLink, download, clipboard, systemScheme, language: i18n, catalog, report },
 );
 client.start();
-mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, systemScheme, hints: client.hints, location: client.location, helpUrl });
+mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, systemScheme, hints: client.hints, location: client.location, helpUrl, report });
 ```
 
 | Порт | Чем закрыть |
@@ -96,11 +98,27 @@ mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, syst
 | `pages` | `createExtensionPages`: открытая вкладка настроек переиспользуется (ST-006) |
 | `download` | `downloadFile` (Blob и `<a download>`, §9.2) |
 | `clipboard` | `writeClipboardText` |
-| `window` | `location.hash`, события `hashchange`, `focus` / `visibilitychange`, `pagehide`; у popup ещё `close` |
-| `openLink` | новая вкладка, только `https://` |
+| `window` | `location.hash`, события `hashchange`, `focus` / `visibilitychange`, `pagehide`; у popup ещё `close`. Раздел, выбранный на самой странице, — новая запись истории той же вкладки (`history.pushState`): «Назад» возвращает прежний раздел |
+| `openLink` | `createLinkOpener`: новая вкладка, только `https://` |
+| `env.version` | `extensionVersionOf`: версия из манифеста, прочитанная сразу |
 | `env.hostOrigin` | адрес ChatSpace из `apps/extension/src/hosts.ts` |
-| `env.links` | адреса «Что нового» и «История версий» на сайте выпуска (R19); `null` прячет ссылку |
-| `catalog` | каталог действий R17: его подписи клавиш и отметки доставки важнее схемы |
+| `env.links`, `helpUrl` | адреса «Что нового», «История версий» и «Как начать» — `apps/extension/src/site.ts`, рядом с фидом обновлений. Самих страниц сайта ещё нет (R19): до выпуска ссылки ведут на 404 |
+| `catalog` | `createActionCatalog` из `@cg/core/domain/hotkeys` — тот же каталог R17, что во вкладке: его подписи клавиш и отметки доставки важнее схемы |
+| `report` | сбои контроллера и отрисовки уходят в лог фона (`log.write`): класс ошибки и код, без текста |
+
+Ещё корень композиции делает три вещи, которых нет в контроллере:
+
+- **язык документа:** `<html lang>` и заголовок вкладки следуют за языком настроек и
+  меняются на лету;
+- **страница журналов следует за своим адресом:** «Журналы» в настройках открывают
+  нужный журнал в уже открытой вкладке журналов (`hashchange` перемонтирует вид);
+- **страница промпта берёт токен из своего адреса** (`?t=…`) и отдаёт его только
+  контроллеру: в DOM, в заголовок и в логи он не попадает.
+
+**Сборка.** Четыре страницы делят один контроллер и один интерфейс, и сборщик клал всё
+в один файл около 506 КиБ. `pnpm archive-check` принимает JS-файл больше 400 КиБ за
+чужой бандл, поэтому `apps/extension/build/page-chunks.ts` режет общий бандл на три:
+тексты (оба каталога — язык меняется на лету), контракты с zod и сами страницы.
 
 Функции монтирования:
 
@@ -117,7 +135,7 @@ mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, syst
 ## Чего страницы ждут от фона
 
 Добавочные изменения контрактов 1.2.0 (`docs/contracts-changelog.md`). Фон всё
-это уже исполняет (корень композиции `apps/extension/src/composition/background.ts`):
+это исполняет (корень композиции `apps/extension/src/composition/background.ts`):
 
 | Что | Как исполняется |
 |---|---|
@@ -126,6 +144,12 @@ mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, syst
 | `diagnostics.get` → `footprint` | размер результатов в `storage.session` и журнала в IndexedDB |
 | `diagnostics.get` → `extension.updated` | фон запоминает `runtime.onInstalled` (`update`, прежняя версия) в `storage.local` и считает вкладки, которым новые скрипты достались поздно (UP-009); новая установка запись стирает |
 | `diagnostics.get` → `sound` | решения звукового арбитра по именам: `played`, `open-chat`, `muted`, `duplicate`…; у подписчиков — `subscriber.<имя>` |
+| `diagnostics.get` → `hub.reachable` | связь с хабом читается заново (не чаще раза в 10 с), **только пока кто-то вошёл**. Без входа страницы её не показывают — настройки заменяет экран входа, popup говорит «Нужно войти», — и фон хабу ничего не шлёт |
+| запрос `debug.open` (от вкладки) | кнопка «Промпт» у результата в доке: фон открывает `debug-prompt.html?t=<токен>` — только в режиме отладки — или переводит уже открытую страницу промпта на новый токен |
+
+Ещё фон сам открывает страницу настроек один раз после настоящей установки: первый
+запуск начинается на экране входа с чек-листом (ST-011, ST-012). Временная установка
+(`pnpm dev`, e2e) ничего не открывает.
 
 Чего фон страницам пока не даёт — раздел ниже.
 
@@ -172,5 +196,18 @@ mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, syst
   320 px, масштаб 200 %; ничего не торчит вбок; адреса и колесо над числом в
   настоящем окне. Снимки `pages-popup-20a|20b-*`, `pages-options-21a|21b-*`
   сверяются глазами с `final-20a/20b/21a/21b`.
+- `apps/extension/test/wiring-pages.test.ts` — корень композиции страниц целиком:
+  настоящий контроллер и настоящий интерфейс поверх настоящего фона на поддельном
+  браузере и поддельном хабе. Без входа хаб не спрашивается; адрес хаба и согласие
+  запрашиваются у браузера, отказ виден с кодом; одна вкладка настроек; ссылка по коду;
+  файлы диагностики через Blob; язык документа; токен страницы промпта.
+- `pages-wiring.e2e.ts` — настоящие страницы установленной тестовой сборки: состояния
+  popup (нет входа, смена без ChatSpace, рабочая смена, вход отозван хабом), одна
+  вкладка настроек, нестандартный адрес хаба, «Сохранено ✓» только после ответа фона
+  (ответ придерживается и теряется на пути от фона к странице), ссылка по коду с
+  плашкой и подсветкой, кнопка popup открывает Spenders во вкладке ChatSpace, файлы
+  диагностики, согласие на замеры, страницы отладки.
+- `integration-m1.e2e.ts` — вход, выбор персоны и выход через настоящую страницу
+  настроек, вместе с доком во вкладке стенда.
 
 Тесты названы по строкам паритета: `[PU-001]`, `[ST-014]`, `[DB-007]`.
