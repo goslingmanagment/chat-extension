@@ -107,7 +107,8 @@ describe('stand smoke — the test build on the ChatSpace-like fixture', () => {
     expect(report.appError).toBeUndefined();
     expect(report.runtimeError).toBeUndefined();
     expect(report.main?.readyStateAtStart).toBe('loading');
-    expect(report.rpc).toEqual({ state: 'ready', registered: true });
+    // Registered once: the background did not start again under the tab.
+    expect(report.rpc).toEqual({ state: 'ready', registered: true, registrations: 1 });
     // The tap is registered only by the bootstrap flag of a sign-in (§6.8 п. 10).
     expect(report.main?.wsTap).toBe(false);
     expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('chatgoose.wsTap')))).toBe(false);
