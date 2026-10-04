@@ -506,6 +506,18 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.block.missed': 'Что упущено',
   'coach.block.move': 'Следующий ход',
   'coach.block.risk': 'Риск',
+  'coach.group.sell': 'Продать',
+  'coach.group.return': 'Вернуть',
+  'coach.group.understand': 'Понять',
+  'coach.hint.sell.how': 'Не знаю, как продать — подскажи',
+  'coach.hint.sell.price': 'Как подать цену, чтобы не спугнуть?',
+  'coach.hint.sell.discount': 'Просит скидку — что ответить?',
+  'coach.hint.return.revive': 'Как оживить остывший чат?',
+  'coach.hint.return.seen': 'Прочитал и молчит — что написать?',
+  'coach.hint.return.afterPrice': 'Пропал после цены — как вернуть?',
+  'coach.hint.understand.likes': 'Что этому фану реально заходит?',
+  'coach.hint.understand.person': 'Разбери его: что за человек?',
+  'coach.hint.understand.topics': 'О чём говорить, кроме продаж?',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Палитра команд',

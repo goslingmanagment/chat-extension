@@ -481,6 +481,18 @@ export const EN: I18nCatalog<'en'> = {
   'coach.block.missed': 'What was missed',
   'coach.block.move': 'Next move',
   'coach.block.risk': 'Risk',
+  'coach.group.sell': 'Sell',
+  'coach.group.return': 'Win back',
+  'coach.group.understand': 'Understand',
+  'coach.hint.sell.how': 'I don\'t know how to sell here — help me',
+  'coach.hint.sell.price': 'How do I name the price without scaring him off?',
+  'coach.hint.sell.discount': 'He asks for a discount — what do I say?',
+  'coach.hint.return.revive': 'How do I revive a chat that went cold?',
+  'coach.hint.return.seen': 'He read it and went silent — what do I write?',
+  'coach.hint.return.afterPrice': 'He vanished after the price — how do I get him back?',
+  'coach.hint.understand.likes': 'What really works for this fan?',
+  'coach.hint.understand.person': 'Read him for me: what kind of person is he?',
+  'coach.hint.understand.topics': 'What to talk about besides sales?',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Command palette',
