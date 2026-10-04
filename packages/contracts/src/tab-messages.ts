@@ -5,7 +5,7 @@
 
 import * as z from 'zod/mini';
 
-import { CgCodeSchema, CgErrorWireSchema } from './errors';
+import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
@@ -453,6 +453,19 @@ export const TAB_REQUESTS = {
     }),
     res: SettingsStateSchema,
     from: ANY,
+  },
+  /**
+   * 1.2.0. «Настройки» pressed in a ChatSpace tab — the remedy of a dock
+   * banner (CG-AUTH-REQUIRED, CG-PERSONA-UNASSIGNED), the button of an error
+   * card or of a toast, ⌘, — opens the settings page at the section of the
+   * route (`options.html#<раздел>:<CODE>`, ST-006…ST-010). A content script
+   * cannot open an extension page by itself; the background focuses the open
+   * settings tab or opens one. `opened: false` — the browser refused.
+   */
+  'settings.open': {
+    req: z.strictObject({ route: SettingsRouteSchema }),
+    res: z.strictObject({ opened: z.boolean() }),
+    from: TAB,
   },
   /** Any section, the hub address and debug included; the options page only. */
   'settings.patchRestricted': {

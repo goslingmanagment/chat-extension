@@ -258,6 +258,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: empty,
     res: { valid: [settingsState], invalid: [{ ...settingsState, readOnly: 'no' }] },
   },
+  'settings.open': {
+    req: {
+      valid: [{ route: { section: 'account', code: 'CG-AUTH-REQUIRED' } }, { route: { section: 'status' } }],
+      // A route is a section of the settings and a CG code — never an address or a free string.
+      invalid: [{}, { route: { section: 'billing' } }, { route: { section: 'status', code: 'CG-NOT-A-CODE' } }, { route: { section: 'status' }, url: 'options.html#status' }],
+    },
+    res: { valid: [{ opened: true }, { opened: false }], invalid: [{}, { opened: 'yes' }] },
+  },
   'settings.patch': {
     req: {
       valid: [{ patch: { ui: { locale: 'en' } }, baseRevision: 3 }, { patch: {}, baseRevision: null }],

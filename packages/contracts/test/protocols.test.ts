@@ -58,6 +58,17 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(C.mayRequest('settings.get', 'tab', null)).toBe(true);
   });
 
+  it('[ST-007] `settings.open` is a ChatSpace tab’s request: a section of the settings and a CG code, never an address', () => {
+    expect(C.mayRequest('settings.open', 'tab', null)).toBe(true);
+    // An extension page opens its own pages by itself.
+    expect(C.mayRequest('settings.open', 'page', 'popup')).toBe(false);
+    const { req, res } = C.TAB_REQUESTS['settings.open'];
+    expect(req.safeParse({ route: { section: 'personas', code: 'CG-PERSONA-UNASSIGNED' } }).success).toBe(true);
+    expect(req.safeParse({ route: { section: 'status' }, hash: '#status' }).success).toBe(false);
+    expect(req.safeParse({ route: 'options.html#status' }).success).toBe(false);
+    expect(res.safeParse({ opened: false }).success).toBe(true);
+  });
+
   it('parses in two stages and rejects unknown types', () => {
     const envelope = C.TabEnvelopeSchema.parse({ v: 1, kind: 'req', id: 4, type: 'op.cancel', tabSessionId: '00000000-0000-4000-8000-000000000004', payload: { opId: '00000000-0000-4000-8000-000000000002' } });
     expect(envelope.kind).toBe('req');
