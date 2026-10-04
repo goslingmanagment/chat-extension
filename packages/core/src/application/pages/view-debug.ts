@@ -3,6 +3,13 @@
 // for 12 minutes — by an opaque token, to this page only — and says honestly
 // why there is none; debug-journal.html shows the journals, which carry no
 // message or prompt text at all. Nothing here is ever logged.
+//
+// «Выключение отладки или выход очищают всё» (§9.3): with debug off, or once
+// the person has signed out, neither page shows anything it had read before —
+// no blocks, no records, no copy handle — whatever the slot still holds. A
+// background that stopped answering is neither: the journal keeps the records
+// it read, next to the error; the prompt, which carries the conversation, is
+// taken off the page then too.
 
 import { type LogRecord } from '@cg/contracts/logs';
 import { DEBUG_LIMITS } from '@cg/contracts/limits';
@@ -10,7 +17,7 @@ import { type PromptSnapshotView } from '@cg/contracts/tab-messages';
 import { type DebugPromptVM, type JournalKind, type JournalVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { formatRecordLine } from '../../domain/logging';
-import { button, codeError, errorOf, msg, valueOf, type JournalData, type PagesModel, type Slot } from './model';
+import { button, codeError, errorOf, msg, signedOutOf, valueOf, type JournalData, type PagesModel, type Slot } from './model';
 
 /** The artifact «Копировать промпт» writes. */
 export const PROMPT_ARTIFACT = 'prompt';
@@ -19,11 +26,34 @@ export const journalArtifact = (journal: JournalKind): string => `journal:${jour
 const NO_PROMPT: Omit<DebugPromptVM, 'view'> = { source: null, createdAt: null, expiresAt: null, blocks: [], manifest: null, copyHandle: null };
 
 const DEBUG_OFF_REMEDY: UiAction = { type: 'OpenSettings', route: { section: 'generation' } };
+const SIGN_IN_REMEDY: UiAction = { type: 'OpenSettings', route: { section: 'account', code: 'CG-AUTH-REQUIRED' } };
 
-export function debugPromptView(model: PagesModel, token: string): DebugPromptVM {
+/** What the debug views read of the model. */
+export type DebugModel = Pick<PagesModel, 'unreachable' | 'settings' | 'effective' | 'session' | 'sessionKnown' | 'prompts' | 'journals' | 't'>;
+
+/** Debug data is not for this page any more (§9.3): debug is off or not known to be on, or the person signed out. */
+function debugGone(model: DebugModel): boolean {
+  return model.effective === null || !model.effective.debug.enabled || signedOutOf(model);
+}
+
+/**
+ * Why a debug page does not show its data, before the data itself is looked
+ * at: the background is silent, the settings could not be read, debug is
+ * off, or the person signed out. null — the page shows what it read.
+ */
+function closedView(model: DebugModel, reload: UiAction): VmView | null {
+  if (model.unreachable) return { s: 'offline', error: codeError(model, 'CG-RUNTIME-UNREACHABLE'), retry: reload, lastGoodAt: null };
+  if (model.effective === null) return model.settings.s === 'error' ? { s: 'error', error: errorOf(model, model.settings.error), retry: reload } : { s: 'loading', since: null, stage: null };
+  if (!model.effective.debug.enabled) return { s: 'forbidden', error: codeError(model, 'CG-FEATURE-DISABLED'), remedy: DEBUG_OFF_REMEDY };
+  if (signedOutOf(model)) return { s: 'forbidden', error: codeError(model, 'CG-AUTH-REQUIRED'), remedy: SIGN_IN_REMEDY };
+  return null;
+}
+
+export function debugPromptView(model: DebugModel, token: string): DebugPromptVM {
   const slot: Slot<PromptSnapshotView> = model.prompts.get(token) ?? { s: 'idle' };
   const reload: UiAction = { type: 'ReloadView', selector: { of: 'debug-prompt', token } };
-  if (model.unreachable) return { ...NO_PROMPT, view: { s: 'offline', error: codeError(model, 'CG-RUNTIME-UNREACHABLE'), retry: reload, lastGoodAt: null } };
+  const closed = closedView(model, reload);
+  if (closed !== null) return { ...NO_PROMPT, view: closed };
   if (slot.s === 'idle' || slot.s === 'loading') return { ...NO_PROMPT, view: { s: 'loading', since: slot.s === 'loading' ? slot.since : null, stage: null } };
   if (slot.s === 'error') return { ...NO_PROMPT, view: { s: 'offline', error: errorOf(model, slot.error), retry: reload, lastGoodAt: null } };
   const snapshot = slot.value;
@@ -78,20 +108,20 @@ function entryText(record: LogRecord): string {
   return parts.join(' ');
 }
 
-export function journalView(model: PagesModel, journal: JournalKind): JournalVM {
+export function journalView(model: DebugModel, journal: JournalKind): JournalVM {
   const slot: Slot<JournalData> = model.journals.get(journal) ?? { s: 'idle' };
   const reload: UiAction = { type: 'ReloadView', selector: { of: 'journal', journal } };
   const data = valueOf(slot);
-  const debugOff = model.effective !== null && !model.effective.debug.enabled;
+  const closed = closedView(model, reload);
   let view: VmView;
-  if (model.unreachable) view = { s: 'offline', error: codeError(model, 'CG-RUNTIME-UNREACHABLE'), retry: reload, lastGoodAt: null };
-  else if (debugOff) view = { s: 'forbidden', error: codeError(model, 'CG-FEATURE-DISABLED'), remedy: DEBUG_OFF_REMEDY };
+  if (closed !== null) view = closed;
   else if (slot.s === 'idle' || (slot.s === 'loading' && data === null)) view = { s: 'loading', since: slot.s === 'loading' ? slot.since : null, stage: null };
   else if (slot.s === 'error') view = { s: 'error', error: errorOf(model, slot.error), retry: reload };
   else if (data === null || data.records.length === 0) view = { s: 'empty', why: msg('debugPage.journal.empty') };
   else if (data.truncated) view = { s: 'partial', gaps: [{ kind: 'truncated', shown: data.records.length, total: null }] };
   else view = { s: 'ready' };
-  const shown = debugOff || data === null ? null : data;
+  // Gone with debug or the sign-in; a silent background takes nothing that was read off the page.
+  const shown = debugGone(model) || data === null ? null : data;
   const has = shown !== null && shown.records.length > 0;
   return {
     view,

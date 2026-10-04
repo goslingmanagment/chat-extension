@@ -74,7 +74,7 @@ const ROW_LABELS: Record<CatalogActionId, I18nKey> = {
   settings: 'palette.item.settings',
   close: 'common.close',
   'part-step': 'cheatsheet.row.nextPart',
-  'variant-step': 'result.keys.variant',
+  'variant-step': 'settings.hotkeys.row.variant',
   'insert-part': 'cheatsheet.row.insert',
   'copy-part': 'cheatsheet.row.copy',
   'open-and-insert': 'send.openAndInsert',

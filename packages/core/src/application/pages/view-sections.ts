@@ -50,8 +50,10 @@ export function accountBody(model: PagesModel): AccountBodyVM {
     section: 'account',
     hub: {
       origin: model.effective?.hub.baseUrl ?? '',
-      hostPermission: model.hubAccess === false ? 'missing' : 'granted',
-      requestPermission: model.hubAccess === false ? button('settings.account.grantAccess', { type: 'RequestPermission', kind: 'hub-host' }) : null,
+      // What the browser said about the address on screen; no answer yet is «неизвестно», never a guess (ST-043, DB-028).
+      hostPermission: model.hubAccess === null ? 'unknown' : model.hubAccess ? 'granted' : 'missing',
+      // Asking is safe either way: the browser answers at once when the access is there.
+      requestPermission: model.hubAccess === true ? null : button('settings.account.grantAccess', { type: 'RequestPermission', kind: 'hub-host' }),
     },
     connection: {
       s: hubState(model),

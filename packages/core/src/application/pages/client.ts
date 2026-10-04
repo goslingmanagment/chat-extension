@@ -5,11 +5,22 @@
 //
 // Rules this controller keeps:
 // - «Сохранено ✓» only with the background's revision (ST-013…ST-015);
-// - the hub address changes only while nobody is signed in (ST-042);
+// - the hub address changes only while it is known that nobody is signed in
+//   (ST-042): it goes as its own request, checked again when it is sent, and
+//   a refused one is never sent later inside another change;
+// - the sign-in goes to the address on screen: one still being saved is
+//   waited for, one that was not saved refuses the sign-in (§8.2);
+// - a sign-in state that could not be read is «unknown», never «signed out»
+//   (PU-002): no sign-in screen, no hub address change;
+// - what one sign-in was told is never shown under another: late answers of
+//   an earlier sign-in and older answers of the same read are dropped;
+// - a prompt and the journals are gone the moment debug is switched off or
+//   the person signs out (§9.3);
 // - `permissions.request` is called synchronously inside the click that
 //   asked for it, before anything is awaited (a custom hub address, the
 //   sign-in, the consent — §3, §9.6);
-// - nothing is repeated by itself: every retry is a click;
+// - no write is repeated by itself: what was not saved goes again only with
+//   the person's next change or by «Повторить»;
 // - no text of a prompt or a journal is ever logged or reported.
 
 import { type CgCode, type CgErrorWire, type SettingsSection } from '@cg/contracts/errors';
@@ -57,6 +68,21 @@ export const SIGN_IN_TIMEOUT_MS = 25_000;
 export const POPUP_NEWCOMERS_WINDOW_HOURS = 48;
 /** Running operations change in 50 ms batches; the page looks not more often than this. */
 const OPS_REFRESH_MIN_INTERVAL_MS = 2_000;
+/** Bindings of the seen accounts (up to `seenAccountsMax`) are asked this many at a time. */
+export const BINDING_RESOLVE_CONCURRENCY = 8;
+
+/** Runs `task` over `items`, at most `limit` at a time. */
+async function pooled<T>(items: readonly T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const item = items[next] as T;
+      next += 1;
+      await task(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
 
 class Signal<T> implements ValueSignal<T> {
   private readonly listeners = new Set<(value: T) => void>();
@@ -127,6 +153,10 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let unreachable = false;
   let settings: Slot<SettingsState> = IDLE;
   let session: Slot<SessionIdentity | null> = IDLE;
+  /** The sign-in state was read at least once: until then «nobody» is unknown, not signed out. */
+  let sessionKnown = false;
+  /** Grows with every sign-in state set and every `session.get` sent: a late answer of an older read is dropped. */
+  let sessionSeq = 0;
   let sessionEnd: SessionEnd = null;
   let sessionGeneration = 0;
   let signIn: PagesModel['signIn'] = { busy: false, login: '', error: null };
@@ -135,18 +165,28 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let diagnostics: PagesModel['diagnostics'] = IDLE;
   let accounts: Slot<readonly SeenAccount[]> = IDLE;
   let bindings = new Map<HostAccountKey, BindingSlot>();
+  /** What the bindings on screen were resolved for (the sign-in, the hub config, the accounts): unchanged — not asked again. */
+  let bindingsKey: string | null = null;
+  let bindingsRun = 0;
   let quotas: PagesModel['quotas'] = new Map();
   let ops: PagesModel['ops'] = IDLE;
   let consent: boolean | null = null;
   let hubAccess: boolean | null = null;
+  /** The address `hubAccess` was answered for: for any other one the access is unknown. */
+  let hubAccessOrigin: string | null = null;
   let hostAccess: boolean | null = null;
   let check: PagesModel['check'] = { running: false, lastAt: null, allowedAt: 0, latencyMs: null };
   let sound: PagesModel['sound'] = { tested: false, error: null };
   let deepSavedAs: number | null = null;
+  let deepRun = 0;
+  /** The hub address write still on its way: a sign-in clicked meanwhile waits for it and learns how it ended. */
+  let addressWrite: Promise<WriteOutcome> | null = null;
   let newcomers: number | null = null;
   let aiTodayMicroUsd: number | null = null;
   const prompts = new Map<string, Slot<TabResponsePayload<'debug.prompt'>>>();
   const journals = new Map<JournalKind, Slot<JournalData>>();
+  /** The number of the latest request of each read: only its answer is applied. */
+  const readSeq = new Map<string, number>();
   let locationSeq = 0;
   const location = new Signal<OptionsLocation>({ ...routeOfHash(ports.window.hash()), seq: locationSeq }, (a, b) => a.seq === b.seq);
   const theme = new Signal<UiTheme>('system');
@@ -190,6 +230,27 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     return confirmed === null ? null : settingsWithPending(confirmed.settings, writer.pending());
   }
 
+  /** Nobody is signed in — read, not assumed: an unread or failed sign-in state is not «signed out». */
+  const signedOut = (): boolean => session.s === 'ok' && session.value === null;
+
+  /** Debug data may be on this page: debug is on and the person has not signed out (§9.3). */
+  const debugOpen = (): boolean => effectiveSettings()?.debug.enabled === true && !(sessionKnown && valueOf(session) === null);
+
+  /** §9.3 «выключение отладки или выход очищают всё»: what was read is dropped, and an answer still on its way with it. */
+  function syncDebug(): void {
+    if (debugOpen()) {
+      for (const entry of listeners.values()) if (entry.set.size > 0) ensureLoaded(entry.selector);
+      return;
+    }
+    dropDebug();
+  }
+
+  function dropDebug(): void {
+    prompts.clear();
+    journals.clear();
+    for (const [key, seq] of readSeq) if (key.startsWith('prompt:') || key.startsWith('journal:')) readSeq.set(key, seq + 1);
+  }
+
   function applyPreferences(): void {
     const effective = effectiveSettings();
     if (effective === null) return;
@@ -216,6 +277,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     writer.adoptRevision(state.revision);
     if (before === null || before.settings.hub.baseUrl !== state.settings.hub.baseUrl) void checkAccess();
     applyPreferences();
+    syncDebug();
   }
 
   // ── the model and the views ──
@@ -231,6 +293,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       effective: effectiveSettings(),
       save: writer.status(),
       session,
+      sessionKnown,
       sessionEnd,
       signIn,
       bootstrap,
@@ -241,7 +304,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       quotas,
       ops,
       consent,
-      hubAccess,
+      // An answer for another address says nothing about this one.
+      hubAccess: hubAccessOrigin === (effectiveSettings()?.hub.baseUrl ?? null) ? hubAccess : null,
       hostAccess,
       check,
       sound,
@@ -301,14 +365,20 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     }
   }
 
-  /** Runs one read into a slot; a result that belongs to an earlier sign-in is dropped. */
-  async function read<T>(get: () => Slot<T>, set: (slot: Slot<T>) => void, load: () => Promise<PageAnswer<T>>, scoped = false): Promise<T | null> {
+  /**
+   * Runs one read into a slot. Only the latest request of a slot is applied —
+   * an older answer that comes late never overwrites a newer one — and a
+   * result that belongs to an earlier sign-in is dropped.
+   */
+  async function read<T>(key: string, get: () => Slot<T>, set: (slot: Slot<T>) => void, load: () => Promise<PageAnswer<T>>, scoped = false): Promise<T | null> {
     const generation = sessionGeneration;
+    const seq = (readSeq.get(key) ?? 0) + 1;
+    readSeq.set(key, seq);
     const last = valueOf(get());
     set({ s: 'loading', since: clock.now(), last });
     emit();
     const answer = await load();
-    if (disposed || (scoped && generation !== sessionGeneration)) return null;
+    if (disposed || readSeq.get(key) !== seq || (scoped && generation !== sessionGeneration)) return null;
     set(answer.ok ? { s: 'ok', value: answer.payload, at: clock.now() } : { s: 'error', error: answer.error, at: clock.now(), last });
     emit();
     return answer.ok ? answer.payload : null;
@@ -326,11 +396,14 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   }
 
   async function loadSession(): Promise<void> {
-    const before = valueOf(session);
+    sessionSeq += 1;
+    const seq = sessionSeq;
     const answer = await ask('session.get', {});
-    if (disposed) return;
+    // A newer read, or a `session.changed` that came meanwhile, already said more than this answer.
+    if (disposed || seq !== sessionSeq) return;
     if (!answer.ok) {
-      session = { s: 'error', error: answer.error, at: clock.now(), last: before };
+      // A failed read is not a sign-out (PU-002): what was known stays known, what was not stays unknown.
+      session = { s: 'error', error: answer.error, at: clock.now(), last: valueOf(session) };
       emit();
       return;
     }
@@ -338,23 +411,35 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     emit();
   }
 
-  function setSession(next: SessionIdentity | null): void {
+  /** Adopts a sign-in state the background stated; true — it is another sign-in (or none) than before. */
+  function setSession(next: SessionIdentity | null): boolean {
     const before = valueOf(session);
+    const first = !sessionKnown;
+    sessionSeq += 1;
+    sessionKnown = true;
     session = { s: 'ok', value: next, at: clock.now() };
-    if (before?.epoch === next?.epoch && before?.userId === next?.userId && (before === null) === (next === null)) return;
-    // Another sign-in (or none): what the hub said for the previous one is not this one's.
-    sessionGeneration += 1;
-    bootstrap = IDLE;
-    catalog = IDLE;
-    bindings = new Map();
-    quotas = new Map();
-    newcomers = null;
-    aiTodayMicroUsd = null;
-    if (next !== null) sessionEnd = null;
+    const same = before?.epoch === next?.epoch && before?.userId === next?.userId && (before === null) === (next === null);
+    if (!same) {
+      // Another sign-in (or none): what the hub said for the previous one is not this one's.
+      sessionGeneration += 1;
+      bootstrap = IDLE;
+      catalog = IDLE;
+      bindings = new Map();
+      bindingsKey = null;
+      quotas = new Map();
+      newcomers = null;
+      aiTodayMicroUsd = null;
+      if (next !== null) sessionEnd = null;
+      // The prompt and the journals of the previous sign-in are not this one's either (§9.3).
+      if (!first) dropDebug();
+    }
+    syncDebug();
+    return !same;
   }
 
   const loadBootstrap = (force: boolean): Promise<unknown> =>
     read(
+      'bootstrap',
       () => bootstrap,
       (slot) => {
         bootstrap = slot;
@@ -365,6 +450,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   const loadCatalog = (force: boolean): Promise<unknown> =>
     read(
+      'catalog',
       () => catalog,
       (slot) => {
         catalog = slot;
@@ -375,6 +461,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   const loadDiagnostics = (): Promise<unknown> =>
     read(
+      'diagnostics',
       () => diagnostics,
       (slot) => {
         diagnostics = slot;
@@ -384,6 +471,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   const loadAccounts = (): Promise<unknown> =>
     read(
+      'accounts',
       () => accounts,
       (slot) => {
         accounts = slot;
@@ -396,6 +484,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   const loadOps = (): Promise<unknown> =>
     read(
+      'ops',
       () => ops,
       (slot) => {
         ops = slot;
@@ -406,30 +495,40 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       },
     );
 
-  async function loadBindings(): Promise<void> {
+  /**
+   * The hub page of every seen account, then the quota of every bound page.
+   * The background answers a binding from the bootstrap it already holds, so
+   * the same sign-in, hub config and accounts give the same answers: without
+   * `force` they are not asked again (a focus re-check costs nothing here),
+   * and a first resolve of many accounts goes a few at a time.
+   */
+  async function loadBindings(force: boolean): Promise<void> {
     if (valueOf(session) === null) return;
     const generation = sessionGeneration;
     const seen = valueOf(accounts) ?? [];
+    const key = [String(generation), String(valueOf(bootstrap)?.configRevision ?? '?'), ...seen.map((entry) => accountKeyOf(entry.account)).sort()].join('|');
+    // An answer that was a passing failure (the background not reached) is asked again; a binding the hub does not have is an answer.
+    const answered = [...bindings.values()].every((slot) => slot.ok || slot.error.code.startsWith('CG-BINDING-'));
+    if (!force && key === bindingsKey && answered) return;
+    bindingsRun += 1;
+    const run = bindingsRun;
     const next = new Map<HostAccountKey, BindingSlot>();
-    await Promise.all(
-      seen.map(async (entry) => {
-        const answer = await ask('binding.resolve', { account: entry.account });
-        next.set(accountKeyOf(entry.account), answer.ok ? { ok: true, binding: answer.payload.binding } : { ok: false, error: answer.error });
-      }),
-    );
-    if (disposed || generation !== sessionGeneration) return;
+    await pooled(seen, BINDING_RESOLVE_CONCURRENCY, async (entry) => {
+      const answer = await ask('binding.resolve', { account: entry.account });
+      next.set(accountKeyOf(entry.account), answer.ok ? { ok: true, binding: answer.payload.binding } : { ok: false, error: answer.error });
+    });
+    if (disposed || generation !== sessionGeneration || run !== bindingsRun) return;
     bindings = next;
+    bindingsKey = key;
     emit();
     const pageIds = [...new Set([...next.values()].flatMap((slot) => (slot.ok ? [slot.binding.pageId] : [])))];
-    const answered = new Map<number, TabResponsePayload<'quota.get'>['quota']>();
-    await Promise.all(
-      pageIds.map(async (pageId) => {
-        const answer = await ask('quota.get', { pageId });
-        if (answer.ok) answered.set(pageId, answer.payload.quota);
-      }),
-    );
-    if (disposed || generation !== sessionGeneration) return;
-    quotas = answered;
+    const read = new Map<number, TabResponsePayload<'quota.get'>['quota']>();
+    await pooled(pageIds, BINDING_RESOLVE_CONCURRENCY, async (pageId) => {
+      const answer = await ask('quota.get', { pageId });
+      if (answer.ok) read.set(pageId, answer.payload.quota);
+    });
+    if (disposed || generation !== sessionGeneration || run !== bindingsRun) return;
+    quotas = read;
     emit();
   }
 
@@ -456,21 +555,30 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   async function checkAccess(): Promise<void> {
     const origin = effectiveSettings()?.hub.baseUrl ?? null;
+    // The browser not answering is «unknown» (null), never «not allowed».
     const [hub, host, granted] = await Promise.all([
-      origin === null ? Promise.resolve(null) : ports.permissions.has(origin).catch(() => false),
-      ports.permissions.has(env.hostOrigin).catch(() => false),
+      origin === null ? Promise.resolve(null) : ports.permissions.has(origin).catch(() => null),
+      ports.permissions.has(env.hostOrigin).catch(() => null),
       ports.consent.check().catch(() => null),
     ]);
     if (disposed) return;
     // The address may have changed while the browser answered: the answer belongs to the one asked.
-    if ((effectiveSettings()?.hub.baseUrl ?? null) === origin) hubAccess = hub;
+    if ((effectiveSettings()?.hub.baseUrl ?? null) === origin) {
+      hubAccess = hub;
+      hubAccessOrigin = origin;
+    }
     hostAccess = host;
     consent = granted;
     emit();
   }
 
-  /** Everything the page shows, in the order the answers depend on each other. */
-  async function loadAll(force: boolean): Promise<void> {
+  /**
+   * Everything the page shows, in the order the answers depend on each other.
+   * `force` goes past the hub caches of the background; `fresh` asks the
+   * bindings and quotas again even when nothing they depend on has changed
+   * (the page was opened, or the person asked) — a focus re-check does not.
+   */
+  async function loadAll(force: boolean, fresh: boolean = force): Promise<void> {
     const needsHost = env.page === 'popup' || env.page === 'options';
     if (!needsHost) return;
     const signedIn = valueOf(session) !== null;
@@ -490,16 +598,24 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     // What the background says about the connection was read before the hub answered this check: read it again.
     if (force && signedIn) await loadDiagnostics();
     if (signedIn) {
-      await loadBindings();
+      await loadBindings(fresh);
       await loadPopupExtras();
     }
+  }
+
+  /** Everything again, then the time of this check. */
+  async function refresh(force: boolean): Promise<void> {
+    await loadAll(force);
+    if (disposed) return;
+    check = { ...check, lastAt: clock.now() };
+    emit();
   }
 
   async function open(): Promise<void> {
     await Promise.all([loadSettings(), loadSession()]);
     if (disposed) return;
     // The settings page checks the connection every time it is opened (ST-058): access, the hub, then the catalog.
-    await loadAll(env.page === 'options');
+    await loadAll(env.page === 'options', true);
     if (disposed) return;
     check = { ...check, lastAt: clock.now() };
     emit();
@@ -522,6 +638,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   async function loadPrompt(token: string): Promise<void> {
     await read(
+      `prompt:${token}`,
       () => prompts.get(token) ?? IDLE,
       (slot) => {
         prompts.set(token, slot);
@@ -532,6 +649,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   async function loadJournal(journal: JournalKind): Promise<void> {
     await read(
+      `journal:${journal}`,
       () => journals.get(journal) ?? IDLE,
       (slot) => {
         journals.set(journal, slot);
@@ -540,8 +658,9 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     );
   }
 
+  /** A debug page reads its data once debug is known to be on — never while it is off or after a sign-out (DB-001, §9.3). */
   function ensureLoaded(selector: ViewSelector): void {
-    if (!started) return;
+    if (!started || !debugOpen()) return;
     if (selector.of === 'debug-prompt' && (prompts.get(selector.token)?.s ?? 'idle') === 'idle') void loadPrompt(selector.token);
     if (selector.of === 'journal' && (journals.get(selector.journal)?.s ?? 'idle') === 'idle') void loadJournal(selector.journal);
   }
@@ -631,8 +750,11 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     const { key } = action;
     if (RESTRICTED_KEYS.includes(key) && env.page !== 'options') return code('SetPreference', 'CG-UNKNOWN', 'restricted section');
     if (key === 'hub.baseUrl') {
-      // ST-042: the address changes only while nobody is signed in.
-      if (valueOf(session) !== null) return code('SetPreference', 'CG-HUB-URL', 'signed in');
+      // ST-042: the address changes only while it is known that nobody is signed in — «unknown» is not «signed out».
+      if (!signedOut()) return code('SetPreference', 'CG-HUB-URL', valueOf(session) !== null ? 'signed in' : 'sign-in state unknown');
+      const state = valueOf(settings);
+      if (state === null) return code('SetPreference', 'CG-STORAGE-READ');
+      if (state.readOnly) return code('SetPreference', 'CG-STORAGE-VERSION');
       const origin = normalizeHubOrigin(action.value);
       if (origin === null) {
         signIn = { ...signIn, error: { code: 'CG-HUB-URL' } };
@@ -640,22 +762,42 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         return code('SetPreference', 'CG-HUB-URL');
       }
       // A custom address needs host access, asked inside this click (§3); the stock one is in the manifest.
-      const access = origin === DEFAULT_HUB_ORIGIN ? ports.permissions.has(origin) : ports.permissions.request(origin);
+      // The browser not answering about the stock one is «unknown»; a prompt that failed is «not allowed».
+      const access: Promise<boolean | null> = origin === DEFAULT_HUB_ORIGIN ? ports.permissions.has(origin).catch(() => null) : ports.permissions.request(origin).catch(() => false);
       signIn = { ...signIn, error: null };
-      const receipt = await write('SetPreference', { hub: { baseUrl: origin } }, 'now');
-      const granted = await access.catch(() => false);
-      if ((effectiveSettings()?.hub.baseUrl ?? null) === origin) hubAccess = granted;
+      // The address goes alone and is checked again when it is sent: a sign-in that came meanwhile refuses it,
+      // and a refused address is never sent later inside another change.
+      const saving = writer.writeAlone({ hub: { baseUrl: origin } }, () => (signedOut() ? null : { code: 'CG-HUB-URL', detail: 'signed in' }));
+      addressWrite = saving;
+      const outcome = await saving;
+      if (addressWrite === saving) addressWrite = null;
+      // Not saved: the form says so with the code, and the field shows the address that is stored.
+      if (!outcome.ok) signIn = { ...signIn, error: outcome.error };
       emit();
-      return receipt;
+      const granted = await access;
+      if ((effectiveSettings()?.hub.baseUrl ?? null) === origin) {
+        hubAccess = granted;
+        hubAccessOrigin = origin;
+        emit();
+      }
+      return receiptOf('SetPreference', outcome);
     }
     const mode: WriteMode = DEBOUNCED_KEYS.includes(key) ? 'debounced' : 'now';
     if (key === 'generation.windows.deep') {
-      // The hub takes no more than its `deepMax` (Б5): a larger window is cut, and the page says so.
+      // The hub takes no more than its `deepMax` (Б5): a larger window is cut, and the page says so —
+      // once the background confirmed the write that carried the cut value, not before.
       const deepMax = valueOf(bootstrap)?.limits.deepMax ?? null;
       const cut = deepMax !== null && action.value > deepMax;
       const stored = cut ? Math.max(SETTINGS_RANGES.windowDeep.min, deepMax) : action.value;
-      deepSavedAs = cut ? stored : null;
-      return write('SetPreference', preferencePatch({ ...action, value: stored }), mode);
+      deepRun += 1;
+      const run = deepRun;
+      deepSavedAs = null;
+      const receipt = await write('SetPreference', preferencePatch({ ...action, value: stored }), mode);
+      if (run === deepRun && receipt.ok && cut) {
+        deepSavedAs = stored;
+        emit();
+      }
+      return receipt;
     }
     return write('SetPreference', preferencePatch(action), mode);
   }
@@ -665,37 +807,46 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   }
 
   async function doSignIn(action: UiActionOf<'SignIn'>): Promise<ActionReceipt> {
+    // One sign-in at a time (AU-009): a second submit while the first is on its way sends nothing.
+    if (signIn.busy) return done('SignIn', { outcome: 'noop' });
+    // The address on screen: the stored one, or the one being saved right now.
     const origin = effectiveSettings()?.hub.baseUrl ?? null;
     if (origin === null) return code('SignIn', 'CG-STORAGE-READ');
     // Host access first, inside this click, before anything is awaited (ST-046).
-    const access = hubAccess === true ? Promise.resolve(true) : ports.permissions.request(origin).catch(() => false);
+    const access = hubAccess === true && hubAccessOrigin === origin ? Promise.resolve(true) : ports.permissions.request(origin).catch(() => false);
     // The password goes to the background once; here only the login stays for the form.
     signIn = { busy: true, login: action.login, error: null };
     emit();
+    const refuse = (wire: CgErrorWire): ActionReceipt => {
+      signIn = { busy: false, login: action.login, error: wire };
+      emit();
+      return fail('SignIn', wire);
+    };
+    // An address still being saved is waited for (and what waits for its pause goes now): the background signs in
+    // against the address it has stored, so the sign-in is sent only once that is the address on screen (§8.2).
+    const saving = addressWrite;
+    writer.flush();
+    await writer.settled();
+    const saved = saving === null ? null : await saving;
+    if (disposed) return done('SignIn');
+    // Not the address on screen: it was not saved (the reason is the write's own), or it changed elsewhere meanwhile.
+    if ((valueOf(settings)?.settings.hub.baseUrl ?? null) !== origin) return refuse(saved !== null && !saved.ok ? saved.error : { code: 'CG-HUB-URL', detail: 'the hub address is not the one on screen' });
     if (!(await access)) {
       hubAccess = false;
-      signIn = { busy: false, login: action.login, error: { code: 'CG-HUB-HOST-PERMISSION' } };
-      emit();
-      return code('SignIn', 'CG-HUB-HOST-PERMISSION');
+      hubAccessOrigin = origin;
+      return refuse({ code: 'CG-HUB-HOST-PERMISSION' });
     }
     hubAccess = true;
-    // Whatever was typed into the address field and still waits for its pause goes first.
-    writer.flush();
+    hubAccessOrigin = origin;
     const answer = await ask('session.signIn', { login: action.login, password: action.password }, { timeoutMs: SIGN_IN_TIMEOUT_MS });
     if (disposed) return done('SignIn');
-    if (!answer.ok) {
-      signIn = { busy: false, login: action.login, error: answer.error };
-      emit();
-      return fail('SignIn', answer.error);
-    }
+    if (!answer.ok) return refuse(answer.error);
     signIn = { busy: false, login: '', error: null };
     sessionEnd = null;
-    setSession(answer.payload.session);
+    // `session.changed` usually comes first and has started the load already: one load per sign-in.
+    const changed = setSession(answer.payload.session);
     emit();
-    void loadAll(false).then(() => {
-      check = { ...check, lastAt: clock.now() };
-      emit();
-    });
+    if (changed) void refresh(false);
     return done('SignIn');
   }
 
@@ -760,13 +911,14 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   function artifactText(handle: string): string | null {
     if (handle === PROMPT_ARTIFACT) {
-      // The one prompt this page shows; the text goes to the clipboard and nowhere else.
+      // The one prompt this page shows; the text goes to the clipboard and nowhere else — and not at all once debug is off or the person signed out.
+      if (!debugOpen()) return null;
       for (const slot of prompts.values()) if (slot.s === 'ok' && slot.value.state === 'ok') return promptText(slot.value);
       return null;
     }
     for (const [journal, slot] of journals) {
       const data = valueOf(slot);
-      if (handle === journalArtifact(journal) && data !== null) return journalText(data);
+      if (handle === journalArtifact(journal)) return data !== null && debugOpen() ? journalText(data) : null;
     }
     const id = /^account-id:(?:chatspace|fansly-web):([1-9]\d{0,29})$/.exec(handle)?.[1];
     return id ?? null;
@@ -805,8 +957,10 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     const origin = action.kind === 'hub-host' ? (effectiveSettings()?.hub.baseUrl ?? null) : env.hostOrigin;
     if (origin === null) return code('RequestPermission', 'CG-STORAGE-READ');
     const granted = await ports.permissions.request(origin).catch(() => false);
-    if (action.kind === 'hub-host') hubAccess = granted;
-    else hostAccess = granted;
+    if (action.kind === 'hub-host') {
+      hubAccess = granted;
+      hubAccessOrigin = origin;
+    } else hostAccess = granted;
     emit();
     if (granted && action.kind === 'hub-host' && valueOf(session) !== null) void loadAll(false);
     return granted ? done('RequestPermission') : code('RequestPermission', action.kind === 'hub-host' ? 'CG-HUB-HOST-PERMISSION' : 'CG-HOST-NOT-READY');
@@ -846,10 +1000,13 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       return done('RecheckStatus');
     }
     if (action.type === 'ReloadView') {
-      if (action.selector.of === 'debug-prompt') await loadPrompt(action.selector.token);
-      else if (action.selector.of === 'journal') {
-        await loadSettings();
-        await loadJournal(action.selector.journal);
+      const { selector } = action;
+      if (selector.of === 'debug-prompt' || selector.of === 'journal') {
+        // Whether debug is on is read first: with it off nothing of a prompt or a journal is asked (DB-001).
+        await Promise.all([loadSettings(), sessionKnown ? Promise.resolve() : loadSession()]);
+        if (!debugOpen()) return done('ReloadView', { outcome: 'noop' });
+        if (selector.of === 'debug-prompt') await loadPrompt(selector.token);
+        else await loadJournal(selector.journal);
       } else await open();
       return done('ReloadView');
     }
@@ -888,6 +1045,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     if (action.type === 'TestSound') return testSound(action);
     if (action.type === 'RequestPermission') return requestPermission(action);
     if (action.type === 'SaveJournal') {
+      if (!debugOpen()) return code('SaveJournal', 'CG-FEATURE-DISABLED');
       const data = valueOf(journals.get(action.journal) ?? IDLE);
       if (data === null) return code('SaveJournal', 'CG-DATA-NOT-READY');
       const saved = ports.download({ fileName: `chatgoose-journal-${action.journal}-${stamp()}.txt`, mime: 'text/plain', body: journalText(data) });
@@ -909,10 +1067,10 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   }
 
   function onSessionChanged(next: SessionIdentity | null, reason: string): void {
-    setSession(next);
+    const changed = setSession(next);
     if (next === null && (reason === 'revoked' || reason === 'expired')) sessionEnd = reason;
     emit();
-    if (next !== null) void loadAll(false);
+    if (changed && next !== null) void refresh(false);
   }
 
   function scheduleOps(): void {
@@ -969,7 +1127,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
           emit();
         }),
         rpc.onEvent('session.changed', (payload) => onSessionChanged(payload.session, payload.reason)),
-        rpc.onEvent('bootstrap.changed', () => void loadBootstrap(false).then(loadBindings)),
+        rpc.onEvent('bootstrap.changed', () => void loadBootstrap(false).then(() => loadBindings(true))),
         rpc.onEvent('flags.changed', () => void loadBootstrap(false)),
         rpc.onEvent('catalog.changed', () => void loadCatalog(false)),
         rpc.onEvent('quota.changed', (payload) => {
@@ -982,10 +1140,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         ports.window.onFocus(() => {
           if (clock.now() - lastFocusCheck < FOCUS_RECHECK_MIN_INTERVAL_MS) return;
           lastFocusCheck = clock.now();
-          void Promise.all([loadSession(), loadAll(false)]).then(() => {
-            check = { ...check, lastAt: clock.now() };
-            emit();
-          });
+          void Promise.all([loadSession(), refresh(false)]);
         }),
         ports.window.onPageHide(() => writer.flush()),
         ports.permissions.onChange(() => void checkAccess()),

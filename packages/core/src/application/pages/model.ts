@@ -51,6 +51,16 @@ export function valueOf<T>(slot: Slot<T>): T | null {
   return null;
 }
 
+/** The error of a sign-in state that could not be read and was never known — neither signed in nor signed out; null otherwise. */
+export function sessionUnknownError(model: Pick<PagesModel, 'session' | 'sessionKnown'>): CgErrorWire | null {
+  return model.session.s === 'error' && !model.sessionKnown ? model.session.error : null;
+}
+
+/** Nobody is signed in, as the background said: not an unread or failed read. */
+export function signedOutOf(model: Pick<PagesModel, 'session' | 'sessionKnown'>): boolean {
+  return model.sessionKnown && valueOf(model.session) === null;
+}
+
 export interface SeenAccount {
   readonly account: HostAccount;
   readonly lastSeenAt: string;
@@ -80,6 +90,12 @@ export interface PagesModel {
   readonly effective: SettingsV1 | null;
   readonly save: SaveStatus;
   readonly session: Slot<SessionIdentity | null>;
+  /**
+   * The sign-in state was read at least once. Until then a failed read is
+   * «unknown», never «nobody is signed in» (PU-002): `valueOf(session)` is
+   * null in both cases, this flag tells them apart.
+   */
+  readonly sessionKnown: boolean;
   readonly sessionEnd: SessionEnd;
   readonly signIn: { readonly busy: boolean; readonly login: string; readonly error: CgErrorWire | null };
   readonly bootstrap: Slot<Bootstrap>;
@@ -92,9 +108,9 @@ export interface PagesModel {
   readonly ops: Slot<readonly OpView[]>;
   /** `technicalAndInteraction`: null — the browser could not tell. */
   readonly consent: boolean | null;
-  /** Host access to the hub address in the settings. */
+  /** Host access to the hub address on screen; null — not answered for this address (yet), never a guess. */
   readonly hubAccess: boolean | null;
-  /** Host access to ChatSpace. */
+  /** Host access to ChatSpace; null — the browser has not answered. */
   readonly hostAccess: boolean | null;
   readonly check: {
     readonly running: boolean;
@@ -105,7 +121,7 @@ export interface PagesModel {
     readonly latencyMs: number | null;
   };
   readonly sound: { readonly tested: boolean; readonly error: CgErrorWire | null };
-  /** The deep window the controller had to cut to the hub's limit: the «сохранено как N» chip. */
+  /** The deep window the controller had to cut to the hub's limit, once the background confirmed that write: the «сохранено как N» chip. */
   readonly deepSavedAs: number | null;
   readonly location: OptionsLocation;
   readonly systemScheme: ColorScheme;

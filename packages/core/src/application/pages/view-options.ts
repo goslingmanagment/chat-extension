@@ -7,7 +7,7 @@
 import { SETTINGS_SECTIONS, type CgErrorWire, type SettingsSection } from '@cg/contracts/errors';
 import { ONBOARDING_STEPS, type OnboardingStep, type OptionsBodyMap, type OptionsVM, type SaveStateVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
-import { accountKeyOf, answered, boundPageOf, button, codeError, currentAccountOf, errorOf, msg, personaOfPage, valueOf, type PagesModel } from './model';
+import { accountKeyOf, answered, boundPageOf, button, codeError, currentAccountOf, errorOf, msg, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
 import { accountBody, accountsBody, appearanceBody, diagnosticsBody, generationBody, hotkeysBody, personasBody, signInVm } from './view-sections';
 import { hostReportOf, hubState, statusBody } from './view-status';
@@ -61,10 +61,16 @@ function saveState(model: PagesModel): SaveStateVM {
 
 const open = (section: SettingsSection): UiAction => ({ type: 'OpenSettings', route: { section } });
 
-/** The first-run checklist: the eight steps of §9.9, each with what is known about it now. */
+/**
+ * The first-run checklist: the eight steps of §9.9, each with what is known
+ * about it now. It stands on the sign-in screen too — the first run starts
+ * there, with «Дать права на хосты», «Войти в хаб» and the consent still to
+ * do; a step that needs a sign-in has no action until there is one.
+ */
 export function checklistOf(model: PagesModel): OptionsVM['checklist'] {
   if (model.effective === null || model.effective.onboarding.checklistDismissed) return null;
   const session = valueOf(model.session);
+  const afterSignIn = (action: UiAction): UiAction | null => (session === null ? null : action);
   const current = currentAccountOf(model);
   const bound = current === null ? null : boundPageOf(model, current.account);
   const hostOpen = (hostReportOf(model)?.tabs ?? 0) > 0 || (valueOf(model.accounts) ?? []).length > 0;
@@ -76,12 +82,13 @@ export function checklistOf(model: PagesModel): OptionsVM['checklist'] {
       action: access ? null : { type: 'RequestPermission', kind: model.hostAccess === true ? 'hub-host' : 'chatspace-host' },
       label: 'settings.onboarding.hosts',
     },
-    'sign-in': { done: session !== null, action: session === null ? open('account') : null, label: 'settings.onboarding.signIn' },
-    persona: { done: bound !== null && personaOfPage(model, bound.binding.pageId).s === 'set', action: open('personas'), label: 'settings.onboarding.persona' },
+    // On the sign-in screen the step points at the form in front of the person (the deep link highlights it, ST-009).
+    'sign-in': { done: session !== null, action: session === null ? { type: 'OpenSettings', route: { section: 'account', code: 'CG-AUTH-REQUIRED' } } : null, label: 'settings.onboarding.signIn' },
+    persona: { done: bound !== null && personaOfPage(model, bound.binding.pageId).s === 'set', action: afterSignIn(open('personas')), label: 'settings.onboarding.persona' },
     'open-chatspace': { done: hostOpen, action: null, label: 'settings.onboarding.openChatSpace' },
-    binding: { done: bound !== null, action: open('accounts'), label: 'settings.onboarding.binding' },
+    binding: { done: bound !== null, action: afterSignIn(open('accounts')), label: 'settings.onboarding.binding' },
     consent: { done: model.consent === true, action: model.consent === true ? null : { type: 'RequestPermission', kind: 'data-collection' }, label: 'settings.onboarding.consent' },
-    'sound-hotkeys': { done: model.sound.tested, action: open('appearance'), label: 'settings.onboarding.soundAndHotkeys' },
+    'sound-hotkeys': { done: model.sound.tested, action: afterSignIn(open('appearance')), label: 'settings.onboarding.soundAndHotkeys' },
   };
   const actionLabel = (action: UiAction): Parameters<typeof msg>[0] => {
     if (action.type !== 'RequestPermission') return 'common.go';
@@ -118,22 +125,30 @@ export function optionsView<S extends SettingsSection>(model: PagesModel, ports:
   const reload: UiAction = { type: 'ReloadView', selector };
   const session = valueOf(model.session);
   const settingsKnown = valueOf(model.settings) !== null;
+  const unknown = sessionUnknownError(model);
   let view: VmView;
   let body: OptionsBodyMap[S] | null = null;
   let signIn: OptionsVM['signIn'] = null;
+  // The checklist stands where the page is drawn: over a section or on the sign-in screen, not over an error or a spinner.
+  let drawn = false;
   if (model.unreachable) {
     view = { s: 'error', error: codeError(model, 'CG-RUNTIME-UNREACHABLE'), retry: reload };
   } else if (model.settings.s === 'error' && !settingsKnown) {
     // ST-017 «настройки недоступны»: never defaults posing as the person's values.
     view = { s: 'error', error: errorOf(model, model.settings.error), retry: reload };
+  } else if (unknown !== null) {
+    // The sign-in state could not be read: neither the settings nor the sign-in screen — a failed read is not a sign-out (PU-002, ST-042).
+    view = { s: 'error', error: errorOf(model, unknown), retry: reload };
   } else if (!settingsKnown || model.session.s === 'idle' || (model.session.s === 'loading' && model.session.last === null && session === null)) {
     view = { s: 'loading', since: model.settings.s === 'loading' ? model.settings.since : null, stage: null };
   } else if (session === null) {
     view = { s: 'forbidden', error: errorOf(model, signedOutError(model)), remedy: null };
     signIn = signInVm(model);
     body = SIGNED_OUT_BODIES.includes(section) ? bodyOf(model, ports, section) : null;
+    drawn = true;
   } else {
     body = bodyOf(model, ports, section);
+    drawn = true;
     // «Войти заново» (ST-048): the same form inside «Аккаунт», the sign-in stays as it is until the hub answers.
     if (section === 'account') signIn = signInVm(model);
     if (hubState(model) === 'down') {
@@ -154,7 +169,7 @@ export function optionsView<S extends SettingsSection>(model: PagesModel, ports:
     save: saveState(model),
     readOnly: valueOf(model.settings)?.readOnly ?? false,
     signIn,
-    checklist: session === null ? null : checklistOf(model),
+    checklist: drawn ? checklistOf(model) : null,
     body,
     footer: {
       whatsNew: model.env.links.whatsNew === null ? null : ({ type: 'Navigate', to: { kind: 'page', page: 'whats-new' } } satisfies UiAction),

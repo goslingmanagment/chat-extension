@@ -10,7 +10,7 @@ import { type PopupVM, type ReasonVM, type UiAction, type VmView } from '@cg/con
 
 import { formatMicroUsd } from '../../domain/debug';
 import { hotkeyOf } from './hotkeys';
-import { QUOTA_LOW, boundPageOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, valueOf, type PagesModel } from './model';
+import { QUOTA_LOW, boundPageOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
 import { hostGaps, hostReportOf, hubState } from './view-status';
 
@@ -47,9 +47,12 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
   const hub = hubState(model);
   const settingsKnown = valueOf(model.settings) !== null;
   const problems = session === null ? [] : problemsOf(model, host);
+  const unknown = sessionUnknownError(model);
   let view: VmView;
   if (model.unreachable) view = { s: 'error', error: codeError(model, 'CG-RUNTIME-UNREACHABLE'), retry: reload };
   else if (model.settings.s === 'error' && !settingsKnown) view = { s: 'error', error: errorOf(model, model.settings.error), retry: reload };
+  // PU-002 «сбой связи не считается выходом»: the sign-in state could not be read — its error with «Повторить», not «Войдите».
+  else if (unknown !== null) view = { s: 'error', error: errorOf(model, unknown), retry: reload };
   else if (!settingsKnown || model.session.s === 'idle' || (model.session.s === 'loading' && model.session.last === null && session === null)) view = { s: 'loading', since: null, stage: null };
   else if (session === null) view = { s: 'forbidden', error: codeError(model, model.sessionEnd === 'revoked' ? 'CG-AUTH-REVOKED' : model.sessionEnd === 'expired' ? 'CG-AUTH-EXPIRED' : 'CG-AUTH-REQUIRED'), remedy: { type: 'OpenSettings', route: { section: 'account', code: 'CG-AUTH-REQUIRED' } } };
   else if (hub === 'down') view = { s: 'offline', error: problems.find((problem) => problem.code !== 'CG-HOST-CONTRACT') ?? codeError(model, 'CG-HUB-UNAVAILABLE'), retry: { type: 'RecheckStatus' }, lastGoodAt: null };
