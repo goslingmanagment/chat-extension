@@ -41,11 +41,19 @@ export type Sheet =
   | { readonly kind: 'review' }
   | { readonly kind: 'refusal'; readonly refusal: RefusalState };
 
-/** A start that was not admitted: no operation exists (ui-design §4.9). */
+/**
+ * A start that was not admitted: no operation exists (ui-design §4.9). Either
+ * the background refused it and named what runs (the fourth generation, a busy
+ * chat), or the start failed before any admission — a gate, no token, a
+ * background that could not write its journal or did not answer: `running` is
+ * empty then.
+ */
 export interface RefusalState {
   readonly feature: FeatureId;
   readonly error: CgErrorWire;
   readonly running: readonly ActiveOpSummary[];
+  /** When it was refused: a start refused again is another refusal, and is shown again after «Скрыть». */
+  readonly at?: number;
 }
 
 interface ChatUi {
@@ -353,6 +361,9 @@ export class AiWorkspace {
     const off = (status: DockStatus, reason: UnavailableReasonId, error: CgErrorWire | null): Situation => ({ ...base, status, statusError: error, off: reason });
 
     if (this.hostReload || this.env.reloadNeeded) return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-RELOADED' });
+    // The port is lost for good (every reconnect failed): what the tab remembers of the sign-in still reads
+    // «ready», but nothing would start. The dock says so and offers the one thing that helps — a reload.
+    if (this.env.connection === 'lost') return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-UNREACHABLE' });
     const session = this.env.session;
     const settings = this.env.settings;
     if (session === undefined || settings === null) {
@@ -472,7 +483,18 @@ export class AiWorkspace {
 
   /** A start that was not admitted takes the chat's sheet, whichever controller asked (ui-design §4.9). */
   showRefusal(key: ChatKey, refusal: RefusalState): void {
-    this.setSheet(key, { kind: 'refusal', refusal });
+    this.setSheet(key, { kind: 'refusal', refusal: { ...refusal, at: this.ports.clock.now() } });
+  }
+
+  /**
+   * A start that failed before any admission is said where the person looks —
+   * the chat's sheet, with its code (§9.5 «каждый отказ виден»): a click or a
+   * key that did nothing must never look like a dock that is ready. Only a
+   * click that was for a chat the person has already left stays quiet.
+   */
+  startFailed(key: ChatKey, feature: FeatureId, error: CgErrorWire): void {
+    if (error.code === 'CG-CONTEXT-CHANGED') return;
+    this.showRefusal(key, { feature, error, running: [] });
   }
 
   isExpanded(id: string): boolean {
@@ -779,8 +801,14 @@ export class AiWorkspace {
     const key = route.name === 'chat' && route.chat !== null ? chatKeyOf(route.chat) : null;
     // The page tail is kept for the open chat only: a chat that was left is read again when it is opened.
     for (const other of [...this.tails.keys()]) if (other !== key) this.tails.delete(other);
-    // A chat without a chosen tone or an open sheet keeps nothing.
-    for (const [other, ui] of this.chats) if (other !== key && ui.tone === null && ui.sheet === null) this.chats.delete(other);
+    for (const [other, ui] of this.chats) {
+      if (other === key) continue;
+      // A start that failed before admission names no run that could end it: its card stays only while the
+      // person stays in the chat.
+      if (ui.sheet !== null && ui.sheet.kind === 'refusal' && ui.sheet.refusal.running.length === 0) ui.sheet = null;
+      // A chat without a chosen tone or an open sheet keeps nothing.
+      if (ui.tone === null && ui.sheet === null) this.chats.delete(other);
+    }
     if (key !== null) {
       const tail = this.tails.get(key);
       if (tail !== undefined) tail.dirty = true;

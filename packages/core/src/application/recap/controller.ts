@@ -293,6 +293,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
         ws.showRefusal(chat.key, result.refusal);
         return refused(ws, type, result.refusal.error);
       case 'failed':
+        ws.startFailed(chat.key, FEATURE_OF[length], result.error);
         return refused(ws, type, result.error);
     }
   }

@@ -7,6 +7,9 @@
 //   says the contract is partial;
 // - ChatSpace lost its composer bridge: only copying is left — the banner
 //   with its code, «Копировать» in place of «Вставить», nothing is written;
+// - the background refuses a start before any admission (the browser ran
+//   out of room for the session's data): the dock says so with the code —
+//   after a click and after a key alike — and the hub is asked nothing;
 // - the event page is unloaded in the middle of a stream: the operation is
 //   `interrupted` — «Операция прервана» with «Ещё раз» —, and the hub is not
 //   asked again until the person presses it;
@@ -18,12 +21,12 @@
 // extension (host-adapter.e2e.ts); here the person sees it — in the dock, in
 // the preview, in the settings, in the popup.
 
-import { browser, expect } from '@wdio/globals';
+import { $, browser, expect } from '@wdio/globals';
 
 import { callsTo } from '../../src/fake-hub/journal';
 import { suspendBackground } from '../support/background';
-import { bridgeWrites, composerText, pageJournal, pageJournalMark, PANEL, queueAdds, waitForComposerText } from '../support/chat';
-import { readReport, waitForReport } from '../support/extension';
+import { bridgeWrites, composerText, EDITOR, MOD, pageJournal, pageJournalMark, PANEL, queueAdds, waitForComposerText } from '../support/chat';
+import { fillSessionStorage, freeSessionStorage, readReport, waitForReport } from '../support/extension';
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
@@ -32,7 +35,7 @@ import { dockIs, startShift, type Shift } from '../support/shift';
 import { chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
 const ACC = STAND_IDS.accounts.a;
-const { a1, a2, a4 } = STAND_IDS.fans;
+const { a1, a2, a4, a5 } = STAND_IDS.fans;
 const reply = (fan: string): readonly [string, string] => [`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`];
 
 describe('§12 п. 4 on the wired extension — degradation and restarts: what the person sees and what is never repeated', () => {
@@ -132,6 +135,42 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(status.chatspace.level).toBe('warn');
     expect(status.chatspace.text).toContain('composerBridge');
     expect(status.popupCodes).toContain('CG-HOST-CONTRACT');
+  });
+
+  it('[ER-005] a start the background refuses before any admission is said with its code — by a click and by a key alike — and nothing is asked of the hub', async () => {
+    // The browser ran out of room for the session's data: the background cannot write its admission journal.
+    await openStand(chatPath(ACC, a5));
+    await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true && d.result === null, 'the dock of a healthy ChatSpace', 20_000);
+    await shift.toPages();
+    expect(await fillSessionStorage()).toBeGreaterThan(0);
+    await shift.toStand();
+    const hubMark = await hub().mark();
+    try {
+      // By a click on the strip.
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      const clicked = await dockIs((d) => d.refusal !== null, 'the refused start is on screen', 15_000);
+      expect(clicked.refusal).toBe('CG-STORAGE-WRITE');
+      expect(clicked.result).toBeNull();
+      const card = await oursText('dock', '.cg-dock');
+      expect(card).toContain('ChatGoose · CG-STORAGE-WRITE');
+      expect(card).toContain('не запущен');
+      // «Скрыть», then the same by the key: a new refusal, shown again.
+      await pressOurs('dock', '.cg-sheet button', /^Скрыть/);
+      await waitOursText('dock', 'CG-STORAGE-WRITE', 'the card is hidden', { gone: true });
+      await $(EDITOR).click();
+      await browser.keys([MOD, 'e']);
+      await waitOursText('dock', 'ChatGoose · CG-STORAGE-WRITE', 'the start refused by the key is on screen again', { timeout: 15_000 });
+      expect(await streams(hubMark)).toEqual([]);
+    } finally {
+      await shift.toPages();
+      await freeSessionStorage();
+      await shift.toStand();
+    }
+    // With room again the same click starts, and the card gives way to the result.
+    await pressOurs('dock', '.cg-strip button', /^Reply/);
+    const done = await dockIs((d) => d.result?.state === 'done', 'the Reply once the storage has room', 20_000);
+    expect(done.refusal).toBeNull();
+    expect(await streams(hubMark)).toEqual(['done']);
   });
 
   it('[RB-003] the event page is unloaded in the middle of a stream: «Операция прервана» (CG-OP-INTERRUPTED) with «Ещё раз» — the hub is not asked again until the person presses it', async () => {

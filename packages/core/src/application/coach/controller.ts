@@ -21,6 +21,7 @@
 // archive head is read again and the lag behind the chat is shown).
 
 import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
+import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { hasCapability } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { type COACH_BLOCK_KINDS } from '@cg/contracts/ops';
@@ -200,6 +201,13 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   // ── asking ───────────────────────────────────────────────────────────────
 
+  /** The toast of a question that could not start; a click for a chat the person already left stays quiet. */
+  function notStarted(error: CgErrorWire): void {
+    if (error.code === 'CG-CONTEXT-CHANGED') return;
+    const entry = CG_REGISTRY[error.code];
+    ws.ports.toasts?.show({ kind: entry.severity === 'error' ? 'error' : 'warning', code: error.code, scope: 'coach.ask', title: msg(entry.title), body: msg(entry.body) });
+  }
+
   async function ask(action: UiActionOf<'Generate'>, cause: CauseKind): Promise<ActionReceipt> {
     const situation = ws.situation();
     const { chat, ready } = situation;
@@ -251,8 +259,17 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const options: UserOptions = { ...(question.length > 0 ? { question } : {}), ...(preset === null ? {} : { preset }), ...(action.options.attachMyDraft === true ? { attachMyDraft: true } : {}) };
     const limit = clampHistoryLimit(ready.settings.generation.coach.historyLimit);
     const result = await ws.startFeature({ feature: 'coach', surface: 'coach', options, cause, coachHistory: historyFor(session, limit), ...(recap === null ? {} : { autoRecap: recap }) });
-    if (result.kind === 'failed') return giveUp(result.error);
-    if (result.kind === 'refused') return giveUp(result.refusal.error);
+    // A question that did not start is said, never dropped in silence: the panel keeps the question (AI-099) and
+    // a toast names the code. A refusal that names what runs also takes the chat's sheet, as any other start's.
+    if (result.kind === 'failed') {
+      notStarted(result.error);
+      return giveUp(result.error);
+    }
+    if (result.kind === 'refused') {
+      ws.showRefusal(chat.key, result.refusal);
+      notStarted(result.refusal.error);
+      return giveUp(result.refusal.error);
+    }
     const record = ws.ops.get(result.opId);
     // The admitted operation is the recap step when one was due and can be built here; otherwise the answer itself.
     const stepped = sessions.step(session.sessionId, turnId, record !== null && record.view.feature !== 'coach' ? 'recap' : 'coach', result.opId);

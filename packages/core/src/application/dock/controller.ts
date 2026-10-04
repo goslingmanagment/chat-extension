@@ -57,7 +57,12 @@ export function runningVm(ws: AiWorkspace, summary: Pick<ActiveOpSummary, 'opId'
 }
 
 export function refusalVm(ws: AiWorkspace, refusal: RefusalState): RefusalVM {
-  return { feature: refusal.feature, error: errorVm(refusal.error, ws.ports.i18n), running: refusal.running.map((summary) => runningVm(ws, summary)) };
+  return {
+    feature: refusal.feature,
+    error: errorVm(refusal.error, ws.ports.i18n),
+    running: refusal.running.map((summary) => runningVm(ws, summary)),
+    ...(refusal.at === undefined ? {} : { at: refusal.at }),
+  };
 }
 
 function viewOf(ws: AiWorkspace, situation: Situation): VmView {
@@ -248,6 +253,7 @@ export function createDockController(ws: AiWorkspace): DockController {
           result.refusal.running.map((summary) => runningVm(ws, summary)),
         );
       case 'failed':
+        ws.startFailed(chat.key, action.feature, result.error);
         return refused(ws, action.type, result.error);
     }
   }

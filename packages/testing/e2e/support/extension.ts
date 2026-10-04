@@ -187,6 +187,41 @@ export async function writeLocalStorage(items: Record<string, unknown>): Promise
   }, items);
 }
 
+const JUNK_PREFIX = 'e2e.junk.';
+
+/**
+ * Fills the extension's storage.session to its quota, from the extension page the browser is on: junk keys
+ * of halving sizes until not one more character fits. Every write of the background that grows what it holds
+ * there then fails, as it does in a browser that ran out of room. Returns how many junk keys were written.
+ */
+export async function fillSessionStorage(): Promise<number> {
+  return browser.execute(async (prefix: string) => {
+    const api = (globalThis as unknown as { browser?: { storage: { session: { set(items: Record<string, unknown>): Promise<void> } } } }).browser;
+    if (api === undefined) throw new Error('no extension API on this page');
+    let size = 8 * 1024 * 1024;
+    let written = 0;
+    while (size >= 1) {
+      try {
+        await api.storage.session.set({ [`${prefix}${written}`]: 'x'.repeat(size) });
+        written += 1;
+      } catch {
+        size = Math.floor(size / 2);
+      }
+    }
+    return written;
+  }, JUNK_PREFIX);
+}
+
+/** Removes what `fillSessionStorage` wrote. */
+export async function freeSessionStorage(): Promise<void> {
+  await browser.execute(async (prefix: string) => {
+    const api = (globalThis as unknown as { browser?: { storage: { session: { get(keys: null): Promise<Record<string, unknown>>; remove(keys: string[]): Promise<void> } } } }).browser;
+    if (api === undefined) throw new Error('no extension API on this page');
+    const all = await api.storage.session.get(null);
+    await api.storage.session.remove(Object.keys(all).filter((key) => key.startsWith(prefix)));
+  }, JUNK_PREFIX);
+}
+
 export async function htmlAttribute(name: string): Promise<string | null> {
   return browser.execute((attribute) => document.documentElement.getAttribute(attribute), name);
 }

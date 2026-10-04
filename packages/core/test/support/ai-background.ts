@@ -125,6 +125,8 @@ export class FakeBackground {
   opList: { readonly ops: OpView[]; readonly truncated: boolean } | null = null;
   /** Failures of the next `op.list` requests, in order. */
   readonly opListErrors: CgErrorWire[] = [];
+  /** Failures of the next `op.start` requests, in order: the background refused before any admission (its journal could not be written, its settings are not read). */
+  readonly startErrors: CgErrorWire[] = [];
   /** Answers of `recap.save`, in order; an empty queue answers `saved`. */
   readonly saveAnswers: ({ readonly state: 'saved' | 'not-ready' | 'rejected'; readonly savedAt: string | null } | { readonly error: CgErrorWire })[] = [];
 
@@ -324,6 +326,8 @@ export class FakeBackground {
         return ok({ actionToken: issued.actionToken, expiresAt: issued.expiresAt });
       }
       case 'op.start': {
+        const refusal = this.startErrors.shift();
+        if (refusal !== undefined) return { ok: false, error: refusal };
         const outcome = await this.scheduler.start(tab, payload as TabRequestPayload<'op.start'>);
         return outcome.kind === 'admission' ? ok(outcome.admission) : { ok: false, error: { code: outcome.code } };
       }

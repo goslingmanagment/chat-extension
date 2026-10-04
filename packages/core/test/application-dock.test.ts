@@ -1536,6 +1536,85 @@ describe('dock: a refused start and what runs elsewhere', () => {
   });
 });
 
+describe('dock: a start the background did not admit is never silent', () => {
+  it('a start that failed before admission shows the refusal card with its code, for a click and for a key alike', async () => {
+    const h = await start();
+    // The background could not write its admission journal: no operation, no stream.
+    h.bg.startErrors.push({ code: 'CG-STORAGE-WRITE' });
+    const first = await h.generate('reply');
+    expect(first).toMatchObject({ ok: false, code: 'CG-STORAGE-WRITE' });
+    const card = h.dock().refusal;
+    expect(card).toMatchObject({ feature: 'reply', error: { code: 'CG-STORAGE-WRITE' }, running: [] });
+    expect(typeof card?.at).toBe('number');
+    expect(h.dock().result).toBeNull();
+    expect(h.bg.hub.streams).toHaveLength(0);
+
+    // The same by a key (⌘E): a new refusal with a new moment, so a card hidden with «Скрыть» shows again.
+    await h.clock.advance(1_000);
+    h.bg.startErrors.push({ code: 'CG-STORAGE-READ' });
+    const byKey = await h.ai.command('reply');
+    expect(byKey).toMatchObject({ kind: 'dispatched', receipt: { ok: false, code: 'CG-STORAGE-READ' } });
+    await h.settle();
+    expect(h.dock().refusal).toMatchObject({ feature: 'reply', error: { code: 'CG-STORAGE-READ' }, running: [] });
+    expect(h.dock().refusal?.at).toBeGreaterThan(card?.at ?? 0);
+
+    // Once the cause is gone the same click starts, and the card gives way to the result.
+    h.script(h.streamOf('fast-reply', ['now it runs']));
+    expect(await h.generate('reply')).toMatchObject({ ok: true, outcome: 'started' });
+    expect(h.dock().refusal).toBeNull();
+  });
+
+  it('the card of a failed start names no run that could end it: it goes when the person leaves the chat', async () => {
+    const h = await start();
+    h.bg.startErrors.push({ code: 'CG-STORAGE-WRITE' });
+    await h.generate('ping');
+    expect(h.dock().refusal?.error.code).toBe('CG-STORAGE-WRITE');
+    h.host.openChat(previewChat);
+    await h.settle();
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(h.dock().refusal).toBeNull();
+  });
+
+  it('Review and a Recap build that failed before admission show the same card', async () => {
+    const h = await start();
+    h.bg.startErrors.push({ code: 'CG-STORAGE-WRITE' });
+    expect(await h.generate('review')).toMatchObject({ ok: false, code: 'CG-STORAGE-WRITE' });
+    expect(h.dock().refusal).toMatchObject({ feature: 'review', error: { code: 'CG-STORAGE-WRITE' }, running: [] });
+
+    const recap = await start();
+    await recap.generate('recap');
+    recap.bg.startErrors.push({ code: 'CG-STORAGE-WRITE' });
+    expect(await recap.dispatch({ type: 'RefreshRecap', length: 'full' })).toMatchObject({ ok: false, code: 'CG-STORAGE-WRITE' });
+    expect(recap.dock().refusal).toMatchObject({ feature: 'recap', error: { code: 'CG-STORAGE-WRITE' }, running: [] });
+  });
+
+  it('a Coach question that did not start is said by a toast with its code; the question is not turned into a turn', async () => {
+    const h = await start();
+    h.bg.startErrors.push({ code: 'CG-STORAGE-WRITE' });
+    const receipt = await h.generate('coach', { question: 'what next?' });
+    expect(receipt).toMatchObject({ ok: false, code: 'CG-STORAGE-WRITE' });
+    expect(h.coach().turns).toHaveLength(0);
+    expect(h.toasts.at(-1)).toMatchObject({ kind: 'error', code: 'CG-STORAGE-WRITE', scope: 'coach.ask' });
+  });
+
+  it('a port lost for good: the dock says CG-RUNTIME-UNREACHABLE and offers the reload, instead of a ready strip that starts nothing', async () => {
+    const h = await start();
+    expect(h.dock().status).toBe('ready');
+    h.bg.setConnection('lost');
+    await h.settle();
+    const vm = h.dock();
+    expect(vm.status).toBe('reload-needed');
+    expect(vm.statusError?.code).toBe('CG-RUNTIME-UNREACHABLE');
+    expect(vm.view).toMatchObject({ s: 'error', error: { code: 'CG-RUNTIME-UNREACHABLE' }, retry: { type: 'ReloadTab' } });
+    expect(vm.actions.reply).toMatchObject({ enabled: false });
+    // The port came back (a reconnect by the person): the strip is ready again.
+    h.bg.setConnection('ready');
+    await h.settle();
+    expect(h.dock().status).toBe('ready');
+  });
+});
+
 describe('dock: a refusal raised by Review or Recap', () => {
   const stall = (feature: Parameters<typeof meta>[0] = 'fast-reply'): ScriptResponse => ({ kind: 'stream', steps: [{ kind: 'frame', frame: meta(feature) }, { kind: 'stall' }] });
 
