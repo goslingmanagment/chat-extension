@@ -27,23 +27,16 @@ import {
 
 import { SEGMENT_LABEL_KEYS, formatCostLine, profileOf, showDebugBlock, type StageMark } from '../../domain/debug';
 import { errorView, recoveryActions } from '../../domain/errors';
-import { createTranslator, type Translator } from '../../domain/i18n';
+import { translatorOf } from '../../domain/i18n/live';
 import { isTerminalOpState } from '../../domain/ops';
 import { policyOf } from '../../domain/features';
 
 export const msg = (key: I18nKey, params?: I18nParams): Msg => (params === undefined ? { key } : { key, params });
 
-const translators = new Map<string, Translator>();
-
-/** The plain translator of the port's current language (errors and technical lines are rendered with it). */
-export function translatorOf(i18n: I18n): Translator {
-  let translator = translators.get(i18n.language);
-  if (translator === undefined) {
-    translator = createTranslator(i18n.language);
-    translators.set(i18n.language, translator);
-  }
-  return translator;
-}
+// The plain translator of the port's current language (errors and technical lines are rendered with it) is the
+// port itself (`domain/i18n/live`): a controller never imports a catalog — a tab loads the texts of one language
+// as its own lazy chunk (§11), and the built-in catalogs would ride along with every chunk that names them.
+export { translatorOf };
 
 /** An error as the person sees it, in the current language (ER-005…ER-008). */
 export function errorVm(wire: CgErrorWire, i18n: I18n): CgErrorView {
