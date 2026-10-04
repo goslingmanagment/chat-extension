@@ -173,8 +173,8 @@ describe('the hub address and the sign-in (§8.2, ST-042)', () => {
       expect(vm.body, section).toBeNull();
       expect(vm.checklist, section).toBeNull();
     }
-    // The background is still signed in: the address must not move.
-    expect(await w.client.dispatch({ type: 'SetPreference', key: 'hub.baseUrl', value: 'https://evil.example.test' })).toMatchObject({ ok: false, code: 'CG-HUB-URL' });
+    // The background is still signed in: the address must not move — refused with the code of the read that failed.
+    expect(await w.client.dispatch({ type: 'SetPreference', key: 'hub.baseUrl', value: 'https://evil.example.test' })).toMatchObject({ ok: false, code: 'CG-STORAGE-READ' });
     expect(w.background.requests('settings.patchRestricted')).toEqual([]);
     expect(w.browser.record.permissionRequests).toEqual([]);
     expect(w.state.settings.hub.baseUrl).toBe(DEFAULT_SETTINGS.hub.baseUrl);
@@ -193,8 +193,28 @@ describe('the hub address and the sign-in (§8.2, ST-042)', () => {
     await settle();
     // What was known stays on the page: the sign-in screen, not an error.
     expect(options(w, 'account').view.s).toBe('forbidden');
+    expect(await w.client.dispatch({ type: 'SetPreference', key: 'hub.baseUrl', value: CUSTOM_HUB })).toMatchObject({ ok: false, code: 'CG-TIMEOUT' });
+    expect(w.background.requests('settings.patchRestricted')).toEqual([]);
+    expect(w.browser.record.permissionRequests).toEqual([]);
+    // The form says why the address stays as it is.
+    expect(options(w, 'account').signIn).toMatchObject({ hubOrigin: DEFAULT_SETTINGS.hub.baseUrl, error: { code: 'CG-TIMEOUT' } });
+    // Once the state is read again as «nobody signed in», the address can be changed.
+    clock += FOCUS_RECHECK_MIN_INTERVAL_MS;
+    w.browser.focus();
+    await settle();
+    expect(await w.client.dispatch({ type: 'SetPreference', key: 'hub.baseUrl', value: CUSTOM_HUB })).toMatchObject({ ok: true });
+    expect(w.state.settings.hub.baseUrl).toBe(CUSTOM_HUB);
+    expect(options(w, 'account').signIn).toMatchObject({ hubOrigin: CUSTOM_HUB, error: null });
+  });
+
+  it('[ST-042] signed in: the hub address is refused with CG-HUB-URL before anything is asked or sent', async () => {
+    const w = await open();
     expect(await w.client.dispatch({ type: 'SetPreference', key: 'hub.baseUrl', value: CUSTOM_HUB })).toMatchObject({ ok: false, code: 'CG-HUB-URL' });
     expect(w.background.requests('settings.patchRestricted')).toEqual([]);
+    expect(w.browser.record.permissionRequests).toEqual([]);
+    expect(w.state.settings.hub.baseUrl).toBe(DEFAULT_SETTINGS.hub.baseUrl);
+    // Nothing is written under «Войти заново»: that form did not ask for it.
+    expect(options(w, 'account').signIn).toMatchObject({ error: null });
   });
 
   it('[AU-009] a second submit while the sign-in is on its way sends nothing; one sign-in loads the page once', async () => {

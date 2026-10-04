@@ -751,7 +751,14 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     if (RESTRICTED_KEYS.includes(key) && env.page !== 'options') return code('SetPreference', 'CG-UNKNOWN', 'restricted section');
     if (key === 'hub.baseUrl') {
       // ST-042: the address changes only while it is known that nobody is signed in — «unknown» is not «signed out».
-      if (!signedOut()) return code('SetPreference', 'CG-HUB-URL', valueOf(session) !== null ? 'signed in' : 'sign-in state unknown');
+      if (valueOf(session) !== null) return code('SetPreference', 'CG-HUB-URL', 'signed in');
+      if (!signedOut()) {
+        // The sign-in state could not be read: the form says so with that read's own code, and the address stays.
+        const unread: CgErrorWire = session.s === 'error' ? session.error : { code: 'CG-HUB-URL', detail: 'sign-in state unknown' };
+        signIn = { ...signIn, error: unread };
+        emit();
+        return fail('SetPreference', unread);
+      }
       const state = valueOf(settings);
       if (state === null) return code('SetPreference', 'CG-STORAGE-READ');
       if (state.readOnly) return code('SetPreference', 'CG-STORAGE-VERSION');
