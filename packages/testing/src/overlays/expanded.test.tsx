@@ -5,10 +5,10 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { DEFAULT_PARTS, preloadPart } from '@cg/ui/dock';
 import { DISMISSIBLE_OPEN_ATTRIBUTE } from '@cg/ui/kit';
-import { LAZY_OVERLAY_KINDS, lazyOverlays } from '@cg/ui/overlays';
-import { expandedSurface } from '@cg/ui/overlays/result-expanded';
+import { LAZY_OVERLAY_KINDS, lazyOverlays, overlayRootCss } from '@cg/ui/overlays';
+import { createExpandedSurface, expandedSurface } from '@cg/ui/overlays/result-expanded';
 
-import { dock, entry, meta, parts, phase, recapView, result, review, scenarioById, uuid, views } from '../scenarios/app-client';
+import { coach, dock, entry, meta, parts, phase, recapView, result, review, scenarioById, uuid, views } from '../scenarios/app-client';
 import { type MountedKit, ctx, flush, keydown, mountSurface, scenarioOf, settle, text } from '../dock/harness';
 
 let kit: MountedKit | null = null;
@@ -122,6 +122,44 @@ describe('lazy overlays', () => {
       const css = (surface.styles ?? []).map((source) => source.css).join('\n');
       // The overlay root spans the window on its layer and lets clicks through (ui-design §3.4).
       expect(css, kind).toContain(`.cg-root[data-cg-surface="${kind}"] { position: fixed; inset: 0; z-index: ${kind === 'coach' ? 900 : 950}; pointer-events: none; }`);
+      // A surface that failed to render is a card at the top right that takes clicks (ER-020).
+      expect(css, kind).toMatch(new RegExp(`\\.cg-root\\[data-cg-surface="${kind}"\\] > \\.cg-boundary \\{ position: fixed; top: 56px; right: 16px; [^}]*pointer-events: auto;`));
     }
+    expect(overlayRootCss('toasts', 'toast')).toContain('.cg-root[data-cg-surface="toasts"] > .cg-boundary { position: fixed;');
+  });
+
+  it('[ER-020] an overlay that fails to render shows «Сбой интерфейса» in place of the whole surface, with both buttons working', async () => {
+    const coachSurface = await lazyOverlays.coach();
+    // A view model the surface cannot draw: the turns are missing.
+    const broken = { ...coach(ctx, views.ready(), []), turns: null } as unknown as ReturnType<typeof coach>;
+    kit = mountSurface(coachSurface.view, scenarioOf([entry({ of: 'dock' }, dock(ctx, 'ready')), entry({ of: 'coach' }, broken)]), 'coach', coachSurface.styles ?? []);
+    await settle(1);
+    const card = kit.$('.cg-boundary') as HTMLElement;
+    // The card replaced the layer: it is the root's own child, which is what the clickable rule is written for.
+    expect(card.parentElement?.classList.contains('cg-root')).toBe(true);
+    expect(card.parentElement?.getAttribute('data-cg-surface')).toBe('coach');
+    expect(kit.$('.cg-layer')).toBeNull();
+    expect(text(card.querySelector('.cg-card__code'))).toBe('ChatGoose · CG-UI-FAILED');
+    const buttons = [...card.querySelectorAll('button')];
+    expect(buttons.map((element) => text(element.querySelector('.cg-btn__t')))).toEqual(['Перезагрузить панель', 'Выгрузить диагностику', 'Скопировать код']);
+    await flush(() => buttons[1]?.click());
+    await flush(() => buttons[0]?.click());
+    expect(kit.client.dispatched).toEqual([{ type: 'ExportDiagnostics' }, { type: 'ReloadSurface', surface: 'coach' }]);
+    expect(kit.failures[0]).toEqual({ kind: 'render', surface: 'coach', code: 'CG-UI-FAILED', name: 'TypeError' });
+  });
+
+  it('[ER-020] a part of the window whose chunk fails to load shows its card inside the window; the window stays and collapses', async () => {
+    kit = mountSurface(
+      createExpandedSurface({ parts: { analysis: () => Promise.reject(new TypeError('chunk')) } }).view,
+      scenarioOf([recapDock, entry({ of: 'recap.view' }, recapView(ctx, views.ready(), 'full', { expanded: true }))]),
+      'result-expanded',
+      expandedSurface.styles ?? [],
+    );
+    await settle(2);
+    const dialog = kit.$('[role="dialog"]') as HTMLElement;
+    expect(text(dialog.querySelector('.cg-boundary .cg-card__code'))).toBe('ChatGoose · CG-UI-FAILED');
+    expect(kit.$('.cg-layer')).not.toBeNull();
+    await flush(() => dialog.dispatchEvent(keydown('Escape')));
+    expect(kit.client.dispatched).toEqual([{ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' }]);
   });
 });

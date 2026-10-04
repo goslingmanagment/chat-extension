@@ -7,6 +7,7 @@
 
 import {
   type CoachTurnVM,
+  type CoachVM,
   type DockVM,
   type Locale,
   type PartVM,
@@ -73,6 +74,8 @@ export interface GalleryState {
   /** Opened after the mount, as a person would. */
   readonly open?: 'tone' | 'more';
   readonly debug?: boolean;
+  /** The surface cannot draw this view model: the state shows the «Сбой интерфейса» card of its error boundary (ER-020). */
+  readonly broken?: boolean;
   views(ctx: ScenarioCtx): readonly ScenarioViewEntry[];
 }
 
@@ -697,6 +700,17 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       ),
     ],
     { surface: 'coach', debug: true },
+  ),
+  state(
+    'x-overlay-failed',
+    'overlays',
+    'Оверлей не отрисовался: «Сбой интерфейса» (ER-020)',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      // A view model the panel cannot draw: its turns are missing.
+      entry({ of: 'coach' }, { ...coach(ctx, views.ready(), []), turns: null } as unknown as CoachVM),
+    ],
+    { surface: 'coach', broken: true },
   ),
   state(
     'x-expanded-recap',

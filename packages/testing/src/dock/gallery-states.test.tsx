@@ -50,7 +50,8 @@ describe('the dock gallery states', () => {
         const surface = item.surface === 'dock' ? dockSurface : item.surface === 'toasts' ? toastsSurface : await lazyOverlays[item.surface]();
         kit = mountSurface(surface.view, scenario, item.surface, surface.styles ?? [], { language });
         await settle(2);
-        expect(kit.failures, item.id).toEqual([]);
+        // A state that shows a failed surface reports exactly that failure; every other state reports none.
+        expect(kit.failures, item.id).toEqual(item.broken === true ? [{ kind: 'render', surface: item.surface, code: 'CG-UI-FAILED', name: 'TypeError' }] : []);
         expect(kit.root.querySelector('.cg-root')?.childElementCount, item.id).toBeGreaterThan(0);
         // No key leaks into the picture: every string came from the catalog.
         expect(kit.root.textContent, item.id).not.toMatch(/\b(?:dock|result|recap|review|coach|common|cg|part|fix|confirm|toast|cheatsheet|debug)\.[a-z][A-Za-z]+(?:\.[A-Za-z]+)*\b/);

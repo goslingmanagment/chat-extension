@@ -12,6 +12,7 @@ import { type JSX } from 'preact';
 import { type MountDeps } from '@cg/contracts/vm';
 
 import {
+  Boundary,
   Button,
   Dialog,
   OverlayLayer,
@@ -78,30 +79,33 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
         // Focus opens on «Свернуть», not on the first icon of the head (whose tooltip would pop up by itself).
         initialFocus={() => root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse')}
       >
-        {which !== null ? (
-          <Analysis loader={all.analysis} which={which} debugPart={all.debug} />
-        ) : result === null ? null : (
-          <ResultContent
-            result={result}
-            mode={dock.mode}
-            keysFooter={false}
-            quiet
-            streamText={streamText}
-            debugPart={all.debug}
-            close={
-              isRunning(result.state) ? null : (
-                <Button
-                  label={i18n.t('result.collapse')}
-                  icon="collapse"
-                  variant="quiet"
-                  class="cg-collapse"
-                  hotkey={deps.catalog.entry('close').hotkey ?? i18n.t('common.key.esc')}
-                  onClick={collapse}
-                />
-              )
-            }
-          />
-        )}
+        {/* A part that fails here (a chunk that did not load) shows its card inside the window, which stays and collapses as before. */}
+        <Boundary surface={null}>
+          {which !== null ? (
+            <Analysis loader={all.analysis} which={which} debugPart={all.debug} />
+          ) : result === null ? null : (
+            <ResultContent
+              result={result}
+              mode={dock.mode}
+              keysFooter={false}
+              quiet
+              streamText={streamText}
+              debugPart={all.debug}
+              close={
+                isRunning(result.state) ? null : (
+                  <Button
+                    label={i18n.t('result.collapse')}
+                    icon="collapse"
+                    variant="quiet"
+                    class="cg-collapse"
+                    hotkey={deps.catalog.entry('close').hotkey ?? i18n.t('common.key.esc')}
+                    onClick={collapse}
+                  />
+                )
+              }
+            />
+          )}
+        </Boundary>
       </Dialog>
     </OverlayLayer>
   );
