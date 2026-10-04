@@ -1,14 +1,11 @@
 // The tab's side of «Запись — только по доверенному действию» (architecture.md
 // §14; BG-001, AI-120). The background issues an action token to any
 // registered tab session that asks: it cannot see the event. So the tab asks
-// only for a human action that is happening right now, and this file is the
-// one place that decides what counts as one:
+// only for a human action, and this file is the one place that decides what
+// counts as one:
 //
 // - a TRUSTED (`isTrusted`) click or key press — a synthetic `dispatchEvent`
 //   is not one;
-// - that is still being dispatched: the token is asked for in the same
-//   synchronous step as the action it allows, so no timer, toast callback,
-//   stream `done` or late continuation of a controller can mint one;
 // - in a visible document, through one of our own closed roots that is
 //   itself connected and visible (clickjacking, §14) — or, for a key press
 //   only, outside them: AI hotkeys work in the native composer (§9.1; the
@@ -20,11 +17,32 @@
 //
 // The UI never passes an event anywhere: it dispatches a UiAction (§10.2). The
 // gate therefore watches the events itself (`window`, capture: an event from
-// inside a closed root shows its host there) and `issue` reads the one in
-// flight. Whoever stops an event before `window`'s listeners of this chunk run
-// (the early hotkey dispatcher) hands it in with `note`.
+// inside a closed root shows its host there). Whoever stops an event before
+// `window`'s listeners of this chunk run (the early hotkey dispatcher) hands
+// it in with `note`.
+//
+// When the token may be asked for. A controller reads the page before it
+// asks (the draft, the visible tail, the list ChatSpace holds), so the token
+// comes after the click's own step. Two ways, and no third:
+// - while the event is still being dispatched — `take`, for whoever asks
+//   first thing;
+// - through a GRANT: the action the person's click or key dispatched gets, in
+//   that same synchronous step, the right to the token kinds its TYPE may
+//   need (GRANTED_KINDS: an InsertPart may insert, a SendPart may send, a
+//   Generate may generate — never the other way round), once each, for
+//   GRANT_TTL_MS. A grant is opened only by `open`, called by the tab's
+//   AppClient as it takes the action; what the event was — its type, the
+//   root it came through — is read then, while it can be.
+// So a timer, a toast callback, the end of a stream or a late continuation of
+// some OTHER action still cannot mint a token: nothing opens a grant for
+// them, and a grant never covers a kind its own action does not need.
+//
+// A key the early dispatcher kept until the lazy part was ready (HK-024,
+// HK-025) runs after its keydown is over; `resume` lets exactly that keydown
+// open a grant, within the dispatcher's own freshness bound.
 
 import type { Surface } from '@cg/contracts/features';
+import type { UiAction } from '@cg/contracts/vm';
 import type { MountManager } from '@cg/host-chatspace/isolated';
 
 export type ActionKind = 'generate' | 'insert' | 'navigate' | 'send';
@@ -46,7 +64,11 @@ export type GestureRefusal =
   /** The surface the token is for is not on screen. */
   | 'not-mounted'
   /** This event already gave a token of this kind. */
-  | 'spent';
+  | 'spent'
+  /** The action that was dispatched has no right to a token of this kind. */
+  | 'not-granted'
+  /** The grant of the action is too old. */
+  | 'expired';
 
 export interface GateEnv {
   readonly doc: Document;
@@ -66,64 +88,184 @@ export function onScreen(host: Element): boolean {
   return rect.width > 0 && rect.height > 0;
 }
 
-/** Why `event` does not allow an action of `kind` on `surface`, or null when it does. */
-export function gestureRefusal(event: Event | null, kind: ActionKind, surface: Surface, env: GateEnv): GestureRefusal | null {
+/** What the gate keeps of a human action once it has looked at its event (the event itself says nothing after its dispatch). */
+export interface Gesture {
+  readonly event: Event;
+  readonly click: boolean;
+  /** Our host the event came through; null — outside our UI (a key press), or a kept key. */
+  readonly via: Element | null;
+}
+
+/** The human action `event` is, or why it is none. `kept` — a key the early dispatcher held back: its dispatch is over by design. */
+export function gestureOf(event: Event | null, env: GateEnv, kept = false): Gesture | GestureRefusal {
   const visible = env.visible ?? onScreen;
   if (event === null) return 'no-gesture';
   if (!event.isTrusted) return 'untrusted';
-  if (event.eventPhase === PHASE_NONE) return 'over';
+  if (!kept && event.eventPhase === PHASE_NONE) return 'over';
   if (!GESTURES.includes(event.type)) return 'not-a-gesture';
   if (env.doc.visibilityState !== 'visible') return 'document-hidden';
+  // After its dispatch an event has no path: a kept key is a key of the page, never of a root of ours.
+  const via = kept ? null : env.mounts.registry.hostOf(event);
+  if (via === null) {
+    // Outside our UI only a key press counts.
+    if (event.type !== 'keydown') return 'outside';
+  } else if (!visible(via)) return 'surface-hidden';
+  return { event, click: event.type === 'click', via };
+}
 
+/** Why `gesture` does not allow an action of `kind` on `surface`, or null when it does. */
+export function kindRefusal(gesture: Gesture, kind: ActionKind, surface: Surface, env: GateEnv): GestureRefusal | null {
+  const visible = env.visible ?? onScreen;
   const dockHost: Element = env.mounts.dock.host;
   /** Hosts the surface may live in: the dock's own, or any overlay host for the windows, the preview and the toasts. */
   const ofSurface = (host: Element): boolean => (surface === 'dock' ? host === dockHost : host !== dockHost);
-
-  const via = env.mounts.registry.hostOf(event);
-  if (via === null) {
-    // Outside our UI only a key press counts, and never for a send.
-    if (event.type !== 'keydown' || kind === 'send') return 'outside';
-  } else {
-    if (!visible(via)) return 'surface-hidden';
-    if (kind === 'send' && (event.type !== 'click' || !ofSurface(via))) return 'outside';
-  }
-
+  // A send is a click through the surface it is sent from, never a key and never from outside.
+  if (kind === 'send' && (gesture.via === null || !gesture.click || !ofSurface(gesture.via))) return 'outside';
   const hosts = env.mounts.registry.hosts().filter(ofSurface);
   const mounted = hosts.some(visible) && (surface !== 'dock' || env.mounts.points().dock.kind !== 'none');
   return mounted ? null : 'not-mounted';
 }
 
+/** Why `event` does not allow an action of `kind` on `surface`, or null when it does. */
+export function gestureRefusal(event: Event | null, kind: ActionKind, surface: Surface, env: GateEnv): GestureRefusal | null {
+  const gesture = gestureOf(event, env);
+  return typeof gesture === 'string' ? gesture : kindRefusal(gesture, kind, surface, env);
+}
+
+/**
+ * The token kinds an action may need, by its type (§10.2: the UI sends an
+ * action, the controller decides the rest). Everything else needs none: a
+ * view switch, a filter, a copy, a cancel.
+ */
+export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly ActionKind[]>>> = {
+  Generate: ['generate'],
+  Regenerate: ['generate'],
+  RefreshRecap: ['generate'],
+  InsertPart: ['insert'],
+  ReplaceMyDraft: ['insert'],
+  RestoreMyDraft: ['insert'],
+  // «Заменить» / «Добавить в конец» of the Б2 question is the insert itself.
+  AnswerConfirm: ['insert'],
+  // The deferred insert rides the navigation's own token (§6.5).
+  OpenAndInsertPart: ['navigate'],
+  OpenChatToVerify: ['navigate'],
+  Navigate: ['navigate'],
+  SendPart: ['send'],
+};
+
+/** How long the action of a click or a key may ask for its tokens: it reads the page and the background first. */
+export const GRANT_TTL_MS = 10_000;
+/** A kept key is handed over within the dispatcher's own bound (KEPT_KEY_TTL_MS, 5 s); a little room for the hand-over itself. */
+export const KEPT_KEY_MAX_AGE_MS = 6_000;
+/** Open grants kept; more is a stuck controller, the oldest go. */
+const GRANTS_KEPT = 8;
+
 export interface GestureGate {
   /** Why no token may be asked for right now, or null; a null marks the event as having given its token of `kind`. */
   take(kind: ActionKind, surface: Surface): GestureRefusal | null;
+  /**
+   * The person's action in flight dispatched `action`: it may ask for the
+   * token kinds of its type until the grant is spent or too old. Called in the
+   * synchronous step of the click or the key; null — a grant is open (or the
+   * action needs no token), else why not.
+   */
+  open(action: UiAction['type']): GestureRefusal | null;
+  /** A token for the action that was granted it: the newest open grant that has this kind left. */
+  claim(kind: ActionKind, surface: Surface): GestureRefusal | null;
   /** Hands in an event this gate could not see itself (stopped before `window`'s listeners of this chunk). */
   note(event: Event): void;
+  /**
+   * A key the early dispatcher kept runs in this very step: `event` is its
+   * trusted keydown, pressed at `at` (epoch ms). Until `done` is called the
+   * key counts as the action in flight.
+   */
+  resume(event: Event, at: number): () => void;
+  /** `click` or `key`: what the action in flight is (HumanCause); `click` when there is none. */
+  cause(): 'click' | 'key';
   dispose(): void;
 }
 
-export function createGestureGate(win: Window, env: GateEnv): GestureGate {
+interface Grant {
+  readonly gesture: Gesture;
+  readonly kinds: Set<ActionKind>;
+  readonly at: number;
+}
+
+export function createGestureGate(win: Window, env: GateEnv, now: () => number = () => Date.now()): GestureGate {
   let current: Event | null = null;
+  /** The kept key being handed over right now. */
+  let resumed: Event | null = null;
   const given = new WeakMap<Event, Set<ActionKind>>();
+  let grants: Grant[] = [];
   // A synthetic event never replaces the human one in flight (a page script may dispatch its own inside it).
   const note = (event: Event): void => {
     if (event.isTrusted) current = event;
   };
   for (const type of GESTURES) win.addEventListener(type, note, true);
+
+  const inFlight = (): Gesture | GestureRefusal => (resumed !== null ? gestureOf(resumed, env, true) : gestureOf(current, env));
+  /** One token of a kind per event, whichever way it is asked for. */
+  const spend = (event: Event, kind: ActionKind): boolean => {
+    const kinds = given.get(event) ?? new Set<ActionKind>();
+    if (kinds.has(kind)) return false;
+    kinds.add(kind);
+    given.set(event, kinds);
+    return true;
+  };
+
   return {
     take(kind, surface) {
-      const event = current;
-      const refusal = gestureRefusal(event, kind, surface, env);
-      if (refusal !== null || event === null) return refusal ?? 'no-gesture';
-      const kinds = given.get(event) ?? new Set<ActionKind>();
-      if (kinds.has(kind)) return 'spent';
-      kinds.add(kind);
-      given.set(event, kinds);
+      const gesture = inFlight();
+      if (typeof gesture === 'string') return gesture;
+      const refusal = kindRefusal(gesture, kind, surface, env);
+      if (refusal !== null) return refusal;
+      return spend(gesture.event, kind) ? null : 'spent';
+    },
+    open(action) {
+      const kinds = GRANTED_KINDS[action];
+      if (kinds === undefined) return null;
+      const gesture = inFlight();
+      if (typeof gesture === 'string') return gesture;
+      grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set(kinds), at: now() }].slice(-GRANTS_KEPT);
       return null;
     },
+    claim(kind, surface) {
+      let refusal: GestureRefusal = 'not-granted';
+      for (let index = grants.length - 1; index >= 0; index -= 1) {
+        const grant = grants[index];
+        if (grant === undefined || !grant.kinds.has(kind)) continue;
+        if (now() - grant.at > GRANT_TTL_MS) {
+          refusal = 'expired';
+          continue;
+        }
+        const refused = kindRefusal(grant.gesture, kind, surface, env);
+        if (refused !== null) {
+          refusal = refused;
+          continue;
+        }
+        grant.kinds.delete(kind);
+        if (grant.kinds.size === 0) grants.splice(index, 1);
+        return spend(grant.gesture.event, kind) ? null : 'spent';
+      }
+      return refusal;
+    },
     note,
+    resume(event, at) {
+      if (!event.isTrusted || event.type !== 'keydown' || now() - at > KEPT_KEY_MAX_AGE_MS) return () => undefined;
+      resumed = event;
+      return () => {
+        if (resumed === event) resumed = null;
+      };
+    },
+    cause() {
+      const gesture = inFlight();
+      return typeof gesture !== 'string' && !gesture.click ? 'key' : 'click';
+    },
     dispose() {
       for (const type of GESTURES) win.removeEventListener(type, note, true);
       current = null;
+      resumed = null;
+      grants = [];
     },
   };
 }
@@ -131,11 +273,13 @@ export function createGestureGate(win: Window, env: GateEnv): GestureGate {
 /** Action tokens of this tab (§14): one per human action of one surface, spent once by the background. */
 export interface TabActionTokens {
   /**
-   * The token of the human action being handled right now. Ask for it FIRST, in the same synchronous step as the
-   * action: once the click or the key press is over there is no token for it.
-   * null — no such action (see GestureRefusal), or the background refused or did not answer: nothing may be written.
+   * The token of the human action: of the action the person's click or key dispatched (its grant), or of the event
+   * still in flight. null — no such action (see GestureRefusal), or the background refused or did not answer:
+   * nothing may be written.
    */
   issue(kind: ActionKind, surface: Surface): Promise<string | null>;
+  /** The AppClient took `action` from the UI or the hotkey runner, in the step of the click or the key. */
+  granted(action: UiAction['type']): void;
   /** The hotkey dispatcher hands in a key press it stopped before this chunk's listeners could see it (§9.1). */
   noteGesture(event: Event): void;
 }
@@ -148,6 +292,8 @@ export interface ActionTokensDeps {
   readonly spend: (request: { readonly kind: 'insert' | 'navigate'; readonly surface: Surface; readonly actionToken: string; readonly intentId: string }) => Promise<boolean>;
   /** Facts only: what was asked and why not. */
   readonly onRefused?: (facts: { readonly kind: ActionKind; readonly surface: Surface; readonly refusal: GestureRefusal }) => void;
+  /** An action that may need a token came without a human action in flight. */
+  readonly onUngranted?: (facts: { readonly action: UiAction['type']; readonly refusal: GestureRefusal }) => void;
 }
 
 /** Tokens this tab asked for and has not spent yet; more is a stuck controller, the oldest go. */
@@ -162,8 +308,10 @@ export function createActionTokens(deps: ActionTokensDeps): {
   return {
     tokens: {
       async issue(kind, surface) {
-        // Synchronously, before the first await: the event must still be in flight.
-        const refusal = deps.gate.take(kind, surface);
+        // Synchronously, before the first await. The action that was granted this kind when it was dispatched
+        // gets it; without a grant the event must still be in flight.
+        const granted = deps.gate.claim(kind, surface);
+        const refusal = granted === 'not-granted' ? deps.gate.take(kind, surface) : granted;
         if (refusal !== null) {
           deps.onRefused?.({ kind, surface, refusal });
           return null;
@@ -173,6 +321,11 @@ export function createActionTokens(deps: ActionTokensDeps): {
         surfaceOfToken.set(actionToken, surface);
         if (surfaceOfToken.size > TOKENS_KEPT) surfaceOfToken.delete(surfaceOfToken.keys().next().value ?? '');
         return actionToken;
+      },
+      granted(action) {
+        const refusal = deps.gate.open(action);
+        // An action without a person behind it gets no grant; whether it needed one shows when it asks.
+        if (refusal !== null) deps.onUngranted?.({ action, refusal });
       },
       noteGesture: (event) => deps.gate.note(event),
     },

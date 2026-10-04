@@ -6,7 +6,7 @@ import type { Surface } from '@cg/contracts/features';
 import { createShadowRootRegistry } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createActionTokens, createGestureGate, gestureRefusal, onScreen, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
+import { GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, createActionTokens, createGestureGate, gestureRefusal, onScreen, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
 
 type DockKind = 'in-flow' | 'fixed-overlay' | 'copy-only-row' | 'none';
 
@@ -176,12 +176,13 @@ describe('the action tokens of a tab', () => {
     current = null;
   });
 
-  function seam() {
+  function seam(now: () => number = () => Date.now()) {
     const w = (current = world());
-    const gate = createGestureGate(window, w.env);
+    const gate = createGestureGate(window, w.env, now);
     const asked: Array<[ActionKind, Surface]> = [];
     const spent: unknown[] = [];
     const refused: GestureRefusal[] = [];
+    const ungranted: string[] = [];
     let serial = 0;
     const { tokens, redeem } = createActionTokens({
       gate,
@@ -195,8 +196,9 @@ describe('the action tokens of a tab', () => {
         return Promise.resolve(true);
       },
       onRefused: (facts) => refused.push(facts.refusal),
+      onUngranted: (facts) => ungranted.push(`${facts.action}:${facts.refusal}`),
     });
-    return { w, gate, tokens, redeem, asked, spent, refused };
+    return { w, gate, tokens, redeem, asked, spent, refused, ungranted };
   }
 
   it('[BG-001] [AI-120] a synthetic dispatchEvent click gets no token and the background is not asked', async () => {
@@ -265,6 +267,173 @@ describe('the action tokens of a tab', () => {
     expect(await s.redeem({ kind: 'insert', actionToken: token ?? '', intentId })).toBe(false);
     expect(await s.redeem({ kind: 'navigate', actionToken: 'token-x-0123456789abcdef', intentId })).toBe(false);
     expect(s.spent).toHaveLength(1);
+    s.gate.dispose();
+  });
+
+  // ── grants: the action a person's click or key dispatched asks for its token after it read the page ──
+
+  it('[BG-001] [AI-120] an action dispatched in the click gets its token later — once, and only of the kinds its type may need', async () => {
+    const s = seam();
+    // The AppClient takes the action in the step of the click; the controller reads the draft and only then asks.
+    const late = during(s.w.dockButton, event('click', true), async () => {
+      s.tokens.granted('InsertPart');
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return s.tokens.issue('insert', 'dock');
+    });
+    expect(await late).toBe('token-1-0123456789abcdef');
+    // The grant is spent: the same action gets no second insert, and it never covered another kind.
+    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
+    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(s.asked).toEqual([['insert', 'dock']]);
+    expect(s.refused).toEqual(['over', 'over', 'over']);
+    s.gate.dispose();
+  });
+
+  it('[BG-001] a grant covers only what its action may need: a Generate click never inserts, navigates or sends', async () => {
+    const s = seam();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('Generate'));
+    await Promise.resolve();
+    for (const [kind, surface] of [['insert', 'preview'], ['navigate', 'preview'], ['send', 'preview']] as const) expect(await s.tokens.issue(kind, surface)).toBeNull();
+    expect(await s.tokens.issue('generate', 'preview')).toBe('token-1-0123456789abcdef');
+    expect(s.asked).toEqual([['generate', 'preview']]);
+    s.gate.dispose();
+  });
+
+  it('[BG-001] every action that may write is in the table, and nothing else opens a grant', () => {
+    expect(Object.fromEntries(Object.entries(GRANTED_KINDS).map(([action, kinds]) => [action, [...kinds]]))).toEqual({
+      Generate: ['generate'],
+      Regenerate: ['generate'],
+      RefreshRecap: ['generate'],
+      InsertPart: ['insert'],
+      ReplaceMyDraft: ['insert'],
+      RestoreMyDraft: ['insert'],
+      AnswerConfirm: ['insert'],
+      OpenAndInsertPart: ['navigate'],
+      OpenChatToVerify: ['navigate'],
+      Navigate: ['navigate'],
+      SendPart: ['send'],
+    });
+    const s = seam();
+    // A view switch asks for nothing, with or without a person behind it.
+    expect(s.gate.open('Copy')).toBeNull();
+    expect(s.gate.open('ShowAnalysis')).toBeNull();
+    expect(s.gate.claim('insert', 'dock')).toBe('not-granted');
+    s.gate.dispose();
+  });
+
+  it('[BG-001] [AI-120] an action nobody clicked opens no grant: a synthetic click, a timer, the end of a stream', async () => {
+    const s = seam();
+    during(s.w.dockButton, event('click', false), () => s.tokens.granted('InsertPart'));
+    s.tokens.granted('Generate');
+    const pressed = event('click', true);
+    during(s.w.dockButton, pressed, () => undefined);
+    // The click is over: an action dispatched after it has nobody behind it.
+    s.tokens.granted('SendPart');
+    expect(s.ungranted).toEqual(['InsertPart:no-gesture', 'Generate:no-gesture', 'SendPart:over']);
+    for (const kind of ['insert', 'generate', 'send'] as const) expect(await s.tokens.issue(kind, 'dock')).toBeNull();
+    expect(s.asked).toEqual([]);
+    s.gate.dispose();
+  });
+
+  it('[AI-120] a send is granted to a click through its own surface only — a key press dispatching SendPart gets nothing', async () => {
+    const s = seam();
+    during(s.w.overlayButton, event('keydown', true), () => s.tokens.granted('SendPart'));
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('SendPart'));
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SendPart'));
+    expect(await s.tokens.issue('send', 'preview')).toBe('token-1-0123456789abcdef');
+    expect(s.asked).toEqual([['send', 'preview']]);
+    s.gate.dispose();
+  });
+
+  it('a grant does not outlive its time, and the surface must still be on screen when the token is asked for', async () => {
+    let now = 1_000_000;
+    const s = seam(() => now);
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
+    now += GRANT_TTL_MS + 1;
+    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
+    now += GRANT_TTL_MS;
+    // The chat was closed while the controller was reading: no dock, no token.
+    s.w.dockKind = 'none';
+    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
+    s.w.dockKind = 'in-flow';
+    expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
+    expect(s.refused).toEqual(['expired', 'not-mounted']);
+    s.gate.dispose();
+  });
+
+  it('two clicks, two grants: the token of the first is not taken by the second action, and the newest grant answers first', async () => {
+    const s = seam();
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('InsertPart'));
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('Generate'));
+    expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
+    expect(await s.tokens.issue('insert', 'dock')).toBe('token-2-0123456789abcdef');
+    expect(await s.tokens.issue('insert', 'dock')).toBeNull();
+    s.gate.dispose();
+  });
+
+  // ── a key the early dispatcher kept (HK-024, HK-025) ──
+
+  it('[HK-024] a kept key runs after its keydown is over: handed back, it opens the grant of its action — once, within its freshness', async () => {
+    let now = 5_000_000;
+    const s = seam(() => now);
+    const pressed = event('keydown', true);
+    during(s.w.pageField, pressed, () => undefined);
+    const at = now;
+    now += 1200;
+    // Not handed back: the keydown is over, and that is all the gate knows.
+    s.tokens.granted('Generate');
+    expect(s.ungranted).toEqual(['Generate:over']);
+    expect(s.gate.cause()).toBe('click');
+    const release = s.gate.resume(pressed, at);
+    expect(s.gate.cause()).toBe('key');
+    s.tokens.granted('Generate');
+    release();
+    expect(await s.tokens.issue('generate', 'dock')).toBe('token-1-0123456789abcdef');
+    // After the hand-over the key is over again.
+    s.tokens.granted('Generate');
+    expect(s.ungranted).toEqual(['Generate:over', 'Generate:over']);
+    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
+    s.gate.dispose();
+  });
+
+  it('[HK-024] only a trusted keydown that is still fresh is taken back; a kept key never sends', async () => {
+    let now = 5_000_000;
+    const s = seam(() => now);
+    const forged = event('keydown', false);
+    s.gate.resume(forged, now)();
+    const click = event('click', true);
+    during(s.w.dockButton, click, () => undefined);
+    const releaseClick = s.gate.resume(click, now);
+    s.tokens.granted('Generate');
+    releaseClick();
+    const old = event('keydown', true);
+    during(s.w.pageField, old, () => undefined);
+    const stale = s.gate.resume(old, now - KEPT_KEY_MAX_AGE_MS - 1);
+    s.tokens.granted('Generate');
+    stale();
+    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
+    const fresh = event('keydown', true);
+    during(s.w.pageField, fresh, () => undefined);
+    const release = s.gate.resume(fresh, now);
+    s.tokens.granted('SendPart');
+    release();
+    now += 10;
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(s.asked).toEqual([]);
+    s.gate.dispose();
+  });
+
+  it('the kind of the action in flight is its cause: a key press is `key`, a click — and nothing at all — is `click`', () => {
+    const s = seam();
+    expect(s.gate.cause()).toBe('click');
+    expect(during(s.w.pageField, event('keydown', true), () => s.gate.cause())).toBe('key');
+    expect(during(s.w.dockButton, event('click', true), () => s.gate.cause())).toBe('click');
+    expect(s.gate.cause()).toBe('click');
     s.gate.dispose();
   });
 });
