@@ -21,6 +21,7 @@
 // prompt or an answer, and nothing of the kind is logged.
 
 import type { CgCode, CgErrorView } from '@cg/contracts/errors';
+import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { HostContractReport } from '@cg/contracts/host';
 import type { Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
@@ -30,7 +31,7 @@ import type { TabHealthReport } from '@cg/contracts/telemetry';
 import type { ActionReceipt, ColorScheme, MountDeps, MountSurfaceKind, SurfaceGeometry, UiAction } from '@cg/contracts/vm';
 import { createAppRouter } from '@cg/core/application';
 import { createShellController } from '@cg/core/application/shell';
-import { viewOfCode } from '@cg/core/domain/errors';
+import { toastKindOf, viewOfCode } from '@cg/core/domain/errors';
 import { createLiveI18n, resolveLocale, translatorOf } from '@cg/core/domain/i18n/live';
 import { createLogForwarder, createLogger, installErrorCapture, logEvent, logHostContract } from '@cg/core/domain/logging';
 import type { ChatSpaceHostPort, HostDiagnostic, MountDiagnostic, MountManager, ThemeReader, TokenRedeemer } from '@cg/host-chatspace/isolated';
@@ -48,7 +49,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
-import { adopt, controllerRpc, createTabClient } from './client';
+import { adopt, boardReceiptToast, controllerRpc, createTabClient } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
@@ -254,6 +255,13 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
       return stageTwoIn ? null : stageTwo;
     },
     onAction: (action) => health?.action(action.type, action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open ? action.to.surface : undefined),
+    onReceipt(action, receipt) {
+      // A click on a board's part that came to nothing the board itself shows: the reason, as a toast.
+      const said = boardReceiptToast(action, receipt);
+      if (said === null) return;
+      const entry = CG_REGISTRY[said.code];
+      toasts.show({ kind: toastKindOf(said.code), code: said.code, scope: said.scope, title: { key: said.title ?? entry.title }, body: said.title === null ? { key: entry.body } : null });
+    },
   });
 
   const world: TabWorld = {

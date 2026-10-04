@@ -14,7 +14,7 @@
 //   R17 each declare a structural controller type of their own, looser than
 //   the router's; their shapes at run time are the router's.
 
-import type { CgErrorWire } from '@cg/contracts/errors';
+import type { CgCode, CgErrorWire, I18nKey } from '@cg/contracts/errors';
 import { VIEW_NAMES, type ActionReceipt, type AppClient, type UiAction, type ViewName } from '@cg/contracts/vm';
 import type { AppRouter, SurfaceController } from '@cg/core/application';
 import type { TabRpcClient } from '@cg/platform';
@@ -53,6 +53,8 @@ export interface TabClientDeps {
   readonly before: (action: UiAction) => Promise<unknown> | null;
   /** The action as the person sent it, for the metrics that start at a click (facts only: its type). */
   readonly onAction?: (action: UiAction) => void;
+  /** What the action came to, as its surface was told (the composition says aloud what no surface draws). */
+  readonly onReceipt?: (action: UiAction, receipt: ActionReceipt) => void;
 }
 
 export function createTabClient(deps: TabClientDeps): AppClient {
@@ -65,9 +67,27 @@ export function createTabClient(deps: TabClientDeps): AppClient {
       deps.tokens.granted(action.type);
       deps.onAction?.(action);
       const waiting = deps.before(action);
-      return waiting === null ? router.dispatch(action) : waiting.then(() => router.dispatch(action), () => router.dispatch(action));
+      const answer = waiting === null ? router.dispatch(action) : waiting.then(() => router.dispatch(action), () => router.dispatch(action));
+      if (deps.onReceipt !== undefined) void answer.then((receipt) => deps.onReceipt?.(action, receipt)).catch(() => undefined);
+      return answer;
     },
   };
+}
+
+/**
+ * What a click on a part of a preview or of a «Новые» card came to when its surface has no place to say it —
+ * as a toast, or null when the surface says it itself:
+ * - «Отправить» refused before any attempt began (the fan is held by a send of another tab, the journal did
+ *   not answer, the result belongs to another sign-in): the button only unlocks, so the reason is said here.
+ *   A refusal of an attempt that did begin is the part's own row;
+ * - «Открыть и вставить» into a chat whose field holds the person's own text: the chat is open, nothing was
+ *   written over their words, and the board that could say so has closed. (The Б2 question of §6.5 п. 4 in
+ *   that chat's dock is not built yet; the person is told why nothing was inserted.)
+ */
+export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey | null } | null {
+  if (action.type === 'SendPart' && !receipt.ok) return { code: receipt.code, scope: 'board.send', title: null };
+  if (action.type === 'OpenAndInsertPart' && receipt.ok && receipt.outcome === 'needs-confirm') return { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' };
+  return null;
 }
 
 type Answer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire };

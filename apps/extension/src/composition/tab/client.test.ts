@@ -8,7 +8,7 @@ import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import type { TokenAnswer } from './action-gate';
-import { adopt, controllerRpc, createTabClient, type LooseController } from './client';
+import { adopt, boardReceiptToast, controllerRpc, createTabClient, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
 const done = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
@@ -144,5 +144,40 @@ describe('the background’s client of the controllers', () => {
     expect(seen).toEqual(['session.get']);
     expect(gated.state()).toBe('ready');
     expect(gated.tabSessionId()).toBe('tab-1');
+  });
+});
+
+describe('what a click on a board’s part came to, when the board has no place to say it', () => {
+  const refused = (type: UiAction['type'], code: string): ActionReceipt => ({ ok: false, type, code, error: errorOf(code) }) as ActionReceipt;
+  const send: UiAction = { type: 'SendPart', operationId: '00000000-0000-4000-8000-000000000001', part: 0 };
+  const insert: UiAction = { type: 'OpenAndInsertPart', operationId: '00000000-0000-4000-8000-000000000001', part: 0 };
+
+  it('[X8-03] «Отправить» refused before any attempt began is said with its own code; an attempt that began is the part’s own row', () => {
+    expect(boardReceiptToast(send, refused('SendPart', 'CG-SEND-BUSY'))).toEqual({ code: 'CG-SEND-BUSY', scope: 'board.send', title: null });
+    expect(boardReceiptToast(send, { ok: true, type: 'SendPart', outcome: 'started' })).toBeNull();
+  });
+
+  it('[NEW-01] «Открыть и вставить» into a chat that holds the person’s own text says «В поле ввода уже есть ваш текст»; an insert that was made, canceled or timed out is not said twice', () => {
+    expect(boardReceiptToast(insert, { ok: true, type: 'OpenAndInsertPart', outcome: 'needs-confirm' })).toEqual({ code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' });
+    expect(boardReceiptToast(insert, { ok: true, type: 'OpenAndInsertPart', outcome: 'opened' })).toBeNull();
+    // The preview's controller says these itself as it closes (its notifier): «Вставка отменена», «Чат открывается слишком долго».
+    expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-INSERT-CANCELED'))).toBeNull();
+    expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-NAV-TIMEOUT'))).toBeNull();
+  });
+
+  it('the dock’s own actions are the dock’s to show', () => {
+    expect(boardReceiptToast({ type: 'InsertPart', operationId: send.operationId, part: 0 }, refused('InsertPart', 'CG-INSERT-FAILED'))).toBeNull();
+    expect(boardReceiptToast({ type: 'InsertPart', operationId: send.operationId, part: 0 }, { ok: true, type: 'InsertPart', outcome: 'needs-confirm' })).toBeNull();
+  });
+
+  it('the client hands every receipt over once the router answered, and the surface still gets its own', async () => {
+    const seen: string[] = [];
+    const router = createAppRouter({ errorOf });
+    router.register(adopt(controller(['dock'], 'InsertPart', [])));
+    const made = createTabClient({ router, tokens: { granted: () => undefined }, before: () => null, onReceipt: (action, receipt) => void seen.push(`${action.type}:${receipt.ok ? receipt.outcome : receipt.code}`) });
+    expect(await made.dispatch({ type: 'InsertPart', operationId: send.operationId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect((await made.dispatch(send)).ok).toBe(false);
+    await Promise.resolve();
+    expect(seen).toEqual(['InsertPart:done', 'SendPart:CG-UI-FAILED']);
   });
 });
