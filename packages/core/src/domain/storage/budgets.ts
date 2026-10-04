@@ -20,6 +20,12 @@ export const SESSION_KEYS = {
   settingsRevision: 'settings.revision',
 } as const;
 
+/** storage.local keys of the background that are not part of the frozen `STORAGE_KEYS`. */
+export const LOCAL_KEYS = {
+  /** Registrations of human sends the hub has not answered yet (§6.6, H-7): ids only. */
+  nativeSends: 'send.native',
+} as const;
+
 /** One stored result (an OpView: up to 64k characters of stream plus the parsed result). */
 export const RESULT_MAX_BYTES = 512 * KiB;
 
@@ -36,6 +42,8 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [STORAGE_KEYS.sendJournal]: 1 * MiB,
   /** «Новые» drafts: up to 100 and 1 MiB (§9.4). */
   [STORAGE_KEYS.newcomersDrafts]: STORAGE_LIMITS.previewDraftsTotalBytes,
+  /** No text: at most 200 registrations of a few hundred bytes. */
+  [LOCAL_KEYS.nativeSends]: 256 * KiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
 };

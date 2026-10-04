@@ -13,7 +13,7 @@
 
 import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, TAB_REQUESTS, TAB_REQUEST_TYPES, parseTabPayload, type IncomingFact, type SendJournalEntry, type TabRequestType } from '@cg/contracts';
 import { TAB_REQUEST_FIXTURES, account, chat, journalEntry } from '@cg/contracts/fixtures';
-import { GREETING_LEASES_KEY, createSendJournal } from '@cg/core/services';
+import { GREETING_LEASES_KEY, NATIVE_SENDS_KEY, createSendJournal } from '@cg/core/services';
 import { createKeyValueStore, createTabRpcClient } from '@cg/platform';
 import { PILOT_CAPABILITIES, callsTo, hubErrorBody } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
@@ -384,6 +384,57 @@ describe('a human send of a part that came from a board (§6.6, H-7)', () => {
     expect(await tab.client.request('op.reportSent', { opId: reply, part: { index: 0 }, pendingId: 'pending-2', platformMessageId: '4101', edited: true })).toMatchObject({ ok: true });
     await sleep(100);
     expect(callsTo(w.hub.read().entries, 'clientFanClaim')).toHaveLength(1);
+  });
+});
+
+describe('a hand-sent greeting whose registration the hub did not hear (§8.5, X5: no second greeting)', () => {
+  it('[NF-019] a hub outage and an event-page restart do not lose it: the registration is journaled, and the next instance delivers it with the same attempt id', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    const binding = await bindingOf(tab);
+    const FAN = WORLD.newFan;
+    const token = await tab.client.request('token.issue', { kind: 'generate', surface: 'newcomers' });
+    const opId = admitted(
+      await tab.client.request('op.start', {
+        feature: 'hi',
+        surface: 'newcomers',
+        target: { binding, chat: { ...chat, platformFanId: FAN }, fanRef: FAN, conversationRef: FAN },
+        cause: { kind: 'click', actionToken: token.ok ? token.payload.actionToken : '' },
+        tone: null,
+        split: false,
+        window: 100,
+        variantCount: 1,
+      }),
+    );
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', 'the greeting is ready');
+    const owed = (): Array<{ op: { body: { attemptId: string } } }> => (w.fake.areas.local.get(NATIVE_SENDS_KEY) as { owed?: Array<{ op: { body: { attemptId: string } } }> } | undefined)?.owed ?? [];
+
+    // The network goes down; the person presses ChatSpace's Send, and the tab proves it.
+    w.net.down = true;
+    const report = { opId, part: { variant: 0, index: 0 }, pendingId: 'pending-1', platformMessageId: '4100', edited: false };
+    expect(await tab.client.request('op.reportSent', report)).toMatchObject({ ok: true });
+    await until(() => owed().length === 1, 'the registration is journaled');
+    const attemptId = owed()[0]?.op.body.attemptId;
+    expect(JSON.stringify(w.fake.areas.local.get(NATIVE_SENDS_KEY))).not.toMatch(/welcome|Hi |Hey/);
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim')).toHaveLength(0);
+
+    // The event page is unloaded before the hub ever answered; the hub is back when the next one starts.
+    w.fake.suspendBackground();
+    w.net.down = false;
+    await until(() => w.starts() === 2 && tab.client.state() === 'ready', 'the tab registered with the new instance');
+    await until(() => callsTo(w.hub.read().entries, 'clientFanClaim').length === 1, 'the next instance told the hub');
+    const [claim] = callsTo(w.hub.read().entries, 'clientFanClaim');
+    expect(claim).toMatchObject({ status: 200, request: { fanRef: FAN, body: { action: 'registerNativeSend', purpose: 'greeting', attemptId, partIndex: 0, platformMessageId: '4100' } } });
+    const status = w.hub.control({ op: 'status' }) as { claims: { fanRef: string; greeting: string }[] };
+    expect(status.claims.find((item) => item.fanRef === FAN)?.greeting).toBe('confirmed');
+    await until(() => owed().length === 0, 'nothing is owed once the hub answered');
+
+    // The tab says the same send again (its first report was never acknowledged, as far as it knows): no second registration.
+    expect(await tab.client.request('op.reportSent', report)).toMatchObject({ ok: true });
+    await sleep(100);
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim').filter((call) => call.status === 200)).toHaveLength(1);
   });
 });
 

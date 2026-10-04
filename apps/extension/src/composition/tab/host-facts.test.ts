@@ -6,7 +6,7 @@ import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/
 import { describe, expect, it } from 'vitest';
 
 import type { ControllerRpc } from './client';
-import { contractFactsOf, forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
+import { SENT_REPORT_TRIES, contractFactsOf, forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
 
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
 const PROFILE = { adapterVersion: '0.2.0', modules: { notificationEntry: 'a', composables: 'b', messages: 'c', accounts: 'd', inbox: 'e' } };
@@ -39,16 +39,31 @@ function world(state = 'ready') {
       return config.wsTap ? Promise.resolve({}) : Promise.reject(new Error('bridge'));
     },
   } as unknown as ChatSpaceHostPort;
+  const port = { state };
+  /** Answers of the next requests, in order; an empty queue acknowledges. */
+  const answers: unknown[] = [];
+  const stateListeners = new Set<(state: string) => void>();
   const rpc = {
-    state: () => state,
+    state: () => port.state,
     request(type: string, payload: unknown) {
       sent.push([type, payload]);
-      return Promise.resolve({ ok: true, payload: { recorded: true } });
+      return Promise.resolve(answers.shift() ?? { ok: true, payload: { recorded: true } });
+    },
+    onState(next: (state: string) => void) {
+      stateListeners.add(next);
+      return () => stateListeners.delete(next);
     },
   } as unknown as ControllerRpc;
   const facts = forwardHostFacts({ host, rpc, setNavInsertTimeoutMs: (ms) => void timeouts.push(ms), onFailure: (what) => void failures.push(what) });
-  return { facts, sent, configured, timeouts, failures, emit: (event: HostEvent) => listener(event), subscribed: () => subscribed };
+  const setState = (next: string): void => {
+    port.state = next;
+    for (const heard of [...stateListeners]) heard(next);
+  };
+  return { facts, sent, configured, timeouts, failures, answers, setState, emit: (event: HostEvent) => listener(event), subscribed: () => subscribed, stateListeners: () => stateListeners.size };
 }
+const turns = async (): Promise<void> => {
+  for (let i = 0; i < 5; i += 1) await Promise.resolve();
+};
 
 const incoming: Extract<HostEvent, { type: 'incoming' }>['fact'] = { host: 'chatspace', hostAccountId: '910101', platformFanId: '74001001', platformMessageId: '5001', fromFan: true, automatic: false, tip: false, sentAt: null, socketEpoch: 1, fanSequence: 3, source: 'ws-tap' };
 const humanSend = (over: { platformMessageId?: string | null; insertIntentId?: string | null; edited?: boolean | null } = {}): HostEvent => ({
@@ -126,6 +141,44 @@ describe('facts of the page → the background', () => {
     expect(w.sent).toHaveLength(1);
   });
 
+  it('[NF-019] a report the background never acknowledged (the port was lost under it) is said again when the port is back — the same report, a bounded number of times', async () => {
+    const w = world();
+    const lost = { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'port lost' } };
+    w.facts.noteInsert('intent-1', 'op-1', { variant: 0, index: 0 });
+    w.answers.push(lost);
+    w.setState('reconnecting');
+    w.emit(humanSend({ edited: false }));
+    await turns();
+    // Nobody heard it; nothing is said into a dead port.
+    expect(w.sent).toHaveLength(1);
+    w.setState('ready');
+    await turns();
+    const report = ['op.reportSent', { opId: 'op-1', part: { variant: 0, index: 0 }, pendingId: 'pending-1', platformMessageId: '9001', edited: false }];
+    expect(w.sent).toEqual([report, report]);
+    // Acknowledged: a later reconnect says nothing again.
+    w.setState('reconnecting');
+    w.setState('ready');
+    await turns();
+    expect(w.sent).toHaveLength(2);
+
+    // A background that never answers is not asked for ever; its own refusal is an answer.
+    const silent = world();
+    silent.facts.noteInsert('intent-1', 'op-1', { index: 0 });
+    for (let i = 0; i < SENT_REPORT_TRIES + 2; i += 1) silent.answers.push(lost);
+    silent.emit(humanSend());
+    await turns();
+    await turns();
+    expect(silent.sent).toHaveLength(SENT_REPORT_TRIES);
+    const refused = world();
+    refused.facts.noteInsert('intent-1', 'op-1', { index: 0 });
+    refused.answers.push({ ok: false, error: { code: 'CG-AUTH-REQUIRED' } });
+    refused.emit(humanSend());
+    await turns();
+    refused.setState('ready');
+    await turns();
+    expect(refused.sent).toHaveLength(1);
+  });
+
   it('only the last 64 inserts are remembered; dispose stops listening', () => {
     const w = world();
     for (let index = 0; index < 65; index += 1) w.facts.noteInsert(`intent-${index}`, `op-${index}`, { index: 0 });
@@ -135,6 +188,7 @@ describe('facts of the page → the background', () => {
     expect(w.sent).toHaveLength(1);
     w.facts.dispose();
     expect(w.subscribed()).toBe(0);
+    expect(w.stateListeners()).toBe(0);
   });
 });
 

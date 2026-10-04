@@ -7,8 +7,13 @@
 // - a human send whose draft descends from an insert of a preview or a
 //   «Новые» card («Открыть и вставить») is reported for that part's operation
 //   — telemetry `sent` and, for a greeting, its registration are the
-//   background's. The dock's own inserts are reported by R11's workspace,
-//   which knows them; an attribution that is not known is never guessed;
+//   background's. The report is the only word the hub ever gets of that send
+//   while X8 is off, so it is said again until the background acknowledges
+//   it: a port that was lost under the request (the event page unloaded)
+//   answered nothing, and the report goes again once the port is back — the
+//   background takes a repeat as the same registration. The dock's own
+//   inserts are reported by R11's workspace, which knows them; an
+//   attribution that is not known is never guessed;
 // - the owner's flags and the receipt profiles of the bootstrap configure
 //   the adapter's part B (the tap, X8, the AI mark), and its limit sets the
 //   deadline of «Открыть и вставить».
@@ -24,6 +29,12 @@ import type { ControllerRpc } from './client';
 
 /** Inserts of the boards remembered for a later send; the oldest go. */
 const INSERTS_KEPT = 64;
+/** How many times one human-send report is said before it is given up: the port may be lost more than once. */
+export const SENT_REPORT_TRIES = 4;
+/** Reports that wait for the port; the oldest go. */
+const SENT_REPORTS_KEPT = 32;
+
+type SentReport = { readonly opId: string; readonly part: PartRef; readonly pendingId: string; readonly platformMessageId: string; readonly edited: boolean };
 
 export interface HostFacts {
   /** An insert of a board's part reached the composer: a human send of that draft is its `sent`. */
@@ -90,6 +101,25 @@ export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; reado
   const { host, rpc } = deps;
   const inserts = new Map<string, { readonly opId: string; readonly part: PartRef }>();
   let configured = '';
+  /** Reports the background has not acknowledged, waiting for the port to come back. */
+  const waiting: { readonly report: SentReport; readonly tries: number }[] = [];
+
+  const reportSent = (report: SentReport, tries = 1): void => {
+    void rpc.request('op.reportSent', report).then((answer) => {
+      // Acknowledged, or refused with the background's own word: said. Only «nobody answered» is said again.
+      if (answer.ok || answer.error.code !== 'CG-RUNTIME-UNREACHABLE' || tries >= SENT_REPORT_TRIES) return;
+      waiting.push({ report, tries: tries + 1 });
+      if (waiting.length > SENT_REPORTS_KEPT) waiting.shift();
+      // The port is already back (the request itself outlived a reconnect, or timed out): no state change will come.
+      if (rpc.state() === 'ready') flush();
+    });
+  };
+  function flush(): void {
+    for (const { report, tries } of waiting.splice(0)) reportSent(report, tries);
+  }
+  const offState = rpc.onState((state) => {
+    if (state === 'ready') flush();
+  });
 
   const off = host.subscribe((event) => {
     if (event.type === 'incoming') {
@@ -104,7 +134,7 @@ export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; reado
     const origin = inserts.get(draft.insertIntentId);
     if (origin === undefined) return;
     inserts.delete(draft.insertIntentId);
-    void rpc.request('op.reportSent', { opId: origin.opId, part: origin.part, pendingId, platformMessageId, edited: draft.editedSinceInsert });
+    reportSent({ opId: origin.opId, part: origin.part, pendingId, platformMessageId, edited: draft.editedSinceInsert });
   });
 
   return {
@@ -122,7 +152,9 @@ export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; reado
     },
     dispose() {
       off();
+      offState();
       inserts.clear();
+      waiting.length = 0;
     },
   };
 }

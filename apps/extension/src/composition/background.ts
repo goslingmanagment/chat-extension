@@ -459,20 +459,24 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       void telemetry.report('sent', scheduler.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId }),
   });
 
+  /** Who is signed in, as the things that belong to a person are marked. */
+  const ownerOf = (signedIn: { readonly hubOrigin: string; readonly userId: number } | null): string | null => (signedIn === null ? null : `${signedIn.hubOrigin}|${signedIn.userId}`);
+
   // A part of a preview or of a «Новые» card the person sent from ChatSpace's own composer (§6.6): the hub is
-  // told, so the greeting counts for everyone and the part is never offered for a second send (H-7).
+  // told, so the greeting counts for everyone and the part is never offered for a second send (H-7). What the
+  // hub has not answered is owed and journaled (storage.local, ids only): the next instance of the event page
+  // and the next word of the hub deliver it again, with the same attempt id.
   const nativeSends = new NativeSendRegistrar({
     clock: CLOCK,
     ids: IDS,
     hub: { claim: (op) => hub().claim(op) },
     instanceId: () => instanceId,
-    epoch: () => hubInstance?.session()?.epoch ?? null,
+    owner: () => ownerOf(hubInstance?.session() ?? null),
+    store: throwingStoreOf(local),
     log: coreLog,
   });
 
   // ── «Новые»: the greeting leases of this install (H-7) ─────────────────────
-  /** Who is signed in, as the things that belong to a person are marked. */
-  const ownerOf = (signedIn: { readonly hubOrigin: string; readonly userId: number } | null): string | null => (signedIn === null ? null : `${signedIn.hubOrigin}|${signedIn.userId}`);
   const leases = new GreetingLeases({
     clock: CLOCK,
     ids: IDS,
@@ -753,6 +757,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       void wsTap.fromBootstrap(entry.bootstrap);
       telemetry.onCapabilitiesChanged();
       void sends.bootstrapChanged();
+      // The hub answered: what it was not told while it was silent (or before this person signed in again) goes now.
+      nativeSends.resume();
       sound.sync();
     });
     instance.onCatalogChange(() => rpc.emit('catalog.changed', {}));
@@ -880,7 +886,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }) => {
     const view = scheduler.view(opId);
     // §6.6, §8.5: a human send proven by its receipt and echo. For a part of a preview or of a «Новые» card the
-    // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub.
+    // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub —
+    // the registration is journaled and stays owed until the hub answers.
     void nativeSends.register(view, part, platformMessageId);
     return ok({
       recorded: telemetry.report('sent', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
@@ -1125,6 +1132,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     { name: 'ops', run: () => scheduler.restore() },
     { name: 'send-journal', run: () => sendJournal.start() },
     { name: 'sends', run: () => sends.restore() },
+    { name: 'native-sends', run: () => nativeSends.restore() },
     { name: 'presence', run: () => presence.start() },
     { name: 'leases', run: () => leases.restore() },
     { name: 'sound', run: () => sound.start() },
