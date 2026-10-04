@@ -880,15 +880,15 @@
 | DB-009 | Карточка контекста ядра | пилот | пилот | core/debug · core/svc | R18 · R10 | M2 |  |
 | DB-010 | Инспектор клиентской части | Fansly | Fansly | host-fansly | R20 | F |  |
 | DB-011 | Профайлер этапов | пилот | пилот | core/debug · core/svc | R18 · R10 | M2 |  |
-| DB-012 | Живой таймер этапов | пилот | пилот | ui/debug · ui/overlays · core/debug | R16 · R14 · R18 | M2 |  |
-| DB-013 | Профиль в результате | пилот | пилот | ui/debug · ui/overlays · core/debug | R16 · R14 · R18 | M2 |  |
+| DB-012 | Живой таймер этапов | пилот | пилот | ui/debug · ui/overlays · core/debug | R14 · R16 · R18 | M2 |  |
+| DB-013 | Профиль в результате | пилот | пилот | ui/debug · ui/overlays · core/debug | R14 · R16 · R18 | M2 |  |
 | DB-014 | Рассуждения модели | пилот | пилот | core/debug · core/svc | R18 · R10 | M2 |  |
 | DB-015 | Этапы клиентского контекста | Fansly | Fansly | host-fansly | R20 | F |  |
 | DB-016 | Этапы хабовой части | пилот | пилот | core/debug · core/svc | R18 · R10 | M2 |  |
 | DB-017 | Строка usage | пилот | пилот | core/debug · core/svc | R18 · R10 | M2 |  |
 | DB-018 | Токены и стоимость | пилот | пилот | core/debug · core/svc | R18 · R10 | M2 |  |
-| DB-019 | Отладка ходов Coach | пилот | пилот | ui/debug · ui/overlays · core/debug | R16 · R14 · R18 | M2 |  |
-| DB-020 | Отладка не видна в inline | пилот | пилот | ui/debug · ui/overlays · core/debug | R16 · R14 · R18 | M2 |  |
+| DB-019 | Отладка ходов Coach | пилот | пилот | ui/debug · ui/overlays · core/debug | R14 · R16 · R18 | M2 |  |
+| DB-020 | Отладка не видна в inline | пилот | пилот | ui/debug · ui/overlays · core/debug | R14 · R16 · R18 | M2 |  |
 | DB-021 | Карточка транскрипта | не нужно | не нужно | — | — | — |  |
 | DB-022 | Журнал AI-трат по фичам | решение владельца | пилот | core/debug · core/svc | R18 · R10 | M2 | **решено** Б4: журнал трат по фичам — в отладке |
 | DB-023 | Журнал кредитов OFAPI | не нужно | не нужно | — | — | — |  |
