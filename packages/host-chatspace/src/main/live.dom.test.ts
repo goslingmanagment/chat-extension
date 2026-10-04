@@ -40,8 +40,8 @@ const nativeSocket = window.WebSocket;
 const nativeFetch = window.fetch;
 let cleanup: Array<() => void> = [];
 
-/** `order`: which of the two document_start scripts ran first. */
-async function start(order: 'tap-first' | 'bridge-first' | 'no-tap' = 'tap-first'): Promise<Harness> {
+/** `order`: which of the two document_start scripts ran first; `early` — what reaches the runtime between the two (`bridge-first`). */
+async function start(order: 'tap-first' | 'bridge-first' | 'no-tap' = 'tap-first', early?: (runtime: MainRuntime) => void): Promise<Harness> {
   FakeSocket.made = [];
   const net = scriptedFetch();
   window.WebSocket = FakeSocket as unknown as typeof WebSocket;
@@ -70,6 +70,7 @@ async function start(order: 'tap-first' | 'bridge-first' | 'no-tap' = 'tap-first
     post: (t, payload) => events.push({ t, payload }),
   };
   const runtime = createMainRuntime(context);
+  early?.(runtime);
   if (order === 'bridge-first') installWsTap(window);
   await new Promise((resolve) => setTimeout(resolve, 0));
   const frame = (): void => {
@@ -162,6 +163,19 @@ describe('[X8-04] the runtime and the tap script find each other (§6.8)', () =>
     expect(window.fetch).not.toBe(nativeFetch);
     expect(h.of('humanSend')).toEqual([]);
     expect(h.queue.sends).toHaveLength(1);
+  });
+
+  it('a live request that comes before the tap script ran does not shut the tap out: the next one finds it', async () => {
+    const answers: unknown[] = [];
+    // The isolated side asks while only the bridge's script has run; the dynamically registered tap script comes right after.
+    const h = await start('bridge-first', (runtime) => {
+      answers.push(runtime.handle('flags', { wsTap: true, previewSend: true }), runtime.handle('checkpoint', { acc: ACC, fan: TARGET }));
+    });
+    expect(answers).toEqual([{ wsTap: false, previewSend: false }, 'disabled']);
+    expect(h.call('flags', { wsTap: true, previewSend: true })).toEqual({ wsTap: true, previewSend: true });
+    h.socket();
+    expect(parseBridgeData('checkpoint', h.call('checkpoint', { acc: ACC, fan: TARGET }))).toMatchObject({ coverage: 'ok' });
+    expect(h.call('previewSendPreflight', sendRequest(h, 5))).toEqual({ ok: true });
   });
 
   it('only the port’s own accounts are the tap’s: a Telegram account ChatSpace subscribed on the same socket is not ours', async () => {

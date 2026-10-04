@@ -102,7 +102,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
    * clears it. Writes and reads for the isolated side always search afresh.
    */
   let typing: { readonly epoch: number; readonly composer: Composer } | null = null;
-  /** The tap script's live port (live.ts), taken once; null — no tap script, or the page took it first. */
+  /** The tap script's live port (live.ts), taken once its handle is there; null — the page took it first; undefined — no tap script (yet). */
   let live: LivePort | null | undefined;
   /** The accounts store is watched: only then its subscription set means anything. */
   let subscriptions: PageStore | null = null;
@@ -293,12 +293,18 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     },
     changed: () => emit('contract', contractPayload),
   };
-  /** Taken on first need: the tap script may run before or after this one, both at document_start. */
+  /**
+   * Taken on first need once the handle is there: the tap script may run before or after this one, and a request may
+   * come before it ran — the next need looks again. One `attach` ever: what it gave (or did not) stays.
+   */
   const livePort = (): LivePort | null => {
     if (live === undefined && !disposed) {
-      live = null;
       try {
-        live = (Reflect.get(win, Symbol.for(WS_TAP_KEY)) as WsTapHandle | undefined)?.attach(liveHost) ?? null;
+        const handle = Reflect.get(win, Symbol.for(WS_TAP_KEY)) as WsTapHandle | undefined;
+        if (handle) {
+          live = null;
+          live = handle.attach(liveHost);
+        }
       } catch {
         // Not our handle, or the page took the port: no live port.
       }
