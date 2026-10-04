@@ -261,6 +261,28 @@ describe('Spenders board: shelves and rows', () => {
     expect((ui.root.activeElement as HTMLElement).getAttribute('data-cg-fan')).toBe(last?.kind === 'fan' ? last.row.handle : null);
     expect(items.filter((item) => item.kind === 'fan')).toHaveLength(1000);
   });
+
+  it('[SP-021] a list viewport taller than 150 rows still holds 150: the cap, not the window, sets the limit', async () => {
+    // happy-dom has no layout: a 20 000 px list viewport (over 500 rows of 36 px) stands in for a very tall window.
+    const tall = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('cg-vlist') ? 20_000 : 0;
+    });
+    try {
+      ui = await mountBoardSettled('spenders', 'board-1000');
+      await settle();
+      const nodes = (): number => ui?.$$('.cg-vlist__row, .cg-vlist__sticky').length ?? -1;
+      // The viewport alone would hold over 500 rows: exactly the cap is rendered.
+      expect(ui.$$('.cg-vlist__row').length).toBeGreaterThanOrEqual(MAX_DOM_ROWS - 1);
+      expect(nodes()).toBeLessThanOrEqual(MAX_DOM_ROWS);
+      await flush(() => keydown(ui?.root.activeElement as HTMLElement, 'End', { code: 'End' }));
+      await settle();
+      // Scrolled: the sticky copy of the shelf row counts too.
+      expect(ui.$$('.cg-vlist__row').length).toBeGreaterThanOrEqual(MAX_DOM_ROWS - 1);
+      expect(nodes()).toBeLessThanOrEqual(MAX_DOM_ROWS);
+    } finally {
+      tall.mockRestore();
+    }
+  });
 });
 
 describe('Spenders board: states of the source', () => {
