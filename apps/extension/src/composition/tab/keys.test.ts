@@ -193,6 +193,40 @@ describe('the early keys of a tab', () => {
     expect(w.mounts.dock.host.hasAttribute('data-dismissible-open')).toBe(false);
   });
 
+  it('[UI-019] a held Enter that went down in our UI never reaches ChatSpace: its repeats are stopped where the focus went, a fresh press passes', () => {
+    const w = world();
+    const enter = (target: EventTarget, repeat: boolean, type: 'keydown' | 'keyup' = 'keydown'): KeyboardEvent => {
+      const event = new KeyboardEvent(type, { code: 'Enter', key: 'Enter', repeat, bubbles: true, composed: true, cancelable: true });
+      Object.defineProperty(event, 'isTrusted', { value: true });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const ours = w.mounts.overlay('modal').host;
+    expect(ours.isConnected).toBe(true);
+    // «Вставить» is pressed with Enter inside a root of ours; the insert moves the focus to the composer.
+    const first = enter(ours, false);
+    expect(first.defaultPrevented).toBe(false);
+    const heard = w.heard.length;
+    const repeats = [enter(document.body, true), enter(document.body, true)];
+    expect(repeats.map((event) => event.defaultPrevented)).toEqual([true, true]);
+    // Neither ChatSpace nor the action gate heard the repeats (the press itself stayed in our UI: the dispatcher isolates it).
+    expect(w.native).toEqual([]);
+    expect(w.heard).toHaveLength(heard);
+    // A repeat that is still inside our UI is the kit's own business.
+    expect(enter(ours, true).defaultPrevented).toBe(false);
+    // The key is released: the next Enter in the composer is the person's own, and so are its repeats.
+    enter(document.body, false, 'keyup');
+    expect(enter(document.body, false).defaultPrevented).toBe(false);
+    expect(enter(document.body, true).defaultPrevented).toBe(false);
+    expect(w.native).toEqual(['Enter', 'Enter']);
+    // A synthetic «keyup» of the page does not end the hold.
+    enter(document.body, false, 'keyup');
+    enter(ours, false);
+    const forged = new KeyboardEvent('keyup', { code: 'Enter', key: 'Enter', bubbles: true });
+    document.body.dispatchEvent(forged);
+    expect(enter(document.body, true).defaultPrevented).toBe(true);
+  });
+
   it('dispose takes the listeners off `window`: a key of ours goes to the page again', () => {
     const w = world();
     w.keys.dispose();

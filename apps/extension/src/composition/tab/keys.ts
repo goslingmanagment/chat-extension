@@ -17,6 +17,13 @@
 // trusted keydown first and hands it on (`onKeydown`), and remembers the
 // keydown of the key the dispatcher keeps: when that key runs at last, its
 // event is long over, and still it is the person's own key (`takeKept`).
+//
+// A held Enter never crosses from our UI into ChatSpace. «Вставить» pressed
+// with Enter puts the focus into ChatSpace's composer (UI-019), where Enter
+// sends — and the key is still down: its auto-repeat would send a text that
+// was only inserted (§14: nothing is sent without the person's own act). The
+// repeats of an Enter that went down inside a root of ours are stopped
+// wherever they land, until the key is released.
 
 import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyKeyDispatcher, type EarlyNotice, type EarlyNotices, type TabKeyState } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible, type OverlayState } from '@cg/core/application/navigation';
@@ -66,12 +73,29 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
   // ── the keydown the gate needs, heard before the dispatcher stops it ───────
   let listener: ((event: Event) => void) | null = null;
   let last: Event | null = null;
+  /** The Enter that is down now went down inside one of our roots. */
+  let enterFromOurs = false;
+  const isEnter = (event: Event): boolean => (event as Partial<KeyboardEvent>).key === 'Enter';
   const onKeydown = (event: Event): void => {
     if (!event.isTrusted) return;
+    if (isEnter(event)) {
+      const ours = mounts.registry.hostOf(event) !== null;
+      if ((event as KeyboardEvent).repeat !== true) enterFromOurs = ours;
+      else if (enterFromOurs && !ours) {
+        // The repeat of our Enter landed in the page (the focus moved to the composer): nobody hears it.
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+    }
     last = event;
     listener?.(event);
   };
+  const onKeyup = (event: Event): void => {
+    if (event.isTrusted && isEnter(event)) enterFromOurs = false;
+  };
   win.addEventListener('keydown', onKeydown, true);
+  win.addEventListener('keyup', onKeyup, true);
 
   // ── the kept key ───────────────────────────────────────────────────────────
   let kept: KeptKeydown | null = null;
@@ -132,6 +156,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
     },
     dispose() {
       win.removeEventListener('keydown', onKeydown, true);
+      win.removeEventListener('keyup', onKeyup, true);
       dispatcher.dispose();
       mirror.dispose();
       pending(false);
