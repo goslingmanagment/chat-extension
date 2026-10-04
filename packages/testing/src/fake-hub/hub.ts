@@ -834,6 +834,7 @@ export class FakeHub {
       },
       chunkDelayMs: s.config.aiChunkDelayMs,
       nameFan: s.config.aiNameFan,
+      texts: s.config.aiTexts,
     });
     return { kind: 'sse', response: { kind: 'stream', steps }, request };
   }

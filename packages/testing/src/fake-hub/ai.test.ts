@@ -138,6 +138,19 @@ describe('fake hub AI: `aiNameFan` — a draft says whose chat it was written fo
   });
 });
 
+describe('fake hub AI: `aiTexts` — the model’s whole answer per feature', () => {
+  it('a named feature answers with the given text as it is, markers included; the others keep their synthetic answer; `{}` restores them', async () => {
+    const review = '<rating>7</rating><evaluation>ВЕРДИКТ: fine.</evaluation><recommendations>1. Ask more.</recommendations>';
+    hub.control({ op: 'config', patch: { aiTexts: { 'chat-review': review, 'fast-reply': `one ${SPLIT_MARKERS.next} two ${SPLIT_MARKERS.next} three` } } });
+    expect(textOf(await framesOf(await stream('chat-review', needs('chat-review'))))).toBe(review);
+    expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'default' }))).split(SPLIT_MARKERS.next)).toHaveLength(3);
+    expect(textOf(await framesOf(await stream('ping', needs('ping'))))).toBe('Thinking of you today, how are things?');
+    hub.control({ op: 'config', patch: { aiTexts: {} } });
+    expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'default' })))).toBe('Hey you, thanks for writing! How was your day?');
+    expect(() => hub.control({ op: 'config', patch: { aiTexts: { 'fast-reply': 5 } } } as never)).toThrow(/aiTexts is not a map/);
+  });
+});
+
 describe('fake hub AI: checks before the stream', () => {
   it('the persona fence: an unknown key is 404, a stale definition 409 (also after the owner changes the persona)', async () => {
     expect(await refusal(await stream('fast-reply', { personaKey: 'nobody' }))).toEqual({ status: 404, error: 'not_found', reason: 'persona_not_found' });

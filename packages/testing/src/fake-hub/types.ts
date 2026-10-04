@@ -77,6 +77,12 @@ export interface FakeHubConfigPatch {
   readonly aiChunkDelayMs?: number;
   /** Every part of a draft the model writes ends with ` @<fanRef>`: a test can tell whose chat a text was written for. */
   readonly aiNameFan?: boolean;
+  /**
+   * What the model answers for a hub feature (`fast-reply`, `hi-greeting`, `fan-summary`, `chat-review`,
+   * `coach-chat`…), as it is — `[NEXT]`, `[VARIANT]`, the Review frame and Coach's draft fences included.
+   * Features not named keep their synthetic answer; `{}` restores them all.
+   */
+  readonly aiTexts?: Readonly<Record<string, string>>;
 }
 
 /**

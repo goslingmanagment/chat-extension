@@ -111,6 +111,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'spendersTotal',
   'aiChunkDelayMs',
   'aiNameFan',
+  'aiTexts',
 ]);
 
 const isOp = (op: unknown): op is FakeHubCommand['op'] => typeof op === 'string' && Object.hasOwn(FIELDS, op);
@@ -131,8 +132,11 @@ export function checkCommand(value: unknown): FakeHubCommand {
   for (const key of REQUIRED[op] ?? []) if (command[key] === undefined) throw new Error(`fake hub control: ${op} needs «${key}»`);
   if (op === 'grantPages' && command['username'] === undefined && command['userId'] === undefined) throw new Error('fake hub control: grantPages needs «username» or «userId»');
   if (op === 'config') {
-    const unknown = Object.keys(command['patch'] as object).filter((key) => !PATCH_KEYS.has(key));
+    const patch = command['patch'] as Record<string, unknown>;
+    const unknown = Object.keys(patch).filter((key) => !PATCH_KEYS.has(key));
     if (unknown.length > 0) throw new Error(`fake hub control: config patch has no field «${unknown.join('», «')}»`);
+    const texts = patch['aiTexts'];
+    if (texts !== undefined && !(isObject(texts) && Object.values(texts as object).every(isString))) throw new Error('fake hub control: config.patch.aiTexts is not a map of feature → text');
   }
   return value as FakeHubCommand;
 }

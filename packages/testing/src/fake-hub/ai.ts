@@ -44,6 +44,8 @@ export interface ModelStreamFacts {
   readonly chunkDelayMs: number;
   /** Every part of a draft ends with ` @<fanRef>` (the `aiNameFan` knob). */
   readonly nameFan?: boolean;
+  /** The whole answer per feature, in place of the synthetic one (the `aiTexts` knob). */
+  readonly texts?: Readonly<Record<string, string>>;
 }
 
 const TEXTS: Readonly<Record<string, { readonly single: string; readonly split: string }>> = {
@@ -143,7 +145,7 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
     steps.push(frame(context));
   }
   if (debug) steps.push(frame({ type: 'reasoning_delta', text: 'synthetic reasoning' }));
-  const written = generationText(request, facts.splitAllFlag);
+  const written = facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
   const text = facts.nameFan === true ? namedForFan(written, request) : written;
   for (const piece of chunks(text)) steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs));
   steps.push(
