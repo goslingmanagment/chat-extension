@@ -12,7 +12,7 @@ const THERE = { ...HERE, platformFanId: '74001002' };
 const ready = (chat: typeof HERE, over: Partial<BackgroundToast> = {}): BackgroundToast =>
   BackgroundToastSchema.parse({ toastId: '6b0f2c1e-7a35-4b55-9d0e-2f1c5a7e9b01', kind: 'success', scope: 'op.ready', opId: '6b0f2c1e-7a35-4b55-9d0e-2f1c5a7e9b02', feature: 'reply', chat, fanLabel: null, ...over });
 
-const facts = (over: Partial<ToastFacts> = {}): ToastFacts => ({ showing: () => HERE, visible: () => true, fanName: () => null, ...over });
+const facts = (over: Partial<ToastFacts> = {}): ToastFacts => ({ showing: () => HERE, visible: () => true, fanName: () => null, inPreview: () => false, ...over });
 
 describe('the background toast as the tab shows it', () => {
   it('[ER-014] «AI готово» of the chat that is open in a visible tab is not shown: its dock holds the result', () => {
@@ -24,6 +24,16 @@ describe('the background toast as the tab shows it', () => {
     expect(toastOfTab(ready(HERE), facts({ visible: () => false }))).not.toBeNull();
     expect(toastOfTab(ready(THERE), facts())).not.toBeNull();
     expect(toastOfTab(ready(HERE), facts({ showing: () => null }))).not.toBeNull();
+  });
+
+  it('[ER-014] a generation whose result stands in an open preview is not toasted over it; with the tab hidden or the preview closed it is', () => {
+    const inPreview = (opId: string): boolean => opId === '6b0f2c1e-7a35-4b55-9d0e-2f1c5a7e9b02';
+    expect(toastOfTab(ready(THERE), facts({ inPreview }))).toBeNull();
+    expect(toastOfTab(ready(THERE, { kind: 'error', scope: 'op.failed', code: 'CG-HUB-REQUEST', error: { code: 'CG-HUB-REQUEST' } }), facts({ inPreview }))).toBeNull();
+    expect(toastOfTab(ready(THERE), facts({ inPreview, visible: () => false }))).not.toBeNull();
+    expect(toastOfTab(ready(THERE, { opId: '6b0f2c1e-7a35-4b55-9d0e-2f1c5a7e9b03' }), facts({ inPreview }))).not.toBeNull();
+    // What is not a generation's own toast stays.
+    expect(toastOfTab(ready(THERE, { scope: 'recap.profile', feature: 'recap' }), facts({ inPreview }))).not.toBeNull();
   });
 
   it('names the fan of another chat as the page holds the name, and keeps a name the background gave', () => {

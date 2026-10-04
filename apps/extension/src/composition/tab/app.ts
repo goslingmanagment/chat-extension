@@ -28,7 +28,7 @@ import { LOG_LIMITS } from '@cg/contracts/limits';
 import type { UiLocale, UiTheme } from '@cg/contracts/settings';
 import type { PageCommand } from '@cg/contracts/tab-messages';
 import type { TabHealthReport } from '@cg/contracts/telemetry';
-import type { ActionReceipt, ColorScheme, MountDeps, MountSurfaceKind, SurfaceGeometry, UiAction } from '@cg/contracts/vm';
+import { PREVIEW_SOURCES, type ActionReceipt, type ColorScheme, type MountDeps, type MountSurfaceKind, type SurfaceGeometry, type UiAction } from '@cg/contracts/vm';
 import { createAppRouter } from '@cg/core/application';
 import { createShellController } from '@cg/core/application/shell';
 import { toastKindOf, viewOfCode } from '@cg/core/domain/errors';
@@ -335,6 +335,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
       const fan = host.fan(chat) ?? host.listCachedChats(chat.hostAccountId, TOAST_NAME_ROWS).find((row) => row.chat.platformFanId === chat.platformFanId) ?? null;
       return fan === null ? null : (fan.displayName ?? fan.username);
     },
+    // The boards come with the first action that opens one: before that no preview holds anything.
+    inPreview: (opId) => router.serves('preview') && PREVIEW_SOURCES.some((from) => router.getSnapshot({ of: 'preview', from }).result?.opId === opId),
   };
   const shell = createShellController({
     rpc: {
