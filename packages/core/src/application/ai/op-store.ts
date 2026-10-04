@@ -399,6 +399,18 @@ export class OpStore {
           this.emit({ kind: 'changed', opId });
         }
       }
+      // An answer step named by a recap step whose end was just read here: it was followed a moment ago with
+      // nothing known of it, and the same answer holds its state and text so far.
+      for (const view of answer.payload.ops) {
+        const entry = this.entries.get(view.opId);
+        if (entry === undefined || !entry.own || opIds.includes(view.opId) || entry.mirror.done !== null || entry.mirror.seq !== 0) continue;
+        if (isTerminalOpState(view.state)) this.onDone(view);
+        else {
+          entry.mirror = mirrorFromView(view);
+          entry.view = view;
+          this.emit({ kind: 'changed', opId: view.opId });
+        }
+      }
     }
     // The background's own list could not be read (no hub is asked here): once more after a moment, so a run
     // whose end was lost with the port does not keep spinning until the next reconnect.

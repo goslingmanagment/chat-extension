@@ -1000,6 +1000,41 @@ describe('coach: the recap it stands on', () => {
     expect(h.coach().ask.enabled).toBe(true);
   });
 
+  it('[AI-096] the port was down when the recap step ended: once it is back the turn is on its answer step, with what was written so far', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    h.bg.hub.profileScript.push(savedOutcome);
+    h.script(recapStream(FULL), coachStream(ANSWER));
+    const receipt = await ask(h, 'How do I reply?');
+    const recapOp = (receipt as { opId: string }).opId;
+    h.bg.setConnection('reconnecting');
+    // The recap ends and the answer starts streaming — into a dead port.
+    await h.clock.advance(350);
+    expect(lastTurn(h)).toMatchObject({ opId: recapOp });
+    h.bg.setConnection('ready');
+    await h.settle();
+    const answerOp = h.ai.workspace.ops.get(recapOp)?.view.continuedBy as string;
+    expect(answerOp).toMatch(/^[0-9a-f-]{36}$/);
+    expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'streaming', streamText: 'Сначала согрей, пото' });
+    expect(lastTurn(h).phase?.cancel).toEqual({ type: 'CancelGeneration', operationId: answerOp });
+    expect(h.coach().recap).toMatchObject({ length: 'full' });
+    await h.finish();
+    expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'done' });
+    expect(lastTurn(h).answer?.drafts).toHaveLength(2);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+
+    // And when the answer ended in the gap as well, the turn is simply done.
+    const late = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    late.bg.hub.profileScript.push(savedOutcome);
+    late.script(recapStream(FULL), coachStream(ANSWER));
+    await ask(late, 'How do I reply?');
+    late.bg.setConnection('reconnecting');
+    await late.clock.advance(5_000);
+    late.bg.setConnection('ready');
+    await late.settle();
+    expect(lastTurn(late)).toMatchObject({ state: 'done', question: 'How do I reply?' });
+    expect(lastTurn(late).answer?.drafts).toHaveLength(2);
+  });
+
   it('[AI-096] the recap step ended before the answer to the start arrived: the turn still follows its answer step', async () => {
     const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
     // The hub refuses the recap at once (too little history for it): the recap step is over within the start.
