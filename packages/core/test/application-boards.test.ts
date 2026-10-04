@@ -603,6 +603,10 @@ describe('[SP-044] [SP-049] statistics come after the ranking and fail on their 
     expect(vm.payers.count).toBe(640);
     expect(vm.avgCheck.mills).toBe(58_623);
     expect(vm.attention.awaiting.count).toBe(5);
+    // §8.7: «ждёт ответа; прочтение неизвестно» is a category of its own; SP-046: what the fans silent >21 d spent in all.
+    expect(vm.attention.awaitingUnknown).toEqual({ count: 1, stamp: vm.stamp });
+    expect(vm.attention.silentOver21).toEqual({ count: 300, stamp: vm.stamp, lifetime: 15_000_000 });
+    expect(vm.attention.silent8to21.count).toBe(120);
     expect(vm.stamp).toEqual({ asOf: iso(NOW_MS), coverage: 'complete' });
     expect(vm.days).toHaveLength(30);
     // The board cut at 1000 cannot vouch for a shelf's lifetime sum… unless it holds the whole shelf.

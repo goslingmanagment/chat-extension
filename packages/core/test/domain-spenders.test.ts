@@ -594,6 +594,8 @@ describe('[SP-044] [SP-045] [SP-046] [SP-048] statistics are the hub numbers, wi
   it('[SP-046] [SP-048] silence buckets, «нет данных» and new payers come from the hub; an incomplete past says «первая наблюдённая»', () => {
     const model = statsModel(stats);
     expect(model).toMatchObject({ silent8to21: 120, silentOver21: 300, noData: 12, newPayers: 57, newPayersFirstObserved: false, awaiting: 3, awaitingUnknown: 1 });
+    // SP-046: «сумма трат молчащих >21 д» is the hub's own sum over the whole page, never one over the rows of the board.
+    expect(model.silentOver21Lifetime).toBe(15_000_000);
     expect(statsModel({ ...stats, newPayers: { count: 9, firstPurchaseKnown: false } })).toMatchObject({ newPayers: 9, newPayersFirstObserved: true });
   });
 

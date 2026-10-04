@@ -65,6 +65,8 @@ export interface StatsModel {
   readonly newPayersFirstObserved: boolean;
   readonly silent8to21: number | null;
   readonly silentOver21: number | null;
+  /** What the fans silent for more than 21 days spent in all (SP-046): not lost revenue, not a forecast (§8.7). */
+  readonly silentOver21Lifetime: MoneyMills | null;
   readonly noData: number | null;
 }
 
@@ -126,6 +128,7 @@ export function statsModel(stats: SpendersStats, lifetimeByShelf: ReadonlyMap<st
     newPayersFirstObserved: !stats.newPayers.firstPurchaseKnown,
     silent8to21: stats.silence.d8to21.fans,
     silentOver21: stats.silence.over21.fans,
+    silentOver21Lifetime: stats.silence.over21.lifetimeGrossMills,
     noData: stats.silence.unknown.fans,
   };
 }

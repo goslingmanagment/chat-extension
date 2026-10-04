@@ -332,9 +332,12 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       shelves: model?.shelves ?? [],
       attention: {
         awaiting: count(model?.awaiting ?? null),
+        // §8.7: «ждёт ответа; прочтение неизвестно» is a category of its own, as the hub counts it.
+        awaitingUnknown: count(model?.awaitingUnknown ?? null),
         newPayers: { ...count(model?.newPayers ?? null), firstObserved: model?.newPayersFirstObserved ?? false },
         silent8to21: count(model?.silent8to21 ?? null),
-        silentOver21: count(model?.silentOver21 ?? null),
+        // SP-046: what the fans silent for more than 21 days spent in all, as the hub sums it.
+        silentOver21: { ...count(model?.silentOver21 ?? null), lifetime: model?.silentOver21Lifetime ?? null },
         noData: count(model?.noData ?? null),
       },
       stamp: s,
