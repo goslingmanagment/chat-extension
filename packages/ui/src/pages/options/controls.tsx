@@ -18,24 +18,34 @@ export interface StepperProps {
   readonly step?: number;
   /** The read-only barrier or a missing right: the control keeps focus and says why. */
   readonly reason?: string | null;
-  /** A whole number inside [min, max]: what the person chose. */
-  readonly onChange: (value: number) => void;
-  /** The value the controller stored instead of the chosen one («сохранено как N», Б5). */
+  /**
+   * A whole number inside [min, max]: what the person chose. Resolves true
+   * once the background confirmed the write that carried it, false when it
+   * was not saved.
+   */
+  readonly onChange: (value: number) => Promise<boolean>;
+  /** The value the controller stored instead of the chosen one («сохранено как N», Б5): set once that write is confirmed. */
   readonly savedAs?: number | null;
 }
+
+/** What the chip next to the field says: the value that was saved instead of the typed one, or that it was not saved. */
+type StepperChip = { readonly s: 'saved'; readonly n: number } | { readonly s: 'failed' } | null;
 
 /**
  * A number typed by hand or stepped with − and +. It is a text field on
  * purpose: the mouse wheel over it scrolls the page and never changes the
  * value (ST-094). What was typed is brought into range when the field is
- * left; if that changed it, the chip says what was saved.
+ * left; if that changed it, the chip says what was saved — after the
+ * background confirmed it, never before — or «не сохранено».
  */
 export function Stepper(props: StepperProps): JSX.Element {
   const i18n = useI18n();
   const step = props.step ?? 1;
   const [text, setText] = useState(String(props.value));
-  const [chip, setChip] = useState<number | null>(null);
+  const [chip, setChip] = useState<StepperChip>(null);
   const editing = useRef(false);
+  /** The number of the latest change: an answer to an earlier one does not touch the chip. */
+  const latest = useRef(0);
   const unavailable = props.reason !== null && props.reason !== undefined && props.reason !== '';
   const tip = useTooltip(unavailable ? (props.reason ?? null) : null);
 
@@ -44,27 +54,50 @@ export function Stepper(props: StepperProps): JSX.Element {
     if (!editing.current) setText(String(props.value));
   }, [props.value]);
   useEffect(() => {
-    if (props.savedAs !== null && props.savedAs !== undefined) setChip(props.savedAs);
+    if (props.savedAs !== null && props.savedAs !== undefined) setChip({ s: 'saved', n: props.savedAs });
   }, [props.savedAs]);
 
   const clamp = (value: number): number => Math.min(props.max, Math.max(props.min, Math.round(value)));
+  /** Sends the change; `adjusted` — the field keeps another number than the one typed, which the chip says once it is saved. */
+  const change = (next: number, adjusted: boolean): void => {
+    latest.current += 1;
+    const mine = latest.current;
+    setChip(null);
+    void props.onChange(next).then(
+      (saved) => {
+        if (latest.current !== mine) return;
+        if (!saved) setChip({ s: 'failed' });
+        else if (adjusted) setChip({ s: 'saved', n: next });
+      },
+      () => {
+        if (latest.current === mine) setChip({ s: 'failed' });
+      },
+    );
+  };
   const commit = (raw: string): void => {
     editing.current = false;
+    // The read-only barrier: whatever reached the field, nothing is written.
+    if (unavailable) {
+      setText(String(props.value));
+      return;
+    }
     const typed = raw.trim();
     const parsed = /^\d{1,6}$/.test(typed) ? Number(typed) : Number.NaN;
     const next = Number.isNaN(parsed) ? props.value : clamp(parsed);
+    const adjusted = typed !== '' && String(next) !== typed;
     setText(String(next));
-    // What was typed is not what is kept: say so next to the field.
-    setChip(typed !== '' && String(next) !== typed ? next : null);
-    if (next !== props.value) props.onChange(next);
+    if (next !== props.value) change(next, adjusted);
+    // Brought back to the number that is stored already: that one is saved, and the chip may say so at once.
+    else setChip(adjusted ? { s: 'saved', n: next } : null);
   };
   const stepBy = (direction: 1 | -1): void => {
-    if (unavailable) return;
+    // At a bound — or above it, when the stored number is larger than the hub now takes — the step that way does nothing.
+    if (unavailable || (direction === 1 ? props.value >= props.max : props.value <= props.min)) return;
     const next = clamp(props.value + direction * step);
     editing.current = false;
     setChip(null);
     setText(String(next));
-    if (next !== props.value) props.onChange(next);
+    if (next !== props.value) change(next, false);
   };
 
   return (
@@ -83,6 +116,10 @@ export function Stepper(props: StepperProps): JSX.Element {
           {...tip.props}
           {...(unavailable ? { readOnly: true, 'aria-disabled': 'true' } : {})}
           onInput={(event) => {
+            if (unavailable) {
+              event.currentTarget.value = text;
+              return;
+            }
             editing.current = true;
             setChip(null);
             setText(event.currentTarget.value);
@@ -108,8 +145,8 @@ export function Stepper(props: StepperProps): JSX.Element {
       </span>
       {tip.description}
       {chip === null ? null : (
-        <span class="pg-chip" role="status">
-          {i18n.t('settings.generation.savedAs', { n: chip })}
+        <span class="pg-chip" role="status" data-pg-chip={chip.s}>
+          {chip.s === 'saved' ? i18n.t('settings.generation.savedAs', { n: chip.n }) : i18n.t('settings.save.failed')}
         </span>
       )}
     </span>
