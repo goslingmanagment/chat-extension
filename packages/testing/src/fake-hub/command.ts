@@ -23,6 +23,26 @@ const either =
   (value) =>
     checks.some((check) => check(value));
 
+const SEED_FIELDS: Readonly<Record<string, FieldCheck>> = {
+  fanRef: (value) => typeof value === 'string' && /^[1-9]\d{0,29}$/.test(value),
+  username: isString,
+  displayName: either(isString, oneOf(null)),
+  lifetimeUsd: isNumber,
+  windowUsd: either(isNumber, oneOf(null)),
+  fanWroteAgoSec: either(isNumber, oneOf(null)),
+  weWroteAgoSec: either(isNumber, oneOf(null)),
+  awaiting: isBoolean,
+};
+/** `spenderFans.fans`: objects with a fan id and nothing but the seed's own fields. */
+const isSpenderSeeds: FieldCheck = (value) =>
+  Array.isArray(value) &&
+  value.every(
+    (seed) =>
+      isObject(seed) &&
+      SEED_FIELDS['fanRef']?.((seed as Record<string, unknown>)['fanRef']) === true &&
+      Object.entries(seed as Record<string, unknown>).every(([key, field]) => field === undefined || SEED_FIELDS[key]?.(field) === true),
+  );
+
 const MATCH = oneOf('exact', 'route');
 const UNSCRIPTED = oneOf('fail', 'model');
 const PAGE_FAN = { pageLabel: isString, fanRef: isString };
@@ -51,6 +71,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   grantPages: { username: isString, userId: isNumber, pages: isStringArray },
   pageAccount: { pageLabel: isString, platformAccountId: either(isString, oneOf(null)) },
   audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean },
+  spenderFans: { fans: isSpenderSeeds },
   status: {},
 };
 
@@ -71,6 +92,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   grantPages: ['pages'],
   pageAccount: ['pageLabel', 'platformAccountId'],
   audienceEvent: ['pageLabel', 'fanRef'],
+  spenderFans: ['fans'],
 };
 
 /** Keys of a config patch (FakeHubConfigPatch). */
@@ -88,6 +110,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'generationVisibleAfterMs',
   'spendersTotal',
   'aiChunkDelayMs',
+  'aiNameFan',
 ]);
 
 const isOp = (op: unknown): op is FakeHubCommand['op'] => typeof op === 'string' && Object.hasOwn(FIELDS, op);

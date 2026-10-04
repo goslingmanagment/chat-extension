@@ -12,7 +12,7 @@ import { streamAiFeature } from '@kernel/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { PAGE, WORLD, streamBody, uuid } from '../scenarios/hub';
-import { generationText } from './ai';
+import { generationText, namedForFan } from './ai';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall, readSse } from './kit';
 
@@ -121,6 +121,20 @@ describe('fake hub AI: the stream the model writes', () => {
     expect(hi(1).split(SPLIT_MARKERS.variant)).toHaveLength(1);
     expect(generationText({ feature: 'fan-summary', body: streamBody({ summaryMode: 'short' }), capabilities: [] }, true)).toContain('Short recap');
     expect(generationText({ feature: 'chat-review', body: streamBody({ replyMode: 'preferSplit' }), capabilities: ['split-all-v1'] }, true)).not.toContain(SPLIT_MARKERS.next);
+  });
+});
+
+describe('fake hub AI: `aiNameFan` — a draft says whose chat it was written for', () => {
+  it('every part and every variant of a draft ends with the fan’s id; analysis is left as it is; off by default', async () => {
+    const fan = WORLD.fan;
+    expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'preferSplit' })))).not.toContain('@');
+    hub.control({ op: 'config', patch: { aiNameFan: true } });
+    expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'preferSplit' }))).split(SPLIT_MARKERS.next).map((part) => part.trim())).toEqual([`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`]);
+    expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'default' })))).toBe(`Hey you, thanks for writing! How was your day? @${fan}`);
+    const hi = textOf(await framesOf(await stream('hi-greeting', { variantCount: 3, ...needs('hi-greeting') })));
+    expect(hi.split(SPLIT_MARKERS.variant).map((variant) => variant.trim())).toEqual([`Hi and welcome! @${fan}`, `Hey, glad you are here! @${fan}`, `Welcome in, nice to meet you! @${fan}`]);
+    expect(namedForFan('<review/>', { feature: 'chat-review', body: streamBody({}), capabilities: [] })).toBe('<review/>');
+    expect(textOf(await framesOf(await stream('fan-summary', needs('fan-summary'))))).not.toContain('@');
   });
 });
 

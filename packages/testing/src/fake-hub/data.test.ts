@@ -166,6 +166,49 @@ describe('fake hub data: Spenders, statistics, spend', () => {
     expect((await board({ query: 'FAN 1' })).items.map((row) => row.fan.username)).toEqual(['fan_1', 'fan_10', 'fan_11', 'fan_13', 'fan_14', 'fan_16', 'fan_17', 'fan_19']);
   });
 
+  it('`spenderFans`: the board starts with the given fans — their names, money and message ages —, the shelves are the six tiers counted over its rows, «ждут ответа» is the fans marked so', async () => {
+    type Row = { fan: { platformUserId: string; username: string; displayName: string | null }; metrics: { window: { grossAmountMills: number } | null; lifetime: { scopeGrossAmountMills: number } }; lastFanMessageAt: string | null; conversation: { lastModelMessageAt: string | null; unreadCount: number } };
+    const now = hub.clock.now();
+    hub.control({
+      op: 'spenderFans',
+      fans: [
+        { fanRef: '74001001', username: 'stand_fan_1_1', displayName: 'Fan Alder', lifetimeUsd: 12_480, windowUsd: 320, fanWroteAgoSec: 420, weWroteAgoSec: 36_000, awaiting: true },
+        { fanRef: '74001002', displayName: 'Fan Birch', lifetimeUsd: 40, windowUsd: null, fanWroteAgoSec: null, weWroteAgoSec: 3600 },
+      ],
+    });
+    hub.control({ op: 'config', patch: { spendersTotal: 2 } });
+    const board = await get<{ total: number; items: Row[] }>('spenders', { scope: 'page', pageLabel: PAGE, period: '30d', limit: 10, offset: 0, sortBy: 'lifetimeGrossAmountMills' });
+    expect(board.total).toBe(2);
+    expect(board.items.map((row) => [row.fan.platformUserId, row.fan.username, row.fan.displayName])).toEqual([
+      ['74001001', 'stand_fan_1_1', 'Fan Alder'],
+      ['74001002', 'fan_74001002', 'Fan Birch'],
+    ]);
+    const [alder, birch] = board.items;
+    expect(alder?.metrics).toMatchObject({ window: { grossAmountMills: 320_000 }, lifetime: { scopeGrossAmountMills: 12_480_000 } });
+    expect([alder?.lastFanMessageAt, alder?.conversation.lastModelMessageAt, alder?.conversation.unreadCount]).toEqual([new Date(now - 420_000).toISOString(), new Date(now - 36_000_000).toISOString(), 1]);
+    expect([birch?.metrics.window, birch?.lastFanMessageAt, birch?.conversation.unreadCount]).toEqual([null, null, 0]);
+
+    const lists = await get<{ totalEntries: number; lists: Array<{ key: string; entryCount: number; minAmountMills: number }> }>('pageSpenderAutoLists', { pageLabel: PAGE });
+    expect(lists.lists.map((list) => [list.key, list.entryCount])).toEqual([['1-25', 0], ['25-50', 1], ['50-150', 0], ['150-350', 0], ['350-600', 0], ['600-plus', 1]]);
+    expect(lists.totalEntries).toBe(2);
+    const queue = await get<{ total: number; items: Array<{ fanRef: string; readState: string }> }>('clientSpenderAwaitingReply', { pageLabel: PAGE, limit: 10 });
+    expect(queue.items.map((item) => [item.fanRef, item.readState])).toEqual([['74001001', 'unread']]);
+    // The seeded fan is a fan of the page: its card, its dossier and its archive answer; the synthetic fan whose rank it took is gone.
+    expect((await get<{ fan: { username: string } }>('spenderDetail', { platform: 'onlyfans', platformUserId: '74001001', scope: 'page', pageLabel: PAGE, period: '30d' })).fan.username).toBe('stand_fan_1_1');
+    expect((await get<{ fan: { displayName: string | null } }>('pageFanProfile', { pageLabel: PAGE, fanRef: '74001002' })).fan.displayName).toBe('Fan Birch');
+    expect((await get<{ items: unknown[] }>('clientConversationFeed', { pageLabel: PAGE, fanRef: '74001001', limit: 10 })).items).toHaveLength(3);
+    expect(await refused('spenderDetail', { platform: 'onlyfans', platformUserId: '5000', scope: 'page', pageLabel: PAGE, period: '30d' })).toMatchObject({ status: 404 });
+
+    // Above the synthetic rows when the board is longer than the list; `[]` gives the synthetic board back.
+    hub.control({ op: 'config', patch: { spendersTotal: 5 } });
+    const longer = await get<{ items: Row[] }>('spenders', { scope: 'page', pageLabel: PAGE, period: '30d', limit: 10, offset: 0, sortBy: 'platformUserId' });
+    expect(longer.items.map((row) => row.fan.platformUserId)).toEqual(['5002', '5003', '5004', '74001001', '74001002']);
+    hub.control({ op: 'spenderFans', fans: [] });
+    const synthetic = await get<{ items: Row[] }>('spenders', { scope: 'page', pageLabel: PAGE, period: '30d', limit: 10, offset: 0, sortBy: 'platformUserId' });
+    expect(synthetic.items.map((row) => row.fan.platformUserId)).toEqual(['5000', '5001', '5002', '5003', '5004']);
+    expect((await get<{ lists: unknown[] }>('pageSpenderAutoLists', { pageLabel: PAGE })).lists).toHaveLength(SCENARIO_DATA.tierBuckets.lists.length);
+  });
+
   it('periods: custom keeps its dates, mtd starts on the 1st, today is one day in Moscow', async () => {
     const period = async (query: Record<string, unknown>) =>
       (await get<{ period: { fromBusinessDate: string | null; toBusinessDateInclusive: string | null } }>('spenders', { scope: 'page', pageLabel: PAGE, limit: 1, offset: 0, ...query })).period;

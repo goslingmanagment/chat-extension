@@ -42,6 +42,8 @@ export interface ModelStreamFacts {
   readonly freshTextFlag: boolean;
   readonly archive: { readonly head: { readonly messageRef: string; readonly at: string | null; readonly isFromFan: boolean } | null; readonly total: number; readonly state: (id: string) => string };
   readonly chunkDelayMs: number;
+  /** Every part of a draft ends with ` @<fanRef>` (the `aiNameFan` knob). */
+  readonly nameFan?: boolean;
 }
 
 const TEXTS: Readonly<Record<string, { readonly single: string; readonly split: string }>> = {
@@ -66,6 +68,25 @@ export function generationText(request: HubStreamRequest, splitAllFlag: boolean)
   }
   const text = TEXTS[feature] ?? { single: 'Synthetic answer.', split: '' };
   return splitAllowed && text.split !== '' ? text.split : text.single;
+}
+
+/** Features whose answer is a draft for the fan (parts and variants); the others are analysis. */
+const DRAFT_FEATURES: readonly string[] = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'];
+
+/** The draft with ` @<fanRef>` after every part and variant: whose chat each text was written for. */
+export function namedForFan(text: string, request: HubStreamRequest): string {
+  const fanRef = request.body.fanRef ?? request.body.conversationRef;
+  if (!DRAFT_FEATURES.includes(request.feature)) return text;
+  const tag = ` @${fanRef}`;
+  return text
+    .split(SPLIT_MARKERS.variant)
+    .map((variant) =>
+      variant
+        .split(SPLIT_MARKERS.next)
+        .map((part) => `${part.trimEnd()}${tag}`)
+        .join(` ${SPLIT_MARKERS.next}`),
+    )
+    .join(SPLIT_MARKERS.variant);
 }
 
 function chunks(text: string, size = 16): string[] {
@@ -122,7 +143,8 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
     steps.push(frame(context));
   }
   if (debug) steps.push(frame({ type: 'reasoning_delta', text: 'synthetic reasoning' }));
-  const text = generationText(request, facts.splitAllFlag);
+  const written = generationText(request, facts.splitAllFlag);
+  const text = facts.nameFan === true ? namedForFan(written, request) : written;
   for (const piece of chunks(text)) steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs));
   steps.push(
     frame({
