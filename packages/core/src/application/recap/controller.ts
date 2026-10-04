@@ -323,6 +323,28 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       return Promise.resolve(done(action.type, key !== null && book.get(key, action.length) !== null ? 'opened' : 'noop'));
     },
     RefreshRecap: (action, cause) => generate(action.type, action.length, cause),
+    // Where the Recap of the open chat is shown (ui-contract.md, decision 13): the strip's button and the window's
+    // «Свернуть» ask for the sheet, «Развернуть ↗» for the window, «Скрыть» hides — the recap stays. Never a
+    // generation (AI-060): a sheet with nothing saved shows the build buttons.
+    ShowAnalysis(action) {
+      if (action.view !== 'recap') return null;
+      const chat = ws.situation().chat;
+      if (chat === null) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
+      const shown = ws.sheet(chat.key)?.kind === 'recap';
+      if (action.mode === 'hidden') {
+        if (!shown) return Promise.resolve(done(action.type, 'noop'));
+        const id = viewVm().opId;
+        if (id !== null) ws.setExpanded(id, false);
+        ws.setSheet(chat.key, null);
+        return Promise.resolve(done(action.type));
+      }
+      // A sheet that is already open keeps the length the person chose.
+      const opened = shown ? null : open(action.type, null);
+      if (opened !== null && !opened.ok) return Promise.resolve(opened);
+      const id = viewVm().opId;
+      if (id !== null) ws.setExpanded(id, action.mode === 'expanded');
+      return Promise.resolve(done(action.type, 'opened'));
+    },
     Regenerate(action, cause) {
       const record = ws.ops.get(action.operationId);
       if (record === null || !isRecap(record.view.feature) || !isOwnSurface(record.view.surface)) return null;

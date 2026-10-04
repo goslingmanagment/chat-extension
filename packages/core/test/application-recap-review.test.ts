@@ -234,6 +234,31 @@ describe('recap: the sheet and what is saved', () => {
     expect(h.dock().actions.recap.active).toBe(false);
   });
 
+  it('[AI-060] [UI-014] ShowAnalysis: the strip\'s Recap opens the sheet without a generation, «Развернуть ↗» the window, «Свернуть» the sheet again, «Скрыть» keeps the recap', async () => {
+    const h = await start();
+    h.bg.sharedRecaps = { full: body(), short: shortBody(), fullSavedToProfile: true };
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' })).toMatchObject({ ok: true, type: 'ShowAnalysis', outcome: 'opened' });
+    await h.settle();
+    expect(h.dock()).toMatchObject({ analysis: 'recap', result: null });
+    expect(h.bg.hub.streams).toHaveLength(0);
+    expect(h.recapView()).toMatchObject({ expanded: false });
+    // The person looks at the short one; the window and the way back keep that length.
+    expect(await h.dispatch({ type: 'ShowRecap', length: 'short' })).toMatchObject({ ok: true });
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'expanded' })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.recapView()).toMatchObject({ expanded: true, length: 'short' });
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' })).toMatchObject({ ok: true });
+    expect(h.recapView()).toMatchObject({ expanded: false, length: 'short' });
+    expect(h.dock().analysis).toBe('recap');
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'hidden' })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.dock().analysis).toBeNull();
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'hidden' })).toMatchObject({ ok: true, outcome: 'noop' });
+    // Straight to the window from a closed sheet: the sheet opens under it.
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'recap', mode: 'expanded' })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.dock().analysis).toBe('recap');
+    expect(h.recapView().expanded).toBe(true);
+    expect(h.bg.hub.streams).toHaveLength(0);
+  });
+
   it('the Recap switch of the owner off: the button is off and the views say «недоступно»', async () => {
     const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, recap: false } };
     const h = await start({ bootstrap: off });
@@ -790,6 +815,22 @@ describe('review', () => {
     expect(h.review().rating).toBe(7);
     expect(await h.dispatch({ type: 'ExpandResult', operationId: opId, expanded: true })).toMatchObject({ ok: true, outcome: 'opened' });
     expect(h.review().expanded).toBe(true);
+  });
+
+  it('[UI-014] ShowAnalysis: «Развернуть ↗» opens the review in the window, «Свернуть» brings the sheet back, «Скрыть» keeps the review; none of them generates', async () => {
+    const h = await start();
+    const opId = await run(h);
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'review', mode: 'expanded' })).toMatchObject({ ok: true, type: 'ShowAnalysis', outcome: 'opened' });
+    expect(h.review()).toMatchObject({ expanded: true, opId });
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'review', mode: 'sheet' })).toMatchObject({ ok: true });
+    expect(h.review().expanded).toBe(false);
+    expect(h.dock().analysis).toBe('review');
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'review', mode: 'hidden' })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.dock().analysis).toBeNull();
+    expect(await h.dispatch({ type: 'ShowAnalysis', view: 'review', mode: 'sheet' })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.dock().analysis).toBe('review');
+    expect(h.review().rating).toBe(7);
+    expect(h.bg.hub.streams).toHaveLength(1);
   });
 
   it('[AI-051] Review needs history: off for a short conversation that is loaded whole, and the hub\'s own gate is an error with its code', async () => {

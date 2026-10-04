@@ -187,6 +187,25 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
       if (chat === null || chat.key !== chatKeyOf(record.view.target.chat)) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
       return generate(action.type, cause, record);
     },
+    // Where the Review of the open chat is shown (ui-contract.md, decision 13): the sheet, the «Развернуть ↗»
+    // window, or hidden — kept, the same button opens it again. Never a generation.
+    ShowAnalysis(action) {
+      if (action.view !== 'review') return null;
+      const chat = ws.situation().chat;
+      if (chat === null) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
+      const record = current();
+      const shown = ws.sheet(chat.key)?.kind === 'review';
+      if (action.mode === 'hidden') {
+        if (!shown) return Promise.resolve(done(action.type, 'noop'));
+        if (record !== null) ws.setExpanded(record.view.opId, false);
+        ws.setSheet(chat.key, null);
+        return Promise.resolve(done(action.type));
+      }
+      if (!shown) ws.setSheet(chat.key, { kind: 'review' });
+      // The window is the review's own: without one there is only the sheet.
+      if (record !== null) ws.setExpanded(record.view.opId, action.mode === 'expanded');
+      return Promise.resolve(done(action.type, 'opened'));
+    },
     HideResult(action) {
       const record = ws.ops.get(action.operationId);
       const chat = ws.situation().chat;
