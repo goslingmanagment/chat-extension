@@ -34,6 +34,13 @@ export function isCrowded(vm: DockVM): boolean {
   return vm.options.tone !== null || vm.options.locked || quotaSlot(vm) !== null || vm.statusWords;
 }
 
+/**
+ * The zone the zero-quota tooltip names: «Обновится в 03:00 по Москве»
+ * (ui-design §4.1). The quota resets at 00:00 UTC; said «по Москве», the time
+ * is printed in this zone, not in the chatter's own.
+ */
+export const QUOTA_RESET_TIME_ZONE = 'Europe/Moscow';
+
 /** The quota slot (UI-031): shown only when little is left or nothing is. */
 export function quotaSlot(vm: DockVM): 'zero' | 'low' | null {
   const quota = vm.quota;

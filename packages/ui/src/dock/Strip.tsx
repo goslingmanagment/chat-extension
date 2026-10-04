@@ -31,7 +31,7 @@ import {
   useTooltip,
   type MenuItem,
 } from '../kit';
-import { isCrowded, quotaSlot, stripAction } from './model';
+import { QUOTA_RESET_TIME_ZONE, isCrowded, quotaSlot, stripAction } from './model';
 
 /** Review, Recap and Coach move into «Ещё» on a composer of 600 px and narrower (ui-design §3.3). */
 const TIER_TWO: readonly DockActionId[] = ['review', 'recap', 'coach'];
@@ -225,6 +225,8 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   const quota = quotaSlot(vm);
   const resets = vm.quota?.resetsAt ?? null;
   const resetsAt = resets === null ? null : i18n.formatTime(resets);
+  // «Обновится в 03:00 по Москве» names its zone, so that time is Moscow's wherever the chatter sits.
+  const resetsMoscow = resets === null ? null : (i18n.formatTimeIn?.(resets, QUOTA_RESET_TIME_ZONE) ?? null);
   const remaining = vm.quota?.remaining ?? 0;
 
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
@@ -306,7 +308,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         {quota === null ? null : (
           <span class="cg-slot cg-slot--quota">
             {quota === 'zero' ? (
-              <Word class="cg-quota is-zero cg-num" text={t('dock.quota.zero')} tooltip={resetsAt === null ? null : t('dock.quota.zeroTooltip', { time: resetsAt })} />
+              <Word class="cg-quota is-zero cg-num" text={t('dock.quota.zero')} tooltip={resetsMoscow === null ? null : t('dock.quota.zeroTooltip', { time: resetsMoscow })} />
             ) : (
               <Word
                 class="cg-quota cg-num"

@@ -340,9 +340,14 @@ describe('what the strip asks for', () => {
     expect(kit.client.dispatched).toEqual([]);
   });
 
-  it('formats the quota reset through the I18n port', () => {
+  it('[UI-031] «по Москве» is Moscow\'s clock: the quota resets at 00:00 UTC, the zero tooltip says 03:00 whatever zone the port prints in', () => {
+    // The stand's port prints in UTC — a chatter who is not in Moscow.
     const resetsAt = iso(Date.UTC(2026, 9, 4, 0, 0, 0));
     kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 0, low: true, resetsAt } })));
-    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Дневная квота AI исчерпана. Обновится в 00:00 по Москве');
+    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Дневная квота AI исчерпана. Обновится в 03:00 по Москве');
+    kit.unmount();
+    // The low-quota tooltip names no zone: it is the chatter's own time.
+    kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt } })));
+    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Осталось 12 генераций AI на сегодня. Обновится в 00:00');
   });
 });
