@@ -152,6 +152,10 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design Â
         await capture(`pages-options-${section}-${lang}`);
         expectHealthy(await probe(), 'light');
         expect(await browser.execute(() => document.querySelector('.pg-page')?.getAttribute('data-pg-section'))).toBe(section);
+        // ST-120: the scheme's reference in the four groups of the cheatsheet, then the rows outside it.
+        if (section === 'hotkeys') {
+          expect(await browser.execute(() => [...document.querySelectorAll('tbody[data-pg-hotkeys]')].map((group) => group.getAttribute('data-pg-hotkeys')))).toEqual(['ai', 'before', 'result', 'windows', 'outside']);
+        }
       }
     });
   }
@@ -179,7 +183,14 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design Â
       expectHealthy(await probe(), theme);
       expect(await count('.pg-nav')).toBe(0);
       expect(await count('form input[type="password"]')).toBe(1);
+      // ST-012: the first run starts here â€” the checklist stands under the form, the sign-in still to do.
+      expect(await count('.pg-check__item')).toBe(8);
+      expect(await count('.pg-check__item.is-done[data-pg-step="sign-in"]')).toBe(0);
     }
+    await open('page=options&state=signed-out&theme=light', PHONE);
+    await capture('pages-options-sign-in-w320');
+    expectHealthy(await probe(), 'light');
+    expect(await count('.pg-check__item')).toBe(8);
     await open('page=options&state=first-run&theme=light', LAPTOP);
     await capture('pages-options-first-run-light');
     expectHealthy(await probe(), 'light');
@@ -270,6 +281,9 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design Â
     await capture('pages-debug-journal-light');
     expectHealthy(await probe(), 'light');
     expect(await count('.pg-journal tbody tr')).toBe(2);
+    // NF-029: the filters and the auto-refresh switch stand over the records.
+    expect(await count('[data-pg-journal="filters"] button[aria-haspopup="menu"]')).toBe(2);
+    expect(await count('[data-pg-journal="filters"] [role="checkbox"][aria-checked="true"]')).toBe(1);
     await open('page=debug-journal&state=debug&theme=dark', PHONE, 1, '#operations');
     await capture('pages-debug-journal-w320-dark');
     expectHealthy(await probe(), 'dark');
