@@ -24,8 +24,15 @@ export interface DockViewProps {
   readonly parts?: Partial<DockParts>;
 }
 
-/** What identifies a refusal for «Скрыть»: no operation exists, so it is hidden here until another one comes. */
-const refusalKey = (vm: DockVM): string | null => (vm.refusal === null ? null : `${vm.targetHandle ?? ''}|${vm.refusal.feature}|${vm.refusal.error.code}`);
+/**
+ * What identifies a refusal for «Скрыть»: no operation exists, so it is
+ * hidden here until another one comes. Another one is another chat, function
+ * or code — or another moment (`RefusalVM.at`): a start refused again by a
+ * hotkey never passes through the strip, and without its time the new refusal
+ * could not be told from the hidden one.
+ */
+const refusalKey = (vm: DockVM): string | null =>
+  vm.refusal === null ? null : `${vm.targetHandle ?? ''}|${vm.refusal.feature}|${vm.refusal.error.code}|${vm.refusal.at ?? ''}`;
 
 export function DockView({ parts }: DockViewProps): JSX.Element | null {
   const { deps, root } = useKit();

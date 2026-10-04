@@ -906,6 +906,29 @@ describe('the refusal of a fourth generation', () => {
     expect(kit.client.dispatched).toEqual([list[1]?.go, list[2]?.cancel] as UiAction[]);
   });
 
+  it('[UI-015] a start refused again by a hotkey comes only through the view, with a new moment: the hidden refusal shows again', async () => {
+    const at = (moment: number) => entry({ of: 'dock' }, dockVm('ready', { refusal: { ...refusal, at: moment } }));
+    kit = mountDock({ ...dockScenario(dockVm('ready', { refusal: { ...refusal, at: ctx.now } })), steps: [{ label: 'the same view again', at: 10, views: [at(ctx.now)] }, { label: '⌘E refused again', at: 4_000, views: [at(ctx.now + 4_000)] }] });
+    await flush(() => (kit?.$('.cg-hide') as HTMLElement).click());
+    expect(kit.$('.cg-sheet')).toBeNull();
+    // The controller repeats the same refusal (the running list moved on): it stays hidden.
+    await flush(() => kit?.client.goTo(0));
+    expect(kit.$('.cg-sheet')).toBeNull();
+    // A new refused start: nothing was clicked in the strip, yet the person sees why nothing started.
+    await flush(() => kit?.client.goTo(1));
+    expect(text(kit.$('.cg-card__code'))).toBe('ChatGoose · CG-OP-TAB-LIMIT');
+    expect(kit.client.dispatched).toEqual([]);
+  });
+
+  it('a refusal hidden in one chat is not hidden in another: the same code for another chat is another refusal', async () => {
+    const other = entry({ of: 'dock' }, dockVm('ready', { refusal, fan: FANS.theodore }));
+    kit = mountDock({ ...dockScenario(dockVm('ready', { refusal })), steps: [{ label: 'another chat', at: 10, views: [other] }] });
+    await flush(() => (kit?.$('.cg-hide') as HTMLElement).click());
+    expect(kit.$('.cg-sheet')).toBeNull();
+    await flush(() => kit?.client.goTo(0));
+    expect(text(kit.$('.cg-card__code'))).toBe('ChatGoose · CG-OP-TAB-LIMIT');
+  });
+
   it('«Скрыть» hides it here (no operation exists to hide); the next refused click shows it again', async () => {
     kit = mountDock({ ...dockScenario(dockVm('ready', { refusal })), reactions: [{ on: 'Generate', receipt: { ok: false, type: 'Generate', code: 'CG-OP-TAB-LIMIT', error: refusal.error, running: list } }] });
     await flush(() => (kit?.$('.cg-hide') as HTMLElement).click());
