@@ -2348,6 +2348,65 @@ describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting leas
     expect(claims()).toEqual(['claim', 'renew']);
   });
 
+  it('[NF-021] «in flight» is not for ever: an operation whose end never reaches the tab does not renew the lease for as long as the tab lives', async () => {
+    const h = await withCard();
+    const claims = (): string[] => h.bg.requests.filter((r) => r.type === 'newcomers.claim').map((r) => (r.payload as { action: string }).action);
+    // The background was unloaded mid-stream: the end of the operation is never told to the tab.
+    const emit = h.bg.emit.bind(h.bg) as (type: string, payload: unknown) => void;
+    h.bg.emit = ((type: string, payload: unknown) => (type === 'op.done' ? undefined : emit(type, payload))) as typeof h.bg.emit;
+    h.script(0, 'hi-greeting', 'Hi there!');
+    expect((await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).ok).toBe(true);
+    await h.advance(200);
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).result?.state).not.toBe('done');
+    // The person leaves. The generation still looks «running» to the tab — for five minutes that keeps the lease, then nothing does.
+    await h.dispatch(open('newcomers', false));
+    await walk(h, 15 * 60_000);
+    const asked = claims();
+    expect(asked).toEqual(['claim', ...Array.from({ length: 7 }, () => 'renew')]);
+    expect(h.hub.status().claims.find((c) => c.fanRef === '2010')?.lease).toBe('expired');
+    await walk(h, 10 * 60_000);
+    expect(claims()).toEqual(asked);
+    expect(h.boards.newcomers.greeting.leaseToken('2010')).toBeNull();
+  });
+
+  it('[NF-021] the fan’s chat left open is not «working with the fan» for ever; typing in it is', async () => {
+    const chat = { host: 'chatspace' as const, hostAccountId: HOST_IDS.acc, platformFanId: '2010' };
+    const opened: HostEvent = { type: 'route', route: { epoch: 6, name: 'chat', account: hostAccount, chat } };
+    const typed = (revision: number): HostEvent => ({ type: 'composer', composer: { chat, instanceId: 'composer-2', ready: true, hidden: false, draft: { revision, provenance: 'human-or-unknown' } } });
+    const start = async (): Promise<{ h: Harness; claims: () => string[] }> => {
+      const h = await withCard();
+      h.script(0, 'hi-greeting', 'Hi there!');
+      await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} });
+      await h.advance(200);
+      // The person is in the fan's own chat now (after «Открыть и вставить», or by ChatSpace's own list).
+      h.hostEvent(opened);
+      await h.flush();
+      return { h, claims: () => h.bg.requests.filter((r) => r.type === 'newcomers.claim').map((r) => (r.payload as { action: string }).action) };
+    };
+    // Nobody at the keyboard: the open chat keeps the lease for five minutes after the last sign of life, not for as long as the tab lives.
+    const idle = await start();
+    await walk(idle.h, 20 * 60_000);
+    expect(idle.claims().filter((action) => action === 'renew')).toHaveLength(7);
+    expect(idle.h.hub.status().claims.find((c) => c.fanRef === '2010')?.lease).toBe('expired');
+    // The person keeps typing in that chat: the lease is theirs for as long as they do.
+    const busy = await start();
+    for (let minute = 0; minute < 20; minute += 1) {
+      await walk(busy.h, 60_000);
+      busy.h.hostEvent(typed(10 + minute));
+      await busy.h.flush();
+    }
+    expect(busy.h.hub.status().claims.find((c) => c.fanRef === '2010')?.lease).toBe('active');
+    expect(busy.h.boards.newcomers.greeting.leaseToken('2010')).not.toBeNull();
+    // Typing in another fan's chat is not work with this fan.
+    const other = await start();
+    for (let minute = 0; minute < 20; minute += 1) {
+      await walk(other.h, 60_000);
+      other.h.hostEvent({ type: 'composer', composer: { chat: { ...chat, platformFanId: '2011' }, instanceId: 'composer-3', ready: true, hidden: false, draft: { revision: 10 + minute, provenance: 'human-or-unknown' } } });
+      await other.h.flush();
+    }
+    expect(other.h.hub.status().claims.find((c) => c.fanRef === '2010')?.lease).toBe('expired');
+  });
+
   it('[NF-021] a renewal that does not go through is tried again and the card says so; the lease does not lapse while the person works', async () => {
     const h = await withCard();
     const claims = (): string[] => h.bg.requests.filter((r) => r.type === 'newcomers.claim').map((r) => (r.payload as { action: string }).action);

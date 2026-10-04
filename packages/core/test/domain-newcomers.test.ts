@@ -57,6 +57,7 @@ import {
   removeDraft,
   mergeDraftStores,
   sameDraftStore,
+  BUSY_MAX_MS,
   changedDraftKeys,
   keepOnly,
   resumeDelay,
@@ -325,6 +326,10 @@ describe('[NF-021] [NF-023] the greeting lease', () => {
     expect(shouldRenew(mine, { lastActivityAt: 0, busy: false }, 40_000, policy)).toBe(true);
     expect(shouldRenew(mine, { lastActivityAt: -100_000, busy: false }, 40_000, policy)).toBe(false);
     expect(shouldRenew(mine, { lastActivityAt: -100_000, busy: true }, 40_000, policy)).toBe(true);
+    // «In flight» is not for ever: five minutes after the last sign of life a flag left behind renews nothing.
+    expect(shouldRenew(mine, { lastActivityAt: 40_000 - BUSY_MAX_MS, busy: true }, 40_000, policy)).toBe(true);
+    expect(shouldRenew(mine, { lastActivityAt: 40_000 - BUSY_MAX_MS - 1, busy: true }, 40_000, policy)).toBe(false);
+    expect(BUSY_MAX_MS).toBeGreaterThan(policy.activityMs);
     expect(shouldRenew(mine, { lastActivityAt: 0, busy: true }, 119_000, policy)).toBe(false);
     expect(shouldRenew({ s: 'other' }, { lastActivityAt: 0, busy: true }, 1, policy)).toBe(false);
   });

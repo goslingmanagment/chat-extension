@@ -9,7 +9,7 @@
 // here sends: «AI ничего не отправляет сам» (NF-028).
 
 import { type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
-import { type HostPort } from '@cg/contracts/host';
+import { type HostEvent, type HostPort } from '@cg/contracts/host';
 import { type ClaimState } from '@cg/contracts/hub';
 import { chatKeyOf } from '@cg/contracts/ids';
 import {
@@ -197,7 +197,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     record.timer = null;
   }
 
-  /** The person is with this fan now: the card is open, something is in flight, or the fan's chat is the open route. */
+  /** Something of this fan is in flight, or the fan's chat is the open route — for a while after the last sign of life (`shouldRenew`, BUSY_MAX_MS). */
   function working(fanRef: string, record: LeaseRecord): boolean {
     if (record.busy) return true;
     const binding = context.current().binding;
@@ -782,6 +782,14 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       }
     }),
     i18n.subscribe(() => changed()),
+    host.subscribe((event: HostEvent) => {
+      // After «Открыть и вставить» the person works in the fan's own chat: typing there is working with the fan (the open chat alone is not).
+      if (event.type !== 'composer' || event.composer === null) return;
+      const chat = event.composer.chat;
+      if (chat.hostAccountId !== context.current().binding?.hostAccountId) return;
+      const record = leases.get(chat.platformFanId);
+      if (record !== undefined) record.lastActivityAt = clock.now();
+    }),
     rpc.onEvent('newcomers.changed', (payload) => {
       if (payload.pageId === pageId() && (surfaces.current().newcomers || deps.watchForSound === true) && !loading) void refresh();
     }),

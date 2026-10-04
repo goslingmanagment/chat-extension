@@ -67,16 +67,26 @@ export function leaseNow(lease: LeaseView, now: number): LeaseView {
 }
 
 export interface LeaseActivity {
-  /** The person's last action with this fan (opened the card, typed, generated, pressed a button). */
+  /** The last sign of the person working with this fan (opened the card, typed, generated, pressed a button) or of their work moving on (an operation ended, a part changed state). */
   readonly lastActivityAt: number;
-  /** Something of this fan is in flight: a generation, a send, a pending «Открыть и вставить». */
+  /** Something of this fan is in flight (a generation, a send, a pending «Открыть и вставить»), or the fan's chat is the one open in ChatSpace. */
   readonly busy: boolean;
 }
+
+/**
+ * «In flight» keeps a lease only this long after the last sign of life. A
+ * generation runs for a minute, a send resolves in half of one, an insert
+ * waits twenty seconds: none comes near it. What does is a flag left behind
+ * (an operation whose end never reached the tab) or a chat left open with
+ * nobody at it — and neither may renew a lease for as long as the tab lives.
+ */
+export const BUSY_MAX_MS = 5 * 60_000;
 
 /** Whether the lease is renewed now: only while the person works with the fan (never just because a timer fired). */
 export function shouldRenew(lease: LeaseView, activity: LeaseActivity, now: number, policy: LeasePolicy): boolean {
   if (lease.s !== 'mine' || now >= lease.until) return false;
-  return activity.busy || now - activity.lastActivityAt <= policy.activityMs;
+  const quiet = now - activity.lastActivityAt;
+  return quiet <= policy.activityMs || (activity.busy && quiet <= BUSY_MAX_MS);
 }
 
 /** What a refused claim call means for the card, by its code. */
