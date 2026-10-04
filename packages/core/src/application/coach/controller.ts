@@ -27,6 +27,7 @@ import { type COACH_BLOCK_KINDS } from '@cg/contracts/ops';
 import {
   type ActionButtonVM,
   type ActionReceipt,
+  type CoachHintGroupVM,
   type CoachTurnVM,
   type CoachVM,
   type ReasonVM,
@@ -69,10 +70,16 @@ const BLOCK_TITLES: Readonly<Record<CoachBlockKind, I18nKey>> = {
   risk: 'coach.block.risk',
 };
 
-/** AI-081: the ready questions of an empty dialog; the first is the hub's «разбор ситуации» preset. */
+/** AI-081: the ready questions of an empty dialog that ask at once; the first is the hub's «разбор ситуации» preset. */
 const OPENING_CHIPS: readonly { readonly key: I18nKey; readonly preset: 'situation' | null }[] = [
   { key: 'coach.chip.situation', preset: 'situation' },
   { key: 'coach.chip.offer', preset: null },
+];
+/** AI-081: the ready questions of an empty dialog that fill the input — three headings, three questions each. */
+const HINT_GROUPS: readonly { readonly label: I18nKey; readonly questions: readonly I18nKey[] }[] = [
+  { label: 'coach.group.sell', questions: ['coach.hint.sell.how', 'coach.hint.sell.price', 'coach.hint.sell.discount'] },
+  { label: 'coach.group.return', questions: ['coach.hint.return.revive', 'coach.hint.return.seen', 'coach.hint.return.afterPrice'] },
+  { label: 'coach.group.understand', questions: ['coach.hint.understand.likes', 'coach.hint.understand.person', 'coach.hint.understand.topics'] },
 ];
 /** Built views of exchanges of other dialogs are dropped once this many pile up beyond the shown feed. */
 const COACH_BUILT_SLACK = 50;
@@ -445,6 +452,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const chips = hasExchange
       ? FOLLOW_UP_CHIPS.map((key) => ({ label: msg(key), question: i18n.t(key), preset: null }))
       : OPENING_CHIPS.map((chip) => ({ label: msg(chip.key), question: i18n.t(chip.key), preset: chip.preset }));
+    // AI-081: the empty dialog also offers three headings of ready questions; a click fills the input, the person sends.
+    const emptyDialog = session === null || (session.feed.length === 0 && pending === null);
+    const hints: CoachHintGroupVM[] = emptyDialog ? HINT_GROUPS.map((group) => ({ label: msg(group.label), questions: group.questions.map((key) => ({ label: msg(key), question: i18n.t(key) })) })) : [];
 
     const composer = situation.host.composer;
     const draftEmpty = composer === null || composer.draft.provenance === 'empty';
@@ -473,6 +483,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       },
       // AI-090: not while the Coach answers.
       newDialog: button('coach.newDialog', { type: 'NewCoachDialog' }, { enabled: pending === null && ready !== null, reason: pending !== null ? catalog.reason('coach-busy') : null }),
+      hints,
     };
   }
 

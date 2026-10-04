@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import { COACH_LIMITS, UiActionSchema, type Bootstrap, type CoachTurnVM, type FeedPage, type HubFrame, type RecapStatus, type SettingsV1 } from '@cg/contracts';
 import { COACH_RECAP_FRESH_MS } from '@cg/core/domain/coach';
+import { createTranslator } from '@cg/core/domain/i18n';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostIso, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_ON, contextFrame, meta, resolveHubErrorReference } from '@cg/testing/hub';
@@ -46,6 +47,9 @@ const withCoach = (coach: Partial<SettingsV1['generation']['coach']>): SettingsV
   const base = settingsWithPersona();
   return { ...base, generation: { ...base.generation, coach: { ...base.generation.coach, ...coach } } };
 };
+
+const RU = createTranslator('ru');
+const i18nText = (key: string): string => RU.text(key as Parameters<typeof RU.text>[0]);
 
 const fence = (body: string): string => ['```draft', body, '```'].join('\n');
 const ANSWER = ['Сначала согрей, потом предложи.', fence('hey you [NEXT] how was the weekend?'), fence('I saved something for you')].join('\n');
@@ -114,6 +118,19 @@ describe('coach: opening and the empty dialog', () => {
       { label: { key: 'coach.chip.situation' }, question: 'Что сейчас в чате?', preset: 'situation' },
       { label: { key: 'coach.chip.offer' }, question: 'Что предложить?', preset: null },
     ]);
+    // Three headings of three ready questions, as in the predecessor: a click fills the input, the person sends.
+    expect(vm.hints?.map((group) => [i18nText(group.label.key), group.questions.map((question) => question.question)])).toEqual([
+      ['Продать', ['Не знаю, как продать — подскажи', 'Как подать цену, чтобы не спугнуть?', 'Просит скидку — что ответить?']],
+      ['Вернуть', ['Как оживить остывший чат?', 'Прочитал и молчит — что написать?', 'Пропал после цены — как вернуть?']],
+      ['Понять', ['Что этому фану реально заходит?', 'Разбери его: что за человек?', 'О чём говорить, кроме продаж?']],
+    ]);
+    expect(vm.hints?.flatMap((group) => group.questions.map((question) => question.label.key))).toEqual([
+      'coach.hint.sell.how', 'coach.hint.sell.price', 'coach.hint.sell.discount',
+      'coach.hint.return.revive', 'coach.hint.return.seen', 'coach.hint.return.afterPrice',
+      'coach.hint.understand.likes', 'coach.hint.understand.person', 'coach.hint.understand.topics',
+    ]);
+    // None of them asks by itself: nothing was started by showing them.
+    expect(h.bg.callsOf('op.start')).toEqual([]);
     expect(vm.ask).toMatchObject({ enabled: true, reason: null });
     expect(vm.newDialog).toMatchObject({ enabled: true, action: { type: 'NewCoachDialog' } });
     expect(vm.freshness).toMatchObject({ asOf: null, lag: null, refresh: { enabled: true, action: { type: 'RefreshArchive' } } });
@@ -138,6 +155,25 @@ describe('coach: opening and the empty dialog', () => {
       { kind: 'move', title: { key: 'coach.block.move' }, body: 'спросить.' },
       { kind: 'risk', title: { key: 'coach.block.risk' }, body: 'уйдёт.' },
     ]);
+  });
+
+  it('[AI-081] a ready question the person sent is an ordinary question; once the dialog has a turn the headings are gone', async () => {
+    const h = await start();
+    const hint = h.coach().hints?.[1]?.questions[0];
+    expect(hint).toEqual({ label: { key: 'coach.hint.return.revive' }, question: 'Как оживить остывший чат?' });
+    h.script(coachStream(ANSWER));
+    // What the UI does after the person pressed «Спросить» with the filled input.
+    expect(await ask(h, hint?.question as string)).toMatchObject({ ok: true, outcome: 'started' });
+    expect((h.bg.callsOf('op.start')[0] as { coach: { question?: string; preset?: string } }).coach).toMatchObject({ question: 'Как оживить остывший чат?' });
+    expect((h.bg.callsOf('op.start')[0] as { coach: { preset?: string } }).coach.preset).toBeUndefined();
+    expect(h.coach().hints).toEqual([]);
+    await h.finish();
+    expect(h.coach().hints).toEqual([]);
+    // «Новый диалог» is empty again: the headings are back, in the language of the interface.
+    await h.dispatch({ type: 'NewCoachDialog' });
+    expect(h.coach().hints).toHaveLength(3);
+    const en = await start({ language: 'en' });
+    expect(en.coach().hints?.[0]).toMatchObject({ label: { key: 'coach.group.sell' }, questions: [{ question: 'I don\'t know how to sell here — help me' }, {}, {}] });
   });
 
   it('the Coach switch of the owner off: the panel says «недоступно» and nothing is asked', async () => {
