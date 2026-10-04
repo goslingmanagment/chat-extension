@@ -2,13 +2,13 @@
 // §6.7.12): what a person sees of a chat they did not open — the hub's
 // archive and nothing else —, the local draft, the mini strip and the keys.
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type FeedItemVM, type PreviewVM } from '@cg/contracts';
 import { matchesHotkey, pingHint } from '@cg/ui/spenders';
 
 import { cgError, ctxOf, entry, iso, MIN, reason, usd, views, type AppClientScenario } from '../scenarios/app-client';
-import { flush, keydown, mountBoardSettled, textOf, type MountedBoard } from './harness';
+import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
 import { boardScenario } from './states';
 import { boardWorld } from './world';
 
@@ -16,6 +16,7 @@ let ui: MountedBoard | null = null;
 afterEach(() => {
   ui?.unmount();
   ui = null;
+  vi.restoreAllMocks();
 });
 
 const ctx = ctxOf({ lang: 'ru', platform: 'mac' });
@@ -173,6 +174,68 @@ describe('fan preview: the archive feed', () => {
     expect(ui.$('.cg-feed__older .cg-card')?.getAttribute('data-cg-code')).toBe('CG-DATA-UNAVAILABLE');
     await flush(() => (ui?.$('.cg-feed__older .cg-card .cg-btn') as HTMLElement).click());
     expect(ui.actionsOf('LoadOlder')).toHaveLength(1);
+  });
+
+  it('[SP-056] another fan’s feed opens at its newest message, not where the last fan’s was scrolled to', async () => {
+    // happy-dom has no layout: a feed 800 px tall in a 200 px window.
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('cg-feed') ? 800 : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('cg-feed') ? 200 : 0;
+    });
+    const base = boardScenario('11a');
+    const hubert = base.views.find((view) => view.selector.of === 'preview')?.vm as PreviewVM;
+    // The next fan (J / →): another handle, another archive.
+    const next: PreviewVM = {
+      ...hubert,
+      handle: 'spenders:b003',
+      feed: { items: [message('c1', { dayBreak: true }), message('c2', { sender: 'model' }), message('c3', {})], hasOlder: true, loadingOlder: false, olderError: null },
+    };
+    // And back to the first one: an older page of ITS history must still be asked for.
+    ui = await mountBoardSettled('spenders', {
+      ...base,
+      steps: [
+        { label: 'the next fan', at: 1_000, views: [entry({ of: 'preview', from: 'spenders' }, next)] },
+        { label: 'a new message of the next fan, read from the middle', at: 2_000, views: [entry({ of: 'preview', from: 'spenders' }, { ...next, feed: { ...next.feed, items: [...next.feed.items, message('c4', {})] } })] },
+      ],
+    });
+    const feed = ui.$('.cg-feed') as HTMLElement;
+    expect(feed.scrollTop).toBe(800);
+    // The person scrolls up to read, to the very top: the older page is asked for once.
+    await flush(() => {
+      feed.scrollTop = 300;
+      feed.dispatchEvent(new Event('scroll'));
+      feed.scrollTop = 0;
+      feed.dispatchEvent(new Event('scroll'));
+    });
+    expect(ui.actionsOf('LoadOlder')).toEqual([{ type: 'LoadOlder', targetHandle: 'spenders:b002' }]);
+    await flush(() => {
+      feed.scrollTop = 300;
+      feed.dispatchEvent(new Event('scroll'));
+    });
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    expect(ui.$$('.cg-feed__msg')).toHaveLength(3);
+    // The new fan's feed stands at its end…
+    expect((ui.$('.cg-feed') as HTMLElement).scrollTop).toBe(800);
+    // …and asks for its own older page: what the last fan asked for is forgotten.
+    await flush(() => {
+      const node = ui?.$('.cg-feed') as HTMLElement;
+      node.scrollTop = 0;
+      node.dispatchEvent(new Event('scroll'));
+    });
+    expect(ui.actionsOf('LoadOlder').at(-1)).toEqual({ type: 'LoadOlder', targetHandle: 'spenders:b003' });
+    expect(ui.actionsOf('LoadOlder')).toHaveLength(2);
+    // Within one fan the rule stays: a new message does not pull a reader down from the middle.
+    await flush(() => {
+      const node = ui?.$('.cg-feed') as HTMLElement;
+      node.scrollTop = 300;
+      node.dispatchEvent(new Event('scroll'));
+    });
+    await flush(() => ui?.client.goTo(1));
+    await settle();
+    expect((ui.$('.cg-feed') as HTMLElement).scrollTop).toBe(300);
   });
 
   it('an empty archive says so, and a preview that failed is an error card, not an empty feed', async () => {

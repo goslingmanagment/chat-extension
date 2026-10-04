@@ -4,7 +4,8 @@
 // the fan's live text. Bubbles are the host's own colours: incoming left,
 // ours right; attachments are captions, no media is loaded. Older pages come
 // by the server cursor when the person scrolls up (or presses «Показать более
-// ранние»), and the place they were reading stays where it was.
+// ранние»), and the place they were reading stays where it was. The scroll
+// bookkeeping is one fan's: another fan's feed opens at its newest message.
 
 import { type JSX } from 'preact';
 import { useLayoutEffect, useRef } from 'preact/hooks';
@@ -85,12 +86,19 @@ export function Feed({ handle, feed, empty, loading }: FeedProps): JSX.Element {
   const scroller = useRef<HTMLDivElement>(null);
   const before = useRef<{ first: string | null; last: string | null; height: number; top: number; atBottom: boolean } | null>(null);
   const asked = useRef<string | null>(null);
+  const owner = useRef(handle);
   const first = feed.items[0]?.id ?? null;
   const last = feed.items[feed.items.length - 1]?.id ?? null;
 
   useLayoutEffect(() => {
     const node = scroller.current;
     if (node === null) return;
+    if (owner.current !== handle) {
+      // Another fan (J / K, ← →): where the last feed was scrolled to, and which page it asked for, mean nothing here.
+      owner.current = handle;
+      before.current = null;
+      asked.current = null;
+    }
     const previous = before.current;
     if (previous === null || (previous.last !== last && previous.atBottom)) {
       // The first paint and every new message while the end is in view: the newest stays in view.
@@ -100,7 +108,7 @@ export function Feed({ handle, feed, empty, loading }: FeedProps): JSX.Element {
       node.scrollTop = previous.top + (node.scrollHeight - previous.height);
     }
     before.current = { first, last, height: node.scrollHeight, top: node.scrollTop, atBottom: node.scrollHeight - node.scrollTop - node.clientHeight <= BOTTOM_EDGE_PX };
-  }, [first, last, feed.items.length]);
+  }, [handle, first, last, feed.items.length]);
 
   const loadOlder = (): void => {
     if (handle === null || !feed.hasOlder || feed.loadingOlder || first === null) return;
