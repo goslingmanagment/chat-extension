@@ -25,7 +25,7 @@ export interface HubDataDeps {
     spendersBoard(request: { readonly pageLabel: string; readonly period: HubSpenderPeriod; readonly force?: boolean }): Promise<SpendersBoard>;
   };
   /** The page of a `pageId` for this sender, or why not (no bootstrap, not granted, not this tab's binding). */
-  readonly page: (pageId: number, sender: RpcSenderContext) => PageLookup;
+  readonly page: (pageId: number, sender: RpcSenderContext) => PageLookup | Promise<PageLookup>;
   /** The wire form of whatever a facade call rejected with. */
   readonly errorOf: (error: unknown) => CgErrorWire;
   readonly debugEnabled: () => boolean;
@@ -41,7 +41,7 @@ const NO_USAGE: readonly CgCode[] = ['CG-FEATURE-DISABLED', 'CG-HUB-CAPABILITY']
 export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
   /** Looks the page up, runs the facade call, and turns a rejection into its wire error. */
   async function onPage<T>(pageId: number, sender: RpcSenderContext, run: (page: GrantedPage) => Promise<T>): Promise<RpcResult<T>> {
-    const found = deps.page(pageId, sender);
+    const found = await deps.page(pageId, sender);
     if (!found.ok) return { ok: false, error: { code: found.code } };
     try {
       return { ok: true, payload: await run(found.page) };

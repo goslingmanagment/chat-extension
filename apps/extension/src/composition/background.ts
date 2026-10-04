@@ -120,6 +120,7 @@ import { CLOCK, IDS, TIMERS, eventSinkOf, hubLogOf, keyOf, logSinkOf, serviceLog
 import { sendJournalStoreOver } from './background/send-journal-store';
 import { personaPatchRefusal } from './background/settings-guard';
 import { createBackgroundSound } from './background/sound';
+import { createTabAccountsGate } from './background/tab-accounts';
 import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
@@ -264,6 +265,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   /** A refused message is counted by the RPC; the log hears each kind on its 1st, 10th, 100th… occurrence. */
   const rejects = new Map<string, number>();
+  /** Which tabs have said what accounts they show: a request about a page waits for that (`pageOf`). */
+  const tabAccounts = createTabAccountsGate({ setTimer: (fn, ms) => TIMERS.set(fn, ms) });
   /** The host contract as each tab last reported it (`health.report`), for diagnostics. */
   const hostReports = new Map<string, HostContractReport | null>();
   /** When a status surface last asked for the hub's health (epoch ms; 0 — ask at the next read). */
@@ -285,6 +288,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     onTabGone(info) {
       // BG-006: a closed tab only detaches its surfaces; its generations go on.
       presence.tabGone(info.tabSessionId);
+      tabAccounts.gone(info.tabSessionId);
       tokens.dropTab(info.tabSessionId);
       scheduler.detachTab(info.tabSessionId);
       hostReports.delete(info.tabSessionId);
@@ -752,23 +756,33 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // ── request handlers (all registered now; each runs after the barrier) ─────
 
-  /** The page of a `pageId` for a sender: granted in the bootstrap, and for a tab — one of its own bindings. */
-  const pageOf = (pageId: number, sender: RpcSenderContext): PageLookup => {
+  /** One of the tab's own ChatSpace accounts is bound to the page — by what the tab reported so far. */
+  const tabBoundTo = (pageId: number, tabSessionId: string): boolean => {
+    const own = presence.tabs().find((tab) => tab.tabSessionId === tabSessionId)?.accounts ?? [];
+    return presence
+      .seenAccounts()
+      .filter((seen) => own.includes(`${seen.account.host}:${seen.account.hostAccountId}`))
+      .some((seen) => {
+        const resolution = hubInstance?.resolveBinding(seen.account);
+        return resolution?.state === 'bound' && resolution.binding.pageId === pageId;
+      });
+  };
+
+  /**
+   * The page of a `pageId` for a sender: granted in the bootstrap, and for a tab — one of its own bindings.
+   * A tab that has not said yet which accounts it shows is waited for (background/tab-accounts.ts): its
+   * request is answered by its report, never by the report's absence.
+   */
+  const pageOf = async (pageId: number, sender: RpcSenderContext): Promise<PageLookup> => {
     const cached = hubInstance?.cachedBootstrap() ?? null;
     if (hubInstance === null || hubInstance.session() === null) return { ok: false, code: 'CG-AUTH-REQUIRED' };
     if (cached === null) return { ok: false, code: 'CG-HUB-UNAVAILABLE' };
     const page = cached.bootstrap.pages.find((candidate) => candidate.pageId === pageId);
     if (page === undefined) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
-    if (sender.kind === 'tab') {
-      const own = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId)?.accounts ?? [];
-      const bound = presence
-        .seenAccounts()
-        .filter((seen) => own.includes(`${seen.account.host}:${seen.account.hostAccountId}`))
-        .some((seen) => {
-          const resolution = hubInstance?.resolveBinding(seen.account);
-          return resolution?.state === 'bound' && resolution.binding.pageId === pageId;
-        });
-      if (!bound) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
+    if (sender.kind === 'tab' && !tabBoundTo(pageId, sender.tabSessionId)) {
+      if (tabAccounts.has(sender.tabSessionId)) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
+      await tabAccounts.known(sender.tabSessionId);
+      if (!tabBoundTo(pageId, sender.tabSessionId)) return { ok: false, code: 'CG-BINDING-NOT-GRANTED' };
     }
     return { ok: true, page: { pageId: page.pageId, pageLabel: page.pageLabel, platform: page.platform } };
   };
@@ -780,7 +794,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // this event page (BG-003) — and that is not a reason to read the bootstrap again.
     const before = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId);
     if (report.focused && before?.focused !== true) hubInstance?.notifyFocus();
-    return ok(await presence.report(sender.tabSessionId, report));
+    const recorded = await presence.report(sender.tabSessionId, report);
+    // From here the tab's own accounts are known: a request that waited for them is answered now.
+    if (report.accounts !== undefined && report.accounts.length > 0) tabAccounts.reported(sender.tabSessionId);
+    return ok(recorded);
   });
 
   // sign-in and bootstrap
@@ -823,7 +840,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('quota.get', ({ pageId }) => ok({ quota: hub().quotaOf(pageId) ?? scheduler.quota(pageId) }));
   rpc.handle('accounts.seen', () => ok({ accounts: [...presence.seenAccounts()] }));
   rpc.handle('persona.set', async ({ pageId, key, definitionId }, sender) => {
-    const page = pageOf(pageId, sender);
+    const page = await pageOf(pageId, sender);
     if (!page.ok) return fail(page.code);
     const saved = await settings.patch({ personas: { byPageId: { [String(pageId)]: { key, definitionId } } } }, { baseRevision: null, restricted: false });
     return saved.ok ? ok({ revision: saved.state.revision }) : { ok: false, error: saved.error };
@@ -869,9 +886,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok(await sends.begin(sender.tabSessionId, begin));
   });
   rpc.handle('send.status', ({ attemptId }) => ok({ view: sends.status(attemptId) }));
-  rpc.handle('send.list', ({ pageId, fanRef }, sender) => {
+  rpc.handle('send.list', async ({ pageId, fanRef }, sender) => {
     // What a tab that lost its own tracking (a reload) holds the fan by (§6.7.8): the journal of this install.
-    const page = pageOf(pageId, sender);
+    const page = await pageOf(pageId, sender);
     if (!page.ok) return fail(page.code);
     const platform = narrowPlatform(page.page.platform);
     const signedIn = hub().session();
@@ -888,10 +905,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const data = hubDataHandlers({ hub, page: pageOf, errorOf: wireOf, debugEnabled });
   rpc.handle('recap.status', data['recap.status']);
   rpc.handle('recap.read', data['recap.read']);
-  rpc.handle('recap.save', (request, sender) => {
+  rpc.handle('recap.save', async (request, sender) => {
     // «Сохранить ещё раз» and the late save of a recap opened from the hub (AI-068): one idempotent link write
     // by the generation (H-5), never a new generation; the tab repeats a `not-ready` on the §7 schedule.
-    const page = pageOf(request.pageId, sender);
+    const page = await pageOf(request.pageId, sender);
     if (!page.ok) return fail(page.code);
     return hubCall(async () => recapSaveAnswer(await hub().profileFromGeneration(profileRequestOf(request, page.page.pageLabel))));
   });
@@ -913,7 +930,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('usage.get', data['usage.get']);
   rpc.handle('newcomers.claim', async ({ pageId, fanRef, action }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
-    const page = pageOf(pageId, sender);
+    const page = await pageOf(pageId, sender);
     if (!page.ok) return fail(page.code);
     try {
       const answer = await leases.act(sender.tabSessionId, page.page, fanRef, action);
@@ -926,9 +943,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
   rpc.handle('settings.get', settingsHandlers['settings.get']);
-  rpc.handle('settings.patch', (request, sender) => {
+  rpc.handle('settings.patch', async (request, sender) => {
     // §14: a tab changes personas only of the pages of its own binding — the same check as `persona.set`.
-    const refusal = personaPatchRefusal(request.patch, sender, pageOf);
+    const refusal = await personaPatchRefusal(request.patch, sender, pageOf);
     return refusal === null ? settingsHandlers['settings.patch'](request) : fail(refusal, 'personas');
   });
   rpc.handle('settings.patchRestricted', (request) => {

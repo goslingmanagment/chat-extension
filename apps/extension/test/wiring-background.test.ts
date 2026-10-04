@@ -233,6 +233,45 @@ describe('operations (§7)', () => {
   });
 });
 
+describe('a tab that asks about its page before it said which accounts it shows (§5.4)', () => {
+  const STATS = { pageId: PAGE_ID, windowDays: 30, timeZone: 'Europe/Moscow' } as const;
+
+  it('[SP-001] [HK-024] a request that outruns the tab’s first presence report waits for the report and is answered by it — not refused as «page not granted»', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const { client } = w.tabClient(7);
+    await until(() => client.state() === 'ready', 'the tab registered');
+    // A key of ours pressed while the page loaded runs the instant the controllers are in: the board asks at once.
+    let answered = false;
+    const asked = client.request('spenders.stats', STATS).then((answer) => {
+      answered = true;
+      return answer;
+    });
+    await sleep(200);
+    expect(answered).toBe(false);
+    expect(callsTo(w.hub.read().entries, 'clientSpenderStats')).toHaveLength(0);
+    // The report the tab sends a moment after its registration.
+    expect(await client.request('tab.presence', { chat, routeEpoch: 1, visible: true, focused: true, accounts: [account] })).toMatchObject({ ok: true });
+    expect(await asked).toMatchObject({ ok: true, payload: { pageLabel: PAGE } });
+    expect(callsTo(w.hub.read().entries, 'clientSpenderStats')).toHaveLength(1);
+  });
+
+  it('a tab whose accounts are known and none of them is bound to the page is refused at once, and the hub is not asked', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const { client } = w.tabClient(7);
+    await until(() => client.state() === 'ready', 'the tab registered');
+    const stranger = { ...account, hostAccountId: '1999', platformAccountId: '3999' };
+    expect(await client.request('tab.presence', { chat: null, routeEpoch: 1, visible: true, focused: true, accounts: [stranger] })).toMatchObject({ ok: true });
+    const started = Date.now();
+    expect(await client.request('spenders.stats', STATS)).toMatchObject({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED' } });
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(callsTo(w.hub.read().entries, 'clientSpenderStats')).toHaveLength(0);
+  });
+});
+
 describe('X8 attempts and the dossier save', () => {
   it('[X8-07] `send.list` answers from the journal of this install: an attempt the previous instance left half-way holds its fan as uncertain', async () => {
     const w = world();

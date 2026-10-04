@@ -186,7 +186,8 @@ describe('settings', () => {
     const tab = world.tabClient();
     await until(() => tab.client.state() === 'ready', 'the tab registered');
     const persona = { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId };
-    // The tab shows no account yet: no page is «its own».
+    // The tab shows no account yet: its request waits for its report (background/tab-accounts.ts), and with none
+    // coming no page is «its own».
     expect(await tab.client.request('settings.patch', { patch: { personas: { byPageId: { [String(WORLD.pages.one.pageId)]: persona } } }, baseRevision: null })).toEqual({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED', detail: 'personas' } });
     expect(await tab.client.request('tab.presence', { chat: null, routeEpoch: 1, visible: true, focused: false, accounts: [account] })).toEqual({ ok: true, payload: { recorded: true } });
     expect(await tab.client.request('settings.patch', { patch: { personas: { byPageId: { [String(WORLD.pages.vip.pageId)]: persona } } }, baseRevision: null })).toEqual({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED', detail: 'personas' } });
