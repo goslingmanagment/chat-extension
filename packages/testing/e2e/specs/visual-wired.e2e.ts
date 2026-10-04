@@ -1,0 +1,621 @@
+// §12 п. 6 on the wired extension — the real UI on the stand, to be LOOKED
+// at: the TEST build over the ChatSpace-like fixture against the fake hub,
+// every surface brought to its state by hand (clicks and keys) and
+// photographed in light and dark, in Russian and English, at 1440 × 900 —
+// the window of the binding mockup (`final-*-light.png`, `final-*-dark.png`).
+// The pictures go to `.cache/e2e/visual/<state>-<theme>-<lang>.png`, and
+// what was measured next to them to `.cache/e2e/visual/facts.json`.
+//
+// The galleries (dock-gallery, boards-gallery, pages-gallery) draw the same
+// components over synthetic view models; here the view models are the real
+// controllers' and the place is ChatSpace's page: what is checked by machine
+// is what a gallery cannot show — every surface is mounted where it belongs,
+// inside the window, nothing of ours is clipped or pushes the page sideways,
+// each follows the theme and the language. The rest is for the eyes.
+//
+// The main states are taken in all four looks, the secondary ones in light
+// and dark Russian. Between two states the language is Russian: what a step
+// presses is found by its Russian words.
+
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
+
+import { callsTo } from '../../src/fake-hub/journal';
+import { PAGE } from '../../src/scenarios/hub';
+import { meta } from '../../src/scenarios/hub/sse';
+import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
+import { clearDraft, MOD, PANEL, SEND, twoFrames, typeDraft } from '../support/chat';
+import { pageRpc } from '../support/extension';
+import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
+import { useNetworkTrap } from '../support/network-trap';
+import { ours, oursBox, oursExists, oursFocus, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
+import { capturePage, openOptions, openPopup, signOutFromAccount, waitForOptions, waitForPopup } from '../support/pages';
+import { dockIs, startShift, type Shift } from '../support/shift';
+import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
+
+const ACC = STAND_IDS.accounts.a;
+const ACC_B = STAND_IDS.accounts.b;
+const { a1, a2, a3, a4, a5, a6, a7, a8, b1 } = STAND_IDS.fans;
+/** Fans Iris, Juniper and Kestrel of the stand's account a (the dataset names its fans beyond a8 by the same pattern). */
+const [a9, a10, a11] = ['74001009', '74001010', '74001011'] as const;
+const VISUAL_DIR = `${E2E_EVIDENCE_DIR}visual/`;
+const WINDOW = { width: 1440, height: 900 } as const;
+
+type Theme = 'light' | 'dark';
+type Lang = 'ru' | 'en';
+interface Look {
+  readonly theme: Theme;
+  readonly lang: Lang;
+}
+
+/** What the fake hub's model writes here: the mockup's own lines, so the pictures can be laid next to it. */
+const AI_TEXTS: Readonly<Record<string, string>> = {
+  'fast-reply': 'good morning, my traveler ☀️ доброе утро! how was the flight? [NEXT] I just woke up and saw your messages… you made me smile before my coffee 🙈 [NEXT] the set is still waiting for you 😏 want me to send it now, or do you want to guess what’s inside first?',
+  'hi-greeting': 'hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by — what brought you to me? [VARIANT] hi! I’m Lora 💛 I read every message myself, so say hi back',
+  'improve-draft': 'I missed you so much today 🥺 tell me everything — how was the flight?',
+  ping: 'still thinking about what you said yesterday… are you around? 😌',
+  'fan-summary': '## Кто он\nHubert, 34, часто летает по работе. Отвечает вечером по Варшаве.\n\n## Что покупал\n- сет «Утро» за $25, вчера\n- два платных сообщения по $12 на прошлой неделе\n\n## На что отвечает\n- вопросы о поездках и о кофе\n- короткие сообщения, без давления\n\n## Чего избегать\n- длинных текстов и скидок в первом сообщении',
+  'chat-review':
+    '<rating>7</rating><evaluation>ВЕРДИКТ: разговор живой, но продажа сета прозвучала слишком рано.\n\nДЕНЬГИ: $25 за вчера, второй сет не предложен.\n\nПЕРСОНА: тон тёплый, в образе; одно сообщение слишком длинное.\n\nОШИБКИ:\n1. Предложили сет первым сообщением утра. Как надо было: сначала про полёт, потом тизер.\n2. Не ответили на вопрос про кофе.\n\nЧТО РАБОТАЕТ: короткие вопросы о поездке, смайлы без перебора.</evaluation><recommendations>1. Начать с вопроса про полёт.\n2. Тизер сета — вторым сообщением.\n3. Вернуться к шутке про кофе.</recommendations>',
+  'coach-chat':
+    'Сегодня можно, но не первым сообщением. Он сам вспомнил про сет — используйте это: сначала про полёт, потом тизер.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
+};
+
+interface Measure {
+  /** The page scrolls sideways (something of ours pushed it). */
+  readonly pageOverflowsX: boolean;
+  /** Our hosts on the page, by kind. */
+  readonly hosts: Readonly<Record<string, number>>;
+}
+
+describe('the real UI on the stand, photographed: light and dark, RU and EN, 1440 × 900', () => {
+  useNetworkTrap();
+  const { hub } = useFakeHub();
+  let shift: Shift;
+  let journalStart = 0;
+  let current: Look = { theme: 'dark', lang: 'ru' };
+  const taken: string[] = [];
+  /** What was measured, for the reader of the pictures. */
+  const facts: Record<string, unknown> = {};
+
+  /** The look of ChatSpace and of ours together: the stand's own theme, and the extension's theme and language. */
+  const setLook = async (look: Look): Promise<void> => {
+    if (current.theme === look.theme && current.lang === look.lang) return;
+    if (current.theme !== look.theme) await callStand('setTheme', look.theme);
+    await shift.patch({ ui: { theme: look.theme, locale: look.lang } });
+    current = { ...look };
+    // The overlays follow the same settings as the dock; with no chat open there is no dock to ask.
+    await dockIs((dock) => !dock.visible || (dock.language === look.lang && dock.scheme === look.theme), `the dock in ${look.theme}/${look.lang}`, 10_000);
+    await twoFrames();
+  };
+  /** The looks of one state, from the look that stands now, each one step from the last, ending in Russian. */
+  const looksOf = (all: boolean): readonly Look[] => {
+    const here = current.theme;
+    const there: Theme = here === 'light' ? 'dark' : 'light';
+    return all
+      ? [
+          { theme: here, lang: 'ru' },
+          { theme: here, lang: 'en' },
+          { theme: there, lang: 'en' },
+          { theme: there, lang: 'ru' },
+        ]
+      : [
+          { theme: here, lang: 'ru' },
+          { theme: there, lang: 'ru' },
+        ];
+  };
+  /**
+   * The picture of a state that stands: two shots in a row are the same. A window that fades in is not caught
+   * half-way; what never stands still (a spinner, a countdown, the caret) is taken after a second.
+   */
+  const shoot = async (path: string, still: boolean): Promise<void> => {
+    let last = await browser.takeScreenshot();
+    const until = Date.now() + 1000;
+    while (still && Date.now() < until) {
+      await browser.pause(100);
+      const next = await browser.takeScreenshot();
+      if (next === last) break;
+      last = next;
+    }
+    writeFileSync(path, Buffer.from(last, 'base64'));
+  };
+  /** Toasts of the state before are gone: each lives a few seconds, and a picture is of its own state. */
+  const noToasts = (): Promise<void> =>
+    browser
+      .waitUntil(async () => !(await oursExists('toast', '.cg-toast')), { timeout: 9000, interval: 200 })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  const measure = (): Promise<Measure> =>
+    browser.execute(() => {
+      const hosts: Record<string, number> = {};
+      for (const host of document.querySelectorAll('[data-cg]')) {
+        const kind = `${host.getAttribute('data-cg') ?? ''}${host.hasAttribute('data-cg-layer') ? `:${host.getAttribute('data-cg-layer') ?? ''}` : ''}`;
+        hosts[kind] = (hosts[kind] ?? 0) + 1;
+      }
+      return { pageOverflowsX: document.documentElement.scrollWidth > window.innerWidth + 1, hosts };
+    });
+  /** The box of something of ours lies inside the window. */
+  const inWindow = async (where: Where, selector: string): Promise<Box | null> => {
+    const box = await oursBox(where, selector);
+    expect([where, selector, box !== null]).toEqual([where, selector, true]);
+    if (box === null) return null;
+    expect([selector, box.x >= -1, box.y >= -1, box.x + box.width <= WINDOW.width + 1, box.y + box.height <= WINDOW.height + 1]).toEqual([selector, true, true, true, true]);
+    return box;
+  };
+  /**
+   * One state in its looks. `fresh` puts the state back after a look changed it (an open menu closes when
+   * its texts are said anew) and must not read words; `check` runs once per look.
+   */
+  const look = async (
+    name: string,
+    options: { readonly all?: boolean; readonly fresh?: () => Promise<void>; readonly check?: () => Promise<void>; readonly toasts?: true; readonly moving?: true } = {},
+  ): Promise<void> => {
+    if (options.toasts !== true) await noToasts();
+    for (const each of looksOf(options.all ?? true)) {
+      await setLook(each);
+      await options.fresh?.();
+      await twoFrames();
+      const seen = await measure();
+      // Nothing of ours pushes ChatSpace's page sideways; one dock, one host per overlay layer.
+      expect([name, each.theme, each.lang, seen.pageOverflowsX]).toEqual([name, each.theme, each.lang, false]);
+      for (const [kind, count] of Object.entries(seen.hosts)) expect([name, kind, count]).toEqual([name, kind, 1]);
+      await options.check?.();
+      const path = `${VISUAL_DIR}${name}-${each.theme}-${each.lang}.png`;
+      await shoot(path, options.moving !== true);
+      taken.push(path);
+    }
+  };
+  /** A page of the extension itself in every look (its own document: a classic screenshot). */
+  const lookAtPage = async (name: string, show: () => Promise<void>, all = true): Promise<void> => {
+    for (const each of looksOf(all)) {
+      await setLook(each);
+      await shift.toPages();
+      await show();
+      await capturePage(`visual/${name}-${each.theme}-${each.lang}`);
+      taken.push(`${VISUAL_DIR}${name}-${each.theme}-${each.lang}.png`);
+      await browser.url(testBuildPage(QUIET_PAGE));
+      await shift.toStand();
+    }
+  };
+  const open = async (fan: string, account = ACC, newTab = false): Promise<void> => {
+    await callStand('openChat', account, fan, newTab ? { newTab: true } : {});
+    await waitForChatReady(account, fan);
+    await dockIs((d) => d.visible && d.target?.endsWith(`:${fan}`) === true, `the dock of chat ${fan}`);
+  };
+  const ready = (fan: string): Promise<unknown> => dockIs((d) => d.status === 'ready' && d.target?.endsWith(`:${fan}`) === true && d.actions['reply'] === true, `the dock of chat ${fan} is ready`);
+  const generate = async (button: RegExp): Promise<void> => {
+    const before = (await dockIs(() => true, 'the dock')).result?.opId ?? null;
+    await pressOurs('dock', '.cg-strip button', button);
+    await dockIs((d) => d.result !== null && d.result.opId !== before && d.result.state === 'done', 'the result', 20_000);
+  };
+  const closeAll = async (): Promise<void> => {
+    for (let press = 0; press < 5 && ((await oursExists('modal', '.cg-root')) || (await oursExists('panel', '.cg-root'))); press += 1) {
+      await browser.keys(Key.Escape);
+      await browser.pause(200);
+    }
+  };
+  const hideResult = async (): Promise<void> => {
+    if (await oursExists('dock', '.cg-hide')) await ours('dock', '.cg-hide').click();
+    await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height <= 36, { timeout: 5000, timeoutMsg: 'the dock did not collapse' }).catch(() => undefined);
+  };
+  /** The keys of ours that are not typed into ChatSpace's field are pressed with the focus on the chat's header. */
+  const leaveField = (): Promise<void> => browser.$('[data-stand-conversation-header]').click();
+  /** How much of ChatSpace's own Send button a side panel of ours covers, in pixels of its width. */
+  const sendCovered = async (selector: string): Promise<{ readonly panel: Box | null; readonly send: Box | null; readonly coveredPx: number }> => {
+    const panel = await oursBox('panel', selector);
+    const send = await browser.execute((sel: string) => {
+      const rect = document.querySelector(sel)?.getBoundingClientRect();
+      return rect === undefined ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    }, SEND);
+    const coveredPx = panel === null || send === null ? 0 : Math.max(0, Math.round(send.x + send.width - Math.max(panel.x, send.x)));
+    return { panel, send, coveredPx };
+  };
+
+  before(async () => {
+    mkdirSync(VISUAL_DIR, { recursive: true });
+    await standServer.reset();
+    await standServer.traffic({ firstSummaryMs: 150 });
+    journalStart = await standServer.mark();
+    await hub().command({ op: 'config', patch: { aiTexts: AI_TEXTS } });
+    await hub().command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a5 });
+    await hub().command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a6, kind: 'returning' });
+    await hub().command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a7 });
+    await hub().command({ op: 'desktopGreeting', pageLabel: PAGE, fanRef: a7 });
+    shift = await startShift(hub(), { previewSend: true, settings: { generation: { split: true } }, viewport: WINDOW });
+    // The extension's own documents take no viewport override (a privileged scope): the window itself is sized for them.
+    await browser.setWindowSize(WINDOW.width, WINDOW.height + 85);
+    await ready(a1);
+    current = { theme: 'dark', lang: 'ru' };
+    await callStand('setTheme', 'dark');
+    await shift.patch({ ui: { theme: 'dark', locale: 'ru' } });
+  });
+
+  after(async () => {
+    await hub().command({ op: 'clearScripts' });
+    await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0 } });
+    writeFileSync(`${VISUAL_DIR}facts.json`, `${JSON.stringify({ window: WINDOW, pictures: taken.length, ...facts }, null, 2)}\n`);
+    expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
+    // Every state was photographed in its looks.
+    expect(taken.length).toBeGreaterThan(120);
+  });
+
+  describe('the dock', () => {
+    it('ready; the «Тон» menu', async () => {
+      await look('dock-01-ready', {
+        check: async () => {
+          await inWindow('dock', '.cg-strip');
+          expect((await dockIs(() => true, 'the dock')).height).toBe(34);
+        },
+      });
+      await look('dock-02-tone-menu', {
+        all: false,
+        fresh: async () => {
+          if (!(await oursExists('dock', '[role="menu"]'))) await ours('dock', '.cg-slot--tone button').click();
+          await browser.waitUntil(() => oursExists('dock', '[role="menu"]'), { timeout: 5000, timeoutMsg: 'the tone menu did not open' });
+        },
+        check: async () => void (await inWindow('dock', '[role="menu"]')),
+      });
+      await browser.keys(Key.Escape);
+    });
+
+    it('a stream; a Split result; a part inserted; the question about the person’s own text', async function () {
+      this.timeout(180_000);
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 2500 } });
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      await dockIs((d) => d.result?.state === 'streaming' || d.result?.state === 'requesting', 'the stream', 20_000);
+      await look('dock-03-stream', { all: false, moving: true });
+      await browser.keys([MOD, '.']);
+      await dockIs((d) => d.result === null || d.result.state !== 'streaming', 'the stream is canceled', 20_000);
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0 } });
+      await browser.waitUntil(async () => (await hub().status()).openStreams === 0, { timeout: 20_000, timeoutMsg: 'the canceled stream is still open at the hub' });
+      await generate(/^Reply/);
+      await look('dock-04-split', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
+      await dockIs((d) => d.result?.inserted === 1, 'the first part is inserted');
+      await look('dock-05-split-inserted', { all: false });
+      await clearDraft();
+      await typeDraft('привет, это мой текст');
+      await pressOurs('dock', '[data-cg-part="1"] button', /^Вставить/);
+      await waitOursText('dock', 'Добавить в конец', 'the Б2 question');
+      await look('dock-06-confirm');
+      await browser.keys(Key.Escape);
+      await clearDraft();
+      await hideResult();
+    });
+
+    it('Hi with three variants; Fix before and after the replacement', async function () {
+      this.timeout(180_000);
+      await open(a2, ACC, true);
+      await generate(/^Hi/);
+      await look('dock-07-hi', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hideResult();
+      await open(a4, ACC, true);
+      // One message: Fix shows the person's text next to the fixed one.
+      await shift.patch({ generation: { split: false } });
+      await typeDraft('i mised you so much today tell me evrything how was the flite');
+      await dockIs((d) => d.actions['fix'] === true, 'Fix is on');
+      await generate(/^Fix/);
+      await look('dock-08-fix');
+      await pressOurs('dock', '.cg-dock button', /^Заменить мой черновик/);
+      await browser.waitUntil(() => oursExists('dock', '.cg-fix__acts .cg-done'), { timeout: 5000, timeoutMsg: 'the replacement was not made' });
+      await look('dock-09-fix-replaced', { all: false });
+      await shift.patch({ generation: { split: true } });
+      await clearDraft();
+      await hideResult();
+    });
+
+    it('Recap, empty and full; Review', async function () {
+      this.timeout(180_000);
+      await open(a1);
+      await pressOurs('dock', '.cg-strip button', /^Recap/);
+      await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
+      await look('dock-10-recap-empty', { all: false });
+      await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
+      await waitOursText('dock', 'Hubert, 34', 'the full Recap', { timeout: 20_000 });
+      await look('dock-11-recap-full', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await browser.keys(Key.Escape);
+      await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
+      await pressOurs('dock', '.cg-strip button', /^Review/);
+      await waitOursText('dock', 'разговор живой', 'the Review', { timeout: 20_000 });
+      await look('dock-12-review', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await browser.keys(Key.Escape);
+      await dockIs((d) => d.analysis === null, 'the Review sheet is hidden');
+    });
+
+    it('AI overloaded; the limit of three generations; the debug block', async function () {
+      this.timeout(240_000);
+      // 7c: the provider refused — a card with the code, «Повторить» after the hub's own delay.
+      await open(a6, ACC, true);
+      await ready(a6);
+      await hub().command({
+        op: 'scriptSse',
+        feature: 'fast-reply',
+        responses: [
+          {
+            kind: 'stream',
+            steps: [
+              { kind: 'frame', frame: meta('fast-reply') },
+              { kind: 'frame', frame: { type: 'content_delta', text: 'Partial' }, afterMs: 20 },
+              { kind: 'frame', frame: { type: 'error', code: 'provider_rate_limited', message: 'AI provider rate limit reached', retryAfterMs: 30_000 } },
+              { kind: 'eof' },
+            ],
+          },
+        ],
+      });
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      await dockIs((d) => d.result?.error === 'CG-PROVIDER-RATE-LIMIT', 'the provider’s refusal', 20_000);
+      await look('dock-13-error-overloaded', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hub().command({ op: 'clearScripts' });
+      await hideResult();
+
+      // 8: three generations run in other chats of this tab; the fourth is refused with their list.
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 4000 } });
+      for (const fan of [a7, a8, a9]) {
+        await open(fan, ACC, true);
+        await ready(fan);
+        await pressOurs('dock', '.cg-strip button', /^Reply/);
+        await dockIs((d) => d.target?.endsWith(`:${fan}`) === true && d.result !== null, `the Reply of chat ${fan} started`);
+      }
+      await open(a10, ACC, true);
+      await ready(a10);
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      const refused = await dockIs((d) => d.refusal !== null, 'the fourth start is refused');
+      expect(refused.refusal).toBe('CG-OP-TAB-LIMIT');
+      expect(refused.refusalRunning).toHaveLength(3);
+      await look('dock-14-limit', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      for (const opId of refused.refusalRunning) await shift.rpc('op.cancel', { opId });
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0 } });
+      await browser.waitUntil(async () => (await hub().status()).openStreams === 0, { timeout: 20_000, timeoutMsg: 'the canceled streams are still open at the hub' });
+      await dockIs((d) => d.runningElsewhere.length === 0, 'nothing runs any more');
+
+      // 10: debug is switched on in the settings page (only it may): the result carries its «Отладка» block.
+      await shift.toPages();
+      await browser.url(testBuildPage('options.html'));
+      expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: true } }, baseRevision: null })).toMatchObject({ ok: true });
+      await browser.url(testBuildPage(QUIET_PAGE));
+      await shift.toStand();
+      await generate(/^Reply/);
+      // DB-020 as built: a draft's sheet in the dock carries no debug footer (the mockup's `final-10` shows one).
+      facts['debugFooterInDockSheet'] = await oursExists('dock', '.cg-debug');
+      await look('dock-15-debug', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hideResult();
+      // The long chat's full Recap is made anew with debug on, then unfolded into its dialog.
+      await open(a1);
+      await ready(a1);
+      await pressOurs('dock', '.cg-strip button', /^Recap/);
+      await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
+      await waitOursText('dock', 'Hubert, 34', 'the full Recap of the long chat');
+      const remade = await hub().mark();
+      await pressOurs('dock', '.cg-dock button', /^Обновить/);
+      await browser.waitUntil(async () => callsTo((await hub().journal(remade)).entries, 'aiFeatureStream').some((call) => call.stream?.outcome === 'done'), { timeout: 20_000, timeoutMsg: 'the Recap was not made anew' });
+      await waitOursText('dock', 'Hubert, 34', 'the Recap made anew');
+      await ours('dock', '.cg-expand').click();
+      await browser.waitUntil(() => oursExists('modal', '.cg-xdlg'), { timeout: 10_000, timeoutMsg: 'the result did not unfold into its dialog' });
+      facts['debugFooterInUnfoldedResult'] = await oursExists('modal', '.cg-debug');
+      await look('modal-04-recap-unfolded-debug', { all: false, check: async () => void (await inWindow('modal', '.cg-xdlg')) });
+      await browser.keys(Key.Escape);
+      await browser.waitUntil(async () => !(await oursExists('modal', '.cg-xdlg')), { timeout: 5000, timeoutMsg: 'the unfolded result did not fold back' });
+      await browser.keys(Key.Escape);
+      await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
+      await shift.toPages();
+      await browser.url(testBuildPage('options.html'));
+      expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: false } }, baseRevision: null })).toMatchObject({ ok: true });
+      await browser.url(testBuildPage(QUIET_PAGE));
+      await shift.toStand();
+      await hideResult();
+    });
+
+    it('the statuses: a blocked fan (copy only), an account that is not bound', async function () {
+      this.timeout(180_000);
+      await callStand('openChat', ACC, a3);
+      const blocked = await dockIs((d) => d.visible && d.target?.endsWith(`:${a3}`) === true && d.mode === 'copy-only', 'the copy-only row of the blocked fan');
+      facts['blockedFan'] = { status: blocked.status, banner: blocked.banner, mode: blocked.mode };
+      await look('dock-16-blocked-fan', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await callStand('openChat', ACC_B, b1);
+      await waitForChatReady(ACC_B, b1);
+      const unbound = await dockIs((d) => d.status === 'no-binding', 'the dock of the account that is not bound');
+      facts['noBinding'] = { status: unbound.status, banner: unbound.banner };
+      await look('dock-17-no-binding', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await callStand('openChat', ACC, a1);
+      await waitForChatReady(ACC, a1);
+      await ready(a1);
+    });
+  });
+
+  describe('the windows and the panels', () => {
+    it('Spenders: the board, a preview with «Отправить», a part sent, the statistics unfolded', async function () {
+      this.timeout(240_000);
+      await leaveField();
+      await browser.keys([...PANEL, 'm']);
+      await waitOursText('modal', 'Fan Alder', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
+      await look('board-01-spenders', { check: async () => void (await inWindow('modal', '.cg-sp')) });
+      await pressOurs('modal', '[data-cg-key^="fan:"]', /^Fan Kestrel/);
+      await waitOursText('modal', 'Чат не открыт, останется непрочитанным', 'the preview says the chat stays unread', { selector: '.cg-pv' });
+      await pressOurs('modal', '.cg-pv button', /^Reply/);
+      await waitOursText('modal', 'the set is still waiting', 'the preview’s result', { timeout: 20_000, selector: '.cg-pv' });
+      await browser.waitUntil(() => oursExists('modal', '.cg-pvs__send'), { timeout: 10_000, timeoutMsg: 'the preview shows no «Отправить»' });
+      // The result is under the person's eyes: nothing is toasted over the preview's header.
+      await browser.pause(400);
+      expect(await oursExists('toast', '.cg-toast')).toBe(false);
+      await look('board-02-preview-available', {
+        check: async () => {
+          await inWindow('modal', '.cg-sp');
+          await inWindow('modal', '.cg-pv');
+        },
+      });
+      await ours('modal', '[data-cg-part="0"] .cg-pvs__send').click();
+      await browser.waitUntil(() => oursExists('modal', '[data-cg-part="0"][data-cg-send-state="sent"]'), { timeout: 20_000, timeoutMsg: 'the first part was not sent' });
+      await look('board-03-preview-sent', { check: async () => void (await inWindow('modal', '.cg-pv')) });
+      // The preview closes; the statistics column unfolds over the list.
+      await browser.keys(Key.Escape);
+      await browser.waitUntil(async () => !(await oursExists('modal', '.cg-pv')), { timeout: 5000, timeoutMsg: 'the preview did not close' });
+      await pressOurs('modal', '.cg-sp button', /^Развернуть/);
+      await browser.waitUntil(() => oursExists('modal', '.cg-stx'), { timeout: 10_000, timeoutMsg: 'the statistics did not unfold' });
+      await look('board-04-stats', { check: async () => void (await inWindow('modal', '.cg-stx')) });
+      await closeAll();
+      expect(await oursExists('modal', '.cg-sp')).toBe(false);
+    });
+
+    it('«Новые»: the list, a card with its greeting', async function () {
+      this.timeout(240_000);
+      await leaveField();
+      await browser.keys([MOD, 'k']);
+      await pressOurs('modal', '.cg-pal__item', /^Новые$/, 'the «Новые» row of the palette', 20_000);
+      await waitOursText('modal', 'newfan_', 'the list of new subscribers', { timeout: 20_000, selector: '.cg-nc' });
+      await look('board-05-newcomers', { check: async () => void (await inWindow('modal', '.cg-nc')) });
+      await ours('modal', '.cg-nc [data-cg-key]').click();
+      await browser.waitUntil(() => oursExists('modal', '.cg-pv'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
+      await pressOurs('modal', '.cg-pv button', /^Hi/);
+      await waitOursText('modal', 'so glad you’re here', 'the greeting', { timeout: 20_000, selector: '.cg-pv' });
+      await look('board-06-newcomers-card', {
+        check: async () => {
+          await inWindow('modal', '.cg-nc');
+          await inWindow('modal', '.cg-pv');
+        },
+      });
+      await closeAll();
+      expect(await oursExists('modal', '.cg-nc')).toBe(false);
+    });
+
+    it('the fan panel: the fan, its Recap', async function () {
+      this.timeout(180_000);
+      await leaveField();
+      await browser.keys([']']);
+      await waitOursText('panel', 'Fan Alder', 'the fan panel of the open chat');
+      facts['fanPanelOverSend'] = await sendCovered('.cg-fp');
+      await look('panel-01-fan', { check: async () => void (await inWindow('panel', '.cg-fp')) });
+      await ours('panel', '.cg-fp__tabs [role="tab"]:last-child').click();
+      await waitOursText('panel', 'Hubert, 34', 'the Recap of the fan panel', { timeout: 20_000 });
+      await look('panel-02-fan-recap', { all: false, check: async () => void (await inWindow('panel', '.cg-fp')) });
+      await closeAll();
+    });
+
+    it('the palette, empty and searching; the cheatsheet', async function () {
+      this.timeout(180_000);
+      await leaveField();
+      await browser.keys([MOD, 'k']);
+      await browser.waitUntil(() => oursExists('modal', '.cg-pal__item'), { timeout: 10_000, timeoutMsg: 'the palette did not open' });
+      await look('modal-01-palette', { check: async () => void (await inWindow('modal', '.cg-pal')) });
+      await browser.keys('juni'.split(''));
+      await waitOursText('modal', 'Fan Juniper', 'the palette found the fan', { selector: '.cg-pal' });
+      await look('modal-02-palette-search', { all: false, check: async () => void (await inWindow('modal', '.cg-pal')) });
+      await closeAll();
+      await leaveField();
+      await browser.keys(['?']);
+      await waitOursText('modal', 'Клавиши ChatGoose', 'the cheatsheet');
+      await look('modal-03-cheatsheet', { check: async () => void (await inWindow('modal', '.cg-cs')) });
+      await closeAll();
+    });
+
+    it('Coach: an answer with a draft', async function () {
+      this.timeout(180_000);
+      await pressOurs('dock', '.cg-strip button', /^Coach/);
+      await browser.waitUntil(async () => (await oursFocus('panel'))?.label === 'Вопрос Coach', { timeout: 10_000, timeoutMsg: 'the Coach field did not take the focus' });
+      await look('panel-03-coach-empty', { all: false, check: async () => void (await inWindow('panel', '.cg-coach')) });
+      await ours('panel', '.cg-co__ask textarea, .cg-co__ask input').click();
+      await browser.keys('Стоит ли сейчас предлагать ему новый сет?'.split(''));
+      await browser.keys(Key.Enter);
+      await waitOursText('panel', 'Сегодня можно, но не первым сообщением', 'the Coach answer', { timeout: 20_000 });
+      facts['coachOverSend'] = await sendCovered('.cg-coach');
+      await look('panel-04-coach-answer', { check: async () => void (await inWindow('panel', '.cg-coach')) });
+      await closeAll();
+    });
+
+    it('[ER-014] toasts: a generation that ended in another chat is named by its fan; the one of the open chat is not toasted', async function () {
+      this.timeout(180_000);
+      // Chunks slow enough to leave the chat before the answer ends.
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 500 } });
+      await open(a11, ACC, true);
+      await ready(a11);
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      await dockIs((d) => d.target?.endsWith(`:${a11}`) === true && d.result !== null, 'the Reply of Fan Kestrel started');
+      // The next chat's generation is refused twice by the hub (one transparent retry in between): it fails five seconds later.
+      await callStand('openChat', ACC, a8);
+      await ready(a8);
+      await hub().command({ op: 'useSseScenario', scenario: 'unavailable-503-twice', match: 'route' });
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      await callStand('openChat', ACC, a1);
+      await ready(a1);
+      await waitOursText('toast', 'AI готово · Fan Kestrel', 'the toast of the generation that ended elsewhere', { timeout: 30_000 });
+      // The pointer over a toast holds it.
+      const done = await oursBox('toast', '.cg-toasts');
+      if (done !== null) await browser.action('pointer').move({ x: Math.round(done.x + done.width / 2), y: Math.round(done.y + 20) }).perform();
+      await look('toast-01-ready-elsewhere', { all: false, toasts: true, check: async () => void (await inWindow('toast', '.cg-toasts')) });
+      await hub().command({ op: 'clearScripts' });
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0 } });
+      await browser.action('pointer').move({ x: 700, y: 300 }).perform();
+      // Let go, a toast lives out its time and goes.
+      await browser.waitUntil(async () => !(await oursExists('toast', '.cg-toast')), { timeout: 20_000, timeoutMsg: 'the toasts did not go' });
+      // In the open chat the result is in the dock: nothing is toasted over it, however soon it ends.
+      await pressOurs('dock', '.cg-strip button', /^Ping/);
+      await dockIs((d) => d.result?.feature === 'ping' && d.result.state === 'done', 'the Ping of the open chat', 20_000);
+      await browser.pause(600);
+      expect(await oursExists('toast', '.cg-toast')).toBe(false);
+      await hideResult();
+    });
+  });
+
+  describe('the extension’s own pages', () => {
+    it('the popup; the settings — «Статус», «Вид и звук», «Генерация»', async function () {
+      this.timeout(240_000);
+      await lookAtPage('page-popup', async () => {
+        await openPopup();
+        await waitForPopup((state) => state.view === 'ready', 'the popup of a signed-in person');
+      });
+      await lookAtPage('page-options-status', async () => {
+        await openOptions('status');
+        // The page asks the ChatSpace tab what it sees: photographed once every row has its answer.
+        await waitForOptions((state) => state.section === 'status' && !state.loading && Object.keys(state.rows).length > 0 && !/проверя|checking/i.test(Object.values(state.rows).map((row) => row.text).join(' ')), '«Статус» with its rows read');
+      });
+      await lookAtPage('page-options-appearance', async () => {
+        await openOptions('appearance');
+        await waitForOptions((state) => state.section === 'appearance' && !state.loading, '«Вид и звук»');
+      });
+      await lookAtPage(
+        'page-options-generation',
+        async () => {
+          await openOptions('generation');
+          await waitForOptions((state) => state.section === 'generation' && !state.loading, '«Генерация»');
+        },
+        false,
+      );
+    });
+  });
+
+  describe('the states that end the shift', () => {
+    it('the daily quota is spent', async function () {
+      this.timeout(180_000);
+      await open(a2);
+      await ready(a2);
+      await hub().command({ op: 'useSseScenario', scenario: 'quota-429', match: 'route' });
+      await pressOurs('dock', '.cg-strip button', /^Reply/);
+      const spent = await dockIs((d) => d.result?.error === 'CG-QUOTA-DAILY' || d.banner === 'CG-QUOTA-DAILY', 'the quota card', 20_000);
+      facts['quota'] = { status: spent.status, banner: spent.banner, error: spent.result?.error ?? null };
+      await look('dock-18-quota', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hub().command({ op: 'clearScripts' });
+    });
+
+    it('nobody is signed in: the dock, the popup, the sign-in screen', async function () {
+      this.timeout(180_000);
+      await shift.toPages();
+      await signOutFromAccount();
+      await waitForOptions((state) => state.gate, 'signed out: the sign-in screen');
+      await browser.url(testBuildPage(QUIET_PAGE));
+      await shift.toStand();
+      await dockIs((d) => d.status === 'not-signed-in', 'the dock says nobody is signed in');
+      await look('dock-19-not-signed-in', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await lookAtPage('page-popup-signed-out', async () => {
+        await openPopup();
+        await waitForPopup((state) => state.view === 'forbidden', 'the popup with nobody signed in');
+      });
+      await lookAtPage('page-options-sign-in', async () => {
+        await openOptions();
+        await waitForOptions((state) => state.gate, 'the sign-in screen');
+      });
+    });
+  });
+});
