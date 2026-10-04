@@ -4,8 +4,11 @@
 // jump) in both themes and both languages at 1440×900 and 1280×800. Each case
 // checks that nothing sticks out, nothing failed, nothing was dispatched by
 // merely opening, and saves a picture into .cache/e2e/ to compare by eye with
-// the mockup. Then the two measurements of §11 on a board of a thousand fans:
-// opening it from data already in memory, and a search.
+// the mockup. One state of each surface is then drawn at the browser's zoom
+// of 125, 150 and 200 % (the 1440×900 window in CSS pixels), where Spenders
+// and «Новые» fold into one column. Then the two measurements of §11 on a
+// board of a thousand fans: opening it from data already in memory, and a
+// search.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 
@@ -19,6 +22,23 @@ const VIEWPORTS = [
   { width: 1440, height: 900 },
   { width: 1280, height: 800 },
 ] as const;
+/**
+ * The 1440×900 window at the browser's zoom (architecture.md §10.2, ui-design
+ * §11: 100 / 125 / 150 / 200 %): zooming a page shrinks its viewport in CSS
+ * pixels, which is what our layout answers to.
+ */
+const ZOOMED = [
+  { zoom: 125, width: 1152, height: 720 },
+  { zoom: 150, width: 960, height: 600 },
+  { zoom: 200, width: 720, height: 450 },
+] as const;
+/** One state of each surface at every zoom: the preview with «Отправить», a greeting in work, the fan panel, the palette. */
+const ZOOM_STATES = ['11a', '11i', '13b', '14a', '15a'] as const;
+/** With a preview open the statistics column gives way at this width and below; Spenders is one column from the second one down. */
+const SPENDERS_NO_STATS_PX = 1120;
+const SPENDERS_ONE_COLUMN_PX = 860;
+/** «Новые» is one column at this width and below. */
+const NEWCOMERS_ONE_COLUMN_PX = 900;
 const THEMES = ['light', 'dark'] as const;
 const LANGUAGES = ['ru', 'en'] as const;
 
@@ -55,6 +75,7 @@ interface Probe {
   readonly failures: readonly string[];
   readonly dispatched: readonly string[];
   readonly overflow: readonly string[];
+  readonly squeezed: readonly string[];
   readonly rows: number;
   readonly marker: number;
   readonly mode: string;
@@ -81,6 +102,7 @@ async function probe(marker: string): Promise<Probe> {
       failures: boards.failures.map((failure) => `${failure.kind}:${failure.code}:${failure.name}`),
       dispatched: [...boards.dispatched()],
       overflow: [...boards.overflow()],
+      squeezed: [...boards.squeezed()],
       rows: boards.listNodes(),
       marker: boards.count(selector),
       mode: boards.styles.mode,
@@ -104,6 +126,7 @@ function problems(result: Probe, theme: string): string[] {
   if (result.marker === 0) found.push('the state did not render');
   if (result.failures.length > 0) found.push(`failures: ${result.failures.join(', ')}`);
   if (result.overflow.length > 0) found.push(`sticks out: ${result.overflow.join(', ')}`);
+  if (result.squeezed.length > 0) found.push(`squeezed: ${result.squeezed.join(', ')}`);
   if (result.scrollWidth > result.clientWidth) found.push(`page scrolls sideways: ${result.scrollWidth} > ${result.clientWidth}`);
   if (result.rows > MAX_DOM_ROWS) found.push(`${result.rows} list rows in the DOM`);
   if (result.mode !== 'adopted') found.push(`styles are ${result.mode}`);
@@ -142,6 +165,76 @@ describe('boards gallery: Spenders, «Новые», the fan panel and the palett
       });
     }
   }
+
+  for (const viewport of ZOOMED) {
+    for (const state of ZOOM_STATES) {
+      it(`${state} · zoom ${viewport.zoom} % (${viewport.width}×${viewport.height}) · light/dark · ru/en`, async () => {
+        const found: string[] = [];
+        for (const theme of THEMES) {
+          for (const language of LANGUAGES) {
+            await open(`state=${state}&theme=${theme}&lang=${language}`, viewport);
+            await capture(`boards-${state}-${theme}-${language}-zoom${viewport.zoom}`);
+            for (const problem of problems(await probe(STATES[state] ?? ''), theme)) found.push(`${theme}/${language}: ${problem}`);
+          }
+        }
+        expect(found).toEqual([]);
+      });
+    }
+  }
+
+  it('a narrow window: the list keeps its width — the statistics give way to a preview, then Spenders and «Новые» become one column', async () => {
+    for (const viewport of ZOOMED) {
+      await open('state=11a&theme=light&lang=ru', viewport);
+      const spenders = await browser.execute(() => ({ list: window.__boards?.box('.cg-bd') ?? null, preview: window.__boards?.box('.cg-pv') ?? null, stats: window.__boards?.box('.cg-st') ?? null, frame: window.__boards?.box('.cg-sp__cols') ?? null }));
+      if (spenders.list === null || spenders.preview === null || spenders.stats === null || spenders.frame === null) throw new Error(`Spenders did not render at ${viewport.width}`);
+      // The list never gets narrower than its columns need.
+      expect(spenders.list.width).toBeGreaterThanOrEqual(380);
+      if (viewport.width <= SPENDERS_ONE_COLUMN_PX) {
+        // One column as wide as the window's body, top to bottom: the list, the preview, the statistics.
+        for (const box of [spenders.list, spenders.preview, spenders.stats]) {
+          expect(Math.round(box.left)).toBe(Math.round(spenders.frame.left));
+          expect(Math.round(box.width)).toBe(Math.round(spenders.frame.width));
+        }
+        expect(spenders.list.height).toBeGreaterThanOrEqual(220);
+        expect(spenders.preview.top).toBeGreaterThanOrEqual(spenders.list.top + spenders.list.height - 1);
+        expect(spenders.stats.top).toBeGreaterThanOrEqual(spenders.preview.top + spenders.preview.height - 1);
+        // The preview starts inside the window: opening it is seen.
+        expect(spenders.preview.top).toBeLessThan(spenders.frame.top + spenders.frame.height);
+      } else {
+        expect(spenders.list.left).toBeLessThan(spenders.preview.left);
+        expect(Math.round(spenders.list.top)).toBe(Math.round(spenders.preview.top));
+        if (viewport.width <= SPENDERS_NO_STATS_PX) {
+          // The list and the preview side by side; the statistics column is not drawn while the preview is open.
+          expect(spenders.stats.display).toBe('none');
+          expect(Math.round(spenders.preview.left + spenders.preview.width)).toBe(Math.round(spenders.frame.left + spenders.frame.width));
+        } else {
+          expect(spenders.preview.left).toBeLessThan(spenders.stats.left);
+        }
+      }
+      // Without a preview the statistics column is back.
+      await open('state=board-list&theme=light&lang=ru', viewport);
+      const plain = await browser.execute(() => ({ list: window.__boards?.box('.cg-bd') ?? null, stats: window.__boards?.box('.cg-st') ?? null, squeezed: [...(window.__boards?.squeezed() ?? [])], overflow: [...(window.__boards?.overflow() ?? [])] }));
+      expect(plain.stats?.display).not.toBe('none');
+      expect(plain.stats?.width).toBeGreaterThanOrEqual(240);
+      expect(plain.list?.width).toBeGreaterThanOrEqual(380);
+      expect(plain.squeezed).toEqual([]);
+      expect(plain.overflow).toEqual([]);
+
+      await open('state=13b&theme=light&lang=ru', viewport);
+      const fresh = await browser.execute(() => ({ list: window.__boards?.box('.cg-nc') ?? null, rows: window.__boards?.box('.cg-nc__list') ?? null, card: window.__boards?.box('.cg-pv') ?? null, frame: window.__boards?.box('.cg-nc__cols') ?? null }));
+      if (fresh.list === null || fresh.rows === null || fresh.card === null || fresh.frame === null) throw new Error(`«Новые» did not render at ${viewport.width}`);
+      // The rows are there at every width: three of 52 px under the column header.
+      expect(fresh.rows.height).toBeGreaterThanOrEqual(28 + 3 * 52);
+      if (viewport.width <= NEWCOMERS_ONE_COLUMN_PX) {
+        expect(Math.round(fresh.card.left)).toBe(Math.round(fresh.list.left));
+        expect(Math.round(fresh.card.width)).toBe(Math.round(fresh.frame.width));
+        expect(fresh.card.top).toBeGreaterThanOrEqual(fresh.list.top + fresh.list.height - 1);
+      } else {
+        expect(fresh.list.left).toBeLessThan(fresh.card.left);
+        expect(Math.round(fresh.list.top)).toBe(Math.round(fresh.card.top));
+      }
+    }
+  });
 
   it('[SP-002] the list is the widest column; the statistics are a compact one of 240–272 px', async () => {
     for (const viewport of VIEWPORTS) {

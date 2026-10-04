@@ -39,6 +39,8 @@ export interface BoardsProbe {
   listNodes(): number;
   /** Elements of ours that stick out of the viewport horizontally. */
   overflow(): readonly string[];
+  /** Rows of ours whose content is wider than the row: columns squeezed into each other, a row running into the next pane. */
+  squeezed(): readonly string[];
   /** Text of the first element matching `selector` inside our root. */
   text(selector: string): string | null;
   count(selector: string): number;
@@ -124,6 +126,11 @@ window.__boards = {
         return box.width > 0 && (box.right > document.documentElement.clientWidth + 0.5 || box.left < -0.5) && element.closest('.cg-sr') === null;
       })
       .map((element) => `${element.tagName.toLowerCase()}.${element.className.toString().split(' ').join('.')}`)
+      .slice(0, 20),
+  squeezed: () =>
+    [...root.querySelectorAll<HTMLElement>('.cg-sp__top, .cg-sp__tools, .cg-bd__colhead, .cg-bd__row, .cg-bd__shelfrow, .cg-nc__colhead, .cg-nc__row, .cg-pv__head, .cg-pvb, .cg-st__head')]
+      .filter((element) => element.clientWidth > 0 && element.scrollWidth > element.clientWidth + 1)
+      .map((element) => `${element.className.toString().split(' ').join('.')} ${element.scrollWidth} > ${element.clientWidth}`)
       .slice(0, 20),
   text: (selector) => root.querySelector(selector)?.textContent ?? null,
   count: (selector) => root.querySelectorAll(selector).length,

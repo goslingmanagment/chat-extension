@@ -410,7 +410,9 @@ export const NEWCOMERS_CSS = `
 .cg-nc__cols > * { min-height: 0; min-width: 0; }
 .cg-nc__cols > * + * { border-left: 1px solid var(--cg-rule); }
 .cg-nc { display: flex; flex-direction: column; min-height: 0; }
-.cg-nc > .cg-sp__tools { border-bottom: 1px solid var(--cg-rule); }
+/* Six filters and the window menu: on a narrow list they go on to a second line instead of running into the card. */
+.cg-nc > .cg-sp__tools { border-bottom: 1px solid var(--cg-rule); flex-wrap: wrap; align-content: center; height: auto; min-height: 44px; padding-top: 4px; padding-bottom: 4px; row-gap: 2px; }
+.cg-nc > .cg-sp__tools > .cg-menu-anchor { margin-left: auto; }
 .cg-nc__list { flex: 0 1 auto; min-height: 0; }
 .cg-nc__grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 72px minmax(148px, 0.6fr); align-items: center; padding: 0 16px 0 20px; }
 .cg-nc__grid > * { min-width: 0; }
@@ -439,8 +441,13 @@ export const NEWCOMERS_CSS = `
 .cg-nc__scan { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-2); white-space: nowrap; font-size: var(--cg-text-sm); }
 .cg-ncw .cg-menu { z-index: 6; }
 @media (max-width: 1100px) { .cg-nc__cols.is-card { grid-template-columns: minmax(0, 1fr) 420px; } }
+/* A narrow window (the browser's zoom of 200 %, ui-design §11): one column — the list in a window of its own, the card under it. */
 @media (max-width: 900px) {
-  .cg-nc__cols.is-card { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
-  .cg-nc__cols > * + * { border-left: 0; border-top: 1px solid var(--cg-rule); }
+  .cg-nc__cols.is-card { display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: thin; }
+  .cg-nc__cols.is-card > * { flex: none; }
+  .cg-nc__cols.is-card > * + * { border-left: 0; border-top: 1px solid var(--cg-rule); }
+  .cg-nc__cols.is-card .cg-nc__list { flex: none; max-height: 236px; }
+  .cg-nc__cols.is-card > .cg-pv .cg-feed { flex: 0 0 160px; }
+  .cg-nc__cols.is-card .cg-vlist, .cg-nc__cols.is-card .cg-feed, .cg-nc__cols.is-card .cg-pv__work { overscroll-behavior: auto; }
 }
 `;

@@ -103,7 +103,7 @@ export function SpendersWindow(): JSX.Element {
 
   return (
     <OverlayLayer>
-      <Dialog open label={i18n.t('spenders.title')} size="window" scrim={false} class="cg-sp" onClose={close} initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}>
+      <Dialog open label={i18n.t('spenders.title')} size="window" scrim={false} class="cg-sp cg-spw" onClose={close} initialFocus={() => frameRef.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}>
         <div ref={frameRef} class="cg-sp__frame" onKeyDown={onKeyDown}>
           <WindowHeader title={i18n.t('spenders.title')} pageName={board.pageName} onClose={() => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: false } })}>
             <Tabs<SpendersPeriod>
@@ -161,9 +161,38 @@ export const SPENDERS_CSS = `
   .cg-sp__cols { grid-template-columns: minmax(0, 1fr) 240px; }
   .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px 240px; }
 }
-@media (max-width: 900px) {
-  .cg-sp__cols, .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+/*
+ * A narrow window — the browser's zoom of 150–200 % on a laptop (ui-design §11). The list needs about 400 px
+ * to keep its columns apart. Up to 1120 px a preview no longer leaves that next to the statistics: while a
+ * preview is open the statistics column gives way (S still opens the statistics in full; closing the preview
+ * brings the column back).
+ */
+@media (max-width: 1120px) {
+  .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px; }
+  .cg-sp__cols.is-preview > .cg-st { display: none; }
+}
+/*
+ * Up to 860 px the list and the preview do not fit side by side either: one column, read top to bottom — the
+ * list in a window of its own, then the preview, then the statistics. The column scrolls; a list or a feed at
+ * its end hands the wheel on to it. The header puts the period tabs on a line of their own.
+ */
+@media (max-width: 860px) {
+  .cg-sp__cols, .cg-sp__cols.is-preview { display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: thin; }
+  .cg-sp__cols > * { flex: none; }
   .cg-sp__cols > * + * { border-left: 0; border-top: 1px solid var(--cg-rule); }
+  .cg-sp__cols > .cg-bd { height: 100%; min-height: 240px; }
+  .cg-sp__cols.is-preview > .cg-bd { height: 56%; min-height: 220px; }
+  .cg-sp__cols.is-preview > .cg-st { display: block; }
+  .cg-sp__cols > .cg-st, .cg-sp__cols > .cg-stx { overflow-y: visible; }
+  .cg-sp__cols > .cg-pv .cg-feed { flex: 0 0 200px; }
+  .cg-sp__cols .cg-vlist, .cg-sp__cols .cg-feed, .cg-sp__cols .cg-pv__work { overscroll-behavior: auto; }
+  .cg-spw .cg-sp__top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-rows: 52px auto; height: auto; column-gap: 12px; }
+  .cg-spw .cg-sp__title { grid-area: 1 / 1; }
+  .cg-spw .cg-sp__page { grid-area: 1 / 2; }
+  .cg-spw .cg-sp__top .cg-sp__search { grid-area: 1 / 3; }
+  .cg-spw .cg-sp__close { grid-area: 1 / 4; }
+  .cg-spw .cg-sp__top .cg-tabs { grid-area: 2 / 1 / 3 / -1; margin: 0 0 8px -8px; overflow-x: auto; scrollbar-width: none; }
+  .cg-spw .cg-sp__grow { display: none; }
 }
 ${BOARD_CSS}
 ${STATS_CSS}
