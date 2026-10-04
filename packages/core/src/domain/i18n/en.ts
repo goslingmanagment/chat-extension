@@ -309,6 +309,8 @@ export const EN: I18nCatalog<'en'> = {
   'spenders.shelf.none': 'no shelf',
   'spenders.truncated': 'Showing the first {shown} of {total}. Narrow the search or the filter.',
   'spenders.truncatedNoTotal': 'Showing the first {shown}. Narrow the search or the filter.',
+  'spenders.refresh': 'Refresh',
+  'spenders.refreshTooltip': 'Read the hub’s data again. No AI is run',
   'spenders.footerNoTotal': { one: '{n} fan, {coverage}', other: '{n} fans, {coverage}' },
   'stats.title': 'Statistics',
   'stats.titleFull': 'Statistics, {period}',

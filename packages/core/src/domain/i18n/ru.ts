@@ -332,6 +332,8 @@ export const RU: I18nCatalog<'ru'> = {
   'spenders.shelf.none': 'вне полок',
   'spenders.truncated': 'Показаны первые {shown} из {total}. Сузьте поиск или фильтр.',
   'spenders.truncatedNoTotal': 'Показаны первые {shown}. Сузьте поиск или фильтр.',
+  'spenders.refresh': 'Обновить',
+  'spenders.refreshTooltip': 'Перечитать данные хаба. AI не запускается',
   'spenders.footerNoTotal': {
     one: '{n} фан, {coverage}',
     few: '{n} фана, {coverage}',
