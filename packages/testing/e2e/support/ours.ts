@@ -26,6 +26,13 @@ export const ours = (where: Where, selector: string) => $(HOSTS[where]).shadow$(
 /** Every element of ours that matches. */
 export const allOurs = (where: Where, selector: string) => $(HOSTS[where]).shadow$$(selector);
 
+/** Whether an element of ours matching the selector is there now (false too while nothing of ours is mounted there). */
+export async function oursExists(where: Where, selector: string): Promise<boolean> {
+  const host = $(HOSTS[where]);
+  if (!(await host.isExisting())) return false;
+  return host.shadow$(selector).isExisting();
+}
+
 const squash = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
 /** The first element matching `selector` whose rendered text is `text` (or matches it); null — none on screen. */

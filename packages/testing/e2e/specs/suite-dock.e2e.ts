@@ -27,7 +27,7 @@ import { Key } from 'webdriverio';
 import { bridgeWrites, clearDraft, composerText, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, pressSend, scrollList, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursByText, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
+import { oursByText, oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, composerRoots, dockPlacement, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 import { setViewport } from '../support/visual';
@@ -344,7 +344,7 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       expect((await writesSince(mark)).map((write) => write.chatId)).toEqual([a1]);
       // Not «✓ Черновик заменён» over the person's own text: the sheet is as before the replacement, and the Fix can be applied again.
       await waitOursByText('dock', '.cg-dock button', /^Заменить мой черновик/, 'the replacement is undone on the sheet too');
-      expect(await ours('dock', '.cg-fix__acts .cg-done').isExisting()).toBe(false);
+      expect(await oursExists('dock', '.cg-fix__acts .cg-done')).toBe(false);
       const sheet = await oursText('dock', '.cg-fixbox');
       expect(sheet).toContain(MINE);
       expect(sheet).toContain(fixed(a1));
