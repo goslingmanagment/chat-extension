@@ -44,14 +44,14 @@ export function FixBody({ opId, fix, part, mode, confirm }: FixBodyProps): JSX.E
   const i18n = useI18n();
   const now = useNowFn();
   const { copy, run, asked } = usePartActions(opId);
-  const onCancel = useConfirmFocus(confirm);
+  const onAnswer = useConfirmFocus(confirm);
   const left = useCountdown(fix.replaced && !fix.restoreExpired ? fix.restoreUntil : null, now);
   const seconds = Math.ceil(left / 1000);
   const copied = part.copy === 'done';
   const copyLabel = copied ? i18n.t('common.copied') : i18n.t('common.copy');
   // The question stands where the button that asked was; «Отмена» gives focus back to that button.
   const asking = confirms(confirm, part);
-  const question = asking ? <ConfirmRow confirm={confirm} takeFocus={asked} onCancel={onCancel} home=".cg-body" asker=".cg-fix__go, .cg-fix__back" /> : null;
+  const question = asking ? <ConfirmRow confirm={confirm} takeFocus={asked} onAnswer={onAnswer} home=".cg-body" asker=".cg-fix__go, .cg-fix__back" /> : null;
 
   if (fix.replaced) {
     const canRestore = !fix.restoreExpired && fix.restoreUntil !== null && left > 0;

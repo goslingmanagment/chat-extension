@@ -106,7 +106,7 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
       </div>
       <div class="cg-co__turn" data-cg-answer={turn.id}>
         <div class="cg-co__who">{i18n.t('coach.who.coach')}</div>
-        {isRunning(turn.state) ? (
+        {waiting ? (
           <div class="cg-co__wait" aria-busy="true">
             {turn.sentToCoach || turn.phase === null ? <span class="cg-co__sent">{i18n.t('coach.sentToCoach')}</span> : <div class="cg-co__stages"><StageLine phase={turn.phase} startedAt={turn.phase.startedAt} /></div>}
             <p class="cg-co__stream">
@@ -142,7 +142,7 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
         <RetryAnnouncer error={turn.error} actions={turn.errorActions} />
         {debug === null ? null : (
           <div class="cg-co__debug">
-            <DebugSlot loader={DEFAULT_PARTS.debug} debug={debug} startedAt={turn.phase?.startedAt ?? turn.askedAt} running={isRunning(turn.state)} />
+            <DebugSlot loader={DEFAULT_PARTS.debug} debug={debug} startedAt={turn.phase?.startedAt ?? turn.askedAt} running={waiting} />
           </div>
         )}
       </div>

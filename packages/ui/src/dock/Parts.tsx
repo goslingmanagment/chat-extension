@@ -92,14 +92,14 @@ export interface ConfirmRowProps {
    * (useConfirmFocus): the button that asked after «Отмена», nowhere (null)
    * after «Заменить» and «Добавить в конец» — the host puts it into the composer.
    */
-  readonly onCancel: (target: (() => HTMLElement | null) | null) => void;
+  readonly onAnswer: (target: (() => HTMLElement | null) | null) => void;
   /** The element that outlives the question (the part, the sheet's body) and, inside it, the button that asked. */
   readonly home: string;
   readonly asker: string;
 }
 
 /** Б2: «Заменить», «Добавить в конец» (the default), «Отмена Esc» (ui-design §4.6). */
-export function ConfirmRow({ confirm, takeFocus, onCancel, home, asker }: ConfirmRowProps): JSX.Element {
+export function ConfirmRow({ confirm, takeFocus, onAnswer, home, asker }: ConfirmRowProps): JSX.Element {
   const i18n = useI18n();
   const { root, deps } = useKit();
   const dispatch = useDispatch();
@@ -113,7 +113,7 @@ export function ConfirmRow({ confirm, takeFocus, onCancel, home, asker }: Confir
   const answer = (choice: 'replace' | 'append' | 'cancel'): void => {
     // «Отмена» gives focus back to the button that asked (ui-design §6.3); the last answer given is the one that counts.
     const scope = choice === 'cancel' ? (box.current?.closest<HTMLElement>(home) ?? null) : null;
-    onCancel(scope === null ? null : () => scope.querySelector<HTMLElement>(asker) ?? scope);
+    onAnswer(scope === null ? null : () => scope.querySelector<HTMLElement>(asker) ?? scope);
     void dispatch({ type: 'AnswerConfirm', confirmationId: confirm.confirmationId, choice });
   };
   const question = i18n.t(confirm.kind === 'draft-changed' ? 'confirm.draftChanged' : 'confirm.humanDraft');
@@ -171,7 +171,7 @@ interface RowsProps extends PartsScope {
 }
 
 function Rows({ parts, stop, mode, confirm, actions }: RowsProps): JSX.Element {
-  const onCancel = useConfirmFocus(confirm);
+  const onAnswer = useConfirmFocus(confirm);
   return (
     <>
       {parts.map((part) => {
@@ -188,7 +188,7 @@ function Rows({ parts, stop, mode, confirm, actions }: RowsProps): JSX.Element {
             onCopy={actions.copy}
             onKeyDown={movePartFocus}
           >
-            {asking ? <ConfirmRow confirm={confirm} takeFocus={actions.asked} onCancel={onCancel} home=".cg-part" asker=".cg-ins" /> : undefined}
+            {asking ? <ConfirmRow confirm={confirm} takeFocus={actions.asked} onAnswer={onAnswer} home=".cg-part" asker=".cg-ins" /> : undefined}
           </PartRow>
         );
       })}
