@@ -558,7 +558,8 @@ type FromMain =
 - **операции:** `op.start(StartOp)` → `Admission`, `op.cancel(opId)`, `op.list(filter)`,
   `op.reportInsert`, `op.reportCopy`, `op.reportSent`;
 - **отправка из превью:** `send.begin(attempt)` → разрешение хаба или отказ,
-  `send.status(attemptId)`, `send.report(view)`;
+  `send.status(attemptId)`, `send.report(view)`, `send.list(pageId, fanRef)` — попытки
+  этому фану, которые знает фон (после перезагрузки вкладки, §6.7.8);
 - **рекапы:** `recap.status(target)`, `recap.read(target)`;
 - **данные хаба:** `spenders.board`, `spenders.stats`, `spenders.queue`, `feed.read`,
   `fan.card`, `newcomers.list`, `newcomers.claim`;

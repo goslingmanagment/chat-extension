@@ -308,6 +308,8 @@ export const RU: I18nCatalog<'ru'> = {
   'spenders.footerShown': '. Показано: {n}',
   'spenders.shelfMore': 'Показать ещё {n}',
   'spenders.empty': 'Никого не нашли. Проверьте фильтр или поиск.',
+  'spenders.keys.row': 'строка',
+  'spenders.resetFilters': 'Сбросить фильтры',
   'stats.title': 'Статистика',
   'stats.titleFull': 'Статистика, {period}',
   'stats.expand': 'Развернуть',
@@ -443,6 +445,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.claim.renew': 'Продлить бронь',
   'newcomers.claim.release': 'Снять бронь',
   'newcomers.claim.elsewhere': 'Вы уже здороваетесь с этим фаном в другой вкладке или на другом устройстве. Продолжите там: второе приветствие отсюда не начнётся.',
+  'newcomers.incomplete': 'Результат неполный: показана часть списка. Хаб ещё не собрал всех, кто подписался за это время.',
 
   // ── Fan panel and Coach ──
   'fanPanel.label': 'ChatGoose: фан',

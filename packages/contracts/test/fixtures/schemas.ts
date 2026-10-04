@@ -886,6 +886,24 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     ],
   ),
   fixture(
+    'SendListItem',
+    C.SendListItemSchema,
+    [
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0 },
+      { opId: uuid(2), purpose: 'preview-reply', group: sendBegin.group, partIndex: 1, view: { attemptId: uuid(5), state: 'sentObserved', platformMessageId: '4100' }, updatedAt: T0 },
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0, resolved: 'sent' },
+    ],
+    [
+      // The part belongs to the group.
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 2, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0 },
+      { opId: 'op-1', purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0 },
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' } },
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0, resolved: 'maybe' },
+      // Ids and states only: a text never travels with an attempt.
+      { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain' }, updatedAt: T0, plainText: 'Hi there' },
+    ],
+  ),
+  fixture(
     'TabRegisterRequest',
     C.TabRegisterRequestSchema,
     [{ host: 'chatspace', lateInjection: false, contractsVersion: '1.0.0' }, { host: 'fansly-web', lateInjection: true, contractsVersion: '1.1.0' }],

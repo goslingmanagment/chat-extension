@@ -117,6 +117,19 @@ describe('I18n port: one money notation (ui-design §1 п. 6)', () => {
     expect(formatMoneyMills(-400)).toBe('$0');
   });
 
+  it('[SP-013] prints cents on request: two digits, three when the mills need them', () => {
+    expect(formatMoneyMills(599_600, { cents: true })).toBe('$599.60');
+    expect(formatMoneyMills(599_600)).toBe('$600');
+    expect(formatMoneyMills(400, { cents: true })).toBe('$0.40');
+    expect(formatMoneyMills(405, { cents: true })).toBe('$0.405');
+    expect(formatMoneyMills(1_234_500, { cents: true })).toBe('$1,234.50');
+    expect(formatMoneyMills(25_000, { cents: true, sign: 'plus' })).toBe('+$25.00');
+    expect(formatMoneyMills(-45_500, { cents: true })).toBe(`${MINUS_SIGN}$45.50`);
+    expect(formatMoneyMills(0, { cents: true })).toBe('');
+    expect(formatMoneyMills(0, { cents: true, zero: 'show' })).toBe('$0.00');
+    expect(formatMoneyMills(null, { cents: true })).toBe('—');
+  });
+
   it('is the same in both languages', () => {
     expect(make('ru').formatMoneyMills(4_670_000)).toBe(make('en').formatMoneyMills(4_670_000));
   });

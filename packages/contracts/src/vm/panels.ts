@@ -27,9 +27,12 @@ export const CHURN_RISK_BY_RETENTION = {
  * The fan panel (CS-031…CS-038): who this is, money by kind, subscription,
  * ChatSpace's own scores if in memory, bio, Recap tab. Sources (D-29): money
  * and subscription — `fan.card` (spenderDetail of the target page, 30 days
- * and lifetime); `lastSeenAt`, `online`, `host`, `bio`, `lists` — HostFan,
- * only what ChatSpace already holds; `churnRisk` — CHURN_RISK_BY_RETENTION;
- * the dossier — `fan.dossier`. A missing source is null, never a guess.
+ * and lifetime); `lastSeenAt`, `online`, `host`, `lists` — HostFan, only
+ * what ChatSpace already holds; `churnRisk` — CHURN_RISK_BY_RETENTION; `bio`
+ * — the hub's profile of the fan (`fan.dossier`, CS-035), with ChatSpace's
+ * own «О себе» standing in only when the hub has none (`bioSource` says
+ * which); the footer's archive coverage — the hub archive of the thread. A
+ * missing source is null, never a guess.
  */
 export interface FanPanelVM {
   /** `empty` — «Выберите чат»; `partial` — some blocks unknown (no dossier, host scores not loaded). */
@@ -59,6 +62,13 @@ export interface FanPanelVM {
   /** Buying power and ChatSpace's scores, only if ChatSpace already holds them. */
   readonly host: { readonly buyingPower: string | null; readonly scores: readonly { readonly label: string; readonly value: string }[] } | null;
   readonly bio: string | null;
+  /**
+   * Where `bio` came from (1.2.0): `hub` — the body of the hub's profile of
+   * the fan (the saved dossier: a Markdown document, it may be long); `host`
+   * — ChatSpace's own «О себе», plain text, shown only while the hub has no
+   * profile. Absent — no bio, or a controller that does not say.
+   */
+  readonly bioSource?: 'hub' | 'host';
   readonly lists: readonly string[];
   /** «Данные на 09:18», «архив полный, 412 сообщений». */
   readonly footer: { readonly stamp: DataStamp; readonly archiveMessages: number | null };

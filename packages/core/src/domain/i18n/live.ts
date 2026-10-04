@@ -100,14 +100,26 @@ export interface LiveI18n extends I18n {
  * `$12,480`; income `+$320`; a loss `−$45`; a known zero is blank unless
  * `zero: 'show'`; null is `—`. Whole dollars (mills / 1000, rounded half away
  * from zero), a comma between thousands in every language: one notation.
+ * `cents: true` prints the exact amount instead — two digits after the
+ * point, three when the mills need them (`$599.60`, `$0.405`): an amount
+ * that whole dollars would show across its Spenders shelf's bound (SP-013).
  */
 export function formatMoneyMills(mills: number | null, format: MoneyFormat = {}): string {
   if (mills === null || !Number.isFinite(mills)) return UNKNOWN_VALUE;
-  const dollars = Math.round(Math.abs(mills) / 1000);
   if (mills === 0 && format.zero !== 'show') return '';
+  if (format.cents === true) return exactMoney(Math.round(mills), format);
+  const dollars = Math.round(Math.abs(mills) / 1000);
   const digits = groupThousands(dollars);
   if (mills < 0 && dollars > 0) return `${MINUS_SIGN}$${digits}`;
   return `${format.sign === 'plus' && dollars > 0 ? '+' : ''}$${digits}`;
+}
+
+function exactMoney(mills: number, format: MoneyFormat): string {
+  const abs = Math.abs(mills);
+  const fraction = (abs % 1000).toString().padStart(3, '0').replace(/0+$/, '').padEnd(2, '0');
+  const digits = `${groupThousands(Math.floor(abs / 1000))}.${fraction}`;
+  if (mills < 0) return `${MINUS_SIGN}$${digits}`;
+  return `${format.sign === 'plus' && mills > 0 ? '+' : ''}$${digits}`;
 }
 
 function groupThousands(value: number): string {

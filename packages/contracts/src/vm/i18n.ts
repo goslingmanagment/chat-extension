@@ -38,6 +38,13 @@ export type MoneySign = 'auto' | 'plus';
 export interface MoneyFormat {
   readonly sign?: MoneySign;
   readonly zero?: 'blank' | 'show';
+  /**
+   * Print the cents (`$599.60`, `$0.40`) instead of whole dollars: for an
+   * amount whose whole-dollar rounding would cross the bound of its Spenders
+   * shelf or turn it into `$0` (SP-013). 1.2.0; a port without it prints
+   * whole dollars.
+   */
+  readonly cents?: boolean;
 }
 
 /** `time` 09:18, `date` 4 сен, `datetime` 4 сен, 09:18, `day` «30 сен» day separators. */

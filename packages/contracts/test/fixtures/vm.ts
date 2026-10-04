@@ -183,6 +183,115 @@ export const TOAST_VM_SAMPLES: { readonly valid: readonly C.ToastVM[]; readonly 
 };
 
 /**
+ * Cents of an amount on its shelf's bound (1.2.0, SP-013): the row says so,
+ * the port's format prints it. Both are optional: without them whole dollars.
+ */
+const ROW_BASE: C.SpenderRowVM = {
+  handle: 'spenders:11:5001',
+  name: 'Fan 1',
+  username: 'fan_1',
+  lifetime: 599_600,
+  period: 25_000,
+  isNew: false,
+  deleted: false,
+  weWroteAt: null,
+  fanWroteAt: null,
+  waiting: false,
+  lastMessage: null,
+  selected: false,
+};
+export const MONEY_CENTS_SAMPLES: {
+  readonly rows: readonly C.SpenderRowVM[];
+  readonly formats: readonly C.MoneyFormat[];
+  readonly invalid: readonly unknown[];
+} = {
+  rows: [ROW_BASE, { ...ROW_BASE, lifetimeCents: true }],
+  formats: [{}, { cents: true }, { cents: true, sign: 'plus' }],
+  invalid: [
+    // @ts-expect-error the mark is a boolean, not the formatted amount
+    { ...ROW_BASE, lifetimeCents: '$599.60' } satisfies C.SpenderRowVM,
+    // @ts-expect-error cents is a switch, not a number of digits
+    { cents: 2 } satisfies C.MoneyFormat,
+  ],
+};
+
+/**
+ * Two numbers of §8.7 the statistics may carry (1.2.0): «ждёт ответа;
+ * прочтение неизвестно» and the lifetime spend of fans silent for more than
+ * 21 days (SP-046). Both optional: a model without them is as before.
+ */
+const STAMP: C.DataStamp = { asOf: '2026-10-03T06:18:00.000Z', coverage: 'complete' };
+const ATTENTION_BASE: C.SpendersStatsVM['attention'] = {
+  awaiting: { count: 12, stamp: STAMP },
+  newPayers: { count: 3, stamp: STAMP, firstObserved: false },
+  silent8to21: { count: 10, stamp: STAMP },
+  silentOver21: { count: 6, stamp: STAMP },
+  noData: { count: 4, stamp: STAMP },
+};
+export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStatsVM['attention'][]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    ATTENTION_BASE,
+    { ...ATTENTION_BASE, awaitingUnknown: { count: 2, stamp: STAMP }, silentOver21: { count: 6, stamp: STAMP, lifetime: 1_840_000 } },
+    { ...ATTENTION_BASE, awaitingUnknown: { count: null, stamp: STAMP }, silentOver21: { count: null, stamp: STAMP, lifetime: null } },
+  ],
+  invalid: [
+    // @ts-expect-error the unknown-read category is a count with its stamp, not a bare number
+    { ...ATTENTION_BASE, awaitingUnknown: 2 } satisfies C.SpendersStatsVM['attention'],
+    // @ts-expect-error the sum is integer mills, never a formatted amount
+    { ...ATTENTION_BASE, silentOver21: { count: 6, stamp: STAMP, lifetime: '$1,840' } } satisfies C.SpendersStatsVM['attention'],
+  ],
+};
+
+/**
+ * A lease of ours whose last renewal failed (1.2.0, NF-021): the card may
+ * say so while the lease still runs. Optional: without it the card is as before.
+ */
+const CLAIM_MINE: Extract<C.ClaimVM, { s: 'mine' }> = {
+  s: 'mine',
+  until: 1_790_000_119_000,
+  renew: { label: { key: 'newcomers.claim.renew' }, action: { type: 'RenewClaim', targetHandle: 'newcomers:11:2010' }, enabled: true, reason: null, hotkey: null },
+  release: { label: { key: 'newcomers.claim.release' }, action: { type: 'ReleaseClaim', targetHandle: 'newcomers:11:2010' }, enabled: true, reason: null, hotkey: null },
+};
+const RENEW_ERROR: C.CgErrorView = { code: 'CG-HUB-TIMEOUT', title: 'Хаб не ответил', body: 'Повторите позже.' };
+export const CLAIM_RENEW_SAMPLES: { readonly valid: readonly C.ClaimVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [CLAIM_MINE, { ...CLAIM_MINE, renewError: RENEW_ERROR }],
+  invalid: [
+    // @ts-expect-error the failed renewal is an error view with its code, not a flag
+    { ...CLAIM_MINE, renewError: true } satisfies C.ClaimVM,
+  ],
+};
+
+/**
+ * The fan panel's bio with its source (1.2.0, CS-035): the hub's profile of
+ * the fan, or ChatSpace's own «О себе» while the hub has none. Optional: a
+ * panel without `bioSource` draws as before.
+ */
+const FAN_PANEL_BASE: C.FanPanelVM = {
+  view: { s: 'ready' },
+  tab: 'fan',
+  personaLabel: 'Лора · VIP',
+  fan: { name: 'Hubert', username: 'hubert_pl', initials: 'H', lastSeenAt: null, online: null },
+  spent: null,
+  subscription: null,
+  host: null,
+  bio: null,
+  lists: [],
+  footer: { stamp: STAMP, archiveMessages: null },
+  close: { type: 'Navigate', to: { kind: 'surface', surface: 'fan-panel', open: false } },
+};
+export const FAN_PANEL_BIO_SAMPLES: { readonly valid: readonly C.FanPanelVM[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    FAN_PANEL_BASE,
+    { ...FAN_PANEL_BASE, bio: '## Fan\nLikes short replies.', bioSource: 'hub' },
+    { ...FAN_PANEL_BASE, bio: 'Works shifts, writes in the evening.', bioSource: 'host' },
+  ],
+  invalid: [
+    // @ts-expect-error the source is one of the two, not a free word
+    { ...FAN_PANEL_BASE, bio: 'x', bioSource: 'fansMap' } satisfies C.FanPanelVM,
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */

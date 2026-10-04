@@ -9,7 +9,7 @@ import { CgCodeSchema, CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
-import { DEBUG_LIMITS, LOG_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
+import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
 import {
@@ -53,6 +53,29 @@ const Ack = z.strictObject({ recorded: z.boolean() });
 
 /** A hub page + fan the tab asks about; the background re-checks the page is in the tab's binding. */
 const PageFan = { pageId: HubIntIdSchema, fanRef: NativeIdSchema };
+
+/** Attempts one `send.list` answer carries. */
+export const SEND_LIST_MAX = 100;
+
+/** One attempt of `send.list`: which operation, group and part it is, its state and when that state was reached. */
+export const SendListItemSchema = z
+  .strictObject({
+    opId: UuidSchema,
+    purpose: SendPurposeSchema,
+    group: SendGroupSchema,
+    partIndex: z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1)),
+    view: SendAttemptViewSchema,
+    /** The background's clock at the attempt's last change: «Отправлено 09:21», «с 09:21». */
+    updatedAt: EpochMsSchema,
+    /**
+     * The hub resolved the attempt in an audited support action (H-7
+     * `resolve`): it no longer holds the fan, whatever `view.state` says.
+     * `sent` — the part counts as delivered; `not-sent` — the part is free.
+     */
+    resolved: z.optional(z.enum(['sent', 'not-sent'])),
+  })
+  .check(z.refine((item) => item.partIndex < item.group.partCount, { message: 'partIndex must be below the group part count' }));
+export type SendListItem = z.infer<typeof SendListItemSchema>;
 
 /** The board's periods: the hub's (H-8) the board offers. */
 export const SPENDERS_PERIODS = ['lifetime', '30d', 'mtd', '7d', 'today'] as const satisfies readonly HubSpenderPeriod[];
@@ -290,6 +313,23 @@ export const TAB_REQUESTS = {
     from: TAB,
   },
   'send.status': { req: z.strictObject({ attemptId: UuidSchema }), res: z.strictObject({ view: z.nullable(SendAttemptViewSchema) }), from: ANY },
+  /**
+   * 1.2.0. The attempts the background knows for one fan of the page: open
+   * ones, uncertain ones until resolved, ended and resolved ones while it
+   * remembers them — those that hold the fan first, then newest, at most
+   * SEND_LIST_MAX. A tab that lost its own tracking (a reload) holds the
+   * fan, the group and «Открыть и вставить» by them, and learns here that
+   * the hub resolved an attempt (§6.7.8, §6.7.9). Ids and states, no text.
+   */
+  'send.list': {
+    req: z.strictObject(PageFan),
+    res: z.strictObject({
+      attempts: z.array(SendListItemSchema).check(z.maxLength(SEND_LIST_MAX)),
+      /** More attempts than SEND_LIST_MAX: the oldest ended ones are left out. */
+      truncated: z.boolean(),
+    }),
+    from: TAB,
+  },
   /**
    * A state MAIN observed; the background journals it and reports to the hub
    * custody by SEND_CUSTODY_REPORTS only on proof (a refusal's status is

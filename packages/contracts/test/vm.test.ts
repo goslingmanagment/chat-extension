@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { CLAIM_RENEW_SAMPLES, FAN_PANEL_BIO_SAMPLES, MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, STATS_ATTENTION_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -246,5 +246,66 @@ describe('spoken money (1.1.0)', () => {
     expect(C.isPluralKey('common.money.dollars')).toBe(true);
     expect(SPOKEN_MONEY_SAMPLES.valid[0]?.(320_000, { sign: 'plus' })).toBe('плюс 320 долларов');
     expect(SPOKEN_MONEY_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('cents on a shelf bound (1.2.0)', () => {
+  it('[SP-013] a board row may ask for cents and the money format may print them; both are optional', () => {
+    expectTypeOf<C.SpenderRowVM['lifetimeCents']>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<C.MoneyFormat['cents']>().toEqualTypeOf<boolean | undefined>();
+    const [plain, exact] = MONEY_CENTS_SAMPLES.rows;
+    expect(plain?.lifetimeCents).toBeUndefined();
+    expect(exact?.lifetimeCents).toBe(true);
+    expect(MONEY_CENTS_SAMPLES.formats.filter((format) => format.cents === true)).toHaveLength(2);
+    expect(MONEY_CENTS_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('the catalog has the keys footer label of the board, its «Сбросить фильтры» and the «Результат неполный» text', () => {
+    expect(C.UI_TEXT_KEYS).toContain('spenders.keys.row');
+    expect(C.UI_TEXT_KEYS).toContain('spenders.resetFilters');
+    expect(C.UI_TEXT_KEYS).toContain('newcomers.incomplete');
+  });
+});
+
+describe('the statistics\' attention block (1.2.0)', () => {
+  it('[SP-046] may carry «ждёт ответа; прочтение неизвестно» and the lifetime spend of fans silent for more than 21 days; both are optional', () => {
+    type Attention = C.SpendersStatsVM['attention'];
+    expectTypeOf<Attention['awaitingUnknown']>().toEqualTypeOf<C.CountStat | undefined>();
+    expectTypeOf<Attention['silentOver21']['lifetime']>().toEqualTypeOf<C.MoneyMills | null | undefined>();
+    const [plain, full, unknown] = STATS_ATTENTION_SAMPLES.valid;
+    expect(plain?.awaitingUnknown).toBeUndefined();
+    expect(plain?.silentOver21.lifetime).toBeUndefined();
+    expect(full?.awaitingUnknown?.count).toBe(2);
+    expect(full?.silentOver21.lifetime).toBe(1_840_000);
+    // Unknown stays unknown, never zero.
+    expect(unknown?.awaitingUnknown?.count).toBeNull();
+    expect(unknown?.silentOver21.lifetime).toBeNull();
+    expect(STATS_ATTENTION_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('a lease whose renewal failed (1.2.0)', () => {
+  it('[NF-021] the card of a lease of ours may carry the error of its last renewal; the lease itself is unchanged', () => {
+    type Mine = Extract<C.ClaimVM, { s: 'mine' }>;
+    expectTypeOf<Mine['renewError']>().toEqualTypeOf<C.CgErrorView | undefined>();
+    const [plain, failed] = CLAIM_RENEW_SAMPLES.valid;
+    expect(plain?.s === 'mine' && plain.renewError).toBeUndefined();
+    expect(failed?.s === 'mine' && failed.renewError?.code).toBe('CG-HUB-TIMEOUT');
+    expect(failed?.s === 'mine' && C.CgErrorViewSchema.safeParse(failed.renewError).success).toBe(true);
+    // The deadline and the buttons are the lease's own, with or without the error.
+    expect(failed).toMatchObject({ s: 'mine', until: 1_790_000_119_000, renew: { action: { type: 'RenewClaim' } }, release: { action: { type: 'ReleaseClaim' } } });
+    expect(CLAIM_RENEW_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('the fan panel\'s bio names its source (1.2.0)', () => {
+  it('[CS-035] the bio is the hub profile or ChatSpace\'s own «О себе», and the panel may say which', () => {
+    expectTypeOf<C.FanPanelVM['bioSource']>().toEqualTypeOf<'hub' | 'host' | undefined>();
+    const [none, hub, host] = FAN_PANEL_BIO_SAMPLES.valid;
+    expect(none).toMatchObject({ bio: null });
+    expect(none?.bioSource).toBeUndefined();
+    expect(hub).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
+    expect(host).toMatchObject({ bioSource: 'host' });
+    expect(FAN_PANEL_BIO_SAMPLES.invalid).toHaveLength(1);
   });
 });

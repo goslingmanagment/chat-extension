@@ -63,6 +63,7 @@ const settingsState = { settings: DEFAULT_SETTINGS, revision: 3, readOnly: false
 const ack = { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] } as const;
 const empty = { valid: [{}], invalid: [{ extra: 1 }] } as const;
 const pageFan = { pageId: 11, fanRef: IDS.fan } as const;
+const sendListItem = { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0 } as const;
 /** A hub DTO answer: the sample and a broken copy of it. */
 const dto = (valid: object, invalid: object) => ({ valid: [valid], invalid: [invalid, { any: 'shape' }] }) as const;
 
@@ -168,6 +169,21 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'send.status': {
     req: { valid: [{ attemptId: uuid(5) }], invalid: [{}] },
     res: { valid: [{ view: sendView }, { view: null }], invalid: [{ view: { attemptId: uuid(5), state: 'lost' } }] },
+  },
+  'send.list': {
+    req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
+    res: {
+      valid: [
+        { attempts: [], truncated: false },
+        { attempts: [sendListItem, { ...sendListItem, resolved: 'not-sent' }], truncated: false },
+      ],
+      invalid: [
+        { attempts: [] },
+        { attempts: [{ ...sendListItem, partIndex: sendBegin.group.partCount }], truncated: false },
+        { attempts: [{ ...sendListItem, text: 'Hi there' }], truncated: false },
+        { attempts: Array.from({ length: 101 }, () => sendListItem), truncated: true },
+      ],
+    },
   },
   'send.report': {
     req: {
