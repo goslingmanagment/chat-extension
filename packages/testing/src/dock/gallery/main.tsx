@@ -35,6 +35,10 @@ export interface DockProbe {
   settle(): Promise<void>;
   /** Places of the accent dot on screen (`data-accent-use`), for the closed list of ui-design §1 п. 4. */
   accents(): readonly string[];
+  /** The class of what holds focus inside the dock of a state (a closed root hides it from the page); null — nothing of ours. */
+  focused(id: string): string | null;
+  /** Types of the actions the surfaces of a state dispatched, in order (what a real click did). */
+  dispatched(id: string): readonly string[];
   readonly styles: { readonly mode: string };
 }
 
@@ -254,6 +258,11 @@ window.__dock = {
     await Promise.all(finite.map((animation) => animation.finished.catch(() => undefined)));
   },
   accents: () => mounted.flatMap((item) => [...item.root.querySelectorAll('.cg-dot--accent, .cg-badge')].filter(isShown).map((dot) => `${item.state.id}:${dot.getAttribute('data-accent-use') ?? 'unnamed'}`)),
+  focused: (id) => {
+    const active = docks().find((item) => item.state.id === id)?.root.activeElement;
+    return active instanceof HTMLElement ? active.className : null;
+  },
+  dispatched: (id) => [...new Set(mounted.filter((item) => item.state.id === id).map((item) => item.world.client))].flatMap((client) => client.dispatched.map((action) => action.type)),
   styles: {
     get mode() {
       return mounted[0]?.mount.styleMode ?? 'none';

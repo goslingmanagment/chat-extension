@@ -2,7 +2,7 @@
 // ui-design §11 п. 1): it holds every state of the binding mockup (1…10, 12,
 // 16…19), and every state is a valid set of view models the real surfaces
 // render without a failure in both languages. The pictures themselves are
-// taken by e2e/specs/dock-gallery.e2e.ts; the build is pinned by
+// taken by e2e/specs/dock-gallery-*.e2e.ts; the build is pinned by
 // gallery-build.test.ts.
 
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
