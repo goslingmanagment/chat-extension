@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { COACH_LIMITS, UiActionSchema, type Bootstrap, type CoachTurnVM, type FeedPage, type HubFrame, type RecapStatus, type SettingsV1 } from '@cg/contracts';
+import { COACH_LIMITS, UiActionSchema, chatKeyOf, type Bootstrap, type CoachTurnVM, type FeedPage, type HubFrame, type RecapStatus, type SettingsV1 } from '@cg/contracts';
 import { COACH_RECAP_FRESH_MS } from '@cg/core/domain/coach';
 import { createTranslator } from '@cg/core/domain/i18n';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
@@ -822,6 +822,25 @@ describe('coach: the recap it stands on', () => {
     expect((h.bg.callsOf('op.start')[2] as { coach: { history: unknown[] } }).coach.history).toHaveLength(1);
     await h.finish();
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat', 'coach-chat']);
+  });
+
+  it('[AI-096] [UI-008] while the turn builds its recap the strip\'s busy button is Coach — it still opens the panel; Recap waits like the rest', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fan-summary') }, { kind: 'stall' }] });
+    await ask(h, 'How do I reply?');
+    expect(h.ai.workspace.running(chatKeyOf(openChat))?.view).toMatchObject({ feature: 'recap', surface: 'coach' });
+    const actions = h.dock().actions;
+    expect(actions.coach).toMatchObject({ enabled: true, busy: true, active: true, reason: null });
+    expect(actions.recap).toMatchObject({ enabled: false, busy: false });
+    expect(actions.recap.reason?.id).toBe('chat-busy');
+    expect(actions.reply.reason?.id).toBe('chat-busy');
+    // The Coach key brings the panel back to the turn; it asks nothing.
+    expect(await h.ai.command('coach')).toMatchObject({ kind: 'dispatched', receipt: { ok: true, outcome: 'opened' } });
+    expect(h.overlays.opened).toEqual(['coach']);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    await h.dispatch(lastTurn(h).phase?.cancel as never);
+    expect(h.dock().actions.coach).toMatchObject({ enabled: true, busy: false });
+    expect(h.dock().actions.recap).toMatchObject({ enabled: true });
   });
 
   it('[AI-096] [AI-091] the attached draft is read at the click, not when the recap step ends', async () => {

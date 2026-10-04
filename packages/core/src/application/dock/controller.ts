@@ -114,7 +114,8 @@ export function createDockController(ws: AiWorkspace): DockController {
     const { chat, ready } = situation;
     const quotaReason = situation.quotaZero ? catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } }) : null;
     const allOff: ReasonVM | null = situation.off === null ? quotaReason : catalog.reason(situation.off);
-    const busyAction = running === null ? null : policyOf(running.view.feature).dockAction;
+    // A Coach turn is the Coach's whichever of its steps runs: its auto-recap is a recap of the Coach surface.
+    const busyAction = running === null ? null : running.view.surface === 'coach' ? 'coach' : policyOf(running.view.feature).dockAction;
     const recapReady = chat !== null && ready !== null && hasRecapCopy(ready);
     const entries = DOCK_ACTION_IDS.map((id): [DockActionId, DockActionVM] => {
       const feature = DOCK_FEATURE[id];
