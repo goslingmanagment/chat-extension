@@ -117,7 +117,14 @@ describe('[AI-103] [SP-005] [HK-035] [ST-066] [ST-138] [AU-020] [DB-021] [CS-026
   });
 
   it('[HK-035] the cheatsheet has its own groups, none comparing with the OnlyFans app or the old clients', () => {
-    expect(UI_TEXT_KEYS.filter((key) => key.startsWith('cheatsheet.group.'))).toEqual(['cheatsheet.group.ai', 'cheatsheet.group.windows', 'cheatsheet.group.before', 'cheatsheet.group.result']);
+    // `navigation` (J/K, ⌘U, ⌘1–9, `]`) came with contracts 1.2.0: this client's own keys, not a comparison with another one.
+    expect(UI_TEXT_KEYS.filter((key) => key.startsWith('cheatsheet.group.'))).toEqual([
+      'cheatsheet.group.ai',
+      'cheatsheet.group.windows',
+      'cheatsheet.group.before',
+      'cheatsheet.group.result',
+      'cheatsheet.group.navigation',
+    ]);
     expect(UI_TEXT_KEYS.filter((key) => /differ|ofApp|of-app|desktop|fansly|legacy/i.test(key))).toEqual([]);
     expect(HOTKEYS.filter((hotkey) => JSON.stringify(hotkey).match(/differ|of-?app/i) !== null)).toEqual([]);
   });

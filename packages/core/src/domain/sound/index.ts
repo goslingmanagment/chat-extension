@@ -1,0 +1,48 @@
+// core/domain/sound — which events ring and how they sound (architecture.md
+// §9.8): the pure policy, the eight tones, the global duplicate guard.
+
+export {
+  MAX_PEAK_GAIN,
+  PLATFORM_DEFAULT_TONES,
+  TONES,
+  isToneId,
+  normalizeVolume,
+  resolveTone,
+  toneDurationMs,
+  toneOf,
+  volumeToGain,
+  type SoundKind,
+  type SoundNote,
+  type SoundTone,
+  type ToneWave,
+} from './tones';
+export { SEEN_MAX, SEEN_TTL_MS, SeenEvents, seenKey, type SeenEntry } from './seen';
+export {
+  BURST_WINDOW_MS,
+  HOST_PLATFORM,
+  LIVE_EDGE_MS,
+  MESSAGE_THROTTLE_MS,
+  NO_RINGS,
+  SOUND_OUTCOMES,
+  STALE_MESSAGE_MS,
+  STALE_SUBSCRIBER_MS,
+  SUBSCRIBER_THROTTLE_MS,
+  accountKeyOf,
+  classifyFact,
+  consumesEvent,
+  gateMessage,
+  gateSubscriber,
+  isMuted,
+  isThrottled,
+  reserveRing,
+  timeOf,
+  withAccountMuted,
+  type AccountView,
+  type FactPhase,
+  type MessageGate,
+  type SoundOutcome,
+  type SourceState,
+  type SubscriberEvent,
+  type SubscriberGate,
+  type ThrottleState,
+} from './policy';
