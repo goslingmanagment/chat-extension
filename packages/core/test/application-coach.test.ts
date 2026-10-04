@@ -611,6 +611,21 @@ describe('coach: failures, cancel, a question that is not lost', () => {
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fast-reply', 'coach-chat']);
   });
 
+  it('[AI-099] «Повторить» that is refused keeps the failed turn: its line and its question are not lost', async () => {
+    const h = await start();
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('coach-chat') }, { kind: 'frame', frame: { type: 'error', code: 'provider_new_failure', message: 'Something new', retryAfterMs: null } }] });
+    await ask(h, 'How do I reply?');
+    await h.finish();
+    const failed = lastTurn(h);
+    expect(failed).toMatchObject({ question: 'How do I reply?', state: 'failed' });
+    // The chat got busy with a Reply meanwhile: the retry cannot start now.
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply') }, { kind: 'stall' }] });
+    await h.generate('reply');
+    expect(await h.dispatch(failed.errorActions[0]?.action as never)).toMatchObject({ ok: false, code: 'CG-OP-CHAT-BUSY' });
+    expect(h.coach().turns.map((turn) => `${turn.question}:${turn.state}`)).toEqual(['How do I reply?:failed']);
+    expect(lastTurn(h).errorActions[0]?.action).toMatchObject({ type: 'Generate', feature: 'coach', options: { question: 'How do I reply?' } });
+  });
+
   it('[AI-099] a question for another chat than the open one is not asked', async () => {
     const h = await start();
     const handle = h.dock().targetHandle as string;

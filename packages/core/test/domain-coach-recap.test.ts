@@ -176,6 +176,19 @@ describe('Coach turns', () => {
     expect(sessions.abandon(session.sessionId, uuid(5))).toBeNull();
   });
 
+  it('[AI-099] «Повторить» that is refused keeps the failed attempt it was a retry of — its line and its question are not lost', () => {
+    const sessions = store();
+    const session = sessions.open(key(), NOW_MS);
+    sessions.begin(session.sessionId, { turnId: uuid(5), question: 'again?', preset: null, attachedDraft: false, askedAt: NOW_MS, step: 'coach' });
+    sessions.fail(session.sessionId, uuid(5), { outcome: 'failed', error: { code: 'CG-HUB-TIMEOUT' }, endedAt: NOW_MS + 1 });
+    const retry = sessions.begin(session.sessionId, { turnId: uuid(6), question: 'again?', preset: null, attachedDraft: false, askedAt: NOW_MS + 2, step: 'coach' });
+    // While the retry is on its way the feed shows one line for the question: the pending one.
+    expect(retry.ok && retry.session.feed).toEqual([]);
+    const after = sessions.abandon(session.sessionId, uuid(6));
+    expect(after?.pending).toBeNull();
+    expect(after?.feed).toMatchObject([{ kind: 'failed', turnId: uuid(5), question: 'again?', error: { code: 'CG-HUB-TIMEOUT' } }]);
+  });
+
   it('a late event of another turn changes nothing', () => {
     const sessions = store();
     const session = sessions.open(key(), NOW_MS);

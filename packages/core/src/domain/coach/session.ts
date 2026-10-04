@@ -76,8 +76,10 @@ export interface CoachPendingTurn {
   readonly askedAt: number;
   /** `recap` — the auto-recap step of the composite turn; `coach` — the answer itself. */
   readonly step: 'recap' | 'coach';
-  /** The operation of the current step; null between the steps. */
+  /** The operation of the current step; null while the start is on its way to the background. */
   readonly opId: string | null;
+  /** The feed as it was before this turn began: a start that was refused puts it back (AI-099). */
+  readonly feedBefore: readonly CoachFeedItem[];
 }
 
 export interface CoachSession {
@@ -153,13 +155,13 @@ export class CoachSessions {
   }
 
   /** A question is asked: the session gets its one pending turn. */
-  begin(sessionId: string, turn: Omit<CoachPendingTurn, 'opId'>): { readonly ok: true; readonly session: CoachSession } | { readonly ok: false; readonly reason: CoachRefusal } {
+  begin(sessionId: string, turn: Omit<CoachPendingTurn, 'opId' | 'feedBefore'>): { readonly ok: true; readonly session: CoachSession } | { readonly ok: false; readonly reason: CoachRefusal } {
     const session = this.byId(sessionId);
     if (session === null) return { ok: false, reason: 'no-session' };
     if (session.pending !== null) return { ok: false, reason: 'busy' };
     const next: CoachSession = {
       ...session,
-      pending: { ...turn, opId: null },
+      pending: { ...turn, opId: null, feedBefore: session.feed },
       autoRecapAttempted: session.autoRecapAttempted || turn.step === 'recap',
       // A new attempt replaces the failed attempts of the same question: the feed keeps one line per question.
       feed: session.feed.filter((item) => item.kind !== 'failed' || item.question !== turn.question),
@@ -224,11 +226,15 @@ export class CoachSessions {
     return next;
   }
 
-  /** The start was refused before anything ran: no turn, no feed line — the question stays in the input (AI-099). */
+  /**
+   * The start was refused before anything ran: no turn, no new feed line —
+   * the question stays in the input (AI-099). The feed is as it was: a failed
+   * attempt this turn was a retry of keeps its line and its «Повторить».
+   */
   abandon(sessionId: string, turnId: string): CoachSession | null {
     const session = this.byId(sessionId);
     if (session === null || session.pending === null || session.pending.turnId !== turnId) return null;
-    const next: CoachSession = { ...session, pending: null };
+    const next: CoachSession = { ...session, pending: null, feed: session.pending.feedBefore };
     this.replace(next);
     return next;
   }
