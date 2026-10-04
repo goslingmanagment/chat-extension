@@ -108,7 +108,8 @@ function fixVm(ws: AiWorkspace, record: OpRecord): FixVM | null {
   };
 }
 
-function confirmVm(ws: AiWorkspace, opId: string): ConfirmVM | null {
+/** Б2 of an operation: the question about one of its parts the person must answer first; null — nothing is asked. */
+export function confirmVm(ws: AiWorkspace, opId: string): ConfirmVM | null {
   const pending = ws.inserts.confirmation(opId);
   return pending === null ? null : { confirmationId: pending.confirmationId, kind: pending.kind, part: pending.part, formatLoss: pending.formatLoss };
 }

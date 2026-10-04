@@ -55,7 +55,7 @@ import { flagUsable, isTerminalOpState } from '../../domain/ops';
 import { coachAnswerText, streamPreview } from '../../domain/output';
 import { latestLength, type ArchivePoint } from '../../domain/recap';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
-import { partVms } from '../ai/result-vm';
+import { confirmVm, partVms } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, errorActions, errorVm, msg, phaseVm, views } from '../ai/view-models';
 import { type AiWorkspace, type ReadyTarget, type Situation } from '../ai/workspace';
@@ -289,7 +289,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
   const built = new Map<string, { readonly state: string; readonly vm: CoachTurnVM }>();
 
   function exchangeState(exchange: CoachExchange, outside: boolean, record: OpRecord | null, situation: Situation): string {
-    const state: unknown[] = [outside, record !== null, i18n.language, situation.copyOnly?.code ?? '', situation.chat === null ? '' : ws.fanScript(situation.chat.key)];
+    const asked = ws.inserts.confirmation(exchange.opId);
+    const state: unknown[] = [outside, record !== null, i18n.language, situation.copyOnly?.code ?? '', situation.chat === null ? '' : ws.fanScript(situation.chat.key), asked?.confirmationId ?? ''];
     for (const draft of exchange.answer.drafts) {
       for (let index = 0; index < draft.parts.length; index += 1) {
         const part = { variant: draft.index, index };
@@ -331,6 +332,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       },
       error: null,
       errorActions: [],
+      // AI-086: Б2 for one of the draft parts — the id `AnswerConfirm` takes.
+      confirm: confirmVm(ws, exchange.opId),
     };
   }
 
@@ -355,6 +358,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       answer: null,
       error: wire === null ? null : errorVm(wire, i18n),
       errorActions: actions,
+      confirm: null,
     };
   }
 
@@ -381,6 +385,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       answer: null,
       error: null,
       errorActions: [],
+      confirm: null,
     };
   }
 

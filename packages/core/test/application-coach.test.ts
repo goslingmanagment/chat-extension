@@ -251,11 +251,50 @@ describe('coach: a turn', () => {
     expect(receipt).toMatchObject({ ok: true, outcome: 'needs-confirm' });
     expect(h.fake.calls.inserts).toHaveLength(0);
     expect(h.overlays.closed).toEqual([]);
-    const confirmationId = h.ai.workspace.inserts.confirmation(opId)?.confirmationId as string;
+    // The question is on the turn, where the UI reads it: which part, why, and the id the answer takes.
+    const confirm = lastTurn(h).confirm;
+    expect(confirm).toMatchObject({ kind: 'human-draft', part: { variant: 0, index: 0 }, formatLoss: false });
+    const confirmationId = confirm?.confirmationId as string;
     expect(confirmationId).toMatch(/^[0-9a-f-]{36}$/);
+    // It names the part the way the part's own view does.
+    const part = lastTurn(h).answer?.drafts[0]?.parts[0];
+    expect({ variant: part?.variant, index: part?.index }).toEqual(confirm?.part);
     expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId, choice: 'replace' })).toMatchObject({ ok: true, outcome: 'done' });
     expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'replace', text: 'hey you', confirmationId });
     expect(h.overlays.closed).toEqual(['coach']);
+    expect(lastTurn(h).confirm).toBeNull();
+    expect(lastTurn(h).answer?.drafts[0]?.parts[0]).toMatchObject({ insert: 'done' });
+  });
+
+  it('[AI-086] «Добавить в конец» and «Отмена» of a Coach draft: the answer is read from the turn; a turn without a question carries none', async () => {
+    const h = await start();
+    const first = await exchange(h, 'How do I reply?');
+    // Nothing is asked: neither on a finished exchange, nor on a turn that still runs or failed.
+    expect(lastTurn(h).confirm).toBeNull();
+    h.host.type('my own words');
+    await h.settle();
+    // The second draft of the first answer.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: first, variant: 1, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    const asked = h.coach().turns[0]?.confirm;
+    expect(asked).toMatchObject({ kind: 'human-draft', part: { variant: 1, index: 0 } });
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: asked?.confirmationId as string, choice: 'cancel' })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(h.coach().turns[0]?.confirm).toBeNull();
+    expect(h.fake.calls.inserts).toHaveLength(0);
+    expect(h.overlays.closed).toEqual([]);
+
+    await h.dispatch({ type: 'InsertPart', operationId: first, variant: 1, part: 0 });
+    const again = h.coach().turns[0]?.confirm;
+    expect(again?.confirmationId).not.toBe(asked?.confirmationId);
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: again?.confirmationId as string, choice: 'append' })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'append', text: 'I saved something for you', part: { variant: 1, index: 0 } });
+    expect(h.overlays.closed).toEqual(['coach']);
+
+    // A turn in flight and a failed turn ask nothing.
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('coach-chat') }, { kind: 'stall' }] });
+    await ask(h, 'second');
+    expect(lastTurn(h)).toMatchObject({ state: 'streaming', confirm: null });
+    await h.dispatch(lastTurn(h).phase?.cancel as never);
+    expect(lastTurn(h)).toMatchObject({ state: 'canceled', confirm: null });
   });
 
   it('[AI-087] a draft in Cyrillic is not inserted for a fan who does not write Cyrillic — copy stays', async () => {
