@@ -219,7 +219,19 @@ function SignInGate({ vm, helpUrl }: { readonly vm: OptionsVM; readonly helpUrl:
   const account = useView({ of: 'options', section: 'account' }).value;
   const appearance = useView({ of: 'options', section: 'appearance' }).value;
   if (vm.signIn === null || vm.view.s !== 'forbidden') return null;
-  return <SignInScreen signIn={vm.signIn} reason={vm.view.error} account={account.body} appearance={appearance.body} version={vm.version} readOnly={vm.readOnly} helpUrl={helpUrl} />;
+  return (
+    <SignInScreen
+      signIn={vm.signIn}
+      reason={vm.view.error}
+      account={account.body}
+      appearance={appearance.body}
+      version={vm.version}
+      readOnly={vm.readOnly}
+      helpUrl={helpUrl}
+      // ST-012: the first run starts here — the hosts, the sign-in and the consent are still to do.
+      checklist={vm.checklist === null ? null : <Checklist checklist={vm.checklist} />}
+    />
+  );
 }
 
 export interface OptionsProps {

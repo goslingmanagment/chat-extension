@@ -190,6 +190,7 @@ ${dark('.pg-nav__a[aria-current="page"]')} { box-shadow: none; }
 
 /* the sign-in screen that replaces the settings (ST-011) */
 .pg-signin { max-width: 420px; }
+.pg-signin .pg-check { margin-top: 20px; }
 .pg-form { display: grid; gap: 10px; margin: 16px 0 0; }
 .pg-form label { display: grid; gap: 4px; font-size: var(--cg-text-sm2); line-height: 18px; color: var(--cg-ink-2); }
 .pg-form .pg-field { width: 100%; }

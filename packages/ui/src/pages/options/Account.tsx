@@ -4,8 +4,8 @@
 // granted, diagnostics. The hub address is shown always and changed only on
 // the sign-in screen, while signed out (ST-042).
 
-import { type JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { type ComponentChildren, type JSX } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { type CgErrorView, type I18nKey } from '@cg/contracts/errors';
 import { type AccountBodyVM, type AppearanceBodyVM, type SignInVM } from '@cg/contracts/vm';
@@ -27,15 +27,18 @@ function httpsUrl(origin: string, path: string): string | null {
   return /^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(origin) ? `${origin}${path}` : null;
 }
 
+/** «разрешён», «не разрешён», or «неизвестно» while the browser has not answered for this address (ST-043). */
+const ACCESS_KEYS = { granted: 'settings.account.access.granted', missing: 'settings.account.access.missing', unknown: 'common.unknown' } as const satisfies Record<AccountBodyVM['hub']['hostPermission'], I18nKey>;
+
 function HubAccess({ hub }: { readonly hub: AccountBodyVM['hub'] }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
   const request = hub.requestPermission;
   return (
     <Opt label={i18n.t('settings.account.hostAccess')} anchor="hub-access">
-      <span class="pg-line">
-        {hub.hostPermission === 'granted' ? null : <Dot kind="danger" />}
-        <span class="pg-value">{i18n.t(hub.hostPermission === 'granted' ? 'settings.account.access.granted' : 'settings.account.access.missing')}</span>
+      <span class="pg-line" data-pg-access={hub.hostPermission}>
+        {hub.hostPermission === 'missing' ? <Dot kind="danger" /> : hub.hostPermission === 'unknown' ? <Dot kind="ring" /> : null}
+        <span class={hub.hostPermission === 'unknown' ? 'pg-muted' : 'pg-value'}>{i18n.t(ACCESS_KEYS[hub.hostPermission])}</span>
         {request === null ? null : <Button label={i18n.text(request.label)} variant="line" onClick={() => void act(request.action)} />}
       </span>
     </Opt>
@@ -190,20 +193,29 @@ export interface SignInScreenProps {
   readonly readOnly: boolean;
   /** The page of the site that helps with the sign-in (ST-050); https only. */
   readonly helpUrl: string | null;
+  /** The first-run checklist (ST-012): the first run starts on this screen. */
+  readonly checklist?: ComponentChildren;
 }
 
-/** Replaces every section while nobody is signed in: the form, «Дополнительно», the sound, the version. */
+/** Replaces every section while nobody is signed in: the form, the first-run checklist, «Дополнительно», the sound, the version. */
 export function SignInScreen(props: SignInScreenProps): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
   const { reason, account, appearance } = props;
   const [address, setAddress] = useState(props.signIn.hubOrigin);
   useEffect(() => setAddress(props.signIn.hubOrigin), [props.signIn.hubOrigin]);
+  const stored = useRef(props.signIn.hubOrigin);
+  stored.current = props.signIn.hubOrigin;
   const unconfirmed = reason.code === 'CG-AUTH-REQUIRED' && reason.detail !== undefined;
   const ended = reason.code !== 'CG-AUTH-REQUIRED';
   const locked = props.readOnly ? i18n.t('cg.storageVersion.title') : null;
   const saveAddress = (value: string): void => {
-    if (value.trim() !== '' && value.trim() !== props.signIn.hubOrigin) void act({ type: 'SetPreference', key: 'hub.baseUrl', value: value.trim() }, { quiet: true });
+    const typed = value.trim();
+    if (typed === '' || typed === props.signIn.hubOrigin) return;
+    void act({ type: 'SetPreference', key: 'hub.baseUrl', value: typed }, { quiet: true }).then((receipt) => {
+      // Not saved: the field goes back to the address that is stored — the one the sign-in will go to — and the form says why (ST-042).
+      if (receipt?.ok !== true) setAddress(stored.current);
+    });
   };
   return (
     <div class="pg-signin">
@@ -224,7 +236,9 @@ export function SignInScreen(props: SignInScreenProps): JSX.Element {
           </div>
         </div>
       ) : null}
-      <SignInForm vm={props.signIn} />
+      <div class="pg-zone" data-pg-anchor="sign-in">
+        <SignInForm vm={props.signIn} />
+      </div>
       <p class="pg-note">{i18n.t('signIn.accessNote')}</p>
       {props.helpUrl === null ? null : (
         <p class="pg-note">
@@ -233,6 +247,7 @@ export function SignInScreen(props: SignInScreenProps): JSX.Element {
           </a>
         </p>
       )}
+      {props.checklist}
 
       <details class="pg-details" data-pg-anchor="hub-address">
         <summary>{i18n.t('settings.account.advanced')}</summary>
@@ -248,7 +263,9 @@ export function SignInScreen(props: SignInScreenProps): JSX.Element {
           {account === null ? null : (
             <div class="pg-line" style={{ marginTop: '10px' }}>
               <span class="pg-muted">{i18n.t('settings.account.hostAccess')}:</span>
-              <span class="pg-value">{i18n.t(account.hub.hostPermission === 'granted' ? 'settings.account.access.granted' : 'settings.account.access.missing')}</span>
+              <span class={account.hub.hostPermission === 'unknown' ? 'pg-muted' : 'pg-value'} data-pg-access={account.hub.hostPermission}>
+                {i18n.t(ACCESS_KEYS[account.hub.hostPermission])}
+              </span>
               {account.hub.requestPermission === null ? null : <Button label={i18n.text(account.hub.requestPermission.label)} variant="line" onClick={() => void act(account.hub.requestPermission?.action ?? { type: 'RequestPermission', kind: 'hub-host' })} />}
             </div>
           )}
