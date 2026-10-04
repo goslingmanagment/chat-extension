@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { COACH_TURN_VM_SAMPLES, REFUSAL_VM_SAMPLES, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { COACH_TURN_VM_SAMPLES, REFUSAL_VM_SAMPLES, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES, ZONED_TIME_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -250,6 +250,13 @@ describe('spoken money (1.1.0)', () => {
 });
 
 describe('the dock and Coach (1.2.0)', () => {
+  it('[UI-031] the I18n port may print a time in a named zone: the quota resets «в 03:00 по Москве» for every viewer', () => {
+    expectTypeOf<C.I18n['formatTimeIn']>().toEqualTypeOf<((at: number | C.IsoTimestamp, timeZone: string, style?: C.TimeStyle) => string) | undefined>();
+    expect(C.UI_TEXT_KEYS).toContain('dock.quota.zeroTooltip');
+    expect(ZONED_TIME_SAMPLES.valid[0]?.('2026-10-04T00:00:00Z', 'Europe/Moscow')).toBe('03:00');
+    expect(ZONED_TIME_SAMPLES.invalid).toHaveLength(1);
+  });
+
   it('[UI-015] a refusal may say when its start was refused, so a second one is told from the first', () => {
     expectTypeOf<C.RefusalVM['at']>().toEqualTypeOf<number | undefined>();
     const [plain, timed] = REFUSAL_VM_SAMPLES.valid;

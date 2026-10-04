@@ -4,7 +4,7 @@
 `CONTRACTS_VERSION = '1.2.0'` (тег `contracts-v1.0` ставится на слияние в `main`;
 1.1.0 — добавочные изменения волны 1: R08, R09, R13, R18, одной записью в журнале;
 1.2.0 — добавочные изменения волны 2a от R14: действие `ShowAnalysis`, тринадцать ключей i18n,
-необязательные `CoachTurnVM.confirm` и `.debug`, `RefusalVM.at`, `CgErrorView.tone`).
+необязательные `CoachTurnVM.confirm` и `.debug`, `RefusalVM.at`, `CgErrorView.tone`, `I18n.formatTimeIn`).
 Менять их можно только по правилу из [журнала изменений](../contracts-changelog.md).
 
 R01 делали четыре исполнителя, интегратор свёл их работу:

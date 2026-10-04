@@ -200,6 +200,20 @@ export const SPOKEN_MONEY_SAMPLES: { readonly valid: readonly SpokenMoney[]; rea
 };
 
 /**
+ * The I18n port's time in a named zone (1.2.0, ui-design §4.1): optional, so
+ * a port without it still is an I18n; when present it takes the zone by its
+ * IANA name and returns the printed time.
+ */
+type ZonedTime = NonNullable<C.I18n['formatTimeIn']>;
+export const ZONED_TIME_SAMPLES: { readonly valid: readonly ZonedTime[]; readonly invalid: readonly unknown[] } = {
+  valid: [(at, timeZone) => new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone })],
+  invalid: [
+    // @ts-expect-error the zone is an IANA name, not an offset in minutes
+    ((at: number | string, offsetMinutes: number) => `${at}+${offsetMinutes}`) satisfies ZonedTime,
+  ],
+};
+
+/**
  * RefusalVM (a type, no schema), 1.2.0: `at` tells one refused start from the
  * next, so a refusal hidden with «Скрыть» shows again when a start is refused
  * anew — by a key as well as by a click.

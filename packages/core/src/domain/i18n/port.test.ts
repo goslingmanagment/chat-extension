@@ -173,6 +173,23 @@ describe('I18n port: ages, times and durations', () => {
     expect(moscow.formatTime('2026-10-03T00:00:00Z')).toBe('03:00');
   });
 
+  it('prints a time in a named zone whatever its own zone is: the quota resets «в 03:00 по Москве» (ui-design §4.1)', () => {
+    const reset = '2026-10-04T00:00:00Z';
+    for (const timeZone of ['UTC', 'Asia/Novosibirsk', 'America/New_York']) {
+      const port = createI18n({ language: 'ru', now: () => NOW, timeZone });
+      expect(port.formatTimeIn?.(reset, 'Europe/Moscow'), timeZone).toBe('03:00');
+    }
+    const ru = make('ru');
+    expect(ru.formatTime(reset)).toBe('00:00');
+    // The day is the zone's own: 21:30 UTC is already the next day in Moscow.
+    expect(ru.formatTimeIn?.('2026-10-03T21:30:00Z', 'Europe/Moscow', 'datetime')).toBe('4 окт, 00:30');
+    expect(ru.formatTimeIn?.(Date.parse(reset), 'Europe/Moscow', 'time')).toBe('03:00');
+    expect(ru.formatTimeIn?.('garbage', 'Europe/Moscow')).toBe('—');
+    // A zone the runtime does not know is unknown, never the port's own zone under a false name.
+    expect(ru.formatTimeIn?.(reset, 'Mars/Olympus')).toBe('—');
+    expect(ru.formatTimeIn?.(reset, 'Mars/Olympus')).toBe('—');
+  });
+
   it('durations: m:ss timers, h:mm:ss countdowns, seconds; fractions round up, negatives are zero', () => {
     const ru = make('ru');
     expect(ru.formatDuration(3_000, 'm:ss')).toBe('0:03');
