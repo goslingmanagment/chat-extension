@@ -72,6 +72,10 @@ export interface DockReport {
   readonly result: { readonly opId: string; readonly feature: string; readonly state: string; readonly streaming: boolean; readonly parts: number; readonly inserted: number; readonly error: string | null } | null;
   /** The code of a start that was not admitted. */
   readonly refusal: string | null;
+  /** «Идут сейчас» of that refusal: the operations that hold the tab's three slots. */
+  readonly refusalRunning: readonly string[];
+  /** Generations of this tab that run in other chats. */
+  readonly runningElsewhere: readonly string[];
   /** Where to point at what is inside the closed root, in viewport pixels: `action:<id>`, `insert:<part>`. */
   readonly hits: Readonly<Record<string, { readonly x: number; readonly y: number }>>;
   readonly analysis: string | null;

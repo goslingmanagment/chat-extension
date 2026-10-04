@@ -22,7 +22,6 @@ import { DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsV1 } from '@cg/contracts';
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
-import { PILOT_CAPABILITIES } from '../../src/fake-hub/config';
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { assignPersona, installTestBuild, pageRpc, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
@@ -75,10 +74,10 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     journalStart = await standServer.mark();
     await hub().command({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: STAND_IDS.platformAccounts.a });
     hubStart = await hub().mark();
-    // Slow enough to see the stream: the model sends its answer sixteen characters at a time. And a hub as the
-    // vendored SDK can talk to today: its stream transport cannot declare `context-v1` yet (docs/hub-layer.md),
-    // so a hub that offers it would have every generation refused with CG-HUB-CAPABILITY.
-    await hub().command({ op: 'config', patch: { aiChunkDelayMs: 120, capabilities: PILOT_CAPABILITIES.filter((capability) => capability !== 'context-v1') } });
+    // Slow enough to see the stream: the model sends its answer sixteen characters at a time. The hub offers
+    // every pilot capability, `context-v1` among them: the stream declares only what the vendored SDK carries
+    // (docs/hub-layer.md), and the generation runs by the archive.
+    await hub().command({ op: 'config', patch: { aiChunkDelayMs: 120 } });
     await installTestBuild();
     await browser.url(testBuildPage('debug-journal.html'));
     // Split on: Reply comes in parts.
@@ -103,7 +102,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
   });
 
   after(async () => {
-    await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0, capabilities: [...PILOT_CAPABILITIES] } });
+    await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0 } });
     // §12 «Гейт безопасности»: nothing but the page's own client and the harness talked to the stand.
     expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
   });
