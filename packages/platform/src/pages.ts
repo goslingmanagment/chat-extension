@@ -4,6 +4,11 @@
 // No `tabs` permission is needed: our documents and their tabs come from
 // `runtime.getContexts` (Firefox 129+), and `tabs.update` / `tabs.create`
 // on our own pages need none. Never throws: a failure is `{ ok: false }`.
+//
+// Bringing a ChatSpace tab to the front (`tab.command`, §9.9: a click on the
+// popup or on «к вкладке» of the options acts in ChatSpace): the tab is known
+// by the id of its `cg-tab` port's sender, and `tabs.update(id, { active })`
+// needs no permission either. Nothing is loaded, navigated or read.
 
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 
@@ -46,6 +51,26 @@ export function createExtensionPages(api: BrowserApi = defaultBrowser()): Extens
         return { ok: true, reused: false };
       } catch {
         return { ok: false };
+      }
+    },
+  };
+}
+
+export interface TabFocusPort {
+  /** Makes the tab the active one of its window and brings that window forward; false — the browser refused (the tab is gone). */
+  focus(tabId: number): Promise<boolean>;
+}
+
+export function createTabFocus(api: BrowserApi = defaultBrowser()): TabFocusPort {
+  return {
+    async focus(tabId) {
+      try {
+        const tab = await api.tabs.update(tabId, { active: true });
+        // The window is a nicety: the tab is in front of its window either way.
+        if (tab.windowId !== undefined && tab.windowId >= 0) await api.windows.update(tab.windowId, { focused: true }).catch(() => undefined);
+        return true;
+      } catch {
+        return false;
       }
     },
   };

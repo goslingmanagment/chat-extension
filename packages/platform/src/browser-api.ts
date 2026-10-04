@@ -16,6 +16,8 @@ export interface EventApi<L extends (...args: never[]) => unknown> {
 export interface TabApi {
   readonly id?: number;
   readonly url?: string;
+  /** The window the tab is in (`tabs.update` answers it without the `tabs` permission). */
+  readonly windowId?: number;
 }
 
 /** Who sent a runtime message or opened a port. */
@@ -155,7 +157,7 @@ export interface ScriptingApi {
   unregisterContentScripts(filter?: { ids?: string[] }): Promise<void>;
 }
 
-/** Without the `tabs` permission: create, and update a tab of our own page. */
+/** Without the `tabs` permission: create, update a tab of our own page, and bring a tab we know by its id to the front. */
 export interface TabsApi {
   create(properties: { url: string; active?: boolean }): Promise<TabApi>;
   update(tabId: number, properties: { url?: string; active?: boolean }): Promise<TabApi>;

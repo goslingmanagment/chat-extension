@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BrowserApi } from './browser-api';
-import { createExtensionPages } from './pages';
+import { createExtensionPages, createTabFocus } from './pages';
 import { createFakeBrowser, pageSender } from './test-support/fake-browser';
 
 describe('[ST-006] one settings tab: our pages are reused, never opened twice', () => {
@@ -52,5 +52,23 @@ describe('[ST-006] one settings tab: our pages are reused, never opened twice', 
     };
     expect(await createExtensionPages(older).open('options')).toEqual({ ok: true, reused: false });
     expect(fake.tabCalls).toEqual([`create ${fake.base}options.html`]);
+  });
+});
+
+describe('a ChatSpace tab brought to the front', () => {
+  it('[ST-076] the tab becomes the active one and its window comes forward; nothing is created or navigated', async () => {
+    const fake = createFakeBrowser();
+    const focus = createTabFocus(fake.startBackground().api);
+    expect(await focus.focus(7)).toBe(true);
+    expect(fake.tabCalls).toEqual(['update 7', 'focus window 1']);
+  });
+
+  it('never throws: a tab that is gone is `false`, and a window that will not come forward does not undo the tab', async () => {
+    const fake = createFakeBrowser();
+    const api = fake.startBackground().api;
+    fake.closedTabs.add(9);
+    expect(await createTabFocus(api).focus(9)).toBe(false);
+    const stubborn: BrowserApi = { ...api, windows: { update: () => Promise.reject(new Error('no')) } };
+    expect(await createTabFocus(stubborn).focus(7)).toBe(true);
   });
 });
