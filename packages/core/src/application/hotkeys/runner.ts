@@ -292,7 +292,15 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     if (id === 'chat-next' || id === 'chat-previous') return send({ type: 'Navigate', to: { kind: 'chat-step', direction: id === 'chat-next' ? 'next' : 'previous' } }, true);
     if (id === 'next-unread') return send({ type: 'Navigate', to: { kind: 'next-unread' } }, true);
     if (id === 'quick-jump') {
-      if (command.slot !== null) send({ type: 'Navigate', to: { kind: 'chat-slot', slot: command.slot } }, true);
+      if (command.slot === null) return;
+      if (overlays.isOpen('quick-jump')) {
+        // Under the open popup the digit is the row the person sees there — the row's own action, which names
+        // the chat — not whatever is N-th in ChatSpace's list by now. An empty row opens nothing.
+        const row = client.getSnapshot({ of: 'quick-jump' }).items.find((item) => item.slot === command.slot);
+        if (row !== undefined && row.action.type === 'Navigate') send(row.action, true);
+        return;
+      }
+      send({ type: 'Navigate', to: { kind: 'chat-slot', slot: command.slot } }, true);
       return;
     }
     const surface = TOGGLED[id];

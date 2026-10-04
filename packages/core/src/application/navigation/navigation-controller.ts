@@ -22,8 +22,17 @@ import { failedReceipt, type IdPort, type SurfaceController, type TabClock, type
 export const NAVIGATION_SURFACE: Surface = 'overlay';
 /** Rows of the cached list navigation looks at: far more than a person walks with J/K. */
 export const NAVIGATION_LIST_LIMIT = 500;
-/** The host port answers from a cache it refreshes in the background: an empty first read is asked once more after this. */
+/**
+ * The host port answers `listCachedChats` at once from its own cache and
+ * only then refreshes it in the background — nothing tells it when another
+ * chat moves up in ChatSpace's list, so the first answer may be minutes old.
+ * Navigation reads the list, gives the refresh this long to land, and acts
+ * on the second answer: a key must open the chat the person sees in that
+ * row (opening a chat marks it read on OnlyFans).
+ */
 export const LIST_SETTLE_MS = 150;
+/** A list settled this recently is the list ChatSpace shows: the next key in a row does not wait again. */
+export const LIST_FRESH_MS = 1000;
 
 const CHAT_HANDLE = 'nav.chat.';
 const ACCOUNT_HANDLE = 'nav.acc.';
@@ -107,12 +116,18 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
 
   const wait = (ms: number): Promise<void> => new Promise((resolve) => void deps.clock.setTimer(ms, resolve));
 
-  /** The list ChatSpace holds for the account; one more read if the port's cache was still cold. */
+  /** When this controller last read each account's list after letting the port's refresh land. */
+  const settledAt = new Map<string, number>();
+
+  /** The list ChatSpace holds for the account, as it is now: the first read starts the port's refresh, the second is the answer. */
   const readList = async (accountId: string): Promise<readonly NavigationItem[]> => {
     const first = host.listCachedChats(accountId, NAVIGATION_LIST_LIMIT);
-    if (first.length > 0) return first;
+    const settled = settledAt.get(accountId);
+    if (first.length > 0 && settled !== undefined && deps.clock.now() - settled <= LIST_FRESH_MS) return first;
     await wait(LIST_SETTLE_MS);
-    return host.listCachedChats(accountId, NAVIGATION_LIST_LIMIT);
+    const fresh = host.listCachedChats(accountId, NAVIGATION_LIST_LIMIT);
+    settledAt.set(accountId, deps.clock.now());
+    return fresh;
   };
 
   const open: NavigationController['open'] = async (target, cause = 'click') => {
@@ -144,14 +159,15 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
 
   const walk = async (to: Extract<NavigationTarget, { kind: 'chat-step' | 'next-unread' | 'chat-slot' }>, cause: 'click' | 'key'): Promise<ActionReceipt> => {
     if (deps.ownerSwitch?.() === false) return fail('CG-FEATURE-DISABLED');
-    const snapshot = host.current();
     const accountId = currentAccountId();
     if (accountId === null) return done('noop');
-    const list = snapshot.contract.capabilities.chatList;
+    const list = host.current().contract.capabilities.chatList;
     // §6.2: a broken `chatList` anchor switches J/K, ⌘U and ⌘1–9 off, with the reason.
     if (list.state === 'off' || list.state === 'contractBroken') return fail('CG-HOST-CONTRACT');
     const items = await readList(accountId);
-    const here = snapshot.route.chat?.platformFanId ?? null;
+    // The route is read after the list settled: the person may have clicked elsewhere meanwhile.
+    if (currentAccountId() !== accountId) return done('noop');
+    const here = host.current().route.chat?.platformFanId ?? null;
     const target = to.kind === 'chat-step' ? stepChat(items, here, to.direction) : to.kind === 'next-unread' ? nextUnreadChat(items, here) : chatAtSlot(items, to.slot);
     if (target === null) {
       if (to.kind === 'next-unread') deps.toasts?.show({ kind: 'info', code: null, scope: 'navigation', title: { key: 'toast.noUnread' }, body: null });

@@ -3,12 +3,18 @@
 // person sees, numbered — our own window, nothing is drawn into ChatSpace's
 // rows (Б9). A digit under the held modifier opens that chat; letting the
 // modifier go closes the popup. A host-only view: no hub, no sign-in.
+//
+// A row names its chat, not its place: the action of row N is «open this
+// chat», so a click or a digit opens what the person sees in that row even
+// if ChatSpace's list has moved since the popup was drawn (opening a chat
+// marks it read on OnlyFans). The view is kept as shown and rebuilt only
+// when the popup is told to look again.
 
 import { type HostPort } from '@cg/contracts/host';
 import { type I18n, type QuickJumpVM, type UiAction, type ViewSelector, type VmView } from '@cg/contracts/vm';
 
 import { QUICK_JUMP_SLOTS, quickJumpRows } from '../../domain/navigation';
-import { LIST_SETTLE_MS } from './navigation-controller';
+import { LIST_SETTLE_MS, chatHandle } from './navigation-controller';
 import { type OverlayState } from './overlays';
 import { codeView, createEmitter, type SurfaceController, type TabClock } from './ports';
 
@@ -41,31 +47,47 @@ export function createQuickJumpController(deps: QuickJumpControllerDeps): Surfac
         name: item.displayName,
         username: item.username,
         unread: item.unreadCount,
-        action: { type: 'Navigate', to: { kind: 'chat-slot', slot } } satisfies UiAction,
+        action: { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(item.chat) } } satisfies UiAction,
       })),
     };
+  };
+
+  /** The view as last shown: the popup's rows and what a digit under it opens are the same thing. */
+  let shown: QuickJumpVM | null = null;
+  const view = (): QuickJumpVM => (shown ??= build());
+  /** Reads the list now — whether or not anybody is subscribed yet — and tells the popup. */
+  const look = (): void => {
+    shown = build();
+    changes.emit();
   };
 
   const unsubscribeOverlays = overlays.subscribe(() => {
     const open = overlays.isOpen('quick-jump');
     if (open === wasOpen) return;
     wasOpen = open;
-    changes.emit();
-    // The host port refreshes its list cache in the background: look once more when it has.
-    if (open) void deps.clock.setTimer(LIST_SETTLE_MS, () => overlays.isOpen('quick-jump') && changes.emit());
+    if (!open) {
+      shown = null;
+      changes.emit();
+      return;
+    }
+    // The host port answers from its own copy and only then reads ChatSpace's list again: this look starts
+    // that read, the second one shows what it brought.
+    look();
+    void deps.clock.setTimer(LIST_SETTLE_MS, () => overlays.isOpen('quick-jump') && look());
   });
   const unsubscribeHost = host.subscribe((event) => {
-    if (overlays.isOpen('quick-jump') && (event.type === 'route' || event.type === 'accounts')) changes.emit();
+    if (overlays.isOpen('quick-jump') && (event.type === 'route' || event.type === 'accounts')) look();
   });
 
   return {
     kinds: ['quick-jump'],
-    getSnapshot: (selector: ViewSelector) => (selector.of === 'quick-jump' ? build() : undefined),
+    // Closed, nobody looks at it: built on demand. Open: as shown.
+    getSnapshot: (selector: ViewSelector) => (selector.of === 'quick-jump' ? (overlays.isOpen('quick-jump') ? view() : build()) : undefined),
     subscribe(selector, listener) {
       if (selector.of !== 'quick-jump') return () => undefined;
-      return changes.on(() => listener(build()));
+      return changes.on(() => listener(view()));
     },
-    // Opening and closing is the navigation controller's (`Navigate surface`), a slot is its `chat-slot`.
+    // Opening and closing is the navigation controller's (`Navigate surface`); a row opens its chat through it too.
     dispatch: () => null,
     dispose() {
       unsubscribeOverlays();

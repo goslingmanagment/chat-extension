@@ -103,12 +103,15 @@ export class RecordingSink implements HotkeySink {
   readonly ran: KeyCommand[] = [];
   readonly refused: { command: DispatcherCommandId; refusal: KeyRefusal }[] = [];
   readonly quick: boolean[] = [];
+  /** Runs and popup changes in the order they came. */
+  readonly order: string[] = [];
   /** HK-025: the dock's first state is there; the test turns it off and calls `settle()` when it arrives. */
   dockReady = true;
   private readonly readyListeners = new Set<() => void>();
 
   run(command: KeyCommand): void {
     this.ran.push(command);
+    this.order.push(`run:${command.id}`);
   }
 
   ready(command: KeyCommand): boolean {
@@ -138,6 +141,7 @@ export class RecordingSink implements HotkeySink {
 
   quickJump(open: boolean): void {
     this.quick.push(open);
+    this.order.push(open ? 'popup:open' : 'popup:close');
   }
 
   get ids(): string[] {

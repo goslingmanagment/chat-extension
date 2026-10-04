@@ -7,10 +7,10 @@
 
 import { type UiAction, type UiActionType } from '@cg/contracts';
 import { KEPT_KEY_TTL_MS, QUICK_JUMP_HOLD_MS, createEarlyKeyDispatcher, createEarlyNotices, createHotkeyRunner, createTabKeyState, nextTone, type EarlyNotice } from '@cg/core/application/hotkeys';
-import { createCauseHint, createOverlayState, mirrorDismissible } from '@cg/core/application/navigation';
+import { chatHandle, createCauseHint, createOverlayState, mirrorDismissible } from '@cg/core/application/navigation';
 import { DISPATCHER_COMMAND_IDS, createActionCatalog, createKeyResolver, type HotkeyPlatform, type KeyCommand, type OverlayKind, type RouteKind } from '@cg/core/domain/hotkeys';
 import { createI18n } from '@cg/core/domain/i18n';
-import { FakeToasts, coach, coachTurn, ctxOf, dock, handles, FANS, preview, reason, recapPicker, recapView, result, review, uuid, views } from '@cg/testing/app-client';
+import { FakeToasts, coach, coachTurn, ctxOf, dock, handles, FANS, preview, quickJump, reason, recapPicker, recapView, result, review, uuid, views } from '@cg/testing/app-client';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FakeClock, settle } from './support/clock';
@@ -555,11 +555,17 @@ describe('the early dispatcher', () => {
     expect(r.sink.quick).toEqual([]);
     await r.clock.advance(1);
     expect(r.sink.quick).toEqual([true]);
+    // The popup is an overlay of ours from now on (the real OverlayState lists it): it takes no key from anything.
+    r.page.overlays = ['quick-jump'];
     const digit = new FakeKey('Digit3', { ctrlKey: true });
     r.win.fire('keydown', digit);
     expect([digit.defaultPrevented, digit.stopped]).toEqual([true, true]);
     expect(r.sink.quick).toEqual([true, false]);
     expect(r.sink.ids).toEqual(['quick-jump:3@global']);
+    expect(r.sink.refused).toEqual([]);
+    // The digit runs against the popup as the person saw it; only then the popup goes.
+    expect(r.sink.order).toEqual(['popup:open', 'run:quick-jump', 'popup:close']);
+    r.page.overlays = [];
     r.win.fire('keyup', primaryKey('win', false));
     expect(r.sink.quick).toEqual([true, false]);
 
@@ -874,7 +880,9 @@ describe('the hotkey runner', () => {
     expect(await r.run('chat-previous', 'global')).toEqual({ type: 'Navigate', to: { kind: 'chat-step', direction: 'previous' } });
     expect(await r.run('next-unread', 'global')).toEqual({ type: 'Navigate', to: { kind: 'next-unread' } });
     expect(await r.run('quick-jump', 'global', 4)).toEqual({ type: 'Navigate', to: { kind: 'chat-slot', slot: 4 } });
+    expect(r.cause.take()).toBe('key');
     expect(await r.run('quick-jump', 'global', null)).toBeUndefined();
+    expect(r.cause.take()).toBe('click');
     r.runner.quickJump(true);
     r.runner.quickJump(false);
     await settle();
@@ -887,6 +895,26 @@ describe('the hotkey runner', () => {
     await r.run('chat-next', 'global');
     await r.run('reply');
     expect(r.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-NAV-FAILED']);
+  });
+
+  it('[NEW-07] under the open popup a digit is the row the person sees there — the row\'s own action, which names its chat; with the popup closed it is the N-th row of ChatSpace\'s list', async () => {
+    const r = runnerRig();
+    const rowAction = (fan: string): UiAction => ({ type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: '1001', platformFanId: fan }) } });
+    const shown = quickJump(CTX, views.ready());
+    r.client.set({ of: 'quick-jump' }, { ...shown, items: shown.items.map((row, index) => ({ ...row, action: rowAction(String(2003 + index)) })) });
+    // ⌘2 pressed at once, before the popup: the second row of the list as it is.
+    expect(await r.run('quick-jump', 'global', 2)).toEqual({ type: 'Navigate', to: { kind: 'chat-slot', slot: 2 } });
+    r.overlays.set('quick-jump', true);
+    expect(await r.run('quick-jump', 'global', 2)).toEqual(rowAction('2004'));
+    // Still a key, for the navigation's cause.
+    expect(r.cause.take()).toBe('key');
+    // A digit with no row under it opens nothing — never «whatever is seventh in ChatSpace by now».
+    expect(await r.run('quick-jump', 'global', 7)).toBeUndefined();
+    expect(r.cause.take()).toBe('click');
+    // A popup that could not read the list has no rows: the digit does nothing, the popup itself says why.
+    r.client.set({ of: 'quick-jump' }, quickJump(CTX, views.empty({ key: 'quickJump.empty' })));
+    expect(await r.run('quick-jump', 'global', 1)).toBeUndefined();
+    expect(r.toasts.shown).toEqual([]);
   });
 
   it('[HK-006] Cancel stops the generation that runs where the person looks', async () => {

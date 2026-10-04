@@ -21,6 +21,8 @@ import {
   type UiAction,
 } from '@cg/contracts';
 import {
+  LIST_FRESH_MS,
+  LIST_SETTLE_MS,
   NAVIGATION_SURFACE,
   accountHandle,
   chatHandle,
@@ -129,6 +131,32 @@ function world(options: WorldOptions = {}) {
   };
   const targets = (): string[] => host.calls.navigations.map((intent) => `${intent.target.hostAccountId}/${intent.target.platformFanId ?? '-'}`);
   return { host, rpc, clock, overlays, toasts, cause, i18n, navigation, go, targets };
+}
+
+/**
+ * R09's `listCachedChats` as it really answers: at once from the adapter's own copy, reading ChatSpace's list
+ * again in the background only when that copy is over a second old. Nothing tells the adapter that another
+ * chat moved up, so the copy a key meets may be minutes old (the scripted port always answers the list as it is).
+ */
+function adapterCopy(w: ReturnType<typeof world>, live: () => readonly NavigationItem[]): { reads(): number } {
+  let copy = { items: live(), at: w.clock.now() };
+  let reads = 0;
+  w.host.listCachedChats = (_account, limit) => {
+    if (w.clock.now() - copy.at > 1000) {
+      void Promise.resolve().then(() => {
+        reads += 1;
+        copy = { items: live(), at: w.clock.now() };
+      });
+    }
+    return copy.items.slice(0, limit);
+  };
+  return { reads: () => reads };
+}
+
+/** The person moved: ChatSpace's route as the scripted port reports it next. */
+function moveRoute(w: ReturnType<typeof world>, route: HostSnapshot['route']): void {
+  (w.host as unknown as { script: { timeline: unknown[] } }).script.timeline.push({ kind: 'event', at: 1, event: { type: 'route', route } });
+  w.host.run();
 }
 
 const step = (direction: 'next' | 'previous'): UiAction => ({ type: 'Navigate', to: { kind: 'chat-step', direction } });
@@ -247,6 +275,78 @@ describe('chat navigation', () => {
     expect(w.targets()).toEqual([`${ACC}/2003`, `${ACC}/2003`]);
   });
 
+  it('[HK-037] a key walks the list ChatSpace shows now, not the adapter\'s older copy: a chat that moved up is the next one, a new unread chat is found, ⌘N is the N-th row as it is', async () => {
+    // The copy was filled when the chat opened; three minutes later a fan wrote and his chat moved up, unread.
+    const filled = [item('2005', 0, 'Jake Morrison'), item('2002', 1, 'Fan Two'), item('2003', 2, 'Theodore Whitfield'), item('2004', 3, 'Marco Rinaldi')];
+    const moved = [item('2005', 0, 'Jake Morrison'), item('2002', 1, 'Fan Two'), item('2004', 2, 'Marco Rinaldi', 3), item('2003', 3, 'Theodore Whitfield')];
+    for (const [action, opens] of [
+      [step('next'), '2004'],
+      [NEXT_UNREAD, '2004'],
+      [slot(3), '2004'],
+      [slot(4), '2003'],
+    ] as const) {
+      let live = filled;
+      const w = world({ chatList: filled });
+      const copy = adapterCopy(w, () => live);
+      await w.clock.advance(180_000);
+      live = moved;
+      expect((await w.go(action))?.ok).toBe(true);
+      // Opening a chat marks it read on OnlyFans: the one that opens is the one in that row now.
+      expect([action.type === 'Navigate' && action.to.kind, w.targets()]).toEqual([action.type === 'Navigate' && action.to.kind, [`${ACC}/${opens}`]]);
+      expect(w.toasts.shown).toEqual([]);
+      expect(copy.reads()).toBe(1);
+    }
+    // And the other way: the copy still has an unread chat ChatSpace no longer shows as unread — «нет непрочитанных», nothing opens.
+    let live = moved;
+    const read = world({ chatList: moved });
+    adapterCopy(read, () => live);
+    await read.clock.advance(180_000);
+    live = filled;
+    expect(await read.go(NEXT_UNREAD)).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect([read.targets(), read.toasts.shown.map((entry) => entry.toast.title)]).toEqual([[], [{ key: 'toast.noUnread' }]]);
+  });
+
+  it('[HK-037] the list is settled once for keys in a row: the first key waits for the adapter\'s read, the next ones within a second walk at once', async () => {
+    const w = world();
+    const first = w.navigation.dispatch(step('next'));
+    await settle();
+    // Nothing moves and no token is asked while the list settles.
+    expect([w.targets(), w.rpc.of('token.issue')]).toEqual([[], []]);
+    await w.clock.advance(LIST_SETTLE_MS);
+    expect((await first)?.ok).toBe(true);
+    expect(w.targets()).toEqual([`${ACC}/2003`]);
+    // The next key in a row: no timer at all.
+    const second = w.navigation.dispatch(slot(4));
+    await settle();
+    expect([w.targets(), w.clock.pending]).toEqual([[`${ACC}/2003`, `${ACC}/2004`], 0]);
+    expect((await second)?.ok).toBe(true);
+    // A second later the list may have moved again: it is settled anew.
+    await w.clock.advance(LIST_FRESH_MS + 1);
+    const third = w.navigation.dispatch(slot(1));
+    await settle();
+    expect(w.targets()).toHaveLength(2);
+    await w.clock.advance(LIST_SETTLE_MS);
+    expect((await third)?.ok).toBe(true);
+    expect(w.targets()).toEqual([`${ACC}/2003`, `${ACC}/2004`, `${ACC}/2005`]);
+  });
+
+  it('[HK-037] where the person is — the account and the open chat — is read after the list settled: a click meanwhile wins', async () => {
+    // Another account's list came on screen while the key waited: the key walks nothing.
+    const away = world();
+    const pending = away.navigation.dispatch(step('next'));
+    moveRoute(away, { epoch: 7, name: 'chat', account: OTHER_ACCOUNT, chat: null });
+    await away.clock.advance(LIST_SETTLE_MS);
+    expect(await pending).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect([away.targets(), away.rpc.of('token.issue')]).toEqual([[], []]);
+    // Another chat of the same account was opened by a click: J steps from that chat, not from the one the key was pressed in.
+    const clicked = world();
+    const next = clicked.navigation.dispatch(step('next'));
+    moveRoute(clicked, { epoch: 7, name: 'chat', account: hostAccount, chat: chat('2003') });
+    await clicked.clock.advance(LIST_SETTLE_MS);
+    expect((await next)?.ok).toBe(true);
+    expect(clicked.targets()).toEqual([`${ACC}/2004`]);
+  });
+
   it('[HK-037] a key\'s mark is spent by its own navigation whatever came of it: nothing to open, a router still moving, a refusal — the next click is a click', async () => {
     const click: UiAction = { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(chat('2004')) } };
     const causes = (w: ReturnType<typeof world>): string[] => w.host.calls.navigations.map((intent) => intent.cause.kind);
@@ -328,11 +428,50 @@ describe('the quick jump', () => {
     const view = controller.getSnapshot({ of: 'quick-jump' }) as QuickJumpVM;
     expect(view.view).toEqual({ s: 'ready' });
     expect(view.items).toHaveLength(9);
-    expect(view.items[1]).toEqual({ slot: 2, name: 'Fan 2', username: 'fan_2', unread: 3, action: { type: 'Navigate', to: { kind: 'chat-slot', slot: 2 } } });
+    // A row names its chat: the action is «open this chat», valid as a UiAction, and the navigation controller's to run.
+    expect(view.items[1]).toEqual({ slot: 2, name: 'Fan 2', username: 'fan_2', unread: 3, action: { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(chat('2101')) } } });
+    for (const row of view.items) expect(UiActionSchema.safeParse(row.action).success).toBe(true);
     expect(view.items[0]?.unread).toBeNull();
     expect(controller.kinds).toEqual(['quick-jump']);
     expect(controller.getSnapshot({ of: 'palette' })).toBeUndefined();
     expect(controller.dispatch(slot(1))).toBeNull();
+    expect(controller.dispatch(view.items[1]?.action as UiAction)).toBeNull();
+  });
+
+  it('[NEW-07] a row of the popup opens the chat the person sees in it, wherever ChatSpace\'s list has moved since; the popup looks again only when it is told to', async () => {
+    const shownList = [item('2005', 0, 'Jake Morrison'), item('2002', 1, 'Fan Two'), item('2003', 2, 'Theodore Whitfield'), item('2004', 3, 'Marco Rinaldi')];
+    const movedList = [item('2004', 0, 'Marco Rinaldi', 1), item('2005', 1, 'Jake Morrison'), item('2002', 2, 'Fan Two'), item('2003', 3, 'Theodore Whitfield')];
+    let live = shownList;
+    const w = world({ chatList: shownList });
+    w.host.listCachedChats = (_account, limit) => live.slice(0, limit);
+    const controller = createQuickJumpController({ host: w.host, i18n: w.i18n, overlays: w.overlays, clock: w.clock });
+    const seen: QuickJumpVM[] = [];
+    controller.subscribe({ of: 'quick-jump' }, (view) => seen.push(view as QuickJumpVM));
+    const names = (): (string | null)[] => (controller.getSnapshot({ of: 'quick-jump' }) as QuickJumpVM).items.map((row) => row.name);
+    await w.go({ type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: true } });
+    expect(names()).toEqual(['Jake Morrison', 'Fan Two', 'Theodore Whitfield', 'Marco Rinaldi']);
+    const drawn = seen.length;
+    // A fan writes: ChatSpace's list moves under the open popup. The popup is not redrawn behind the person's finger…
+    live = movedList;
+    expect(names()).toEqual(['Jake Morrison', 'Fan Two', 'Theodore Whitfield', 'Marco Rinaldi']);
+    expect(seen.length).toBe(drawn);
+    // …and row 3 opens Theodore, the chat written in row 3 — not Fan Two, who is third in ChatSpace's list by now.
+    const third = (controller.getSnapshot({ of: 'quick-jump' }) as QuickJumpVM).items[2];
+    expect((await w.go(third?.action as UiAction))?.ok).toBe(true);
+    expect(w.targets()).toEqual([`${ACC}/2003`]);
+    // The chat opened and the popup closed; opened again it shows the list as it is now.
+    expect(w.overlays.isOpen('quick-jump')).toBe(false);
+    await w.go({ type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: true } });
+    expect(names()).toEqual(['Marco Rinaldi', 'Jake Morrison', 'Fan Two', 'Theodore Whitfield']);
+    // While it is open a route or accounts event makes it look again; a composer event does not.
+    live = shownList;
+    const before = seen.length;
+    (w.host as unknown as { script: { timeline: unknown[] } }).script.timeline.push({ kind: 'event', at: 1, event: { type: 'composer', composer: null } });
+    w.host.run();
+    expect([seen.length, names()[0]]).toEqual([before, 'Marco Rinaldi']);
+    moveRoute(w, { epoch: 9, name: 'chat', account: hostAccount, chat: chat('2003') });
+    expect([seen.length, names()[0]]).toEqual([before + 1, 'Jake Morrison']);
+    controller.dispose();
   });
 
   it('[NEW-07] no loaded chats — «Нет загруженных чатов»; a broken list — the error; opening notifies and looks again once the list settled', async () => {

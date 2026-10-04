@@ -350,11 +350,13 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     event.preventDefault();
     event.stopImmediatePropagation();
     if (decision.run !== null) {
-      if (slotKey && quickJumpOpen) {
+      const underPopup = slotKey && quickJumpOpen;
+      run(decision.run);
+      // The digit ran against the popup as the person saw it; only then the popup goes.
+      if (underPopup) {
         quickJumpOpen = false;
         sink?.quickJump(false);
       }
-      run(decision.run);
     } else if (decision.refusal !== null && decision.command !== null) {
       if (sink !== null) sink.refuse(decision.command, decision.refusal);
       else options.onEarly?.({ kind: 'refused', command: decision.command, refusal: decision.refusal });
