@@ -1,0 +1,93 @@
+# `@cg/host-chatspace` — адаптер ChatSpace (R09, часть A)
+
+Адаптер к OnlyMonster ChatSpace: всё, что расширение знает о странице и делает с ней
+(architecture.md §6.1–§6.5, §6.9, §6.10). Своих запросов к OnlyMonster нет: только память
+страницы, DOM и мост ChatSpace для вставки.
+
+## Что внутри
+
+**`main/` — мир страницы (MAIN), без зависимостей.**
+
+- `installMainBridge(win, { runtime?, exposeRuntimeHook? })` — «загрузчик» на
+  `document_start`: запоминает нативные функции, рукопожатие, проверка конверта, повтор
+  записи по id не исполняется, события не чаще 50 в секунду на тип. Сам отвечает на `probe`,
+  остальное отдаёт «рантайму». 1,7 КиБ gzip, установка 0,02 мс.
+- `createMainRuntime` — «рантайм»: поиск `#app.__vue_app__` (100 мс до 15 с, потом 2 с до 60 с,
+  потом `CG-HOST-NOT-READY`), маршрут и эпохи, сторы через `pinia.use()` (свои не создаёт),
+  кэш Colada и `$onAction`, аккаунты, окно и хвост чата (только подтверждённые сообщения с
+  числовым id), фан, список чатов, активный composer, ревизия черновика из транзакций
+  Tiptap, CAS-вставка в одном синхронном шаге, сверка после микрозадачи и кадра, фокус,
+  `router.push` по действию человека и отложенная вставка «Открыть и вставить».
+- Запросы X8 и свежести (`checkpoint`, `previewSend*`) пока отвечают `disabled` до
+  исполнения — типизированное «ещё нет» для части B; `send-port.ts` и `ws-tap.ts` — её место.
+
+**`isolated/` — изолированный мир.**
+
+- `startChatSpaceHost({ win, redeem, drafts, … })` — одна точка запуска для корня композиции:
+  менеджер монтирования и тема синхронно, мост и `HostPort` — после рукопожатия.
+- `createChatSpaceHostPort` — `HostPort` из контрактов: состояние из снимка и событий MAIN,
+  синхронные чтения из кэша, вставка и переход тратят `actionToken` до моста и не передают
+  его в MAIN, `BRIDGE_WRITE_FAILURES` для записи, которая могла выполниться, сверка
+  применённой вставки по ключу черновика цели. `checkpoint()` = `null`, `previewSend` =
+  `null` до части B.
+- `connectMainBridge` — клиент моста: синхронно только рукопожатие, схемы грузятся лениво
+  (`validate.ts`) при первом кадре; три ступени проверки, счётчики отброшенного, тайм-ауты.
+- `createMountManager` — док первым ребёнком корня рамки активного composer, строка
+  «только копировать» у заблокированного фана, фиксированный оверлей без рамки, слои
+  оверлеев 900/950/960, `data-dismissible-open`, реестр закрытых корней для хоткеев.
+- `buildContractReport`, `createThemeReader`, `readStoredDraft`, `host-contract.ts` (все
+  строки ChatSpace в одном месте; копия MAIN закреплена тестом).
+
+## Как подключить (интегратору)
+
+```ts
+// MAIN, document_start:
+installMainBridge(window, { runtime: createMainRuntime });
+// изолированный мир, document_start (после removeStaleHosts):
+const started = startChatSpaceHost({
+  win: window,
+  redeem: (r) => /* token.redeem через порт вкладки, surface по месту вызова */,
+  drafts: { getItem: (key) => window.localStorage.getItem(key) },
+  navInsertTimeoutMs: bootstrap.limits.navInsertTimeoutSec * 1000,
+});
+// UI: started.mounts.dock.root, started.mounts.overlay('modal').root …
+// хоткеи: started.mounts.registry; HostPort: await started.host
+```
+
+**Как поставляется рантайм MAIN (решение X11, `docs/decisions.md`).** Один бандл на
+`document_start`: `installMainBridge(window, { runtime: createMainRuntime })`. Загрузчик —
+1,7 КиБ gzip, рантайм — ещё ~8 КиБ, вместе ~9 КиБ; бюджет MAIN — 10 КиБ (`pnpm size`
+меряет собранный `content-scripts/chatspace-main.js`). Работа на `document_start`
+по-прежнему ≤ 1 мс: рантайм ничего не делает до `DOMContentLoaded`.
+
+Второй MAIN-скрипт (`attachMainRuntime(createMainRuntime)` с `exposeRuntimeHook: true`)
+отклонён: крючок лежит под `Symbol.for` на `window`, страница может забрать его первой —
+тогда хост навсегда «не готов». Сам API остаётся в пакете, расширение его не включает.
+
+Время выполнения бандла на `document_start` e2e пишет в `.cache/e2e/host-adapter.json`
+(`mainEvalMs`, обвязка без расширения) и проверяет на собранном расширении
+(`integration-m1.e2e.ts`: метки начала и конца бандла тестовой сборки, медиана ≤ 1 мс),
+кроме `installMs` загрузчика.
+
+**Отмена «Открыть и вставить»** (§6.5): `navigate(intent, { signal })` — R10 прерывает
+сигнал при выходе, смене персоны или привязки и при закрытии превью; MAIN не пишет
+отложенную вставку, если ещё не записал (контракты 1.1.0, запрос моста `cancelInsert`).
+
+**Чей это composer.** Composer привязан к чату, для которого ChatSpace его нарисовал:
+активная вкладка чата аккаунта маршрута (`chatTabEntries`). Пока вкладка и маршрут
+называют разные чаты (переключение в пути: ChatSpace показывает composer новой вкладки
+раньше, чем асинхронные проверки роутера пускают маршрут), composer'а нет — ни чтений,
+ни записи. Вкладки не читаются (новая сборка) — только копирование (`composerBridge`
+`missing`).
+
+## Проверка
+
+- Юнит-тесты (`*.test.ts`, `*.dom.test.ts`): 138, покрытие строк 96,6 % (каждый модуль ≥ 94 %).
+  У каждой защиты есть тест, который падает без неё (16 мутаций проверены руками:
+  повтор записи по id, чужая эпоха документа, обе половины CAS, эпоха маршрута в MAIN,
+  эпоха входа и `platformAccountId` в идентичности, `seq` и эпоха кадра, предпроверки
+  изолированной стороны, цель отложенной вставки, два стабильных наблюдения, вкладка чата,
+  происхождение после добавления, сигналы событий).
+- e2e на стенде R02 без расширения: `packages/testing/e2e/specs/host-adapter.e2e.ts` —
+  MAIN в мир страницы и изолированная часть в песочницу WebDriver BiDi через preload-скрипты
+  (до скриптов страницы, как `document_start`). Итоги — `.cache/e2e/host-adapter.json`.

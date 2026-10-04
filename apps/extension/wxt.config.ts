@@ -16,6 +16,7 @@ import { defineConfig } from 'wxt';
 import { artifactNames, isFlavorArtifact } from './build/artifacts.ts';
 import { bundleTimingPlugin } from './build/bundle-timing.ts';
 import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from './build/manifest.ts';
+import { SOURCE_DOTFILES, STAND_SOURCE_GLOBS } from './build/sources-archive.ts';
 import { buildLazyChunks, type LazyChunkInfo } from './lazy/vite.config.ts';
 
 const flavor: BuildFlavor = process.env['CG_TEST_HOSTS'] === '1' ? 'test' : 'release';
@@ -40,10 +41,11 @@ export default defineConfig({
     oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
     build: { target: 'firefox142', sourcemap: false },
     // WXT imports each entry point in Node (its `inline` environment) to read
-    // its options. Node cannot resolve the vendored SDK's extensionless ESM
-    // imports, so the first `@cg/hub` import in the background (R08) failed
-    // `wxt build`; inline the SDK there instead of loading it natively.
-    environments: { inline: { resolve: { noExternal: ['@kernel/sdk'] } } },
+    // its options. Node cannot resolve the extensionless ESM imports of the
+    // vendored packages, so the first import of `@cg/hub` (the SDK) or of
+    // `@cg/core/domain` (the hotkey scheme) from an entry point failed
+    // `wxt build`; inline both there instead of loading them natively.
+    environments: { inline: { resolve: { noExternal: ['@kernel/sdk', '@chatgoose/hotkeys'] } } },
   }),
   hooks: {
     // After WXT cleaned the output dir, before entry points are built.
@@ -53,9 +55,11 @@ export default defineConfig({
     'build:manifestGenerated': (_wxt, manifest) => {
       finalizeManifest(manifest as ManifestLike, { flavor, lazyFiles: lazyChunks.map((chunk) => chunk.file) });
     },
-    // Spike timing marks around the isolated content script (test builds only).
+    // Timing marks around both content scripts (test builds only): the e2e
+    // reads the whole synchronous start of the isolated bundle (§11: ≤ 3 ms)
+    // and of the MAIN bundle at document_start (X11: ≤ 1 ms).
     'vite:build:extendConfig': (entrypoints, config) => {
-      if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace')) return;
+      if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace' || entry.name === 'chatspace-main')) return;
       config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },
     // WXT never deletes older versions' archives. Drop this flavor's before
@@ -70,9 +74,13 @@ export default defineConfig({
   zip: {
     artifactTemplate: artifacts.xpi,
     sourcesTemplate: artifacts.sources,
-    // AMO needs the whole workspace to rebuild; the test build is never signed.
+    // AMO needs the workspace to rebuild the XPI; the test build is never signed.
+    // The ChatSpace-like stand (R02) and its e2e harness are not needed for that
+    // and stay out; three tool dotfiles WXT would skip go in
+    // (build/sources-archive.ts; tools/archive-check checks both).
     zipSources: flavor === 'release',
     sourcesRoot: repoRoot,
-    excludeSources: ['docs/**', 'AGENTS.md', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo'],
+    includeSources: ['**/*', ...SOURCE_DOTFILES],
+    excludeSources: ['docs/**', 'AGENTS.md', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo', ...STAND_SOURCE_GLOBS],
   },
 });

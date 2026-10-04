@@ -57,6 +57,13 @@ export interface I18n {
   text(msg: Msg): string;
   /** `$12,480`; income `+$320`; `−$45`; zero blank by default; null `—`. Whole dollars. */
   formatMoneyMills(mills: MoneyMills | null, format?: MoneyFormat): string;
+  /**
+   * The same amount in words for screen readers (ui-design §6.2): `+$320` →
+   * «плюс 320 долларов», `−$45` → «минус 45 долларов», null → «неизвестно»,
+   * a blank zero → ''. The `aria-label` of a money cell. Optional (1.1.0):
+   * a port without it leaves the amount to be read as printed.
+   */
+  formatMoneySpoken?(mills: MoneyMills | null, format?: MoneyFormat): string;
   /** «сейчас», «7 мин», «3 ч», «12 д»; `now` defaults to the clock of the port. */
   formatAge(from: number | IsoTimestamp, now?: number): string;
   formatTime(at: number | IsoTimestamp, style?: TimeStyle): string;

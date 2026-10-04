@@ -4,7 +4,8 @@
 // - the page origin: the ChatSpace-like fixture app (packages/testing/
 //   fixture-chatspace, built into .cache/fixture-chatspace) on `/`,
 //   `/accounts/...` and its assets, the session-token endpoint, control
-//   endpoints for tests (`/__stand/...`) and the M0 spike page (`/spike.html`);
+//   endpoints for tests (`/__stand/...`), the M0 spike page (`/spike.html`)
+//   and the ui/kit gallery (`/kit-gallery/`, built into .cache/kit-gallery);
 // - the API origin: the native API (`/api/...`, CORS for the page origin with
 //   preflights) and the socket (`/api/chat-space/ws`), with synthetic data.
 // A journal labels every call by who made it (protocol.ts CallOrigin).
@@ -27,7 +28,7 @@ import {
 import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
-import { FIXTURE_BUILD_DIR, SPIKE_STAND_DIR } from './stand/paths';
+import { FIXTURE_BUILD_DIR, KIT_GALLERY_BUILD_DIR, KIT_GALLERY_PATH, SPIKE_STAND_DIR } from './stand/paths';
 import { SocketHub } from './stand/socket-hub';
 import { StandState } from './stand/state';
 
@@ -72,6 +73,17 @@ const SPIKE_FILES = new Set(['/spike.html', '/stand.js', '/stand.css']);
 /** A CSP at least as strict as a modern SPA's: no inline script, no eval, self only. */
 export const STRICT_STAND_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws:; object-src 'none'; base-uri 'none'";
+
+/**
+ * The same strictness for the ChatSpace-like fixture (`?csp=strict` on any of
+ * its paths): the page may also talk to its own API origin and socket, and
+ * nothing else — no inline script or style, no eval. Our UI must work under
+ * it (lazy chunks by import(), sheets adopted in closed roots).
+ */
+export function strictFixtureCsp(apiOrigin: string): string {
+  const socket = apiOrigin.replace(/^http/, 'ws');
+  return `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ${apiOrigin} ${socket}; object-src 'none'; base-uri 'none'`;
+}
 
 const API_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 const API_ALLOWED_HEADERS = `authorization, content-type, ${NATIVE_REQUEST_HEADER}`;
@@ -192,6 +204,10 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       status = 404;
     } else if (SPIKE_FILES.has(path)) {
       status = await serveFile(response, join(SPIKE_STAND_DIR, relative), url.searchParams.get('csp') === 'strict' ? STRICT_STAND_CSP : null);
+    } else if (`/${relative}/`.startsWith(KIT_GALLERY_PATH)) {
+      // The ui/kit gallery (normalized path, so no `..` leaves its folder): the index for the folder, assets by name.
+      const inside = relative.slice(KIT_GALLERY_PATH.length - 1);
+      status = await serveFile(response, join(KIT_GALLERY_BUILD_DIR, inside === '' || inside.endsWith('/') ? `${inside}index.html` : inside), null);
     } else if (path === '/favicon.ico') {
       response.writeHead(204).end();
       status = 204;
@@ -199,7 +215,9 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       status = await serveFile(response, join(fixtureDir, relative), null);
     } else if (existsSync(join(fixtureDir, 'index.html'))) {
       // History-mode SPA: every other path is the app's index, told where its API is.
-      status = await serveFile(response, join(fixtureDir, 'index.html'), null, (text) => text.replace(META_PATTERN, `$1${apiOrigin}$2`));
+      status = await serveFile(response, join(fixtureDir, 'index.html'), url.searchParams.get('csp') === 'strict' ? strictFixtureCsp(apiOrigin) : null, (text) =>
+        text.replace(META_PATTERN, `$1${apiOrigin}$2`),
+      );
     } else {
       response
         .writeHead(503, { 'content-type': 'text/plain; charset=utf-8' })

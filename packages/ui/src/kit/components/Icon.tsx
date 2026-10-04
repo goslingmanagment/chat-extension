@@ -1,0 +1,102 @@
+// Our own icon set (ui-design §2.10): a 16 px grid, `currentColor` strokes of
+// 1.6 with round caps and joins; the goose mark is one silhouette in the ink
+// colour with the eye in the surface colour. Nothing from OnlyMonster.
+
+import { type JSX } from 'preact';
+
+const PATHS = {
+  copy: (
+    <>
+      <rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.6" />
+      <path d="M10.5 5.5V4.2A1.2 1.2 0 0 0 9.3 3H4.2A1.2 1.2 0 0 0 3 4.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3" />
+    </>
+  ),
+  check: <path d="M3.2 8.4l3 2.9L12.8 4.8" />,
+  x: <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />,
+  lock: (
+    <>
+      <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+      <path d="M5.5 7V5.3a2.5 2.5 0 0 1 5 0V7" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="7.2" cy="7.2" r="4.4" />
+      <path d="M10.5 10.5l3 3" />
+    </>
+  ),
+  expand: <path d="M9.5 3h3.5v3.5M13 3L8.8 7.2M6.5 13H3V9.5M3 13l4.2-4.2" />,
+  collapse: <path d="M13 7H9.5V3.5M9.5 7L13.5 3M3 9h3.5v3.5M6.5 9l-4 4" />,
+  info: (
+    <>
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M8 7.3v3.4M8 5.2v.1" />
+    </>
+  ),
+  eyeOff: (
+    <>
+      <path d="M2.5 8s2-3.8 5.5-3.8S13.5 8 13.5 8s-2 3.8-5.5 3.8S2.5 8 2.5 8z" />
+      <circle cx="8" cy="8" r="1.7" />
+      <path d="M3 13L13 3" />
+    </>
+  ),
+  refresh: (
+    <>
+      <path d="M12.8 6.2A5 5 0 0 0 3.6 5.4M3.2 9.8a5 5 0 0 0 9.2.8" />
+      <path d="M3.4 3v2.6H6M12.6 13v-2.6H10" />
+    </>
+  ),
+  chevronDown: <path d="M4.5 6.5L8 10l3.5-3.5" />,
+} as const;
+
+export type IconName = keyof typeof PATHS;
+export const ICON_NAMES = Object.keys(PATHS) as IconName[];
+
+export interface IconProps {
+  readonly name: IconName;
+  /** 16 (default), 14 (toasts, preview rows), 12–13 (stage line, «вставлено», lock). */
+  readonly size?: 12 | 13 | 14 | 16;
+  readonly class?: string;
+}
+
+export function Icon({ name, size = 16, class: extra }: IconProps): JSX.Element {
+  return (
+    <svg class={`cg-ico${extra === undefined ? '' : ` ${extra}`}`} width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      {PATHS[name]}
+    </svg>
+  );
+}
+
+/** The ChatGoose mark: 20 px in the dock, 22 in the popup, 24 in the settings. */
+export function GooseMark({ size = 20, class: extra }: { readonly size?: 20 | 22 | 24; readonly class?: string }): JSX.Element {
+  return (
+    <svg class={`cg-goose${extra === undefined ? '' : ` ${extra}`}`} width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path d="M1.5 8.8C3 10.3 5.8 11.1 8.4 11.1C10 11.1 11.2 10.3 11.6 8.9C11.9 7.6 12 6.2 12.1 5C12.2 3.4 13.1 2.2 14.6 2.2C15.6 2.2 16.4 2.8 16.7 3.6L19 4.5L16.7 5.3C16.3 5.8 15.6 6 14.9 5.9C14.6 7.2 14.5 8.6 14.5 10C14.5 14.2 11.6 16.8 7.8 16.8C4.4 16.8 2 14.4 1.7 11.2Z" />
+      <circle class="cg-goose__eye" cx="14.5" cy="3.6" r=".65" />
+    </svg>
+  );
+}
+
+/** The Split / settings check box glyph: filled square with a check when on, an outline when off (§2.10). */
+export function CheckGlyph({ on, size = 12 }: { readonly on: boolean; readonly size?: 12 | 14 }): JSX.Element {
+  return (
+    <svg class="cg-cb" width={size} height={size} viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      {on ? (
+        <>
+          <rect width="12" height="12" rx="3" fill="currentColor" />
+          <path class="cg-cb__tick" d="M3.2 6.2l1.9 1.8 3.8-4" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </>
+      ) : (
+        <rect x=".7" y=".7" width="10.6" height="10.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.3" />
+      )}
+    </svg>
+  );
+}
+
+export const ICON_CSS = `
+.cg-ico { flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cg-goose { flex: none; display: block; fill: currentColor; }
+.cg-goose .cg-goose__eye { fill: var(--cg-surface); }
+.cg-cb { flex: none; display: block; }
+.cg-cb__tick { stroke: var(--cg-surface); }
+`;

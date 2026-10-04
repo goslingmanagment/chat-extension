@@ -1,7 +1,14 @@
 // Composition root of the isolated content script on a ChatSpace tab
-// (architecture.md §2, §4: wiring only). Order: runtime port → MAIN bridge →
-// wait for the composer → lazily load the dock chunk into a closed shadow root.
-// R09/R13/R14/R17 plug their parts in here.
+// (architecture.md §2, §4: wiring only).
+//
+// What runs synchronously at document_start is as little as the page allows
+// (§11: ≤ 3 ms): stale hosts of a dead instance go, the ChatSpace host starts
+// — its mount manager and theme reader at once, the MAIN handshake behind
+// them — and that is all. One task later the rest of the early bundle wakes
+// up (tab/runtime.ts): the port to the background, the tab's registration and
+// presence. The application itself — the protocol registry, the controllers,
+// the texts, the UI — is lazy chunks, loaded when ChatSpace shows a composer
+// and never outside a chat (EX-011).
 //
 // Lifecycle is OURS, not WXT's: WXT invalidates its ContentScriptContext when
 // a `<runtime id>:chatspace:wxt:content-script-started` CustomEvent reaches the
@@ -10,40 +17,31 @@
 // invalidation only ever reaches an instance whose runtime is gone; while our
 // runtime is alive, an invalidation is a spoof and is ignored.
 
-import { BackgroundStatusSchema } from '@cg/contracts';
-import { connectMainBridge, mountClosedHost, removeStaleHosts, waitForComposerMount, type ClosedHost } from '@cg/host-chatspace/isolated';
-import { connectTabPort, extensionUrl, isExtensionContextAlive } from '@cg/platform';
+import { removeStaleHosts, startChatSpaceHost, type HostDiagnostic, type MountDiagnostic } from '@cg/host-chatspace/isolated';
+// The light entry of the platform: its index would evaluate the RPC client and the protocol schemas at document_start (§11).
+import { isExtensionContextAlive } from '@cg/platform/runtime';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 
-import type * as DockChunk from '../../lazy/entries/dock';
-import { createSpikeProbe, type SpikeProbe } from './spike-probe';
+import { tabProbeFor, type TabProbe } from './tab/probe';
+import type { TabRuntime } from './tab/runtime';
 
 export interface TabEnv {
   readonly ctx: ContentScriptContext;
   readonly win: Window;
 }
 
-/** Lazy ESM chunks, loaded with import(moz-extension://…) — see lazy/vite.config.ts. */
-export const LAZY_DOCK_PATH = 'lazy/dock.js';
-
-/** How long the first composer search keeps its document-wide observer (§6.3). */
-const FIRST_SEARCH_MS = 30_000;
+/** What the host told us before the logger of the tab existed (events and codes only). */
+const DIAGNOSTICS_KEPT = 50;
 
 export function composeTab(env: TabEnv): void {
   const started = performance.now();
   const { ctx, win } = env;
   const doc = win.document;
-  // Spike/e2e diagnostics exist only in a CG_TEST_HOSTS build: the compile-time
-  // constant lets the bundler drop the probe (and its lazy chunk) from release.
-  const probe: SpikeProbe | null = __CG_TEST_HOSTS__ ? createSpikeProbe(win) : null;
-  let dockHost: ClosedHost | null = null;
+  // e2e diagnostics exist only in a CG_TEST_HOSTS build: the compile-time
+  // constant lets the bundler drop the probe from release.
+  const probe: TabProbe | null = __CG_TEST_HOSTS__ ? tabProbeFor(win) : null;
 
   const life = new AbortController();
-  life.signal.addEventListener('abort', () => {
-    probe?.set('runtime', 'shut-down');
-    dockHost?.remove();
-    dockHost = null;
-  });
   let spoofedInvalidations = 0;
   ctx.onInvalidated(() => {
     if (!isExtensionContextAlive()) {
@@ -58,41 +56,66 @@ export function composeTab(env: TabEnv): void {
   // instance's hosts; this instance owns the page now (§6.8 п. 8, UP-009).
   const staleHosts = removeStaleHosts(doc);
   // A tab that predates this instance got us late (not at document_start):
-  // R09 shows the «перезагрузите вкладку» banner from this signal.
+  // the dock shows «перезагрузите вкладку» from this signal.
   const lateInjection = doc.readyState !== 'loading';
   probe?.set('lifecycle', { staleHosts, lateInjection });
 
-  const port = connectTabPort();
-  port.onMessage((raw) => {
-    const status = BackgroundStatusSchema.safeParse(raw);
-    if (status.success) probe?.set('background', status.data);
-  });
-  port.onDisconnect(() => {
-    const alive = isExtensionContextAlive();
-    probe?.set('runtime', alive ? 'port-closed' : 'reloaded');
-    if (!alive) life.abort('extension-gone');
-  });
-  port.post({ t: 'hello', v: 1 });
+  let runtime: Promise<TabRuntime> | null = null;
+  let navInsertTimeoutMs: number | undefined;
+  const diagnostics: (HostDiagnostic | MountDiagnostic)[] = [];
+  let onDiagnostic: ((diagnostic: HostDiagnostic | MountDiagnostic) => void) | null = null;
 
-  void connectMainBridge(win)
-    .then(async (bridge) => {
-      life.signal.addEventListener('abort', () => bridge.close());
-      probe?.set('main', await bridge.probe());
-    })
-    .catch((error: unknown) => probe?.set('mainError', String(error)));
+  const host = startChatSpaceHost({
+    win,
+    // A write spends the action token of its click before anything reaches MAIN (§14); no runtime — no write.
+    redeem: (request) => (runtime === null ? Promise.resolve(false) : runtime.then((ready) => ready.redeem(request)).catch(() => false)),
+    // ChatSpace's own draft key, read only (§6.1): the isolated world shares the page's localStorage.
+    drafts: { getItem: (key) => win.localStorage.getItem(key) },
+    // Bootstrap `limits.navInsertTimeoutSec`, once it arrived (the host starts before any bootstrap).
+    navInsertTimeoutMs: () => navInsertTimeoutMs,
+    onDiagnostic(diagnostic) {
+      if (onDiagnostic !== null) onDiagnostic(diagnostic);
+      else if (diagnostics.length < DIAGNOSTICS_KEPT) diagnostics.push(diagnostic);
+    },
+  });
+  life.signal.addEventListener('abort', () => {
+    probe?.set('runtime', 'shut-down');
+    host.mounts.dispose();
+    host.theme.dispose();
+    void host.bridge.then((bridge) => bridge?.close());
+    void host.host.then((port) => port.dispose());
+  });
 
-  void waitForComposerMount(doc, { timeoutMs: FIRST_SEARCH_MS, signal: life.signal })
-    .then(async (parent) => {
-      if (!parent || life.signal.aborted) return;
-      const loadStarted = performance.now();
-      const chunk = (await import(/* @vite-ignore */ extensionUrl(LAZY_DOCK_PATH))) as typeof DockChunk;
-      const loadMs = performance.now() - loadStarted;
-      if (life.signal.aborted) return;
-      dockHost = mountClosedHost(parent, 'dock');
-      const dock = chunk.mountDock(dockHost.root, { status: 'Каркас R00' });
-      probe?.dockMounted(dockHost, { loadMs, renderMs: dock.renderMs, styleMode: dock.styleMode });
-    })
-    .catch((error: unknown) => probe?.set('dockError', String(error)));
+  if (probe !== null) {
+    void host.bridge.then(async (bridge) => {
+      if (bridge === null) probe.set('mainError', 'no MAIN bridge');
+      else probe.set('main', await bridge.probe());
+    });
+  }
+
+  // Everything else of the early bundle, one task later: outside the synchronous start (§11).
+  setTimeout(() => {
+    if (life.signal.aborted) return;
+    runtime = import('./tab/runtime').then(({ startTabRuntime }) =>
+      startTabRuntime({
+        win,
+        life: life.signal,
+        abort: (reason) => life.abort(reason),
+        host,
+        lateInjection,
+        staleHosts,
+        probe,
+        setNavInsertTimeoutMs(ms) {
+          navInsertTimeoutMs = ms;
+        },
+        takeDiagnostics(listener) {
+          onDiagnostic = listener;
+          return diagnostics.splice(0);
+        },
+      }),
+    );
+    runtime.catch((error: unknown) => probe?.set('runtimeError', String(error)));
+  }, 0);
 
   // The body of composeTab only; the probe adds the whole synchronous start of
   // the bundle (§11: ≤ 3 ms on winpc) once the bundle's last statement ran.

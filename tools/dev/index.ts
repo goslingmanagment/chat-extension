@@ -1,6 +1,7 @@
 // `pnpm dev`: TEST build (CG_TEST_HOSTS=1) + `web-ext run` in a dedicated,
-// persistent Firefox profile under .dev-profile/ (gitignored). The owner signs
-// in to ChatSpace in that profile once (X9); live checks only in the test chat.
+// persistent Firefox profile: .dev-profile/ in the repo (gitignored), or the
+// directory named by CG_DEV_PROFILE (tools/dev/profile.ts). The owner signs in
+// to ChatSpace in that profile once (X9); live checks only in the test chat.
 //
 // Flags: --no-watch (build once), --firefox <path> (default FIREFOX_BIN or the
 // macOS app). With watch on, a change under packages/ or apps/extension/
@@ -11,6 +12,7 @@ import { existsSync, mkdirSync, watch } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { EXTENSION_ROOT, REPO_ROOT, TEST_DIR } from '../lib/paths.ts';
+import { devProfileDir } from './profile.ts';
 
 const { values } = parseArgs({
   options: {
@@ -22,7 +24,7 @@ const { values } = parseArgs({
 
 const macFirefox = '/Applications/Firefox.app/Contents/MacOS/firefox';
 const firefox = values.firefox ?? process.env['FIREFOX_BIN'] ?? (existsSync(macFirefox) ? macFirefox : 'firefox');
-const profileDir = `${REPO_ROOT}.dev-profile`;
+const profileDir = devProfileDir(REPO_ROOT);
 const wxt = `${EXTENSION_ROOT}node_modules/.bin/wxt`;
 const webExt = `${REPO_ROOT}node_modules/.bin/web-ext`;
 
@@ -37,6 +39,7 @@ function buildTest(): boolean {
 
 if (!buildTest()) process.exit(1);
 mkdirSync(profileDir, { recursive: true });
+console.log(`dev: Firefox profile ${profileDir}`);
 
 const runner = spawn(
   webExt,

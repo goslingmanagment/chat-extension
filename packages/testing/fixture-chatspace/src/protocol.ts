@@ -234,6 +234,12 @@ export interface StandControl {
   setQueueTimeoutMs(ms: number): void;
   /** Composers mounted from now on wait this long for their editor chunk (the bridge exists, TipTap does not). */
   setEditorDelayMs(ms: number): void;
+  /**
+   * Navigations wait this long in an async router guard, as ChatSpace's do
+   * (sign-in and feature-flag checks): a chat tab's composer shows before the
+   * route follows.
+   */
+  setRouteDelayMs(ms: number): void;
   injectFanMessage(accountId: string, fanId: string, text?: string): Promise<string>;
   scriptSend(accountId: string, chatId: string, outcomes: readonly SendOutcome[]): Promise<void>;
   setFan(accountId: string, fanId: string, patch: FanPatch): Promise<void>;

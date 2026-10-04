@@ -108,6 +108,7 @@ export function createFakeI18n(initial: Locale, clock: () => number): FakeI18n {
     plural: (key, count, params) => t(`${key}#${new Intl.PluralRules(language).select(count)}`, { n: count, ...params }),
     text: (m) => t(m.key, m.params),
     formatMoneyMills,
+    formatMoneySpoken: (mills, format) => `${language}:spoken(${formatMoneyMills(mills, format ?? {})})`,
     formatAge: (from, now) => formatAge(language, from, now ?? clock()),
     formatTime: (at, style) => formatTime(language, at, style),
     formatDuration,

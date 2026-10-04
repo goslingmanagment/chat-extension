@@ -132,6 +132,9 @@ importers:
       '@kernel/sdk':
         specifier: workspace:*
         version: link:../../vendor/kernel-sdk
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
 
   packages/platform:
     dependencies:
@@ -162,6 +165,12 @@ importers:
       '@cg/ui':
         specifier: workspace:*
         version: link:../ui
+      '@preact/signals':
+        specifier: 2.11.3
+        version: 2.11.3(preact@11.0.0)
+      preact:
+        specifier: 11.0.0
+        version: 11.0.0
     devDependencies:
       '@tiptap/core':
         specifier: 3.31.4

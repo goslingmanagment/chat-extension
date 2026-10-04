@@ -1,0 +1,403 @@
+// Integration step M1 (architecture.md §2, §5.4, §8, §12 п. 4): the TEST build
+// as a whole — background, isolated and MAIN content scripts, lazy chunks,
+// the TEMPORARY options page and dock status — on the ChatSpace-like stand,
+// against the fake hub on loopback. What it proves end to end:
+// - the background is ready and answers the page protocol before any sign-in;
+// - the hub address changes in «Дополнительно» only while signed out (ST-042);
+// - a sign-in through the options page reaches the fake hub, the bootstrap
+//   arrives, and an already open ChatSpace tab learns it without a reload;
+// - the tab registers; outside a chat nothing of the application is loaded
+//   (EX-011); with a composer the lazy chunks come by import() (EX-009) and
+//   the dock sits above the active composer in a closed shadow root with its
+//   own sheets, nothing global (EX-012), and follows chat switches;
+// - the status shows who is signed in and which hub page the open account is
+//   bound to — or the CG-BINDING-* code of an account no page is linked to;
+// - the WS tap is registered only by the bootstrap flag;
+// - a sign-out revokes the token, clears the session and every tab hears it;
+// - a hub without `client/bootstrap` (404) runs on the DEV-ONLY synthesized
+//   bootstrap with debug mode on (docs/hub-layer.md);
+// - not one request left loopback (network trap), and the fake hub saw no
+//   call the client must never make.
+// Test titles carry the parity rows they prove.
+
+import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsV1 } from '@cg/contracts';
+import { browser, expect } from '@wdio/globals';
+
+import { callsTo } from '../../src/fake-hub/journal';
+import { PAGE, WORLD } from '../../src/scenarios/hub';
+import { DEV_COMPAT_PAGES_KEY } from '../support/constants';
+import { installTestBuild, pageRpc, readLocalStorage, readReport, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
+import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
+import { useNetworkTrap } from '../support/network-trap';
+import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady, waitForStandReady } from '../support/stand';
+import { clickSignOut, openTempPage, rowNamed, rowsNamed, saveHubAddress, submitSignIn, waitForTempPage } from '../support/temp-pages';
+
+const { a: accountA, b: accountB } = STAND_IDS.accounts;
+const { a1, a2, b1 } = STAND_IDS.fans;
+const PASSWORD = 'synthetic-password';
+/** A loopback address nothing listens on (the discard port): «the hub does not answer» without leaving the machine. */
+const DEAD_HUB = 'http://127.0.0.1:9';
+
+interface Diagnostics {
+  readonly extension: { readonly version: string; readonly contractsVersion: string; readonly testBuild: boolean };
+  readonly session: { readonly signedIn: boolean; readonly hubOrigin: string | null; readonly role: string | null };
+  readonly hub: { readonly reachable: boolean | null; readonly flags: Readonly<Record<string, boolean>> };
+  readonly tabs: ReadonlyArray<{ readonly tabSessionId: string; readonly host: { readonly build: string | null } | null; readonly chatKey: string | null }>;
+}
+
+/** Ids of the dynamically registered content scripts, read from the extension page the browser is on. */
+async function registeredScripts(): Promise<string[]> {
+  return browser.execute(async () => {
+    const api = (globalThis as unknown as { browser: { scripting: { getRegisteredContentScripts(): Promise<Array<{ id: string }>> } } }).browser;
+    return (await api.scripting.getRegisteredContentScripts()).map((script) => script.id);
+  });
+}
+
+/** The style elements and sheets of the page, by what they are (never their text). */
+async function pageSheets(): Promise<{ readonly nodes: string[]; readonly adopted: number; readonly ours: number }> {
+  return browser.execute(() => {
+    const nodes = [...document.querySelectorAll<HTMLElement>('style, link[rel="stylesheet"]')];
+    const textOf = (node: HTMLElement): string => (node instanceof HTMLStyleElement ? (node.textContent ?? '') : '');
+    return {
+      nodes: nodes.map((node) => (node instanceof HTMLLinkElement ? `link:${new URL(node.href).protocol}` : `style:${[...node.attributes].map((attribute) => attribute.name).join(',')}`)),
+      adopted: document.adoptedStyleSheets.length,
+      // A sheet of ours would come from the extension or carry the kit's names.
+      ours: nodes.filter((node) => (node instanceof HTMLLinkElement ? node.href.startsWith('moz-extension:') : /\.cg-|--cg-|data-cg/.test(textOf(node)))).length,
+    };
+  });
+}
+
+describe('integration M1 — the test build on the stand against the fake hub', () => {
+  useNetworkTrap();
+  const { hub } = useFakeHub();
+  let journalStart = 0;
+  /** The fake hub is one for the whole run: its journal is read from here on. */
+  let hubStart = 0;
+  let standTab = '';
+  let pagesTab = '';
+
+  const toStand = async (): Promise<void> => browser.switchToWindow(standTab);
+  const toPages = async (): Promise<void> => browser.switchToWindow(pagesTab);
+  const dockIs = (predicate: (dock: DockReport, report: SpikeReport) => boolean, message: string): Promise<SpikeReport> =>
+    waitForReport((report) => report.appError !== undefined || (report.dock !== undefined && predicate(report.dock, report)), message).then((report) => {
+      if (report.appError !== undefined) throw new Error(`${message}: the tab application failed to start: ${report.appError}`);
+      return report;
+    });
+
+  before(async () => {
+    await standServer.reset();
+    journalStart = await standServer.mark();
+    // The owner linked the hub page to the creator account ChatSpace shows as account A of the stand.
+    await hub().command({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: STAND_IDS.platformAccounts.a });
+    hubStart = await hub().mark();
+    await installTestBuild();
+    // The build's default hub is the real one. Before any status surface asks for its health, the address
+    // goes to a dead loopback port — from a page that asks the background nothing by itself.
+    await browser.url(testBuildPage('debug-journal.html'));
+    const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: DEAD_HUB } };
+    await writeLocalStorage({ [STORAGE_KEYS.settings]: settings });
+    await browser.waitUntil(async () => (await pageRpc<{ settings: SettingsV1 }>('settings.get')).ok, { timeout: 15_000, timeoutMsg: 'the background did not answer settings.get' });
+    await browser.waitUntil(
+      async () => {
+        const state = await pageRpc<{ settings: SettingsV1 }>('settings.get');
+        return state.ok && state.payload.settings.hub.baseUrl === DEAD_HUB;
+      },
+      { timeout: 5000, timeoutMsg: 'the settings owner did not pick the hub address up' },
+    );
+    standTab = await browser.getWindowHandle();
+    pagesTab = (await browser.createWindow('tab')).handle;
+  });
+
+  after(async () => {
+    // §12 «Гейт безопасности»: nothing but the page's own client and the harness talked to the stand.
+    expect(foreignCalls((await standServer.journal(journalStart)).entries)).toEqual([]);
+  });
+
+  it('the background is ready before any sign-in: the page protocol answers, the options page shows «not signed in» and a hub that does not answer', async () => {
+    await toPages();
+    const page = await openTempPage('options');
+    expect(page.signedIn).toBe(false);
+    const diagnostics = await pageRpc<Diagnostics>('diagnostics.get');
+    expect(diagnostics).toMatchObject({ ok: true, payload: { extension: { testBuild: true, contractsVersion: CONTRACTS_VERSION }, session: { signedIn: false, hubOrigin: null }, tabs: [] } });
+    const shown = await waitForTempPage((state) => rowNamed(state, 'hub')?.state === 'bad', 'the dead hub address shows as not answering');
+    expect(rowNamed(shown, 'hub')?.value).toContain(DEAD_HUB);
+    expect(rowNamed(shown, 'account')?.state).toBe('bad');
+    expect(rowNamed(shown, 'bootstrap')?.state).toBe('none');
+    // Nothing reached the fake hub yet: the extension talks to no hub it was not pointed at.
+    expect((await hub().journal(hubStart)).entries).toEqual([]);
+  });
+
+  it('[EX-011] a ChatSpace tab outside a chat registers and loads nothing of the application: no lazy chunk, no dock', async () => {
+    await toStand();
+    await openStand(chatPath(accountA), { waitForChat: false });
+    const report = await waitForReport((r) => r.rpc?.registered === true && r.main !== undefined, 'the tab registered with the background');
+    expect(report.main?.readyStateAtStart).toBe('loading');
+    expect(report.lifecycle).toEqual({ staleHosts: 0, lateInjection: false });
+    // Give a wrongly eager loader the time to show itself.
+    await browser.pause(700);
+    const later = await readReport();
+    expect(later?.app).toBeUndefined();
+    expect(later?.appError).toBeUndefined();
+    expect(later?.dock).toBeUndefined();
+    expect((await dockPlacement()).visible).toBe(false);
+    // The background knows the tab (and the creator accounts ChatSpace showed in it).
+    await toPages();
+    await openTempPage('options');
+    const diagnostics = await pageRpc<Diagnostics>('diagnostics.get');
+    expect(diagnostics.ok && diagnostics.payload.tabs).toHaveLength(1);
+    const seen = await pageRpc<{ accounts: ReadonlyArray<{ account: { hostAccountId: string; platformAccountId: string | null }; openTabs: number }> }>('accounts.seen');
+    expect(seen.ok && seen.payload.accounts.map((item) => item.account.hostAccountId).sort()).toEqual(expect.arrayContaining([accountA, accountB]));
+  });
+
+  it('[EX-009] [EX-012] opening a chat loads the lazy chunks by import() and mounts the dock above the active composer: a closed root with its own sheets, nothing global', async () => {
+    await toStand();
+    await callStand('openChat', accountA, a1);
+    await waitForChatReady(accountA, a1);
+    const report = await dockIs((dock) => dock.status === 'not-signed-in', 'the dock says «not signed in»');
+    expect(report.app?.loadMs).toBeGreaterThan(0);
+    expect(report.dock).toMatchObject({ kind: 'in-flow', inFlowFirstChild: true, styleMode: 'adopted', login: '', banner: 'CG-AUTH-REQUIRED', contract: 'ok' });
+    expect(report.dock?.height).toBeGreaterThan(30);
+
+    const roots = await composerRoots();
+    expect(roots.active).toHaveLength(1);
+    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
+    const host = await browser.execute(() => {
+      const node = document.querySelector('[data-cg="dock"]');
+      return {
+        shadowRootVisibleToPage: node?.shadowRoot !== null,
+        lightChildren: node?.childElementCount ?? -1,
+        // Every element of ours in the page's tree is a host element: nothing is rendered outside a root.
+        ours: [...document.querySelectorAll('[data-cg]')].map((element) => element.getAttribute('data-cg')).sort(),
+        classesOfOursInPage: document.querySelectorAll('[class*="cg-"]').length,
+      };
+    });
+    expect(host.shadowRootVisibleToPage).toBe(false);
+    expect(host.lightChildren).toBe(0);
+    expect(host.classesOfOursInPage).toBe(0);
+    for (const kind of host.ours) expect(['dock', 'overlay', 'rail', 'panel', 'preview']).toContain(kind);
+    // No stylesheet of ours in the page: the sheets live in the closed roots (adoptedStyleSheets);
+    // what the page has is the fixture's own (its bundle's link, the editor's injected <style>).
+    const sheets = await pageSheets();
+    expect(sheets.ours).toBe(0);
+    expect(sheets.adopted).toBe(0);
+    expect(sheets.nodes.filter((node) => node.startsWith('link:') && node !== 'link:http:')).toEqual([]);
+  });
+
+  it('[ST-042] the hub address is saved in «Дополнительно» while signed out, and the fake hub answers', async () => {
+    await toPages();
+    await openTempPage('options');
+    await saveHubAddress(fakeHubOrigin());
+    const page = await waitForTempPage((state) => rowNamed(state, 'hub')?.state === 'ok', 'the hub row shows the fake hub answering');
+    expect(rowNamed(page, 'hub')?.value).toContain(fakeHubOrigin());
+    expect(page.errors).toEqual([]);
+    const stored = (await readLocalStorage([STORAGE_KEYS.settings]))[STORAGE_KEYS.settings] as SettingsV1;
+    expect(stored.hub.baseUrl).toBe(fakeHubOrigin());
+  });
+
+  it('a wrong password is refused with the hub’s code and nothing is stored', async () => {
+    await submitSignIn(WORLD.user.username, 'not-the-password');
+    const page = await waitForTempPage((state) => state.errors.length > 0, 'the sign-in error card');
+    expect(page.signedIn).toBe(false);
+    expect(page.errors).toEqual(['CG-LOGIN-CREDENTIALS']);
+    expect(await readLocalStorage([STORAGE_KEYS.authToken, STORAGE_KEYS.authMeta])).toEqual({});
+  });
+
+  it('sign-in through the options page reaches the fake hub; the bootstrap arrives with the page linked to the stand account', async () => {
+    const mark = await hub().mark();
+    await submitSignIn(WORLD.user.username, PASSWORD);
+    const page = await waitForTempPage((state) => state.signedIn && rowNamed(state, 'bootstrap')?.state === 'ok', 'signed in with a bootstrap');
+    expect(page.login).toBe(WORLD.user.username);
+    expect(rowNamed(page, 'account')).toMatchObject({ state: 'ok', value: `${WORLD.user.username} · ${WORLD.user.role}` });
+    expect(rowNamed(page, 'bootstrap')?.value).toContain(PAGE);
+    expect(page.errors).toEqual([]);
+
+    const entries = (await hub().journal(mark)).entries;
+    expect(callsTo(entries, 'authIssueDeviceTokenWithPassword').map((entry) => entry.status)).toEqual([200]);
+    const bootstraps = callsTo(entries, 'clientBootstrap');
+    expect(bootstraps.length).toBeGreaterThanOrEqual(1);
+    // H-3: the token the extension keeps is the narrow one.
+    expect(bootstraps.every((entry) => entry.status === 200 && entry.token?.client === 'chat-extension')).toBe(true);
+    const session = await pageRpc<{ session: { login: string; hubOrigin: string; epoch: number } | null }>('session.get');
+    expect(session).toMatchObject({ ok: true, payload: { session: { login: WORLD.user.username, hubOrigin: fakeHubOrigin() } } });
+    const bootstrap = await pageRpc<{ pages: ReadonlyArray<{ pageLabel: string; platformAccountId: string | null }>; identity: { tokenClient: string | null } }>('bootstrap.get');
+    expect(bootstrap.ok && bootstrap.payload.pages.find((item) => item.pageLabel === PAGE)?.platformAccountId).toBe(STAND_IDS.platformAccounts.a);
+    expect(bootstrap.ok && bootstrap.payload.identity.tokenClient).toBe('chat-extension');
+    // The sign-in record is in storage.local; the password is nowhere.
+    const stored = await readLocalStorage([STORAGE_KEYS.authToken, STORAGE_KEYS.authMeta, STORAGE_KEYS.settings]);
+    expect(Object.keys(stored).sort()).toEqual([STORAGE_KEYS.authMeta, STORAGE_KEYS.authToken, STORAGE_KEYS.settings].sort());
+    expect(JSON.stringify(stored)).not.toContain(PASSWORD);
+  });
+
+  it('[ST-042] while signed in the hub address does not change: the field is locked and the background refuses the request', async () => {
+    const locked = await browser.execute(() => {
+      const details = document.querySelector('[data-cg-temp="advanced"]');
+      return { field: details?.querySelector('input')?.getAttribute('aria-disabled') ?? null, readOnly: details?.querySelector('input')?.readOnly ?? null };
+    });
+    expect(locked).toEqual({ field: 'true', readOnly: true });
+    const refused = await pageRpc('settings.patchRestricted', { patch: { hub: { baseUrl: DEAD_HUB } }, baseRevision: null });
+    expect(refused).toEqual({ ok: false, error: { code: 'CG-HUB-URL', detail: 'signed in' } });
+    const state = await pageRpc<{ settings: SettingsV1 }>('settings.get');
+    expect(state.ok && state.payload.settings.hub.baseUrl).toBe(fakeHubOrigin());
+  });
+
+  it('the open ChatSpace tab hears the sign-in without a reload: the dock shows who is signed in and the hub page of the open account', async () => {
+    await toStand();
+    const report = await dockIs((dock) => dock.status === 'ready', 'the dock is ready after the sign-in');
+    expect(report.dock).toMatchObject({ login: WORLD.user.username, page: PAGE, bindingCode: '', contract: 'ok', banner: null, mode: 'insert' });
+    expect(report.dock?.text).toContain(WORLD.user.username);
+    expect(report.dock?.text).toContain(PAGE);
+    const roots = await composerRoots();
+    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
+  });
+
+  it('the dock follows chat switches: one host, always the first child of the active composer', async () => {
+    const first = (await composerRoots()).active[0] ?? '';
+    expect(first.endsWith(`:${accountA}:${a1}`)).toBe(true);
+    await callStand('openChat', accountA, a2, { newTab: true });
+    await browser.waitUntil(async () => (await composerRoots()).active[0]?.endsWith(`:${accountA}:${a2}`) === true, { timeout: 5000, timeoutMsg: 'the second chat tab' });
+    await browser.waitUntil(async () => (await dockPlacement()).parentKey === (await composerRoots()).active[0], { timeout: 5000, timeoutMsg: 'the dock did not move to the second composer' });
+    const second = await composerRoots();
+    expect(second.all).toHaveLength(2);
+    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: second.active[0], firstChild: true, visible: true });
+    await dockIs((dock) => dock.status === 'ready' && dock.page === PAGE, 'still bound after the switch');
+
+    await callStand('openChat', accountA, a1);
+    await browser.waitUntil(async () => (await dockPlacement()).parentKey === first, { timeout: 5000, timeoutMsg: 'the dock did not come back to the first composer' });
+    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: first, firstChild: true, visible: true });
+  });
+
+  it('an account no hub page is linked to shows its CG-BINDING-* code, and the bound one comes back', async () => {
+    await callStand('openChat', accountB, b1, { newTab: true });
+    await waitForChatReady(accountB, b1);
+    const refused = await dockIs((dock) => dock.status === 'no-binding', 'the unbound account');
+    expect(refused.dock?.bindingCode).toMatch(/^CG-BINDING-/);
+    expect(refused.dock?.banner).toBe(refused.dock?.bindingCode);
+    expect(refused.dock?.page).toBe('');
+    expect(refused.dock?.login).toBe(WORLD.user.username);
+    await callStand('openChat', accountA, a1);
+    await dockIs((dock) => dock.status === 'ready' && dock.page === PAGE, 'back on the bound account');
+  });
+
+  it('the options page lists the bindings and the host contract of the open tab; the popup shows the same status', async () => {
+    await toPages();
+    await openTempPage('options');
+    const page = await waitForTempPage((state) => rowsNamed(state, 'binding').some((row) => row.state === 'ok') && rowsNamed(state, 'contract').some((row) => row.state === 'ok'), 'bindings and contract rows');
+    const bindings = rowsNamed(page, 'binding');
+    expect(bindings.find((row) => row.value.includes(accountA))).toMatchObject({ state: 'ok' });
+    expect(bindings.find((row) => row.value.includes(accountA))?.value).toContain(PAGE);
+    expect(bindings.find((row) => row.value.includes(accountB))?.state).toBe('bad');
+    expect(bindings.find((row) => row.value.includes(accountB))?.value).toMatch(/CG-BINDING-/);
+    expect(rowsNamed(page, 'contract')).toHaveLength(1);
+
+    const popup = await openTempPage('popup');
+    const settled = await waitForTempPage((state) => state.signedIn && rowNamed(state, 'bootstrap')?.state === 'ok', 'the popup status');
+    expect(popup.ready).toBe(true);
+    expect(rowNamed(settled, 'account')?.value).toContain(WORLD.user.username);
+    // Status only: no sign-in form and no hub address on the popup.
+    expect(await browser.execute(() => document.querySelectorAll('[data-cg-temp="sign-in"], [data-cg-temp="advanced"], input').length)).toBe(0);
+  });
+
+  it('the WS tap is registered by the bootstrap flag `wsTap`: documents loaded after the sign-in get it at document_start', async () => {
+    const diagnostics = await pageRpc<Diagnostics>('diagnostics.get');
+    expect(diagnostics.ok && diagnostics.payload.hub.flags['wsTap']).toBe(true);
+    expect(await registeredScripts()).toEqual(['cg-ws-tap']);
+    await toStand();
+    await browser.refresh();
+    await waitForStandReady();
+    await waitForChatReady(accountA, a1);
+    const report = await waitForReport((r) => r.main !== undefined, 'MAIN probe after the reload');
+    expect(report.main).toMatchObject({ readyStateAtStart: 'loading', wsTap: true });
+    const sockets = await browser.execute(() => {
+      const tap = (window as unknown as Record<symbol, { socketCount(): number } | undefined>)[Symbol.for('chatgoose.wsTap')];
+      return tap?.socketCount() ?? -1;
+    });
+    expect(sockets).toBeGreaterThanOrEqual(1);
+    // A restored sign-in: the reloaded tab is bound again without anyone signing in.
+    await dockIs((dock) => dock.status === 'ready' && dock.login === WORLD.user.username && dock.page === PAGE, 'the reloaded tab is signed in and bound');
+  });
+
+  it('the owner switches the tap off: the next bootstrap unregisters it', async () => {
+    await hub().command({ op: 'config', patch: { flags: { wsTap: false } } });
+    await toPages();
+    await openTempPage('options');
+    const refreshed = await pageRpc<{ flags: Readonly<Record<string, boolean>> }>('bootstrap.get', { force: true });
+    expect(refreshed.ok && refreshed.payload.flags['wsTap']).toBe(false);
+    await browser.waitUntil(async () => (await registeredScripts()).length === 0, { timeout: 5000, timeoutMsg: 'the WS tap stayed registered after the flag went off' });
+    await toStand();
+    await browser.refresh();
+    await waitForStandReady();
+    const report = await waitForReport((r) => r.main !== undefined, 'MAIN probe without the tap');
+    expect(report.main?.wsTap).toBe(false);
+    expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('chatgoose.wsTap')))).toBe(false);
+
+    // And on again: the flag is the owner's switch in both directions.
+    await hub().command({ op: 'config', patch: { flags: { wsTap: true } } });
+    await toPages();
+    expect(await pageRpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+    await browser.waitUntil(async () => (await registeredScripts()).includes('cg-ws-tap'), { timeout: 5000, timeoutMsg: 'the WS tap was not registered again' });
+  });
+
+  it('sign-out revokes the token, clears the session, and the open tab hears it', async () => {
+    await toStand();
+    await waitForChatReady(accountA, a1);
+    await dockIs((dock) => dock.status === 'ready', 'signed in before the sign-out');
+    const mark = await hub().mark();
+    await toPages();
+    await openTempPage('options');
+    await clickSignOut();
+    const page = await waitForTempPage((state) => !state.signedIn, 'signed out');
+    expect(rowNamed(page, 'account')?.state).toBe('bad');
+    expect(rowNamed(page, 'bootstrap')?.state).toBe('none');
+    expect(page.errors).toEqual([]);
+    expect(callsTo((await hub().journal(mark)).entries, 'authRevokeCurrentDeviceToken').map((entry) => entry.status)).toEqual([200]);
+    expect(await pageRpc('session.get')).toEqual({ ok: true, payload: { session: null } });
+    expect(await pageRpc('bootstrap.get')).toMatchObject({ ok: false, error: { code: 'CG-AUTH-REQUIRED' } });
+    // The token and the caches of the person are gone from storage.local; what stays of the sign-in is how it ended.
+    const stored = await readLocalStorage([STORAGE_KEYS.authToken, STORAGE_KEYS.authMeta, STORAGE_KEYS.cacheBootstrap, STORAGE_KEYS.cacheCatalog]);
+    expect(Object.keys(stored)).toEqual([STORAGE_KEYS.authMeta]);
+    expect(stored[STORAGE_KEYS.authMeta]).toMatchObject({ token: null, lastEnd: { reason: 'sign-out', code: null } });
+    // The tap goes with the sign-in.
+    expect(await registeredScripts()).toEqual([]);
+    await toStand();
+    const report = await dockIs((dock) => dock.status === 'not-signed-in', 'the open tab shows «not signed in» after the sign-out');
+    expect(report.dock).toMatchObject({ login: '', page: '', banner: 'CG-AUTH-REQUIRED' });
+  });
+
+  it('a hub without client/bootstrap (404): with debug mode on the DEV-ONLY synthesized bootstrap binds the page from the dev map', async () => {
+    // A hub before H-2 and H-3: no `client/bootstrap`, no narrow token.
+    await hub().command({ op: 'config', patch: { clientBootstrap: false, narrowTokens: false } });
+    await toPages();
+    await openTempPage('options');
+    expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: true } }, baseRevision: null })).toMatchObject({ ok: true });
+    // The dev map of a test build: the prod hub's pages carry no creator id, and nothing is matched by name.
+    await writeLocalStorage({ [DEV_COMPAT_PAGES_KEY]: { [PAGE]: STAND_IDS.platformAccounts.a } });
+    const mark = await hub().mark();
+    await submitSignIn(WORLD.user.username, PASSWORD);
+    const page = await waitForTempPage((state) => state.signedIn && rowNamed(state, 'bootstrap')?.state === 'ok', 'signed in on the compat bootstrap');
+    expect(rowNamed(page, 'bootstrap')?.value).toContain(PAGE);
+
+    const entries = (await hub().journal(mark)).entries;
+    expect(callsTo(entries, 'clientBootstrap').map((entry) => entry.status)).toContain(404);
+    expect(entries.filter((entry) => entry.kind === 'legacy').map((entry) => [entry.path, entry.status])).toContainEqual(['/api/v1/pages', 200]);
+    expect(callsTo(entries, 'me').length).toBeGreaterThanOrEqual(1);
+    const bootstrap = await pageRpc<{ configRevision: number; capabilities: readonly string[]; identity: { tokenClient: string | null }; pages: ReadonlyArray<{ pageLabel: string; platformAccountId: string | null }> }>('bootstrap.get');
+    expect(bootstrap).toMatchObject({ ok: true, payload: { configRevision: 0, capabilities: [], identity: { tokenClient: null } } });
+    expect(bootstrap.ok && bootstrap.payload.pages.map((item) => [item.pageLabel, item.platformAccountId])).toEqual([
+      [PAGE, STAND_IDS.platformAccounts.a],
+      [WORLD.pages.vip.pageLabel, null],
+      [WORLD.pages.fansly.pageLabel, null],
+    ]);
+
+    await toStand();
+    const report = await dockIs((dock) => dock.status === 'ready' && dock.login === WORLD.user.username, 'the dock on the compat bootstrap');
+    expect(report.dock).toMatchObject({ page: PAGE, bindingCode: '' });
+
+    // Leave as found: signed out, debug off, the hub as deployed.
+    await toPages();
+    await openTempPage('options');
+    await clickSignOut();
+    await waitForTempPage((state) => !state.signedIn, 'signed out of the compat hub');
+    expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: false } }, baseRevision: null })).toMatchObject({ ok: true });
+    await hub().command({ op: 'config', patch: { clientBootstrap: true, narrowTokens: true } });
+  });
+});

@@ -549,3 +549,22 @@ export const HTTP_SCENARIOS: readonly HttpScenario[] = [
     ],
   },
 ];
+
+/**
+ * The building blocks above, for the fake hub's model (packages/testing/src/
+ * fake-hub): it serves its default data from the same synthetic shapes the
+ * scenarios use, adapted per page and clock.
+ */
+export const SCENARIO_DATA = {
+  limits: LIMITS,
+  health: healthBody,
+  scope,
+  period,
+  diagnostics,
+  stats,
+  tierBuckets,
+  feedItem,
+  feedTotal: FEED_TOTAL,
+  audienceItem,
+  queuePage,
+} as const;

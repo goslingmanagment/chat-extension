@@ -2,19 +2,21 @@
 // hub. Implemented by `@cg/hub` over the vendored SDK (R08); core services
 // depend on this interface, never on the SDK. Every call is bound to the
 // sign-in epoch it started under; a failed call rejects with a HubCallError
-// whose facts the core resolver turns into a CG code (error-map.ts).
+// whose facts the core resolver turns into a CG code (error-map.ts), or —
+// since 1.1.0 — with a HubCheckError when the hub layer refused it itself.
 //
 // Changes against the §5.8 sketch, forced by the hub's real routes
 // (hub-pr-plan.md §4): queries carry their path params (pageLabel, fanRef);
 // `profileFromGeneration` needs pageLabel + fanRef; `audienceNew` needs the
 // fixed window; `aiUsage` takes `days` 1–7 and a zone on the page path (H-15).
 
+import { type CgCode } from '../errors';
 import { type AcceptanceEvent, type ClientHealthV1 } from '../telemetry';
 import { type SessionIdentity } from '../ids';
 import { type HubFrame, type HubStreamRequest, type PersonaCatalog } from './ai';
 import { type HubHealth, type SignOutOutcome } from './auth';
 import { type Bootstrap } from './bootstrap';
-import { type HubFailure } from './error-map';
+import { type HubClientCheck, type HubErrorResolution, type HubFailure } from './error-map';
 import { type FeedPage, type FeedQuery } from './feed';
 import { type AudienceNewPage, type AudienceNewQuery, type ClaimOp, type ClaimState } from './newcomers';
 import {
@@ -66,6 +68,40 @@ export interface HubCallError {
   readonly failure: HubFailure;
   /** The sign-in epoch the call ran under (AU-014). */
   readonly epoch: number;
+  /**
+   * 1.1.0: the facade's own reading of the failure — ResolveHubError over
+   * the facts only the facade has (the page in the bootstrap, frames already
+   * seen, the AI retry already spent, the claim action, a fan lookup).
+   * Consumers use it as is; re-check `epoch` against the current session
+   * before acting on `clear-sign-in` (the facade has already done it).
+   */
+  readonly resolution?: HubErrorResolution;
+}
+
+/**
+ * 1.1.0: what a facade call rejects with when the hub layer's own check
+ * refuses it (HUB_CLIENT_CHECK_CODES) — there is no hub answer to read:
+ * a pending sign-in, a full token, no bootstrap, a missing capability, a
+ * flag off, a page not granted, a foreign persona in `meta`…
+ */
+export interface HubCheckError {
+  readonly name: 'HubCheckError';
+  readonly check: HubClientCheck;
+  /** = HUB_CLIENT_CHECK_CODES[check]. */
+  readonly code: CgCode;
+  /** The operation the check guarded; null for a check outside any route. */
+  readonly route: HubRouteKey | null;
+  readonly epoch: number;
+  /** An open token naming why (a page feature's `reason`: flag_off, platform_unsupported…), when there is one. */
+  readonly reason?: string;
+}
+
+export function isHubCallError(value: unknown): value is HubCallError {
+  return typeof value === 'object' && value !== null && (value as { name?: unknown }).name === 'HubCallError';
+}
+
+export function isHubCheckError(value: unknown): value is HubCheckError {
+  return typeof value === 'object' && value !== null && (value as { name?: unknown }).name === 'HubCheckError';
 }
 
 /** The part of AbortSignal the facade uses (contracts carry no DOM types). */

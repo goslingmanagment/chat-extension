@@ -1,8 +1,9 @@
 // WebdriverIO 9 + geckodriver (architecture.md §12 п. 4): the current Firefox
 // without a window, the TEST build (CG_TEST_HOSTS=1) installed as a temporary
-// add-on, our synthetic stand on 127.0.0.1. No network beyond loopback: the
-// profile sends every non-loopback request to the egress sink, which records
-// it and drops it, and keeps Firefox's own services quiet
+// add-on, our synthetic stand and the fake hub (src/fake-hub; its origin in
+// CG_FAKE_HUB_ORIGIN, e2e/support/fake-hub.ts) on 127.0.0.1. No network
+// beyond loopback: the profile sends every non-loopback request to the egress
+// sink, which records it and drops it, and keeps Firefox's own services quiet
 // (src/stand/egress-sink.ts); specs add the trap (support/network-trap.ts),
 // which fails on any such attempt seen in the BiDi log (pages, content
 // scripts) or in the sink (the background too).
@@ -14,6 +15,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { startFakeHub, type FakeHubServer } from '../src/fake-hub/server';
 import { startStandServer, type StandServer } from '../src/stand-server';
 import { egressProxyPrefs, startEgressSink, type EgressSink } from '../src/stand/egress-sink';
 import { FIXTURE_BUILD_DIR } from '../src/stand/paths';
@@ -33,6 +35,7 @@ process.env['MOZ_REMOTE_SETTINGS_DEVTOOLS'] = '1';
 
 let stand: StandServer | null = null;
 let egress: EgressSink | null = null;
+let hub: FakeHubServer | null = null;
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -79,6 +82,9 @@ export const config: WebdriverIO.Config = {
     stand = await startStandServer({ egress });
     process.env['CG_STAND_ORIGIN'] = stand.origin;
     process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
+    // The fake hub: system clock, the pilot preset; specs reset and script it through its control API.
+    hub = await startFakeHub();
+    process.env['CG_FAKE_HUB_ORIGIN'] = hub.origin;
     // The sink's port is known only now; workers start with these capabilities.
     for (const capability of capabilities as WebdriverIO.Capabilities[]) {
       const firefox = capability['moz:firefoxOptions'];
@@ -86,6 +92,7 @@ export const config: WebdriverIO.Config = {
     }
   },
   onComplete: async () => {
+    await hub?.close();
     await stand?.close();
     await egress?.close();
   },

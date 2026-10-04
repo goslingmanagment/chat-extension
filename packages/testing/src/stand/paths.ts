@@ -11,5 +11,10 @@ export const SPIKE_STAND_DIR = fileURLToPath(new URL('../../stand/', import.meta
 export const FIXTURE_SOURCE_DIR = fileURLToPath(new URL('../../fixture-chatspace/', import.meta.url));
 /** Built fixture app (`pnpm --filter @cg/testing build:stand`). */
 export const FIXTURE_BUILD_DIR = `${REPO_ROOT}.cache/fixture-chatspace/`;
+/** Sources of the ui/kit gallery page (R13). */
+export const KIT_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../kit/gallery/', import.meta.url));
+/** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /kit-gallery/. */
+export const KIT_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/kit-gallery/`;
+export const KIT_GALLERY_PATH = '/kit-gallery/';
 /** Screenshots, timings and other e2e evidence. */
 export const E2E_EVIDENCE_DIR = `${REPO_ROOT}.cache/e2e/`;

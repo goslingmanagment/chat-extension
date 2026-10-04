@@ -192,6 +192,15 @@ describe('stand server: who called', () => {
     const index = await fetch(`${stand.origin}/accounts/${accountA}/chats/`, { headers: { 'sec-fetch-dest': 'document' } });
     expect(index.status).toBe(200);
     expect(await index.text()).toContain(`<meta name="${STAND_API_ORIGIN_META}" content="${stand.apiOrigin}"`);
+    expect(index.headers.get('content-security-policy')).toBeNull();
+    // `?csp=strict`: the same index under a CSP that lets the page reach only itself and its API origin.
+    const strict = await fetch(`${stand.origin}/accounts/${accountA}/chats/?csp=strict`, { headers: { 'sec-fetch-dest': 'document' } });
+    expect(strict.status).toBe(200);
+    const csp = strict.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("script-src 'self';");
+    expect(csp).toContain("style-src 'self';");
+    expect(csp).toContain(`connect-src 'self' ${stand.apiOrigin} ${stand.apiOrigin.replace('http', 'ws')};`);
+    expect(csp).not.toMatch(/unsafe|\*/);
     const unbuilt = await startStandServer({ fixtureDir: join(fixtureDir, 'missing') });
     try {
       const response = await fetch(`${unbuilt.origin}/`);

@@ -1,2 +1,2 @@
-export { Dock, type DockModel } from './Dock';
-export { mountDock, type DockHandle } from './mount';
+export { TEMP_DOCK_STYLES, TempDockStatus, type TempDockSmokeModel, type TempDockStatusProps } from './TempDockStatus';
+export { mountTempDock } from './mount';

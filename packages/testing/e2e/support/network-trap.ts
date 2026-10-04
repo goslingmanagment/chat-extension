@@ -33,7 +33,7 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
  */
 export const FIREFOX_OWN_HOSTS: ReadonlySet<string> = new Set<string>([]);
 
-/** Origins an e2e may reach: the stand (page and API) and, when R02 part 2 starts it, the fake hub. */
+/** Origins an e2e may reach: the stand (page and API) and the fake hub (wdio onPrepare starts both). */
 export function allowedE2eOrigins(): string[] {
   const hub = process.env['CG_FAKE_HUB_ORIGIN'];
   return [standOrigin(), standApiOrigin(), ...(hub !== undefined && hub !== '' ? [hub] : [])];

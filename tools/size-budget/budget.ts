@@ -1,7 +1,9 @@
 // Size budgets of architecture.md §11 (starting targets, re-approved after
-// the baseline): MAIN bridge ≤ 5 KiB gzip, isolated early bootstrap ≤ 30 KiB,
-// first dock chunk with Preact ≤ 45 KiB, every other lazy chunk ≤ 30 KiB
-// on top of what the dock already loaded.
+// the baseline): MAIN bridge ≤ 10 KiB gzip (decision X11: the boot and the
+// runtime ship as one document_start bundle; §11 started at 5 KiB for the
+// boot alone), isolated early bootstrap ≤ 30 KiB, first dock chunk with
+// Preact ≤ 45 KiB, every other lazy chunk ≤ 30 KiB on top of what the dock
+// already loaded.
 
 import { gzipSync } from 'node:zlib';
 
@@ -23,7 +25,8 @@ export interface BudgetLine {
 }
 
 export const BUDGETS = {
-  mainBridge: 5 * KIB,
+  /** Boot + runtime, one bundle (X11). Its work at document_start stays ≤ 1 ms (e2e). */
+  mainBridge: 10 * KIB,
   wsTap: 5 * KIB,
   isolatedBootstrap: 30 * KIB,
   firstDockChunk: 45 * KIB,
@@ -69,7 +72,7 @@ export function computeBudgets(read: (file: string) => Uint8Array, chunks: reado
   };
 
   const lines = [
-    line('MAIN bridge (chatspace-main)', [MAIN_BRIDGE_FILE], BUDGETS.mainBridge),
+    line('MAIN bridge: boot + runtime (chatspace-main)', [MAIN_BRIDGE_FILE], BUDGETS.mainBridge),
     line('MAIN WS tap (chatspace-ws)', [WS_TAP_FILE], BUDGETS.wsTap),
     line('isolated early bootstrap (chatspace)', [ISOLATED_FILE], BUDGETS.isolatedBootstrap),
   ];

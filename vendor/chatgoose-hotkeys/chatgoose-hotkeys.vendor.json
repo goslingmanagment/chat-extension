@@ -1,7 +1,7 @@
 {
   "schemeVersion": 1,
   "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
-  "sourceCommit": "44b05ad579ec4a05a3e9eb0d5317e9bef0251afc",
+  "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
   "source": "core scripts/vendor-hotkeys.mjs",
   "files": {
     "dist/engine.d.ts": "a6add9c124bafb6112b34d3c5174c0391979b3896f196f767e11a58ca9fb05b4",

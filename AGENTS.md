@@ -9,9 +9,12 @@ OnlyFans) first and fansly.com second. Successor to the Electron desktop
 pilot. Client of the Agency Hub (`~/code/1-platform/hub`): all AI and all
 platform data go through the hub via the vendored `@kernel/sdk`.
 
-**Status: R00 scaffold, the M0 spike and R01 are done** (`docs/spike-m0.md`;
-contracts frozen at 1.0.0: `docs/protocols/README.md`, changes only by the
-rule in `docs/contracts-changelog.md`); wave 1 is next. Read `docs/architecture.md` and
+**Status: R00 scaffold, the M0 spike, R01 and wave 1 are done; the M1 skeleton
+is wired** (`docs/spike-m0.md`; contracts frozen at 1.1.0:
+`docs/protocols/README.md`, changes only by the rule in
+`docs/contracts-changelog.md`). Background, tab and pages run together
+(README «Каркас M1»); the dock status row and the options/popup pages are
+TEMPORARY until R11/R14/R16. Read `docs/architecture.md` and
 `docs/hub-integration-plan.md` first; developer commands are in `README.md`.
 `pnpm check` must be green before a commit, `pnpm e2e` before Ready.
 

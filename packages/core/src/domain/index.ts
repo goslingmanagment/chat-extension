@@ -8,9 +8,13 @@
 import { HOTKEY_SCHEME_VERSION } from '@chatgoose/hotkeys';
 
 export * from './text';
+export * from './settings';
+export * from './storage';
 
 /** Operation limits (D-11): one per chat across the extension, up to three per tab, no queue. */
 export const OP_LIMITS = { perChat: 1, perTab: 3 } as const;
 
 /** Hotkey scheme shared with the Fansly extension and the desktop (vendored `@chatgoose/hotkeys`). */
 export const hotkeySchemeVersion: number = HOTKEY_SCHEME_VERSION;
+
+export * from './errors/hub-map';

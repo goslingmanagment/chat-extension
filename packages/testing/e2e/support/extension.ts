@@ -3,7 +3,10 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { TAB_PROTOCOL_VERSION } from '@cg/contracts';
 import { browser } from '@wdio/globals';
+
+import { BUNDLE_MARKS_KEY } from './constants';
 
 const outputDir = fileURLToPath(new URL('../../../../apps/extension/.output/', import.meta.url));
 
@@ -41,25 +44,41 @@ export function standUrl(path = '/spike.html'): string {
   return `${origin}${path}`;
 }
 
+/** What the dock shows, read by the extension inside its own closed root (apps/extension/src/composition/tab/app.ts). */
+export interface DockReport {
+  readonly styleMode: string;
+  readonly kind: string;
+  readonly inFlowFirstChild: boolean;
+  /** `data-cg-status` of the TEMPORARY status row (packages/core/src/application/temp-dock-status.ts). */
+  readonly status: string | null;
+  readonly mode: string | null;
+  readonly login: string | null;
+  readonly page: string | null;
+  readonly bindingCode: string | null;
+  readonly contract: string | null;
+  readonly banner: string | null;
+  readonly text: string | null;
+  readonly height: number;
+  readonly scheme: string | null;
+  readonly language: string;
+}
+
+/** The report a TEST build's tab writes to <html data-cg-spike> (apps/extension/src/composition/tab/probe.ts). */
 export type SpikeReport = Record<string, unknown> & {
   main?: { readyStateAtStart: string; installMs: number; wsTap: boolean };
   mainError?: string;
-  background?: { wsTapRegistered: boolean; testBuild: boolean };
-  bootstrap?: { composeMs: number; bundleMs: number | null };
-  dock?: {
-    loadMs: number;
-    renderMs: number;
-    styleMode: string;
-    inFlowFirstChild: boolean;
-    style: { display: string; height: string; boxSizing: string } | null;
-  };
-  dockError?: string;
-  list?: { rows: number; renderMs: number; updateMs: number; domRows: number; loadMs: number; firstFrameMs: number };
-  listError?: string;
-  focus?: { rootActive: string | null; docActiveIsHost: boolean; value: string | null };
+  bootstrap?: { composeMs: number; bundleMs: number | null; evalMs: number | null };
+  lifecycle?: { staleHosts: number; lateInjection: boolean };
+  /** `registrations` — how many times the background answered `tab.register`: more than one, and it started again under this tab. */
+  rpc?: { state: string; registered: boolean; registrations?: number };
+  app?: { loadMs: number };
+  appError?: string;
+  dock?: DockReport;
   runtime?: string;
+  runtimeError?: string;
   ignoredInvalidations?: number;
   startedAt?: number;
+  readyStateAtStart?: string;
 };
 
 /** Reads the report the extension writes to <html data-cg-spike> (test builds only). */
@@ -82,6 +101,59 @@ export async function waitForReport(predicate: (report: SpikeReport) => boolean,
     throw new Error(`${message}: not reached in ${timeout} ms; last report: ${JSON.stringify(last)}`);
   }
   return last as unknown as SpikeReport;
+}
+
+/** The marks around the MAIN bundle (boot + runtime, X11): the page's own window carries them in a test build. */
+export async function mainBundleMs(): Promise<number | null> {
+  return browser.execute((key) => {
+    const marks = (window as unknown as Record<string, { t0?: number; t1?: number } | undefined>)[key];
+    return marks?.t0 !== undefined && marks.t1 !== undefined ? marks.t1 - marks.t0 : null;
+  }, BUNDLE_MARKS_KEY);
+}
+
+export type PageRpcAnswer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: { readonly code: string; readonly detail?: string } };
+
+/**
+ * One request of the page side of the protocol (architecture.md §5.4), sent
+ * from the extension page the browser is on: `runtime.sendMessage` with the
+ * request envelope; the answer is the response envelope.
+ */
+export async function pageRpc<T = unknown>(type: string, payload: unknown = {}): Promise<PageRpcAnswer<T>> {
+  const answer = await browser.execute(
+    async (version: number, type: string, payload: unknown) => {
+      const api = (globalThis as unknown as { browser?: { runtime: { sendMessage(message: unknown): Promise<unknown> } } }).browser;
+      if (api?.runtime === undefined) return { failure: 'no extension API on this page' };
+      try {
+        return { envelope: await api.runtime.sendMessage({ v: version, kind: 'req', id: Math.floor(Math.random() * 1e9) + 1, type, payload }) };
+      } catch (error) {
+        return { failure: String(error) };
+      }
+    },
+    TAB_PROTOCOL_VERSION,
+    type,
+    payload,
+  );
+  if ('failure' in answer) throw new Error(`page RPC ${type}: ${String(answer.failure)}`);
+  const envelope = answer.envelope as { ok?: boolean; payload?: T; error?: { code: string; detail?: string } } | null | undefined;
+  if (envelope === null || envelope === undefined || typeof envelope.ok !== 'boolean') throw new Error(`page RPC ${type}: no answer (${JSON.stringify(envelope)})`);
+  return envelope.ok ? { ok: true, payload: envelope.payload as T } : { ok: false, error: envelope.error ?? { code: '?' } };
+}
+
+/** Reads keys of the extension's storage.local from the extension page the browser is on. */
+export async function readLocalStorage(keys: readonly string[]): Promise<Record<string, unknown>> {
+  return browser.execute(async (list: string[]) => {
+    const api = (globalThis as unknown as { browser?: { storage: { local: { get(keys: string[]): Promise<Record<string, unknown>> } } } }).browser;
+    if (api === undefined) throw new Error('no extension API on this page');
+    return api.storage.local.get(list);
+  }, [...keys]);
+}
+
+export async function writeLocalStorage(items: Record<string, unknown>): Promise<void> {
+  await browser.execute(async (values: Record<string, unknown>) => {
+    const api = (globalThis as unknown as { browser?: { storage: { local: { set(items: Record<string, unknown>): Promise<void> } } } }).browser;
+    if (api === undefined) throw new Error('no extension API on this page');
+    await api.storage.local.set(values);
+  }, items);
 }
 
 export async function htmlAttribute(name: string): Promise<string | null> {

@@ -1,17 +1,19 @@
-// R02 smoke (architecture.md §12 п. 3–4): the R00 test build on the
-// ChatSpace-like fixture. Proves the harness, not the features: the content
-// scripts attach to the stand, the dock's mount point is the single active
-// composer and moves with the route, the network trap catches an outside
-// request of a page (BiDi log and egress sink) and of the background (egress
-// sink only), and the stand renders for visual checks.
+// R02 smoke (architecture.md §12 п. 3–4): the test build on the
+// ChatSpace-like fixture, nobody signed in. Proves the harness, not the
+// features: the content scripts attach to the stand, the dock's mount point
+// is the single active composer and moves with the route, the network trap
+// catches an outside request of a page (BiDi log and egress sink) and of the
+// background (egress sink only), and the stand renders for visual checks.
+// The signed-in path (the fake hub, the WS tap by its flag) is
+// integration-m1.e2e.ts.
 
 import { existsSync } from 'node:fs';
 
-import { TAB_PORT_NAME } from '@cg/contracts';
 import { browser, expect } from '@wdio/globals';
 
-import { E2E_ADDON_UUID, EGRESS_PROBE_HOST, EGRESS_PROBE_MESSAGE } from '../support/constants';
-import { installTestBuild, waitForReport } from '../support/extension';
+import { EGRESS_PROBE_HOST, EGRESS_PROBE_KEY } from '../support/constants';
+import { installTestBuild, waitForReport, writeLocalStorage } from '../support/extension';
+import { testBuildPage } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady, waitForStandReady } from '../support/stand';
 import { saveStandSnapshots, SNAPSHOT_VIEWPORTS } from '../support/visual';
@@ -19,7 +21,7 @@ import { saveStandSnapshots, SNAPSHOT_VIEWPORTS } from '../support/visual';
 const { a: accountA } = STAND_IDS.accounts;
 const { a1, a2 } = STAND_IDS.fans;
 
-describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () => {
+describe('stand smoke — the test build on the ChatSpace-like fixture', () => {
   const { trap } = useNetworkTrap();
   let journalStart = 0;
 
@@ -42,9 +44,6 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
     journalStart = await standServer.mark();
     await installTestBuild();
     await openStand(chatPath(accountA, a1));
-    // The background registers the WS tap for documents loaded after it is done.
-    await waitForReport((report) => report.background?.wsTapRegistered === true, 'background status with wsTapRegistered');
-    await browser.refresh();
     await waitForStandReady();
     await waitForChatReady(accountA, a1);
   });
@@ -102,17 +101,17 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
     expect(contract.theme.neutral0).toMatch(/^\d{1,3} \d{1,3} \d{1,3}$/);
   });
 
-  it('the test build attaches: MAIN bridge at document_start, the WS tap counts the stand socket, the dock mounts in the active composer', async () => {
-    const report = await waitForReport((r) => (r.main !== undefined && r.dock !== undefined) || r.dockError !== undefined || r.mainError !== undefined, 'MAIN probe and dock');
+  it('the test build attaches: MAIN bridge at document_start, the tab registers, the dock mounts in the active composer; no WS tap without a sign-in', async () => {
+    const report = await waitForReport((r) => (r.main !== undefined && r.dock !== undefined) || r.appError !== undefined || r.runtimeError !== undefined || r.mainError !== undefined, 'MAIN probe and dock');
     expect(report.mainError).toBeUndefined();
-    expect(report.dockError).toBeUndefined();
+    expect(report.appError).toBeUndefined();
+    expect(report.runtimeError).toBeUndefined();
     expect(report.main?.readyStateAtStart).toBe('loading');
-    expect(report.main?.wsTap).toBe(true);
-    const tapSockets = await browser.execute(() => {
-      const tap = (window as unknown as Record<symbol, { socketCount(): number } | undefined>)[Symbol.for('chatgoose.wsTap')];
-      return tap?.socketCount() ?? -1;
-    });
-    expect(tapSockets).toBeGreaterThanOrEqual(1);
+    // Registered once: the background did not start again under the tab.
+    expect(report.rpc).toEqual({ state: 'ready', registered: true, registrations: 1 });
+    // The tap is registered only by the bootstrap flag of a sign-in (§6.8 п. 10).
+    expect(report.main?.wsTap).toBe(false);
+    expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('chatgoose.wsTap')))).toBe(false);
     const sockets = (await standServer.state()).sockets;
     expect(sockets.some((socket) => socket.label === 'native' && socket.authenticated && socket.accounts.includes(accountA))).toBe(true);
 
@@ -120,6 +119,9 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
     expect(roots.active).toHaveLength(1);
     const dock = await dockPlacement();
     expect(dock).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
+    // The stand is a whole ChatSpace for the adapter; nobody is signed in to the hub.
+    const shown = await waitForReport((r) => r.dock?.status === 'not-signed-in', 'the dock status without a sign-in');
+    expect(shown.dock).toMatchObject({ kind: 'in-flow', styleMode: 'adopted', contract: 'ok', banner: 'CG-AUTH-REQUIRED' });
   });
 
   it('several composers (v-show) resolve to exactly one active one; the mount point moves with the route', async () => {
@@ -145,13 +147,17 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
     expect(back.active).toEqual([firstKey]);
   });
 
-  // R00 mounts the dock once (first composer found); following the active
-  // composer on route changes is R09's job. Unskip with R09.
-  it.skip('R09: the dock follows the active composer when the route changes', async () => {
+  // R09's mount manager, wired into the extension's tab (host-adapter.e2e.ts proves the adapter alone).
+  it('R09: the dock follows the active composer when the route changes', async () => {
     await callStand('openChat', accountA, a2, { newTab: true });
     await browser.waitUntil(async () => (await composerRoots()).active[0]?.endsWith(`:${a2}`) === true, { timeout: 5000 });
+    await browser.waitUntil(async () => (await dockPlacement()).parentKey === (await composerRoots()).active[0], { timeout: 5000, timeoutMsg: 'the dock did not move to the active composer' });
     const roots = await composerRoots();
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
+    await callStand('openChat', accountA, a1);
+    await browser.waitUntil(async () => (await composerRoots()).active[0]?.endsWith(`:${a1}`) === true, { timeout: 5000 });
+    await browser.waitUntil(async () => (await dockPlacement()).parentKey === (await composerRoots()).active[0], { timeout: 5000, timeoutMsg: 'the dock did not come back' });
+    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: (await composerRoots()).active[0], firstChild: true, visible: true });
   });
 
   it('the trap catches a deliberate outside request of the page: in the BiDi log and in the egress sink', async () => {
@@ -182,26 +188,10 @@ describe('stand smoke — the R00 test build on the ChatSpace-like fixture', () 
 
   // Last: it leaves the stand for our own extension page.
   it('a request of the extension background shows in the egress sink (the BiDi log does not see background pages)', async () => {
-    await browser.url(`moz-extension://${E2E_ADDON_UUID}/popup.html`);
-    const answer = await browser.execute(
-      async (portName, probe) => {
-        type Port = { postMessage(message: unknown): void; disconnect(): void; onMessage: { addListener(listener: (message: unknown) => void): void } };
-        const api = (globalThis as unknown as { browser?: { runtime: { connect(options: { name: string }): Port } } }).browser;
-        if (api?.runtime === undefined) return 'no extension API on this page';
-        return new Promise<unknown>((resolve) => {
-          setTimeout(() => resolve('no answer from the background in 5 s'), 5000);
-          const port = api.runtime.connect({ name: portName });
-          port.onMessage.addListener((message) => {
-            resolve(message);
-            port.disconnect();
-          });
-          port.postMessage({ t: probe });
-        });
-      },
-      TAB_PORT_NAME,
-      EGRESS_PROBE_MESSAGE,
-    );
-    expect(answer).toEqual({ t: EGRESS_PROBE_MESSAGE, fired: true });
+    // A page that asks the background nothing by itself; the probe is asked for through storage.local,
+    // which only our own pages can write.
+    await browser.url(testBuildPage());
+    await writeLocalStorage({ [EGRESS_PROBE_KEY]: Date.now() });
     expect(await takeEgressUntil(EGRESS_PROBE_HOST)).toEqual([EGRESS_PROBE_HOST]);
     // Whatever the BiDi log saw of it (today nothing) is the probe and nothing else.
     expect((await trap().takeViolations()).filter((request) => new URL(request.url).hostname !== EGRESS_PROBE_HOST)).toEqual([]);

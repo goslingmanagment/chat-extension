@@ -8,7 +8,9 @@
     ".": "./src/index.ts",
     "./app-client": "./src/scenarios/app-client/index.ts",
     "./hub": "./src/scenarios/hub/index.ts",
-    "./host": "./src/scenarios/host/index.ts"
+    "./fake-hub": "./src/fake-hub/index.ts",
+    "./host": "./src/scenarios/host/index.ts",
+    "./stand": "./src/stand/index.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",
@@ -16,7 +18,9 @@
     "@cg/host-chatspace": "workspace:*",
     "@cg/hub": "workspace:*",
     "@cg/platform": "workspace:*",
-    "@cg/ui": "workspace:*"
+    "@cg/ui": "workspace:*",
+    "@preact/signals": "2.11.3",
+    "preact": "11.0.0"
   },
   "devDependencies": {
     "@tiptap/core": "3.31.4",
@@ -41,6 +45,8 @@
   "scripts": {
     "build:stand": "vite build --config fixture-chatspace.vite.config.ts",
     "stand": "pnpm build:stand && tsx src/stand-cli.ts",
-    "e2e": "pnpm build:stand && wdio run e2e/wdio.conf.ts"
+    "e2e": "pnpm build:stand && pnpm build:gallery && wdio run e2e/wdio.conf.ts",
+    "build:gallery": "vite build --config kit-gallery.vite.config.ts",
+    "gallery": "pnpm build:stand && pnpm build:gallery && tsx src/stand-cli.ts"
   }
 }

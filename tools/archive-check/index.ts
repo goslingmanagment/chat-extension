@@ -9,6 +9,7 @@ import { builtArtifacts, type BuiltArtifacts } from '../lib/artifacts.ts';
 import { listTree } from '../lib/files.ts';
 import { fail } from '../lib/paths.ts';
 import { readZip } from '../lib/zip.ts';
+import { STAND_SOURCE_KEPT } from '../../apps/extension/build/sources-archive.ts';
 import { checkArchive, compareWithBuild, type ArchiveProblem } from './rules.ts';
 
 function pickArtifacts(): BuiltArtifacts & { readonly sources: string } {
@@ -33,6 +34,10 @@ const sourceEntries = readZip(readFileSync(built.sources));
 problems.push(...checkArchive(sources, sourceEntries, 'sources'));
 if (!sourceEntries.some((entry) => entry.name === 'pnpm-lock.yaml')) {
   problems.push({ archive: sources, file: 'pnpm-lock.yaml', rule: 'reproducible-build', detail: 'the sources archive must carry the lockfile' });
+}
+// `tsc -b` in the archive needs the fixture's tsconfig and its protocol types (build/sources-archive.ts).
+for (const kept of STAND_SOURCE_KEPT.filter((name) => !sourceEntries.some((entry) => entry.name === name))) {
+  problems.push({ archive: sources, file: kept, rule: 'reproducible-build', detail: 'kept for `tsc -b` in the archive, but missing from it' });
 }
 
 for (const problem of problems) console.error(`${problem.rule}: ${problem.archive} → ${problem.file} (${problem.detail})`);

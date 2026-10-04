@@ -7,7 +7,7 @@
   },
   "chatgooseHotkeys": {
     "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
-    "sourceCommit": "44b05ad579ec4a05a3e9eb0d5317e9bef0251afc",
-    "note": "Same sha256 as fansly-chat and onlyfans-chat (vendored there from a667c62b; packages/chatgoose-hotkeys/src is unchanged up to 44b05ad5)."
+    "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
+    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to the prod commit 44b05ad5)."
   }
 }
