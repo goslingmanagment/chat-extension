@@ -6,10 +6,21 @@
 // «не сохранено» with the patch kept for «Повторить» — nothing is resent by
 // itself. On `pagehide` what still waits is sent at once, best effort: the
 // browser does not promise an asynchronous write then.
+//
+// What rides along and what does not:
+// - a patch that failed for a passing reason (the store did not answer, the
+//   background was not reached) goes with the person's next change;
+// - a patch the background refused for good (invalid, read-only, full) is
+//   kept for «Повторить» only: a later, unrelated change is saved without it
+//   and the refused one is dropped — it never blocks the saves after it;
+// - the hub address goes alone (`writeAlone`): its own request, checked again
+//   at the moment it is sent, and never kept after a refusal — so it can not
+//   reach the background later inside another change (ST-042).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type SettingsPatch, type SettingsState, type SettingsV1 } from '@cg/contracts/settings';
 
+import { entryOf, normalizeCode } from '../../domain/errors';
 import { applySettingsPatch, touchesRestricted } from '../../domain/settings';
 import { type PageAnswer, type PageTimers } from './ports';
 
@@ -97,11 +108,36 @@ export interface SettingsWriterDeps {
 
 type Waiter = (outcome: WriteOutcome) => void;
 
+interface Failed {
+  readonly patch: SettingsPatch;
+  readonly error: CgErrorWire;
+}
+
+interface AloneJob {
+  readonly patch: SettingsPatch;
+  /** Asked when the request is about to be sent: an error refuses it there and then. */
+  readonly admit: (() => CgErrorWire | null) | null;
+  readonly resolve: Waiter;
+}
+
+/**
+ * May a patch that failed with this error go along with the next change?
+ * Only when the registry says a repeat can help (Appendix A «Повтор»: a click
+ * or a read); a refusal that would come back the same («—», «никогда») stays
+ * out of every later write.
+ */
+export function ridesAlong(error: CgErrorWire): boolean {
+  const rule = entryOf(normalizeCode(error.code)).retry;
+  return rule === 'new-click' || rule === 'safe-read' || rule === 'after-deadline';
+}
+
 export class SettingsWriter {
   private queued: SettingsPatch | null = null;
   private queuedWaiters: Waiter[] = [];
   private flying: SettingsPatch | null = null;
-  private failed: SettingsPatch | null = null;
+  private failed: Failed | null = null;
+  private alone: AloneJob[] = [];
+  private idle: (() => void)[] = [];
   private timer: unknown = null;
   private revision: number | null = null;
   private current: SaveStatus = { s: 'idle' };
@@ -112,9 +148,9 @@ export class SettingsWriter {
     return this.current;
   }
 
-  /** Everything not confirmed yet: the failed patch, the one in flight and the one waiting, in that order. */
+  /** Everything not confirmed yet: the failed patch, the one in flight, the one waiting and the ones that go alone, in that order. */
   pending(): SettingsPatch | null {
-    const parts = [this.failed, this.flying, this.queued].filter((part): part is SettingsPatch => part !== null);
+    const parts = [this.failed?.patch ?? null, this.flying, this.queued, ...this.alone.map((job) => job.patch)].filter((part): part is SettingsPatch => part !== null);
     if (parts.length === 0) return null;
     return parts.reduce((merged, part) => mergeSettingsPatch(merged, part));
   }
@@ -130,10 +166,61 @@ export class SettingsWriter {
    * promise settles with the answer to the request that carried the change.
    */
   write(patch: SettingsPatch, mode: WriteMode): Promise<WriteOutcome> {
-    // A patch that failed earlier rides along: the person's newer choice goes on top of it.
-    const base = this.failed === null ? (this.queued ?? {}) : mergeSettingsPatch(this.failed, this.queued ?? {});
+    // A patch that failed for a passing reason rides along: the person's newer choice goes on top of it.
+    // One the background refused for good is dropped here — it was shown as «не сохранено» and is not sent again.
+    const carried = this.failed !== null && ridesAlong(this.failed.error) ? this.failed.patch : null;
     this.failed = null;
-    this.queued = mergeSettingsPatch(base, patch);
+    if (carried !== null) this.queued = mergeSettingsPatch(carried, this.queued ?? {});
+    return this.add(patch, mode);
+  }
+
+  /**
+   * A change that goes by itself (the hub address): its own request behind
+   * the one in flight, never merged into another, `admit` asked when it is
+   * sent, and nothing kept after a refusal — the person saves it again.
+   */
+  writeAlone(patch: SettingsPatch, admit: (() => CgErrorWire | null) | null = null): Promise<WriteOutcome> {
+    const promise = new Promise<WriteOutcome>((resolve) => this.alone.push({ patch, admit, resolve }));
+    this.deps.onChange();
+    this.pump();
+    return promise;
+  }
+
+  /** `pagehide`: what waits for its pause goes now, best effort. */
+  flush(): void {
+    if (this.timer === null) return;
+    this.deps.timers.clear(this.timer);
+    this.timer = null;
+    this.pump();
+  }
+
+  /** Resolves once nothing is in flight and nothing waits (a pause still running counts as waiting: `flush` first). */
+  settled(): Promise<void> {
+    if (!this.busy()) return Promise.resolve();
+    return new Promise<void>((resolve) => this.idle.push(resolve));
+  }
+
+  /** «Повторить» (ST-015): the patch that was not saved, once more — by this click only. */
+  retry(): Promise<WriteOutcome> | null {
+    if (this.failed === null) return null;
+    const { patch } = this.failed;
+    this.failed = null;
+    this.queued = mergeSettingsPatch(patch, this.queued ?? {});
+    return this.add({}, 'now');
+  }
+
+  dispose(): void {
+    if (this.timer !== null) this.deps.timers.clear(this.timer);
+    this.timer = null;
+    for (const waiter of this.idle.splice(0)) waiter();
+  }
+
+  private busy(): boolean {
+    return this.flying !== null || this.queued !== null || this.alone.length > 0;
+  }
+
+  private add(patch: SettingsPatch, mode: WriteMode): Promise<WriteOutcome> {
+    this.queued = mergeSettingsPatch(this.queued ?? {}, patch);
     const promise = new Promise<WriteOutcome>((resolve) => this.queuedWaiters.push(resolve));
     this.setStatus({ s: 'saving' });
     if (this.timer !== null) this.deps.timers.clear(this.timer);
@@ -148,66 +235,74 @@ export class SettingsWriter {
     return promise;
   }
 
-  /** `pagehide`: what waits for its pause goes now, best effort. */
-  flush(): void {
-    if (this.timer === null) return;
-    this.deps.timers.clear(this.timer);
-    this.timer = null;
-    this.pump();
-  }
-
-  /** «Повторить» (ST-015): the patch that was not saved, once more — by this click only. */
-  retry(): Promise<WriteOutcome> | null {
-    if (this.failed === null) return null;
-    return this.write({}, 'now');
-  }
-
-  dispose(): void {
-    if (this.timer !== null) this.deps.timers.clear(this.timer);
-    this.timer = null;
-  }
-
   private setStatus(next: SaveStatus): void {
     this.current = next;
     this.deps.onChange();
   }
 
-  private pump(): void {
-    if (this.flying !== null || this.queued === null) return;
-    const patch = this.queued;
-    const waiters = this.queuedWaiters;
-    this.queued = null;
-    this.queuedWaiters = [];
+  /** One request: the answer adopted when it confirms, a lost one named CG-RUNTIME-UNREACHABLE. */
+  private send(patch: SettingsPatch, done: (outcome: WriteOutcome) => void): void {
     this.flying = patch;
-    const settle = (outcome: WriteOutcome): void => {
-      this.flying = null;
-      if (!outcome.ok && this.queued !== null) {
-        // A newer change waits behind the refused one: it carries the refused patch along and answers for both.
-        this.queued = mergeSettingsPatch(patch, this.queued);
-        this.queuedWaiters = [...waiters, ...this.queuedWaiters];
-      } else {
-        // Kept for «Повторить» (ST-015).
-        if (!outcome.ok) this.failed = patch;
-        for (const waiter of waiters) waiter(outcome);
-      }
-      if (this.queued !== null) {
-        this.deps.onChange();
-        if (this.timer === null) this.pump();
-        return;
-      }
-      this.setStatus(outcome.ok ? { s: 'saved', revision: outcome.revision } : { s: 'failed', error: outcome.error });
-    };
     this.deps.send(patch, this.revision, touchesRestricted(patch)).then(
       (answer) => {
         if (!answer.ok) {
-          settle({ ok: false, error: answer.error });
+          done({ ok: false, error: answer.error });
           return;
         }
         this.adoptRevision(answer.payload.revision);
         this.deps.onConfirmed(answer.payload);
-        settle({ ok: true, revision: answer.payload.revision });
+        done({ ok: true, revision: answer.payload.revision });
       },
-      () => settle({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
+      () => done({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } }),
     );
+  }
+
+  /** After an answer: the next request if one waits, and whoever waits for the writer to be done. */
+  private next(): void {
+    this.pump();
+    if (!this.busy()) for (const waiter of this.idle.splice(0)) waiter();
+  }
+
+  private pump(): void {
+    if (this.flying !== null) return;
+    const job = this.alone.shift();
+    if (job !== undefined) {
+      const refusal = job.admit?.() ?? null;
+      if (refusal !== null) {
+        job.resolve({ ok: false, error: refusal });
+        this.deps.onChange();
+        this.next();
+        return;
+      }
+      this.send(job.patch, (outcome) => {
+        this.flying = null;
+        // Nothing is kept for «Повторить» and nothing rides along: a refused address is saved again by the person.
+        job.resolve(outcome);
+        this.deps.onChange();
+        this.next();
+      });
+      return;
+    }
+    // A typed change still waits for its pause.
+    if (this.queued === null || this.timer !== null) return;
+    const patch = this.queued;
+    const waiters = this.queuedWaiters;
+    this.queued = null;
+    this.queuedWaiters = [];
+    this.send(patch, (outcome) => {
+      this.flying = null;
+      if (!outcome.ok && this.queued !== null && ridesAlong(outcome.error)) {
+        // A newer change waits behind the one that failed: it carries that patch along and answers for both.
+        this.queued = mergeSettingsPatch(patch, this.queued);
+        this.queuedWaiters = [...waiters, ...this.queuedWaiters];
+      } else {
+        // Kept for «Повторить» (ST-015) unless a newer change already waits: then a patch refused for good is dropped.
+        if (!outcome.ok && this.queued === null) this.failed = { patch, error: outcome.error };
+        for (const waiter of waiters) waiter(outcome);
+      }
+      if (this.queued === null) this.current = outcome.ok ? { s: 'saved', revision: outcome.revision } : { s: 'failed', error: outcome.error };
+      this.deps.onChange();
+      this.next();
+    });
   }
 }
