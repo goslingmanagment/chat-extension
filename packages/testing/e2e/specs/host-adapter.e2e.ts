@@ -572,14 +572,18 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
 
     it('[RB-008] without the frame root the dock floats over the composer and does not push the list', async () => {
       await open(chatPath(ACC, a1), ['composer-frame']);
-      const s = await waitForHarnessState(state, (x) => x.mounts.dock.kind === 'fixed-overlay', 'fixed overlay');
+      // The overlay is placed by the composer's box; the insert below also needs this chat's composer ready
+      // (its bridge registered), which on a loaded machine comes a moment later.
+      const s = await waitForHarnessState(state, (x) => x.mounts.dock.kind === 'fixed-overlay' && x.identity?.chat?.platformFanId === a1 && x.composer?.ready === true, 'fixed overlay, composer ready');
       expect(s.contract.capabilities['dockMount']).toEqual({ state: 'degraded', reason: 'composerFrame' });
       const host = await browser.execute(() => {
         const element = document.querySelector<HTMLElement>('[data-cg="dock"]');
         return { parentIsHtml: element?.parentElement === document.documentElement, position: element?.style.position ?? null };
       });
       expect(host).toEqual({ parentIsHtml: true, position: 'fixed' });
-      expect(await harness<Receipt>('insert', { text: 'still inserts' })).toMatchObject({ state: 'applied' });
+      // The code goes into the comparison: a refusal names its reason in the failure message.
+      const receipt = await harness<Receipt>('insert', { text: 'still inserts' });
+      expect({ state: receipt.state, code: receipt.code ?? null }).toEqual({ state: 'applied', code: null });
     });
 
     it('[RB-008] without the editor handle there is no CAS promise: insert and draftRead degrade, a typed draft always needs consent', async () => {
