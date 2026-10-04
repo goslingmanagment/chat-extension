@@ -6,7 +6,7 @@ import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/
 import { describe, expect, it } from 'vitest';
 
 import type { ControllerRpc } from './client';
-import { forwardHostFacts, liveConfigOf } from './host-facts';
+import { forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
 
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
 const PROFILE = { adapterVersion: '0.2.0', modules: { notificationEntry: 'a', composables: 'b', messages: 'c', accounts: 'd', inbox: 'e' } };
@@ -135,5 +135,30 @@ describe('facts of the page → the background', () => {
     expect(w.sent).toHaveLength(1);
     w.facts.dispose();
     expect(w.subscribed()).toBe(0);
+  });
+});
+
+describe('what the adapter is told while the tab learns who is signed in', () => {
+  const ready = { s: 'ready' as const, value: bootstrap() };
+
+  it('[NEW-08] «not known yet» is never «off»: the tap is told to stand down only by a sign-out or by the owner’s flag, never by a bootstrap still on its way', () => {
+    // The first moments of the application: neither the sign-in nor the bootstrap is read.
+    expect(knownBootstrap(undefined, { s: 'idle' })).toBeUndefined();
+    expect(knownBootstrap(undefined, ready)).toBeUndefined();
+    // Signed in, the bootstrap is being read — or the hub did not answer.
+    expect(knownBootstrap({ epoch: 3 }, { s: 'loading' })).toBeUndefined();
+    expect(knownBootstrap({ epoch: 3 }, { s: 'error' })).toBeUndefined();
+    expect(knownBootstrap({ epoch: 3 }, ready)).toBe(ready.value);
+    // Nobody is signed in: the flags went with the sign-in.
+    expect(knownBootstrap(null, ready)).toBeNull();
+    expect(knownBootstrap(null, { s: 'idle' })).toBeNull();
+  });
+
+  it('a tab that starts signed in configures the adapter once, with the bootstrap’s flags — no «off» before it', () => {
+    const w = world();
+    for (const known of [knownBootstrap(undefined, { s: 'idle' }), knownBootstrap({ epoch: 3 }, { s: 'loading' }), knownBootstrap({ epoch: 3 }, ready)]) {
+      if (known !== undefined) w.facts.configure(known);
+    }
+    expect(w.configured.map((config) => config.wsTap)).toEqual([true]);
   });
 });

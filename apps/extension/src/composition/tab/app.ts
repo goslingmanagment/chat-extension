@@ -50,7 +50,7 @@ import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
 import { adopt, controllerRpc, createTabClient } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
-import { forwardHostFacts } from './host-facts';
+import { forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
 import { mountSurfaces, overlayRoot } from './surfaces';
@@ -447,9 +447,10 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   offs.push(() => facts.dispose());
   let signedIn: number | null | undefined = undefined;
   const onEnvironment = (): void => {
-    const bootstrap = ai.workspace.env.bootstrap;
     const session = ai.workspace.env.session;
-    facts.configure(session !== null && session !== undefined && bootstrap.s === 'ready' ? bootstrap.value : null);
+    // Only what is known: while the sign-in or its bootstrap is still being read the adapter keeps what it has.
+    const known = knownBootstrap(session, ai.workspace.env.bootstrap);
+    if (known !== undefined) facts.configure(known);
     if (session === undefined) return;
     const epoch = session?.epoch ?? null;
     // Another sign-in, or none: an unsent Coach question must not meet the next person on this tab.
@@ -630,6 +631,9 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
                   error: result.error?.code ?? null,
                 },
           refusal: dock.refusal?.error.code ?? null,
+          // «Идут сейчас» of a refused start, and the generations of this tab that run in other chats: ids only.
+          refusalRunning: (dock.refusal?.running ?? []).map((op) => op.opId),
+          runningElsewhere: dock.runningElsewhere.map((op) => op.opId),
           hits,
           analysis: dock.analysis,
           resultStyle: dock.resultStyle,

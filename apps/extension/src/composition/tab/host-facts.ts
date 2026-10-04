@@ -47,6 +47,21 @@ export function liveConfigOf(bootstrap: Bootstrap | null): ChatSpaceLiveConfig {
   };
 }
 
+/**
+ * What the adapter is told for what the tab knows of the sign-in and of its bootstrap; `undefined` — nothing yet.
+ * Nobody signed in is knowledge: the owner's flags went with the sign-in, part B is off. A sign-in whose
+ * bootstrap has not arrived (the first read is on its way, the hub did not answer) is not: a tap that was told
+ * to stand down is gone from the document for good (§6.8 п. 8), so «not known yet» must never read as «off».
+ */
+export function knownBootstrap(
+  session: object | null | undefined,
+  bootstrap: { readonly s: 'idle' | 'loading' | 'error' } | { readonly s: 'ready'; readonly value: Bootstrap },
+): Bootstrap | null | undefined {
+  if (session === undefined) return undefined;
+  if (session === null) return null;
+  return bootstrap.s === 'ready' ? bootstrap.value : undefined;
+}
+
 export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; readonly rpc: ControllerRpc; readonly setNavInsertTimeoutMs: (ms: number) => void; readonly onFailure: (what: string) => void }): HostFacts {
   const { host, rpc } = deps;
   const inserts = new Map<string, { readonly opId: string; readonly part: PartRef }>();
