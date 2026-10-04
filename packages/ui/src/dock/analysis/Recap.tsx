@@ -55,16 +55,17 @@ function SavedFact({ saved }: { readonly saved: RecapViewVM['saved'] }): JSX.Ele
         </Fact>
       );
     case 'failed':
-      // The text stays shown and copyable; only the idempotent reference write repeats, never the AI.
+      // The text stays shown and copyable; only the idempotent reference write repeats, never the AI — and the
+      // row says so: «не сохранено в хаб», «Сохранить ещё раз», never a «Повторить» that reads as a new generation.
       return (
         <>
           <Fact>
             <Dot kind="danger" />
             <span>
-              <span class="cg-fact__code">{`${i18n.t('common.errorSource', { code: saved.error.code })}:`}</span> {saved.error.title}
+              <span class="cg-fact__code">{`${i18n.t('common.errorSource', { code: saved.error.code })}:`}</span> {i18n.t('cg.recapSave.line')}
             </span>
           </Fact>
-          <Button label={i18n.t('common.retry')} size="sm" class="cg-fact__btn" tooltip={saved.error.body} onClick={() => void dispatch(saved.retry)} />
+          <Button label={i18n.t('cg.recapSave.action')} size="sm" class="cg-fact__btn" tooltip={i18n.t('cg.recapSave.actionTooltip')} onClick={() => void dispatch(saved.retry)} />
         </>
       );
   }

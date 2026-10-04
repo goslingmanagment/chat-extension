@@ -109,7 +109,13 @@ describe('Recap', () => {
     expect(kit.$$('.cg-block')).toHaveLength(5);
     expect(text(kit.$('.cg-fact__code'))).toBe('ChatGoose · CG-RECAP-SAVE:');
     expect(kit.$('.cg-facts .cg-dot--danger')).not.toBeNull();
-    await flush(() => (kit?.$('.cg-fact__btn') as HTMLElement).click());
+    // The row's own words (ui-design §4.11): what is not saved, and a button that cannot be read as a new generation.
+    expect(text(kit.$('.cg-fact__code')?.parentElement)).toBe('ChatGoose · CG-RECAP-SAVE: не сохранено в хаб');
+    const again = kit.$('.cg-fact__btn') as HTMLElement;
+    expect(text(again.querySelector('.cg-btn__t'))).toBe('Сохранить ещё раз');
+    expect(kit.root.getElementById(again.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Записать в хаб ещё раз; AI не запускается');
+    expect(kit.$('.cg-facts')?.textContent).not.toContain('Повторить');
+    await flush(() => again.click());
     expect(kit.client.dispatched).toEqual([{ type: 'RetryRecapSave', length: 'full' }]);
   });
 
