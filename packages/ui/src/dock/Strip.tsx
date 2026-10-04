@@ -203,7 +203,8 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   ];
   const chooseTone = (id: string): void => {
     if (vm.targetHandle === null) return;
-    if (id === NO_TONE) run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: null });
+    // «Без тона», and a second click on the tone that is already chosen (AI-006), only take the tone off.
+    if (id === NO_TONE || id === tone) run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: null });
     // A tone chosen in the menu runs Reply in it at once (AI-005); with Reply off it is only remembered.
     else if (vm.actions.reply.enabled) run({ type: 'Generate', targetHandle: vm.targetHandle, feature: 'reply', options: { tone: id as Tone } });
     else run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: id as Tone });

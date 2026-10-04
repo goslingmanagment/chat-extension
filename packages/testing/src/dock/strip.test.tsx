@@ -244,6 +244,20 @@ describe('what the strip asks for', () => {
     ]);
   });
 
+  it('[AI-006] a second click on the tone that is already chosen takes it off and runs nothing', async () => {
+    kit = mountDock(dockScenario(dockVm('ready', { options: { ...dockVm().options, tone: 'flirty' } })));
+    await flush(() => button('Тон').click());
+    const items = kit.$$('[role="menuitemradio"]');
+    expect(items[1]?.getAttribute('aria-checked')).toBe('true');
+    await flush(() => items[1]?.click());
+    expect(kit.client.dispatched).toEqual([{ type: 'SetTone', targetHandle: HANDLE, tone: null }]);
+    expect(kit.$('[role="menu"]')).toBeNull();
+    // Another tone still runs Reply in it at once (AI-005).
+    await flush(() => button('Тон').click());
+    await flush(() => (kit?.$$('[role="menuitemradio"]')[0] as HTMLElement).click());
+    expect(kit.client.dispatched[1]).toEqual({ type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'casual' } });
+  });
+
   it('[AI-005] with Reply unavailable a chosen tone is only remembered', async () => {
     kit = mountDock(dockScenario(dockVm('ready', { actionsOptions: { gates: { reply: reason('no-history') } } })));
     await flush(() => button('Тон').click());
