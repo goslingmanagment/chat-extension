@@ -50,6 +50,13 @@
   `context_v1`. Поэтому запрос, которому нужны `context-v1` или
   `split-all-v1`, слой отклоняет сам (`CG-HUB-CAPABILITY`), а не отправляет
   то, на что хаб ответит 400.
+- Чтобы из-за этого не отказывала каждая генерация, фон показывает операциям
+  bootstrap без тех возможностей потока, которые транспорт передать не может
+  (`bootstrapForOps` в корне композиции фона; что транспорт умеет, говорит
+  `streamCapabilities()`). Если хаб уже объявляет `context-v1`, запрос идёт без
+  неё: генерация работает по архиву, свежий текст страницы не уходит, Split в
+  Ping, Hi и Coach не запрашивается. После перевендоринга SDK ничего менять не
+  нужно: транспорт объявит возможности, и фон перестанет их скрывать.
 - Шов на будущее — `AiStreamTransport` (`src/ai-stream-transport.ts`). Когда
   хаб выпустит H-4 в SDK (PR хаба #413: опция `capabilities` у
   `streamAiFeature` и кадр `context_v1`), достаточно перевендорить SDK и в
@@ -154,7 +161,8 @@ const hub = new ChatExtensionHub({
 
 - события: `onSessionChange` → `session.changed`, `onBootstrapChange` →
   `bootstrap.changed`, `onCatalogChange` → `catalog.changed`,
-  `onQuotaChange` → `quota.changed`, `onStreamNotice` → состояние операции;
+  `onQuotaChange` → `quota.changed`, `onStreamNotice` → состояние операции
+  (фаза `retry-wait` со временем повтора: `OpScheduler.noteRetry`);
 - `notifyHubOriginChanged()` — служба настроек вызывает при каждой смене
   `settings.hub.baseUrl`. Обычно адрес меняется только без входа (ST-042), но
   если вход есть и смена делает его непригодным (другой хаб, AU-016) или снова
@@ -190,4 +198,12 @@ const hub = new ChatExtensionHub({
   `client_health` id выводится из вида, версии и окна: один отчёт на окно,
   второй, другой отчёт того же окна хаб отбросит как дубль;
 - `aiUsage(…)` — только в режиме отладки (иначе `CG-FEATURE-DISABLED` ·
-  `debug_off`, без запроса).
+  `debug_off`, без запроса);
+- `clearCaches()` — «Очистить локальные данные»: доски Spenders, эхо промптов
+  и последняя квота стираются, bootstrap и каталог перечитываются; вход
+  остаётся.
+
+Всё перечисленное подключено в `apps/extension/src/composition/background.ts`.
+Гейт чувствительных действий для вставки и перехода стоит там, где фон выдаёт
+токен действия (`background/token-gate.ts`): на истёкшем bootstrap токен не
+выдаётся, пока хаб не ответит снова.
