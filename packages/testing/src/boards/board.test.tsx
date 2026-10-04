@@ -507,7 +507,9 @@ describe('Spenders statistics', () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     const column = ui.$('.cg-st') as HTMLElement;
     expect(column.tagName).toBe('ASIDE');
-    expect(column.getAttribute('aria-label')).toBe('Статистика');
+    // The region is «Статистика Spenders» for a screen reader (ui-design §6.1); its visible title stays «Статистика».
+    expect(column.getAttribute('aria-label')).toBe('Статистика Spenders');
+    expect(textOf(column.querySelector('.cg-st__title'))).toBe('Статистика');
     expect(textOf(column.querySelector('.cg-st__big'))).toBe('$4,670');
     const keys = [...column.querySelectorAll('.cg-st__kv .cg-st__k')].map((key) => key.firstChild?.textContent);
     expect(keys).toEqual(['Сегодня', '7 дней', 'Платящие', 'Средний чек', 'Ждут ответа', 'Новые плательщики', 'Молчат 8–21 день', 'Молчат дольше 21 дня', 'Нет данных']);
@@ -561,6 +563,8 @@ describe('Spenders statistics', () => {
 
     ui = await mountBoardSettled('spenders', '11i');
     expect(ui.$('.cg-bd')).toBeNull();
+    expect(ui.$('.cg-stx')?.tagName).toBe('SECTION');
+    expect(ui.$('.cg-stx')?.getAttribute('aria-label')).toBe('Статистика Spenders');
     expect(ui.text('.cg-stx .cg-st__title')).toBe('Статистика, 30 дней');
     expect(ui.$$('.cg-stx__cell').map((cell) => [...cell.children].map(textOf))).toEqual([
       ['Сегодня', '$65', 'день ещё идёт'],

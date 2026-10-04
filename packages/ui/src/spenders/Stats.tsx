@@ -148,7 +148,7 @@ export function StatsColumn({ stats, onShelf }: StatsProps): JSX.Element {
   const dispatch = useDispatch();
   const period = i18n.plural('common.days', stats.windowDays);
   return (
-    <aside class="cg-st" aria-label={i18n.t('stats.title')} data-cg-stats={stats.view.s}>
+    <aside class="cg-st" aria-label={i18n.t('stats.regionLabel')} data-cg-stats={stats.view.s}>
       <div class="cg-st__head">
         <h3 class="cg-st__title">{i18n.t('stats.title')}</h3>
         <Button
@@ -235,7 +235,7 @@ export function StatsExpanded({ stats }: { readonly stats: SpendersStatsVM }): J
   const coverage = coverageWord(i18n, stats.stamp.coverage);
   const time = timeOrUnknown(i18n, stats.stamp.asOf);
   return (
-    <section class="cg-stx" aria-label={i18n.t('stats.title')} data-cg-stats={stats.view.s}>
+    <section class="cg-stx" aria-label={i18n.t('stats.regionLabel')} data-cg-stats={stats.view.s}>
       <div class="cg-st__head cg-stx__head">
         <h3 class="cg-st__title">{i18n.t('stats.titleFull', { period })}</h3>
         <Button label={i18n.t('stats.collapse')} icon="collapse" size="sm" onClick={() => void dispatch({ type: 'SetStatsExpanded', expanded: false })} />
