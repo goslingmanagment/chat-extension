@@ -131,20 +131,34 @@ function sendPart(opId: string, part: PartVM): UiAction {
 
 /**
  * The «Отправить» button with its own lock: off from the first click until
- * the part's send state changes (§6.7.7, блокировка 1). A refused dispatch
+ * the model says what happened (§6.7.7, блокировка 1). That is a new send
+ * state of the part, or — when the state reads the same (a send held before
+ * ChatSpace's queue, a retry refused the same way) — the model's next
+ * snapshot of the part once the click was accepted. A refused dispatch
  * unlocks it — nothing was started.
  */
 function SendButton({ part, opId, label, tooltip }: { readonly part: PartVM; readonly opId: string; readonly label: string; readonly tooltip: string }): JSX.Element {
   const hints = useHints();
   const dispatch = useDispatch();
   const [locked, setLocked] = useState(false);
-  const lock = useRef(false);
+  /** The click in work: the part as it was pressed, and whether the controller has accepted it. */
+  const lock = useRef<{ readonly pressed: PartVM; accepted: boolean } | null>(null);
+  const latest = useRef(part);
+  latest.current = part;
+  const unlock = (): void => {
+    lock.current = null;
+    setLocked(false);
+  };
   const state = part.send?.s;
   useEffect(() => {
     // The model moved on (queued, sending, refused…): the lock has done its work.
-    lock.current = false;
-    setLocked(false);
+    unlock();
   }, [state, opId, part.index, part.variant]);
+  useEffect(() => {
+    // The same state word in a snapshot that came after the accepted click: the model has answered.
+    const held = lock.current;
+    if (held !== null && held.accepted && held.pressed !== part) unlock();
+  }, [part]);
   return (
     <Button
       label={label}
@@ -153,14 +167,20 @@ function SendButton({ part, opId, label, tooltip }: { readonly part: PartVM; rea
       tooltip={hints ? tooltip : null}
       busy={locked}
       onClick={() => {
-        if (lock.current) return;
-        lock.current = true;
+        if (lock.current !== null) return;
+        const held = { pressed: part, accepted: false };
+        lock.current = held;
         setLocked(true);
         void dispatch(sendPart(opId, part)).then((receipt) => {
+          // A new state has already taken the lock off.
+          if (lock.current !== held) return;
           if (receipt === null || !receipt.ok) {
-            lock.current = false;
-            setLocked(false);
+            unlock();
+            return;
           }
+          held.accepted = true;
+          // The model's snapshot may have come before the receipt.
+          if (latest.current !== held.pressed) unlock();
         });
       }}
     />

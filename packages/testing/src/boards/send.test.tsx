@@ -290,6 +290,27 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
     }
   });
 
+  it('the «Отправить» lock ends with the model’s next word about the part, even when the state reads the same', async () => {
+    // A send held before ChatSpace's queue reads «available» again: the click was accepted, nothing went out.
+    const base = previewOf([{ s: 'available' }]);
+    const again = previewOf([{ s: 'available' }]).views.filter((view) => view.selector.of === 'preview');
+    ui = await mountBoardSettled('spenders', { ...base, steps: [{ label: 'the same state again', at: 1_000, views: again }] });
+    const send = (): HTMLElement => part(0).querySelector('.cg-pvs__send') as HTMLElement;
+    await flush(() => send().click());
+    await settle();
+    // Accepted, and the model has said nothing yet: the button stays off.
+    expect(send().getAttribute('aria-disabled')).toBe('true');
+    expect(send().getAttribute('aria-busy')).toBe('true');
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    expect(send().hasAttribute('aria-disabled')).toBe(false);
+    expect(send().hasAttribute('aria-busy')).toBe(false);
+    expect(sends()).toHaveLength(1);
+    // The button is the person's again: a second click is a second, deliberate click.
+    await flush(() => send().click());
+    expect(sends()).toHaveLength(2);
+  });
+
   it('Enter on the focused «Отправить» is its click: the event is the button’s, the part does not take it', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
