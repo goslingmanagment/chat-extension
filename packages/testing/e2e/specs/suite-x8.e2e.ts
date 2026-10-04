@@ -191,7 +191,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
   });
 
-  it('[X8-06] [X8-08] a 5xx is an unknown outcome — never «not sent», never sent again: «Неизвестно, ушло ли», the fan is held, the hub’s custody stays open', async () => {
+  it('[X8-06] [X8-07] [NF-022] a 5xx is an unknown outcome — never «not sent», never sent again: «Неизвестно, ушло ли», the fan is held, the hub’s custody stays open', async () => {
     const hubMark = await hub().mark();
     const standMark = await standServer.mark();
     await standServer.script(ACC, a9, [{ kind: 'status', status: 503 }]);
@@ -264,7 +264,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     expect(await composerText(ACC, a1)).toBe('my draft in the open chat');
   });
 
-  it('[X8-03] [X8-08] two tabs, one fan: while one tab’s part is on its way, the other tab’s click starts nothing and is told why — one dispatch, one POST', async () => {
+  it('[X8-08] two tabs, one fan: while one tab’s part is on its way, the other tab’s click starts nothing and is told why — one dispatch, one POST', async () => {
     const hubMark = await hub().mark();
     const standMark = await standServer.mark();
     await standServer.script(ACC, a11, [{ kind: 'ok', echo: 'after', gapMs: 3000 }]);

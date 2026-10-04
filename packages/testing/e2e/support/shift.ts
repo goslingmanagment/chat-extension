@@ -28,6 +28,10 @@ export interface ShiftOptions extends WorldOptions {
   readonly persona?: false;
   /** The window of the ChatSpace tab. */
   readonly viewport?: { readonly width: number; readonly height: number };
+  /** Who signs in; the hub's first chatter otherwise. */
+  readonly user?: { readonly username: string; readonly password: string };
+  /** The hub's world is already set (a second browser of the same spec): only this browser's own shift is started. */
+  readonly world?: false;
 }
 
 export interface Shift {
@@ -60,7 +64,7 @@ export function dockIs(predicate: (dock: DockReport, report: SpikeReport) => boo
 }
 
 export async function startShift(hub: FakeHubControlClient, options: ShiftOptions = {}): Promise<Shift> {
-  await standWorld(hub, options);
+  if (options.world !== false) await standWorld(hub, options);
   await installTestBuild();
   await browser.url(testBuildPage(QUIET_PAGE));
   const settings = merged<SettingsV1>({ ...DEFAULT_SETTINGS, hub: { baseUrl: fakeHubOrigin() } }, options.settings);
@@ -74,7 +78,7 @@ export async function startShift(hub: FakeHubControlClient, options: ShiftOption
   );
   // The password is taken only from the settings page (the sender rule of `session.signIn`).
   await browser.url(testBuildPage('options.html'));
-  const signedIn = await pageRpc('session.signIn', { login: WORLD.user.username, password: SHIFT_PASSWORD });
+  const signedIn = await pageRpc('session.signIn', { login: options.user?.username ?? WORLD.user.username, password: options.user?.password ?? SHIFT_PASSWORD });
   if (!signedIn.ok) throw new Error(`sign-in: ${signedIn.error.code}`);
   if (options.persona !== false) await assignPersona(PAGE);
   // A page that asks the background nothing by itself stays open for the spec's own requests.

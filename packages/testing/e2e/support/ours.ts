@@ -164,8 +164,8 @@ interface Classic {
 }
 
 const idOf = (reference: Record<string, string>): string => Object.values(reference)[0] ?? '';
-/** The closed roots already asked for, by host: a host of ours is one element for the life of its page. */
-const roots = new Map<Where, string>();
+/** The closed roots already asked for, by browser session and host: a host of ours is one element for the life of its page. */
+const roots = new Map<string, string>();
 
 /**
  * Presses the first element of ours matching `selector` as it stands at this very moment — no waiting for it
@@ -174,12 +174,13 @@ const roots = new Map<Where, string>();
  */
 export async function pressOursNow(where: Where, selector: string): Promise<boolean> {
   const classic = browser as unknown as Classic;
+  const key = `${browser.sessionId}:${where}`;
   for (const attempt of [0, 1]) {
     try {
-      let root = roots.get(where);
+      let root = roots.get(key);
       if (root === undefined) {
         root = idOf(await classic.getElementShadowRoot(idOf(await classic.findElement('css selector', HOSTS[where]))));
-        roots.set(where, root);
+        roots.set(key, root);
       }
       const found = await classic.findElementsFromShadowRoot(root, 'css selector', selector);
       const first = found[0];
@@ -189,7 +190,7 @@ export async function pressOursNow(where: Where, selector: string): Promise<bool
     } catch (error) {
       // A page that was reloaded has new hosts: ask once more. Anything else is a miss.
       const stale = /detached shadow root|no such shadow root|stale element|no such element/i.test(String(error));
-      if (attempt === 0 && stale && roots.delete(where)) continue;
+      if (attempt === 0 && stale && roots.delete(key)) continue;
       return false;
     }
   }

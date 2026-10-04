@@ -120,7 +120,7 @@ describe('§12 п. 4 on the wired extension — a preview on the Spenders board 
     expect((await callStand('composers')).map((composer) => composer.chatId)).toEqual([a4]);
   });
 
-  it('[X8-01] [NF-019] the preview send is off: the person presses ChatSpace’s own Send — the hub registers the proven send (H-7), and no right to send anything appears', async () => {
+  it('[TL-004] [NF-021] the preview send is off: the person presses ChatSpace’s own Send — the hub registers the proven send (H-7), and no right to send anything appears', async () => {
     const standMark = await standServer.mark();
     const hubMark = await hub().mark();
     const mark = await pageJournalMark();
