@@ -15,6 +15,9 @@ import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
 import { NOW_MS, WORLD, chatOf, checkpointFor, persona, session, startOf, targetOf, uuid } from './support/world';
 
+/** What the scheduler reads of a tab's presence, as a tab reports it. */
+type ShownTab = Pick<TabPresence, 'chat' | 'routeEpoch' | 'visible' | 'focused'>;
+
 const TAB = uuid(0xa1);
 const OTHER_TAB = uuid(0xa2);
 
@@ -46,7 +49,7 @@ interface Harness {
   readonly log: LogRecorder;
   readonly tokens: ActionTokens;
   readonly scheduler: OpScheduler;
-  readonly presence: Map<string, TabPresence>;
+  readonly presence: Map<string, ShownTab>;
   readonly hooks: { catalog: number; bootstrap: number; recaps: OpView[]; prompts: string[]; usages: { feature: string; costMicroUsd: number }[] };
   env: OpsEnvironment;
   start(tab: string, start: StartOp, opts?: { fanLabel?: string }): ReturnType<OpScheduler['start']>;
@@ -62,7 +65,7 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
   const store = over.store ?? new MemoryStore();
   const log = new LogRecorder();
   const tokens = new ActionTokens(clock, ids);
-  const presence = new Map<string, TabPresence>();
+  const presence = new Map<string, ShownTab>();
   const counters = { catalog: 0, bootstrap: 0, recaps: [] as OpView[], prompts: [] as string[], usages: [] as { feature: string; costMicroUsd: number }[] };
   const hooks: OpSchedulerHooks = {
     refreshCatalog: () => {

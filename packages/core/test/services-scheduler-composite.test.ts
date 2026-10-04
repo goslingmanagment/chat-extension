@@ -18,6 +18,9 @@ import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './
 import { type ScriptResponse, type ScriptStep } from './support/fake-hub';
 import { NOW_MS, WORLD, chatOf, persona, session, startOf, targetOf, uuid } from './support/world';
 
+/** What the scheduler reads of a tab's presence, as a tab reports it. */
+type ShownTab = Pick<TabPresence, 'chat' | 'routeEpoch' | 'visible' | 'focused'>;
+
 const TAB = uuid(0xa1);
 const OTHER_TAB = uuid(0xa2);
 
@@ -40,7 +43,7 @@ interface Harness {
   readonly log: LogRecorder;
   readonly tokens: ActionTokens;
   readonly scheduler: OpScheduler;
-  readonly presence: Map<string, TabPresence>;
+  readonly presence: Map<string, ShownTab>;
   readonly recaps: OpView[];
   env: OpsEnvironment;
   /** Called on every event the background emits, as it is emitted. */
@@ -56,7 +59,7 @@ function harness(over: { store?: MemoryStore; clock?: FakeClock; firstId?: numbe
   const store = over.store ?? new MemoryStore();
   const log = new LogRecorder();
   const tokens = new ActionTokens(clock, ids);
-  const presence = new Map<string, TabPresence>();
+  const presence = new Map<string, ShownTab>();
   const recaps: OpView[] = [];
   const h: Harness = {
     clock,

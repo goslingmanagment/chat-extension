@@ -32,7 +32,12 @@ import {
 } from '../../domain/logging';
 import { type LogStoreStats } from '../logs';
 import { type AcceptanceCounts, type HealthReporterStats, type TelemetryQueueStats } from '../telemetry';
-import { type PromptStoreStats } from './prompts';
+
+/** Prompt snapshots held now, as counts (the snapshots themselves live in the hub layer's echo store and never enter a file). */
+export interface PromptStoreStats {
+  readonly count: number;
+  readonly chars: number;
+}
 
 /** Everything the background knows about itself, gathered by the composition root. */
 export interface DiagnosticsFacts {

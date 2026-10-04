@@ -77,7 +77,7 @@ import {
 } from '../domain/ops';
 import { coachTurnSteps, recapStepVerdict } from '../domain/coach';
 import { type ActionTokens } from './tokens';
-import { type TabPresence } from './tabs';
+import { type TabPresence } from './presence';
 import { AbortSwitch, NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink, type TabEventSink, type TimerHandle } from './ports';
 
 /** storage.session key of the operation journal and results. */
@@ -119,8 +119,8 @@ export interface OpSchedulerDeps {
   readonly events: TabEventSink;
   /** storage.session. */
   readonly store: KeyValueStore;
-  /** Where a tab is now (toasts «AI готово · {фан}»). */
-  readonly presence: (tabSessionId: string) => TabPresence | null;
+  /** Where a tab is now (toasts «AI готово · {фан}»): the chat it shows and whether it is visible. */
+  readonly presence: (tabSessionId: string) => Pick<TabPresence, 'chat' | 'visible'> | null;
   readonly log?: LogSink;
   readonly drivers?: Partial<Record<FeatureId, Partial<OpDriver>>>;
   readonly hooks?: OpSchedulerHooks;
