@@ -428,6 +428,45 @@ describe('Spenders board: keyboard', () => {
     expect(ui.actionsOf('Navigate')).toEqual([]);
   });
 
+  it('[SP-019] the search paint mark ends with the shelves that answer the query, not with the echo of the typed text', async () => {
+    const all = boardOf(ctx, BOARD_FANS);
+    const hub = BOARD_FANS.filter((fan) => fan.name.toLowerCase().includes('hub'));
+    const answer = boardOf(ctx, hub, { query: 'hub', footer: { ...all.footer, shown: hub.length } });
+    const at = (vm: ReturnType<typeof boardOf>) => [entry({ of: 'spenders.board' }, vm)];
+    ui = await mountBoardSettled('spenders', {
+      ...boardOnly(all),
+      steps: [
+        // A controller shows the typed text at once (the list is still the old one)…
+        { label: 'the echo of the query', at: 10, views: at({ ...all, query: 'hub' }) },
+        // …and the filtered list after its pause.
+        { label: 'the answer', at: 160, views: at(answer) },
+        // The hub refreshed the same answer: not a search.
+        { label: 'a refresh', at: 5_000, views: at({ ...answer, shelves: [...answer.shelves] }) },
+        // Query and list in one snapshot.
+        { label: 'cleared, answered at once', at: 6_000, views: at(all) },
+        // Typed and taken back before the pause ended: the list on screen already answers it.
+        { label: 'typed', at: 7_000, views: at({ ...all, query: 'x' }) },
+        { label: 'taken back', at: 7_050, views: at({ ...all, query: '' }) },
+        { label: 'a refresh later', at: 9_000, views: at({ ...all, shelves: [...all.shelves] }) },
+      ],
+    });
+    const searches = (): number => ui?.deps.marks.paints.filter((paint) => paint.metric === 'searchMs').length ?? -1;
+    const step = async (index: number): Promise<number> => {
+      await flush(() => ui?.client.goTo(index));
+      await settle();
+      return searches();
+    };
+    expect(searches()).toBe(0);
+    expect(await step(0)).toBe(0);
+    expect(await step(1)).toBe(1);
+    expect(ui.deps.marks.paints.at(-1)).toEqual({ metric: 'searchMs', mark: 'spenders.search' });
+    expect(await step(2)).toBe(1);
+    expect(await step(3)).toBe(2);
+    expect(await step(4)).toBe(2);
+    expect(await step(5)).toBe(2);
+    expect(await step(6)).toBe(2);
+  });
+
   it('[SP-049] S expands the statistics and collapses it back', async () => {
     ui = await mountBoardSettled('spenders', 'board-list');
     await flush(() => keydown(ui?.root.activeElement as HTMLElement, 's', { code: 'KeyS' }));

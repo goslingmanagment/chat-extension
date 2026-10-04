@@ -47,12 +47,26 @@ export function SpendersWindow(): JSX.Element {
     return () => cancelAnimationFrame(frame);
   }, [hasRows, deps]);
 
-  // A search answer painted: the end of `searchMs`.
-  const lastQuery = useRef(board.query);
+  // A search ANSWER painted: the end of `searchMs`. A controller shows the typed query at once and the filtered
+  // shelves after its own pause (SP-019), so the query alone is not the answer: the mark waits for the shelves
+  // that come with or after it. Typing back to the query the shelves already answer ends the wait.
+  const search = useRef<{ query: string; shelves: typeof board.shelves; answered: string; state: 'idle' | 'waiting' | 'painting' }>({ query: board.query, shelves: board.shelves, answered: board.query, state: 'idle' });
   useEffect(() => {
-    if (lastQuery.current === board.query) return undefined;
-    lastQuery.current = board.query;
-    const frame = requestAnimationFrame(() => deps.marks.painted('searchMs', SPENDERS_PAINT_MARKS.search));
+    const seen = search.current;
+    const newShelves = seen.shelves !== board.shelves;
+    if (seen.query !== board.query) seen.state = newShelves || board.query !== seen.answered ? 'waiting' : 'idle';
+    seen.query = board.query;
+    seen.shelves = board.shelves;
+    if (seen.state === 'waiting' && newShelves) {
+      seen.answered = board.query;
+      seen.state = 'painting';
+    }
+    if (seen.state !== 'painting') return undefined;
+    // Cancelled by a newer render before the frame came: the next run of this effect asks again.
+    const frame = requestAnimationFrame(() => {
+      seen.state = 'idle';
+      deps.marks.painted('searchMs', SPENDERS_PAINT_MARKS.search);
+    });
     return () => cancelAnimationFrame(frame);
   }, [board.query, board.shelves, deps]);
 
