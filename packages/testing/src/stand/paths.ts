@@ -26,11 +26,17 @@ export const BOARDS_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../boards/galler
 /** Built boards gallery (`pnpm --filter @cg/testing build:gallery`), served at /boards-gallery/. */
 export const BOARDS_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/boards-gallery/`;
 export const BOARDS_GALLERY_PATH = '/boards-gallery/';
+/** Sources of the extension-pages gallery (R16). */
+export const PAGES_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../pages/gallery/', import.meta.url));
+/** Built pages gallery (`pnpm --filter @cg/testing build:pages`), served at /pages-gallery/. */
+export const PAGES_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/pages-gallery/`;
+export const PAGES_GALLERY_PATH = '/pages-gallery/';
 /** Gallery pages the stand serves, by their path: built folders of our own UI over synthetic view models. */
 export const GALLERIES: Readonly<Record<string, string>> = {
   [KIT_GALLERY_PATH]: KIT_GALLERY_BUILD_DIR,
   [DOCK_GALLERY_PATH]: DOCK_GALLERY_BUILD_DIR,
   [BOARDS_GALLERY_PATH]: BOARDS_GALLERY_BUILD_DIR,
+  [PAGES_GALLERY_PATH]: PAGES_GALLERY_BUILD_DIR,
 };
 /** Screenshots, timings and other e2e evidence. */
 export const E2E_EVIDENCE_DIR = `${REPO_ROOT}.cache/e2e/`;

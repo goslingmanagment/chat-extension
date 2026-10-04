@@ -114,7 +114,11 @@ export interface StatusBodyVM {
 
 export interface AccountBodyVM {
   readonly section: 'account';
-  readonly hub: { readonly origin: string; readonly hostPermission: 'granted' | 'missing'; readonly requestPermission: ActionButtonVM | null };
+  /**
+   * `hostPermission: 'unknown'` (1.2.0) — the browser has not said yet, or not
+   * for this address: «неизвестно», never «разрешён» by default (ST-043).
+   */
+  readonly hub: { readonly origin: string; readonly hostPermission: 'granted' | 'missing' | 'unknown'; readonly requestPermission: ActionButtonVM | null };
   readonly connection: { readonly s: 'ok' | 'down' | 'unknown'; readonly latencyMs: number | null; readonly checkedAt: number | null };
   readonly user: { readonly login: string; readonly role: Role; readonly deviceSince: IsoTimestamp | null } | null;
   readonly pages: readonly { readonly pageName: string; readonly platform: string; readonly persona: string | null }[];
@@ -250,6 +254,12 @@ interface OptionsVMOf<S extends SettingsSection> {
     readonly dismiss: UiAction;
   } | null;
   readonly body: OptionsBodyMap[S] | null;
+  /**
+   * The footer under the section list (ST-005; 1.2.0): «Что нового» and
+   * «История версий» — null where the build knows no such page — and whether
+   * the notes of this version are still unread (the «нов.» mark).
+   */
+  readonly footer?: { readonly whatsNew: UiAction | null; readonly changelog: UiAction | null; readonly unseenNotes: boolean };
 }
 
 /** One view per section, correlated: `section: 'status'` comes with a StatusBodyVM. */

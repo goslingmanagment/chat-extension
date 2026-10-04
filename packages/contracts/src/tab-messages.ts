@@ -8,7 +8,7 @@ import * as z from 'zod/mini';
 import { CgCodeSchema, CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
-import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
+import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
@@ -120,7 +120,18 @@ const ContractHashSchema = z.string().check(z.regex(CONTRACT_HASH_PATTERN));
 /** `diagnostics.get`: versions, flags and states without secrets or texts (LG-020…LG-025, SN-015). */
 export const DiagnosticsSnapshotSchema = z.strictObject({
   generatedAt: IsoTimestampSchema,
-  extension: z.strictObject({ version: boundedText(32), contractsVersion: boundedText(32), testBuild: z.boolean() }),
+  extension: z.strictObject({
+    version: boundedText(32),
+    contractsVersion: boundedText(32),
+    testBuild: z.boolean(),
+    /**
+     * When this version replaced an older one (`runtime.onInstalled`, reason
+     * `update`) — the «Обновилось сегодня в 09:02 с 0.4.2» line of «Статус»;
+     * absent — a fresh install or not known. `staleTabs` — ChatSpace tabs still
+     * on the scripts of the old version (UP-009), null — not counted. 1.2.0.
+     */
+    updated: z.optional(z.strictObject({ at: IsoTimestampSchema, from: boundedText(32), staleTabs: z.nullable(CountSchema) })),
+  }),
   browser: z.strictObject({ name: z.literal('firefox'), major: z.nullable(z.int().check(z.gte(1))) }),
   os: z.enum(['windows', 'macos', 'linux', 'other']),
   session: z.strictObject({ signedIn: z.boolean(), hubOrigin: z.nullable(HubOriginSchema), role: z.nullable(RoleSchema) }),
@@ -156,8 +167,27 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
   }),
   ops: z.strictObject({ active: CountSchema }),
   sends: z.strictObject({ open: CountSchema, uncertain: CountSchema }),
+  /**
+   * Sizes of our own caches and logs, an estimate (ST-110, options
+   * «Диагностика»); absent — the background does not measure them. 1.2.0.
+   */
+  footprint: z.optional(z.strictObject({ cachesKB: CountSchema, logsKB: CountSchema })),
 });
 export type DiagnosticsSnapshot = z.infer<typeof DiagnosticsSnapshotSchema>;
+
+/**
+ * A click on an extension page that acts inside ChatSpace (§9.9; 1.2.0): the
+ * popup's «Spenders», «Новые» and «Клавиши», and «к вкладке» of an account
+ * in the options (Б13, ST-076). The background brings a ChatSpace tab to the
+ * front and has it run the command as that human action — the tab opens its
+ * overlay, or its router opens the account; nothing is loaded from the host.
+ */
+export const PAGE_COMMAND_SURFACES = ['spenders', 'newcomers', 'cheatsheet'] as const;
+export const PageCommandSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('surface'), surface: z.enum(PAGE_COMMAND_SURFACES) }),
+  z.strictObject({ kind: z.literal('account'), host: HostKindSchema, hostAccountId: NativeIdSchema }),
+]);
+export type PageCommand = z.infer<typeof PageCommandSchema>;
 
 /** `debug.prompt`: the prompt snapshot for debug-prompt.html only, by an opaque token (§9.3, DB-004…DB-008). */
 export const PromptSnapshotViewSchema = z.strictObject({
@@ -472,6 +502,25 @@ export const TAB_REQUESTS = {
     }),
     from: PAGE,
     pages: ['options'],
+  },
+  /**
+   * «Очистить локальные данные» (options «Диагностика», ST-110; 1.2.0): our
+   * caches and logs go — cached hub answers, finished results, the log store
+   * and the journals. The sign-in, the settings and open X8 attempts stay.
+   * The page asks the person first; `confirmed` records that it did.
+   */
+  'data.clear': {
+    req: z.strictObject({ confirmed: z.literal(true) }),
+    res: z.strictObject({ cleared: z.boolean() }),
+    from: PAGE,
+    pages: ['options'],
+  },
+  /** See PageCommandSchema; `delivered: false` — no ChatSpace tab is open to act in. 1.2.0. */
+  'tab.command': {
+    req: z.strictObject({ command: PageCommandSchema }),
+    res: z.strictObject({ delivered: z.boolean() }),
+    from: PAGE,
+    pages: ['popup', 'options'],
   },
   /** An incoming-message fact for the one sound arbiter of the extension (§9.8). */
   'sound.event': {

@@ -18,7 +18,8 @@
     "./spenders": "./src/spenders/index.ts",
     "./newcomers": "./src/newcomers/index.ts",
     "./fanpanel": "./src/fanpanel/index.ts",
-    "./palette": "./src/palette/index.ts"
+    "./palette": "./src/palette/index.ts",
+    "./pages": "./src/pages/index.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",

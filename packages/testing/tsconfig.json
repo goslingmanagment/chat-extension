@@ -21,7 +21,8 @@
     "fixture-chatspace.vite.config.ts",
     "kit-gallery.vite.config.ts",
     "dock-gallery.vite.config.ts",
-    "boards-gallery.vite.config.ts"
+    "boards-gallery.vite.config.ts",
+    "pages-gallery.vite.config.ts"
   ],
   "references": [
     {

@@ -247,6 +247,25 @@ export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStats
 };
 
 /**
+ * The footer of the options page (1.2.0, ST-005): optional, so a view without
+ * it still is an OptionsVM; a link the build does not know is null, not a
+ * made-up address.
+ */
+type OptionsFooter = NonNullable<C.OptionsVM['footer']>;
+export const OPTIONS_FOOTER_SAMPLES: { readonly valid: readonly OptionsFooter[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    { whatsNew: { type: 'Navigate', to: { kind: 'page', page: 'whats-new' } }, changelog: { type: 'Navigate', to: { kind: 'page', page: 'changelog' } }, unseenNotes: true },
+    { whatsNew: null, changelog: null, unseenNotes: false },
+  ],
+  invalid: [
+    // @ts-expect-error a link is an action of the page, never a bare address
+    { whatsNew: 'https://example.test/whats-new', changelog: null, unseenNotes: false } satisfies OptionsFooter,
+    // @ts-expect-error whether the notes were opened is a flag, not the version
+    { whatsNew: null, changelog: null, unseenNotes: '0.4.3' } satisfies OptionsFooter,
+  ],
+};
+
+/**
  * A lease of ours whose last renewal failed (1.2.0, NF-021): the card may
  * say so while the lease still runs. Optional: without it the card is as before.
  */
@@ -292,6 +311,30 @@ export const FAN_PANEL_BIO_SAMPLES: { readonly valid: readonly C.FanPanelVM[]; r
   invalid: [
     // @ts-expect-error the source is one of the two, not a free word
     { ...FAN_PANEL_BASE, bio: 'x', bioSource: 'fansMap' } satisfies C.FanPanelVM,
+  ],
+};
+
+/**
+ * Host access to the hub address in «Аккаунт» (1.2.0, ST-043): three words —
+ * the browser's yes, its no, and «unknown» while it has not answered for the
+ * address on screen. A missing answer is never a yes.
+ */
+type AccountHub = C.AccountBodyVM['hub'];
+export const ACCOUNT_HUB_SAMPLES: { readonly valid: readonly AccountHub[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    { origin: 'https://hub.example.test', hostPermission: 'granted', requestPermission: null },
+    { origin: 'https://hub.example.test', hostPermission: 'unknown', requestPermission: null },
+    {
+      origin: 'https://hub.example.test',
+      hostPermission: 'missing',
+      requestPermission: { label: { key: 'settings.account.grantAccess' }, action: { type: 'RequestPermission', kind: 'hub-host' }, enabled: true, reason: null, hotkey: null },
+    },
+  ],
+  invalid: [
+    // @ts-expect-error an unanswered check is 'unknown', not null
+    { origin: 'https://hub.example.test', hostPermission: null, requestPermission: null } satisfies AccountHub,
+    // @ts-expect-error the access is one of three words, not a flag
+    { origin: 'https://hub.example.test', hostPermission: true, requestPermission: null } satisfies AccountHub,
   ],
 };
 

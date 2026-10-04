@@ -6,11 +6,13 @@ import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
 import {
+  ACCOUNT_HUB_SAMPLES,
   BOARDS_I18N_KEYS,
   CLAIM_RENEW_SAMPLES,
   COACH_TURN_VM_SAMPLES,
   FAN_PANEL_BIO_SAMPLES,
   MONEY_CENTS_SAMPLES,
+  OPTIONS_FOOTER_SAMPLES,
   REFUSAL_VM_SAMPLES,
   SPOKEN_MONEY_SAMPLES,
   STATS_ATTENTION_SAMPLES,
@@ -247,6 +249,61 @@ describe('toasts (1.1.0)', () => {
     expect(detailed?.detail).toMatch(/^HTTP 429/);
     expect(detailed?.detail?.length ?? 0).toBeLessThanOrEqual(C.CG_DETAIL_MAX_CHARS);
     expect(TOAST_VM_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('extension pages (1.2.0)', () => {
+  it('[ST-005] the options view may carry its footer: the links as actions and the «нов.» flag', () => {
+    expectTypeOf<NonNullable<C.OptionsVM['footer']>['whatsNew']>().toEqualTypeOf<C.UiAction | null>();
+    expectTypeOf<NonNullable<C.OptionsVM['footer']>['unseenNotes']>().toEqualTypeOf<boolean>();
+    const [full, bare] = OPTIONS_FOOTER_SAMPLES.valid;
+    for (const action of [full?.whatsNew, full?.changelog]) expect(C.UiActionSchema.safeParse(action).success).toBe(true);
+    expect(bare).toEqual({ whatsNew: null, changelog: null, unseenNotes: false });
+    expect(OPTIONS_FOOTER_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[ST-043] host access to the hub address is granted, missing or unknown — an unanswered check is never «granted»', () => {
+    expectTypeOf<C.AccountBodyVM['hub']['hostPermission']>().toEqualTypeOf<'granted' | 'missing' | 'unknown'>();
+    expect(ACCOUNT_HUB_SAMPLES.valid.map((sample) => sample.hostPermission)).toEqual(['granted', 'unknown', 'missing']);
+    const request = ACCOUNT_HUB_SAMPLES.valid[2]?.requestPermission;
+    expect(C.UiActionSchema.safeParse(request?.action).success).toBe(true);
+    expect(ACCOUNT_HUB_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[PU-017] [ST-076] a page hands a click to ChatSpace as a command: a surface to open, or an account to go to', () => {
+    expect(C.PAGE_COMMAND_SURFACES).toEqual(['spenders', 'newcomers', 'cheatsheet']);
+    expect(C.TAB_REQUESTS['tab.command']).toMatchObject({ from: ['page'], pages: ['popup', 'options'] });
+    expect(C.PageCommandSchema.safeParse({ kind: 'surface', surface: 'spenders' }).success).toBe(true);
+    expect(C.PageCommandSchema.safeParse({ kind: 'account', host: 'chatspace', hostAccountId: '1001' }).success).toBe(true);
+    // Nothing a page says can name an address to load or a chat to write to.
+    expect(C.PageCommandSchema.safeParse({ kind: 'surface', surface: 'https://example.test' }).success).toBe(false);
+    expect(C.PageCommandSchema.safeParse({ kind: 'account', host: 'chatspace', hostAccountId: '1001', url: 'https://example.test' }).success).toBe(false);
+  });
+
+  it('[ST-110] local data is cleared only from the options page and only with the confirmation', () => {
+    expect(C.TAB_REQUESTS['data.clear']).toMatchObject({ from: ['page'], pages: ['options'] });
+    expect(C.mayRequest('data.clear', 'page', 'popup')).toBe(false);
+    expect(C.mayRequest('data.clear', 'page', 'options')).toBe(true);
+    expect(C.mayRequest('data.clear', 'tab', null)).toBe(false);
+  });
+
+  it('the new page texts are keys of the catalog', () => {
+    for (const key of ['popup.dialogNone', 'settings.save.saved', 'settings.status.warningOne', 'signIn.lead', 'debugPage.journal.title'] as const) expect(C.UI_TEXT_KEYS).toContain(key);
+  });
+
+  it('[NF-029] [ST-093] [ST-120] the journal filters, pages and auto-refresh, the deep window above the hub limit and the reference row have their keys', () => {
+    for (const key of [
+      'debugPage.journal.filterAll',
+      'debugPage.journal.filterNone',
+      'debugPage.journal.matched',
+      'debugPage.journal.page',
+      'debugPage.journal.prev',
+      'debugPage.journal.next',
+      'debugPage.journal.auto',
+      'settings.generation.deepOver',
+      'settings.hotkeys.row.variant',
+    ] as const)
+      expect(C.UI_TEXT_KEYS).toContain(key);
   });
 });
 

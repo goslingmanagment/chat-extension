@@ -279,7 +279,20 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'diagnostics.get': {
     req: empty,
-    res: { valid: [diagnostics], invalid: [{ ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } }] },
+    res: {
+      valid: [
+        diagnostics,
+        { ...diagnostics, footprint: { cachesKB: 412, logsKB: 1280 } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: null } } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: 2 } } },
+      ],
+      invalid: [
+        { ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } },
+        { ...diagnostics, footprint: { cachesKB: -1, logsKB: 0 } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2' } } },
+        { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: 'today', from: '0.4.2', staleTabs: 0 } } },
+      ],
+    },
   },
   'journal.read': {
     req: { valid: [{ journal: 'send-attempts', limit: 200 }], invalid: [{ journal: 'prompts', limit: 200 }, { journal: 'operations', limit: 501 }] },
@@ -302,6 +315,18 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'sound.event': {
     req: { valid: [{ fact: incomingFact }], invalid: [{ fact: { ...incomingFact, source: 'dom' } }] },
     res: { valid: [{ played: true }, { played: false, reason: 'chat-open' }], invalid: [{ reason: 'chat-open' }] },
+  },
+  'data.clear': {
+    req: { valid: [{ confirmed: true }], invalid: [{ confirmed: false }, {}] },
+    res: { valid: [{ cleared: true }, { cleared: false }], invalid: [{ cleared: 'yes' }] },
+  },
+  'tab.command': {
+    req: {
+      valid: [{ command: { kind: 'surface', surface: 'spenders' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: IDS.acc } }],
+      // A page names a surface or an account, never a chat to open or a text to send.
+      invalid: [{ command: { kind: 'surface', surface: 'coach' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: 'acc' } }, { command: { kind: 'chat', fan: IDS.fan } }],
+    },
+    res: { valid: [{ delivered: true }, { delivered: false }], invalid: [{ delivered: 1 }] },
   },
   'sound.preview': {
     req: { valid: [{ tone: 'bell', volume: 50 }], invalid: [{ tone: 'bell', volume: 52 }] },
