@@ -609,41 +609,140 @@ describe('coach: the recap it stands on', () => {
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['coach-chat']);
   });
 
-  it('[AI-096] auto-recap «full»: no recap on the hub — the turn first builds one, then asks; one turn, one cancel', async () => {
+  it('[AI-096] auto-recap «full»: no recap on the hub — one start builds the recap, then asks; one turn, one token, one cancel at a time', async () => {
     const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
     h.bg.hub.profileScript.push(savedOutcome);
-    h.script(recapStream(FULL), coachStream(ANSWER));
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fan-summary'), afterMs: 20 }, delta(FULL.slice(0, 12), 30), delta(FULL.slice(12), 50), doneStep] }, coachStream(ANSWER));
     const receipt = await ask(h, 'How do I reply?');
     expect(receipt).toMatchObject({ ok: true, outcome: 'started' });
     expect(h.bg.callsOf('recap.status')).toHaveLength(1);
-    // The recap step: a full Recap for the Coach surface, the question waits.
-    const first = h.bg.callsOf('op.start')[0] as { feature: string; surface: string; force: boolean; window: number };
-    expect(first).toMatchObject({ feature: 'recap', surface: 'coach', force: true, window: 3000 });
+    // One start for the whole turn: the question, with the recap in front of it at the deep window.
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    expect(h.bg.callsOf('op.start')[0]).toMatchObject({ feature: 'coach', surface: 'coach', window: 100, coach: { question: 'How do I reply?', history: [], autoRecap: { length: 'full', window: 3000 } } });
+    // The admitted operation is the recap step: the question waits, the turn shows its stages and its cancel.
+    const recapOp = (receipt as { opId: string }).opId;
+    expect(h.ai.workspace.ops.get(recapOp)?.view).toMatchObject({ feature: 'recap', surface: 'coach' });
     expect(h.coach().turns).toHaveLength(1);
-    expect(lastTurn(h)).toMatchObject({ question: 'How do I reply?', sentToCoach: false, streamText: null });
-    expect(lastTurn(h).phase?.cancel).toEqual({ type: 'CancelGeneration', operationId: (receipt as { opId: string }).opId });
+    expect(lastTurn(h)).toMatchObject({ opId: recapOp, question: 'How do I reply?', sentToCoach: false, streamText: null });
+    expect(lastTurn(h).phase?.cancel).toEqual({ type: 'CancelGeneration', operationId: recapOp });
     expect(h.coach().ask.reason?.id).toBe('coach-busy');
+    await h.clock.advance(60);
+    // The recap is being written: its text is not the Coach's answer, and nothing was «отправлено коучу» yet.
+    expect(h.ai.workspace.ops.get(recapOp)?.view).toMatchObject({ state: 'streaming', text: FULL.slice(0, 12) });
+    expect(lastTurn(h)).toMatchObject({ opId: recapOp, state: 'streaming', sentToCoach: false, streamText: null });
+    expect(lastTurn(h).phase?.stages.at(-1)).toMatchObject({ id: 'writing', state: 'current' });
 
-    await h.clock.advance(150);
-    // The recap is done and is now the shared artifact; the answer step runs by itself.
-    const starts = h.bg.callsOf('op.start') as { feature: string; surface: string; coach?: { question: string } }[];
-    expect(starts.map((s) => `${s.feature}@${s.surface}`)).toEqual(['recap@coach', 'coach@coach']);
-    expect(starts[1]?.coach?.question).toBe('How do I reply?');
+    await h.clock.advance(90);
+    // The recap is done and is now the shared artifact. The answer step holds the chat's slot already — the
+    // background put it there; the tab asked for nothing more and spent no second token.
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'coach' }]);
+    const answerOp = h.ai.workspace.ops.get(recapOp)?.view.continuedBy as string;
+    expect(answerOp).toMatch(/^[0-9a-f-]{36}$/);
+    expect(h.bg.scheduler.active().map((view) => `${view.feature}:${view.opId}`)).toEqual([`coach:${answerOp}`]);
     expect(h.coach().turns).toHaveLength(1);
+    expect(lastTurn(h)).toMatchObject({ opId: answerOp, question: 'How do I reply?', sentToCoach: true });
+    expect(lastTurn(h).phase?.cancel).toEqual({ type: 'CancelGeneration', operationId: answerOp });
+    // Nothing else gets into the chat while the turn goes on.
+    expect(await h.generate('reply')).toMatchObject({ ok: false, code: 'CG-OP-CHAT-BUSY' });
+    await h.clock.advance(160);
+    // The answer streams into the turn like any other.
+    expect(lastTurn(h)).toMatchObject({ state: 'streaming', streamText: 'Сначала согрей, пото' });
+    expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ own: true, desynced: false });
     await h.finish();
-    expect(lastTurn(h)).toMatchObject({ state: 'done', question: 'How do I reply?' });
+    expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'done', question: 'How do I reply?' });
     expect(h.coach().recap).toMatchObject({ length: 'full', summary: FULL });
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat']);
-    // Each step spent its own token of the same trusted action.
-    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'coach' }, { kind: 'generate', surface: 'coach' }]);
+    expect(h.bg.hub.streams[1]?.body).toMatchObject({ chatterQuestion: 'How do I reply?' });
+    // The whole turn was one trusted action: one token and one start of the Coach surface (the other is the refused Reply).
+    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'coach' }, { kind: 'generate', surface: 'dock' }]);
+    expect((h.bg.callsOf('op.start') as { surface: string }[]).map((call) => call.surface)).toEqual(['coach', 'dock']);
+    // The drafts of the answer insert: the answer step is of the persona the turn was started under.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: answerOp, variant: 1, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
 
     // Once per session: the next question asks at once.
     const statusReads = h.bg.callsOf('recap.status').length;
     h.script(coachStream('ok'));
     await ask(h, 'And then?');
     expect(h.bg.callsOf('recap.status')).toHaveLength(statusReads);
+    expect((h.bg.callsOf('op.start')[2] as { coach: { autoRecap?: unknown; history: unknown[] } }).coach.autoRecap).toBeUndefined();
+    expect((h.bg.callsOf('op.start')[2] as { coach: { history: unknown[] } }).coach.history).toHaveLength(1);
     await h.finish();
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat', 'coach-chat']);
+  });
+
+  it('[AI-096] [AI-091] the attached draft is read at the click, not when the recap step ends', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    h.bg.hub.profileScript.push(savedOutcome);
+    h.host.type('my first words');
+    await h.settle();
+    h.script(recapStream(FULL), coachStream(ANSWER));
+    await ask(h, 'Is my answer fine?', { attachMyDraft: true });
+    expect(h.host.reads.draft).toBe(1);
+    // The person goes on typing while the recap is built.
+    h.host.type('something else entirely');
+    await h.finish();
+    expect(h.host.reads.draft).toBe(1);
+    expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat']);
+    expect(h.bg.hub.streams[0]?.body.draftText).toBeUndefined();
+    expect(h.bg.hub.streams[1]?.body.draftText).toBe('my first words');
+    expect(lastTurn(h)).toMatchObject({ state: 'done', attachedDraft: true });
+  });
+
+  it('[AI-096] the status of the recaps could not be read: nothing is built on a guess — the question goes right away', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }), background: (bg) => (bg.recapStatus = { error: { code: 'CG-HUB-TIMEOUT' } }) });
+    h.script(coachStream(ANSWER));
+    expect(await ask(h, 'How do I reply?')).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(h.bg.callsOf('recap.status')).toHaveLength(1);
+    expect((h.bg.callsOf('op.start')[0] as { feature: string; coach: { autoRecap?: unknown } }).coach.autoRecap).toBeUndefined();
+    expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['coach-chat']);
+    expect(lastTurn(h)).toMatchObject({ state: 'done' });
+  });
+
+  it('[AI-096] [AI-051] a recap that cannot be built for this chat is not asked for: too little history, or the owner switch off', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    // The whole short conversation is loaded: a full recap has nothing to stand on.
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), loaded: 12, fanMessages: 6, modelMessages: 6, hasOlder: false }, openChat);
+    await h.settle();
+    expect(h.dock().actions.review.reason).toMatchObject({ id: 'no-history' });
+    h.script(coachStream(ANSWER));
+    await ask(h, 'How do I reply?');
+    await h.finish();
+    expect((h.bg.callsOf('op.start')[0] as { coach: { autoRecap?: unknown } }).coach.autoRecap).toBeUndefined();
+    expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['coach-chat']);
+
+    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, recap: false } };
+    const noRecap = await start({ settings: withCoach({ autoRecap: 'full' }), bootstrap: off });
+    noRecap.script(coachStream(ANSWER));
+    await ask(noRecap, 'How do I reply?');
+    await noRecap.finish();
+    // The status is not even asked.
+    expect(noRecap.bg.callsOf('recap.status')).toEqual([]);
+    expect(noRecap.bg.hub.streams.map((stream) => stream.feature)).toEqual(['coach-chat']);
+  });
+
+  it('[AI-096] [AI-099] the person left the chat while the status was read: nothing starts for another fan, and no turn is left behind', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    h.bg.held.add('recap.status');
+    const asking = ask(h, 'How do I reply?');
+    await h.settle();
+    // The question is in the feed while its start is on the way; nothing to cancel yet.
+    expect(lastTurn(h)).toMatchObject({ question: 'How do I reply?', state: 'admitted', opId: null });
+    expect(lastTurn(h).phase?.cancel).toBeNull();
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
+    h.host.openChat(previewChat);
+    await h.settle();
+    h.bg.held.delete('recap.status');
+    h.bg.release();
+    expect(await asking).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(h.bg.callsOf('op.start')).toEqual([]);
+    expect(h.bg.callsOf('token.issue')).toEqual([]);
+    expect(h.coach().turns).toEqual([]);
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(h.coach().turns).toEqual([]);
+    expect(h.coach().ask.enabled).toBe(true);
   });
 
   it('[AI-096] a fresh matching recap on the hub: nothing is built; an old one or one of another window is', async () => {
@@ -671,7 +770,8 @@ describe('coach: the recap it stands on', () => {
     none.script(recapStream('Короткий.'), coachStream('ok'));
     await ask(none, 'first');
     await none.finish();
-    expect((none.bg.callsOf('op.start')[0] as { feature: string }).feature).toBe('recap-short');
+    expect((none.bg.callsOf('op.start')[0] as { coach: { autoRecap: unknown } }).coach.autoRecap).toEqual({ length: 'short', window: 300 });
+    expect(none.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat']);
     expect(none.bg.hub.streams[0]?.body.summaryMode).toBe('short');
   });
 
@@ -712,19 +812,65 @@ describe('coach: the recap it stands on', () => {
     expect(h.coach().ask.enabled).toBe(true);
   });
 
-  it('[AI-096] the person left the chat during the recap step: the answer step is not started for another fan', async () => {
+  it('[AI-096] [AI-099] the person left the chat during the recap step: the turn goes on for its own fan and is found on return', async () => {
     const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
     h.bg.hub.profileScript.push(savedOutcome);
-    h.script(recapStream(FULL));
+    h.script(recapStream(FULL), coachStream(ANSWER));
     await ask(h, 'How do I reply?');
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
     h.host.openChat(previewChat);
     await h.finish();
-    expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary']);
+    // Both steps ran for the chat the question was asked in — its target was fixed at the click.
+    expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat']);
+    expect(h.bg.hub.streams.map((stream) => stream.body.fanRef)).toEqual([HOST_IDS.fan, HOST_IDS.fan]);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    expect(h.coach().turns).toEqual([]);
     h.host.openChat(openChat);
     await h.settle();
+    expect(lastTurn(h)).toMatchObject({ question: 'How do I reply?', state: 'done' });
+    expect(lastTurn(h).answer?.drafts).toHaveLength(2);
+  });
+
+  it('[AI-096] the turn could not go on although the recap was built: it fails with «контекст изменился» and keeps its question', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    h.bg.hub.profileScript.push(savedOutcome);
+    h.script(recapStream(FULL), coachStream(ANSWER));
+    await ask(h, 'How do I reply?');
+    // The owner switched the Coach off while the recap was being built.
+    h.bg.bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, coach: false } };
+    await h.finish();
+    expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary']);
     const turn = lastTurn(h);
     expect(turn).toMatchObject({ question: 'How do I reply?', state: 'failed' });
     expect(turn.error?.code).toBe('CG-CONTEXT-CHANGED');
+    expect(h.bg.scheduler.active()).toEqual([]);
+    expect(h.coach().ask.enabled).toBe(true);
+  });
+
+  it('[AI-096] the recap step ended before the answer to the start arrived: the turn still follows its answer step', async () => {
+    const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
+    // The hub refuses the recap at once (too little history for it): the recap step is over within the start.
+    h.script({ kind: 'http-error', status: 409, body: { error: 'gate_min_messages' } }, coachStream(ANSWER));
+    h.bg.slow.add('op.start');
+    const asking = ask(h, 'How do I reply?');
+    // Meanwhile the answer step was admitted and its first batches went out — before the tab knew either id.
+    await h.clock.advance(250);
+    h.bg.slow.delete('op.start');
+    h.bg.release();
+    const receipt = await asking;
+    expect(receipt).toMatchObject({ ok: true, outcome: 'started' });
+    const recapOp = (receipt as { opId: string }).opId;
+    const answerOp = h.ai.workspace.ops.get(recapOp)?.view.continuedBy as string;
+    // Nothing of it was lost: the batches that came early are in the turn, and the next one is no gap.
+    expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'streaming', streamText: 'Сначала согрей, пото' });
+    await h.clock.advance(20);
+    expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ own: true, desynced: false });
+    await h.clock.advance(100);
+    expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ desynced: false });
+    await h.finish();
+    expect(lastTurn(h)).toMatchObject({ opId: answerOp, state: 'done' });
+    expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ own: true, desynced: false });
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
   });
 });
 

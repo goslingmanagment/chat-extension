@@ -18,6 +18,12 @@
 // chat in flight at once (a double click) are told apart: the later one
 // waits for the earlier before it decides whether its operation is new.
 //
+// A Coach turn with auto-recap is one start and two operations (§7 «один
+// составной слот»): the admitted one is the recap step, and its terminal
+// view names the answer step the background put into the chat's slot at the
+// same moment (`OpView.continuedBy`). That one is this tab's own from its
+// first event on — nothing is started for it from here.
+//
 // What the tab holds is bounded: results live 30 minutes and at most the
 // tab's share of them, the early buffer and the followed chats are capped,
 // and whoever keeps state by operation hears which ones were dropped.
@@ -28,6 +34,7 @@ import { OP_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
 import { type Admission, type OpView, type StartOp } from '@cg/contracts/ops';
 import { type TabEventPayload } from '@cg/contracts/tab-messages';
 
+import { coachTurnSteps } from '../../domain/coach';
 import { applyOpDone, applyOpUpdate, isNewerOpState, isTerminalOpState, mirrorFromView, newMirror, type OpMirror } from '../../domain/ops';
 import { type RpcAnswer, type TabRpcPort, type TimerClock } from './ports';
 
@@ -100,6 +107,11 @@ type EarlyEvent = { readonly kind: 'update'; readonly update: OpUpdate } | { rea
 function withoutCause(start: StartOp): Omit<StartOp, 'cause'> {
   const { cause: _cause, ...rest } = start;
   return rest;
+}
+
+/** An operation as it is the moment it was admitted, before any event of it. */
+function admittedView(opId: string, start: Pick<StartOp, 'feature' | 'surface' | 'target' | 'tone'>, now: number): OpView {
+  return { opId, feature: start.feature, surface: start.surface, target: start.target, state: 'admitted', phase: { name: 'admitted', since: now }, startedAt: now, toneUsed: start.tone };
 }
 
 export class OpStore {
@@ -233,6 +245,8 @@ export class OpStore {
     // click): it may be that start's own operation, admitted a moment ago. Let it say so first.
     if (earlier !== null && !this.entries.has(opId) && (this.early.get(opId)?.length ?? 0) === 0) await earlier;
     const now = this.clock.now();
+    // A composite Coach turn is admitted as its recap step; the terminal view says what the operation really was.
+    const first = coachTurnSteps(start)?.recap ?? start;
     let reopened = true;
     const known = this.entries.get(opId);
     if (known === undefined) {
@@ -241,18 +255,15 @@ export class OpStore {
       if (events.length > 0) {
         // A fresh operation: its first events came before this answer.
         reopened = false;
-        const view: OpView = { opId, feature: start.feature, surface: start.surface, target: start.target, state: 'admitted', phase: { name: 'admitted', since: now }, startedAt: now, toneUsed: start.tone };
+        const view = admittedView(opId, first, now);
         this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo: fullMemo, own: true, reopenedAt: null, desynced: false });
-        for (const event of events) {
-          if (event.kind === 'update') this.onUpdate(event.update);
-          else this.onDone(event.view);
-        }
+        this.replay(events);
       } else {
         // Not announced to this tab session: an operation it did not start (a cached result, a run that outlived a reload).
         await this.syncChat(chatKey);
         const found = this.entries.get(opId);
         if (found === undefined) {
-          const view: OpView = { opId, feature: start.feature, surface: start.surface, target: start.target, state: 'admitted', phase: { name: 'admitted', since: now }, startedAt: now, toneUsed: start.tone };
+          const view = admittedView(opId, first, now);
           this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo: fullMemo, own: true, reopenedAt: null, desynced: false });
           reopened = false;
         } else {
@@ -423,6 +434,30 @@ export class OpStore {
     return dropped;
   }
 
+  private replay(events: readonly EarlyEvent[]): void {
+    for (const event of events) {
+      if (event.kind === 'update') this.onUpdate(event.update);
+      else this.onDone(event.view);
+    }
+  }
+
+  /**
+   * The answer step of a composite Coach turn of this tab: the background put
+   * it into the chat's slot when the recap step ended and named it there. It
+   * is this tab's own operation — its batches come here from the first one —
+   * made under the same persona as the step before it. Nothing is started.
+   */
+  private follow(opId: string, recap: Entry): void {
+    if (this.entries.has(opId) || this.tombstones.has(opId)) return;
+    const view = admittedView(opId, { feature: 'coach', surface: recap.view.surface, target: recap.view.target, tone: null }, this.clock.now());
+    const memo: StartMemo = { split: recap.memo.start?.split ?? false, fixSource: null, start: null, personaDefinitionId: recap.memo.personaDefinitionId };
+    this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo, own: true, reopenedAt: null, desynced: false });
+    const events = this.early.get(opId) ?? [];
+    this.early.delete(opId);
+    this.replay(events);
+    this.emit({ kind: 'changed', opId });
+  }
+
   /** What is known of an operation this tab did not start: nothing, except the persona of one that still runs. */
   private adoptedMemo(view: OpView): StartMemo {
     if (isTerminalOpState(view.state)) return NO_MEMO;
@@ -479,6 +514,8 @@ export class OpStore {
     entry.mirror = mirror;
     entry.view = mirror.done;
     entry.desynced = false;
+    // The turn goes on: its answer step is known before anybody hears that the recap step ended.
+    if (!wasDone && entry.own && mirror.done.continuedBy !== undefined) this.follow(mirror.done.continuedBy, entry);
     this.emit({ kind: 'changed', opId: view.opId });
     if (!wasDone) this.emit({ kind: 'done', record: this.recordOf(entry) });
   }

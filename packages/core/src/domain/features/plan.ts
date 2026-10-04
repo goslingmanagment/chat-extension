@@ -103,6 +103,8 @@ export interface StartPlanInput {
   readonly force?: boolean;
   /** «Ещё раз» keeps the Split snapshot of the original instead of the setting. */
   readonly splitWanted?: boolean;
+  /** AI-096: the recap a Coach turn builds first — the same start, one admission (§7 «один составной слот»). */
+  readonly autoRecap?: 'short' | 'full';
 }
 
 export type StartPlan = { readonly ok: true; readonly start: StartOp } | { readonly ok: false; readonly code: CgCode };
@@ -142,6 +144,8 @@ export function planStart(input: StartPlanInput): StartPlan {
       history: [...(input.coachHistory ?? [])].slice(-COACH_LIMITS.historyMaxTurns),
       // AI-091: the draft goes with this one turn only; it is not fresh text.
       ...(options.attachMyDraft === true && hasDraft ? { attachDraft: draftText } : {}),
+      // The recap has its own window: the deep one for the full recap, the fixed one for the short.
+      ...(input.autoRecap === undefined ? {} : { autoRecap: { length: input.autoRecap, window: windowFor(input.autoRecap === 'full' ? 'recap' : 'recap-short', undefined, settings, bootstrap) } }),
     };
   }
   const fresh = trimFreshTail(input.fresh, freshTextLimits(feature, surface, bootstrap, pageId));

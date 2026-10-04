@@ -7,10 +7,13 @@
 // one thing it takes from the page is the person's own draft, when they ask
 // to attach it, for that one turn.
 //
-// A turn may first build a recap (auto-recap, once per session): the recap
-// step and the answer are one turn with one cancel. Sessions live in this
-// tab's memory (five, fifty exchanges, two mebibytes) and are wiped by a
-// change of persona or sign-in.
+// A turn may first build a recap (auto-recap, once per session). It is still
+// one turn and one start: the click's one token admits both steps in the
+// background (`StartOp.coach.autoRecap`), the chat's slot is held from the
+// first to the last, and the controller only follows — the recap step, then
+// the answer step its terminal view names (`OpView.continuedBy`). Nothing is
+// started from an event. Sessions live in this tab's memory (five, fifty
+// exchanges, two mebibytes) and are wiped by a change of persona or sign-in.
 //
 // Actions: `Generate { feature: 'coach', options: {} }` opens the panel and
 // generates nothing; with `question` or `preset` it asks. `NewCoachDialog`
@@ -21,7 +24,17 @@ import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { hasCapability } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { type COACH_BLOCK_KINDS } from '@cg/contracts/ops';
-import { type ActionButtonVM, type ActionReceipt, type CoachTurnVM, type CoachVM, type ReasonVM, type UiAction, type UiActionOf, type UserOptions, type VmView } from '@cg/contracts/vm';
+import {
+  type ActionButtonVM,
+  type ActionReceipt,
+  type CoachTurnVM,
+  type CoachVM,
+  type ReasonVM,
+  type UiAction,
+  type UiActionOf,
+  type UserOptions,
+  type VmView,
+} from '@cg/contracts/vm';
 
 import {
   CoachSessions,
@@ -66,11 +79,6 @@ const COACH_BUILT_SLACK = 50;
 /** AI-094: follow-ups under the latest answer. */
 const FOLLOW_UP_CHIPS: readonly I18nKey[] = ['coach.chip.another', 'coach.chip.shorter', 'coach.chip.refusal'];
 
-interface Ask {
-  readonly options: UserOptions;
-  readonly cause: CauseKind;
-}
-
 interface ArchiveRead {
   readonly state: 'loading' | 'ready' | 'error';
   readonly asOf: string | null;
@@ -82,8 +90,6 @@ export type CoachController = AiController;
 export function createCoachController(ws: AiWorkspace): CoachController {
   const { catalog, clock, i18n, ids, rpc } = ws.ports;
   const sessions = new CoachSessions({ newId: () => ids.uuid() });
-  /** What a pending turn was asked with: the second step of a composite turn needs it again. */
-  const asks = new Map<string, Ask>();
   const archives = new Map<ChatKey, ArchiveRead>();
   /** The hub page of each session: a persona change of that page wipes it. */
   const pages = new Map<string, number>();
@@ -102,7 +108,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   // ── turns ────────────────────────────────────────────────────────────────
 
-  /** The chat of this session is the one that is open: only then may its turn go on by itself. */
+  /** The chat of this session is the one that is open: a click is for the chat the person sees. */
   function stillOpen(session: CoachSession): ReadyTarget | null {
     const { chat, ready } = ws.situation();
     return chat !== null && ready !== null && chat.key === session.key.chatKey && ready.persona.definitionId === session.key.personaDefinitionId ? ready : null;
@@ -110,48 +116,34 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   function failTurn(session: CoachSession, turnId: string, outcome: CoachFailedTurn['outcome'], error: CgErrorWire | null): void {
     sessions.fail(session.sessionId, turnId, { outcome, error, endedAt: clock.now() });
-    asks.delete(turnId);
     ws.bump();
   }
 
-  /** The answer step: the question, the history and — once — the attached draft go to the Coach. */
-  async function askCoach(session: CoachSession, turnId: string, ask: Ask): Promise<{ readonly ok: true; readonly opId: string } | { readonly ok: false; readonly error: CgErrorWire }> {
-    const ready = stillOpen(session);
-    // AI-099: the chat changed under a turn that was still getting ready — nothing is asked for another fan.
-    if (ready === null) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
-    const limit = clampHistoryLimit(ready.settings.generation.coach.historyLimit);
-    const current = sessions.byId(session.sessionId) ?? session;
-    const result = await ws.startFeature({ feature: 'coach', surface: 'coach', options: ask.options, cause: ask.cause, coachHistory: historyFor(current, limit) });
-    if (result.kind === 'failed') return { ok: false, error: result.error };
-    if (result.kind === 'refused') return { ok: false, error: result.refusal.error };
-    sessions.step(session.sessionId, turnId, 'coach', result.opId);
-    ws.bump();
-    // The operation may have ended before this answer arrived.
-    const record = ws.ops.get(result.opId);
-    if (record !== null && isTerminalOpState(record.view.state)) settle(record);
-    return { ok: true, opId: result.opId };
-  }
-
-  /** The step ended: the turn moves on, becomes an exchange, or fails keeping its question. */
+  /** A step ended: the turn moves on to its answer step, becomes an exchange, or fails keeping its question. */
   function settle(record: OpRecord): void {
     const { view } = record;
     const session = sessions.byOp(view.opId);
     const pending = session?.pending ?? null;
     if (session === null || pending === null || pending.opId !== view.opId) return;
     const turnId = pending.turnId;
-    const ask = asks.get(turnId);
-    if (pending.step === 'recap') {
-      const failure = view.state === 'failed' || view.state === 'interrupted' ? (view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : null;
+    if (view.feature !== 'coach') {
+      // The recap step of a composite turn. Whether the question goes on is the background's decision: when it
+      // does, the answer step took the chat's slot the moment this one ended, and this view names it.
+      const answer = view.continuedBy;
+      if (answer !== undefined) {
+        sessions.step(session.sessionId, turnId, 'coach', answer);
+        ws.bump();
+        // It may have ended before this was heard.
+        const next = ws.ops.get(answer);
+        if (next !== null && isTerminalOpState(next.view.state)) settle(next);
+        return;
+      }
       if (view.state === 'canceled') return failTurn(session, turnId, 'canceled', null);
-      // AI-096: a recap that could not be made for the conversation's own reasons does not stop the question.
-      if (failure !== null && recapStepVerdict(failure.code) === 'stop') return failTurn(session, turnId, view.state === 'interrupted' ? 'interrupted' : 'failed', failure);
-      if (ask === undefined) return failTurn(session, turnId, 'failed', { code: 'CG-CONTEXT-CHANGED' });
-      sessions.step(session.sessionId, turnId, 'coach', null);
-      ws.bump();
-      void askCoach(session, turnId, ask).then((asked) => {
-        if (!asked.ok) failTurn(sessions.byId(session.sessionId) ?? session, turnId, 'failed', asked.error);
-      });
-      return;
+      // Nothing follows: the recap stopped the turn with its own error — or the turn could not go on although
+      // the recap did not stand in its way (the tab, the sign-in or the persona is no longer the turn's).
+      const wire = view.state === 'failed' || view.state === 'interrupted' ? (view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : null;
+      const error: CgErrorWire = wire === null || recapStepVerdict(wire.code) === 'proceed' ? { code: 'CG-CONTEXT-CHANGED' } : wire;
+      return failTurn(session, turnId, view.state === 'interrupted' ? 'interrupted' : 'failed', error);
     }
     if (view.state === 'done' && view.result?.kind === 'coach') {
       const answer = view.result.answer;
@@ -163,7 +155,6 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         answer,
         completedAt: view.endedAt ?? clock.now(),
       });
-      asks.delete(turnId);
       ws.bump();
       return;
     }
@@ -191,10 +182,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
   // cancels what was running; a late terminal view of a wiped dialog finds no session and changes nothing.
   const offReset = ws.onReset((affected) => {
     const wiped = sessions.all().filter((session) => affected(session.key.chatKey, pages.get(session.sessionId) ?? -1));
-    for (const session of wiped) {
-      if (session.pending !== null) asks.delete(session.pending.turnId);
-      pages.delete(session.sessionId);
-    }
+    for (const session of wiped) pages.delete(session.sessionId);
     const ids = new Set(wiped.map((session) => session.sessionId));
     sessions.reset((session) => ids.has(session.sessionId));
     archives.clear();
@@ -216,57 +204,51 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     // One turn at a time: the question stays in the field (AI-099).
     if (session.pending !== null) return refused(ws, action.type, { code: 'CG-OP-COACH-BUSY' });
 
-    // AI-096: before the first question of a session the hub may need a fresh recap.
-    const mode = ready.settings.generation.coach.autoRecap;
-    let recap: 'short' | 'full' | null = null;
-    if (mode !== 'off' && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
-      const read = await ws.recaps.readStatus(ws.slotKey(ready));
-      recap = autoRecapFor({ mode, attempted: session.autoRecapAttempted, hasExchanges: false, status: read.ok ? read.status : null, deepWindow: windowFor('recap', undefined, ready.settings, ready.bootstrap) });
-      // The person left the chat while the status was read: nothing is started for another fan.
-      if (stillOpen(session) === null) return refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' });
-    }
     const turnId = ids.uuid();
-    const turn: Omit<CoachPendingTurn, 'opId'> = {
+    // The turn exists from the click on: the question is in the feed while its start is on the way.
+    const begun = sessions.begin(session.sessionId, {
       turnId,
       // The preset's own question lives on the hub; the dialog shows the chip's words.
       question: question.length > 0 ? question : i18n.t('coach.chip.situation'),
       preset,
       attachedDraft: action.options.attachMyDraft === true,
       askedAt: now,
-      step: recap === null ? 'coach' : 'recap',
-    };
-    const begun = sessions.begin(session.sessionId, turn);
+      step: 'coach',
+    });
     if (!begun.ok) return refused(ws, action.type, { code: 'CG-OP-COACH-BUSY' });
-    const options: UserOptions = { ...(question.length > 0 ? { question } : {}), ...(preset === null ? {} : { preset }), ...(action.options.attachMyDraft === true ? { attachMyDraft: true } : {}) };
-    const asked: Ask = { options, cause };
-    asks.set(turnId, asked);
     ws.bump();
+    /** Nothing ran: no turn is left behind, the question stays with the person (AI-099). */
+    const giveUp = (error: CgErrorWire): ActionReceipt => {
+      sessions.abandon(session.sessionId, turnId);
+      ws.bump();
+      return refused(ws, action.type, error);
+    };
 
-    if (recap !== null) {
-      const started = await ws.startFeature({ feature: recap === 'full' ? 'recap' : 'recap-short', surface: 'coach', options: {}, cause, force: true });
-      if (started.kind === 'started') {
-        sessions.step(session.sessionId, turnId, 'recap', started.opId);
-        ws.bump();
-        const record = ws.ops.get(started.opId);
-        if (record !== null && isTerminalOpState(record.view.state)) settle(record);
-        return done(action.type, 'started', { opId: started.opId });
-      }
-      const error = started.kind === 'refused' ? started.refusal.error : started.error;
-      if (recapStepVerdict(error.code) === 'stop') {
-        // Nothing ran: no turn is left behind, the question stays with the person.
-        sessions.abandon(session.sessionId, turnId);
-        asks.delete(turnId);
-        ws.bump();
-        return refused(ws, action.type, error);
-      }
-      sessions.step(session.sessionId, turnId, 'coach', null);
+    // AI-096: before the first question of a session the hub may need a fresh recap. What it holds is asked
+    // first; a status that cannot be read is no reason to build one — the question then goes right away.
+    const mode = ready.settings.generation.coach.autoRecap;
+    let recap: 'short' | 'full' | null = null;
+    if (mode !== 'off' && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
+      const read = await ws.recaps.readStatus(ws.slotKey(ready));
+      // The person left the chat while the status was read: nothing is started for another fan.
+      if (stillOpen(session) === null) return giveUp({ code: 'CG-CONTEXT-CHANGED' });
+      recap = autoRecapFor({ mode, attempted: false, hasExchanges: false, status: read.ok ? read.status : null, deepWindow: windowFor('recap', undefined, ready.settings, ready.bootstrap) });
     }
-    const answer = await askCoach(session, turnId, asked);
-    if (answer.ok) return done(action.type, 'started', { opId: answer.opId });
-    sessions.abandon(session.sessionId, turnId);
-    asks.delete(turnId);
+
+    // One start for the whole turn: the question, the history, the draft read now (AI-091) — and, when a recap
+    // is due, the recap step in front of it. The background admits both under this click's one token.
+    const options: UserOptions = { ...(question.length > 0 ? { question } : {}), ...(preset === null ? {} : { preset }), ...(action.options.attachMyDraft === true ? { attachMyDraft: true } : {}) };
+    const limit = clampHistoryLimit(ready.settings.generation.coach.historyLimit);
+    const result = await ws.startFeature({ feature: 'coach', surface: 'coach', options, cause, coachHistory: historyFor(session, limit), ...(recap === null ? {} : { autoRecap: recap }) });
+    if (result.kind === 'failed') return giveUp(result.error);
+    if (result.kind === 'refused') return giveUp(result.refusal.error);
+    const record = ws.ops.get(result.opId);
+    // The admitted operation is the recap step when one was due and can be built here; otherwise the answer itself.
+    sessions.step(session.sessionId, turnId, record !== null && record.view.feature !== 'coach' ? 'recap' : 'coach', result.opId);
     ws.bump();
-    return refused(ws, action.type, answer.error);
+    // The operation may have ended before this answer arrived.
+    if (record !== null && isTerminalOpState(record.view.state)) settle(record);
+    return done(action.type, 'started', { opId: result.opId });
   }
 
   // ── «Обновить переписку» (AI-097, Б6) ────────────────────────────────────
@@ -380,7 +362,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const record = turn.opId === null ? null : ws.ops.get(turn.opId);
     const view = record?.view ?? null;
     const now = clock.now();
-    const answering = turn.step === 'coach' && view !== null;
+    // The recap step of a composite turn shows its stages and its cancel; its text is not the Coach's answer.
+    const answering = view !== null && view.feature === 'coach';
     const preview = answering && view.text !== undefined ? streamPreview('coach', view.text) : '';
     return {
       id: turn.turnId,
@@ -388,7 +371,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       question: turn.question,
       askedAt: turn.askedAt,
       state: view === null || isTerminalOpState(view.state) ? 'admitted' : view.state,
-      // Between the steps of a composite turn there is no operation: the first stage is shown, without a cancel.
+      // The start is still on its way to the background (nothing is admitted yet): the first stage, nothing to cancel.
       phase: view === null ? { startedAt: turn.askedAt, stages: [{ id: 'context', label: msg('result.stage.context'), state: 'current' }], retryAt: null, cancel: null } : phaseVm(view, now),
       // AI-093: «Отправлено коучу…» until the hub's first frame.
       sentToCoach: answering && (view.state === 'admitted' || view.state === 'requesting'),

@@ -4,13 +4,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { COACH_LIMITS, HUB_FACADE_TIMING, ProfileFromGenerationRequestSchema, STORAGE_LIMITS, parseTabPayload, type ChatWindow, type CoachAnswer, type LiveTextTail, type RecapStatus, type SharedRecaps } from '@cg/contracts';
+import { COACH_LIMITS, HUB_FACADE_TIMING, ProfileFromGenerationRequestSchema, STORAGE_LIMITS, StartOpSchema, parseTabPayload, type ChatWindow, type CoachAnswer, type LiveTextTail, type RecapStatus, type SharedRecaps } from '@cg/contracts';
 import {
   COACH_PROJECTION,
   COACH_RECAP_FRESH_MS,
   CoachSessions,
   autoRecapFor,
   clampHistoryLimit,
+  coachTurnSteps,
   exchangesOf,
   historyFor,
   outsideMemory,
@@ -43,7 +44,7 @@ import {
 } from '@cg/core/domain/recap';
 import { profileSaveDelay } from '@cg/core/services';
 
-import { NOW_MS, WORLD, chatOf, uuid } from './support/world';
+import { NOW_MS, WORLD, chatOf, startOf, uuid } from './support/world';
 
 const key = (fan: string = WORLD.fan, personaDefinitionId: string = WORLD.persona.definitionId): CoachSessionKey => ({
   chatKey: `chatspace:${WORLD.pages.one.hostAccountId}:${fan}`,
@@ -291,9 +292,24 @@ describe('[AI-096] auto-recap before the first question', () => {
     expect(autoRecapFor(facts({ mode: 'full', status: { full: null, short: slot(60_000, 300) } }))).toBe('full');
   });
 
-  it('an unknown status does not count as a fresh recap', () => {
-    expect(autoRecapFor(facts({ status: null }))).toBe('short');
-    expect(autoRecapFor(facts({ mode: 'full', status: null }))).toBe('full');
+  it('a status that could not be read is not «no recap»: nothing is built on a guess, the question goes right away', () => {
+    expect(autoRecapFor(facts({ status: null }))).toBeNull();
+    expect(autoRecapFor(facts({ mode: 'full', status: null }))).toBeNull();
+  });
+
+  it('a Coach start that asks for its auto-recap reads as two steps: the recap for the same target, then the same question', () => {
+    const coach = { question: 'How do I reply?', history: [{ question: 'q', answer: 'a' }], attachDraft: 'my draft' };
+    const start = startOf({ feature: 'coach', surface: 'coach', window: 100, split: true, coach: { ...coach, autoRecap: { length: 'full', window: 3000 } } });
+    const steps = coachTurnSteps(start);
+    // The recap is a generation of its own, past the cache: no tone, no parts, nothing of the question or the draft.
+    expect(steps?.recap).toEqual({ feature: 'recap', surface: 'coach', target: start.target, cause: start.cause, tone: null, split: false, window: 3000, force: true });
+    expect(steps?.answer).toEqual({ ...start, coach });
+    expect(StartOpSchema.safeParse(steps?.recap).success).toBe(true);
+    expect(StartOpSchema.safeParse(steps?.answer).success).toBe(true);
+    expect(coachTurnSteps(startOf({ feature: 'coach', surface: 'coach', coach: { ...coach, autoRecap: { length: 'short', window: 300 } } }))?.recap).toMatchObject({ feature: 'recap-short', window: 300 });
+    // An ordinary Coach start, and any other feature, is one step.
+    expect(coachTurnSteps(startOf({ feature: 'coach', surface: 'coach', coach }))).toBeNull();
+    expect(coachTurnSteps(startOf())).toBeNull();
   });
 
   it('a recap step that failed for the conversation itself still lets the question go; anything else stops', () => {

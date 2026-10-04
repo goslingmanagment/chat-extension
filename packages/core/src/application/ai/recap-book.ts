@@ -198,6 +198,8 @@ export class RecapBook {
     this.statuses.set(id, { status: known?.status ?? null, at: null, failed: false });
     const timer = clock.setTimer(RECAP_STATUS.settleMs, () => {
       this.timers.delete(timer);
+      // Somebody read it meanwhile (a Coach turn deciding about its recap): that answer — or that failure — stands.
+      if (this.statuses.get(id)?.at !== null) return;
       if (this.deps.openChat() !== owner.chatKey) {
         this.statuses.delete(id);
         return;

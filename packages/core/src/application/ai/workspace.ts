@@ -106,6 +106,13 @@ export interface StartRequest {
   /** Bypass the result cache (every Recap build, Refresh). */
   readonly force?: boolean;
   readonly coachHistory?: readonly CoachTurn[];
+  /**
+   * AI-096: the recap a Coach turn builds before its question. One start, one
+   * token of the click: the background runs both steps under one admission.
+   * Dropped when the conversation allows no such recap (too little history)
+   * — the question then simply goes.
+   */
+  readonly autoRecap?: 'short' | 'full';
 }
 
 export type StartResult =
@@ -513,6 +520,11 @@ export class AiWorkspace {
       draftEmpty: source !== null ? false : composer === null ? null : composer.draft.provenance === 'empty',
     });
     if (gate !== null) return failed(gate.code);
+    // The recap step of a composite Coach turn is asked for only when the conversation allows one (AI-051
+    // «мало истории»): its gate never costs the person the question. Its owner switch is the caller's and
+    // the background's to check.
+    const recapFeature: FeatureId | null = feature !== 'coach' || request.autoRecap === undefined ? null : request.autoRecap === 'full' ? 'recap' : 'recap-short';
+    const autoRecap = recapFeature !== null && featureGate(recapFeature, { platform: ready.target.binding.platform, window: situation.window, draftEmpty: null }) === null ? request.autoRecap : undefined;
 
     const { host } = this.ports;
     let draft: { plainText: string; revision: number; digest: string } | null = source === null ? null : { plainText: source.text, revision: source.revision, digest: source.digest };
@@ -551,6 +563,7 @@ export class AiWorkspace {
       draft,
       fresh,
       ...(request.coachHistory === undefined ? {} : { coachHistory: request.coachHistory }),
+      ...(autoRecap === undefined ? {} : { autoRecap }),
       ...(original === undefined ? {} : { regenerateOf: original.view.opId, splitWanted: original.memo.split }),
       ...(request.force === true ? { force: true } : {}),
     });
