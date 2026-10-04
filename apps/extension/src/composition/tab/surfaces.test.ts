@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type * as DockChunk from '../../../lazy/entries/dock';
 import { LAZY_ENTRIES } from '../../../lazy/entries/names';
-import { OVERLAY_MOUNTS, mountSurfaces, type SurfaceMounts } from './surfaces';
+import { OVERLAY_MOUNTS, mountSurfaces, overlayRoot, type SurfaceMounts } from './surfaces';
 
 interface Loader {
   resolve(module: Record<string, unknown>): void;
@@ -93,6 +93,33 @@ describe('the surfaces of a tab', () => {
     w.overlays.set('coach', false);
     expect(w.log.at(-1)).toBe('unmount:coach');
     expect(w.surfaces.mounted()).toEqual(['dock', 'toasts', 'spenders']);
+  });
+
+  it('[UI-012] an overlay host takes ChatSpace’s font from where the dock sits — the page’s body when no dock is on screen: the hosts are outside the application root', async () => {
+    document.body.style.setProperty('font-family', 'Stand Sans');
+    try {
+      const w = world();
+      const manager = mounts;
+      if (manager === null) throw new Error('no mount manager');
+      // The toasts were mounted at once: their host already has the page's font.
+      expect(manager.overlay('toast').host.style.getPropertyValue('font-family')).toBe('"Stand Sans"');
+      // The dock sits in a composer whose font differs from the body's: a window opened now takes that one.
+      const composer = document.createElement('div');
+      composer.style.setProperty('font-family', 'Composer Sans');
+      document.body.append(composer);
+      composer.append(manager.dock.host);
+      expect(overlayRoot(manager, 'panel')).toBe(manager.overlay('panel').root);
+      expect(manager.overlay('panel').host.style.getPropertyValue('font-family')).toBe('"Composer Sans"');
+      w.overlays.set('spenders', true);
+      w.loaders.get('spenders')?.resolve({ surface: { name: 'spenders' } });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(w.surfaces.mounted()).toContain('spenders');
+      expect(manager.overlay('modal').host.style.getPropertyValue('font-family')).toBe('"Composer Sans"');
+      composer.remove();
+    } finally {
+      document.body.style.removeProperty('font-family');
+    }
   });
 
   it('the quick jump is the palette chunk’s second surface; a preview and a dialog mount nothing of their own', async () => {

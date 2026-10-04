@@ -7,6 +7,12 @@
 // module mounts by it. Each surface is its own lazy chunk (§11), loaded the
 // first time it is shown.
 //
+// The overlay hosts are children of <html>, outside ChatSpace's application
+// root, and our UI takes the host's font (`font-family: inherit`, ui-design
+// §2.3): a font ChatSpace sets below <html> would never reach them. So an
+// overlay host is given the font of the place the dock sits in — the page's
+// body when no dock is on screen — each time a surface is mounted into it.
+//
 // Every surface sits in the kit's error boundary (ER-020): a render that
 // fails shows «Сбой интерфейса» (CG-UI-FAILED) in its own place and reports
 // here — the surface and the error's class name, never a text. «Перезагрузить
@@ -74,6 +80,25 @@ export interface SurfaceMounts {
   dispose(): void;
 }
 
+/** What of ChatSpace's text rendering an overlay host takes over: the font and, in Firefox on macOS, its smoothing. */
+const HOST_FONT_PROPERTIES = ['font-family', '-moz-osx-font-smoothing'] as const;
+
+/** The closed root of an overlay layer, its host dressed in ChatSpace's font (see the head of this file). */
+export function overlayRoot(mounts: Pick<MountManager, 'dock' | 'overlay'>, layer: OverlayLayer): ShadowRoot {
+  const { host, root } = mounts.overlay(layer);
+  const doc = host.ownerDocument;
+  const beside = mounts.dock.host.parentElement;
+  const from = beside !== null && beside.isConnected ? beside : doc.body;
+  const style = doc.defaultView?.getComputedStyle(from) ?? null;
+  if (style !== null) {
+    for (const property of HOST_FONT_PROPERTIES) {
+      const value = style.getPropertyValue(property);
+      if (value !== '' && host.style.getPropertyValue(property) !== value) host.style.setProperty(property, value);
+    }
+  }
+  return root;
+}
+
 export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
   const { mounts, deps, ui, overlays } = env;
   const options = { report: env.report };
@@ -82,6 +107,8 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
   /** Overlays whose chunk is on its way; false — it closed meanwhile. */
   const loading = new Map<OverlayKind, boolean>();
   let disposed = false;
+
+  const layerRoot = (layer: OverlayLayer): ShadowRoot => overlayRoot(mounts, layer);
 
   const put = (kind: MountSurfaceKind, again: () => DockChunk.KitMount): DockChunk.KitMount => {
     const mount = again();
@@ -102,7 +129,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     }),
   );
   // Toasts are not lazy (§10.1): the host's own queue and the background's toasts in one stack.
-  put('toasts', () => ui.mountToasts(mounts.overlay('toast').root, deps, { ...options, host: env.toasts }));
+  put('toasts', () => ui.mountToasts(layerRoot('toast'), deps, { ...options, host: env.toasts }));
 
   const drop = (kind: MountSurfaceKind): void => {
     const entry = live.get(kind);
@@ -133,7 +160,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     // Closed, or the tab went away, while the chunk was loading.
     if (!wanted || disposed || !overlays.isOpen(overlay)) return;
     try {
-      put(spec.kind, () => ui.mountKitSurface(spec.kind, mounts.overlay(spec.layer).root, deps, surface, options));
+      put(spec.kind, () => ui.mountKitSurface(spec.kind, layerRoot(spec.layer), deps, surface, options));
     } catch (error) {
       // The mount itself failed (not a render inside its boundary): the window is not there, and says so.
       env.report({ kind: 'render', surface: spec.kind, code: 'CG-UI-FAILED', name: error instanceof Error ? error.name : typeof error });

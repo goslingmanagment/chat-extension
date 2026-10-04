@@ -52,7 +52,7 @@ import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, t
 import { forwardHostFacts } from './host-facts';
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
-import { mountSurfaces } from './surfaces';
+import { mountSurfaces, overlayRoot } from './surfaces';
 import { Value } from './values';
 
 export type { TabActionTokens } from './action-gate';
@@ -332,7 +332,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
       confirm(request) {
         dialogHost ??= env.lazy<typeof DialogsChunk>('dialogs').then((chunk) => {
           const host = chunk.createDialogHost();
-          const mount = chunk.mountDialogs(mounts.overlay('modal').root, deps, { host, report: reportSurface });
+          const mount = chunk.mountDialogs(overlayRoot(mounts, 'modal'), deps, { host, report: reportSurface });
           // While a question stands it is our top window for the keys (HK-027).
           const off = host.pending.subscribe((pending) => {
             asking = pending !== null;
