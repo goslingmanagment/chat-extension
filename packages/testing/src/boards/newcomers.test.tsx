@@ -12,7 +12,7 @@ import { windowText } from '@cg/ui/newcomers';
 
 import { cgError, claimMine, ctxOf, entry, FANS, iso, MIN, msg, newcomerRow, views, type AppClientScenario } from '../scenarios/app-client';
 import { flush, keydown, mountBoardSettled, settle, textOf, type MountedBoard } from './harness';
-import { boardScenario } from './states';
+import { BOARD_STATES, boardScenario } from './states';
 import { boardWorld } from './world';
 
 let ui: MountedBoard | null = null;
@@ -325,6 +325,48 @@ describe('«Новые»: the card', () => {
     expect(ui.text('.cg-pvr__note')).toBe('Дальше не отправляем, пока неясно, ушла ли часть 2. Удержание снимет тимлид или владелец после проверки.');
     expect(ui.$$('.cg-pv .cg-btn--send')).toEqual([]);
     expect(ui.$$('.cg-pvp button').map((button) => button.getAttribute('aria-label') ?? textOf(button))).toEqual(['Копировать часть 1', 'Открыть чат для проверки', 'Копировать часть 3']);
+  });
+
+  it('[NF-022] held on an unknown outcome with no result on screen: the card says who lifts the hold and never advises to insert by hand', async () => {
+    // The result is gone (its texts expired, another tab): the hold is all the card can say.
+    ui = await mountBoardSettled('newcomers', change('13d', (vm) => vm, (vm) => ({ ...vm, result: null, stoppedNote: null })));
+    const card = ui.$('.cg-pv [data-cg-claim="held-uncertain"] .cg-card') as HTMLElement;
+    expect(card.getAttribute('data-cg-code')).toBe('CG-SEND-UNCERTAIN');
+    expect(textOf(card.querySelector('.cg-card__code'))).toBe('ChatGoose · CG-SEND-UNCERTAIN');
+    expect(textOf(card.querySelector('.cg-card__title'))).toBe('Неизвестно, ушло ли');
+    expect(textOf(card.querySelector('.cg-card__text'))).toBe('Дальше не отправляем, пока неясно, ушла ли часть 2. Удержание снимет тимлид или владелец после проверки.');
+    // Nothing to press in it: no retry, no insert, no copy.
+    expect(card.querySelectorAll('button')).toHaveLength(0);
+    ui.unmount();
+    // The model's own note, when it sends one, is what the card says.
+    ui = await mountBoardSettled('newcomers', change('13d', (vm) => vm, (vm) => ({ ...vm, result: null, stoppedNote: msg('newcomers.stopped', { n: 3 }) })));
+    expect(ui.text('.cg-pv [data-cg-claim="held-uncertain"] .cg-card__text')).toMatch(/ушла ли часть 3\./);
+  });
+
+  it('[NF-022] no preview and no card ever advises to insert an uncertain part by hand (ui-design §4.13, §9.5 п. 5)', async () => {
+    // «если сообщения нет, вставьте часть вручную» — the «not in the archive, so it did not go» rule the architecture forbids (§6.7.8).
+    const advice = /если сообщения нет|вставьте часть вручную|if the message is not there|insert the part by hand/i;
+    const cases: (readonly [string, 'spenders' | 'newcomers', AppClientScenario | string])[] = [];
+    for (const state of BOARD_STATES) {
+      if (state.surface !== 'spenders' && state.surface !== 'newcomers') continue;
+      if (!/^1[13][a-j]$/.test(state.id)) continue;
+      cases.push([state.id, state.surface, state.id]);
+    }
+    cases.push(['13d without the result', 'newcomers', change('13d', (vm) => vm, (vm) => ({ ...vm, result: null }))]);
+    expect(cases.length).toBeGreaterThan(12);
+    for (const language of ['ru', 'en'] as const) {
+      for (const [name, surface, scenario] of cases) {
+        // Texts are per language: a scenario object is built for `ru`, a state id for the language asked.
+        if (typeof scenario !== 'string' && language === 'en') continue;
+        ui = await mountBoardSettled(surface, scenario, { language });
+        const pane = ui.$('.cg-pv');
+        // «Отправка недоступна… Вставьте часть в чат вручную» of an unavailable send is another advice and stays (§4.13).
+        const text = textOf(pane).replace(/Вставьте часть в чат вручную|Insert the part into the chat by hand/gi, '');
+        expect(text, `${name} · ${language}`).not.toMatch(advice);
+        ui.unmount();
+        ui = null;
+      }
+    }
   });
 
   it('the own lease counts down and can be renewed or let go; the other lease states say what happened', async () => {

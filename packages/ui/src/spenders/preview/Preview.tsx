@@ -8,7 +8,7 @@
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 
-import { type ClaimVM, type I18n, type PreviewActionId, type PreviewSource, type PreviewVM } from '@cg/contracts/vm';
+import { type ClaimVM, type I18n, type Msg, type PreviewActionId, type PreviewSource, type PreviewVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, Dot, ErrorCard, Icon, Money, TextField, ViewState, isComposing, useCountdown, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView, type StyleSource } from '../../kit';
 import { coverageWord, isPlainKey, isTextEntry, timeOrUnknown } from '../window';
@@ -138,7 +138,7 @@ function OwnLease({ claim }: { readonly claim: Extract<ClaimVM, { s: 'mine' }> }
  * holds the lease — no name and no countdown (§12 п. 5) —, it is held in
  * another tab, it expired, the row changed, or a part's outcome is unknown.
  */
-function LeaseNote({ claim, hasResult }: { readonly claim: ClaimVM; readonly hasResult: boolean }): JSX.Element | null {
+function LeaseNote({ claim, hasResult, stoppedNote }: { readonly claim: ClaimVM; readonly hasResult: boolean; readonly stoppedNote: Msg | null }): JSX.Element | null {
   const i18n = useI18n();
   switch (claim.s) {
     case 'none':
@@ -158,13 +158,19 @@ function LeaseNote({ claim, hasResult }: { readonly claim: ClaimVM; readonly has
           <ErrorCard error={claim.error} tone="state" copyCode={false} />
         </div>
       );
-    case 'held-uncertain':
+    case 'held-uncertain': {
       // With the result on screen the uncertain part and the note under the parts say it already.
-      return hasResult ? null : (
+      if (hasResult) return null;
+      // Without it the card says what the note would: we wait for a team lead or the owner. The registry's
+      // body of CG-SEND-UNCERTAIN advises to insert the part by hand; a preview never gives that advice
+      // (ui-design §4.13, §9.5 п. 5; architecture §6.7.8: no «в архиве нет — значит не ушло»).
+      const body = i18n.text(stoppedNote ?? { key: 'newcomers.stopped', params: { n: claim.part } });
+      return (
         <div data-cg-claim="held-uncertain">
-          <ErrorCard error={claim.error} tone="state" copyCode={false} />
+          <ErrorCard error={{ ...claim.error, body }} tone="state" copyCode={false} />
         </div>
       );
+    }
   }
 }
 
@@ -240,7 +246,7 @@ export function Preview({ from, closable = true, hiHint }: PreviewProps): JSX.El
             ) : null}
             {vm.claim !== null && vm.claim.s === 'mine' ? <OwnLease claim={vm.claim} /> : null}
             <MiniStrip vm={vm} hiHint={hiHint ?? null} />
-            {vm.claim === null ? null : <LeaseNote claim={vm.claim} hasResult={vm.result !== null} />}
+            {vm.claim === null ? null : <LeaseNote claim={vm.claim} hasResult={vm.result !== null} stoppedNote={vm.stoppedNote} />}
             {vm.result !== null ? (
               <PreviewResult result={vm.result} stoppedNote={vm.stoppedNote} />
             ) : vm.idleHint === null ? null : (
