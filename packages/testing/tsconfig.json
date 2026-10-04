@@ -19,7 +19,8 @@
     "src",
     "e2e",
     "fixture-chatspace.vite.config.ts",
-    "kit-gallery.vite.config.ts"
+    "kit-gallery.vite.config.ts",
+    "dock-gallery.vite.config.ts"
   ],
   "references": [
     {

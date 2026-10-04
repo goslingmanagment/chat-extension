@@ -74,6 +74,14 @@ export interface I18n {
   /** «сейчас», «7 мин», «3 ч», «12 д»; `now` defaults to the clock of the port. */
   formatAge(from: number | IsoTimestamp, now?: number): string;
   formatTime(at: number | IsoTimestamp, style?: TimeStyle): string;
+  /**
+   * The same in a named IANA zone (1.2.0). The daily quota resets at 00:00 UTC
+   * and its tooltip says «Обновится в 03:00 по Москве» whatever zone the viewer
+   * is in (ui-design §4.1): that one time is printed in `Europe/Moscow`. A zone
+   * the runtime does not know gives `—`. Optional: a port without it can only
+   * print its own zone.
+   */
+  formatTimeIn?(at: number | IsoTimestamp, timeZone: string, style?: TimeStyle): string;
   formatDuration(ms: number, style: DurationStyle): string;
   /** Called after a language switch; the views re-render with new texts. */
   subscribe(listener: (language: Locale) => void): () => void;

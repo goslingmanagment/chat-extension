@@ -309,4 +309,12 @@ export interface RefusalVM {
   readonly feature: FeatureId;
   readonly error: CgErrorView;
   readonly running: readonly RunningOpVM[];
+  /**
+   * Epoch ms of the refused start (1.2.0): what tells one refusal from the
+   * next. No operation exists, so «Скрыть» hides a refusal in the UI only; a
+   * start refused again — by a key as well as by a click — comes with a new
+   * `at` and is shown again. Without it a refusal is told apart by its chat,
+   * feature and code alone.
+   */
+  readonly at?: number;
 }

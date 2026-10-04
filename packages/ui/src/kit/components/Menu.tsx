@@ -9,7 +9,7 @@ import { type ComponentChildren, type JSX, type TargetedFocusEvent, type Targete
 import { useEffect, useId, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { useKit } from '../context';
-import { focusQuietly, rovingIndex } from '../focus';
+import { focusQuietly, isHeldKey, rovingIndex } from '../focus';
 import { useTooltip } from './Tooltip';
 
 export interface MenuItem {
@@ -166,7 +166,8 @@ function MenuEntry({ item, kind, onChoose }: { readonly item: MenuItem; readonly
           tip.props.onKeyDown(event);
           if (event.key === ' ' || event.key === 'Enter') {
             event.preventDefault();
-            onChoose();
+            // The repeat of the press that opened the menu lands here: it chooses nothing.
+            if (!isHeldKey(event)) onChoose();
           }
         }}
       >
@@ -187,7 +188,7 @@ export function MenuAnchor({ children }: { readonly children: ComponentChildren 
 export function menuTriggerKeys(event: KeyboardEvent, open: () => void): void {
   if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    open();
+    if (!isHeldKey(event)) open();
   }
 }
 

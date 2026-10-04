@@ -117,6 +117,13 @@ export const NEWCOMERS_WINDOW_HOURS = { min: 1, max: 720, quick: [24, 48, 72, 16
 export const RECAP_LENGTHS = ['short', 'full'] as const;
 export type RecapLength = (typeof RECAP_LENGTHS)[number];
 
+/** Recap and Review of the open chat: the two analysis views of the dock sheet (ui-design §4.11). */
+export const ANALYSIS_VIEWS = ['recap', 'review'] as const;
+export type AnalysisView = (typeof ANALYSIS_VIEWS)[number];
+/** Where an analysis view is shown: the dock sheet, the «Развернуть ↗» dialog (UI-014), or hidden (kept). */
+export const ANALYSIS_MODES = ['sheet', 'expanded', 'hidden'] as const;
+export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
+
 const part = z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1));
 const variant = z.optional(z.int().check(z.gte(0), z.lte(PART_LIMITS.maxVariants - 1)));
 const act = <T extends string, S extends z.core.$ZodLooseShape>(type: T, shape: S) => z.strictObject({ type: z.literal(type), ...shape });
@@ -186,6 +193,15 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('NewCoachDialog', {}),
   /** CG-RECAP-SAVE «Сохранить ещё раз»: the idempotent dossier reference write only, never a new generation. */
   act('RetryRecapSave', { length: z.enum(RECAP_LENGTHS) }),
+  /**
+   * Where Recap or Review of the open chat is shown (1.2.0): the dock sheet,
+   * the «Развернуть ↗» dialog (UI-014) or hidden — kept, the same button opens
+   * it again. They follow the open chat and may have no operation (a saved
+   * Recap), so HideResult and ExpandResult, which name an operation, cannot
+   * address them. Never generates: a Recap sheet with nothing saved shows the
+   * picker («Собрать коротко / полностью»).
+   */
+  act('ShowAnalysis', { view: z.enum(ANALYSIS_VIEWS), mode: z.enum(ANALYSIS_MODES) }),
 
   // ── lists ──
   act('SetSpendersPeriod', { period: SpendersPeriodChoiceSchema }),

@@ -164,15 +164,19 @@ export function createLiveI18n(source: CatalogSource, options: I18nOptions): Liv
   let language = options.language;
   const clock = options.now ?? Date.now;
   const listeners = new Set<(language: Locale) => void>();
-  const partsFormat = new Intl.DateTimeFormat('en-GB', {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    ...(options.timeZone === undefined ? {} : { timeZone: options.timeZone }),
-  });
+  const partsFormatIn = (timeZone: string | undefined): Intl.DateTimeFormat =>
+    new Intl.DateTimeFormat('en-GB', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      ...(timeZone === undefined ? {} : { timeZone }),
+    });
+  const partsFormat = partsFormatIn(options.timeZone);
+  /** Formats of named zones (`formatTimeIn`); null — a zone this runtime does not know. */
+  const zoneFormats = new Map<string, Intl.DateTimeFormat | null>();
   const pluralRules = new Map<Locale, Intl.PluralRules>();
   const reported = new Set<string>();
   const missing = (key: string): string => {
@@ -193,24 +197,40 @@ export function createLiveI18n(source: CatalogSource, options: I18nOptions): Liv
     return rules;
   };
 
-  const dateParts = (at: number): DateParts => {
-    const parts = partsFormat.formatToParts(new Date(at));
+  const dateParts = (at: number, format: Intl.DateTimeFormat = partsFormat): DateParts => {
+    const parts = format.formatToParts(new Date(at));
     const part = (type: Intl.DateTimeFormatPartTypes): string => parts.find((p) => p.type === type)?.value ?? '';
     return { year: Number(part('year')), month: Number(part('month')), day: Number(part('day')), hour: part('hour'), minute: part('minute') };
   };
 
   const monthName = (month: number): string => MONTHS[language][month - 1] ?? '';
 
-  const formatTime = (at: number | string, style: TimeStyle = 'time'): string => {
+  const formatTimeWith = (format: Intl.DateTimeFormat, at: number | string, style: TimeStyle): string => {
     const epoch = toEpoch(at);
     if (!Number.isFinite(epoch)) return UNKNOWN_VALUE;
-    const parts = dateParts(epoch);
+    const parts = dateParts(epoch, format);
     const time = `${parts.hour}:${parts.minute}`;
     if (style === 'time') return time;
-    const thisYear = dateParts(clock()).year;
+    const thisYear = dateParts(clock(), format).year;
     const day = `${parts.day} ${monthName(parts.month)}${parts.year === thisYear ? '' : ` ${parts.year}`}`;
     if (style === 'datetime') return `${day}, ${time}`;
     return day;
+  };
+
+  const formatTime = (at: number | string, style: TimeStyle = 'time'): string => formatTimeWith(partsFormat, at, style);
+
+  // «Обновится в 03:00 по Москве»: a time named with its zone is printed in that zone, wherever the chatter sits.
+  const formatTimeIn = (at: number | string, timeZone: string, style: TimeStyle = 'time'): string => {
+    let format = zoneFormats.get(timeZone);
+    if (format === undefined) {
+      try {
+        format = partsFormatIn(timeZone);
+      } catch {
+        format = null;
+      }
+      zoneFormats.set(timeZone, format);
+    }
+    return format === null ? UNKNOWN_VALUE : formatTimeWith(format, at, style);
   };
 
   const catalogText = (key: I18nKey, params: I18nPlainParams | undefined, count: number | null): string => {
@@ -283,6 +303,7 @@ export function createLiveI18n(source: CatalogSource, options: I18nOptions): Liv
     formatMoneySpoken,
     formatAge,
     formatTime,
+    formatTimeIn,
     formatDuration,
     subscribe(listener) {
       listeners.add(listener);

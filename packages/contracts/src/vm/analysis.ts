@@ -151,6 +151,8 @@ export interface CoachTurnVM {
    * `ResultVM.confirm` belongs to the dock's operation and cannot carry it.
    */
   readonly confirm?: ConfirmVM | null;
+  /** The debug footer of the turn, in debug mode only (1.2.0, DB-019): time, tokens, cost, «Промпт», the stage profile. */
+  readonly debug?: ResultDebugVM | null;
 }
 
 export interface CoachVM {

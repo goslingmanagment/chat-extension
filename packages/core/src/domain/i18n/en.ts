@@ -161,6 +161,12 @@ export const EN: I18nCatalog<'en'> = {
   'result.keys.copy': 'copy',
   'result.keys.collapse': 'collapse',
   'result.keys.hideTooltip': 'This hint shows for the first 5 answers',
+  'result.expand': 'Expand',
+  'result.collapse': 'Collapse',
+  'result.announce.stage': '{action}: {stage}',
+  'result.announce.ready': { one: 'Answer ready: {n} part', other: 'Answer ready: {n} parts' },
+  'result.announce.retryIn': { one: 'You can retry in {n} second', other: 'You can retry in {n} seconds' },
+  'result.announce.canRetry': 'You can retry now',
 
   // ── Parts, Б2 confirmation, Fix ──
   'part.aria': 'Part {n}',
@@ -206,6 +212,9 @@ export const EN: I18nCatalog<'en'> = {
   'cg.uiFailed.reload': 'Reload panel',
   'cg.uiFailed.export': 'Export diagnostics',
   'cg.aiFailedToast': 'AI: failed · {fan}',
+  'cg.recapSave.line': 'not saved to the hub',
+  'cg.recapSave.action': 'Save again',
+  'cg.recapSave.actionTooltip': 'Write to the hub again; AI does not run',
 
   // ── Recap, Review, debug ──
   'recap.lengthLabel': 'Length',
@@ -240,6 +249,7 @@ export const EN: I18nCatalog<'en'> = {
   'review.section.mistakes': 'Mistakes',
   'review.section.works': 'What worked',
   'review.section.recommendations': 'Recommendations',
+  'review.example': 'How it should have been',
   'debug.label': 'Debug',
   'debug.prompt': 'Prompt',
   'debug.gutter.cost': '$',
@@ -497,6 +507,9 @@ export const EN: I18nCatalog<'en'> = {
   'coach.hint.understand.likes': 'What really works for this fan?',
   'coach.hint.understand.person': 'Read him for me: what kind of person is he?',
   'coach.hint.understand.topics': 'What to talk about besides sales?',
+  'coach.attachDraft': 'Attach my reply',
+  'coach.sentToCoach': 'Sent to Coach…',
+  'coach.memoryBoundary': 'Coach no longer remembers the turns above',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Command palette',

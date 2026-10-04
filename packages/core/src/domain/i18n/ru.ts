@@ -167,6 +167,17 @@ export const RU: I18nCatalog<'ru'> = {
   'result.keys.copy': 'копировать',
   'result.keys.collapse': 'свернуть',
   'result.keys.hideTooltip': 'Подсказка видна первые 5 ответов',
+  'result.expand': 'Развернуть',
+  'result.collapse': 'Свернуть',
+  'result.announce.stage': '{action}: {stage}',
+  'result.announce.ready': { one: 'Ответ готов: {n} часть', few: 'Ответ готов: {n} части', many: 'Ответ готов: {n} частей', other: 'Ответ готов: {n} части' },
+  'result.announce.retryIn': {
+    one: 'Повторить можно через {n} секунду',
+    few: 'Повторить можно через {n} секунды',
+    many: 'Повторить можно через {n} секунд',
+    other: 'Повторить можно через {n} секунды',
+  },
+  'result.announce.canRetry': 'Можно повторить',
 
   // ── Parts, Б2 confirmation, Fix ──
   'part.aria': 'Часть {n}',
@@ -212,6 +223,9 @@ export const RU: I18nCatalog<'ru'> = {
   'cg.uiFailed.reload': 'Перезагрузить панель',
   'cg.uiFailed.export': 'Выгрузить диагностику',
   'cg.aiFailedToast': 'AI: не получилось · {fan}',
+  'cg.recapSave.line': 'не сохранено в хаб',
+  'cg.recapSave.action': 'Сохранить ещё раз',
+  'cg.recapSave.actionTooltip': 'Записать в хаб ещё раз; AI не запускается',
 
   // ── Recap, Review, debug ──
   'recap.lengthLabel': 'Длина',
@@ -253,6 +267,7 @@ export const RU: I18nCatalog<'ru'> = {
   'review.section.mistakes': 'Ошибки',
   'review.section.works': 'Что сработало',
   'review.section.recommendations': 'Рекомендации',
+  'review.example': 'Как надо было',
   'debug.label': 'Отладка',
   'debug.prompt': 'Промпт',
   'debug.gutter.cost': '$',
@@ -522,6 +537,9 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.hint.understand.likes': 'Что этому фану реально заходит?',
   'coach.hint.understand.person': 'Разбери его: что за человек?',
   'coach.hint.understand.topics': 'О чём говорить, кроме продаж?',
+  'coach.attachDraft': 'Приложить мой ответ',
+  'coach.sentToCoach': 'Отправлено Coach…',
+  'coach.memoryBoundary': 'Ходы выше Coach уже не помнит',
 
   // ── Palette, quick jump, cheat sheet, toasts ──
   'palette.label': 'Палитра команд',

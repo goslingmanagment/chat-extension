@@ -5,7 +5,18 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { CLAIM_RENEW_SAMPLES, FAN_PANEL_BIO_SAMPLES, MONEY_CENTS_SAMPLES, SPOKEN_MONEY_SAMPLES, STATS_ATTENTION_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import {
+  CLAIM_RENEW_SAMPLES,
+  COACH_TURN_VM_SAMPLES,
+  FAN_PANEL_BIO_SAMPLES,
+  MONEY_CENTS_SAMPLES,
+  REFUSAL_VM_SAMPLES,
+  SPOKEN_MONEY_SAMPLES,
+  STATS_ATTENTION_SAMPLES,
+  TOAST_VM_SAMPLES,
+  UI_ACTION_SAMPLES,
+  ZONED_TIME_SAMPLES,
+} from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -307,5 +318,49 @@ describe('the fan panel\'s bio names its source (1.2.0)', () => {
     expect(hub).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
     expect(host).toMatchObject({ bioSource: 'host' });
     expect(FAN_PANEL_BIO_SAMPLES.invalid).toHaveLength(1);
+  });
+});
+
+describe('the dock and Coach (1.2.0)', () => {
+  it('[UI-031] the I18n port may print a time in a named zone: the quota resets «в 03:00 по Москве» for every viewer', () => {
+    expectTypeOf<C.I18n['formatTimeIn']>().toEqualTypeOf<((at: number | C.IsoTimestamp, timeZone: string, style?: C.TimeStyle) => string) | undefined>();
+    expect(C.UI_TEXT_KEYS).toContain('dock.quota.zeroTooltip');
+    expect(ZONED_TIME_SAMPLES.valid[0]?.('2026-10-04T00:00:00Z', 'Europe/Moscow')).toBe('03:00');
+    expect(ZONED_TIME_SAMPLES.invalid).toHaveLength(1);
+  });
+
+  it('[UI-015] a refusal may say when its start was refused, so a second one is told from the first', () => {
+    expectTypeOf<C.RefusalVM['at']>().toEqualTypeOf<number | undefined>();
+    const [plain, timed] = REFUSAL_VM_SAMPLES.valid;
+    expect(plain?.at).toBeUndefined();
+    expect(timed?.at).toBeGreaterThan(0);
+    expect(REFUSAL_VM_SAMPLES.invalid).toHaveLength(1);
+  });
+
+  it('[AI-086] [DB-019] a Coach turn may carry the Б2 question of a draft part and its debug footer', () => {
+    expectTypeOf<C.CoachTurnVM['confirm']>().toEqualTypeOf<C.ConfirmVM | null | undefined>();
+    expectTypeOf<C.CoachTurnVM['debug']>().toEqualTypeOf<C.ResultDebugVM | null | undefined>();
+    const [plain, , asking] = COACH_TURN_VM_SAMPLES.valid;
+    expect(plain?.confirm).toBeUndefined();
+    expect(asking?.confirm?.kind).toBe('human-draft');
+    expect(asking?.debug?.stages).toHaveLength(1);
+    expect(COACH_TURN_VM_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[ER-005] an error view may carry the dot of its card: a failure or a state', () => {
+    expect(C.CG_ERROR_TONES).toEqual(['failure', 'state']);
+    expectTypeOf<C.CgErrorView['tone']>().toEqualTypeOf<C.CgErrorTone | undefined>();
+    const base = { code: 'CG-QUOTA-DAILY', title: 'Дневная квота AI исчерпана', body: 'Квота обновится в 03:00 по Москве.' };
+    expect(C.CgErrorViewSchema.safeParse(base).success).toBe(true);
+    expect(C.CgErrorViewSchema.safeParse({ ...base, tone: 'state' }).success).toBe(true);
+    expect(C.CgErrorViewSchema.safeParse({ ...base, tone: 'ring' }).success).toBe(false);
+  });
+
+  it('the live region and the failed Recap save have their words in the catalog', () => {
+    for (const key of ['result.announce.stage', 'result.announce.canRetry', 'cg.recapSave.line', 'cg.recapSave.action', 'cg.recapSave.actionTooltip'] as const) {
+      expect(C.UI_TEXT_KEYS).toContain(key);
+    }
+    expect(C.isPluralKey('result.announce.ready')).toBe(true);
+    expect(C.isPluralKey('result.announce.retryIn')).toBe(true);
   });
 });
