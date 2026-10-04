@@ -20,6 +20,7 @@
     "parity:coverage": "node tools/parity/coverage.ts",
     "archive-check": "node tools/archive-check/index.ts",
     "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",
+    "perf": "pnpm build:test && pnpm --filter @cg/testing perf",
     "dev": "node tools/dev/index.ts",
     "sign:dry-run": "node tools/sign-dry-run/index.ts"
   },
