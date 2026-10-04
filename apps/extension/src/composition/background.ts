@@ -104,10 +104,12 @@ import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
 
 export function wsTapSpec(): DynamicMainScriptSpec {
-  // Release taps ChatSpace; a test build taps only the loopback stand. Both
-  // only while the bootstrap flag `wsTap` is on. The compile-time constant
-  // keeps loopback hosts out of the release bundle.
-  return { id: WS_TAP_SCRIPT_ID, js: ['chatspace-ws.js'], matches: __CG_TEST_HOSTS__ ? LOOPBACK_MATCHES : CHATSPACE_MATCHES };
+  // Release taps ChatSpace. A test build taps wherever its content scripts run — ChatSpace itself and the
+  // loopback stand (its manifest matches both): the owner's dev profile (`pnpm dev`, X9) is a test build on
+  // the real ChatSpace, and without the tap there it could exercise neither the incoming facts nor X8. Both
+  // only while the bootstrap flag `wsTap` is on. The compile-time constant keeps loopback hosts out of the
+  // release bundle.
+  return { id: WS_TAP_SCRIPT_ID, js: ['chatspace-ws.js'], matches: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES };
 }
 
 /** Alarms survive the event page unloading; they are armed only while a ChatSpace tab is registered. */
