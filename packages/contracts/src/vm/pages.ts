@@ -114,7 +114,11 @@ export interface StatusBodyVM {
 
 export interface AccountBodyVM {
   readonly section: 'account';
-  readonly hub: { readonly origin: string; readonly hostPermission: 'granted' | 'missing'; readonly requestPermission: ActionButtonVM | null };
+  /**
+   * `hostPermission: 'unknown'` (1.2.0) — the browser has not said yet, or not
+   * for this address: «неизвестно», never «разрешён» by default (ST-043).
+   */
+  readonly hub: { readonly origin: string; readonly hostPermission: 'granted' | 'missing' | 'unknown'; readonly requestPermission: ActionButtonVM | null };
   readonly connection: { readonly s: 'ok' | 'down' | 'unknown'; readonly latencyMs: number | null; readonly checkedAt: number | null };
   readonly user: { readonly login: string; readonly role: Role; readonly deviceSince: IsoTimestamp | null } | null;
   readonly pages: readonly { readonly pageName: string; readonly platform: string; readonly persona: string | null }[];

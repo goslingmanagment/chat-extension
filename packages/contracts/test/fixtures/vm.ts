@@ -202,6 +202,30 @@ export const OPTIONS_FOOTER_SAMPLES: { readonly valid: readonly OptionsFooter[];
 };
 
 /**
+ * Host access to the hub address in «Аккаунт» (1.2.0, ST-043): three words —
+ * the browser's yes, its no, and «unknown» while it has not answered for the
+ * address on screen. A missing answer is never a yes.
+ */
+type AccountHub = C.AccountBodyVM['hub'];
+export const ACCOUNT_HUB_SAMPLES: { readonly valid: readonly AccountHub[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    { origin: 'https://hub.example.test', hostPermission: 'granted', requestPermission: null },
+    { origin: 'https://hub.example.test', hostPermission: 'unknown', requestPermission: null },
+    {
+      origin: 'https://hub.example.test',
+      hostPermission: 'missing',
+      requestPermission: { label: { key: 'settings.account.grantAccess' }, action: { type: 'RequestPermission', kind: 'hub-host' }, enabled: true, reason: null, hotkey: null },
+    },
+  ],
+  invalid: [
+    // @ts-expect-error an unanswered check is 'unknown', not null
+    { origin: 'https://hub.example.test', hostPermission: null, requestPermission: null } satisfies AccountHub,
+    // @ts-expect-error the access is one of three words, not a flag
+    { origin: 'https://hub.example.test', hostPermission: true, requestPermission: null } satisfies AccountHub,
+  ],
+};
+
+/**
  * The I18n port's spoken money (1.1.0, ui-design §6.2): optional, so a port
  * without it still is an I18n; when present it returns words, not a number.
  */

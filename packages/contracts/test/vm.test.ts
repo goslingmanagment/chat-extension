@@ -5,7 +5,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
-import { OPTIONS_FOOTER_SAMPLES, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
+import { ACCOUNT_HUB_SAMPLES, OPTIONS_FOOTER_SAMPLES, SPOKEN_MONEY_SAMPLES, TOAST_VM_SAMPLES, UI_ACTION_SAMPLES } from './fixtures/vm';
 
 describe('UiAction', () => {
   it('lists every action type once, in the schema order', () => {
@@ -246,6 +246,14 @@ describe('extension pages (1.2.0)', () => {
     for (const action of [full?.whatsNew, full?.changelog]) expect(C.UiActionSchema.safeParse(action).success).toBe(true);
     expect(bare).toEqual({ whatsNew: null, changelog: null, unseenNotes: false });
     expect(OPTIONS_FOOTER_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[ST-043] host access to the hub address is granted, missing or unknown — an unanswered check is never «granted»', () => {
+    expectTypeOf<C.AccountBodyVM['hub']['hostPermission']>().toEqualTypeOf<'granted' | 'missing' | 'unknown'>();
+    expect(ACCOUNT_HUB_SAMPLES.valid.map((sample) => sample.hostPermission)).toEqual(['granted', 'unknown', 'missing']);
+    const request = ACCOUNT_HUB_SAMPLES.valid[2]?.requestPermission;
+    expect(C.UiActionSchema.safeParse(request?.action).success).toBe(true);
+    expect(ACCOUNT_HUB_SAMPLES.invalid).toHaveLength(2);
   });
 
   it('[PU-017] [ST-076] a page hands a click to ChatSpace as a command: a surface to open, or an account to go to', () => {
