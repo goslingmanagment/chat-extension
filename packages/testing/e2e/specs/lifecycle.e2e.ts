@@ -3,8 +3,9 @@
 // the fake hub. Firefox unloads an event page after 30 s without an event
 // delivered to it, and an open port does not hold it — so the e2e checks what
 // the browser really does, not what a fake of it does:
-// - [BG-003] an open ChatSpace tab keeps the event page alive across several
-//   idle timeouts, and without a tab the page is unloaded;
+// - [BG-003] an open ChatSpace tab keeps the event page alive across idle
+//   timeouts, in front and as a background tab, and without a tab the page
+//   is unloaded;
 // - a suspended page (onSuspend, unload) is woken by the open tab, which
 //   registers again; the new instance has the sign-in, the tab's chat, its
 //   host contract and the alarms, and the log says what happened;
@@ -19,7 +20,7 @@ import { browser, expect } from '@wdio/globals';
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { backgroundState, setBackgroundIdleTimeout, suspendBackground, waitForBackgroundState } from '../support/background';
-import { installTestBuild, pageRpc, readReport, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
+import { installTestBuild, pageRpc, readReport, standUrl, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
 import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
@@ -68,6 +69,12 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     if (!answer.ok) throw new Error(`diagnostics.get: ${answer.error.code}`);
     return answer.payload;
   };
+  /** true — the ChatSpace tab is a background tab of the browser: another tab is selected. Asked of the browser, not of the event page. */
+  const standInBackground = async (): Promise<boolean> =>
+    browser.execute(async (origin: string) => {
+      const api = (globalThis as unknown as { browser: { tabs: { query(query: { active: boolean }): Promise<Array<{ url?: string }>> } } }).browser;
+      return (await api.tabs.query({ active: false })).some((tab) => tab.url?.startsWith(origin) === true);
+    }, new URL(standUrl('/')).origin);
   /** The tab as the background knows it once it reported its chat and its host contract. */
   const tabKnown = async (message: string): Promise<Diagnostics['tabs'][number]> => {
     let last: Diagnostics['tabs'] = [];
@@ -201,8 +208,8 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     await dockIs((dock) => dock.language === 'ru', 'the dock is back in Russian');
   });
 
-  it('[BG-003] an open ChatSpace tab keeps the event page alive across idle timeouts; without a tab the page is unloaded', async function () {
-    this.timeout(150_000);
+  it('[BG-003] an open ChatSpace tab keeps the event page alive across idle timeouts, in front and in the background; without a tab the page is unloaded', async function () {
+    this.timeout(180_000);
     await toPages();
     await setBackgroundIdleTimeout(IDLE_TIMEOUT_MS);
     // The running page counts with the timer it started: its next instance takes the new timeout.
@@ -215,31 +222,43 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     await toPages();
     const known = await tabKnown('the tab before the wait');
 
-    // More than two timeouts with nobody talking to the background but the tab itself.
+    // More than a timeout with nobody talking to the background but the tab itself — the tab in front.
     await toStand();
     // The tab coming to the front may be a «focus» (a bootstrap read once it is older than a minute, §8.3):
-    // it is over before the mark, and nothing switches tabs until the journal is read.
+    // it is over before the mark, and the tab does not come to the front again until the journal is read.
     await browser.pause(1500);
     const mark = await hub().mark();
     const states = new Set<string>();
-    const until = Date.now() + IDLE_TIMEOUT_MS * 2 + 5000;
-    while (Date.now() < until) {
+    const inFrontUntil = Date.now() + IDLE_TIMEOUT_MS + 5000;
+    while (Date.now() < inFrontUntil) {
       const rpc = rpcOf(await readReport());
       states.add(`${rpc?.state}:${rpc?.registrations}`);
       await browser.pause(500);
     }
     expect([...states]).toEqual([`ready:${registrations + 1}`]);
-    // The same instance all along: nothing read the bootstrap or the catalog again.
+
+    // And once more with the tab in the background, where the browser slows its timers down: another tab is
+    // selected, and that tab asks the background nothing (the state is read on the browser's privileged side).
+    await toPages();
+    expect(await standInBackground()).toBe(true);
+    const background = new Set<string>();
+    const hiddenUntil = Date.now() + IDLE_TIMEOUT_MS + 8000;
+    while (Date.now() < hiddenUntil) {
+      background.add(await backgroundState());
+      await browser.pause(1000);
+    }
+    expect([...background]).toEqual(['running']);
+    // The same instance all along: nothing read the bootstrap or the catalog again…
     const entries = (await hub().journal(mark)).entries;
     expect(callsTo(entries, 'clientBootstrap')).toEqual([]);
     expect(callsTo(entries, 'aiPersonaCatalog')).toEqual([]);
-    await toPages();
-    expect(await backgroundState()).toBe('running');
+    // …and the tab is the session it was, registered once with this instance.
     const still = await tabKnown('the tab after the wait');
     expect(still.tabSessionId).toBe(known.tabSessionId);
+    await toStand();
+    expect(rpcOf(await readReport())).toMatchObject({ state: 'ready', registrations: registrations + 1 });
 
     // The tab leaves ChatSpace: nothing holds the page now, and the same timeout unloads it.
-    await toStand();
     await browser.url('about:blank');
     await toPages();
     await waitForBackgroundState('stopped', 'no ChatSpace tab is open', IDLE_TIMEOUT_MS + 15_000);
