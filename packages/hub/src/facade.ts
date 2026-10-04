@@ -878,6 +878,26 @@ export class ChatExtensionHub implements HubFacade {
     return (await this.client('clientAiUsageDaily', query, query.pageLabel)) as AiUsageReport;
   }
 
+  // ── «Очистить локальные данные» ──────────────────────────────────────────
+
+  /**
+   * ST-110: what the hub layer keeps of the hub's answers goes — the Spenders
+   * boards (memory and storage.session), the prompt echoes, the quota last
+   * seen. The sign-in stays. The bootstrap and the catalog are what the
+   * sign-in works by, so they are not left empty: both are read again now,
+   * and the stored copies are replaced by the fresh ones.
+   */
+  async clearCaches(): Promise<void> {
+    await this.ready;
+    this.board.clear();
+    this.echo.clear();
+    this.quota.clear();
+    this.inFlight.clear();
+    if (this.custody.current() === null) return;
+    this.bootstrapService.refresh().catch(() => undefined);
+    this.catalogService.refresh().catch(() => undefined);
+  }
+
   // ── plumbing ─────────────────────────────────────────────────────────────
 
   /**

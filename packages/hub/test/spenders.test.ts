@@ -259,6 +259,20 @@ describe('[SP-032] [SP-023] the board\'s preconditions', () => {
     expect(h.hub.of('spenders')).toEqual([]);
   });
 
+  it('[ST-110] «Очистить локальные данные» forgets the boards and keeps the sign-in: the next board is read again, the bootstrap and the catalog are read anew', async () => {
+    serveBoard(h);
+    await board(h, { pageLabel: PAGE, period: '30d' });
+    const before = { bootstrap: h.hub.of('clientBootstrap').length, catalog: h.hub.of('aiPersonaCatalog').length };
+    await h.facade.clearCaches();
+    expect(h.session.data.has(BOARD_SESSION_KEY)).toBe(false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(h.facade.session()).not.toBeNull();
+    expect(h.hub.of('clientBootstrap')).toHaveLength(before.bootstrap + 1);
+    expect(h.hub.of('aiPersonaCatalog')).toHaveLength(before.catalog + 1);
+    await board(h, { pageLabel: PAGE, period: '30d' });
+    expect(h.hub.of('spenders')).toHaveLength(10);
+  });
+
   it('[SP-026] a sign-out forgets the boards of that sign-in', async () => {
     serveBoard(h);
     await board(h, { pageLabel: PAGE, period: '30d' });
