@@ -101,6 +101,21 @@ export const StartOpSchema = z
         preset: z.optional(z.literal('situation')),
         history: z.array(CoachTurnSchema).check(z.maxLength(COACH_LIMITS.historyMaxTurns)),
         attachDraft: z.optional(boundedText(AI_REQUEST_LIMITS.draftMaxChars)),
+        /**
+         * The auto-recap of a composite Coach turn (§7 «ход Coach с авто-рекапом
+         * — один составной слот», AI-096): the background first builds this
+         * recap for the same target, then asks the Coach. One admission and one
+         * token for both steps; the chat's slot is held from the first to the
+         * last of them. `window` is the recap's messageCount. The admitted
+         * operation is the recap; its terminal view names the answer step in
+         * `OpView.continuedBy`. Added in 1.2.0.
+         */
+        autoRecap: z.optional(
+          z.strictObject({
+            length: z.enum(['short', 'full']),
+            window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)),
+          }),
+        ),
       }),
     ),
     /** Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14). */
@@ -333,5 +348,13 @@ export const OpViewSchema = z.strictObject({
   stale: z.optional(z.strictObject({ reason: z.enum(['fan-wrote', 'archive-moved']), at: z.nullable(IsoTimestampSchema) })),
   /** Only when debug.enabled. */
   debug: z.optional(OpDebugViewSchema),
+  /**
+   * The operation that took this one's place in the chat's slot the moment
+   * it ended: the answer step of a composite Coach turn whose recap step
+   * this was (`StartOp.coach.autoRecap`). Present only on a terminal view;
+   * absent — nothing follows (an ordinary operation, a canceled or stopped
+   * turn). Added in 1.2.0.
+   */
+  continuedBy: z.optional(UuidSchema),
 });
 export type OpView = z.infer<typeof OpViewSchema>;

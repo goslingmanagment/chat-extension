@@ -22,3 +22,8 @@ export {
 } from './temp-dock-status';
 // TEMPORARY (M1 integration): the action catalog without keys until R17's hotkey layer lands.
 export { createUnboundCatalog } from './temp-catalog';
+
+// The surface controllers are NOT re-exported here: each family has its own
+// subpath, so a lazy entry takes one family and this barrel stays the router's
+// (the `tab-app` chunk imports it and has a 30 KiB budget, §11).
+//   R11 — `@cg/core/application/ai` (dock, Recap, Review, Coach).

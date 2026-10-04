@@ -566,6 +566,9 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
         window: 100,
         coach: { question: 'What next?', history: [{ question: 'Hi?', answer: 'Hello.' }], attachDraft: 'my draft' },
       },
+      // 1.2.0: a composite Coach turn — the recap first, then the question, under one admission (AI-096).
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 3000 } } },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { preset: 'situation', history: [], autoRecap: { length: 'short', window: 300 } } },
     ],
     [
       { ...startReply, surface: 'preview' },
@@ -580,6 +583,10 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...startReply, fresh: undefined, checkpoint },
       { feature: 'hi', surface: 'newcomers', target, cause, tone: null, split: true, window: 25, variantCount: 1, checkpoint: { ...checkpoint, platformFanId: '2099' } },
       { feature: 'ping', surface: 'dock', target, cause, tone: 'casual', split: false, window: 100 },
+      // The auto-recap is the short or the full one, with its own window within the hub body's bounds.
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'long', window: 3000 } } },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 4 } } },
+      { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: 'full' } },
     ],
   ),
   fixture('ActiveOpSummary', C.ActiveOpSummarySchema, [activeOp], [{ ...activeOp, fanLabel: undefined }]),
@@ -646,7 +653,17 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...debugView, hubStages: [{ name: '', ms: 5 }] },
     ],
   ),
-  fixture('OpView', C.OpViewSchema, [opView, { ...opView, state: 'failed', result: undefined, error: { code: 'CG-STREAM-TRUNCATED' } }], [{ ...opView, state: 'queued' }]),
+  fixture(
+    'OpView',
+    C.OpViewSchema,
+    [
+      opView,
+      { ...opView, state: 'failed', result: undefined, error: { code: 'CG-STREAM-TRUNCATED' } },
+      // 1.2.0: the recap step of a composite Coach turn names the answer step that took the slot.
+      { ...opView, feature: 'recap', surface: 'coach', toneUsed: null, text: '**Recap**', result: { kind: 'recap', markdown: '**Recap**', coverage, shared: { generationRef: uuid(6) } }, continuedBy: uuid(7) },
+    ],
+    [{ ...opView, state: 'queued' }, { ...opView, continuedBy: 'the-answer-step' }],
+  ),
 
   // ── telemetry ──
   fixture(
