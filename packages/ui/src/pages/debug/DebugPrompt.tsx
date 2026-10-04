@@ -3,7 +3,8 @@
 // web-accessible and the snapshot comes by an opaque token that is never
 // drawn. «Копировать промпт» is an explicit click here and nowhere else.
 // When there is no prompt the page says why: the snapshot expired, the hub
-// sent no echo, the answer came from a cache, or debug mode is off.
+// sent no echo, the answer came from a cache, debug mode is off, or the
+// person signed out — and then nothing read before stays on the page (§9.3).
 
 import { type JSX } from 'preact';
 
@@ -31,6 +32,15 @@ function Explanation({ vm, token }: { readonly vm: DebugPromptVM; readonly token
       </p>
     );
   }
+  const retry = view.s === 'error' || view.s === 'offline' ? view.retry : null;
+  if (view.s === 'offline' || (view.s === 'error' && retry !== null)) {
+    // The background or the settings did not answer: the error with its code and «Повторить».
+    return (
+      <ErrorCard tone="failure" error={view.error}>
+        <Button label={i18n.t('common.retry')} variant="line" onClick={() => void act(retry ?? { type: 'ReloadView', selector: { of: 'debug-prompt', token } }, { quiet: true })} />
+      </ErrorCard>
+    );
+  }
   if (view.s === 'error') {
     // An expired snapshot is not a failure to retry: it is gone, and the page says how to get a new one.
     return (
@@ -43,18 +53,14 @@ function Explanation({ vm, token }: { readonly vm: DebugPromptVM; readonly token
     );
   }
   if (view.s === 'forbidden') {
+    const remedy = view.remedy;
+    // Debug is off, or nobody is signed in: the prompt is not here any more.
+    const signedOut = view.error.code !== 'CG-FEATURE-DISABLED';
     return (
-      <div role="status" data-pg-prompt="debug-off">
-        <p class="pg-lead">{i18n.t('debugPage.prompt.debugOff')}</p>
-        {view.remedy === null ? null : <Button label={i18n.t('common.settings')} variant="line" onClick={() => void act(view.remedy ?? { type: 'OpenSettings', route: { section: 'generation' } })} />}
+      <div role="status" data-pg-prompt={signedOut ? 'signed-out' : 'debug-off'} data-cg-code={view.error.code}>
+        <p class="pg-lead">{signedOut ? view.error.title : i18n.t('debugPage.prompt.debugOff')}</p>
+        {remedy === null ? null : <Button label={i18n.t(signedOut ? 'common.signIn' : 'common.settings')} variant="line" onClick={() => void act(remedy)} />}
       </div>
-    );
-  }
-  if (view.s === 'offline') {
-    return (
-      <ErrorCard tone="failure" error={view.error}>
-        <Button label={i18n.t('common.retry')} variant="line" onClick={() => void act(view.retry ?? { type: 'ReloadView', selector: { of: 'debug-prompt', token } }, { quiet: true })} />
-      </ErrorCard>
     );
   }
   return null;
