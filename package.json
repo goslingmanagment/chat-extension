@@ -17,6 +17,7 @@
     "size": "node tools/size-budget/index.ts",
     "gates": "node tools/gates/index.ts",
     "parity": "node tools/parity/index.ts",
+    "parity:coverage": "node tools/parity/coverage.ts",
     "archive-check": "node tools/archive-check/index.ts",
     "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",
     "dev": "node tools/dev/index.ts",
