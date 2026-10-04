@@ -1129,7 +1129,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         hubInstance = instance;
         await instance.ready;
         lastOwner = ownerOf(instance.session());
-        // Once after the settings load: a full token of the dev/compat mode does not outlive debug mode in a release build.
+        // Once after the settings load: a full token does not outlive the dev/compat mode — debug off in a test
+        // build, and any release build, which has no such mode — it is erased and revoked.
         void instance.notifyDebugChanged();
       },
     },

@@ -108,9 +108,9 @@ export interface HubFacadeOptions {
   /** The AI stream's transport (seam for the SDK's H-4 `capabilities`, and for tests). */
   readonly streamTransport?: AiStreamTransport;
   /**
-   * DEV-ONLY compat mode (debug or a test build): pageLabel → OnlyFans
+   * DEV-ONLY compat mode (a test build with debug on): pageLabel → OnlyFans
    * creator id for the synthesized bootstrap, the only way such a page can
-   * bind (never by name). Ignored in a release build without debug.
+   * bind (never by name). A release build has no compat mode and never reads it.
    */
   readonly compatPageAccounts?: Readonly<Record<string, string>>;
 }

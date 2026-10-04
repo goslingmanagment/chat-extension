@@ -194,7 +194,17 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
     expect(h.facade.session()).toBeNull();
   });
 
-  it('[HB-011] the documented dev/compat mode (debug on) keeps a full token and says so in the status', async () => {
+  it('[AU-029] a release build with debug mode on is still a release build: no `client` echo — the full token is revoked, nothing is stored', async () => {
+    h.env.debug = true;
+    await expect(signIn(h, { ...WORLD_PILOT, issued: fullToken })).rejects.toMatchObject({ name: 'HubCheckError', check: 'narrowTokenMissing', code: 'CG-HUB-OUTDATED' });
+    await flush();
+    expect(h.hub.of('authRevokeCurrentDeviceToken')).toHaveLength(1);
+    expect(h.local.writes).toEqual([]);
+    expect(h.facade.session()).toBeNull();
+  });
+
+  it('[HB-011] the documented dev/compat mode (a test build with debug on) keeps a full token and says so in the status', async () => {
+    h.env.testBuild = true;
     h.env.debug = true;
     const bootstrap = { ...BOOTSTRAP_PILOT_ON, identity: { ...BOOTSTRAP_PILOT_ON.identity, tokenClient: null } };
     await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
@@ -207,7 +217,7 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
     expect(h.facade.session()).not.toBeNull();
     expect(h.facade.status()).toMatchObject({ state: 'stopped', lastError: { code: 'CG-HUB-OUTDATED' } });
     expect(h.hub.of('authRevokeCurrentDeviceToken')).toEqual([]);
-    // …the explicit debug-off transition does: not kept in a release build.
+    // …the explicit debug-off transition does: a full token does not outlive debug mode.
     await h.facade.notifyDebugChanged();
     expect(h.facade.session()).toBeNull();
     expect(h.facade.status().lastEnd).toMatchObject({ reason: 'outdated', code: 'CG-HUB-OUTDATED' });
@@ -216,11 +226,12 @@ describe('[AU-001] the narrow token echo (hub-pr-plan PR 9 rule)', () => {
   });
 
   it('[HB-011] a background restart before the settings load never erases the developer\'s full token', async () => {
+    h.env.testBuild = true;
     h.env.debug = true;
     const bootstrap = { ...BOOTSTRAP_PILOT_ON, identity: { ...BOOTSTRAP_PILOT_ON.identity, tokenClient: null } };
     await signIn(h, { ...WORLD_PILOT, issued: fullToken, bootstrap });
     // The restarted background reads debug as off until the settings arrive.
-    const env = testEnv({ debug: false });
+    const env = testEnv({ debug: false, testBuild: true });
     const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub, env });
     await restarted.facade.ready;
     await flush(20);

@@ -497,8 +497,23 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
     expect(h.hub.requests.some((request) => request.path === '/api/v1/pages')).toBe(false);
   });
 
-  it('[HB-011] debug on: a bootstrap synthesized from me + pages; every feature that needs a new route is hub_not_ready', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }), compatPageAccounts: { [one.pageLabel]: one.platformAccountId } });
+  it('[HB-011] a release build refuses with debug mode on too — a full token of a hub without H-3 as well: debug is a chatter’s switch, not a developer’s build', async () => {
+    for (const issued of [WORLD_PILOT.issued, { ...WORLD_PILOT.issued, client: null }]) {
+      h.facade.dispose();
+      h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }), compatPageAccounts: { [one.pageLabel]: one.platformAccountId } });
+      serveOldHub(h, issued);
+      expect(await codeOf(h.facade.signIn(WORLD.user.username, 'synthetic-password'))).toBe('CG-HUB-OUTDATED');
+      await flush();
+      expect(h.facade.session()).toBeNull();
+      expect(h.facade.cachedBootstrap()).toBeNull();
+      expect(h.hub.of('authRevokeCurrentDeviceToken')).toHaveLength(1);
+      // The list of the hub's pages — the synthesizer's source — is never asked for.
+      expect(h.hub.requests.some((request) => request.path === '/api/v1/pages')).toBe(false);
+    }
+  });
+
+  it('[HB-011] a test build with debug on: a bootstrap synthesized from me + pages; every feature that needs a new route is hub_not_ready', async () => {
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true, testBuild: true }), compatPageAccounts: { [one.pageLabel]: one.platformAccountId } });
     serveOldHub(h);
     await h.facade.signIn(WORLD.user.username, 'synthetic-password');
     const cached = h.facade.cachedBootstrap();
@@ -527,16 +542,20 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
     expect(h.hub.of('clientConversationFeed')).toEqual([]);
   });
 
-  it('[HB-011] a test build allows it too; turning debug off in a release build drops the compat bootstrap', async () => {
+  it('[HB-011] a test build without debug mode refuses like a release build; with it, nothing binds without the dev map, and turning debug off drops the compat bootstrap', async () => {
     h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ testBuild: true }) });
     serveOldHub(h);
+    expect(await codeOf(h.facade.signIn(WORLD.user.username, 'synthetic-password'))).toBe('CG-HUB-OUTDATED');
+    await flush();
+    expect(h.facade.session()).toBeNull();
+
+    h.env.debug = true;
     await h.facade.signIn(WORLD.user.username, 'synthetic-password');
     expect(h.facade.cachedBootstrap()?.source).toBe('compat');
     const page = h.facade.cachedBootstrap()?.bootstrap.pages[0];
     expect(page?.platformAccountId).toBeNull();
     // Without an injected creator id nothing binds (never by name).
     expect(h.facade.resolveBinding(account())).toEqual({ state: 'refused', check: 'bindingMissing' });
-    h.env.testBuild = false;
     h.env.debug = false;
     expect(h.facade.cachedBootstrap()).toBeNull();
   });

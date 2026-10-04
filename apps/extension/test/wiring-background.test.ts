@@ -9,7 +9,7 @@
 //   installs on one hub, the sound's decisions, a page's command for a tab,
 //   «Очистить локальные данные», the update record;
 // - what an expired bootstrap blocks and what it leaves;
-// - the dev compat mode against a hub without `client/bootstrap`.
+// - a release build against a hub without `client/bootstrap`: no compat mode.
 
 import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, TAB_REQUESTS, TAB_REQUEST_TYPES, parseTabPayload, type IncomingFact, type SendJournalEntry, type TabRequestType } from '@cg/contracts';
 import { TAB_REQUEST_FIXTURES, account, chat, journalEntry } from '@cg/contracts/fixtures';
@@ -833,53 +833,31 @@ describe('an expired bootstrap (§8.3)', () => {
   });
 });
 
-describe('the dev compat mode: a hub without `client/bootstrap` (today’s prod hub)', () => {
-  it('with debug on: sign-in, the persona catalog and a generation through the existing stream work; what needs a new hub route is unavailable with `hub_not_ready` and never reaches the hub', async () => {
+describe('a hub without `client/bootstrap` and the narrow token (today’s prod hub) and a RELEASE build', () => {
+  // This suite runs the release composition (`__CG_TEST_HOSTS__` is false here). The dev compat mode — a full
+  // token kept, a bootstrap synthesized from `me` and the hub's page list — exists only in a test build with
+  // debug on: there it is proven by the hub layer's own tests and by the e2e on the test build.
+  it('[HB-011] [AU-029] debug mode on changes nothing: the sign-in is refused with CG-HUB-OUTDATED, the full token is revoked and never stored, and the hub’s page list is not asked for', async () => {
     const w = world({ settings: settingsFor(undefined, { debug: { enabled: true, renderTrace: false } }) });
     w.hub.control({ op: 'config', patch: { clientBootstrap: false, narrowTokens: false } });
     w.start();
-    // The dev map: the hub's pages carry no creator id there; never matched by name.
+    // A developer's map left in storage is not read by a release build either.
     w.fake.areas.local.set('dev.compatPageAccounts', { [PAGE]: account.platformAccountId });
     const options = w.page();
     const signedIn = await options.request('session.signIn', { login: WORLD.user.username, password: PASSWORD });
-    expect(signedIn).toMatchObject({ ok: true });
-    const bootstrap = await options.request('bootstrap.get', {});
-    expect(bootstrap).toMatchObject({ ok: true, payload: { capabilities: [], configRevision: 0 } });
-    const page = bootstrap.ok ? bootstrap.payload.pages.find((item) => item.pageLabel === PAGE) : undefined;
-    expect(page?.features).toMatchObject({
-      insertion: { available: true },
-      navigation: { available: true },
-      spenders: { available: true },
-      newcomers: { available: false, reason: 'hub_not_ready' },
-      preview: { available: false, reason: 'hub_not_ready' },
-      stats: { available: false, reason: 'hub_not_ready' },
-      recap: { available: false, reason: 'hub_not_ready' },
-      freshText: { available: false, reason: 'hub_not_ready' },
-      previewSend: { available: false, reason: 'hub_not_ready' },
-    });
-    const catalog = await options.request('catalog.get', {});
-    expect(catalog.ok && catalog.payload.personas.length).toBeGreaterThan(0);
-    const diagnostics = await options.request('diagnostics.get', {});
-    expect(diagnostics).toMatchObject({ ok: true, payload: { session: { signedIn: true } } });
+    expect(signedIn).toMatchObject({ ok: false, error: { code: 'CG-HUB-OUTDATED' } });
+    expect(await options.request('session.get', {})).toEqual({ ok: true, payload: { session: null } });
+    await until(() => callsTo(w.hub.read().entries, 'authRevokeCurrentDeviceToken').length === 1, 'the issued full token was revoked');
+    expect(w.fake.areas.local.get(STORAGE_KEYS.authToken)).toBeUndefined();
+    const entries = w.hub.read().entries;
+    expect(entries.filter((entry) => entry.kind === 'legacy')).toEqual([]);
+    expect(callsTo(entries, 'clientBootstrap')).toEqual([]);
 
-    // What needs a route this hub does not have is refused here, with a code, and is never asked of the hub.
-    const before = w.hub.read().entries.length;
-    const newcomers = await w.page('popup').request('newcomers.list', { pageId: PAGE_ID, windowHours: 48, cursor: null });
-    expect(newcomers).toMatchObject({ ok: false, error: { code: 'CG-HUB-CAPABILITY' } });
-    expect(newcomers.ok ? '' : newcomers.error.detail).toContain('audience-new-v1');
-    const recaps = await options.request('recap.read', { pageId: PAGE_ID, fanRef: chat.platformFanId, personaDefinitionId: WORLD.persona.definitionId });
-    expect(recaps).toMatchObject({ ok: false, error: { code: 'CG-HUB-CAPABILITY' } });
-    expect(recaps.ok ? '' : recaps.error.detail).toContain('shared-recaps-v1');
-    expect(w.hub.read().entries).toHaveLength(before);
-    // The subscriber poll does not ask either: «Новые» is not usable on this hub.
-    await workingTab(w);
-    await sleep(100);
-    expect(callsTo(w.hub.read().entries, 'clientAudienceNew')).toEqual([]);
-    // Debug off: a release build does not keep the dev mode — the full token is erased and revoked.
-    expect(await options.request('settings.patchRestricted', { patch: { debug: { enabled: false } }, baseRevision: null })).toMatchObject({ ok: true });
-    await until(async () => {
-      const session = await options.request('session.get', {});
-      return session.ok && session.payload.session === null;
-    }, 'the dev sign-in is gone with debug mode');
+    // A hub with the narrow token but without `client/bootstrap` (H-3 before H-2): refused as well, nothing synthesized.
+    w.hub.control({ op: 'config', patch: { clientBootstrap: false, narrowTokens: true } });
+    expect(await options.request('session.signIn', { login: WORLD.user.username, password: PASSWORD })).toMatchObject({ ok: false, error: { code: 'CG-HUB-OUTDATED' } });
+    expect(await options.request('session.get', {})).toEqual({ ok: true, payload: { session: null } });
+    expect(w.fake.areas.local.get(STORAGE_KEYS.authToken)).toBeUndefined();
+    expect(w.hub.read().entries.filter((entry) => entry.kind === 'legacy')).toEqual([]);
   });
 });
