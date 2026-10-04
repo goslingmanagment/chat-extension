@@ -1107,7 +1107,35 @@ describe('dock: Fix', () => {
     expect(await h.dispatch({ type: 'RestoreMyDraft', operationId: opId })).toMatchObject({ ok: true, outcome: 'done' });
     expect(h.fake.calls.inserts[1]).toMatchObject({ mode: 'replace', text: 'i mis you so much', confirmationId: null, expected: { draftRevision: 6, draftDigest: 'feedbeef0000aaaa' } });
     expect(h.host.draftOf(openChat)?.plainText).toBe('i mis you so much');
-    expect(result(h).fix).toMatchObject({ replaced: true, restoreUntil: null });
+    // The replacement is undone: the result is what it was before it, not «Черновик заменён» over the person's own text.
+    expect(result(h).fix).toMatchObject({ sourceDraft: 'i mis you so much', replaced: false, canReplace: true, restoreUntil: null, restoreExpired: false });
+    expect(result(h)).toMatchObject({ draftNotSent: true, canRegenerate: true, confirm: null });
+    expect(partsOf(h)[0]).toMatchObject({ insert: 'idle', collapsed: false });
+  });
+
+  it('[AI-022] after «Вернуть мой текст» the Fix can be applied again: the click is a consent for the draft the restore left, one CAS, no question — and can be undone again', async () => {
+    const h = await withDraft();
+    h.script(h.streamOf('improve-draft', ['I miss you so much']));
+    const receipt = await h.generate('fix');
+    await h.finish();
+    const opId = (receipt as { opId: string }).opId;
+    await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 });
+    await h.dispatch({ type: 'RestoreMyDraft', operationId: opId });
+    const restoredTo = h.host.draftOf(openChat);
+    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(3);
+    expect(h.fake.calls.inserts[2]).toMatchObject({ mode: 'replace', text: 'I miss you so much', expected: { draftRevision: restoredTo?.revision, draftDigest: restoredTo?.digest } });
+    expect(result(h)).toMatchObject({ confirm: null, fix: { replaced: true, restoreExpired: false } });
+    expect(result(h).fix?.restoreUntil).not.toBeNull();
+    expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you so much');
+    expect(await h.dispatch({ type: 'RestoreMyDraft', operationId: opId })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('i mis you so much');
+    // The person wrote on after the restore: the consent is for the draft the restore left, so this one asks.
+    h.host.type('i mis you so much!!');
+    await h.settle();
+    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(h.fake.calls.inserts).toHaveLength(4);
+    expect(result(h).confirm).toMatchObject({ kind: 'draft-changed' });
   });
 
   it('after 30 seconds the text cannot be brought back, and the view says so by itself', async () => {

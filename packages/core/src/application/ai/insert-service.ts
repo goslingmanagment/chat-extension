@@ -128,6 +128,11 @@ export class InsertService {
   private readonly writes = new Map<string, PendingWrite>();
   /** Fix: the session of a replacement and the text «Вернуть мой текст» writes back (what the replacement replaced). */
   private readonly fixes = new Map<string, { readonly session: FixSession; readonly restoreText: string }>();
+  /**
+   * Fix after «Вернуть мой текст»: the field holds the person's text again, at the revision that write produced.
+   * The next «Заменить мой черновик» is a consent for exactly that draft.
+   */
+  private readonly restoredSources = new Map<string, { readonly text: string; readonly revision: number; readonly digest: string }>();
   /** Operations with a write in flight. */
   private readonly busy = new Set<string>();
   /** Insert intents by id: a human send is linked to its part by the intent the draft descends from (§6.6). */
@@ -232,7 +237,7 @@ export class InsertService {
     const block = this.blockOf(record, part);
     if (block !== null) return failed(block.code);
     const ctx = this.deps.context(record);
-    const source = record.memo.fixSource;
+    const source = this.restoredSources.get(opId) ?? record.memo.fixSource;
     // Without the source revision or an observed editor there is no CAS to make: copy instead (§6.4).
     if (source === null || !ctx.editorObserved) return failed('CG-HOST-NOT-READY');
     if (this.fixes.get(opId)?.session.wasReplaced === true) return failed('CG-INSERT-FAILED');
@@ -287,12 +292,19 @@ export class InsertService {
 
   /** The host answered «Вернуть мой текст»: the person's text is back, or the Fix text stays where it was. */
   private restored(record: OpRecord, part: PartRef, receipt: InsertReceipt): WriteOutcome {
-    const key = keyOf(record.view.opId, part);
-    this.fixes.get(record.view.opId)?.session.onRestored(receipt);
+    const opId = record.view.opId;
+    const key = keyOf(opId, part);
+    const fix = this.fixes.get(opId);
+    fix?.session.onRestored(receipt);
     const outcome = interpretInsertReceipt(receipt);
     // The part is no longer in the field once the person's text is back; otherwise it still is.
-    if (outcome.kind === 'applied') this.parts.delete(key);
-    else this.parts.set(key, { insert: 'done', insertError: null });
+    if (outcome.kind === 'applied') {
+      this.parts.delete(key);
+      // The replacement is undone: the result is what it was before it — never «Черновик заменён» over a field
+      // that holds the person's text. What it holds now is the draft a new replacement would be a consent for.
+      this.fixes.delete(opId);
+      if (fix !== undefined && receipt.state === 'applied') this.restoredSources.set(opId, { text: fix.restoreText, revision: receipt.draftRevision, digest: receipt.draftDigest });
+    } else this.parts.set(key, { insert: 'done', insertError: null });
     this.deps.changed();
     return outcome.kind === 'applied' ? { kind: 'applied' } : failed(outcome.kind === 'needs-confirm' ? 'CG-DRAFT-CHANGED' : outcome.code);
   }
@@ -346,6 +358,7 @@ export class InsertService {
   dropOp(opId: string): void {
     this.book.dropOp(opId);
     this.fixes.delete(opId);
+    this.restoredSources.delete(opId);
     this.variants.delete(opId);
     for (const [id, write] of this.writes) if (write.opId === opId) this.writes.delete(id);
     for (const [id, origin] of this.intents) if (origin.opId === opId) this.intents.delete(id);
