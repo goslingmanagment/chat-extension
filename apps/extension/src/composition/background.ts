@@ -45,6 +45,7 @@ import {
   type TabRequestType,
 } from '@cg/contracts';
 import { resolveHubError, storageBudgetOf } from '@cg/core/domain';
+import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
 import { type OpsEnvironment } from '@cg/core/domain/ops';
@@ -356,6 +357,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     store: opsStoreOver(results, session),
     presence: (tabSessionId) => presence.tabs().find((tab) => tab.tabSessionId === tabSessionId) ?? null,
     log: coreLog,
+    // R11: how each feature's start becomes the hub's request and its answer a result ([NEXT] parts, Hi variants,
+    // the Review frame, Recap blocks, Coach drafts).
+    drivers: AI_FEATURE_DRIVERS,
     hooks: {
       // The facade refreshes its catalog itself when it reads such a failure.
       refreshBootstrap: () => void hubInstance?.bootstrap({ force: true }).catch(() => undefined),
