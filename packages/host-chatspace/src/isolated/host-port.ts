@@ -36,13 +36,14 @@ import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSen
 import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
 import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 
-import { BridgeCallError, loadValidation, type BridgeEvent, type MainBridgeClient } from './bridge-client';
+import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { buildContractReport, sameReport, type ContractWireInput } from './contract';
 import { readStoredDraft, storedDraftAgrees, type DraftStorage } from './draft-store';
 import { ADAPTER_VERSION } from './host-contract';
 import type { MountManager } from './mount';
 import { loadedScriptUrls, matchReceiptProfile, receiptModules } from './receipt-profile';
 import type { ThemeReader } from './theme';
+import type { ValidationLoader } from './validation';
 import { WRITE_FAILURES } from './wire';
 
 export { ADAPTER_VERSION };
@@ -76,6 +77,8 @@ export interface ChatSpaceHostOptions {
   readonly redeem: TokenRedeemer;
   readonly mounts: MountManager;
   readonly theme: ThemeReader;
+  /** Where the schemas of our own controllers' inputs come from (validation.ts). */
+  readonly validation: ValidationLoader;
   /** The page's localStorage, read only (the composition root gives it; §6.1). */
   readonly drafts?: DraftStorage | null;
   readonly adapterVersion?: string;
@@ -125,7 +128,7 @@ const FLYING_MAX = 64;
 const PREFLIGHT_WINDOW_MS = 60_000;
 
 export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpaceHostPort {
-  const { bridge, mounts, theme, redeem } = options;
+  const { bridge, mounts, theme, redeem, validation } = options;
   const drafts = options.drafts ?? null;
   const navTimeout = (): number => {
     const option = options.navInsertTimeoutMs;
@@ -504,7 +507,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
 
   const sendPort: PreviewSendPort = {
     async preflight(req: PreviewSendRequest): Promise<PreviewSendPreflight> {
-      if (!(await loadValidation()).isPreviewSendRequest(req)) throw new HostContractError('preflight() takes a PreviewSendRequest');
+      if (!(await validation()).isPreviewSendRequest(req)) throw new HostContractError('preflight() takes a PreviewSendRequest');
       const refused = sendRefusal(req);
       if (refused || !bridge) return { ok: false, code: refused ?? 'CG-SEND-HOST' };
       try {
@@ -514,7 +517,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       }
     },
     async commit(req: PreviewSendRequest, ticket: DispatchTicket): Promise<PreviewSendCommit> {
-      const check = await loadValidation();
+      const check = await validation();
       if (!check.isPreviewSendRequest(req) || !check.isDispatchTicket(ticket) || ticket.attemptId !== req.attemptId) throw new HostContractError('commit() takes a PreviewSendRequest and the ticket of the same attempt');
       // One command per attempt, ever: a repeat gets the first answer and reaches neither MAIN nor the queue again.
       let first = commits.get(req.attemptId);
@@ -624,7 +627,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     listCachedAccounts: () => accounts,
 
     async insert(intent: InsertIntent): Promise<InsertReceipt> {
-      const check = await loadValidation();
+      const check = await validation();
       if (!check.isInsertIntent(intent) || intent.expected.kind !== 'open') throw new HostContractError('insert() takes an open InsertIntent with its cause; a deferred one rides navigate()');
       const expected = intent.expected;
       const insertCapability = report.capabilities.insert;
@@ -664,7 +667,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     },
 
     async navigate(intent: NavigationIntent, options: NavigateOptions = {}): Promise<NavigationReceipt> {
-      const check = await loadValidation();
+      const check = await validation();
       if (!check.isNavigationIntent(intent)) throw new HostContractError('navigate() takes a NavigationIntent with its cause');
       const then = intent.thenInsert;
       const failed = (code: CgCode): NavigationReceipt => ({ state: 'failed', code, insert: then ? rejected(code) : null });

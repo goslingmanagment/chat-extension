@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { createChatSpaceHostPort, HostContractError, type HostDiagnostic } from './host-port';
+import { loadValidation } from './validation';
 import type { MountManager } from './mount';
 import type { ThemeReader } from './theme';
 
@@ -88,6 +89,7 @@ async function port(answers: Partial<Record<ToMainType, Answer>> = {}, options: 
   const host = createChatSpaceHostPort({
     win: window,
     bridge: bridge.client,
+    validation: loadValidation,
     redeem: (request) => {
       redeemed.push(`${request.kind}:${request.intentId}:${request.actionToken}`);
       return Promise.resolve(options.redeem ?? true);
@@ -146,7 +148,7 @@ describe('[BG-002] state from MAIN', () => {
 
   it('[AU-030] [ER-048] without MAIN: no identity, every host capability off with CG-HOST-NOT-READY', async () => {
     const { mounts } = fakeMounts();
-    const host = createChatSpaceHostPort({ win: window, bridge: null, redeem: () => Promise.resolve(true), mounts, theme: themeStub });
+    const host = createChatSpaceHostPort({ win: window, bridge: null, redeem: () => Promise.resolve(true), mounts, theme: themeStub, validation: loadValidation });
     await host.ready;
     expect(host.identity()).toBeNull();
     expect(host.probe().capabilities.identity).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
@@ -175,7 +177,7 @@ describe('[BG-002] state from MAIN', () => {
     bridge.client.probe = () => Promise.resolve({ v: 1, readyStateAtStart: 'complete', installMs: 0, wsTap: false });
     const { mounts } = fakeMounts();
     const diagnostics: HostDiagnostic[] = [];
-    const host = createChatSpaceHostPort({ win: window, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme: themeStub, onDiagnostic: (d) => diagnostics.push(d) });
+    const host = createChatSpaceHostPort({ win: window, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme: themeStub, validation: loadValidation, onDiagnostic: (d) => diagnostics.push(d) });
     await host.ready;
     const seen: string[] = [];
     host.subscribe((event) => seen.push(event.type));

@@ -34,6 +34,11 @@ DOM, мост ChatSpace для вставки и — для отправки и�
   `previewSend` — часть B, ниже.
 - `connectMainBridge` — клиент моста: синхронно только рукопожатие, схемы грузятся лениво
   (`validate.ts`) при первом кадре; три ступени проверки, счётчики отброшенного, тайм-ауты.
+  Откуда взять модуль схем, говорит тот, кто запускает хост (`validation`): тесты и обвязка
+  e2e передают `loadValidation` (модуль рядом, через `import()`), а расширение — загрузчик
+  своего ленивого чанка `lazy/bridge-validation.js`. Контент-скрипт собирается одним
+  классическим файлом, динамический импорт в нём встраивается целиком, и схемы моста вместе
+  с долей zod (около 6 КиБ gzip) заняли бы место в раннем бандле, у которого 30 КиБ на всё.
 - `createMountManager` — док первым ребёнком корня рамки активного composer, строка
   «только копировать» у заблокированного фана, фиксированный оверлей без рамки, слои
   оверлеев 900/950/960, `data-dismissible-open`, реестр закрытых корней для хоткеев.
@@ -203,6 +208,7 @@ installMainBridge(window, { runtime: createMainRuntime });
 // изолированный мир, document_start (после removeStaleHosts):
 const started = startChatSpaceHost({
   win: window,
+  validation: () => /* import() ленивого чанка со схемами моста; в тестах — loadValidation */,
   redeem: (r) => /* token.redeem через порт вкладки, surface по месту вызова */,
   drafts: { getItem: (key) => window.localStorage.getItem(key) },
   navInsertTimeoutMs: bootstrap.limits.navInsertTimeoutSec * 1000,

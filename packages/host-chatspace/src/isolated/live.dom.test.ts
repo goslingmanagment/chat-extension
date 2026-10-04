@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BridgeCallError, type BridgeEvent, type BridgeFailure, type MainBridgeClient } from './bridge-client';
 import { ADAPTER_VERSION, createChatSpaceHostPort, HostContractError, type ChatSpaceLiveConfig, type HostDiagnostic } from './host-port';
+import { loadValidation } from './validation';
 import type { MountManager } from './mount';
 import type { ThemeReader } from './theme';
 
@@ -105,7 +106,7 @@ async function start(answers: Partial<Record<ToMainType, Answer>> = {}, options:
     tap,
   );
   const diagnostics: HostDiagnostic[] = [];
-  const host = createChatSpaceHostPort({ win: pageWindow, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
+  const host = createChatSpaceHostPort({ win: pageWindow, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme, validation: loadValidation, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
   await host.ready;
   const events: HostEvent[] = [];
   host.subscribe((event) => events.push(event));
@@ -201,7 +202,7 @@ describe('[X8-06] the preview send capability (§6.2, §6.7.11)', () => {
       );
       const probe = bridge.client.probe.bind(bridge.client);
       (bridge.client as { probe: MainBridgeClient['probe'] }).probe = () => probed.then(probe);
-      const host = createChatSpaceHostPort({ win: pageWindow, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme });
+      const host = createChatSpaceHostPort({ win: pageWindow, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme, validation: loadValidation });
       return { host, gate };
     };
 

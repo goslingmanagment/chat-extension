@@ -12,7 +12,7 @@
 import type { HostEvent, InsertIntent, InsertReceipt, NavigationReceipt } from '@cg/contracts/host';
 import type { HostIdentity, Target } from '@cg/contracts/ids';
 import type { FreshnessCheckpoint, PreviewSendCommit, PreviewSendPreflight, PreviewSendRequest, SendAttemptView } from '@cg/contracts/send';
-import { ADAPTER_VERSION, aiGeneratedMark, loadedScriptUrls, receiptModules, startChatSpaceHost, type ChatSpaceHostPort, type ChatSpaceLiveConfig, type OverlayLayer } from '@cg/host-chatspace/isolated';
+import { ADAPTER_VERSION, aiGeneratedMark, loadValidation, loadedScriptUrls, receiptModules, startChatSpaceHost, type ChatSpaceHostPort, type ChatSpaceLiveConfig, type OverlayLayer } from '@cg/host-chatspace/isolated';
 
 const TOKEN = 'tok_e2e_harness_0000';
 let redeemAllowed = true;
@@ -27,6 +27,7 @@ let host: ChatSpaceHostPort | null = null;
 
 const started = startChatSpaceHost({
   win: window,
+  validation: loadValidation,
   redeem: (request) => {
     redeemed.push(request.kind);
     return Promise.resolve(redeemAllowed);

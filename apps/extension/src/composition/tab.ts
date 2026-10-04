@@ -17,7 +17,7 @@
 // invalidation only ever reaches an instance whose runtime is gone; while our
 // runtime is alive, an invalidation is a spoof and is ignored.
 
-import { removeStaleHosts, startChatSpaceHost, type HostDiagnostic, type MountDiagnostic } from '@cg/host-chatspace/isolated';
+import { loadValidation, removeStaleHosts, startChatSpaceHost, type HostDiagnostic, type MountDiagnostic } from '@cg/host-chatspace/isolated';
 // The light entry of the platform: its index would evaluate the RPC client and the protocol schemas at document_start (§11).
 import { isExtensionContextAlive } from '@cg/platform/runtime';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
@@ -67,6 +67,7 @@ export function composeTab(env: TabEnv): void {
 
   const host = startChatSpaceHost({
     win,
+    validation: loadValidation,
     // A write spends the action token of its click before anything reaches MAIN (§14); no runtime — no write.
     redeem: (request) => (runtime === null ? Promise.resolve(false) : runtime.then((ready) => ready.redeem(request)).catch(() => false)),
     // ChatSpace's own draft key, read only (§6.1): the isolated world shares the page's localStorage.

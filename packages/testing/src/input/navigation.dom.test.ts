@@ -10,7 +10,7 @@
 import { type ChatRef, type HostAccount, type HostTheme, type MountPoints, type NavigationItem, type TabEventPayload, type TabEventType, type UiAction } from '@cg/contracts';
 import { createCauseHint, createNavigationController, createOverlayState, createQuickJumpController, LIST_SETTLE_MS, type RpcAnswer, type TabRpc } from '@cg/core/application/navigation';
 import { createI18n } from '@cg/core/domain/i18n';
-import { createChatSpaceHostPort, type BridgeEvent, type MainBridgeClient, type MountManager, type ThemeReader } from '@cg/host-chatspace/isolated';
+import { createChatSpaceHostPort, loadValidation, type BridgeEvent, type MainBridgeClient, type MountManager, type ThemeReader } from '@cg/host-chatspace/isolated';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FakeToasts } from '../scenarios/app-client';
@@ -94,7 +94,7 @@ class Rpc implements TabRpc {
 
 async function tab(initial: readonly NavigationItem[] = OPENED) {
   const chatspace = page(initial);
-  const host = createChatSpaceHostPort({ win: window, bridge: chatspace.bridge, redeem: () => Promise.resolve(true), mounts, theme, drafts: null });
+  const host = createChatSpaceHostPort({ win: window, bridge: chatspace.bridge, redeem: () => Promise.resolve(true), mounts, theme, validation: loadValidation, drafts: null });
   await host.ready;
   await vi.advanceTimersByTimeAsync(0);
   const clock = { now: () => Date.now(), setTimer: (ms: number, fn: () => void): unknown => setTimeout(fn, ms), clearTimer: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>) };

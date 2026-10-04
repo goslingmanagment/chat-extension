@@ -18,7 +18,7 @@
 import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyNotice, type HotkeySink } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible } from '@cg/core/application/navigation';
 import { hotkeyPlatformOf, type DispatcherCommandId, type HotkeyPlatform, type KeyCommand, type KeyRefusal, type OverlayKind } from '@cg/core/domain/hotkeys';
-import { KEY_PENDING_ATTRIBUTE, createKeyPendingMark, createKeyboardProbe, routeOfLocation, startChatSpaceHost } from '@cg/host-chatspace/isolated';
+import { KEY_PENDING_ATTRIBUTE, createKeyPendingMark, createKeyboardProbe, loadValidation, routeOfLocation, startChatSpaceHost } from '@cg/host-chatspace/isolated';
 
 const readyStateAtStart = document.readyState;
 const params = new URLSearchParams(window.location.search);
@@ -27,6 +27,7 @@ const platform: HotkeyPlatform = requested === 'mac' || requested === 'win' ? re
 
 const started = startChatSpaceHost({
   win: window,
+  validation: loadValidation,
   redeem: () => Promise.resolve(true),
   drafts: null,
 });

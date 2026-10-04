@@ -4,7 +4,8 @@
 // @cg/core/domain/text). Never receives the hub token, never touches the
 // network or page storage itself (the draft key comes through a port).
 
-export { BridgeCallError, connectMainBridge, loadValidation, type BridgeEvent, type BridgeFailure, type BridgeStats, type MainBridgeClient } from './bridge-client';
+export { BridgeCallError, connectMainBridge, type BridgeEvent, type BridgeFailure, type BridgeStats, type MainBridgeClient } from './bridge-client';
+export { loadValidation, type Validation, type ValidationLoader } from './validation';
 export { buildContractReport, type ContractInput } from './contract';
 export { readStoredDraft, storedDraftAgrees, tiptapText, type DraftStorage, type StoredDraft } from './draft-store';
 export { aiGeneratedMark, bigramSimilarity } from './ai-mark';

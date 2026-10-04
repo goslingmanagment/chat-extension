@@ -11,20 +11,15 @@
 // events are never coalesced or dropped.
 //
 // Only the handshake runs synchronously at document_start; the schemas load
-// lazily on the first frame (validate.ts), so the early start builds none.
+// lazily on the first frame (validate.ts, through the loader the caller hands
+// in: validation.ts), so the early start builds none.
 
 import type { BridgeError, BridgeRejectReason, FromMainType, MainProbe, ToMainType } from '@cg/contracts/bridge';
 import type { FromMainPayload, ToMainData, ToMainPayload } from '@cg/contracts/bridge-messages';
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 
-import type * as ValidateModule from './validate';
+import type { Validation, ValidationLoader } from './validation';
 import { ERRORS_BEFORE_EXECUTION, PROTOCOL_VERSION, TAGS, UNDROPPABLE_EVENTS } from './wire';
-
-type Validation = typeof ValidateModule;
-
-let validation: Promise<Validation> | null = null;
-/** The schema module, loaded once on first use. */
-export const loadValidation = (): Promise<Validation> => (validation ??= import('./validate'));
 
 /** Why a call produced no answer: a MAIN refusal, or the transport. */
 export type BridgeFailure = BridgeError | 'timeout' | 'closed' | 'invalid-answer';
@@ -87,8 +82,8 @@ function randomNonce(win: Window): string {
   return Array.from(win.crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** Resolves once the MAIN bridge was handed our port; rejects after `timeoutMs` without MAIN. */
-export function connectMainBridge(win: Window, timeoutMs: number = BRIDGE_LIMITS.callTimeoutMs): Promise<MainBridgeClient> {
+/** Resolves once the MAIN bridge was handed our port; rejects after `timeoutMs` without MAIN. `validation` — where the schemas come from (validation.ts). */
+export function connectMainBridge(win: Window, validation: ValidationLoader, timeoutMs: number = BRIDGE_LIMITS.callTimeoutMs): Promise<MainBridgeClient> {
   return new Promise((resolve, reject) => {
     let settled = false;
     const targetOrigin = win.location.origin === 'null' ? '*' : win.location.origin;
@@ -103,7 +98,7 @@ export function connectMainBridge(win: Window, timeoutMs: number = BRIDGE_LIMITS
       finish();
       const channel = new MessageChannel();
       win.postMessage({ cg: TAGS.connect, v: PROTOCOL_VERSION, nonce: randomNonce(win) }, targetOrigin, [channel.port2]);
-      resolve(createClient(channel.port1, win));
+      resolve(createClient(channel.port1, win, validation));
     };
     const timer = setTimeout(() => {
       if (settled) return;
@@ -115,7 +110,7 @@ export function connectMainBridge(win: Window, timeoutMs: number = BRIDGE_LIMITS
   });
 }
 
-function createClient(port: MessagePort, win: Window): MainBridgeClient {
+function createClient(port: MessagePort, win: Window, validation: ValidationLoader): MainBridgeClient {
   let nextId = 1;
   let seq = 0;
   let documentEpoch: string | null = null;
@@ -199,7 +194,7 @@ function createClient(port: MessagePort, win: Window): MainBridgeClient {
   port.onmessage = (event: MessageEvent) => {
     const raw: unknown = event.data;
     chain = chain.then(async () => {
-      if (!closed) handle(raw, await loadValidation());
+      if (!closed) handle(raw, await validation());
     });
   };
 

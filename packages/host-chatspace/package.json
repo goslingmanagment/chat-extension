@@ -7,6 +7,7 @@
   "exports": {
     "./main": "./src/main/index.ts",
     "./isolated": "./src/isolated/index.ts",
+    "./isolated/validation": "./src/isolated/validate.ts",
     "./host-contract": "./src/isolated/host-contract.ts"
   },
   "dependencies": {
