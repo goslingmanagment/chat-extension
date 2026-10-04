@@ -269,6 +269,62 @@ describe('recap: the sheet and what is saved', () => {
   });
 });
 
+describe('recap: shown outside the sheet (the fan panel’s Recap tab)', () => {
+  it('[AI-069] [CS-031] while the tab is watched the saved recaps of the open chat are read — no sheet, no build; the chat opened under it is read in its turn, each once', async () => {
+    const h = await start();
+    h.bg.sharedRecaps = { full: body(), short: null, fullSavedToProfile: true };
+    // Nothing reads by itself: the strip alone asks for no recap text.
+    expect(h.bg.callsOf('recap.read')).toEqual([]);
+    expect(h.recapView().view).toMatchObject({ s: 'loading', stage: { key: 'recap.checking' } });
+
+    const unwatch = h.ai.recap.watch();
+    await h.settle();
+    expect(h.bg.callsOf('recap.read')).toEqual([{ pageId: WORLD.pages.one.pageId, fanRef: HOST_IDS.fan, personaDefinitionId: WORLD.persona.definitionId }]);
+    expect(h.recapView()).toMatchObject({ view: { s: 'ready' }, markdown: FULL_TEXT, length: 'full' });
+    // The dock's sheet did not open, and nothing was generated.
+    expect(h.dock().analysis).toBeNull();
+    expect(h.bg.callsOf('op.start')).toEqual([]);
+
+    // Another chat under the open tab: its own read, once.
+    h.bg.sharedRecaps = { full: null, short: null, fullSavedToProfile: false };
+    const other = (fan: string) => {
+      const chat = { ...openChat, platformFanId: fan };
+      h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat }, chat);
+      return chat;
+    };
+    h.host.openChat(other('2101'));
+    await h.settle();
+    await h.settle();
+    expect(h.bg.callsOf('recap.read')).toHaveLength(2);
+    expect(h.bg.callsOf('recap.read').at(-1)).toMatchObject({ fanRef: '2101' });
+    expect(h.recapView().view).toMatchObject({ s: 'empty' });
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(h.bg.callsOf('recap.read')).toHaveLength(2);
+
+    // The tab was closed: the next chat is not read for it.
+    unwatch();
+    h.host.openChat(other('2102'));
+    await h.settle();
+    expect(h.bg.callsOf('recap.read')).toHaveLength(2);
+  });
+
+  it('a read that failed is named with «Повторить», never shown as «Recap ещё не сделан», and is not asked again by itself', async () => {
+    const h = await start();
+    h.bg.sharedRecaps = { error: { code: 'CG-HUB-UNAVAILABLE' } };
+    h.ai.recap.watch();
+    await h.settle();
+    const view = h.recapView().view;
+    expect(view).toMatchObject({ s: 'offline', error: { code: 'CG-HUB-UNAVAILABLE' }, retry: { type: 'ReloadView', selector: { of: 'recap.view' } } });
+    await h.clock.advance(120_000);
+    expect(h.bg.callsOf('recap.read')).toHaveLength(1);
+    h.bg.sharedRecaps = { full: body(), short: null, fullSavedToProfile: true };
+    await h.dispatch({ type: 'ReloadView', selector: { of: 'recap.view' } });
+    await h.settle();
+    expect(h.recapView()).toMatchObject({ view: { s: 'ready' }, markdown: FULL_TEXT });
+  });
+});
+
 describe('recap: building one', () => {
   it('[AI-062] [AI-064] «Полный» builds over the deep window — always a new generation, past the cache', async () => {
     const h = await start();

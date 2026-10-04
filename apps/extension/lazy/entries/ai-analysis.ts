@@ -2,4 +2,4 @@
 // views `recap.picker`, `recap.view` and `review`. Loaded right after the dock
 // is on screen.
 
-export { createRecapController, createReviewController } from '@cg/core/application/ai';
+export { createRecapController, createReviewController, type RecapController } from '@cg/core/application/ai';

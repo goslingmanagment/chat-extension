@@ -59,7 +59,14 @@ interface RecapUi {
   readonly sheetId: string;
 }
 
-export type RecapController = AiController;
+export interface RecapController extends AiController {
+  /**
+   * The recap of the open chat is shown outside the dock's sheet (the fan
+   * panel's Recap tab): the saved recaps are read for it while it is.
+   * Returns what stops the watch.
+   */
+  watch(): () => void;
+}
 
 export function createRecapController(ws: AiWorkspace): RecapController {
   const { catalog, clock, i18n, ids } = ws.ports;
@@ -198,8 +205,15 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     else if (failed && op !== null) view = views.error(errorVm(op.view.error ?? { code: 'CG-OP-INTERRUPTED' }, i18n), { type: 'RefreshRecap', length });
     else if (copy === null) {
       const read = key === null ? null : book.read(key);
+      if (read === null || read.state === 'loading') view = views.loading(read?.at ?? null, msg('recap.checking'));
+      else if (read.state === 'error' && read.error !== null && slots.short === null && slots.full === null) {
+        // What the hub holds is not known: a failed read is named, never shown as «Recap ещё не сделан».
+        const error = errorVm(read.error, i18n);
+        const retry: UiAction = { type: 'ReloadView', selector: { of: 'recap.view' } };
+        view = isOfflineCode(read.error.code) ? views.offline(error, retry) : views.error(error, retry);
+      }
       // AI-065: nothing saved at this length — the build buttons are the way.
-      view = read === null || read.state === 'loading' ? views.loading(read?.at ?? null, msg('recap.checking')) : views.empty(msg('cg.recapNotFound.title'));
+      else view = views.empty(msg('cg.recapNotFound.title'));
     } else {
       const gaps: PartialGap[] = [];
       // An unknown coverage is said by the stamp; only a known cut makes the recap partial.
@@ -386,5 +400,37 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     if (event.kind === 'done' && isRecap(event.record.view.feature)) ws.bump();
   });
 
-  return createSurface(ws, { kinds: ['recap.picker', 'recap.view'], build, handlers, dispose: offOps });
+  const surface = createSurface(ws, { kinds: ['recap.picker', 'recap.view'], build, handlers, dispose: offOps });
+
+  // The recap of the open chat may be on screen without any of the sheet's own actions: the fan panel's Recap
+  // tab. While somebody watches, what the hub holds for the page, the fan and the persona of the open chat is
+  // read once per chat, as soon as the chat can be named (a chat that is still loading is read when it
+  // settles; another chat opened under the tab is read in its turn). Only the first read starts here: a failed
+  // one is «Повторить»'s to ask again, and a build never starts by itself.
+  let watchers = 0;
+  const readShared = (): void => {
+    if (watchers === 0) return;
+    const situation = ws.situation();
+    if (situation.ready === null || blockedView(situation) !== null) return;
+    const key = ws.slotKey(situation.ready);
+    if (book.read(key) === null) book.loadShared(key);
+  };
+  const offWatch = ws.subscribe(readShared);
+
+  return {
+    ...surface,
+    watch() {
+      watchers += 1;
+      readShared();
+      let watching = true;
+      return () => {
+        if (watching) watchers -= 1;
+        watching = false;
+      };
+    },
+    dispose() {
+      offWatch();
+      surface.dispose();
+    },
+  };
 }

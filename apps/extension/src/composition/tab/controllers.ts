@@ -76,6 +76,8 @@ export interface TabAi {
   readonly workspace: AiChunk.AiWorkspace;
   /** Plugs a controller built over the workspace into the router. */
   plug(controller: AiChunk.AiController): void;
+  /** The Recap controller, once its chunk is in (tab/recap-tab.ts reads it for the fan panel's Recap tab). */
+  recap: AnalysisChunk.RecapController | null;
   dispose(): void;
 }
 
@@ -114,6 +116,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
   return {
     workspace,
     plug,
+    recap: null,
     dispose() {
       for (const off of offs.splice(0)) off();
       for (const controller of controllers.splice(0)) controller.dispose();
@@ -123,7 +126,8 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
 }
 
 export function startAnalysis(ai: TabAi, analysis: typeof AnalysisChunk, coach: typeof CoachChunk): void {
-  ai.plug(analysis.createRecapController(ai.workspace));
+  ai.recap = analysis.createRecapController(ai.workspace);
+  ai.plug(ai.recap);
   ai.plug(analysis.createReviewController(ai.workspace));
   ai.plug(coach.createCoachController(ai.workspace));
 }

@@ -54,6 +54,7 @@ import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, t
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
+import { followRecapTab } from './recap-tab';
 import { mountSurfaces, overlayRoot } from './surfaces';
 import { toastOfTab, type ToastFacts } from './toast-events';
 import { Value } from './values';
@@ -483,6 +484,10 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   };
   offs.push(router.subscribe({ of: 'dock' }, syncDock), () => offAnalysis?.());
   syncDock();
+
+  // The fan panel's Recap tab shows the recap of the open chat without the Recap sheet's own actions: while it
+  // is on screen the recap controller reads what the hub holds for each chat opened under it (tab/recap-tab.ts).
+  offs.push(followRecapTab({ overlays: keys.overlays, router, recap: () => ai.recap }));
 
   // ── the bootstrap: the host adapter's part B, and what a sign-out takes away ──
   const facts = forwardHostFacts({ host, rpc: world.rpc, setNavInsertTimeoutMs: env.setNavInsertTimeoutMs, onFailure: (what) => logger.warn('tab.host', 'the host adapter did not take its configuration', { fields: { what } }) });
