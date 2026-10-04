@@ -91,6 +91,17 @@ export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { r
   return null;
 }
 
+/**
+ * The palette is a launcher («↵ выполнить», ui-design §4.20): what a row ran closes it — a window opened from
+ * it must not stand under it, a generation it started is watched in the dock. Its own typing, its own closing
+ * and a row that was refused (the person reads why and picks another) leave it open. While the palette is
+ * open every dispatched action is one of its rows: our keys are not dispatched under a window of ours.
+ */
+export function closesPalette(action: UiAction, receipt: ActionReceipt): boolean {
+  if (!receipt.ok || action.type === 'Search') return false;
+  return !(action.type === 'Navigate' && action.to.kind === 'surface' && action.to.surface === 'palette');
+}
+
 /** Holds that pass by themselves, so the part's row keeps nothing of them: the fan or the account is busy with another send. */
 const PASSING_HOLDS: readonly CgCode[] = ['CG-SEND-BUSY'];
 

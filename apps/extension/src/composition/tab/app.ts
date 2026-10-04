@@ -49,7 +49,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
-import { adopt, boardReceiptToast, controllerRpc, createTabClient, heldSilently } from './client';
+import { adopt, boardReceiptToast, closesPalette, controllerRpc, createTabClient, heldSilently } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
@@ -256,6 +256,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     },
     onAction: (action) => health?.action(action.type, action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open ? action.to.surface : undefined),
     onReceipt(action, receipt) {
+      // A row of the palette ran: the palette goes (R17's controller closes it only for a preview it opened itself).
+      if (keys.overlays.isOpen('palette') && closesPalette(action, receipt)) keys.overlays.set('palette', false);
       // A click on a board's part that came to nothing the board itself shows: the reason, as a toast.
       const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
         const entry = CG_REGISTRY[code];

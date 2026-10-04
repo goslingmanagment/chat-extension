@@ -8,7 +8,7 @@ import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import type { TokenAnswer } from './action-gate';
-import { adopt, boardReceiptToast, controllerRpc, createTabClient, heldSilently, type LooseController } from './client';
+import { adopt, boardReceiptToast, closesPalette, controllerRpc, createTabClient, heldSilently, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
 const done = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
@@ -191,5 +191,24 @@ describe('what a click on a board’s part came to, when the board has no place 
     expect((await made.dispatch(send)).ok).toBe(false);
     await Promise.resolve();
     expect(seen).toEqual(['InsertPart:done', 'SendPart:CG-UI-FAILED']);
+  });
+});
+
+describe('the palette is a launcher', () => {
+  const ok = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
+  const open = (surface: string, isOpen = true): UiAction => ({ type: 'Navigate', to: { kind: 'surface', surface, open: isOpen } }) as UiAction;
+
+  it('[HK-036] a row that ran closes it: a window it opened, a generation it started, a switch it flipped', () => {
+    expect(closesPalette(open('newcomers'), ok('Navigate'))).toBe(true);
+    expect(closesPalette(open('cheatsheet'), ok('Navigate'))).toBe(true);
+    expect(closesPalette({ type: 'Generate', targetHandle: 'dock:chatspace:1:2', feature: 'reply', options: {} }, { ok: true, type: 'Generate', outcome: 'started' })).toBe(true);
+    expect(closesPalette({ type: 'OpenSettings', route: { section: 'status' } }, ok('OpenSettings'))).toBe(true);
+  });
+
+  it('typing in it, closing it and a row that was refused leave it as it is', () => {
+    expect(closesPalette({ type: 'Search', list: 'palette', query: 'нов' }, ok('Search'))).toBe(false);
+    expect(closesPalette(open('palette', false), ok('Navigate'))).toBe(false);
+    expect(closesPalette(open('palette'), ok('Navigate'))).toBe(false);
+    expect(closesPalette(open('spenders'), { ok: false, type: 'Navigate', code: 'CG-FEATURE-DISABLED', error: errorOf('CG-FEATURE-DISABLED') })).toBe(false);
   });
 });
