@@ -22,8 +22,11 @@
 //   (flag, anchors, tap, a matching receipt profile); the port sends MAIN the
 //   host target, the text and the ticket's deadline — never the hub binding,
 //   the ticket or the action token (§14). One queue call per attempt: a
-//   repeated commit gets the first answer, a bridge failure that may have run
-//   is `uncertain` and is never sent again.
+//   repeated commit gets the first answer (only a `held` one is ever
+//   forgotten), a bridge failure that may have run is `uncertain` and is
+//   never sent again. A receipt profile that stops matching while a send is
+//   on its way makes that send `uncertain` here (§6.2): of what MAIN still
+//   says about it only the late linked pair (`sentObserved`) passes.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
@@ -109,8 +112,10 @@ const LIST_FRESH_MS = 1000;
 const FAN_CACHE = 200;
 /** Time MAIN gets past a deferred insert's deadline to answer with its own outcome. */
 const NAV_GRACE_MS = 1000;
-/** Attempts whose queue call was asked for, with their first answer. */
+/** Attempts answered `held` that are kept for a repeated command; any other answer is kept for the document's life. */
 const COMMIT_MEMORY = 64;
+/** Sends on their way that are followed for a profile change (§6.2); the oldest goes first. */
+const FLYING_MAX = 64;
 /** The deadline a preflight carries: it has no ticket, and MAIN's preflight does not look at it. */
 const PREFLIGHT_WINDOW_MS = 60_000;
 
@@ -132,14 +137,26 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   let disposed = false;
   /** The tap script is in the page and was not switched off. */
   let tap = false;
+  /** MAIN itself said whether the tap runs (`flags`): a probe that comes later does not overrule it. */
+  let tapKnown = false;
   let live: ChatSpaceLiveConfig | null = null;
   /** The bootstrap profile the loaded send-path modules match; null — none. */
   let receiptProfile: string | null = null;
   /** The last judgement said in the diagnostics; undefined — not judged (the flag is off). */
   let lastJudged: string | null | undefined;
+  /** The last judgement found a profile (kept while the flag is off: a send started before goes on). */
+  let matched = false;
   const adapterVersion = options.adapterVersion ?? ADAPTER_VERSION;
   const sendListeners = new Map<string, Set<(view: SendAttemptView) => void>>();
+  /** Attempts whose queue call was asked for, with their first answer. */
   const commits = new Map<string, Promise<PreviewSendCommit>>();
+  /** The attempts answered `held`, oldest first: only these are ever forgotten. */
+  const heldCommits: string[] = [];
+  /**
+   * Sends on their way — the queue call was asked for and no end was heard: null — MAIN has not answered yet; false —
+   * in the queue, followed; true — said `uncertain` here because the receipt profile stopped matching (§6.2).
+   */
+  const flying = new Map<string, boolean | null>();
   let report: HostContractReport = compute();
   const windows = new Map<ChatKey, ChatWindow | null>();
   const fans = new Map<ChatKey, HostFan | null>();
@@ -189,6 +206,19 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     if (judged !== lastJudged && judged !== undefined) diag({ event: 'receipt-profile', ...(judged === null ? { code: 'CG-SEND-RECEIPT' as const } : {}), detail: { profile: judged } });
     lastJudged = judged;
     receiptProfile = judged ?? null;
+    if (judged === undefined) return;
+    // §6.2: the modules changed in the middle of a send — what MAIN goes on to read of it is no longer the approved
+    // path: `uncertain`, the custody stays, and the next X8 is closed by the capability. Only a send known to be in
+    // the queue: one whose command MAIN has not answered yet may still turn out held.
+    if (matched && judged === null) {
+      for (const [attemptId, state] of flying) {
+        if (state !== false) continue;
+        flying.set(attemptId, true);
+        diag({ event: 'x8-profile-lost', code: 'CG-SEND-UNCERTAIN' });
+        for (const listener of [...(sendListeners.get(attemptId) ?? [])]) listener({ attemptId, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+      }
+    }
+    matched = judged !== null;
   };
 
   // ── identity ──
@@ -347,6 +377,10 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       }
       case 'previewSendState': {
         const view = event.payload.view;
+        const voided = flying.get(view.attemptId) === true;
+        if (view.state === 'sentObserved' || view.state === 'rejected' || view.state === 'uncertain') flying.delete(view.attemptId);
+        // After the `uncertain` said here (§6.2) only the late linked pair may still speak (§6.7.7).
+        if (voided && view.state !== 'sentObserved') return;
         for (const listener of [...(sendListeners.get(view.attemptId) ?? [])]) listener(view);
         return;
       }
@@ -364,8 +398,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   let reloadNeeded = false;
   const noteLateStart = async (): Promise<void> => {
     const probe = await (bridge as MainBridgeClient).probe().catch(() => null);
-    // The tap script leaves its handle at document_start; `configure` may have switched it off meanwhile.
-    if (probe && live?.wsTap !== false) {
+    // The tap script leaves its handle at document_start. `configure` may have switched it off meanwhile, and once MAIN
+    // has answered `flags` its word stands: a handle that is there does not mean the runtime got its live port.
+    if (probe && !tapKnown && live?.wsTap !== false) {
       tap = probe.wsTap;
       recompute();
     }
@@ -440,9 +475,16 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     if (refused || !bridge) return { state: 'held', code: refused ?? 'CG-SEND-HOST' };
     // A late command is held, never a late send (§6.7.11); MAIN checks the same deadline again.
     if (clock() >= ticket.expiresAt) return { state: 'held', code: 'CG-TIMEOUT' };
+    flying.set(req.attemptId, null);
+    if (flying.size > FLYING_MAX) flying.delete(flying.keys().next().value as string);
     try {
-      return await bridge.request('previewSendCommit', { req: toMain(req, ticket.expiresAt) });
+      const answer = await bridge.request('previewSendCommit', { req: toMain(req, ticket.expiresAt) });
+      // Only a send that is in the queue is on its way; its end may have been heard already — then it is not put back.
+      if (answer.state !== 'nativeEnqueued') flying.delete(req.attemptId);
+      else if (flying.has(req.attemptId)) flying.set(req.attemptId, false);
+      return answer;
     } catch (error) {
+      flying.delete(req.attemptId);
       if (!(error instanceof BridgeCallError) || error.executed === 'maybe') {
         diag({ event: 'x8-commit-lost', code: 'CG-SEND-UNCERTAIN', detail: { failure: error instanceof BridgeCallError ? error.failure : 'error' } });
         return WRITE_FAILURES.previewSendCommit;
@@ -469,7 +511,10 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       let first = commits.get(req.attemptId);
       if (!first) {
         commits.set(req.attemptId, (first = commit(req, ticket)));
-        if (commits.size > COMMIT_MEMORY) commits.delete(commits.keys().next().value as string);
+        // Only «held» is ever forgotten, the oldest first (as in MAIN): an attempt that may have reached the queue stays.
+        void first.then((answer) => {
+          if (answer.state === 'held' && heldCommits.push(req.attemptId) > COMMIT_MEMORY) commits.delete(heldCommits.shift() as string);
+        });
       }
       return first;
     },
@@ -523,6 +568,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       refreshReceipt();
       // MAIN's latch follows the flag at once (§6.7.11); `wsTap: false` switches the tap off for this document.
       tap = bridge ? await bridge.request('flags', { wsTap: config.wsTap, previewSend: config.previewSend }).then((flags) => flags.wsTap, () => false) : false;
+      tapKnown = true;
       recompute();
       return report;
     },

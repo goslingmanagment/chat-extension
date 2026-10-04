@@ -187,6 +187,48 @@ describe('[X8-06] the preview send capability (§6.2, §6.7.11)', () => {
     expect(off.host.probe().capabilities.sendObserve).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
   });
 
+  it('MAIN’s own word about the tap stands: a probe that comes after `flags`, or while the tap is being switched off, does not switch it on', async () => {
+    loadModules();
+    const off = { state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' };
+    /** A page whose tap handle is there (the probe sees it); the probe and the `flags` answer arrive when the test says. */
+    const page = () => {
+      const gate = { probe: (): void => undefined, flags: (): void => undefined };
+      const probed = new Promise<void>((resolve) => (gate.probe = resolve));
+      const flagged = new Promise<void>((resolve) => (gate.flags = resolve));
+      const bridge = fakeBridge(
+        { snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [], flags: () => flagged.then(() => ({ wsTap: false, previewSend: false })) },
+        true,
+      );
+      const probe = bridge.client.probe.bind(bridge.client);
+      (bridge.client as { probe: MainBridgeClient['probe'] }).probe = () => probed.then(probe);
+      const host = createChatSpaceHostPort({ win: pageWindow, bridge: bridge.client, redeem: () => Promise.resolve(true), mounts, theme });
+      return { host, gate };
+    };
+
+    // The runtime has no live port (the page took it first): `flags` reads back off although the bootstrap wants the tap.
+    const answered = page();
+    answered.gate.flags();
+    await answered.host.configure(CONFIG);
+    expect(answered.host.probe().capabilities.incoming).toEqual(off);
+    answered.gate.probe();
+    await answered.host.ready;
+    expect(answered.host.probe().capabilities.incoming).toEqual(off);
+    expect(answered.host.probe().capabilities.previewSend).toEqual(off);
+    expect(answered.host.previewSend).toBeNull();
+    answered.host.dispose();
+
+    // The bootstrap switches the tap off; the probe arrives while MAIN has not answered yet.
+    const pending = page();
+    const configured = pending.host.configure({ ...CONFIG, wsTap: false });
+    pending.gate.probe();
+    await pending.host.ready;
+    expect(pending.host.probe().capabilities.incoming).toEqual(off);
+    pending.gate.flags();
+    await configured;
+    expect(pending.host.probe().capabilities.incoming).toEqual(off);
+    pending.host.dispose();
+  });
+
   it('a condition’s anchor that cannot be read keeps X8 off', async () => {
     loadModules();
     const { host } = await start({}, { contract: wire({ missing: ['mimic'] }) });
@@ -247,6 +289,31 @@ describe('[X8-02] [SP-054] the X8 port (§5.2, §6.7.7, §14)', () => {
     const answers = await Promise.all(Array.from({ length: 20 }, () => port.commit(request(), ticket())));
     expect(bridge.calls.filter((call) => call.t === 'previewSendCommit')).toHaveLength(1);
     expect(new Set(answers.map((answer) => JSON.stringify(answer))).size).toBe(1);
+  });
+
+  it('an attempt that may have reached the queue is never forgotten here either: its command after seventy held ones is not a second command', async () => {
+    loadModules();
+    const answers = new Map<string, unknown>([
+      [uuid(100), { state: 'nativeEnqueued', pendingId: 'pending-1' }],
+      [uuid(101), { state: 'notEnqueued', code: 'CG-SEND-QUEUE' }],
+      [uuid(102), { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }],
+    ]);
+    const { host, bridge } = await start({ previewSendCommit: (payload) => answers.get((payload['req'] as { attemptId: string }).attemptId) ?? { state: 'held', code: 'CG-SEND-BUSY' } });
+    const port = host.previewSend;
+    if (!port) throw new Error('no port');
+    const commit = (n: number) => port.commit(request({ attemptId: uuid(n) }), ticket({ attemptId: uuid(n) }));
+    const first = [await commit(100), await commit(101), await commit(102)];
+    for (let n = 0; n < 70; n += 1) expect(await commit(200 + n)).toEqual({ state: 'held', code: 'CG-SEND-BUSY' });
+    const commands = (): string[] => bridge.calls.filter((call) => call.t === 'previewSendCommit').map((call) => (call.payload['req'] as { attemptId: string }).attemptId);
+    expect(commands()).toHaveLength(73);
+    expect([await commit(100), await commit(101), await commit(102)]).toEqual(first);
+    // A held attempt still remembered keeps its answer without a new command; the oldest held ones were let go.
+    expect(await commit(269)).toEqual({ state: 'held', code: 'CG-SEND-BUSY' });
+    expect(await commit(206)).toEqual({ state: 'held', code: 'CG-SEND-BUSY' });
+    expect(commands()).toHaveLength(73);
+    await commit(205);
+    expect(commands()).toHaveLength(74);
+    expect(commands().filter((id) => answers.has(id))).toHaveLength(3);
   });
 
   it.each<[string, BridgeFailure, { state: string; code: string }]>([
@@ -324,6 +391,112 @@ describe('[X8-02] [SP-054] the X8 port (§5.2, §6.7.7, §14)', () => {
     stop?.();
     bridge.emit({ t: 'previewSendState', payload: { view: sent } });
     expect(mine).toHaveLength(2);
+  });
+});
+
+describe('[X8-06] the receipt profile stops matching in the middle of a send (§6.2)', () => {
+  const view = (n: number, state: SendAttemptView['state'], over: Partial<SendAttemptView> = {}): SendAttemptView => ({ attemptId: uuid(n), state, ...over });
+
+  it('a send on its way becomes uncertain; of what MAIN still says about it only the late linked pair passes; the next X8 is closed', async () => {
+    loadModules();
+    const { host, bridge, diagnostics } = await start({
+      previewSendCommit: (payload) => {
+        const attemptId = (payload['req'] as { attemptId: string }).attemptId;
+        return attemptId === uuid(113) ? { state: 'held', code: 'CG-SEND-BUSY' } : { state: 'nativeEnqueued', pendingId: `pending-${attemptId}` };
+      },
+    });
+    const port = host.previewSend;
+    if (!port) throw new Error('no port');
+    const heard = new Map<number, SendAttemptView[]>();
+    const begin = async (n: number): Promise<SendAttemptView[]> => {
+      const views: SendAttemptView[] = [];
+      heard.set(n, views);
+      port.onState(uuid(n), (state) => views.push(state));
+      await port.commit(request({ attemptId: uuid(n) }), ticket({ attemptId: uuid(n) }));
+      return views;
+    };
+    const onItsWay = await begin(110);
+    const accepted = await begin(111);
+    const ended = await begin(112);
+    const held = await begin(113);
+    bridge.emit({ t: 'previewSendState', payload: { view: view(111, 'nativeAccepted', { platformMessageId: '8011' }) } });
+    bridge.emit({ t: 'previewSendState', payload: { view: view(112, 'nativeAccepted', { platformMessageId: '8012' }) } });
+    bridge.emit({ t: 'previewSendState', payload: { view: view(112, 'sentObserved', { platformMessageId: '8012' }) } });
+
+    // The page loads a second version of a send-path module; the adapter learns of it at the next contract event.
+    loadModules({ ...MODULES, composables: 'CCCCCCCC+CHANGED0' });
+    bridge.emit({ t: 'contract', payload: wire() });
+    const uncertain = (n: number): SendAttemptView => ({ attemptId: uuid(n), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    expect(onItsWay).toEqual([uncertain(110)]);
+    expect(accepted.at(-1)).toEqual(uncertain(111));
+    // An attempt that ended, and one that never reached the queue, are not touched.
+    expect(ended.map((state) => state.state)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(held).toEqual([]);
+    expect(host.previewSend).toBeNull();
+    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
+    expect(diagnostics.filter((diagnostic) => diagnostic.event === 'x8-profile-lost')).toEqual([
+      { event: 'x8-profile-lost', code: 'CG-SEND-UNCERTAIN' },
+      { event: 'x8-profile-lost', code: 'CG-SEND-UNCERTAIN' },
+    ]);
+
+    // Said once: judging again changes nothing.
+    bridge.emit({ t: 'contract', payload: wire({ build: 'index-0001fake' }) });
+    expect(onItsWay).toHaveLength(1);
+    // A receipt read through a path that is no longer the approved one proves nothing; nor does a refusal or a second «uncertain».
+    bridge.emit({ t: 'previewSendState', payload: { view: view(110, 'nativeAccepted', { platformMessageId: '8010' }) } });
+    expect(onItsWay).toHaveLength(1);
+    bridge.emit({ t: 'previewSendState', payload: { view: view(111, 'uncertain', { code: 'CG-SEND-UNCERTAIN' }) } });
+    expect(accepted.map((state) => state.state)).toEqual(['nativeAccepted', 'uncertain']);
+    // The old set is back and gone again (a module loaded twice, then a third version): what was said is not said again.
+    loadModules();
+    bridge.emit({ t: 'contract', payload: wire() });
+    expect(host.previewSend).not.toBeNull();
+    loadModules({ ...MODULES, composables: 'CHANGED1' });
+    bridge.emit({ t: 'contract', payload: wire() });
+    expect(onItsWay).toHaveLength(1);
+    // The late linked pair — the receipt and the echo with the same id — is the one way out of «uncertain» (§6.7.7).
+    bridge.emit({ t: 'previewSendState', payload: { view: view(110, 'sentObserved', { platformMessageId: '8010' }) } });
+    expect(onItsWay.map((state) => state.state)).toEqual(['uncertain', 'sentObserved']);
+  });
+
+  it('a send whose command MAIN has not answered yet is not called uncertain: it may still turn out held; one that ended before the answer is not followed', async () => {
+    loadModules();
+    const answers = new Map<string, (answer: unknown) => void>();
+    const { host, bridge } = await start({ previewSendCommit: (payload) => new Promise((resolve) => answers.set((payload['req'] as { attemptId: string }).attemptId, resolve)) });
+    const port = host.previewSend;
+    if (!port) throw new Error('no port');
+    const heard: SendAttemptView[] = [];
+    for (const n of [130, 131]) port.onState(uuid(n), (state) => heard.push(state));
+    const asked = port.commit(request({ attemptId: uuid(130) }), ticket({ attemptId: uuid(130) }));
+    const ended = port.commit(request({ attemptId: uuid(131) }), ticket({ attemptId: uuid(131) }));
+    await vi.waitFor(() => expect(answers.size).toBe(2));
+    // MAIN said the end of the second one before its command's answer came back.
+    bridge.emit({ t: 'previewSendState', payload: { view: view(131, 'rejected', { code: 'CG-SEND-REJECTED', httpStatus: 403 }) } });
+    answers.get(uuid(131))?.({ state: 'nativeEnqueued', pendingId: 'pending-131' });
+    await ended;
+    loadModules({ ...MODULES, composables: 'CHANGED0' });
+    bridge.emit({ t: 'contract', payload: wire() });
+    expect(heard.map((state) => [state.attemptId, state.state])).toEqual([[uuid(131), 'rejected']]);
+    answers.get(uuid(130))?.({ state: 'held', code: 'CG-SEND-BUSY' });
+    expect(await asked).toEqual({ state: 'held', code: 'CG-SEND-BUSY' });
+    expect(heard).toHaveLength(1);
+  });
+
+  it('the flag going off is not a mismatch: a send already started is followed to its end', async () => {
+    loadModules();
+    const { host, bridge } = await start();
+    const views: SendAttemptView[] = [];
+    host.previewSend?.onState(uuid(120), (state) => views.push(state));
+    await host.previewSend?.commit(request({ attemptId: uuid(120) }), ticket({ attemptId: uuid(120) }));
+    await host.configure({ ...CONFIG, previewSend: false });
+    bridge.emit({ t: 'contract', payload: wire() });
+    expect(views).toEqual([]);
+    bridge.emit({ t: 'previewSendState', payload: { view: view(120, 'nativeAccepted', { platformMessageId: '8020' }) } });
+    expect(views.map((state) => state.state)).toEqual(['nativeAccepted']);
+    // The flag comes back on a page whose modules changed meanwhile: the send that is still on its way is uncertain.
+    loadModules({ ...MODULES, notificationEntry: 'NEWBUILD' });
+    await host.configure(CONFIG);
+    expect(views.map((state) => state.state)).toEqual(['nativeAccepted', 'uncertain']);
   });
 });
 
