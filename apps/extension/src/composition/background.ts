@@ -14,7 +14,9 @@
 //    leases, the sound, consent, telemetry, the WS tap switch; every request
 //    waits for it (10 s at most);
 // 3. nothing here talks to the hub by itself after an install or an update:
-//    the facade refreshes a bootstrap only for an existing sign-in.
+//    the facade refreshes a bootstrap only for an existing sign-in, and a
+//    status surface reads the hub's health only for one. A real install
+//    opens the settings once (the onboarding); a temporary one does not.
 //
 // One implementation of each thing (the wave-1 duplicates are gone):
 // - readiness and presence: R07's barrier and presence; the RPC mints the
@@ -235,6 +237,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const local = createKeyValueStore('local', { api, budgetOf: storageBudgetOf });
   const session = createKeyValueStore('session', { api, budgetOf: storageBudgetOf });
   const alarms = createAlarms(api);
+  /** Our own pages in a tab: the one settings tab is focused and pointed at a section, else opened (ST-006). */
+  const extensionPages = createExtensionPages(api);
   /** When this instance of the event page began. */
   const started = Date.now();
   let env: ClientEnv = { extensionVersion: '0.0.0', browser: 'firefox', browserMajor: null, os: 'other' };
@@ -589,9 +593,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   };
   const diagnostics = new DiagnosticsService({ facts, logs: logging.logs, redactor: logging.redactor, logger });
 
-  /** `health` for a status surface: unauthenticated, bounded, and never an error of the status itself. */
+  /**
+   * `health` for a status surface: unauthenticated, bounded, and never an error of the status itself. Only
+   * while somebody is signed in: without a sign-in the settings are the sign-in screen and the popup says
+   * «Войдите» — neither shows the hub's health — and nothing talks to the hub before a person signs in
+   * (UP-008; after an install the settings open by themselves).
+   */
   async function refreshHealth(): Promise<void> {
-    if (hubInstance === null || Date.now() - healthAskedAt < HEALTH_FRESH_MS) return;
+    if (hubInstance === null || hubInstance.session() === null || Date.now() - healthAskedAt < HEALTH_FRESH_MS) return;
     healthAskedAt = Date.now();
     const asked = hubInstance.health().then(
       () => undefined,
@@ -664,9 +673,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // UP-008: an install or an update only logs — nothing talks to the hub until a human signs in or opens ChatSpace.
     const plan = onInstalledPlan(details.reason);
     if (details.reason === 'install') {
-      logEvent(logger, 'extensionInstalled', { fields: { temporary: details.temporary, onboarding: plan.openOnboarding } });
+      // §9.9 «Онбординг»: a first run starts on the settings page — the sign-in screen with the first-run
+      // checklist (ST-011, ST-012). A temporary install is a developer's (`pnpm dev`, the e2e), not a first run.
+      const onboarding = plan.openOnboarding && !details.temporary;
+      logEvent(logger, 'extensionInstalled', { fields: { temporary: details.temporary, onboarding } });
       updated = null;
       void local.remove([UPDATED_KEY]);
+      if (onboarding) void extensionPages.open('options');
     } else if (details.reason === 'update') {
       logEvent(logger, 'extensionUpdated', { fields: { previousVersion: details.previousVersion, temporary: details.temporary } });
       if (details.previousVersion !== null) {
@@ -919,7 +932,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // «Настройки» / «Войти» from a ChatSpace tab (ST-006, ST-007): a content script cannot open our pages itself,
   // so the background does — the open settings tab is focused and pointed at the section, otherwise one opens.
-  const extensionPages = createExtensionPages(api);
   rpc.handle('settings.open', async ({ route }) => ok({ opened: (await extensionPages.open('options', hashOfRoute(route))).ok }));
 
   // logs, diagnostics, debug

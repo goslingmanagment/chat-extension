@@ -63,8 +63,8 @@ describe('the readiness barrier', () => {
     expect(session).toEqual({ ok: true, payload: { session: null } });
     expect(settings).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'en' }, hub: { baseUrl: WORLD.hubOrigin } } } });
     expect(diagnostics).toMatchObject({ ok: true, payload: { session: { signedIn: false }, tabs: [] } });
-    // Nothing talked to the hub by itself: the one request is the status surface asking for the hub's health, unauthenticated.
-    expect(world.hub.read().entries.map((entry) => [entry.route, entry.token])).toEqual([['health', null]]);
+    // Nothing talked to the hub: nobody is signed in, and a status surface asks for the hub's health only for a sign-in.
+    expect(world.hub.read().entries).toEqual([]);
   });
 });
 
@@ -102,8 +102,8 @@ describe('a background that was unloaded', () => {
     expect(await page.request('send.status', { attemptId: attempt.attemptId })).toMatchObject({ ok: true, payload: { view: { attemptId: attempt.attemptId, state: 'uncertain' } } });
     const diagnostics = await page.request('diagnostics.get', {});
     expect(diagnostics).toMatchObject({ ok: true, payload: { ops: { active: 0 }, sends: { uncertain: 1 }, telemetry: { queued: 0, dropped: 5 } } });
-    // No POST to the hub for the interrupted operation: without a sign-in the status read of `health` is all there is.
-    expect(world.hub.read().entries.map((entry) => entry.route)).toEqual(['health']);
+    // No POST to the hub for the interrupted operation — and without a sign-in nothing else either.
+    expect(world.hub.read().entries).toEqual([]);
   });
 
   it('[BG-002] the open tab registers again with the new instance and says where it is: the same sign-in, the tab, its chat and its accounts', async () => {
@@ -294,6 +294,27 @@ describe('[LG-016] [LG-018] the start record says why the event page started', (
     expect(lifecycle).toEqual(['extension updated', 'background started', 'background suspending', 'background started', 'background suspending', 'background started']);
     const ready = records.filter((record) => record.msg === 'start steps').map((record) => record.fields?.['starts']);
     expect(ready).toEqual([1, 2, 3]);
+  });
+
+  it('[ST-012] [UP-008] a real install opens the settings once — the first run starts on the sign-in screen with the checklist; a temporary install, an update and a browser start open nothing, and none of them talks to the hub', async () => {
+    for (const [fire, opened] of [
+      [(w: World) => w.fake.fireInstalled({ reason: 'install', temporary: false }), ['openOptionsPage']],
+      // `pnpm dev` and the e2e install the build temporarily: a developer's reload is not a first run.
+      [(w: World) => w.fake.fireInstalled({ reason: 'install', temporary: true }), []],
+      [(w: World) => w.fake.fireInstalled({ reason: 'update', previousVersion: '0.9.0', temporary: false }), []],
+      [(w: World) => w.fake.fireInstalled({ reason: 'browser_update', temporary: false }), []],
+      [(w: World) => w.fake.fireStartup(), []],
+    ] as const) {
+      const w = createWorld();
+      world = w;
+      w.start();
+      fire(w);
+      expect(await w.page().request('session.get', {})).toMatchObject({ ok: true });
+      await sleep(20);
+      expect(w.fake.tabCalls).toEqual(opened);
+      expect(w.hub.read().entries).toEqual([]);
+      w.dispose();
+    }
   });
 
   it('[LG-016] an install, a browser start and a reload are told apart; nothing talks to the hub on any of them (UP-008)', async () => {
