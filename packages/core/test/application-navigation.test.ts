@@ -624,6 +624,12 @@ describe('the palette', () => {
     const running = p.group('running');
     expect(labels(running)).toEqual(['Reply для Theodore Whitfield', 'Recap для неизвестно']);
     expect(running[0]).toMatchObject({ runningSince: NOW - 14_000, action: { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(chat('2003')) } } });
+    // A generation that runs in a chat of another account: «перейти» goes to that account's chat, not to the same fan id under this one.
+    p.rpc.answers.set('op.list', () => ({ ok: true, payload: { ops: [{ ...op(4, '2077', 'streaming'), target: { chat: chat('2077', '1002') } } as unknown as OpView], truncated: false } }));
+    p.rpc.emit('op.done', {});
+    await settle();
+    expect(p.group('running')[0]?.action).toEqual({ type: 'Navigate', to: { kind: 'chat', targetHandle: 'nav.chat.1002.2077' } });
+    p.rpc.answers.set('op.list', () => ({ ok: true, payload: { ops: [op(1, '2003', 'streaming'), op(2, '2004', 'done'), op(3, '2099', 'requesting', 'recap-short')], truncated: false } }));
     // A generation finished: the list is read again.
     p.rpc.answers.set('op.list', () => ({ ok: true, payload: { ops: [], truncated: false } }));
     p.rpc.emit('op.done', {});
@@ -633,7 +639,7 @@ describe('the palette', () => {
     p.overlays.set('palette', false);
     p.rpc.emit('op.done', {});
     await settle();
-    expect(p.rpc.of('op.list')).toHaveLength(2);
+    expect(p.rpc.of('op.list')).toHaveLength(3);
   });
 
   it('[CS-006] an empty query shows «Ждут ответа, из Spenders» from the hub, with the money and since when; the footer says where the chats come from', async () => {
@@ -696,12 +702,37 @@ describe('the palette', () => {
     // A hub port that throws is a gap too, never a broken palette.
     const throwing = paletteWorld({ hub: { waiting: () => Promise.reject(new Error('down')), fans: () => Promise.reject(new Error('down')) } });
     await throwing.open();
+    // The queue that threw is «не ответил», never «никто не ждёт»: a gap, and the footer does not claim the hub was searched.
+    expect(throwing.view().view).toEqual({ s: 'partial', gaps: [{ kind: 'source-failed', source: 'waiting', code: 'CG-HUB-UNAVAILABLE' }] });
+    expect(throwing.view().footer).toEqual({ key: 'palette.foot.hostOnly' });
     await throwing.search('theo');
     expect(throwing.view().view).toMatchObject({ s: 'partial', gaps: [{ source: 'spenders', code: 'CG-HUB-UNAVAILABLE' }, { source: 'newcomers', code: 'CG-HUB-UNAVAILABLE' }] });
     // A broken chat list: the palette still has its actions and says what is missing.
     const broken = paletteWorld({ snapshot: { contract: contractReport({ chatList: { state: 'off' } }) } });
+    let listReads = 0;
+    const readList = broken.host.listCachedChats.bind(broken.host);
+    broken.host.listCachedChats = (account, limit) => (listReads++, readList(account, limit));
     await broken.open();
     expect(broken.view().view).toMatchObject({ s: 'partial', gaps: [{ kind: 'host-degraded', capabilities: ['chatList'] }] });
+    // A list whose anchor broke is not read at all (§6.2): no rows of it in the search, no «Онлайн» from it — the hub's rows only.
+    await broken.search('theo');
+    expect(listReads).toBe(0);
+    expect(broken.group('chats').map((entry) => entry.sublabel)).toEqual(['@theo_w · Spenders', '@tbrandt · Spenders', 'Новые']);
+    expect(broken.group('online')).toEqual([]);
+  });
+
+  it('[CS-006] closed, the palette asks the hub nothing — not on a search action, not on a route change', async () => {
+    let waitingReads = 0;
+    let fansReads = 0;
+    const hub: PaletteHubPort = { waiting: (account) => (waitingReads++, HUB.waiting(account)), fans: (account) => (fansReads++, HUB.fans(account)) };
+    const p = paletteWorld({ hub });
+    await p.search('theo');
+    moveRoute(p, { epoch: 8, name: 'chat', account: hostAccount, chat: chat('2003') });
+    await settle();
+    expect([waitingReads, fansReads]).toEqual([0, 0]);
+    // The query typed while closed is not lost; opening reads what the palette needs then.
+    await p.open();
+    expect([waitingReads, fansReads]).toEqual([1, 1]);
   });
 
   it('[CS-006] other accounts ChatSpace has loaded are one click away; the switch itself is a navigation with its own token', async () => {

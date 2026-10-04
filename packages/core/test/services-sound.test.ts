@@ -351,6 +351,28 @@ describe('the sound arbiter: subscribers', () => {
     expect(w.played).toEqual([]);
   });
 
+  it('[SN-010] [SN-012] a subscription and a message are different events even with the same id on the same account; a creator is matched by platform and id together', async () => {
+    // An account whose OnlyMonster id and creator id are the same number: the two id spaces would meet without their prefix.
+    const same: HostAccount = { host: 'chatspace', hostAccountId: '7007', platform: 'onlyfans', platformAccountId: '7007', username: 'same', displayName: 'Same' };
+    const w = world();
+    w.page.accounts = [ACCOUNT, same];
+    await w.arbiter.handleSubscribers(batch([], { pageKey: '17', platformAccountId: '7007' }));
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ hostAccountId: '7007', platformMessageId: '9001' }))).toBe('played');
+    await w.clock.advance(MESSAGE_THROTTLE_MS);
+    expect(await w.arbiter.handleSubscribers(batch([sub('9001', 20_000, w)], { pageKey: '17', platformAccountId: '7007' }))).toEqual(['played']);
+    // And the other way: the subscription decided first does not swallow the message.
+    await w.clock.advance(SUBSCRIBER_THROTTLE_MS);
+    expect(await w.arbiter.handleSubscribers(batch([sub('9002', 20_000, w)], { pageKey: '17', platformAccountId: '7007' }))).toEqual(['played']);
+    await w.clock.advance(MESSAGE_THROTTLE_MS);
+    expect(await w.arbiter.handleIncoming('tab-1', fact({ hostAccountId: '7007', platformMessageId: '9002' }, w))).toBe('played');
+
+    // A Fansly creator with the id of an OnlyFans account this browser knows is not that account: nothing to check a mute against.
+    const other = world();
+    await other.arbiter.handleSubscribers(batch([], { pageKey: '18', platform: 'fansly' }));
+    expect(await other.arbiter.handleSubscribers(batch([sub('f1')], { pageKey: '18', platform: 'fansly' }))).toEqual(['account-unknown']);
+    expect(other.played).toEqual([]);
+  });
+
   it('[ST-075] the model\'s switch silences both sounds of that model and nothing else', async () => {
     const w = world();
     w.page.sound = sound({ mutedAccounts: ['chatspace:1001'] });

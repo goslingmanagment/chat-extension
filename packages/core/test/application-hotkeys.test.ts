@@ -518,6 +518,11 @@ describe('the early dispatcher', () => {
     const fallback = tap(r, 'Escape');
     expect([fallback.stopped, fallback.defaultPrevented]).toEqual([true, true]);
     expect(r.sink.ids).toEqual(['close@global']);
+    // Esc held down in our UI: the repeats are still kept from ChatSpace and handed to our element, and close no second window.
+    const held = [1, 2].map(() => new FakeKey('Escape', { repeat: true }));
+    for (const event of held) r.win.fire('keydown', event);
+    expect(held.map((event) => [event.stopped, r.native.includes(event)])).toEqual([[true, false], [true, false]]);
+    expect(r.sink.ids).toEqual(['close@global']);
     // Enter in the Coach question or on a card, Shift+Enter, arrows, Tab, ⌘C: ours to handle, never ChatSpace's.
     r.own.kind = 'ours';
     const keys = [tap(r, 'Enter'), tap(r, 'Enter', { shiftKey: true }), tap(r, 'ArrowDown'), tap(r, 'Tab'), chord(r, 'KeyC'), chord(r, 'Enter')];
@@ -532,7 +537,7 @@ describe('the early dispatcher', () => {
     const reads = r.own.focusReads;
     const typed = tap(r, 'KeyA');
     expect([typed.stopped, typed.defaultPrevented, r.own.focusReads]).toEqual([false, false, reads]);
-    expect(r.dispatcher.stats().isolated).toBe(8);
+    expect(r.dispatcher.stats().isolated).toBe(10);
   });
 
   it('[SP-033] under a board its own keys stay its own: J/K, arrows, Enter, / and Esc go to the board, chat navigation does not run', () => {
@@ -616,6 +621,64 @@ describe('the early dispatcher', () => {
     r.win.fire('blur');
     r.win.fire('keydown', new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
     await r.clock.advance(1000);
+    expect(r.sink.quick).toEqual([true, false]);
+  });
+
+  it('[NEW-07] the open popup closes when the hold is no longer a lone ⌘/Ctrl: Shift or Alt goes down, the lazy part goes away; the hold is judged again when its time comes', async () => {
+    for (const end of [
+      (r: Rig) => r.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true, metaKey: true })),
+      (r: Rig) => r.win.fire('keydown', new FakeKey('AltLeft', { key: 'Alt', altKey: true, metaKey: true })),
+      (r: Rig) => r.dispatcher.disconnect(),
+    ]) {
+      const r = rig('mac');
+      r.win.fire('keydown', primaryKey('mac', true));
+      await r.clock.advance(QUICK_JUMP_HOLD_MS);
+      expect(r.sink.quick).toEqual([true]);
+      end(r);
+      expect(r.sink.quick).toEqual([true, false]);
+    }
+    // Shift before the 400 ms are over: the hold is off, no popup later.
+    const early = rig('mac');
+    early.win.fire('keydown', primaryKey('mac', true));
+    await early.clock.advance(200);
+    early.win.fire('keydown', new FakeKey('ShiftLeft', { key: 'Shift', shiftKey: true, metaKey: true }));
+    await early.clock.advance(1000);
+    expect(early.sink.quick).toEqual([]);
+
+    // The engine no longer sees a lone ⌘ when the 400 ms are over (whatever ended it without a keydown of ours): no popup.
+    const resolver = createKeyResolver('mac');
+    let alone = true;
+    const win = new FakeWindow();
+    const clock = new FakeClock(NOW);
+    const sink = new RecordingSink();
+    const dispatcher = createEarlyKeyDispatcher({
+      platform: 'mac',
+      window: win,
+      ownership: new FakeOwnership(),
+      state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false },
+      timers: clock,
+      now: () => clock.now(),
+      resolver: { ...resolver, primaryHeldAlone: () => alone && resolver.primaryHeldAlone() },
+    });
+    dispatcher.connect(sink);
+    win.fire('keydown', primaryKey('mac', true));
+    await clock.advance(QUICK_JUMP_HOLD_MS - 1);
+    alone = false;
+    await clock.advance(1000);
+    expect(sink.quick).toEqual([]);
+  });
+
+  it('a forged keyup never moves the engine either: the page cannot end a real ⌘ hold or close the popup (§14)', async () => {
+    const r = rig('mac');
+    r.win.fire('keydown', primaryKey('mac', true));
+    r.win.fire('keyup', new FakeKey('MetaLeft', { key: 'Meta', isTrusted: false }));
+    // ⌘ is still down for the engine: the hold goes on and opens the popup…
+    await r.clock.advance(QUICK_JUMP_HOLD_MS);
+    expect(r.sink.quick).toEqual([true]);
+    // …which a forged keyup does not close; the real one does.
+    r.win.fire('keyup', new FakeKey('MetaLeft', { key: 'Meta', isTrusted: false }));
+    expect(r.sink.quick).toEqual([true]);
+    r.win.fire('keyup', primaryKey('mac', false));
     expect(r.sink.quick).toEqual([true, false]);
   });
 

@@ -247,6 +247,17 @@ describe('rows outside the scheme', () => {
     expect(command(press('win', 'KeyK'))).toBe('palette');
   });
 
+  it('[HK-014] the other system\'s modifier is never ours: Ctrl+K on macOS is not «previous chat», ⌘K on Windows is not the palette', () => {
+    // Without ⌘ in it, Ctrl+K would read as a bare K to the rows «no modifier».
+    for (const code of ['KeyK', 'KeyJ', 'BracketRight', 'Escape', 'KeyU', 'Digit3', 'Comma']) {
+      expect([code, matchExtraKey(ev(code, { ctrlKey: true }), 'mac')]).toEqual([code, null]);
+      expect([code, matchExtraKey(ev(code, { metaKey: true }), 'win')]).toEqual([code, null]);
+      expect([code, matchExtraKey(ev(code, { ctrlKey: true, metaKey: true }), 'mac')]).toEqual([code, null]);
+    }
+    expect(createKeyResolver('mac').keydown(ev('KeyK', { ctrlKey: true }))).toBeNull();
+    expect(matchExtraKey(ev('Slash', { shiftKey: true, ctrlKey: true, key: '?' }), 'mac')).toBeNull();
+  });
+
   it('[HK-037] J / K, ⌘U with Alt+U, ⌘1–9 with Alt+1–9', () => {
     const resolver = createKeyResolver('win');
     expect(resolver.keydown(ev('KeyJ'))).toMatchObject({ command: 'chat-next', plain: true });
@@ -276,6 +287,11 @@ describe('rows outside the scheme', () => {
     expect(matchExtraKey(ev('Slash', { shiftKey: true, key: ',' }), 'win')?.def.command).toBe('cheatsheet');
     expect(matchExtraKey(ev('Digit7', { shiftKey: true, key: '?' }), 'win')?.def.command).toBe('cheatsheet');
     expect(matchExtraKey(ev('Slash', { key: '/' }), 'win')).toBeNull();
+    // «?» that comes with Alt or ⌘/Ctrl is somebody else's combination (AltGr layouts type it that way), from either place.
+    expect(matchExtraKey(ev('Digit7', { shiftKey: true, altKey: true, key: '?' }), 'win')).toBeNull();
+    expect(matchExtraKey(ev('Minus', { altKey: true, key: '?' }), 'win')).toBeNull();
+    expect(matchExtraKey(ev('Slash', { shiftKey: true, altKey: true, key: '?' }), 'mac')).toBeNull();
+    expect(matchExtraKey(ev('Digit7', { shiftKey: true, ctrlKey: true, key: '?' }), 'win')).toBeNull();
     expect(matchExtraKey(ev('Escape'), 'mac')?.def.command).toBe('close');
     expect(matchExtraKey(ev('Escape', { shiftKey: true }), 'mac')).toBeNull();
   });
@@ -379,6 +395,8 @@ describe('whose key is it', () => {
       expect(ran(decideKey(cmd('chat-next'), next))).toBe('chat-next@global');
       expect(ran(decideKey(cmd('fan-panel'), next))).toBe('fan-panel@dock');
       expect(ran(decideKey(cmd('next-unread'), next))).toBe('next-unread@global');
+      // A side panel left open after the chat closed gives the dock's keys nothing to run on: outside a chat they are the browser's.
+      for (const route of ['account', 'other'] as const) for (const id of AI) expect([overlay, route, id, decideKey(cmd(id), ctx({ route, overlays: [overlay] }))]).toEqual([overlay, route, id, { act: 'pass' }]);
     }
   });
 
@@ -449,6 +467,9 @@ describe('whose key is it', () => {
     // The focus is inside our UI: its own Esc first (a menu, a search), the window only if nothing took it.
     expect(decideKey(cmd('close'), ctx({ overlays: ['palette'], focus: 'ours-field' }))).toEqual({ act: 'isolate', otherwise: { id: 'close', slot: null, target: 'global' } });
     expect(decideKey(cmd('close'), ctx({ focus: 'ours' }))).toEqual({ act: 'isolate', otherwise: null });
+    // Esc held down: the repeats still go to our element, but they close nothing more — one press, one window.
+    expect(decideKey(cmd('close', { repeat: true }), ctx({ overlays: ['spenders', 'palette'], focus: 'ours-field' }))).toEqual({ act: 'isolate', otherwise: null });
+    expect(decideKey(cmd('close', { repeat: true }), ctx({ overlays: ['spenders', 'palette'], focus: 'composer' }))).toEqual({ act: 'claim', run: null, refusal: null, command: 'close' });
   });
 
   it('[HK-029] a native modal window and IME come first: their Esc and their letters are not touched', () => {
