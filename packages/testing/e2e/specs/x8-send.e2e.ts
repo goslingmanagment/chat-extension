@@ -627,6 +627,10 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       await browser.waitUntil(async () => (await queueEntries()).length === 0, { timeout: 5000 });
       expect(sendsOf(await serverSince(server))).toHaveLength(1);
 
+      // The account stays busy for the whole burst: the one send that goes out is answered a second after its
+      // echo. With an instant answer the queue could be free again before the last of the twenty commands
+      // arrived, and a second fan's click would rightly be let through — a click on a free account.
+      await standServer.script(ACC, '*', [{ kind: 'ok', echo: 'before', gapMs: 1000 }]);
       const many = await standServer.mark();
       const fans = Array.from({ length: 20 }, (_, n) => [a5, a6, a7, a8, a9, a10, a11, a12][n % 8] ?? a5);
       const answers = await harness<Array<{ state: string; code?: string }>>('burst', { ...sendOptions({ fan: a5 }), n: 20, fans });
