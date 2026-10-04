@@ -233,6 +233,32 @@ describe('operations (§7)', () => {
   });
 });
 
+describe('settings written by a newer build (a rollback of the extension)', () => {
+  it('[RB-012] the store is read-only and read: a generation is admitted and runs, the sound settings are in force, a write is refused with CG-STORAGE-VERSION', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    // The newer build left its schema number on the store; everything this build reads of it is unchanged.
+    const stored = w.fake.areas.local.get(STORAGE_KEYS.settings) as Record<string, unknown>;
+    w.fake.areas.local.set(STORAGE_KEYS.settings, { ...stored, schemaVersion: 2 });
+    w.fake.suspendBackground();
+    const tab = await workingTab(w);
+    expect(w.starts()).toBe(2);
+
+    const read = await w.page().request('settings.get', {});
+    expect(read).toMatchObject({ ok: true, payload: { readOnly: true, settings: { personas: { byPageId: { [String(PAGE_ID)]: { key: WORLD.persona.key } } } } } });
+    expect(await w.page().request('settings.patch', { patch: { ui: { hints: false } }, baseRevision: null })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-VERSION' } });
+
+    // Read-only settings are still settings: the Reply is admitted and streams.
+    const opId = admitted(await startReply(tab, await bindingOf(tab)));
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', 'the generation ran');
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(1);
+    // The sound switch of those settings is in force: a fan's message in a chat that is not in front rings.
+    const fact: IncomingFact = { host: 'chatspace', hostAccountId: account.hostAccountId, platformFanId: '2003', platformMessageId: '5900', fromFan: true, automatic: false, tip: false, sentAt: new Date().toISOString(), socketEpoch: 1, fanSequence: 1, source: 'ws-tap' };
+    expect(await tab.client.request('sound.event', { fact })).toEqual({ ok: true, payload: { played: true } });
+  });
+});
+
 describe('a tab that asks about its page before it said which accounts it shows (§5.4)', () => {
   const STATS = { pageId: PAGE_ID, windowDays: 30, timeZone: 'Europe/Moscow' } as const;
 

@@ -329,6 +329,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
 
   settingsOwner = settings;
+  /**
+   * The settings are read. A store written by a newer build (a rollback of the extension) is read-only, and
+   * read: its personas, its sound and its debug switch are the person's own, so generations, the sound and the
+   * status go on as before — only a write is refused (CG-STORAGE-VERSION, RB-012). Only settings that could not
+   * be read at all stop a generation (CG-STORAGE-READ).
+   */
+  const settingsRead = (): boolean => settings.mode() === 'ok' || settings.mode() === 'newer';
 
   // ── R07 stores ─────────────────────────────────────────────────────────────
   const results = createResultsStore({ session, log: serviceLog });
@@ -392,7 +399,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       bootstrap: bootstrapForOps(),
       persona: (pageId) => (ours ? (current.personas.byPageId[String(pageId)] ?? null) : null),
       debug: current.debug.enabled,
-      settingsLoaded: settings.mode() === 'ok',
+      settingsLoaded: settingsRead(),
     };
   };
 
@@ -493,7 +500,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     clock: CLOCK,
     audio,
     presence,
-    settings: () => (settings.mode() === 'ok' ? settings.current().sound : null),
+    settings: () => (settingsRead() ? settings.current().sound : null),
     bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
     newcomersUsable: (pageLabel) => hubInstance?.flagState('newcomers', pageLabel).usable === true,
     hostPermission: async (host) => (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
@@ -581,7 +588,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         sdk: status?.sdk ?? { vendoredHash: VENDORED_CONTRACT_HASH, hubHash: null, compatible: null },
       },
       tabs: rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: shown.get(tab.tabSessionId) ?? null })),
-      settings: settings.mode() === 'ok' ? current : null,
+      settings: settingsRead() ? current : null,
       counters: logging.counters.snapshot(now),
       logs: logging.logs.stats(),
       logger: logger.stats(),
@@ -1080,7 +1087,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       name: 'settings',
       async run() {
         await settings.start();
-        previousSettings = settings.mode() === 'ok' ? settings.current() : null;
+        previousSettings = settingsRead() ? settings.current() : null;
       },
     },
     {
