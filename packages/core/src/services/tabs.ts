@@ -123,7 +123,7 @@ export class TabSessions {
     return true;
   }
 
-  /** Open sessions; BG-003: while any is open, a tab port keeps the event page alive. */
+  /** Open sessions. BG-003: an open port alone does not keep the event page alive — the tab's periodic message over it does. */
   sessions(): readonly TabSession[] {
     return [...this.byId.values()];
   }
