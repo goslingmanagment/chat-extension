@@ -315,6 +315,9 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
       reloadSurface: (surface) => surfaces?.reload(surface) ?? false,
       // A content script cannot open our pages: the background does (`settings.open`), into the one settings tab.
       openSettings: (route) => rpc.request('settings.open', { route }).then((answer) => answer.ok && answer.payload.opened),
+      // «Промпт» of a debug block: the prompt page, by the opaque token of the snapshot (`debug.open`).
+      openPrompt: (token) => rpc.request('debug.open', { token }).then((answer) => answer.ok && answer.payload.opened),
+      copyText: (text) => clipboard.writeText(text).then((result) => result.ok),
     },
   });
   offs.push(router.register(adopt(shell)), () => shell.dispose());

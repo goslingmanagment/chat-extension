@@ -23,8 +23,12 @@ export type TabExtensionPage = Exclude<ExtensionPage, 'popup'>;
 export type OpenPageResult = { readonly ok: true; readonly reused: boolean } | { readonly ok: false };
 
 export interface ExtensionPagesPort {
-  /** Focuses the page if it is open in a tab (one settings tab), else opens it; `section` is the URL hash. */
-  open(page: TabExtensionPage, section?: string): Promise<OpenPageResult>;
+  /**
+   * Focuses the page if it is open in a tab (one settings tab), else opens it; `section` is the URL hash,
+   * `query` the page's own parameters (`debug-prompt.html?t=<token>`, DB-007). An open page is pointed at the
+   * new address: a hash moves it without a reload, another query loads it again.
+   */
+  open(page: TabExtensionPage, section?: string, query?: Readonly<Record<string, string>>): Promise<OpenPageResult>;
 }
 
 /** The document URL without its hash and query: the page it is, whatever section it shows. */
@@ -36,20 +40,21 @@ function pageOf(url: string | undefined): string | null {
 
 export function createExtensionPages(api: BrowserApi = defaultBrowser()): ExtensionPagesPort {
   return {
-    async open(page, section) {
+    async open(page, section, query) {
       const base = api.runtime.getURL(`${page}.html`);
       const hash = section === undefined ? '' : section.replace(/^#/, '');
-      const url = hash === '' ? base : `${base}#${encodeURI(hash)}`;
+      const search = query === undefined ? '' : new URLSearchParams(query).toString();
+      const url = `${base}${search === '' ? '' : `?${search}`}${hash === '' ? '' : `#${encodeURI(hash)}`}`;
       try {
         const contexts = api.runtime.getContexts ? await api.runtime.getContexts({ contextTypes: ['TAB'] }) : [];
         const open = contexts.find((context) => context.tabId >= 0 && pageOf(context.documentUrl) === base);
         if (open) {
           // A hash change only scrolls the page to its section; it does not reload it.
-          await api.tabs.update(open.tabId, hash === '' ? { active: true } : { active: true, url });
+          await api.tabs.update(open.tabId, url === base ? { active: true } : { active: true, url });
           if (open.windowId >= 0) await api.windows.update(open.windowId, { focused: true }).catch(() => undefined);
           return { ok: true, reused: true };
         }
-        if (page === 'options' && hash === '' && api.runtime.openOptionsPage) await api.runtime.openOptionsPage();
+        if (page === 'options' && url === base && api.runtime.openOptionsPage) await api.runtime.openOptionsPage();
         else await api.tabs.create({ url, active: true });
         return { ok: true, reused: false };
       } catch {

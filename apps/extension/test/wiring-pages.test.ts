@@ -253,6 +253,25 @@ describe('what a page asks of the browser', () => {
 });
 
 describe('the debug pages', () => {
+  it('[DB-006] [DB-007] the prompt page takes the token of its own address to the background — and nowhere else: not into the page, not into its title', async () => {
+    const w = start({ settings: settingsFor(undefined, { debug: { enabled: true, renderTrace: false } }) });
+    await signInWithPersona(w);
+    const asked: unknown[] = [];
+    w.fake.background()?.events.onMessage.addListener(((message: { type?: string; payload?: unknown }) => {
+      if (message.type === 'debug.prompt') asked.push(message.payload);
+      return undefined;
+    }) as never);
+    const { root } = open(w, 'debug-prompt', '?t=prompt-token-7');
+    await until(() => asked.length === 1, 'the page asked for its snapshot');
+    expect(asked).toEqual([{ token: 'prompt-token-7' }]);
+    // The background holds no snapshot under this token: the page says so honestly, with nothing of a prompt.
+    await until(() => root.querySelector('[data-pg-prompt]') !== null, 'the page says what it has');
+    expect(root.querySelectorAll('pre')).toHaveLength(0);
+    expect(document.documentElement.outerHTML).not.toContain('prompt-token-7');
+    expect(document.title).not.toContain('prompt-token-7');
+  });
+
+
   it('[DB-001] [NF-029] ask nothing while debug is off; with it on the journal page reads its journal, and another journal in the address remounts it', async () => {
     const w = start({ settings: settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale: 'ru' } }) });
     await signInWithPersona(w);

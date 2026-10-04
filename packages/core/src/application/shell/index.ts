@@ -3,7 +3,11 @@
 // view with the background's toasts — «AI готово · {фан}», a generation of
 // another chat that failed, the dossier save of a Recap — and the actions
 // that act on the tab itself: «Перезагрузить вкладку» (CG-RUNTIME-RELOADED),
-// «Перезагрузить панель» (CG-UI-FAILED), «Настройки».
+// «Перезагрузить панель» (CG-UI-FAILED), «Настройки» — and the ones that
+// lead out of the tab into our own pages or to the clipboard: «Выгрузить
+// диагностику» of a failed surface (ER-020; the file is saved by the settings
+// page, a content script has nowhere to save it from), «Промпт» of a result's
+// debug block (DB-007), «Скопировать код» of an error card (ER-006).
 //
 // A toast the UI or a controller raises by itself (a key's reason, a render
 // failure) goes through ToastPort and is the overlay host's own queue; the
@@ -36,6 +40,10 @@ export interface ShellTab {
   reloadSurface(surface: MountSurfaceKind): boolean;
   /** Opens the settings page at a section; false — it could not be opened. Absent — this tab cannot open our pages. */
   openSettings?(route: SettingsRoute): Promise<boolean>;
+  /** Opens the prompt page for the opaque token of a snapshot (DB-006, DB-007); false — debug is off or it could not be opened. */
+  openPrompt?(token: string): Promise<boolean>;
+  /** Writes a short text of ours to the clipboard, inside the click; false — the browser refused. */
+  copyText?(text: string): Promise<boolean>;
 }
 
 export interface ShellPorts {
@@ -184,6 +192,28 @@ export function createShellController(ports: ShellPorts): ShellController {
         return tab.openSettings(action.route).then(
           (opened) => (opened ? done(action.type, 'opened') : refused(action.type, 'CG-RUNTIME-UNREACHABLE')),
           () => refused(action.type, 'CG-RUNTIME-UNREACHABLE'),
+        );
+      }
+      // ER-020 «Выгрузить диагностику»: the files are saved by the settings page («Диагностика»); the tab leads there.
+      if (action.type === 'ExportDiagnostics' && tab.openSettings !== undefined) {
+        return tab.openSettings({ section: 'diagnostics' }).then(
+          (opened) => (opened ? done(action.type, 'opened') : refused(action.type, 'CG-RUNTIME-UNREACHABLE')),
+          () => refused(action.type, 'CG-RUNTIME-UNREACHABLE'),
+        );
+      }
+      // DB-007 «Промпт»: the page of ours that shows the snapshot; the tab hands over the token and nothing else.
+      if (action.type === 'Navigate' && action.to.kind === 'debug-prompt' && tab.openPrompt !== undefined) {
+        return tab.openPrompt(action.to.promptHandle).then(
+          (opened) => (opened ? done(action.type, 'opened') : refused(action.type, 'CG-NAV-FAILED')),
+          () => refused(action.type, 'CG-NAV-FAILED'),
+        );
+      }
+      // ER-006 «Скопировать код» of an error card: the code, what it means and what to do — nothing of a conversation.
+      if (action.type === 'CopyReport' && action.scope === 'error' && action.code !== undefined && tab.copyText !== undefined) {
+        const view = viewOfCode(action.code, translatorOf(i18n));
+        return tab.copyText(`${view.code}: ${view.title}\n${view.body}`).then(
+          (copied) => (copied ? done(action.type) : refused(action.type, 'CG-CLIPBOARD')),
+          () => refused(action.type, 'CG-CLIPBOARD'),
         );
       }
       // Everything else belongs to a surface's own controller.

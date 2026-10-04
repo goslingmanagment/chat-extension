@@ -285,6 +285,15 @@ describe('the extension pages wired: the popup and the settings of the installed
     await waitForChatReady(accountA, a1);
     await waitForReport((report) => report.dock?.status === 'ready', 'the dock of the open chat is ready');
     await toPopup();
+    // The popup reads the status when it opens (and on «Обновить статус»), like the toolbar's own one: it is
+    // opened once the background knows the tab's chat and its host contract.
+    await browser.waitUntil(
+      async () => {
+        const diagnostics = await pageRpc<{ tabs: ReadonlyArray<{ chatKey: string | null; host: unknown }> }>('diagnostics.get');
+        return diagnostics.ok && diagnostics.payload.tabs.some((tab) => tab.host !== null && tab.chatKey?.endsWith(`:${a1}`) === true);
+      },
+      { timeout: 15_000, timeoutMsg: 'the background did not learn the chat of the ChatSpace tab' },
+    );
     const popup = await openPopup();
     const working = await waitForPopup((state) => state.view === 'ready' && state.pills[0] === 'ChatSpace: подключён' && !state.persona.includes('Не подключено'), 'the popup of a working shift');
     expect(popup.drawn).toBe(true);
@@ -351,6 +360,50 @@ describe('the extension pages wired: the popup and the settings of the installed
     expect(granted.checklist.find((step) => step.id === 'consent')?.done).toBe(true);
     const diagnostics = await pageRpc<{ telemetry: { consent: boolean | null } }>('diagnostics.get');
     expect(diagnostics.ok && diagnostics.payload.telemetry.consent).toBe(true);
+  });
+
+  it('[DB-001] [DB-007] [NF-029] the debug pages of the installed build: nothing of a prompt or a journal without debug mode; with it «Журналы» of «Диагностика» open the journal in its own tab, and the prompt page says honestly that a snapshot is gone', async () => {
+    const marker = (name: string): Promise<string | null> => browser.execute((attribute: string) => document.querySelector(`[${attribute}]`)?.getAttribute(attribute) ?? null, name);
+    const tab = await settingsTab();
+    // Debug mode is off: the prompt page shows no prompt and asks for none.
+    await browser.url(testBuildPage('debug-prompt.html?t=prompt-token-nobody-has'));
+    await browser.waitUntil(async () => (await marker('data-pg-prompt')) === 'debug-off', { timeout: 10_000, timeoutMsg: 'the prompt page did not say that debug mode is off' });
+    expect(await browser.execute(() => document.body.outerHTML.includes('prompt-token-nobody-has'))).toBe(false);
+    await openOptions('diagnostics');
+    const off = await waitForOptions((state) => state.section === 'diagnostics' && state.text.includes('Журналы появятся в режиме отладки'), '«Диагностика» without the journals');
+    expect(off.text).not.toContain('Вызовы хаба');
+
+    // Debug mode on (the switch is on «Генерация»; here the page's own request): the page hears it and offers the journals.
+    expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: true } }, baseRevision: null })).toMatchObject({ ok: true });
+    await waitForOptions((state) => state.text.includes('Вызовы хаба'), 'the journals are offered');
+    const before = await browser.getWindowHandles();
+    await press('Операции');
+    await browser.waitUntil(async () => (await browser.getWindowHandles()).length === before.length + 1, { timeout: 10_000, timeoutMsg: 'the journal tab did not open' });
+    const journalTab = (await browser.getWindowHandles()).find((handle) => !before.includes(handle)) ?? '';
+    await browser.switchToWindow(journalTab);
+    await browser.waitUntil(async () => (await browser.getUrl()).endsWith('debug-journal.html#operations'), { timeout: 10_000, timeoutMsg: 'the journal tab is not at «Операции»' });
+    await browser.waitUntil(async () => (await marker('data-pg-journal')) === 'filters', { timeout: 10_000, timeoutMsg: 'the journal did not draw its records' });
+    expect(await browser.execute(() => document.title)).toBe('ChatGoose · Журнал');
+    await capturePage('ext-debug-journal');
+    // Another journal from the settings: the open journal tab is pointed at it, not a second one.
+    await browser.switchToWindow(tab);
+    await press('Вызовы хаба');
+    await browser.switchToWindow(journalTab);
+    await browser.waitUntil(async () => (await browser.getUrl()).endsWith('debug-journal.html#hub-calls'), { timeout: 10_000, timeoutMsg: 'the open journal tab was not pointed at «Вызовы хаба»' });
+    expect(await browser.getWindowHandles()).toHaveLength(before.length + 1);
+
+    // A snapshot the background does not hold (they live 12 minutes, in memory): «истёк», never an empty page.
+    await browser.url(testBuildPage('debug-prompt.html?t=prompt-token-nobody-has'));
+    await browser.waitUntil(async () => (await marker('data-pg-prompt')) === 'expired', { timeout: 10_000, timeoutMsg: 'the prompt page did not say that the snapshot is gone' });
+    expect(await browser.execute(() => document.body.outerHTML.includes('prompt-token-nobody-has'))).toBe(false);
+
+    // As found: debug off — the open debug page drops what it showed at once — and the extra tab closed.
+    await browser.switchToWindow(tab);
+    expect(await pageRpc('settings.patchRestricted', { patch: { debug: { enabled: false } }, baseRevision: null })).toMatchObject({ ok: true });
+    await browser.switchToWindow(journalTab);
+    await browser.waitUntil(async () => (await marker('data-pg-prompt')) === 'debug-off', { timeout: 10_000, timeoutMsg: 'the prompt page kept its state after debug mode went off' });
+    await browser.closeWindow();
+    await browser.switchToWindow(tab);
   });
 
   it('[PU-013] [AU-015] a sign-in the hub revoked: «Обновить статус» of the popup learns it, and the popup and the settings both say why', async () => {

@@ -26,6 +26,22 @@ describe('[ST-006] one settings tab: our pages are reused, never opened twice', 
     expect(fake.tabCalls).toEqual([`create ${fake.base}debug-journal.html`]);
   });
 
+  it('[DB-007] a page with its own parameters: the prompt page opens at `?t=<token>`, and the open one is loaded again with the next token', async () => {
+    const fake = createFakeBrowser();
+    const pages = createExtensionPages(fake.startBackground().api);
+    expect(await pages.open('debug-prompt', undefined, { t: 'token one/+&=' })).toEqual({ ok: true, reused: false });
+    // The token is a parameter of the address, escaped as one.
+    expect(fake.tabCalls).toEqual([`create ${fake.base}debug-prompt.html?t=token+one%2F%2B%26%3D`]);
+    fake.tabCalls.length = 0;
+    fake.context(pageSender(fake, 'debug-prompt', { url: `${fake.base}debug-prompt.html?t=token-1`, tab: { id: 52 }, frameId: 0 }));
+    expect(await pages.open('debug-prompt', undefined, { t: 'token-2' })).toEqual({ ok: true, reused: true });
+    expect(fake.tabCalls).toEqual([`update 52 ${fake.base}debug-prompt.html?t=token-2`, 'focus window 1']);
+    fake.tabCalls.length = 0;
+    // Parameters and a section together; an empty set of parameters is none.
+    expect(await pages.open('debug-journal', 'hub-calls', {})).toEqual({ ok: true, reused: false });
+    expect(fake.tabCalls).toEqual([`create ${fake.base}debug-journal.html#hub-calls`]);
+  });
+
   it('never throws: a browser failure is { ok: false }; without getContexts it opens a tab', async () => {
     const fake = createFakeBrowser();
     const api = fake.startBackground().api;

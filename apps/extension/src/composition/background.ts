@@ -953,6 +953,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok({ records: read.records, truncated: read.truncated, runs: read.runs === null ? null : [...read.runs] });
   });
   rpc.handle('debug.prompt', ({ token }) => ok(hub().promptEcho(token)));
+  // «Промпт» of a result's debug block (DB-007): the page is ours and a content script cannot open it. Only the
+  // opaque token goes into the page's address, and only while debug mode is on (§9.3).
+  rpc.handle('debug.open', async ({ token }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    if (!debugEnabled()) return ok({ opened: false });
+    return ok({ opened: (await extensionPages.open('debug-prompt', undefined, { t: token })).ok });
+  });
   rpc.handle('health.report', ({ report }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
     hostReports.set(sender.tabSessionId, report.host);

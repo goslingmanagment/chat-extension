@@ -598,6 +598,31 @@ describe('«Очистить локальные данные» and the update re
   });
 });
 
+describe('«Промпт» from a ChatSpace tab (`debug.open`)', () => {
+  it('[DB-006] [DB-007] opens the prompt page with the snapshot’s token in its address — in debug mode only, for a tab only; the next token loads the same tab again', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    const created = (): string[] => w.fake.tabCalls.filter((call) => call.includes('debug-prompt'));
+    // Debug mode is off: nothing opens, and the answer says so.
+    expect(await tab.client.request('debug.open', { token: 'prompt-token-1' })).toEqual({ ok: true, payload: { opened: false } });
+    expect(created()).toEqual([]);
+
+    expect(await w.page().request('settings.patchRestricted', { patch: { debug: { enabled: true } }, baseRevision: null })).toMatchObject({ ok: true });
+    expect(await tab.client.request('debug.open', { token: 'prompt-token-1' })).toEqual({ ok: true, payload: { opened: true } });
+    expect(created()).toEqual([`create ${w.fake.base}debug-prompt.html?t=prompt-token-1`]);
+    // The prompt page is open in tab 52 now: another snapshot is shown in it, not in a second tab.
+    w.fake.context(pageSender(w.fake, 'debug-prompt', { url: `${w.fake.base}debug-prompt.html?t=prompt-token-1`, tab: { id: 52 }, frameId: 0 }));
+    expect(await tab.client.request('debug.open', { token: 'prompt-token-2' })).toEqual({ ok: true, payload: { opened: true } });
+    expect(created().at(-1)).toBe(`update 52 ${w.fake.base}debug-prompt.html?t=prompt-token-2`);
+    // Only a tab asks: a page opens its pages by itself, and the protocol refuses the request from one.
+    const fromPage = (await Promise.race([w.page('options').request('debug.open' as never, { token: 'prompt-token-3' } as never), sleep(200).then(() => 'refused' as const)])) as unknown;
+    expect(fromPage === 'refused' || (fromPage as { ok: boolean }).ok === false).toBe(true);
+    expect(created()).toHaveLength(2);
+  });
+});
+
 describe('today’s error counters (ST-056)', () => {
   it('[ST-056] [LG-013] a sign-in the hub refused is one count of its code, not two: the hub layer’s record of the call and the sign-in event are one failure', async () => {
     const w = world();

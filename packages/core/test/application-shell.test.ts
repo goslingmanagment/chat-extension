@@ -190,6 +190,60 @@ describe('the shell controller: actions on the tab itself', () => {
     expect(harness().dispatch({ type: 'OpenSettings', route: { section: 'status' } })).toBeNull();
   });
 
+  it('[ER-020] «Выгрузить диагностику» of a failed surface leads to «Диагностика» of the settings: the files are saved there, a tab has nowhere to save them from', async () => {
+    const routes: unknown[] = [];
+    const h = harness({
+      openSettings(route) {
+        routes.push(route);
+        return Promise.resolve(routes.length === 1);
+      },
+    });
+    expect(await h.dispatch({ type: 'ExportDiagnostics' })).toEqual({ ok: true, type: 'ExportDiagnostics', outcome: 'opened' });
+    expect(await h.dispatch({ type: 'ExportDiagnostics' })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(routes).toEqual([{ section: 'diagnostics' }, { section: 'diagnostics' }]);
+    expect(harness().dispatch({ type: 'ExportDiagnostics' })).toBeNull();
+  });
+
+  it('[DB-006] [DB-007] «Промпт» of a debug block hands the tab the opaque token of the snapshot and nothing else; debug off or a page that did not open is CG-NAV-FAILED', async () => {
+    const tokens: string[] = [];
+    const h = harness({
+      openPrompt(token) {
+        tokens.push(token);
+        return tokens.length === 1 ? Promise.resolve(true) : tokens.length === 2 ? Promise.resolve(false) : Promise.reject(new Error('gone'));
+      },
+    });
+    const action: UiAction = { type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: 'prompt-token-1' } };
+    expect(await h.dispatch(action)).toEqual({ ok: true, type: 'Navigate', outcome: 'opened' });
+    expect(await h.dispatch(action)).toMatchObject({ ok: false, code: 'CG-NAV-FAILED' });
+    expect(await h.dispatch(action)).toMatchObject({ ok: false, code: 'CG-NAV-FAILED' });
+    expect(tokens).toEqual(['prompt-token-1', 'prompt-token-1', 'prompt-token-1']);
+    // Every other navigation belongs to the navigation controller, and a tab that cannot open pages takes none.
+    expect(h.dispatch({ type: 'Navigate', to: { kind: 'chat-step', direction: 'next' } })).toBeNull();
+    expect(h.dispatch({ type: 'Navigate', to: { kind: 'journal', journal: 'operations' } })).toBeNull();
+    expect(harness().dispatch(action)).toBeNull();
+  });
+
+  it('[ER-006] «Скопировать код» of an error card copies the code, its title and what to do — in the current language; a refused clipboard is CG-CLIPBOARD', async () => {
+    const copied: string[] = [];
+    let allow = true;
+    const h = harness({
+      copyText(text) {
+        copied.push(text);
+        return Promise.resolve(allow);
+      },
+    });
+    expect(await h.dispatch({ type: 'CopyReport', scope: 'error', code: 'CG-QUOTA-DAILY' })).toEqual({ ok: true, type: 'CopyReport', outcome: 'done' });
+    expect(copied).toHaveLength(1);
+    expect(copied[0]?.split('\n')[0]).toBe(`CG-QUOTA-DAILY: ${h.i18n.t('cg.quotaDaily.title')}`);
+    expect(copied[0]?.split('\n')).toHaveLength(2);
+    allow = false;
+    expect(await h.dispatch({ type: 'CopyReport', scope: 'error', code: 'CG-QUOTA-DAILY' })).toMatchObject({ ok: false, code: 'CG-CLIPBOARD' });
+    // The status report is the settings page's; a report without a code is nobody's here.
+    expect(h.dispatch({ type: 'CopyReport', scope: 'status' })).toBeNull();
+    expect(h.dispatch({ type: 'CopyReport', scope: 'error' })).toBeNull();
+    expect(harness().dispatch({ type: 'CopyReport', scope: 'error', code: 'CG-QUOTA-DAILY' })).toBeNull();
+  });
+
   it('[I18-001] the language changes: the toasts on screen are said again in it', () => {
     const h = harness();
     h.toast({ toastId: uuid(1), scope: 'recap.profile', feature: 'recap', chat: CHAT });
