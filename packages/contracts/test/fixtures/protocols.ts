@@ -383,6 +383,11 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
     valid: [{ flags: { previewSend: false, someFutureFlag: true }, configRevision: 9 }],
     invalid: [{ flags: { previewSend: 'off' }, configRevision: 9 }],
   },
+  'tab.command': {
+    valid: [{ command: { kind: 'surface', surface: 'newcomers' } }, { command: { kind: 'account', host: 'chatspace', hostAccountId: IDS.acc } }],
+    // The same closed set as the request: a window of ours or an account — never a chat, a text or an action token.
+    invalid: [{ command: { kind: 'surface', surface: 'coach' } }, { command: { kind: 'chat', fan: IDS.fan } }, { command: { kind: 'surface', surface: 'spenders' }, actionToken: 'x'.repeat(32) }, {}],
+  },
 };
 
 export interface BridgeRequestFixtures {

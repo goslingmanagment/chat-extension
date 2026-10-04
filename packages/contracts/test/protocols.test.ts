@@ -69,6 +69,20 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(res.safeParse({ opened: false }).success).toBe(true);
   });
 
+  it('[PU-017] [ST-076] `tab.command`: only the popup and the options page ask, only a ChatSpace tab is told, and the command is the same closed set both ways', () => {
+    expect(C.mayRequest('tab.command', 'page', 'popup')).toBe(true);
+    expect(C.mayRequest('tab.command', 'page', 'options')).toBe(true);
+    expect(C.mayRequest('tab.command', 'page', 'debug-journal')).toBe(false);
+    // A tab cannot make another tab act.
+    expect(C.mayRequest('tab.command', 'tab', null)).toBe(false);
+    expect(C.TAB_EVENTS['tab.command'].to).toEqual(['tab']);
+    for (const command of [{ kind: 'surface', surface: 'cheatsheet' }, { kind: 'account', host: 'chatspace', hostAccountId: '1001' }]) {
+      expect(C.TAB_REQUESTS['tab.command'].req.safeParse({ command }).success).toBe(true);
+      expect(C.parseTabPayload('evt', 'tab.command', { command })).toEqual({ ok: true, payload: { command } });
+    }
+    expect(C.parseTabPayload('evt', 'tab.command', { command: { kind: 'chat', host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } })).toEqual({ ok: false });
+  });
+
   it('parses in two stages and rejects unknown types', () => {
     const envelope = C.TabEnvelopeSchema.parse({ v: 1, kind: 'req', id: 4, type: 'op.cancel', tabSessionId: '00000000-0000-4000-8000-000000000004', payload: { opId: '00000000-0000-4000-8000-000000000002' } });
     expect(envelope.kind).toBe('req');

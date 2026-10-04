@@ -528,7 +528,10 @@ export const TAB_REQUESTS = {
     from: PAGE,
     pages: ['options'],
   },
-  /** See PageCommandSchema; `delivered: false` — no ChatSpace tab is open to act in. 1.2.0. */
+  /**
+   * See PageCommandSchema; `delivered: false` — no ChatSpace tab is open to
+   * act in. The tab gets the command as the `tab.command` event. 1.2.0.
+   */
   'tab.command': {
     req: z.strictObject({ command: PageCommandSchema }),
     res: z.strictObject({ delivered: z.boolean() }),
@@ -614,6 +617,15 @@ export const TAB_EVENTS = {
   'quota.changed': { payload: z.strictObject({ quota: AiQuotaSnapshotSchema }), to: ANY },
   /** Owner kill switches; unknown flag names mean "off" (open tokens, critic item 14). */
   'flags.changed': { payload: z.strictObject({ flags: z.record(OpenTokenSchema, z.boolean()), configRevision: CountSchema }), to: ANY },
+  /**
+   * 1.2.0. The second half of the `tab.command` request: the background
+   * brought this ChatSpace tab to the front and hands it the click a person
+   * made on an extension page (PageCommand: open Spenders, «Новые» or the
+   * key cheatsheet, go to an account). Sent to that one tab only, and only
+   * for a request of the popup or the options page; the tab runs it as that
+   * human action — a navigation, never an insert, a send or a generation.
+   */
+  'tab.command': { payload: z.strictObject({ command: PageCommandSchema }), to: TAB },
 } as const satisfies Record<string, EventSpec>;
 
 export type TabEventType = keyof typeof TAB_EVENTS;
