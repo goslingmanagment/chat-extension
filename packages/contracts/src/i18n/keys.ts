@@ -221,6 +221,9 @@ export const UI_TEXT_KEYS = [
   'debugPage.journal.empty', 'debugPage.journal.truncated', 'debugPage.journal.runs', 'debugPage.journal.run', 'debugPage.journal.kinds',
   'debugPage.journal.col.time', 'debugPage.journal.col.level', 'debugPage.journal.col.scope', 'debugPage.journal.col.text',
   'debugPage.journal.debugOff',
+  // The journal's filters, pages and auto-refresh (NF-029), the stored deep window above the hub's limit, a sentence-case row of the reference.
+  'debugPage.journal.filterAll', 'debugPage.journal.filterNone', 'debugPage.journal.matched', 'debugPage.journal.page', 'debugPage.journal.prev',
+  'debugPage.journal.next', 'debugPage.journal.auto', 'settings.generation.deepOver', 'settings.hotkeys.row.variant',
   // ── end of the extension pages ──
 ] as const;
 export type UiTextKey = (typeof UI_TEXT_KEYS)[number];

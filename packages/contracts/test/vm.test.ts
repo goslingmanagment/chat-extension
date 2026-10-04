@@ -268,6 +268,21 @@ describe('extension pages (1.2.0)', () => {
   it('the new page texts are keys of the catalog', () => {
     for (const key of ['popup.dialogNone', 'settings.save.saved', 'settings.status.warningOne', 'signIn.lead', 'debugPage.journal.title'] as const) expect(C.UI_TEXT_KEYS).toContain(key);
   });
+
+  it('[NF-029] [ST-093] [ST-120] the journal filters, pages and auto-refresh, the deep window above the hub limit and the reference row have their keys', () => {
+    for (const key of [
+      'debugPage.journal.filterAll',
+      'debugPage.journal.filterNone',
+      'debugPage.journal.matched',
+      'debugPage.journal.page',
+      'debugPage.journal.prev',
+      'debugPage.journal.next',
+      'debugPage.journal.auto',
+      'settings.generation.deepOver',
+      'settings.hotkeys.row.variant',
+    ] as const)
+      expect(C.UI_TEXT_KEYS).toContain(key);
+  });
 });
 
 describe('spoken money (1.1.0)', () => {

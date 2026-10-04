@@ -993,6 +993,15 @@ export const RU: I18nCatalog<'ru'> = {
   'debugPage.journal.col.scope': 'Область',
   'debugPage.journal.col.text': 'Запись',
   'debugPage.journal.debugOff': 'Режим отладки выключен: журналы не ведутся.',
+  'debugPage.journal.filterAll': 'все',
+  'debugPage.journal.filterNone': 'Под фильтр не попала ни одна запись.',
+  'debugPage.journal.matched': 'Записей: {n} из {total}',
+  'debugPage.journal.page': 'Страница {page} из {pages}',
+  'debugPage.journal.prev': 'Назад',
+  'debugPage.journal.next': 'Вперёд',
+  'debugPage.journal.auto': 'Обновлять автоматически',
+  'settings.generation.deepOver': 'В настройках {n}, но хаб возьмёт не больше {max}. Измените число, чтобы сохранить новое.',
+  'settings.hotkeys.row.variant': 'Другой вариант',
   // ── end of the extension pages ──
 
   // ── CG registry texts (Appendix A; docs/error-registry.md is generated from them) ──

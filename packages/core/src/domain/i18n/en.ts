@@ -953,6 +953,15 @@ export const EN: I18nCatalog<'en'> = {
   'debugPage.journal.col.scope': 'Scope',
   'debugPage.journal.col.text': 'Record',
   'debugPage.journal.debugOff': 'Debug mode is off: no journals are kept.',
+  'debugPage.journal.filterAll': 'all',
+  'debugPage.journal.filterNone': 'No record matches the filter.',
+  'debugPage.journal.matched': 'Records: {n} of {total}',
+  'debugPage.journal.page': 'Page {page} of {pages}',
+  'debugPage.journal.prev': 'Back',
+  'debugPage.journal.next': 'Next',
+  'debugPage.journal.auto': 'Refresh automatically',
+  'settings.generation.deepOver': 'The setting is {n}, but the hub will take at most {max}. Change the number to save a new one.',
+  'settings.hotkeys.row.variant': 'Another variant',
   // ── end of the extension pages ──
 
   // ── CG registry texts ──
