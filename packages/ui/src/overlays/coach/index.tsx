@@ -4,9 +4,12 @@
 // The session of the open chat from `CoachVM`: the freshness of the archive
 // Coach reads, the turns with their waiting stages, answers with drafts split
 // into parts (Insert one at a time, as in the dock), ready questions, and the
-// question field (↵ asks, ⇧↵ a new line). The panel does not trap focus; Esc
-// closes it and focus goes back. Coach sees the archive and the Recap, never
-// the fan's fresh text. A lazy overlay.
+// question field (↵ asks, ⇧↵ a new line). Opening it puts focus into the
+// question field (AI-080); the panel does not trap focus, Esc closes it and
+// focus goes back. A typed question belongs to the chat it was typed for
+// (AI-099). A draft part asks the Б2 question in its place (AI-086); in debug
+// mode a turn carries its debug footer (DB-019). Coach sees the archive and
+// the Recap, never the fan's fresh text. A lazy overlay.
 
 import { type ReadonlySignal } from '@preact/signals';
 import { type JSX } from 'preact';
@@ -27,6 +30,7 @@ import {
   StageLine,
   TextField,
   ViewState,
+  focusQuietly,
   mountKitSurface,
   useDispatch,
   useI18n,
@@ -39,19 +43,49 @@ import {
   type StyleSource,
   type SurfaceDefinition,
 } from '../../kit';
+import { DEFAULT_PARTS } from '../../dock/lazy';
+import { DebugSlot } from '../../dock/lazy-part';
 import { isRunning, msgOf, toneOf } from '../../dock/model';
 import { Parts } from '../../dock/Parts';
 import { StreamText, useSteadyView, useStreamText } from '../../dock/Stream';
 import { DOCK_STYLE } from '../../dock/styles';
 import { overlayRootCss } from '../layer';
 
-/** A question typed and not yet asked survives closing the panel (AI-099); in memory only, by the chat's handle. */
+/**
+ * Questions typed and not yet asked, by the handle of the chat they were typed
+ * for (AI-099): a question survives closing the panel and a switch to another
+ * chat and back, and is never asked about a chat it was not written for. In
+ * memory only, never stored; the chats written in last are kept.
+ */
 const unsent = new Map<string, string>();
+/** How many chats keep an unasked question. */
+export const UNSENT_QUESTIONS_MAX = 50;
+
+/**
+ * Drops every unasked question. For the composition root when the person
+ * signs out: the next one to sign in on this tab must not find them.
+ */
+export function forgetUnsentQuestions(): void {
+  unsent.clear();
+}
+
+function remember(chat: string, question: string): void {
+  // Written last, dropped last.
+  unsent.delete(chat);
+  if (question === '') return;
+  unsent.set(chat, question);
+  for (const oldest of unsent.keys()) {
+    if (unsent.size <= UNSENT_QUESTIONS_MAX) break;
+    unsent.delete(oldest);
+  }
+}
 
 function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: ReadonlySignal<CoachVM>; readonly mode: 'insert' | 'copy-only' }): JSX.Element {
   const i18n = useI18n();
   const text = useStreamText(raw, (coach) => coach.turns.find((item) => item.id === turn.id)?.streamText ?? null);
   const answer = turn.answer;
+  const confirm = turn.confirm ?? null;
+  const debug = turn.debug ?? null;
   return (
     <>
       <div class="cg-co__turn is-you" data-cg-turn={turn.id}>
@@ -84,12 +118,23 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
             {answer.drafts.map((draft) => (
               <div key={draft.index} class="cg-co__drafts" role="group" aria-label={i18n.text(draft.label)}>
                 {answer.drafts.length > 1 ? <div class="cg-co__draft-cap">{i18n.text(draft.label)}</div> : null}
-                <Parts parts={draft.parts} opId={turn.opId ?? ''} mode={turn.opId === null ? 'copy-only' : mode} confirm={null} />
+                <Parts
+                  parts={draft.parts}
+                  opId={turn.opId ?? ''}
+                  mode={turn.opId === null ? 'copy-only' : mode}
+                  // Б2 opens in the part it names (AI-086): with two drafts their parts carry the draft as `variant`.
+                  confirm={confirm}
+                />
               </div>
             ))}
           </>
         )}
         {turn.error === null ? null : <ErrorCard error={turn.error} tone={toneOf(turn.error)} actions={turn.errorActions} inline />}
+        {debug === null ? null : (
+          <div class="cg-co__debug">
+            <DebugSlot loader={DEFAULT_PARTS.debug} debug={debug} startedAt={turn.phase?.startedAt ?? turn.askedAt} running={isRunning(turn.state)} />
+          </div>
+        )}
       </div>
     </>
   );
@@ -148,25 +193,35 @@ export function CoachView(): JSX.Element {
   // Coach follows the open chat: its target and the copy-only mode are the dock's.
   const dock = useSteadyView(useView({ of: 'dock' })).value;
   const handle = dock.targetHandle;
-  const key = handle ?? '';
-  const [question, setQuestion] = useState(() => unsent.get(key) ?? '');
-  const [attach, setAttach] = useState(false);
+  // The chat the field belongs to now: what is typed is kept under it and read back from it.
+  const chat = handle ?? '';
+  const [, repaint] = useState(0);
+  const question = unsent.get(chat) ?? '';
+  /** «Приложить мой ответ» is pressed for one chat: another chat does not inherit it, and it is there again on the way back. */
+  const [attachFor, setAttachFor] = useState<string | null>(null);
+  const attach = attachFor === chat;
   const list = useRef<HTMLDivElement>(null);
+  const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const last = vm.turns[vm.turns.length - 1];
   // A new turn or its answer scrolls into view.
   useLayoutEffect(() => {
     const element = list.current;
     if (element !== null) element.scrollTop = element.scrollHeight;
   }, [vm.turns.length, last?.state]);
+  // The panel is mounted when the person opens Coach: the question field takes focus (AI-080).
+  // A switch of the chat under an open panel mounts nothing and moves no focus.
+  useLayoutEffect(() => {
+    focusQuietly(field.current);
+  }, []);
 
   const close = (): void => void dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } });
-  const keep = (value: string): void => {
-    setQuestion(value);
-    if (value === '') unsent.delete(key);
-    else unsent.set(key, value);
+  const keep = (where: string, value: string): void => {
+    remember(where, value);
+    repaint((count) => count + 1);
   };
   const canAsk = vm.ask.enabled && handle !== null;
   const whyNot = canAsk ? null : vm.ask.reason === null ? i18n.t('common.unknown') : i18n.text(vm.ask.reason.text);
+  /** Asks about the open chat: the field's text (Enter, «Спросить») or a ready question. */
   const ask = (text: string, preset: 'situation' | null = null): void => {
     const body = text.trim();
     if (!canAsk || body === '') return;
@@ -177,8 +232,10 @@ export function CoachView(): JSX.Element {
       feature: 'coach',
       options: { question: body, ...(preset === null ? {} : { preset }), ...(withDraft ? { attachMyDraft: true } : {}) },
     }).then((receipt) => {
-      // The question leaves the field only once the turn started (AI-099).
-      if (receipt?.ok === true && preset === null) keep('');
+      // The question leaves the field only once its turn started (AI-099) — the field of the chat it was
+      // asked in, and only if that field still holds exactly it: a ready question never wipes what is
+      // being typed, and neither does the start of a turn the person has already typed past.
+      if (receipt?.ok === true && unsent.get(chat) === text) keep(chat, '');
     });
   };
   const newDialog = (): void => {
@@ -253,13 +310,14 @@ export function CoachView(): JSX.Element {
               label={i18n.t('coach.attachDraft')}
               checked={attach && vm.ask.attachDraft.available}
               semantics="toggle"
-              onChange={setAttach}
+              onChange={(on) => setAttachFor(on ? chat : null)}
               reason={vm.ask.attachDraft.available ? null : vm.ask.attachDraft.reason === null ? i18n.t('common.unknown') : i18n.text(vm.ask.attachDraft.reason.text)}
             />
           </div>
           <TextField
             value={question}
-            onValue={keep}
+            onValue={(value) => keep(chat, value)}
+            inputRef={field}
             label={i18n.t('coach.ask.aria')}
             placeholder={i18n.t('coach.ask.placeholder')}
             multiline
@@ -310,6 +368,9 @@ ${overlayRootCss('coach', 'panel')}
 .cg-co__drafts .cg-part.is-done .cg-part__a { margin: 2px 0 0 -8px; }
 .cg-co__drafts .cg-part__card, .cg-co__drafts .cg-part__extra { grid-column: 2; }
 .cg-co__turn .cg-card { margin-top: 8px; }
+/* The debug footer of a turn: the panel's width, the label column of the drafts. */
+.cg-co__debug { margin: 8px -16px 0; }
+.cg-co__debug .cg-debug { grid-template-columns: 32px minmax(0, 1fr); padding-right: 8px; }
 .cg-co__memory { margin: 10px 16px 0; padding-top: 8px; border-top: 1px dashed var(--cg-rule-3); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-co__empty { padding: 28px 16px; color: var(--cg-ink-muted); }
 .cg-co__empty b { display: block; font-weight: 600; color: var(--cg-ink-strong); font-size: var(--cg-text-lg); line-height: 20px; margin-bottom: 4px; }

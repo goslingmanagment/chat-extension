@@ -650,6 +650,55 @@ export const GALLERY_STATES: readonly GalleryState[] = [
     { surface: 'coach' },
   ),
   state(
+    'x-coach-confirm',
+    'overlays',
+    'Coach: в поле уже есть ваш текст — Б2 в части черновика (AI-086)',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      entry({ of: 'coach' }, coach(ctx, views.ready(), coachTurns(ctx, { confirm: { confirmationId: uuid(205), kind: 'human-draft', part: { index: 0 }, formatLoss: false } }))),
+    ],
+    { surface: 'coach' },
+  ),
+  state(
+    'x-coach-debug',
+    'overlays',
+    'Coach в режиме отладки: подвал хода (DB-019)',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      entry(
+        { of: 'coach' },
+        coach(
+          ctx,
+          views.ready(),
+          coachTurns(ctx, {
+            debug: {
+              costLine: 'in 5 210 tok • out 402 tok • $0.0188 • 4.1 s • model-test',
+              stages: [
+                { name: 'request', ms: 36 },
+                { name: 'meta', ms: 280 },
+                { name: 'first-chunk', ms: 1_240 },
+                { name: 'stream', ms: 2_510 },
+                { name: 'parse', ms: 12 },
+                { name: 'render', ms: 8 },
+              ],
+              totalMs: 4_086,
+              hubStages: [
+                { name: 'context', ms: 190 },
+                { name: 'provider', ms: 3_600 },
+                { name: 'stream', ms: 2_490 },
+              ],
+              prompt: { type: 'Navigate', to: { kind: 'debug-prompt', promptHandle: 'snap-3' } },
+              reasoning: null,
+              context: null,
+              liveTimer: false,
+            },
+          }),
+        ),
+      ),
+    ],
+    { surface: 'coach', debug: true },
+  ),
+  state(
     'x-expanded-recap',
     'overlays',
     'Развернуть ↗: Recap полностью (UI-014)',
