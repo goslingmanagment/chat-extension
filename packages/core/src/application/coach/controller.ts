@@ -251,7 +251,13 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     if (result.kind === 'refused') return giveUp(result.refusal.error);
     const record = ws.ops.get(result.opId);
     // The admitted operation is the recap step when one was due and can be built here; otherwise the answer itself.
-    sessions.step(session.sessionId, turnId, record !== null && record.view.feature !== 'coach' ? 'recap' : 'coach', result.opId);
+    const stepped = sessions.step(session.sessionId, turnId, record !== null && record.view.feature !== 'coach' ? 'recap' : 'coach', result.opId);
+    if (stepped === null) {
+      // The dialog was wiped while the start was on its way (a persona or sign-in change): nobody would read
+      // the answer, so it is not left running.
+      void ws.ops.cancel(result.opId);
+      return refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' });
+    }
     ws.bump();
     // The operation may have ended before this answer arrived.
     if (record !== null && isTerminalOpState(record.view.state)) settle(record);

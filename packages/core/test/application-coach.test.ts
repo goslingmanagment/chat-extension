@@ -456,6 +456,26 @@ describe('coach: history and sessions', () => {
     expect(other.coach().turns).toEqual([]);
   });
 
+  it('[AI-089] the persona changed while a question was on its way: the dialog is gone, and its answer is not left running for nobody', async () => {
+    const h = await start();
+    h.bg.held.add('token.issue');
+    const asking = ask(h, 'How do I reply?');
+    await h.settle();
+    expect(lastTurn(h)).toMatchObject({ question: 'How do I reply?', opId: null });
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: 'other', definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    expect(h.coach().turns).toEqual([]);
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('coach-chat') }, { kind: 'stall' }] });
+    h.bg.held.clear();
+    h.bg.release();
+    expect(await asking).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    await h.settle();
+    expect(h.bg.callsOf('op.cancel')).toHaveLength(1);
+    expect(h.bg.scheduler.active()).toEqual([]);
+    expect(h.coach().turns).toEqual([]);
+    expect(h.coach().ask.enabled).toBe(true);
+  });
+
   it('[AI-089] the dialog survives what is not a change of persona or sign-in: a port that came back, a re-read of the same sign-in', async () => {
     const h = await start();
     await exchange(h, 'kept question');
