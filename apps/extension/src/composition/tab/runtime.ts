@@ -74,23 +74,47 @@ export function loadLazy<T>(path: string): Promise<T> {
 /** `STORAGE_KEYS.newcomersDrafts`, spelled out: the contracts' settings module is schemas the early bundle must not carry (§11). */
 export const NEWCOMER_DRAFTS_KEY = 'newcomers.drafts';
 
+/** What another tab wrote is read again not more often than this, however often the tab is looked at. */
+export const DRAFTS_REREAD_MIN_MS = 2_000;
+
 /**
  * The local drafts of previews and «Новые» cards (NF-012, NEW-10) as R12's
  * controller keeps them: one key of storage.local every ChatSpace tab of the
  * browser shares. The lazy chunks have no browser API, so the port is made
  * here. Never ChatSpace's own storage; never a text in a log.
+ *
+ * A ChatSpace tab reads and writes this one key by its name and listens to
+ * NO storage change: the browser hands a `storage.onChanged` listener every
+ * change of the area with its old and new values — the sign-in record with
+ * the hub token among them, and the hub's cached data — into the page's own
+ * process (architecture.md §14: the token is the background's alone; a
+ * content script is not where it may travel). What another tab wrote is read
+ * when this tab is looked at again — it comes back on screen or takes the
+ * focus — which is the first moment its person can see a draft at all.
+ * `tools/gates` keeps a storage listener out of the tab's bundles.
  */
-export function draftStoreOf(api: BrowserApi = defaultBrowser()): DraftStore {
+export function draftStoreOf(api: BrowserApi = defaultBrowser(), win: Pick<Window, 'addEventListener' | 'removeEventListener' | 'document'> = window): DraftStore {
+  const load = async (): Promise<unknown> => (await api.storage.local.get(NEWCOMER_DRAFTS_KEY))[NEWCOMER_DRAFTS_KEY];
   return {
-    load: async () => (await api.storage.local.get(NEWCOMER_DRAFTS_KEY))[NEWCOMER_DRAFTS_KEY],
+    load,
     save: (value) => api.storage.local.set({ [NEWCOMER_DRAFTS_KEY]: value }),
     onChanged(listener) {
-      const onChanged = (changes: Record<string, { readonly newValue?: unknown }>, area: string): void => {
-        const change = area === 'local' ? changes[NEWCOMER_DRAFTS_KEY] : undefined;
-        if (change !== undefined) listener(change.newValue);
+      const doc = win.document;
+      let readAt = Number.NEGATIVE_INFINITY;
+      const reread = (): void => {
+        if (doc.visibilityState !== 'visible') return;
+        const now = Date.now();
+        if (now - readAt < DRAFTS_REREAD_MIN_MS) return;
+        readAt = now;
+        // A read that failed leaves what the tab holds: its next write merges with the key anyway.
+        void load().then(listener, () => undefined);
       };
-      api.storage.onChanged.addListener(onChanged);
-      return () => api.storage.onChanged.removeListener(onChanged);
+      doc.addEventListener('visibilitychange', reread);
+      win.addEventListener('focus', reread);
+      return () => {
+        doc.removeEventListener('visibilitychange', reread);
+        win.removeEventListener('focus', reread);
+      };
     },
   };
 }
@@ -202,7 +226,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         theme: host.theme,
         keys: env.keys,
         lazy: (entry) => loadLazy(lazyPath(entry)),
-        drafts: draftStoreOf(env.api),
+        drafts: draftStoreOf(env.api, win),
         ownOrigin: extensionUrl('').replace(/\/$/, ''),
         contractsVersion: CONTRACTS_VERSION,
         lateInjection: env.lateInjection,
