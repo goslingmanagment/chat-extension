@@ -104,6 +104,8 @@ export interface OpSchedulerHooks {
   recapDone?(view: OpView, ownerTab: string | null): void;
   /** debug_input_v1 arrived: the debug store keeps it and answers an opaque token (DB-004). */
   debugInput?(opId: string, frame: Extract<HubFrame, { type: 'debug_input_v1' }>): string | null;
+  /** A `usage` frame arrived (numbers only): the local spend journal of debug mode counts it (DB-022). */
+  usage?(feature: FeatureId, usage: Extract<HubFrame, { type: 'usage' }>['usage']): void;
 }
 
 export interface OpSchedulerDeps {
@@ -603,6 +605,7 @@ export class OpScheduler {
           },
           ctx: { opId: run.view.opId },
         });
+        if (frame.type === 'usage') this.deps.hooks?.usage?.(run.view.feature, frame.usage);
         break;
       }
       case 'reasoning':
@@ -717,17 +720,48 @@ export class OpScheduler {
       canceled.push(run.view.opId);
     }
     if (change.kind !== 'persona') {
-      // The cache never crosses users or sign-ins (AI-128): results of the old sign-in go.
+      // The cache never crosses users or sign-ins (AI-128): results of the old sign-in go — and its quota with them.
       const keep = (run: Run): boolean =>
         !run.ended || (change.kind === 'session' && change.next !== null && change.next.hubOrigin === run.tag.hubOrigin && change.next.userId === run.tag.userId && change.next.epoch === run.tag.signInEpoch);
+      let kept = true;
       for (const [opId, run] of this.runs) {
         if (keep(run)) continue;
+        kept = false;
         this.runs.delete(opId);
         this.cache.forgetOp(opId);
       }
+      if (!kept || change.kind === 'hub') this.quotas.clear();
       void this.persist().catch(() => undefined);
     }
     return canceled;
+  }
+
+  /**
+   * «Очистить локальные данные» (ST-110): finished results leave memory and
+   * storage; what is running stays and ends as usual. Answers how many went.
+   */
+  clearFinished(): number {
+    let dropped = 0;
+    for (const [opId, run] of this.runs) {
+      if (!run.ended) continue;
+      this.runs.delete(opId);
+      this.cache.forgetOp(opId);
+      dropped += 1;
+    }
+    if (dropped > 0) void this.persist().catch(() => undefined);
+    return dropped;
+  }
+
+  /**
+   * The hub layer waits before its one transparent retry of this operation's
+   * stream (§7 «Сервис недоступен, повтор через 5 с…»): the phase says so
+   * until the next frame. The retry itself is the hub layer's; nothing is
+   * POSTed from here.
+   */
+  noteRetry(opId: string, retryAt: number): void {
+    const run = this.runs.get(opId);
+    if (run === undefined || run.ended || run.stream.frames > 0) return;
+    this.setPhase(run, { name: 'retry-wait', since: this.deps.clock.now(), retryAt });
   }
 
   /** The owning tab closed: the surface detaches, the generation goes on (BG-006, AI-124). */
