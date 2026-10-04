@@ -2,13 +2,16 @@
 // CS-037, DB-026): who the fan of the open chat is, what they spent and on
 // what, how their subscription to THIS page stands. Facts come from the hub
 // — `spenderDetail` and only its element of the target page (a fan
-// subscribed to another page of the agency says nothing about this one);
-// ChatSpace's own memory adds decoration (last seen, buying power, scores,
-// bio, lists) only when it already holds it. A missing source is null, never
-// a guess; every block says how old and how complete its data is.
+// subscribed to another page of the agency says nothing about this one),
+// the hub's profile of the fan (its body is the panel's bio, CS-035) and the
+// hub archive of the thread (its coverage, DB-026). ChatSpace's own memory
+// adds decoration (last seen, buying power, scores, lists, and its «О себе»
+// while the hub has no profile) only when it already holds it. A missing
+// source is null, never a guess; every block says how old and how complete
+// its data is.
 
 import { type HostFan } from '@cg/contracts/host';
-import { type SPENDER_RETENTION_STATUSES, type SpenderDetail } from '@cg/contracts/hub';
+import { type Dossier, type SPENDER_RETENTION_STATUSES, type SpenderDetail } from '@cg/contracts/hub';
 import { type CoverageLevel } from '@cg/contracts/ops';
 import { type IsoTimestamp, type MoneyMills } from '@cg/contracts/primitives';
 
@@ -104,6 +107,10 @@ export interface FanPanelInput {
   readonly last30: SpenderDetail | null;
   /** What ChatSpace already holds about the fan; null — nothing in memory. */
   readonly hostFan: HostFan | null;
+  /** The hub's profile of the fan (`pageFanProfile`); null — the hub has none, or it was not read. */
+  readonly dossier?: Dossier | null;
+  /** The hub archive of this thread as its feed states it; null — not read. */
+  readonly archive?: { readonly coverage: CoverageLevel } | null;
   /** The fan's row of the Spenders board, when one was loaded. */
   readonly row: { readonly retention: Retention | null; readonly storedMessages: number; readonly history: 'complete' | 'partial' | 'none' } | null;
   readonly now: number;
@@ -128,11 +135,14 @@ export interface FanPanelModel {
   } | null;
   readonly host: { readonly buyingPower: string | null; readonly scores: readonly { readonly label: string; readonly value: string }[] } | null;
   readonly bio: string | null;
+  /** `hub` — the body of the hub's profile; `host` — ChatSpace's own «О себе», standing in while the hub has no profile. */
+  readonly bioSource: 'hub' | 'host' | null;
   readonly lists: readonly string[];
   /** When the hub's money data was current. */
   readonly asOf: IsoTimestamp | null;
-  /** Coverage of the hub archive of this thread; unknown without a board row. */
+  /** Coverage of the hub archive of this thread: the archive's own word, else the board row's; unknown without either. */
   readonly coverage: CoverageLevel;
+  /** Messages the archive stores for the thread: only the board row carries the number. */
   readonly archiveMessages: number | null;
 }
 
@@ -144,7 +154,9 @@ const text = (value: string | null | undefined): string | null => {
 export function fanPanelModel(input: FanPanelInput): FanPanelModel {
   const detail = input.lifetime ?? input.last30;
   const host = input.hostFan;
-  const hubFan = detail?.fan ?? null;
+  const dossier = input.dossier ?? null;
+  // Who the fan is, as the hub names them: the money read's fan, else the profile's.
+  const hubFan = detail?.fan ?? dossier?.fan ?? null;
   const username = (text(host?.username) ?? text(hubFan?.username))?.replace(/^@/, '') ?? null;
   const name = text(hubFan?.pageAlias) ?? text(host?.displayName) ?? text(hubFan?.displayName) ?? username ?? input.fanRef;
   const page = targetPage(detail, input.pageId);
@@ -172,6 +184,10 @@ export function fanPanelModel(input: FanPanelInput): FanPanelModel {
 
   const scores = host?.insights ?? [];
   const buyingPower = text(host?.buyingPowerLabel);
+  // CS-035, D-29: the bio is the hub's profile of the fan; ChatSpace's own «О себе» is decoration, shown while the hub has none.
+  const hubBio = text(dossier?.profile?.body);
+  const hostBio = text(host?.bio);
+  const rowCoverage: CoverageLevel = input.row === null ? 'unknown' : input.row.history === 'complete' ? 'complete' : 'partial';
   return {
     name,
     username,
@@ -181,10 +197,11 @@ export function fanPanelModel(input: FanPanelInput): FanPanelModel {
     spent,
     subscription,
     host: host === null || (buyingPower === null && scores.length === 0) ? null : { buyingPower, scores },
-    bio: text(host?.bio),
+    bio: hubBio ?? hostBio,
+    bioSource: hubBio !== null ? 'hub' : hostBio !== null ? 'host' : null,
     lists: host?.lists ?? [],
     asOf: detail?.period.asOf ?? null,
-    coverage: input.row === null ? 'unknown' : input.row.history === 'complete' ? 'complete' : 'partial',
+    coverage: input.archive?.coverage ?? rowCoverage,
     archiveMessages: input.row === null ? null : input.row.storedMessages,
   };
 }

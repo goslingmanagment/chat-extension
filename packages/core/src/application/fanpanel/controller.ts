@@ -1,19 +1,25 @@
 // The fan panel as a surface controller (architecture.md D-29, §10.2
 // FanPanelVM; CS-017, CS-031…CS-037, DB-026): the fan of the OPEN chat —
 // money by kind and the subscription to this page from the hub
-// (`spenderDetail`, the target page's element only), ChatSpace's own memory
-// as decoration when it already holds it, and how old and how complete the
-// data is. Nothing is read from ChatSpace's network, and nothing is read at
-// all while the panel is closed. Without an open chat it says «Выберите чат».
+// (`spenderDetail`, the target page's element only), the hub's profile of
+// the fan as the bio (`fan.dossier`), the coverage of the hub archive of the
+// thread (the first row of its feed — the hub's database only, so nothing is
+// marked read), ChatSpace's own memory as decoration when it already holds
+// it, and how old and how complete the data is. Each hub read fails on its
+// own, as a named gap. Nothing is read from ChatSpace's network, and nothing
+// is read at all while the panel is closed. Without an open chat it says
+// «Выберите чат».
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
-import { type SpenderDetail } from '@cg/contracts/hub';
+import { type Dossier, type SpenderDetail } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
+import { type CoverageLevel } from '@cg/contracts/ops';
 import { type ActionReceipt, type FanPanelVM, type I18n, type PartialGap, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { fanPanelModel } from '../../domain/fanpanel/model';
 import { type SpenderRow } from '../../domain/spenders/rows';
+import { coverageLevel } from '../../domain/spenders/stats';
 import { type PageContextPort, flagReason, pageFlag } from '../boards/context';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type Surfaces } from '../boards/shared';
@@ -35,6 +41,13 @@ interface Card {
   error: CgErrorWire | null;
   /** Only the 30-day read failed: «+$N за 30 дней» is unknown. */
   error30: CgErrorWire | null;
+  /** The hub's profile of the fan; null — the hub has none (or it was not read yet). */
+  dossier: Dossier | null;
+  /** The profile read failed: whether the hub has a bio is unknown. */
+  dossierError: CgErrorWire | null;
+  /** The hub archive of the thread, by the first page of its feed; null — not read (the page has no archive feed), or the read failed. */
+  archive: { readonly coverage: CoverageLevel } | null;
+  archiveError: CgErrorWire | null;
   loading: boolean;
   since: number | null;
   loadedAt: number | null;
@@ -48,7 +61,7 @@ export interface FanPanelControllerDeps {
   readonly clock: BoardsClock;
   readonly context: PageContextPort;
   readonly surfaces: Surfaces;
-  /** The fan's row of the Spenders board, when one is loaded: its retention status and archive coverage. */
+  /** The fan's row of the Spenders board, when one is loaded: its retention status and the number of archived messages. */
   readonly rowOf?: (pageId: number, fanRef: string) => SpenderRow | null;
   /** The board's rows changed (it loaded, or was dropped): the panel reads its row again. */
   readonly rowsChanged?: (listener: () => void) => () => void;
@@ -85,7 +98,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     const key = chatKeyOf(chat);
     let card = cards.get(key);
     if (card === undefined) {
-      card = { lifetime: null, last30: null, error: null, error30: null, loading: false, since: null, loadedAt: null, run: 0 };
+      card = { lifetime: null, last30: null, error: null, error30: null, dossier: null, dossierError: null, archive: null, archiveError: null, loading: false, since: null, loadedAt: null, run: 0 };
       cards.set(key, card);
       if (cards.size > CARDS_KEPT) {
         const oldest = cards.keys().next().value;
@@ -104,9 +117,15 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     card.loading = true;
     card.since = clock.now();
     changed();
-    const [lifetime, last30] = await Promise.all([
-      rpc.request('fan.card', { pageId, fanRef: chat.platformFanId, period: 'lifetime' }),
-      rpc.request('fan.card', { pageId, fanRef: chat.platformFanId, period: '30d' }),
+    const fanRef = chat.platformFanId;
+    // The archive feed is the preview's route on the hub (`archive-feed-v1`): without it the archive's state stays unknown, and says so.
+    const archiveOn = pageFlag(context.current(), 'preview');
+    const [lifetime, last30, dossier, feed] = await Promise.all([
+      rpc.request('fan.card', { pageId, fanRef, period: 'lifetime' }),
+      rpc.request('fan.card', { pageId, fanRef, period: '30d' }),
+      rpc.request('fan.dossier', { pageId, fanRef }),
+      // One row is enough: the page carries the archive's coverage. It is the hub's database only — the chat is not read on OnlyFans.
+      archiveOn ? rpc.request('feed.read', { pageId, fanRef, cursor: null, limit: 1 }) : Promise.resolve(null),
     ]);
     if (disposed || atEpoch !== epoch || card.run !== run) return;
     card.loading = false;
@@ -116,6 +135,15 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     card.error = lifetime.ok ? null : lifetime.error;
     card.last30 = last30.ok ? last30.payload : card.last30;
     card.error30 = last30.ok ? null : last30.error;
+    card.dossier = dossier.ok ? dossier.payload.dossier : card.dossier;
+    card.dossierError = dossier.ok ? null : dossier.error;
+    if (feed === null) {
+      card.archive = null;
+      card.archiveError = null;
+    } else {
+      card.archive = feed.ok ? { coverage: coverageLevel(feed.payload.coverage) } : card.archive;
+      card.archiveError = feed.ok ? null : feed.error;
+    }
     changed();
   }
 
@@ -154,6 +182,8 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       lifetime: card?.lifetime ?? null,
       last30: card?.last30 ?? null,
       hostFan,
+      dossier: card?.dossier ?? null,
+      archive: card?.archive ?? null,
       row: row === null ? null : { retention: row.retention, storedMessages: row.storedMessages, history: row.history },
       now: clock.now(),
     });
@@ -165,7 +195,11 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       const fanCapability = host.current().contract.capabilities.fan.state;
       if (hostFan === null && fanCapability !== 'on') gaps.push({ kind: 'host-degraded', capabilities: ['fan'] });
       if (card.error30 !== null && card.error === null) gaps.push({ kind: 'source-failed', source: 'fan.card.30d', code: card.error30.code });
-      if (row !== null && row.history !== 'complete') gaps.push({ kind: 'coverage', level: 'partial' });
+      // CS-035: whether the hub has a profile of the fan is unknown — the bio shown (if any) is ChatSpace's stand-in.
+      if (card.dossierError !== null) gaps.push({ kind: 'source-failed', source: 'fan.dossier', code: card.dossierError.code });
+      if (card.archiveError !== null) gaps.push({ kind: 'source-failed', source: 'feed', code: card.archiveError.code });
+      // DB-026: an archive that is not whole, or whose state nobody told, is said — the panel is never «ready» over an unknown archive.
+      if (model.coverage !== 'complete') gaps.push({ kind: 'coverage', level: model.coverage });
       if (card.loading) gaps.push({ kind: 'stale-cache', asOf: model.asOf });
       if (card.error !== null) {
         // The hub's money is unknown; who the fan is still shows from ChatSpace's memory.
@@ -181,6 +215,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       subscription: model.subscription,
       host: model.host,
       bio: model.bio,
+      ...(model.bioSource === null ? {} : { bioSource: model.bioSource }),
       lists: model.lists,
       footer: { stamp: stamp(model.asOf, model.coverage), archiveMessages: model.archiveMessages },
     };

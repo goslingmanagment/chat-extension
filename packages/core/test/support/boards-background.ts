@@ -17,6 +17,7 @@ import {
   type ClaimAction,
   type ClaimOp,
   type ClaimState,
+  type Dossier,
   type HostAccount,
   type HubBinding,
   type HubFailure,
@@ -323,6 +324,15 @@ export class BoardsBackground {
       const pageLabel = this.pageLabel(pageId);
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
       return this.read('clientConversationFeed', { pageLabel, fanRef, limit, ...(cursor === null ? {} : { cursor }), ...(summaryWindow === undefined ? {} : { summaryWindow }) });
+    },
+    'fan.dossier': async ({ pageId, fanRef }) => {
+      const pageLabel = this.pageLabel(pageId);
+      if (pageLabel === null) return fail({ code: 'CG-BINDING-NOT-GRANTED' });
+      // The facade's `fanDossier`: a fan the hub does not know is «no profile» (null), not an error.
+      const answer = await this.options.call('pageFanProfile', { pageLabel, fanRef });
+      if (answer.status === 404) return ok({ dossier: null });
+      if (answer.status >= 200 && answer.status <= 299) return ok({ dossier: answer.body as Dossier });
+      return fail(this.wireOf('pageFanProfile', answer, null, true));
     },
     'fan.card': ({ pageId, fanRef, period }) => {
       const pageLabel = this.pageLabel(pageId);

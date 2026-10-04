@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { CHURN_RISK_BY_RETENTION, type HostFan, type SpenderDetail } from '@cg/contracts';
+import { CHURN_RISK_BY_RETENTION, type Dossier, type HostFan, type SpenderDetail } from '@cg/contracts';
 import { churnRisk, fanPanelModel, initials, spendByKind, subscriptionMonths, targetPage } from '@cg/core/domain/fanpanel';
 import { NOW, SCENARIO_DATA } from '@cg/testing/hub';
 
@@ -132,7 +132,28 @@ describe('[CS-031] [CS-033] [CS-034] the fan panel', () => {
     expect(churnRisk(pageOf({ isSubscriber: false, subscriberSince: null }), null)).toBeNull();
   });
 
-  it('[CS-035] [CS-036] ChatSpace memory is decoration only; the archive coverage and age come with the board row', () => {
+  const profile = (body: string): Dossier => ({
+    fan: { platform: 'onlyfans', platformUserId: '2002', username: 'hubert_hub', displayName: 'Hubert K.', createdAtExternal: null, pageAlias: null },
+    profile: { version: 3, body, source: 'chatmuse', createdAt: at(-60), sourceGeneratedAt: at(-3600), createdByUserId: 7 },
+  });
+
+  it('[CS-035] the bio is the hub profile of the fan; ChatSpace memory stands in only while the hub has none', () => {
+    const base = { fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: detail(), row: null, now: NOW_MS };
+    // The hub has a profile: its body is the bio, whatever ChatSpace holds.
+    expect(fanPanelModel({ ...base, hostFan, dossier: profile('## Fan\nLikes short replies.') })).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
+    expect(fanPanelModel({ ...base, hostFan: null, dossier: profile('  Night owl.  ') })).toMatchObject({ bio: 'Night owl.', bioSource: 'hub' });
+    // The hub knows the fan but has no profile document, or an empty one, or does not know the fan: ChatSpace's «О себе» is the stand-in.
+    for (const dossier of [{ ...profile('x'), profile: null }, profile('   '), null]) {
+      expect(fanPanelModel({ ...base, hostFan, dossier })).toMatchObject({ bio: 'Works shifts, writes in the evening.', bioSource: 'host' });
+      expect(fanPanelModel({ ...base, hostFan: null, dossier })).toMatchObject({ bio: null, bioSource: null });
+    }
+    // Lists are ChatSpace's own (the hub holds none): decoration, when in memory.
+    expect(fanPanelModel({ ...base, hostFan, dossier: profile('x') }).lists).toEqual(['VIP', 'Whales']);
+    // With no money read, the hub's profile still names the fan before ChatSpace's memory is all there is.
+    expect(fanPanelModel({ ...base, lifetime: null, last30: null, hostFan: null, dossier: profile('x') })).toMatchObject({ name: 'Hubert K.', username: 'hubert_hub' });
+  });
+
+  it('[CS-036] [DB-026] ChatSpace memory is decoration only; the archive coverage is the archive\'s own word, then the board row\'s; the message count comes with the row', () => {
     const model = fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: detail(), hostFan, row: { retention: 'active', storedMessages: 412, history: 'complete' }, now: NOW_MS });
     expect(model).toMatchObject({
       name: 'Hubert',
@@ -141,13 +162,18 @@ describe('[CS-031] [CS-033] [CS-034] the fan panel', () => {
       lastSeenAt: at(-360),
       online: false,
       host: { buyingPower: 'High', scores: [{ label: 'Tips', value: '8/10' }] },
-      bio: 'Works shifts, writes in the evening.',
       lists: ['VIP', 'Whales'],
       asOf: NOW,
       coverage: 'complete',
       archiveMessages: 412,
     });
-    expect(fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: null, hostFan, row: { retention: null, storedMessages: 3, history: 'partial' }, now: NOW_MS }).coverage).toBe('partial');
+    const partial = { retention: null, storedMessages: 3, history: 'partial' } as const;
+    expect(fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: null, hostFan, row: partial, now: NOW_MS }).coverage).toBe('partial');
+    // The archive's own state, read for the open chat, needs no board: complete without a row, and it overrides an older row.
+    expect(fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: null, hostFan, archive: { coverage: 'complete' }, row: null, now: NOW_MS })).toMatchObject({ coverage: 'complete', archiveMessages: null });
+    expect(fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: null, hostFan, archive: { coverage: 'unknown' }, row: partial, now: NOW_MS })).toMatchObject({ coverage: 'unknown', archiveMessages: 3 });
+    // Neither: unknown, never «complete» by default.
+    expect(fanPanelModel({ fanRef: '2002', pageId: PAGE_ID, lifetime: detail(), last30: null, hostFan, row: null, now: NOW_MS })).toMatchObject({ coverage: 'unknown', archiveMessages: null });
   });
 
   it('[CS-037] nothing known stays unknown: no hub card and nothing in ChatSpace memory', () => {
@@ -162,6 +188,7 @@ describe('[CS-031] [CS-033] [CS-034] the fan panel', () => {
       subscription: null,
       host: null,
       bio: null,
+      bioSource: null,
       lists: [],
       asOf: null,
       coverage: 'unknown',

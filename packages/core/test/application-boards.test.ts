@@ -2406,7 +2406,7 @@ async function movedThread(h: Harness): Promise<unknown> {
   return page;
 }
 
-describe('[CS-031] [CS-033] [CS-034] [CS-036] [CS-037] the fan panel follows the open chat', () => {
+describe('[CS-031] [CS-033] [CS-034] [CS-035] [CS-036] [CS-037] the fan panel follows the open chat', () => {
   const chatOf = (fan: string) => ({ host: 'chatspace' as const, hostAccountId: HOST_IDS.acc, platformFanId: fan });
   const routeTo = (fan: string | null): HostEvent => ({ type: 'route', route: { epoch: 6, name: fan === null ? 'accounts-overview' : 'chat', account: hostAccount, chat: fan === null ? null : chatOf(fan) } });
 
@@ -2422,7 +2422,7 @@ describe('[CS-031] [CS-033] [CS-034] [CS-036] [CS-037] the fan panel follows the
     expect(h.boards.fanPanel.getSnapshot(PANEL).tab).toBe('recap');
   });
 
-  it('[CS-033] [CS-034] [CS-036] money by kind and the subscription of this page from the hub; the data time in the footer', async () => {
+  it('[CS-033] [CS-034] [CS-036] [DB-026] money by kind and the subscription of this page from the hub; the data time and the archive coverage in the footer — with no board loaded', async () => {
     const h = await harness();
     await h.dispatch(open('fan-panel'));
     h.hostEvent(routeTo('5001'));
@@ -2436,8 +2436,14 @@ describe('[CS-031] [CS-033] [CS-034] [CS-036] [CS-037] the fan panel follows the
     expect(vm.spent?.byKind).toEqual([{ kind: 'messages', mills: 1_239_000 }]);
     expect(vm.subscription).toEqual({ months: null, since: null, autoRenew: null, churnRisk: null });
     expect(vm.footer.stamp.asOf).toBe(iso(NOW_MS));
-    expect(vm.footer).toMatchObject({ archiveMessages: null, stamp: { coverage: 'unknown' } });
-    // With the board loaded, its row gives the retention status and the archive coverage.
+    // DB-026: the archive's coverage is read for the open chat itself — one row of the hub's feed; the Spenders board was never opened.
+    expect(count(h, 'spenders.board')).toBe(0);
+    expect(h.bg.requests.filter((r) => r.type === 'feed.read' && (r.payload as { fanRef: string }).fanRef === '5001').map((r) => r.payload)).toEqual([{ pageId: PAGE.pageId, fanRef: '5001', cursor: null, limit: 1 }]);
+    expect(vm.footer).toMatchObject({ archiveMessages: null, stamp: { coverage: 'complete' } });
+    // Nothing was asked of ChatSpace for it: no navigation, no history read, no checkpoint.
+    expect(h.host.calls.navigations).toEqual([]);
+    expect(h.host.calls.checkpoints).toEqual([]);
+    // With the board loaded, its row gives the retention status and the number of archived messages.
     await h.dispatch(open('spenders'));
     const withRow = h.boards.fanPanel.getSnapshot(PANEL);
     expect(withRow.subscription?.churnRisk).toBe('low');
@@ -2453,24 +2459,87 @@ describe('[CS-031] [CS-033] [CS-034] [CS-036] [CS-037] the fan panel follows the
     expect(count(h, 'fan.card')).toBe(reads + 4);
   });
 
-  it('[CS-035] [CS-037] a fan the hub has no money for still shows who they are from ChatSpace memory, with the gap named', async () => {
-    const h = await harness({ memory: { fans: [{ ...hostMemory.fans[0]!, bio: 'Works shifts.', lists: ['VIP'], buyingPowerLabel: 'High', insights: [{ label: 'Tips', value: '8/10' }] }] } });
+  it('[DB-026] [CS-036] an archive whose state nobody told is said: the panel is «partial», never «ready» over an unknown archive', async () => {
+    // The page has no archive feed (the preview is off): nothing is asked, and the footer does not pretend.
+    const off = await harness({ config: { pageFlags: { [PAGE.pageLabel]: { preview: false } } } });
+    await off.dispatch(open('fan-panel'));
+    off.hostEvent(routeTo('5001'));
+    await off.flush();
+    expect(count(off, 'feed.read')).toBe(0);
+    const unknown = off.boards.fanPanel.getSnapshot(PANEL);
+    expect(unknown.view).toEqual({ s: 'partial', gaps: [{ kind: 'coverage', level: 'unknown' }] });
+    expect(unknown.footer).toMatchObject({ archiveMessages: null, stamp: { coverage: 'unknown' } });
+    expect(unknown.spent?.total).toBe(3_717_000);
+    // The feed read failed: the failure is named, the coverage is unknown — and the board's row, once there, stands in.
+    const h = await harness();
+    await h.dispatch(open('fan-panel'));
+    h.bg.failNext('feed.read', { code: 'CG-HUB-TIMEOUT' });
+    h.hostEvent(routeTo('5001'));
+    await h.flush();
+    const failed = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(failed.view).toEqual({ s: 'partial', gaps: [{ kind: 'source-failed', source: 'feed', code: 'CG-HUB-TIMEOUT' }, { kind: 'coverage', level: 'unknown' }] });
+    await h.dispatch(open('spenders'));
+    const withRow = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(withRow.footer).toMatchObject({ archiveMessages: 11, stamp: { coverage: 'complete' } });
+    expect(withRow.view).toEqual({ s: 'partial', gaps: [{ kind: 'source-failed', source: 'feed', code: 'CG-HUB-TIMEOUT' }] });
+    // «Повторить» reads the archive again.
+    await h.dispatch({ type: 'ReloadView', selector: PANEL });
+    expect(h.boards.fanPanel.getSnapshot(PANEL).view).toEqual({ s: 'ready' });
+  });
+
+  it('[CS-035] the bio is the hub profile of the fan (`fan.dossier`); ChatSpace’s own «О себе» stands in only while the hub has none', async () => {
+    const chatspace = { bio: 'Works shifts.', lists: ['VIP'], buyingPowerLabel: 'High', insights: [{ label: 'Tips', value: '8/10' }] };
+    const fans = [{ ...hostMemory.fans[0]!, ...chatspace }, { ...hostMemory.fans[0]!, ...chatspace, chat: chatOf('5001'), username: 'fan_1', displayName: 'Fan 1' }];
+    const h = await harness({ memory: { fans } });
+    await h.dispatch(open('fan-panel'));
+    // The open chat's fan has a profile in the hub: its body is the bio, whatever ChatSpace holds.
+    expect(h.bg.requests.filter((r) => r.type === 'fan.dossier').map((r) => r.payload)).toEqual([{ pageId: PAGE.pageId, fanRef: WORLD.fan }]);
+    const hub = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(hub).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
+    // Lists and ChatSpace's own scores are its memory: decoration, shown when it holds them.
+    expect(hub.lists).toEqual(['VIP']);
+    expect(hub.host).toEqual({ buyingPower: 'High', scores: [{ label: 'Tips', value: '8/10' }] });
+    // A fan the hub has no profile for: ChatSpace's «О себе», named as such.
+    h.hostEvent(routeTo('5001'));
+    await h.flush();
+    const host = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(host).toMatchObject({ bio: 'Works shifts.', bioSource: 'host' });
+    expect(host.view).toEqual({ s: 'ready' });
+    // Nothing in the hub and nothing in ChatSpace's memory: no bio, and no source named.
+    h.hostEvent(routeTo('5002'));
+    await h.flush();
+    const none = h.boards.fanPanel.getSnapshot(PANEL);
+    expect(none.bio).toBeNull();
+    expect('bioSource' in none).toBe(false);
+    // The profile read fails: whether the hub has a bio is unknown — the gap is named, the stand-in is still marked as ChatSpace's.
+    const failing = await harness({ memory: { fans } });
+    failing.bg.failNext('fan.dossier', { code: 'CG-HUB-UNAVAILABLE' });
+    await failing.dispatch(open('fan-panel'));
+    const failed = failing.boards.fanPanel.getSnapshot(PANEL);
+    expect(failed).toMatchObject({ bio: 'Works shifts.', bioSource: 'host' });
+    expect(failed.view.s === 'partial' && failed.view.gaps).toContainEqual({ kind: 'source-failed', source: 'fan.dossier', code: 'CG-HUB-UNAVAILABLE' });
+    await failing.dispatch({ type: 'ReloadView', selector: PANEL });
+    expect(failing.boards.fanPanel.getSnapshot(PANEL)).toMatchObject({ bio: '## Fan\nLikes short replies.', bioSource: 'hub' });
+  });
+
+  it('[CS-037] a fan the hub has no money for still shows who they are, with the gap named; the switch off reads nothing', async () => {
+    const h = await harness({ memory: { fans: [{ ...hostMemory.fans[0]!, buyingPowerLabel: 'High', insights: [{ label: 'Tips', value: '8/10' }] }] } });
     await h.dispatch(open('fan-panel'));
     const vm = h.boards.fanPanel.getSnapshot(PANEL);
     expect(vm.view.s).toBe('partial');
-    expect(vm.view.s === 'partial' && vm.view.gaps.map((gap) => gap.kind)).toEqual(['source-failed']);
+    expect(vm.view.s === 'partial' && vm.view.gaps).toContainEqual({ kind: 'source-failed', source: 'fan.card', code: expect.any(String) as unknown });
     expect(vm.fan).toMatchObject({ name: 'Fan Two', username: 'fan_two', online: true });
     expect(vm.fan?.lastSeenAt).not.toBeNull();
     expect(vm.spent).toBeNull();
     expect(vm.subscription).toBeNull();
     expect(vm.host).toEqual({ buyingPower: 'High', scores: [{ label: 'Tips', value: '8/10' }] });
-    expect(vm.bio).toBe('Works shifts.');
-    expect(vm.lists).toEqual(['VIP']);
     // The switch off: «forbidden», and no read.
     const off = await harness({ config: { pageFlags: { [PAGE.pageLabel]: { fanPanel: false } } } });
     await off.dispatch(open('fan-panel'));
     expect(off.boards.fanPanel.getSnapshot(PANEL).view).toMatchObject({ s: 'forbidden', error: { code: 'CG-FEATURE-DISABLED' } });
     expect(count(off, 'fan.card')).toBe(0);
+    expect(count(off, 'fan.dossier')).toBe(0);
+    expect(count(off, 'feed.read')).toBe(0);
   });
 });
 
