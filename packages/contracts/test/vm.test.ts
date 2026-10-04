@@ -6,6 +6,7 @@ import type * as z from 'zod/mini';
 
 import * as C from '../src/index';
 import {
+  BOARDS_I18N_KEYS,
   CLAIM_RENEW_SAMPLES,
   COACH_TURN_VM_SAMPLES,
   FAN_PANEL_BIO_SAMPLES,
@@ -362,5 +363,22 @@ describe('the dock and Coach (1.2.0)', () => {
     }
     expect(C.isPluralKey('result.announce.ready')).toBe(true);
     expect(C.isPluralKey('result.announce.retryIn')).toBe(true);
+  });
+});
+
+describe('boards, preview, «Новые», fan panel and palette texts (1.2.0)', () => {
+  it('[SP-012] [NF-025] [CS-032] the catalog names every text those surfaces draw', () => {
+    expect(new Set(BOARDS_I18N_KEYS.text).size).toBe(BOARDS_I18N_KEYS.text.length);
+    for (const key of BOARDS_I18N_KEYS.text) {
+      expect(C.UI_TEXT_KEYS, key).toContain(key);
+      expect(C.isPluralKey(key), key).toBe(false);
+    }
+    for (const key of BOARDS_I18N_KEYS.plural) expect(C.isPluralKey(key), key).toBe(true);
+    for (const key of BOARDS_I18N_KEYS.invalid) expect(C.I18N_KEYS as readonly unknown[]).not.toContain(key);
+    // The narrow list column prints «Всего» for «Всё время» (ui-design §3.5).
+    expect(C.UI_TEXT_KEYS).toContain('spenders.col.lifetimeShort');
+    // The statistics region is named «Статистика Spenders» (ui-design §6.1); the greeting draft of «Новые»
+    // is a field of its own, not the Fix draft (NF-012).
+    expect(BOARDS_I18N_KEYS.text).toEqual(expect.arrayContaining(['stats.regionLabel', 'newcomers.greetingDraft.placeholder', 'newcomers.greetingDraft.aria']));
   });
 });

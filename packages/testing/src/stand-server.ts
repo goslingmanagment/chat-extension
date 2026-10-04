@@ -5,7 +5,7 @@
 //   fixture-chatspace, built into .cache/fixture-chatspace) on `/`,
 //   `/accounts/...` and its assets, the session-token endpoint, control
 //   endpoints for tests (`/__stand/...`), the M0 spike page (`/spike.html`)
-//   and the UI galleries (`/kit-gallery/`, `/dock-gallery/`, built into .cache/*-gallery);
+//   and the UI galleries (`/kit-gallery/`, `/dock-gallery/`, `/boards-gallery/`, built into .cache/*-gallery);
 // - the API origin: the native API (`/api/...`, CORS for the page origin with
 //   preflights) and the socket (`/api/chat-space/ws`), with synthetic data.
 // A journal labels every call by who made it (protocol.ts CallOrigin).

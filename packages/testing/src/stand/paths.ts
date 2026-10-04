@@ -21,7 +21,16 @@ export const DOCK_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../dock/gallery/',
 /** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /dock-gallery/. */
 export const DOCK_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/dock-gallery/`;
 export const DOCK_GALLERY_PATH = '/dock-gallery/';
+/** Sources of the boards gallery page (R15): Spenders, «Новые», the fan panel, the palette. */
+export const BOARDS_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../boards/gallery/', import.meta.url));
+/** Built boards gallery (`pnpm --filter @cg/testing build:gallery`), served at /boards-gallery/. */
+export const BOARDS_GALLERY_BUILD_DIR = `${REPO_ROOT}.cache/boards-gallery/`;
+export const BOARDS_GALLERY_PATH = '/boards-gallery/';
 /** Gallery pages the stand serves, by their path: built folders of our own UI over synthetic view models. */
-export const GALLERIES: Readonly<Record<string, string>> = { [KIT_GALLERY_PATH]: KIT_GALLERY_BUILD_DIR, [DOCK_GALLERY_PATH]: DOCK_GALLERY_BUILD_DIR };
+export const GALLERIES: Readonly<Record<string, string>> = {
+  [KIT_GALLERY_PATH]: KIT_GALLERY_BUILD_DIR,
+  [DOCK_GALLERY_PATH]: DOCK_GALLERY_BUILD_DIR,
+  [BOARDS_GALLERY_PATH]: BOARDS_GALLERY_BUILD_DIR,
+};
 /** Screenshots, timings and other e2e evidence. */
 export const E2E_EVIDENCE_DIR = `${REPO_ROOT}.cache/e2e/`;

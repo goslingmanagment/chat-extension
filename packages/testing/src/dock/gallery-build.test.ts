@@ -10,6 +10,7 @@ describe('the dock gallery build', () => {
     expect(DOCK_GALLERY_BUILD_DIR).toMatch(/\/\.cache\/dock-gallery\/$/);
     expect(DOCK_GALLERY_BASE).toBe(DOCK_GALLERY_PATH);
     expect(viteConfig).toMatchObject({ root: DOCK_GALLERY_SOURCE_DIR, base: DOCK_GALLERY_PATH, build: { outDir: DOCK_GALLERY_BUILD_DIR } });
-    expect(GALLERIES).toEqual({ [KIT_GALLERY_PATH]: KIT_GALLERY_BUILD_DIR, [DOCK_GALLERY_PATH]: DOCK_GALLERY_BUILD_DIR });
+    // The registry is shared: the other surfaces' galleries (boards, pages) register next to these two.
+    expect(GALLERIES).toMatchObject({ [KIT_GALLERY_PATH]: KIT_GALLERY_BUILD_DIR, [DOCK_GALLERY_PATH]: DOCK_GALLERY_BUILD_DIR });
   });
 });

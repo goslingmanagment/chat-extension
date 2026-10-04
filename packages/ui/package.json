@@ -14,7 +14,11 @@
     "./overlays/toasts": "./src/overlays/toasts/index.tsx",
     "./overlays/coach": "./src/overlays/coach/index.tsx",
     "./overlays/cheatsheet": "./src/overlays/cheatsheet/index.tsx",
-    "./overlays/result-expanded": "./src/overlays/expanded/index.tsx"
+    "./overlays/result-expanded": "./src/overlays/expanded/index.tsx",
+    "./spenders": "./src/spenders/index.ts",
+    "./newcomers": "./src/newcomers/index.ts",
+    "./fanpanel": "./src/fanpanel/index.ts",
+    "./palette": "./src/palette/index.ts"
   },
   "dependencies": {
     "@cg/contracts": "workspace:*",
