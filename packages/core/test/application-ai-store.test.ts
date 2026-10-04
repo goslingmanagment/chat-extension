@@ -322,6 +322,35 @@ describe('answers that arrive after their sign-in or their revision is gone', ()
     expect(h.dock().status).toBe('not-signed-in');
   });
 
+  it('a persona catalog of the old sign-in that arrives after a sign-out is dropped', async () => {
+    const h = await start({ background: (bg) => bg.slow.add('catalog.get') });
+    expect(h.ai.workspace.env.catalog.s).toBe('loading');
+    h.bg.changeSession(null, 'sign-out');
+    await h.settle();
+    h.bg.slow.clear();
+    h.bg.release();
+    await h.settle();
+    expect(h.ai.workspace.env.catalog.s).toBe('idle');
+    expect(h.dock().persona).toBeNull();
+  });
+
+  it('a sign-in read before a sign-out does not bring the old sign-in back', async () => {
+    const h = await start();
+    expect(h.dock().status).toBe('ready');
+    // «Повторить» reads everything again; the answer about the sign-in is slow.
+    h.bg.slow.add('session.get');
+    await h.dispatch({ type: 'ReloadView', selector: { of: 'dock' } });
+    h.bg.changeSession(null, 'sign-out');
+    await h.settle();
+    expect(h.dock().status).toBe('not-signed-in');
+    h.bg.slow.clear();
+    h.bg.release();
+    await h.settle();
+    expect(h.ai.workspace.env.session).toBeNull();
+    expect(h.dock().status).toBe('not-signed-in');
+    expect(h.bg.callsOf('bootstrap.get')).toHaveLength(1);
+  });
+
   it('a binding of the old sign-in that arrives after a new one is dropped', async () => {
     const h = await start();
     const env = h.ai.workspace.env;

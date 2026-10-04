@@ -463,6 +463,24 @@ describe('recap: the dossier of a full recap', () => {
     expect(h.bg.callsOf('op.start')).toEqual([]);
   });
 
+  it('[AI-068] a newer full recap took the slot while an older one waited for its link write: the old one is not written again', async () => {
+    const h = await start({ background: (bg) => (bg.sharedRecaps = { full: body(), short: null, fullSavedToProfile: false }) });
+    h.bg.saveAnswers.push({ state: 'not-ready', savedAt: null });
+    await openRecap(h);
+    // The hub's recap waits for its next attempt in five seconds.
+    expect(h.bg.callsOf('recap.save')).toEqual([{ pageId: WORLD.pages.one.pageId, fanRef: HOST_IDS.fan, generationRef: uuid(0x700) }]);
+    // The person builds a new one meanwhile: it takes the slot, and its dossier is the background's to write.
+    h.bg.hub.profileScript.push(saved);
+    h.script(recapStream(FULL_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.clock.advance(1_000);
+    expect(h.recapView()).toMatchObject({ markdown: FULL_TEXT, saved: { s: 'saved' } });
+    await h.clock.advance(30 * 60_000);
+    // Nothing more was asked for the recap that is no longer the slot's.
+    expect(h.bg.callsOf('recap.save')).toHaveLength(1);
+    expect(h.bg.hub.profiles.map((profile) => profile.generationRef)).toEqual([uuid(0x200)]);
+  });
+
   it('the port came back while a save was waiting for the background: the link write is asked again from the tab', async () => {
     const h = await start();
     // The hub is not ready; the background's saver waits for its next attempt — and is lost with the event page.
@@ -539,6 +557,30 @@ describe('recap: the status line of the hub and the archive lag', () => {
     expect(other.bg.callsOf('recap.status')).toHaveLength(2);
     await other.clock.advance(5 * 60_000);
     expect(other.bg.callsOf('recap.status')).toHaveLength(2);
+  });
+
+  it('[AI-061] the status is kept ten minutes; after that a look at the chat that is still open asks again — once', async () => {
+    const h = await start();
+    await h.clock.advance(RECAP_STATUS.settleMs);
+    expect(h.bg.callsOf('recap.status')).toHaveLength(1);
+    expect(h.dock().actions.recap.badge).toBeNull();
+    // Another chatter saved a recap of this fan meanwhile. Within the ten minutes redraws ask nothing.
+    h.bg.recapStatus = { full: { generatedAt: FULL_AT, ageMs: 60_000, transcriptCoverage: 'full-history', requestedCount: 3000, keptCount: 812 }, short: null };
+    await h.clock.advance(RECAP_STATUS.ttlMs - 2_000);
+    h.ai.workspace.bump();
+    await h.clock.advance(RECAP_STATUS.settleMs);
+    expect(h.bg.callsOf('recap.status')).toHaveLength(1);
+    expect(h.dock().actions.recap.badge).toBeNull();
+    // Past them the next redraw asks again, after the same settle delay — and the dot learns of the recap.
+    await h.clock.advance(2_000);
+    h.ai.workspace.bump();
+    await h.settle();
+    expect(h.bg.callsOf('recap.status')).toHaveLength(1);
+    await h.clock.advance(RECAP_STATUS.settleMs);
+    expect(h.bg.callsOf('recap.status')).toHaveLength(2);
+    expect(h.dock().actions.recap.badge).toBe('recap-ready');
+    await h.clock.advance(60_000);
+    expect(h.bg.callsOf('recap.status')).toHaveLength(2);
   });
 
   it('[AI-061] flipping through chats asks the hub nothing', async () => {
@@ -947,6 +989,21 @@ describe('persona change: nothing of the old persona comes back', () => {
     await h.clock.advance(RECAP_STATUS.settleMs);
     expect(h.dock().actions.recap.badge).toBeNull();
     expect(JSON.stringify([h.recapView(), h.recapPicker(), h.review()])).not.toContain(A_TEXT);
+  });
+
+  it('[AI-126] a late word about a result the change dropped — a fan message marks it stale — does not bring it back', async () => {
+    const h = await start();
+    await madeUnderFirst(h);
+    h.bg.changePersona(WORLD.pages.one.pageId, OTHER_PERSONA);
+    await h.settle();
+    expect(h.ai.workspace.ops.ofChat(chatKeyOf(openChat))).toEqual([]);
+    // The fan writes: the background marks the results it still keeps for this chat and tells every tab.
+    const marked = h.bg.scheduler.incoming({ host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: HOST_IDS.fan, platformMessageId: '4999', fromFan: true, automatic: false, tip: false, sentAt: '2026-10-03T10:05:00.000Z', socketEpoch: 1, fanSequence: 3, source: 'ws-tap' });
+    expect(marked.length).toBeGreaterThan(0);
+    await h.settle();
+    expect(h.ai.workspace.ops.ofChat(chatKeyOf(openChat))).toEqual([]);
+    expect(h.review()).toMatchObject({ opId: null, rating: null });
+    expect(h.recapView().markdown).toBeNull();
   });
 
   it('[AI-126] a tab opened after the change adopts the old results without their persona: they are not shown as the new one\'s', async () => {
