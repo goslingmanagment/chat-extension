@@ -47,7 +47,12 @@ interface BannerModel {
 /** The status banner of a dock (ui-design §4.10): which text, which dot, which one button. */
 function bannerOf(vm: DockVM, t: (key: 'cg.hubUnavailable.banner' | 'cg.hostContract.banner') => string): BannerModel | null {
   const error = vm.statusError;
-  if (error === null) return null;
+  if (error === null) {
+    // 1.3.0: a dock that is otherwise `ready` on a page the owner switched off — one line, a state (the ring),
+    // nothing to press: «ChatGoose выключен для этой страницы». The buttons under it are dimmed with the same reason.
+    const notice = vm.status === 'ready' ? (vm.notice ?? null) : null;
+    return notice === null ? null : { error: notice, dot: 'ring', action: null, copyCode: false };
+  }
   const remedy = vm.view.s === 'forbidden' ? vm.view.remedy : vm.view.s === 'offline' || vm.view.s === 'error' ? vm.view.retry : null;
   switch (vm.status) {
     case 'not-signed-in':

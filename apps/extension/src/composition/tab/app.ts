@@ -683,6 +683,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
           // The hub page the open account is bound to (its label), once a generation could start for it.
           page: ai.workspace.situation().ready?.target.binding.pageLabel ?? '',
           banner: dock.statusError?.code ?? null,
+          // The one status line of a dock that is otherwise ready (the owner switched the page off): its code.
+          notice: dock.notice?.code ?? null,
           contract: contractOf(host.current().contract),
           target: dock.targetHandle,
           actions: Object.fromEntries(Object.entries(dock.actions).map(([id, action]) => [id, action.enabled])),

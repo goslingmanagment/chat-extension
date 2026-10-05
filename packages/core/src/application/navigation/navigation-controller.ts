@@ -86,8 +86,13 @@ export interface NavigationControllerDeps {
   readonly ids: IdPort;
   readonly clock: TabClock;
   readonly overlays: OverlayState;
-  /** The owner's `navigation` switch of bootstrap; null — unknown (signed out): ChatSpace's own list needs no hub. */
-  readonly ownerSwitch?: () => boolean | null;
+  /**
+   * The owner's `navigation` switch for the host account a navigation happens in — the value of the hub page
+   * that account is bound to, never a global one (docs/protocols/hub.md «Флаги: решает страница»). `null` as
+   * the account — no account is on screen. Answers null when unknown (signed out): ChatSpace's own list needs
+   * no hub.
+   */
+  readonly ownerSwitch?: (hostAccountId: string | null) => boolean | null | Promise<boolean | null>;
   readonly toasts?: ToastPort;
   readonly cause?: CauseHint;
 }
@@ -131,7 +136,9 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
   };
 
   const open: NavigationController['open'] = async (target, cause = 'click') => {
-    if (deps.ownerSwitch?.() === false) return fail('CG-FEATURE-DISABLED');
+    // The switch of the account the chat is in: opening a chat marks it read on OnlyFans, so a page whose owner
+    // left navigation off is never walked into by our keys or lists.
+    if ((await deps.ownerSwitch?.(target.hostAccountId)) === false) return fail('CG-FEATURE-DISABLED');
     const capability = host.current().contract.capabilities.navigate;
     if (capability.state === 'off' || capability.state === 'contractBroken') return fail('CG-HOST-CONTRACT');
     // One navigation at a time: a second key while ChatSpace's router is still moving is not queued.
@@ -158,9 +165,11 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
   };
 
   const walk = async (to: Extract<NavigationTarget, { kind: 'chat-step' | 'next-unread' | 'chat-slot' }>, cause: 'click' | 'key'): Promise<ActionReceipt> => {
-    if (deps.ownerSwitch?.() === false) return fail('CG-FEATURE-DISABLED');
     const accountId = currentAccountId();
+    if ((await deps.ownerSwitch?.(accountId)) === false) return fail('CG-FEATURE-DISABLED');
     if (accountId === null) return done('noop');
+    // The person may have moved to another account while the switch was read.
+    if (currentAccountId() !== accountId) return done('noop');
     const list = host.current().contract.capabilities.chatList;
     // §6.2: a broken `chatList` anchor switches J/K, ⌘U and ⌘1–9 off, with the reason.
     if (list.state === 'off' || list.state === 'contractBroken') return fail('CG-HOST-CONTRACT');

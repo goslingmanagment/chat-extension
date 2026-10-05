@@ -57,8 +57,9 @@ import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
 import { targetPage } from '../../domain/fanpanel/model';
-import { type PageContextPort, type PageContextState, flagReason, pageFlag } from '../boards/context';
+import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
+import { flagReasonVm } from '../flag-reason';
 import { issueCause, type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
@@ -943,7 +944,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    */
   function openInsertBlock(track: OpTrack, variant: number, sends: FanSends): ReasonVM | null {
     const ctx = context.current();
-    if (ctx.phase !== 'ready' || !pageFlag(ctx, 'insertion')) return reason('feature-disabled');
+    if (ctx.phase !== 'ready') return reason('feature-disabled');
+    if (!pageFlag(ctx, 'insertion')) return flagReasonVm(pageFlagOf(ctx, 'insertion'));
     const capabilities = host.current().contract.capabilities;
     if (capabilities.navigate.state !== 'on' || capabilities.insert.state !== 'on') return reason('host-degraded');
     if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
@@ -1101,10 +1103,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const retry: UiAction | null = state === null ? null : { type: 'RefreshArchive', targetHandle: state.handle };
     if (ctx.phase === 'loading') return loadingView(null);
     if (ctx.phase === 'blocked') return failureView(ctx.blocker ?? { code: 'CG-UNKNOWN' }, i18n, retry);
-    if (!pageFlag(ctx, 'preview')) {
-      const why = flagReason(ctx, 'preview');
-      return failureView(why === null ? { code: 'CG-FEATURE-DISABLED' } : { code: 'CG-FEATURE-DISABLED', detail: why }, i18n, retry);
-    }
+    if (!pageFlag(ctx, 'preview')) return failureView(flagFailure(ctx, 'preview'), i18n, retry);
     return null;
   }
 
@@ -1115,7 +1114,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const id: BoardReasonId = code === 'CG-AUTH-REQUIRED' || code === 'CG-AUTH-REVOKED' || code === 'CG-AUTH-EXPIRED' ? 'not-signed-in' : code === 'CG-BINDING-NOT-GRANTED' ? 'not-granted' : code === 'CG-BINDING-MISSING' || code === 'CG-BINDING-AMBIGUOUS' ? 'no-binding' : 'hub-down';
       return reason(id);
     }
-    if (!pageFlag(ctx, 'preview')) return reason('feature-disabled');
+    if (!pageFlag(ctx, 'preview')) return flagReasonVm(pageFlagOf(ctx, 'preview'));
     if (ctx.persona === null) return reason('no-persona');
     if (otherRunning) return reason('chat-busy');
     // §6.7.8, §6.7.9: an unknown outcome holds the fan, and one part is in work at a time — for every feature of the strip,

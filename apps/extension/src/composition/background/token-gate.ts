@@ -14,6 +14,15 @@
 // An expired bootstrap is read again once, here: a hub that answers lets the
 // action through, a hub that does not refuses it with its own reason. A
 // refusal takes nothing away: results stay readable and can be copied.
+//
+// Which page: a token names a kind and a surface, not a chat, so the gate
+// asks «is the switch usable on at least one granted page» (`flagState(flag,
+// null)`; the top-level `flags` are the owner's `"*"` row alone and decide
+// nothing). The page's own value is applied where the page is known — by
+// the tab's controllers, before they ask for the token: the dock is
+// copy-only on a page without `insertion`, and a navigation asks the switch
+// of the account it goes into (docs/protocols/hub.md «Флаги: решает
+// страница»).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
@@ -25,6 +34,7 @@ export interface TokenGateHub {
   session(): unknown;
   /** The cached bootstrap of this sign-in, fresh or not; null — none. */
   cachedBootstrap(): unknown;
+  /** `pageLabel: null` — usable on at least one granted page. */
   flagState(flag: ClientFeatureFlag, pageLabel: string | null): { readonly usable: boolean; readonly reason: string | null };
   /** Reads an expired bootstrap again; rejects with the hub layer's own error. */
   bootstrap(): Promise<unknown>;

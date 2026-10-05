@@ -19,7 +19,7 @@ import { moveRow, type BoardCommand } from '../../domain/spenders/keyboard';
 import { EMPTY_QUEUE, appendQueuePage, queueHasMore, queueRow, type QueueState } from '../../domain/spenders/queue';
 import { type SpenderRow } from '../../domain/spenders/rows';
 import { statsModel, type StatsModel } from '../../domain/spenders/stats';
-import { type PageContextPort, type PageContextState, flagReason, pageFlag } from '../boards/context';
+import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
 import { type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
@@ -173,10 +173,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   function contextView(ctx: PageContextState, flag: 'spenders' | 'stats', retry: UiAction): VmView | null {
     if (ctx.phase === 'loading') return loadingView(null);
     if (ctx.phase === 'blocked') return failureView(ctx.blocker ?? { code: 'CG-UNKNOWN' }, i18n, retry);
-    if (!pageFlag(ctx, flag)) {
-      const why = flagReason(ctx, flag);
-      return failureView(why === null ? { code: 'CG-FEATURE-DISABLED' } : { code: 'CG-FEATURE-DISABLED', detail: why }, i18n, retry);
-    }
+    if (!pageFlag(ctx, flag)) return failureView(flagFailure(ctx, flag), i18n, retry);
     return null;
   }
 

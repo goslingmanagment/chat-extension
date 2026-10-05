@@ -20,7 +20,7 @@ import {
   settingsChangePlan,
   type LazyStatus,
 } from '@cg/core/services';
-import { BOOTSTRAP_PILOT_ON } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, pageFeaturesOff } from '@cg/testing/hub';
 
 import { FakeClock, LogRecorder, sequentialIds, settle } from './support/clock';
 import { NOW_MS, uuid } from './support/world';
@@ -99,7 +99,7 @@ describe('[UP-008] an install or an update', () => {
 });
 
 describe('[NEW-08] the WS tap switch follows the wsTap flag', () => {
-  const pilot: Bootstrap = BOOTSTRAP_PILOT_ON;
+  const pilot: Bootstrap = BOOTSTRAP_PILOT_PAGES;
 
   it('[NEW-08] registers on, unregisters off, serializes a burst so the last wish wins', async () => {
     const calls: boolean[] = [];
@@ -124,7 +124,7 @@ describe('[NEW-08] the WS tap switch follows the wsTap flag', () => {
     expect(await last).toBe(true);
     expect(calls).toEqual([true]);
     expect(tap.state).toBe(true);
-    const offing = tap.fromBootstrap({ ...pilot, flags: { ...pilot.flags, wsTap: false } });
+    const offing = tap.fromBootstrap(pageFeaturesOff(pilot, ['wsTap']));
     await settle();
     release();
     expect(await offing).toBe(false);
@@ -148,7 +148,7 @@ describe('[NEW-08] the WS tap switch follows the wsTap flag', () => {
     expect(await tap.apply(true)).toBe(true);
     expect(calls).toEqual([true]);
     // The owner switches the tap off, then a sign-out, then on again.
-    expect(await tap.fromBootstrap({ ...pilot, flags: { ...pilot.flags, wsTap: false } })).toBe(false);
+    expect(await tap.fromBootstrap(pageFeaturesOff(pilot, ['wsTap']))).toBe(false);
     expect(await tap.fromBootstrap(null)).toBe(false);
     expect(await tap.fromBootstrap(pilot)).toBe(true);
     expect(calls).toEqual([true, false, true]);

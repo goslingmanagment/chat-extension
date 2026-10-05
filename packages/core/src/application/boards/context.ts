@@ -16,7 +16,7 @@ import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag, type Person
 import { type HostAccount, type HubBinding, type SessionIdentity } from '@cg/contracts/ids';
 import { type SettingsV1 } from '@cg/contracts/settings';
 
-import { flagUsable } from '../../domain/ops/environment';
+import { flagRefusal, flagStateOf, flagUsable, type FlagState } from '../../domain/ops/flags';
 import { type TabRpc } from './ports';
 import { failureClass } from './views';
 
@@ -71,14 +71,19 @@ export function currentAccount(host: HostPort): HostAccount | null {
   return snapshot.accounts.find((account) => account.hostAccountId === id) ?? null;
 }
 
-/** Whether a flag is usable on the context's page (flag, page feature and the hub capabilities it needs). */
+/** Whether a flag is usable on the context's page: the PAGE's own feature and the hub capabilities it needs (domain/ops/flags.ts). */
 export function pageFlag(state: PageContextState, flag: ClientFeatureFlag): boolean {
   return state.binding !== null && flagUsable(state.bootstrap, state.binding.pageId, flag);
 }
 
-/** Why a page feature is off, as the hub put it (an open token for the technical line); null — no reason given. */
-export function flagReason(state: PageContextState, flag: ClientFeatureFlag): string | null {
-  return state.page?.features[flag]?.reason ?? null;
+/** The same with the reason (the hub's own token: `disabled`, `flag_off`, `hub_not_ready`…); no bound page — `not_granted`. */
+export function pageFlagOf(state: PageContextState, flag: ClientFeatureFlag): FlagState {
+  return state.binding === null ? { usable: false, reason: 'not_granted' } : flagStateOf(state.bootstrap, state.binding.pageId, flag);
+}
+
+/** A switch that is off on the context's page as the error a board shows: the code its reason stands for, the reason in the technical line. */
+export function flagFailure(state: PageContextState, flag: ClientFeatureFlag): CgErrorWire {
+  return flagRefusal(pageFlagOf(state, flag));
 }
 
 function personaOf(settings: SettingsV1 | null, catalog: PersonaCatalog | null, session: SessionIdentity | null, pageId: number | null): PagePersona | null {

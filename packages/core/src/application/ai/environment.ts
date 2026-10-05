@@ -53,6 +53,8 @@ export class TabEnvironment {
   private generation = 0;
   /** Grows whenever the bindings are dropped (a new sign-in, a new owner config). */
   private bindingEpoch = 0;
+  /** The config revision of the last `flags.changed` taken: an older event never undoes a newer one. */
+  private starRevision = 0;
   private readonly listeners = new Set<EnvironmentListener>();
   private readonly unsubscribe: (() => void)[] = [];
   private started = false;
@@ -80,8 +82,12 @@ export class TabEnvironment {
       }),
       rpc.onEvent('flags.changed', ({ flags, configRevision }) => {
         const current = this.bootstrapValue;
-        if (current.s !== 'ready' || configRevision < current.value.configRevision) return;
-        this.bootstrapValue = { s: 'ready', value: { ...current.value, flags: { ...flags }, configRevision } };
+        if (current.s !== 'ready' || configRevision < Math.max(current.value.configRevision, this.starRevision)) return;
+        // These are the owner's `"*"` values (they answer only for an account bound to no page). What a page may do
+        // is its own `features`, which come with the bootstrap: `bootstrap.changed` reads it again. The revision
+        // of the bootstrap held stays its own, so that read still sees the config change and drops the bindings.
+        this.starRevision = configRevision;
+        this.bootstrapValue = { s: 'ready', value: { ...current.value, flags: { ...flags } } };
         this.emit('bootstrap');
       }),
       rpc.onState((state) => {
@@ -175,6 +181,25 @@ export class TabEnvironment {
     return LOADING;
   }
 
+  /**
+   * `binding(account)` once it is read: never `loading`. For a decision that must not be taken on a guess —
+   * a navigation into an account asks its page's switch, and opening a chat marks it read. `idle` — nobody is
+   * signed in.
+   */
+  bindingRead(account: HostAccount): Promise<Loaded<HubBinding>> {
+    const now = this.binding(account);
+    if (now.s !== 'loading') return Promise.resolve(now);
+    return new Promise((resolve) => {
+      const off = this.subscribe(() => {
+        // A new sign-in or owner config drops the read in flight: looking again starts it anew.
+        const next = this.binding(account);
+        if (next.s === 'loading') return;
+        off();
+        resolve(next);
+      });
+    });
+  }
+
   /** The persona definition the settings assign to a page, whatever the catalog says of it; null — none, or the settings are not read yet. */
   assignedDefinition(pageId: number): string | null {
     return this.settingsValue?.settings.personas.byPageId[String(pageId)]?.definitionId ?? null;
@@ -241,6 +266,7 @@ export class TabEnvironment {
       this.dropBindings();
       this.quotas.clear();
       this.quotaAsked.clear();
+      this.starRevision = 0;
       this.bootstrapValue = IDLE;
       this.catalogValue = IDLE;
     }

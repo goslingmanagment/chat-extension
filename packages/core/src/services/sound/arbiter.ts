@@ -74,8 +74,12 @@ export interface SoundArbiterDeps {
   readonly presence: SoundPresencePort;
   /** The current `settings.sound`; null — settings are not readable: nothing rings. */
   readonly settings: () => SettingsV1['sound'] | null;
-  /** The owner's `sound` switch of bootstrap; null — unknown (signed out, no bootstrap yet). */
-  readonly ownerSwitch: () => boolean | null;
+  /**
+   * The owner's `sound` switch for what is about to ring — the PAGE's own value, never a global one
+   * (docs/protocols/hub.md «Флаги: решает страница»): for a fan's message, the page its host account is bound
+   * to; for a new subscriber, the page of the batch. null — unknown (signed out, no bootstrap yet).
+   */
+  readonly ownerSwitch: (scope: SoundScope) => boolean | null;
   /** The extension may run on this host (`permissions.contains`). */
   readonly hostPermission: (host: HostKind) => boolean | Promise<boolean>;
   /** storage.session: seen events, the throttle and the subscriber baselines survive an event-page unload. */
@@ -86,6 +90,12 @@ export interface SoundArbiterDeps {
   /** Session state is written at most this often. */
   readonly persistAfterMs?: number;
 }
+
+/** What a sound is about: a fan's message in a host account, or a new subscriber of a hub page. */
+export type SoundScope =
+  | { readonly kind: 'account'; readonly host: HostKind; readonly hostAccountId: string }
+  /** `pageKey` — the hub page's id as text (`SubscriberBatch.pageKey`). */
+  | { readonly kind: 'page'; readonly pageKey: string };
 
 /** One poll of a page's «Новые», as the subscriber sound needs it. */
 export interface SubscriberBatch {
@@ -298,7 +308,7 @@ export class SoundArbiter {
       fact,
       now: this.deps.clock.now(),
       sound,
-      ownerSwitch: this.deps.ownerSwitch(),
+      ownerSwitch: this.deps.ownerSwitch({ kind: 'account', host: fact.host, hostAccountId: fact.hostAccountId }),
       hostPermission,
       phase,
       account: { known, key: accountKey },
@@ -360,7 +370,7 @@ export class SoundArbiter {
               .accounts()
               .filter((account) => account.platform === batch.platform && account.platformAccountId === batch.platformAccountId)
               .map((account) => hostAccountKeyOf(account.host, account.hostAccountId));
-      const gated = gateSubscriber({ event, now: this.deps.clock.now(), sound, ownerSwitch: this.deps.ownerSwitch(), hub: batch.hub, firstSnapshot, accounts });
+      const gated = gateSubscriber({ event, now: this.deps.clock.now(), sound, ownerSwitch: this.deps.ownerSwitch({ kind: 'page', pageKey: batch.pageKey }), hub: batch.hub, firstSnapshot, accounts });
       if (gated !== null) return gated;
       // No push after every ChatSpace tab closed (§9.8): the sound is for a person at work.
       return this.deps.presence.listeningTabs() === 0 ? 'tab-closed' : null;

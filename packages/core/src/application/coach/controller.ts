@@ -53,7 +53,7 @@ import {
   type CoachSessionKey,
 } from '../../domain/coach';
 import { windowFor } from '../../domain/features';
-import { flagUsable, isTerminalOpState } from '../../domain/ops';
+import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
 import { coachAnswerText, streamPreview } from '../../domain/output';
 import { latestLength, type ArchivePoint } from '../../domain/recap';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
@@ -61,6 +61,7 @@ import { confirmVm, partVms } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorActions, errorVm, msg, phaseVm, views } from '../ai/view-models';
 import { type AiWorkspace, type ReadyTarget, type Situation } from '../ai/workspace';
+import { flagReasonVm } from '../flag-reason';
 
 type CoachBlockKind = (typeof COACH_BLOCK_KINDS)[number];
 
@@ -212,7 +213,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const situation = ws.situation();
     const { chat, ready } = situation;
     if (chat === null || chat.handle !== action.targetHandle) return refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' });
-    if (ready === null) return refused(ws, action.type, situation.statusError ?? { code: 'CG-GATE-CHAT-LOADING' });
+    if (ready === null) return refused(ws, action.type, ws.blockedError(situation));
     const question = action.options.question?.trim() ?? '';
     const preset = action.options.preset ?? null;
     // AI-082: whitespace is not a question — nothing is asked and no turn appears.
@@ -462,7 +463,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const { chat, ready } = situation;
     const session = ready === null ? null : sessions.peek(keyOf(ready));
     const historyLimit = clampHistoryLimit(ready?.settings.generation.coach.historyLimit ?? ws.env.settings?.settings.generation.coach.historyLimit ?? 10);
-    const usable = ready !== null && flagUsable(ready.bootstrap, ready.page.pageId, 'coach');
+    // The owner's `coach` switch of this chat's page (its own feature).
+    const flag = ready === null ? null : flagStateOf(ready.bootstrap, ready.page.pageId, 'coach');
+    const usable = flag !== null && flag.usable;
     const pending = session?.pending ?? null;
     const { asOf, point } = chat === null ? { asOf: null, point: null } : archivePoint(session, chat.key);
     const lag = chat === null ? null : ws.archiveLag(point, chat.key);
@@ -470,17 +473,18 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     let view: VmView;
     if (chat === null) view = views.empty(msg('common.empty'));
     else if (ready === null) {
-      const error = errorVm(situation.statusError ?? { code: 'CG-GATE-CHAT-LOADING' }, i18n);
+      const error = errorVm(ws.blockedError(situation), i18n);
       view = situation.status === 'loading-chat' ? views.loading(null, msg('dock.status.chatLoading')) : situation.status === 'hub-down' ? views.offline(error, { type: 'ReloadView', selector: { of: 'dock' } }) : views.forbidden(error);
-    } else if (!usable) view = views.forbidden(errorVm({ code: 'CG-FEATURE-DISABLED' }, i18n));
+    } else if (flag !== null && !flag.usable) view = views.forbidden(errorVm(flagRefusal(flag), i18n));
     else if (session === null || (session.feed.length === 0 && pending === null)) view = views.empty(msg('coach.empty.title'));
     else view = lag === null ? views.ready() : { s: 'partial', gaps: [{ kind: 'archive-lag', messages: lag.messages, minutes: null }] };
 
     // The one thing that keeps a question from being asked.
     const running = chat === null ? null : ws.running(chat.key);
     let askReason: ReasonVM | null = null;
-    if (situation.off !== null) askReason = catalog.reason(situation.off);
-    else if (!usable) askReason = catalog.reason('feature-disabled');
+    const off = ws.offReason(situation);
+    if (off !== null) askReason = off;
+    else if (!usable) askReason = flag === null ? catalog.reason('feature-disabled') : flagReasonVm(flag);
     else if (situation.quotaZero) askReason = catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } });
     else if (pending !== null) askReason = catalog.reason('coach-busy');
     else if (running !== null) askReason = catalog.reason('chat-busy');
@@ -520,7 +524,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         lag,
         refresh: button('coach.refresh', chat === null ? { type: 'ReloadView', selector: { of: 'coach' } } : { type: 'RefreshArchive', targetHandle: chat.handle }, {
           enabled: chat !== null && feedAvailable && !refreshing,
-          reason: chat !== null && !feedAvailable ? catalog.reason('feature-disabled') : null,
+          reason: chat !== null && !feedAvailable ? flagReasonVm({ reason: 'hub_not_ready' }) : null,
         }),
       },
       recap: copy === null ? null : { length: copy.length, generatedAt: copy.revision, summary: copy.markdown },

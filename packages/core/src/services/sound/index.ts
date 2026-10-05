@@ -8,8 +8,10 @@
 //    clock, audio: player, presence: { listeningTabs: presence.listeningTabs,
 //    isChatInFocus: presence.isChatInFocus, accounts: () =>
 //    presence.seenAccounts().map((seen) => seen.account) }, settings: () =>
-//    settingsState?.settings.sound ?? null, ownerSwitch: () => bootstrap ?
-//    bootstrap.flags.sound === true : null, hostPermission: (host) =>
+//    settingsState?.settings.sound ?? null, ownerSwitch: (scope) => the
+//    `sound` feature of the PAGE the scope names (the page a host account is
+//    bound to, or the batch's page) — never the bootstrap's top-level flag;
+//    null without a bootstrap —, hostPermission: (host) =>
 //    permissions.hasHost(host), session }).
 // 2. The readiness barrier runs `arbiter.restore()`; `rpc.handle` each entry
 //    of soundRequestHandlers(arbiter); onTabGone → arbiter.tabGone(id).
@@ -35,6 +37,7 @@ export {
   type SoundDiagnostics,
   type SoundPlayResult,
   type SoundPresencePort,
+  type SoundScope,
   type SubscriberBatch,
 } from './arbiter';
 export { SUBSCRIBER_POLL_BACKOFF_MAX, SUBSCRIBER_POLL_JITTER, createSubscriberPoller, type SubscriberPage, type SubscriberPoller, type SubscriberPollerDeps } from './subscribers';

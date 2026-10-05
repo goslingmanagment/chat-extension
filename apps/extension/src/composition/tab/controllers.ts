@@ -145,7 +145,6 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
   const { router, keys, gate, client, host, i18n, clock, toasts, logger } = world;
   const overlays = keys.overlays;
   const offs: (() => void)[] = [];
-  const env = ai.workspace.env;
 
   const navigation = chunk.createNavigationController({
     host,
@@ -157,8 +156,9 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     toasts,
     // The key or the click itself says what it is: the gate reads the event in flight.
     cause: { mark: () => undefined, take: () => gate.cause() },
-    // The owner's `navigation` switch; unknown while nobody is signed in — ChatSpace's own list needs no hub.
-    ownerSwitch: () => (env.bootstrap.s === 'ready' ? env.bootstrap.value.flags['navigation'] === true : null),
+    // The owner's `navigation` switch of the page the account is bound to (its own feature; an account bound to
+    // no hub page — the owner's `"*"` value). Unknown while nobody is signed in: ChatSpace's own list needs no hub.
+    ownerSwitch: (hostAccountId) => ai.workspace.accountFlag(hostAccountId, 'navigation'),
   });
   const dockView = (): DockVM | null => (router.serves('dock') ? router.getSnapshot({ of: 'dock' }) : null);
   const palette = chunk.createPaletteController({

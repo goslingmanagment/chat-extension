@@ -46,8 +46,10 @@ import {
   isHubCallError,
   isHubCheckError,
   type Bootstrap,
+  type BootstrapPage,
   type CgCode,
   type CgErrorWire,
+  type ClientFeatureFlag,
   type HostContractReport,
   type HubErrorResolution,
   type HubFailure,
@@ -55,14 +57,14 @@ import {
   type ResolveHubError,
   type SettingsV1,
 } from '@cg/contracts';
-import { narrowPlatform } from '@cg/contracts/ids';
+import { narrowPlatform, type HostKind } from '@cg/contracts/ids';
 import { sendLockKey } from '@cg/contracts/send';
 import { hashOfRoute } from '@cg/core/application/pages';
 import { resolveHubError, storageBudgetOf } from '@cg/core/domain';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
-import { type OpsEnvironment } from '@cg/core/domain/ops';
+import { flagsOnSomePage, pageFlagState, starFlag, type OpsEnvironment } from '@cg/core/domain/ops';
 import { profileRequestOf, recapSaveAnswer } from '@cg/core/domain/recap';
 import {
   ActionTokens,
@@ -496,6 +498,27 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     log: coreLog,
   });
 
+  // ── owner switches for what has no page of its own ─────────────────────────
+  /** The hub page a host account of this browser is bound to (by what its tabs reported), or null. */
+  const pageOfAccount = (host: HostKind, hostAccountId: string): BootstrapPage | null => {
+    const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
+    const seen = presence.seenAccounts().find((entry) => entry.account.host === host && entry.account.hostAccountId === hostAccountId);
+    if (hubInstance === null || bootstrap === null || seen === undefined) return null;
+    const resolution = hubInstance.resolveBinding(seen.account);
+    return resolution.state === 'bound' ? (bootstrap.pages.find((page) => page.pageId === resolution.binding.pageId) ?? null) : null;
+  };
+  /**
+   * An owner switch as it stands for a host account (docs/protocols/hub.md «Флаги: решает страница»): the
+   * feature of the page the account is bound to; an account bound to no hub page has no page row to ask, and
+   * only there the owner's `"*"` value (the bootstrap's top-level flag) decides. null — no bootstrap.
+   */
+  const accountFlag = (host: HostKind, hostAccountId: string, flag: ClientFeatureFlag): boolean | null => {
+    const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
+    if (bootstrap === null) return null;
+    const page = pageOfAccount(host, hostAccountId);
+    return page === null ? starFlag(bootstrap, flag) : pageFlagState(bootstrap, page, flag).usable;
+  };
+
   // ── sound ──────────────────────────────────────────────────────────────────
   // The one player of the extension (§9.8; its AudioContext is created with the first tone) under R17's
   // one arbiter: a fan's message from any tab, a new subscriber from «Новые».
@@ -512,6 +535,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     settings: () => (settingsRead() ? settings.current().sound : null),
     bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
     newcomersUsable: (pageLabel) => hubInstance?.flagState('newcomers', pageLabel).usable === true,
+    accountFlag,
     hostPermission: async (host) => (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
     read: (pageLabel, windowHours) => hub().audienceNew({ pageLabel, windowHours }),
     online: () => navigator.onLine,
@@ -537,11 +561,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     chatSpaceOpen: () => rpc.tabs().length > 0,
     client: () => ({ version: env.extensionVersion, browserMajor: env.browserMajor ?? 0, os: env.os }),
     footprint: () => ({ cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round(logging.logs.stats().bytes / 1024) }),
+    // What is off for this install: the switches usable on none of its pages (never the top-level `"*"` flags).
     disabled() {
-      const flags = hubInstance?.cachedBootstrap()?.bootstrap.flags ?? {};
-      return Object.entries(flags)
-        .filter(([, on]) => !on)
-        .map(([flag]) => flag);
+      const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
+      return bootstrap === null
+        ? []
+        : Object.entries(flagsOnSomePage(bootstrap))
+            .filter(([, on]) => !on)
+            .map(([flag]) => flag);
     },
   });
   const spend = new SpendService(keyOf(local, SPEND_KEY));
@@ -593,7 +620,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         reachable: status?.reachable ?? null,
         lastCheckedAt: status?.lastCheckedAt ?? null,
         lastError: status?.lastError ?? null,
-        flags: hubInstance?.cachedBootstrap()?.bootstrap.flags ?? {},
+        // Each switch as «usable on at least one granted page»: the top-level `flags` are the owner's `"*"` row alone.
+        flags: hubInstance?.cachedBootstrap() ? flagsOnSomePage(hubInstance.cachedBootstrap()?.bootstrap ?? null) : {},
         sdk: status?.sdk ?? { vendoredHash: VENDORED_CONTRACT_HASH, hubHash: null, compatible: null },
       },
       tabs: rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: shown.get(tab.tabSessionId) ?? null })),
@@ -756,9 +784,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     instance.onBootstrapChange((entry) => {
       const { configRevision, issuedAt, flags } = entry.bootstrap;
       rpc.emit('bootstrap.changed', { configRevision, issuedAt });
+      // The top-level flags are the owner's `"*"` row; what a page may do travels with the bootstrap itself, which
+      // a tab reads again on `bootstrap.changed`.
       rpc.emit('flags.changed', { flags, configRevision });
-      // §6.8 п. 10: the registration follows the flag for future documents; a live tab hears the flags and tells
-      // its own tap to stand down (tab/host-facts.ts).
+      // §6.8 п. 10: the registration follows the switch (on for at least one page) for future documents; a live tab
+      // reads the bootstrap again and tells its own tap to stand down (tab/host-facts.ts).
       void wsTap.fromBootstrap(entry.bootstrap);
       telemetry.onCapabilitiesChanged();
       void sends.bootstrapChanged();
@@ -1006,6 +1036,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // sound (§9.8): one fact, two consumers — the freshness of results (§7 «Кэш», §6.7.5) and the arbiter.
   const soundHandlers = soundRequestHandlers(sound.arbiter);
   rpc.handle('sound.event', (request, sender) => {
+    // The tap script is registered while ANY page has `wsTap`; whose facts are heard is the page's own value
+    // (an account bound to no page: the owner's `"*"`). A fact of an account whose tap is off is not ours to use:
+    // it marks nothing stale and rings nothing. Signed out there is no switch to ask — the message sound needs no hub.
+    if (request.fact.source === 'ws-tap' && accountFlag(request.fact.host, request.fact.hostAccountId, 'wsTap') === false) return ok({ played: false, reason: 'disabled' });
     scheduler.incoming(request.fact);
     return soundHandlers['sound.event'](request, sender);
   });

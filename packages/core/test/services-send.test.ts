@@ -25,7 +25,7 @@ import {
 import { type OpsEnvironment } from '@cg/core/domain/ops';
 import { ActionTokens, LATE_PAIR_LISTEN_MS, PreviewSendDriver, SendCoordinator, sendPageGate, type BackgroundSendPort, type SendClick } from '@cg/core/services';
 import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, type ClaimAnswer } from './support/fake-hub';
@@ -116,7 +116,7 @@ function sendHarness(over: { clock?: FakeClock; store?: MemoryStore; hub?: FakeH
     tokens,
     sent,
     ops,
-    env: { session, bootstrap: withX8(BOOTSTRAP_PILOT_ON), persona: () => persona, debug: false, settingsLoaded: true },
+    env: { session, bootstrap: withX8(BOOTSTRAP_PILOT_PAGES), persona: () => persona, debug: false, settingsLoaded: true },
     opCheckpoint: checkpoint,
     coordinator: undefined as unknown as SendCoordinator,
     begin: (b = {}) => ({
@@ -240,12 +240,12 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     h.ops.set(OP, doneView({ stale: { reason: 'fan-wrote', at: null } }));
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501), previewRevision: 1 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-STALE' } });
     h.ops.set(OP, doneView());
-    h.env = { ...h.env, bootstrap: BOOTSTRAP_PILOT_ON };
+    h.env = { ...h.env, bootstrap: BOOTSTRAP_PILOT_PAGES };
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502), previewRevision: 2 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-OFF' } });
-    h.env = { ...h.env, bootstrap: withX8(BOOTSTRAP_PILOT_ON), persona: () => ({ ...persona, definitionId: WORLD.persona.otherDefinitionId }) };
+    h.env = { ...h.env, bootstrap: withX8(BOOTSTRAP_PILOT_PAGES), persona: () => ({ ...persona, definitionId: WORLD.persona.otherDefinitionId }) };
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), previewRevision: 3 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-CONTEXT-CHANGED' } });
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x504), opId: uuid(0x199), previewRevision: 4 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-PART' } });
-    h.env = { ...h.env, persona: () => persona, bootstrap: { ...withX8(BOOTSTRAP_PILOT_ON), pages: withX8(BOOTSTRAP_PILOT_ON).pages.map((p) => ({ ...p, bindingRevision: p.bindingRevision + 1 })) } };
+    h.env = { ...h.env, persona: () => persona, bootstrap: { ...withX8(BOOTSTRAP_PILOT_PAGES), pages: withX8(BOOTSTRAP_PILOT_PAGES).pages.map((p) => ({ ...p, bindingRevision: p.bindingRevision + 1 })) } };
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x505), previewRevision: 5 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-CONTEXT-CHANGED' } });
     expect(h.hub.claims).toHaveLength(0);
     expect(h.store.writes).toBe(0);
@@ -459,9 +459,9 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
 
   it('[X8-09] the page gate reads the switches, the receipt profiles, the ticket lifetime and the page label', () => {
     expect(sendPageGate(null, 11)).toEqual({ previewSend: false, newcomers: false, receiptProfiles: 0, flagRevision: 0, ticketSec: 0, pageLabel: null });
-    expect(sendPageGate(withX8(BOOTSTRAP_PILOT_ON), 11)).toEqual({ previewSend: true, newcomers: true, receiptProfiles: 1, flagRevision: WORLD.configRevision, ticketSec: 10, pageLabel: PAGE_LABEL });
-    expect(sendPageGate(BOOTSTRAP_PILOT_ON, 11).previewSend).toBe(false);
-    expect(sendPageGate(withX8(BOOTSTRAP_PILOT_ON), 999).pageLabel).toBeNull();
+    expect(sendPageGate(withX8(BOOTSTRAP_PILOT_PAGES), 11)).toEqual({ previewSend: true, newcomers: true, receiptProfiles: 1, flagRevision: WORLD.configRevision, ticketSec: 10, pageLabel: PAGE_LABEL });
+    expect(sendPageGate(BOOTSTRAP_PILOT_PAGES, 11).previewSend).toBe(false);
+    expect(sendPageGate(withX8(BOOTSTRAP_PILOT_PAGES), 999).pageLabel).toBeNull();
   });
 
   it('[X8-08] a report that fails in transport is repeated a bounded number of times with the same attemptId', async () => {
@@ -1094,7 +1094,7 @@ describe('[SP-054] [RB-007] the tab-side driver over the fake host port', () => 
 
   it('[SP-054] a background refusal comes back as the view; a lost report is left to the silence deadline', async () => {
     const { h, driver, click } = driverHarness();
-    h.env = { ...h.env, bootstrap: BOOTSTRAP_PILOT_ON };
+    h.env = { ...h.env, bootstrap: BOOTSTRAP_PILOT_PAGES };
     expect(await driver.send(click())).toMatchObject({ state: 'held', code: 'CG-SEND-OFF' });
     const lossy = driverHarness();
     lossy.h.hub.claimScript.push(ticketFor(A));

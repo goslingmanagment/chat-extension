@@ -25,7 +25,7 @@ export function partVm(ws: AiWorkspace, record: OpRecord, part: PartRef, text: s
   const handle = ws.partHandle(opId, part);
   const copy = ws.copyState(handle);
   const block = ws.inserts.blockOf(record, part);
-  const insertBlocked: ReasonVM | null = block === null ? null : catalog.reason(block.reason);
+  const insertBlocked: ReasonVM | null = block === null ? null : (block.view ?? catalog.reason(block.reason));
   return {
     index: part.index,
     variant: part.variant ?? null,

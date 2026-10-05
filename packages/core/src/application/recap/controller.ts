@@ -35,7 +35,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { featureGate } from '../../domain/features';
-import { flagUsable, isTerminalOpState } from '../../domain/ops';
+import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
 import { streamPreview } from '../../domain/output';
 import { latestLength, type RecapCopy } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
@@ -43,6 +43,7 @@ import { type OpRecord } from '../ai/op-store';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, debugVm, errorVm, featureHotkey, isOfflineCode, msg, phaseVm, views } from '../ai/view-models';
 import { isOwnSurface, type AiWorkspace, type Situation } from '../ai/workspace';
+import { flagReasonVm } from '../flag-reason';
 
 const FEATURE_OF: Readonly<Record<RecapLength, FeatureId>> = { short: 'recap-short', full: 'recap' };
 const lengthOf = (feature: FeatureId): RecapLength => (feature === 'recap-short' ? 'short' : 'full');
@@ -111,20 +112,22 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     if (situation.chat === null) return views.empty(msg('common.empty'));
     const ready = situation.ready;
     if (ready === null) {
-      const error = errorVm(situation.statusError ?? { code: 'CG-GATE-CHAT-LOADING' }, i18n);
+      const error = errorVm(ws.blockedError(situation), i18n);
       if (situation.status === 'loading-chat') return views.loading(null, msg('dock.status.chatLoading'));
       if (situation.status === 'hub-down') return views.offline(error, { type: 'ReloadView', selector: { of: 'dock' } });
       return views.forbidden(error);
     }
-    if (!flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) return views.forbidden(errorVm({ code: 'CG-FEATURE-DISABLED' }, i18n));
-    return null;
+    const flag = flagStateOf(ready.bootstrap, ready.page.pageId, 'recap');
+    return flag.usable ? null : views.forbidden(errorVm(flagRefusal(flag), i18n));
   }
 
   function buildReason(situation: Situation, length: RecapLength): ReasonVM | null {
     const { chat, ready } = situation;
-    if (situation.off !== null) return catalog.reason(situation.off);
+    const off = ws.offReason(situation);
+    if (off !== null) return off;
     if (chat === null || ready === null) return catalog.reason('chat-loading');
-    if (!flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) return catalog.reason('feature-disabled');
+    const flag = flagStateOf(ready.bootstrap, ready.page.pageId, 'recap');
+    if (!flag.usable) return flagReasonVm(flag);
     if (situation.quotaZero) return catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } });
     if (ws.running(chat.key) !== null) return catalog.reason('chat-busy');
     // AI-051: the full recap needs history; the short one is the hub's to judge.

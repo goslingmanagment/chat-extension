@@ -29,8 +29,10 @@ import {
   coach,
   coachTurn,
   ctxOf,
+  PAGE_OFF_REASON,
   dock,
   dockActions,
+  dockPageOff,
   entry,
   failedResult,
   handles,
@@ -497,6 +499,11 @@ export const GALLERY_STATES: readonly GalleryState[] = [
     one(ctx, replyDock(ctx, failedResult(ctx, OP.reply, 'reply', cgError(ctx, 'CG-HUB-TIMEOUT', { detail: 'no first chunk in 30 s' }), [{ ...again(OP.reply), hotkey: hotkey(ctx, 'reply') }]))),
   ),
   state('x-not-granted', 'extras', 'Страница не выдана аккаунту', (ctx) => one(ctx, statusDock(ctx, 'no-binding', { code: 'CG-BINDING-NOT-GRANTED' }))),
+  // 1.3.0: the owner's master switch is off for the page — one status line, every AI button dimmed with the same reason.
+  state('x-page-off', 'extras', 'ChatGoose выключен для этой страницы (главный выключатель владельца)', (ctx) => one(ctx, dockPageOff(ctx))),
+  state('x-page-off-result', 'extras', 'Страница выключена: готовый ответ можно только копировать', (ctx) =>
+    one(ctx, dockPageOff(ctx, { result: reply(ctx, {}, () => ({ insertBlocked: PAGE_OFF_REASON })) })),
+  ),
   state('x-recap-picker', 'extras', 'Recap: сохранённого нет — собрать (AI-060)', (ctx) =>
     one(ctx, recapDock(ctx), [
       entry({ of: 'recap.view' }, recapView(ctx, views.empty(msg('cg.recapNotFound.title')), 'short')),

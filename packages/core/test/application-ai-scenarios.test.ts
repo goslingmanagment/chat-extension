@@ -12,7 +12,7 @@ import { FEATURE_IDS, type FeatureId, type StartOp } from '@cg/contracts';
 import { AI_FEATURE_DRIVERS, FEATURE_POLICIES, hubFeatureOf } from '@cg/core/domain/features';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, memory, openChat, startSnapshot } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_ON, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { TAB } from './support/ai-background';
 import { readyHarness, type Harness, type HarnessParts } from './support/ai-harness';
@@ -23,7 +23,7 @@ function parts(): HarnessParts {
     baseHost: new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers: {}, timeline: [] }),
     memory,
     catalog: createFakeCatalog(ctxOf({ now: NOW_MS })),
-    bootstrap: BOOTSTRAP_PILOT_ON,
+    bootstrap: BOOTSTRAP_PILOT_PAGES,
     resolve: resolveHubErrorReference,
     meta: (feature) => meta(feature as Parameters<typeof meta>[0]),
   };
@@ -152,7 +152,7 @@ describe('[RU-001] the drivers the scheduler runs', () => {
     ...(feature === 'coach' ? { coach: { question: 'q', history: [] } } : {}),
     ...over,
   });
-  const ctx = { opId: '00000000-0000-4000-8000-000000000100', session, persona: { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId }, bootstrap: BOOTSTRAP_PILOT_ON, debug: false };
+  const ctx = { opId: '00000000-0000-4000-8000-000000000100', session, persona: { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId }, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false };
   const build = (start: StartOp): ReturnType<(typeof AI_FEATURE_DRIVERS)[FeatureId]['build']> => AI_FEATURE_DRIVERS[start.feature].build(start, ctx);
 
   it('there is one driver per feature, and each streams the hub feature of §8.4', () => {

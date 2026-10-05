@@ -33,7 +33,7 @@ import { draftStale } from '../../domain/newcomers/greeting';
 import { NO_SEEN_EVENTS, nextPollDelay, observeEvents, pollMode, resumeDelay, unprime, type SeenEvents } from '../../domain/newcomers/poll';
 import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
 import { WINDOW_HOURS, appendAudiencePage, clampWindow, startWalk, walkHasMore, walkIncomplete, windowLimit, windowOptions, type AudienceWalk } from '../../domain/newcomers/window';
-import { type PageContextPort, type PageContextState, flagReason, pageFlag } from '../boards/context';
+import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
 import { type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type Connectivity, type RandomSource, type TabRpc } from '../boards/ports';
@@ -538,10 +538,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const retry: UiAction = { type: 'ReloadView', selector: SELECTOR };
     if (ctx.phase === 'loading') return loadingView(null);
     if (ctx.phase === 'blocked') return failureView(ctx.blocker ?? { code: 'CG-UNKNOWN' }, i18n, retry);
-    if (!pageFlag(ctx, 'newcomers')) {
-      const why = flagReason(ctx, 'newcomers');
-      return failureView(why === null ? { code: 'CG-FEATURE-DISABLED' } : { code: 'CG-FEATURE-DISABLED', detail: why }, i18n, retry);
-    }
+    if (!pageFlag(ctx, 'newcomers')) return failureView(flagFailure(ctx, 'newcomers'), i18n, retry);
     return null;
   }
 

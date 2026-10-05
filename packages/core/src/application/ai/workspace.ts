@@ -14,19 +14,20 @@
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail } from '@cg/contracts/host';
-import { isFlagOn, type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
+import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type ActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type AiQuotaSnapshot } from '@cg/contracts/tab-messages';
-import { type DockStatus, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
+import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
 import { fanScriptOf, featureGate, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
-import { flagUsable, isTerminalOpState } from '../../domain/ops';
+import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
 import { archiveLag, type ArchiveLag, type ArchivePoint, type RecapSlotKey } from '../../domain/recap';
+import { PAGE_OFF_REASON, flagReasonVm } from '../flag-reason';
 import { TabEnvironment, type EnvironmentChange, type PersonaState } from './environment';
 import { artifactHandle, readArtifactHandle, targetHandle, type Artifact } from './handles';
 import { InsertService, partText, type InsertContext, type PartBlock } from './insert-service';
@@ -91,6 +92,12 @@ export interface Situation {
   readonly statusError: CgErrorWire | null;
   /** Why no AI action can start at all; null — actions are decided one by one. */
   readonly off: UnavailableReasonId | null;
+  /**
+   * The owner switched ChatGoose off for the page of the open chat (its master switch: every feature of the
+   * page reads `disabled`). The dock stays `ready` and says so in one line; every AI action is off with that
+   * reason (`off` is set), parts can only be copied — nothing is offered that the hub would answer 409 to.
+   */
+  readonly pageOff: boolean;
   /** Why parts can only be copied; null — they can be inserted. */
   readonly copyOnly: PartBlock | null;
   /** Present when a generation can be started for the open chat. */
@@ -143,6 +150,9 @@ export const COPIED_MARK_MS = 2_000;
 export const CHAT_UI_MAX = 64;
 /** UI-031: «AI: осталось N» from this many requests down. */
 export const QUOTA_LOW_AT = 25;
+
+/** What a start, a view or a card says of a page the owner switched off: the hub's own reason in the technical line. */
+export const PAGE_OFF_ERROR: CgErrorWire = { code: 'CG-FEATURE-DISABLED', detail: 'disabled' };
 
 const BINDING_STATUS: Partial<Record<CgCode, UnavailableReasonId>> = {
   'CG-BINDING-MISSING': 'no-binding',
@@ -357,7 +367,7 @@ export class AiWorkspace {
     const chatRef = route.name === 'chat' ? route.chat : null;
     const chat: OpenChat | null =
       chatRef === null ? null : { chat: chatRef, key: chatKeyOf(chatRef), handle: targetHandle('dock', chatRef), account: route.account, identity: snapshot.identity, routeEpoch: route.epoch };
-    const base = { host: snapshot, chat, window: null, fanName: null, quota: null, quotaZero: false, persona: null, pageName: null, ready: null, copyOnly: null } as const;
+    const base = { host: snapshot, chat, window: null, fanName: null, quota: null, quotaZero: false, persona: null, pageName: null, ready: null, copyOnly: null, pageOff: false } as const;
     const off = (status: DockStatus, reason: UnavailableReasonId, error: CgErrorWire | null): Situation => ({ ...base, status, statusError: error, off: reason });
 
     if (this.hostReload || this.env.reloadNeeded) return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-RELOADED' });
@@ -396,6 +406,12 @@ export class AiWorkspace {
 
     const persona = this.env.persona(page.pageId);
     const named = { ...base, persona, pageName: page.title };
+    // The owner's master switch is off for this page: whatever else is missing (a persona, the chat's history),
+    // nothing of ours would run here — the hub refuses every AI call of this client on the page. One line says
+    // so; what was generated before can still be copied.
+    if (pageSwitchedOff(page)) {
+      return { ...named, status: 'ready', statusError: null, off: 'feature-disabled', pageOff: true, copyOnly: { reason: 'feature-disabled', code: 'CG-FEATURE-DISABLED', view: PAGE_OFF_REASON } };
+    }
     if (persona.status === 'loading') return { ...named, status: 'loading-chat', statusError: null, off: 'chat-loading' };
     if (persona.status !== 'ok' || persona.key === null || persona.definitionId === null) {
       const catalog = this.env.catalog;
@@ -427,20 +443,53 @@ export class AiWorkspace {
     if (composer === null || !composer.ready || chatKeyOf(composer.chat) !== chat.key || snapshot.mounts.dock.kind === 'none') {
       return { ...known, status: 'host-degraded', statusError: { code: 'CG-HOST-COMPOSER-MISSING' }, off: null, copyOnly: { reason: 'composer-missing', code: 'CG-HOST-COMPOSER-MISSING' } };
     }
-    const insertion = flagUsable(bootstrap.value, page.pageId, 'insertion');
-    return { ...known, status: 'ready', statusError: null, off: null, copyOnly: insertion ? null : { reason: 'feature-disabled', code: 'CG-FEATURE-DISABLED' } };
+    // The owner's `insertion` switch of THIS page (its own feature, never the top-level `flags`).
+    const insertion = flagStateOf(bootstrap.value, page.pageId, 'insertion');
+    const copyOnly: PartBlock | null = insertion.usable ? null : { reason: 'feature-disabled', code: flagRefusal(insertion).code, view: flagReasonVm(insertion) };
+    return { ...known, status: 'ready', statusError: null, off: null, copyOnly };
+  }
+
+  /**
+   * An owner switch on the page of the open chat: the page's own feature and the capabilities it needs
+   * (domain/ops/flags.ts). Before the chat is ready the answer is «not usable» with the reason of the wait.
+   */
+  flagState(flag: ClientFeatureFlag): FlagState {
+    const situation = this.situation();
+    if (situation.pageOff) return { usable: false, reason: 'disabled' };
+    const ready = situation.ready;
+    return ready === null ? { usable: false, reason: 'hub_not_ready' } : flagStateOf(ready.bootstrap, ready.page.pageId, flag);
   }
 
   /** Whether an owner switch is usable on the open chat's page. */
   flag(flag: ClientFeatureFlag): boolean {
-    const ready = this.situation().ready;
-    return ready !== null && flagUsable(ready.bootstrap, ready.page.pageId, flag);
+    return this.flagState(flag).usable;
   }
 
-  /** The master switch of a flag, whatever page is open (the strip hides nothing it cannot explain). */
-  flagOn(flag: ClientFeatureFlag): boolean {
+  /**
+   * An owner switch for a host account of this tab, read once its binding is (never on a guess): the feature of
+   * the hub page the account is bound to; an account bound to no page (or `null` — no account on screen) has no
+   * page row to ask, and only there the owner's `"*"` value decides. null — unknown: nobody is signed in or the
+   * bootstrap is not read (what needs no hub goes on).
+   */
+  async accountFlag(hostAccountId: string | null, flag: ClientFeatureFlag): Promise<boolean | null> {
+    if (this.env.bootstrap.s !== 'ready') return null;
+    const account = hostAccountId === null ? null : (this.ports.host.current().accounts.find((candidate) => candidate.hostAccountId === hostAccountId) ?? null);
+    const binding = account === null ? null : await this.env.bindingRead(account);
+    // The bootstrap may have been read again (or lost with the sign-in) while the binding was.
     const bootstrap = this.env.bootstrap;
-    return bootstrap.s === 'ready' && isFlagOn(bootstrap.value.flags, flag);
+    if (bootstrap.s !== 'ready') return null;
+    return binding !== null && binding.s === 'ready' ? flagUsable(bootstrap.value, binding.value.pageId, flag) : starFlag(bootstrap.value, flag);
+  }
+
+  /** Why every AI action of the open chat is off, in the words of a tooltip; null — actions are decided one by one. */
+  offReason(situation: Situation = this.situation()): ReasonVM | null {
+    if (situation.off === null) return null;
+    return situation.pageOff ? PAGE_OFF_REASON : this.ports.catalog.reason(situation.off);
+  }
+
+  /** The error of a chat that is not `ready`: its status' own, the page being switched off, or «чат ещё грузится». */
+  blockedError(situation: Situation = this.situation()): CgErrorWire {
+    return situation.statusError ?? (situation.pageOff ? PAGE_OFF_ERROR : { code: 'CG-GATE-CHAT-LOADING' });
   }
 
   // ── per-chat UI state ────────────────────────────────────────────────────
@@ -526,11 +575,15 @@ export class AiWorkspace {
     const situation = this.situation();
     const { chat, ready } = situation;
     if (chat === null || chat.identity === null) return failed('CG-GATE-CHAT-LOADING');
-    if (ready === null) return failed(situation.statusError?.code ?? 'CG-GATE-CHAT-LOADING', situation.statusError ?? {});
+    if (ready === null) return { kind: 'failed', error: this.blockedError(situation) };
     const { feature, surface } = request;
     const rule = policyOf(feature);
     if (situation.quotaZero) return failed('CG-QUOTA-DAILY', situation.quota === null ? {} : { retryAt: Date.parse(situation.quota.resetsAt) });
-    if (rule.flag !== null && !flagUsable(ready.bootstrap, ready.page.pageId, rule.flag)) return failed('CG-FEATURE-DISABLED');
+    if (rule.flag !== null) {
+      // The feature's switch on this page; the hub's reason picks the code and goes into the technical line.
+      const state = flagStateOf(ready.bootstrap, ready.page.pageId, rule.flag);
+      if (!state.usable) return { kind: 'failed', error: flagRefusal(state) };
+    }
 
     const original = request.regenerateOf;
     const source = original?.memo.fixSource ?? null;

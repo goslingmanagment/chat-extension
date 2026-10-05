@@ -1,12 +1,15 @@
 // The WS tap switch (architecture.md §6.8 п. 10; NEW-08): the MAIN-world tap
-// script is registered with `scripting` only while the bootstrap flag
-// `wsTap` is on, and unregistered when it goes off. Calls are serialized and
+// script is registered with `scripting` only while the owner's `wsTap`
+// switch is on for at least one granted page, and unregistered when it is on
+// for none (a registration is not bound to one page: whose facts are heard
+// is decided per account, by the page's own value). Calls are serialized and
 // the latest wish wins: a burst of bootstrap updates ends in one registration
 // state that matches the last flag value. A failed sync leaves the tap
 // reported off (freshness then says «unknown», never «nothing new»).
 
-import { isFlagOn, type Bootstrap } from '@cg/contracts/hub';
+import { type Bootstrap } from '@cg/contracts/hub';
 
+import { flagOnSomePage } from '../domain/ops/flags';
 import { NO_LOG, type LogSink } from './ports';
 
 export interface ScriptRegistrar {
@@ -25,9 +28,9 @@ export class WsTapSwitch {
     private readonly log: LogSink = NO_LOG,
   ) {}
 
-  /** The flag as the bootstrap says; no bootstrap — off. */
+  /** `wsTap` is usable on at least one page of the bootstrap (the top-level `flags` are not asked); no bootstrap — off. */
   static wanted(bootstrap: Bootstrap | null): boolean {
-    return bootstrap !== null && isFlagOn(bootstrap.flags, 'wsTap');
+    return flagOnSomePage(bootstrap, 'wsTap');
   }
 
   /** Asks for a state; resolves with the state actually registered once the queue drained. */

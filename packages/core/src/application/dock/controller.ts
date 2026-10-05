@@ -31,13 +31,14 @@ import {
 } from '@cg/contracts/vm';
 
 import { featureGate, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
-import { flagUsable, isTerminalOpState } from '../../domain/ops';
+import { flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
 import { targetHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { errorVm, msg, views } from '../ai/view-models';
-import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
+import { PAGE_OFF_ERROR, QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
+import { flagReasonVm } from '../flag-reason';
 
 /** The keys footer is shown under the first results (ui-design §4.3). */
 export const KEYS_FOOTER_RESULTS = 5;
@@ -118,7 +119,7 @@ export function createDockController(ws: AiWorkspace): DockController {
     const { catalog } = ws.ports;
     const { chat, ready } = situation;
     const quotaReason = situation.quotaZero ? catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } }) : null;
-    const allOff: ReasonVM | null = situation.off === null ? quotaReason : catalog.reason(situation.off);
+    const allOff: ReasonVM | null = ws.offReason(situation) ?? quotaReason;
     // A Coach turn is the Coach's whichever of its steps runs: its auto-recap is a recap of the Coach surface.
     const busyAction = running === null ? null : running.view.surface === 'coach' ? 'coach' : policyOf(running.view.feature).dockAction;
     const recapReady = chat !== null && ready !== null && hasRecapCopy(ready);
@@ -127,7 +128,9 @@ export function createDockController(ws: AiWorkspace): DockController {
       const rule = policyOf(feature);
       let reason: ReasonVM | null = allOff;
       if (reason === null && ready !== null) {
-        if (rule.flag !== null && !flagUsable(ready.bootstrap, ready.page.pageId, rule.flag)) reason = catalog.reason('feature-disabled');
+        // The feature's switch on THIS page; the hub's own reason picks the words («выключена», «хаб пока не умеет»…).
+        const flag = rule.flag === null ? null : flagStateOf(ready.bootstrap, ready.page.pageId, rule.flag);
+        if (flag !== null && !flag.usable) reason = flagReasonVm(flag);
         // UI-008: while a generation runs in this chat only its own button works.
         else if (busyAction !== null && busyAction !== id) reason = catalog.reason('chat-busy');
         else if (busyAction === null && id !== 'recap' && id !== 'coach') {
@@ -171,7 +174,7 @@ export function createDockController(ws: AiWorkspace): DockController {
     const result = shown !== null && shown.view.state !== 'canceled' ? resultVm(ws, shown, { regenerate: { type: 'Regenerate', operationId: shown.view.opId } }) : null;
     const activeAction: DockActionId | null = result !== null ? policyOf(result.feature).dockAction : sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null;
     const generating = running !== null;
-    const lockReason = situation.off !== null ? catalog.reason(situation.off) : generating ? catalog.reason('locked-during-generation') : null;
+    const lockReason = ws.offReason(situation) ?? (generating ? catalog.reason('locked-during-generation') : null);
     const quota = situation.quota;
     const remaining = quota?.remainingRequestsToday ?? null;
     const low = remaining !== null && remaining <= QUOTA_LOW_AT;
@@ -187,6 +190,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       mode: situation.copyOnly === null ? 'insert' : 'copy-only',
       status: situation.status,
       statusError: situation.statusError === null ? null : errorVm(situation.statusError, ws.ports.i18n),
+      // The owner switched ChatGoose off for this page: one line, in place of an error card after a click.
+      notice: situation.pageOff && chat !== null ? { ...errorVm(PAGE_OFF_ERROR, ws.ports.i18n), title: ws.ports.i18n.t('dock.status.pageOff'), body: '', tone: 'state' } : null,
       targetHandle: chat !== null && situation.ready !== null ? chat.handle : null,
       persona: situation.persona?.status === 'ok' && situation.persona.label !== null && situation.pageName !== null ? { label: situation.persona.label, pageName: situation.pageName } : null,
       mark: situation.off !== null || situation.quotaZero ? 'faint' : 'normal',

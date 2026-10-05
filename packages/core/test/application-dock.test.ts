@@ -10,7 +10,7 @@ import { DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubF
 import { COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_ON, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
 
 import { CATALOG, OTHER_TAB, PERSONA_LABEL, TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
@@ -25,7 +25,7 @@ function parts(answers: HostAnswers = {}): HarnessParts & { readonly fake: FakeH
     baseHost: fake,
     memory,
     catalog: createFakeCatalog(ctxOf({ now: NOW_MS })),
-    bootstrap: BOOTSTRAP_PILOT_ON,
+    bootstrap: BOOTSTRAP_PILOT_PAGES,
     resolve: resolveHubErrorReference,
     meta: (feature) => meta(feature as Parameters<typeof meta>[0]),
   };
@@ -183,7 +183,7 @@ describe('dock: where it shows and what state it is in', () => {
     expect(vm.view).toMatchObject({ s: 'offline', retry: { type: 'ReloadView', selector: { of: 'dock' } } });
     expect(vm.actions.reply.reason?.id).toBe('hub-down');
     // «Повторить» reads everything again.
-    h.bg.bootstrap = BOOTSTRAP_PILOT_ON;
+    h.bg.bootstrap = BOOTSTRAP_PILOT_PAGES;
     await h.dispatch({ type: 'ReloadView', selector: { of: 'dock' } });
     await h.settle();
     expect(h.dock().status).toBe('ready');
@@ -272,7 +272,7 @@ describe('dock: where it shows and what state it is in', () => {
   });
 
   it('the insertion switch of the owner off: results are copied, nothing else changes', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, insertion: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['insertion']);
     const h = await start({ bootstrap: off });
     expect(h.dock()).toMatchObject({ status: 'ready', mode: 'copy-only' });
     await reply(h);
@@ -295,7 +295,7 @@ describe('dock: where it shows and what state it is in', () => {
   });
 
   it('review, recap and coach follow their owner switches', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, review: false, coach: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['review', 'coach']);
     const h = await start({ bootstrap: off });
     const vm = h.dock();
     expect(vm.actions.review.reason?.id).toBe('feature-disabled');
@@ -785,7 +785,7 @@ describe('dock: fresh page text', () => {
   });
 
   it('never without the owner switch or the hub capability, and never for Review', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, freshText: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']);
     const h = await start({ bootstrap: off });
     h.host.setTail(openChat, tail);
     await reply(h);
@@ -793,7 +793,7 @@ describe('dock: fresh page text', () => {
     expect((h.bg.callsOf('op.start')[0] as { fresh?: unknown }).fresh).toBeUndefined();
     expect(h.bg.hub.streams[0]?.body.liveTextContext).toBeUndefined();
 
-    const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_ON, capabilities: BOOTSTRAP_PILOT_ON.capabilities.filter((c) => c !== 'context-v1') };
+    const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'context-v1') };
     const other = await start({ bootstrap: noContext });
     other.host.setTail(openChat, tail);
     await reply(other);

@@ -13,7 +13,7 @@ import { COACH_RECAP_FRESH_MS } from '@cg/core/domain/coach';
 import { createTranslator } from '@cg/core/domain/i18n';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostIso, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_ON, contextFrame, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, contextFrame, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
 
 import { settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
@@ -27,7 +27,7 @@ function parts(): HarnessParts & { readonly fake: FakeHostPort } {
     baseHost: fake,
     memory,
     catalog: createFakeCatalog(ctxOf({ now: NOW_MS })),
-    bootstrap: BOOTSTRAP_PILOT_ON,
+    bootstrap: BOOTSTRAP_PILOT_PAGES,
     resolve: resolveHubErrorReference,
     meta: (feature) => meta(feature as Parameters<typeof meta>[0]),
   };
@@ -234,7 +234,7 @@ describe('coach: opening and the empty dialog', () => {
   });
 
   it('the Coach switch of the owner off: the panel says «недоступно» and nothing is asked', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, coach: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['coach']);
     const h = await start({ bootstrap: off });
     expect(h.coach().view).toMatchObject({ s: 'forbidden', error: { code: 'CG-FEATURE-DISABLED' } });
     expect(h.coach().ask).toMatchObject({ enabled: false });
@@ -949,7 +949,7 @@ describe('coach: the recap it stands on', () => {
     expect((h.bg.callsOf('op.start')[0] as { coach: { autoRecap?: unknown } }).coach.autoRecap).toBeUndefined();
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['coach-chat']);
 
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, recap: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['recap']);
     const noRecap = await start({ settings: withCoach({ autoRecap: 'full' }), bootstrap: off });
     noRecap.script(coachStream(ANSWER));
     await ask(noRecap, 'How do I reply?');
@@ -1074,7 +1074,7 @@ describe('coach: the recap it stands on', () => {
     h.script(recapStream(FULL), coachStream(ANSWER));
     await ask(h, 'How do I reply?');
     // The owner switched the Coach off while the recap was being built.
-    h.bg.bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, coach: false } };
+    h.bg.bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['coach']);
     await h.finish();
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary']);
     const turn = lastTurn(h);
@@ -1203,7 +1203,7 @@ describe('coach: the archive it reads', () => {
     expect(await h.dispatch(h.coach().freshness.refresh.action)).toMatchObject({ ok: false, code: 'CG-HUB-UNAVAILABLE' });
     expect(h.coach().freshness).toMatchObject({ asOf: null, lag: null, refresh: { enabled: true } });
 
-    const noFeed: Bootstrap = { ...BOOTSTRAP_PILOT_ON, capabilities: BOOTSTRAP_PILOT_ON.capabilities.filter((capability) => capability !== 'archive-feed-v1') };
+    const noFeed: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((capability) => capability !== 'archive-feed-v1') };
     const other = await start({ bootstrap: noFeed });
     expect(other.coach().freshness.refresh).toMatchObject({ enabled: false });
     expect(other.coach().freshness.refresh.reason?.id).toBe('feature-disabled');

@@ -14,6 +14,8 @@ import {
   type VmView,
 } from '@cg/contracts';
 
+import { createTranslator } from '@cg/core/domain/i18n';
+
 import { cgError, FANS, handles, hotkey, PERSONA, reason, views, type FanFixture, type ScenarioCtx } from './base';
 
 export interface DockActionsOptions {
@@ -126,6 +128,25 @@ export function dock(ctx: ScenarioCtx, status: DockStatus = 'ready', options: Do
     paletteHotkey: hotkey(ctx, 'palette'),
     debug: ctx.debug ? { renderTrace: false, contract: 'index-0000test · ok' } : null,
     ...patch,
+  };
+}
+
+/** Why every AI action is off on a page the owner switched off: the existing reason id with the page's own words (1.3.0). */
+export const PAGE_OFF_REASON: ReasonVM = { id: 'feature-disabled', code: 'CG-FEATURE-DISABLED', text: { key: 'dock.reason.pageOff' } };
+
+/**
+ * The owner switched ChatGoose off for the page of the open chat (1.3.0): the dock stays `ready`, says so in one
+ * status line, every AI action and option carries that reason, and what was generated before can only be copied.
+ */
+export function dockPageOff(ctx: ScenarioCtx, options: DockOptions = {}): DockVM {
+  const t = createTranslator(ctx.lang);
+  const base = dock(ctx, 'ready', { actionsOptions: { off: PAGE_OFF_REASON }, ...options });
+  return {
+    ...base,
+    mode: 'copy-only',
+    mark: 'faint',
+    options: { ...base.options, toneReason: PAGE_OFF_REASON, splitReason: PAGE_OFF_REASON },
+    notice: 'notice' in options ? (options.notice ?? null) : { code: 'CG-FEATURE-DISABLED', title: t.text('dock.status.pageOff'), body: '', detail: 'disabled', tone: 'state' },
   };
 }
 

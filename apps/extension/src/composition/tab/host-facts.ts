@@ -14,15 +14,19 @@
 //   background takes a repeat as the same registration. The dock's own
 //   inserts are reported by R11's workspace, which knows them; an
 //   attribution that is not known is never guessed;
-// - the owner's flags and the receipt profiles of the bootstrap configure
+// - the owner's switches and the receipt profiles of the bootstrap configure
 //   the adapter's part B (the tap, X8, the AI mark), and its limit sets the
-//   deadline of «Открыть и вставить».
+//   deadline of «Открыть и вставить». The adapter serves every account of
+//   the tab, so each part is on while the switch is usable on at least one
+//   granted page; the page's own value is applied where the page is known —
+//   the background per fact (the tap), the preview per send (X8, the mark).
 //
 // Facts only: ids, digests, booleans. Never a message text.
 
 import type { HostContractReport } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
+import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 
 import type { ControllerRpc } from './client';
@@ -72,12 +76,13 @@ const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAi
 /** Part B of the adapter as the bootstrap sets it (§6.2, §6.7, §6.8). */
 export function liveConfigOf(bootstrap: Bootstrap | null): ChatSpaceLiveConfig {
   if (bootstrap === null) return LIVE_OFF;
-  const on = (flag: string): boolean => bootstrap.flags[flag] === true;
+  // Never the top-level `flags` (the owner's `"*"` row alone): a page switched on by itself must work.
   return {
-    wsTap: on('wsTap'),
-    // On for at least one page of this sign-in; the hub checks the page's own flag again on every dispatch.
-    previewSend: on('previewSend') && bootstrap.pages.some((page) => page.features['previewSend']?.available === true),
-    markAiGenerated: on('previewSendMarkAiGenerated'),
+    wsTap: flagOnSomePage(bootstrap, 'wsTap'),
+    // On for at least one page of this sign-in; the preview checks its own page before a send, and the hub
+    // checks the page's own flag again on every dispatch.
+    previewSend: flagOnSomePage(bootstrap, 'previewSend'),
+    markAiGenerated: flagOnSomePage(bootstrap, 'previewSendMarkAiGenerated'),
     receiptProfiles: bootstrap.limits.previewSendReceiptProfiles,
   };
 }

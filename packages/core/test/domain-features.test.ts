@@ -47,7 +47,7 @@ import {
   type StartPlanInput,
 } from '@cg/core/domain/features';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON } from '@cg/testing/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_PAGES, pageFeaturesOff } from '@cg/testing/hub';
 
 import { WORLD, causeOf, chatOf, checkpointFor, persona, startOf, target, tokenN, uuid } from './support/world';
 
@@ -66,7 +66,7 @@ const plan = (over: Partial<StartPlanInput> = {}): StartPlanInput => ({
   cause,
   options: {},
   settings: DEFAULT_SETTINGS,
-  bootstrap: BOOTSTRAP_PILOT_ON,
+  bootstrap: BOOTSTRAP_PILOT_PAGES,
   tone: null,
   ...over,
 });
@@ -92,7 +92,7 @@ const windowOf = (over: Partial<ChatWindow> = {}): ChatWindow => ({
   ...over,
 });
 
-const ctx = { opId: uuid(0x100), persona, bootstrap: BOOTSTRAP_PILOT_ON, debug: false };
+const ctx = { opId: uuid(0x100), persona, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false };
 
 describe('[RU-001] feature policies', () => {
   it('has one row per feature, consistent with the contracts vocabulary', () => {
@@ -261,16 +261,16 @@ describe('the plan from a click to a StartOp', () => {
 
   it('[AI-134] windows come from the settings; the deep one never above limits.deepMax', () => {
     const settings = { ...DEFAULT_SETTINGS, generation: { ...DEFAULT_SETTINGS.generation, windows: { quick: 60, ping: 80, improve: 15, deep: 3000 } } };
-    const capped: Bootstrap = { ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, deepMax: 1500 } };
-    const win = (feature: FeatureId, bootstrap = BOOTSTRAP_PILOT_ON) => windowFor(feature, undefined, settings, bootstrap);
+    const capped: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 1500 } };
+    const win = (feature: FeatureId, bootstrap = BOOTSTRAP_PILOT_PAGES) => windowFor(feature, undefined, settings, bootstrap);
     expect(FEATURE_IDS.map((f) => win(f))).toEqual([60, 15, 25, 80, 3000, 3000, 300, 60]);
     expect(win('review', capped)).toBe(1500);
     expect(win('recap', capped)).toBe(1500);
     expect(win('recap-short', capped)).toBe(300);
     // A window the person asked for stays inside the hub body's bounds and the cap.
-    expect(windowFor('reply', 2, settings, BOOTSTRAP_PILOT_ON)).toBe(5);
+    expect(windowFor('reply', 2, settings, BOOTSTRAP_PILOT_PAGES)).toBe(5);
     expect(windowFor('review', 3000, settings, capped)).toBe(1500);
-    expect(windowFor('reply', 40, settings, BOOTSTRAP_PILOT_ON)).toBe(40);
+    expect(windowFor('reply', 40, settings, BOOTSTRAP_PILOT_PAGES)).toBe(40);
   });
 
   it('[AI-010] Split is a snapshot of the setting at the start, shared by Reply and Fix', () => {
@@ -285,12 +285,12 @@ describe('the plan from a click to a StartOp', () => {
 
   it('[NEW-04] Split for Hi, Ping and Coach only with split-all on the page; never for Recap and Review', () => {
     const on = { ...DEFAULT_SETTINGS, generation: { ...DEFAULT_SETTINGS.generation, split: true } };
-    for (const feature of ['hi', 'ping', 'coach'] as const) expect(splitFor(feature, true, BOOTSTRAP_PILOT_ON, PAGE_ID), feature).toBe(true);
-    const noSplitAll: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, splitAll: false } };
+    for (const feature of ['hi', 'ping', 'coach'] as const) expect(splitFor(feature, true, BOOTSTRAP_PILOT_PAGES, PAGE_ID), feature).toBe(true);
+    const noSplitAll: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['splitAll']);
     for (const feature of ['hi', 'ping', 'coach'] as const) expect(splitFor(feature, true, noSplitAll, PAGE_ID), feature).toBe(false);
     for (const feature of ['reply', 'fix'] as const) expect(splitFor(feature, true, noSplitAll, PAGE_ID), feature).toBe(true);
     for (const feature of ['review', 'recap', 'recap-short'] as const) {
-      expect(splitFor(feature, true, BOOTSTRAP_PILOT_ON, PAGE_ID), feature).toBe(false);
+      expect(splitFor(feature, true, BOOTSTRAP_PILOT_PAGES, PAGE_ID), feature).toBe(false);
       expect(planned({ feature, settings: on }).split, feature).toBe(false);
     }
   });
@@ -327,20 +327,20 @@ describe('the plan from a click to a StartOp', () => {
     expect(planned({ surface: 'preview', fresh, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
     expect(planned({ feature: 'hi', surface: 'newcomers', fresh, checkpoint: checkpointFor(WORLD.fan) }).fresh).toBeUndefined();
     // The owner's switch and the hub capability both gate it.
-    const flagOff: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, freshText: false } };
-    const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_ON, capabilities: BOOTSTRAP_PILOT_ON.capabilities.filter((c) => c !== 'context-v1') };
+    const flagOff: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']);
+    const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'context-v1') };
     expect(planned({ fresh, bootstrap: flagOff }).fresh).toBeUndefined();
     expect(planned({ fresh, bootstrap: noContext }).fresh).toBeUndefined();
     expect(freshTextLimits('reply', 'dock', BOOTSTRAP_ALL_OFF, PAGE_ID)).toBeNull();
   });
 
   it('the tail is cut to N of the bootstrap and to its characters', () => {
-    expect(freshTextLimits('reply', 'dock', BOOTSTRAP_PILOT_ON, PAGE_ID)).toEqual({ maxItems: BOOTSTRAP_PILOT_ON.limits.freshTextMaxItems, maxChars: BOOTSTRAP_PILOT_ON.limits.freshTextMaxChars });
-    const small: Bootstrap = { ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, freshTextMaxItems: 2, freshTextMaxChars: 4 } };
+    expect(freshTextLimits('reply', 'dock', BOOTSTRAP_PILOT_PAGES, PAGE_ID)).toEqual({ maxItems: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxItems, maxChars: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxChars });
+    const small: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: 2, freshTextMaxChars: 4 } };
     const fresh = tail([['fan', 'first'], ['model', 'second'], ['fan', 'third']]);
     const cut = planned({ fresh, bootstrap: small }).fresh;
     expect(cut?.messages.map((m) => m.text)).toEqual(['seco', 'thir']);
-    const huge: Bootstrap = { ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, freshTextMaxItems: 500, freshTextMaxChars: 90_000 } };
+    const huge: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: 500, freshTextMaxChars: 90_000 } };
     expect(freshTextLimits('reply', 'dock', huge, PAGE_ID)).toEqual({ maxItems: 60, maxChars: 5000 });
     expect(trimFreshTail(null, { maxItems: 60, maxChars: 5000 })).toBeNull();
     expect(trimFreshTail(fresh, null)).toBeNull();

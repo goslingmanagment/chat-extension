@@ -47,6 +47,7 @@ import {
 
 import { errorView } from '../../domain/errors';
 import { createI18n, createTranslator, resolveLocale, type LiveI18n, type Translator } from '../../domain/i18n';
+import { flagUsable } from '../../domain/ops/flags';
 import { IDLE, accountKeyOf, boundPageOf, currentAccountOf, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
 import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType } from './ports';
 import { hashOfRoute, routeOfHash } from './route';
@@ -545,7 +546,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     const debug = effectiveSettings()?.debug.enabled === true;
     const date = new Intl.DateTimeFormat('en-CA', { timeZone: AI_USAGE_LIMITS.defaultTimeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(clock.now()));
     const [audience, usage] = await Promise.all([
-      valueOf(bootstrap)?.flags['newcomers'] === true ? ask('newcomers.list', { pageId, windowHours: POPUP_NEWCOMERS_WINDOW_HOURS, cursor: null }) : Promise.resolve(null),
+      // «Новые» of the page the open chat's account is bound to: the page's own switch decides.
+      flagUsable(valueOf(bootstrap), pageId, 'newcomers') ? ask('newcomers.list', { pageId, windowHours: POPUP_NEWCOMERS_WINDOW_HOURS, cursor: null }) : Promise.resolve(null),
       debug ? ask('usage.get', { pageId, date, days: 1 }) : Promise.resolve(null),
     ]);
     if (disposed || generation !== sessionGeneration) return;

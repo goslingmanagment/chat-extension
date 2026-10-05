@@ -23,7 +23,8 @@ import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import { type StartOp } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
 
-import { flagUsable, type PersonaChoice } from './environment';
+import { type PersonaChoice } from './environment';
+import { flagUsable } from './flags';
 
 /** Fixed windows that are not settings (Fansly: Hi reads one page, a short recap 300 messages). */
 export const FIXED_WINDOWS = { hi: 25, recapShort: 300 } as const;

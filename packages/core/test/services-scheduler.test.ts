@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { OpViewSchema, TAB_EVENTS, chatKeyOf, type HubFrame, type IncomingFact, type OpView, type StartOp } from '@cg/contracts';
 import { applyOpDone, applyOpUpdate, mirrorFromView, type OpsEnvironment } from '@cg/core/domain/ops';
 import { ActionTokens, OPS_STORE_KEY, OpScheduler, RecapProfileSaver, SAVE_OUTCOMES_KEPT, profileSaveDelay, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
-import { BOOTSTRAP_PILOT_ON, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
@@ -94,7 +94,7 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
     tokens,
     presence,
     hooks: counters,
-    env: { session, bootstrap: BOOTSTRAP_PILOT_ON, persona: () => persona, debug: false, settingsLoaded: true, ...over.env },
+    env: { session, bootstrap: BOOTSTRAP_PILOT_PAGES, persona: () => persona, debug: false, settingsLoaded: true, ...over.env },
     scheduler: undefined as unknown as OpScheduler,
     start: (tab, start, opts) => {
       const { actionToken } = tokens.issue(tab, 'generate', start.surface);

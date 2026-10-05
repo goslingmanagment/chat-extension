@@ -11,10 +11,18 @@ import { SENT_REPORT_TRIES, contractFactsOf, forwardHostFacts, knownBootstrap, l
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
 const PROFILE = { adapterVersion: '0.2.0', modules: { notificationEntry: 'a', composables: 'b', messages: 'c', accounts: 'd', inbox: 'e' } };
 
-function bootstrap(over: { flags?: Record<string, boolean>; previewSend?: boolean; profiles?: unknown[]; navSec?: number } = {}): Bootstrap {
+/**
+ * A bootstrap as the hub answers it for a pilot switched on page by page: the page's own features carry the
+ * switches, the top-level `flags` (the owner's `"*"` row) are whatever the test says — and decide nothing.
+ */
+function bootstrap(over: { off?: readonly string[]; star?: Record<string, boolean>; capabilities?: readonly string[]; profiles?: unknown[]; navSec?: number; pages?: number } = {}): Bootstrap {
+  const features = Object.fromEntries(
+    ['wsTap', 'previewSend', 'previewSendMarkAiGenerated'].map((flag) => [flag, (over.off ?? []).includes(flag) ? { available: false, reason: 'flag_off' } : { available: true }]),
+  );
   return {
-    flags: { wsTap: true, previewSend: true, previewSendMarkAiGenerated: true, ...over.flags },
-    pages: [{ pageId: 11, features: { previewSend: { available: over.previewSend ?? true } } }],
+    flags: { wsTap: false, previewSend: false, previewSendMarkAiGenerated: false, ...over.star },
+    pages: Array.from({ length: over.pages ?? 1 }, (_unused, index) => ({ pageId: 11 + index, pageLabel: `page-${index}`, platform: 'onlyfans', features })),
+    capabilities: over.capabilities ?? ['preview-send-custody-v1'],
     limits: { navInsertTimeoutSec: over.navSec ?? 20, previewSendReceiptProfiles: over.profiles ?? [PROFILE] },
   } as unknown as Bootstrap;
 }
@@ -82,20 +90,24 @@ describe('the bootstrap → part B of the host adapter', () => {
     expect(liveConfigOf(null)).toEqual({ wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] });
   });
 
-  it('[X8-01] the owner’s flags and the receipt profiles of `limits` go to the adapter as they are; X8 needs the flag and a page it is available on', () => {
+  it('[X8-01] each part is on while its switch is usable on at least one granted page — the page\'s own feature, never the top-level flags; the receipt profiles of `limits` go as they are', () => {
+    // The pilot switched on page by page: every top-level flag false, and the adapter is on.
     expect(liveConfigOf(bootstrap())).toEqual({ wsTap: true, previewSend: true, markAiGenerated: true, receiptProfiles: [PROFILE] });
-    expect(liveConfigOf(bootstrap({ previewSend: false })).previewSend).toBe(false);
-    expect(liveConfigOf(bootstrap({ flags: { previewSend: false } })).previewSend).toBe(false);
-    expect(liveConfigOf(bootstrap({ flags: { wsTap: false, previewSendMarkAiGenerated: false }, profiles: [] }))).toMatchObject({ wsTap: false, markAiGenerated: false, receiptProfiles: [] });
-    // An unknown flag name is «off», never «on».
-    expect(liveConfigOf({ ...bootstrap(), flags: {} })).toMatchObject({ wsTap: false, previewSend: false, markAiGenerated: false });
+    // A switch the page's own row has off is off, whatever the owner's `"*"` row says.
+    expect(liveConfigOf(bootstrap({ off: ['previewSend'], star: { previewSend: true } })).previewSend).toBe(false);
+    expect(liveConfigOf(bootstrap({ off: ['wsTap', 'previewSendMarkAiGenerated'], star: { wsTap: true, previewSendMarkAiGenerated: true }, profiles: [] }))).toMatchObject({ wsTap: false, markAiGenerated: false, receiptProfiles: [] });
+    // X8 also needs what the hub serves for it (`preview-send-custody-v1`).
+    expect(liveConfigOf(bootstrap({ capabilities: [] }))).toMatchObject({ wsTap: true, previewSend: false, markAiGenerated: true });
+    // No granted page, or pages that list no such feature: «off», never «on» — whatever `"*"` says.
+    expect(liveConfigOf(bootstrap({ pages: 0, star: { wsTap: true, previewSend: true, previewSendMarkAiGenerated: true } }))).toMatchObject({ wsTap: false, previewSend: false, markAiGenerated: false });
+    expect(liveConfigOf({ ...bootstrap(), pages: [{ pageId: 11, pageLabel: 'page-0', platform: 'onlyfans', features: {} }] } as unknown as Bootstrap)).toMatchObject({ wsTap: false, previewSend: false, markAiGenerated: false });
   });
 
   it('the adapter is configured once per change, and the deadline of «Открыть и вставить» is the bootstrap’s', async () => {
     const w = world();
     w.facts.configure(bootstrap());
     w.facts.configure(bootstrap());
-    w.facts.configure(bootstrap({ navSec: 30, flags: { previewSend: false } }));
+    w.facts.configure(bootstrap({ navSec: 30, off: ['previewSend'] }));
     w.facts.configure(null);
     await Promise.resolve();
     await Promise.resolve();
@@ -208,7 +220,7 @@ describe('what the adapter is told while the tab learns who is signed in', () =>
     expect(knownBootstrap(null, { s: 'idle' })).toBeNull();
   });
 
-  it('a tab that starts signed in configures the adapter once, with the bootstrap’s flags — no «off» before it', () => {
+  it('a tab that starts signed in configures the adapter once, with the bootstrap’s switches — no «off» before it', () => {
     const w = world();
     for (const known of [knownBootstrap(undefined, { s: 'idle' }), knownBootstrap({ epoch: 3 }, { s: 'loading' }), knownBootstrap({ epoch: 3 }, ready)]) {
       if (known !== undefined) w.facts.configure(known);

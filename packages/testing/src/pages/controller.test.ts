@@ -1165,10 +1165,27 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     const w = await open();
     expect(text(w, row(w, 'spenders')?.value)).toBe('включён');
     world?.client.dispose();
-    const off = workingState();
-    off.bootstrap = { ...off.bootstrap, flags: { ...off.bootstrap.flags, spenders: false } };
-    const w2 = await open({ state: off });
+    // The page's own row decides — never the top-level flags, which are all false in a pilot switched on page by page.
+    expect(Object.values(workingState().bootstrap.flags).some(Boolean)).toBe(false);
+    const featureOff = (reason: string): ReturnType<typeof workingState> => {
+      const state = workingState();
+      state.bootstrap = { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => ({ ...page, features: { ...page.features, spenders: { available: false, reason } } })) };
+      return state;
+    };
+    const w2 = await open({ state: featureOff('flag_off') });
     expect(text(w2, row(w2, 'spenders')?.value)).toBe('выключен владельцем');
+    expect(row(w2, 'spenders')?.note ?? null).toBeNull();
+    world?.client.dispose();
+    // Another reason than the flag itself is said in its own words: the owner's master switch is off for the page.
+    const w3 = await open({ state: featureOff('disabled') });
+    expect(text(w3, row(w3, 'spenders')?.value)).toBe('выключен владельцем');
+    expect(text(w3, row(w3, 'spenders')?.note)).toBe('ChatGoose выключен для этой страницы');
+    world?.client.dispose();
+    // `"*"` on and the page's own row off: the page still wins.
+    const starOn = featureOff('flag_off');
+    starOn.bootstrap = { ...starOn.bootstrap, flags: { ...starOn.bootstrap.flags, spenders: true } };
+    const w4 = await open({ state: starOn });
+    expect(text(w4, row(w4, 'spenders')?.value)).toBe('выключен владельцем');
   });
 
   it('[ST-031] the sound row: how many tabs listen and the last signal; no tab; both sounds off', async () => {

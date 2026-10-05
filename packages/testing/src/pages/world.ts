@@ -7,9 +7,12 @@
 
 import {
   ANCHOR_IDS,
+  CLIENT_FEATURE_FLAG_NAMES,
+  CLIENT_HUB_CAPABILITY_NAMES,
   CONTRACTS_VERSION,
   DEFAULT_SETTINGS,
   HOST_CAPABILITIES,
+  type ClientFeatureFlag,
   type ClipboardResult,
   type ColorScheme,
   type ExtensionPage,
@@ -28,6 +31,8 @@ import { NOW, createFakeCatalog, ctxOf, iso, uuid } from '../scenarios/app-clien
 import { FakePageBackground, type BackgroundState, type SeenAccountFixture } from './background';
 
 export const PAGES_NOW = NOW;
+/** The switches the working shift's pages have off (X8 is switched on by the owner only after its checklist). */
+export const PAGES_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated'];
 export const PAGES_VERSION = '0.4.3';
 /** The stand's ChatSpace origin: only a name for the host-access check, nothing is fetched. */
 export const PAGES_HOST_ORIGIN = 'https://chatspace.example.test';
@@ -92,7 +97,10 @@ export function workingState(now: number = PAGES_NOW): BackgroundState {
     { account: account('1004', '3006', 'anna_m', 'Anna M'), lastSeenAt: iso(now - 50 * HOUR), openTabs: 0 },
   ];
   const first = accounts[0] as SeenAccountFixture;
-  const page = (pageId: number, pageLabel: string, title: string, creator: string) => ({ pageId, pageLabel, title, platform: 'onlyfans', platformAccountId: creator, bindingRevision: 2, features: {} });
+  // A pilot as the owner switches it on: a row per page (the page's own `features` say what works there), the
+  // owner's `"*"` row empty — so every top-level flag is false, and a page that reads them shows everything off.
+  const features = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, PAGES_FLAGS_OFF.includes(flag) ? { available: false, reason: 'flag_off' } : { available: true }]));
+  const page = (pageId: number, pageLabel: string, title: string, creator: string) => ({ pageId, pageLabel, title, platform: 'onlyfans', platformAccountId: creator, bindingRevision: 2, features });
   return {
     settings: {
       ...DEFAULT_SETTINGS,
@@ -118,7 +126,7 @@ export function workingState(now: number = PAGES_NOW): BackgroundState {
       identity: { userId: 7, username: 'chatter1', role: 'chatter', tokenClient: 'chat-extension' },
       pages: [page(11, 'loravie-vip', 'LoraVie VIP', '3003'), page(12, 'loravie-free', 'LoraVie Free', '3004'), page(13, 'lora-reels', 'Lora Reels', '3005'), page(14, 'anna-m', 'Anna M', '3006')],
       bindingsByHost: {},
-      flags: { insertion: true, freshText: true, newcomers: true, spenders: true, stats: true, preview: true, previewSend: false, sound: true },
+      flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, false])),
       limits: {
         freshTextMaxItems: 60,
         freshTextMaxChars: 5000,
@@ -133,7 +141,7 @@ export function workingState(now: number = PAGES_NOW): BackgroundState {
         dispatchTicketSec: 10,
         previewSendReceiptProfiles: [],
       },
-      capabilities: ['context-v1', 'audience-new-v1'],
+      capabilities: CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'client-health-perf-v1'),
     },
     catalog: {
       personas: [

@@ -84,7 +84,7 @@ export interface MessageGate {
   readonly fact: IncomingFact;
   readonly now: number;
   readonly sound: SettingsV1['sound'];
-  /** The owner's `sound` switch from bootstrap; null — unknown (not signed in): message sound does not need the hub. */
+  /** The owner's `sound` switch of the page the fact's account is bound to; null — unknown (not signed in): message sound does not need the hub. */
   readonly ownerSwitch: boolean | null;
   readonly hostPermission: boolean;
   readonly phase: FactPhase;
