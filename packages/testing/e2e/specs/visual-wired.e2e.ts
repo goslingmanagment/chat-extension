@@ -495,6 +495,38 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       expect(await oursExists('modal', '.cg-sp')).toBe(false);
     });
 
+    it('[SP-029] [SP-047] «Ждут ответа» whose hub queue did not read: the error with its code and «Повторить» over the board’s own rows, named as the local filter; «Повторить» brings the hub’s queue', async function () {
+      this.timeout(240_000);
+      await leaveField();
+      await browser.keys([...PANEL, 'm']);
+      await browser.waitUntil(() => oursExists('modal', '.cg-sp'), { timeout: 20_000, timeoutMsg: 'the board did not open' });
+      // The statistics column was left unfolded over the list: back to the list.
+      if (await oursExists('modal', '.cg-stx')) await pressOurs('modal', '.cg-sp button', /^Свернуть к списку/);
+      await waitOursText('modal', 'Fan Alder', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
+      // The hub does not answer the queue this once.
+      await hub().command({ op: 'scriptHttp', match: 'route', exchanges: [{ route: 'clientSpenderAwaitingReply', request: {}, response: { status: 504, body: { error: 'gateway_timeout' } } }] });
+      await pressOurs('modal', '.cg-sp__tools button', /^Ждут ответа/);
+      await browser.waitUntil(() => oursExists('modal', '[data-cg-waiting-fallback]'), { timeout: 15_000, timeoutMsg: 'the board did not say that the queue was not read' });
+      const said = await oursText('modal', '[data-cg-waiting-fallback]');
+      expect(said).toMatch(/ChatGoose · CG-/);
+      expect(said).toContain('локальный фильтр');
+      // The board's own rows are still on screen under the notice: the stand's fans who wrote last.
+      expect(await oursExists('modal', '.cg-bd [data-cg-fan]')).toBe(true);
+      facts['waitingFallback'] = { code: await ours('modal', '[data-cg-waiting-fallback]').getAttribute('data-cg-waiting-fallback') };
+      await look('board-07-waiting-fallback', {
+        check: async () => {
+          await inWindow('modal', '.cg-sp');
+          await inWindow('modal', '[data-cg-waiting-fallback]');
+        },
+      });
+      // «Повторить»: the hub answers, the list is its queue, the notice is gone.
+      await pressOurs('modal', '[data-cg-waiting-fallback] button', /^Повторить/);
+      await browser.waitUntil(async () => !(await oursExists('modal', '[data-cg-waiting-fallback]')), { timeout: 15_000, timeoutMsg: 'the notice stayed after the queue was read' });
+      await pressOurs('modal', '.cg-sp__tools button', /^Все/);
+      await closeAll();
+      expect(await oursExists('modal', '.cg-sp')).toBe(false);
+    });
+
     it('[NEW-01] [NEW-05] a preview’s result in the dock of the chat «Открыть и вставить» opened: the question about the person’s own text, the rest of the result, a part the person sent', async function () {
       this.timeout(300_000);
       // The person left a draft in that fan's chat earlier.

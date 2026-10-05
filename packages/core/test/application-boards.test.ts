@@ -603,6 +603,63 @@ describe('[SP-006] [SP-018] [SP-019] [SP-020] [SP-021] period, search, filters, 
     expect(cursors[1]).not.toBeNull();
     expect(cursors[2]).not.toBe(cursors[1]);
   });
+  it('[SP-029] [SP-047] the queue read fails: the board shows its own filter over the loaded rows AND says so — the read’s error with its code and «Повторить», never a list that only looks like the hub’s queue; «Повторить» reads the queue again', async () => {
+    const h = await harness({ queuePageSize: 2 });
+    await h.dispatch(open('spenders'));
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toBeNull();
+    h.bg.failNext('spenders.queue', { code: 'CG-HUB-TIMEOUT', detail: 'HTTP 504 • gateway_timeout' });
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    let vm = h.boards.spenders.getSnapshot(BOARD);
+    // The fallback is named: the error of that very read, and the way out.
+    expect(vm.waitingFallback).toMatchObject({ error: { code: 'CG-HUB-TIMEOUT', title: 'Хаб не ответил вовремя', detail: 'HTTP 504 • gateway_timeout' }, retry: { type: 'ReloadView', selector: BOARD } });
+    // What is under it is the board's own «ждёт ответа» among the rows it has loaded — not the hub's five over the whole
+    // page. Here that filter finds nobody: without the notice the board would simply say «никого не нашли».
+    const local = vm.shelves.flatMap((shelf) => shelf.rows);
+    expect(local.every((row) => row.waiting)).toBe(true);
+    expect(vm.view).toEqual(local.length === 0 ? { s: 'empty', why: { key: 'spenders.empty' } } : expect.objectContaining({ s: 'partial' }));
+    expect(vm.footer.shown).toBe(local.length);
+    expect(vm.canLoadMore).toBe(false);
+    expect(vm.footer.total).not.toBe(5);
+    expect(count(h, 'spenders.queue')).toBe(1);
+    // Nothing is asked again by itself (ER-025): the person presses «Повторить».
+    await h.advance(60_000);
+    expect(count(h, 'spenders.queue')).toBe(1);
+    // The retry fails as well: the notice stays, with the error of the newest read.
+    h.bg.failNext('spenders.queue', { code: 'CG-HUB-UNAVAILABLE' });
+    const release = h.bg.hold('spenders.queue');
+    const retried = h.dispatch(vm.waitingFallback?.retry ?? open('spenders'));
+    await h.flush();
+    // While the retry is on its way the list is still the local one, and still says so.
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toMatchObject({ error: { code: 'CG-HUB-TIMEOUT' } });
+    release();
+    await retried;
+    vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(vm.waitingFallback).toMatchObject({ error: { code: 'CG-HUB-UNAVAILABLE' } });
+    expect(count(h, 'spenders.queue')).toBe(2);
+    // The hub answers: the list is the hub's queue over the whole page, and the notice is gone.
+    await h.dispatch(vm.waitingFallback?.retry ?? open('spenders'));
+    vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(vm.waitingFallback).toBeNull();
+    expect(vm.footer).toMatchObject({ loaded: 2, total: 5 });
+    expect(vm.canLoadMore).toBe(true);
+    // Another filter is not the queue's business: with «Все» pressed nothing is said even after a failed read.
+    h.bg.failNext('spenders.queue', { code: 'CG-HUB-TIMEOUT' });
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toMatchObject({ error: { code: 'CG-HUB-TIMEOUT' } });
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'all' });
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toBeNull();
+  });
+
+  it('[SP-047] «Ждут ответа» with the statistics switched off for the page is the board’s own filter by design: no read, no error, no notice', async () => {
+    const h = await harness({ config: { pageFlags: { [PAGE.pageLabel]: { stats: false } } } });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    const vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(count(h, 'spenders.queue')).toBe(0);
+    expect(vm.waitingFallback).toBeNull();
+    expect(vm.shelves.flatMap((shelf) => shelf.rows).every((row) => row.waiting)).toBe(true);
+  });
+
   it('[SP-047] a cursor the hub no longer takes (400 `cursor_invalid`) starts the walk over from the first page — once: no error card for it, and no loop of requests when the hub refuses again', async () => {
     const refused = { code: 'CG-HUB-REQUEST', detail: 'HTTP 400 • bad_request/cursor_invalid' } as const;
     const cursorsOf = (h: Harness): (string | null)[] => h.bg.requests.filter((r) => r.type === 'spenders.queue').map((r) => (r.payload as { cursor: string | null }).cursor);

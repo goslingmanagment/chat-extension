@@ -339,6 +339,41 @@ describe('Spenders board: states of the source', () => {
     expect(ui.$$('.cg-vlist__inner [data-cg-fan]').length).toBeGreaterThan(0);
   });
 
+  it('[SP-029] [SP-047] «Ждут ответа» whose hub queue did not read (1.5.0): the error card with its code and «Повторить» stands over the list, a line says the list below is the local filter — and the rows stay on screen', async () => {
+    const retry = { type: 'ReloadView', selector: { of: 'spenders.board' } } as const;
+    ui = await mountBoardSettled('spenders', boardOnly({ ...boardOf(ctx, BOARD_FANS), waitingFallback: { error: cgError(ctx, 'CG-HUB-TIMEOUT', { detail: 'HTTP 504 • gateway_timeout' }), retry } }));
+    const notice = ui.$('.cg-bd__banner[data-cg-waiting-fallback]') as HTMLElement;
+    expect(notice.getAttribute('data-cg-waiting-fallback')).toBe('CG-HUB-TIMEOUT');
+    const card = notice.querySelector('.cg-card') as HTMLElement;
+    expect(card.getAttribute('data-cg-code')).toBe('CG-HUB-TIMEOUT');
+    expect(textOf(card.querySelector('.cg-card__code'))).toBe('ChatGoose · CG-HUB-TIMEOUT');
+    expect(textOf(card)).toContain('HTTP 504 • gateway_timeout');
+    // The list is named for what it is.
+    expect(textOf(notice.querySelector('.cg-sp__line'))).toBe('Ниже — не очередь хаба, а локальный фильтр: только те строки доски, что уже загружены.');
+    expect(notice.querySelector('.cg-sp__line')?.getAttribute('role')).toBe('status');
+    // …and is still there, under the notice.
+    expect(ui.$$('.cg-vlist__inner [data-cg-fan]').length).toBeGreaterThan(0);
+    await flush(() => (card.querySelector('.cg-btn') as HTMLElement).click());
+    expect(ui.actions().at(-1)).toEqual(retry);
+    ui.unmount();
+    // The local filter found nobody: the notice stands over the empty words, so «никого не нашли» is never read as «никто не ждёт».
+    ui = await mountBoardSettled('spenders', boardOnly({ ...boardOf(ctx, []), view: views.empty({ key: 'spenders.empty' }), waitingFallback: { error: cgError(ctx, 'CG-HUB-TIMEOUT'), retry } }));
+    expect(ui.$('.cg-bd__banner[data-cg-waiting-fallback] .cg-card')?.getAttribute('data-cg-code')).toBe('CG-HUB-TIMEOUT');
+    expect(ui.text('.cg-bd .cg-state--empty')).toBe('Никого не нашли. Проверьте фильтр или поиск.');
+    ui.unmount();
+    // Without the field — or with null — a board is as it always was.
+    ui = await mountBoardSettled('spenders', boardOnly({ ...boardOf(ctx, BOARD_FANS), waitingFallback: null }));
+    expect(ui.$('[data-cg-waiting-fallback]')).toBeNull();
+    expect(ui.$('.cg-bd__banner .cg-sp__line')).toBeNull();
+  });
+
+  it('[SP-043] «Ждут ответа» without the hub queue says it in English too', async () => {
+    const en = ctxOf({ lang: 'en', platform: 'mac' });
+    ui = await mountBoardSettled('spenders', boardOnly({ ...boardOf(en, BOARD_FANS), waitingFallback: { error: cgError(en, 'CG-HUB-TIMEOUT'), retry: { type: 'ReloadView', selector: { of: 'spenders.board' } } } }), { language: 'en' });
+    expect(ui.text('.cg-bd__banner .cg-sp__line')).toBe('Below is not the hub’s queue but a local filter: only the rows of the board that are already loaded.');
+    expect(textOf(ui.$('.cg-bd__banner[data-cg-waiting-fallback] .cg-btn'))).toBe('Retry');
+  });
+
   it('[SP-043] the board speaks the chosen language', async () => {
     ui = await mountBoardSettled('spenders', 'board-list', { language: 'en' });
     expect(ui.$$('.cg-sp__tools .cg-flt').map((filter) => filter.firstChild?.textContent)).toEqual(['All', 'Awaiting reply', 'New']);

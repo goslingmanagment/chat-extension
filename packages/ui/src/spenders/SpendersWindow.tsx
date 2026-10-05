@@ -161,6 +161,16 @@ export function SpendersWindow(): JSX.Element {
   );
 }
 
+// The two narrow-window rules (their notes stand here and not in the sheet: a comment inside the string ships
+// with the chunk, and the Spenders surface has a budget — packages/testing/src/boards/size.test.ts).
+//
+// ≤ 1120 px — the browser's zoom of 150–200 % on a laptop (ui-design §11). The list needs about 400 px to keep
+// its columns apart; a preview no longer leaves that next to the statistics: while a preview is open the
+// statistics column gives way (S still opens the statistics in full; closing the preview brings the column back).
+//
+// ≤ 860 px — the list and the preview do not fit side by side either: one column, read top to bottom — the list
+// in a window of its own, then the preview, then the statistics. The column scrolls; a list or a feed at its end
+// hands the wheel on to it. The header puts the period tabs on a line of their own.
 export const SPENDERS_CSS = `
 .cg-sp__cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; }
 .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 420px 264px; }
@@ -171,21 +181,10 @@ export const SPENDERS_CSS = `
   .cg-sp__cols { grid-template-columns: minmax(0, 1fr) 240px; }
   .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px 240px; }
 }
-/*
- * A narrow window — the browser's zoom of 150–200 % on a laptop (ui-design §11). The list needs about 400 px
- * to keep its columns apart. Up to 1120 px a preview no longer leaves that next to the statistics: while a
- * preview is open the statistics column gives way (S still opens the statistics in full; closing the preview
- * brings the column back).
- */
 @media (max-width: 1120px) {
   .cg-sp__cols.is-preview { grid-template-columns: minmax(0, 1fr) 392px; }
   .cg-sp__cols.is-preview > .cg-st { display: none; }
 }
-/*
- * Up to 860 px the list and the preview do not fit side by side either: one column, read top to bottom — the
- * list in a window of its own, then the preview, then the statistics. The column scrolls; a list or a feed at
- * its end hands the wheel on to it. The header puts the period tabs on a line of their own.
- */
 @media (max-width: 860px) {
   .cg-sp__cols, .cg-sp__cols.is-preview { display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: thin; }
   .cg-sp__cols > * { flex: none; }
