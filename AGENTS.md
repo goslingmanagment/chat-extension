@@ -86,11 +86,13 @@ a boundary you need to cross is a design question, not a lint exception.
   mechanism. Headless Firefox driven by geckodriver (`pnpm e2e`, `pnpm perf`)
   is exempt.
 - `pnpm release <command>` — cutting a release (`docs/release.md`). `status`,
-  `version`, `note`, `site`, `build`, `preflight` are local. `sign`, `publish`,
+  `version`, `note`, `site`, `build`, `preflight` are local (`preflight
+  --online` also reads origin, the served feed and the production hub's
+  health). `sign`, `publish`,
   `pages`, `tag`, `announce`, `rollback` leave the machine: without
-  `--confirm <version>` they only print their plan. An agent never passes
-  `--confirm` and never runs `preflight --online` (it reads the production
-  hub): a release is the owner's.
+  `--confirm <version>` they only print their plan. `--confirm` is the
+  owner's word: an agent passes it only when the owner asked for that very
+  step.
 - `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
   `pnpm e2e` inside the pinned Firefox image with no network (needs Docker).
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
