@@ -28,6 +28,7 @@ import {
   EMPTY_QUEUE,
   NO_FILTERS,
   OUTSIDE_SHELF_ID,
+  UNATTRIBUTED_SHELF_ID,
   appendQueuePage,
   archiveLag,
   boardCommand,
@@ -57,6 +58,7 @@ import {
   shelfTotals,
   spenderRow,
   spenderRows,
+  orderedTiers,
   statsModel,
   viewBoard,
   type BoardKey,
@@ -580,15 +582,51 @@ describe('[SP-044] [SP-045] [SP-046] [SP-048] statistics are the hub numbers, wi
     const model = statsModel(stats, new Map([['shelf-600-plus', 31_480_000]]));
     expect(model.shelves.map((shelf) => [shelf.id, shelf.fans, shelf.period, shelf.lifetime])).toEqual([
       ['shelf-600-plus', 31, 40_000_000, 31_480_000],
-      ['shelf-0-25', 1100, 54_350_000, null],
+      ['shelf-0-25', 1100, 53_100_000, null],
       [OUTSIDE_SHELF_ID, 109, 0, null],
+      [UNATTRIBUTED_SHELF_ID, 0, 1_250_000, null],
     ]);
-    const [whale, micro, outside] = model.shelves.map((shelf) => shelf.share);
+    const [whale, micro, outside, unattributed] = model.shelves.map((shelf) => shelf.share);
     expect(whale).toBeCloseTo(40 / 94.35, 5);
-    expect(micro).toBeCloseTo(54.35 / 94.35, 5);
+    expect(micro).toBeCloseTo(53.1 / 94.35, 5);
     expect(outside).toBe(0);
+    // A sliver of the window's money is still a bar one can see.
+    expect(unattributed).toBe(0.04);
     const tiny = statsModel({ ...stats, tiers: [{ ...stats.tiers[0]!, windowGrossMills: 1_000 }, { ...stats.tiers[1]!, windowGrossMills: 99_000_000 }] });
-    expect(tiny.shelves[0]?.share).toBe(0.04);
+    expect(tiny.shelves.find((shelf) => shelf.id === 'shelf-0-25')?.share).toBe(0.04);
+  });
+
+  it('[SP-045] the hub’s two remainder tiers — both without bounds — are two rows, told by their keys; the table runs from the richest tier down whatever order the hub sent', () => {
+    // As the hub sends them: tiers ascending, then `untiered` and `unattributed`.
+    expect(stats.tiers.map((tier) => [tier.key, tier.minMills, tier.maxMills])).toEqual([
+      ['0-25', 10, 25_000],
+      ['600-plus', 600_000, null],
+      ['untiered', null, null],
+      ['unattributed', null, null],
+    ]);
+    const model = statsModel(stats);
+    expect(model.shelves.map((shelf) => [shelf.id, shelf.remainder ?? null])).toEqual([
+      ['shelf-600-plus', null],
+      ['shelf-0-25', null],
+      [OUTSIDE_SHELF_ID, 'untiered'],
+      [UNATTRIBUTED_SHELF_ID, 'unattributed'],
+    ]);
+    // No two rows share an id (a list key), though two of them share their — missing — bounds.
+    expect(new Set(model.shelves.map((shelf) => shelf.id)).size).toBe(model.shelves.length);
+    expect(model.shelves.filter((shelf) => shelf.range.fromMills === null && shelf.range.toMills === null)).toHaveLength(2);
+
+    const tier = (key: string, minMills: number | null, maxMills: number | null = null) => ({ key, label: key, minMills, maxMills, members: 1, windowPayers: 1, windowGrossMills: 1_000 });
+    const shuffled = [tier('unattributed', null), tier('25-50', 25_000, 50_000), tier('someday', null), tier('untiered', null), tier('600-plus', 600_000), tier('below', null, 10), tier('0-25', 10, 25_000), tier('150-350', 150_000, 350_000)];
+    expect(orderedTiers(shuffled).map((item) => item.key)).toEqual(['600-plus', '150-350', '25-50', '0-25', 'below', 'untiered', 'unattributed', 'someday']);
+    // A remainder is told by its key alone: a tier that merely lacks bounds is a row of its own key, never «без тира».
+    const unknown = statsModel({ ...stats, tiers: [tier('someday', null), tier('untiered', null)] });
+    expect(unknown.shelves.map((shelf) => [shelf.id, shelf.remainder ?? null])).toEqual([
+      [OUTSIDE_SHELF_ID, 'untiered'],
+      ['shelf-someday', null],
+    ]);
+    // An older hub that sends one remainder, or none: nothing is invented.
+    expect(statsModel({ ...stats, tiers: stats.tiers.slice(0, 3) }).shelves.map((shelf) => shelf.id)).toEqual(['shelf-600-plus', 'shelf-0-25', OUTSIDE_SHELF_ID]);
+    expect(statsModel({ ...stats, tiers: [] }).shelves).toEqual([]);
   });
 
   it('[SP-046] [SP-048] silence buckets, «нет данных» and new payers come from the hub; an incomplete past says «первая наблюдённая»', () => {

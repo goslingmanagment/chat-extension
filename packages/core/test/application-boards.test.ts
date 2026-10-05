@@ -620,7 +620,11 @@ describe('[SP-044] [SP-049] statistics come after the ranking and fail on their 
     expect(vm.stamp).toEqual({ asOf: iso(NOW_MS), coverage: 'complete' });
     expect(vm.days).toHaveLength(30);
     // The board cut at 1000 cannot vouch for a shelf's lifetime sum… unless it holds the whole shelf.
-    expect(vm.shelves.map((shelf) => shelf.id)).toEqual(['shelf-600-plus', 'shelf-0-25', 'shelf-outside']);
+    expect(vm.shelves.map((shelf) => shelf.id)).toEqual(['shelf-600-plus', 'shelf-0-25', 'shelf-outside', 'shelf-unattributed']);
+    // The hub's two remainder tiers are two rows, each named by what it is.
+    expect(vm.shelves.map((shelf) => shelf.remainder ?? null)).toEqual([null, null, 'untiered', 'unattributed']);
+    // «Без тира» is the board's «вне полок» shelf; «не распределено» has no fans behind it: a click reveals nothing.
+    expect(await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-unattributed' })).toMatchObject({ ok: true, outcome: 'noop' });
     await h.dispatch({ type: 'SetStatsExpanded', expanded: true });
     expect(h.boards.spenders.getSnapshot(STATS).expanded).toBe(true);
   });

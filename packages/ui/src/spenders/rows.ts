@@ -5,7 +5,7 @@
 // shelf but the first. An empty shelf is not drawn. Pure: the Board renders
 // it, the tests measure it.
 
-import { type I18n, type ShelfVM, type SpenderRowVM } from '@cg/contracts/vm';
+import { type I18n, type ShelfVM, type SpenderRowVM, type SpendersStatsVM } from '@cg/contracts/vm';
 
 export type BoardItem =
   | { readonly kind: 'gap'; readonly key: string }
@@ -78,4 +78,12 @@ export function shelfLabel(i18n: I18n, range: ShelfVM['range']): string {
   if (toMills === null) return i18n.t('spenders.shelf.from', { from });
   const to = i18n.formatMoneyMills(toMills, { zero: 'show' }).replace(/^\D+/, '');
   return i18n.t('spenders.shelf.range', { from, to });
+}
+
+/**
+ * A row of the statistics' tier table: a remainder is named by what it is — «Без тира», «Не распределено» (1.4.0;
+ * the hub sends both, and neither has bounds) — a tier by its bounds.
+ */
+export function statsShelfLabel(i18n: I18n, shelf: Pick<SpendersStatsVM['shelves'][number], 'range' | 'remainder'>): string {
+  return shelf.remainder === undefined ? shelfLabel(i18n, shelf.range) : i18n.t(`stats.shelf.${shelf.remainder}`);
 }

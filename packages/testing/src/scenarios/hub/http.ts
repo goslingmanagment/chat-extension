@@ -266,10 +266,12 @@ const stats: SpendersStats = {
     d7DeltaPct: 2.19,
   },
   avgCheckMills: 58_623,
+  // As the hub sends them: the tiers ascending, then its two remainder tiers — both without bounds.
   tiers: [
+    { key: '0-25', label: '$0–25', minMills: 10, maxMills: 25_000, members: 1100, windowPayers: 500, windowGrossMills: 53_100_000 },
     { key: '600-plus', label: '$600+', minMills: 600_000, maxMills: null, members: 31, windowPayers: 28, windowGrossMills: 40_000_000 },
-    { key: '0-25', label: '$0–25', minMills: 10, maxMills: 25_000, members: 1100, windowPayers: 500, windowGrossMills: 54_350_000 },
     { key: 'untiered', label: 'Без тира', minMills: null, maxMills: null, members: 109, windowPayers: 112, windowGrossMills: 0 },
+    { key: 'unattributed', label: 'Не распределено', minMills: null, maxMills: null, members: 0, windowPayers: 0, windowGrossMills: 1_250_000 },
   ],
   silence: { d8to21: { fans: 120, lifetimeGrossMills: 9_000_000 }, over21: { fans: 300, lifetimeGrossMills: 15_000_000 }, unknown: { fans: 12, lifetimeGrossMills: 400_000 } },
   newPayers: { count: 57, firstPurchaseKnown: true },
