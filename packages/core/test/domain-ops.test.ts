@@ -425,15 +425,19 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
   it('[AI-134] Fix, Coach, short Recap and debug carry their own fields and header', () => {
     const fix = buildStreamRequest(startOf({ feature: 'fix', draft: { text: 'my draft', revision: 4, digest: 'aaaaaaaa' } }), ctx);
     expect(fix.ok && fix.request.body.draftText).toBe('my draft');
-    const coach = buildStreamRequest(
-      startOf({ feature: 'coach', coach: { question: 'How?', preset: 'situation', history: [{ question: 'q', answer: 'a' }], attachDraft: 'mine' } }),
-      { ...ctx, debug: true },
-    );
+    const coach = buildStreamRequest(startOf({ feature: 'coach', coach: { question: 'How?', history: [{ question: 'q', answer: 'a' }], attachDraft: 'mine' } }), { ...ctx, debug: true });
     expect(coach.ok && coach.request).toMatchObject({
       feature: 'coach-chat',
       capabilities: ['debug-input-v1', 'context-v1', 'split-all-v1'],
-      body: { chatterQuestion: 'How?', preset: 'situation', coachHistory: [{ question: 'q', answer: 'a' }], draftText: 'mine' },
+      body: { chatterQuestion: 'How?', coachHistory: [{ question: 'q', answer: 'a' }], draftText: 'mine' },
     });
+    expect(coach.ok && coach.request.body.preset).toBeUndefined();
+    // A preset carries its question on the hub: the words that come with it (the chip's label, as the panel
+    // dispatches it) stay in our dialog — the hub answers 400 to a body that names both.
+    const preset = buildStreamRequest(startOf({ feature: 'coach', coach: { question: 'Что сейчас в чате?', preset: 'situation', history: [] } }), ctx);
+    expect(preset.ok && preset.request.body.preset).toBe('situation');
+    expect(preset.ok && 'chatterQuestion' in preset.request.body).toBe(false);
+    expect(preset.ok && 'coachHistory' in preset.request.body).toBe(false);
     const recap = buildStreamRequest(startOf({ feature: 'recap-short' }), ctx);
     expect(recap.ok && recap.request.body.summaryMode).toBe('short');
   });

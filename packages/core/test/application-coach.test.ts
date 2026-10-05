@@ -192,11 +192,15 @@ describe('coach: opening and the empty dialog', () => {
   it('[AI-081] the «разбор ситуации» chip asks with the preset: the hub holds its question, the dialog shows the chip\'s words', async () => {
     const h = await start();
     h.script(coachStream('СИТУАЦИЯ: фан остыл.\nЧТО УПУЩЕНО: вопрос про отпуск.\nСЛЕДУЮЩИЙ ХОД: спросить.\nРИСК: уйдёт.'));
-    const receipt = await h.generate('coach', { preset: 'situation' });
+    // The click as the panel dispatches it: the chip's own words and its preset (ui overlays/coach `ask(chip.question, chip.preset)`).
+    const chip = h.coach().chips[0];
+    expect(chip).toMatchObject({ question: 'Что сейчас в чате?', preset: 'situation' });
+    const receipt = await h.generate('coach', { question: chip?.question ?? '', preset: 'situation' });
     expect(receipt).toMatchObject({ ok: true, outcome: 'started' });
     await h.finish();
     const started = h.bg.callsOf('op.start')[0] as { coach: { question?: string; preset?: string; history: unknown[] } };
-    expect(started.coach).toEqual({ preset: 'situation', history: [] });
+    expect(started.coach).toEqual({ question: 'Что сейчас в чате?', preset: 'situation', history: [] });
+    // The hub gets the preset alone: it answers 400 to a body that names both («preset forbids chatterQuestion»).
     expect(h.bg.hub.streams[0]?.body).toMatchObject({ preset: 'situation' });
     expect(h.bg.hub.streams[0]?.body.chatterQuestion).toBeUndefined();
     const turn = lastTurn(h);

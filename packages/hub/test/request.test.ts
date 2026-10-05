@@ -87,19 +87,24 @@ describe('[AI-142] the request body of each feature', () => {
     expect(full.body.summaryMode).toBeUndefined();
   });
 
-  it('[AI-142] Coach: question, preset, history and the attached reply; Split only with split-all-v1', () => {
+  it('[AI-142] Coach: a question or the hub\'s preset (never both), history and the attached reply; Split only with split-all-v1', () => {
     const coach = build(
       op({
         feature: 'coach',
         tone: null,
-        coach: { question: 'How do I upsell?', preset: 'situation', history: [{ question: 'q1', answer: 'a1' }], attachDraft: 'my reply' },
+        coach: { question: 'How do I upsell?', history: [{ question: 'q1', answer: 'a1' }], attachDraft: 'my reply' },
       }),
     );
     expect(coach).toMatchObject({
       feature: 'coach-chat',
       capabilities: ['context-v1', 'split-all-v1'],
-      body: { chatterQuestion: 'How do I upsell?', preset: 'situation', coachHistory: [{ question: 'q1', answer: 'a1' }], draftText: 'my reply', replyMode: 'preferSplit' },
+      body: { chatterQuestion: 'How do I upsell?', coachHistory: [{ question: 'q1', answer: 'a1' }], draftText: 'my reply', replyMode: 'preferSplit' },
     });
+    expect(coach.body.preset).toBeUndefined();
+    // The preset's question lives on the hub («coach-chat preset forbids chatterQuestion», 400): the chip's words are not sent.
+    const preset = build(op({ feature: 'coach', tone: null, coach: { question: 'Что сейчас в чате?', preset: 'situation', history: [] } }));
+    expect(preset.body).toMatchObject({ preset: 'situation', coachHistory: [] });
+    expect('chatterQuestion' in preset.body).toBe(false);
   });
 
   it('[AI-142] debug mode asks for the prompt echo; the transport\'s limits decide the header', () => {
