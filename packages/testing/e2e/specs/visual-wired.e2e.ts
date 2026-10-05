@@ -432,6 +432,33 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await waitForChatReady(ACC, a1);
       await ready(a1);
     });
+
+    it('[RB-010] the port to the background is lost while the extension is the same instance: «Расширение не отвечает» with «Повторить»', async function () {
+      this.timeout(180_000);
+      /** The stand holds the tab's port down, or lets it through again (the TEST build's probe). */
+      const holdPort = (down: boolean): Promise<void> =>
+        browser.execute((isDown: boolean) => {
+          if (isDown) document.documentElement.setAttribute('data-cg-spike-port', 'down');
+          else document.documentElement.removeAttribute('data-cg-spike-port');
+        }, down);
+      // A change of the theme reaches the tab over the very port that is down: each look is set first, then the port is cut.
+      for (const theme of ['dark', 'light'] as const) {
+        await setLook({ theme, lang: 'ru' });
+        await noToasts();
+        await holdPort(true);
+        const lost = await dockIs((d) => d.banner === 'CG-RUNTIME-UNREACHABLE', 'the dock says the extension does not answer', 20_000);
+        facts['portLost'] = { status: lost.status, banner: lost.banner, view: lost.view };
+        await twoFrames();
+        await inWindow('dock', '.cg-dock');
+        await inWindow('dock', '.cg-banner');
+        const path = `${VISUAL_DIR}dock-24-port-lost-${theme}-ru.png`;
+        await shoot(path, true);
+        taken.push(path);
+        await holdPort(false);
+        await pressOurs('dock', '.cg-banner button', /^Повторить/);
+        await ready(a1);
+      }
+    });
   });
 
   describe('the windows and the panels', () => {

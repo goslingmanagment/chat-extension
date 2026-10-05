@@ -34,6 +34,8 @@ export interface TabRpcPort {
   onState(listener: (state: RpcConnection, tabSessionId: string | null) => void): () => void;
   state(): RpcConnection;
   tabSessionId(): string | null;
+  /** After `lost`: asks the background once more (the person's «Повторить»). The state stays `lost` until it answers. Absent — the client reconnects only by itself. */
+  reconnect?(): void;
 }
 
 /** A clock whose timers the composition root owns (tests advance it by hand). */

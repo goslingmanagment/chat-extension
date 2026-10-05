@@ -141,6 +141,15 @@ export class TabEnvironment {
     return this.connectionValue === 'reloaded';
   }
 
+  /**
+   * The port to the background is lost and its quick reconnects failed, while the extension is the same instance
+   * (CG-RUNTIME-UNREACHABLE): the tab keeps asking, and nothing can start until the background answers. Not an
+   * update — no reload of the tab is asked for.
+   */
+  get unreachable(): boolean {
+    return this.connectionValue === 'lost';
+  }
+
   page(pageId: number): BootstrapPage | null {
     const bootstrap = this.bootstrapValue;
     return bootstrap.s === 'ready' ? (bootstrap.value.pages.find((page) => page.pageId === pageId) ?? null) : null;
@@ -234,6 +243,9 @@ export class TabEnvironment {
 
   /** Reads everything again («Повторить» of the hub-down banner, a reconnect). */
   reload(): void {
+    // «Повторить» over a lost port: the background is asked again first. What is read below then fails at once
+    // (nothing is sent over a lost port), and everything is read anew when the port answers (`onState`).
+    if (this.connectionValue === 'lost') this.rpc.reconnect?.();
     this.generation += 1;
     const generation = this.generation;
     // A read that failed for the hub's or the transport's reasons is made again; «not bound» is an answer, not a failure.

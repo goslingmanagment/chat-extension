@@ -20,9 +20,11 @@ import { browser, expect } from '@wdio/globals';
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { backgroundState, setBackgroundIdleTimeout, suspendBackground, waitForBackgroundState } from '../support/background';
+import { clearDraft, composerText, typeDraft } from '../support/chat';
 import { assignPersona, installTestBuild, pageRpc, readReport, standUrl, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
 import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
+import { oursText, pressOurs } from '../support/ours';
 import { chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
 const { a: accountA } = STAND_IDS.accounts;
@@ -280,6 +282,79 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     await toPages();
     expect(await backgroundState()).toBe('running');
     await browser.url(testBuildPage('debug-journal.html'));
+  });
+
+  it('[RB-010] the tab’s port to the background is down while the extension is the very same instance: the dock says «Расширение не отвечает» with «Повторить», never «расширение обновилось, перезагрузите вкладку»; «Повторить» and the tab’s own beat reconnect it — the same tab, the same event page, no reload', async function () {
+    this.timeout(180_000);
+    /** The stand holds the tab's port down, or lets it through again (the TEST build's probe, tab/probe.ts). */
+    const holdPort = (down: boolean): Promise<void> =>
+      browser.execute((isDown: boolean) => {
+        if (isDown) document.documentElement.setAttribute('data-cg-spike-port', 'down');
+        else document.documentElement.removeAttribute('data-cg-spike-port');
+      }, down);
+    const startsLogged = async (): Promise<number> => {
+      await toPages();
+      const starts = (await exportedLogs()).filter((record) => record.scope === 'bg.lifecycle' && record.msg === 'background started').length;
+      await toStand();
+      return starts;
+    };
+    await toStand();
+    await dockIs((dock) => dock.status === 'ready' && dock.actions['reply'] === true, 'the dock is ready before the outage');
+    const tabDocument = (await readReport())?.startedAt;
+    const registrations = rpcOf(await readReport())?.registrations ?? 0;
+    const starts = await startsLogged();
+
+    // The port is cut and every quick attempt to open it again fails (100, 200, 400 ms): the tab gives up — for now.
+    await holdPort(true);
+    const lost = await dockIs((dock, report) => dock.banner === 'CG-RUNTIME-UNREACHABLE' && rpcOf(report)?.state === 'lost', 'the dock says the extension does not answer', 20_000);
+    // The line of a service that is away — with a retry, and every action off — not the card of an update.
+    expect(lost.dock).toMatchObject({ status: 'hub-down', view: 'offline', banner: 'CG-RUNTIME-UNREACHABLE', visible: true });
+    expect(Object.values(lost.dock?.actions ?? {}).some(Boolean)).toBe(false);
+    expect(lost.runtime).toBeUndefined();
+    const said = await oursText('dock');
+    expect(said).toContain('CG-RUNTIME-UNREACHABLE');
+    expect(said).toContain('Расширение не отвечает');
+    expect(said).toContain('нет связи с расширением, переподключаюсь');
+    expect(said).not.toContain('обновилось');
+    expect(said).not.toContain('Перезагрузить вкладку');
+    // The extension is the same instance and its event page never went anywhere.
+    await toPages();
+    expect(await backgroundState()).toBe('running');
+    await toStand();
+    // ChatSpace itself works as it did: the person types and nothing of ours is in the way.
+    await typeDraft('still here');
+    expect(await composerText(accountA, a1)).toBe('still here');
+    await clearDraft();
+    // «Повторить» while the background still cannot be reached: asked once more, nothing changes, nothing flickers into «ready».
+    await pressOurs('dock', '.cg-banner button', /^Повторить/);
+    await browser.pause(1500);
+    expect((await readReport())?.dock).toMatchObject({ status: 'hub-down', banner: 'CG-RUNTIME-UNREACHABLE' });
+    expect(rpcOf(await readReport())?.state).toBe('lost');
+
+    // The background can be reached again, and the person presses «Повторить»: the dock is back at once.
+    await holdPort(false);
+    await pressOurs('dock', '.cg-banner button', /^Повторить/);
+    const back = await dockIs((dock, report) => dock.status === 'ready' && dock.banner === null && rpcOf(report)?.state === 'ready' && dock.actions['reply'] === true, 'the dock came back on «Повторить»', 8000);
+    expect(rpcOf(back)?.registrations).toBe(registrations + 1);
+    expect(back.dock).toMatchObject({ login: WORLD.user.username, page: PAGE });
+
+    // Once more, and nobody clicks: the tab's own beat (10 s) finds the background by itself.
+    await holdPort(true);
+    await dockIs((dock, report) => dock.banner === 'CG-RUNTIME-UNREACHABLE' && rpcOf(report)?.state === 'lost', 'the second outage', 20_000);
+    await holdPort(false);
+    const again = await dockIs((dock, report) => dock.status === 'ready' && dock.banner === null && rpcOf(report)?.state === 'ready' && dock.actions['reply'] === true, 'the dock came back by itself', 30_000);
+    expect(rpcOf(again)?.registrations).toBe(registrations + 2);
+    // The same document all along — the tab was never reloaded — and the same event page: it did not start again.
+    expect(again.startedAt).toBe(tabDocument);
+    expect(await startsLogged()).toBe(starts);
+    await toPages();
+    expect(await backgroundState()).toBe('running');
+    const known = await tabKnown('the tab after the outages');
+    expect(known.chatKey).not.toBeNull();
+    // The dock works: a generation starts and ends as before.
+    await toStand();
+    await pressOurs('dock', '.cg-strip button', /^Reply/);
+    await dockIs((dock) => dock.result?.state === 'done', 'a generation after the reconnect', 20_000);
   });
 
   it('a new instance with another sign-in state: the tab asks again when it registers and shows «not signed in»', async () => {

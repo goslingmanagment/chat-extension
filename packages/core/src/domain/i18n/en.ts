@@ -1289,7 +1289,7 @@ export const EN: I18nCatalog<'en'> = {
   'cg.uiFailed.title': 'Interface failure',
   'cg.uiFailed.body': 'The panel stopped working. Reload it or export diagnostics.',
   'cg.runtimeUnreachable.title': 'Extension not responding',
-  'cg.runtimeUnreachable.body': 'The extension background is not responding. Reload the tab; if that does not help, restart the browser.',
+  'cg.runtimeUnreachable.body': 'No connection to the extension background. It reconnects by itself; if it does not come back, reload the tab.',
   'cg.unknown.title': 'Unknown error',
   'cg.unknown.body': 'Something went wrong. Copy the code and tell your team lead.',
 };

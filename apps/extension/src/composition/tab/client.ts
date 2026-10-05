@@ -127,7 +127,7 @@ export function heldSilently(view: Pick<SendAttemptView, 'state' | 'code'> | nul
 type Answer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire };
 
 /** The background's client as the controllers see it. */
-export type ControllerRpc = Pick<TabRpcClient, 'request' | 'onEvent' | 'onState' | 'state' | 'tabSessionId'>;
+export type ControllerRpc = Pick<TabRpcClient, 'request' | 'onEvent' | 'onState' | 'state' | 'tabSessionId' | 'reconnect'>;
 
 /**
  * `observe` hears what a controller asks (the type and the payload it sent,
@@ -153,5 +153,6 @@ export function controllerRpc(rpc: TabRpcClient, tokens: Pick<TabActionTokens, '
     onState: (listener) => rpc.onState(listener),
     state: () => rpc.state(),
     tabSessionId: () => rpc.tabSessionId(),
+    reconnect: () => rpc.reconnect(),
   };
 }

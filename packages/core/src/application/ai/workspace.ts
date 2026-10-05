@@ -396,9 +396,11 @@ export class AiWorkspace {
     const off = (status: DockStatus, reason: UnavailableReasonId, error: CgErrorWire | null): Situation => ({ ...base, status, statusError: error, off: reason });
 
     if (this.hostReload || this.env.reloadNeeded) return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-RELOADED' });
-    // The port is lost for good (every reconnect failed): what the tab remembers of the sign-in still reads
-    // «ready», but nothing would start. The dock says so and offers the one thing that helps — a reload.
-    if (this.env.connection === 'lost') return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-UNREACHABLE' });
+    // The port is lost and its quick reconnects failed, but the extension is the same instance — nothing was
+    // updated, so this is not «перезагрузите вкладку». What the tab remembers of the sign-in still reads «ready»,
+    // yet nothing would start: the dock says «Расширение не отвечает» in the line of a service that is away, with
+    // «Повторить»; the tab keeps asking the background by itself and the dock comes back when it answers.
+    if (this.env.unreachable) return off('hub-down', 'runtime-unreachable', { code: 'CG-RUNTIME-UNREACHABLE' });
     const session = this.env.session;
     const settings = this.env.settings;
     if (session === undefined || settings === null) {

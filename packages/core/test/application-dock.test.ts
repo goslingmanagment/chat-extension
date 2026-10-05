@@ -1737,20 +1737,56 @@ describe('dock: a start the background did not admit is never silent', () => {
     expect(h.toasts.at(-1)).toMatchObject({ kind: 'error', code: 'CG-STORAGE-WRITE', scope: 'coach.ask' });
   });
 
-  it('a port lost for good: the dock says CG-RUNTIME-UNREACHABLE and offers the reload, instead of a ready strip that starts nothing', async () => {
+  it('[RB-010] a port lost under a living extension is not an update: the dock says «Расширение не отвечает» (CG-RUNTIME-UNREACHABLE) with «Повторить» — never «расширение обновилось, перезагрузите вкладку» — and comes back by itself when the background answers', async () => {
     const h = await start();
+    const opId = await reply(h, 'kept while the port is down');
     expect(h.dock().status).toBe('ready');
     h.bg.setConnection('lost');
     await h.settle();
     const vm = h.dock();
-    expect(vm.status).toBe('reload-needed');
-    expect(vm.statusError?.code).toBe('CG-RUNTIME-UNREACHABLE');
-    expect(vm.view).toMatchObject({ s: 'error', error: { code: 'CG-RUNTIME-UNREACHABLE' }, retry: { type: 'ReloadTab' } });
-    expect(vm.actions.reply).toMatchObject({ enabled: false });
-    // The port came back (a reconnect by the person): the strip is ready again.
+    // The line of a service that is away, with a retry — not the card that asks to reload the tab.
+    expect(vm.status).toBe('hub-down');
+    expect(vm.statusError).toMatchObject({ code: 'CG-RUNTIME-UNREACHABLE', title: 'Расширение не отвечает' });
+    expect(vm.statusError?.body).toContain('восстанавливается сама');
+    expect(vm.view).toMatchObject({ s: 'offline', error: { code: 'CG-RUNTIME-UNREACHABLE' }, retry: { type: 'ReloadView', selector: { of: 'dock' } } });
+    // Every action is off with the real cause, and its key is not printed.
+    for (const id of DOCK_ACTION_IDS) {
+      expect(vm.actions[id], id).toMatchObject({ enabled: false, hotkey: null, reason: { id: 'runtime-unreachable', code: 'CG-RUNTIME-UNREACHABLE', text: { key: 'dock.reason.runtimeUnreachable' } } });
+    }
+    expect(vm.options.toneReason?.id).toBe('runtime-unreachable');
+    expect(JSON.stringify(vm)).not.toContain('reloadNeeded');
+    expect(JSON.stringify(vm)).not.toContain('CG-RUNTIME-RELOADED');
+    // What was generated before stays on screen: ChatSpace and the result are as they were.
+    expect(result(h)).toMatchObject({ opId, state: 'done' });
+    // A key that would start something is refused with the same code (its card takes the sheet), and nothing is asked of the hub.
+    const starts = h.bg.callsOf('op.start').length;
+    expect(vm.targetHandle).toBeNull();
+    expect(await h.dispatch({ type: 'Generate', targetHandle: targetHandle('dock', openChat), feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(h.bg.callsOf('op.start')).toHaveLength(starts);
+    // «Повторить» asks the background again — once per click; the dock stays as it is until the background answers.
+    expect(h.bg.reconnects).toBe(0);
+    expect(await h.dispatch(vm.view.s === 'offline' && vm.view.retry !== null ? vm.view.retry : { type: 'ReloadTab' })).toMatchObject({ ok: true });
+    expect(h.bg.reconnects).toBe(1);
+    expect(h.dock().status).toBe('hub-down');
+    // The background answered (the tab's own beat, or that click): the same dock is ready again, everything read anew — no reload of the tab.
+    const reads = h.bg.callsOf('bootstrap.get').length;
     h.bg.setConnection('ready');
     await h.settle();
-    expect(h.dock().status).toBe('ready');
+    expect(h.dock()).toMatchObject({ status: 'ready', statusError: null });
+    expect(h.dock().actions.reply).toMatchObject({ enabled: true, reason: null });
+    expect(h.bg.callsOf('bootstrap.get').length).toBeGreaterThan(reads);
+  });
+
+  it('[UP-009] an extension that was really reloaded or updated under the tab is the other state: «Расширение обновилось» (CG-RUNTIME-RELOADED) with «Перезагрузить вкладку», and no reconnect is asked for', async () => {
+    const h = await start();
+    h.bg.setConnection('reloaded');
+    await h.settle();
+    const vm = h.dock();
+    expect(vm.status).toBe('reload-needed');
+    expect(vm.statusError?.code).toBe('CG-RUNTIME-RELOADED');
+    expect(vm.view).toMatchObject({ s: 'error', error: { code: 'CG-RUNTIME-RELOADED' }, retry: { type: 'ReloadTab' } });
+    expect(vm.actions.reply).toMatchObject({ enabled: false, reason: { id: 'reload-needed', code: 'CG-RUNTIME-RELOADED' } });
+    expect(h.bg.reconnects).toBe(0);
   });
 });
 

@@ -114,6 +114,30 @@ describe('status banners', () => {
     });
   }
 
+  it('[RB-010] a port lost under a living extension (1.5.0): the line of a service that is away, in the background’s own words — «Расширение не отвечает», the connection comes back by itself — with «Повторить»; never the hub’s line, never «расширение обновилось»', async () => {
+    const error = cgError(ctx, 'CG-RUNTIME-UNREACHABLE');
+    const retry: UiAction = { type: 'ReloadView', selector: { of: 'dock' } };
+    const base = dockVm('hub-down');
+    const why = { id: 'runtime-unreachable', code: 'CG-RUNTIME-UNREACHABLE', text: { key: 'dock.reason.runtimeUnreachable' } } as const;
+    const actions = Object.fromEntries(Object.entries(base.actions).map(([id, action]) => [id, { ...action, enabled: false, reason: why }])) as DockVM['actions'];
+    kit = mountDock(dockScenario({ ...base, statusError: error, view: { s: 'offline', error, retry, lastGoodAt: null }, actions, options: { ...base.options, toneReason: why, splitReason: why } }));
+    expect(kit.$('.cg-dock')?.getAttribute('data-cg-dock')).toBe('hub-down');
+    const row = banner();
+    expect(row?.getAttribute('role')).toBe('status');
+    expect(row?.getAttribute('data-cg-code')).toBe('CG-RUNTIME-UNREACHABLE');
+    expect(text(row?.querySelector('.cg-banner__text'))).toBe('ChatGoose · CG-RUNTIME-UNREACHABLE Расширение не отвечает. Нет связи с фоном расширения. Она восстанавливается сама; если не вернётся — перезагрузите вкладку.');
+    expect(row?.querySelector('.cg-gut .cg-dot--danger')).not.toBeNull();
+    // Every button says the real cause; nothing of the hub, nothing of an update, and no card that asks to reload the tab.
+    expect(kit.root.textContent).toContain('Reply недоступен: нет связи с расширением, переподключаюсь');
+    expect(kit.root.textContent).not.toContain('хаб');
+    expect(kit.root.textContent).not.toContain('обновилось');
+    expect(kit.$('.cg-card')).toBeNull();
+    const action = bannerButton();
+    expect(action === null ? null : text(action)).toBe('Повторить');
+    await flush(() => action?.click());
+    expect(kit.client.dispatched).toEqual([retry]);
+  });
+
   it('[UI-011] a page the owner switched off (1.3.0): the dock stays `ready` and says so in one line with a ring — no button, every AI action dimmed with the same reason, parts only copied', async () => {
     kit = mountDock(dockScenario(dockPageOff(ctx)));
     expect(kit.$('.cg-dock')?.getAttribute('data-cg-dock')).toBe('ready');

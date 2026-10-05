@@ -349,6 +349,47 @@ describe('[BG-003] the keepalive', () => {
   });
 });
 
+describe('[RB-010] a port lost under a living extension', () => {
+  it('the tab keeps asking the background on its keepalive beat and when the person comes back to it: once the background answers, the same tab is registered again — no reload of the tab', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    const page = world.page();
+    const tabsNow = async (): Promise<readonly { readonly tabSessionId: string }[]> => {
+      const diagnostics = await page.request('diagnostics.get', {});
+      return diagnostics.ok ? diagnostics.payload.tabs : [];
+    };
+    const tab = world.tabRuntime({ keepaliveMs: 40 });
+    await until(async () => (await tabsNow()).length === 1, 'the tab registered');
+    const [first] = await tabsNow();
+    // The event page breaks: it starts when asked, and answers nothing (a start that fails before `tab.register`).
+    let brokenStarts = 0;
+    world.fake.onWake(() => void (brokenStarts += 1));
+    world.fake.unloadBackground();
+    // The quick attempts (100/200/400 ms) pass; the beats go on asking — one try at a time, however many beats.
+    await sleep(1000);
+    expect(brokenStarts).toBe(1);
+    expect(tab.life.signal.aborted).toBe(false);
+    // The broken page goes away and a working one is there (the browser restarted the background, the storage came back):
+    // nothing tells the tab — its next beat finds it.
+    world.fake.unloadBackground();
+    world.start();
+    await until(async () => (await tabsNow()).length === 1, 'the tab registered with the working background by itself');
+    const [again] = await tabsNow();
+    expect(again?.tabSessionId).not.toBe(first?.tabSessionId);
+    expect(tab.life.signal.aborted).toBe(false);
+    // The person looking at the tab again asks at once, without waiting for a beat: a lost port is tried on `focus` too.
+    world.fake.onWake(() => void (brokenStarts += 1));
+    world.fake.unloadBackground();
+    await sleep(1000);
+    expect(brokenStarts).toBe(2);
+    world.fake.unloadBackground();
+    world.start();
+    tab.focus(true);
+    await until(async () => (await tabsNow()).length === 1, 'the tab registered again when the person came back to it');
+  });
+});
+
 describe('[LG-016] [LG-018] the start record says why the event page started', () => {
   it('[LG-016] the reason: an install, an update, a browser start, a reload, a wake', () => {
     expect(startReasonOf({ earlierStarts: 0, installed: 'install', browserStarted: false })).toBe('install');
