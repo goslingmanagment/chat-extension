@@ -90,6 +90,7 @@ export function createSubscriberPoller(deps: SubscriberPollerDeps): SubscriberPo
           platform: page.platform,
           platformAccountId: page.platformAccountId,
           hub: true,
+          serverNow: answer.serverNow,
           events: answer.items.filter((item) => RINGING_KINDS.includes(item.kind)).map((item) => ({ eventRef: item.eventRef, subscribedAt: item.subscribedAt })),
         });
       } catch {

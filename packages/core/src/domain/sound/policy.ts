@@ -141,6 +141,12 @@ export interface SubscriberGate {
   readonly hub: boolean;
   /** The first poll of the page: what was there before we looked. */
   readonly firstSnapshot: boolean;
+  /**
+   * How long before this answer the page's list was last looked at, by the hub's own clock: the gap between the
+   * two answers' `serverNow`. An event that was not in the list then and is in it now appeared in between —
+   * whenever the subscription itself happened. null — not known (an answer without a readable `serverNow`).
+   */
+  readonly sinceBaselineMs?: number | null;
   /** Host accounts of this browser bound to the page's creator; empty — the mute cannot be checked. */
   readonly accounts: readonly HostAccountKey[];
 }
@@ -150,9 +156,16 @@ export function gateSubscriber(input: SubscriberGate): SoundOutcome | null {
   if (!sound.subscribers.on || input.ownerSwitch === false) return 'disabled';
   if (!input.hub) return 'no-hub';
   if (input.firstSnapshot) return 'first-snapshot';
-  const at = timeOf(input.event.subscribedAt);
-  if (at === null) return 'no-time';
-  if (input.now - at > STALE_SUBSCRIBER_MS) return 'stale';
+  // News is what appeared since a RECENT look at the list (at most 180 s earlier, by the hub's clock): the hub may
+  // record a subscription minutes after it happened, and by its own `subscribedAt` such an event would never ring.
+  // After a longer gap (a reconnect, a sleeping laptop) nothing tells a fresh event from one that waited, so the
+  // subscription's own age decides, as before: older than 180 s is history.
+  const since = input.sinceBaselineMs ?? null;
+  if (since === null || since < 0 || since > STALE_SUBSCRIBER_MS) {
+    const at = timeOf(input.event.subscribedAt);
+    if (at === null) return 'no-time';
+    if (input.now - at > STALE_SUBSCRIBER_MS) return 'stale';
+  }
   if (input.accounts.length === 0) return 'account-unknown';
   // The model's switch silences both sounds (ST-075); every account of the creator must be unmuted to ring.
   if (input.accounts.some((key) => isMuted(sound, key))) return 'muted';

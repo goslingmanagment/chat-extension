@@ -50,7 +50,8 @@ function fakeClock(start: number) {
   };
 }
 
-function audience(refs: readonly string[], at: number): AudienceNewPage {
+/** `subscribedAgo` — how long before `at` a ref subscribed (ms); the others subscribed just now. */
+function audience(refs: readonly string[], at: number, subscribedAgo: Readonly<Record<string, number>> = {}): AudienceNewPage {
   const iso = new Date(at).toISOString();
   return {
     pageLabel: ONE.pageLabel,
@@ -67,7 +68,7 @@ function audience(refs: readonly string[], at: number): AudienceNewPage {
       displayName: null,
       kind: eventRef.startsWith('renewed') ? 'renewed' : 'new',
       trial: false,
-      subscribedAt: iso,
+      subscribedAt: new Date(at - (subscribedAgo[eventRef] ?? 0)).toISOString(),
       subscribedAtSource: 'notification',
       status: { isSubscriber: true, subscriptionStatus: 'active', endsAt: null, asOf: iso, source: 'webhook' },
       thread: null,
@@ -85,6 +86,8 @@ function world() {
     online: true,
     sound: DEFAULT_SETTINGS.sound,
     hubRows: [] as string[],
+    /** How long ago (ms) a row of the hub's list subscribed; absent — just now. */
+    subscribedAgo: {} as Record<string, number>,
   };
   const reads: string[] = [];
   const played: number[] = [];
@@ -113,7 +116,7 @@ function world() {
     hostPermission: () => Promise.resolve(true),
     read(pageLabel) {
       reads.push(pageLabel);
-      return Promise.resolve(audience(state.hubRows, clock.now()));
+      return Promise.resolve(audience(state.hubRows, clock.now(), state.subscribedAgo));
     },
     online: () => state.online,
     events: {
@@ -156,6 +159,29 @@ describe('the slow poll of «Новые» for the subscriber sound', () => {
     w.sound.sync();
     await w.clock.advance(180_000);
     expect(w.reads).toHaveLength(asked);
+  });
+
+  it('[SN-012] a subscription the hub recorded late — twelve minutes old when it first shows in the list — rings: it was not there at the poll a minute before, in the slow poll and in a tab’s own read alike', async () => {
+    const w = world();
+    w.state.hubRows = ['evt-1'];
+    w.sound.sync();
+    await w.clock.settle();
+    expect(w.played).toEqual([]);
+    // The hub's list gains a row whose subscription is long past the 180 s of «a fresh event».
+    w.state.hubRows = ['evt-late', 'evt-1'];
+    w.state.subscribedAgo = { 'evt-late': 12 * 60_000 };
+    await w.clock.advance(70_000);
+    expect(w.played).toHaveLength(1);
+
+    // A tab that reads «Новые» itself feeds the same arbiter with the same answers' clock.
+    const tab = world();
+    const page = BOOTSTRAP_PILOT_PAGES.pages.find((candidate) => candidate.pageId === ONE.pageId);
+    if (page === undefined) throw new Error('the pilot page is not in the bootstrap');
+    tab.sound.fed(page, audience(['evt-1'], tab.clock.now()), 'tab-a');
+    await tab.clock.advance(30_000);
+    tab.sound.fed(page, audience(['evt-late', 'evt-1'], tab.clock.now(), { 'evt-late': 12 * 60_000 }), 'tab-a');
+    await tab.clock.settle();
+    expect(tab.played).toHaveLength(1);
   });
 
   it('a page the hub cannot serve «Новые» for, a switched-off subscriber sound and a browser without a network ask nothing', async () => {

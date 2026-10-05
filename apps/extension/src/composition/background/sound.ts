@@ -139,6 +139,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
           platform,
           platformAccountId: page.platformAccountId,
           hub: true,
+          serverNow: answer.serverNow,
           events: answer.items.filter((item) => (AUDIENCE_KINDS as readonly string[]).includes(item.kind)).map((item) => ({ eventRef: item.eventRef, subscribedAt: item.subscribedAt })),
         },
         tabSessionId,
