@@ -1097,7 +1097,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const feed = state.feed;
     if (feed === null) return [];
     if (state.rows === null || state.rows.feed !== feed || state.rows.language !== i18n.language) {
-      state.rows = { feed, language: i18n.language, items: feedRows(feed, (at) => i18n.formatTime(at, 'day')) };
+      state.rows = { feed, language: i18n.language, items: feedRows(feed, (at) => i18n.formatTime(at, 'day'), i18n.t('preview.feed.deleted')) };
     }
     return state.rows.items;
   }

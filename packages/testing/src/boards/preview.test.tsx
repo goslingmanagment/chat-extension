@@ -158,6 +158,25 @@ describe('fan preview: the archive feed', () => {
     expect(ui.text('.cg-feed__sys')).toBe('renewed');
   });
 
+  it('a deleted message arrives without its text: the bubble is drawn muted and says «сообщение удалено» under itself, with or without a time', async () => {
+    ui = await mountBoardSettled(
+      'spenders',
+      withPreview((vm) => ({
+        ...vm,
+        feed: {
+          ...vm.feed,
+          hasOlder: false,
+          // As the hub sends a tombstone: `deleted: true`, the text empty. (A deleted system line comes from the
+          // controller with those words as its text — core `feedRows`.)
+          items: [message('d1', { text: '', deleted: true }), message('d2', { sender: 'model', text: '', deleted: true, at: null }), message('d3', { sender: 'system', text: 'сообщение удалено', deleted: true }), message('m1', { text: 'still here' })],
+        },
+      })),
+    );
+    expect(ui.$$('.cg-feed__msg.is-deleted').map((node) => node.getAttribute('data-cg-msg'))).toEqual(['d1', 'd2']);
+    expect(ui.$$('.cg-feed__msg.is-deleted small').map(textOf)).toEqual(['09:15, сообщение удалено', 'сообщение удалено']);
+    expect(ui.$$('.cg-feed__sys').map((node) => [node.getAttribute('data-cg-msg'), textOf(node)])).toEqual([['d3', 'сообщение удалено']]);
+  });
+
   it('[SP-053] older pages come from the archive by the cursor: a button and the scroll both ask once', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const older = ui.$('.cg-feed__older .cg-btn') as HTMLElement;

@@ -744,6 +744,34 @@ describe('[SP-050] [SP-053] [AI-038] [DB-026] the archive feed of a preview', ()
     expect(timeless.every((row) => !row.dayBreak && row.at === null)).toBe(true);
   });
 
+  it('[SP-050] a deleted message is a tombstone without its text: a bubble keeps its row (the UI says «сообщение удалено» under it), a deleted system line gets those words as its text, and a system line with nothing to say is not a row', () => {
+    const feed = firstFeedPage(first);
+    type FeedItem = (typeof feed.items)[number];
+    const item = (messageId: string, patch: Partial<FeedItem>): FeedItem => ({ messageId, at: `2026-10-0${messageId.slice(1)}T09:00:00.000Z`, sender: 'fan', text: 'hello', automatic: null, deleted: false, tipMills: null, priceMills: null, attachmentLabels: [], ...patch });
+    // Newest first, as the hub sends a page.
+    const items = [
+      item('m6', { text: 'still here' }),
+      item('m5', { sender: 'system', text: 'renewed', deleted: true }),
+      item('m4', { sender: 'system', text: '' }),
+      item('m3', { sender: 'system', text: '', deleted: true }),
+      item('m2', { sender: 'model', text: '', deleted: true }),
+      item('m1', { text: '', deleted: true }),
+    ];
+    const rows = feedRows({ ...feed, items }, (iso) => iso.slice(0, 10), 'сообщение удалено');
+    expect(rows.map((row) => [row.id, row.sender, row.text, row.deleted])).toEqual([
+      ['m1', 'fan', '', true],
+      ['m2', 'model', '', true],
+      ['m3', 'system', 'сообщение удалено', true],
+      ['m5', 'system', 'renewed', true],
+      ['m6', 'fan', 'still here', false],
+    ]);
+    // No system row is ever empty, and the row that was dropped starts no day of its own.
+    expect(rows.some((row) => row.sender === 'system' && row.text === '')).toBe(false);
+    expect(rows.filter((row) => row.dayBreak).map((row) => row.id)).toEqual(['m1', 'm2', 'm3', 'm5', 'm6']);
+    // Without the words (a caller that has none) a deleted system line has nothing to say either.
+    expect(feedRows({ ...feed, items }, (iso) => iso.slice(0, 10)).map((row) => row.id)).toEqual(['m1', 'm2', 'm5', 'm6']);
+  });
+
   it('kept feeds: the newest page of the ten most recent previews, a hundred messages each, two MiB together', () => {
     const page = firstFeedPage(first);
     let kept: KeptFeed[] = [];

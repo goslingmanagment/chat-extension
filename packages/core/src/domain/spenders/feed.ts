@@ -134,20 +134,30 @@ export interface FeedRow {
  * Rows in reading order (oldest first) with day separators. `dayOf` gives the
  * person's calendar day of an instant (the I18n port's day label); a message
  * without a time never starts a day.
+ *
+ * The hub sends a deleted message as a tombstone: `deleted: true`, the text
+ * empty. A bubble keeps its row and says «сообщение удалено» under itself
+ * (the UI's caption); a SYSTEM line is nothing but its text, so a deleted one
+ * gets `deletedLine` — those words — as its text, and a system line that has
+ * nothing to say (no text, not deleted, or no words given) is not a row: the
+ * feed never draws an empty block.
  */
-export function feedRows(state: FeedState, dayOf: (at: IsoTimestamp) => string): FeedRow[] {
+export function feedRows(state: FeedState, dayOf: (at: IsoTimestamp) => string, deletedLine = ''): FeedRow[] {
   const rows: FeedRow[] = [];
   let lastDay: string | null = null;
   for (let i = state.items.length - 1; i >= 0; i -= 1) {
     const item = state.items[i] as FeedItem;
+    const sender = feedSender(item.sender);
+    const text = sender === 'system' && item.text === '' && item.deleted ? deletedLine : item.text;
+    if (sender === 'system' && text === '') continue;
     const day = item.at === null ? null : dayOf(item.at);
     const dayBreak = day !== null && day !== lastDay;
     if (day !== null) lastDay = day;
     rows.push({
       id: item.messageId,
       at: item.at,
-      sender: feedSender(item.sender),
-      text: item.text,
+      sender,
+      text,
       deleted: item.deleted,
       automatic: item.automatic,
       tip: item.tipMills !== null && item.tipMills > 0 ? item.tipMills : null,
