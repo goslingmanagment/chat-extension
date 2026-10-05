@@ -161,11 +161,15 @@ describe('publishing a release', () => {
   });
 
   it('a repeated run of the same release (a lost answer) is a no-op that ends green', async () => {
-    const input = release('0.1.0');
+    await run(publishSteps(deps(), release('0.1.0')));
+    const before = remoteText('firefox/updates.json');
+    const input = release('0.1.1');
     await run(publishSteps(deps(), input));
     const feed = remoteText('firefox/updates.json');
     await run(publishSteps(deps(), input));
     expect(remoteText('firefox/updates.json')).toBe(feed);
+    // The feed kept as «the one before» is still the one before, not a copy of the current.
+    expect(remoteText('firefox/updates.previous.json')).toBe(before);
     expect(leftovers()).toEqual([]);
   });
 

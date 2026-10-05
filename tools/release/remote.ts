@@ -117,7 +117,8 @@ export function replaceScript(files: ReadonlyArray<{ readonly tmp: string; reado
     // Everything is checked before anything is renamed.
     ...files.map((file) => `[ "$(sum ${q(file.tmp)})" = ${q(file.sha256)} ] || { echo "upload damaged: ${file.final}" >&2; exit 3; }`),
     ...files.flatMap((file) => [
-      ...(file.keepPrevious === undefined ? [] : [`if [ -f ${q(file.final)} ]; then cp -p ${q(file.final)} ${q(file.keepPrevious)}; fi`]),
+      // Not on a repeated run: the same bytes again would replace the real previous file with the current one.
+      ...(file.keepPrevious === undefined ? [] : [`if [ -f ${q(file.final)} ] && ! cmp -s ${q(file.tmp)} ${q(file.final)}; then cp -p ${q(file.final)} ${q(file.keepPrevious)}; fi`]),
       `chmod 644 ${q(file.tmp)}`,
       `mv -f ${q(file.tmp)} ${q(file.final)}`,
       `echo "replaced: ${file.final}"`,
