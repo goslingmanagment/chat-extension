@@ -1019,6 +1019,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (unclaimed.size > 64) unclaimed.clear();
       const before = unclaimed.get(view.attemptId);
       if (before === undefined || attemptReachable(before.state, view.state)) unclaimed.set(view.attemptId, view);
+      // A delivered part nobody here began and no list names: the person sent it with ChatSpace's own Send after
+      // «Открыть и вставить» (§6.6) — in this tab or in another. The journal says whose part it is: the open
+      // cards read it. A click of this tab still on its way to the coordinator may be what is told; its own
+      // answer brings the state then.
+      if (view.state === 'sentObserved' && before === undefined && ![...tracks.values()].some((track) => track.clicked.size > 0)) {
+        const fans = new Map([...targets.values()].map((target) => [fanKey(target.pageId, target.fanRef), target]));
+        for (const target of fans.values()) void loadSends(target.pageId, target.fanRef);
+      }
       return;
     }
     const track = tracks.get(owner.opId);

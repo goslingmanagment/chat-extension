@@ -8,6 +8,8 @@
 // There is no «send all», no timer and no automatic next part.
 
 import { type CgCode } from '@cg/contracts/errors';
+import { type PartRef } from '@cg/contracts/ids';
+import { type OpView } from '@cg/contracts/ops';
 import { type SendGroup } from '@cg/contracts/send';
 import { type SendAttemptState } from '@cg/contracts/send-rules';
 import { type SendOrderVM } from '@cg/contracts/vm';
@@ -80,4 +82,20 @@ export function sendOrderOf(group: SendGroup, partIndex: number, attempts: reado
 export function groupProgress(group: SendGroup, attempts: readonly FanAttempt[]): { readonly sent: number; readonly total: number } {
   const sent = new Set(attempts.filter((attempt) => sameGroup(attempt.group, group) && partDelivered(attempt)).map((attempt) => attempt.partIndex));
   return { sent: sent.size, total: group.partCount };
+}
+
+/**
+ * The part of a preview's or a «Новые» card's finished result as a member of
+ * its send group (§6.6, §6.7.9): what a proven human send of that part is
+ * recorded and registered under. null — the operation is not such a result
+ * (the dock's own have no preview custody), is not finished, or has no such
+ * part.
+ */
+export function nativePartOf(view: OpView, part: PartRef): { readonly purpose: SendPurpose; readonly group: SendGroup; readonly partIndex: number } | null {
+  if (view.surface !== 'preview' && view.surface !== 'newcomers') return null;
+  if (view.state !== 'done' || view.generationRef === undefined || view.result === undefined) return null;
+  const variant = part.variant ?? 0;
+  const parts = view.result.kind === 'parts' ? (variant === 0 ? view.result.parts : undefined) : view.result.kind === 'variants' ? view.result.variants[variant] : undefined;
+  if (parts === undefined || part.index >= parts.length) return null;
+  return { purpose: view.surface === 'newcomers' ? 'greeting' : 'preview-reply', group: { generationRef: view.generationRef, variant, partCount: parts.length }, partIndex: part.index };
 }

@@ -22,6 +22,7 @@ import {
   type HubBinding,
   type HubFailure,
   type HubRouteKey,
+  type PartRef,
   type PersonaCatalog,
   type SendAttemptView,
   type SendBegin,
@@ -155,6 +156,15 @@ export class BoardsBackground {
 
   emit<T extends TabEventType>(type: T, payload: TabEventPayload<T>): void {
     for (const listener of [...(this.listeners.get(type) ?? [])]) listener(payload);
+  }
+
+  /**
+   * `op.reportSent` as the real background takes it (§6.6): the person pressed ChatSpace's own Send on a part
+   * «Открыть и вставить» put into the composer, and a tab proved it. The part is journaled as delivered.
+   */
+  humanSent(opId: string, part: PartRef, platformMessageId: string): SendAttemptView | null {
+    const view = this.scheduler.view(opId);
+    return view === null ? null : this.coordinator.nativeSent({ attemptId: this.ids.uuid(), view, part, platformMessageId });
   }
 
   /** The next request of `type` fails with `error` instead of reaching the hub. */

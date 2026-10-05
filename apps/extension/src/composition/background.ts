@@ -917,6 +917,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub —
     // the registration is journaled and stays owed until the hub answers.
     void nativeSends.register(view, part, platformMessageId);
+    // The same fact for this install's own tabs: the part is journaled as delivered, so the preview that made it
+    // shows it «Отправлено» and offers the group's next part (`send.list`, `send.state`). Never a send of ours.
+    if (view !== null) sends.nativeSent({ attemptId: IDS.uuid(), view, part, platformMessageId });
     return ok({
       recorded: telemetry.report('sent', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
     });

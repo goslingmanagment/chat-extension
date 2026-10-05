@@ -15,6 +15,21 @@ import { type SendBegin } from '@cg/contracts/tab-messages';
 /** Slack after a deadline before a silent attempt is called uncertain. */
 export const REPORT_GRACE_MS = 5_000;
 
+/**
+ * `documentEpoch` of a record that no document of ours sent: the person
+ * pressed ChatSpace's own Send on a part «Открыть и вставить» put into the
+ * composer (§6.6), and the tab proved it by the receipt and the echo. Such a
+ * record is born `sentObserved`, never had a ticket and owes the custody
+ * nothing (the hub hears of it through `registerNativeSend`). A real document
+ * epoch is random and never reads like this.
+ */
+export const NATIVE_SEND_DOCUMENT = 'native-send';
+
+/** A record of a part the person sent from the composer (see NATIVE_SEND_DOCUMENT). */
+export function isNativeSendEntry(entry: Pick<SendJournalEntry, 'documentEpoch'>): boolean {
+  return entry.documentEpoch === NATIVE_SEND_DOCUMENT;
+}
+
 export function journalEntryOf(begin: SendBegin, now: number): SendJournalEntry {
   return {
     attemptId: begin.attemptId,

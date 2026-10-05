@@ -2012,6 +2012,85 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
   });
 });
 
+describe('[TL-004] [NF-019] a part the person sent with ChatSpace’s own Send is a sent part of its group (§6.6, §6.7.9)', () => {
+  const applied: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } };
+  const reopen = async (h: Harness, handle: string): Promise<void> => {
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+  };
+
+  it('the preview send is off: after «Открыть и вставить» and the person’s Send the preview shows part 1 «Отправлено» and offers part 2 for «Открыть и вставить» — not «после части 1» for ever; nothing is sent by us', async () => {
+    const { h, opId, handle } = await withReply({ config: {}, answers: { navigate: [applied, applied] } });
+    const before = partsOf(h, 'spenders');
+    expect(before.map((part) => part.send)).toMatchObject([{ s: 'unavailable', code: 'CG-SEND-OFF' }, { s: 'unavailable', code: 'CG-SEND-OFF' }]);
+    // Parts go in their order: the second one waits behind the first, with only «Копировать» on its row.
+    expect(before.map((part) => part.sendOrder)).toEqual([null, { kind: 'after', part: 1 }]);
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null } });
+    // The person presses ChatSpace's Send; the tab proves it by the receipt and the echo, the background journals the part as delivered.
+    await h.advance(30_000);
+    const sentAt = iso(h.clock.now());
+    expect(h.bg.humanSent(opId, { index: 0 }, '4100')).toMatchObject({ state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    await h.advance(5_000);
+    await reopen(h, handle);
+    const vm = h.boards.preview.getSnapshot(preview('spenders'));
+    const [first, second] = vm.result?.parts ?? [];
+    expect(vm.result?.opId).toBe(opId);
+    expect(first?.send).toEqual({ s: 'sent', at: sentAt });
+    expect(first?.openInsert).toEqual({ s: 'hidden' });
+    expect(vm.result?.sendProgress).toEqual({ sent: 1, total: 2 });
+    expect(vm.result?.draftNotSent).toBe(false);
+    // The next part goes the same honest way: the person's own click opens the chat and inserts it. The send stays off.
+    expect(second?.sendOrder).toBeNull();
+    expect(second?.next).toBe(true);
+    expect(second?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-OFF' });
+    expect(second?.openInsert).toEqual({ s: 'available' });
+    // The sent part is not put into the chat again; the next one is, by its own click — one navigation, one deferred insert.
+    expect((await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).ok).toBe(false);
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.host.calls.navigations.map((intent) => intent.thenInsert?.part)).toEqual([{ index: 0 }, { index: 1 }]);
+    // Nothing was sent or queued by us at any point.
+    expect(h.host.calls.commits).toEqual([]);
+    expect(count(h, 'op.start')).toBe(1);
+  });
+
+  it('a card of the fan that is open when the send is proven — in this tab or another — shows it at once: the journal is read, nobody has to reopen anything', async () => {
+    const { h, opId } = await withReply({ config: {} });
+    const asked = count(h, 'send.list');
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    const [first, second] = partsOf(h, 'spenders');
+    expect(first?.send?.s).toBe('sent');
+    expect(second?.sendOrder).toBeNull();
+    expect(second?.openInsert).toEqual({ s: 'available' });
+    // Told again (the tab repeated its report): the same record, nothing new to read.
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+  });
+
+  it('X8 is on: the part sent by hand is not offered for «Отправить» again, and the next part may be sent by its own click', async () => {
+    const { h, opId, handle } = await withReply({ answers: { navigate: [applied] } });
+    expect(partsOf(h, 'spenders').map((part) => part.send?.s)).toEqual(['available', 'available']);
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    // The person goes back to another chat: a result is never sent into the chat that is open (§6.7.4 п. 6).
+    h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5009' } } });
+    await h.flush();
+    await reopen(h, handle);
+    const [first, second] = partsOf(h, 'spenders');
+    expect(first?.send?.s).toBe('sent');
+    expect(second?.sendOrder).toBeNull();
+    // The checkpoint of the generation is this tab's own: the second part may go through ChatSpace's queue by its own click.
+    expect(second?.send).toEqual({ s: 'available' });
+    expect((await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).ok).toBe(false);
+    expect(h.host.calls.commits).toEqual([]);
+  });
+});
+
 describe('[SP-035] «Открыть и вставить» is one navigation with one deferred insert', () => {
   it('opens the exact chat with the part as a deferred insert, closes the board, and reports the insert', async () => {
     const { h, opId } = await withReply({ answers: { navigate: [{ state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } }] } });

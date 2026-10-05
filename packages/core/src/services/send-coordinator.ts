@@ -19,10 +19,18 @@
 // until the hub answers, within the time the hub can still take it; after a
 // restart, an ended attempt whose custody still waits is reported again.
 // Ended attempts age out of memory and the journal with the results.
+//
+// One kind of record is not an attempt of ours at all (§6.6): a part the
+// person sent with ChatSpace's own Send after «Открыть и вставить», proven
+// by the tab (receipt and echo with one id). It is journaled as delivered —
+// so the preview shows it «Отправлено», the group's next part is offered,
+// and the part is never offered for a second send — and that is all: no
+// ticket, no lock, no custody report (`nativeSent`).
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
 import { type Bootstrap, type ClaimBody, type ClaimState, type CustodyState, type HubFacade, type HubFailure, type ResolveHubError } from '@cg/contracts/hub';
+import { type PartRef } from '@cg/contracts/ids';
 import { BRIDGE_LIMITS, OP_LIMITS } from '@cg/contracts/limits';
 import { type OpView } from '@cg/contracts/ops';
 import { sendLockKey, type DispatchTicket, type FreshnessCheckpoint, type SendAttemptView, type SendJournalEntry, type SendLockKey } from '@cg/contracts/send';
@@ -32,6 +40,7 @@ import { SEND_LIST_MAX, type SendBegin, type SendListItem } from '@cg/contracts/
 
 import { flagUsable, type OpEnvTag, type OpsEnvironment } from '../domain/ops';
 import {
+  NATIVE_SEND_DOCUMENT,
   PURPOSE_SURFACE,
   REPORT_GRACE_MS,
   SendLockTable,
@@ -43,8 +52,10 @@ import {
   custodyReport,
   dispatchBody,
   holdsLock,
+  isNativeSendEntry,
   journalEntryOf,
   journalWithView,
+  nativePartOf,
   newAttempt,
   parseJournal,
   partBlock,
@@ -420,6 +431,89 @@ export class SendCoordinator {
     return changed;
   }
 
+  /**
+   * §6.6: the person pressed ChatSpace's own Send on a part of a preview's
+   * or a «Новые» card's result that «Открыть и вставить» (or the dock, for
+   * the parts that followed) put into the composer, and the tab proved it by
+   * the receipt and the echo with one id (`op.reportSent`). The part is
+   * delivered: it is journaled as an ended record of its group, so every tab
+   * reads it with `send.list` — the preview shows it «Отправлено» and offers
+   * the next part — and the same part is never offered for a second send.
+   *
+   * A record of what the person did, never a send: nothing is dispatched, no
+   * lock is taken, no custody report is owed (the hub hears of it through
+   * the registrar's `registerNativeSend`, §8.5), no `sent` of a preview send
+   * is told. A repeat of the report, or a part already known delivered,
+   * changes nothing. null — not a part of a finished preview or «Новые»
+   * result.
+   */
+  nativeSent(fact: { readonly attemptId: string; readonly view: OpView; readonly part: PartRef; readonly platformMessageId: string }): SendAttemptView | null {
+    const { view, platformMessageId } = fact;
+    const sent = nativePartOf(view, fact.part);
+    if (sent === null) return null;
+    const now = this.deps.clock.now();
+    this.sweep(now);
+    const binding = view.target.binding;
+    const lockKey = sendLockKey({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, platform: binding.platform, fanRef: view.target.fanRef });
+    const samePart = (attempt: Attempt): boolean =>
+      attempt.lockKey === lockKey && attempt.group.generationRef === sent.group.generationRef && attempt.group.variant === sent.group.variant && attempt.partIndex === sent.partIndex;
+    // The same send told again (the tab repeats a report a lost port never acknowledged), or a part an attempt of ours already delivered.
+    const known = [...this.attempts.values()].find((attempt) => samePart(attempt) && (attempt.resolved === 'sent' || (attempt.resolved === undefined && attempt.track.view.state === 'sentObserved')));
+    if (known !== undefined) return known.track.view;
+    if (this.attempts.has(fact.attemptId)) return null;
+    const sentView: SendAttemptView = { attemptId: fact.attemptId, state: 'sentObserved', platformMessageId };
+    const key = attemptKeyOf({ generationRef: sent.group.generationRef, variant: sent.group.variant, partIndex: sent.partIndex, previewRevision: 0 });
+    const attempt: Attempt = {
+      track: { view: sentView, receiptMessageId: platformMessageId, echoes: [], pendingId: null },
+      entry: {
+        attemptId: fact.attemptId,
+        hubOrigin: binding.hubOrigin,
+        pageId: binding.pageId,
+        platform: binding.platform,
+        fanRef: view.target.fanRef,
+        hostAccountId: view.target.chat.hostAccountId,
+        purpose: sent.purpose,
+        opId: view.opId,
+        group: sent.group,
+        partIndex: sent.partIndex,
+        previewRevision: 0,
+        documentEpoch: NATIVE_SEND_DOCUMENT,
+        state: 'sentObserved',
+        platformMessageId,
+        createdAt: now,
+        updatedAt: now,
+      },
+      key,
+      lockKey,
+      pageId: binding.pageId,
+      fanRef: view.target.fanRef,
+      purpose: sent.purpose,
+      group: sent.group,
+      partIndex: sent.partIndex,
+      opId: view.opId,
+      ownerTab: null,
+      dispatched: false,
+      // Nothing is owed to a custody that was never opened.
+      reported: true,
+      owed: null,
+      delivering: false,
+      ticketExpiresAt: null,
+      silence: null,
+      restored: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.attempts.set(fact.attemptId, attempt);
+    // A click of «Отправить» on this very part finds it delivered; an attempt of ours for the same key keeps its place.
+    if (!this.byKey.has(key)) this.byKey.set(key, fact.attemptId);
+    void this.saveJournal().catch(() => {
+      this.log.write({ level: 'error', scope: 'bg.send', msg: 'send journal write failed', code: 'CG-STORAGE-WRITE', ctx: { attemptId: fact.attemptId } });
+    });
+    this.log.write({ level: 'info', scope: 'bg.send', msg: 'human send recorded', fields: { purpose: sent.purpose, part: sent.partIndex }, ctx: { attemptId: fact.attemptId, opId: view.opId } });
+    this.emit(attempt);
+    return sentView;
+  }
+
   /** `send.status`. */
   status(attemptId: string): SendAttemptView | null {
     return this.attempts.get(attemptId)?.track.view ?? null;
@@ -682,7 +776,8 @@ export class SendCoordinator {
         ownerTab: null,
         // A restored open record may have dispatched; whether an ended one did, only the hub's custody tells.
         dispatched: holdsLock(entry.state),
-        reported: false,
+        // A part the person sent from the composer never had a custody: nothing to report, nothing to read.
+        reported: isNativeSendEntry(entry),
         owed: null,
         delivering: false,
         ticketExpiresAt: null,
@@ -692,7 +787,7 @@ export class SendCoordinator {
         updatedAt: entry.updatedAt,
       };
       this.attempts.set(entry.attemptId, attempt);
-      this.byKey.set(attempt.key, entry.attemptId);
+      if (!isNativeSendEntry(entry) || !this.byKey.has(attempt.key)) this.byKey.set(attempt.key, entry.attemptId);
       if (holdsLock(entry.state)) this.locks.acquire(attempt.lockKey, entry.attemptId);
       if (action.kind === 'uncertain') {
         this.commit(attempt, applyAttemptInput(attempt.track, { type: 'lost', code: 'CG-SEND-UNCERTAIN' }).track);
