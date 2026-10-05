@@ -45,10 +45,8 @@ import {
   isHubCallError,
   isHubCheckError,
   type Bootstrap,
-  type BootstrapPage,
   type CgCode,
   type CgErrorWire,
-  type ClientFeatureFlag,
   type HostContractReport,
   type HubErrorResolution,
   type HubFailure,
@@ -56,14 +54,14 @@ import {
   type ResolveHubError,
   type SettingsV1,
 } from '@cg/contracts';
-import { narrowPlatform, type HostKind } from '@cg/contracts/ids';
+import { narrowPlatform } from '@cg/contracts/ids';
 import { sendLockKey } from '@cg/contracts/send';
 import { hashOfRoute } from '@cg/core/application/pages';
 import { resolveHubError, storageBudgetOf } from '@cg/core/domain';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
-import { flagsOnSomePage, pageFlagState, starFlag, type OpsEnvironment } from '@cg/core/domain/ops';
+import { flagsOnSomePage, type OpsEnvironment } from '@cg/core/domain/ops';
 import { profileRequestOf, recapSaveAnswer } from '@cg/core/domain/recap';
 import {
   ActionTokens,
@@ -112,6 +110,7 @@ import {
 } from '@cg/platform';
 
 import { CHATSPACE_MATCHES, LOOPBACK_MATCHES } from '../hosts';
+import { createAccountSwitch, incomingFactUsable } from './background/account-switch';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
@@ -493,25 +492,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
 
   // ── owner switches for what has no page of its own ─────────────────────────
-  /** The hub page a host account of this browser is bound to (by what its tabs reported), or null. */
-  const pageOfAccount = (host: HostKind, hostAccountId: string): BootstrapPage | null => {
-    const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
-    const seen = presence.seenAccounts().find((entry) => entry.account.host === host && entry.account.hostAccountId === hostAccountId);
-    if (hubInstance === null || bootstrap === null || seen === undefined) return null;
-    const resolution = hubInstance.resolveBinding(seen.account);
-    return resolution.state === 'bound' ? (bootstrap.pages.find((page) => page.pageId === resolution.binding.pageId) ?? null) : null;
-  };
-  /**
-   * An owner switch as it stands for a host account (docs/protocols/hub.md «Флаги: решает страница»): the
-   * feature of the page the account is bound to; an account bound to no hub page has no page row to ask, and
-   * only there the owner's `"*"` value (the bootstrap's top-level flag) decides. null — no bootstrap.
-   */
-  const accountFlag = (host: HostKind, hostAccountId: string, flag: ClientFeatureFlag): boolean | null => {
-    const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
-    if (bootstrap === null) return null;
-    const page = pageOfAccount(host, hostAccountId);
-    return page === null ? starFlag(bootstrap, flag) : pageFlagState(bootstrap, page, flag).usable;
-  };
+  // An owner switch as it stands for a host account (background/account-switch.ts): the feature of the page the
+  // account is bound to; only an account the hub definitely binds to no page follows the owner's `"*"` value;
+  // an account whose binding cannot be told fails closed. null — no bootstrap.
+  const accountFlag = createAccountSwitch({
+    bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
+    seenAccounts: () => presence.seenAccounts(),
+    resolveBinding: (account) => hubInstance?.resolveBinding(account) ?? { state: 'signed-out' },
+  });
 
   // ── sound ──────────────────────────────────────────────────────────────────
   // The one player of the extension (§9.8; its AudioContext is created with the first tone) under R17's
@@ -1034,10 +1022,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // sound (§9.8): one fact, two consumers — the freshness of results (§7 «Кэш», §6.7.5) and the arbiter.
   const soundHandlers = soundRequestHandlers(sound.arbiter);
   rpc.handle('sound.event', (request, sender) => {
-    // The tap script is registered while ANY page has `wsTap`; whose facts are heard is the page's own value
-    // (an account bound to no page: the owner's `"*"`). A fact of an account whose tap is off is not ours to use:
-    // it marks nothing stale and rings nothing. Signed out there is no switch to ask — the message sound needs no hub.
-    if (request.fact.source === 'ws-tap' && accountFlag(request.fact.host, request.fact.hostAccountId, 'wsTap') === false) return ok({ played: false, reason: 'disabled' });
+    // The tap script is registered while ANY page has `wsTap`; whose facts are heard is the account's own answer
+    // (background/account-switch.ts). A fact of an account whose tap is off is not ours to use: it marks nothing
+    // stale and rings nothing. Signed out there is no switch to ask — the message sound needs no hub.
+    if (!incomingFactUsable(request.fact, accountFlag)) return ok({ played: false, reason: 'disabled' });
     scheduler.incoming(request.fact);
     return soundHandlers['sound.event'](request, sender);
   });

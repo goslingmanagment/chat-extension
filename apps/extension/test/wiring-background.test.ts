@@ -657,6 +657,41 @@ describe('sound (§9.8)', () => {
     expect(w.played).toHaveLength(1);
   });
 
+  it('[SN-001] the WS tap is the account’s own switch: with `wsTap` off on its page a tap fact marks no result stale and rings nothing — a fact of the page’s own stores still does; switched on, the tap’s fact is used again', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    // A finished Reply for a fan whose chat is not in front: a new message of that fan makes it stale.
+    const done = async (fan: string): Promise<string> => {
+      const opId = admitted(await startReply(tab, await bindingOf(tab), fan));
+      await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', `the Reply for ${fan} ran`);
+      return opId;
+    };
+    const staleOf = async (opId: string) => (await opsOf(tab)).find((op) => op.opId === opId)?.stale;
+    const setTap = async (on: boolean): Promise<void> => {
+      w.hub.control({ op: 'config', patch: { pageFlags: { [PAGE]: { wsTap: on } } } });
+      expect(await w.page().request('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+    };
+    const first = await done('2003');
+    await setTap(false);
+    expect(await tab.client.request('sound.event', { fact: fact({ platformFanId: '2003' }) })).toEqual({ ok: true, payload: { played: false, reason: 'disabled' } });
+    expect(await staleOf(first)).toBeUndefined();
+    expect(w.played).toEqual([]);
+    expect((await soundOf(w))?.outcomes).not.toHaveProperty('played');
+    // The same account, a fact ChatSpace's own stores gave: not the tap's — it is heard.
+    expect(await tab.client.request('sound.event', { fact: fact({ platformFanId: '2003', source: 'store' }) })).toEqual({ ok: true, payload: { played: true } });
+    expect(typeof (await staleOf(first))?.at).toBe('string');
+    expect(w.played).toHaveLength(1);
+
+    const second = await done('2004');
+    await sleep(2100); // the arbiter's pause between two tones
+    await setTap(true);
+    expect(await tab.client.request('sound.event', { fact: fact({ platformFanId: '2004' }) })).toEqual({ ok: true, payload: { played: true } });
+    expect(typeof (await staleOf(second))?.at).toBe('string');
+    expect(w.played).toHaveLength(2);
+  }, 30_000);
+
   it('[SN-001] without the host permission nothing rings: the extension has no business on that site', async () => {
     const w = world();
     w.fake.permissions.origins.clear();
