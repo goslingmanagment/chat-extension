@@ -96,6 +96,10 @@ export const EN: I18nCatalog<'en'> = {
   'dock.reason.lockedDuringGeneration': 'cannot be changed while a generation runs',
   'dock.reason.hotkeyReserved': 'the browser keeps this shortcut for itself',
   'dock.reason.keyInField': 'the cursor is in a field where this shortcut does not work',
+  'dock.reason.pageOff': 'ChatGoose is switched off for this page',
+  'dock.reason.hubNotReady': 'the hub does not serve this feature yet',
+  'dock.reason.platformUnsupported': 'this platform has no such feature',
+  'dock.reason.clientOutdated': 'the extension is outdated, update it',
   'dock.option.tone': 'Tone',
   'dock.option.toneValue': 'Tone: {tone}',
   'dock.option.toneTooltip': 'Tone for one answer  {hotkey}',
@@ -124,6 +128,7 @@ export const EN: I18nCatalog<'en'> = {
   'dock.quota.zero': 'AI quota: 0',
   'dock.quota.zeroTooltip': 'Daily AI quota used up. Resets at {time} Moscow time',
   'dock.status.chatLoading': 'Chat loading…',
+  'dock.status.pageOff': 'ChatGoose is switched off for this page',
   'dock.helpRemoved': 'Help is removed for now',
 
   // ── Result sheet ──

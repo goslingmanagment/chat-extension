@@ -28,6 +28,44 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.3.0 — 2026-10-04 (первая живая проверка; добавочное)
+
+Что показала первая проверка на настоящем ChatSpace 0.172.0 с прод-хабом. Старые
+потребители не ломаются: новое поле и новые поля строк необязательные, новые
+ключи только добавлены. Перечисления (`DOCK_STATUSES`, `UNAVAILABLE_REASONS`)
+не менялись.
+
+- **Причины выключенного флага — пять ключей i18n.** Хаб считает каждый флаг
+  по странице и отдаёт причину (`pages[].features[flag].reason`); клиент
+  печатал на всё одно: «функция выключена для страницы». Теперь у причин свои
+  слова: `dock.reason.pageOff` («ChatGoose выключен для этой страницы» —
+  главный выключатель владельца, причина `disabled`), `dock.reason.hubNotReady`
+  («хаб пока не умеет эту функцию», `hub_not_ready`),
+  `dock.reason.platformUnsupported` (`platform_unsupported`),
+  `dock.reason.clientOutdated` (`client_outdated`). Причина `flag_off`
+  остаётся прежним `dock.reason.featureDisabled`, `binding_missing` и
+  `not_granted` — прежними `dock.reason.noBinding` и `dock.reason.notGranted`.
+  Новых id в `UNAVAILABLE_REASONS` нет: причина приходит с прежним id
+  (`feature-disabled`) и своим текстом и кодом, как это уже сделано для
+  `dock.reason.keyInField`. Правило чтения флагов —
+  [protocols/hub.md](protocols/hub.md), «Флаги: решает страница».
+- **`DockVM.notice?: CgErrorView | null`** и ключ `dock.status.pageOff`. Одна
+  строка статуса у дока, который в остальном `ready`: владелец выключил
+  ChatGoose для страницы открытого чата (все функции страницы — `disabled`).
+  Полоса остаётся, все кнопки AI приглушены с этой причиной, части можно только
+  копировать — вместо карточки ошибки после клика, на который хаб ответил бы 409.
+  Нового значения `DockStatus` нет: статус остаётся `ready`, у которого своего
+  баннера нет; док со своим баннером (`statusError`) строку не несёт. Фикстуры —
+  `DOCK_NOTICE_SAMPLES`.
+- **`PageTagVM { platform, pageLabel }`** — чем отличить страницы с одним
+  названием («Lora Vie» на OnlyFans дважды и на Fansly). Необязательные поля
+  там, где страницы перечисляют или выбирают: `PersonasBodyVM.pages[].page`,
+  `AccountsBodyVM.rows[].page` (`null` — страницы нет), `PopupVM.persona.page`
+  (`set` и `no-persona`), а в `AccountBodyVM.pages[]`, где `platform` уже был, —
+  `pageLabel`. `platform` — открытая лексема хаба, незнакомая печатается как
+  есть; `pageLabel` — ключ страницы в хабе. Только для показа: ни привязка, ни
+  поиск по ним не идут (AU-023). Фикстуры — `PAGE_TAG_SAMPLES`.
+
 ## 1.2.0 — 2026-10-04 (волна 2: R11, R12, R14, R15, R16, R17; добавочное)
 
 Одна минорная версия на всю волну 2: добавочные изменения (`contract-change`)
