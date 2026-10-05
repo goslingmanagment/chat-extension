@@ -6,8 +6,8 @@
 // not have yet must stay absent until a re-vendor brings them.
 //
 // And the request side of the AI stream, with the hub's REAL body schema
-// (`routeSchemas.aiFeatureStream.body` of the SDK vendored from hub
-// e7e1037b) and the rules of the hub's own handler (fake-hub/ai-rules.ts):
+// (`routeSchemas.aiFeatureStream.body` of the vendored SDK — hub 1e5f6ed9,
+// the head of hub PR #482) and the rules of the hub's own handler (fake-hub/ai-rules.ts):
 // every feature's body, as its driver builds it from a start the tab can
 // make, must be one the hub accepts. The first live check met a body the
 // hub answers 400 to (the Coach preset sent with our own question) that no

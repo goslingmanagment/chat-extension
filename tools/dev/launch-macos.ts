@@ -1,5 +1,8 @@
-// `pnpm dev` on macOS. Firefox is not made a child of this process there (see
-// AGENTS.md «Commands»): it is started by LaunchServices (`open -n -a Firefox
+// `pnpm dev` on macOS. A windowed Firefox is not made a child of this process
+// there — a caution, not a proven mechanism: twice after an agent's shell
+// started one directly the machine lost its Orca Computer Use accessibility
+// permission, and later it dropped with no such launch at all (AGENTS.md
+// «Commands»). So Firefox is started by LaunchServices (`open -n -a Firefox
 // --args …`) with its debugger server on a loopback port, and the test build
 // is installed as a temporary add-on over that port (rdp.ts) — and installed
 // again after every rebuild, which reloads it. No `web-ext run`, no child

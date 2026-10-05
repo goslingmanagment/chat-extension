@@ -73,9 +73,13 @@ a boundary you need to cross is a design question, not a lint exception.
   asks the Firefox behind a port which profile it runs before it installs,
   and refuses another one. On
   macOS it starts Firefox through LaunchServices (`open`) and installs the
-  build over the debugger port — never start the Firefox binary (or
-  `web-ext run`) from an agent shell there: it breaks the machine's Orca
-  Computer Use accessibility permission system-wide.
+  build over the debugger port. Do not start a WINDOWED Firefox — its binary
+  or `web-ext run` — from an agent shell there: twice after such a launch the
+  machine lost its Orca Computer Use accessibility permission system-wide.
+  The cause is unproven (the permission later dropped with no direct launch
+  at all, likely after an Orca restart), so this is caution, not a known
+  mechanism. Headless Firefox driven by geckodriver (`pnpm e2e`, `pnpm perf`)
+  is exempt.
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
   rows a test names. Name the row in the test title: `it('[ST-042] …')`.
 
