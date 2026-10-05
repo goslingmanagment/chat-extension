@@ -2700,7 +2700,72 @@ describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting leas
     expect(count(h, 'op.start')).toBe(0);
     expect(count(h, 'newcomers.claim')).toBe(0);
   });
+
+  it('[NF-015] the count is the hub’s own — every stored message, not only the fan’s: eleven messages of ours and none of theirs close Hi in the card, ten keep it open', async () => {
+    const archived = async (n: number): Promise<Harness> => {
+      const h = await harness({ config: X8, checkpointFan: '2010' });
+      // Welcome and mass messages: the archive has no word for «automatic» on OnlyFans, and the hub's gate counts them all.
+      for (let i = 0; i < n; i += 1) h.hub.control({ op: 'archiveMessage', pageLabel: PAGE.pageLabel, fanRef: '2010', sender: 'model', messageId: String(8200 + i) });
+      await h.dispatch(open('newcomers'));
+      await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
+      return h;
+    };
+    // The archive seeds three messages for the fan: eight more make eleven.
+    const closed = await archived(8);
+    expect(closed.boards.preview.getSnapshot(preview('newcomers')).feed.items).toHaveLength(11);
+    expect(closed.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate', code: 'CG-GATE-HI' } });
+    expect(await closed.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect([count(closed, 'op.start'), count(closed, 'newcomers.claim')]).toEqual([0, 0]);
+    const open10 = await archived(7);
+    expect(open10.boards.preview.getSnapshot(preview('newcomers')).feed.items).toHaveLength(10);
+    expect(open10.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: true, reason: null });
+  });
+
+  it('[NF-015] the list knows it from the row itself — the hub’s `storedMessageCount` — before the card’s archive is read: Hi is off, and no lease is taken for a greeting the hub would refuse', async () => {
+    const h = await harness({ config: X8, checkpointFan: '2010' });
+    h.hub.control({
+      op: 'scriptHttp',
+      match: 'route',
+      unscripted: 'model',
+      exchanges: [{ route: 'clientAudienceNew', request: { pageLabel: PAGE.pageLabel, windowHours: 48 }, response: { status: 200, body: await longThread(h, 11) } }],
+    });
+    await h.dispatch(open('newcomers'));
+    expect(h.boards.newcomers.greeting.hiBlocked('2010')).toMatchObject({ id: 'hi-gate', code: 'CG-GATE-HI' });
+    // The second fan's thread is a single message: Hi is his to have.
+    expect(h.boards.newcomers.greeting.hiBlocked('2011')).toBeNull();
+    expect(await h.boards.newcomers.greeting.claimForGenerate('2010')).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
+    // The card's own archive page is short (three rows), and still Hi stays off: the row's count is the hub's.
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).feed.items.length).toBeLessThanOrEqual(10);
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate', code: 'CG-GATE-HI' } });
+    expect(await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect([count(h, 'op.start'), count(h, 'newcomers.claim')]).toEqual([0, 0]);
+  });
+
+  it('[NF-015] the hub refuses a greeting all the same (`gate_hi_greeting_limit`: its archive moved on since the list was read): the card says «Это уже диалог» with CG-GATE-HI — the gate’s own words, not a generic hub error', async () => {
+    const h = await withCard();
+    h.bg.streams.streamScript.push({ kind: 'http-error', status: 400, body: { error: 'gate_hi_greeting_limit' } });
+    expect(await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.advance(200);
+    const failed = h.boards.preview.getSnapshot(preview('newcomers')).result;
+    expect(failed).toMatchObject({ state: 'failed', parts: null, error: { code: 'CG-GATE-HI', title: h.i18n.t('cg.gateHi.title'), body: h.i18n.t('cg.gateHi.body') } });
+    expect(failed?.error?.title).toBe('Это уже диалог');
+    // Not the words of a request that went wrong.
+    expect(failed?.error?.code).not.toBe('CG-HUB-REQUEST');
+    expect(failed?.error?.title).not.toBe(h.i18n.t('cg.hubRequest.title'));
+  });
 });
+
+/** The «Новые» page as the hub serves it now, with the first fan's thread `stored` messages long. */
+async function longThread(h: Harness, stored: number): Promise<unknown> {
+  const token = h.hub.issueToken();
+  const response = await hubCall(h.hub.fetch, h.hub.origin, 'clientAudienceNew', { pageLabel: PAGE.pageLabel, windowHours: 48, limit: 100 }, { token });
+  const page = (await response.json()) as { items: { thread: { storedMessageCount: number } | null }[] };
+  const first = page.items[0];
+  if (first === undefined || first.thread === null) throw new Error('the first newcomer has no thread');
+  first.thread = { ...first.thread, storedMessageCount: stored };
+  return page;
+}
 
 describe('[NF-019] a greeting is sent part by part, under the lease, and counts only by the receipt and its echo', () => {
   async function greeting(text = 'Hi there!\n[NEXT]\nSo happy you are here'): Promise<{ h: Harness; opId: string }> {

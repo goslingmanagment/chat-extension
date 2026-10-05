@@ -48,7 +48,7 @@ import { DeferredInsertSlot, type DeferredOutcome } from '../../domain/insert/de
 import { buildDeferredInsert, buildOpenAndInsert } from '../../domain/insert/intent';
 import { EMPTY_DRAFTS, changedDraftKeys, draftKey, draftUserPrefix, findDraft, keepOnly, mergeDraftStores, putDraft, readDraftStore, removeDraft, sameDraftStore, type DraftStore } from '../../domain/newcomers/drafts';
 import { greetingOutputProblem } from '../../domain/newcomers/greeting';
-import { personalMessages, tooManyForHi } from '../../domain/newcomers/rows';
+import { storedMessages, tooManyForHi } from '../../domain/newcomers/rows';
 import { digestHex } from '../../domain/ops/digest';
 import { applyOpDone, applyOpUpdate, mirrorFromView, newMirror, type OpMirror } from '../../domain/ops/mirror';
 import { messageWindowFor } from '../../domain/ops/request';
@@ -1131,8 +1131,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         const blocked = deps.greeting?.hiBlocked(state.fanRef) ?? null;
         if (blocked !== null) return blocked;
       }
-      // NF-015: a thread the archive proves to be a dialogue gets no Hi, and no AI call is spent on it.
-      if (state.feed !== null && tooManyForHi(personalMessages(state.feed.items))) return reason('hi-gate');
+      // NF-015: a thread the archive proves to be a dialogue gets no Hi, and no AI call is spent on it. The count is
+      // the hub's own: every stored message (the rows of the feed as they came), not only the fan's.
+      if (state.feed !== null && tooManyForHi(storedMessages(state.feed.items))) return reason('hi-gate');
     }
     return null;
   }

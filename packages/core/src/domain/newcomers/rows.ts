@@ -10,7 +10,7 @@ import { type AudienceNewItem, type ClaimState, type ClaimSummary } from '@cg/co
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import { type GreetingFilter, type GreetingStatusVM, type NewcomerKind, type NewcomersTab } from '@cg/contracts/vm';
 
-/** Hi is for a conversation that has barely started: past this many personal messages it is a dialogue (NF-015). */
+/** Hi is for a conversation that has barely started: past this many stored messages it is a dialogue (NF-015; the hub's `HI_GREETING_MAX_TRANSCRIPT`). */
 export const HI_MAX_PERSONAL_MESSAGES = 10;
 
 export interface NewcomerRow {
@@ -206,21 +206,25 @@ export function hiBlock(status: GreetingStatusVM): HiBlock | null {
 }
 
 /**
- * NF-015: messages that are certainly personal — the fan's own, and ours the
- * archive knows were typed by a person. Above ten the thread is a dialogue:
- * Hi is refused before any AI call («это уже диалог, здесь нужен Reply»). A
- * message of ours with an unknown origin is not counted: the hub's own gate
- * decides those.
+ * NF-015: what the hub's own Hi gate counts — EVERY stored message of the
+ * conversation, whoever sent it and whatever kind it is. This client asks the
+ * hub for a greeting on the hub's own context (no client-side message count
+ * goes with the request), and on that lane the hub has no word for «personal»:
+ * it counts the whole transcript and refuses past ten
+ * (`gate_hi_greeting_limit`). So the pre-check counts the same thing — the rows
+ * of the archive feed as they came — and Hi is never offered where the hub
+ * would answer with that refusal.
  */
-export function personalMessages(items: readonly { readonly sender: string; readonly automatic: boolean | null; readonly deleted: boolean }[]): number {
-  let count = 0;
-  for (const item of items) {
-    if (item.deleted) continue;
-    if (item.sender === 'fan' || (item.sender === 'model' && item.automatic === false)) count += 1;
-  }
-  return count;
+export function storedMessages(items: readonly unknown[]): number {
+  return items.length;
 }
 
-export function tooManyForHi(personal: number): boolean {
-  return personal > HI_MAX_PERSONAL_MESSAGES;
+/** More stored messages than the hub's Hi gate lets through: it is a dialogue, and Reply is the feature for it. */
+export function tooManyForHi(stored: number): boolean {
+  return stored > HI_MAX_PERSONAL_MESSAGES;
+}
+
+/** The same for a row of «Новые», by the count the hub itself gave with the row; a row without a thread has no messages to count. */
+export function rowTooLongForHi(row: Pick<NewcomerRow, 'thread'> | null): boolean {
+  return row !== null && row.thread !== null && tooManyForHi(row.thread.storedMessages);
 }

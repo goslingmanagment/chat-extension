@@ -31,7 +31,7 @@ import {
 import { RENEW_RETRY_MS, RowLocks, claimRefusal, leaseNow, leaseOfClaim, leasePolicy, shouldRenew, type LeasePolicy, type LeaseView } from '../../domain/newcomers/claim';
 import { draftStale } from '../../domain/newcomers/greeting';
 import { NO_SEEN_EVENTS, nextPollDelay, observeEvents, pollMode, resumeDelay, unprime, type SeenEvents } from '../../domain/newcomers/poll';
-import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
+import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, rowTooLongForHi, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
 import { WINDOW_HOURS, appendAudiencePage, clampWindow, startWalk, walkHasMore, walkIncomplete, windowLimit, windowOptions, type AudienceWalk } from '../../domain/newcomers/window';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
@@ -339,6 +339,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
 
   const greeting: GreetingDesk = {
     async claimForGenerate(fanRef) {
+      // NF-015: the hub refuses a greeting for a thread of more than ten stored messages — no lease is taken for it.
+      if (rowTooLongForHi(rowOf(fanRef))) return { ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) };
       const block = hiBlock(statusOf(fanRef));
       if (block === 'claim-busy') return { ok: false, code: 'CG-CLAIM-BUSY', error: claimError(fanRef, 'CG-CLAIM-BUSY') };
       if (block === 'claim-elsewhere') return { ok: false, code: 'CG-CLAIM-BUSY', error: { ...errorOf({ code: 'CG-CLAIM-BUSY' }, i18n), body: i18n.t('newcomers.claim.elsewhere') } };
@@ -362,7 +364,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     greeting: statusOf,
     hiBlocked(fanRef) {
       const block = hiBlock(statusOf(fanRef));
-      if (block === null) return null;
+      // NF-015: by the count the hub gave with the row — Hi is off before the card's archive is even read.
+      if (block === null) return rowTooLongForHi(rowOf(fanRef)) ? reason('hi-gate') : null;
       if (block === 'claim-busy') return reason('claim-busy');
       if (block === 'claim-elsewhere') return reason('claim-elsewhere');
       if (block === 'uncertain') return reason('part-uncertain', { n: (localOf(fanRef).progress?.uncertainPart ?? 0) + 1 });

@@ -190,6 +190,8 @@ function pageLabelOf(route: HubRouteKey, request: unknown): string | null {
 const LEGACY_PAGES_PATH = '/api/v1/pages';
 
 const AI_FEATURE_FLAGS: Partial<Record<HubAiFeature, ClientFeatureFlag>> = { 'coach-chat': 'coach', 'fan-summary': 'recap', 'chat-review': 'review' };
+/** The hub's `HI_GREETING_MAX_TRANSCRIPT` (feature-policies.ts): a greeting is for a conversation of at most this many messages. */
+export const HI_GREETING_MAX_TRANSCRIPT = 10;
 
 /** Why the hub refuses an AI body before the generic 400 (hub-pr-plan.md §4.11). */
 function streamRefusalReason(request: unknown): string | undefined {
@@ -832,6 +834,13 @@ export class FakeHub {
       if (persona === undefined) return refusal('not_found', 'persona_not_found');
       if (body.expectedPersonaDefinitionId !== undefined && body.expectedPersonaDefinitionId !== persona.definitionId) return refusal('persona_definition_changed');
       definitionId = persona.definitionId;
+    }
+    // The hub's Hi gate (`assertHiGreetingFreshness`, hub apps/runtime/src/modules/ai/features/index.ts): on the
+    // lane this client uses — the hub's own context, no client-side message count — it counts EVERY message of the
+    // transcript, and past ten the conversation is a dialogue: 400 `gate_hi_greeting_limit`. A product gate, so
+    // nothing is spent on it.
+    if (request.feature === 'hi-greeting' && s.data.archiveFacts(page, body.fanRef ?? body.conversationRef).total > HI_GREETING_MAX_TRANSCRIPT) {
+      return refusal('gate_hi_greeting_limit');
     }
     if (s.config.quotaRequestsToday === 0) {
       this.recordUsage(request, principal, 'quota-denied');

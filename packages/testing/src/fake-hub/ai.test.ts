@@ -34,7 +34,9 @@ const refusal = async (response: Response): Promise<{ status: number; error: str
   const body = (await response.json()) as { error: string; reason?: string };
   return body.reason === undefined ? { status: response.status, error: body.error } : { status: response.status, error: body.error, reason: body.reason };
 };
-const NEEDS: Partial<Record<HubAiFeature, Body>> = { 'improve-draft': { draftText: 'my draft' }, 'coach-chat': { chatterQuestion: 'What now?' } };
+/** A greeting is for a conversation that has barely started: the scenario's own fan has a long archive, the new one has not. */
+const GREETED = { fanRef: WORLD.newFan, conversationRef: WORLD.newFan } as const;
+const NEEDS: Partial<Record<HubAiFeature, Body>> = { 'improve-draft': { draftText: 'my draft' }, 'coach-chat': { chatterQuestion: 'What now?' }, 'hi-greeting': GREETED };
 const needs = (feature: HubAiFeature): Body => NEEDS[feature] ?? {};
 
 beforeEach(() => {
@@ -117,6 +119,22 @@ describe('fake hub AI: the stream the model writes', () => {
     expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'default' })))).not.toContain(SPLIT_MARKERS.next);
   });
 
+  it('the hub\'s Hi gate: a greeting is for a conversation of at most ten stored messages — EVERY message counts, whoever sent it; past that the answer is 400 `gate_hi_greeting_limit`, and nothing is spent', async () => {
+    const hi = (fanRef: string) => stream('hi-greeting', { fanRef, conversationRef: fanRef });
+    // The scenario's own fan has a long archive: a dialogue, not a first hello.
+    const quota = hub.config().quotaRequestsToday;
+    expect(await refusal(await hi(WORLD.fan))).toEqual({ status: 400, error: 'gate_hi_greeting_limit' });
+    expect(hub.config().quotaRequestsToday).toBe(quota);
+    // A new fan: ten messages of ours and none of theirs still pass; the eleventh message closes the gate.
+    const fresh = '2099';
+    for (let i = 0; i < 10; i += 1) hub.control({ op: 'archiveMessage', pageLabel: PAGE, fanRef: fresh, sender: 'model', messageId: String(9100 + i) });
+    expect(textOf(await framesOf(await hi(fresh)))).toContain('Hi and welcome!');
+    hub.control({ op: 'archiveMessage', pageLabel: PAGE, fanRef: fresh, sender: 'model', messageId: '9110' });
+    expect(await refusal(await hi(fresh))).toEqual({ status: 400, error: 'gate_hi_greeting_limit' });
+    // The gate is Hi's alone: a Reply to the same conversation goes through.
+    expect(textOf(await framesOf(await stream('fast-reply', { fanRef: fresh, conversationRef: fresh })))).not.toBe('');
+  });
+
   it('the rules of the hub\'s own handler: a Coach preset forbids our question, Coach without either is refused, coach fields and summaryMode stay with their features — with the hub\'s own messages', async () => {
     const refusedWith = async (response: Response): Promise<{ status: number; error: string; message: string }> => {
       const body = (await response.json()) as { error: string; message: string };
@@ -178,7 +196,7 @@ describe('fake hub AI: `aiNameFan` — a draft says whose chat it was written fo
     expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'preferSplit' }))).split(SPLIT_MARKERS.next).map((part) => part.trim())).toEqual([`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`]);
     expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'default' })))).toBe(`Hey you, thanks for writing! How was your day? @${fan}`);
     const hi = textOf(await framesOf(await stream('hi-greeting', { variantCount: 3, ...needs('hi-greeting') })));
-    expect(hi.split(SPLIT_MARKERS.variant).map((variant) => variant.trim())).toEqual([`Hi and welcome! @${fan}`, `Hey, glad you are here! @${fan}`, `Welcome in, nice to meet you! @${fan}`]);
+    expect(hi.split(SPLIT_MARKERS.variant).map((variant) => variant.trim())).toEqual([`Hi and welcome! @${WORLD.newFan}`, `Hey, glad you are here! @${WORLD.newFan}`, `Welcome in, nice to meet you! @${WORLD.newFan}`]);
     expect(namedForFan('<review/>', { feature: 'chat-review', body: streamBody({}), capabilities: [] })).toBe('<review/>');
     expect(textOf(await framesOf(await stream('fan-summary', needs('fan-summary'))))).not.toContain('@');
   });
