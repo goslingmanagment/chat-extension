@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 
 import { STORAGE_KEYS, isHubCallError, isHubCheckError, type Bootstrap, type CgCode, type HostAccount } from '@cg/contracts';
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, WORLD } from '@cg/testing/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, WORLD, pageFeaturesOff } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -161,7 +161,7 @@ describe('[HB-011] [AU-022] the bootstrap and its cache', () => {
     await vi.advanceTimersByTimeAsync(301_000);
     const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
     await restarted.facade.ready;
-    await flush();
+    await flush(40);
     expect(h.hub.of('clientBootstrap')).toHaveLength(2);
     expect(h.hub.of('aiPersonaCatalog')).toHaveLength(2);
     expect(restarted.facade.cachedBootstrap()).toMatchObject({ fresh: true });
@@ -337,20 +337,47 @@ describe('[AU-023] [AU-024] [AU-025] binding a host account to a hub page', () =
 });
 
 describe('[HB-011] flags, page features and capabilities (§4.12)', () => {
-  it('[HB-011] a flag is usable only when on, available on the page and backed by every capability', async () => {
+  it('[HB-011] a flag is usable only when the page\'s own feature is available and backed by every capability', async () => {
     expect(flagState(BOOTSTRAP_PILOT_ON, 'stats', one.pageLabel)).toEqual({ usable: true, reason: null });
     expect(flagState(BOOTSTRAP_PILOT_ON, 'previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
     expect(flagState(BOOTSTRAP_PILOT_ON, 'stats', 'not-my-page')).toEqual({ usable: false, reason: 'not_granted' });
     expect(flagState(BOOTSTRAP_PILOT_ON, 'stats', WORLD.pages.fansly.pageLabel)).toEqual({ usable: false, reason: 'platform_unsupported' });
-    expect(flagState(BOOTSTRAP_ALL_OFF, 'coach', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
+    // The owner's master switch: the page's own reason, as the hub put it.
+    expect(flagState(BOOTSTRAP_ALL_OFF, 'coach', one.pageLabel)).toEqual({ usable: false, reason: 'disabled' });
     const noCapability: Bootstrap = { ...BOOTSTRAP_PILOT_ON, capabilities: [] };
     expect(flagState(noCapability, 'stats', one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
     expect(flagState(noCapability, 'insertion', null)).toEqual({ usable: true, reason: null });
+    // A page that does not list the flag at all: off, as the hub reads a flag set nowhere.
     const silentPage: Bootstrap = { ...BOOTSTRAP_PILOT_ON, pages: BOOTSTRAP_PILOT_ON.pages.map((page) => ({ ...page, features: {} })) };
-    expect(flagState(silentPage, 'sound', one.pageLabel)).toEqual({ usable: false, reason: 'disabled' });
+    expect(flagState(silentPage, 'sound', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
     expect(h.facade.flagState('sound', null)).toEqual({ usable: false, reason: 'hub_not_ready' });
     await signIn(h, WORLD_PILOT);
     expect(h.facade.flagState('sound', one.pageLabel)).toEqual({ usable: true, reason: null });
+  });
+
+  it('[HB-011] the page decides, the top-level flags do not: a pilot switched on page by page works with every top-level flag false', async () => {
+    // What the owner really does: nothing in `"*"`, a row per page. The hub then answers every top-level flag false.
+    expect(Object.values(BOOTSTRAP_PILOT_PAGES.flags).some(Boolean)).toBe(false);
+    for (const flag of ['insertion', 'navigation', 'spenders', 'review', 'coach', 'recap', 'freshText', 'splitAll', 'wsTap', 'sound', 'newcomers', 'stats', 'preview', 'fanPanel'] as const) {
+      expect([flag, flagState(BOOTSTRAP_PILOT_PAGES, flag, one.pageLabel)]).toEqual([flag, { usable: true, reason: null }]);
+      // No page in particular: usable on at least one granted page.
+      expect([flag, flagState(BOOTSTRAP_PILOT_PAGES, flag, null)]).toEqual([flag, { usable: true, reason: null }]);
+    }
+    // …and the other way round: `"*"` on, the page's own row off — the page wins.
+    const pageOff = pageFeaturesOff(BOOTSTRAP_PILOT_ON, ['review'], { pageIds: [one.pageId] });
+    expect(pageOff.flags['review']).toBe(true);
+    expect(flagState(pageOff, 'review', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
+    expect(flagState(pageOff, 'review', vip.pageLabel)).toEqual({ usable: true, reason: null });
+    expect(flagState(pageOff, 'review', null)).toEqual({ usable: true, reason: null });
+    // Usable nowhere: the reason of the page that got furthest in the hub's checks (the Fansly page says «не та платформа»).
+    expect(flagState(pageFeaturesOff(BOOTSTRAP_PILOT_ON, ['review']), 'review', null)).toEqual({ usable: false, reason: 'flag_off' });
+    expect(flagState(BOOTSTRAP_ALL_OFF, 'review', null)).toEqual({ usable: false, reason: 'disabled' });
+    expect(flagState({ ...BOOTSTRAP_PILOT_ON, pages: [] }, 'review', null)).toEqual({ usable: false, reason: 'not_granted' });
+
+    await signIn(h, { ...WORLD_PILOT, bootstrap: BOOTSTRAP_PILOT_PAGES });
+    expect(h.facade.flagState('insertion', one.pageLabel)).toEqual({ usable: true, reason: null });
+    expect(h.facade.flagState('insertion', null)).toEqual({ usable: true, reason: null });
+    expect(h.facade.flagState('previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
   });
 
   it('[HB-011] versions compare numerically; an unreadable one compares as unknown', () => {
@@ -532,7 +559,7 @@ describe('[HB-011] the DEV-ONLY compat mode for a hub without client/bootstrap (
     expect(h.facade.flagState('recap', one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
     expect(h.facade.flagState('previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
     expect(h.facade.flagState('previewSend', null)).toEqual({ usable: false, reason: 'hub_not_ready' });
-    expect(h.facade.flagState('previewSendMarkAiGenerated', null)).toEqual({ usable: false, reason: 'flag_off' });
+    expect(h.facade.flagState('previewSendMarkAiGenerated', null)).toEqual({ usable: false, reason: 'hub_not_ready' });
     expect(h.facade.flagState('insertion', one.pageLabel)).toEqual({ usable: true, reason: null });
     expect(h.facade.flagState('review', one.pageLabel)).toEqual({ usable: true, reason: null });
     expect(h.facade.status()).toMatchObject({ compat: true, bootstrap: { source: 'compat' }, state: 'degraded' });

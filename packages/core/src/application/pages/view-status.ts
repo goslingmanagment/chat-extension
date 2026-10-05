@@ -7,7 +7,11 @@
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
 import { type HostContractReport } from '@cg/contracts/host';
+import { type ClientFeatureFlag } from '@cg/contracts/hub';
 import { type I18n, type Msg, type RunningOpVM, type StatusBodyVM, type StatusRowVM, type UiAction } from '@cg/contracts/vm';
+
+import { flagStateOf, somePageFlagState, type FlagState } from '../../domain/ops/flags';
+import { flagReasonVm } from '../flag-reason';
 
 import {
   QUOTA_LOW,
@@ -292,19 +296,36 @@ function contractRow(model: PagesModel): StatusRowVM | null {
   return row('contract', 'warn', value, msg('settings.status.row.contractMissing', { missing: gaps.anchors.join(', ') }));
 }
 
-function previewSendRow(model: PagesModel): StatusRowVM | null {
+/**
+ * An owner switch as «Статус» reads it (docs/protocols/hub.md «Флаги: решает страница»): the feature of the
+ * page the account in front of the person is bound to; with no such page — whether it is usable on at least one
+ * granted page. Never the bootstrap's top-level `flags`: they are the owner's `"*"` row alone, and an owner who
+ * pilots one page leaves it empty. null — no bootstrap.
+ */
+export function statusFlag(model: PagesModel, flag: ClientFeatureFlag): FlagState | null {
   const bootstrap = valueOf(model.bootstrap);
   if (bootstrap === null) return null;
-  const on = bootstrap.flags['previewSend'] === true && bootstrap.limits.previewSendReceiptProfiles.length > 0;
+  const current = currentAccountOf(model);
+  const bound = current === null ? null : boundPageOf(model, current.account);
+  return bound === null ? somePageFlagState(bootstrap, flag) : flagStateOf(bootstrap, bound.binding.pageId, flag);
+}
+
+function previewSendRow(model: PagesModel): StatusRowVM | null {
+  const bootstrap = valueOf(model.bootstrap);
+  const flag = statusFlag(model, 'previewSend');
+  if (bootstrap === null || flag === null) return null;
+  const on = flag.usable && bootstrap.limits.previewSendReceiptProfiles.length > 0;
   const sends = valueOf(model.diagnostics)?.sends ?? null;
   const note = sends === null ? null : msg('settings.status.row.previewSendNote', { open: sends.open, uncertain: sends.uncertain });
   return row('preview-send', sends !== null && sends.uncertain > 0 ? 'warn' : 'ok', msg(on ? 'settings.status.row.previewSendOn' : 'settings.status.row.previewSendOff'), note);
 }
 
 function spendersRow(model: PagesModel): StatusRowVM | null {
-  const bootstrap = valueOf(model.bootstrap);
-  if (bootstrap === null) return null;
-  return row('spenders', 'ok', msg(bootstrap.flags['spenders'] === true ? 'settings.status.row.spendersOn' : 'settings.status.row.spendersOff'));
+  const flag = statusFlag(model, 'spenders');
+  if (flag === null) return null;
+  if (flag.usable) return row('spenders', 'ok', msg('settings.status.row.spendersOn'));
+  // «Выключен владельцем» is the flag itself; any other reason (the page as a whole, the platform, no binding) is said in its own words.
+  return row('spenders', 'ok', msg('settings.status.row.spendersOff'), flag.reason === 'flag_off' ? null : flagReasonVm(flag).text);
 }
 
 function consentRow(model: PagesModel): StatusRowVM {

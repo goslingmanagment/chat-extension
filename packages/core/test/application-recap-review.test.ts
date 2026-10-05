@@ -13,7 +13,7 @@ import { RECAP_STATUS, readArtifactHandle } from '@cg/core/application/ai';
 import { saveSchedule } from '@cg/core/domain/recap';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostIso, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_ON, contextFrame, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, contextFrame, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
 
 import { OTHER_TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
@@ -25,7 +25,7 @@ function parts(): HarnessParts {
     baseHost: new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers: {}, timeline: [] }),
     memory,
     catalog: createFakeCatalog(ctxOf({ now: NOW_MS })),
-    bootstrap: BOOTSTRAP_PILOT_ON,
+    bootstrap: BOOTSTRAP_PILOT_PAGES,
     resolve: resolveHubErrorReference,
     meta: (feature) => meta(feature as Parameters<typeof meta>[0]),
   };
@@ -260,7 +260,7 @@ describe('recap: the sheet and what is saved', () => {
   });
 
   it('the Recap switch of the owner off: the button is off and the views say «недоступно»', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, recap: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['recap']);
     const h = await start({ bootstrap: off });
     expect(h.dock().actions.recap.reason?.id).toBe('feature-disabled');
     expect(h.recapView().view).toMatchObject({ s: 'forbidden', error: { code: 'CG-FEATURE-DISABLED' } });

@@ -8,14 +8,15 @@ import { type JSX } from 'preact';
 import { type PersonasBodyVM, type VmView } from '@cg/contracts/vm';
 
 import { Button, Dot, useI18n } from '../../kit';
-import { useAct } from '../shared';
+import { PageTag, pageNameWithTag, useAct } from '../shared';
 import { Picker } from './controls';
 
 export function PersonasSection({ body, view, readOnly }: { readonly body: PersonasBodyVM; readonly view: VmView; readonly readOnly: boolean }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
   const locked = readOnly ? i18n.t('cg.storageVersion.title') : null;
-  const pagesOn = (label: string): string[] => body.pages.filter((page) => page.persona === label).map((page) => page.pageName);
+  // Pages of one title are told apart by their platform and the hub's page label, here and in the picker's name.
+  const pagesOn = (label: string): string[] => body.pages.filter((page) => page.persona === label).map((page) => pageNameWithTag(page.pageName, page.page));
   return (
     <>
       <div class="pg-line">
@@ -34,8 +35,9 @@ export function PersonasSection({ body, view, readOnly }: { readonly body: Perso
           {body.pages.map((page) => (
             <li key={page.pageHandle} data-pg-page={page.pageHandle}>
               <b>{page.pageName}</b>
+              <PageTag tag={page.page} />
               <Picker
-                label={i18n.t('settings.personas.choose', { page: page.pageName })}
+                label={i18n.t('settings.personas.choose', { page: pageNameWithTag(page.pageName, page.page) })}
                 text={page.persona ?? i18n.t('settings.personas.none')}
                 value={page.choices.find((choice) => choice.label === page.persona)?.key ?? null}
                 options={page.choices.map((choice) => ({ value: choice.key, label: choice.label }))}

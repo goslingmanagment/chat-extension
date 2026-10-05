@@ -20,7 +20,7 @@ import { type ActionReceipt, type FanPanelVM, type I18n, type PartialGap, type U
 import { fanPanelModel } from '../../domain/fanpanel/model';
 import { type SpenderRow } from '../../domain/spenders/rows';
 import { coverageLevel } from '../../domain/spenders/stats';
-import { type PageContextPort, flagReason, pageFlag } from '../boards/context';
+import { type PageContextPort, flagFailure, pageFlag } from '../boards/context';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type Surfaces } from '../boards/shared';
 import { ViewCell, done, type SurfaceController } from '../boards/surface';
@@ -169,10 +169,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     // it last showed. Any other block — no sign-in, no binding, no right — shows nobody.
     const offlineOver = blocker !== null && ctx.binding !== null && chat !== null && failureClass(blocker.code) === 'offline';
     if (blocker !== null && !offlineOver) return { ...base, ...nothing, view: failureView(blocker, i18n, retry) };
-    if (ctx.phase === 'ready' && !pageFlag(ctx, 'fanPanel')) {
-      const why = flagReason(ctx, 'fanPanel');
-      return { ...base, ...nothing, view: failureView(why === null ? { code: 'CG-FEATURE-DISABLED' } : { code: 'CG-FEATURE-DISABLED', detail: why }, i18n, retry) };
-    }
+    if (ctx.phase === 'ready' && !pageFlag(ctx, 'fanPanel')) return { ...base, ...nothing, view: failureView(flagFailure(ctx, 'fanPanel'), i18n, retry) };
     // CS-038: no chat is open — nothing to show, and nothing is guessed.
     if (chat === null) return { ...base, ...nothing, view: { s: 'empty', why: msg('fanPanel.empty.title') } };
 

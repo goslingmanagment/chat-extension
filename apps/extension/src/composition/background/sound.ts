@@ -7,11 +7,16 @@
 // by the poll. Wiring only: what rings is decided by the arbiter's policy.
 //
 // A page whose «Новые» the hub cannot serve (the owner's switch, or a hub
-// without the route — the dev compat bootstrap) is never polled.
+// without the route — the dev compat bootstrap) is never polled, nor is a
+// page whose `sound` switch is off. The owner's `sound` switch is the
+// PAGE's own (docs/protocols/hub.md «Флаги: решает страница»): a fan's
+// message asks the page its host account is bound to, a new subscriber the
+// page of its batch; the poll as a whole runs while at least one page has it.
 
-import { AUDIENCE_KINDS, type AudienceNewPage, type Bootstrap } from '@cg/contracts/hub';
+import { AUDIENCE_KINDS, type AudienceNewPage, type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { narrowPlatform, type HostKind } from '@cg/contracts/ids';
 import { type SettingsV1 } from '@cg/contracts/settings';
+import { flagOnSomePage, flagUsable } from '@cg/core/domain/ops';
 import { type Clock, type KeyValueStore as ThrowingStore, type LogSink, type PresenceService, type TabEventSink } from '@cg/core/services';
 import { SoundArbiter, createSubscriberPoller, type SoundAudioPort, type SubscriberPage, type SubscriberPoller } from '@cg/core/services/sound';
 
@@ -28,6 +33,11 @@ export interface BackgroundSoundDeps {
   readonly bootstrap: () => Bootstrap | null;
   /** «Новые» may be read for the page now (granted, switched on, the hub serves it). */
   readonly newcomersUsable: (pageLabel: string) => boolean;
+  /**
+   * An owner switch as it stands for a host account of this browser: the value of the page the account is
+   * bound to; for an account bound to no page — the owner's `"*"` value; null — no bootstrap (signed out).
+   */
+  readonly accountFlag: (host: HostKind, hostAccountId: string, flag: ClientFeatureFlag) => boolean | null;
   readonly hostPermission: (host: HostKind) => Promise<boolean>;
   /** The newest rows of a page's «Новые» (the hub facade's `audienceNew`). */
   readonly read: (pageLabel: string, windowHours: number) => Promise<AudienceNewPage>;
@@ -60,10 +70,12 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     audio: deps.audio,
     presence: { listeningTabs: () => deps.presence.listeningTabs(), isChatInFocus: (chatKey) => deps.presence.isChatInFocus(chatKey), accounts },
     settings: deps.settings,
-    // The owner's `sound` switch; unknown while nobody is signed in (the message sound needs no hub, §9.8).
-    ownerSwitch: () => {
+    // The owner's `sound` switch of the page in question; unknown while nobody is signed in (the message sound
+    // needs no hub, §9.8).
+    ownerSwitch: (scope) => {
+      if (scope.kind === 'account') return deps.accountFlag(scope.host, scope.hostAccountId, 'sound');
       const bootstrap = deps.bootstrap();
-      return bootstrap === null ? null : bootstrap.flags['sound'] === true;
+      return bootstrap === null ? null : flagUsable(bootstrap, Number(scope.pageKey), 'sound');
     },
     hostPermission: deps.hostPermission,
     session: deps.session,
@@ -95,7 +107,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     const out: SubscriberPage[] = [];
     for (const page of bootstrap.pages) {
       const platform = narrowPlatform(page.platform);
-      if (platform === null || !deps.newcomersUsable(page.pageLabel)) continue;
+      if (platform === null || !deps.newcomersUsable(page.pageLabel) || !flagUsable(bootstrap, page.pageId, 'sound')) continue;
       if (now - (tabFed.get(page.pageId) ?? Number.NEGATIVE_INFINITY) < TAB_FED_FRESH_MS) continue;
       out.push({ pageId: page.pageId, pageLabel: page.pageLabel, platform, platformAccountId: page.platformAccountId });
     }
@@ -107,7 +119,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     pages,
     read: (page, windowHours) => deps.read(page.pageLabel, windowHours),
     presence: { listeningTabs: () => deps.presence.listeningTabs(), accounts },
-    enabled: () => deps.settings()?.subscribers.on === true && deps.bootstrap()?.flags['sound'] === true,
+    enabled: () => deps.settings()?.subscribers.on === true && flagOnSomePage(deps.bootstrap(), 'sound'),
     sink: { handleSubscribers: (batch) => hear(batch, null) },
     online: deps.online,
     log: deps.log,
@@ -127,6 +139,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
           platform,
           platformAccountId: page.platformAccountId,
           hub: true,
+          serverNow: answer.serverNow,
           events: answer.items.filter((item) => (AUDIENCE_KINDS as readonly string[]).includes(item.kind)).map((item) => ({ eventRef: item.eventRef, subscribedAt: item.subscribedAt })),
         },
         tabSessionId,

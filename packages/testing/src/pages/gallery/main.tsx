@@ -6,7 +6,7 @@
 // has no ChatSpace variables, so the tokens' fallback values are what shows.
 //
 //   ?page=popup|options|debug-prompt|debug-journal
-//   &state=working|troubled|unreachable|signed-out|first-run|read-only|debug|no-chatspace
+//   &state=working|troubled|unreachable|signed-out|first-run|read-only|debug|no-chatspace|same-title|long-title
 //   &theme=light|dark|system  &lang=ru|en  &platform=mac|win  &token=…
 // The hash is the page's own: `#appearance`, `#status:CG-QUOTA-DAILY`,
 // `#hub-calls` (the journal). `window.__pages` gives the e2e what it checks.
@@ -16,7 +16,7 @@ import { type KitFailure } from '@cg/ui/kit';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
 
 import { type BackgroundState } from '../background';
-import { PAGES_NOW, pagesWorld, signedOutState, troubledState, workingState } from '../world';
+import { PAGES_NOW, longTitleState, pagesWorld, sameTitleState, signedOutState, troubledState, workingState } from '../world';
 
 export interface PagesProbe {
   readonly failures: readonly KitFailure[];
@@ -46,7 +46,16 @@ const theme = themeParam === 'dark' || themeParam === 'system' ? themeParam : 'l
 const stateName = params.get('state') ?? 'working';
 
 function stateOf(name: string): BackgroundState {
-  const state = name === 'troubled' ? troubledState(PAGES_NOW) : name === 'signed-out' ? signedOutState(PAGES_NOW) : workingState(PAGES_NOW);
+  const state =
+    name === 'troubled'
+      ? troubledState(PAGES_NOW)
+      : name === 'signed-out'
+        ? signedOutState(PAGES_NOW)
+        : name === 'same-title'
+          ? sameTitleState(PAGES_NOW)
+          : name === 'long-title'
+            ? longTitleState(PAGES_NOW)
+            : workingState(PAGES_NOW);
   if (name === 'first-run') state.settings = { ...state.settings, onboarding: { ...state.settings.onboarding, checklistDismissed: false, lastSeenVersion: '0.4.2' } };
   if (name === 'read-only') state.readOnly = true;
   if (name === 'debug') state.settings = { ...state.settings, debug: { enabled: true, renderTrace: false } };

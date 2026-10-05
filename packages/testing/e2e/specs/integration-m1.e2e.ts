@@ -26,6 +26,7 @@
 import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsV1 } from '@cg/contracts';
 import { browser, expect } from '@wdio/globals';
 
+import { pilotPageFlags } from '../../src/fake-hub/config';
 import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { DEV_COMPAT_PAGES_KEY } from '../support/constants';
@@ -376,14 +377,20 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await openOptions('accounts');
     await waitForOptions((state) => state.section === 'accounts' && state.text.includes(WORLD.pages.one.title), '«Аккаунты» with the bound account');
     const accounts = await browser.execute(() =>
-      [...document.querySelectorAll('[data-pg-account]')].map((row) => ({
-        handle: row.getAttribute('data-pg-account') ?? '',
-        page: (row.querySelector('.pg-acc__grid dd.pg-value, .pg-acc__grid dd.pg-muted')?.textContent ?? '').trim(),
-      })),
+      [...document.querySelectorAll('[data-pg-account]')].map((row) => {
+        const cell = row.querySelector('.pg-acc__grid dd.pg-value, .pg-acc__grid dd.pg-muted');
+        return {
+          handle: row.getAttribute('data-pg-account') ?? '',
+          // The title is the cell's own text; the tag next to it tells pages of one title apart.
+          page: (cell?.firstChild?.textContent ?? '').trim(),
+          tag: cell?.querySelector('.pg-pagetag')?.textContent ?? null,
+        };
+      }),
     );
-    // The account ChatSpace shows is bound to its hub page; the other one has no page (nothing is matched by name).
-    expect(accounts.find((row) => row.handle === `chatspace:${accountA}`)?.page).toBe(WORLD.pages.one.title);
-    expect(accounts.find((row) => row.handle === `chatspace:${accountB}`)?.page).toBe('не привязан');
+    // The account ChatSpace shows is bound to its hub page — named by its title, its platform and the hub's page
+    // label; the other one has no page (nothing is matched by name).
+    expect(accounts.find((row) => row.handle === `chatspace:${accountA}`)).toMatchObject({ page: WORLD.pages.one.title, tag: `OnlyFans · ${PAGE}` });
+    expect(accounts.find((row) => row.handle === `chatspace:${accountB}`)).toMatchObject({ page: 'не привязан', tag: null });
 
     const popup = await openPopup();
     const settled = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.pills.some((pill) => pill.includes('на связи')), 'the popup of a working shift');
@@ -425,13 +432,31 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await dockIs((dock) => dock.status === 'ready' && dock.login === WORLD.user.username && dock.page === PAGE, 'the reloaded tab is signed in and bound');
   });
 
-  it('the owner switches the tap off: the next bootstrap unregisters it', async () => {
-    await hub().command({ op: 'config', patch: { flags: { wsTap: false } } });
+  it('the owner switches the tap off page by page: it stays registered while one page still has it, and the next bootstrap unregisters it when none does', async () => {
+    type Boot = { flags: Readonly<Record<string, boolean>>; pages: readonly { pageLabel: string; platform: string; features: Readonly<Record<string, { available: boolean; reason?: string }>> }[] };
+    const tapOn = (boot: Boot): string[] => boot.pages.filter((page) => page.features['wsTap']?.available === true).map((page) => page.pageLabel);
     await toPages();
     await openOptions();
-    const refreshed = await pageRpc<{ flags: Readonly<Record<string, boolean>> }>('bootstrap.get', { force: true });
-    expect(refreshed.ok && refreshed.payload.flags['wsTap']).toBe(false);
-    await browser.waitUntil(async () => (await registeredScripts()).length === 0, { timeout: 5000, timeoutMsg: 'the WS tap stayed registered after the flag went off' });
+    // The pilot is switched on page by page: the owner's `"*"` row is empty, so the top-level flag is FALSE — and
+    // the tap is registered all the same (the page's own feature decides, never the top-level flag).
+    const before = await pageRpc<Boot>('bootstrap.get', { force: true });
+    if (!before.ok) throw new Error('bootstrap.get');
+    expect(before.payload.flags['wsTap']).toBe(false);
+    expect(tapOn(before.payload)).toEqual([PAGE, WORLD.pages.vip.pageLabel]);
+    expect(await registeredScripts()).toContain('cg-ws-tap');
+
+    // Off on the page this tab works in, on on the other pilot page: the script is not bound to one page, it stays.
+    await hub().command({ op: 'config', patch: { pageFlags: { [PAGE]: { wsTap: false } } } });
+    const one = await pageRpc<Boot>('bootstrap.get', { force: true });
+    expect(one.ok && tapOn(one.payload)).toEqual([WORLD.pages.vip.pageLabel]);
+    await browser.pause(300);
+    expect(await registeredScripts()).toContain('cg-ws-tap');
+
+    // Off on every page: nothing is left to listen for.
+    await hub().command({ op: 'config', patch: pilotPageFlags({ wsTap: false }) });
+    const refreshed = await pageRpc<Boot>('bootstrap.get', { force: true });
+    expect(refreshed.ok && tapOn(refreshed.payload)).toEqual([]);
+    await browser.waitUntil(async () => (await registeredScripts()).length === 0, { timeout: 5000, timeoutMsg: 'the WS tap stayed registered after the switch went off on every page' });
     await toStand();
     await browser.refresh();
     await waitForStandReady();
@@ -439,8 +464,8 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(report.main?.wsTap).toBe(false);
     expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('chatgoose.wsTap')))).toBe(false);
 
-    // And on again: the flag is the owner's switch in both directions.
-    await hub().command({ op: 'config', patch: { flags: { wsTap: true } } });
+    // And on again: the switch is the owner's in both directions.
+    await hub().command({ op: 'config', patch: pilotPageFlags({ wsTap: true }) });
     await toPages();
     expect(await pageRpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
     await browser.waitUntil(async () => (await registeredScripts()).includes('cg-ws-tap'), { timeout: 5000, timeoutMsg: 'the WS tap was not registered again' });

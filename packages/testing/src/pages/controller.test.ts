@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, UiActionSchema, type OptionsVM, type SettingsSection, type StatusRowVM, type UiAction } from '@cg/contracts';
 import { AUTOSAVE_DEBOUNCE_MS, RECHECK_MIN_INTERVAL_MS, routeOfHash } from '@cg/core/application/pages';
 
-import { PAGES_HOST_ORIGIN, PAGES_NOW, PAGES_VERSION, hostReport, pagesWorld, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
+import { PAGES_HOST_ORIGIN, PAGES_NOW, PAGES_VERSION, hostReport, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
 
 let world: PagesWorld | null = null;
 let clock = PAGES_NOW;
@@ -41,7 +41,7 @@ describe('popup view model', () => {
     expect(vm.version).toBe(PAGES_VERSION);
     expect(vm.pills).toEqual({ host: 'connected', hub: 'ok' });
     expect(vm.problems).toEqual([]);
-    expect(vm.persona).toEqual({ s: 'set', label: 'Лора · VIP', pageName: 'LoraVie VIP' });
+    expect(vm.persona).toEqual({ s: 'set', label: 'Лора · VIP', pageName: 'LoraVie VIP', page: { platform: 'onlyfans', pageLabel: 'loravie-vip' } });
     expect(vm.account?.login).toBe('chatter1');
     expect(vm.chat).toMatchObject({ hostAccountLabel: 'OnlyMonster 1001', copyIds: { hostAccountId: '1001', creatorId: '3003' } });
     expect(vm.quota).toEqual({ remaining: 12, resetsAt: '2026-10-04T00:00:00Z', low: true });
@@ -699,6 +699,51 @@ describe('options: personas and accounts', () => {
     expect(options(w, 'personas').body?.pages.find((entry) => entry.pageName === 'Lora Reels')?.persona).toBe('Лора · VIP');
   });
 
+  it('[ST-060] [ST-067] [PU-003] pages of one title are told apart wherever they are listed or chosen: each carries its platform and the hub\'s page label (1.3.0)', async () => {
+    const state = sameTitleState();
+    state.accounts = state.accounts.slice(0, 2);
+    const w = await open({ state });
+    // «Персоны»: three pages named «Lora Vie» — the tag is what the person chooses by.
+    expect(options(w, 'personas').body?.pages.map((page) => [page.pageName, page.page])).toEqual([
+      ['Lora Vie', { platform: 'onlyfans', pageLabel: 'lora-vip' }],
+      ['Lora Vie', { platform: 'onlyfans', pageLabel: 'lora-free' }],
+      ['Lora Vie', { platform: 'fansly', pageLabel: 'lora-fansly' }],
+      // A platform this build does not know is carried as it is.
+      ['Lilly', { platform: 'somewhere-new', pageLabel: 'lilly-new' }],
+    ]);
+    // «Аккаунты»: the page an account is bound to, and the pages nobody opened here.
+    expect((options(w, 'accounts').body?.rows ?? []).map((entry) => [entry.status, entry.pageName, entry.page])).toEqual([
+      ['working', 'Lora Vie', { platform: 'onlyfans', pageLabel: 'lora-vip' }],
+      ['seen', 'Lora Vie', { platform: 'onlyfans', pageLabel: 'lora-free' }],
+      ['no-sessions', 'Lora Vie', { platform: 'fansly', pageLabel: 'lora-fansly' }],
+      ['no-sessions', 'Lilly', { platform: 'somewhere-new', pageLabel: 'lilly-new' }],
+    ]);
+    // «Аккаунт»: the platform was there before; the label joins it.
+    expect(options(w, 'account').body?.pages.map((page) => [page.pageName, page.platform, page.pageLabel])).toEqual([
+      ['Lora Vie', 'OnlyFans', 'lora-vip'],
+      ['Lora Vie', 'OnlyFans', 'lora-free'],
+      ['Lora Vie', 'Fansly', 'lora-fansly'],
+      ['Lilly', 'somewhere-new', 'lilly-new'],
+    ]);
+    world?.client.dispose();
+    // The popup: whose persona this is.
+    const popup = await open({ page: 'popup', state: sameTitleState() });
+    expect(popup.client.getSnapshot({ of: 'popup' }).persona).toEqual({ s: 'set', label: 'Лора · VIP', pageName: 'Lora Vie', page: { platform: 'onlyfans', pageLabel: 'lora-vip' } });
+  });
+
+  it('[ST-067] an account bound to no hub page has no tag, and a page without a persona still has its own', async () => {
+    const state = sameTitleState();
+    state.settings = { ...state.settings, personas: { ...state.settings.personas, byPageId: {} } };
+    const w = await open({ page: 'popup', state });
+    expect(w.client.getSnapshot({ of: 'popup' }).persona).toEqual({ s: 'no-persona', pageName: 'Lora Vie', page: { platform: 'onlyfans', pageLabel: 'lora-vip' } });
+    world?.client.dispose();
+    const unbound = sameTitleState();
+    unbound.bootstrap = { ...unbound.bootstrap, pages: unbound.bootstrap.pages.filter((page) => page.pageId !== 11) };
+    const w2 = await open({ state: unbound });
+    const first = options(w2, 'accounts').body?.rows.find((entry) => entry.accountHandle === 'chatspace:1001');
+    expect([first?.pageName, first?.page]).toEqual([null, null]);
+  });
+
   it('[ST-067] [ST-068] [ST-071] accounts in three groups: at work, seen before, never opened here', async () => {
     const state = workingState();
     state.accounts = state.accounts.slice(0, 2);
@@ -1165,10 +1210,27 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     const w = await open();
     expect(text(w, row(w, 'spenders')?.value)).toBe('включён');
     world?.client.dispose();
-    const off = workingState();
-    off.bootstrap = { ...off.bootstrap, flags: { ...off.bootstrap.flags, spenders: false } };
-    const w2 = await open({ state: off });
+    // The page's own row decides — never the top-level flags, which are all false in a pilot switched on page by page.
+    expect(Object.values(workingState().bootstrap.flags).some(Boolean)).toBe(false);
+    const featureOff = (reason: string): ReturnType<typeof workingState> => {
+      const state = workingState();
+      state.bootstrap = { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => ({ ...page, features: { ...page.features, spenders: { available: false, reason } } })) };
+      return state;
+    };
+    const w2 = await open({ state: featureOff('flag_off') });
     expect(text(w2, row(w2, 'spenders')?.value)).toBe('выключен владельцем');
+    expect(row(w2, 'spenders')?.note ?? null).toBeNull();
+    world?.client.dispose();
+    // Another reason than the flag itself is said in its own words: the owner's master switch is off for the page.
+    const w3 = await open({ state: featureOff('disabled') });
+    expect(text(w3, row(w3, 'spenders')?.value)).toBe('выключен владельцем');
+    expect(text(w3, row(w3, 'spenders')?.note)).toBe('ChatGoose выключен владельцем');
+    world?.client.dispose();
+    // `"*"` on and the page's own row off: the page still wins.
+    const starOn = featureOff('flag_off');
+    starOn.bootstrap = { ...starOn.bootstrap, flags: { ...starOn.bootstrap.flags, spenders: true } };
+    const w4 = await open({ state: starOn });
+    expect(text(w4, row(w4, 'spenders')?.value)).toBe('выключен владельцем');
   });
 
   it('[ST-031] the sound row: how many tabs listen and the last signal; no tab; both sounds off', async () => {

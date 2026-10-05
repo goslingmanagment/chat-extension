@@ -49,7 +49,8 @@ import {
   nextPollDelay,
   observeEvents,
   passesFilter,
-  personalMessages,
+  rowTooLongForHi,
+  storedMessages,
   pollMode,
   progressOfClaim,
   putDraft,
@@ -269,15 +270,26 @@ describe('[NF-005] [NF-007] rows and greeting statuses', () => {
     expect(hiBlock({ s: 'greeted', at: null })).toBe('greeted');
   });
 
-  it('[NF-015] more than ten personal messages is a dialogue: only the fan messages and ours known to be typed count', () => {
+  it('[NF-015] more than ten stored messages is a dialogue — the count the hub’s own Hi gate takes: every message of the thread, whoever sent it and whatever kind it is', () => {
     const fan = { sender: 'fan', automatic: null, deleted: false };
     const typed = { sender: 'model', automatic: false, deleted: false };
     const unknownOrigin = { sender: 'model', automatic: null, deleted: false };
     const automatic = { sender: 'model', automatic: true, deleted: false };
-    expect(personalMessages([fan, typed, unknownOrigin, automatic, { ...fan, deleted: true }, { sender: 'system', automatic: null, deleted: false }])).toBe(2);
+    // Six rows of six kinds are six messages: the hub's gate has no word for «personal» on this lane.
+    expect(storedMessages([fan, typed, unknownOrigin, automatic, { ...fan, deleted: true }, { sender: 'system', automatic: null, deleted: false }])).toBe(6);
     expect(tooManyForHi(10)).toBe(false);
     expect(tooManyForHi(11)).toBe(true);
-    expect(tooManyForHi(personalMessages(Array.from({ length: 30 }, () => unknownOrigin)))).toBe(false);
+    // A welcome and ten mass messages of ours, not one word from the fan: the hub answers `gate_hi_greeting_limit`, so Hi is not offered.
+    expect(tooManyForHi(storedMessages(Array.from({ length: 11 }, () => automatic)))).toBe(true);
+    expect(tooManyForHi(storedMessages(Array.from({ length: 10 }, () => fan)))).toBe(false);
+    // A row of «Новые» is judged by the count the hub sent with it; a row without a thread has nothing to count.
+    const row = newcomerRow(pageOne.items[0]!);
+    const withThread = (storedMessages: number) => ({ thread: { storedMessages, lastMessageAt: null, lastFanMessageAt: null, lastModelMessageAt: null } });
+    expect(rowTooLongForHi(withThread(10))).toBe(false);
+    expect(rowTooLongForHi(withThread(11))).toBe(true);
+    expect(rowTooLongForHi({ thread: null })).toBe(false);
+    expect(rowTooLongForHi(null)).toBe(false);
+    expect(rowTooLongForHi(row)).toBe(false);
   });
 
   it('[NF-018] a draft written on another state of the thread is stale', () => {

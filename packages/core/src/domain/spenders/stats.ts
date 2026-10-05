@@ -30,9 +30,17 @@ export interface StatsDay {
   readonly today: boolean;
 }
 
+/** The hub's tier keys of the two remainder rows: tiers without bounds (contracts `STATS_REMAINDERS`). */
+export type StatsRemainderKey = 'untiered' | 'unattributed';
+const REMAINDER_KEYS: readonly StatsRemainderKey[] = ['untiered', 'unattributed'];
+/** The row of money no fan is counted for: no shelf of the board stands behind it. */
+export const UNATTRIBUTED_SHELF_ID = 'shelf-unattributed';
+
 export interface StatsShelf {
   readonly id: string;
   readonly range: ShelfRange;
+  /** A remainder row, told by the hub's tier key — never by the missing bounds (there are two of them). */
+  readonly remainder?: StatsRemainderKey;
   readonly fans: number | null;
   /** The stats carry no lifetime sum of a shelf; the board's own, when it holds the whole shelf. */
   readonly lifetime: MoneyMills | null;
@@ -92,6 +100,25 @@ function shelfShares(period: readonly (MoneyMills | null)[]): number[] {
   });
 }
 
+type Tier = SpendersStats['tiers'][number];
+
+/**
+ * The tier table from the richest tier down, whatever order the hub sent it in (it sends the tiers ascending):
+ * tiers with a lower bound by that bound, then a tier without one, then the remainder rows — «без тира» before
+ * «не распределено» — and a remainder this build does not know last. Equal rows keep the hub's order.
+ */
+export function orderedTiers(tiers: readonly Tier[]): Tier[] {
+  const rank = (tier: Tier): number => {
+    const remainder = REMAINDER_KEYS.indexOf(tier.key as StatsRemainderKey);
+    if (remainder >= 0) return 2 + remainder;
+    return tier.minMills === null && tier.maxMills === null ? 2 + REMAINDER_KEYS.length : tier.minMills === null ? 1 : 0;
+  };
+  return tiers
+    .map((tier, index) => ({ tier, index }))
+    .sort((a, b) => rank(a.tier) - rank(b.tier) || (b.tier.minMills ?? 0) - (a.tier.minMills ?? 0) || a.index - b.index)
+    .map((entry) => entry.tier);
+}
+
 /**
  * The statistics as the hub sent them. `lifetimeByShelf` — lifetime sums the
  * board can vouch for (a shelf it holds whole); a shelf it cannot is null.
@@ -101,10 +128,12 @@ export function statsModel(stats: SpendersStats, lifetimeByShelf: ReadonlyMap<st
   const dates = calendarDates(stats.from, stats.to);
   // The series follows the window's calendar; without a readable window, the days the hub sent.
   const series = dates.length > 0 ? dates : stats.days.map((day) => day.date);
-  const tiers = stats.tiers.map((tier) => {
-    const outside = tier.minMills === null && tier.maxMills === null;
-    const id = outside ? OUTSIDE_SHELF_ID : shelfIdOf(tier.key);
-    return { id, range: { fromMills: tier.minMills, toMills: tier.maxMills }, fans: tier.members, period: tier.windowGrossMills };
+  const tiers = orderedTiers(stats.tiers).map((tier) => {
+    const remainder = REMAINDER_KEYS.find((key) => key === tier.key);
+    // «Без тира» is the board's «вне полок»: the fans no bucket takes. The other rows keep the id of their own key,
+    // so two tiers without bounds are never one row.
+    const id = remainder === 'untiered' ? OUTSIDE_SHELF_ID : remainder === 'unattributed' ? UNATTRIBUTED_SHELF_ID : shelfIdOf(tier.key);
+    return { id, range: { fromMills: tier.minMills, toMills: tier.maxMills }, ...(remainder === undefined ? {} : { remainder }), fans: tier.members, period: tier.windowGrossMills };
   });
   const shares = shelfShares(tiers.map((tier) => tier.period));
   return {

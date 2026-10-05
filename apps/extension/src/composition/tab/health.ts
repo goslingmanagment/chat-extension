@@ -60,15 +60,26 @@ export function startTabHealth(env: TabHealthEnv): TabHealth {
   const starts: Partial<Record<UiPaintMetric, number>> = {};
   const firstChunks = new Map<string, number>();
   let sending = false;
+  /** A forced report came while one was on its way: the newest contract is sent as soon as that one lands. */
+  let again = false;
 
   const report = (force = false): void => {
-    if (sending || (!force && collector.isEmpty())) return;
+    if (sending) {
+      // The host contract changes several times in a row while ChatSpace loads. A change that arrives while the
+      // previous report is in flight must not be dropped: «Статус» would show the older contract for a minute.
+      if (force) again = true;
+      return;
+    }
+    if (!force && collector.isEmpty()) return;
     sending = true;
     void env
       .send(collector.takeReport(env.contract(), { cachesKB: 0, domNodes: env.domNodes() }))
       .catch(() => false)
       .then(() => {
         sending = false;
+        if (!again) return;
+        again = false;
+        report(true);
       });
   };
   const timer = env.setInterval(() => report(), HEALTH_REPORT_MS);

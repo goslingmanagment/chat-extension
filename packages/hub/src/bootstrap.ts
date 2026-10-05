@@ -8,6 +8,12 @@
 //   every 60 s (AU-017, HUB_FACADE_TIMING).
 // - An expired bootstrap blocks new sensitive actions (the facade refreshes
 //   before them) but keeps whatever results exist.
+// - A generation is the one exception (coordinator's decision after the first
+//   live check, X13): it never waits for a refresh while a bootstrap that
+//   expired no more than 2 × ttlSec ago is cached — it is served from that
+//   one while the refresh runs (`recent`). The hub checks every AI call
+//   again, so a switch the owner flipped meanwhile still refuses it there.
+//   Inserts, navigation, X8 `dispatch` and the other writes keep the rule.
 // - A hub without `client/bootstrap` (404, prod today) gets the DEV-ONLY
 //   synthesized bootstrap when the compat mode is allowed (a test build with
 //   debug on), else CG-HUB-OUTDATED (`bootstrapMissing`).
@@ -59,6 +65,21 @@ const BootstrapCacheSchema = z.strictObject({
 const CompatPagesSchema = z.array(
   z.object({ id: HubIntIdSchema, label: z.string(), platform: z.string(), modelName: z.string(), displayName: z.nullable(z.string()) }),
 );
+
+/**
+ * How long after its expiry a cached bootstrap still admits a generation, in
+ * ttls: a refresh that hangs on the network path must not cost every quick
+ * feature its whole 30 s until-meta deadline with no request sent at all.
+ */
+export const GENERATION_GRACE_TTLS = 2;
+
+/** What a generation is admitted by without waiting: the cached bootstrap, and for how long it has been expired (0 — fresh). */
+export interface RecentBootstrap {
+  readonly entry: BootstrapEntry;
+  readonly expiredMs: number;
+  /** An expired one only — where its refresh stands: this call started it, it was already running, or its retry waits for its pause. */
+  readonly refresh: 'started' | 'running' | 'scheduled' | null;
+}
 
 export interface BootstrapDeps {
   readonly ctx: HubContext;
@@ -128,6 +149,25 @@ export class BootstrapService {
     const cached = this.cached();
     if (cached !== null && this.isFresh(cached)) return cached;
     return this.refresh();
+  }
+
+  /**
+   * For a generation: the cached bootstrap when it is fresh or expired no more than `GENERATION_GRACE_TTLS`
+   * ttls ago — an expired one has its refresh running (started here unless one runs or its retry is scheduled).
+   * null — nothing recent enough is cached: the caller waits for `refresh()`.
+   */
+  recent(): RecentBootstrap | null {
+    const connection = this.ctx.connection('clientBootstrap');
+    const cached = this.cached();
+    if (cached === null) return null;
+    const ttlMs = cached.bootstrap.ttlSec * 1000;
+    const expiredMs = Math.max(0, Math.round(this.age(cached) - ttlMs));
+    if (expiredMs === 0 && this.isFresh(cached)) return { entry: cached, expiredMs: 0, refresh: null };
+    if (expiredMs > GENERATION_GRACE_TTLS * ttlMs) return null;
+    if (this.inFlight !== null && this.inFlight.epoch === connection.epoch) return { entry: cached, expiredMs, refresh: 'running' };
+    if (this.timer !== null) return { entry: cached, expiredMs, refresh: 'scheduled' };
+    this.refresh().catch(() => undefined);
+    return { entry: cached, expiredMs, refresh: 'started' };
   }
 
   /** One fetch per sign-in epoch at a time; the result is adopted only while that sign-in lasts. */
@@ -217,6 +257,16 @@ export class BootstrapService {
       return;
     }
     if (error instanceof FacadeCallError && error.failure.kind === 'transport' && error.failure.failure === 'aborted') return;
+    // The call's own lines («slow call», «call failed») say what happened to the request; this one says what the
+    // hub layer does next and whether the bootstrap it still holds has run out.
+    const cached = this.cached();
+    this.ctx.log('warn', 'hub: bootstrap refresh failed', {
+      route: 'clientBootstrap',
+      failures: this.failures,
+      retryInMs: pause,
+      cached: cached === null ? 'none' : this.isFresh(cached) ? 'fresh' : 'expired',
+      epoch: connection.epoch,
+    });
     this.schedule(pause);
   }
 

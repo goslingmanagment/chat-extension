@@ -125,6 +125,38 @@ export const BOOTSTRAP_PILOT_ON: Bootstrap = {
   capabilities: CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'client-health-perf-v1'),
 };
 
+/**
+ * The pilot as the owner really switches it on: `chatExtensionFeatures["*"]` is empty and each pilot page has
+ * its own row. The hub then answers the same page features as BOOTSTRAP_PILOT_ON and every top-level flag
+ * false (`clientBootstrapFlags` reads the `"*"` row alone). A client that gates on `bootstrap.flags` shows
+ * everything «выключено владельцем» here; the page's own `features` are the truth.
+ */
+export const BOOTSTRAP_PILOT_PAGES: Bootstrap = {
+  ...BOOTSTRAP_PILOT_ON,
+  flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, false])),
+};
+
+/**
+ * A bootstrap in which the hub answers these features of its OnlyFans pages (all of them, or the ones named)
+ * as unavailable, with a reason — what an owner's page row, the master switch or a hub that is not ready looks
+ * like to the client. The top-level `flags` are left as they are: they do not decide what a page may do.
+ */
+export function pageFeaturesOff(
+  bootstrap: Bootstrap,
+  flags: readonly ClientFeatureFlag[],
+  options: { readonly reason?: string; readonly pageIds?: readonly number[] } = {},
+): Bootstrap {
+  const reason = options.reason ?? 'flag_off';
+  return {
+    ...bootstrap,
+    pages: bootstrap.pages.map((page) =>
+      page.platform !== 'onlyfans' || (options.pageIds !== undefined && !options.pageIds.includes(page.pageId))
+        ? page
+        : { ...page, features: { ...page.features, ...Object.fromEntries(flags.map((flag) => [flag, { available: false, reason }])) } },
+    ),
+  };
+}
+
 const healthBody = {
   status: 'ok',
   timestamp: NOW,
@@ -234,10 +266,12 @@ const stats: SpendersStats = {
     d7DeltaPct: 2.19,
   },
   avgCheckMills: 58_623,
+  // As the hub sends them: the tiers ascending, then its two remainder tiers — both without bounds.
   tiers: [
+    { key: '0-25', label: '$0–25', minMills: 10, maxMills: 25_000, members: 1100, windowPayers: 500, windowGrossMills: 53_100_000 },
     { key: '600-plus', label: '$600+', minMills: 600_000, maxMills: null, members: 31, windowPayers: 28, windowGrossMills: 40_000_000 },
-    { key: '0-25', label: '$0–25', minMills: 10, maxMills: 25_000, members: 1100, windowPayers: 500, windowGrossMills: 54_350_000 },
     { key: 'untiered', label: 'Без тира', minMills: null, maxMills: null, members: 109, windowPayers: 112, windowGrossMills: 0 },
+    { key: 'unattributed', label: 'Не распределено', minMills: null, maxMills: null, members: 0, windowPayers: 0, windowGrossMills: 1_250_000 },
   ],
   silence: { d8to21: { fans: 120, lifetimeGrossMills: 9_000_000 }, over21: { fans: 300, lifetimeGrossMills: 15_000_000 }, unknown: { fans: 12, lifetimeGrossMills: 400_000 } },
   newPayers: { count: 57, firstPurchaseKnown: true },
@@ -402,6 +436,12 @@ export const HTTP_SCENARIOS: readonly HttpScenario[] = [
     name: 'bootstrap-pilot-on',
     description: 'Pilot flags on both OF pages, explicit host bindings, capabilities declared; the Fansly page is platform_unsupported.',
     exchanges: [ok('clientBootstrap', null, BOOTSTRAP_PILOT_ON)],
+  },
+  {
+    name: 'bootstrap-pilot-pages',
+    description:
+      'The pilot switched on page by page, the `"*"` row empty: every top-level flag is false while the features of both OF pages are available. The client reads the page, never the top-level flags.',
+    exchanges: [ok('clientBootstrap', null, BOOTSTRAP_PILOT_PAGES)],
   },
   {
     name: 'spenders-board-1000',

@@ -13,7 +13,7 @@ export { SpendersWindow, SPENDERS_PAINT_MARKS } from './SpendersWindow';
 export { Board, PERIOD_KEYS, type BoardHandle, type BoardProps } from './Board';
 export { StatsColumn, StatsExpanded, formatPct, statsDayName, zoneLabel, type StatsProps } from './Stats';
 export { useRowFocus, type RowFocus } from './rowFocus';
-export { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, fanCount, initialStop, isStop, nextStop, shelfLabel, type BoardItem } from './rows';
+export { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, fanCount, initialStop, isStop, nextStop, shelfLabel, statsShelfLabel, type BoardItem } from './rows';
 export { PREVIEW_STYLES, Preview, matchesHotkey, type PreviewProps } from './preview/Preview';
 export { PreviewResult, type PreviewResultProps } from './preview/Result';
 export { SendRow, codeLineParts, sendStateWords, type SendRowProps } from './preview/SendRow';

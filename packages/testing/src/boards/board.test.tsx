@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_DOM_ROWS, SEARCH_DEBOUNCE_MS } from '@cg/ui/kit';
 import { createI18n } from '@cg/core/domain/i18n';
-import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel, statsDayName, zoneLabel } from '@cg/ui/spenders';
+import { BOARD_HEIGHTS, boardItems, formatPct, initialStop, nextStop, shelfLabel, statsDayName, statsShelfLabel, zoneLabel } from '@cg/ui/spenders';
 
 import { board, button, cgError, ctxOf, entry, stats, views } from '../scenarios/app-client';
 import { BOARD_FANS, boardShelves, manyFans, type BoardFan } from './data';
@@ -633,6 +633,36 @@ describe('Spenders statistics', () => {
     ]);
     await flush(() => (tiers[2] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'RevealShelf', shelfId: 't150' });
+  });
+
+  it('[SP-045] the hub’s two remainder tiers are two rows — «Без тира» and «Не распределено» — in the column and in the expanded table, in both languages', async () => {
+    const vm = boardOf(ctx, BOARD_FANS);
+    const base = stats(ctx, views.ready());
+    const none = { fromMills: null, toMills: null } as const;
+    const withRemainders = {
+      ...base,
+      shelves: [
+        ...base.shelves.slice(0, 2),
+        { id: 'shelf-outside', range: none, remainder: 'untiered' as const, fans: 109, lifetime: null, period: 0, share: 0 },
+        { id: 'shelf-unattributed', range: none, remainder: 'unattributed' as const, fans: 0, lifetime: null, period: 1_250_000, share: 0.04 },
+        // A tier without bounds that names no remainder (a hub newer than this build): still a row of its own.
+        { id: 'shelf-someday', range: none, fans: 3, lifetime: null, period: 5_000, share: 0.04 },
+      ],
+    };
+    ui = await mountBoardSettled('spenders', boardOnly(vm, withRemainders));
+    const names = (): string[] => (ui?.$$('.cg-st__tier .cg-st__k') ?? []).map(textOf);
+    expect(names()).toEqual(['$600+', '$350–600', 'Без тира', 'Не распределено', 'вне полок']);
+    // Five rows, five buttons: no row swallowed another for sharing its key.
+    expect(ui.$$('.cg-st__tier')).toHaveLength(5);
+    await flush(() => (ui?.$$('.cg-st__tier')[2] as HTMLElement).click());
+    expect(ui.actions().at(-1)).toEqual({ type: 'RevealShelf', shelfId: 'shelf-outside' });
+    await flush(() => (ui?.$$('.cg-st__tier')[3] as HTMLElement).click());
+    expect(ui.actions().at(-1)).toEqual({ type: 'RevealShelf', shelfId: 'shelf-unattributed' });
+    ui.unmount();
+    ui = await mountBoardSettled('spenders', boardOnly(vm, { ...withRemainders, expanded: true }));
+    expect(ui.$$('.cg-stx__table tbody tr td:first-child').map(textOf)).toEqual(['$600+', '$350–600', 'Без тира', 'Не распределено', 'вне полок']);
+    expect(statsShelfLabel(boardWorld('board-list', 'en').deps.i18n, { range: none, remainder: 'untiered' })).toBe('No tier');
+    expect(statsShelfLabel(boardWorld('board-list', 'en').deps.i18n, { range: none, remainder: 'unattributed' })).toBe('Unattributed');
   });
 
   it('[SP-049] «Развернуть» and the expanded view with «Свернуть к списку»', async () => {

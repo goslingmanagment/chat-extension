@@ -221,25 +221,43 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
   });
 
-  it('[X8-04] a fan’s message after Generate holds the send («Удержано: фан написал новое»); a new Generate the hub cannot prove fresh stays held too — zero queue calls', async () => {
+  it('[X8-04] a fan’s message after Generate holds the send («Удержано: фан написал новое»); a new Generate stays held while the hub says its answer did not see that message, and is offered again once it did — zero queue calls', async () => {
     const hubMark = await hub().mark();
     const standMark = await standServer.mark();
     const mark = await pageJournalMark();
+    /** Generations of this test that the hub finished. */
+    const generated = async (): Promise<number> => callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').filter((call) => call.stream?.outcome === 'done').length;
     await openPreview('Fan Juniper');
     await generate(a10);
     expect(await sendState(0)).toBe('available');
-    await standServer.fanMessage(ACC, a10, 'a new synthetic line of the fan');
+    const fanWrote = await standServer.fanMessage(ACC, a10, 'a new synthetic line of the fan');
     await waitSend(0, 'held-stale', 'the send is held: the fan wrote after the generation');
     const held = await oursText('modal', part(0));
     expect(held).toContain('Удержано: фан написал новое');
     expect(held).toContain('CG-SEND-STALE');
     expect(await oursExists('modal', `${part(0)} .cg-pvs__send`)).toBe(false);
-    // «Ещё раз»: a new answer. The hub's stream carries no `context_v1` with this SDK, so nobody can say the answer
-    // saw the fan's new message: the send stays off with its own reason (§6.7.5 — never «fresh» by absence of proof).
+    // «Ещё раз»: a new answer. The request names the fan's new message among the ones the tab saw, and the hub's
+    // `context_v1` frame (announced through the vendored SDK) answers for it: its archive has not got the message
+    // yet — `absent` — so the new answer did not see it either. The send stays held, with the way out (§6.7.5).
     await pressOurs('modal', `${part(0)} .cg-pvs__again`, /^Ещё раз/);
-    await waitSend(0, /^unavailable/, 'the new answer is not proven fresh');
-    expect(await oursText('modal', part(0))).toContain('CG-SEND-FRESHNESS');
-    expect(await oursExists('modal', `${part(0)} .cg-pvs__open`)).toBe(true);
+    await browser.waitUntil(async () => (await generated()) === 2, { timeout: 20_000, timeoutMsg: 'the second generation did not finish' });
+    await waitSend(0, 'held-stale', 'the new answer did not see the fan’s message either');
+    const stillHeld = await oursText('modal', part(0));
+    expect(stillHeld).toContain('CG-SEND-STALE');
+    expect(stillHeld).toContain('Обновите архив');
+    expect(await oursExists('modal', `${part(0)} .cg-pvs__send`)).toBe(false);
+    const asked = callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').at(-1);
+    expect((asked?.request as { capabilities?: string[]; body?: { knownFanMessageIds?: string[] } }).capabilities).toContain('context-v1');
+    expect((asked?.request as { body?: { knownFanMessageIds?: string[] } }).body?.knownFanMessageIds).toContain(fanWrote);
+    expect(asked?.stream?.frames).toContain('context_v1');
+    // The hub's archive catches up with the fan's message: the next answer is proven to have seen it, and the
+    // send is offered again — by the hub's own word, never by the absence of one.
+    await hub().command({ op: 'archiveMessage', pageLabel: PAGE, fanRef: a10, messageId: fanWrote });
+    await pressOurs('modal', `${part(0)} .cg-pvs__again`, /^Ещё раз/);
+    await browser.waitUntil(async () => (await generated()) === 3, { timeout: 20_000, timeoutMsg: 'the third generation did not finish' });
+    await waitSend(0, 'available', 'the answer that saw the fan’s message can be sent');
+    expect(await oursExists('modal', `${part(0)} .cg-pvs__send`)).toBe(true);
+    // Nothing was sent by any of this: no custody call, nothing put into ChatSpace's queue.
     expect(await custody(hubMark, a10)).toEqual([]);
     expect(queueAdds(await pageJournal(mark))).toEqual([]);
     expect(sendsOf(await serverSince(standMark))).toEqual([]);

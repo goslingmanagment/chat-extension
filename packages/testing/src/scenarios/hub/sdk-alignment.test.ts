@@ -4,27 +4,51 @@
 // answers, requests and error bodies; and its response types are assignable
 // to ours (a misnamed or missing field fails the build). Routes the SDK does
 // not have yet must stay absent until a re-vendor brings them.
+//
+// And the request side of the AI stream, with the hub's REAL body schema
+// (`routeSchemas.aiFeatureStream.body` of the vendored SDK — hub 1e5f6ed9,
+// the head of hub PR #482) and the rules of the hub's own handler (fake-hub/ai-rules.ts):
+// every feature's body, as its driver builds it from a start the tab can
+// make, must be one the hub accepts. The first live check met a body the
+// hub answers 400 to (the Coach preset sent with our own question) that no
+// test of ours had refused.
 
 import {
+  AI_REQUEST_LIMITS,
+  COACH_LIMITS,
+  FEATURE_IDS,
   HUB_ROUTE_KEYS,
   HUB_ROUTES,
+  HubStreamRequestSchema,
+  TONES,
+  type AiUsageReport,
   type AutoLists,
+  type Bootstrap,
   type Dossier,
+  type FeatureId,
   type HubAuthState,
+  type HubBinding,
   type HubHealth,
+  type HubStreamRequest,
   type IngestResult,
   type PersonaCatalog,
+  type ProfileFromGenerationResponse,
   type RecapStatus,
+  type SharedRecaps,
   type SpenderBatch,
   type SpenderDetail,
   type SpendersPage,
+  type StartOp,
 } from '@cg/contracts';
+import { AI_FEATURE_DRIVERS, FEATURE_POLICIES } from '@cg/core/domain/features';
 import { kernelOperations, routeSchemas, type KernelOperationResponse } from '@kernel/sdk';
 import { describe, expect, it } from 'vitest';
 
-import { HTTP_SCENARIOS } from './http';
+import { streamBodyRefusal } from '../../fake-hub/ai-rules';
+import { BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, pageFeaturesOff } from './http';
 import { SSE_SCENARIOS } from './sse';
 import { HUB_ROUTE_PATHS } from './types';
+import { WORLD, uuid } from './world';
 
 type Assignable<From extends To, To> = [From, To];
 export type SdkResponsesFitOurDtos = [
@@ -39,6 +63,11 @@ export type SdkResponsesFitOurDtos = [
   Assignable<KernelOperationResponse<'spenderBatch'>, SpenderBatch>,
   Assignable<KernelOperationResponse<'pageSpenderAutoLists'>, AutoLists>,
   Assignable<KernelOperationResponse<'ingestObservations'>, IngestResult>,
+  // The client/* routes that arrived with hub e7e1037b: the SDK's own answers fit our DTOs.
+  Assignable<KernelOperationResponse<'clientBootstrap'>, Bootstrap>,
+  Assignable<KernelOperationResponse<'clientConversationRecaps'>, SharedRecaps>,
+  Assignable<KernelOperationResponse<'clientFanProfileFromGeneration'>, ProfileFromGenerationResponse>,
+  Assignable<KernelOperationResponse<'clientAiUsageDaily'>, AiUsageReport>,
 ];
 
 interface LooseSchema {
@@ -99,13 +128,163 @@ describe('contracts vs the vendored SDK', () => {
     }
   });
 
-  it('stream bodies pass the SDK body until H-4b/H-4c fields; those need a re-vendor', () => {
+  it('the routes that arrived with hub e7e1037b are SDK operations now; the ones whose hub PRs are drafts are still absent', () => {
+    const arrived = ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily'] as const;
+    for (const key of arrived) expect([key, HUB_ROUTES[key].since, sdkOperations[key]?.path]).toEqual([key, 'sdk', HUB_ROUTE_PATHS[key]]);
+    const drafts = HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since !== 'sdk');
+    expect([...drafts].sort()).toEqual(['clientAudienceNew', 'clientConversationFeed', 'clientFanClaim', 'clientFanClaimStatus', 'clientSpenderAwaitingReply', 'clientSpenderStats']);
+  });
+
+  it('the stream body of every scenario passes the SDK\'s own body schema — the H-4b/H-4c fields included', () => {
     const body = sdkRoutes['aiFeatureStream']?.body;
     if (body === undefined) throw new Error('aiFeatureStream body');
+    let withH4 = 0;
     for (const s of SSE_SCENARIOS) {
-      const { knownFanMessageIds, liveTextContext, ...current } = s.request.body;
-      expect(body.safeParse(current).success, s.name).toBe(true);
-      if (knownFanMessageIds !== undefined || liveTextContext !== undefined) expect(body.safeParse(s.request.body).success, `${s.name}: H-4 fields`).toBe(false);
+      expect(body.safeParse(s.request.body).success, s.name).toBe(true);
+      expect(streamBodyRefusal(s.request.feature, s.request.body), s.name).toBeNull();
+      if (s.request.body.knownFanMessageIds !== undefined || s.request.body.liveTextContext !== undefined) withH4 += 1;
+    }
+    expect(withH4).toBeGreaterThan(0);
+    // The hub's body is strict: it is this strictness the test stands on.
+    const [first] = SSE_SCENARIOS;
+    expect(body.safeParse({ ...first?.request.body, someLaterField: true }).success).toBe(false);
+  });
+});
+
+describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, is one the real hub accepts', () => {
+  const realBody = sdkRoutes['aiFeatureStream']?.body;
+  if (realBody === undefined) throw new Error('aiFeatureStream body');
+
+  const binding: HubBinding = {
+    hubOrigin: WORLD.hubOrigin,
+    principalId: WORLD.user.userId,
+    loginEpoch: 1,
+    host: 'chatspace',
+    hostAccountId: WORLD.pages.one.hostAccountId,
+    platform: 'onlyfans',
+    platformAccountId: WORLD.pages.one.platformAccountId,
+    pageId: WORLD.pages.one.pageId,
+    pageLabel: WORLD.pages.one.pageLabel,
+    bindingRevision: WORLD.pages.one.bindingRevision,
+  };
+  const chat = { host: 'chatspace', hostAccountId: WORLD.pages.one.hostAccountId, platformFanId: WORLD.fan } as const;
+  const draft = { text: 'hey, i missed you — what were you up to today?', revision: 2, digest: 'feedbeef00000001' };
+  const fresh = { capturedAt: '2026-10-03T09:59:55.000Z', messages: [{ platformMessageId: WORLD.messages.fanLatest, direction: 'fan' as const, sentAt: '2026-10-03T09:59:50.000Z', text: 'hey there' }] };
+  const checkpoint = {
+    documentEpoch: 'doc1',
+    socketEpoch: 1,
+    subscriptionEpoch: 1,
+    hostAccountId: chat.hostAccountId,
+    platformFanId: chat.platformFanId,
+    fanSequence: 3,
+    lastFanMessageId: WORLD.messages.fanLatest,
+    knownFanMessageIds: [WORLD.messages.fanLatest, WORLD.messages.fanFirst],
+  };
+  const start = (feature: FeatureId, over: Partial<StartOp> = {}): StartOp => ({
+    feature,
+    surface: feature === 'coach' ? 'coach' : 'dock',
+    target: { binding, chat, fanRef: WORLD.fan, conversationRef: WORLD.fan },
+    cause: { kind: 'click', actionToken: 'tok_0000000000000001' },
+    tone: null,
+    split: false,
+    window: 100,
+    ...(feature === 'fix' ? { draft } : {}),
+    ...(feature === 'coach' ? { coach: { question: 'How do I answer him?', history: [] } } : {}),
+    ...over,
+  });
+
+  /** Starts the tab can make for a feature: the plain one and every option that changes its body. */
+  function startsOf(feature: FeatureId): readonly (readonly [string, StartOp])[] {
+    const policy = FEATURE_POLICIES[feature];
+    const out: [string, StartOp][] = [
+      ['plain', start(feature)],
+      ['regenerated', start(feature, { regenerateOf: uuid(0x99) })],
+      ['the smallest window', start(feature, { window: AI_REQUEST_LIMITS.messageCountMin })],
+      ['the largest window', start(feature, { window: AI_REQUEST_LIMITS.messageCountMax })],
+      ['with the ids the tab saw', start(feature, { checkpoint: checkpoint as StartOp['checkpoint'] })],
+    ];
+    if (policy.split) out.push(['Split asked', start(feature, { split: true })]);
+    if (policy.freshText) out.push(['with fresh page text', start(feature, { fresh, checkpoint: checkpoint as StartOp['checkpoint'] })]);
+    if (policy.tone) for (const tone of TONES) out.push([`tone ${tone}`, start(feature, { tone })]);
+    if (feature === 'fix') out.push(['the longest draft', start(feature, { draft: { ...draft, text: 'd'.repeat(AI_REQUEST_LIMITS.draftMaxChars) } })]);
+    if (feature === 'hi') for (const variantCount of [1, 3] as const) out.push([`${variantCount} variant(s)`, start(feature, { variantCount })]);
+    if (feature === 'hi') out.push(['from «Новые»', start(feature, { surface: 'newcomers' })]);
+    if (feature === 'coach') {
+      const history = Array.from({ length: COACH_LIMITS.historyMaxTurns }, (_unused, index) => ({ question: `question ${index}`, answer: `answer ${index}` }));
+      out.push(
+        ['a question with the whole history', start(feature, { coach: { question: 'And now?', history } })],
+        ['the longest question', start(feature, { coach: { question: 'q'.repeat(COACH_LIMITS.questionMaxChars), history: [] } })],
+        ['the preset alone', start(feature, { coach: { preset: 'situation', history: [] } })],
+        // What the panel dispatches for the «Что сейчас в чате?» chip: the chip's words AND the preset.
+        ['the preset chip as the panel sends it', start(feature, { coach: { question: 'Что сейчас в чате?', preset: 'situation', history: [] } })],
+        ['the preset after a dialog', start(feature, { coach: { question: 'Что сейчас в чате?', preset: 'situation', history: history.slice(0, 3) } })],
+        ['with my reply attached', start(feature, { coach: { question: 'Is this good?', history: [], attachDraft: draft.text } })],
+        ['Split asked of a draft answer', start(feature, { split: true, coach: { question: 'Write it for me', history: [] } })],
+      );
+    }
+    return out;
+  }
+
+  /** The hubs a request may be built for: the pilot both ways, a hub older than the SDK, one with switches off. */
+  const HUBS: readonly (readonly [string, Bootstrap])[] = [
+    ['the pilot, page by page', BOOTSTRAP_PILOT_PAGES],
+    ['the pilot through "*"', BOOTSTRAP_PILOT_ON],
+    ['a hub that declares no capability', { ...BOOTSTRAP_PILOT_PAGES, capabilities: [] }],
+    ['fresh text and split-all off on the page', pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText', 'splitAll'])],
+    ['a small deep window', { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 1500 } }],
+  ];
+
+  const built: { readonly name: string; readonly request: HubStreamRequest }[] = [];
+  for (const feature of FEATURE_IDS) {
+    for (const [what, op] of startsOf(feature)) {
+      for (const [hub, bootstrap] of HUBS) {
+        for (const debug of [false, true]) {
+          const result = AI_FEATURE_DRIVERS[feature].build(op, { opId: uuid(0x100), persona: { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId }, bootstrap, debug });
+          const name = `${feature} · ${what} · ${hub}${debug ? ' · debug' : ''}`;
+          if (!result.ok) throw new Error(`${name}: the driver refused its own start (${result.issues})`);
+          built.push({ name, request: result.request });
+        }
+      }
+    }
+  }
+
+  it('by the hub\'s own body schema (the vendored SDK\'s, strict)', () => {
+    expect(built.length).toBeGreaterThan(400);
+    const refused = built.filter(({ request }) => !realBody.safeParse(request.body).success).map(({ name }) => name);
+    expect(refused).toEqual([]);
+  });
+
+  it('by the rules of the hub\'s own handler: a draft where one is needed, a Coach question or its preset — never both — and no field of another feature', () => {
+    const refused = built.flatMap(({ name, request }) => {
+      const refusal = streamBodyRefusal(request.feature, request.body);
+      return refusal === null ? [] : [`${name}: ${refusal.message}`];
+    });
+    expect(refused).toEqual([]);
+    // The preset never travels with a question, whatever words the start carried for the dialog.
+    const presets = built.filter(({ request }) => request.body.preset !== undefined);
+    expect(presets.length).toBeGreaterThan(0);
+    for (const { name, request } of presets) expect([name, 'chatterQuestion' in request.body]).toEqual([name, false]);
+  });
+
+  it('by our own mirror of the request, which now refuses what the hub refuses', () => {
+    for (const { name, request } of built) expect(HubStreamRequestSchema.safeParse(request).success, name).toBe(true);
+    const coach = built.find(({ request }) => request.feature === 'coach-chat' && request.body.preset !== undefined)?.request;
+    if (coach === undefined) throw new Error('a preset request');
+    const both = { ...coach, body: { ...coach.body, chatterQuestion: 'Что сейчас в чате?' } };
+    expect(HubStreamRequestSchema.safeParse(both).success).toBe(false);
+    expect(realBody.safeParse(both.body).success).toBe(true); // the body schema alone cannot tell: the hub's handler does
+    expect(streamBodyRefusal(both.feature, both.body)).toEqual({ error: 'bad_request', message: 'coach-chat preset forbids chatterQuestion' });
+  });
+
+  it('what a feature never sends: no fresh text outside the draft features, no Split for Recap and Review, nothing a hub older than the SDK did not declare', () => {
+    for (const { name, request } of built) {
+      const draftFeature = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'].includes(request.feature);
+      if (!draftFeature) expect([name, request.body.liveTextContext]).toEqual([name, undefined]);
+      if (['chat-review', 'fan-summary'].includes(request.feature)) expect([name, request.body.replyMode]).toEqual([name, undefined]);
+      if (name.includes('declares no capability')) {
+        expect([name, request.capabilities.filter((capability) => capability !== 'debug-input-v1')]).toEqual([name, []]);
+        expect([name, request.body.liveTextContext, request.body.knownFanMessageIds]).toEqual([name, undefined, undefined]);
+      }
     }
   });
 });

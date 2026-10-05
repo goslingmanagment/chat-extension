@@ -245,6 +245,27 @@ describe('[SN-012] which subscribers ring', () => {
     expect(gateSubscriber(subscriber({ sound: withSound({ messages: { on: false, tone: 'chime' } }) }))).toBeNull();
   });
 
+  it('[SN-012] news is what appeared since a recent look at the list: within 180 s of the last answer (by the hub’s clock) an event rings whatever its own `subscribedAt` — a subscription the hub recorded late is still news', () => {
+    // Subscribed twelve minutes ago; the hub put it into the list only now.
+    const late = { eventRef: 'evt_late', platform: 'onlyfans' as const, platformAccountId: '3003', subscribedAt: iso(12 * 60_000) };
+    expect(gateSubscriber(subscriber({ event: late }))).toBe('stale');
+    for (const sinceBaselineMs of [0, 30_000, 60_000, 180_000]) expect(gateSubscriber(subscriber({ event: late, sinceBaselineMs })), String(sinceBaselineMs)).toBeNull();
+    // Without a time of its own it is news all the same: the list did not have it a minute ago.
+    expect(gateSubscriber(subscriber({ event: { ...late, subscribedAt: 'x' }, sinceBaselineMs: 60_000 }))).toBeNull();
+    // After a longer gap (a reconnect, a sleeping laptop), an unknown one, or a hub clock that went back: the
+    // subscription's own age decides, as before.
+    for (const sinceBaselineMs of [180_001, 3_600_000, null, -1]) {
+      expect(gateSubscriber(subscriber({ event: late, sinceBaselineMs })), String(sinceBaselineMs)).toBe('stale');
+      expect(gateSubscriber(subscriber({ sinceBaselineMs })), String(sinceBaselineMs)).toBeNull();
+      expect(gateSubscriber(subscriber({ event: { ...late, subscribedAt: 'x' }, sinceBaselineMs })), String(sinceBaselineMs)).toBe('no-time');
+    }
+    // A recent look never overrides the other rules: the first snapshot, the switches, the mute.
+    expect(gateSubscriber(subscriber({ event: late, sinceBaselineMs: 1_000, firstSnapshot: true }))).toBe('first-snapshot');
+    expect(gateSubscriber(subscriber({ event: late, sinceBaselineMs: 1_000, ownerSwitch: false }))).toBe('disabled');
+    expect(gateSubscriber(subscriber({ event: late, sinceBaselineMs: 1_000, hub: false }))).toBe('no-hub');
+    expect(gateSubscriber(subscriber({ event: late, sinceBaselineMs: 1_000, accounts: [] }))).toBe('account-unknown');
+  });
+
   it('the first poll of a page is its baseline; an old subscription and one without a time are history', () => {
     expect(gateSubscriber(subscriber({ firstSnapshot: true }))).toBe('first-snapshot');
     // §9.8 «событие старше 180 с»: one line for messages and subscriptions.

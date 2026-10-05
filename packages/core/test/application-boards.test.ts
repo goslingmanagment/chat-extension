@@ -597,6 +597,52 @@ describe('[SP-006] [SP-018] [SP-019] [SP-020] [SP-021] period, search, filters, 
     expect(cursors[1]).not.toBeNull();
     expect(cursors[2]).not.toBe(cursors[1]);
   });
+  it('[SP-047] a cursor the hub no longer takes (400 `cursor_invalid`) starts the walk over from the first page — once: no error card for it, and no loop of requests when the hub refuses again', async () => {
+    const refused = { code: 'CG-HUB-REQUEST', detail: 'HTTP 400 • bad_request/cursor_invalid' } as const;
+    const cursorsOf = (h: Harness): (string | null)[] => h.bg.requests.filter((r) => r.type === 'spenders.queue').map((r) => (r.payload as { cursor: string | null }).cursor);
+    const h = await harness({ queuePageSize: 2 });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    expect(h.boards.spenders.getSnapshot(BOARD).footer).toMatchObject({ loaded: 2, total: 5 });
+
+    // The queue was rebuilt under the walk: the second page's cursor is refused.
+    h.bg.failNext('spenders.queue', refused);
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    let vm = h.boards.spenders.getSnapshot(BOARD);
+    // One more request, without a cursor: the first page again — and the list is a list, not an error.
+    expect(cursorsOf(h).map((cursor) => cursor === null)).toEqual([true, false, true]);
+    expect(vm.view.s).not.toBe('error');
+    expect(vm.footer).toMatchObject({ loaded: 2, total: 5, shown: 2 });
+    expect(vm.canLoadMore).toBe(true);
+    // The new walk goes on from its own cursor.
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    expect(h.boards.spenders.getSnapshot(BOARD).footer).toMatchObject({ loaded: 4, total: 5 });
+    expect(cursorsOf(h)).toHaveLength(4);
+
+    // Refused again in the same walk: the queue's own failure now (the board falls back to its own rows, as for
+    // any failed queue read) — nothing is asked a third time by itself.
+    h.bg.failNext('spenders.queue', refused);
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    await h.advance(60_000);
+    expect(cursorsOf(h)).toHaveLength(5);
+    vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(vm.canLoadMore).toBe(false);
+    expect(vm.footer.total).not.toBe(5);
+
+    // A refusal of the FIRST page is not a cursor's: an error at once, no restart.
+    const first = await harness({ queuePageSize: 2 });
+    await first.dispatch(open('spenders'));
+    first.bg.failNext('spenders.queue', refused);
+    await first.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    expect(cursorsOf(first)).toEqual([null]);
+    // Any other failure of a later page keeps its own error, without a restart either.
+    const offline = await harness({ queuePageSize: 2 });
+    await offline.dispatch(open('spenders'));
+    await offline.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    offline.bg.failNext('spenders.queue', { code: 'CG-HUB-UNAVAILABLE' });
+    await offline.dispatch({ type: 'LoadMore', list: 'spenders' });
+    expect(cursorsOf(offline).map((cursor) => cursor === null)).toEqual([true, false]);
+  });
 });
 
 describe('[SP-044] [SP-049] statistics come after the ranking and fail on their own', () => {
@@ -620,7 +666,11 @@ describe('[SP-044] [SP-049] statistics come after the ranking and fail on their 
     expect(vm.stamp).toEqual({ asOf: iso(NOW_MS), coverage: 'complete' });
     expect(vm.days).toHaveLength(30);
     // The board cut at 1000 cannot vouch for a shelf's lifetime sum… unless it holds the whole shelf.
-    expect(vm.shelves.map((shelf) => shelf.id)).toEqual(['shelf-600-plus', 'shelf-0-25', 'shelf-outside']);
+    expect(vm.shelves.map((shelf) => shelf.id)).toEqual(['shelf-600-plus', 'shelf-0-25', 'shelf-outside', 'shelf-unattributed']);
+    // The hub's two remainder tiers are two rows, each named by what it is.
+    expect(vm.shelves.map((shelf) => shelf.remainder ?? null)).toEqual([null, null, 'untiered', 'unattributed']);
+    // «Без тира» is the board's «вне полок» shelf; «не распределено» has no fans behind it: a click reveals nothing.
+    expect(await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-unattributed' })).toMatchObject({ ok: true, outcome: 'noop' });
     await h.dispatch({ type: 'SetStatsExpanded', expanded: true });
     expect(h.boards.spenders.getSnapshot(STATS).expanded).toBe(true);
   });
@@ -719,6 +769,43 @@ describe('[SP-033] [SP-034] [SP-035] [SP-042] [SP-043] keys, opening a chat, a c
     expect(failing.boards.surfaces.current().spenders).toBe(true);
     // A handle of another page is nobody's.
     expect(failing.boards.spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', 99, '5001') } })).toBeNull();
+  });
+
+  it('[SP-035] the click on a fan is the board’s own switch on its page, not `navigation`: with `navigation` off the Spenders row, a card of «Новые» and «Открыть и вставить» still open the chat; a board switched off on the page opens nothing', async () => {
+    // The live pilot: `navigation` is off in the owner's `"*"` row and on the page itself.
+    const navigationOff: FakeHubConfigPatch = { ...X8, flags: { ...X8.flags, navigation: false }, pageFlags: { [PAGE.pageLabel]: { navigation: false } } };
+    const h = await harness({ config: navigationOff });
+    expect(h.bootstrap.pages.find((page) => page.pageId === PAGE.pageId)?.features['navigation']).toEqual({ available: false, reason: 'flag_off' });
+    expect(h.bootstrap.flags['navigation']).toBe(false);
+    await h.dispatch(open('spenders'));
+    expect(await h.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: spender('5001') } })).toMatchObject({ ok: true, outcome: 'opened' });
+    await h.dispatch(open('newcomers'));
+    expect(await h.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: newcomer('2010') } })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.host.calls.navigations.map((intent) => intent.target.platformFanId)).toEqual(['5001', '2010']);
+    const insert = await withReply({ config: navigationOff, answers: { navigate: [{ state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } }] } });
+    expect(partsOf(insert.h, 'spenders')[0]?.openInsert).toMatchObject({ s: 'available' });
+    expect(await insert.h.dispatch({ type: 'OpenAndInsertPart', operationId: insert.opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(insert.h.host.calls.navigations[0]?.thenInsert).toMatchObject({ text: 'Hey you' });
+
+    // The owner switches the board off on the page while it is open (`navigation` may say anything): the click of
+    // a row that is still on screen opens nothing — neither the host nor the background is asked.
+    for (const [surface, flag, handle] of [['spenders', 'spenders', spender('5001')], ['newcomers', 'newcomers', newcomer('2010')]] as const) {
+      const off = await harness();
+      await off.dispatch(open(surface));
+      off.hub.control({ op: 'config', patch: { flags: { navigation: true }, pageFlags: { [PAGE.pageLabel]: { [flag]: false, navigation: true } } } });
+      off.bg.setBootstrap((await hubCall(off.hub.fetch, off.hub.origin, 'clientBootstrap', null, { token: off.hub.issueToken() }).then((response) => response.json())) as Bootstrap);
+      await off.flush();
+      const tokens = count(off, 'token.issue');
+      expect(await off.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: handle } }), `${flag} off on the page`).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+      expect([off.host.calls.navigations, count(off, 'token.issue') - tokens]).toEqual([[], 0]);
+    }
+    // The preview's own switch gates «Открыть и вставить» the same way.
+    const previewOff = await withReply();
+    previewOff.h.hub.control({ op: 'config', patch: { pageFlags: { [PAGE.pageLabel]: { preview: false } } } });
+    previewOff.h.bg.setBootstrap((await hubCall(previewOff.h.hub.fetch, previewOff.h.hub.origin, 'clientBootstrap', null, { token: previewOff.h.hub.issueToken() }).then((response) => response.json())) as Bootstrap);
+    await previewOff.h.flush();
+    expect(await previewOff.h.dispatch({ type: 'OpenAndInsertPart', operationId: previewOff.opId, part: 0 })).toMatchObject({ ok: false });
+    expect(previewOff.h.host.calls.navigations).toEqual([]);
   });
 
   it('[SP-033] [SP-034] the keys footer lists the board keys; a key becomes the action of the focused row', async () => {
@@ -1413,6 +1500,15 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     const noCheckpoint = await withReply({ checkpointFan: null });
     expect(partsOf(noCheckpoint.h, 'spenders')[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-FRESHNESS' });
     expect((lastPayload(noCheckpoint.h, 'op.start') as Record<string, unknown>)['checkpoint']).toBeUndefined();
+
+    // The WS tap is the page's own switch, and freshness is the tap's: with `wsTap` off on THIS page nothing of it
+    // may be vouched for — whatever the tab's one tap hears for another page (the host's capability stays on).
+    const noTap = await withReply({ config: { ...X8, pageFlags: { [PAGE.pageLabel]: { wsTap: false } } } });
+    expect(noTap.h.host.current().contract.capabilities.previewSend.state).toBe('on');
+    expect(partsOf(noTap.h, 'spenders')[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-FRESHNESS' });
+    expect(await noTap.h.dispatch({ type: 'SendPart', operationId: noTap.opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
+    expect(noTap.h.clicks).toEqual([]);
+    expect(partsOf(noTap.h, 'spenders')[0]?.openInsert).toEqual({ s: 'available' });
 
     const noCard = await harness({ config: X8 });
     noCard.bg.failNext('fan.card', { code: 'CG-DATA-UNAVAILABLE' });
@@ -2604,7 +2700,72 @@ describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting leas
     expect(count(h, 'op.start')).toBe(0);
     expect(count(h, 'newcomers.claim')).toBe(0);
   });
+
+  it('[NF-015] the count is the hub’s own — every stored message, not only the fan’s: eleven messages of ours and none of theirs close Hi in the card, ten keep it open', async () => {
+    const archived = async (n: number): Promise<Harness> => {
+      const h = await harness({ config: X8, checkpointFan: '2010' });
+      // Welcome and mass messages: the archive has no word for «automatic» on OnlyFans, and the hub's gate counts them all.
+      for (let i = 0; i < n; i += 1) h.hub.control({ op: 'archiveMessage', pageLabel: PAGE.pageLabel, fanRef: '2010', sender: 'model', messageId: String(8200 + i) });
+      await h.dispatch(open('newcomers'));
+      await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
+      return h;
+    };
+    // The archive seeds three messages for the fan: eight more make eleven.
+    const closed = await archived(8);
+    expect(closed.boards.preview.getSnapshot(preview('newcomers')).feed.items).toHaveLength(11);
+    expect(closed.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate', code: 'CG-GATE-HI' } });
+    expect(await closed.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect([count(closed, 'op.start'), count(closed, 'newcomers.claim')]).toEqual([0, 0]);
+    const open10 = await archived(7);
+    expect(open10.boards.preview.getSnapshot(preview('newcomers')).feed.items).toHaveLength(10);
+    expect(open10.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: true, reason: null });
+  });
+
+  it('[NF-015] the list knows it from the row itself — the hub’s `storedMessageCount` — before the card’s archive is read: Hi is off, and no lease is taken for a greeting the hub would refuse', async () => {
+    const h = await harness({ config: X8, checkpointFan: '2010' });
+    h.hub.control({
+      op: 'scriptHttp',
+      match: 'route',
+      unscripted: 'model',
+      exchanges: [{ route: 'clientAudienceNew', request: { pageLabel: PAGE.pageLabel, windowHours: 48 }, response: { status: 200, body: await longThread(h, 11) } }],
+    });
+    await h.dispatch(open('newcomers'));
+    expect(h.boards.newcomers.greeting.hiBlocked('2010')).toMatchObject({ id: 'hi-gate', code: 'CG-GATE-HI' });
+    // The second fan's thread is a single message: Hi is his to have.
+    expect(h.boards.newcomers.greeting.hiBlocked('2011')).toBeNull();
+    expect(await h.boards.newcomers.greeting.claimForGenerate('2010')).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
+    // The card's own archive page is short (three rows), and still Hi stays off: the row's count is the hub's.
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).feed.items.length).toBeLessThanOrEqual(10);
+    expect(h.boards.preview.getSnapshot(preview('newcomers')).bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate', code: 'CG-GATE-HI' } });
+    expect(await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect([count(h, 'op.start'), count(h, 'newcomers.claim')]).toEqual([0, 0]);
+  });
+
+  it('[NF-015] the hub refuses a greeting all the same (`gate_hi_greeting_limit`: its archive moved on since the list was read): the card says «Это уже диалог» with CG-GATE-HI — the gate’s own words, not a generic hub error', async () => {
+    const h = await withCard();
+    h.bg.streams.streamScript.push({ kind: 'http-error', status: 400, body: { error: 'gate_hi_greeting_limit' } });
+    expect(await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.advance(200);
+    const failed = h.boards.preview.getSnapshot(preview('newcomers')).result;
+    expect(failed).toMatchObject({ state: 'failed', parts: null, error: { code: 'CG-GATE-HI', title: h.i18n.t('cg.gateHi.title'), body: h.i18n.t('cg.gateHi.body') } });
+    expect(failed?.error?.title).toBe('Это уже диалог');
+    // Not the words of a request that went wrong.
+    expect(failed?.error?.code).not.toBe('CG-HUB-REQUEST');
+    expect(failed?.error?.title).not.toBe(h.i18n.t('cg.hubRequest.title'));
+  });
 });
+
+/** The «Новые» page as the hub serves it now, with the first fan's thread `stored` messages long. */
+async function longThread(h: Harness, stored: number): Promise<unknown> {
+  const token = h.hub.issueToken();
+  const response = await hubCall(h.hub.fetch, h.hub.origin, 'clientAudienceNew', { pageLabel: PAGE.pageLabel, windowHours: 48, limit: 100 }, { token });
+  const page = (await response.json()) as { items: { thread: { storedMessageCount: number } | null }[] };
+  const first = page.items[0];
+  if (first === undefined || first.thread === null) throw new Error('the first newcomer has no thread');
+  first.thread = { ...first.thread, storedMessageCount: stored };
+  return page;
+}
 
 describe('[NF-019] a greeting is sent part by part, under the lease, and counts only by the receipt and its echo', () => {
   async function greeting(text = 'Hi there!\n[NEXT]\nSo happy you are here'): Promise<{ h: Harness; opId: string }> {

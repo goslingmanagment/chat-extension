@@ -9,6 +9,7 @@ export * from './admission';
 export * from './cache';
 export * from './digest';
 export * from './environment';
+export * from './flags';
 export * from './identity';
 export * from './mirror';
 export * from './request';

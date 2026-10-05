@@ -45,11 +45,12 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
+import { streamBodyRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
-import { bootstrapOf, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
+import { bootstrapOf, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
 import { CursorSigner, DataModel, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, matchRoute, validateRequest } from './routing';
@@ -82,6 +83,14 @@ export interface FakeHubOptions {
   readonly config?: FakeHubConfigPatch;
   /** Multiplies every SSE delay (0 = none; default 1). */
   readonly timeScale?: number;
+  /**
+   * The hub's REAL body schema of the AI stream — the vendored SDK's
+   * `routeSchemas.aiFeatureStream.body`. With it every AI body is checked by
+   * the hub's own schema before anything else, as the hub's route does: a
+   * body the hub would answer 400 to fails here (the e2e harness and the
+   * wiring tests pass it; see ai-rules.ts).
+   */
+  readonly streamBodySchema?: BodySchemaLike;
 }
 
 interface Principal {
@@ -181,6 +190,8 @@ function pageLabelOf(route: HubRouteKey, request: unknown): string | null {
 const LEGACY_PAGES_PATH = '/api/v1/pages';
 
 const AI_FEATURE_FLAGS: Partial<Record<HubAiFeature, ClientFeatureFlag>> = { 'coach-chat': 'coach', 'fan-summary': 'recap', 'chat-review': 'review' };
+/** The hub's `HI_GREETING_MAX_TRANSCRIPT` (feature-policies.ts): a greeting is for a conversation of at most this many messages. */
+export const HI_GREETING_MAX_TRANSCRIPT = 10;
 
 /** Why the hub refuses an AI body before the generic 400 (hub-pr-plan.md §4.11). */
 function streamRefusalReason(request: unknown): string | undefined {
@@ -217,7 +228,7 @@ export class FakeHub {
   }
 
   private freshState(): State {
-    const preset = presetConfig(this.options.preset ?? 'pilot-on');
+    const preset = presetConfig(this.options.preset ?? DEFAULT_PRESET);
     const now = this.clock.now();
     return {
       config: this.options.config === undefined ? preset : patchConfig(preset, this.options.config),
@@ -512,6 +523,17 @@ export class FakeHub {
       capabilitiesHeader: request.headers.get(AI_CAPABILITIES_HEADER),
     });
     if (!facade.ok) return refuse({ route, servedBy: 'check', token }, 'bad_request', undefined, undefined, facade.issues);
+    if (route === 'aiFeatureStream') {
+      // As the hub's route does: its own body schema first, then the rules of its handler (ai-rules.ts) — both
+      // before our contract's mirror of them, so that a drift of the mirror cannot hide a body the hub refuses.
+      const { feature, body } = facade.request as { feature: string; body: unknown };
+      const real = this.options.streamBodySchema;
+      if (real !== undefined && !real.safeParse(body).success) {
+        return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', streamRefusalReason(facade.request), undefined, ['body: refused by the hub’s own body schema (vendored SDK)']);
+      }
+      const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body) : null;
+      if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, undefined, undefined, [rule.message]);
+    }
     const valid = validateRequest(route, facade.request);
     if (!valid.ok) {
       const reason = route === 'aiFeatureStream' ? streamRefusalReason(facade.request) : undefined;
@@ -812,6 +834,13 @@ export class FakeHub {
       if (persona === undefined) return refusal('not_found', 'persona_not_found');
       if (body.expectedPersonaDefinitionId !== undefined && body.expectedPersonaDefinitionId !== persona.definitionId) return refusal('persona_definition_changed');
       definitionId = persona.definitionId;
+    }
+    // The hub's Hi gate (`assertHiGreetingFreshness`, hub apps/runtime/src/modules/ai/features/index.ts): on the
+    // lane this client uses — the hub's own context, no client-side message count — it counts EVERY message of the
+    // transcript, and past ten the conversation is a dialogue: 400 `gate_hi_greeting_limit`. A product gate, so
+    // nothing is spent on it.
+    if (request.feature === 'hi-greeting' && s.data.archiveFacts(page, body.fanRef ?? body.conversationRef).total > HI_GREETING_MAX_TRANSCRIPT) {
+      return refusal('gate_hi_greeting_limit');
     }
     if (s.config.quotaRequestsToday === 0) {
       this.recordUsage(request, principal, 'quota-denied');

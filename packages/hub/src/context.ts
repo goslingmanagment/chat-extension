@@ -8,12 +8,14 @@ import { type ClaimAction, type HubFailure, type HubRouteKey, type HubErrorResol
 import { resolveHubError } from '@cg/core/domain';
 
 import { type AuthCustody } from './auth';
-import { FacadeCallError, FacadeCheckError, describeFailure } from './errors';
+import { FacadeCallError, FacadeCheckError, failureFields } from './errors';
 import { type HubClock, type HubEnvironment, type HubLog, type UuidSource } from './ports';
-import { type ClientRouteKey } from './route-transport';
 import { type SdkOperation, type SdkRawInput } from './sdk-transport';
-import { type HubWire, type WireResult } from './transport';
+import { type ClientFamilyKey, type HubWire, type WireResult } from './transport';
 import { REQUEST_TIMEOUT_MS } from './wire';
+
+/** A call of the hub that takes this long is said in the log (`hub: slow call`), whatever its answer. */
+export const SLOW_CALL_MS = 3_000;
 
 /** One sign-in, frozen for the calls that run under it. */
 export interface Connection {
@@ -108,14 +110,30 @@ export class HubContext {
 
   /** An SDK operation under the current sign-in (or an explicit connection, during sign-in). */
   async sdk(route: SdkOperation, input: SdkRawInput, options: CallOptions = {}, connection: Connection = this.connection(asRoute(route))): Promise<unknown> {
+    const started = this.clock.monotonic();
     const result = await this.wire.sdk(route, this.wireCall(connection, options), input);
+    this.noteSlow(asRoute(route), started, result, connection);
     return this.unwrap(asRoute(route), result, connection, options.facts);
   }
 
   /** A client/* route under the current sign-in (or an explicit connection). */
-  async client(route: ClientRouteKey, request: unknown, options: CallOptions = {}, connection: Connection = this.connection(route)): Promise<unknown> {
+  async client(route: ClientFamilyKey, request: unknown, options: CallOptions = {}, connection: Connection = this.connection(route)): Promise<unknown> {
+    const started = this.clock.monotonic();
     const result = await this.wire.client(route, this.wireCall(connection, options), request);
+    this.noteSlow(route, started, result, connection);
     return this.unwrap(route, result, connection, options.facts);
+  }
+
+  /**
+   * A call that took long, said in the log with its route, its time and how it ended — facts only. The hub's
+   * own log tells how long the hub worked on a request; this line tells how long the request was on its way
+   * and back: the difference is the network between this browser and the hub (a «Проверяю…» that lasted 20 s
+   * with a hub that answered in milliseconds).
+   */
+  private noteSlow(route: HubRouteKey, started: number, result: WireResult, connection: Connection): void {
+    const ms = Math.round(this.clock.monotonic() - started);
+    if (ms < SLOW_CALL_MS) return;
+    this.log('warn', 'hub: slow call', { route, ms, ...(result.ok ? { outcome: 'answered', status: result.status } : { outcome: 'failed', ...failureFields(result.failure) }), epoch: connection.epoch });
   }
 
   wireCall(connection: Connection, options: CallOptions) {
@@ -149,7 +167,7 @@ export class HubContext {
     if (resolution.disposition === 'refresh-catalog') this.hooks.refreshCatalog();
     if (resolution.disposition === 'refresh-bootstrap') this.hooks.refreshBootstrap();
     if (failure.kind !== 'transport' || failure.failure !== 'aborted') {
-      this.log('warn', 'hub: call failed', { route, failure: describeFailure(failure), code: resolution.code, disposition: resolution.disposition, epoch: connection.epoch });
+      this.log('warn', 'hub: call failed', { route, ...failureFields(failure), code: resolution.code, disposition: resolution.disposition, epoch: connection.epoch });
     }
     return new FacadeCallError(route, failure, connection.epoch, resolution);
   }

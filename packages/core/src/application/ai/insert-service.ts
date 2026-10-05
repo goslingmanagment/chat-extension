@@ -19,7 +19,7 @@
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type InsertIntent, type InsertReceipt } from '@cg/contracts/host';
 import { type DraftSnapshot, type HumanCause, type PartRef } from '@cg/contracts/ids';
-import { type UnavailableReasonId } from '@cg/contracts/vm';
+import { type ReasonVM, type UnavailableReasonId } from '@cg/contracts/vm';
 
 import { type FanScript, languageGate, policyOf } from '../../domain/features';
 import {
@@ -69,6 +69,8 @@ export interface FixView {
 export interface PartBlock {
   readonly reason: UnavailableReasonId;
   readonly code: CgCode;
+  /** The reason as the button says it, when the plain text of `reason` is not the whole story (an owner switch: the hub's own reason picks the words). */
+  readonly view?: ReasonVM;
 }
 
 export interface InsertContext {

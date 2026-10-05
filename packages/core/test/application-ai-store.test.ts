@@ -11,7 +11,7 @@ import { CHAT_UI_MAX, COACH_ARCHIVES_MAX, RECAP_UI_CHATS_MAX, RESYNC_RETRY_MS, W
 import { RECAP_SLOT_LIMITS } from '@cg/core/domain/recap';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_ON, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
 
 import { OTHER_TAB, TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
@@ -24,7 +24,7 @@ function parts(): HarnessParts & { readonly fake: FakeHostPort } {
     baseHost: fake,
     memory,
     catalog: createFakeCatalog(ctxOf({ now: NOW_MS })),
-    bootstrap: BOOTSTRAP_PILOT_ON,
+    bootstrap: BOOTSTRAP_PILOT_PAGES,
     resolve: resolveHubErrorReference,
     meta: (feature) => meta(feature as Parameters<typeof meta>[0]),
   };
@@ -396,8 +396,8 @@ describe('answers that arrive after their sign-in or their revision is gone', ()
     });
     // «Повторить» drops nothing that is ready; a new owner config resolves again — slowly.
     h.bg.slow.add('binding.resolve');
-    h.bg.bootstrap = { ...BOOTSTRAP_PILOT_ON, configRevision: BOOTSTRAP_PILOT_ON.configRevision + 1 };
-    h.bg.emit(null, 'bootstrap.changed', { configRevision: BOOTSTRAP_PILOT_ON.configRevision + 1, issuedAt: new Date(NOW_MS).toISOString() });
+    h.bg.bootstrap = { ...BOOTSTRAP_PILOT_PAGES, configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1 };
+    h.bg.emit(null, 'bootstrap.changed', { configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1, issuedAt: new Date(NOW_MS).toISOString() });
     await h.settle();
     expect(env.binding(hostAccount).s).toBe('loading');
     // The sign-in changes while that answer is on its way: it belongs to nobody now.
@@ -452,20 +452,35 @@ describe('answers that arrive after their sign-in or their revision is gone', ()
     expect(h.bg.callsOf('recap.save')).toEqual([]);
   });
 
-  it('owner switches of an older config revision do not undo a newer one', async () => {
+  it('`flags.changed` carries the owner\'s `"*"` row: it never decides for a page, and an older revision does not undo a newer one', async () => {
     const h = await start();
-    const revision = BOOTSTRAP_PILOT_ON.configRevision;
-    const flags = { ...BOOTSTRAP_PILOT_ON.flags };
-    h.bg.emit(null, 'flags.changed', { flags: { ...flags, review: false }, configRevision: revision + 2 });
-    await h.settle();
-    expect(h.dock().actions.review.reason?.id).toBe('feature-disabled');
-    // A late event of the revision before: ignored.
-    h.bg.emit(null, 'flags.changed', { flags, configRevision: revision + 1 });
-    await h.settle();
-    expect(h.dock().actions.review.reason?.id).toBe('feature-disabled');
-    h.bg.emit(null, 'flags.changed', { flags, configRevision: revision + 3 });
+    const revision = BOOTSTRAP_PILOT_PAGES.configRevision;
+    const star = { ...BOOTSTRAP_PILOT_PAGES.flags };
+    const unbound = (): Promise<boolean | null> => h.ai.workspace.accountFlag(null, 'navigation');
+    // The pilot is switched on page by page: every `"*"` value is false, and the page works.
+    expect(Object.values(star).some(Boolean)).toBe(false);
+    expect(h.dock().actions.review.enabled).toBe(true);
+    expect(await unbound()).toBe(false);
+
+    // `"*"` says Review is off and navigation on: the page's own feature still decides for the page…
+    h.bg.emit(null, 'flags.changed', { flags: { ...star, navigation: true, review: false }, configRevision: revision + 2 });
     await h.settle();
     expect(h.dock().actions.review.enabled).toBe(true);
+    // …and what has no page (no account on screen) follows `"*"`.
+    expect(await unbound()).toBe(true);
+    // A late event of the revision before: ignored.
+    h.bg.emit(null, 'flags.changed', { flags: star, configRevision: revision + 1 });
+    await h.settle();
+    expect(await unbound()).toBe(true);
+    h.bg.emit(null, 'flags.changed', { flags: star, configRevision: revision + 3 });
+    await h.settle();
+    expect(await unbound()).toBe(false);
+
+    // The page's own row comes with the bootstrap: read again on `bootstrap.changed`, the dock follows it.
+    h.bg.bootstrap = { ...pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['review']), configRevision: revision + 4 };
+    h.bg.emit(null, 'bootstrap.changed', { configRevision: revision + 4, issuedAt: new Date(NOW_MS).toISOString() });
+    await h.settle();
+    expect(h.dock().actions.review).toMatchObject({ enabled: false, reason: { id: 'feature-disabled', text: { key: 'dock.reason.featureDisabled' } } });
   });
 
   it('settings read before a change do not overwrite the change that arrived as an event', async () => {

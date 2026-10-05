@@ -8,6 +8,10 @@ export * from "./routes-agent";
 export * from "./routes-agent-keys";
 // Fansly Sync Engine owner routes (history requests), spread by routes.ts.
 export * from "./routes-sync";
+// The chat extension's routes (client bootstrap…), spread by routes.ts.
+export * from "./routes-client";
+// Narrow device-token profiles (the chat extension's route allowlist, H-3).
+export * from "./client-token-scopes";
 export * from "./authorization-policy";
 export * from "./domain-event-cursor";
 export * from "./sdk-runtime";

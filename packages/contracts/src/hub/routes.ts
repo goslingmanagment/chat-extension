@@ -32,7 +32,7 @@ export const HUB_ROUTES = {
   authRevokeCurrentDeviceToken: { method: 'DELETE', routeClass: 'sign-out', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   health: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: false },
   me: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
-  clientBootstrap: { method: 'GET', routeClass: 'account', since: 'H-2a', flag: null, capabilities: [], narrowToken: true },
+  clientBootstrap: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   aiPersonaCatalog: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   /** Per-feature flags (coach/recap/review) are checked by the hub for the narrow token. */
   aiFeatureStream: { method: 'POST', routeClass: 'ai-stream', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
@@ -44,11 +44,11 @@ export const HUB_ROUTES = {
   spenderBatch: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   pageSpenderAutoLists: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   ingestObservations: { method: 'POST', routeClass: 'ingest', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
-  clientConversationRecaps: { method: 'GET', routeClass: 'page', since: 'H-13', flag: 'recap', capabilities: ['shared-recaps-v1'], narrowToken: true },
+  clientConversationRecaps: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'recap', capabilities: ['shared-recaps-v1'], narrowToken: true },
   clientFanProfileFromGeneration: {
     method: 'POST',
     routeClass: 'recap-profile',
-    since: 'H-5',
+    since: 'sdk',
     flag: 'recap',
     capabilities: ['recap-profile-v1'],
     narrowToken: true,
@@ -60,7 +60,7 @@ export const HUB_ROUTES = {
   clientFanClaim: { method: 'POST', routeClass: 'claim', since: 'H-7b', flag: null, capabilities: ['preview-send-custody-v1'], narrowToken: true },
   clientFanClaimStatus: { method: 'GET', routeClass: 'claim', since: 'H-7b', flag: null, capabilities: ['preview-send-custody-v1'], narrowToken: true },
   clientAudienceNew: { method: 'GET', routeClass: 'page', since: 'H-7c', flag: 'newcomers', capabilities: ['audience-new-v1'], narrowToken: true },
-  clientAiUsageDaily: { method: 'GET', routeClass: 'page', since: 'H-15', flag: null, capabilities: ['ai-usage-v1'], narrowToken: true },
+  clientAiUsageDaily: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['ai-usage-v1'], narrowToken: true },
 } as const satisfies Record<string, HubRouteSpec>;
 
 export type HubRouteKey = keyof typeof HUB_ROUTES;

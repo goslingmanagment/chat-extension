@@ -23,7 +23,8 @@ import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import { type StartOp } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
 
-import { flagUsable, type PersonaChoice } from './environment';
+import { type PersonaChoice } from './environment';
+import { flagUsable } from './flags';
 
 /** Fixed windows that are not settings (Fansly: Hi reads one page, a short recap 300 messages). */
 export const FIXED_WINDOWS = { hi: 25, recapShort: 300 } as const;
@@ -114,9 +115,11 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   if (start.feature === 'hi' && start.variantCount !== undefined) body.variantCount = start.variantCount;
   if (start.feature === 'recap-short') body.summaryMode = 'short';
   if (start.feature === 'coach' && start.coach !== undefined) {
-    if (start.coach.question !== undefined) body.chatterQuestion = start.coach.question;
-    if (start.coach.history.length > 0) body.coachHistory = start.coach.history.map((turn) => ({ question: turn.question, answer: turn.answer }));
+    // A preset's question lives on the hub: the hub refuses a body that names both («coach-chat preset forbids
+    // chatterQuestion», 400). The words the start carries beside a preset are the chip's label for our dialog.
     if (start.coach.preset !== undefined) body.preset = start.coach.preset;
+    else if (start.coach.question !== undefined) body.chatterQuestion = start.coach.question;
+    if (start.coach.history.length > 0) body.coachHistory = start.coach.history.map((turn) => ({ question: turn.question, answer: turn.answer }));
     if (start.coach.attachDraft !== undefined) body.draftText = start.coach.attachDraft;
   }
   if (contextV1 && start.checkpoint !== undefined && start.checkpoint.knownFanMessageIds.length > 0) {

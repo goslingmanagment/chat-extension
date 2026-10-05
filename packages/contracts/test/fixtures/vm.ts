@@ -247,6 +247,29 @@ export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStats
 };
 
 /**
+ * The remainder rows of the statistics' tier table (1.4.0): the hub sends two
+ * tiers without bounds — `untiered` and `unattributed` — and they are told
+ * apart by `remainder`, never by the missing bounds. Optional: a row without
+ * it is a tier with its bounds, as before.
+ */
+type StatsShelf = C.SpendersStatsVM['shelves'][number];
+const SHELF_BASE: StatsShelf = { id: 'shelf-600-plus', range: { fromMills: 600_000, toMills: null }, fans: 31, lifetime: 52_000_000, period: 40_000_000, share: 0.42 };
+const NO_BOUNDS = { fromMills: null, toMills: null } as const;
+export const STATS_REMAINDER_SAMPLES: { readonly valid: readonly StatsShelf[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    SHELF_BASE,
+    { ...SHELF_BASE, id: 'shelf-outside', range: NO_BOUNDS, remainder: 'untiered', fans: 109, lifetime: null, period: 0, share: 0 },
+    { ...SHELF_BASE, id: 'shelf-unattributed', range: NO_BOUNDS, remainder: 'unattributed', fans: 0, lifetime: null, period: 1_250_000, share: 0.04 },
+  ],
+  invalid: [
+    // @ts-expect-error a remainder is one of the hub's two keys, not any tier key
+    { ...SHELF_BASE, remainder: '600-plus' } satisfies StatsShelf,
+    // @ts-expect-error nor a flag
+    { ...SHELF_BASE, range: NO_BOUNDS, remainder: true } satisfies StatsShelf,
+  ],
+};
+
+/**
  * The footer of the options page (1.2.0, ST-005): optional, so a view without
  * it still is an OptionsVM; a link the build does not know is null, not a
  * made-up address.
@@ -509,5 +532,62 @@ export const NEWCOMERS_INCOMPLETE_SAMPLES: { readonly valid: readonly NewcomersI
     'Показана часть списка' satisfies NewcomersIncomplete,
     // @ts-expect-error there is no key of this name: the reason is `newcomers.incomplete.body`
     { key: 'newcomers.incomplete.reason' } satisfies NewcomersIncomplete,
+  ],
+};
+
+/**
+ * The dock's status line (1.3.0): optional, so a dock without it still is a
+ * DockVM; when present it is an error view with its code — the owner switched
+ * ChatGoose off for the page — or null.
+ */
+type DockNotice = C.DockVM['notice'];
+export const DOCK_NOTICE_SAMPLES: { readonly valid: readonly DockNotice[]; readonly invalid: readonly unknown[] } = {
+  valid: [undefined, null, { code: 'CG-FEATURE-DISABLED', title: 'ChatGoose выключен владельцем', body: '', detail: 'disabled', tone: 'state' }],
+  invalid: [
+    // @ts-expect-error the line is an error view with its code, not a bare text
+    'ChatGoose выключен владельцем' satisfies DockNotice,
+    // @ts-expect-error nor a flag
+    true satisfies DockNotice,
+  ],
+};
+
+/**
+ * What tells two pages of one title apart (1.3.0): the platform and the hub's
+ * page label, next to the title wherever pages are listed or chosen. Optional
+ * everywhere: a list without it prints titles as before.
+ */
+type PersonaPageRow = C.PersonasBodyVM['pages'][number];
+const PERSONA_PAGE_BASE: PersonaPageRow = { pageHandle: 'page-11', pageName: 'Lora Vie', persona: null, replacementNeeded: false, choices: [] };
+export const PAGE_TAG_SAMPLES: {
+  readonly valid: readonly C.PageTagVM[];
+  readonly rows: readonly PersonaPageRow[];
+  readonly popup: readonly C.PopupVM['persona'][];
+  readonly accountPages: readonly C.AccountBodyVM['pages'][number][];
+  readonly invalid: readonly unknown[];
+} = {
+  valid: [
+    { platform: 'onlyfans', pageLabel: 'lora-vip' },
+    { platform: 'fansly', pageLabel: 'lora-fansly' },
+    // An open token: a platform this build does not know is printed as it is.
+    { platform: 'somewhere-new', pageLabel: 'lora-new' },
+  ],
+  rows: [PERSONA_PAGE_BASE, { ...PERSONA_PAGE_BASE, page: { platform: 'onlyfans', pageLabel: 'lora-vip' } }],
+  popup: [
+    { s: 'set', label: 'Лора · VIP', pageName: 'Lora Vie' },
+    { s: 'set', label: 'Лора · VIP', pageName: 'Lora Vie', page: { platform: 'onlyfans', pageLabel: 'lora-vip' } },
+    { s: 'no-persona', pageName: 'Lora Vie', page: { platform: 'fansly', pageLabel: 'lora-fansly' } },
+    { s: 'not-connected' },
+  ],
+  accountPages: [
+    { pageName: 'Lora Vie', platform: 'onlyfans', persona: null },
+    { pageName: 'Lora Vie', platform: 'onlyfans', persona: 'Лора · VIP', pageLabel: 'lora-vip' },
+  ],
+  invalid: [
+    // @ts-expect-error the tag names both: a platform alone does not tell «Lora Vie» VIP from «Lora Vie» free
+    { platform: 'onlyfans' } satisfies C.PageTagVM,
+    // @ts-expect-error the label is the hub's key of the page, a string — not the page id
+    { platform: 'onlyfans', pageLabel: 11 } satisfies C.PageTagVM,
+    // @ts-expect-error a row's tag is the pair, not a ready-made text
+    { ...PERSONA_PAGE_BASE, page: 'OnlyFans · lora-vip' } satisfies PersonaPageRow,
   ],
 };

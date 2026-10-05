@@ -9,6 +9,7 @@ import { ClaimStateSchema, type ClaimBody, type ClaimState } from '@cg/contracts
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { WORLD, uuid } from '../scenarios/hub';
+import { pilotPageFlags } from './config';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall } from './kit';
 
@@ -280,7 +281,8 @@ describe('fake hub claims: custody', () => {
     hub.control({ op: 'config', patch: { flags: { previewSend: false } } });
     expect(refused(await post(a, dispatch(attempt(), 0)))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'flag_off' });
     expect(refused(await post(a, dispatch(attempt(), 0, { purpose: 'preview-reply' })))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'flag_off' });
-    hub.control({ op: 'config', patch: { flags: { previewSend: true, newcomers: false } } });
+    // «Новые» is switched in the pages' own rows (the pilot names it there); X8 for everyone, through `"*"`.
+    hub.control({ op: 'config', patch: { flags: { previewSend: true }, ...pilotPageFlags({ newcomers: false }) } });
     expect(refused(await post(a, dispatch(attempt(), 0)))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'flag_off' });
     expect(refused(await post(a, lease('renew')))).toEqual({ status: 409, error: 'client_feature_disabled', reason: 'flag_off' });
     const reply = await post(a, dispatch(attempt(), 0, { purpose: 'preview-reply' }));

@@ -11,7 +11,7 @@ import { OpViewSchema, type Bootstrap, type OpView, type StartOp, type TabEventP
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { type OpsEnvironment } from '@cg/core/domain/ops';
 import { ActionTokens, OPS_STORE_KEY, OpScheduler, type TabPresence } from '@cg/core/services';
-import { BOOTSTRAP_PILOT_ON, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
 
 import { AddressedHub } from './support/ai-background';
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
@@ -71,7 +71,7 @@ function harness(over: { store?: MemoryStore; clock?: FakeClock; firstId?: numbe
     presence,
     recaps,
     onEvent: null,
-    env: { session, bootstrap: over.bootstrap ?? BOOTSTRAP_PILOT_ON, persona: () => persona, debug: false, settingsLoaded: true },
+    env: { session, bootstrap: over.bootstrap ?? BOOTSTRAP_PILOT_PAGES, persona: () => persona, debug: false, settingsLoaded: true },
     scheduler: undefined as unknown as OpScheduler,
     start: (tab, start) => {
       const { actionToken } = tokens.issue(tab, 'generate', start.surface);
@@ -300,7 +300,7 @@ describe('[AI-096] a Coach turn with auto-recap is one composite slot (§7)', ()
   });
 
   it('the Recap switch of the owner off: the question is asked right away, as an ordinary Coach operation', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, recap: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['recap']);
     const h = harness({ bootstrap: off });
     h.hub.streamScript.push(coachStream());
     const op = opIdOf(await h.start(TAB, turn()));
@@ -310,7 +310,7 @@ describe('[AI-096] a Coach turn with auto-recap is one composite slot (§7)', ()
     expect(doneOf(h, op)).toMatchObject({ state: 'done', result: { kind: 'coach' } });
     expect(doneOf(h, op)?.continuedBy).toBeUndefined();
     // And the Coach switch off refuses the whole turn before anything is admitted.
-    const none: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, coach: false } };
+    const none: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['coach']);
     const refused = harness({ bootstrap: none });
     expect(await refused.start(TAB, turn())).toEqual({ kind: 'refused', code: 'CG-FEATURE-DISABLED' });
     expect(refused.scheduler.active()).toEqual([]);

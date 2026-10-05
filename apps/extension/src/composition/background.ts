@@ -38,7 +38,6 @@
 // hub layer) and takes no result away.
 
 import {
-  AI_STREAM_CAPABILITIES,
   CONTRACTS_VERSION,
   HUB_CLIENT_CHECK_CODES,
   STORAGE_KEYS,
@@ -62,7 +61,7 @@ import { resolveHubError, storageBudgetOf } from '@cg/core/domain';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
-import { type OpsEnvironment } from '@cg/core/domain/ops';
+import { flagsOnSomePage, type OpsEnvironment } from '@cg/core/domain/ops';
 import { profileRequestOf, recapSaveAnswer } from '@cg/core/domain/recap';
 import {
   ActionTokens,
@@ -111,6 +110,7 @@ import {
 } from '@cg/platform';
 
 import { CHATSPACE_MATCHES, LOOPBACK_MATCHES } from '../hosts';
+import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
@@ -380,19 +380,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const resolve: ResolveHubError = (failure, context) => readings.get(failure) ?? resolveHubError(failure, context);
 
   /**
-   * The bootstrap as the operations read it. A request declares to the hub the stream capabilities its bootstrap
-   * names (`context-v1`, `split-all-v1`), and the hub layer refuses a request that declares one its transport
-   * cannot carry (CG-HUB-CAPABILITY) — the vendored SDK carries only the prompt echo until the hub's H-4 change
-   * is re-vendored (docs/hub-layer.md). So a capability the stream cannot carry is not shown to the operations:
-   * they run by the archive, without the fresh tail and without Split in Ping, Hi and Coach, instead of not at all.
+   * The bootstrap as the operations read it: the hub's own. A request announces to the hub only the stream
+   * capabilities this bootstrap declares (`context-v1`, `split-all-v1`), and the vendored SDK carries all of
+   * them. A hub older than the SDK simply declares fewer: what depends on a missing one reads «хаб не готов»
+   * (`hub_not_ready`) — nothing is announced that the hub did not offer.
    */
-  const bootstrapForOps = (): Bootstrap | null => {
-    const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
-    if (bootstrap === null || hubInstance === null) return bootstrap;
-    const carried = hubInstance.streamCapabilities();
-    const uncarried = AI_STREAM_CAPABILITIES.filter((capability) => capability !== 'debug-input-v1' && !carried.includes(capability)) as readonly string[];
-    return bootstrap.capabilities.some((capability) => uncarried.includes(capability)) ? { ...bootstrap, capabilities: bootstrap.capabilities.filter((capability) => !uncarried.includes(capability)) } : bootstrap;
-  };
+  const bootstrapForOps = (): Bootstrap | null => hubInstance?.cachedBootstrap()?.bootstrap ?? null;
 
   const environment = (): OpsEnvironment => {
     const current = settings.current();
@@ -431,6 +424,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // R11: how each feature's start becomes the hub's request and its answer a result ([NEXT] parts, Hi variants,
     // the Review frame, Recap blocks, Coach drafts).
     drivers: AI_FEATURE_DRIVERS,
+    // «Нет связи» vs «хаб не ответил вовремя» at a deadline: what the browser itself says about the connection.
+    online: () => navigator.onLine,
     hooks: {
       // The facade refreshes its catalog itself when it reads such a failure.
       refreshBootstrap: () => void hubInstance?.bootstrap({ force: true }).catch(() => undefined),
@@ -496,6 +491,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     log: coreLog,
   });
 
+  // ── owner switches for what has no page of its own ─────────────────────────
+  // An owner switch as it stands for a host account (background/account-switch.ts): the feature of the page the
+  // account is bound to; only an account the hub definitely binds to no page follows the owner's `"*"` value;
+  // an account whose binding cannot be told fails closed. null — no bootstrap.
+  const accountFlag = createAccountSwitch({
+    bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
+    seenAccounts: () => presence.seenAccounts(),
+    resolveBinding: (account) => hubInstance?.resolveBinding(account) ?? { state: 'signed-out' },
+  });
+
   // ── sound ──────────────────────────────────────────────────────────────────
   // The one player of the extension (§9.8; its AudioContext is created with the first tone) under R17's
   // one arbiter: a fan's message from any tab, a new subscriber from «Новые».
@@ -512,6 +517,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     settings: () => (settingsRead() ? settings.current().sound : null),
     bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
     newcomersUsable: (pageLabel) => hubInstance?.flagState('newcomers', pageLabel).usable === true,
+    accountFlag,
     hostPermission: async (host) => (await Promise.all((hostOrigins[host] ?? []).map((origin) => hostPermissions.has(origin)))).some(Boolean),
     read: (pageLabel, windowHours) => hub().audienceNew({ pageLabel, windowHours }),
     online: () => navigator.onLine,
@@ -537,11 +543,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     chatSpaceOpen: () => rpc.tabs().length > 0,
     client: () => ({ version: env.extensionVersion, browserMajor: env.browserMajor ?? 0, os: env.os }),
     footprint: () => ({ cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round(logging.logs.stats().bytes / 1024) }),
+    // What is off for this install: the switches usable on none of its pages (never the top-level `"*"` flags).
     disabled() {
-      const flags = hubInstance?.cachedBootstrap()?.bootstrap.flags ?? {};
-      return Object.entries(flags)
-        .filter(([, on]) => !on)
-        .map(([flag]) => flag);
+      const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
+      return bootstrap === null
+        ? []
+        : Object.entries(flagsOnSomePage(bootstrap))
+            .filter(([, on]) => !on)
+            .map(([flag]) => flag);
     },
   });
   const spend = new SpendService(keyOf(local, SPEND_KEY));
@@ -593,7 +602,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         reachable: status?.reachable ?? null,
         lastCheckedAt: status?.lastCheckedAt ?? null,
         lastError: status?.lastError ?? null,
-        flags: hubInstance?.cachedBootstrap()?.bootstrap.flags ?? {},
+        // Each switch as «usable on at least one granted page»: the top-level `flags` are the owner's `"*"` row alone.
+        flags: hubInstance?.cachedBootstrap() ? flagsOnSomePage(hubInstance.cachedBootstrap()?.bootstrap ?? null) : {},
         sdk: status?.sdk ?? { vendoredHash: VENDORED_CONTRACT_HASH, hubHash: null, compatible: null },
       },
       tabs: rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: shown.get(tab.tabSessionId) ?? null })),
@@ -756,9 +766,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     instance.onBootstrapChange((entry) => {
       const { configRevision, issuedAt, flags } = entry.bootstrap;
       rpc.emit('bootstrap.changed', { configRevision, issuedAt });
+      // The top-level flags are the owner's `"*"` row; what a page may do travels with the bootstrap itself, which
+      // a tab reads again on `bootstrap.changed`.
       rpc.emit('flags.changed', { flags, configRevision });
-      // §6.8 п. 10: the registration follows the flag for future documents; a live tab hears the flags and tells
-      // its own tap to stand down (tab/host-facts.ts).
+      // §6.8 п. 10: the registration follows the switch (on for at least one page) for future documents; a live tab
+      // reads the bootstrap again and tells its own tap to stand down (tab/host-facts.ts).
       void wsTap.fromBootstrap(entry.bootstrap);
       telemetry.onCapabilitiesChanged();
       void sends.bootstrapChanged();
@@ -769,7 +781,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     instance.onCatalogChange(() => rpc.emit('catalog.changed', {}));
     instance.onQuotaChange((quota) => rpc.emit('quota.changed', { quota }));
     // §7 «Сервис недоступен, повтор через 5 с…»: the facade waits before its one retry; the operation says so.
-    instance.onStreamNotice((notice) => scheduler.noteRetry(notice.clientRequestId, notice.retryAt));
+    instance.onStreamNotice((notice) => {
+      if (notice.kind === 'retrying') scheduler.noteRetry(notice.clientRequestId, notice.retryAt);
+      // Where the request stands: a deadline that fires later says whether the hub had answered at all.
+      else scheduler.noteWire(notice.clientRequestId, notice.kind === 'sent' ? { kind: 'sent' } : { kind: 'answered', status: notice.status });
+    });
   }
 
   // ── request handlers (all registered now; each runs after the barrier) ─────
@@ -890,6 +906,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }) => {
     const view = scheduler.view(opId);
+    // A human send is told by ChatSpace's socket, and whose socket may be listened to is the PAGE's own `wsTap`
+    // (the tab keeps one tap while any page has it). With the switch off on the operation's page the send is not
+    // ours to know: nothing is registered and no `sent` is reported — as on a tab that has no tap at all.
+    if (!humanSendObservable(view, hubInstance?.cachedBootstrap()?.bootstrap ?? null)) {
+      logger.info('bg.sends', 'human send not recorded: the tap is off for the page', { fields: { pageId: view?.target.binding.pageId ?? null } });
+      return ok({ recorded: false });
+    }
     // §6.6, §8.5: a human send proven by its receipt and echo. For a part of a preview or of a «Новые» card the
     // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub —
     // the registration is journaled and stays owed until the hub answers.
@@ -1006,6 +1029,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // sound (§9.8): one fact, two consumers — the freshness of results (§7 «Кэш», §6.7.5) and the arbiter.
   const soundHandlers = soundRequestHandlers(sound.arbiter);
   rpc.handle('sound.event', (request, sender) => {
+    // The tap script is registered while ANY page has `wsTap`; whose facts are heard is the account's own answer
+    // (background/account-switch.ts). A fact of an account whose tap is off is not ours to use: it marks nothing
+    // stale and rings nothing. Signed out there is no switch to ask — the message sound needs no hub.
+    if (!incomingFactUsable(request.fact, accountFlag)) return ok({ played: false, reason: 'disabled' });
     scheduler.incoming(request.fact);
     return soundHandlers['sound.event'](request, sender);
   });
@@ -1038,8 +1065,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     // §8.3: an expired bootstrap blocks a new insert or navigation until it is read again; results stay.
     // Without a hub layer (its start step failed) there is no sign-in to insert a result of; ChatSpace's own
-    // list still navigates.
-    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, hubInstance, wireOf);
+    // list still navigates. Whose switch a navigation asks is its surface's: ours (`navigation`) or a board's own.
+    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, surface, hubInstance, wireOf);
     if (refusal !== null) {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
       return { ok: false, error: refusal };

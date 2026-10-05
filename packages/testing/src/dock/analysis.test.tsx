@@ -166,12 +166,39 @@ describe('Recap', () => {
     ]);
   });
 
-  it('[AI-061] [AI-065] «Проверяю…» while the hub is asked; then what is saved with «Открыть последний»', async () => {
-    const empty = recapView(ctx, views.empty(msg('common.empty')), 'short');
-    kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, empty), entry({ of: 'recap.picker' }, recapPicker(ctx, views.loading(ctx.now, msg('common.loading'))))]));
+  it('[AI-061] [AI-064] «Проверяю сохранённые Recap…» does not hold the build buttons back: they are there while the hub is asked — by a click, not by Enter', async () => {
+    // As the controller builds both views while `recap.read` is on its way (the first live check waited 20 s here).
+    const checking = views.loading(ctx.now, msg('recap.checking'));
+    kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, recapView(ctx, checking, 'short')), entry({ of: 'recap.picker' }, recapPicker(ctx, checking))]));
+    await settle(1);
+    const picker = kit.$('.cg-pick') as HTMLElement;
+    const line = picker.querySelector('.cg-pick__note');
+    expect([line?.getAttribute('role'), line?.getAttribute('aria-busy'), text(line)]).toEqual(['status', 'true', 'Проверяю сохранённые Recap…']);
+    expect(picker.querySelector('.cg-gut .cg-spin')).not.toBeNull();
+    expect(kit.$('.cg-state--loading')).toBeNull();
+    expect(kit.$$('.cg-pick__slot')).toEqual([]);
+    const buttons = [...picker.querySelectorAll<HTMLElement>('.cg-pick__acts button')];
+    expect(buttons.map((button) => text(button))).toEqual(['Коротко', 'Полностью']);
+    // Enter would spend a full Recap on a fan who may already have one: while checking, a build takes a click.
+    await flush(() => picker.dispatchEvent(keydown('Enter')));
+    expect(kit.client.dispatched).toEqual([]);
+    await flush(() => buttons[0]?.click());
+    expect(kit.client.dispatched).toEqual([{ type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'recap-short', options: {} }]);
+  });
+
+  it('[AI-061] a check during which nothing can be built (the chat is still loading) stays the plain «загрузка» line', async () => {
+    const loading = views.loading(ctx.now, msg('dock.status.chatLoading'));
+    const off = { enabled: false, reason: reason('chat-loading') } as const;
+    const picker = recapPicker(ctx, loading);
+    const blocked = { ...picker, build: { short: { ...picker.build.short, ...off }, full: { ...picker.build.full, ...off } } };
+    kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, recapView(ctx, loading, 'short')), entry({ of: 'recap.picker' }, blocked)]));
     await settle(1);
     expect(kit.$('.cg-state--loading')?.getAttribute('aria-busy')).toBe('true');
-    kit.unmount();
+    expect(kit.$('.cg-pick')).toBeNull();
+  });
+
+  it('[AI-061] [AI-065] once the hub answered: what is saved with «Открыть последний»', async () => {
+    const empty = recapView(ctx, views.empty(msg('common.empty')), 'short');
     kit = mountDock(dockScenario(recapDock(), {}, [entry({ of: 'recap.view' }, empty), entry({ of: 'recap.picker' }, recapPicker(ctx, views.ready()))]));
     await settle(1);
     const slots = kit.$$('.cg-pick__slot');

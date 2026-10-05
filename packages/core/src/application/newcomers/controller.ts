@@ -31,9 +31,9 @@ import {
 import { RENEW_RETRY_MS, RowLocks, claimRefusal, leaseNow, leaseOfClaim, leasePolicy, shouldRenew, type LeasePolicy, type LeaseView } from '../../domain/newcomers/claim';
 import { draftStale } from '../../domain/newcomers/greeting';
 import { NO_SEEN_EVENTS, nextPollDelay, observeEvents, pollMode, resumeDelay, unprime, type SeenEvents } from '../../domain/newcomers/poll';
-import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
+import { greetingStatus, hiBlock, inTab, matchesSearch, newcomerRow, passesFilter, progressOfClaim, rowTooLongForHi, subscriptionCurrent, threadRevision, type LocalGreeting, type NewcomerRow } from '../../domain/newcomers/rows';
 import { WINDOW_HOURS, appendAudiencePage, clampWindow, startWalk, walkHasMore, walkIncomplete, windowLimit, windowOptions, type AudienceWalk } from '../../domain/newcomers/window';
-import { type PageContextPort, type PageContextState, flagReason, pageFlag } from '../boards/context';
+import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
 import { type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type Connectivity, type RandomSource, type TabRpc } from '../boards/ports';
@@ -339,6 +339,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
 
   const greeting: GreetingDesk = {
     async claimForGenerate(fanRef) {
+      // NF-015: the hub refuses a greeting for a thread of more than ten stored messages — no lease is taken for it.
+      if (rowTooLongForHi(rowOf(fanRef))) return { ok: false, code: 'CG-GATE-HI', error: localError('CG-GATE-HI', i18n) };
       const block = hiBlock(statusOf(fanRef));
       if (block === 'claim-busy') return { ok: false, code: 'CG-CLAIM-BUSY', error: claimError(fanRef, 'CG-CLAIM-BUSY') };
       if (block === 'claim-elsewhere') return { ok: false, code: 'CG-CLAIM-BUSY', error: { ...errorOf({ code: 'CG-CLAIM-BUSY' }, i18n), body: i18n.t('newcomers.claim.elsewhere') } };
@@ -362,7 +364,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     greeting: statusOf,
     hiBlocked(fanRef) {
       const block = hiBlock(statusOf(fanRef));
-      if (block === null) return null;
+      // NF-015: by the count the hub gave with the row — Hi is off before the card's archive is even read.
+      if (block === null) return rowTooLongForHi(rowOf(fanRef)) ? reason('hi-gate') : null;
       if (block === 'claim-busy') return reason('claim-busy');
       if (block === 'claim-elsewhere') return reason('claim-elsewhere');
       if (block === 'uncertain') return reason('part-uncertain', { n: (localOf(fanRef).progress?.uncertainPart ?? 0) + 1 });
@@ -538,10 +541,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const retry: UiAction = { type: 'ReloadView', selector: SELECTOR };
     if (ctx.phase === 'loading') return loadingView(null);
     if (ctx.phase === 'blocked') return failureView(ctx.blocker ?? { code: 'CG-UNKNOWN' }, i18n, retry);
-    if (!pageFlag(ctx, 'newcomers')) {
-      const why = flagReason(ctx, 'newcomers');
-      return failureView(why === null ? { code: 'CG-FEATURE-DISABLED' } : { code: 'CG-FEATURE-DISABLED', detail: why }, i18n, retry);
-    }
+    if (!pageFlag(ctx, 'newcomers')) return failureView(flagFailure(ctx, 'newcomers'), i18n, retry);
     return null;
   }
 
@@ -660,7 +660,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   async function openChat(type: UiActionType, fanRef: string): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
-    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers');
+    // The person's click on this fan in «Новые»: the list's own switch on its page, not `navigation`.
+    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers', ['newcomers']);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
     return done(type, 'opened');

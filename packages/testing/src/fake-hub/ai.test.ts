@@ -8,11 +8,13 @@
 // every frame the model writes.
 
 import { HUB_AI_FEATURES, HubFrameSchema, SPLIT_MARKERS, type HubAiFeature } from '@cg/contracts';
-import { streamAiFeature } from '@kernel/sdk';
+import { routeSchemas, streamAiFeature } from '@kernel/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { PAGE, WORLD, streamBody, uuid } from '../scenarios/hub';
 import { generationText, namedForFan } from './ai';
+import { streamBodyRefusal } from './ai-rules';
+import { pilotPageFlags } from './config';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall, readSse } from './kit';
 
@@ -32,7 +34,9 @@ const refusal = async (response: Response): Promise<{ status: number; error: str
   const body = (await response.json()) as { error: string; reason?: string };
   return body.reason === undefined ? { status: response.status, error: body.error } : { status: response.status, error: body.error, reason: body.reason };
 };
-const NEEDS: Partial<Record<HubAiFeature, Body>> = { 'improve-draft': { draftText: 'my draft' }, 'coach-chat': { chatterQuestion: 'What now?' } };
+/** A greeting is for a conversation that has barely started: the scenario's own fan has a long archive, the new one has not. */
+const GREETED = { fanRef: WORLD.newFan, conversationRef: WORLD.newFan } as const;
+const NEEDS: Partial<Record<HubAiFeature, Body>> = { 'improve-draft': { draftText: 'my draft' }, 'coach-chat': { chatterQuestion: 'What now?' }, 'hi-greeting': GREETED };
 const needs = (feature: HubAiFeature): Body => NEEDS[feature] ?? {};
 
 beforeEach(() => {
@@ -94,7 +98,7 @@ describe('fake hub AI: the stream the model writes', () => {
     const live = { liveTextContext: { capturedAt: '2026-10-03T09:59:55.000Z', items: [{ platformMessageId: '6600', direction: 'fan' as const, occurredAt: '2026-10-03T09:59:50.000Z', text: 'hey there' }] } };
     const served = await framesOf(await stream('fast-reply', live, ['context-v1']));
     expect(served.find((f) => f.type === 'context_v1')).toMatchObject({ source: 'union', live: { status: 'served', accepted: 1, rejected: 0 } });
-    hub.control({ op: 'config', patch: { flags: { freshText: false } } });
+    hub.control({ op: 'config', patch: pilotPageFlags({ freshText: false }) });
     const ignored = await framesOf(await stream('fast-reply', live, ['context-v1']));
     expect(ignored.find((f) => f.type === 'context_v1')).toMatchObject({ source: 'archive', live: { status: 'disabled', accepted: 0 } });
     expect(await refusal(await stream('fast-reply', live))).toEqual({ status: 400, error: 'bad_request', reason: 'capability_required' });
@@ -110,9 +114,69 @@ describe('fake hub AI: the stream the model writes', () => {
       expect(textOf(await framesOf(await split(feature))), `${feature} without split-all-v1`).not.toContain(SPLIT_MARKERS.next);
       expect(textOf(await framesOf(await split(feature, ['split-all-v1']))), `${feature} with split-all-v1`).toContain(SPLIT_MARKERS.next);
     }
-    hub.control({ op: 'config', patch: { flags: { splitAll: false } } });
+    hub.control({ op: 'config', patch: pilotPageFlags({ splitAll: false }) });
     expect(textOf(await framesOf(await split('ping', ['split-all-v1'])))).not.toContain(SPLIT_MARKERS.next);
     expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'default' })))).not.toContain(SPLIT_MARKERS.next);
+  });
+
+  it('the hub\'s Hi gate: a greeting is for a conversation of at most ten stored messages — EVERY message counts, whoever sent it; past that the answer is 400 `gate_hi_greeting_limit`, and nothing is spent', async () => {
+    const hi = (fanRef: string) => stream('hi-greeting', { fanRef, conversationRef: fanRef });
+    // The scenario's own fan has a long archive: a dialogue, not a first hello.
+    const quota = hub.config().quotaRequestsToday;
+    expect(await refusal(await hi(WORLD.fan))).toEqual({ status: 400, error: 'gate_hi_greeting_limit' });
+    expect(hub.config().quotaRequestsToday).toBe(quota);
+    // A new fan: ten messages of ours and none of theirs still pass; the eleventh message closes the gate.
+    const fresh = '2099';
+    for (let i = 0; i < 10; i += 1) hub.control({ op: 'archiveMessage', pageLabel: PAGE, fanRef: fresh, sender: 'model', messageId: String(9100 + i) });
+    expect(textOf(await framesOf(await hi(fresh)))).toContain('Hi and welcome!');
+    hub.control({ op: 'archiveMessage', pageLabel: PAGE, fanRef: fresh, sender: 'model', messageId: '9110' });
+    expect(await refusal(await hi(fresh))).toEqual({ status: 400, error: 'gate_hi_greeting_limit' });
+    // The gate is Hi's alone: a Reply to the same conversation goes through.
+    expect(textOf(await framesOf(await stream('fast-reply', { fanRef: fresh, conversationRef: fresh })))).not.toBe('');
+  });
+
+  it('the rules of the hub\'s own handler: a Coach preset forbids our question, Coach without either is refused, coach fields and summaryMode stay with their features — with the hub\'s own messages', async () => {
+    const refusedWith = async (response: Response): Promise<{ status: number; error: string; message: string }> => {
+      const body = (await response.json()) as { error: string; message: string };
+      return { status: response.status, error: body.error, message: body.message };
+    };
+    // What the first live check met on the real hub (400 in 10 ms): the preset chip sent with its own words.
+    expect(await refusedWith(await stream('coach-chat', { preset: 'situation', chatterQuestion: 'Что сейчас в чате?' }))).toEqual({ status: 400, error: 'bad_request', message: 'fake hub: coach-chat preset forbids chatterQuestion' });
+    expect(await refusedWith(await stream('coach-chat', {}))).toEqual({ status: 400, error: 'bad_request', message: 'fake hub: coach-chat requires chatterQuestion' });
+    expect(await refusedWith(await stream('coach-chat', { chatterQuestion: '   ' }))).toMatchObject({ status: 400, message: 'fake hub: coach-chat requires chatterQuestion' });
+    expect(await refusedWith(await stream('improve-draft', {}))).toEqual({ status: 400, error: 'gate_draft_required', message: 'fake hub: improve-draft requires draftText' });
+    // The same rules as a function, for every feature (ai-rules.ts mirrors hub `prepareAiFeatureStream`).
+    for (const feature of HUB_AI_FEATURES) {
+      expect([feature, streamBodyRefusal(feature, needs(feature) ?? {})]).toEqual([feature, null]);
+      if (feature === 'coach-chat') continue;
+      expect(streamBodyRefusal(feature, { ...needs(feature), preset: 'situation' })?.message).toBe(`${feature} does not accept coach fields`);
+      expect(streamBodyRefusal(feature, { ...needs(feature), coachHistory: [] })?.message).toBe(`${feature} does not accept coach fields`);
+      if (feature !== 'fan-summary') expect(streamBodyRefusal(feature, { ...needs(feature), summaryMode: 'short' })?.message).toBe(`${feature} does not accept summaryMode`);
+    }
+    // And the accepted forms run: the preset alone, a question alone.
+    expect(types(await framesOf(await stream('coach-chat', { preset: 'situation' })))).toContain('done');
+    expect(types(await framesOf(await stream('coach-chat', { chatterQuestion: 'What now?', coachHistory: [{ question: 'q', answer: 'a' }] })))).toContain('done');
+  });
+
+  it('with the hub\'s REAL body schema (the vendored SDK\'s) every body is checked by it first: what the real hub would answer 400 to is refused here', async () => {
+    const real = createFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body });
+    const realToken = real.issueToken();
+    const send = (feature: HubAiFeature, body: Record<string, unknown>, capabilities: string[] = []): Promise<Response> =>
+      real.fetch(`${real.origin}/api/v1/ai/features/${feature}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${realToken}`, 'content-type': 'application/json', ...(capabilities.length === 0 ? {} : { 'x-kernel-ai-capabilities': capabilities.join(', ') }) },
+        body: JSON.stringify(body),
+      });
+    const good = streamBody({ clientRequestId: uuid(0xa00), replyTone: 'casual' });
+    expect((await send('fast-reply', good)).status).toBe(200);
+    // The hub's body is strict: a key it does not know, a count outside its bounds, a tone it never had.
+    for (const bad of [{ ...good, clientRequestId: uuid(0xa01), someLaterField: true }, { ...good, clientRequestId: uuid(0xa02), messageCount: 3001 }, { ...good, clientRequestId: uuid(0xa03), replyTone: 'tender' }]) {
+      const response = await send('fast-reply', bad);
+      expect([response.status, ((await response.json()) as { message: string }).message]).toEqual([400, 'fake hub: body: refused by the hub’s own body schema (vendored SDK)']);
+    }
+    // Every scenario body of this package passes it — the H-4 fields included (the SDK has them since hub e7e1037b).
+    const live = { liveTextContext: { capturedAt: '2026-10-03T09:59:55.000Z', items: [{ platformMessageId: '6600', direction: 'fan' as const, occurredAt: '2026-10-03T09:59:50.000Z', text: 'hey there' }] } };
+    expect((await send('fast-reply', streamBody({ clientRequestId: uuid(0xa04), knownFanMessageIds: ['6000'], ...live }), ['context-v1'])).status).toBe(200);
   });
 
   it('Hi answers the variants asked for; recaps and reviews are whole', () => {
@@ -132,7 +196,7 @@ describe('fake hub AI: `aiNameFan` — a draft says whose chat it was written fo
     expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'preferSplit' }))).split(SPLIT_MARKERS.next).map((part) => part.trim())).toEqual([`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`]);
     expect(textOf(await framesOf(await stream('fast-reply', { replyMode: 'default' })))).toBe(`Hey you, thanks for writing! How was your day? @${fan}`);
     const hi = textOf(await framesOf(await stream('hi-greeting', { variantCount: 3, ...needs('hi-greeting') })));
-    expect(hi.split(SPLIT_MARKERS.variant).map((variant) => variant.trim())).toEqual([`Hi and welcome! @${fan}`, `Hey, glad you are here! @${fan}`, `Welcome in, nice to meet you! @${fan}`]);
+    expect(hi.split(SPLIT_MARKERS.variant).map((variant) => variant.trim())).toEqual([`Hi and welcome! @${WORLD.newFan}`, `Hey, glad you are here! @${WORLD.newFan}`, `Welcome in, nice to meet you! @${WORLD.newFan}`]);
     expect(namedForFan('<review/>', { feature: 'chat-review', body: streamBody({}), capabilities: [] })).toBe('<review/>');
     expect(textOf(await framesOf(await stream('fan-summary', needs('fan-summary'))))).not.toContain('@');
   });

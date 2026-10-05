@@ -5,6 +5,7 @@
 //
 //   overlays = createOverlayState(); cause = createCauseHint();
 //   navigation = createNavigationController({ host, rpc, i18n, ids, clock, overlays, toasts, cause, ownerSwitch });
+//   (`ownerSwitch(hostAccountId)` — the `navigation` feature of the page that account is bound to)
 //   palette = createPaletteController({ host, rpc, i18n, catalog, clock, overlays,
 //     dock: { get: () => client.getSnapshot({ of: 'dock' }), subscribe: (cb) => client.subscribe({ of: 'dock' }, cb) },
 //     preview: { open: (chat) => previewController.openFor(chat, 'palette') } });

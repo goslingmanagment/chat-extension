@@ -410,6 +410,87 @@ describe('the sound arbiter: subscribers', () => {
   });
 });
 
+describe('the sound arbiter: a subscription the hub recorded late', () => {
+  /** A poll's answer at `at` (the hub's clock = the test clock here). */
+  const answer = (w: World, events: SubscriberBatch['events'], patch: Partial<SubscriberBatch> = {}): SubscriberBatch => batch(events, { serverNow: new Date(w.clock.now()).toISOString(), ...patch });
+  const TWELVE_MIN = 12 * 60_000;
+
+  it('[SN-012] first seen in the poll right after the baseline: it rings, though it subscribed twelve minutes ago — by its own age it never would', async () => {
+    const w = world();
+    expect(await w.arbiter.handleSubscribers(answer(w, [sub('e1', 20_000, w)]))).toEqual(['first-snapshot']);
+    await w.clock.advance(60_000);
+    expect(await w.arbiter.handleSubscribers(answer(w, [sub('late', TWELVE_MIN, w), sub('e1', 80_000, w)]))).toEqual(['played']);
+    expect(w.played).toHaveLength(1);
+    // Seen once, never again.
+    await w.clock.advance(60_000);
+    expect(await w.arbiter.handleSubscribers(answer(w, [sub('late', TWELVE_MIN + 60_000, w), sub('e1', 140_000, w)]))).toEqual([]);
+
+    // The same event without the answers' clock (an older caller): only its own age is left, and it is history.
+    const blind = world();
+    await blind.arbiter.handleSubscribers(batch([sub('e1', 20_000, blind)]));
+    await blind.clock.advance(60_000);
+    expect(await blind.arbiter.handleSubscribers(batch([sub('late', TWELVE_MIN, blind)]))).toEqual(['stale']);
+  });
+
+  it('[SN-012] the gap is between the two answers’ `serverNow`: 180 s is still «just looked», 181 s is not — then the subscription’s age decides; every answer moves the moment of the last look', async () => {
+    const w = world();
+    await w.arbiter.handleSubscribers(answer(w, []));
+    await w.clock.advance(180_000);
+    expect(await w.arbiter.handleSubscribers(answer(w, [sub('edge', TWELVE_MIN, w)]))).toEqual(['played']);
+    await w.clock.advance(181_000);
+    // After the longer gap: an old one is history, a fresh one still rings.
+    expect(await w.arbiter.handleSubscribers(answer(w, [sub('old', TWELVE_MIN, w), sub('fresh', 20_000, w)]))).toEqual(['stale', 'played']);
+    // Answers that bring nothing new keep the look recent: polls a minute apart for ten minutes, then a late one.
+    for (let i = 0; i < 10; i += 1) {
+      await w.clock.advance(60_000);
+      expect(await w.arbiter.handleSubscribers(answer(w, []))).toEqual([]);
+    }
+    await w.clock.advance(60_000);
+    expect(await w.arbiter.handleSubscribers(answer(w, [sub('late-2', TWELVE_MIN, w)]))).toEqual(['played']);
+
+    // The hub's clock is what is measured, not ours: an answer stamped an hour after the last is a long gap,
+    // however quickly it arrived here.
+    const skewed = world();
+    await skewed.arbiter.handleSubscribers(answer(skewed, []));
+    const later = new Date(skewed.clock.now() + 3_600_000).toISOString();
+    expect(await skewed.arbiter.handleSubscribers(batch([sub('late', TWELVE_MIN, skewed)], { serverNow: later }))).toEqual(['stale']);
+    // An unreadable `serverNow` leaves no moment to measure from — for this answer and for the next.
+    const unreadable = world();
+    await unreadable.arbiter.handleSubscribers(answer(unreadable, []));
+    expect(await unreadable.arbiter.handleSubscribers(batch([sub('a', TWELVE_MIN, unreadable)], { serverNow: 'soon' }))).toEqual(['stale']);
+    expect(await unreadable.arbiter.handleSubscribers(answer(unreadable, [sub('b', TWELVE_MIN, unreadable)]))).toEqual(['stale']);
+    // Each page has its own last look.
+    const pages = world();
+    await pages.arbiter.handleSubscribers(answer(pages, []));
+    await pages.clock.advance(600_000);
+    await pages.arbiter.handleSubscribers(answer(pages, [], { pageKey: '12', platformAccountId: '3004' }));
+    await pages.clock.advance(30_000);
+    expect(await pages.arbiter.handleSubscribers(answer(pages, [sub('p11', TWELVE_MIN, pages)]))).toEqual(['stale']);
+    expect(await pages.arbiter.handleSubscribers(answer(pages, [sub('p12', TWELVE_MIN, pages)], { pageKey: '12', platformAccountId: '3004' }))).toEqual(['played']);
+  });
+
+  it('[SN-012] the moment of the last look survives an event-page unload with the baseline, and goes with it at sign-out', async () => {
+    const first = world();
+    await first.arbiter.handleSubscribers(answer(first, [sub('e1', 20_000, first)]));
+    await first.arbiter.flush();
+    expect((first.store.data.get(SOUND_SESSION_KEY) as { pageTimes: Record<string, number> }).pageTimes).toEqual({ '11': first.clock.now() });
+    await first.clock.advance(60_000);
+    // The event page unloads and wakes: a new arbiter over the same session storage.
+    const second = world({ store: first.store, clock: first.clock });
+    await second.arbiter.restore();
+    expect(await second.arbiter.handleSubscribers(answer(second, [sub('late', TWELVE_MIN, second), sub('e1', 80_000, second)]))).toEqual(['played']);
+    second.arbiter.forgetSubscribers();
+    await second.arbiter.flush();
+    const forgotten = second.store.data.get(SOUND_SESSION_KEY) as { pages: Record<string, string[]>; pageTimes: Record<string, number> };
+    expect([forgotten.pages, forgotten.pageTimes]).toEqual([{}, {}]);
+    // A state written before the moment was kept: the baseline is there, the look is «unknown» — the age rule.
+    const old = world();
+    old.store.data.set(SOUND_SESSION_KEY, { v: 1, seen: null, throttle: { lastMessageAt: null, lastSubscriberAt: null }, pages: { '11': ['e1'] } });
+    await old.arbiter.restore();
+    expect(await old.arbiter.handleSubscribers(answer(old, [sub('late', TWELVE_MIN, old), sub('e1', 80_000, old)]))).toEqual(['stale']);
+  });
+});
+
 describe('the sound arbiter: state, diagnostics and the protocol', () => {
   it('[SN-010] seen events, the throttle and the baselines survive an event-page unload in storage.session', async () => {
     const first = world();

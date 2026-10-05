@@ -10,13 +10,16 @@ import {
   BOARDS_I18N_KEYS,
   CLAIM_RENEW_SAMPLES,
   COACH_TURN_VM_SAMPLES,
+  DOCK_NOTICE_SAMPLES,
   FAN_PANEL_BIO_SAMPLES,
   MONEY_CENTS_SAMPLES,
   NEWCOMERS_INCOMPLETE_SAMPLES,
   OPTIONS_FOOTER_SAMPLES,
+  PAGE_TAG_SAMPLES,
   REFUSAL_VM_SAMPLES,
   SPOKEN_MONEY_SAMPLES,
   STATS_ATTENTION_SAMPLES,
+  STATS_REMAINDER_SAMPLES,
   TOAST_VM_SAMPLES,
   UI_ACTION_SAMPLES,
   ZONED_TIME_SAMPLES,
@@ -450,5 +453,63 @@ describe('«Результат неполный» in «Новые» (1.2.0, the 
     // The view model never repeats the title the window already prints.
     expect(NEWCOMERS_INCOMPLETE_SAMPLES.valid.map((msg) => msg.key)).not.toContain('newcomers.incomplete');
     expect(NEWCOMERS_INCOMPLETE_SAMPLES.invalid).toHaveLength(2);
+  });
+});
+
+describe('a page the owner switched off, and what a refused switch says (1.3.0)', () => {
+  it('[UI-011] the dock may carry one status line — an error view with its code — while it stays `ready`', () => {
+    expectTypeOf<C.DockVM['notice']>().toEqualTypeOf<C.CgErrorView | null | undefined>();
+    const [absent, none, line] = DOCK_NOTICE_SAMPLES.valid;
+    expect(absent).toBeUndefined();
+    expect(none).toBeNull();
+    expect(C.CgErrorViewSchema.safeParse(line).success).toBe(true);
+    expect(DOCK_NOTICE_SAMPLES.invalid).toHaveLength(2);
+    // No new status and no new reason id: the consumers' enumerations stay as they were.
+    expect(C.DOCK_STATUSES).not.toContain('page-off');
+    expect(C.UNAVAILABLE_REASON_IDS).not.toContain('page-off');
+  });
+
+  it('[HK-026] the line and the reasons of a switch that is off have their words in the catalog', () => {
+    for (const key of ['dock.status.pageOff', 'dock.reason.pageOff', 'dock.reason.hubNotReady', 'dock.reason.platformUnsupported', 'dock.reason.clientOutdated'] as const) {
+      expect(C.UI_TEXT_KEYS).toContain(key);
+      expect(C.isPluralKey(key)).toBe(false);
+    }
+  });
+});
+
+describe('the remainder rows of the statistics’ tier table (1.4.0)', () => {
+  it('[SP-044] a tier without bounds says which remainder it is — «без тира» or «не распределено» — by its own field; a tier with bounds carries none', () => {
+    expectTypeOf<C.SpendersStatsVM['shelves'][number]['remainder']>().toEqualTypeOf<C.StatsRemainder | undefined>();
+    expect(C.STATS_REMAINDERS).toEqual(['untiered', 'unattributed']);
+    const [tier, untiered, unattributed] = STATS_REMAINDER_SAMPLES.valid;
+    expect(tier?.remainder).toBeUndefined();
+    expect([untiered?.remainder, unattributed?.remainder]).toEqual(['untiered', 'unattributed']);
+    // Two rows without bounds are still two rows: their ids differ.
+    expect(untiered?.range).toEqual(unattributed?.range);
+    expect(untiered?.id).not.toBe(unattributed?.id);
+    expect(STATS_REMAINDER_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[HK-026] each remainder has its words in the catalog', () => {
+    for (const key of ['stats.shelf.untiered', 'stats.shelf.unattributed'] as const) {
+      expect(C.UI_TEXT_KEYS).toContain(key);
+      expect(C.isPluralKey(key)).toBe(false);
+    }
+  });
+});
+
+describe('pages of one title are told apart (1.3.0)', () => {
+  it('[ST-060] [ST-067] a page row may carry its platform and the hub page label, wherever pages are listed or chosen', () => {
+    expectTypeOf<C.PersonasBodyVM['pages'][number]['page']>().toEqualTypeOf<C.PageTagVM | undefined>();
+    expectTypeOf<C.AccountsBodyVM['rows'][number]['page']>().toEqualTypeOf<C.PageTagVM | null | undefined>();
+    expectTypeOf<C.AccountBodyVM['pages'][number]['pageLabel']>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<Extract<C.PopupVM['persona'], { s: 'set' }>['page']>().toEqualTypeOf<C.PageTagVM | undefined>();
+    expect(PAGE_TAG_SAMPLES.valid.map((tag) => tag.platform)).toEqual(['onlyfans', 'fansly', 'somewhere-new']);
+    const [bare, tagged] = PAGE_TAG_SAMPLES.rows;
+    expect(bare?.page).toBeUndefined();
+    expect(tagged?.page).toEqual({ platform: 'onlyfans', pageLabel: 'lora-vip' });
+    expect(PAGE_TAG_SAMPLES.popup.filter((persona) => persona.s !== 'not-connected' && persona.page !== undefined)).toHaveLength(2);
+    expect(PAGE_TAG_SAMPLES.accountPages[1]?.pageLabel).toBe('lora-vip');
+    expect(PAGE_TAG_SAMPLES.invalid).toHaveLength(3);
   });
 });

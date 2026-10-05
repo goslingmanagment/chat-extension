@@ -10,7 +10,7 @@ import { type PopupVM, type ReasonVM, type UiAction, type VmView } from '@cg/con
 
 import { formatMicroUsd } from '../../domain/debug';
 import { hotkeyOf } from './hotkeys';
-import { QUOTA_LOW, boundPageOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
+import { QUOTA_LOW, boundPageOf, boundPageTagOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
 import { hostGaps, hostReportOf, hubState } from './view-status';
 
@@ -79,8 +79,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
       bound === null || pageName === null || persona === null
         ? { s: 'not-connected' }
         : persona.s === 'set' && persona.label !== null
-          ? { s: 'set', label: persona.label, pageName }
-          : { s: 'no-persona', pageName },
+          ? { s: 'set', label: persona.label, pageName, page: boundPageTagOf(bound) }
+          : { s: 'no-persona', pageName, page: boundPageTagOf(bound) },
     account: session === null ? null : { login: session.login, signOut: button('popup.signOut', { type: 'SignOut' }) },
     chat:
       chat === null

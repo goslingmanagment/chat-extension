@@ -6,19 +6,23 @@
 
 import { CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp } from '@cg/contracts';
 import { HUB_SAMPLES } from '@cg/contracts/fixtures';
-import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, uuid, type HttpExchange } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, uuid, type HttpExchange, pageFeaturesOff } from '@cg/testing/hub';
+import { kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CLIENT_ROUTE_KEYS, CLIENT_ROUTE_PATHS, clientWireRequest, errorWireOf, isClientRoute, type ChatExtensionHub } from '../src/index';
+import { CLIENT_ROUTE_KEYS, CLIENT_ROUTE_PATHS, clientWireRequest, errorWireOf, isClientRoute, isSdkRoute, sdkInputOf, type ChatExtensionHub } from '../src/index';
 import { hubError, json } from './support/fake-hub';
 import { flush, makeHarness, signIn, type Harness } from './support/harness';
 import { scenarioNamed, signInWorld } from './support/world';
 
 const SIGN_IN = scenarioNamed(HTTP_SCENARIOS, 'sign-in-and-bootstrap-all-off');
-/** Every page feature available (X8 included), so only the hub's own answers decide. */
+/**
+ * Every page feature available (X8 included), so only the hub's own answers decide — and every top-level flag
+ * false, as on a hub whose owner switches pages on one by one: the facade reads the page, never those.
+ */
 const BOOTSTRAP_ALL_ON = {
   ...BOOTSTRAP_PILOT_ON,
-  flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, true])),
+  flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, false])),
   pages: BOOTSTRAP_PILOT_ON.pages.map((page) => (page.platform === 'onlyfans' ? { ...page, features: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: true }])) } : page)),
 };
 const WORLD_ON = signInWorld(SIGN_IN, BOOTSTRAP_ALL_ON, WORLD.user.username);
@@ -196,7 +200,7 @@ describe('[NF-026] claim and custody: never repeated, flags checked for taking w
   });
 
   it('[NF-023] «Новые» off: a lease is refused locally; a status read is not', async () => {
-    const off = { ...BOOTSTRAP_ALL_ON, flags: { ...BOOTSTRAP_ALL_ON.flags, newcomers: false } };
+    const off = pageFeaturesOff(BOOTSTRAP_ALL_ON, ['newcomers']);
     await signIn(h, { ...WORLD_ON, bootstrap: off });
     const lease: ClaimOp = { pageLabel: PAGE, fanRef: WORLD.newFan, body: { action: 'claim', leaseToken: uuid(0x300), instanceId: WORLD.instanceId } };
     expect(errorWireOf(await h.facade.claim(lease).catch((reason: unknown) => reason))).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
@@ -210,9 +214,37 @@ describe('[HB-006] the RouteTransport: one module, the contract schemas on both 
   it('[HB-006] serves exactly the contract routes the vendored SDK lacks, at the fake hub\'s paths', () => {
     const notInSdk = HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since !== 'sdk');
     expect([...CLIENT_ROUTE_KEYS].sort()).toEqual([...notInSdk].sort());
+    // What is left after the re-vendor of hub e7e1037b: the routes whose hub PRs are still drafts.
+    expect([...CLIENT_ROUTE_KEYS].sort()).toEqual(['clientAudienceNew', 'clientConversationFeed', 'clientFanClaim', 'clientFanClaimStatus', 'clientSpenderAwaitingReply', 'clientSpenderStats']);
     for (const key of CLIENT_ROUTE_KEYS) expect(CLIENT_ROUTE_PATHS[key]).toBe(HUB_ROUTE_PATHS[key]);
-    expect(isClientRoute('clientBootstrap')).toBe(true);
-    expect(isClientRoute('me')).toBe(false);
+    expect(isClientRoute('clientAudienceNew')).toBe(true);
+    // The routes that arrived in the SDK are its operations now, not this transport's.
+    for (const key of ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily', 'me'] as const) expect([key, isClientRoute(key)]).toEqual([key, false]);
+  });
+
+  it('[HB-006] a client route the SDK has goes by the SDK\'s own manifest path: the same request, the path parameters taken out of it', async () => {
+    for (const key of ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily'] as const) {
+      expect([key, isSdkRoute(key), kernelOperations[key].path]).toEqual([key, true, HUB_ROUTE_PATHS[key]]);
+    }
+    expect(sdkInputOf('clientBootstrap', null)).toEqual({});
+    expect(sdkInputOf('clientConversationRecaps', { pageLabel: 'model one', fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId })).toEqual({
+      params: { pageLabel: 'model one', fanRef: WORLD.fan },
+      query: { personaDefinitionId: WORLD.persona.definitionId },
+    });
+    const save = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientFanProfileFromGeneration');
+    const { pageLabel, fanRef, ...body } = save?.request as { pageLabel: string; fanRef: string } & Record<string, unknown>;
+    expect(sdkInputOf('clientFanProfileFromGeneration', save?.request)).toEqual({ params: { pageLabel, fanRef }, body });
+    // A request outside its contract schema is our bug: never turned into a call.
+    expect(() => sdkInputOf('clientConversationRecaps', { pageLabel: PAGE, fanRef: WORLD.fan, persona: 'x' })).toThrow(TypeError);
+    expect(() => sdkInputOf('clientConversationRecaps', { fanRef: WORLD.fan })).toThrow(TypeError);
+
+    // End to end: the recaps read leaves through the SDK with the SDK's headers, at the path with its parameters encoded.
+    h.hub.serve(scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges);
+    const recaps = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientConversationRecaps');
+    await h.facade.recaps(recaps?.request as never);
+    const sent = h.hub.of('clientConversationRecaps')[0];
+    expect(sent?.headers).toMatchObject({ authorization: `Bearer ${String(WORLD_ON.issued['token'])}`, 'x-client-version': 'chat-extension/0.2.0' });
+    expect(sent?.path).toBe(`/api/v1/client/pages/${PAGE}/conversations/${WORLD.fan}/recaps`);
   });
 
   it('[HB-006] a request outside its schema is never sent; an extra key is our bug', async () => {
@@ -249,7 +281,39 @@ describe('[HB-006] the RouteTransport: one module, the contract schemas on both 
       pathAndQuery: `/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`,
       body: undefined,
     });
-    expect(clientWireRequest('clientBootstrap', null)).toEqual({ method: 'GET', pathAndQuery: '/api/v1/client/bootstrap', body: undefined });
+    expect(clientWireRequest('clientAudienceNew', { pageLabel: PAGE, windowHours: 48 })).toEqual({ method: 'GET', pathAndQuery: `/api/v1/client/pages/${PAGE}/audience-new?windowHours=48`, body: undefined });
+  });
+});
+
+describe('[HB-006] what the journal keeps of a hub call: facts as single machine words, and how long a slow one took', () => {
+  const recapsQuery = { pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId };
+
+  it('[HB-006] a refused call names its status, its error and its reason each in a field of its own (a sentence would be cut by the redaction)', async () => {
+    h.hub.on('clientConversationRecaps', () => hubError(409, 'client_feature_disabled', 'disabled'));
+    await h.facade.recaps(recapsQuery).catch(() => undefined);
+    const line = h.logs.lines.filter((entry) => entry.message === 'hub: call failed').at(-1);
+    expect(line).toEqual({
+      level: 'warn',
+      message: 'hub: call failed',
+      fields: { route: 'clientConversationRecaps', failure: 'http', status: 409, error: 'client_feature_disabled', reason: 'disabled', code: 'CG-FEATURE-DISABLED', disposition: 'refresh-bootstrap', epoch: 1 },
+    });
+    // Every string of the line is one token without spaces: the journal's redaction keeps them as they are.
+    for (const value of Object.values(line?.fields ?? {})) if (typeof value === 'string') expect(value).toMatch(/^[A-Za-z0-9_.:-]+$/);
+  });
+
+  it('[AI-061] a call the hub answers at once but that travels 20 s is said as slow, with its time — the «Проверяю сохранённые Recap…» of the first live check', async () => {
+    h.hub.serve(scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges);
+    await h.facade.recaps(recapsQuery);
+    expect(h.logs.lines.filter((entry) => entry.message === 'hub: slow call')).toEqual([]);
+
+    const answer = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientConversationRecaps')?.response.body;
+    h.hub.on('clientConversationRecaps', () => new Promise((resolve) => setTimeout(() => resolve(json(200, answer)), 20_000)));
+    const slow = h.facade.recaps(recapsQuery);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await slow;
+    expect(h.logs.lines.filter((entry) => entry.message === 'hub: slow call')).toEqual([
+      { level: 'warn', message: 'hub: slow call', fields: { route: 'clientConversationRecaps', ms: 20_000, outcome: 'answered', status: 200, epoch: 1 } },
+    ]);
   });
 });
 

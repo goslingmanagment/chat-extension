@@ -48,13 +48,17 @@ export type UnscriptedPolicy = 'fail' | 'model';
 
 // ── Control ────────────────────────────────────────────────────────────────
 
-export type BootstrapPresetName = 'pilot-on' | 'all-off' | 'master-off';
+/**
+ * `pilot-pages` — the default: the pilot as the owner switches it on, page by page, with the `"*"` row empty
+ * (every top-level flag false). `pilot-on` — the same features through the `"*"` row.
+ */
+export type BootstrapPresetName = 'pilot-pages' | 'pilot-on' | 'all-off' | 'master-off';
 
 /** The owner's hub configuration the model serves bootstrap and its checks from (hub-pr-plan.md PR 8, §4.12). */
 export interface FakeHubConfigPatch {
-  /** `chatExtensionEnabled`: off → every page feature `disabled`, every flag false. */
+  /** `chatExtensionEnabled`: off → every feature of an OnlyFans page `disabled`, every flag false. */
   readonly master?: boolean;
-  /** `chatExtensionFeatures["*"]`. */
+  /** `chatExtensionFeatures["*"]`: the value of every page that has no row of its own for the flag, and the bootstrap's top-level `flags`. */
   readonly flags?: Readonly<Partial<Record<ClientFeatureFlag | (string & {}), boolean>>>;
   /** `chatExtensionFeatures["<pageLabel>"]`: wins over `flags` on that page. */
   readonly pageFlags?: Readonly<Record<string, Readonly<Partial<Record<ClientFeatureFlag | (string & {}), boolean>>>>>;

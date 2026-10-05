@@ -50,7 +50,7 @@ const PAGE_FAN = { pageLabel: isString, fanRef: isString };
 /** Per op: its fields (required ones listed in REQUIRED), each with its check. */
 const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, FieldCheck>>>> = {
   reset: {},
-  preset: { name: oneOf('pilot-on', 'all-off', 'master-off') },
+  preset: { name: oneOf('pilot-pages', 'pilot-on', 'all-off', 'master-off') },
   config: { patch: isObject },
   useHttpScenario: { scenario: either(isString, isObject), match: MATCH, unscripted: UNSCRIPTED },
   useSseScenario: { scenario: either(isString, isObject), match: MATCH },

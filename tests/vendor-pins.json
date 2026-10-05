@@ -1,13 +1,13 @@
 {
   "kernelSdk": {
-    "contractHash": "1378e7ee0ef27e97b18bba93ff7fed94d27edaa560f0a0051038267bcbaac09a",
-    "sourceCommit": "44b05ad579ec4a05a3e9eb0d5317e9bef0251afc",
-    "distSha256": "e8bf13edccf4a3dd9c8d59cfbc9f2c9914e4c2a6071dba61bd60a4771a94f72d",
-    "note": "Vendored from the hub commit deployed in prod on 2026-10-03 (image label agency-hub.source-revision=44b05ad579ec, /api/v1/health contractHash). Re-vendor with the hub's scripts/vendor-sdk.mjs, then update this pin in the same commit."
+    "contractHash": "27ef8a3d87baecbb9f80da209591015567b065f379344c69bd49770dd287cd91",
+    "sourceCommit": "1e5f6ed921710c0b0149e0751974cf0c32cd3b30",
+    "distSha256": "419b4139214a4198c3c69959477ade18b9c83ee001d077ec238ce27e1f64704a",
+    "note": "A DEVELOPMENT vendor, made on 2026-10-05 with the hub's scripts/vendor-sdk.mjs from 1e5f6ed9 — the head of the hub branch client/synthetic-examples-in-comments (hub PR #482, a draft, not merged yet): hub origin/main 4a470029 plus one commit that replaces two real examples in the comments of packages/contracts/src/routes-client.ts with synthetic ones (`pnpm archive-check` rightly refused them in the AMO sources archive). The contract hash is that of hub main 4a470029; against the vendor before it (e7e1037b, 9b9b0985…) the contract differs only in the sync dashboard schemas — the client/* routes and the SDK operations are the same. The release rule stays: a release is vendored only from a deployed hub commit, so re-vendor once #482 is merged and deployed. The prod hub may run an older contract (deploys lag main; the live check of 2026-10-04 saw 5d8b8cb4…): the hub layer announces only what the bootstrap declares and reads the rest as hub_not_ready. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
     "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
-    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to the prod commit 44b05ad5)."
+    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to 1e5f6ed9, the commit the SDK is vendored from)."
   }
 }

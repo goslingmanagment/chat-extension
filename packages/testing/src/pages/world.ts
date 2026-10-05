@@ -7,9 +7,12 @@
 
 import {
   ANCHOR_IDS,
+  CLIENT_FEATURE_FLAG_NAMES,
+  CLIENT_HUB_CAPABILITY_NAMES,
   CONTRACTS_VERSION,
   DEFAULT_SETTINGS,
   HOST_CAPABILITIES,
+  type ClientFeatureFlag,
   type ClipboardResult,
   type ColorScheme,
   type ExtensionPage,
@@ -28,6 +31,8 @@ import { NOW, createFakeCatalog, ctxOf, iso, uuid } from '../scenarios/app-clien
 import { FakePageBackground, type BackgroundState, type SeenAccountFixture } from './background';
 
 export const PAGES_NOW = NOW;
+/** The switches the working shift's pages have off (X8 is switched on by the owner only after its checklist). */
+export const PAGES_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated'];
 export const PAGES_VERSION = '0.4.3';
 /** The stand's ChatSpace origin: only a name for the host-access check, nothing is fetched. */
 export const PAGES_HOST_ORIGIN = 'https://chatspace.example.test';
@@ -92,7 +97,10 @@ export function workingState(now: number = PAGES_NOW): BackgroundState {
     { account: account('1004', '3006', 'anna_m', 'Anna M'), lastSeenAt: iso(now - 50 * HOUR), openTabs: 0 },
   ];
   const first = accounts[0] as SeenAccountFixture;
-  const page = (pageId: number, pageLabel: string, title: string, creator: string) => ({ pageId, pageLabel, title, platform: 'onlyfans', platformAccountId: creator, bindingRevision: 2, features: {} });
+  // A pilot as the owner switches it on: a row per page (the page's own `features` say what works there), the
+  // owner's `"*"` row empty — so every top-level flag is false, and a page that reads them shows everything off.
+  const features = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, PAGES_FLAGS_OFF.includes(flag) ? { available: false, reason: 'flag_off' } : { available: true }]));
+  const page = (pageId: number, pageLabel: string, title: string, creator: string) => ({ pageId, pageLabel, title, platform: 'onlyfans', platformAccountId: creator, bindingRevision: 2, features });
   return {
     settings: {
       ...DEFAULT_SETTINGS,
@@ -118,7 +126,7 @@ export function workingState(now: number = PAGES_NOW): BackgroundState {
       identity: { userId: 7, username: 'chatter1', role: 'chatter', tokenClient: 'chat-extension' },
       pages: [page(11, 'loravie-vip', 'LoraVie VIP', '3003'), page(12, 'loravie-free', 'LoraVie Free', '3004'), page(13, 'lora-reels', 'Lora Reels', '3005'), page(14, 'anna-m', 'Anna M', '3006')],
       bindingsByHost: {},
-      flags: { insertion: true, freshText: true, newcomers: true, spenders: true, stats: true, preview: true, previewSend: false, sound: true },
+      flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, false])),
       limits: {
         freshTextMaxItems: 60,
         freshTextMaxChars: 5000,
@@ -133,7 +141,7 @@ export function workingState(now: number = PAGES_NOW): BackgroundState {
         dispatchTicketSec: 10,
         previewSendReceiptProfiles: [],
       },
-      capabilities: ['context-v1', 'audience-new-v1'],
+      capabilities: CLIENT_HUB_CAPABILITY_NAMES.filter((capability) => capability !== 'client-health-perf-v1'),
     },
     catalog: {
       personas: [
@@ -215,6 +223,42 @@ export function troubledState(now: number = PAGES_NOW): BackgroundState {
       hub: { ...state.diagnostics.hub, reachable: false, lastError: { code: 'CG-HUB-UNAVAILABLE' } },
       tabs: first === undefined ? [] : [{ ...first, host: hostReport(now, ['composerBridge']) }],
     },
+  };
+}
+
+/**
+ * The owner's own hub (1.3.0): several pages of ONE title — «Lora Vie» on OnlyFans twice and on Fansly once —
+ * and one page on a platform this build has no word for. Only the platform and the hub's page label tell them
+ * apart; every list of pages must show both.
+ */
+export function sameTitleState(now: number = PAGES_NOW): BackgroundState {
+  const state = workingState(now);
+  const tags: Readonly<Record<number, { readonly title: string; readonly pageLabel: string; readonly platform: string }>> = {
+    11: { title: 'Lora Vie', pageLabel: 'lora-vip', platform: 'onlyfans' },
+    12: { title: 'Lora Vie', pageLabel: 'lora-free', platform: 'onlyfans' },
+    13: { title: 'Lora Vie', pageLabel: 'lora-fansly', platform: 'fansly' },
+    14: { title: 'Lilly', pageLabel: 'lilly-new', platform: 'somewhere-new' },
+  };
+  return { ...state, bootstrap: { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => ({ ...page, ...tags[page.pageId] })) } };
+}
+
+/** What the popup must fit into its 360 px: a persona, a page title and a hub page label that are each longer than a row. */
+export const LONG_TITLE = {
+  persona: 'Лора · VIP · вечерняя смена с длинным названием персоны',
+  title: 'Lora Vie — The Official And Only Page Of Lora With A Very Long Title',
+  pageLabel: 'lora-vie-official-and-only-page-with-a-very-long-hub-label-2026',
+} as const;
+
+/** The same shift on a hub whose page has a long title and a long label, with a persona whose name is long too. */
+export function longTitleState(now: number = PAGES_NOW): BackgroundState {
+  const state = workingState(now);
+  const bound = state.bootstrap.pages[0];
+  if (bound === undefined) return state;
+  const personas = state.catalog.personas.map((persona, index) => (index === 0 ? { ...persona, displayName: LONG_TITLE.persona } : persona));
+  return {
+    ...state,
+    catalog: { ...state.catalog, personas },
+    bootstrap: { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => (page.pageId === bound.pageId ? { ...page, title: LONG_TITLE.title, pageLabel: LONG_TITLE.pageLabel } : page)) },
   };
 }
 

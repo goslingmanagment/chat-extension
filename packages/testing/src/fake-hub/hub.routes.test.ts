@@ -298,6 +298,10 @@ describe('fake hub routes: the model’s own checks', () => {
     expect(after.pages.filter((page) => page.pageLabel !== PAGE)).toEqual(before.pages.filter((page) => page.pageLabel !== PAGE));
     hub.control({ op: 'pageAccount', pageLabel: PAGE, platformAccountId: null });
     expect(((await ok('clientBootstrap', null)) as typeof before).pages.find((page) => page.pageLabel === PAGE)?.platformAccountId).toBeNull();
+    // Without a platform account the page is still bound by the owner's explicit host binding (the pilot has one)…
+    await ok('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' });
+    // …and with neither the extension has no way to bind a host account to it: `binding_missing`, as the hub says it.
+    hub.control({ op: 'config', patch: { bindingsByHost: {} } });
     await refused('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }, 409, 'client_feature_disabled', 'binding_missing');
     expect(() => hub.control({ op: 'pageAccount', pageLabel: 'not-a-page', platformAccountId: '1' })).toThrow(/no page/);
     hub.control({ op: 'reset' });

@@ -15,6 +15,18 @@ import { type AccountHandle, type ArtifactHandle, type JournalKind, type PageHan
 import { type ColorScheme } from './theme';
 import { type ActionButtonVM, type RunningOpVM, type VmView } from './view';
 
+/**
+ * 1.3.0. What tells two hub pages of one title apart wherever pages are listed
+ * or chosen: an owner may have «Lora Vie» on OnlyFans twice and on Fansly once.
+ * `platform` is the hub's open token (`onlyfans`, `fansly`, or a newer one —
+ * printed as it is); `pageLabel` is the hub's own key of the page. Display
+ * only: nothing is bound or looked up by either (AU-023).
+ */
+export interface PageTagVM {
+  readonly platform: string;
+  readonly pageLabel: string;
+}
+
 export interface PopupVM {
   /** `error` — CG-RUNTIME-UNREACHABLE (a card, never an endless spinner); `forbidden` — CG-AUTH-REQUIRED → «Аккаунт». */
   readonly view: VmView;
@@ -25,9 +37,13 @@ export interface PopupVM {
     readonly hub: 'ok' | 'down' | 'unknown';
   };
   readonly problems: readonly CgErrorView[];
+  /**
+   * `page` (1.3.0) — what tells this page from another of the same title: its
+   * platform and the hub's page label («Lora Vie · OnlyFans · lora-vip»).
+   */
   readonly persona:
-    | { readonly s: 'set'; readonly label: string; readonly pageName: string }
-    | { readonly s: 'no-persona'; readonly pageName: string }
+    | { readonly s: 'set'; readonly label: string; readonly pageName: string; readonly page?: PageTagVM }
+    | { readonly s: 'no-persona'; readonly pageName: string; readonly page?: PageTagVM }
     | { readonly s: 'not-connected' };
   readonly account: { readonly login: string; readonly signOut: ActionButtonVM } | null;
   /** «Открыт диалог»; a click copies the OnlyMonster account and OnlyFans creator ids (PU-007). */
@@ -121,7 +137,8 @@ export interface AccountBodyVM {
   readonly hub: { readonly origin: string; readonly hostPermission: 'granted' | 'missing' | 'unknown'; readonly requestPermission: ActionButtonVM | null };
   readonly connection: { readonly s: 'ok' | 'down' | 'unknown'; readonly latencyMs: number | null; readonly checkedAt: number | null };
   readonly user: { readonly login: string; readonly role: Role; readonly deviceSince: IsoTimestamp | null } | null;
-  readonly pages: readonly { readonly pageName: string; readonly platform: string; readonly persona: string | null }[];
+  /** `pageLabel` (1.3.0) — the hub's key of the page, printed next to its title and platform. */
+  readonly pages: readonly { readonly pageName: string; readonly platform: string; readonly persona: string | null; readonly pageLabel?: string }[];
   readonly sdk: { readonly contractHash: string | null; readonly compatible: boolean | null };
   readonly hubErrorsToday: readonly { readonly code: CgCode; readonly count: number }[];
   readonly lastDossierSave: IsoTimestamp | null;
@@ -136,6 +153,8 @@ export interface PersonasBodyVM {
   readonly pages: readonly {
     readonly pageHandle: PageHandle;
     readonly pageName: string;
+    /** 1.3.0: the platform and the hub's page label, printed next to the title. */
+    readonly page?: PageTagVM;
     readonly persona: string | null;
     readonly replacementNeeded: boolean;
     readonly choices: readonly { readonly key: string; readonly label: string; readonly choose: UiAction }[];
@@ -153,6 +172,8 @@ export interface AccountsBodyVM {
     readonly localLabel: string | null;
     readonly status: 'working' | 'seen' | 'no-sessions';
     readonly pageName: string | null;
+    /** 1.3.0: the platform and the hub's page label of the bound page; absent or null — no page, or not known. */
+    readonly page?: PageTagVM | null;
     readonly persona: string | null;
     readonly muted: boolean;
     /** «к вкладке» (Б13). */

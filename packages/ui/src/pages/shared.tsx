@@ -9,7 +9,7 @@ import { createContext, type ComponentChildren, type JSX } from 'preact';
 import { useCallback, useContext } from 'preact/hooks';
 
 import { type CgErrorView } from '@cg/contracts/errors';
-import { type ActionReceipt, type ConfirmDialogRequest, type DialogPort, type I18n, type Msg, type ToastPort, type ToastRequest, type ToastVM, type UiAction } from '@cg/contracts/vm';
+import { type ActionReceipt, type ConfirmDialogRequest, type DialogPort, type I18n, type Msg, type PageTagVM, type ToastPort, type ToastRequest, type ToastVM, type UiAction } from '@cg/contracts/vm';
 
 import { ConfirmDialog, Dot, ToastItem, TOAST_MAX, useAnnounce, useDispatch, useI18n } from '../kit';
 
@@ -223,6 +223,30 @@ export function Opt({
       </div>
       <div class={center === true ? 'pg-opt__v pg-opt__v--center' : 'pg-opt__v'}>{children}</div>
     </div>
+  );
+}
+
+/** The platforms this build has a word for; a token it does not know is printed as it is (an open token of the hub). */
+const PLATFORM_WORDS: Readonly<Record<string, string>> = { onlyfans: 'OnlyFans', fansly: 'Fansly' };
+
+/** «OnlyFans · lora-vip»: what tells a hub page from another of the same title (1.3.0, `PageTagVM`). */
+export function pageTagText(tag: PageTagVM): string {
+  const platform = Object.prototype.hasOwnProperty.call(PLATFORM_WORDS, tag.platform) ? PLATFORM_WORDS[tag.platform] : tag.platform;
+  return `${platform ?? tag.platform} · ${tag.pageLabel}`;
+}
+
+/** A page's title with its tag in one string, for a label or a sentence: «Lora Vie (OnlyFans · lora-vip)». */
+export function pageNameWithTag(pageName: string, tag: PageTagVM | null | undefined): string {
+  return tag === null || tag === undefined ? pageName : `${pageName} (${pageTagText(tag)})`;
+}
+
+/** The tag next to a page's title, quiet: the title stays the thing one reads first. Nothing without a tag. */
+export function PageTag({ tag }: { readonly tag: PageTagVM | null | undefined }): JSX.Element | null {
+  if (tag === null || tag === undefined) return null;
+  return (
+    <span class="pg-pagetag" data-pg-page-label={tag.pageLabel} data-pg-platform={tag.platform}>
+      {pageTagText(tag)}
+    </span>
   );
 }
 

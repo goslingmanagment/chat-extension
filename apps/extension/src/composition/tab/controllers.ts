@@ -57,6 +57,8 @@ export interface TabWorld {
   readonly i18n: I18n;
   readonly clock: TabClock;
   readonly ids: { uuid(): string };
+  /** The manifest's version of this build. */
+  readonly extensionVersion: string;
   readonly router: AppRouter;
   /** The AppClient the surfaces use: the router behind the gate's grants. */
   readonly client: AppClient;
@@ -92,6 +94,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     catalog,
     clipboard: world.clipboard,
     toasts: world.toasts,
+    extensionVersion: world.extensionVersion,
     // Route and insert journal lines (LG-017): ids, lengths and fingerprints, never a text.
     journal: { write: (entry) => void logger.write(entry.level, entry.scope, entry.msg, { ...(entry.code === undefined ? {} : { code: entry.code }), ...(entry.fields === undefined ? {} : { fields: entry.fields }), ...(entry.ctx === undefined ? {} : { ctx: entry.ctx }) }) },
     // R11 opens and closes Coach through this switch; what is open is R17's one state.
@@ -145,7 +148,6 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
   const { router, keys, gate, client, host, i18n, clock, toasts, logger } = world;
   const overlays = keys.overlays;
   const offs: (() => void)[] = [];
-  const env = ai.workspace.env;
 
   const navigation = chunk.createNavigationController({
     host,
@@ -157,8 +159,9 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     toasts,
     // The key or the click itself says what it is: the gate reads the event in flight.
     cause: { mark: () => undefined, take: () => gate.cause() },
-    // The owner's `navigation` switch; unknown while nobody is signed in — ChatSpace's own list needs no hub.
-    ownerSwitch: () => (env.bootstrap.s === 'ready' ? env.bootstrap.value.flags['navigation'] === true : null),
+    // The owner's `navigation` switch of the page the account is bound to (its own feature; an account bound to
+    // no hub page — the owner's `"*"` value). Unknown while nobody is signed in: ChatSpace's own list needs no hub.
+    ownerSwitch: (hostAccountId) => ai.workspace.accountFlag(hostAccountId, 'navigation'),
   });
   const dockView = (): DockVM | null => (router.serves('dock') ? router.getSnapshot({ of: 'dock' }) : null);
   const palette = chunk.createPaletteController({
@@ -307,7 +310,7 @@ export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, pr
 
   const context = chunk.createPageContext({ rpc, host: boardsHost });
   const surfaces = new chunk.Surfaces();
-  const navigator = chunk.createChatNavigator({ rpc, host: boardsHost, ids });
+  const navigator = chunk.createChatNavigator({ rpc, host: boardsHost, ids, context });
   let timeZone = 'UTC';
   try {
     timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';

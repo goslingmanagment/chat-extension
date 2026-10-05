@@ -6,11 +6,11 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM } from '@cg/contracts';
+import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
 import { COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_ON, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
 
 import { CATALOG, OTHER_TAB, PERSONA_LABEL, TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
@@ -25,7 +25,7 @@ function parts(answers: HostAnswers = {}): HarnessParts & { readonly fake: FakeH
     baseHost: fake,
     memory,
     catalog: createFakeCatalog(ctxOf({ now: NOW_MS })),
-    bootstrap: BOOTSTRAP_PILOT_ON,
+    bootstrap: BOOTSTRAP_PILOT_PAGES,
     resolve: resolveHubErrorReference,
     meta: (feature) => meta(feature as Parameters<typeof meta>[0]),
   };
@@ -183,7 +183,7 @@ describe('dock: where it shows and what state it is in', () => {
     expect(vm.view).toMatchObject({ s: 'offline', retry: { type: 'ReloadView', selector: { of: 'dock' } } });
     expect(vm.actions.reply.reason?.id).toBe('hub-down');
     // «Повторить» reads everything again.
-    h.bg.bootstrap = BOOTSTRAP_PILOT_ON;
+    h.bg.bootstrap = BOOTSTRAP_PILOT_PAGES;
     await h.dispatch({ type: 'ReloadView', selector: { of: 'dock' } });
     await h.settle();
     expect(h.dock().status).toBe('ready');
@@ -272,7 +272,7 @@ describe('dock: where it shows and what state it is in', () => {
   });
 
   it('the insertion switch of the owner off: results are copied, nothing else changes', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, insertion: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['insertion']);
     const h = await start({ bootstrap: off });
     expect(h.dock()).toMatchObject({ status: 'ready', mode: 'copy-only' });
     await reply(h);
@@ -295,13 +295,113 @@ describe('dock: where it shows and what state it is in', () => {
   });
 
   it('review, recap and coach follow their owner switches', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, review: false, coach: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['review', 'coach']);
     const h = await start({ bootstrap: off });
     const vm = h.dock();
     expect(vm.actions.review.reason?.id).toBe('feature-disabled');
     expect(vm.actions.coach.reason?.id).toBe('feature-disabled');
     expect(vm.actions.recap.enabled).toBe(true);
     expect(vm.actions.reply.enabled).toBe(true);
+  });
+
+  describe('nothing of ours runs on the page: the owner’s master switch, an outdated build', () => {
+    /** The hub's master switch is one for every page: off, every feature of every page reads `disabled`. */
+    const MASTER_OFF: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, CLIENT_FEATURE_FLAG_NAMES, { reason: 'disabled' });
+    /** A click on Reply of the open chat (the strip keeps its place while the page is off; the dock names no target then). */
+    const REPLY: UiAction = { type: 'Generate', targetHandle: targetHandle('dock', openChat), feature: 'reply', options: {} };
+    const set = async (h: Harness, bootstrap: Bootstrap, revision: number): Promise<void> => {
+      h.bg.bootstrap = { ...bootstrap, configRevision: bootstrap.configRevision + revision };
+      h.bg.emit(null, 'bootstrap.changed', { configRevision: bootstrap.configRevision + revision, issuedAt: new Date(NOW_MS).toISOString() });
+      await h.settle();
+    };
+
+    it('[UI-011] [AI-140] the master switch goes off under a finished result: one status line, every action and «Ещё раз» dimmed with that reason, parts copy-only — and nothing is asked of the background', async () => {
+      const h = await start();
+      const opId = await reply(h, 'hey you');
+      expect(result(h)).toMatchObject({ canRegenerate: true, regenerateReason: null });
+      expect(partsOf(h)[0]?.insertBlocked ?? null).toBeNull();
+
+      await set(h, MASTER_OFF, 1);
+      const vm = h.dock();
+      // The dock stays an ordinary, visible dock: no banner of a status, one line of its own.
+      expect(vm).toMatchObject({ status: 'ready', statusError: null, visible: true, mode: 'copy-only', mark: 'faint' });
+      expect(vm.view).toEqual({ s: 'ready' });
+      expect(vm.notice).toMatchObject({ code: 'CG-FEATURE-DISABLED', title: 'ChatGoose выключен владельцем', body: '', detail: 'disabled', tone: 'state' });
+      const off = { id: 'feature-disabled', code: 'CG-FEATURE-DISABLED', text: { key: 'dock.reason.pageOff' } };
+      for (const id of DOCK_ACTION_IDS) expect(vm.actions[id], id).toMatchObject({ enabled: false, busy: false, hotkey: null, reason: off });
+      expect(vm.options).toMatchObject({ toneReason: off, splitReason: off });
+      // The earlier result is still there to read and to copy…
+      expect(vm.result).toMatchObject({ opId, state: 'done', canRegenerate: false, regenerateReason: off });
+      expect(partsOf(h).map((part) => part.text)).toEqual(['hey you']);
+      expect(partsOf(h)[0]?.insertBlocked).toEqual(off);
+      await h.dispatch({ type: 'Copy', artifactHandle: partsOf(h)[0]?.copyHandle as string });
+      expect(h.clipboard.texts).toEqual(['hey you']);
+      // …and nothing else: an insert, «Ещё раз» and a new generation (a key still reaches them) are refused before a
+      // token or a start is asked, with the page's reason.
+      const before = [h.bg.callsOf('token.issue').length, h.bg.callsOf('op.start').length, h.fake.calls.inserts.length];
+      expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false });
+      expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+      expect(await h.dispatch(REPLY)).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+      expect([h.bg.callsOf('token.issue').length, h.bg.callsOf('op.start').length, h.fake.calls.inserts.length]).toEqual(before);
+      expect(h.dock().refusal?.error).toMatchObject({ code: 'CG-FEATURE-DISABLED', detail: 'disabled' });
+
+      // The owner switches it back on: the same dock works, without a reload.
+      await set(h, BOOTSTRAP_PILOT_PAGES, 2);
+      const back = h.dock();
+      expect(back).toMatchObject({ status: 'ready', mode: 'insert', notice: null });
+      expect(back.actions.reply).toMatchObject({ enabled: true, reason: null });
+      // The same earlier result can be repeated again.
+      h.script(h.streamOf('fast-reply', ['again']));
+      expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: true, outcome: 'started' });
+      await h.finish();
+      expect(result(h)).toMatchObject({ canRegenerate: true, regenerateReason: null });
+      expect(partsOf(h)[0]?.insertBlocked ?? null).toBeNull();
+    });
+
+    it('[UI-011] a failed result on a switched-off page: its «Повторить» is off with the same reason, the code can still be copied', async () => {
+      const h = await start();
+      h.script({ kind: 'http-error', status: 502, body: { error: 'bad_gateway' } });
+      await h.generate('reply');
+      await h.finish();
+      const retry = () => result(h).errorActions.find((button) => button.action.type === 'Regenerate');
+      expect(retry()).toMatchObject({ enabled: true, reason: null });
+      await set(h, MASTER_OFF, 1);
+      expect(retry()).toMatchObject({ enabled: false, hotkey: null, reason: { text: { key: 'dock.reason.pageOff' } } });
+      expect(result(h).errorActions.find((button) => button.action.type === 'CopyReport')).toMatchObject({ enabled: true });
+    });
+
+    it('[HB-011] an outdated build — the hub’s `minVersion` above this build’s, or the hub’s own word for every feature of the page — dims the actions with «расширение устарело» instead of failing after the click', async () => {
+      const outdated = { id: 'feature-disabled', code: 'CG-HUB-OUTDATED', text: { key: 'dock.reason.clientOutdated' } };
+      const expectOutdated = async (h: Harness): Promise<void> => {
+        const vm = h.dock();
+        expect(vm).toMatchObject({ status: 'ready', statusError: null, mode: 'copy-only', mark: 'faint' });
+        expect(vm.notice).toMatchObject({ code: 'CG-HUB-OUTDATED', detail: 'client_outdated', tone: 'state' });
+        expect(vm.notice?.title).toBe(h.ai.workspace.ports.i18n.t('cg.hubOutdated.title'));
+        for (const id of DOCK_ACTION_IDS) expect(vm.actions[id], id).toMatchObject({ enabled: false, hotkey: null, reason: outdated });
+        const starts = h.bg.callsOf('op.start').length;
+        expect(await h.dispatch(REPLY)).toMatchObject({ ok: false, code: 'CG-HUB-OUTDATED' });
+        expect(h.bg.callsOf('op.start')).toHaveLength(starts);
+      };
+      // The bootstrap asks for a newer build than this one.
+      const byVersion = await start({ extensionVersion: '0.4.2', bootstrap: { ...BOOTSTRAP_PILOT_PAGES, minVersion: '0.5.0' } });
+      await expectOutdated(byVersion);
+      // The same build is fine for a hub that asks for less, or whose `minVersion` cannot be read.
+      for (const minVersion of ['0.4.2', '0.4', 'soon']) {
+        const fine = await start({ extensionVersion: '0.4.2', bootstrap: { ...BOOTSTRAP_PILOT_PAGES, minVersion } });
+        expect(fine.dock(), minVersion).toMatchObject({ mode: 'insert', notice: null });
+        expect(fine.dock().actions.reply.enabled, minVersion).toBe(true);
+      }
+      // A tab that does not know its own version reads the hub's word alone…
+      expect((await start({ bootstrap: { ...BOOTSTRAP_PILOT_PAGES, minVersion: '9.0.0' } })).dock().notice).toBeNull();
+      // …which the hub gives for every feature of the page.
+      const byHub = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, CLIENT_FEATURE_FLAG_NAMES, { reason: 'client_outdated' }) });
+      await expectOutdated(byHub);
+      // One feature that says so is that feature's own reason, not the page's state.
+      const one = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['review'], { reason: 'client_outdated' }) });
+      expect(one.dock()).toMatchObject({ mode: 'insert', notice: null });
+      expect(one.dock().actions.review.reason).toEqual(outdated);
+      expect(one.dock().actions.reply.enabled).toBe(true);
+    });
   });
 
   it('debug mode shows the contract line; outside it there is none', async () => {
@@ -785,7 +885,7 @@ describe('dock: fresh page text', () => {
   });
 
   it('never without the owner switch or the hub capability, and never for Review', async () => {
-    const off: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, freshText: false } };
+    const off: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']);
     const h = await start({ bootstrap: off });
     h.host.setTail(openChat, tail);
     await reply(h);
@@ -793,7 +893,7 @@ describe('dock: fresh page text', () => {
     expect((h.bg.callsOf('op.start')[0] as { fresh?: unknown }).fresh).toBeUndefined();
     expect(h.bg.hub.streams[0]?.body.liveTextContext).toBeUndefined();
 
-    const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_ON, capabilities: BOOTSTRAP_PILOT_ON.capabilities.filter((c) => c !== 'context-v1') };
+    const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'context-v1') };
     const other = await start({ bootstrap: noContext });
     other.host.setTail(openChat, tail);
     await reply(other);

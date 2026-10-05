@@ -10,7 +10,7 @@ import { type JSX } from 'preact';
 import { type CountStat, type DataStamp, type I18n, type MoneyStat, type SpendersStatsVM } from '@cg/contracts/vm';
 
 import { Button, Money, ViewState, useDispatch, useHints, useI18n, useTooltip } from '../kit';
-import { shelfLabel } from './rows';
+import { statsShelfLabel } from './rows';
 import { RefreshButton, coverageWord, timeOrUnknown, unknownMark, type RefreshableView } from './window';
 
 /**
@@ -225,7 +225,7 @@ export function StatsColumn({ stats, onShelf }: StatsProps): JSX.Element {
                 </div>
                 {stats.shelves.map((shelf) => (
                   <button key={shelf.id} type="button" class="cg-st__tierrow cg-st__tier" onClick={() => onShelf(shelf.id)}>
-                    <span class="cg-st__k">{shelfLabel(i18n, shelf.range)}</span>
+                    <span class="cg-st__k">{statsShelfLabel(i18n, shelf)}</span>
                     <span class="cg-st__barbox" aria-hidden="true">
                       <i class="cg-st__bar" style={{ width: `${shelf.share <= 0 ? 0 : Math.max(4, Math.round(shelf.share * 100))}%` }} />
                     </span>
@@ -321,7 +321,7 @@ export function StatsExpanded({ stats }: { readonly stats: SpendersStatsVM }): J
                 <tbody>
                   {stats.shelves.map((shelf) => (
                     <tr key={shelf.id}>
-                      <td>{shelfLabel(i18n, shelf.range)}</td>
+                      <td>{statsShelfLabel(i18n, shelf)}</td>
                       <td>{shelf.fans === null ? unknownMark(i18n) : shelf.fans}</td>
                       {/* A known zero is not drawn (ui-design §1 п. 6, §4.15): an empty cell, as in the period column. */}
                       <td>{i18n.formatMoneyMills(shelf.lifetime)}</td>

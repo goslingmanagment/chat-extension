@@ -17031,7 +17031,9 @@ export declare const agentHistorySatisfiedByEnum: z.ZodEnum<{
     already_satisfied: "already_satisfied";
 }>;
 /** "Почему ждёт" (plan §10): the engine's one closed dictionary. A reason is a
- *  BODY field, never a blocker — progress is not an epistemic limitation. */
+ *  BODY field, never a blocker — progress is not an epistemic limitation.
+ *  `route_budget` (the route's own pace admits the next request later) and
+ *  `route_hold` (a 429 holds the route) name what `pacer` covered for a route. */
 export declare const agentSyncWaitingReasonEnum: z.ZodEnum<{
     paused: "paused";
     quarantined: "quarantined";
@@ -17039,6 +17041,8 @@ export declare const agentSyncWaitingReasonEnum: z.ZodEnum<{
     pacer: "pacer";
     class_share: "class_share";
     page_hold: "page_hold";
+    route_budget: "route_budget";
+    route_hold: "route_hold";
     resource_hold: "resource_hold";
     subject_breaker: "subject_breaker";
     blocked_by_vendor: "blocked_by_vendor";
@@ -17271,6 +17275,23 @@ export declare const agentHistoryRequestSchema: z.ZodObject<{
         basis: z.ZodLiteral<"estimate">;
         ratePerHour: z.ZodNumber;
         sharePercent: z.ZodNumber;
+        limitedBy: z.ZodEnum<{
+            page: "page";
+            family: "family";
+            route: "route";
+        }>;
+        slowdown: z.ZodNullable<z.ZodObject<{
+            route: z.ZodString;
+            effectivePerMin: z.ZodNumber;
+            currentPerMin: z.ZodNumber;
+        }, z.core.$strict>>;
+        hold: z.ZodNullable<z.ZodObject<{
+            scope: z.ZodEnum<{
+                page: "page";
+                route: "route";
+            }>;
+            until: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>>;
     }, z.core.$strict>;
     queuePosition: z.ZodNullable<z.ZodNumber>;
     waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -17280,6 +17301,8 @@ export declare const agentHistoryRequestSchema: z.ZodObject<{
         pacer: "pacer";
         class_share: "class_share";
         page_hold: "page_hold";
+        route_budget: "route_budget";
+        route_hold: "route_hold";
         resource_hold: "resource_hold";
         subject_breaker: "subject_breaker";
         blocked_by_vendor: "blocked_by_vendor";
@@ -17325,6 +17348,8 @@ export declare const agentHistoryItemSchema: z.ZodObject<{
         pacer: "pacer";
         class_share: "class_share";
         page_hold: "page_hold";
+        route_budget: "route_budget";
+        route_hold: "route_hold";
         resource_hold: "resource_hold";
         subject_breaker: "subject_breaker";
         blocked_by_vendor: "blocked_by_vendor";
@@ -17411,6 +17436,23 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             basis: z.ZodLiteral<"estimate">;
             ratePerHour: z.ZodNumber;
             sharePercent: z.ZodNumber;
+            limitedBy: z.ZodEnum<{
+                page: "page";
+                family: "family";
+                route: "route";
+            }>;
+            slowdown: z.ZodNullable<z.ZodObject<{
+                route: z.ZodString;
+                effectivePerMin: z.ZodNumber;
+                currentPerMin: z.ZodNumber;
+            }, z.core.$strict>>;
+            hold: z.ZodNullable<z.ZodObject<{
+                scope: z.ZodEnum<{
+                    page: "page";
+                    route: "route";
+                }>;
+                until: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>>;
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -17420,6 +17462,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             pacer: "pacer";
             class_share: "class_share";
             page_hold: "page_hold";
+            route_budget: "route_budget";
+            route_hold: "route_hold";
             resource_hold: "resource_hold";
             subject_breaker: "subject_breaker";
             blocked_by_vendor: "blocked_by_vendor";
@@ -17464,6 +17508,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             pacer: "pacer";
             class_share: "class_share";
             page_hold: "page_hold";
+            route_budget: "route_budget";
+            route_hold: "route_hold";
             resource_hold: "resource_hold";
             subject_breaker: "subject_breaker";
             blocked_by_vendor: "blocked_by_vendor";
@@ -18080,6 +18126,23 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             basis: z.ZodLiteral<"estimate">;
             ratePerHour: z.ZodNumber;
             sharePercent: z.ZodNumber;
+            limitedBy: z.ZodEnum<{
+                page: "page";
+                family: "family";
+                route: "route";
+            }>;
+            slowdown: z.ZodNullable<z.ZodObject<{
+                route: z.ZodString;
+                effectivePerMin: z.ZodNumber;
+                currentPerMin: z.ZodNumber;
+            }, z.core.$strict>>;
+            hold: z.ZodNullable<z.ZodObject<{
+                scope: z.ZodEnum<{
+                    page: "page";
+                    route: "route";
+                }>;
+                until: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>>;
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -18089,6 +18152,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             pacer: "pacer";
             class_share: "class_share";
             page_hold: "page_hold";
+            route_budget: "route_budget";
+            route_hold: "route_hold";
             resource_hold: "resource_hold";
             subject_breaker: "subject_breaker";
             blocked_by_vendor: "blocked_by_vendor";
@@ -18133,6 +18198,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             pacer: "pacer";
             class_share: "class_share";
             page_hold: "page_hold";
+            route_budget: "route_budget";
+            route_hold: "route_hold";
             resource_hold: "resource_hold";
             subject_breaker: "subject_breaker";
             blocked_by_vendor: "blocked_by_vendor";
@@ -18746,6 +18813,23 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             basis: z.ZodLiteral<"estimate">;
             ratePerHour: z.ZodNumber;
             sharePercent: z.ZodNumber;
+            limitedBy: z.ZodEnum<{
+                page: "page";
+                family: "family";
+                route: "route";
+            }>;
+            slowdown: z.ZodNullable<z.ZodObject<{
+                route: z.ZodString;
+                effectivePerMin: z.ZodNumber;
+                currentPerMin: z.ZodNumber;
+            }, z.core.$strict>>;
+            hold: z.ZodNullable<z.ZodObject<{
+                scope: z.ZodEnum<{
+                    page: "page";
+                    route: "route";
+                }>;
+                until: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>>;
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -18755,6 +18839,8 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             pacer: "pacer";
             class_share: "class_share";
             page_hold: "page_hold";
+            route_budget: "route_budget";
+            route_hold: "route_hold";
             resource_hold: "resource_hold";
             subject_breaker: "subject_breaker";
             blocked_by_vendor: "blocked_by_vendor";
@@ -19345,6 +19431,23 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             basis: z.ZodLiteral<"estimate">;
             ratePerHour: z.ZodNumber;
             sharePercent: z.ZodNumber;
+            limitedBy: z.ZodEnum<{
+                page: "page";
+                family: "family";
+                route: "route";
+            }>;
+            slowdown: z.ZodNullable<z.ZodObject<{
+                route: z.ZodString;
+                effectivePerMin: z.ZodNumber;
+                currentPerMin: z.ZodNumber;
+            }, z.core.$strict>>;
+            hold: z.ZodNullable<z.ZodObject<{
+                scope: z.ZodEnum<{
+                    page: "page";
+                    route: "route";
+                }>;
+                until: z.ZodNullable<z.ZodString>;
+            }, z.core.$strict>>;
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -19354,6 +19457,8 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             pacer: "pacer";
             class_share: "class_share";
             page_hold: "page_hold";
+            route_budget: "route_budget";
+            route_hold: "route_hold";
             resource_hold: "resource_hold";
             subject_breaker: "subject_breaker";
             blocked_by_vendor: "blocked_by_vendor";
@@ -19911,7 +20016,6 @@ export declare const agentSyncWorkStateEnum: z.ZodEnum<{
     superseded: "superseded";
 }>;
 export declare const agentSyncPageHoldKindEnum: z.ZodEnum<{
-    rate_limit: "rate_limit";
     auth: "auth";
     identity_mismatch: "identity_mismatch";
     network: "network";
@@ -20017,6 +20121,8 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
                 pacer: "pacer";
                 class_share: "class_share";
                 page_hold: "page_hold";
+                route_budget: "route_budget";
+                route_hold: "route_hold";
                 resource_hold: "resource_hold";
                 subject_breaker: "subject_breaker";
                 blocked_by_vendor: "blocked_by_vendor";
@@ -20034,6 +20140,8 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
                 pacer: "pacer";
                 class_share: "class_share";
                 page_hold: "page_hold";
+                route_budget: "route_budget";
+                route_hold: "route_hold";
                 resource_hold: "resource_hold";
                 subject_breaker: "subject_breaker";
                 blocked_by_vendor: "blocked_by_vendor";
@@ -20051,6 +20159,8 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
                 pacer: "pacer";
                 class_share: "class_share";
                 page_hold: "page_hold";
+                route_budget: "route_budget";
+                route_hold: "route_hold";
                 resource_hold: "resource_hold";
                 subject_breaker: "subject_breaker";
                 blocked_by_vendor: "blocked_by_vendor";
@@ -20063,7 +20173,6 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
     holds: z.ZodObject<{
         page: z.ZodNullable<z.ZodObject<{
             kind: z.ZodEnum<{
-                rate_limit: "rate_limit";
                 auth: "auth";
                 identity_mismatch: "identity_mismatch";
                 network: "network";
@@ -20077,8 +20186,6 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
             step: z.ZodNumber;
             kind: z.ZodEnum<{
                 breaker: "breaker";
-                rate_limit_list: "rate_limit_list";
-                rate_limit_media_stats: "rate_limit_media_stats";
             }>;
         }, z.core.$strict>>;
     }, z.core.$strict>;
@@ -20138,6 +20245,8 @@ export declare const agentSyncWorkSchema: z.ZodObject<{
         pacer: "pacer";
         class_share: "class_share";
         page_hold: "page_hold";
+        route_budget: "route_budget";
+        route_hold: "route_hold";
         resource_hold: "resource_hold";
         subject_breaker: "subject_breaker";
         blocked_by_vendor: "blocked_by_vendor";
@@ -20213,6 +20322,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                     pacer: "pacer";
                     class_share: "class_share";
                     page_hold: "page_hold";
+                    route_budget: "route_budget";
+                    route_hold: "route_hold";
                     resource_hold: "resource_hold";
                     subject_breaker: "subject_breaker";
                     blocked_by_vendor: "blocked_by_vendor";
@@ -20230,6 +20341,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                     pacer: "pacer";
                     class_share: "class_share";
                     page_hold: "page_hold";
+                    route_budget: "route_budget";
+                    route_hold: "route_hold";
                     resource_hold: "resource_hold";
                     subject_breaker: "subject_breaker";
                     blocked_by_vendor: "blocked_by_vendor";
@@ -20247,6 +20360,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                     pacer: "pacer";
                     class_share: "class_share";
                     page_hold: "page_hold";
+                    route_budget: "route_budget";
+                    route_hold: "route_hold";
                     resource_hold: "resource_hold";
                     subject_breaker: "subject_breaker";
                     blocked_by_vendor: "blocked_by_vendor";
@@ -20259,7 +20374,6 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
         holds: z.ZodObject<{
             page: z.ZodNullable<z.ZodObject<{
                 kind: z.ZodEnum<{
-                    rate_limit: "rate_limit";
                     auth: "auth";
                     identity_mismatch: "identity_mismatch";
                     network: "network";
@@ -20273,8 +20387,6 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 step: z.ZodNumber;
                 kind: z.ZodEnum<{
                     breaker: "breaker";
-                    rate_limit_list: "rate_limit_list";
-                    rate_limit_media_stats: "rate_limit_media_stats";
                 }>;
             }, z.core.$strict>>;
         }, z.core.$strict>;
@@ -20912,6 +21024,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             pacer: "pacer";
             class_share: "class_share";
             page_hold: "page_hold";
+            route_budget: "route_budget";
+            route_hold: "route_hold";
             resource_hold: "resource_hold";
             subject_breaker: "subject_breaker";
             blocked_by_vendor: "blocked_by_vendor";
@@ -35153,6 +35267,23 @@ export declare const agentRouteSchemas: {
                         basis: z.ZodLiteral<"estimate">;
                         ratePerHour: z.ZodNumber;
                         sharePercent: z.ZodNumber;
+                        limitedBy: z.ZodEnum<{
+                            page: "page";
+                            family: "family";
+                            route: "route";
+                        }>;
+                        slowdown: z.ZodNullable<z.ZodObject<{
+                            route: z.ZodString;
+                            effectivePerMin: z.ZodNumber;
+                            currentPerMin: z.ZodNumber;
+                        }, z.core.$strict>>;
+                        hold: z.ZodNullable<z.ZodObject<{
+                            scope: z.ZodEnum<{
+                                page: "page";
+                                route: "route";
+                            }>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>>;
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -35162,6 +35293,8 @@ export declare const agentRouteSchemas: {
                         pacer: "pacer";
                         class_share: "class_share";
                         page_hold: "page_hold";
+                        route_budget: "route_budget";
+                        route_hold: "route_hold";
                         resource_hold: "resource_hold";
                         subject_breaker: "subject_breaker";
                         blocked_by_vendor: "blocked_by_vendor";
@@ -35206,6 +35339,8 @@ export declare const agentRouteSchemas: {
                         pacer: "pacer";
                         class_share: "class_share";
                         page_hold: "page_hold";
+                        route_budget: "route_budget";
+                        route_hold: "route_hold";
                         resource_hold: "resource_hold";
                         subject_breaker: "subject_breaker";
                         blocked_by_vendor: "blocked_by_vendor";
@@ -35883,6 +36018,23 @@ export declare const agentRouteSchemas: {
                         basis: z.ZodLiteral<"estimate">;
                         ratePerHour: z.ZodNumber;
                         sharePercent: z.ZodNumber;
+                        limitedBy: z.ZodEnum<{
+                            page: "page";
+                            family: "family";
+                            route: "route";
+                        }>;
+                        slowdown: z.ZodNullable<z.ZodObject<{
+                            route: z.ZodString;
+                            effectivePerMin: z.ZodNumber;
+                            currentPerMin: z.ZodNumber;
+                        }, z.core.$strict>>;
+                        hold: z.ZodNullable<z.ZodObject<{
+                            scope: z.ZodEnum<{
+                                page: "page";
+                                route: "route";
+                            }>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>>;
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -35892,6 +36044,8 @@ export declare const agentRouteSchemas: {
                         pacer: "pacer";
                         class_share: "class_share";
                         page_hold: "page_hold";
+                        route_budget: "route_budget";
+                        route_hold: "route_hold";
                         resource_hold: "resource_hold";
                         subject_breaker: "subject_breaker";
                         blocked_by_vendor: "blocked_by_vendor";
@@ -35936,6 +36090,8 @@ export declare const agentRouteSchemas: {
                         pacer: "pacer";
                         class_share: "class_share";
                         page_hold: "page_hold";
+                        route_budget: "route_budget";
+                        route_hold: "route_hold";
                         resource_hold: "resource_hold";
                         subject_breaker: "subject_breaker";
                         blocked_by_vendor: "blocked_by_vendor";
@@ -36602,6 +36758,23 @@ export declare const agentRouteSchemas: {
                         basis: z.ZodLiteral<"estimate">;
                         ratePerHour: z.ZodNumber;
                         sharePercent: z.ZodNumber;
+                        limitedBy: z.ZodEnum<{
+                            page: "page";
+                            family: "family";
+                            route: "route";
+                        }>;
+                        slowdown: z.ZodNullable<z.ZodObject<{
+                            route: z.ZodString;
+                            effectivePerMin: z.ZodNumber;
+                            currentPerMin: z.ZodNumber;
+                        }, z.core.$strict>>;
+                        hold: z.ZodNullable<z.ZodObject<{
+                            scope: z.ZodEnum<{
+                                page: "page";
+                                route: "route";
+                            }>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>>;
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -36611,6 +36784,8 @@ export declare const agentRouteSchemas: {
                         pacer: "pacer";
                         class_share: "class_share";
                         page_hold: "page_hold";
+                        route_budget: "route_budget";
+                        route_hold: "route_hold";
                         resource_hold: "resource_hold";
                         subject_breaker: "subject_breaker";
                         blocked_by_vendor: "blocked_by_vendor";
@@ -37252,6 +37427,23 @@ export declare const agentRouteSchemas: {
                         basis: z.ZodLiteral<"estimate">;
                         ratePerHour: z.ZodNumber;
                         sharePercent: z.ZodNumber;
+                        limitedBy: z.ZodEnum<{
+                            page: "page";
+                            family: "family";
+                            route: "route";
+                        }>;
+                        slowdown: z.ZodNullable<z.ZodObject<{
+                            route: z.ZodString;
+                            effectivePerMin: z.ZodNumber;
+                            currentPerMin: z.ZodNumber;
+                        }, z.core.$strict>>;
+                        hold: z.ZodNullable<z.ZodObject<{
+                            scope: z.ZodEnum<{
+                                page: "page";
+                                route: "route";
+                            }>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strict>>;
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
@@ -37261,6 +37453,8 @@ export declare const agentRouteSchemas: {
                         pacer: "pacer";
                         class_share: "class_share";
                         page_hold: "page_hold";
+                        route_budget: "route_budget";
+                        route_hold: "route_hold";
                         resource_hold: "resource_hold";
                         subject_breaker: "subject_breaker";
                         blocked_by_vendor: "blocked_by_vendor";
@@ -37877,6 +38071,8 @@ export declare const agentRouteSchemas: {
                                 pacer: "pacer";
                                 class_share: "class_share";
                                 page_hold: "page_hold";
+                                route_budget: "route_budget";
+                                route_hold: "route_hold";
                                 resource_hold: "resource_hold";
                                 subject_breaker: "subject_breaker";
                                 blocked_by_vendor: "blocked_by_vendor";
@@ -37894,6 +38090,8 @@ export declare const agentRouteSchemas: {
                                 pacer: "pacer";
                                 class_share: "class_share";
                                 page_hold: "page_hold";
+                                route_budget: "route_budget";
+                                route_hold: "route_hold";
                                 resource_hold: "resource_hold";
                                 subject_breaker: "subject_breaker";
                                 blocked_by_vendor: "blocked_by_vendor";
@@ -37911,6 +38109,8 @@ export declare const agentRouteSchemas: {
                                 pacer: "pacer";
                                 class_share: "class_share";
                                 page_hold: "page_hold";
+                                route_budget: "route_budget";
+                                route_hold: "route_hold";
                                 resource_hold: "resource_hold";
                                 subject_breaker: "subject_breaker";
                                 blocked_by_vendor: "blocked_by_vendor";
@@ -37923,7 +38123,6 @@ export declare const agentRouteSchemas: {
                     holds: z.ZodObject<{
                         page: z.ZodNullable<z.ZodObject<{
                             kind: z.ZodEnum<{
-                                rate_limit: "rate_limit";
                                 auth: "auth";
                                 identity_mismatch: "identity_mismatch";
                                 network: "network";
@@ -37937,8 +38136,6 @@ export declare const agentRouteSchemas: {
                             step: z.ZodNumber;
                             kind: z.ZodEnum<{
                                 breaker: "breaker";
-                                rate_limit_list: "rate_limit_list";
-                                rate_limit_media_stats: "rate_limit_media_stats";
                             }>;
                         }, z.core.$strict>>;
                     }, z.core.$strict>;
@@ -38621,6 +38818,8 @@ export declare const agentRouteSchemas: {
                         pacer: "pacer";
                         class_share: "class_share";
                         page_hold: "page_hold";
+                        route_budget: "route_budget";
+                        route_hold: "route_hold";
                         resource_hold: "resource_hold";
                         subject_breaker: "subject_breaker";
                         blocked_by_vendor: "blocked_by_vendor";

@@ -13,6 +13,7 @@ export declare const ofapiCollectionCategorySchema: z.ZodEnum<{
     profile_notifications: "profile_notifications";
     content_history: "content_history";
     media_previews: "media_previews";
+    account_settings: "account_settings";
 }>;
 export declare const ofapiCollectionSettingsSchema: z.ZodObject<{
     pageId: z.ZodNullable<z.ZodNumber>;
@@ -30,6 +31,7 @@ export declare const ofapiCollectionSettingsSchema: z.ZodObject<{
         profile_notifications: "profile_notifications";
         content_history: "content_history";
         media_previews: "media_previews";
+        account_settings: "account_settings";
     }>;
     mode: z.ZodEnum<{
         off: "off";
@@ -59,6 +61,7 @@ export declare const ofapiCollectionChangeSchema: z.ZodObject<{
             profile_notifications: "profile_notifications";
             content_history: "content_history";
             media_previews: "media_previews";
+            account_settings: "account_settings";
         }>;
         mode: z.ZodEnum<{
             off: "off";
@@ -88,6 +91,7 @@ export declare const ofapiCollectionJobSchema: z.ZodObject<{
         profile_notifications: "profile_notifications";
         content_history: "content_history";
         media_previews: "media_previews";
+        account_settings: "account_settings";
     }>;
     expectedRevision: z.ZodNumber;
     maxCredits: z.ZodNumber;
@@ -115,6 +119,7 @@ export declare const ofapiCollectionSnapshotSchema: z.ZodObject<{
             profile_notifications: "profile_notifications";
             content_history: "content_history";
             media_previews: "media_previews";
+            account_settings: "account_settings";
         }>;
         label: z.ZodString;
         modes: z.ZodArray<z.ZodEnum<{
@@ -154,6 +159,7 @@ export declare const ofapiCollectionSnapshotSchema: z.ZodObject<{
             profile_notifications: "profile_notifications";
             content_history: "content_history";
             media_previews: "media_previews";
+            account_settings: "account_settings";
         }>;
         mode: z.ZodEnum<{
             off: "off";
@@ -202,6 +208,7 @@ export declare const ofapiCollectionSnapshotSchema: z.ZodObject<{
             profile_notifications: "profile_notifications";
             content_history: "content_history";
             media_previews: "media_previews";
+            account_settings: "account_settings";
         }>;
         state: z.ZodString;
         maxCredits: z.ZodNumber;
@@ -240,6 +247,7 @@ export declare const ofapiCollectionPreviewSchema: z.ZodObject<{
             profile_notifications: "profile_notifications";
             content_history: "content_history";
             media_previews: "media_previews";
+            account_settings: "account_settings";
         }>;
         mode: z.ZodEnum<{
             off: "off";
@@ -317,6 +325,7 @@ export declare const ofapiCollectionRouteSchemas: {
                         profile_notifications: "profile_notifications";
                         content_history: "content_history";
                         media_previews: "media_previews";
+                        account_settings: "account_settings";
                     }>;
                     label: z.ZodString;
                     modes: z.ZodArray<z.ZodEnum<{
@@ -356,6 +365,7 @@ export declare const ofapiCollectionRouteSchemas: {
                         profile_notifications: "profile_notifications";
                         content_history: "content_history";
                         media_previews: "media_previews";
+                        account_settings: "account_settings";
                     }>;
                     mode: z.ZodEnum<{
                         off: "off";
@@ -404,6 +414,7 @@ export declare const ofapiCollectionRouteSchemas: {
                         profile_notifications: "profile_notifications";
                         content_history: "content_history";
                         media_previews: "media_previews";
+                        account_settings: "account_settings";
                     }>;
                     state: z.ZodString;
                     maxCredits: z.ZodNumber;
@@ -450,6 +461,7 @@ export declare const ofapiCollectionRouteSchemas: {
                     profile_notifications: "profile_notifications";
                     content_history: "content_history";
                     media_previews: "media_previews";
+                    account_settings: "account_settings";
                 }>;
                 mode: z.ZodEnum<{
                     off: "off";
@@ -510,6 +522,7 @@ export declare const ofapiCollectionRouteSchemas: {
                         profile_notifications: "profile_notifications";
                         content_history: "content_history";
                         media_previews: "media_previews";
+                        account_settings: "account_settings";
                     }>;
                     mode: z.ZodEnum<{
                         off: "off";
@@ -556,6 +569,7 @@ export declare const ofapiCollectionRouteSchemas: {
                     profile_notifications: "profile_notifications";
                     content_history: "content_history";
                     media_previews: "media_previews";
+                    account_settings: "account_settings";
                 }>;
                 mode: z.ZodEnum<{
                     off: "off";
@@ -626,6 +640,7 @@ export declare const ofapiCollectionRouteSchemas: {
                 profile_notifications: "profile_notifications";
                 content_history: "content_history";
                 media_previews: "media_previews";
+                account_settings: "account_settings";
             }>;
             expectedRevision: z.ZodNumber;
             maxCredits: z.ZodNumber;

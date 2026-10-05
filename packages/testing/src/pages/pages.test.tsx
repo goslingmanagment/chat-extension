@@ -9,9 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS, SCHEME_ATTRIBUTE, SETTINGS_SECTIONS, type Unmount } from '@cg/contracts';
 import { AUTOSAVE_DEBOUNCE_MS, SCHEME_ACTIONS } from '@cg/core/application/pages';
-import { JOURNAL_PAGE_SIZE, JOURNAL_REFRESH_MS, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
+import { JOURNAL_PAGE_SIZE, JOURNAL_REFRESH_MS, PAGES_CSS, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
 
-import { PAGES_NOW, pagesWorld, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
+import { LONG_TITLE, PAGES_NOW, longTitleState, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
 
 interface Mounted {
   readonly world: PagesWorld;
@@ -105,7 +105,8 @@ describe('popup (ui-design §4.23)', () => {
     expect(page.$$('.pg-pill').map((pill) => pill.textContent)).toEqual(['ChatSpace: подключён', 'Хаб: на связи']);
     expect(page.$$('.pg-pill .cg-dot')).toHaveLength(0);
     const rows = page.$$('.pg-popup__sec').map((row) => (row.textContent ?? '').replace(/\s+/g, ' ').trim());
-    expect(rows[0]).toBe('ПерсонаЛора · VIPдля LoraVie VIP');
+    // Whose persona: the page's title, its platform and the hub's page label (two pages may share a title).
+    expect(rows[0]).toBe('ПерсонаЛора · VIPдля LoraVie VIPOnlyFans · loravie-vip');
     expect(rows[1]).toBe('Аккаунт ChatGoosechatter1Выйти');
     expect(rows[2]).toContain('Открыт диалог');
     expect(rows[2]).toContain('OnlyMonster 1001');
@@ -676,6 +677,75 @@ describe('options: the sections', () => {
     await flush(() => row?.querySelectorAll<HTMLElement>('[role="menuitemradio"]')[0]?.click());
     expect(page.world.state.settings.personas.byPageId['13']?.key).toBe('lora-vip');
     expect(page.$('[data-pg-page="page-13"]')?.textContent).not.toContain('выберите замену');
+  });
+
+  it('[ST-060] [ST-067] [PU-003] three pages named «Lora Vie»: every list prints the platform and the hub\'s page label next to the title (1.3.0)', async () => {
+    const personas = await mount('options', { state: sameTitleState(), hash: '#personas' });
+    const rows = personas.$$('[data-pg-page]');
+    expect(rows.map((row) => [row.querySelector('b')?.textContent, row.querySelector('.pg-pagetag')?.textContent])).toEqual([
+      ['Lora Vie', 'OnlyFans · lora-vip'],
+      ['Lora Vie', 'OnlyFans · lora-free'],
+      ['Lora Vie', 'Fansly · lora-fansly'],
+      // A platform this build has no word for is printed as the hub named it.
+      ['Lilly', 'somewhere-new · lilly-new'],
+    ]);
+    // The picker of each page is named by the page it changes — three «Персона для Lora Vie» would be one name for three menus.
+    const names: (string | null)[] = [];
+    for (const row of rows) {
+      await flush(() => row.querySelector<HTMLElement>('.pg-pick')?.click());
+      names.push(personas.$('[role="menu"]')?.getAttribute('aria-label') ?? null);
+      await flush(() => row.querySelector<HTMLElement>('.pg-pick')?.click());
+    }
+    expect(names).toEqual([
+      'Персона для Lora Vie (OnlyFans · lora-vip)',
+      'Персона для Lora Vie (OnlyFans · lora-free)',
+      'Персона для Lora Vie (Fansly · lora-fansly)',
+      'Персона для Lilly (somewhere-new · lilly-new)',
+    ]);
+    // The catalog says on which pages a persona is, by the same names.
+    expect(personas.text()).toContain('на ней: Lora Vie (OnlyFans · lora-vip), Lilly (somewhere-new · lilly-new)');
+    close(personas);
+
+    const accounts = await mount('options', { state: sameTitleState(), hash: '#accounts' });
+    expect(accounts.$$('[data-pg-account] .pg-pagetag').map((node) => node.textContent)).toEqual(['OnlyFans · lora-vip', 'OnlyFans · lora-free', 'Fansly · lora-fansly', 'somewhere-new · lilly-new']);
+    expect(accounts.$('[data-pg-account="chatspace:1001"]')?.textContent).toContain('Lora VieOnlyFans · lora-vip');
+    close(accounts);
+
+    const account = await mount('options', { state: sameTitleState(), hash: '#account' });
+    expect(account.$$('[data-pg-anchor="pages"] > li').map((row) => row.textContent)).toEqual([
+      'Lora VieOnlyFans · lora-vip · Лора · VIP',
+      'Lora VieOnlyFans · lora-free · Лора · Free',
+      'Lora VieFansly · lora-fansly · Лора · Free',
+      'Lillysomewhere-new · lilly-new · Лора · VIP',
+    ]);
+    close(account);
+
+    const popup = await mount('popup', { state: sameTitleState() });
+    // The persona's name and «для <страница>» share the first line; the tag has a muted line of its own under them.
+    const persona = popup.$$('.pg-popup__sec')[0];
+    expect([...(persona?.children ?? [])].map((node) => [node.className, node.textContent])).toEqual([
+      ['pg-popup__cap', 'Персона'],
+      ['pg-popup__line pg-popup__line--fit', 'Лора · VIPдля Lora Vie'],
+      ['pg-popup__under', 'OnlyFans · lora-vip'],
+    ]);
+    expect(popup.$('.pg-popup__under .pg-pagetag')?.getAttribute('data-pg-page-label')).toBe('lora-vip');
+    expect(popup.$('.pg-popup__aside .pg-pagetag')).toBeNull();
+  });
+
+  it('[PU-007] a long page title and a long page label: each is one line that ends in «…» and says itself in full on hover; the persona’s name stays the first thing in its row', async () => {
+    const popup = await mount('popup', { state: longTitleState() });
+    const persona = popup.$$('.pg-popup__sec')[0];
+    const [, line, under] = [...(persona?.children ?? [])];
+    expect(line?.querySelector('b')?.textContent).toBe(LONG_TITLE.persona);
+    expect(line?.querySelector('.pg-popup__aside')?.textContent).toBe(`для ${LONG_TITLE.title}`);
+    // What «…» hides is still readable: the full text is the element's title.
+    expect(line?.querySelector('.pg-popup__aside')?.getAttribute('title')).toBe(`для ${LONG_TITLE.title}`);
+    expect(under?.textContent).toBe(`OnlyFans · ${LONG_TITLE.pageLabel}`);
+    expect(under?.getAttribute('title')).toBe(`OnlyFans · ${LONG_TITLE.pageLabel}`);
+    // The row is the one that fits: the styles cut both sides instead of letting the row grow (the widths are the e2e's to measure).
+    expect(line?.className).toBe('pg-popup__line pg-popup__line--fit');
+    expect(PAGES_CSS).toMatch(/\.pg-popup__line--fit > \.pg-popup__aside \{[^}]*min-width: 30%;[^}]*text-overflow: ellipsis;/);
+    expect(PAGES_CSS).toMatch(/\.pg-popup__under \.pg-pagetag \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
   });
 
   it('[ST-069] [ST-070] [ST-076] accounts: the number is copied, the label is typed, «К вкладке» goes to ChatSpace', async () => {

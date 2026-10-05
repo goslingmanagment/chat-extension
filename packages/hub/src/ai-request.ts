@@ -89,8 +89,10 @@ export function buildStreamRequest(op: StartOp, context: StreamRequestContext): 
   if (op.feature === 'fix' && op.draft !== undefined) body.draftText = op.draft.text;
   if (op.feature === 'hi' && op.variantCount !== undefined) body.variantCount = op.variantCount;
   if (op.feature === 'coach' && op.coach !== undefined) {
-    if (op.coach.question !== undefined) body.chatterQuestion = op.coach.question;
+    // A preset's question lives on the hub, which refuses a body that names both (400): with a preset the
+    // operation's own question is the chip's label for the dialog and stays here.
     if (op.coach.preset !== undefined) body.preset = op.coach.preset;
+    else if (op.coach.question !== undefined) body.chatterQuestion = op.coach.question;
     body.coachHistory = op.coach.history.map((turn) => ({ question: turn.question, answer: turn.answer }));
     if (op.coach.attachDraft !== undefined) body.draftText = op.coach.attachDraft;
   }

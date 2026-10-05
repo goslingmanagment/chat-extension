@@ -45,6 +45,7 @@ import {
   type SourceState,
   type SubscriberEvent,
   type ThrottleState,
+  timeOf,
 } from '../../domain/sound';
 import { NO_LOG, WriteQueue, type Clock, type KeyValueStore, type LogSink, type TimerHandle } from '../ports';
 
@@ -74,8 +75,12 @@ export interface SoundArbiterDeps {
   readonly presence: SoundPresencePort;
   /** The current `settings.sound`; null — settings are not readable: nothing rings. */
   readonly settings: () => SettingsV1['sound'] | null;
-  /** The owner's `sound` switch of bootstrap; null — unknown (signed out, no bootstrap yet). */
-  readonly ownerSwitch: () => boolean | null;
+  /**
+   * The owner's `sound` switch for what is about to ring — the PAGE's own value, never a global one
+   * (docs/protocols/hub.md «Флаги: решает страница»): for a fan's message, the page its host account is bound
+   * to; for a new subscriber, the page of the batch. null — unknown (signed out, no bootstrap yet).
+   */
+  readonly ownerSwitch: (scope: SoundScope) => boolean | null;
   /** The extension may run on this host (`permissions.contains`). */
   readonly hostPermission: (host: HostKind) => boolean | Promise<boolean>;
   /** storage.session: seen events, the throttle and the subscriber baselines survive an event-page unload. */
@@ -87,6 +92,12 @@ export interface SoundArbiterDeps {
   readonly persistAfterMs?: number;
 }
 
+/** What a sound is about: a fan's message in a host account, or a new subscriber of a hub page. */
+export type SoundScope =
+  | { readonly kind: 'account'; readonly host: HostKind; readonly hostAccountId: string }
+  /** `pageKey` — the hub page's id as text (`SubscriberBatch.pageKey`). */
+  | { readonly kind: 'page'; readonly pageKey: string };
+
 /** One poll of a page's «Новые», as the subscriber sound needs it. */
 export interface SubscriberBatch {
   /** Stable key of the hub page (its pageId as text). */
@@ -96,6 +107,12 @@ export interface SubscriberBatch {
   readonly platformAccountId: string | null;
   /** Signed in and «Новые» is available for the page. */
   readonly hub: boolean;
+  /**
+   * The hub's clock at this answer (`AudienceNewPage.serverNow`). Two answers no more than 180 s apart by it make
+   * an event that is only in the later one news, whatever its `subscribedAt` says. Absent or unreadable — the
+   * subscription's own age decides.
+   */
+  readonly serverNow?: string | null;
   readonly events: readonly { readonly eventRef: string; readonly subscribedAt: string }[];
 }
 
@@ -120,6 +137,8 @@ interface StoredState {
   readonly seen: unknown;
   readonly throttle: { readonly lastMessageAt: number | null; readonly lastSubscriberAt: number | null };
   readonly pages: Readonly<Record<string, readonly string[]>>;
+  /** The hub's clock (epoch ms) at the last answer each page's baseline was taken from; absent in a state written before it existed. */
+  readonly pageTimes?: Readonly<Record<string, number>>;
 }
 
 const finiteOr = (value: unknown, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
@@ -129,6 +148,8 @@ export class SoundArbiter {
   private readonly chain = new WriteQueue();
   private readonly sources = new Map<string, SourceState>();
   private readonly pages = new Map<string, string[]>();
+  /** The hub's clock (epoch ms) at the last answer of each page: when its baseline was last looked at. */
+  private readonly pageTimes = new Map<string, number>();
   private readonly counts = new Map<string, number>();
   private readonly log: LogSink;
   private readonly defaults: SettingsV1['sound'];
@@ -166,6 +187,11 @@ export class SoundArbiter {
     if (stored.pages !== null && typeof stored.pages === 'object') {
       for (const [pageKey, refs] of Object.entries(stored.pages)) {
         if (Array.isArray(refs)) this.pages.set(pageKey, refs.filter((ref): ref is string => typeof ref === 'string').slice(-SUBSCRIBER_BASELINE_MAX));
+      }
+    }
+    if (stored.pageTimes !== null && typeof stored.pageTimes === 'object') {
+      for (const [pageKey, at] of Object.entries(stored.pageTimes)) {
+        if (this.pages.has(pageKey) && typeof at === 'number' && Number.isFinite(at)) this.pageTimes.set(pageKey, at);
       }
     }
   }
@@ -211,6 +237,7 @@ export class SoundArbiter {
   forgetSubscribers(): void {
     if (this.pages.size === 0) return;
     this.pages.clear();
+    this.pageTimes.clear();
     this.touch();
   }
 
@@ -240,6 +267,7 @@ export class SoundArbiter {
         lastSubscriberAt: Number.isFinite(this.throttle.lastSubscriberAt) ? this.throttle.lastSubscriberAt : null,
       },
       pages: Object.fromEntries(this.pages),
+      pageTimes: Object.fromEntries(this.pageTimes),
     };
     try {
       await this.deps.session.set(SOUND_SESSION_KEY, value);
@@ -298,7 +326,7 @@ export class SoundArbiter {
       fact,
       now: this.deps.clock.now(),
       sound,
-      ownerSwitch: this.deps.ownerSwitch(),
+      ownerSwitch: this.deps.ownerSwitch({ kind: 'account', host: fact.host, hostAccountId: fact.hostAccountId }),
       hostPermission,
       phase,
       account: { known, key: accountKey },
@@ -319,11 +347,15 @@ export class SoundArbiter {
     const firstSnapshot = known === undefined;
     const knownSet = new Set(known ?? []);
     const fresh = batch.events.filter((event) => !knownSet.has(event.eventRef));
+    // The two answers' `serverNow`: how long ago, by the hub's clock, the list these events are new against was read.
+    const answeredAt = timeOf(batch.serverNow ?? null);
+    const baselineAt = this.pageTimes.get(batch.pageKey) ?? null;
+    const sinceBaselineMs = answeredAt === null || baselineAt === null ? null : answeredAt - baselineAt;
     const outcomes: SoundOutcome[] = [];
     for (const event of fresh) {
       let outcome: SoundOutcome;
       try {
-        outcome = await this.decideSubscriber(batch, event, firstSnapshot);
+        outcome = await this.decideSubscriber(batch, event, firstSnapshot, sinceBaselineMs);
       } catch {
         outcome = 'audio-error';
       }
@@ -334,10 +366,17 @@ export class SoundArbiter {
       this.pages.set(batch.pageKey, merged.slice(-SUBSCRIBER_BASELINE_MAX));
       this.touch();
     }
+    // Every answer moves the moment of the last look; one that does not say when it was leaves no such moment.
+    if (answeredAt === null) {
+      if (this.pageTimes.delete(batch.pageKey)) this.touch();
+    } else if (answeredAt !== baselineAt) {
+      this.pageTimes.set(batch.pageKey, answeredAt);
+      this.touch();
+    }
     return outcomes;
   }
 
-  private async decideSubscriber(batch: SubscriberBatch, item: SubscriberBatch['events'][number], firstSnapshot: boolean): Promise<SoundOutcome> {
+  private async decideSubscriber(batch: SubscriberBatch, item: SubscriberBatch['events'][number], firstSnapshot: boolean, sinceBaselineMs: number | null): Promise<SoundOutcome> {
     const accountId = batch.platformAccountId ?? `page-${batch.pageKey}`;
     // Subscription events and messages are different things with their own id spaces: keep them apart.
     const key = seenKey(batch.platform, accountId, `sub:${item.eventRef}`);
@@ -360,7 +399,7 @@ export class SoundArbiter {
               .accounts()
               .filter((account) => account.platform === batch.platform && account.platformAccountId === batch.platformAccountId)
               .map((account) => hostAccountKeyOf(account.host, account.hostAccountId));
-      const gated = gateSubscriber({ event, now: this.deps.clock.now(), sound, ownerSwitch: this.deps.ownerSwitch(), hub: batch.hub, firstSnapshot, accounts });
+      const gated = gateSubscriber({ event, now: this.deps.clock.now(), sound, ownerSwitch: this.deps.ownerSwitch({ kind: 'page', pageKey: batch.pageKey }), hub: batch.hub, firstSnapshot, sinceBaselineMs, accounts });
       if (gated !== null) return gated;
       // No push after every ChatSpace tab closed (§9.8): the sound is for a person at work.
       return this.deps.presence.listeningTabs() === 0 ? 'tab-closed' : null;

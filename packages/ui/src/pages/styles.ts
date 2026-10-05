@@ -32,6 +32,13 @@ html, body { margin: 0; padding: 0; background: var(--cg-surface); }
 .pg-popup__line > b, .pg-popup__main { font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .pg-popup__line > b .cg-dot { margin-right: 6px; }
 .pg-popup__aside { flex: none; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; }
+/* A row whose right side is somebody's free text (a page title): it gives way first and ends in «…»; the name on the
+   left is cut only once the title is down to its 30 %, so neither is ever squeezed out and the row never grows. */
+.pg-popup__line--fit > b { flex: 0 1 auto; }
+.pg-popup__line--fit > .pg-popup__aside { flex: 0 1000 auto; min-width: 30%; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.pg-popup__under { margin-top: 1px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); text-align: right; }
+/* The tag is its own box of the row's width: a long label ends in «…» inside it and never reaches past the popup. */
+.pg-popup__under .pg-pagetag { display: block; font-size: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .pg-popup__copy { font: inherit; color: inherit; border-radius: var(--cg-r-sm); }
 .pg-popup__copy:hover { color: var(--cg-ink-strong); text-decoration: underline; text-decoration-color: var(--cg-rule-3); text-underline-offset: 2px; }
 .pg-popup__err { font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
@@ -120,6 +127,8 @@ ${dark('.pg-nav__a[aria-current="page"]')} { box-shadow: none; }
 .pg-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
 .pg-value { color: var(--cg-ink-strong); font-weight: 500; overflow-wrap: anywhere; min-width: 0; }
 .pg-muted { color: var(--cg-ink-muted); }
+.pg-pagetag { color: var(--cg-ink-muted); font-size: var(--cg-text-sm2); font-weight: 400; overflow-wrap: anywhere; }
+.pg-value > .pg-pagetag { margin-left: 8px; }
 .pg-page .cg-check--14 { color: var(--cg-ink-strong); font-weight: 500; font-size: inherit; }
 .pg-page .cg-check--14[aria-checked="false"] { color: var(--cg-ink-2); }
 .pg-page .cg-check--14[aria-disabled="true"] { color: var(--cg-ink-faint); }

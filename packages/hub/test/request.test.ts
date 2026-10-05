@@ -4,11 +4,10 @@
 
 import { HubStreamRequestSchema, type Bootstrap, type StartOp } from '@cg/contracts';
 import { checkpoint, startReply, target, uuid } from '@cg/contracts/fixtures';
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, WORLD } from '@cg/testing/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, WORLD, pageFeaturesOff } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildStreamRequest, type StreamRequestContext } from '../src/index';
-import { fullStreamTransport } from './support/fake-hub';
 import { makeHarness, signIn, type Harness } from './support/harness';
 import { scenarioNamed, signInWorld } from './support/world';
 
@@ -18,7 +17,7 @@ const ALL = ['debug-input-v1', 'context-v1', 'split-all-v1'] as const;
 const ctx = (over: Partial<StreamRequestContext> = {}): StreamRequestContext => ({
   opId: OP,
   persona: PERSONA,
-  bootstrap: BOOTSTRAP_PILOT_ON,
+  bootstrap: BOOTSTRAP_PILOT_PAGES,
   capabilities: ALL,
   debug: false,
   ...over,
@@ -71,7 +70,7 @@ describe('[AI-142] the request body of each feature', () => {
     const noSplitAll = build(op({ feature: 'ping', tone: null }), { capabilities: ['debug-input-v1', 'context-v1'] });
     expect(noSplitAll.body.replyMode).toBeUndefined();
     expect(noSplitAll.capabilities).toEqual(['context-v1']);
-    const flagOff: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, splitAll: false } };
+    const flagOff: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['splitAll']);
     expect(build(op({ feature: 'ping', tone: null }), { bootstrap: flagOff }).body.replyMode).toBeUndefined();
     expect(build(op({ feature: 'ping', tone: null, split: false })).body.replyMode).toBeUndefined();
   });
@@ -87,19 +86,24 @@ describe('[AI-142] the request body of each feature', () => {
     expect(full.body.summaryMode).toBeUndefined();
   });
 
-  it('[AI-142] Coach: question, preset, history and the attached reply; Split only with split-all-v1', () => {
+  it('[AI-142] Coach: a question or the hub\'s preset (never both), history and the attached reply; Split only with split-all-v1', () => {
     const coach = build(
       op({
         feature: 'coach',
         tone: null,
-        coach: { question: 'How do I upsell?', preset: 'situation', history: [{ question: 'q1', answer: 'a1' }], attachDraft: 'my reply' },
+        coach: { question: 'How do I upsell?', history: [{ question: 'q1', answer: 'a1' }], attachDraft: 'my reply' },
       }),
     );
     expect(coach).toMatchObject({
       feature: 'coach-chat',
       capabilities: ['context-v1', 'split-all-v1'],
-      body: { chatterQuestion: 'How do I upsell?', preset: 'situation', coachHistory: [{ question: 'q1', answer: 'a1' }], draftText: 'my reply', replyMode: 'preferSplit' },
+      body: { chatterQuestion: 'How do I upsell?', coachHistory: [{ question: 'q1', answer: 'a1' }], draftText: 'my reply', replyMode: 'preferSplit' },
     });
+    expect(coach.body.preset).toBeUndefined();
+    // The preset's question lives on the hub («coach-chat preset forbids chatterQuestion», 400): the chip's words are not sent.
+    const preset = build(op({ feature: 'coach', tone: null, coach: { question: 'Что сейчас в чате?', preset: 'situation', history: [] } }));
+    expect(preset.body).toMatchObject({ preset: 'situation', coachHistory: [] });
+    expect('chatterQuestion' in preset.body).toBe(false);
   });
 
   it('[AI-142] debug mode asks for the prompt echo; the transport\'s limits decide the header', () => {
@@ -116,9 +120,9 @@ describe('[AI-142] the request body of each feature', () => {
   });
 
   it('[AI-142] fresh text only with the freshText flag usable, cut to the bootstrap limits', () => {
-    const flagOff: Bootstrap = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, freshText: false } };
+    const flagOff: Bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']);
     expect(build(startReply, { bootstrap: flagOff }).body.liveTextContext).toBeUndefined();
-    const tight: Bootstrap = { ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, freshTextMaxItems: 1, freshTextMaxChars: 3 } };
+    const tight: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: 1, freshTextMaxChars: 3 } };
     const fresh = {
       capturedAt: startReply.fresh?.capturedAt ?? '',
       messages: [
@@ -130,7 +134,7 @@ describe('[AI-142] the request body of each feature', () => {
   });
 
   it('[AI-142] a zero fresh-text limit from the hub sends no fresh text', () => {
-    const limits = (items: number, chars: number): Bootstrap => ({ ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, freshTextMaxItems: items, freshTextMaxChars: chars } });
+    const limits = (items: number, chars: number): Bootstrap => ({ ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: items, freshTextMaxChars: chars } });
     expect(build(startReply, { bootstrap: limits(0, 0) }).body.liveTextContext).toBeUndefined();
     expect(build(startReply, { bootstrap: limits(0, 5000) }).body.liveTextContext).toBeUndefined();
     expect(build(startReply, { bootstrap: limits(60, 0) }).body.liveTextContext).toBeUndefined();
@@ -147,7 +151,7 @@ describe('[AI-142] the facade builds over the current bootstrap and transport', 
   let h: Harness;
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: fullStreamTransport() });
+    h = makeHarness({ paths: HUB_ROUTE_PATHS });
   });
   afterEach(() => {
     h.facade.dispose();

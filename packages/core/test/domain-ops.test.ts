@@ -54,20 +54,20 @@ import {
   type ActiveOpEntry,
   type OpsEnvironment,
 } from '@cg/core/domain/ops';
-import { BOOTSTRAP_PILOT_ON, NOW_MS as HUB_NOW_MS, SSE_SCENARIOS, WORLD as HUB_WORLD, contextFrame, meta, readStreamScenario, uuid as hubUuid } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, NOW_MS as HUB_NOW_MS, SSE_SCENARIOS, WORLD as HUB_WORLD, contextFrame, meta, readStreamScenario, uuid as hubUuid, pageFeaturesOff } from '@cg/testing/hub';
 
 import { NOW_MS, WORLD, binding, checkpointFor, persona, session, startOf, target, targetOf, uuid, withX8 } from './support/world';
 import { seeded } from './support/random';
 
 const OP = uuid(0x100);
-const BOOTSTRAP_X8_ON = withX8(BOOTSTRAP_PILOT_ON);
+const BOOTSTRAP_X8_ON = withX8(BOOTSTRAP_PILOT_PAGES);
 
 describe('[support] the R10 world mirrors the fake hub world', () => {
   it('ids, pages, persona, clock and uuid agree with @cg/testing/hub', () => {
     expect(HUB_WORLD).toMatchObject(WORLD);
     expect(NOW_MS).toBe(HUB_NOW_MS);
     expect(uuid(0x123)).toBe(hubUuid(0x123));
-    expect(BOOTSTRAP_PILOT_ON.pages.find((page) => page.pageId === binding.pageId)).toMatchObject({ pageLabel: binding.pageLabel, bindingRevision: binding.bindingRevision });
+    expect(BOOTSTRAP_PILOT_PAGES.pages.find((page) => page.pageId === binding.pageId)).toMatchObject({ pageLabel: binding.pageLabel, bindingRevision: binding.bindingRevision });
   });
 });
 
@@ -311,7 +311,7 @@ describe('[AI-128] request identity and the result cache', () => {
 describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', () => {
   const env = (over: Partial<OpsEnvironment> = {}): OpsEnvironment => ({
     session,
-    bootstrap: BOOTSTRAP_PILOT_ON,
+    bootstrap: BOOTSTRAP_PILOT_PAGES,
     persona: () => persona,
     debug: false,
     settingsLoaded: true,
@@ -323,12 +323,12 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
     expect(startPrecondition(env({ session: null }), startOf())).toBe('CG-AUTH-REQUIRED');
     expect(startPrecondition(env({ session: { ...session, epoch: 9 } }), startOf())).toBe('CG-CONTEXT-CHANGED');
     expect(startPrecondition(env({ bootstrap: null }), startOf())).toBe('CG-HUB-UNAVAILABLE');
-    expect(startPrecondition(env({ bootstrap: { ...BOOTSTRAP_PILOT_ON, pages: [] } }), startOf())).toBe('CG-BINDING-NOT-GRANTED');
+    expect(startPrecondition(env({ bootstrap: { ...BOOTSTRAP_PILOT_PAGES, pages: [] } }), startOf())).toBe('CG-BINDING-NOT-GRANTED');
     expect(
-      startPrecondition(env({ bootstrap: { ...BOOTSTRAP_PILOT_ON, pages: BOOTSTRAP_PILOT_ON.pages.map((p) => ({ ...p, bindingRevision: p.bindingRevision + 1 })) } }), startOf()),
+      startPrecondition(env({ bootstrap: { ...BOOTSTRAP_PILOT_PAGES, pages: BOOTSTRAP_PILOT_PAGES.pages.map((p) => ({ ...p, bindingRevision: p.bindingRevision + 1 })) } }), startOf()),
     ).toBe('CG-CONTEXT-CHANGED');
     expect(startPrecondition(env({ persona: () => null }), startOf())).toBe('CG-PERSONA-UNASSIGNED');
-    expect(startPrecondition(env({ bootstrap: { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, review: false } } }), startOf({ feature: 'review' }))).toBe(
+    expect(startPrecondition(env({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['review']) }), startOf({ feature: 'review' }))).toBe(
       'CG-FEATURE-DISABLED',
     );
   });
@@ -340,8 +340,8 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
   });
 
   it('[AI-121] a flag is usable only when on, available on the page and its capabilities are declared', () => {
-    expect(flagUsable(BOOTSTRAP_PILOT_ON, binding.pageId, 'coach')).toBe(true);
-    expect(flagUsable(BOOTSTRAP_PILOT_ON, binding.pageId, 'previewSend')).toBe(false);
+    expect(flagUsable(BOOTSTRAP_PILOT_PAGES, binding.pageId, 'coach')).toBe(true);
+    expect(flagUsable(BOOTSTRAP_PILOT_PAGES, binding.pageId, 'previewSend')).toBe(false);
     expect(flagUsable(BOOTSTRAP_X8_ON, binding.pageId, 'previewSend')).toBe(true);
     expect(flagUsable({ ...BOOTSTRAP_X8_ON, capabilities: [] }, binding.pageId, 'previewSend')).toBe(false);
     expect(flagUsable(BOOTSTRAP_X8_ON, 999, 'coach')).toBe(false);
@@ -371,7 +371,7 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
 
 describe('[AI-134] windows and the default request (§8.4)', () => {
   const windows = { quick: 100, ping: 80, improve: 25, deep: 3000 };
-  const ctx = { opId: OP, persona, bootstrap: BOOTSTRAP_PILOT_ON, debug: false };
+  const ctx = { opId: OP, persona, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false };
 
   it('[AI-134] each feature takes its settings window; deep never above the hub limit; short recap 300; Hi 25', () => {
     expect(messageWindowFor('reply', windows, 3000)).toBe(100);
@@ -386,7 +386,7 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
   });
 
   it('[AI-134] [AU-026] the request carries clientRequestId = opId, page, fan, persona and messageCount clamped to deepMax', () => {
-    const built = buildStreamRequest(startOf({ window: 3000, feature: 'review' }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_ON, limits: { ...BOOTSTRAP_PILOT_ON.limits, deepMax: 1500 } } });
+    const built = buildStreamRequest(startOf({ window: 3000, feature: 'review' }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 1500 } } });
     expect(built.ok).toBe(true);
     if (!built.ok) return;
     expect(built.request.feature).toBe('chat-review');
@@ -412,10 +412,10 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
   });
 
   it('[AI-134] Hi, Ping and Coach ask Split only under split-all-v1 and the splitAll switch', () => {
-    expect(splitAllowed('hi', BOOTSTRAP_PILOT_ON, binding.pageId)).toBe(true);
-    const noSplitAll = { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, splitAll: false } };
+    expect(splitAllowed('hi', BOOTSTRAP_PILOT_PAGES, binding.pageId)).toBe(true);
+    const noSplitAll = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['splitAll']);
     expect(splitAllowed('hi', noSplitAll, binding.pageId)).toBe(false);
-    expect(splitAllowed('review', BOOTSTRAP_PILOT_ON, binding.pageId)).toBe(false);
+    expect(splitAllowed('review', BOOTSTRAP_PILOT_PAGES, binding.pageId)).toBe(false);
     const hi = buildStreamRequest(startOf({ feature: 'hi', variantCount: 3, split: true }), ctx);
     expect(hi.ok && hi.request).toMatchObject({ feature: 'hi-greeting', capabilities: ['context-v1', 'split-all-v1'], body: { variantCount: 3, replyMode: 'preferSplit' } });
     const hiOff = buildStreamRequest(startOf({ feature: 'hi', variantCount: 3, split: true }), { ...ctx, bootstrap: noSplitAll });
@@ -425,15 +425,19 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
   it('[AI-134] Fix, Coach, short Recap and debug carry their own fields and header', () => {
     const fix = buildStreamRequest(startOf({ feature: 'fix', draft: { text: 'my draft', revision: 4, digest: 'aaaaaaaa' } }), ctx);
     expect(fix.ok && fix.request.body.draftText).toBe('my draft');
-    const coach = buildStreamRequest(
-      startOf({ feature: 'coach', coach: { question: 'How?', preset: 'situation', history: [{ question: 'q', answer: 'a' }], attachDraft: 'mine' } }),
-      { ...ctx, debug: true },
-    );
+    const coach = buildStreamRequest(startOf({ feature: 'coach', coach: { question: 'How?', history: [{ question: 'q', answer: 'a' }], attachDraft: 'mine' } }), { ...ctx, debug: true });
     expect(coach.ok && coach.request).toMatchObject({
       feature: 'coach-chat',
       capabilities: ['debug-input-v1', 'context-v1', 'split-all-v1'],
-      body: { chatterQuestion: 'How?', preset: 'situation', coachHistory: [{ question: 'q', answer: 'a' }], draftText: 'mine' },
+      body: { chatterQuestion: 'How?', coachHistory: [{ question: 'q', answer: 'a' }], draftText: 'mine' },
     });
+    expect(coach.ok && coach.request.body.preset).toBeUndefined();
+    // A preset carries its question on the hub: the words that come with it (the chip's label, as the panel
+    // dispatches it) stay in our dialog — the hub answers 400 to a body that names both.
+    const preset = buildStreamRequest(startOf({ feature: 'coach', coach: { question: 'Что сейчас в чате?', preset: 'situation', history: [] } }), ctx);
+    expect(preset.ok && preset.request.body.preset).toBe('situation');
+    expect(preset.ok && 'chatterQuestion' in preset.request.body).toBe(false);
+    expect(preset.ok && 'coachHistory' in preset.request.body).toBe(false);
     const recap = buildStreamRequest(startOf({ feature: 'recap-short' }), ctx);
     expect(recap.ok && recap.request.body.summaryMode).toBe('short');
   });
@@ -442,11 +446,11 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     const fresh = { capturedAt: '2026-10-03T10:00:00.000Z', messages: [{ platformMessageId: '4006', direction: 'fan' as const, sentAt: '2026-10-03T09:59:00.000Z', text: 'hey' }] };
     const on = buildStreamRequest(startOf({ fresh }), ctx);
     expect(on.ok && on.request.body.liveTextContext?.items[0]).toEqual({ platformMessageId: '4006', direction: 'fan', occurredAt: '2026-10-03T09:59:00.000Z', text: 'hey' });
-    const off = buildStreamRequest(startOf({ fresh }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_ON, flags: { ...BOOTSTRAP_PILOT_ON.flags, freshText: false } } });
+    const off = buildStreamRequest(startOf({ fresh }), { ...ctx, bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']) });
     expect(off.ok && off.request.body.liveTextContext).toBeUndefined();
     const preview = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), ctx);
     expect(preview.ok && preview.request.body.knownFanMessageIds).toEqual([WORLD.messages.fanLatest, WORLD.messages.fanFirst]);
-    const noCtx = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_ON, capabilities: [] } });
+    const noCtx = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: [] } });
     expect(noCtx.ok && noCtx.request.body.knownFanMessageIds).toBeUndefined();
     expect(noCtx.ok && noCtx.request.capabilities).toEqual([]);
   });

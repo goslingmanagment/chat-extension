@@ -8,7 +8,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CG_CODES, DOCK_STATUSES, type DockStatus, type DockVM, type UiAction } from '@cg/contracts';
 import { DEFAULT_PARTS, errorToneOf, preloadPart, toneOf } from '@cg/ui/dock';
 
-import { cgError, failedResult, scenarioById, uuid } from '../scenarios/app-client';
+import { cgError, dockPageOff, failedResult, scenarioById, uuid } from '../scenarios/app-client';
 import { type MountedKit, ctx, dockScenario, dockVm, flush, mountDock, settle, text } from './harness';
 
 let kit: MountedKit | null = null;
@@ -113,6 +113,52 @@ describe('status banners', () => {
       }
     });
   }
+
+  it('[UI-011] a page the owner switched off (1.3.0): the dock stays `ready` and says so in one line with a ring — no button, every AI action dimmed with the same reason, parts only copied', async () => {
+    kit = mountDock(dockScenario(dockPageOff(ctx)));
+    expect(kit.$('.cg-dock')?.getAttribute('data-cg-dock')).toBe('ready');
+    expect(kit.$('.cg-dock')?.getAttribute('data-cg-mode')).toBe('copy-only');
+    const row = banner();
+    expect(row?.getAttribute('role')).toBe('status');
+    expect(row?.getAttribute('data-cg-code')).toBe('CG-FEATURE-DISABLED');
+    expect(text(row?.querySelector('.cg-banner__text'))).toBe('ChatGoose · CG-FEATURE-DISABLED ChatGoose выключен владельцем.');
+    expect(row?.querySelector('.cg-gut .cg-dot--ring')).not.toBeNull();
+    expect(bannerButton()).toBeNull();
+    // One row above the strip, as any status banner.
+    expect((kit.$('.cg-sheet') as HTMLElement).children).toHaveLength(1);
+    // Nothing is offered that the hub would answer 409 to: every action of the strip is off, and says why.
+    const actions = kit.$$('.cg-strip__acts .cg-act');
+    expect(actions.length).toBeGreaterThanOrEqual(7);
+    for (const action of actions) {
+      expect(action.getAttribute('aria-disabled')).toBe('true');
+      await flush(() => action.click());
+    }
+    expect(kit.client.dispatched).toEqual([]);
+    expect(kit.root.textContent).toContain('ChatGoose выключен владельцем');
+  });
+
+  it('[UI-011] the line is the ready dock\'s only: a dock with a banner of its own never shows it, and without the notice a ready dock has no banner', () => {
+    const notice = dockPageOff(ctx).notice ?? null;
+    kit = mountDock(dockScenario(dockVm('hub-down', { notice })));
+    expect(kit.$$('.cg-banner')).toHaveLength(1);
+    expect(banner()?.getAttribute('data-cg-code')).toBe('CG-HUB-UNAVAILABLE');
+    kit.unmount();
+    kit = mountDock(dockScenario(dockVm('ready', { notice: null })));
+    expect(banner()).toBeNull();
+    expect(kit.$('.cg-sheet')).toBeNull();
+  });
+
+  it('[UI-011] a result generated before the page was switched off stays under the line: its parts are copied, never inserted', () => {
+    kit = mountDock('host-contract-partial');
+    kit.client.goTo(0);
+    const result = kit.client.getSnapshot({ of: 'dock' }).result;
+    kit.unmount();
+    kit = mountDock(dockScenario(dockPageOff(ctx, { result })));
+    const sheet = kit.$('.cg-sheet') as HTMLElement;
+    expect(sheet.lastElementChild).toBe(banner());
+    expect(kit.$$('.cg-part .cg-copy-main').length).toBeGreaterThan(0);
+    expect(kit.$$('.cg-part .cg-ins')).toHaveLength(0);
+  });
 
   it('[UI-011] an unbound account: «Скопировать код» copies the code through the clipboard port', async () => {
     kit = mountDock(dockScenario(dockVm('no-binding')));

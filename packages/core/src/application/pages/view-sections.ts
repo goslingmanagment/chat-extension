@@ -20,7 +20,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { hotkeyRows } from './hotkeys';
-import { accountKeyOf, boundPageOf, button, errorOf, msg, personaOfPage, valueOf, type PagesModel } from './model';
+import { accountKeyOf, boundPageOf, boundPageTagOf, button, errorOf, msg, pageTagOf, personaOfPage, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
 import { PLATFORM_NAMES, hubState } from './view-status';
 
@@ -66,6 +66,8 @@ export function accountBody(model: PagesModel): AccountBodyVM {
       pageName: page.title,
       platform: PLATFORM_NAMES[page.platform] ?? page.platform,
       persona: personaOfPage(model, page.pageId).label,
+      // 1.3.0: the hub's own key of the page — what tells «Lora Vie» VIP from «Lora Vie» free.
+      pageLabel: page.pageLabel,
     })),
     sdk: { contractHash: diagnostics?.hub.sdk.vendoredHash ?? null, compatible: diagnostics?.hub.sdk.compatible ?? null },
     hubErrorsToday: todayCounters(model, HUB_ERROR_PREFIXES),
@@ -101,6 +103,8 @@ export function personasBody(model: PagesModel): PersonasBodyVM {
       return {
         pageHandle,
         pageName: page.title,
+        // 1.3.0: pages of one title are told apart by their platform and the hub's page label.
+        page: pageTagOf(page),
         persona: persona.label,
         replacementNeeded: persona.s === 'archived' || persona.s === 'missing',
         choices: active.map((choice) => ({ key: choice.key, label: choice.displayName, choose: { type: 'ChoosePersona', pageHandle, personaKey: choice.key } })),
@@ -131,6 +135,7 @@ export function accountsBody(model: PagesModel): AccountsBodyVM {
       localLabel: model.effective?.accounts.labels[key] ?? null,
       status: entry.openTabs > 0 ? 'working' : 'seen',
       pageName: bound === null ? null : (bound.page?.title ?? bound.binding.pageLabel),
+      page: bound === null ? null : boundPageTagOf(bound),
       persona: bound === null ? null : personaOfPage(model, bound.binding.pageId).label,
       muted: model.effective?.sound.mutedAccounts.includes(key) ?? false,
       goTo: button('settings.accounts.toTab', { type: 'Navigate', to: { kind: 'account', accountHandle: key } }, { reason }),
@@ -148,6 +153,7 @@ export function accountsBody(model: PagesModel): AccountsBodyVM {
       localLabel: null,
       status: 'no-sessions',
       pageName: page.title,
+      page: pageTagOf(page),
       persona: personaOfPage(model, page.pageId).label,
       muted: false,
       goTo: button('settings.accounts.toTab', { type: 'Navigate', to: { kind: 'account', accountHandle: handle } }, { reason: { id: 'host-degraded', code: 'CG-HOST-NOT-READY', text: msg('settings.accounts.noSessionsHint') } }),

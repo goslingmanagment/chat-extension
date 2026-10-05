@@ -60,6 +60,8 @@ export interface HarnessOptions {
   readonly background?: (background: FakeBackground) => void;
   /** Another tab of the same extension: the background and the clock of an existing harness, its own tab session. */
   readonly shared?: { readonly bg: FakeBackground; readonly clock: FakeClock; readonly tab: string };
+  /** The manifest's version of the build under test; absent — the tab does not know it (only the hub's own word is read). */
+  readonly extensionVersion?: string;
 }
 
 export class FakeClipboard {
@@ -135,6 +137,7 @@ export function aiHarness(parts: HarnessParts, options: HarnessOptions = {}): Ha
     toasts: { show: (toast) => toasts.push(toast) },
     journal: { write: (entry) => journal.push(entry) },
     overlays: { open: (surface) => overlays.opened.push(surface), close: (surface) => overlays.closed.push(surface) },
+    ...(options.extensionVersion === undefined ? {} : { extensionVersion: options.extensionVersion }),
   });
 
   const dispatch = async (action: UiAction): Promise<ActionReceipt> => {

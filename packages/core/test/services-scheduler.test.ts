@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 
 import { OpViewSchema, TAB_EVENTS, chatKeyOf, type HubFrame, type IncomingFact, type OpView, type StartOp } from '@cg/contracts';
 import { applyOpDone, applyOpUpdate, mirrorFromView, type OpsEnvironment } from '@cg/core/domain/ops';
-import { ActionTokens, OPS_STORE_KEY, OpScheduler, RecapProfileSaver, SAVE_OUTCOMES_KEPT, profileSaveDelay, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
-import { BOOTSTRAP_PILOT_ON, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
+import { ActionTokens, OPS_STORE_KEY, OpScheduler, RecapProfileSaver, SAVE_OUTCOMES_KEPT, deadlineStage, profileSaveDelay, type OpSchedulerDeps, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
+import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
@@ -57,7 +57,7 @@ interface Harness {
   nextOp(): string;
 }
 
-function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clock?: FakeClock; firstId?: number } = {}): Harness {
+function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clock?: FakeClock; firstId?: number; online?: () => boolean; drivers?: OpSchedulerDeps['drivers'] } = {}): Harness {
   const clock = over.clock ?? new FakeClock(NOW_MS);
   const hub = new FakeHub(clock);
   const ids = sequentialIds(over.firstId ?? 0x100);
@@ -94,7 +94,7 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
     tokens,
     presence,
     hooks: counters,
-    env: { session, bootstrap: BOOTSTRAP_PILOT_ON, persona: () => persona, debug: false, settingsLoaded: true, ...over.env },
+    env: { session, bootstrap: BOOTSTRAP_PILOT_PAGES, persona: () => persona, debug: false, settingsLoaded: true, ...over.env },
     scheduler: undefined as unknown as OpScheduler,
     start: (tab, start, opts) => {
       const { actionToken } = tokens.issue(tab, 'generate', start.surface);
@@ -114,6 +114,8 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
     presence: (tab) => presence.get(tab) ?? null,
     log,
     hooks,
+    ...(over.online === undefined ? {} : { online: over.online }),
+    ...(over.drivers === undefined ? {} : { drivers: over.drivers }),
   });
   return h;
 }
@@ -430,6 +432,119 @@ describe('[RB-002] [RB-003] [RB-004] [RB-005] [RB-006] [AI-132] how an operation
     expect(h.scheduler.view(op)?.error).toBeUndefined();
     expect(h.scheduler.cancel(op)).toBe('canceled');
     expect(h.scheduler.cancel(uuid(0xdead))).toBeNull();
+  });
+
+  it('[RB-002] a deadline says how far the request got — not handed to the network, sent without an answer, answered without a frame, silent after frames — in the log and in the technical line', async () => {
+    const deadlineOf = (h: Harness) => h.log.entries.find((e) => e.msg === 'stream deadline passed');
+    // Nothing told the scheduler that the request left: the hub layer was still preparing it (a bootstrap read, the transport).
+    const idle = harness();
+    idle.hub.streamScript.push({ kind: 'hang' });
+    const idleOp = opIdOf(await idle.start(TAB, startOf()));
+    await idle.clock.advance(31_000);
+    expect(idle.scheduler.view(idleOp)?.error).toEqual({ code: 'CG-HUB-TIMEOUT', detail: 'until-meta: not-sent' });
+    expect(deadlineOf(idle)).toMatchObject({ level: 'warn', code: 'CG-HUB-TIMEOUT', fields: { kind: 'until-meta', stage: 'not-sent', waitedMs: 30_000 } });
+
+    // The request was handed to the network 2 s in and the hub never answered: the Fix of the first live check.
+    const sent = harness();
+    sent.hub.streamScript.push({ kind: 'hang' });
+    const sentOp = opIdOf(await sent.start(TAB, startOf()));
+    await sent.clock.advance(2_000);
+    sent.scheduler.noteWire(sentOp, { kind: 'sent' });
+    await sent.clock.advance(29_000);
+    expect(sent.scheduler.view(sentOp)?.error).toEqual({ code: 'CG-HUB-TIMEOUT', detail: 'until-meta: no-answer' });
+    expect(deadlineOf(sent)).toMatchObject({ fields: { kind: 'until-meta', stage: 'no-answer', waitedMs: 28_000 } });
+
+    // The hub answered the handshake and sent no frame.
+    const answered = harness();
+    answered.hub.streamScript.push({ kind: 'hang' });
+    const answeredOp = opIdOf(await answered.start(TAB, startOf()));
+    answered.scheduler.noteWire(answeredOp, { kind: 'sent' });
+    await answered.clock.advance(1_000);
+    answered.scheduler.noteWire(answeredOp, { kind: 'answered', status: 200 });
+    await answered.clock.advance(30_000);
+    expect(answered.scheduler.view(answeredOp)?.error).toEqual({ code: 'CG-HUB-TIMEOUT', detail: 'until-meta: no-frames' });
+    expect(deadlineOf(answered)).toMatchObject({ fields: { stage: 'no-frames', status: 200, waitedMs: 29_000 } });
+
+    // Frames came, then nothing.
+    const silent = await ended([{ kind: 'stream', steps: [metaStep(), { kind: 'stall' }] }], startOf(), 31_000);
+    expect(silent.view?.error).toMatchObject({ code: 'CG-HUB-TIMEOUT', detail: expect.stringMatching(/: silent$/) as string });
+    expect([deadlineStage({ at: 'idle' }, 0), deadlineStage({ at: 'sent', since: 1 }, 0), deadlineStage({ at: 'answered', since: 1, status: 200 }, 0), deadlineStage({ at: 'idle' }, 3)]).toEqual(['not-sent', 'no-answer', 'no-frames', 'silent']);
+    // A notice about an operation that is over, or that nobody knows, changes nothing.
+    silent.h.scheduler.noteWire(silent.view?.opId ?? '', { kind: 'sent' });
+    silent.h.scheduler.noteWire(uuid(0xdead), { kind: 'answered', status: 200 });
+  });
+
+  it('[RB-006] a deadline with nothing back while the browser says «offline» is «нет связи» (CG-NETWORK) — the request could not be delivered; once the hub answered it is the hub\'s timeout whatever the browser says', async () => {
+    let online = false;
+    const h = harness({ online: () => online });
+    h.hub.streamScript.push({ kind: 'hang' });
+    const op = opIdOf(await h.start(TAB, startOf()));
+    h.scheduler.noteWire(op, { kind: 'sent' });
+    await h.clock.advance(31_000);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'failed', error: { code: 'CG-NETWORK', detail: 'until-meta: no-answer' } });
+    expect(h.log.entries.find((e) => e.msg === 'stream deadline passed')).toMatchObject({ code: 'CG-NETWORK', fields: { stage: 'no-answer', online: false } });
+
+    // Online, same silence: the request was sent and the hub did not answer in time.
+    online = true;
+    const slow = harness({ online: () => online });
+    slow.hub.streamScript.push({ kind: 'hang' });
+    const slowOp = opIdOf(await slow.start(TAB, startOf()));
+    slow.scheduler.noteWire(slowOp, { kind: 'sent' });
+    await slow.clock.advance(31_000);
+    expect(slow.scheduler.view(slowOp)?.error).toEqual({ code: 'CG-HUB-TIMEOUT', detail: 'until-meta: no-answer' });
+
+    // The hub did answer, then fell silent, and the connection dropped meanwhile: still the hub's timeout.
+    online = false;
+    const cut = harness({ online: () => online });
+    cut.hub.streamScript.push(...forOp([{ kind: 'stream', steps: [metaStep(), { kind: 'stall' }] }], cut.nextOp()));
+    const cutOp = opIdOf(await cut.start(TAB, startOf()));
+    await cut.clock.advance(31_000);
+    expect(cut.scheduler.view(cutOp)?.error?.code).toBe('CG-HUB-TIMEOUT');
+  });
+
+  it('[RB-003] whatever fails BEFORE the hub request ends the operation at once — CG-HUB-REQUEST, a log line, the slot free — never a silent wait for the deadline', async () => {
+    // The request cannot be built: a driver that throws while putting it together.
+    const thrown = harness({ drivers: { fix: { build: () => { throw new RangeError('a private detail of the draft'); } } } });
+    const op = opIdOf(await thrown.start(TAB, startOf({ feature: 'fix', draft: { text: 'my draft', revision: 1, digest: 'feedbeef00000001' } })));
+    await thrown.clock.advance(1);
+    expect(thrown.scheduler.view(op)).toMatchObject({ state: 'failed', error: { code: 'CG-HUB-REQUEST' } });
+    expect(thrown.scheduler.view(op)?.endedAt).toBe(NOW_MS);
+    expect(thrown.hub.streams).toEqual([]);
+    expect(thrown.scheduler.active()).toEqual([]);
+    const line = thrown.log.entries.find((e) => e.msg === 'operation failed before the hub request');
+    expect(line).toMatchObject({ level: 'error', scope: 'bg.ops', code: 'CG-HUB-REQUEST', fields: { feature: 'fix', error: 'RangeError' } });
+    // The name of what threw, never its message.
+    expect(JSON.stringify(thrown.log.entries)).not.toContain('a private detail');
+
+    // The driver refuses its own start (what the hub would answer 400 to): the same, with its own line.
+    const refused = harness({ drivers: { fix: { build: () => ({ ok: false, issues: 'Fix needs the draft' }) } } });
+    const refusedOp = opIdOf(await refused.start(TAB, startOf({ feature: 'fix', draft: { text: 'my draft', revision: 1, digest: 'feedbeef00000001' } })));
+    await refused.clock.advance(1);
+    expect(refused.scheduler.view(refusedOp)).toMatchObject({ state: 'failed', error: { code: 'CG-HUB-REQUEST' } });
+    expect(refused.log.entries.some((e) => e.msg === 'request refused before the hub' && e.code === 'CG-HUB-REQUEST')).toBe(true);
+    expect(refused.hub.streams).toEqual([]);
+  });
+
+  it('[RB-003] a hub layer that throws what is not a hub failure, or a stream setup that rejects: the operation fails at once as CG-HUB-REQUEST — not «нет связи», not a wait', async () => {
+    // A rejected promise in the stream setup (the transport, a schema, anything): no HubCallError to read.
+    const h = harness();
+    h.hub.stream = () => Promise.reject(new TypeError('setup failed with a private detail'));
+    const op = opIdOf(await h.start(TAB, startOf()));
+    await h.clock.advance(1);
+    expect(h.scheduler.view(op)).toMatchObject({ state: 'failed', error: { code: 'CG-HUB-REQUEST' } });
+    expect(h.scheduler.view(op)?.endedAt).toBeLessThan(NOW_MS + 1_000);
+    expect(h.log.entries.find((e) => e.msg === 'stream failed outside the facade contract')).toMatchObject({ level: 'error', code: 'CG-HUB-REQUEST', fields: { feature: 'reply', stage: 'idle', error: 'TypeError' } });
+    expect(JSON.stringify(h.log.entries)).not.toContain('a private detail');
+
+    // The hub layer throws synchronously, before it returns a promise at all.
+    const sync = harness();
+    sync.hub.stream = () => {
+      throw new Error('synchronous');
+    };
+    const syncOp = opIdOf(await sync.start(TAB, startOf()));
+    await sync.clock.advance(1);
+    expect(sync.scheduler.view(syncOp)).toMatchObject({ state: 'failed', error: { code: 'CG-HUB-REQUEST' } });
+    expect(sync.scheduler.active()).toEqual([]);
   });
 
   it('[AI-132] a stream with no usable output is CG-OUTPUT-UNUSABLE', async () => {

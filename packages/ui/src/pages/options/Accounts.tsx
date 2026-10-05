@@ -9,7 +9,7 @@ import { type JSX } from 'preact';
 import { type AccountsBodyVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, Checkbox, useI18n } from '../../kit';
-import { useAct } from '../shared';
+import { PageTag, useAct } from '../shared';
 import { Field } from './controls';
 
 type Row = AccountsBodyVM['rows'][number];
@@ -53,7 +53,10 @@ function AccountRow({ row, readOnly }: { readonly row: Row; readonly readOnly: b
           </>
         ) : null}
         <dt>{i18n.t('settings.accounts.hubPage')}</dt>
-        <dd class={row.pageName === null ? 'pg-muted' : 'pg-value'}>{row.pageName ?? i18n.t('settings.accounts.pageNone')}</dd>
+        <dd class={row.pageName === null ? 'pg-muted' : 'pg-value'}>
+          {row.pageName ?? i18n.t('settings.accounts.pageNone')}
+          {row.pageName === null ? null : <PageTag tag={row.page} />}
+        </dd>
         <dt>{i18n.t('settings.accounts.persona')}</dt>
         <dd class={row.persona === null ? 'pg-muted' : 'pg-value'}>{row.persona ?? i18n.t('settings.personas.none')}</dd>
         {hosted ? (

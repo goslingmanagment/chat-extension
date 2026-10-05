@@ -15,7 +15,7 @@ import { CONTRACTS_VERSION } from '@cg/contracts';
 import type { HostAccount } from '@cg/contracts/ids';
 import { TabRegisterResponseSchema } from '@cg/contracts/tab-protocol';
 import type { HostDiagnostic, MountDiagnostic, StartedChatSpaceHost, TokenRedeemer } from '@cg/host-chatspace/isolated';
-import { createTabRpcClient, defaultBrowser, extensionUrl, isExtensionContextAlive, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
+import { createTabRpcClient, defaultBrowser, extensionUrl, extensionVersionOf, isExtensionContextAlive, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
 
 import type * as TabAppChunk from '../../../lazy/entries/tab-app';
 import type * as TabProtocolChunk from '../../../lazy/entries/tab-protocol';
@@ -228,6 +228,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         lazy: (entry) => loadLazy(lazyPath(entry)),
         drafts: draftStoreOf(env.api, win),
         ownOrigin: extensionUrl('').replace(/\/$/, ''),
+        extensionVersion: extensionVersionOf(env.api),
         contractsVersion: CONTRACTS_VERSION,
         lateInjection: env.lateInjection,
         staleHosts: env.staleHosts,

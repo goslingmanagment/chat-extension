@@ -9,16 +9,24 @@ OnlyFans) first and fansly.com second. Successor to the Electron desktop
 pilot. Client of the Agency Hub (`~/code/1-platform/hub`): all AI and all
 platform data go through the hub via the vendored `@kernel/sdk`.
 
-**Status: the extension is built and wired; it has not run on the real
-ChatSpace or the prod hub yet.** Waves 1 and 2 (R00–R02, R07–R18) are merged
+**Status: the extension is built and wired; its first live check on the real
+ChatSpace (0.172.0) with the prod hub was on 2026-10-04** — what worked, what
+it found and what is fixed: `docs/pilot-readiness.md` «Первая живая проверка».
+Waves 1 and 2 (R00–R02, R07–R18) are merged
 and connected: the background, the ChatSpace tab (dock, overlays, boards,
 hotkeys, sound) and the extension pages (popup, settings, sign-in, debug
 pages) work together on the ChatSpace-like stand against the fake hub.
-Contracts are frozen at 1.2.0 (`docs/protocols/README.md`); a change is
+Contracts are frozen at 1.4.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
-`docs/contracts-changelog.md`. Still ahead: the hub PRs H-* in prod and the
-SDK re-vendor, the owner's live checks (X9), CI and release (R19), Fansly
-(R20). What works and what is left: `README.md` «Что уже работает»; decisions
+`docs/contracts-changelog.md`. The SDK is a development vendor from hub
+`1e5f6ed9` (2026-10-05): the head of the hub branch
+`client/synthetic-examples-in-comments` (hub PR #482, pending merge), which is
+hub `main` `4a470029` plus synthetic examples in two contract comments. A
+release is vendored only from a deployed hub commit. The prod hub may run an
+older contract — the hub layer announces
+only what the bootstrap declares. Still ahead: the hub PRs that are not merged
+yet (feed, Spenders stats, claim, «Новые») and the next re-vendor, the owner's
+next live checks (X9), CI and release (R19), Fansly (R20). What works and what is left: `README.md` «Что уже работает»; decisions
 taken without the owner: `docs/decisions.md` X12; what is proven end to end on
 the stand, what waits for the hub and the owner's smoke checklist:
 `docs/pilot-readiness.md`.
@@ -53,13 +61,25 @@ a boundary you need to cross is a design question, not a lint exception.
 - `pnpm check` — typecheck, lint, test, build, webext-lint, size, gates,
   parity, archive-check. Green before every commit.
 - `pnpm e2e` — both builds, the stand, the fake hub, headless Firefox
-  (about 13 minutes). Green before Ready. No network beyond loopback.
+  (about 18 minutes). Green before Ready. No network beyond loopback.
 - `pnpm vitest run <path>` and, from `packages/testing`,
   `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` — one test
   file or one spec (the spec needs `pnpm build && pnpm build:test` first).
-- `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev` — the
-  test build in the owner's persistent Firefox dev profile, rebuilt on change
-  (README «Живые проверки»). Only for X9 checks, only in the test chat.
+- `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev
+  --debugger-port 6111` — the test build in the owner's persistent Firefox dev
+  profile on its fixed debugger port, rebuilt on change (README «Живые
+  проверки»). Only for X9 checks, only in the test chat. A plain `pnpm dev`
+  uses `.dev-profile/` of the worktree on a port of its own; the launcher
+  asks the Firefox behind a port which profile it runs before it installs,
+  and refuses another one. On
+  macOS it starts Firefox through LaunchServices (`open`) and installs the
+  build over the debugger port. Do not start a WINDOWED Firefox — its binary
+  or `web-ext run` — from an agent shell there: twice after such a launch the
+  machine lost its Orca Computer Use accessibility permission system-wide.
+  The cause is unproven (the permission later dropped with no direct launch
+  at all, likely after an Orca restart), so this is caution, not a known
+  mechanism. Headless Firefox driven by geckodriver (`pnpm e2e`, `pnpm perf`)
+  is exempt.
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
   rows a test names. Name the row in the test title: `it('[ST-042] …')`.
 
@@ -114,8 +134,21 @@ a boundary you need to cross is a design question, not a lint exception.
   `platform_account_id`, never by display name.
 - **Vendored `@kernel/sdk` and `@chatgoose/hotkeys`:** never hand-edit;
   re-vendor with the hub's `scripts/vendor-sdk.mjs` / `vendor-hotkeys.mjs`.
+- **An owner switch is the PAGE's own.** The hub evaluates every flag per page
+  (`pages[].features[flag]`); the bootstrap's top-level `flags` carry the
+  owner's `"*"` row alone and are all false in a pilot switched on page by
+  page. The one exception is the hub's MASTER switch: it is global — off, every
+  feature of every page reads `disabled`. Never gate on `bootstrap.flags`: use `packages/core/src/domain/ops/flags.ts`
+  (`docs/protocols/hub.md` «Флаги: решает страница»). The fake hub's default
+  preset is that pilot, so e2e fails on a client that reads the top-level flags.
+- **A request the hub would refuse must fail in CI.** The hub's own rules for
+  an AI body live partly in its handler, not in its schema; the fake hub
+  repeats them (`fake-hub/ai-rules.ts`) and checks bodies by the vendored
+  SDK's real schema in e2e. When a hub rule changes, change it there too.
 - **Live tests** only on the owner's test chat (OnlyMonster account 36408 →
-  chat 518588958).
+  chat 518588958). Never press ⌘1–9, J, K or ⌘U on the live ChatSpace tab:
+  our navigation opens other fans' chats; `navigation` stays off on live
+  pages while checking.
 - Secrets via `op` (1Password); none in the repo. Owner-facing docs in Russian.
 - The owner's global rules apply (`~/.agents/AGENTS.md`): code changes in a
   separate worktree, Draft PRs, paid CI.

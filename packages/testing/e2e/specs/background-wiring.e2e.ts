@@ -242,13 +242,33 @@ describe('background wiring — operations, sound and page commands on the stand
     await browser.keys('Escape');
     await dockIs((d) => !d.overlays.includes('spenders'), 'the Spenders window is closed');
 
-    // «к вкладке» of another account: the tab's own router opens it — a navigation, nothing loaded by us.
+    // «к вкладке» of another account. That account is bound to no hub page, so no page's own `navigation` answers
+    // for it: the owner's `"*"` row does (docs/protocols/hub.md «Флаги: решает страница») — and in a pilot switched
+    // on page by page that row is empty. Our navigation does not walk into an account nobody switched it on for.
     await toPages();
     await browser.url(testBuildPage('options.html'));
     const mark = await standServer.mark();
-    expect(await pageRpc('tab.command', { command: { kind: 'account', host: 'chatspace', hostAccountId: accountB } })).toEqual({ ok: true, payload: { delivered: true } });
+    const toAccountB = { command: { kind: 'account', host: 'chatspace', hostAccountId: accountB } } as const;
+    expect(await pageRpc('tab.command', toAccountB)).toEqual({ ok: true, payload: { delivered: true } });
     await toStand();
-    await browser.waitUntil(async () => (await callStand('route')).accountId === accountB, { timeout: 10_000, timeoutMsg: 'the tab did not go to the account' });
+    await browser.pause(1500);
+    expect((await callStand('route')).accountId).toBe(accountA);
+    // The owner switches navigation on for every page (the `"*"` row): now the tab's own router opens the account —
+    // a navigation, nothing loaded by us.
+    await hub().command({ op: 'config', patch: { flags: { navigation: true } } });
+    await toPages();
+    expect(await pageRpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+    await browser.waitUntil(
+      async () => {
+        // The tab hears the new `"*"` row a moment after the background read it: the click is repeated until it lands.
+        await toPages();
+        await pageRpc('tab.command', toAccountB);
+        await toStand();
+        await browser.pause(300);
+        return (await callStand('route')).accountId === accountB;
+      },
+      { timeout: 15_000, interval: 200, timeoutMsg: 'the tab did not go to the account' },
+    );
     expect(foreignCalls((await standServer.journal(mark)).entries)).toEqual([]);
     // An account no tab shows: nothing is delivered, nothing moves.
     await toPages();

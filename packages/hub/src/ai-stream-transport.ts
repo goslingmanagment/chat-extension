@@ -1,17 +1,19 @@
-// The AI stream's transport seam (architecture.md §8.4). Today: the vendored
-// SDK's `streamAiFeature`, which can put only `debug-input-v1` on
-// `x-kernel-ai-capabilities` (its `debugPromptEcho`) and parses only the
-// frames it knows — a `context_v1` frame would fail its schema. So it
-// declares `['debug-input-v1']`, and the facade refuses a request that
-// needs more (CG-HUB-CAPABILITY) instead of sending what the hub would 400.
+// The AI stream's transport (architecture.md §8.4): the vendored SDK's
+// `streamAiFeature`. The SDK puts what the request announces on
+// `x-kernel-ai-capabilities` (its `capabilities` option: `debug-input-v1`,
+// `context-v1`, `split-all-v1`) and parses every frame it knows, the
+// `context_v1` frame among them, by its own schema before the facade checks
+// it by the contract.
 //
-// After the hub's H-4 SDK change (hub PR #413: `capabilities?: string[]` on
-// `streamAiFeature`, the `context_v1` frame in its union) is re-vendored,
-// the SDK transport passes `input.capabilities` through and declares all of
-// AI_STREAM_CAPABILITIES — nothing else in the facade changes. Tests inject
-// their own transport the same way.
+// The SDK may be newer than the hub it talks to (prod deploys lag main): a
+// capability the hub's bootstrap does not declare is never announced —
+// `StreamService.available()` is «declared by the hub ∩ carried here» — and
+// what depends on it reads `hub_not_ready`. The seam stays for tests, which
+// inject their own transport, and for the timing facts of one attempt
+// (`onRequest`, `onAnswer`): the facade logs when the request left and when
+// the hub answered — never a payload.
 
-import { type AiFeatureStreamBody, type AiStreamCapability, type HubAiFeature } from '@cg/contracts';
+import { AI_STREAM_CAPABILITIES, type AiFeatureStreamBody, type AiStreamCapability, type HubAiFeature } from '@cg/contracts';
 import { streamAiFeature } from '@kernel/sdk';
 
 import { type FetchLike } from './ports';
@@ -31,6 +33,10 @@ export interface AiStreamOpen {
   readonly onFrame: (frame: unknown) => void;
   /** The SDK's onAuthError hook for the stream (AU-012). */
   readonly onAuthError: (error: unknown) => void;
+  /** The request is being handed to the network: from here on the hub may have received it. */
+  readonly onRequest?: () => void;
+  /** The hub answered the handshake: its status, before any frame is read. */
+  readonly onAnswer?: (status: number) => void;
 }
 
 export interface AiStreamTransport {
@@ -44,25 +50,35 @@ export interface AiStreamTransport {
   open(input: AiStreamOpen): Promise<void>;
 }
 
-export const SDK_STREAM_CAPABILITIES: readonly AiStreamCapability[] = ['debug-input-v1'];
+export const SDK_STREAM_CAPABILITIES: readonly AiStreamCapability[] = AI_STREAM_CAPABILITIES;
 
 export const sdkStreamTransport: AiStreamTransport = {
   capabilities: SDK_STREAM_CAPABILITIES,
   async open(input) {
+    if (input.signal.aborted) return;
+    /** The one request of this attempt, seen where it leaves: when it was handed over and what came back. */
+    const observed: FetchLike = async (url, init) => {
+      // A call that was cut before this point is never handed to the network — and never said to have been.
+      // (The SDK listens for `abort` only from here on: a signal aborted earlier would not stop its request.)
+      if (input.signal.aborted) throw new DOMException('The stream was cut before its request was sent', 'AbortError');
+      input.onRequest?.();
+      const response = await input.fetch(url, init);
+      input.onAnswer?.(response.status);
+      return response;
+    };
     const options = sdkOptions({
       hubOrigin: input.hubOrigin,
       token: input.token,
       headers: input.headers,
-      fetch: input.fetch,
+      fetch: observed,
       signal: input.signal,
       onAuthError: (error) => input.onAuthError(error),
     });
     const handle = streamAiFeature(options, {
       feature: input.feature,
-      // H-4 fields never reach this transport: they need `context-v1`, which it does not declare.
       body: input.body,
       onFrame: (frame) => input.onFrame(frame),
-      debugPromptEcho: input.capabilities.includes('debug-input-v1'),
+      capabilities: input.capabilities,
       signal: input.signal,
     });
     await handle.done;

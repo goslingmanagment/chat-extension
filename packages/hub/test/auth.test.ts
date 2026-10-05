@@ -8,7 +8,7 @@ import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS,
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthCustody } from '../src/auth';
-import { errorWireOf, sdkStreamTransport, type HubStatus } from '../src/index';
+import { errorWireOf, type HubStatus } from '../src/index';
 import { SILENT_LOG, SYSTEM_CLOCK } from '../src/ports';
 import { MemoryStore, hubError, json, testEnv } from './support/fake-hub';
 import { flush, makeHarness, signIn, until, type Harness } from './support/harness';
@@ -326,7 +326,7 @@ describe('[AU-010] [AU-011] [AU-015] the 401 rule', () => {
   });
 
   it('[AU-012] the stream reports its 401 through the SDK hook: token_expired wipes the sign-in', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: sdkStreamTransport });
+    h = makeHarness({ paths: HUB_ROUTE_PATHS });
     await signIn(h, WORLD_PILOT);
     h.hub.on('aiFeatureStream', () => hubError(401, 'unauthorized', 'token_expired'));
     const request = { feature: 'fast-reply' as const, body: streamBody({ replyTone: 'none' }), capabilities: [] };
@@ -367,7 +367,7 @@ describe('[AU-014] the 401 rule re-checks which sign-in is current, twice', () =
   const tokenB = 'cgx_synthetic_token_0002';
 
   it('[AU-014] [AU-012] a late 401 token_revoked on the OLD sign-in\'s stream leaves the new sign-in intact', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: sdkStreamTransport });
+    h = makeHarness({ paths: HUB_ROUTE_PATHS });
     await signIn(h, WORLD_PILOT);
     const late = deferred<Response>();
     h.hub

@@ -9,9 +9,7 @@ import {
   CLIENT_FEATURE_FLAG_NAMES,
   CLIENT_FLAG_REQUIREMENTS,
   NATIVE_ID_PATTERN,
-  hasCapability,
   hostBindingKey,
-  isFlagOn,
   narrowPlatform,
   type Bootstrap,
   type BootstrapLimits,
@@ -22,28 +20,23 @@ import {
   type HubBinding,
   type SessionIdentity,
 } from '@cg/contracts';
+import { pageFlagState, somePageFlagState, type FlagState } from '@cg/core/domain/ops';
 
-export interface FlagState {
-  readonly usable: boolean;
-  /**
-   * Why not: `flag_off`, `not_granted`, a page feature's reason (open token), `hub_not_ready` for a
-   * capability the hub has not declared (or no bootstrap yet), `bootstrap_expired` (the facade's
-   * gate: the bootstrap's ttl ran out and no refresh has landed).
-   */
-  readonly reason: string | null;
-}
+export type { FlagState };
 
-/** §4.12: a flag is usable when it is on, the page's feature is available, and every capability it needs is declared. */
+/**
+ * §4.12, by the one rule of `@cg/core/domain/ops` (flags.ts): a flag on a page is the PAGE's own feature
+ * (`pages[].features[flag]`) plus the capabilities it needs — the top-level `flags` carry the owner's `"*"`
+ * row alone and decide nothing here. `pageLabel: null` asks about no page in particular: usable on at
+ * least one granted page (the caller then applies the page's own value to what it acts on).
+ */
 export function flagState(bootstrap: Bootstrap, flag: ClientFeatureFlag, pageLabel: string | null): FlagState {
-  if (!isFlagOn(bootstrap.flags, flag)) return { usable: false, reason: 'flag_off' };
-  if (pageLabel !== null) {
-    const page = bootstrap.pages.find((candidate) => candidate.pageLabel === pageLabel);
-    if (page === undefined) return { usable: false, reason: 'not_granted' };
-    const feature = Object.prototype.hasOwnProperty.call(page.features, flag) ? page.features[flag] : undefined;
-    if (feature?.available !== true) return { usable: false, reason: feature?.reason ?? 'disabled' };
-  }
-  const missing = CLIENT_FLAG_REQUIREMENTS[flag].capabilities.filter((capability) => !hasCapability(bootstrap.capabilities, capability));
-  return missing.length > 0 ? { usable: false, reason: 'hub_not_ready' } : { usable: true, reason: null };
+  if (pageLabel === null) return somePageFlagState(bootstrap, flag);
+  return pageFlagState(
+    bootstrap,
+    bootstrap.pages.find((candidate) => candidate.pageLabel === pageLabel),
+    flag,
+  );
 }
 
 export function pageOf(bootstrap: Bootstrap, pageLabel: string): BootstrapPage | null {
@@ -52,30 +45,8 @@ export function pageOf(bootstrap: Bootstrap, pageLabel: string): BootstrapPage |
 
 // ── versions ───────────────────────────────────────────────────────────────
 
-function versionParts(version: string): number[] | null {
-  if (!/^\d+(?:\.\d+){0,3}$/.test(version.trim())) return null;
-  return version
-    .trim()
-    .split('.')
-    .map((part) => Number(part));
-}
-
-/** -1 / 0 / 1 for dotted numeric versions (Firefox allows up to four parts); null when either is not one. */
-export function compareVersions(a: string, b: string): number | null {
-  const left = versionParts(a);
-  const right = versionParts(b);
-  if (left === null || right === null) return null;
-  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
-    const difference = (left[i] ?? 0) - (right[i] ?? 0);
-    if (difference !== 0) return Math.sign(difference);
-  }
-  return 0;
-}
-
-/** Below `minVersion` AI is off and the client shows CG-HUB-OUTDATED (§8.3). An unreadable minVersion does not lock anyone out. */
-export function belowMinVersion(bootstrap: Bootstrap, extensionVersion: string): boolean {
-  return compareVersions(extensionVersion, bootstrap.minVersion) === -1;
-}
+// The rule is the client's one (the tab dims its actions by it too): @cg/core/domain/ops.
+export { belowMinVersion, compareVersions } from '@cg/core/domain/ops';
 
 export function protocolSupported(bootstrap: Bootstrap): boolean {
   return bootstrap.protocol === BOOTSTRAP_PROTOCOL;

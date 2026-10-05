@@ -22,7 +22,7 @@ import { type FreshnessCheckpoint } from '@cg/contracts/send';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type UserOptions } from '@cg/contracts/vm';
 
-import { flagUsable } from '../ops/environment';
+import { flagUsable } from '../ops/flags';
 import { messageWindowFor, splitAllowed } from '../ops/request';
 import { policyOf } from './policy';
 

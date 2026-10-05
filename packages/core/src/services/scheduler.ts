@@ -124,6 +124,12 @@ export interface OpSchedulerDeps {
   readonly log?: LogSink;
   readonly drivers?: Partial<Record<FeatureId, Partial<OpDriver>>>;
   readonly hooks?: OpSchedulerHooks;
+  /**
+   * What the browser says about the connection (`navigator.onLine`); absent — not asked. A deadline that fires
+   * before the hub answered while the browser says «offline» is «нет связи» (CG-NETWORK): the request could not
+   * be delivered — not a hub that was slow to answer (CG-HUB-TIMEOUT).
+   */
+  readonly online?: () => boolean;
 }
 
 export interface StartOptions {
@@ -181,16 +187,39 @@ interface Run {
   context: ContextFrame | null;
   stages: { name: string; at: number }[];
   promptToken: string | null;
+  /**
+   * Where the request of the current attempt stands, as the hub layer said (`noteWire`): nothing yet, handed to
+   * the network, or answered by the hub. A deadline that fires says which — «the request was sent and the hub
+   * did not answer» is not «the hub answered and then fell silent».
+   */
+  wire: WireStage;
 }
+
+/** `idle` — not handed to the network (yet); `sent`; `answered` — the hub answered the handshake with this status. */
+export type WireStage = { readonly at: 'idle' } | { readonly at: 'sent'; readonly since: number } | { readonly at: 'answered'; readonly since: number; readonly status: number };
+
+const WIRE_IDLE: WireStage = { at: 'idle' };
 
 interface Settled {
   readonly state: Exclude<OpState, 'admitted' | 'requesting' | 'streaming'>;
   readonly code?: CgCode;
   readonly retryAt?: number | null;
   readonly httpStatus?: number | null;
+  /** The technical line of the error (machine words only: which deadline, how far the request got). */
+  readonly detail?: string;
   readonly result?: OpResult;
   /** Show a toast to the owning tab when it is elsewhere. */
   readonly toast: boolean;
+}
+
+/**
+ * How far the request had got when a deadline fired: `not-sent` — nothing was handed to the network (the hub
+ * layer was still preparing); `no-answer` — the request was sent and the hub had not answered the handshake;
+ * `no-frames` — the hub answered and sent no frame; `silent` — frames came, then nothing.
+ */
+export function deadlineStage(wire: WireStage, frames: number): 'not-sent' | 'no-answer' | 'no-frames' | 'silent' {
+  if (frames > 0) return 'silent';
+  return wire.at === 'idle' ? 'not-sent' : wire.at === 'sent' ? 'no-answer' : 'no-frames';
 }
 
 function isHubCallError(error: unknown): error is HubCallError {
@@ -274,6 +303,7 @@ export class OpScheduler {
       context: null,
       stages: [],
       promptToken: null,
+      wire: WIRE_IDLE,
     };
   }
 
@@ -343,7 +373,7 @@ export class OpScheduler {
       fields: { feature: start.feature, surface: start.surface, ...(then === null ? {} : { composite: true }) },
       ctx: { opId, chatKey, tabSessionId, session: session.epoch },
     });
-    void this.drive(run);
+    this.launch(run);
     return { kind: 'admission', admission: { ok: true, opId }, reopened: false };
   }
 
@@ -436,6 +466,7 @@ export class OpScheduler {
       context: null,
       stages: [{ name: 'admitted', at: now }],
       promptToken: null,
+      wire: WIRE_IDLE,
     };
   }
 
@@ -447,6 +478,30 @@ export class OpScheduler {
       build: custom?.build ?? buildStreamRequest,
       parse: custom?.parse ?? ((text, ctx) => basicParseResult(ctx.feature, text, ctx)),
     };
+  }
+
+  /**
+   * Runs an admitted operation to its end. Whatever throws on the way — while the request is built, before any
+   * hub call, or in our own handling of an answer — ends the operation at once, with a code and a log line: an
+   * admitted operation is never left to wait for a deadline (or for ever) because of a failure nobody reported.
+   */
+  private launch(run: Run): void {
+    void this.drive(run).catch((error: unknown) => {
+      if (run.ended) return;
+      // Nothing was handed to the hub layer yet: the request itself could not be made (our bug, CG-HUB-REQUEST).
+      const beforeRequest = run.attempt === 0;
+      const code: CgCode = beforeRequest ? 'CG-HUB-REQUEST' : 'CG-UNKNOWN';
+      this.log.write({
+        level: 'error',
+        scope: 'bg.ops',
+        msg: beforeRequest ? 'operation failed before the hub request' : 'operation failed outside the stream',
+        code,
+        fields: { feature: run.view.feature, error: error instanceof Error ? error.name : typeof error },
+        ctx: { opId: run.view.opId },
+      });
+      run.abort?.abort();
+      this.settle(run, { state: 'failed', code, toast: true });
+    });
   }
 
   private async drive(run: Run): Promise<void> {
@@ -486,6 +541,7 @@ export class OpScheduler {
     const request = run.request;
     if (request === null) return null;
     run.attempt += 1;
+    run.wire = WIRE_IDLE;
     run.stream = INITIAL_STREAM_STATE;
     run.times = { ...run.times, attemptAt: clock.now(), metaAt: null, firstChunkAt: run.times.firstChunkAt, lastFrameAt: null };
     if (run.attempt > 1) this.setPhase(run, { name: 'connecting', since: clock.now() });
@@ -515,8 +571,20 @@ export class OpScheduler {
         this.finishDone(run);
         return null;
       }
-      const failure: HubFailure = isHubCallError(error) ? error.failure : { kind: 'transport', failure: 'network' };
-      if (!isHubCallError(error)) this.log.write({ level: 'error', scope: 'bg.ops', msg: 'stream failed outside the facade contract', ctx: { opId: run.view.opId } });
+      // Not a failure of the hub call at all (the hub layer itself threw, or our own handling of a frame): never
+      // «нет связи». Before anything was handed to the network it is our request that failed (CG-HUB-REQUEST);
+      // after that it is an answer we could not use — the same code, said at once, with a log line.
+      const failure: HubFailure = isHubCallError(error) ? error.failure : { kind: 'transport', failure: 'contract' };
+      if (!isHubCallError(error)) {
+        this.log.write({
+          level: 'error',
+          scope: 'bg.ops',
+          msg: 'stream failed outside the facade contract',
+          code: 'CG-HUB-REQUEST',
+          fields: { feature: run.view.feature, stage: run.wire.at, error: error instanceof Error ? error.name : typeof error },
+          ctx: { opId: run.view.opId },
+        });
+      }
       // §7 «Отмена»: the hub layer cuts the streams of a sign-in that ended before it announces the change
       // (its epoch signal goes first, the event follows the storage writes). That abort is the automatic
       // cancel itself, not a failure of the hub: the operation ends as the session change would end it.
@@ -771,6 +839,18 @@ export class OpScheduler {
     this.setPhase(run, { name: 'retry-wait', since: this.deps.clock.now(), retryAt });
   }
 
+  /**
+   * The hub layer says where the request of an operation stands: handed to the network (`sent`), answered by
+   * the hub (`answered`, with the status of the handshake). Nothing changes for the tab; a deadline that fires
+   * later names the stage in its log line and in the technical line of the error.
+   */
+  noteWire(opId: string, stage: { readonly kind: 'sent' } | { readonly kind: 'answered'; readonly status: number }): void {
+    const run = this.runs.get(opId);
+    if (run === undefined || run.ended) return;
+    const since = this.deps.clock.now();
+    run.wire = stage.kind === 'sent' ? { at: 'sent', since } : { at: 'answered', since, status: stage.status };
+  }
+
   /** The owning tab closed: the surface detaches, the generation goes on (BG-006, AI-124). */
   detachTab(tabSessionId: string): readonly string[] {
     const detached: string[] = [];
@@ -959,9 +1039,23 @@ export class OpScheduler {
     run.deadline = this.deps.clock.setTimer(delay, () => {
       run.deadline = null;
       if (run.ended) return;
-      // RB-002/RB-003: a timeout is CG-HUB-TIMEOUT, never retried.
-      this.log.write({ level: 'warn', scope: 'bg.ops', msg: 'stream deadline passed', code: TIMEOUT_CODE, fields: { kind: deadline.kind }, ctx: { opId: run.view.opId } });
-      this.settle(run, { state: 'failed', code: TIMEOUT_CODE, toast: true });
+      // RB-002/RB-003: a timeout is never retried. The log and the technical line say how far the request got:
+      // not handed to the network, sent without an answer, or answered and then silent. The code tells the two
+      // apart where the browser can: nothing came back AND the browser says it has no connection — «нет связи»
+      // (CG-NETWORK, the request could not be delivered); otherwise the hub did not answer in time (CG-HUB-TIMEOUT).
+      const stage = deadlineStage(run.wire, run.stream.frames);
+      const waitedMs = this.deps.clock.now() - (run.wire.at === 'idle' ? run.times.attemptAt : run.wire.since);
+      const undelivered = (stage === 'not-sent' || stage === 'no-answer') && this.deps.online?.() === false;
+      const code: CgCode = undelivered ? 'CG-NETWORK' : TIMEOUT_CODE;
+      this.log.write({
+        level: 'warn',
+        scope: 'bg.ops',
+        msg: 'stream deadline passed',
+        code,
+        fields: { kind: deadline.kind, stage, waitedMs, ...(run.wire.at === 'answered' ? { status: run.wire.status } : {}), ...(this.deps.online === undefined ? {} : { online: this.deps.online() }) },
+        ctx: { opId: run.view.opId },
+      });
+      this.settle(run, { state: 'failed', code, detail: `${deadline.kind}: ${stage}`, toast: true });
       run.abort?.abort();
     });
   }
@@ -1003,6 +1097,7 @@ export class OpScheduler {
         ? undefined
         : {
             code: settled.code,
+            ...(settled.detail === undefined ? {} : { detail: settled.detail }),
             ...(settled.retryAt === undefined || settled.retryAt === null ? {} : { retryAt: settled.retryAt }),
             ...(settled.httpStatus === undefined || settled.httpStatus === null ? {} : { httpStatus: settled.httpStatus }),
           };
@@ -1052,7 +1147,7 @@ export class OpScheduler {
     // As for any admission: the answer step and its identity reach storage.session before its hub request.
     void written.then(
       () => {
-        if (!next.ended) void this.drive(next);
+        if (!next.ended) this.launch(next);
       },
       () => {
         this.log.write({ level: 'error', scope: 'bg.ops', msg: 'admission journal write failed', code: 'CG-STORAGE-WRITE', ctx: { opId: next.view.opId } });

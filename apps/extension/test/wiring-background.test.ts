@@ -15,7 +15,7 @@ import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, TAB_REQUESTS, TAB_RE
 import { TAB_REQUEST_FIXTURES, account, chat, journalEntry } from '@cg/contracts/fixtures';
 import { GREETING_LEASES_KEY, NATIVE_SENDS_KEY, createSendJournal } from '@cg/core/services';
 import { createKeyValueStore, createTabRpcClient } from '@cg/platform';
-import { PILOT_CAPABILITIES, callsTo, hubErrorBody } from '@cg/testing/fake-hub';
+import { PILOT_CAPABILITIES, callsTo, hubErrorBody, pilotPageFlags } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -249,21 +249,75 @@ describe('operations (§7)', () => {
     expect(callsTo(w.hub.read().entries, 'aiFeatureStream').map((entry) => entry.status)).toEqual([503, 200]);
   });
 
-  it('a hub that offers `context-v1` and `split-all-v1` is answered by the archive: the stream declares only what the vendored SDK carries, and the generation runs', async () => {
+  it('a hub that declares `context-v1` hears it announced: the stream carries the capability header through the vendored SDK, the hub\'s `context_v1` frame is read and the page\'s fresh text goes with the request', async () => {
     const w = world();
     w.start();
     await signInWithPersona(w);
-    // The pilot preset declares every capability, `context-v1` among them.
-    expect(PILOT_CAPABILITIES).toContain('context-v1');
+    // The pilot preset declares every stream capability; the fake hub checks the body by the hub's own schema (the SDK's).
+    expect(PILOT_CAPABILITIES).toEqual(expect.arrayContaining(['context-v1', 'live-text-v1', 'split-all-v1']));
     const tab = await workingTab(w);
     const binding = await bindingOf(tab);
     const fresh = { capturedAt: new Date().toISOString(), messages: [{ platformMessageId: '4004', direction: 'fan' as const, sentAt: new Date().toISOString(), text: 'synthetic line' }] };
     const opId = admitted(await startReply(tab, binding, chat.platformFanId, { fresh }));
     await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state !== 'streaming' && (await opsOf(tab)).find((op) => op.opId === opId)?.endedAt !== undefined, 'the generation ended');
+    const done = (await opsOf(tab)).find((op) => op.opId === opId);
+    expect(done).toMatchObject({ state: 'done' });
+    const [call] = callsTo(w.hub.read().entries, 'aiFeatureStream');
+    expect(call?.status).toBe(200);
+    // The frame that says what served the generation arrived, and it names our fresh text as served.
+    expect(call?.stream?.frames).toContain('context_v1');
+    expect(done?.servedContext).toMatchObject({ source: 'union', live: { status: 'served', accepted: 1, rejected: 0 } });
+    expect(JSON.stringify(call?.request)).toContain('liveTextContext');
+    expect((call?.request as { capabilities?: string[] }).capabilities).toContain('context-v1');
+  });
+
+  it('[LG-008] what the diagnostics export keeps of a generation: «stream request sent» and «stream answered» under bg.hub — route, attempt, status and timings, each fact a word the redaction keeps; on a page switched off nothing is admitted at all', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    const binding = await bindingOf(tab);
+    const opId = admitted(await startReply(tab, binding, chat.platformFanId));
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.endedAt !== undefined, 'the generation ended');
+    // The owner's master switch goes off: the next start is refused before any admission — nothing to wait for, nothing sent.
+    w.hub.control({ op: 'config', patch: { master: false } });
+    expect(await w.page().request('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+    const posts = callsTo(w.hub.read().entries, 'aiFeatureStream').length;
+    expect(await startReply(tab, binding, chat.platformFanId)).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED' } });
+    expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(posts);
+
+    const file = await w.page().request('diagnostics.export', { format: 'json' });
+    if (!file.ok) throw new Error(file.error.code);
+    const records = (JSON.parse(file.payload.body) as { logs: { recent: { scope: string; msg: string; level: string; code?: string; fields?: Record<string, unknown> }[] } }).logs.recent;
+    const hub = records.filter((record) => record.scope === 'bg.hub');
+    const sent = hub.find((record) => record.msg === 'stream request sent');
+    const answered = hub.find((record) => record.msg === 'stream answered');
+    expect(sent).toMatchObject({ level: 'info', fields: { route: 'aiFeatureStream', feature: 'fast-reply', attempt: 1 } });
+    expect(answered).toMatchObject({ level: 'info', fields: { route: 'aiFeatureStream', feature: 'fast-reply', attempt: 1, status: 200 } });
+    expect(typeof sent?.fields?.['prepareMs']).toBe('number');
+    expect(typeof answered?.fields?.['answerMs']).toBe('number');
+    // Nothing of these lines was cut to «[text len=N]»: every value is a number or one machine word.
+    for (const record of [sent, answered]) {
+      for (const value of Object.values(record?.fields ?? {})) expect(typeof value === 'number' || /^[A-Za-z0-9_.:-]+$/.test(String(value))).toBe(true);
+    }
+    // The operations journal and the hub journal never carry the conversation: no fan id of the chat, no text.
+    expect(JSON.stringify(hub)).not.toContain('synthetic line');
+  });
+
+  it('a hub older than the vendored SDK (it declares neither `context-v1` nor `split-all-v1`): nothing is announced, the fresh text stays in the browser, and the generation runs', async () => {
+    const w = world();
+    w.hub.control({ op: 'config', patch: { capabilities: PILOT_CAPABILITIES.filter((capability) => !['context-v1', 'live-text-v1', 'split-all-v1'].includes(capability)) } });
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    const binding = await bindingOf(tab);
+    const fresh = { capturedAt: new Date().toISOString(), messages: [{ platformMessageId: '4004', direction: 'fan' as const, sentAt: new Date().toISOString(), text: 'synthetic line' }] };
+    const opId = admitted(await startReply(tab, binding, chat.platformFanId, { fresh }));
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.endedAt !== undefined, 'the generation ended');
     expect((await opsOf(tab)).find((op) => op.opId === opId)).toMatchObject({ state: 'done' });
     const [call] = callsTo(w.hub.read().entries, 'aiFeatureStream');
     expect(call?.status).toBe(200);
-    // No `context_v1` frame was asked for, and the page's fresh text did not leave the browser.
+    expect((call?.request as { capabilities?: string[] }).capabilities).toEqual([]);
     expect(call?.stream?.frames).not.toContain('context_v1');
     expect(JSON.stringify(call?.request)).not.toContain('liveTextContext');
   });
@@ -420,6 +474,48 @@ describe('a human send of a part that came from a board (§6.6, H-7)', () => {
     expect(await tab.client.request('op.reportSent', { opId: reply, part: { index: 0 }, pendingId: 'pending-2', platformMessageId: '4101', edited: true })).toMatchObject({ ok: true });
     await sleep(100);
     expect(callsTo(w.hub.read().entries, 'clientFanClaim')).toHaveLength(1);
+  });
+});
+
+describe('a human send on a page whose WS tap is off (§6.6, §6.8)', () => {
+  it('[NF-019] `op.reportSent` is not taken for known where the operation’s page has `wsTap` off: nothing is registered at the hub, nothing reported; switched on, the same report is', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    const binding = await bindingOf(tab);
+    const FAN = WORLD.newFan;
+    const token = await tab.client.request('token.issue', { kind: 'generate', surface: 'newcomers' });
+    const opId = admitted(
+      await tab.client.request('op.start', {
+        feature: 'hi',
+        surface: 'newcomers',
+        target: { binding, chat: { ...chat, platformFanId: FAN }, fanRef: FAN, conversationRef: FAN },
+        cause: { kind: 'click', actionToken: token.ok ? token.payload.actionToken : '' },
+        tone: null,
+        split: false,
+        window: 100,
+        variantCount: 1,
+      }),
+    );
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', 'the greeting is ready');
+    const setTap = async (on: boolean): Promise<void> => {
+      w.hub.control({ op: 'config', patch: { pageFlags: { [PAGE]: { wsTap: on } } } });
+      expect(await w.page().request('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+    };
+    const report = { opId, part: { variant: 0, index: 0 }, pendingId: 'pending-1', platformMessageId: '4100', edited: false };
+
+    // The owner left the tap off for this page: the tab's one tap (on for another page) is not this page's to use.
+    await setTap(false);
+    expect(await tab.client.request('op.reportSent', report)).toEqual({ ok: true, payload: { recorded: false } });
+    await sleep(150);
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim')).toHaveLength(0);
+    expect(w.fake.areas.local.get(NATIVE_SENDS_KEY)).toBeUndefined();
+
+    await setTap(true);
+    expect(await tab.client.request('op.reportSent', report)).toMatchObject({ ok: true });
+    await until(() => callsTo(w.hub.read().entries, 'clientFanClaim').length === 1, 'the hub heard of the send');
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim')[0]).toMatchObject({ status: 200, request: { fanRef: FAN, body: { action: 'registerNativeSend', platformMessageId: '4100' } } });
   });
 });
 
@@ -602,6 +698,41 @@ describe('sound (§9.8)', () => {
     expect(await tab.client.request('sound.event', { fact: fact() })).toEqual({ ok: true, payload: { played: false, reason: 'disabled' } });
     expect(w.played).toHaveLength(1);
   });
+
+  it('[SN-001] the WS tap is the account’s own switch: with `wsTap` off on its page a tap fact marks no result stale and rings nothing — a fact of the page’s own stores still does; switched on, the tap’s fact is used again', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    // A finished Reply for a fan whose chat is not in front: a new message of that fan makes it stale.
+    const done = async (fan: string): Promise<string> => {
+      const opId = admitted(await startReply(tab, await bindingOf(tab), fan));
+      await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', `the Reply for ${fan} ran`);
+      return opId;
+    };
+    const staleOf = async (opId: string) => (await opsOf(tab)).find((op) => op.opId === opId)?.stale;
+    const setTap = async (on: boolean): Promise<void> => {
+      w.hub.control({ op: 'config', patch: { pageFlags: { [PAGE]: { wsTap: on } } } });
+      expect(await w.page().request('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+    };
+    const first = await done('2003');
+    await setTap(false);
+    expect(await tab.client.request('sound.event', { fact: fact({ platformFanId: '2003' }) })).toEqual({ ok: true, payload: { played: false, reason: 'disabled' } });
+    expect(await staleOf(first)).toBeUndefined();
+    expect(w.played).toEqual([]);
+    expect((await soundOf(w))?.outcomes).not.toHaveProperty('played');
+    // The same account, a fact ChatSpace's own stores gave: not the tap's — it is heard.
+    expect(await tab.client.request('sound.event', { fact: fact({ platformFanId: '2003', source: 'store' }) })).toEqual({ ok: true, payload: { played: true } });
+    expect(typeof (await staleOf(first))?.at).toBe('string');
+    expect(w.played).toHaveLength(1);
+
+    const second = await done('2004');
+    await sleep(2100); // the arbiter's pause between two tones
+    await setTap(true);
+    expect(await tab.client.request('sound.event', { fact: fact({ platformFanId: '2004' }) })).toEqual({ ok: true, payload: { played: true } });
+    expect(typeof (await staleOf(second))?.at).toBe('string');
+    expect(w.played).toHaveLength(2);
+  }, 30_000);
 
   it('[SN-001] without the host permission nothing rings: the extension has no business on that site', async () => {
     const w = world();
@@ -860,7 +991,8 @@ describe('an expired bootstrap (§8.3)', () => {
     expect(await tab.client.request('token.issue', { kind: 'insert', surface: 'dock' })).toEqual({ ok: false, error: { code: 'CG-AUTH-REQUIRED' } });
     await signInWithPersona(w);
     expect(await tab.client.request('token.issue', { kind: 'insert', surface: 'dock' })).toMatchObject({ ok: true });
-    w.hub.control({ op: 'config', patch: { flags: { insertion: false, navigation: false } } });
+    // The owner switches them off where the pilot runs: in the pages' own rows (a page's row wins over `"*"`).
+    w.hub.control({ op: 'config', patch: pilotPageFlags({ insertion: false, navigation: false }) });
     expect(await w.page().request('bootstrap.get', { force: true })).toMatchObject({ ok: true });
     expect(await tab.client.request('token.issue', { kind: 'insert', surface: 'dock' })).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'flag_off' } });
     expect(await tab.client.request('token.issue', { kind: 'navigate', surface: 'overlay' })).toEqual({ ok: false, error: { code: 'CG-FEATURE-DISABLED', detail: 'flag_off' } });

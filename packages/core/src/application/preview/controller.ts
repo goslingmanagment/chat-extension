@@ -48,7 +48,7 @@ import { DeferredInsertSlot, type DeferredOutcome } from '../../domain/insert/de
 import { buildDeferredInsert, buildOpenAndInsert } from '../../domain/insert/intent';
 import { EMPTY_DRAFTS, changedDraftKeys, draftKey, draftUserPrefix, findDraft, keepOnly, mergeDraftStores, putDraft, readDraftStore, removeDraft, sameDraftStore, type DraftStore } from '../../domain/newcomers/drafts';
 import { greetingOutputProblem } from '../../domain/newcomers/greeting';
-import { personalMessages, tooManyForHi } from '../../domain/newcomers/rows';
+import { storedMessages, tooManyForHi } from '../../domain/newcomers/rows';
 import { digestHex } from '../../domain/ops/digest';
 import { applyOpDone, applyOpUpdate, mirrorFromView, newMirror, type OpMirror } from '../../domain/ops/mirror';
 import { messageWindowFor } from '../../domain/ops/request';
@@ -57,9 +57,10 @@ import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
 import { targetPage } from '../../domain/fanpanel/model';
-import { type PageContextPort, type PageContextState, flagReason, pageFlag } from '../boards/context';
+import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
-import { issueCause, type ChatNavigator } from '../boards/navigate';
+import { flagReasonVm } from '../flag-reason';
+import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -861,6 +862,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (route.chat !== null && chatKeyOf(route.chat) === chatKeyOf(track.target.chat)) return refusal('CG-SEND-ACTIVE-CHAT');
     if (!subscribed(track)) return refusal('CG-SEND-FAN');
     if (track.feature === 'fix' && draftRevision(track) !== track.previewRevision) return refusal('CG-SEND-PART');
+    // Freshness is the WS tap's (§6.7.5), and the tap is the page's own switch: the adapter keeps one tap for the
+    // whole tab (on while any page has it), so a page whose `wsTap` is off must not be vouched for by another's.
+    if (!pageFlag(ctx, 'wsTap')) return refusal('CG-SEND-FRESHNESS');
     if (track.checkpoint === null) return refusal('CG-SEND-FRESHNESS');
     if (track.fanWrote || view.stale?.reason === 'fan-wrote') return refusal('CG-SEND-STALE');
     const served = servedContextHold(track.checkpoint, view.servedContext);
@@ -943,7 +947,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    */
   function openInsertBlock(track: OpTrack, variant: number, sends: FanSends): ReasonVM | null {
     const ctx = context.current();
-    if (ctx.phase !== 'ready' || !pageFlag(ctx, 'insertion')) return reason('feature-disabled');
+    if (ctx.phase !== 'ready') return reason('feature-disabled');
+    if (!pageFlag(ctx, 'insertion')) return flagReasonVm(pageFlagOf(ctx, 'insertion'));
     const capabilities = host.current().contract.capabilities;
     if (capabilities.navigate.state !== 'on' || capabilities.insert.state !== 'on') return reason('host-degraded');
     if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
@@ -1092,7 +1097,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const feed = state.feed;
     if (feed === null) return [];
     if (state.rows === null || state.rows.feed !== feed || state.rows.language !== i18n.language) {
-      state.rows = { feed, language: i18n.language, items: feedRows(feed, (at) => i18n.formatTime(at, 'day')) };
+      state.rows = { feed, language: i18n.language, items: feedRows(feed, (at) => i18n.formatTime(at, 'day'), i18n.t('preview.feed.deleted')) };
     }
     return state.rows.items;
   }
@@ -1101,10 +1106,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const retry: UiAction | null = state === null ? null : { type: 'RefreshArchive', targetHandle: state.handle };
     if (ctx.phase === 'loading') return loadingView(null);
     if (ctx.phase === 'blocked') return failureView(ctx.blocker ?? { code: 'CG-UNKNOWN' }, i18n, retry);
-    if (!pageFlag(ctx, 'preview')) {
-      const why = flagReason(ctx, 'preview');
-      return failureView(why === null ? { code: 'CG-FEATURE-DISABLED' } : { code: 'CG-FEATURE-DISABLED', detail: why }, i18n, retry);
-    }
+    if (!pageFlag(ctx, 'preview')) return failureView(flagFailure(ctx, 'preview'), i18n, retry);
     return null;
   }
 
@@ -1115,7 +1117,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const id: BoardReasonId = code === 'CG-AUTH-REQUIRED' || code === 'CG-AUTH-REVOKED' || code === 'CG-AUTH-EXPIRED' ? 'not-signed-in' : code === 'CG-BINDING-NOT-GRANTED' ? 'not-granted' : code === 'CG-BINDING-MISSING' || code === 'CG-BINDING-AMBIGUOUS' ? 'no-binding' : 'hub-down';
       return reason(id);
     }
-    if (!pageFlag(ctx, 'preview')) return reason('feature-disabled');
+    if (!pageFlag(ctx, 'preview')) return flagReasonVm(pageFlagOf(ctx, 'preview'));
     if (ctx.persona === null) return reason('no-persona');
     if (otherRunning) return reason('chat-busy');
     // §6.7.8, §6.7.9: an unknown outcome holds the fan, and one part is in work at a time — for every feature of the strip,
@@ -1129,8 +1131,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         const blocked = deps.greeting?.hiBlocked(state.fanRef) ?? null;
         if (blocked !== null) return blocked;
       }
-      // NF-015: a thread the archive proves to be a dialogue gets no Hi, and no AI call is spent on it.
-      if (state.feed !== null && tooManyForHi(personalMessages(state.feed.items))) return reason('hi-gate');
+      // NF-015: a thread the archive proves to be a dialogue gets no Hi, and no AI call is spent on it. The count is
+      // the hub's own: every stored message (the rows of the feed as they came), not only the fan's.
+      if (state.feed !== null && tooManyForHi(storedMessages(state.feed.items))) return reason('hi-gate');
     }
     return null;
   }
@@ -1549,6 +1552,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (identityChanged(track)) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     const identity = host.current().identity;
     if (identity === null) return refused(type, localError('CG-HOST-NOT-READY', i18n));
+    // The person's click on this part: the preview's own switch and `insertion` on ITS page — never `navigation`.
+    const switchedOff = boardOpenRefusal(context.current(), boardsOf(track.source), true);
+    if (switchedOff !== null) return refused(type, errorOf(switchedOff, i18n));
     const issued = await issueCause(rpc, 'navigate', track.surface);
     if (!issued.ok) return refused(type, localError(issued.code, i18n));
     if (identityChanged(track)) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
@@ -1608,10 +1614,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return done(type);
   }
 
-  async function openChat(type: UiActionType, fanRef: string, surface: Surface): Promise<ActionReceipt> {
+  /** The switches a click in a preview answers to on its page: the preview's own, and the list's for a card of «Новые». */
+  const boardsOf = (source: PreviewSource): readonly BoardSwitch[] => (source === 'newcomers' ? ['preview', 'newcomers'] : ['preview']);
+
+  async function openChat(type: UiActionType, fanRef: string, surface: Surface, source: PreviewSource): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
-    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface);
+    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface, boardsOf(source));
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
     return done(type, 'opened');
@@ -1655,7 +1664,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (to.kind === 'chat') {
         const parsed = parseFanHandle(to.targetHandle);
         // A list answers for its own handles; the palette's fans have no list.
-        return parsed !== null && parsed.source === 'palette' && parsed.pageId === context.current().binding?.pageId ? openChat(type, parsed.fanRef, 'preview') : null;
+        return parsed !== null && parsed.source === 'palette' && parsed.pageId === context.current().binding?.pageId ? openChat(type, parsed.fanRef, 'preview', 'palette') : null;
       }
       return null;
     }
@@ -1688,7 +1697,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const owner = attemptOwner.get(action.attemptId);
       const track = owner === undefined ? undefined : tracks.get(owner.opId);
       // §6.7.8: the only way on from an unknown outcome — look at the chat. Nothing is sent or inserted.
-      return track === undefined ? null : openChat(type, track.fanRef, track.surface);
+      return track === undefined ? null : openChat(type, track.fanRef, track.surface, track.source);
     }
     if (action.type === 'Regenerate' || action.type === 'CancelGeneration' || action.type === 'HideResult' || action.type === 'ExpandResult' || action.type === 'SendPart' || action.type === 'OpenAndInsertPart') {
       const track = tracks.get(action.operationId);

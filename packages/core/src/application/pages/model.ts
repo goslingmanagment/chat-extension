@@ -19,6 +19,7 @@ import {
   type I18nParams,
   type JournalKind,
   type Msg,
+  type PageTagVM,
   type ReasonVM,
   type UiAction,
   type UnavailableReasonId,
@@ -227,6 +228,19 @@ export function boundPageOf(model: PagesModel, account: HostAccount): { readonly
   const slot = model.bindings.get(accountKeyOf(account));
   if (slot === undefined || !slot.ok) return null;
   return { binding: slot.binding, page: pageById(model, slot.binding.pageId) };
+}
+
+/**
+ * What tells a hub page from another of the same title (1.3.0, `PageTagVM`): its platform token and the hub's
+ * page label. An owner may have «Lora Vie» on OnlyFans twice and on Fansly once. Display only (AU-023).
+ */
+export function pageTagOf(page: Pick<BootstrapPage, 'platform' | 'pageLabel'>): PageTagVM {
+  return { platform: page.platform, pageLabel: page.pageLabel };
+}
+
+/** The tag of the page a host account is bound to: the bootstrap's page, or — when it no longer lists it — the binding's own. */
+export function boundPageTagOf(bound: { readonly binding: HubBinding; readonly page: BootstrapPage | null }): PageTagVM {
+  return pageTagOf(bound.page ?? bound.binding);
 }
 
 export const OP_RUNNING_STATES: readonly OpView['state'][] = ['admitted', 'requesting', 'streaming'];

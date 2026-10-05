@@ -100,6 +100,10 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.reason.lockedDuringGeneration': 'нельзя менять, пока идёт генерация',
   'dock.reason.hotkeyReserved': 'браузер оставляет это сочетание себе',
   'dock.reason.keyInField': 'курсор в поле, где это сочетание не работает',
+  'dock.reason.pageOff': 'ChatGoose выключен владельцем',
+  'dock.reason.hubNotReady': 'хаб пока не умеет эту функцию',
+  'dock.reason.platformUnsupported': 'на этой платформе функции нет',
+  'dock.reason.clientOutdated': 'расширение устарело, обновите его',
   'dock.option.tone': 'Тон',
   'dock.option.toneValue': 'Тон: {tone}',
   'dock.option.toneTooltip': 'Тон на один ответ  {hotkey}',
@@ -130,6 +134,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.quota.zero': 'Квота AI: 0',
   'dock.quota.zeroTooltip': 'Дневная квота AI исчерпана. Обновится в {time} по Москве',
   'dock.status.chatLoading': 'Чат загружается…',
+  'dock.status.pageOff': 'ChatGoose выключен владельцем',
   'dock.helpRemoved': 'Help пока убран',
 
   // ── Result sheet ──
@@ -365,6 +370,8 @@ export const RU: I18nCatalog<'ru'> = {
   'stats.silent8to21': 'Молчат 8–21 день',
   'stats.silentOver21': 'Молчат дольше 21 дня',
   'stats.noData': 'Нет данных',
+  'stats.shelf.untiered': 'Без тира',
+  'stats.shelf.unattributed': 'Не распределено',
   'stats.noSilenceData': 'Нет данных о молчании',
   'stats.chart.title': 'Выручка по дням',
   'stats.chart.max': 'максимум {money}',

@@ -7,6 +7,7 @@
 import {
   HUB_CLIENT_CHECK_CODES,
   type CgCode,
+  type ClientFeatureFlag,
   type HubCallError,
   type HubCheckError,
   type HubClientCheck,
@@ -49,6 +50,24 @@ export class FacadeCheckError extends Error implements HubCheckError {
   }
 }
 
+/**
+ * The check a refused page feature reads as, by its reason — the same reading as the tab's
+ * (`flagRefusalCode`, @cg/core/domain/ops) and as the hub's own 409: no binding, a page not granted, a hub
+ * that does not serve the feature and an outdated client keep their own codes; everything else (the master
+ * switch, the flag, the platform) is «выключено». A preview send is always X8's own «отправка выключена».
+ */
+const FLAG_REASON_CHECKS: Readonly<Record<string, HubClientCheck>> = {
+  binding_missing: 'bindingMissing',
+  not_granted: 'pageNotGranted',
+  hub_not_ready: 'capabilityMissing',
+  client_outdated: 'belowMinVersion',
+};
+
+export function flagRefused(flag: ClientFeatureFlag, reason: string | null, route: HubRouteKey, epoch: number): FacadeCheckError {
+  const byReason = reason !== null && Object.prototype.hasOwnProperty.call(FLAG_REASON_CHECKS, reason) ? FLAG_REASON_CHECKS[reason] : undefined;
+  return new FacadeCheckError(flag === 'previewSend' ? 'previewSendOff' : (byReason ?? 'featureDisabled'), route, epoch, reason ?? undefined);
+}
+
 export function describeFailure(failure: HubFailure): string {
   switch (failure.kind) {
     case 'http':
@@ -57,6 +76,23 @@ export function describeFailure(failure: HubFailure): string {
       return `SSE error ${failure.code}`;
     case 'transport':
       return failure.failure;
+  }
+}
+
+/**
+ * A failure as fields of a log line: machine words only, one per field (`failure` — its kind, `status`,
+ * `error`, `reason`). The journal's redaction keeps a string only when it is a token without spaces, so the
+ * one-line `describeFailure` («HTTP 409 client_feature_disabled/disabled») would reach a log as its length —
+ * and the first live check could not read from its own journal what the hub had answered.
+ */
+export function failureFields(failure: HubFailure): Readonly<Record<string, string | number | null>> {
+  switch (failure.kind) {
+    case 'http':
+      return { failure: 'http', status: failure.status, error: failure.error, reason: failure.reason };
+    case 'sse-error':
+      return { failure: 'sse-error', error: failure.code };
+    case 'transport':
+      return { failure: failure.failure };
   }
 }
 

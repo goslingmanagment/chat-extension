@@ -169,6 +169,14 @@ export const HubStreamRequestSchema = z
     }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
     z.refine((r) => r.body.summaryMode === undefined || r.feature === 'fan-summary', { message: 'summaryMode is fan-summary only' }),
+    // 1.3.0, the hub's own rule of `coach-chat` (400 otherwise): a preset carries its question on the hub and
+    // forbids ours; without a preset a question is required.
+    z.refine((r) => r.feature !== 'coach-chat' || r.body.preset === undefined || (r.body.chatterQuestion ?? '').trim() === '', {
+      message: 'coach-chat preset forbids chatterQuestion',
+    }),
+    z.refine((r) => r.feature !== 'coach-chat' || r.body.preset !== undefined || (r.body.chatterQuestion ?? '').trim() !== '', {
+      message: 'coach-chat requires chatterQuestion',
+    }),
   );
 export type HubStreamRequest = z.infer<typeof HubStreamRequestSchema>;
 

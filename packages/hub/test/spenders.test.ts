@@ -7,7 +7,7 @@
 import { getEventListeners } from 'node:events';
 
 import { SPENDERS_BOARD, isHubCallError, isHubCheckError, type CgCode, type SpendersBoard } from '@cg/contracts';
-import { BOARD_TOTAL, BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, PAGE, WORLD } from '@cg/testing/hub';
+import { BOARD_TOTAL, BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, PAGE, WORLD, pageFeaturesOff } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BOARD_SESSION_KEY, errorWireOf } from '../src/index';
@@ -253,9 +253,14 @@ describe('[SP-032] [SP-023] the board\'s preconditions', () => {
     expect(await codeOf(h.facade.spendersBoard({ pageLabel: 'not-my-page', period: '30d' }))).toBe('CG-BINDING-NOT-GRANTED');
     await h.facade.signOut();
     expect(await codeOf(h.facade.spendersBoard({ pageLabel: PAGE, period: '30d' }))).toBe('CG-AUTH-REQUIRED');
+    // The owner's master switch: the page's own reason goes into the technical line.
     await signIn(h, { ...WORLD_PILOT, bootstrap: BOOTSTRAP_ALL_OFF });
     const error = await h.facade.spendersBoard({ pageLabel: PAGE, period: '30d' }).catch((reason: unknown) => reason);
-    expect(errorWireOf(error)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+    expect(errorWireOf(error)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'disabled' });
+    // The page's own row off while `"*"` is on: the page wins.
+    await h.facade.signOut();
+    await signIn(h, { ...WORLD_PILOT, bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_ON, ['spenders']) });
+    expect(errorWireOf(await h.facade.spendersBoard({ pageLabel: PAGE, period: '30d' }).catch((reason: unknown) => reason))).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
     expect(h.hub.of('spenders')).toEqual([]);
   });
 

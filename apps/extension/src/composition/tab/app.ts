@@ -75,6 +75,8 @@ export interface TabAppEnv {
   readonly lazy: <T>(entry: LazyEntryName) => Promise<T>;
   /** `moz-extension://<uuid>`: errors pointing at it are ours (ER-021). */
   readonly ownOrigin: string;
+  /** The manifest's version of this build: below the hub's `minVersion` the dock says «расширение устарело» before a click. */
+  readonly extensionVersion: string;
   readonly contractsVersion: string;
   readonly lateInjection: boolean;
   readonly staleHosts: number;
@@ -317,6 +319,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     i18n,
     clock,
     ids: { uuid: () => win.crypto.randomUUID() },
+    extensionVersion: env.extensionVersion,
     router,
     client,
     toasts,
@@ -683,6 +686,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
           // The hub page the open account is bound to (its label), once a generation could start for it.
           page: ai.workspace.situation().ready?.target.binding.pageLabel ?? '',
           banner: dock.statusError?.code ?? null,
+          // The one status line of a dock that is otherwise ready (the owner switched the page off): its code.
+          notice: dock.notice?.code ?? null,
           contract: contractOf(host.current().contract),
           target: dock.targetHandle,
           actions: Object.fromEntries(Object.entries(dock.actions).map(([id, action]) => [id, action.enabled])),

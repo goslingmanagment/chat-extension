@@ -2,15 +2,18 @@
 // takes it away (architecture.md §7 «Отмена», «Ограда»; §8.2–§8.3; AI-121,
 // AI-126). Before a start: a sign-in, a binding of this sign-in, the page in
 // the current bootstrap at the same binding revision, a persona assigned to
-// the page, the feature's owner switch. While running: an operation is
-// canceled by itself only when its page's persona, the sign-in or the hub
-// address changes — never by a chat switch or a closed tab (AI-124, BG-006).
+// the page, the owner's switches of that page (flags.ts): its master switch
+// and the feature's own. While running: an operation is canceled by itself
+// only when its page's persona, the sign-in or the hub address changes —
+// never by a chat switch or a closed tab (AI-124, BG-006).
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
-import { CLIENT_FLAG_REQUIREMENTS, isFlagOn, type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
+import { type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { type SessionIdentity } from '@cg/contracts/ids';
 import { type StartOp } from '@cg/contracts/ops';
+
+import { flagRefusalCode, flagStateOf, pageSwitchedOff } from './flags';
 
 export interface PersonaChoice {
   readonly key: string;
@@ -40,18 +43,6 @@ export const FEATURE_FLAGS: Readonly<Record<FeatureId, ClientFeatureFlag | null>
   coach: 'coach',
 };
 
-/**
- * A flag is usable on a page only when it is on, the page's feature is
- * `available`, and every capability it needs is declared (§4.12).
- */
-export function flagUsable(bootstrap: Bootstrap | null, pageId: number, flag: ClientFeatureFlag): boolean {
-  if (bootstrap === null) return false;
-  if (!isFlagOn(bootstrap.flags, flag)) return false;
-  const page = bootstrap.pages.find((p) => p.pageId === pageId);
-  if (page === undefined || page.features[flag]?.available !== true) return false;
-  return CLIENT_FLAG_REQUIREMENTS[flag].capabilities.every((capability) => bootstrap.capabilities.includes(capability));
-}
-
 /** AI-121: the reason a start cannot run, or null. Checked before admission; nothing is spent on a refusal. */
 export function startPrecondition(env: OpsEnvironment, start: StartOp): CgCode | null {
   if (!env.settingsLoaded) return 'CG-STORAGE-READ';
@@ -67,8 +58,13 @@ export function startPrecondition(env: OpsEnvironment, start: StartOp): CgCode |
   if (page === undefined) return 'CG-BINDING-NOT-GRANTED';
   if (page.bindingRevision !== binding.bindingRevision || page.pageLabel !== binding.pageLabel) return 'CG-CONTEXT-CHANGED';
   if (env.persona(binding.pageId) === null) return 'CG-PERSONA-UNASSIGNED';
+  // The owner's master switch is off for the page: the hub refuses every AI call of this client there (409).
+  if (pageSwitchedOff(page)) return 'CG-FEATURE-DISABLED';
   const flag = FEATURE_FLAGS[start.feature];
-  if (flag !== null && !flagUsable(bootstrap, binding.pageId, flag)) return 'CG-FEATURE-DISABLED';
+  if (flag !== null) {
+    const state = flagStateOf(bootstrap, binding.pageId, flag);
+    if (!state.usable) return flagRefusalCode(state.reason);
+  }
   return null;
 }
 

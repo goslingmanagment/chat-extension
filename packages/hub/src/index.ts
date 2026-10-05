@@ -83,6 +83,6 @@ export { STREAM_RETRY_DELAY_MS, type StreamNotice } from './stream';
 export { featureOfHub, type EchoTicket } from './debug-echo';
 export { BOARD_SESSION_KEY, mergePages, type BoardOptions, type BoardRequest } from './spenders-board';
 export { CLIENT_ROUTE_KEYS, CLIENT_ROUTE_PATHS, clientWireRequest, isClientRoute, type ClientRouteKey, type WireRequest } from './route-transport';
-export { SDK_ALLOWED_OPERATIONS, type SdkOperation } from './sdk-transport';
+export { SDK_ALLOWED_OPERATIONS, isSdkRoute, sdkInputOf, type SdkOperation, type SdkRouteKey } from './sdk-transport';
 export { FacadeCallError, FacadeCheckError, failureDetail } from './errors';
 export { CLIENT_NAME, CLIENT_VERSION_HEADER, REQUEST_TIMEOUT_MS, clientVersionHeaders, retryAfterMs } from './wire';

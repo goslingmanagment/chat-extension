@@ -607,8 +607,15 @@ export const HUB_SCHEMA_FIXTURES = [
       { feature: 'chat-review', body: reviewBody, capabilities: [] },
       { feature: 'improve-draft', body: { ...reviewBody, draftText: 'my draft' }, capabilities: ['debug-input-v1'] },
       { feature: 'fan-summary', body: { ...reviewBody, summaryMode: 'short' }, capabilities: ['context-v1'] },
+      // Coach (1.3.0): a question of ours, or the hub's preset — which carries its own question.
+      { feature: 'coach-chat', body: { ...reviewBody, chatterQuestion: 'What do I offer him?', coachHistory: [] }, capabilities: [] },
+      { feature: 'coach-chat', body: { ...reviewBody, preset: 'situation' }, capabilities: [] },
     ],
     [
+      // The hub answers 400 to both: «coach-chat preset forbids chatterQuestion», «coach-chat requires chatterQuestion».
+      { feature: 'coach-chat', body: { ...reviewBody, preset: 'situation', chatterQuestion: 'What is going on in the chat?' }, capabilities: [] },
+      { feature: 'coach-chat', body: { ...reviewBody, chatterQuestion: '   ' }, capabilities: [] },
+      { feature: 'coach-chat', body: reviewBody, capabilities: [] },
       { feature: 'chat-review', body: { ...reviewBody, liveTextContext: liveText }, capabilities: ['context-v1'] },
       { feature: 'fast-reply', body: { ...streamBody, liveTextContext: liveText }, capabilities: [] },
       { feature: 'improve-draft', body: reviewBody, capabilities: [] },

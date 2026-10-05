@@ -16,7 +16,7 @@ import { chatKeyOf } from '@cg/contracts/ids';
 import { COVERAGE_LEVELS, type CoverageLevel, type ReviewDoc } from '@cg/contracts/ops';
 import { type ActionReceipt, type Msg, type PartialGap, type ReviewItemVM, type ReviewSectionVM, type ReviewVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
-import { flagUsable, isTerminalOpState } from '../../domain/ops';
+import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
 import { streamPreview } from '../../domain/output';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
@@ -88,12 +88,14 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
     const context = view?.debug?.context ?? null;
     const coverage: CoverageLevel = context !== null && (COVERAGE_LEVELS as readonly string[]).includes(context.coverage) ? (context.coverage as CoverageLevel) : 'unknown';
 
+    // The owner's `review` switch of this chat's page (its own feature).
+    const flag = ready === null ? null : flagStateOf(ready.bootstrap, ready.page.pageId, 'review');
     let state: VmView;
     if (chat === null) state = views.empty(msg('common.empty'));
     else if (ready === null && view === null) {
-      const error = errorVm(situation.statusError ?? { code: 'CG-GATE-CHAT-LOADING' }, i18n);
+      const error = errorVm(ws.blockedError(situation), i18n);
       state = situation.status === 'loading-chat' ? views.loading(null, msg('dock.status.chatLoading')) : situation.status === 'hub-down' ? views.offline(error, { type: 'ReloadView', selector: { of: 'dock' } }) : views.forbidden(error);
-    } else if (ready !== null && !flagUsable(ready.bootstrap, ready.page.pageId, 'review')) state = views.forbidden(errorVm({ code: 'CG-FEATURE-DISABLED' }, i18n));
+    } else if (flag !== null && !flag.usable) state = views.forbidden(errorVm(flagRefusal(flag), i18n));
     else if (view === null) state = views.empty(msg('common.empty'));
     else if (running) state = views.loading(view.startedAt, null);
     else if (wire !== undefined) state = views.error(errorVm(wire, i18n), { type: 'Regenerate', operationId: view.opId });
@@ -114,13 +116,8 @@ export function createReviewController(ws: AiWorkspace): ReviewController {
 
     const chatBusy = chat !== null && ws.running(chat.key) !== null;
     const reason =
-      situation.off !== null
-        ? catalog.reason(situation.off)
-        : situation.quotaZero
-          ? catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } })
-          : chatBusy
-            ? catalog.reason('chat-busy')
-            : null;
+      ws.offReason(situation) ??
+      (situation.quotaZero ? catalog.reason('quota-zero', situation.quota === null ? undefined : { time: { time: situation.quota.resetsAt } }) : chatBusy ? catalog.reason('chat-busy') : null);
     // Without a review yet (or without a chat) the button has nothing to repeat and is off.
     const again: UiAction =
       view !== null ? { type: 'Regenerate', operationId: view.opId } : chat !== null ? { type: 'Generate', targetHandle: chat.handle, feature: 'review', options: {} } : { type: 'ReloadView', selector: { of: 'review' } };

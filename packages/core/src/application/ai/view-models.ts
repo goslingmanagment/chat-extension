@@ -129,6 +129,8 @@ export interface ErrorActionContext {
   readonly againHotkey: HotkeyLabel | null;
   /** The chat «Открыть чат» goes to; null — no such button. */
   readonly openChat: UiAction | null;
+  /** Why nothing can be repeated from here at all (the page is switched off, the build is outdated): the button is off with it. */
+  readonly againOff?: ReasonVM | null;
 }
 
 /**
@@ -149,8 +151,10 @@ export function errorActions(wire: CgErrorWire, ctx: ErrorActionContext): Action
       case 'again': {
         if (ctx.again === null) break;
         const waiting = !action.enabled && action.availableAt !== null;
-        const reason: ReasonVM | null = waiting ? ctx.catalog.reason('wait-until', { n: Math.max(0, Math.ceil(((action.availableAt ?? ctx.now) - ctx.now) / 1000)) }) : null;
-        out.push(button(action.label, ctx.again, { enabled: action.enabled, reason, hotkey: action.enabled ? ctx.againHotkey : null }));
+        const off = ctx.againOff ?? null;
+        const reason: ReasonVM | null = off ?? (waiting ? ctx.catalog.reason('wait-until', { n: Math.max(0, Math.ceil(((action.availableAt ?? ctx.now) - ctx.now) / 1000)) }) : null);
+        const enabled = action.enabled && off === null;
+        out.push(button(action.label, ctx.again, { enabled, reason, hotkey: enabled ? ctx.againHotkey : null }));
         break;
       }
       case 'sign-in':
