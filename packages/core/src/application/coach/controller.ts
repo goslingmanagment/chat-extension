@@ -22,7 +22,6 @@
 
 import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { hasCapability } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { type COACH_BLOCK_KINDS } from '@cg/contracts/ops';
 import {
@@ -299,9 +298,21 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     }
   }
 
+  /** Why the archive feed of the open chat cannot be read («Обновить переписку»): the page's `preview` switch with the hub's own reason, or what keeps the whole chat off; null — it can. */
+  function archiveSwitch(situation: Situation): ReasonVM | null {
+    const { ready } = situation;
+    if (ready === null) return ws.offReason(situation) ?? catalog.reason('chat-loading');
+    const feed = flagStateOf(ready.bootstrap, ready.page.pageId, 'preview');
+    return feed.usable ? null : flagReasonVm(feed);
+  }
+
   async function refreshArchive(action: UiActionOf<'RefreshArchive'>): Promise<ActionReceipt> {
-    const { chat, ready } = ws.situation();
-    if (chat === null || ready === null) return refused(ws, action.type, { code: 'CG-GATE-CHAT-LOADING' });
+    const situation = ws.situation();
+    const { chat, ready } = situation;
+    if (chat === null || ready === null) return refused(ws, action.type, ws.blockedError(situation));
+    // The page's own `preview` feature: nothing is asked of the hub that it would answer 409 to.
+    const feed = flagStateOf(ready.bootstrap, ready.page.pageId, 'preview');
+    if (!feed.usable) return refused(ws, action.type, flagRefusal(feed));
     const before = archives.get(chat.key);
     setArchive(chat.key, { state: 'loading', asOf: before?.asOf ?? null, head: before?.head ?? null });
     ws.bump();
@@ -514,7 +525,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
     const composer = situation.host.composer;
     const draftEmpty = composer === null || composer.draft.provenance === 'empty';
-    const feedAvailable = ready !== null && hasCapability(ready.bootstrap.capabilities, 'archive-feed-v1');
+    // «Обновить переписку» reads the archive feed: the PAGE's own `preview` feature (the owner's switch and what
+    // the hub serves), never the hub capability alone — a page whose preview is off would answer 409 to the click.
+    const archiveOff = archiveSwitch(situation);
+    const feedAvailable = archiveOff === null;
     const refreshing = chat !== null && archives.get(chat.key)?.state === 'loading';
     return {
       view,
@@ -524,7 +538,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         lag,
         refresh: button('coach.refresh', chat === null ? { type: 'ReloadView', selector: { of: 'coach' } } : { type: 'RefreshArchive', targetHandle: chat.handle }, {
           enabled: chat !== null && feedAvailable && !refreshing,
-          reason: chat !== null && !feedAvailable ? flagReasonVm({ reason: 'hub_not_ready' }) : null,
+          reason: chat !== null ? archiveOff : null,
         }),
       },
       recap: copy === null ? null : { length: copy.length, generatedAt: copy.revision, summary: copy.markdown },

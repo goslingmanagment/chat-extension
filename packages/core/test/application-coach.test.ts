@@ -1209,6 +1209,30 @@ describe('coach: the archive it reads', () => {
     expect(other.coach().freshness.refresh.reason?.id).toBe('feature-disabled');
   });
 
+  it('[AI-097] «Обновить переписку» follows the PAGE’s own `preview` feature — the owner’s switch with its reason — not the hub capability alone: off on the page, the button says why and nothing is asked of the hub', async () => {
+    // The hub serves the feed (the capability is declared), and the owner left `preview` off for this page.
+    const off = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['preview']), background: (bg) => (bg.feed = feed()) });
+    expect(BOOTSTRAP_PILOT_PAGES.capabilities).toContain('archive-feed-v1');
+    const refresh = off.coach().freshness.refresh;
+    expect(refresh).toMatchObject({ enabled: false, reason: { id: 'feature-disabled', code: 'CG-FEATURE-DISABLED', text: { key: 'dock.reason.featureDisabled' } } });
+    // A key or a stale click still reaches the action: refused with the page's reason, before any request.
+    expect(await off.dispatch(refresh.action)).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+    expect(off.bg.callsOf('feed.read')).toEqual([]);
+    // The Coach itself is not the preview's business: a question can still be asked.
+    expect(off.coach().ask).toMatchObject({ enabled: true, reason: null });
+
+    // The hub's own reason picks the words: a hub that does not serve the feed yet is not «выключена».
+    const notReady = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['preview'], { reason: 'hub_not_ready' }) });
+    expect(notReady.coach().freshness.refresh).toMatchObject({ enabled: false, reason: { code: 'CG-HUB-CAPABILITY', text: { key: 'dock.reason.hubNotReady' } } });
+    expect(await notReady.dispatch(notReady.coach().freshness.refresh.action)).toMatchObject({ ok: false, code: 'CG-HUB-CAPABILITY' });
+
+    // Off on ANOTHER page only: this page's button works.
+    const elsewhere = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['preview'], { pageIds: BOOTSTRAP_PILOT_PAGES.pages.map((page) => page.pageId).filter((pageId) => pageId !== WORLD.pages.one.pageId) }), background: (bg) => (bg.feed = feed()) });
+    expect(elsewhere.coach().freshness.refresh).toMatchObject({ enabled: true, reason: null });
+    expect(await elsewhere.dispatch(elsewhere.coach().freshness.refresh.action)).toMatchObject({ ok: true });
+    expect(elsewhere.bg.callsOf('feed.read')).toHaveLength(1);
+  });
+
   it('every action the Coach view offers is a valid UiAction', async () => {
     const h = await start();
     await exchange(h, 'first');
