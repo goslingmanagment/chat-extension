@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
-import { COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle } from '@cg/core/application/ai';
+import { COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
@@ -2151,5 +2151,275 @@ describe('dock: the sign-in and the views', () => {
     expect(new Set(tokens).size).toBe(tokens.length);
     expect(tokens.every((token) => token !== tokenN(1))).toBe(true);
     expect(h.bg.calls.every((call) => call.tab === TAB)).toBe(true);
+  });
+});
+
+// ── a board's result in the dock of its own chat (§6.5) ────────────────────
+
+/** The boards' side as the preview's controller gives it: what the test says of each part, and whether a card shows the result. */
+function boardSide(): BoardResults & { readonly parts: Map<string, BoardPartFacts>; onCard: boolean; told(): void } {
+  const listeners = new Set<() => void>();
+  const side = {
+    parts: new Map<string, BoardPartFacts>(),
+    onCard: false,
+    part: (_opId: string, part: { readonly variant?: number; readonly index: number }): BoardPartFacts | null => side.parts.get(`${part.variant ?? 0}:${part.index}`) ?? { sentAt: null, hold: null },
+    showing: () => side.onCard,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    told: () => listeners.forEach((listener) => listener()),
+  };
+  return side;
+}
+
+/**
+ * A reply a preview generated for the fan of `previewChat` while another chat was open — as the preview's
+ * controller starts it: surface `preview`, its own token. Resolves with the finished operation's id.
+ */
+async function previewReply(h: Harness, text: string, surface: 'preview' | 'newcomers' = 'preview'): Promise<string> {
+  const rpc = h.bg.rpc(TAB);
+  const bound = await rpc.request('binding.resolve', { account: hostAccount });
+  const token = await rpc.request('token.issue', { kind: 'generate', surface });
+  if (!bound.ok || !token.ok) throw new Error('no binding or token');
+  h.script(h.streamOf(surface === 'preview' ? 'fast-reply' : 'hi-greeting', [text]));
+  const admitted = await rpc.request('op.start', {
+    feature: surface === 'preview' ? 'reply' : 'hi',
+    surface,
+    target: { binding: bound.payload.binding, chat: previewChat, fanRef: previewChat.platformFanId, conversationRef: previewChat.platformFanId },
+    cause: { kind: 'click', actionToken: token.payload.actionToken },
+    tone: null,
+    split: true,
+    window: 100,
+    ...(surface === 'newcomers' ? { variantCount: 1 as const } : {}),
+  });
+  if (!admitted.ok || !admitted.payload.ok) throw new Error(`not admitted: ${JSON.stringify(admitted)}`);
+  await h.finish();
+  return admitted.payload.opId;
+}
+
+const handover = (opId: string, over: Partial<BoardHandover> = {}): BoardHandover => ({ opId, chat: previewChat, personaDefinitionId: WORLD.persona.definitionId, split: true, part: { index: 0 }, outcome: 'inserted', ...over });
+
+describe('dock: a board’s result goes on in the dock of the chat «Открыть и вставить» opened (§6.5)', () => {
+  it('[NEW-01] after the insert the dock shows the rest of the same operation: part 1 «вставлено», part 2 «Вставить» — one click, the dock’s own guarded write into that chat', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    // Nothing of a preview's result is in the dock of another chat.
+    expect(h.dock().result).toBeNull();
+    // «Открыть и вставить»: ChatSpace opened the fan's chat and the host put part 1 into its field.
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId))).toBe(true);
+    await h.settle();
+    const vm = result(h);
+    expect(vm).toMatchObject({ opId, surface: 'preview', feature: 'reply', state: 'done', canRegenerate: false, fix: null, confirm: null, draftNotSent: true, sendProgress: null });
+    expect(partsOf(h).map((part) => `${part.text}:${part.insert}:${part.collapsed}:${part.next}`)).toEqual(['one:done:true:false', 'two:idle:false:true']);
+    expect(vm.meta).toContainEqual({ key: 'result.meta.inserted', params: { done: 1, total: 2 } });
+    // Nothing was written or asked of the background by taking the result over.
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    // Part 2 by its own click: a token of the click, a CAS on the draft as the host holds it now, into the operation's own chat.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.fake.calls.inserts[0]).toMatchObject({ operationId: opId, part: { index: 1 }, target: previewChat, text: 'two', mode: 'replace', expected: { kind: 'open' }, cause: { kind: 'click' } });
+    expect(partsOf(h).map((part) => part.insert)).toEqual(['done', 'done']);
+    // A human send of that draft is the operation's `sent`: the hub registers it as a part of the preview's group.
+    h.host.humanSend({ chat: previewChat, pendingId: 'pending-9', textDigest: 'feedbeef00000007', platformMessageId: '4101', draft: { revision: 2, provenance: 'our-insert', insertIntentId: h.fake.calls.inserts[0]?.intentId as string, editedSinceInsert: false } });
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toEqual([{ opId, part: { index: 1 }, pendingId: 'pending-9', platformMessageId: '4101', edited: false }]);
+    // Copy, expand and hide are the dock's while it shows the result.
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: partsOf(h)[1]?.copyHandle as string })).toMatchObject({ ok: true });
+    expect(h.clipboard.texts).toEqual(['two']);
+    expect(await h.dispatch({ type: 'ExpandResult', operationId: opId, expanded: true })).toMatchObject({ ok: true });
+    expect(result(h).expanded).toBe(true);
+    expect(await h.dispatch({ type: 'HideResult', operationId: opId })).toMatchObject({ ok: true });
+    expect(h.dock().result).toBeNull();
+  });
+
+  it('[NEW-05] [UI-020] the chat holds the person’s own text: nothing was written — the question «Заменить / Добавить в конец / Отмена» stands in that chat’s dock, and only their answer writes', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    h.host.type('mine in the chat');
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }))).toBe(true);
+    await h.settle();
+    const confirm = result(h).confirm;
+    expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 }, formatLoss: false });
+    expect(partsOf(h).map((part) => `${part.insert}:${part.next}`)).toEqual(['idle:true', 'idle:false']);
+    // Asked, never written: no token, no host write, the person's words untouched.
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'preview' }]);
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat');
+    // «Добавить в конец» is the person's own click: one write, on the revision the question was about.
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.fake.calls.inserts[0]).toMatchObject({ operationId: opId, part: { index: 0 }, target: previewChat, mode: 'append', text: 'one', confirmationId: confirm?.confirmationId });
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat\none');
+    expect(result(h).confirm).toBeNull();
+    expect(partsOf(h).map((part) => `${part.insert}:${part.next}`)).toEqual(['done:false', 'idle:true']);
+  });
+
+  it('[NEW-05] «Отмена» leaves the person’s text alone and the result in the dock; the text changed since the question — the answer is void and the question is asked again', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    h.host.type('mine');
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }));
+    await h.settle();
+    const first = result(h).confirm?.confirmationId as string;
+    h.host.type('mine, and more');
+    await h.settle();
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: first, choice: 'replace' })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    const second = result(h).confirm?.confirmationId as string;
+    expect(second).not.toBe(first);
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: second, choice: 'cancel' })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine, and more');
+    expect(result(h)).toMatchObject({ opId, confirm: null });
+  });
+
+  it('[NEW-05] the field needs no question any more (the person emptied it meanwhile): none is asked, «Вставить» is one click away', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }))).toBe(true);
+    await h.settle();
+    expect(result(h).confirm).toBeNull();
+    expect(partsOf(h).map((part) => `${part.insert}:${part.next}`)).toEqual(['idle:true', 'idle:false']);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[AI-125] [AI-126] the dock does not take what it cannot vouch for: another chat is open, the persona is not known or is another one, the operation is the dock’s own or unknown — and then it inserts nothing of it', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    // The person is still (or already) in another chat.
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId))).toBe(false);
+    expect(h.dock().result).toBeNull();
+    h.host.openChat(previewChat);
+    await h.settle();
+    // The result came back after a tab reload: the controller that shows it does not know its persona.
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { personaDefinitionId: null }))).toBe(false);
+    expect(await h.ai.workspace.adoptBoardResult(handover(uuid(0xdead)))).toBe(false);
+    expect(h.dock().result).toBeNull();
+    // Not taken — not the dock's: «Вставить» of that operation is nobody's here.
+    await expect(h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).rejects.toThrow(/no controller took/);
+    expect(h.fake.calls.inserts).toEqual([]);
+    // Taken under one persona, it is not taken again under another.
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId))).toBe(true);
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { personaDefinitionId: WORLD.persona.otherDefinitionId }))).toBe(false);
+    // A reply of the dock itself is never a board's result.
+    h.host.openChat(openChat);
+    await h.settle();
+    const own = await reply(h, 'the dock’s own');
+    expect(await h.ai.workspace.adoptBoardResult(handover(own, { chat: openChat }))).toBe(false);
+    expect(result(h)).toMatchObject({ opId: own, surface: 'dock', canRegenerate: true });
+  });
+
+  it('[AI-126] the page’s persona changed after the hand-over: the result leaves the dock, and nothing of it is inserted', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    expect(result(h).opId).toBe(opId);
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: 'other', definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    expect(h.dock().result).toBeNull();
+    await expect(h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).rejects.toThrow(/no controller took/);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[TL-004] what the board knows of the parts shows in the dock: a delivered part reads «Отправлено» and is not inserted again; a part of the fan on its way or with an unknown outcome holds «Вставить» with the reason', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    // The person pressed ChatSpace's Send on part 1; the background journaled it and the board read it.
+    const sentAt = new Date(NOW_MS + 60_000).toISOString();
+    side.parts.set('0:0', { sentAt, hold: null });
+    side.told();
+    await h.settle();
+    const [first, second] = partsOf(h);
+    expect(first).toMatchObject({ send: { s: 'sent', at: sentAt }, collapsed: true, next: false, label: { key: 'part.ariaSent', params: { n: 1 } } });
+    expect(second).toMatchObject({ insert: 'idle', next: true, insertBlocked: null });
+    expect(second?.send).toBeUndefined();
+    expect(result(h)).toMatchObject({ draftNotSent: false, sendProgress: { sent: 1, total: 2 } });
+    expect(result(h).meta).toContainEqual({ key: 'result.meta.sentProgress', params: { sent: 1, total: 2 } });
+    expect(result(h).meta.map((item) => item.key)).not.toContain('result.meta.inserted');
+    // A delivered part is never put into a composer again, whatever asks.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    // Another tab sent part 2 through the preview and its outcome is unknown: the fan is held, here as in the preview.
+    side.parts.set('0:1', { sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } } });
+    side.told();
+    await h.settle();
+    expect(partsOf(h)[1]?.insertBlocked).toEqual({ id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } });
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // The hold ends (the hub resolved it «не ушло»): the part is the dock's to insert again.
+    side.parts.delete('0:1');
+    side.told();
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+  });
+
+  it('a card that shows the same result answers for its own buttons: while it is open the dock takes neither its «Скрыть» nor its «Развернуть» nor its «Копировать»; «Ещё раз» is never the dock’s for a board’s result', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    const handle = partsOf(h)[1]?.copyHandle as string;
+    side.onCard = true;
+    for (const action of [
+      { type: 'HideResult', operationId: opId },
+      { type: 'ExpandResult', operationId: opId, expanded: true },
+      { type: 'Copy', artifactHandle: handle },
+      { type: 'InsertPart', operationId: opId, part: 1 },
+      { type: 'Regenerate', operationId: opId },
+    ] as const satisfies readonly UiAction[]) {
+      await expect(h.dispatch(action), action.type).rejects.toThrow(/no controller took/);
+    }
+    expect(result(h).opId).toBe(opId);
+    expect(h.clipboard.texts).toEqual([]);
+    side.onCard = false;
+    await expect(h.dispatch({ type: 'Regenerate', operationId: opId })).rejects.toThrow(/no controller took/);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+  });
+
+  it('[NF-011] a greeting of «Новые» goes on the same way: its one variant’s parts in the dock, no Fix block, no «Ещё раз»', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'hello there [NEXT] welcome', 'newcomers');
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { part: { variant: 0, index: 0 } }))).toBe(true);
+    await h.settle();
+    const vm = result(h);
+    expect(vm).toMatchObject({ opId, surface: 'newcomers', feature: 'hi', canRegenerate: false, fix: null });
+    const shownParts = vm.variants?.[0]?.parts ?? vm.parts ?? [];
+    expect(shownParts.map((part) => `${part.text}:${part.insert}`)).toEqual(['hello there:done', 'welcome:idle']);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts[0]).toMatchObject({ operationId: opId, part: { variant: 0, index: 1 }, target: previewChat, text: 'welcome' });
   });
 });

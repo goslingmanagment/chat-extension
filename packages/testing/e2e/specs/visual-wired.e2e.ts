@@ -26,11 +26,11 @@ import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE } from '../../src/scenarios/hub';
 import { meta } from '../../src/scenarios/hub/sse';
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
-import { clearDraft, MOD, PANEL, SEND, twoFrames, typeDraft } from '../support/chat';
+import { clearDraft, composerText, MOD, PANEL, pressSend, SEND, twoFrames, typeDraft } from '../support/chat';
 import { pageRpc } from '../support/extension';
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursBox, oursExists, oursFocus, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
+import { ours, oursBox, oursExists, oursFocus, oursText, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
 import { capturePage, openOptions, openPopup, signOutFromAccount, waitForOptions, waitForPopup } from '../support/pages';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
@@ -466,6 +466,51 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await look('board-04-stats', { check: async () => void (await inWindow('modal', '.cg-stx')) });
       await closeAll();
       expect(await oursExists('modal', '.cg-sp')).toBe(false);
+    });
+
+    it('[NEW-01] [NEW-05] a preview’s result in the dock of the chat «Открыть и вставить» opened: the question about the person’s own text, the rest of the result, a part the person sent', async function () {
+      this.timeout(300_000);
+      // The person left a draft in that fan's chat earlier.
+      await open(a9, ACC, true);
+      await ready(a9);
+      await hideResult();
+      await clearDraft();
+      await typeDraft('привет, это мой текст');
+      await open(a1);
+      await ready(a1);
+      await leaveField();
+      await browser.keys([...PANEL, 'm']);
+      await browser.waitUntil(() => oursExists('modal', '.cg-sp'), { timeout: 20_000, timeoutMsg: 'the board did not open' });
+      // The statistics column was left unfolded over the list: back to the list.
+      if (await oursExists('modal', '.cg-stx')) await pressOurs('modal', '.cg-sp button', /^Свернуть к списку/);
+      await waitOursText('modal', 'Fan Iris', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
+      await pressOurs('modal', '[data-cg-key^="fan:"]', /^Fan Iris/);
+      await waitOursText('modal', 'Чат не открыт, останется непрочитанным', 'the preview says the chat stays unread', { selector: '.cg-pv' });
+      await pressOurs('modal', '.cg-pv button', /^Reply/);
+      await waitOursText('modal', 'the set is still waiting', 'the preview’s result', { timeout: 20_000, selector: '.cg-pv' });
+      await pressOurs('modal', '.cg-pv button', /^Открыть и вставить/);
+      await dockIs((d) => d.target?.endsWith(`:${a9}`) === true && d.result?.parts === 3 && d.status === 'ready', 'the dock of the fan’s chat took the preview’s result');
+      // §6.5 п. 4: the chat holds the person's own text — the question stands in that chat's dock, nothing was written.
+      await browser.waitUntil(() => oursExists('dock', '[data-cg-confirm="human-draft"]'), { timeout: 10_000, timeoutMsg: 'the question about the person’s own text did not appear in the dock' });
+      expect(await composerText(ACC, a9)).toBe('привет, это мой текст');
+      await look('dock-21-board-confirm', {
+        check: async () => {
+          await inWindow('dock', '.cg-dock');
+          await inWindow('dock', '[data-cg-confirm="human-draft"]');
+          // A board's result has no «Ещё раз» in the dock: a new answer is the strip's buttons.
+          expect(await oursExists('dock', '.cg-sheet .cg-again')).toBe(false);
+        },
+      });
+      await ours('dock', '[data-cg-confirm="human-draft"] button').click();
+      await dockIs((d) => d.result?.inserted === 1, 'the first part replaced the person’s text by their own click');
+      await look('dock-22-board-inserted', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
+      // The person presses ChatSpace's own Send: the part reads «Отправлено», the next one leads.
+      await pressSend();
+      await browser.waitUntil(async () => (await oursText('dock', '[data-cg-part="0"]')).includes('Отправлено'), { timeout: 15_000, timeoutMsg: 'the dock did not show the sent part' });
+      await look('dock-23-board-sent', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hideResult();
+      await open(a1);
+      await ready(a1);
     });
 
     it('«Новые»: the list, a card with its greeting', async function () {

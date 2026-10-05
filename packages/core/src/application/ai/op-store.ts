@@ -197,6 +197,19 @@ export class OpStore {
     return this.ofChat(chatKey).find((record) => !isTerminalOpState(record.view.state)) ?? null;
   }
 
+  /**
+   * A finished result of a board that its own controller hands to the dock (§6.5): that controller made it and
+   * vouches for what an adopted, already finished result does not say by itself — the persona it was made under
+   * and its Split snapshot. Only what this tab does not know is taken: a persona it knows otherwise refuses the
+   * hand-over. null — no such finished operation here, or it is not that persona's.
+   */
+  vouch(opId: string, personaDefinitionId: string, split: boolean): OpRecord | null {
+    const entry = this.entries.get(opId);
+    if (entry === undefined || !isTerminalOpState(entry.view.state)) return null;
+    if (entry.memo.personaDefinitionId === null) entry.memo = { ...entry.memo, personaDefinitionId, split };
+    return entry.memo.personaDefinitionId === personaDefinitionId ? this.recordOf(entry) : null;
+  }
+
   // ── commands ─────────────────────────────────────────────────────────────
 
   async start(start: StartOp, memo: Omit<StartMemo, 'start' | 'split'>): Promise<StartOutcome> {

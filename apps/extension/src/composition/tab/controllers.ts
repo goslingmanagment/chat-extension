@@ -269,6 +269,18 @@ export interface TabBoards {
   dispose(): void;
 }
 
+/**
+ * Where a board's result goes on once «Открыть и вставить» has opened its chat (architecture.md §6.5): the dock
+ * of that chat. The boards and the AI workspace live in different chunks and know nothing of each other; this
+ * is the one place they meet.
+ */
+export interface BoardsDock {
+  /** The preview's word about the parts of the results the dock shows; null — the boards are gone. */
+  bind(results: PreviewChunk.BoardResults | null): void;
+  /** The chat is open: the dock takes the result (and asks the Б2 question when the composer holds the person's text). */
+  handover(handover: PreviewChunk.BoardHandover): void;
+}
+
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
 const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette'];
 
@@ -279,7 +291,13 @@ const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'pal
  * before that would be closed by its own «another identity» rule (SP-042) the
  * moment the first read lands — and the preview reads its local drafts.
  */
-export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, previewChunk: typeof PreviewChunk, noteInsert: (intentId: string, opId: string, part: PartRef) => void): Promise<TabBoards> {
+export async function startBoards(
+  world: TabWorld,
+  chunk: typeof BoardsChunk,
+  previewChunk: typeof PreviewChunk,
+  noteInsert: (intentId: string, opId: string, part: PartRef) => void,
+  dock: BoardsDock,
+): Promise<TabBoards> {
   const { router, keys, host, i18n, clock, ids, win, toasts } = world;
   const rpc = world.rpc;
   const overlays = keys.overlays;
@@ -395,8 +413,10 @@ export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, pr
     clipboard: { writeText: (text) => world.clipboard.writeText(text).then((result) => result.ok) },
     // A message from a surface that has just closed («Вставка отменена», «Чат не готов…»).
     notifier: { notify: (code: CgCode, scope: string) => void toasts.show({ kind: toastKindOf(code), code, scope, title: { key: CG_REGISTRY[code].title }, body: { key: CG_REGISTRY[code].body } }) },
+    handover: (handover) => dock.handover(handover),
   });
   late.preview = preview;
+  dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged });
 
@@ -423,6 +443,7 @@ export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, pr
 
   return {
     dispose() {
+      dock.bind(null);
       win.removeEventListener('online', onOnline);
       win.removeEventListener('offline', onOnline);
       offSurfaces();

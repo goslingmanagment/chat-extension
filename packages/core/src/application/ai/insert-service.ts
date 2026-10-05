@@ -95,6 +95,8 @@ export interface InsertServiceDeps {
   wakeAt(at: number): void;
   /** An insert was applied (the Coach panel folds, AI-086). */
   inserted(record: OpRecord, part: PartRef): void;
+  /** Why this very part is not inserted now, beyond the chat's own state (a board's result in the dock: a sent part, a held fan, §6.5); null — nothing. */
+  hold?(record: OpRecord, part: PartRef): PartBlock | null;
 }
 
 interface PendingWrite {
@@ -184,6 +186,8 @@ export class InsertService {
   blockOf(record: OpRecord, part: PartRef): PartBlock | null {
     const ctx = this.deps.context(record);
     if (ctx.blocked !== null) return ctx.blocked;
+    const hold = this.deps.hold?.(record, part) ?? null;
+    if (hold !== null) return hold;
     const result = record.view.result;
     const text = partText(record, part);
     if (result === undefined || text === null || !policyOf(record.view.feature).insertable || isUnparsedResult(result)) return { reason: 'unparsed', code: 'CG-OUTPUT-UNUSABLE' };
@@ -223,6 +227,38 @@ export class InsertService {
     const decision = decideDraft(ready.draft, { editorObserved: this.deps.context(record).editorObserved });
     if (decision.kind === 'confirm') return this.ask(record, part, text, 'insert', decision.reason, ready.draft, decision.formatLoss);
     return this.write(record, part, text, 'replace', ready.draft, null, cause, 'insert');
+  }
+
+  /**
+   * §6.5: «Открыть и вставить» of a board put this part into the composer — in the dock that shows the rest of
+   * the result it reads «вставлено», as a part inserted from here does. The write itself was the board's; a human
+   * send of that draft is reported by whoever wrote it (the tab's host facts), so no intent is remembered here.
+   */
+  noteInserted(record: OpRecord, part: PartRef): void {
+    this.parts.set(keyOf(record.view.opId, part), { insert: 'done', insertError: null });
+    if (part.variant !== undefined && record.view.result?.kind === 'variants') this.variants.set(record.view.opId, part.variant);
+    this.deps.changed();
+  }
+
+  /**
+   * §6.5 п. 4: the chat a board opened holds the person's own text, so «Открыть и вставить» wrote nothing. The Б2
+   * question about that part is asked here, in the chat's dock — and only asked: nothing is written until the
+   * person answers, and their answer is a click of its own. `canceled` — the field needs no question any more
+   * (the person emptied it meanwhile): «Вставить» is one click away. `failed` — it cannot be asked now; the part
+   * is left as it is.
+   */
+  askAbout(opId: string, part: PartRef): Promise<WriteOutcome> {
+    return this.exclusive(opId, async () => {
+      const record = this.deps.record(opId);
+      const text = record === null ? null : partText(record, part);
+      if (record === null || text === null) return failed('CG-CONTEXT-CHANGED');
+      const block = this.blockOf(record, part);
+      if (block !== null) return failed(block.code);
+      const ready = await this.prepare(record, part, false);
+      if (!ready.ok) return ready.outcome;
+      const decision = decideDraft(ready.draft, { editorObserved: this.deps.context(record).editorObserved });
+      return decision.kind === 'confirm' ? this.ask(record, part, text, 'insert', decision.reason, ready.draft, decision.formatLoss) : { kind: 'canceled' };
+    });
   }
 
   /** Fix «Заменить мой черновик»: the click is the consent for the revision the Fix was made from. */

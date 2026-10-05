@@ -49,7 +49,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
-import { adopt, boardReceiptToast, closesPalette, controllerRpc, createTabClient, heldSilently } from './client';
+import { adopt, boardReceiptToast, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
@@ -280,6 +280,11 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   let stageTwoIn = false;
   let boards: Promise<TabBoards> | null = null;
   const needsBoards = (action: UiAction): boolean => action.type === 'OpenPreview' || (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
+  /** What a board could not say itself (it has closed, or its row keeps nothing of it): a toast with the code. */
+  const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
+    const entry = CG_REGISTRY[code];
+    toasts.show({ kind: toastKindOf(code), code, scope, title: { key: title ?? entry.title }, body: title === null ? { key: entry.body } : null });
+  };
   const client = createTabClient({
     router,
     tokens,
@@ -292,10 +297,6 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
       // A row of the palette ran: the palette goes (R17's controller closes it only for a preview it opened itself).
       if (keys.overlays.isOpen('palette') && closesPalette(action, receipt)) keys.overlays.set('palette', false);
       // A click on a board's part that came to nothing the board itself shows: the reason, as a toast.
-      const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
-        const entry = CG_REGISTRY[code];
-        toasts.show({ kind: toastKindOf(code), code, scope, title: { key: title ?? entry.title }, body: title === null ? { key: entry.body } : null });
-      };
       const said = boardReceiptToast(action, receipt);
       if (said !== null) return say(said.code, said.scope, said.title);
       // «Отправить» began an attempt: if it was stopped before ChatSpace's queue and its row will not say why, we do.
@@ -615,7 +616,20 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
 
   function ensureBoards(): Promise<TabBoards> {
     return (boards ??= Promise.all([stageTwo, env.lazy<typeof BoardsChunk>('boards'), env.lazy<typeof PreviewChunk>('boards-preview')]).then(
-      ([, chunk, preview]) => startBoards(world, chunk, preview, (intentId, opId, part) => facts.noteInsert(intentId, opId, part)),
+      ([, chunk, preview]) =>
+        startBoards(world, chunk, preview, (intentId, opId, part) => facts.noteInsert(intentId, opId, part), {
+          bind: (results) => ai.workspace.bindBoards(results),
+          // §6.5: the chat is open — its dock goes on with the result. What the dock could not take is said aloud.
+          handover(handover) {
+            void ai.workspace.adoptBoardResult(handover).then(
+              (taken) => taken,
+              () => false,
+            ).then((taken) => {
+              const left = disposed ? null : handoverToast(handover.outcome, taken);
+              if (left !== null) say(left.code, left.scope, left.title);
+            });
+          },
+        }),
       (error: unknown) => {
         boards = null;
         logger.error('tab.app', 'a part of the application did not load', { code: 'CG-UI-FAILED', fields: { part: 'boards', name: error instanceof Error ? error.name : typeof error } });

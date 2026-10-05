@@ -302,6 +302,17 @@ export function createDockController(ws: AiWorkspace): DockController {
     return record !== null && isOwnSurface(record.view.surface) ? record : null;
   }
 
+  /**
+   * The same, and a board's result the dock shows in its own chat (§6.5): its
+   * parts are inserted, copied, expanded and hidden from here — while no
+   * card shows it. «Ещё раз» and Fix's replacement stay with `own`: a new
+   * answer for the open chat is the strip's buttons.
+   */
+  function shown(opId: string): OpRecord | null {
+    const record = ws.ops.get(opId);
+    return record !== null && ws.answersFor(record) ? record : null;
+  }
+
   const handlers: ActionHandlers = {
     Generate: (action, cause) => (isDraftFeature(action.feature) ? generate(action, cause) : null),
     Regenerate(action, cause) {
@@ -319,14 +330,18 @@ export function createDockController(ws: AiWorkspace): DockController {
       const chat = ws.situation().chat;
       const sheet = chat === null ? null : ws.sheet(chat.key);
       if (chat === null || sheet === null) return null;
-      const mine = (sheet.kind === 'draft' && sheet.opId === action.operationId) || (sheet.kind === 'refusal' && sheet.refusal.running.some((running) => running.opId === action.operationId));
+      // A board's result that a card shows as well is hidden on that card, by that card's own «Скрыть».
+      const record = ws.ops.get(action.operationId);
+      const mine =
+        (sheet.kind === 'draft' && sheet.opId === action.operationId && (record === null || ws.answersFor(record))) ||
+        (sheet.kind === 'refusal' && sheet.refusal.running.some((running) => running.opId === action.operationId));
       if (!mine) return null;
       // «Скрыть» keeps the result: the same click with the same parameters opens it again (AI-128).
       ws.setSheet(chat.key, null);
       return Promise.resolve(done(action.type));
     },
     ExpandResult(action) {
-      const record = own(action.operationId);
+      const record = shown(action.operationId);
       if (record === null || !isDraftFeature(record.view.feature)) return null;
       ws.setExpanded(action.operationId, action.expanded);
       return Promise.resolve(done(action.type, action.expanded ? 'opened' : 'done'));
@@ -340,7 +355,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       return Promise.resolve(done(action.type));
     },
     InsertPart(action, cause) {
-      if (own(action.operationId) === null) return null;
+      if (shown(action.operationId) === null) return null;
       return writeOutcome(action.type, action.operationId, ws.inserts.insertPart(action.operationId, action.variant === undefined ? { index: action.part } : { variant: action.variant, index: action.part }, cause));
     },
     ReplaceMyDraft(action, cause) {

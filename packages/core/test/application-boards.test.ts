@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
+import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS } from '@cg/core/application/preview';
 import { SEARCH_DEBOUNCE_MS } from '@cg/core/application/spenders';
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
@@ -73,6 +74,8 @@ interface Harness {
   secondTab(): Promise<BoardsControllers>;
   readonly clicks: PreviewSendClick[];
   readonly notes: { readonly code: CgCode; readonly scope: string }[];
+  /** What «Открыть и вставить» handed to the dock of the opened chat (§6.5). */
+  readonly handovers: BoardHandover[];
   readonly copied: string[];
   /** `newcomers.drafts` as every tab of the browser shares it: `external` is another tab's write, `failSaves` the browser refusing writes. */
   readonly draftStore: { value: unknown; saves: number; failSaves: number; external(value: unknown): void };
@@ -184,6 +187,7 @@ async function harness(options: Options = {}): Promise<Harness> {
   const newDriver = (): PreviewSendDriver => new PreviewSendDriver({ port: host.previewSend, background: bg.sendPort, ids: attemptIds, onView: (view) => viewListeners.forEach((listener) => listener(view)), clock });
   let driver = newDriver();
   const notes: { code: CgCode; scope: string }[] = [];
+  const handovers: BoardHandover[] = [];
   const copied: string[] = [];
   const draftListeners = new Set<(value: unknown) => void>();
   const draftStore = {
@@ -235,6 +239,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     },
     clipboard: { writeText: (text) => (options.clipboard === false ? Promise.resolve(false) : (copied.push(text), Promise.resolve(true))) },
     notifier: { notify: (code, scope) => notes.push({ code, scope }) },
+    handover: (handover) => handovers.push(handover),
     connectivity: {
       online: () => isOnline,
       subscribe: (listener) => {
@@ -293,6 +298,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     },
     clicks,
     notes,
+    handovers,
     copied,
     draftStore,
     fresh,
@@ -2214,6 +2220,105 @@ describe('[SP-035] «Открыть и вставить» is one navigation with
     expect(off.h.host.calls.navigations).toEqual([]);
     const degraded = await withReply({ start: { contract: contractReport({ navigate: { state: 'contractBroken', reason: 'router' } }) } });
     expect(partsOf(degraded.h, 'spenders')[0]?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'host-degraded', code: 'CG-HOST-CONTRACT' } });
+  });
+});
+
+describe('[NEW-01] [NEW-05] after «Открыть и вставить» the result goes on in the dock of the opened chat (§6.5)', () => {
+  const applied: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } };
+  const humanDraft: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' } };
+  const chat = { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } as const;
+
+  it('the part went into the field: the result is handed to the dock with the persona it was made under; a chat that holds the person’s own text is handed over as a question, not as a toast', async () => {
+    const inserted = await withReply({ answers: { navigate: [applied] } });
+    expect(await inserted.h.dispatch({ type: 'OpenAndInsertPart', operationId: inserted.opId, part: 1 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(inserted.h.handovers).toEqual([{ opId: inserted.opId, chat, personaDefinitionId: WORLD.persona.definitionId, split: true, part: { index: 1 }, outcome: 'inserted' }]);
+
+    const asked = await withReply({ answers: { navigate: [humanDraft] } });
+    expect(await asked.h.dispatch({ type: 'OpenAndInsertPart', operationId: asked.opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(asked.h.handovers).toEqual([{ opId: asked.opId, chat, personaDefinitionId: WORLD.persona.definitionId, split: true, part: { index: 0 }, outcome: 'needs-confirm' }]);
+    // The chat is open with the person's words in its field: the board got out of the way, and nothing is said by a toast from here.
+    expect(asked.h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null } });
+    expect(asked.h.notes).toEqual([]);
+    expect(asked.h.host.calls.inserts).toEqual([]);
+  });
+
+  it('nothing is handed over when nothing reached the chat: a navigation that failed, a canceled or timed-out insert', async () => {
+    const failed = await withReply({ answers: { navigate: [{ state: 'failed', code: 'CG-NAV-TIMEOUT', insert: null }] } });
+    await failed.h.dispatch({ type: 'OpenAndInsertPart', operationId: failed.opId, part: 0 });
+    expect(failed.h.handovers).toEqual([]);
+    const canceled = await withReply({ slowNavigate: true });
+    const pending = canceled.h.boards.preview.dispatch({ type: 'OpenAndInsertPart', operationId: canceled.opId, part: 0 })!;
+    await canceled.h.flush();
+    await canceled.h.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
+    canceled.h.nav.release();
+    await pending;
+    expect(canceled.h.handovers).toEqual([]);
+    expect(canceled.h.boards.preview.results.part(canceled.opId, { index: 0 })).toBeNull();
+  });
+
+  it('a result that came back after a tab reload has no known persona: it is handed over as such, so the dock declines it (§7 «Ограда») — and the controller does not follow it', async () => {
+    const { h, opId, handle } = await withReply({ answers: { navigate: [applied] } });
+    await h.reload();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    expect(h.boards.preview.getSnapshot(preview('spenders')).result?.opId).toBe(opId);
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.handovers).toMatchObject([{ opId, personaDefinitionId: null, outcome: 'inserted' }]);
+    expect(h.boards.preview.results.part(opId, { index: 0 })).toBeNull();
+  });
+
+  it('[TL-004] the controller goes on telling the dock about the parts while the card is closed: a part the person sent is «sent» the moment the journal names it; an unknown outcome of the fan holds every part', async () => {
+    const { h, opId, handle } = await withReply({ config: {}, answers: { navigate: [applied] } });
+    const results = h.boards.preview.results;
+    let told = 0;
+    results.subscribe(() => (told += 1));
+    // Before the hand-over the controller says nothing of the result to anybody.
+    expect(results.part(opId, { index: 0 })).toBeNull();
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    expect(results.part(opId, { index: 1 })).toEqual({ sentAt: null, hold: null });
+    expect(results.showing(opId)).toBe(false);
+    // The card is closed; the person presses ChatSpace's own Send. The background journals it and tells the tabs.
+    await h.advance(20_000);
+    const sentAt = iso(h.clock.now());
+    const asked = count(h, 'send.list');
+    const before = told;
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    expect(told).toBeGreaterThan(before);
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt, hold: null });
+    expect(results.part(opId, { index: 1 })).toEqual({ sentAt: null, hold: null });
+    // The card opened again shows the same result: its buttons are the card's own.
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    expect(results.showing(opId)).toBe(true);
+    await h.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
+    expect(results.showing(opId)).toBe(false);
+    // Another sign-in: nothing of the old identity is told.
+    h.bg.signIn({ ...session, userId: session.userId + 1, epoch: session.epoch + 1 });
+    await h.flush();
+    expect(results.part(opId, { index: 0 })).toBeNull();
+  });
+
+  it('[NF-022] a part of the fan whose outcome is unknown holds the rest of the result in the dock as well', async () => {
+    const { h, opId } = await withReply({ answers: { navigate: [applied], commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+    const results = h.boards.preview.results;
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 1 })).toEqual({ sentAt: null, hold: null });
+    // The person went on to another chat; from the card of the fan part 2 is sent through the preview, and its outcome is unknown.
+    h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5009' } } });
+    await h.flush();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+    // Part 1 was only inserted, never sent: the group's order asks for it first. The person sends it from the card.
+    expect((await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).ok).toBe(true);
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain' });
+    expect(results.part(opId, { index: 0 })).toMatchObject({ sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { params: { n: 1 } } } });
+    expect(results.part(opId, { index: 1 })).toMatchObject({ sentAt: null, hold: { id: 'part-uncertain' } });
   });
 });
 

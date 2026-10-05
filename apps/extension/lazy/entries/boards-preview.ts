@@ -4,5 +4,5 @@
 // (R10's driver: preflight in MAIN, `send.begin`, one queue call, the states
 // MAIN observes). Loaded together with `boards`.
 
-export { createPreviewController } from '@cg/core/application/preview';
+export { createPreviewController, type BoardHandover, type BoardResults } from '@cg/core/application/preview';
 export { PreviewSendDriver } from '@cg/core/services';

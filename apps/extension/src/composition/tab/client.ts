@@ -80,15 +80,24 @@ export function createTabClient(deps: TabClientDeps): AppClient {
  * as a toast, or null when the surface says it itself:
  * - «Отправить» refused before any attempt began (the fan is held by a send of another tab, the journal did
  *   not answer, the result belongs to another sign-in): the button only unlocks, so the reason is said here.
- *   A refusal of an attempt that did begin is the part's own row;
- * - «Открыть и вставить» into a chat whose field holds the person's own text: the chat is open, nothing was
- *   written over their words, and the board that could say so has closed. (The Б2 question of §6.5 п. 4 in
- *   that chat's dock is not built yet; the person is told why nothing was inserted.)
+ *   A refusal of an attempt that did begin is the part's own row.
+ * «Открыть и вставить» into a chat whose field holds the person's own text is not said here any more: the
+ * question stands in that chat's dock (§6.5 п. 4), and the composition says a toast only when the dock could
+ * not take it (`handoverToast`).
  */
 export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey | null } | null {
   if (action.type === 'SendPart' && !receipt.ok) return { code: receipt.code, scope: 'board.send', title: null };
-  if (action.type === 'OpenAndInsertPart' && receipt.ok && receipt.outcome === 'needs-confirm') return { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' };
   return null;
+}
+
+/**
+ * «Открыть и вставить» opened the chat and the dock of that chat was to go on with the result (§6.5). What is
+ * left to say when it did not take it: a chat whose field holds the person's own text got nothing written and
+ * has no question on screen — the person is told why, in the words of the question. A part that was inserted
+ * needs no word: it is in the field.
+ */
+export function handoverToast(outcome: 'inserted' | 'needs-confirm', taken: boolean): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey } | null {
+  return outcome === 'needs-confirm' && !taken ? { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' } : null;
 }
 
 /**

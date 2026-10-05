@@ -27,6 +27,7 @@ import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
 import { archiveLag, type ArchiveLag, type ArchivePoint, type RecapSlotKey } from '../../domain/recap';
+import { type BoardHandover, type BoardPartFacts, type BoardResults } from '../board-handover';
 import { PAGE_OFF_REASON, flagReasonVm } from '../flag-reason';
 import { TabEnvironment, type EnvironmentChange, type PersonaState } from './environment';
 import { artifactHandle, readArtifactHandle, targetHandle, type Artifact } from './handles';
@@ -197,6 +198,10 @@ export class AiWorkspace {
   private readonly startListeners = new Set<(record: OpRecord) => void>();
   private readonly insertListeners = new Set<(record: OpRecord, part: PartRef) => void>();
   private readonly resetListeners = new Set<(filter: (chatKey: ChatKey, pageId: number) => boolean) => void>();
+  /** Results a board made that the dock shows in their own chat (§6.5). */
+  private readonly boardOps = new Set<string>();
+  private boards: BoardResults | null = null;
+  private offBoards: (() => void) | null = null;
   private readonly offs: (() => void)[] = [];
   private readonly timers = new Set<unknown>();
   private hostReload = false;
@@ -228,6 +233,7 @@ export class AiWorkspace {
       inserted: (record, part) => {
         for (const listener of [...this.insertListeners]) listener(record, part);
       },
+      hold: (record, part) => this.boardHold(record, part),
     });
   }
 
@@ -291,6 +297,8 @@ export class AiWorkspace {
 
   dispose(): void {
     this.disposed = true;
+    this.offBoards?.();
+    this.offBoards = null;
     for (const off of this.offs.splice(0)) off();
     for (const timer of this.timers) this.ports.clock.clearTimer(timer);
     this.timers.clear();
@@ -712,6 +720,67 @@ export class AiWorkspace {
     };
   }
 
+  // ── a board's result in the dock (§6.5) ──────────────────────────────────
+
+  /** The boards' side of the results the dock shows, once the boards are loaded (the tab's composition root binds it). */
+  bindBoards(boards: BoardResults | null): void {
+    this.offBoards?.();
+    this.boards = boards;
+    this.offBoards =
+      boards?.subscribe(() => {
+        if (this.boardOps.size > 0) this.bump();
+      }) ?? null;
+  }
+
+  /**
+   * §6.5: «Открыть и вставить» opened the chat of a board's result — from now on the rest of that result is
+   * worked with here, in the chat's dock: the part that went into the composer reads «вставлено», the others
+   * are inserted one click each under the dock's own rules (§6.4), and where the composer held the person's own
+   * text the Б2 question about the part stands in the dock (п. 4). Nothing is written here.
+   *
+   * false — the dock did not take it: the person is already in another chat, the result is not known to this
+   * tab or not of a persona it can vouch for, or the question could not be asked.
+   */
+  async adoptBoardResult(handover: BoardHandover): Promise<boolean> {
+    const key = chatKeyOf(handover.chat);
+    const here = (): boolean => this.situation().chat?.key === key;
+    const persona = handover.personaDefinitionId;
+    if (persona === null || !this.env.session || !here()) return false;
+    if (this.ops.get(handover.opId) === null) await this.ops.syncChat(key);
+    const record = here() ? this.ops.vouch(handover.opId, persona, handover.split) : null;
+    if (record === null || isOwnSurface(record.view.surface) || chatKeyOf(record.view.target.chat) !== key) return false;
+    this.boardOps.add(handover.opId);
+    if (handover.outcome === 'inserted') this.inserts.noteInserted(record, handover.part);
+    this.setSheet(key, { kind: 'draft', opId: handover.opId });
+    return handover.outcome === 'inserted' || (await this.inserts.askAbout(handover.opId, handover.part)).kind !== 'failed';
+  }
+
+  /** A result a board made and the dock shows (§6.5). */
+  isBoardResult(opId: string): boolean {
+    return this.boardOps.has(opId);
+  }
+
+  /** What the board says of a part of such a result; null — not a board's result, or the board no longer holds it. */
+  boardPart(opId: string, part: PartRef): BoardPartFacts | null {
+    return this.boardOps.has(opId) ? (this.boards?.part(opId, part) ?? null) : null;
+  }
+
+  /**
+   * Whether an action on an operation is the dock's to take: an operation of the open chat's own surfaces, or a
+   * board's result the dock shows — unless a card shows that result right now: its buttons are the card's then.
+   */
+  answersFor(record: OpRecord): boolean {
+    return isOwnSurface(record.view.surface) || (this.boardOps.has(record.view.opId) && this.boards?.showing(record.view.opId) !== true);
+  }
+
+  private boardHold(record: OpRecord, part: PartRef): PartBlock | null {
+    const facts = this.boardPart(record.view.opId, part);
+    if (facts === null) return null;
+    // A delivered part is never put into a composer again (ui-design §3.2); a held fan says why.
+    if (facts.sentAt !== null) return { reason: 'send-unavailable', code: 'CG-SEND-PART' };
+    return facts.hold === null ? null : { reason: facts.hold.id, code: facts.hold.code ?? 'CG-SEND-BUSY', view: facts.hold };
+  }
+
   // ── the page tail (the archive lag, the language gate) ───────────────────
 
   /**
@@ -813,7 +882,7 @@ export class AiWorkspace {
     if (artifact === null) return false;
     if (artifact.kind === 'recap') return this.recaps.slots.byLocalId(artifact.localId) !== null;
     const record = this.ops.get(artifact.opId);
-    return record !== null && isOwnSurface(record.view.surface);
+    return record !== null && this.answersFor(record);
   }
 
   /** «Копировать»: `copied` is reported only after the clipboard write succeeded (TL-006, Б14). */
@@ -986,6 +1055,7 @@ export class AiWorkspace {
   private forget(opIds: readonly string[]): void {
     for (const opId of opIds) {
       this.inserts.dropOp(opId);
+      this.boardOps.delete(opId);
       this.expanded.delete(opId);
       this.shown.delete(opId);
       for (const handle of [...this.copies.keys()]) if (readArtifactHandle(handle)?.kind !== 'recap' && handle.includes(opId)) this.copies.delete(handle);
