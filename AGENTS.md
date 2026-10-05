@@ -133,7 +133,8 @@ a boundary you need to cross is a design question, not a lint exception.
 - **An owner switch is the PAGE's own.** The hub evaluates every flag per page
   (`pages[].features[flag]`); the bootstrap's top-level `flags` carry the
   owner's `"*"` row alone and are all false in a pilot switched on page by
-  page. Never gate on `bootstrap.flags`: use `packages/core/src/domain/ops/flags.ts`
+  page. The one exception is the hub's MASTER switch: it is global — off, every
+  feature of every page reads `disabled`. Never gate on `bootstrap.flags`: use `packages/core/src/domain/ops/flags.ts`
   (`docs/protocols/hub.md` «Флаги: решает страница»). The fake hub's default
   preset is that pilot, so e2e fails on a client that reads the top-level flags.
 - **A request the hub would refuse must fail in CI.** The hub's own rules for

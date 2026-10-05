@@ -24,7 +24,7 @@ import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReas
 
 import { fanScriptOf, featureGate, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
-import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
+import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
 import { archiveLag, type ArchiveLag, type ArchivePoint, type RecapSlotKey } from '../../domain/recap';
 import { PAGE_OFF_REASON, flagReasonVm } from '../flag-reason';
@@ -93,11 +93,13 @@ export interface Situation {
   /** Why no AI action can start at all; null — actions are decided one by one. */
   readonly off: UnavailableReasonId | null;
   /**
-   * The owner switched ChatGoose off for the page of the open chat (its master switch: every feature of the
-   * page reads `disabled`). The dock stays `ready` and says so in one line; every AI action is off with that
-   * reason (`off` is set), parts can only be copied — nothing is offered that the hub would answer 409 to.
+   * Nothing of ours runs on the page of the open chat, and why: the owner's master switch is off (it is one for
+   * the whole hub: every feature of every page reads `disabled`), or this build is too old for the hub
+   * (`minVersion`, or every feature reads `client_outdated`). The dock stays `ready` and says so in one line;
+   * every AI action — «Ещё раз» of an earlier result included — is off with that reason (`off` is set), parts
+   * can only be copied: nothing is offered that the hub would refuse after the click. null — the page works.
    */
-  readonly pageOff: boolean;
+  readonly pageOff: PageOff | null;
   /** Why parts can only be copied; null — they can be inserted. */
   readonly copyOnly: PartBlock | null;
   /** Present when a generation can be started for the open chat. */
@@ -153,6 +155,21 @@ export const QUOTA_LOW_AT = 25;
 
 /** What a start, a view or a card says of a page the owner switched off: the hub's own reason in the technical line. */
 export const PAGE_OFF_ERROR: CgErrorWire = { code: 'CG-FEATURE-DISABLED', detail: 'disabled' };
+
+/** Why nothing of ours runs on a page (`Situation.pageOff`). */
+export interface PageOff {
+  /** The hub's reason token. */
+  readonly why: 'disabled' | 'client_outdated';
+  /** What every AI action and «Ещё раз» says. */
+  readonly reason: ReasonVM;
+  /** What a start refused by it answers with. */
+  readonly error: CgErrorWire;
+}
+
+/** The owner's master switch. */
+export const MASTER_OFF: PageOff = { why: 'disabled', reason: PAGE_OFF_REASON, error: PAGE_OFF_ERROR };
+/** A build below the hub's `minVersion`. */
+export const CLIENT_OUTDATED: PageOff = { why: 'client_outdated', reason: flagReasonVm({ reason: 'client_outdated' }), error: { code: 'CG-HUB-OUTDATED', detail: 'client_outdated' } };
 
 const BINDING_STATUS: Partial<Record<CgCode, UnavailableReasonId>> = {
   'CG-BINDING-MISSING': 'no-binding',
@@ -367,7 +384,7 @@ export class AiWorkspace {
     const chatRef = route.name === 'chat' ? route.chat : null;
     const chat: OpenChat | null =
       chatRef === null ? null : { chat: chatRef, key: chatKeyOf(chatRef), handle: targetHandle('dock', chatRef), account: route.account, identity: snapshot.identity, routeEpoch: route.epoch };
-    const base = { host: snapshot, chat, window: null, fanName: null, quota: null, quotaZero: false, persona: null, pageName: null, ready: null, copyOnly: null, pageOff: false } as const;
+    const base = { host: snapshot, chat, window: null, fanName: null, quota: null, quotaZero: false, persona: null, pageName: null, ready: null, copyOnly: null, pageOff: null } as const;
     const off = (status: DockStatus, reason: UnavailableReasonId, error: CgErrorWire | null): Situation => ({ ...base, status, statusError: error, off: reason });
 
     if (this.hostReload || this.env.reloadNeeded) return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-RELOADED' });
@@ -409,8 +426,10 @@ export class AiWorkspace {
     // The owner's master switch is off for this page: whatever else is missing (a persona, the chat's history),
     // nothing of ours would run here — the hub refuses every AI call of this client on the page. One line says
     // so; what was generated before can still be copied.
-    if (pageSwitchedOff(page)) {
-      return { ...named, status: 'ready', statusError: null, off: 'feature-disabled', pageOff: true, copyOnly: { reason: 'feature-disabled', code: 'CG-FEATURE-DISABLED', view: PAGE_OFF_REASON } };
+    // An outdated build is the same kind of state: the hub refuses it whatever is asked, so the buttons say it first.
+    const pageOff = pageSwitchedOff(page) ? MASTER_OFF : clientOutdated(bootstrap.value, page, this.ports.extensionVersion) ? CLIENT_OUTDATED : null;
+    if (pageOff !== null) {
+      return { ...named, status: 'ready', statusError: null, off: 'feature-disabled', pageOff, copyOnly: { reason: 'feature-disabled', code: pageOff.error.code, view: pageOff.reason } };
     }
     if (persona.status === 'loading') return { ...named, status: 'loading-chat', statusError: null, off: 'chat-loading' };
     if (persona.status !== 'ok' || persona.key === null || persona.definitionId === null) {
@@ -455,7 +474,7 @@ export class AiWorkspace {
    */
   flagState(flag: ClientFeatureFlag): FlagState {
     const situation = this.situation();
-    if (situation.pageOff) return { usable: false, reason: 'disabled' };
+    if (situation.pageOff !== null) return { usable: false, reason: situation.pageOff.why };
     const ready = situation.ready;
     return ready === null ? { usable: false, reason: 'hub_not_ready' } : flagStateOf(ready.bootstrap, ready.page.pageId, flag);
   }
@@ -491,12 +510,12 @@ export class AiWorkspace {
   /** Why every AI action of the open chat is off, in the words of a tooltip; null — actions are decided one by one. */
   offReason(situation: Situation = this.situation()): ReasonVM | null {
     if (situation.off === null) return null;
-    return situation.pageOff ? PAGE_OFF_REASON : this.ports.catalog.reason(situation.off);
+    return situation.pageOff?.reason ?? this.ports.catalog.reason(situation.off);
   }
 
   /** The error of a chat that is not `ready`: its status' own, the page being switched off, or «чат ещё грузится». */
   blockedError(situation: Situation = this.situation()): CgErrorWire {
-    return situation.statusError ?? (situation.pageOff ? PAGE_OFF_ERROR : { code: 'CG-GATE-CHAT-LOADING' });
+    return situation.statusError ?? situation.pageOff?.error ?? { code: 'CG-GATE-CHAT-LOADING' };
   }
 
   // ── per-chat UI state ────────────────────────────────────────────────────

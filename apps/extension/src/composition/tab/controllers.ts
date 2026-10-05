@@ -57,6 +57,8 @@ export interface TabWorld {
   readonly i18n: I18n;
   readonly clock: TabClock;
   readonly ids: { uuid(): string };
+  /** The manifest's version of this build. */
+  readonly extensionVersion: string;
   readonly router: AppRouter;
   /** The AppClient the surfaces use: the router behind the gate's grants. */
   readonly client: AppClient;
@@ -92,6 +94,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     catalog,
     clipboard: world.clipboard,
     toasts: world.toasts,
+    extensionVersion: world.extensionVersion,
     // Route and insert journal lines (LG-017): ids, lengths and fingerprints, never a text.
     journal: { write: (entry) => void logger.write(entry.level, entry.scope, entry.msg, { ...(entry.code === undefined ? {} : { code: entry.code }), ...(entry.fields === undefined ? {} : { fields: entry.fields }), ...(entry.ctx === undefined ? {} : { ctx: entry.ctx }) }) },
     // R11 opens and closes Coach through this switch; what is open is R17's one state.

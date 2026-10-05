@@ -542,10 +542,10 @@ export const NEWCOMERS_INCOMPLETE_SAMPLES: { readonly valid: readonly NewcomersI
  */
 type DockNotice = C.DockVM['notice'];
 export const DOCK_NOTICE_SAMPLES: { readonly valid: readonly DockNotice[]; readonly invalid: readonly unknown[] } = {
-  valid: [undefined, null, { code: 'CG-FEATURE-DISABLED', title: 'ChatGoose выключен для этой страницы', body: '', detail: 'disabled', tone: 'state' }],
+  valid: [undefined, null, { code: 'CG-FEATURE-DISABLED', title: 'ChatGoose выключен владельцем', body: '', detail: 'disabled', tone: 'state' }],
   invalid: [
     // @ts-expect-error the line is an error view with its code, not a bare text
-    'ChatGoose выключен для этой страницы' satisfies DockNotice,
+    'ChatGoose выключен владельцем' satisfies DockNotice,
     // @ts-expect-error nor a flag
     true satisfies DockNotice,
   ],

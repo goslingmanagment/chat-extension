@@ -49,7 +49,7 @@ function bannerOf(vm: DockVM, t: (key: 'cg.hubUnavailable.banner' | 'cg.hostCont
   const error = vm.statusError;
   if (error === null) {
     // 1.3.0: a dock that is otherwise `ready` on a page the owner switched off — one line, a state (the ring),
-    // nothing to press: «ChatGoose выключен для этой страницы». The buttons under it are dimmed with the same reason.
+    // nothing to press: «ChatGoose выключен владельцем». The buttons under it are dimmed with the same reason.
     const notice = vm.status === 'ready' ? (vm.notice ?? null) : null;
     return notice === null ? null : { error: notice, dot: 'ring', action: null, copyCode: false };
   }

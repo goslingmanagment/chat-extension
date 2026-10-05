@@ -63,9 +63,11 @@ export interface DockVM {
   /** Code, title, body and technical line of the banner or the card. */
   readonly statusError: CgErrorView | null;
   /**
-   * 1.3.0. One status line of a dock that is otherwise `ready`: the owner switched
-   * ChatGoose off for the page of the open chat (its master switch: every feature of
-   * the page reads `disabled`) — «ChatGoose выключен для этой страницы». The strip
+   * 1.3.0. One status line of a dock that is otherwise `ready`: nothing of ours
+   * runs on the page of the open chat. The owner switched ChatGoose off — the hub's
+   * master switch is ONE for every page, and every feature of the page reads
+   * `disabled`: «ChatGoose выключен владельцем». Or this build is too old for the
+   * hub (`client_outdated`, `minVersion`): the line is that error's own. The strip
    * stays, every AI action is dimmed with the same reason, parts can only be copied;
    * nothing is offered that the hub would refuse after the click. Absent or null —
    * no line. A dock whose `status` has a banner of its own never carries it.

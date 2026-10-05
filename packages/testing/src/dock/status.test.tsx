@@ -121,7 +121,7 @@ describe('status banners', () => {
     const row = banner();
     expect(row?.getAttribute('role')).toBe('status');
     expect(row?.getAttribute('data-cg-code')).toBe('CG-FEATURE-DISABLED');
-    expect(text(row?.querySelector('.cg-banner__text'))).toBe('ChatGoose · CG-FEATURE-DISABLED ChatGoose выключен для этой страницы.');
+    expect(text(row?.querySelector('.cg-banner__text'))).toBe('ChatGoose · CG-FEATURE-DISABLED ChatGoose выключен владельцем.');
     expect(row?.querySelector('.cg-gut .cg-dot--ring')).not.toBeNull();
     expect(bannerButton()).toBeNull();
     // One row above the strip, as any status banner.
@@ -134,7 +134,7 @@ describe('status banners', () => {
       await flush(() => action.click());
     }
     expect(kit.client.dispatched).toEqual([]);
-    expect(kit.root.textContent).toContain('ChatGoose выключен для этой страницы');
+    expect(kit.root.textContent).toContain('ChatGoose выключен владельцем');
   });
 
   it('[UI-011] the line is the ready dock\'s only: a dock with a banner of its own never shows it, and without the notice a ready dock has no banner', () => {

@@ -500,7 +500,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   ),
   state('x-not-granted', 'extras', 'Страница не выдана аккаунту', (ctx) => one(ctx, statusDock(ctx, 'no-binding', { code: 'CG-BINDING-NOT-GRANTED' }))),
   // 1.3.0: the owner's master switch is off for the page — one status line, every AI button dimmed with the same reason.
-  state('x-page-off', 'extras', 'ChatGoose выключен для этой страницы (главный выключатель владельца)', (ctx) => one(ctx, dockPageOff(ctx))),
+  state('x-page-off', 'extras', 'ChatGoose выключен владельцем (главный выключатель хаба, один на все страницы)', (ctx) => one(ctx, dockPageOff(ctx))),
   state('x-page-off-result', 'extras', 'Страница выключена: готовый ответ можно только копировать', (ctx) =>
     one(ctx, dockPageOff(ctx, { result: reply(ctx, {}, () => ({ insertBlocked: PAGE_OFF_REASON })) })),
   ),

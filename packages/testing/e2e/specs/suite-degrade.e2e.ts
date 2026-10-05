@@ -99,7 +99,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(off).toMatchObject({ status: 'ready', mode: 'copy-only', notice: 'CG-FEATURE-DISABLED', banner: null, refusal: null });
     expect(Object.values(off.actions).some(Boolean)).toBe(false);
     const said = await oursText('dock');
-    expect(said).toContain('ChatGoose выключен для этой страницы');
+    expect(said).toContain('ChatGoose выключен владельцем');
     expect(said).toContain('CG-FEATURE-DISABLED');
     // A click on a dimmed button: no generation, no refusal card, no request to the hub (it would answer 409).
     await pressOurs('dock', '.cg-strip button', /^Reply/);
@@ -115,7 +115,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     await rereadBootstrap();
     const on = await dockIs((d) => d.notice === null && d.actions['reply'] === true, 'the dock works again', 20_000);
     expect(on).toMatchObject({ status: 'ready', mode: 'insert', banner: null });
-    expect(await oursText('dock')).not.toContain('выключен для этой страницы');
+    expect(await oursText('dock')).not.toContain('выключен владельцем');
   });
 
   it('[RB-008] [ER-049] [DB-031] ChatSpace lost its send queue (the store is gone): the preview send is off with CG-SEND-HOST, the dock still generates and inserts; «Статус» names the anchor, the popup says «контракт частично»', async () => {

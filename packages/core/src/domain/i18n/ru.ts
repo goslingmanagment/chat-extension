@@ -100,7 +100,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.reason.lockedDuringGeneration': 'нельзя менять, пока идёт генерация',
   'dock.reason.hotkeyReserved': 'браузер оставляет это сочетание себе',
   'dock.reason.keyInField': 'курсор в поле, где это сочетание не работает',
-  'dock.reason.pageOff': 'ChatGoose выключен для этой страницы',
+  'dock.reason.pageOff': 'ChatGoose выключен владельцем',
   'dock.reason.hubNotReady': 'хаб пока не умеет эту функцию',
   'dock.reason.platformUnsupported': 'на этой платформе функции нет',
   'dock.reason.clientOutdated': 'расширение устарело, обновите его',
@@ -134,7 +134,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.quota.zero': 'Квота AI: 0',
   'dock.quota.zeroTooltip': 'Дневная квота AI исчерпана. Обновится в {time} по Москве',
   'dock.status.chatLoading': 'Чат загружается…',
-  'dock.status.pageOff': 'ChatGoose выключен для этой страницы',
+  'dock.status.pageOff': 'ChatGoose выключен владельцем',
   'dock.helpRemoved': 'Help пока убран',
 
   // ── Result sheet ──

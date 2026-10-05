@@ -75,6 +75,8 @@ export interface AiPorts {
   readonly toasts?: ToastSink;
   readonly journal?: JournalSink;
   readonly overlays?: OverlaySwitch;
+  /** This build's version (the manifest's): below the bootstrap's `minVersion` the dock says so before a click. Absent — only the hub's own word (`client_outdated`) is read. */
+  readonly extensionVersion?: string;
 }
 
 /**

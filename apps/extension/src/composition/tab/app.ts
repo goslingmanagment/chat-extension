@@ -75,6 +75,8 @@ export interface TabAppEnv {
   readonly lazy: <T>(entry: LazyEntryName) => Promise<T>;
   /** `moz-extension://<uuid>`: errors pointing at it are ours (ER-021). */
   readonly ownOrigin: string;
+  /** The manifest's version of this build: below the hub's `minVersion` the dock says «расширение устарело» before a click. */
+  readonly extensionVersion: string;
   readonly contractsVersion: string;
   readonly lateInjection: boolean;
   readonly staleHosts: number;
@@ -317,6 +319,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     i18n,
     clock,
     ids: { uuid: () => win.crypto.randomUUID() },
+    extensionVersion: env.extensionVersion,
     router,
     client,
     toasts,

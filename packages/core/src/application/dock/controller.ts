@@ -37,7 +37,7 @@ import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { errorVm, msg, views } from '../ai/view-models';
-import { PAGE_OFF_ERROR, QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
+import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type Situation } from '../ai/workspace';
 import { flagReasonVm } from '../flag-reason';
 
 /** The keys footer is shown under the first results (ui-design §4.3). */
@@ -157,6 +157,12 @@ export function createDockController(ws: AiWorkspace): DockController {
     return Object.fromEntries(entries) as Record<DockActionId, DockActionVM>;
   }
 
+  /** The one status line of a page nothing of ours runs on: the master switch in its own words, an outdated build as its error reads. */
+  function noticeOf(pageOff: NonNullable<Situation['pageOff']>): NonNullable<DockVM['notice']> {
+    const view = errorVm(pageOff.error, ws.ports.i18n);
+    return pageOff.why === 'disabled' ? { ...view, title: ws.ports.i18n.t('dock.status.pageOff'), body: '', tone: 'state' } : { ...view, tone: 'state' };
+  }
+
   /** UI-010: a recap of this chat can be opened at once (a local copy, or the hub's status line once the chat settled). */
   function hasRecapCopy(ready: NonNullable<Situation['ready']>): boolean {
     return ws.recaps.hasAny(ws.recapOwner(ready), flagUsable(ready.bootstrap, ready.page.pageId, 'recap'));
@@ -190,8 +196,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       mode: situation.copyOnly === null ? 'insert' : 'copy-only',
       status: situation.status,
       statusError: situation.statusError === null ? null : errorVm(situation.statusError, ws.ports.i18n),
-      // The owner switched ChatGoose off for this page: one line, in place of an error card after a click.
-      notice: situation.pageOff && chat !== null ? { ...errorVm(PAGE_OFF_ERROR, ws.ports.i18n), title: ws.ports.i18n.t('dock.status.pageOff'), body: '', tone: 'state' } : null,
+      // The owner switched ChatGoose off, or this build is too old for the hub: one line, in place of an error card after a click.
+      notice: situation.pageOff === null || chat === null ? null : noticeOf(situation.pageOff),
       targetHandle: chat !== null && situation.ready !== null ? chat.handle : null,
       persona: situation.persona?.status === 'ok' && situation.persona.label !== null && situation.pageName !== null ? { label: situation.persona.label, pageName: situation.pageName } : null,
       mark: situation.off !== null || situation.quotaZero ? 'faint' : 'normal',

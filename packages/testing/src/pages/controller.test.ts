@@ -1224,7 +1224,7 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     // Another reason than the flag itself is said in its own words: the owner's master switch is off for the page.
     const w3 = await open({ state: featureOff('disabled') });
     expect(text(w3, row(w3, 'spenders')?.value)).toBe('выключен владельцем');
-    expect(text(w3, row(w3, 'spenders')?.note)).toBe('ChatGoose выключен для этой страницы');
+    expect(text(w3, row(w3, 'spenders')?.note)).toBe('ChatGoose выключен владельцем');
     world?.client.dispose();
     // `"*"` on and the page's own row off: the page still wins.
     const starOn = featureOff('flag_off');

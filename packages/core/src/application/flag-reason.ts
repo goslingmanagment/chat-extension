@@ -1,7 +1,7 @@
 // Why an owner switch is off on a page, in the words of a button's tooltip
 // and of the toast of its key (docs/protocols/hub.md «Флаги: решает
 // страница»; HK-026). The hub's reason picks the words: the master switch
-// (`disabled`) is «ChatGoose выключен для этой страницы», a flag the owner
+// (`disabled` — one switch for the whole hub) is «ChatGoose выключен владельцем», a flag the owner
 // left off is «функция выключена для страницы», a hub that does not serve
 // the feature yet is not «выключена» at all. The ids stay the existing ones
 // of `UNAVAILABLE_REASONS` (no new id for consumers to enumerate): only the
@@ -12,7 +12,7 @@ import { type ReasonVM } from '@cg/contracts/vm';
 
 import { type FlagState } from '../domain/ops/flags';
 
-/** The whole page is switched off by the owner: every AI action carries this reason, and the dock says it once. */
+/** The owner's master switch is off (it is one for every page): every AI action carries this reason, and the dock says it once. */
 export const PAGE_OFF_REASON: ReasonVM = { id: 'feature-disabled', code: 'CG-FEATURE-DISABLED', text: { key: 'dock.reason.pageOff' } };
 
 const BY_REASON: Readonly<Record<string, ReasonVM>> = {

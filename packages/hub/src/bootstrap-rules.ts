@@ -45,30 +45,8 @@ export function pageOf(bootstrap: Bootstrap, pageLabel: string): BootstrapPage |
 
 // ── versions ───────────────────────────────────────────────────────────────
 
-function versionParts(version: string): number[] | null {
-  if (!/^\d+(?:\.\d+){0,3}$/.test(version.trim())) return null;
-  return version
-    .trim()
-    .split('.')
-    .map((part) => Number(part));
-}
-
-/** -1 / 0 / 1 for dotted numeric versions (Firefox allows up to four parts); null when either is not one. */
-export function compareVersions(a: string, b: string): number | null {
-  const left = versionParts(a);
-  const right = versionParts(b);
-  if (left === null || right === null) return null;
-  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
-    const difference = (left[i] ?? 0) - (right[i] ?? 0);
-    if (difference !== 0) return Math.sign(difference);
-  }
-  return 0;
-}
-
-/** Below `minVersion` AI is off and the client shows CG-HUB-OUTDATED (§8.3). An unreadable minVersion does not lock anyone out. */
-export function belowMinVersion(bootstrap: Bootstrap, extensionVersion: string): boolean {
-  return compareVersions(extensionVersion, bootstrap.minVersion) === -1;
-}
+// The rule is the client's one (the tab dims its actions by it too): @cg/core/domain/ops.
+export { belowMinVersion, compareVersions } from '@cg/core/domain/ops';
 
 export function protocolSupported(bootstrap: Bootstrap): boolean {
   return bootstrap.protocol === BOOTSTRAP_PROTOCOL;

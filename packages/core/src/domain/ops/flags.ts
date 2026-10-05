@@ -116,14 +116,58 @@ export function starFlag(bootstrap: Bootstrap | null, flag: ClientFeatureFlag): 
 }
 
 /**
- * The owner's master switch is off for the page: every feature it lists is
- * unavailable with the reason `disabled`. AI of a narrow token is refused by
+ * The one reason every feature a page lists is unavailable for, or null: a blanket answer of the hub about the
+ * whole page (its features disagree, or one is available — no blanket reason).
+ */
+export function pageBlanketReason(page: BootstrapPage | null | undefined): string | null {
+  if (page === null || page === undefined) return null;
+  const features = Object.values(page.features);
+  const first = features[0];
+  if (first === undefined || first.available === true || first.reason === undefined) return null;
+  return features.every((feature) => feature.available !== true && feature.reason === first.reason) ? first.reason : null;
+}
+
+/**
+ * The owner's master switch is off: every feature the page lists is unavailable with the reason `disabled`.
+ * The switch is ONE for the whole hub — every page answers so at once — and AI of a narrow token is refused by
  * the hub then (409 `client_feature_disabled`), whichever feature is asked.
  */
 export function pageSwitchedOff(page: BootstrapPage | null | undefined): boolean {
-  if (page === null || page === undefined) return false;
-  const features = Object.values(page.features);
-  return features.length > 0 && features.every((feature) => feature.available !== true && feature.reason === 'disabled');
+  return pageBlanketReason(page) === 'disabled';
+}
+
+function versionParts(version: string): number[] | null {
+  if (!/^\d+(?:\.\d+){0,3}$/.test(version.trim())) return null;
+  return version
+    .trim()
+    .split('.')
+    .map((part) => Number(part));
+}
+
+/** -1 / 0 / 1 for dotted numeric versions (Firefox allows up to four parts); null when either is not one. */
+export function compareVersions(a: string, b: string): number | null {
+  const left = versionParts(a);
+  const right = versionParts(b);
+  if (left === null || right === null) return null;
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const difference = (left[i] ?? 0) - (right[i] ?? 0);
+    if (difference !== 0) return Math.sign(difference);
+  }
+  return 0;
+}
+
+/** Below `minVersion` AI is off and the client shows CG-HUB-OUTDATED (§8.3). An unreadable minVersion does not lock anyone out. */
+export function belowMinVersion(bootstrap: Bootstrap, extensionVersion: string): boolean {
+  return compareVersions(extensionVersion, bootstrap.minVersion) === -1;
+}
+
+/**
+ * This build is too old for the hub: the bootstrap's `minVersion` is above it (when the build's version is
+ * known), or the hub itself says so for every feature of the page (`client_outdated`). Nothing of ours runs
+ * on the page until the extension is updated.
+ */
+export function clientOutdated(bootstrap: Bootstrap, page: BootstrapPage | null | undefined, extensionVersion: string | null | undefined): boolean {
+  return pageBlanketReason(page) === 'client_outdated' || (typeof extensionVersion === 'string' && belowMinVersion(bootstrap, extensionVersion));
 }
 
 /** The code a refused page feature reads as: the same reading as the hub's own 409 (`HUB_ERROR_RULES`), plus the capability check of this client. */

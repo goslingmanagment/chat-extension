@@ -135,7 +135,7 @@ export function dock(ctx: ScenarioCtx, status: DockStatus = 'ready', options: Do
 export const PAGE_OFF_REASON: ReasonVM = { id: 'feature-disabled', code: 'CG-FEATURE-DISABLED', text: { key: 'dock.reason.pageOff' } };
 
 /**
- * The owner switched ChatGoose off for the page of the open chat (1.3.0): the dock stays `ready`, says so in one
+ * The owner switched ChatGoose off — the hub's master switch, one for every page (1.3.0): the dock stays `ready`, says so in one
  * status line, every AI action and option carries that reason, and what was generated before can only be copied.
  */
 export function dockPageOff(ctx: ScenarioCtx, options: DockOptions = {}): DockVM {
