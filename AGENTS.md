@@ -18,8 +18,12 @@ hotkeys, sound) and the extension pages (popup, settings, sign-in, debug
 pages) work together on the ChatSpace-like stand against the fake hub.
 Contracts are frozen at 1.3.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
-`docs/contracts-changelog.md`. The SDK is vendored from hub `e7e1037b`
-(2026-10-04); the prod hub may run an older contract — the hub layer announces
+`docs/contracts-changelog.md`. The SDK is a development vendor from hub
+`1e5f6ed9` (2026-10-05): the head of the hub branch
+`client/synthetic-examples-in-comments` (hub PR #482, pending merge), which is
+hub `main` `4a470029` plus synthetic examples in two contract comments. A
+release is vendored only from a deployed hub commit. The prod hub may run an
+older contract — the hub layer announces
 only what the bootstrap declares. Still ahead: the hub PRs that are not merged
 yet (feed, Spenders stats, claim, «Новые») and the next re-vendor, the owner's
 next live checks (X9), CI and release (R19), Fansly (R20). What works and what is left: `README.md` «Что уже работает»; decisions

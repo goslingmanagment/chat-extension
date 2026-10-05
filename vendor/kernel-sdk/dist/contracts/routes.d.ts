@@ -5388,6 +5388,24 @@ export declare const syncStatusReasonSchema: z.ZodObject<{
     summary: z.ZodNullable<z.ZodString>;
     waitingFor: z.ZodNullable<z.ZodArray<z.ZodString>>;
 }, z.core.$strip>;
+/** One thing that stops registry keys of a page the Fansly Sync Engine owns
+ *  from sending now. `paused` is the owner's; the rest is what the engine's
+ *  hold evaluator says of a request of the key: the page's own hold, the
+ *  breaker of its resource file, a 429's hold of its routes — of every route
+ *  it reads, or of one of them once that hold has put the key's work off. (A
+ *  route's own pace stops nothing: work it puts off is queued.) A key stopped
+ *  by several is named under each: ending one leaves the others. */
+export declare const syncEngineStopSchema: z.ZodObject<{
+    reason: z.ZodEnum<{
+        paused: "paused";
+        page_hold: "page_hold";
+        route_hold: "route_hold";
+        resource_hold: "resource_hold";
+    }>;
+    by: z.ZodArray<z.ZodString>;
+    resources: z.ZodArray<z.ZodString>;
+    until: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
 export declare const syncBlockIntervalSchema: z.ZodObject<{
     stream: z.ZodEnum<{
         subscribers: "subscribers";
@@ -5466,6 +5484,26 @@ export declare const syncBlockSubstreamSchema: z.ZodObject<{
         failedAt: z.ZodNullable<z.ZodString>;
         consecutiveFailures: z.ZodNumber;
     }, z.core.$strip>>;
+    engine: z.ZodOptional<z.ZodObject<{
+        stopped: z.ZodEnum<{
+            all: "all";
+            some: "some";
+            none: "none";
+        }>;
+        stops: z.ZodArray<z.ZodObject<{
+            reason: z.ZodEnum<{
+                paused: "paused";
+                page_hold: "page_hold";
+                route_hold: "route_hold";
+                resource_hold: "resource_hold";
+            }>;
+            by: z.ZodArray<z.ZodString>;
+            resources: z.ZodArray<z.ZodString>;
+            until: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        paused: z.ZodBoolean;
+        activeWork: z.ZodNumber;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const syncBlockStatusSchema: z.ZodObject<{
     block: z.ZodEnum<{
@@ -5492,6 +5530,43 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
         handover: "handover";
         live: "live";
     }>>;
+    engine: z.ZodOptional<z.ZodObject<{
+        mode: z.ZodEnum<{
+            handover: "handover";
+            live: "live";
+        }>;
+        ownerRunning: z.ZodBoolean;
+        keys: z.ZodArray<z.ZodString>;
+        pollKeys: z.ZodArray<z.ZodString>;
+        pausedKeys: z.ZodArray<z.ZodString>;
+        pausedAll: z.ZodBoolean;
+        stopped: z.ZodEnum<{
+            all: "all";
+            some: "some";
+            none: "none";
+        }>;
+        stops: z.ZodArray<z.ZodObject<{
+            reason: z.ZodEnum<{
+                paused: "paused";
+                page_hold: "page_hold";
+                route_hold: "route_hold";
+                resource_hold: "resource_hold";
+            }>;
+            by: z.ZodArray<z.ZodString>;
+            resources: z.ZodArray<z.ZodString>;
+            until: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        paused: z.ZodBoolean;
+        activeWork: z.ZodNumber;
+        quarantined: z.ZodObject<{
+            count: z.ZodNumber;
+            resources: z.ZodArray<z.ZodString>;
+        }, z.core.$strip>;
+        blockedByVendor: z.ZodObject<{
+            count: z.ZodNumber;
+            resources: z.ZodArray<z.ZodString>;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
     succeededAt: z.ZodNullable<z.ZodString>;
     progress: z.ZodNullable<z.ZodObject<{
         label: z.ZodString;
@@ -5606,6 +5681,26 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
             failedAt: z.ZodNullable<z.ZodString>;
             consecutiveFailures: z.ZodNumber;
         }, z.core.$strip>>;
+        engine: z.ZodOptional<z.ZodObject<{
+            stopped: z.ZodEnum<{
+                all: "all";
+                some: "some";
+                none: "none";
+            }>;
+            stops: z.ZodArray<z.ZodObject<{
+                reason: z.ZodEnum<{
+                    paused: "paused";
+                    page_hold: "page_hold";
+                    route_hold: "route_hold";
+                    resource_hold: "resource_hold";
+                }>;
+                by: z.ZodArray<z.ZodString>;
+                resources: z.ZodArray<z.ZodString>;
+                until: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>;
+            paused: z.ZodBoolean;
+            activeWork: z.ZodNumber;
+        }, z.core.$strip>>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const syncDiagnosisSchema: z.ZodObject<{
@@ -5681,6 +5776,43 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 handover: "handover";
                 live: "live";
             }>>;
+            engine: z.ZodOptional<z.ZodObject<{
+                mode: z.ZodEnum<{
+                    handover: "handover";
+                    live: "live";
+                }>;
+                ownerRunning: z.ZodBoolean;
+                keys: z.ZodArray<z.ZodString>;
+                pollKeys: z.ZodArray<z.ZodString>;
+                pausedKeys: z.ZodArray<z.ZodString>;
+                pausedAll: z.ZodBoolean;
+                stopped: z.ZodEnum<{
+                    all: "all";
+                    some: "some";
+                    none: "none";
+                }>;
+                stops: z.ZodArray<z.ZodObject<{
+                    reason: z.ZodEnum<{
+                        paused: "paused";
+                        page_hold: "page_hold";
+                        route_hold: "route_hold";
+                        resource_hold: "resource_hold";
+                    }>;
+                    by: z.ZodArray<z.ZodString>;
+                    resources: z.ZodArray<z.ZodString>;
+                    until: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                paused: z.ZodBoolean;
+                activeWork: z.ZodNumber;
+                quarantined: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+                blockedByVendor: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+            }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
                 label: z.ZodString;
@@ -5794,6 +5926,26 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     summary: z.ZodNullable<z.ZodString>;
                     failedAt: z.ZodNullable<z.ZodString>;
                     consecutiveFailures: z.ZodNumber;
+                }, z.core.$strip>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
                 }, z.core.$strip>>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
@@ -5822,6 +5974,43 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 handover: "handover";
                 live: "live";
             }>>;
+            engine: z.ZodOptional<z.ZodObject<{
+                mode: z.ZodEnum<{
+                    handover: "handover";
+                    live: "live";
+                }>;
+                ownerRunning: z.ZodBoolean;
+                keys: z.ZodArray<z.ZodString>;
+                pollKeys: z.ZodArray<z.ZodString>;
+                pausedKeys: z.ZodArray<z.ZodString>;
+                pausedAll: z.ZodBoolean;
+                stopped: z.ZodEnum<{
+                    all: "all";
+                    some: "some";
+                    none: "none";
+                }>;
+                stops: z.ZodArray<z.ZodObject<{
+                    reason: z.ZodEnum<{
+                        paused: "paused";
+                        page_hold: "page_hold";
+                        route_hold: "route_hold";
+                        resource_hold: "resource_hold";
+                    }>;
+                    by: z.ZodArray<z.ZodString>;
+                    resources: z.ZodArray<z.ZodString>;
+                    until: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                paused: z.ZodBoolean;
+                activeWork: z.ZodNumber;
+                quarantined: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+                blockedByVendor: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+            }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
                 label: z.ZodString;
@@ -5935,6 +6124,26 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     summary: z.ZodNullable<z.ZodString>;
                     failedAt: z.ZodNullable<z.ZodString>;
                     consecutiveFailures: z.ZodNumber;
+                }, z.core.$strip>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
                 }, z.core.$strip>>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
@@ -5963,6 +6172,43 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 handover: "handover";
                 live: "live";
             }>>;
+            engine: z.ZodOptional<z.ZodObject<{
+                mode: z.ZodEnum<{
+                    handover: "handover";
+                    live: "live";
+                }>;
+                ownerRunning: z.ZodBoolean;
+                keys: z.ZodArray<z.ZodString>;
+                pollKeys: z.ZodArray<z.ZodString>;
+                pausedKeys: z.ZodArray<z.ZodString>;
+                pausedAll: z.ZodBoolean;
+                stopped: z.ZodEnum<{
+                    all: "all";
+                    some: "some";
+                    none: "none";
+                }>;
+                stops: z.ZodArray<z.ZodObject<{
+                    reason: z.ZodEnum<{
+                        paused: "paused";
+                        page_hold: "page_hold";
+                        route_hold: "route_hold";
+                        resource_hold: "resource_hold";
+                    }>;
+                    by: z.ZodArray<z.ZodString>;
+                    resources: z.ZodArray<z.ZodString>;
+                    until: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                paused: z.ZodBoolean;
+                activeWork: z.ZodNumber;
+                quarantined: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+                blockedByVendor: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+            }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
                 label: z.ZodString;
@@ -6076,6 +6322,26 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     summary: z.ZodNullable<z.ZodString>;
                     failedAt: z.ZodNullable<z.ZodString>;
                     consecutiveFailures: z.ZodNumber;
+                }, z.core.$strip>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
                 }, z.core.$strip>>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
@@ -6104,6 +6370,43 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 handover: "handover";
                 live: "live";
             }>>;
+            engine: z.ZodOptional<z.ZodObject<{
+                mode: z.ZodEnum<{
+                    handover: "handover";
+                    live: "live";
+                }>;
+                ownerRunning: z.ZodBoolean;
+                keys: z.ZodArray<z.ZodString>;
+                pollKeys: z.ZodArray<z.ZodString>;
+                pausedKeys: z.ZodArray<z.ZodString>;
+                pausedAll: z.ZodBoolean;
+                stopped: z.ZodEnum<{
+                    all: "all";
+                    some: "some";
+                    none: "none";
+                }>;
+                stops: z.ZodArray<z.ZodObject<{
+                    reason: z.ZodEnum<{
+                        paused: "paused";
+                        page_hold: "page_hold";
+                        route_hold: "route_hold";
+                        resource_hold: "resource_hold";
+                    }>;
+                    by: z.ZodArray<z.ZodString>;
+                    resources: z.ZodArray<z.ZodString>;
+                    until: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                paused: z.ZodBoolean;
+                activeWork: z.ZodNumber;
+                quarantined: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+                blockedByVendor: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+            }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
                 label: z.ZodString;
@@ -6217,6 +6520,26 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     summary: z.ZodNullable<z.ZodString>;
                     failedAt: z.ZodNullable<z.ZodString>;
                     consecutiveFailures: z.ZodNumber;
+                }, z.core.$strip>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
                 }, z.core.$strip>>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
@@ -6245,6 +6568,43 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 handover: "handover";
                 live: "live";
             }>>;
+            engine: z.ZodOptional<z.ZodObject<{
+                mode: z.ZodEnum<{
+                    handover: "handover";
+                    live: "live";
+                }>;
+                ownerRunning: z.ZodBoolean;
+                keys: z.ZodArray<z.ZodString>;
+                pollKeys: z.ZodArray<z.ZodString>;
+                pausedKeys: z.ZodArray<z.ZodString>;
+                pausedAll: z.ZodBoolean;
+                stopped: z.ZodEnum<{
+                    all: "all";
+                    some: "some";
+                    none: "none";
+                }>;
+                stops: z.ZodArray<z.ZodObject<{
+                    reason: z.ZodEnum<{
+                        paused: "paused";
+                        page_hold: "page_hold";
+                        route_hold: "route_hold";
+                        resource_hold: "resource_hold";
+                    }>;
+                    by: z.ZodArray<z.ZodString>;
+                    resources: z.ZodArray<z.ZodString>;
+                    until: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                paused: z.ZodBoolean;
+                activeWork: z.ZodNumber;
+                quarantined: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+                blockedByVendor: z.ZodObject<{
+                    count: z.ZodNumber;
+                    resources: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>;
+            }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
                 label: z.ZodString;
@@ -6358,6 +6718,26 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     summary: z.ZodNullable<z.ZodString>;
                     failedAt: z.ZodNullable<z.ZodString>;
                     consecutiveFailures: z.ZodNumber;
+                }, z.core.$strip>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
                 }, z.core.$strip>>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
@@ -6438,6 +6818,43 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -6551,6 +6968,26 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -6579,6 +7016,43 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -6692,6 +7166,26 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -6720,6 +7214,43 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -6833,6 +7364,26 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -6861,6 +7412,43 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -6974,6 +7562,26 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -7002,6 +7610,43 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -7115,6 +7760,26 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -7181,6 +7846,43 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -7294,6 +7996,26 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -7322,6 +8044,43 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -7435,6 +8194,26 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -7463,6 +8242,43 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -7576,6 +8392,26 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -7604,6 +8440,43 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -7717,6 +8590,26 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -7745,6 +8638,43 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     handover: "handover";
                     live: "live";
                 }>>;
+                engine: z.ZodOptional<z.ZodObject<{
+                    mode: z.ZodEnum<{
+                        handover: "handover";
+                        live: "live";
+                    }>;
+                    ownerRunning: z.ZodBoolean;
+                    keys: z.ZodArray<z.ZodString>;
+                    pollKeys: z.ZodArray<z.ZodString>;
+                    pausedKeys: z.ZodArray<z.ZodString>;
+                    pausedAll: z.ZodBoolean;
+                    stopped: z.ZodEnum<{
+                        all: "all";
+                        some: "some";
+                        none: "none";
+                    }>;
+                    stops: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            paused: "paused";
+                            page_hold: "page_hold";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                        }>;
+                        by: z.ZodArray<z.ZodString>;
+                        resources: z.ZodArray<z.ZodString>;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    paused: z.ZodBoolean;
+                    activeWork: z.ZodNumber;
+                    quarantined: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                    blockedByVendor: z.ZodObject<{
+                        count: z.ZodNumber;
+                        resources: z.ZodArray<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
                     label: z.ZodString;
@@ -7858,6 +8788,26 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         summary: z.ZodNullable<z.ZodString>;
                         failedAt: z.ZodNullable<z.ZodString>;
                         consecutiveFailures: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -7921,6 +8871,43 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
             handover: "handover";
             live: "live";
         }>>;
+        engine: z.ZodOptional<z.ZodObject<{
+            mode: z.ZodEnum<{
+                handover: "handover";
+                live: "live";
+            }>;
+            ownerRunning: z.ZodBoolean;
+            keys: z.ZodArray<z.ZodString>;
+            pollKeys: z.ZodArray<z.ZodString>;
+            pausedKeys: z.ZodArray<z.ZodString>;
+            pausedAll: z.ZodBoolean;
+            stopped: z.ZodEnum<{
+                all: "all";
+                some: "some";
+                none: "none";
+            }>;
+            stops: z.ZodArray<z.ZodObject<{
+                reason: z.ZodEnum<{
+                    paused: "paused";
+                    page_hold: "page_hold";
+                    route_hold: "route_hold";
+                    resource_hold: "resource_hold";
+                }>;
+                by: z.ZodArray<z.ZodString>;
+                resources: z.ZodArray<z.ZodString>;
+                until: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>;
+            paused: z.ZodBoolean;
+            activeWork: z.ZodNumber;
+            quarantined: z.ZodObject<{
+                count: z.ZodNumber;
+                resources: z.ZodArray<z.ZodString>;
+            }, z.core.$strip>;
+            blockedByVendor: z.ZodObject<{
+                count: z.ZodNumber;
+                resources: z.ZodArray<z.ZodString>;
+            }, z.core.$strip>;
+        }, z.core.$strip>>;
         succeededAt: z.ZodNullable<z.ZodString>;
         progress: z.ZodNullable<z.ZodObject<{
             label: z.ZodString;
@@ -8034,6 +9021,26 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
                 summary: z.ZodNullable<z.ZodString>;
                 failedAt: z.ZodNullable<z.ZodString>;
                 consecutiveFailures: z.ZodNumber;
+            }, z.core.$strip>>;
+            engine: z.ZodOptional<z.ZodObject<{
+                stopped: z.ZodEnum<{
+                    all: "all";
+                    some: "some";
+                    none: "none";
+                }>;
+                stops: z.ZodArray<z.ZodObject<{
+                    reason: z.ZodEnum<{
+                        paused: "paused";
+                        page_hold: "page_hold";
+                        route_hold: "route_hold";
+                        resource_hold: "resource_hold";
+                    }>;
+                    by: z.ZodArray<z.ZodString>;
+                    resources: z.ZodArray<z.ZodString>;
+                    until: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                paused: z.ZodBoolean;
+                activeWork: z.ZodNumber;
             }, z.core.$strip>>;
         }, z.core.$strip>>;
     }, z.core.$strip>;
@@ -11266,6 +12273,22 @@ export declare const statsCoverageResponseSchema: z.ZodObject<{
             nextDueAt: z.ZodNullable<z.ZodString>;
             activeWork: z.ZodNumber;
             paused: z.ZodBoolean;
+            stopped: z.ZodEnum<{
+                all: "all";
+                some: "some";
+                none: "none";
+            }>;
+            stops: z.ZodArray<z.ZodObject<{
+                reason: z.ZodEnum<{
+                    paused: "paused";
+                    page_hold: "page_hold";
+                    route_hold: "route_hold";
+                    resource_hold: "resource_hold";
+                }>;
+                by: z.ZodArray<z.ZodString>;
+                resources: z.ZodArray<z.ZodString>;
+                until: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>;
             needsAttention: z.ZodBoolean;
             reason: z.ZodNullable<z.ZodString>;
             waiting: z.ZodNullable<z.ZodObject<{
@@ -19352,6 +20375,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -19465,6 +20525,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -19493,6 +20573,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -19606,6 +20723,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -19634,6 +20771,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -19747,6 +20921,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -19775,6 +20969,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -19888,6 +21119,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -19916,6 +21167,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -20029,6 +21317,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -20119,6 +21427,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -20232,6 +21577,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -20260,6 +21625,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -20373,6 +21775,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -20401,6 +21823,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -20514,6 +21973,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -20542,6 +22021,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -20655,6 +22171,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -20683,6 +22219,43 @@ declare const baseRouteSchemas: {
                                 handover: "handover";
                                 live: "live";
                             }>>;
+                            engine: z.ZodOptional<z.ZodObject<{
+                                mode: z.ZodEnum<{
+                                    handover: "handover";
+                                    live: "live";
+                                }>;
+                                ownerRunning: z.ZodBoolean;
+                                keys: z.ZodArray<z.ZodString>;
+                                pollKeys: z.ZodArray<z.ZodString>;
+                                pausedKeys: z.ZodArray<z.ZodString>;
+                                pausedAll: z.ZodBoolean;
+                                stopped: z.ZodEnum<{
+                                    all: "all";
+                                    some: "some";
+                                    none: "none";
+                                }>;
+                                stops: z.ZodArray<z.ZodObject<{
+                                    reason: z.ZodEnum<{
+                                        paused: "paused";
+                                        page_hold: "page_hold";
+                                        route_hold: "route_hold";
+                                        resource_hold: "resource_hold";
+                                    }>;
+                                    by: z.ZodArray<z.ZodString>;
+                                    resources: z.ZodArray<z.ZodString>;
+                                    until: z.ZodNullable<z.ZodString>;
+                                }, z.core.$strip>>;
+                                paused: z.ZodBoolean;
+                                activeWork: z.ZodNumber;
+                                quarantined: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                                blockedByVendor: z.ZodObject<{
+                                    count: z.ZodNumber;
+                                    resources: z.ZodArray<z.ZodString>;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
                                 label: z.ZodString;
@@ -20796,6 +22369,26 @@ declare const baseRouteSchemas: {
                                     summary: z.ZodNullable<z.ZodString>;
                                     failedAt: z.ZodNullable<z.ZodString>;
                                     consecutiveFailures: z.ZodNumber;
+                                }, z.core.$strip>>;
+                                engine: z.ZodOptional<z.ZodObject<{
+                                    stopped: z.ZodEnum<{
+                                        all: "all";
+                                        some: "some";
+                                        none: "none";
+                                    }>;
+                                    stops: z.ZodArray<z.ZodObject<{
+                                        reason: z.ZodEnum<{
+                                            paused: "paused";
+                                            page_hold: "page_hold";
+                                            route_hold: "route_hold";
+                                            resource_hold: "resource_hold";
+                                        }>;
+                                        by: z.ZodArray<z.ZodString>;
+                                        resources: z.ZodArray<z.ZodString>;
+                                        until: z.ZodNullable<z.ZodString>;
+                                    }, z.core.$strip>>;
+                                    paused: z.ZodBoolean;
+                                    activeWork: z.ZodNumber;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
@@ -20893,6 +22486,43 @@ declare const baseRouteSchemas: {
                         handover: "handover";
                         live: "live";
                     }>>;
+                    engine: z.ZodOptional<z.ZodObject<{
+                        mode: z.ZodEnum<{
+                            handover: "handover";
+                            live: "live";
+                        }>;
+                        ownerRunning: z.ZodBoolean;
+                        keys: z.ZodArray<z.ZodString>;
+                        pollKeys: z.ZodArray<z.ZodString>;
+                        pausedKeys: z.ZodArray<z.ZodString>;
+                        pausedAll: z.ZodBoolean;
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        paused: z.ZodBoolean;
+                        activeWork: z.ZodNumber;
+                        quarantined: z.ZodObject<{
+                            count: z.ZodNumber;
+                            resources: z.ZodArray<z.ZodString>;
+                        }, z.core.$strip>;
+                        blockedByVendor: z.ZodObject<{
+                            count: z.ZodNumber;
+                            resources: z.ZodArray<z.ZodString>;
+                        }, z.core.$strip>;
+                    }, z.core.$strip>>;
                     succeededAt: z.ZodNullable<z.ZodString>;
                     progress: z.ZodNullable<z.ZodObject<{
                         label: z.ZodString;
@@ -21006,6 +22636,26 @@ declare const baseRouteSchemas: {
                             summary: z.ZodNullable<z.ZodString>;
                             failedAt: z.ZodNullable<z.ZodString>;
                             consecutiveFailures: z.ZodNumber;
+                        }, z.core.$strip>>;
+                        engine: z.ZodOptional<z.ZodObject<{
+                            stopped: z.ZodEnum<{
+                                all: "all";
+                                some: "some";
+                                none: "none";
+                            }>;
+                            stops: z.ZodArray<z.ZodObject<{
+                                reason: z.ZodEnum<{
+                                    paused: "paused";
+                                    page_hold: "page_hold";
+                                    route_hold: "route_hold";
+                                    resource_hold: "resource_hold";
+                                }>;
+                                by: z.ZodArray<z.ZodString>;
+                                resources: z.ZodArray<z.ZodString>;
+                                until: z.ZodNullable<z.ZodString>;
+                            }, z.core.$strip>>;
+                            paused: z.ZodBoolean;
+                            activeWork: z.ZodNumber;
                         }, z.core.$strip>>;
                     }, z.core.$strip>>;
                 }, z.core.$strip>;
@@ -26851,6 +28501,22 @@ declare const baseRouteSchemas: {
                         nextDueAt: z.ZodNullable<z.ZodString>;
                         activeWork: z.ZodNumber;
                         paused: z.ZodBoolean;
+                        stopped: z.ZodEnum<{
+                            all: "all";
+                            some: "some";
+                            none: "none";
+                        }>;
+                        stops: z.ZodArray<z.ZodObject<{
+                            reason: z.ZodEnum<{
+                                paused: "paused";
+                                page_hold: "page_hold";
+                                route_hold: "route_hold";
+                                resource_hold: "resource_hold";
+                            }>;
+                            by: z.ZodArray<z.ZodString>;
+                            resources: z.ZodArray<z.ZodString>;
+                            until: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
                         needsAttention: z.ZodBoolean;
                         reason: z.ZodNullable<z.ZodString>;
                         waiting: z.ZodNullable<z.ZodObject<{
@@ -31060,6 +32726,7 @@ export type SyncRequestItem = z.infer<typeof syncRequestItemSchema>;
 export type SyncRequestsResponse = z.infer<typeof syncRequestsResponseSchema>;
 export type SyncDiagnosis = z.infer<typeof syncDiagnosisSchema>;
 export type SyncBlockStatus = z.infer<typeof syncBlockStatusSchema>;
+export type SyncEngineStop = z.infer<typeof syncEngineStopSchema>;
 export type SyncBlocksPage = z.infer<typeof syncBlocksPageSchema>;
 export type SyncOverviewResponse = z.infer<typeof syncOverviewResponseSchema>;
 export type PageSyncBlocksResponse = z.infer<typeof pageSyncBlocksResponseSchema>;
