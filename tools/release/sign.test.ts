@@ -16,7 +16,7 @@ import { readZip, type ZipEntry } from '../lib/zip.ts';
 import { BUILD_INSTRUCTIONS, ENV, releaseTarget, REPO_ROOT } from './config.ts';
 import { realExec, renderCommand, type Exec } from './exec.ts';
 import type { GateRecord } from './records.ts';
-import { amoMetadata, releaseRecord, reviewerNotes, signBuild, signCommand, type SignInput } from './sign.ts';
+import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand, type SignInput } from './sign.ts';
 import { isSigned, SIGNATURE_FILES } from './xpi.ts';
 
 const ID = 'chat-extension-sign-test@example.test';
@@ -113,6 +113,18 @@ describe('signing at AMO', () => {
     mock = await startAmoMock({ geckoId: ID, version: VERSION, signedXpi: signedBy(tampered) });
     await expect(signBuild(withKeys(realExec), { ...input, amoBaseUrl: mock.baseUrl }, { version: VERSION, geckoId: ID }, () => buildFiles)).rejects.toThrow(/not the build that passed the gate:\n {2}background\.js differs from the build/);
     expect(readdirSync(input.artifactsDir).filter((name) => name.endsWith('.xpi'))).toHaveLength(1);
+  });
+
+  it('a signed XPI downloaded by hand is taken on the same terms: the build, signed', () => {
+    const { input, buildFiles } = workspace();
+    const good = join(root, 'from-amo.xpi');
+    writeFileSync(good, signedBy(buildFiles));
+    expect(importSigned(good, { version: VERSION, geckoId: ID }, buildFiles).equals(signedBy(buildFiles))).toBe(true);
+    const unsigned = join(root, 'unsigned.xpi');
+    writeFileSync(unsigned, writeZip(buildFiles));
+    expect(() => importSigned(unsigned, { version: VERSION, geckoId: ID }, buildFiles)).toThrow(/not signed: META-INF\/manifest\.mf is missing/);
+    expect(() => importSigned(good, { version: '0.1.1', geckoId: ID }, buildFiles)).toThrow(/version 0\.1\.0, expected 0\.1\.1/);
+    expect(() => importSigned(join(input.buildDir, 'manifest.json'), { version: VERSION, geckoId: ID }, buildFiles)).toThrow(/not a zip archive/);
   });
 
   it('a failed web-ext run stores nothing and does not leave its upload id behind', async () => {

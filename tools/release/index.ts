@@ -16,6 +16,8 @@
 // command lines, scripts and addresses — and stops unless it is given
 // `--confirm <version>`; `--dry-run` prints the plan and nothing else:
 //   sign                           AMO: web-ext sign --channel unlisted
+//   sign --import <file.xpi>       no network: take a signed XPI downloaded from the
+//                                  developer hub by hand (AMO signed, web-ext timed out)
 //   publish                        the server: XPI and record, the feed, the pages
 //   pages [--versionless]          the server: the pages alone
 //   tag                            git: the annotated tag vX.Y.Z, pushed to origin
@@ -39,8 +41,8 @@ import { renderNote } from './note.ts';
 import { runPreflight } from './preflight.ts';
 import { pagesOnlySteps, publishSteps, realHttp, rollbackSteps, servedFeed, type ServerDeps } from './publish.ts';
 import { gateProblems, type ArtifactRef, type ReleaseRecord } from './records.ts';
-import { checkRemoteDir, sshTransport } from './remote.ts';
-import { amoMetadata, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
+import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
+import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
 import { renderSite, siteProblems, SITE_FILES, VERSIONLESS_FILES } from './site.ts';
 import { bumpVersion, compareVersions, isVersion, setPackageVersion, type BumpKind } from './version.ts';
 import { sha256Hex } from './xpi.ts';
@@ -51,6 +53,7 @@ local:    status · version [--set X.Y.Z | --bump patch|minor|major] · note · 
           preflight [--online] · announce --check
 outward:  sign · publish · pages [--versionless] · tag · announce · rollback --to <version>
           each prints its plan and stops without --confirm <version>; --dry-run only prints
+          sign --import <file.xpi> takes a signed XPI downloaded by hand (no network)
 
 The runbook: docs/release.md`;
 
@@ -73,6 +76,7 @@ const { values } = parseArgs({
     bump: { type: 'string' },
     to: { type: 'string' },
     versionless: { type: 'boolean', default: false },
+    import: { type: 'string' },
     silent: { type: 'boolean', default: false },
   },
 });
@@ -119,7 +123,8 @@ function serverDeps(plan: boolean): ServerDeps {
     return name;
   };
   const ssh = process.env[ENV.ssh] ?? (plan ? placeholder(ENV.ssh) : requireEnv(ENV.ssh));
-  const remoteDir = process.env[ENV.remoteDir] ?? (plan ? `/${placeholder(ENV.remoteDir)}` : requireEnv(ENV.remoteDir));
+  const named = process.env[ENV.remoteDir];
+  const remoteDir = named === undefined || named === '' ? (plan ? `/${placeholder(ENV.remoteDir)}` : requireEnv(ENV.remoteDir)) : checkSiteFolder(named, checkout.target.siteBase);
   return {
     exec: realExec,
     http: realHttp,
@@ -241,6 +246,25 @@ async function sign(): Promise<void> {
   const head = await checkout.git('rev-parse', 'HEAD');
   const problems = gate === null ? ['no gate record — run pnpm release preflight --online'] : gateProblems(gate, { version, commit: head, now: Date.now(), xpiSha256: built.xpi.sha256, sourcesSha256: built.sources.sha256 });
   if ((await checkout.git('status', '--porcelain')) !== '') problems.push('the working tree is not clean');
+  /** The signed XPI and the record of the release, stored once. */
+  const store = (data: Buffer): void => {
+    if (gate === null) throw new Error('no gate record.');
+    const xpi: ArtifactRef = { file: signedXpiName(version), sha256: sha256Hex(data), bytes: data.length };
+    const record: ReleaseRecord = releaseRecord({ target: checkout.target, gate, signedXpi: xpi, signedAt: new Date().toISOString() });
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.signedXpi, data);
+    writeFileSync(paths.record, `${JSON.stringify(record, null, 2)}\n`);
+    print(`    signed: ${xpi.file}, ${xpi.bytes} B, sha256 ${xpi.sha256}`);
+  };
+
+  if (values.import !== undefined) {
+    // AMO signed the version and web-ext did not bring the file: it was downloaded from the developer hub by hand.
+    if (problems.length > 0) refuse(`cannot take a signed XPI for ${version}:\n  ${problems.join('\n  ')}`);
+    store(importSigned(values.import, { version, geckoId: checkout.target.geckoId }, checkout.buildFiles(built.dir)));
+    print('Next: pnpm release publish');
+    return;
+  }
+
   const plan = planOnly(version);
   if (problems.length > 0 && !plan) refuse(`cannot sign ${version}:\n  ${problems.join('\n  ')}`);
   for (const problem of problems) print(`note: ${problem}`);
@@ -272,14 +296,8 @@ async function sign(): Promise<void> {
       run: async () => {
         requireEnv(ENV.amoKey);
         requireEnv(ENV.amoSecret);
-        if (gate === null) throw new Error('no gate record.');
-        const data = await signBuild(realExec, input, { version, geckoId: checkout.target.geckoId }, () => checkout.buildFiles(built.dir), spec);
-        const xpi: ArtifactRef = { file: signedXpiName(version), sha256: sha256Hex(data), bytes: data.length };
-        const record: ReleaseRecord = releaseRecord({ target: checkout.target, gate, signedXpi: xpi, signedAt: new Date().toISOString() });
-        writeFileSync(paths.signedXpi, data);
-        writeFileSync(paths.record, `${JSON.stringify(record, null, 2)}\n`);
+        store(await signBuild(realExec, input, { version, geckoId: checkout.target.geckoId }, () => checkout.buildFiles(built.dir), spec));
         rmSync(artifactsDir, { recursive: true, force: true });
-        print(`    signed: ${xpi.file}, ${xpi.bytes} B, sha256 ${xpi.sha256}`);
       },
     },
   ];

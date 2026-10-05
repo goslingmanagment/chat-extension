@@ -15,7 +15,7 @@ import { realExec, runSteps, type Step } from './exec.ts';
 import { parseFeed } from './feed.ts';
 import { pagesOnlySteps, publishSteps, realHttp, rollbackSteps, servedFeed, type LocalFile, type PublishInput, type ServerDeps } from './publish.ts';
 import type { ReleaseRecord } from './records.ts';
-import { checkRemoteDir, localTransport, sshTransport } from './remote.ts';
+import { checkRemoteDir, checkSiteFolder, localTransport, sshTransport } from './remote.ts';
 import { sha256Hex, SIGNATURE_FILES } from './xpi.ts';
 
 let root = '';
@@ -246,5 +246,13 @@ describe('where the server is', () => {
     for (const bad of ['-oProxyCommand=evil', 'host; rm -rf /', 'user@host path', '']) expect(() => sshTransport(bad), bad).toThrow(/not an SSH destination/);
     expect(checkRemoteDir('/var/www/ext/chat-extension/')).toBe('/var/www/ext/chat-extension');
     for (const bad of ['relative/path', '/var/www/../etc', '/var/www/my site', '/', '/var/www/$(id)', "/var/www/a'b"]) expect(() => checkRemoteDir(bad), bad).toThrow(/not a usable server folder/);
+  });
+
+  it('the server folder is the site’s own folder by name: a path one level short would overwrite the old extension’s page and feed', () => {
+    const site = 'https://ext.example.test/chat-extension/';
+    expect(checkSiteFolder('/var/www/ext/chat-extension', site)).toBe('/var/www/ext/chat-extension');
+    expect(checkSiteFolder('/srv/site/chat-extension/', site)).toBe('/srv/site/chat-extension');
+    for (const bad of ['/var/www/ext', '/var/www/ext/chat-extension/firefox', '/var/www/ext/chat-extension-old']) expect(() => checkSiteFolder(bad, site), bad).toThrow(/its last part must be «chat-extension»/);
+    expect(() => checkSiteFolder('relative', site)).toThrow(/not a usable server folder/);
   });
 });

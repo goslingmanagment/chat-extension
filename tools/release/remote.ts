@@ -48,6 +48,22 @@ export function checkRemoteDir(dir: string): string {
   return clean;
 }
 
+/**
+ * The server folder must be the one served as the site folder, and say so by
+ * its name: the site lives in a folder of a bigger site (the old extension's
+ * landing page and feed lie one level up), and a path one level short would
+ * put our index.html and updates.json over theirs.
+ */
+export function checkSiteFolder(remoteDir: string, siteBase: string): string {
+  const clean = checkRemoteDir(remoteDir);
+  const folder = new URL(siteBase).pathname.split('/').filter((part) => part !== '').at(-1);
+  if (folder === undefined) throw new Error(`the site address ${siteBase} names no folder.`);
+  if (!clean.endsWith(`/${folder}`)) {
+    throw new Error(`"${remoteDir}" is not the folder of ${siteBase}: its last part must be «${folder}» (the folder one level up belongs to other things).`);
+  }
+  return clean;
+}
+
 const q = (text: string): string => `'${text.replace(/'/g, `'\\''`)}'`;
 
 /** A name unique to this run, for temporary uploads. */

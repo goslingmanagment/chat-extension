@@ -90,6 +90,18 @@ export async function signBuild(exec: Exec, input: SignInput, expected: XpiIdent
   return data;
 }
 
+/**
+ * A signed XPI taken from the developer hub by hand — for the case when AMO
+ * signed the version and web-ext did not live to download it (a timeout, a
+ * dropped connection). The same check as after a normal run: the build, signed.
+ */
+export function importSigned(path: string, expected: XpiIdentity, buildFiles: readonly ZipEntry[]): Buffer {
+  const data = readFileSync(path);
+  const wrong = checkSignedXpi(readZip(data), expected, buildFiles);
+  if (wrong.length > 0) throw new Error(`${path} is not the build that passed the gate, signed:\n  ${wrong.join('\n  ')}`);
+  return data;
+}
+
 export interface ReviewerNotesInput {
   readonly version: string;
   readonly commit: string;
