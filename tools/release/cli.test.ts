@@ -5,12 +5,12 @@
 // release goes through from the gate to the announcement.
 
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { BOT_TOKEN, COMMIT_A, makeHarness, target, VERSION, type Harness } from './cli-world.ts';
+import { BOT_TOKEN, COMMIT_A, COMMIT_B, COMMIT_ELSEWHERE, makeHarness, target, VERSION, type Harness } from './cli-world.ts';
 import { parseFeed } from './feed.ts';
 
 let harness: Harness | null = null;
@@ -155,5 +155,160 @@ describe('a release from the gate to the announcement', () => {
     expect(await h.run('rollback', '--to', '0.0.9', '--confirm', '0.0.9')).toBe(1);
     expect(h.requests).toEqual([target.feedUrl, `${target.feedBase}chatgoose-chatspace-0.0.9.json`]);
     expect(h.err.join('\n')).toMatch(/chatgoose-chatspace-0\.0\.9\.json answered HTTP 404/);
+  });
+});
+
+const SIGNED_XPI = `.release/${VERSION}/chatgoose-chatspace-${VERSION}.xpi`;
+const servedVersion = (h: Harness): string | null => (existsSync(h.remote('firefox/updates.json')) ? parseFeed(readFileSync(h.remote('firefox/updates.json'), 'utf8'), target.geckoId).version : null);
+
+describe('the gate record is the last run of the gate, not the last run that passed', () => {
+  it('a re-run that fails on a cheap check takes the earlier pass back: status shows no passed gate and sign refuses', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    h.forget();
+    await h.run('status');
+    expect(h.out.find((line) => line.startsWith('gate '))).toMatch(/online, passed$/);
+
+    // Something was edited after the gate; the gate is run again and stops at the first cheap check.
+    h.world.porcelain = ' M site/index.html\n';
+    h.forget();
+    expect(await h.run('preflight', '--online')).toBe(2);
+    expect(h.err.join('\n')).toMatch(/1 check\(s\) failed: clean-tree/);
+
+    // The edit is taken back by hand: the tree looks as it did when the gate passed.
+    h.world.porcelain = '';
+    h.forget();
+    await h.run('status');
+    expect(h.out.find((line) => line.startsWith('gate '))).not.toMatch(/passed/);
+
+    h.forget();
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/cannot sign .*\n {2}no gate record/);
+    expect(h.outward()).toEqual([]);
+    expect(existsSync(h.path(SIGNED_XPI))).toBe(false);
+  });
+
+  it('a re-run with a red pnpm check takes the earlier pass back too', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    h.world.checkExit = 1;
+    expect(await h.run('preflight', '--online')).toBe(2);
+    h.world.checkExit = 0;
+    h.forget();
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(2);
+    expect(h.outward()).toEqual([]);
+  });
+
+  it('a re-run that fails after the build leaves a record that says which check failed', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    h.world.health = { status: 200, body: JSON.stringify({ status: 'ok', contractHash: 'd'.repeat(64), compatibleClientSdks: ['d'.repeat(64)] }) };
+    expect(await h.run('preflight', '--online')).toBe(2);
+    h.forget();
+    await h.run('status');
+    expect(h.out.find((line) => line.startsWith('gate '))).toMatch(/failed: hub-compat$/);
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/the gate did not pass: hub-compat/);
+    expect(h.outward()).toEqual([]);
+  });
+});
+
+describe('main moves on between the gate, the signing and the publication', () => {
+  it('sign does not send a commit that is no longer the tip of origin/main: it stops before AMO, with nothing spent', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    h.world.main.push(COMMIT_B); // a PR was merged after the gate
+    h.forget();
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/is no longer the tip of origin\/main .*nothing was sent to AMO/);
+    expect(h.outward()).toEqual(['git fetch origin main --quiet']);
+    expect(existsSync(h.path(SIGNED_XPI))).toBe(false);
+  });
+
+  it('a version signed from the tip is still published after main moved on — from the signed commit', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(0);
+    h.world.main.push(COMMIT_B);
+    expect(await h.run('publish', '--confirm', VERSION), h.err.join('\n')).toBe(0);
+    expect(servedVersion(h)).toBe(VERSION);
+    expect(readFileSync(h.remote(`firefox/chatgoose-chatspace-${VERSION}.xpi`)).equals(readFileSync(h.path(SIGNED_XPI)))).toBe(true);
+    // The tag goes on the signed commit, wherever main is by now.
+    expect(await h.run('tag', '--confirm', VERSION), h.err.join('\n')).toBe(0);
+    expect(h.world.localTags.get(`v${VERSION}`)?.commit).toBe(COMMIT_A);
+  });
+
+  it('… and from the new tip, when the checkout was pulled and still holds the signed version', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(0);
+    h.world.main.push(COMMIT_B);
+    h.world.head = COMMIT_B;
+    h.forget();
+    expect(await h.run('publish', '--confirm', VERSION), h.err.join('\n')).toBe(0);
+    expect(servedVersion(h)).toBe(VERSION);
+    expect(h.out.join('\n')).toMatch(/HEAD bbbbbbbbbbbb is ahead of the signed commit aaaaaaaaaaaa/);
+  });
+
+  it('publish still refuses what is not merged: a signed commit off origin/main, a checkout off the line, a tree with edits', async () => {
+    const h = world();
+    h.world.main.push(COMMIT_B);
+    h.seedSigned(COMMIT_ELSEWHERE);
+    h.world.head = COMMIT_ELSEWHERE;
+    expect(await h.run('publish', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/was signed from 999999999999, which is not on origin\/main/);
+
+    h.seedSigned(COMMIT_A);
+    h.forget();
+    expect(await h.run('publish', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/HEAD 999999999999 is neither the signed commit aaaaaaaaaaaa nor a later commit of origin\/main/);
+
+    h.world.head = COMMIT_A;
+    h.world.porcelain = ' M site/index.html\n';
+    h.forget();
+    expect(await h.run('publish', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/working tree is not clean/);
+
+    expect(h.commands.filter((line) => /^(ssh|scp) /.test(line))).toEqual([]);
+    expect(existsSync(h.remoteDir)).toBe(false);
+  });
+
+  it('a signature AMO gave late is taken in after main moved on and the gate grew old — and published', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    // web-ext gives up waiting: AMO holds the version for a manual review.
+    h.world.signExit = 1;
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(1);
+    expect(h.err.join('\n')).toMatch(/AMO may have taken the version/);
+    expect(existsSync(h.path(SIGNED_XPI))).toBe(false);
+
+    // Three days later AMO approves; main has moved, and the gate cannot pass on this commit again.
+    h.world.now = new Date('2026-10-08T15:00:00.000Z');
+    h.world.main.push(COMMIT_B);
+    expect(await h.run('preflight', '--online')).toBe(2);
+    const fromAmo = join(h.root, '..', 'downloaded-from-amo.xpi');
+    writeFileSync(fromAmo, h.signedXpi());
+
+    // What the checkout knows meanwhile: it sent the version, and has no signed file.
+    h.forget();
+    await h.run('status');
+    expect(h.out.find((line) => line.startsWith('submitted '))).toMatch(/to AMO from aaaaaaaaaaaa, no signed file here yet/);
+    expect(h.out).toContain('signed       no');
+
+    // A look first: --dry-run checks the file and stores nothing.
+    h.forget();
+    expect(await h.run('sign', '--import', fromAmo, '--dry-run'), h.err.join('\n')).toBe(0);
+    expect(h.out.at(-1)).toMatch(/^dry run: .*downloaded-from-amo\.xpi is the build of aaaaaaaaaaaa, signed \(sha256 [0-9a-f]{64}\)\. Nothing was stored\.$/);
+    expect(existsSync(h.path(SIGNED_XPI))).toBe(false);
+    expect(existsSync(h.path(`.release/${VERSION}/chatgoose-chatspace-${VERSION}.json`))).toBe(false);
+
+    h.forget();
+    expect(await h.run('sign', '--import', fromAmo), h.err.join('\n')).toBe(0);
+    expect(h.outward()).toEqual([]);
+    expect(readFileSync(h.path(SIGNED_XPI)).equals(h.signedXpi())).toBe(true);
+    expect((JSON.parse(readFileSync(h.path(`.release/${VERSION}/chatgoose-chatspace-${VERSION}.json`), 'utf8')) as { commit: string }).commit).toBe(COMMIT_A);
+
+    expect(await h.run('publish', '--confirm', VERSION), h.err.join('\n')).toBe(0);
+    expect(servedVersion(h)).toBe(VERSION);
   });
 });

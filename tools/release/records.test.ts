@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { GATE_MAX_AGE_MS, gateProblems, parseGateRecord, parseReleaseRecord, releasePaths, type GateRecord, type ReleaseRecord } from './records.ts';
+import { GATE_MAX_AGE_MS, gateProblems, importProblems, parseAnnouncedRecord, parseGateRecord, parseReleaseRecord, releasePaths, type GateRecord, type ReleaseRecord } from './records.ts';
 
 const SHA = (letter: string): string => letter.repeat(64);
 const COMMIT = 'd'.repeat(40);
@@ -55,6 +55,26 @@ describe('the records of a release', () => {
     expect(only({ createdAt: '2026-10-06T12:00:00.000Z' })[0]).toMatch(/from the future/);
   });
 
+  it('a signed XPI downloaded by hand is taken under the gate of its submission, however old: what counts is that it passed, for this build', () => {
+    const building = { version: context.version, xpiSha256: context.xpiSha256, sourcesSha256: context.sourcesSha256 };
+    // No clock and no HEAD in the question at all: the file is signed already.
+    expect(importProblems(gate, building)).toEqual([]);
+    expect(importProblems({ ...gate, createdAt: '2026-01-01T00:00:00.000Z' }, building)).toEqual([]);
+    expect(importProblems({ ...gate, online: false }, building)).toEqual(['the gate ran without the network checks — run `pnpm release preflight --online`']);
+    expect(importProblems({ ...gate, checks: [{ id: 'pushed', ok: false, detail: 'x' }] }, building)).toEqual(['the gate did not pass: pushed']);
+    expect(importProblems(gate, { ...building, version: '0.1.1' })[0]).toMatch(/gate is for 0\.1\.0, the tree holds 0\.1\.1/);
+    expect(importProblems(gate, { ...building, xpiSha256: SHA('0') })).toEqual(['the release XPI in .output/ is not the one the gate checked — check out dddddddddddd, the commit that was submitted, and run pnpm build']);
+    expect(importProblems(gate, { ...building, sourcesSha256: SHA('0') })[0]).toMatch(/sources archive .* check out dddddddddddd/);
+  });
+
+  it('the record of an announcement says what is known of the send', () => {
+    const posted = { schema: 1, version: '0.1.0', state: 'posted', at: '2026-10-05T12:00:00.000Z', messageId: 7 };
+    expect(parseAnnouncedRecord(JSON.stringify(posted))).toEqual(posted);
+    expect(parseAnnouncedRecord(JSON.stringify({ ...posted, state: 'sending', messageId: undefined }))).toMatchObject({ state: 'sending', messageId: null });
+    expect(() => parseAnnouncedRecord(JSON.stringify({ ...posted, state: 'maybe' }))).toThrow(/announcement record/);
+    expect(() => parseAnnouncedRecord('')).toThrow(/not JSON/);
+  });
+
   it('a release record read back from a file or from the server must be whole', () => {
     expect(parseReleaseRecord(JSON.stringify(record))).toEqual(record);
     const broken = (change: Record<string, unknown>): (() => unknown) => () => parseReleaseRecord(JSON.stringify({ ...record, ...change }));
@@ -74,9 +94,11 @@ describe('the records of a release', () => {
     expect(releasePaths('/repo/', '0.1.0')).toEqual({
       dir: '/repo/.release/0.1.0',
       gate: '/repo/.release/0.1.0/gate.json',
+      submitted: '/repo/.release/0.1.0/submitted.json',
       record: '/repo/.release/0.1.0/chatgoose-chatspace-0.1.0.json',
       signedXpi: '/repo/.release/0.1.0/chatgoose-chatspace-0.1.0.xpi',
       amoMetadata: '/repo/.release/0.1.0/amo-metadata.json',
+      announced: '/repo/.release/0.1.0/announced.json',
     });
   });
 });

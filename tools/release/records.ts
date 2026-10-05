@@ -1,14 +1,21 @@
-// The two records of a release (architecture.md §13 п. 4: «Записываются
-// sha256, коммит исходников и хеш SDK»), both under .release/<version>/:
+// The records of a release (architecture.md §13 п. 4: «Записываются sha256,
+// коммит исходников и хеш SDK»), all under .release/<version>/:
 //
-//   gate.json     what `preflight` saw: the commit, every check with its
-//                 result, the hashes of the build it checked. `sign` signs only
-//                 against a passed gate of the same commit and the same build.
-//   release.json  what was signed: the signed XPI's name, size and sha256, the
-//                 commit, the vendored SDK. It is published next to the XPI and
-//                 is what a rollback reads to point the feed back.
+//   gate.json       what the LAST run of `preflight` saw: the commit, every
+//                   check with its result, the hashes of the build it checked.
+//                   `sign` signs only against a passed gate of the same commit
+//                   and the same build. A run that fails before there is a
+//                   build removes the file: an earlier pass does not outlive it.
+//   submitted.json  the gate a submission to AMO was made under, copied the
+//                   moment before `web-ext sign` starts. If AMO signs the
+//                   version later than web-ext waits, `sign --import` goes by
+//                   this record — the gate itself may be old or gone by then.
+//   release.json    what was signed: the signed XPI's name, size and sha256,
+//                   the commit, the vendored SDK. It is published next to the
+//                   XPI and is what a rollback reads to point the feed back.
+//   announced.json  that the version was posted to the channel, or may have been.
 //
-// Shapes and their checks only; the files are read and written by index.ts.
+// Shapes and their checks only; the files are read and written by local.ts and cli.ts.
 
 import { join } from 'node:path';
 
@@ -66,9 +73,24 @@ export interface ReleaseRecord {
 export interface ReleasePaths {
   readonly dir: string;
   readonly gate: string;
+  readonly submitted: string;
   readonly record: string;
   readonly signedXpi: string;
   readonly amoMetadata: string;
+  readonly announced: string;
+}
+
+/**
+ * What is known about the announcement of a version: `sending` — a request
+ * was about to leave (if the tool died there, nobody knows the rest);
+ * `indeterminate` — Telegram may have taken it; `posted` — it answered so.
+ */
+export interface AnnouncedRecord {
+  readonly schema: 1;
+  readonly version: string;
+  readonly state: 'sending' | 'indeterminate' | 'posted';
+  readonly at: string;
+  readonly messageId: number | null;
 }
 
 export function releasePaths(repoRoot: string, version: string): ReleasePaths {
@@ -76,9 +98,11 @@ export function releasePaths(repoRoot: string, version: string): ReleasePaths {
   return {
     dir,
     gate: join(dir, 'gate.json'),
+    submitted: join(dir, 'submitted.json'),
     record: join(dir, recordName(version)),
     signedXpi: join(dir, signedXpiName(version)),
     amoMetadata: join(dir, 'amo-metadata.json'),
+    announced: join(dir, 'announced.json'),
   };
 }
 
@@ -153,6 +177,21 @@ export function parseGateRecord(text: string): GateRecord {
   return gate as GateRecord;
 }
 
+export function parseAnnouncedRecord(text: string): AnnouncedRecord {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('announcement record: not JSON.');
+  }
+  const record = parsed as Partial<AnnouncedRecord> | null;
+  const states: readonly unknown[] = ['sending', 'indeterminate', 'posted'];
+  if (typeof record !== 'object' || record === null || record.schema !== 1 || typeof record.version !== 'string' || !states.includes(record.state) || typeof record.at !== 'string') {
+    throw new Error('announcement record: { schema: 1, version, state, at } is expected.');
+  }
+  return { schema: 1, version: record.version, state: record.state as AnnouncedRecord['state'], at: record.at, messageId: typeof record.messageId === 'number' ? record.messageId : null };
+}
+
 /** How long a passed gate stays good for signing. */
 export const GATE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -165,18 +204,35 @@ export interface GateContext {
   readonly sourcesSha256: string;
 }
 
-/** Why this gate does not allow signing now; [] — it does. */
-export function gateProblems(gate: GateRecord, context: GateContext): string[] {
+/** What every use of a gate asks: it passed, with the network, for this version and for the build that lies in .output/. */
+function passedForBuild(gate: GateRecord, context: Pick<GateContext, 'version' | 'xpiSha256' | 'sourcesSha256'>, rebuilt: string): string[] {
   const problems: string[] = [];
   if (!gate.online) problems.push('the gate ran without the network checks — run `pnpm release preflight --online`');
   const failed = gate.checks.filter((check) => !check.ok);
   if (failed.length > 0) problems.push(`the gate did not pass: ${failed.map((check) => check.id).join(', ')}`);
   if (gate.checks.length === 0) problems.push('the gate record lists no checks');
   if (gate.version !== context.version) problems.push(`the gate is for ${gate.version}, the tree holds ${context.version}`);
+  if (gate.build.xpi.sha256 !== context.xpiSha256) problems.push(`the release XPI in .output/ is not the one the gate checked — ${rebuilt}`);
+  if (gate.build.sources.sha256 !== context.sourcesSha256) problems.push(`the sources archive in .output/ is not the one the gate checked — ${rebuilt}`);
+  return problems;
+}
+
+/** Why this gate does not allow signing now; [] — it does. */
+export function gateProblems(gate: GateRecord, context: GateContext): string[] {
+  const problems = passedForBuild(gate, context, 'it was rebuilt; run preflight again');
   if (gate.commit !== context.commit) problems.push(`the gate is for commit ${gate.commit.slice(0, 12)}, HEAD is ${context.commit.slice(0, 12)}`);
   const age = context.now - Date.parse(gate.createdAt);
   if (age > GATE_MAX_AGE_MS || age < -60_000) problems.push(`the gate is from ${gate.createdAt}: older than 24 hours (or from the future) — run preflight again`);
-  if (gate.build.xpi.sha256 !== context.xpiSha256) problems.push('the release XPI in .output/ is not the one the gate checked — it was rebuilt; run preflight again');
-  if (gate.build.sources.sha256 !== context.sourcesSha256) problems.push('the sources archive in .output/ is not the one the gate checked — run preflight again');
   return problems;
+}
+
+/**
+ * Why a signed XPI downloaded by hand cannot be taken under this gate; [] — it
+ * can. The file is already signed, so what the gate says about TODAY does not
+ * matter — neither its age nor where HEAD and origin/main are now; `publish`
+ * looks at the feed, the hub and origin again. What matters is that the build
+ * the file is compared with is the build this gate passed.
+ */
+export function importProblems(gate: GateRecord, context: Pick<GateContext, 'version' | 'xpiSha256' | 'sourcesSha256'>): string[] {
+  return passedForBuild(gate, context, `check out ${gate.commit.slice(0, 12)}, the commit that was submitted, and run pnpm build`);
 }

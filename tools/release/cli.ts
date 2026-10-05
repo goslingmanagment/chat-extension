@@ -44,7 +44,7 @@ import { Checkout } from './local.ts';
 import { renderNote } from './note.ts';
 import { runPreflight } from './preflight.ts';
 import { pagesOnlySteps, publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } from './publish.ts';
-import { gateProblems, type ArtifactRef, type ReleaseRecord } from './records.ts';
+import { gateProblems, importProblems, type ArtifactRef, type GateRecord, type ReleaseRecord } from './records.ts';
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
 import { renderSite, siteProblems, SITE_FILES, VERSIONLESS_FILES } from './site.ts';
@@ -179,6 +179,27 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     refuse(`HEAD ${head.slice(0, 12)} is neither origin/main${allowTag ? ` nor the tag v${version}` : ''}.`);
   }
 
+  /**
+   * What `publish` asks of the checkout. The XPI that goes out is the signed
+   * file, whatever HEAD is; so the signed commit only has to be merged — on
+   * origin/main, not necessarily its tip: main may have moved on since the
+   * signing, and a signed version cannot be signed again. HEAD, which the pages
+   * come from, is that commit or a later one on the way to the tip.
+   */
+  async function requirePublishable(record: ReleaseRecord): Promise<void> {
+    if ((await checkout.git('status', '--porcelain')) !== '') refuse('the working tree is not clean: what goes out must be what is committed.');
+    const head = await checkout.git('rev-parse', 'HEAD');
+    await checkout.git('fetch', 'origin', 'main', '--tags', '--quiet');
+    const signed = record.commit;
+    if (!(await checkout.isAncestor(signed, 'origin/main'))) {
+      refuse(`${record.version} was signed from ${signed.slice(0, 12)}, which is not on origin/main: only what is merged is published.`);
+    }
+    if (!(await checkout.isAncestor(signed, head)) || !(await checkout.isAncestor(head, 'origin/main'))) {
+      refuse(`HEAD ${head.slice(0, 12)} is neither the signed commit ${signed.slice(0, 12)} nor a later commit of origin/main: publish from the signed commit (git switch --detach ${signed.slice(0, 12)}) or from main.`);
+    }
+    if (head !== signed) print(`note: HEAD ${head.slice(0, 12)} is ahead of the signed commit ${signed.slice(0, 12)}: the XPI is the signed file (sha256 ${record.xpi.sha256}), the pages are those of HEAD.`);
+  }
+
   function requireSitePages(version: string): void {
     const problems = siteProblems(checkout.siteFiles(), checkout.siteContext(version), checkout.linkedPages());
     if (problems.length > 0) refuse(`the site is not ready:\n  ${problems.join('\n  ')}`);
@@ -205,7 +226,13 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       print(`gate         ${gate.createdAt}, commit ${gate.commit.slice(0, 12)}, ${gate.online ? 'online' : 'offline (a rehearsal)'}, ${failed.length === 0 ? 'passed' : `failed: ${failed.join(', ')}`}`);
     }
     const record = checkout.record(version);
-    print(record === null ? 'signed       no' : `signed       ${record.xpi.file} sha256 ${record.xpi.sha256}, ${record.signedAt}${existsSync(paths.signedXpi) ? '' : ' — THE FILE IS MISSING'}`);
+    const submitted = checkout.submitted(version);
+    if (record === null && submitted !== null) {
+      print(`submitted    to AMO from ${submitted.commit.slice(0, 12)}, no signed file here yet — look at the developer hub; a file downloaded there: pnpm release sign --import <file.xpi>`);
+    }
+    print(record === null ? 'signed       no' : `signed       ${record.xpi.file} sha256 ${record.xpi.sha256}, ${record.signedAt}, from ${record.commit.slice(0, 12)}${existsSync(paths.signedXpi) ? '' : ' — THE FILE IS MISSING'}`);
+    const announced = checkout.announced(version);
+    if (announced !== null) print(`announced    ${announced.state === 'posted' ? `posted ${announced.at}${announced.messageId === null ? '' : `, message ${announced.messageId}`}` : `${announced.at}: the send may have reached the channel — look there`}`);
     print(`tag          v${version} ${(await checkout.gitCode('rev-parse', '-q', '--verify', `refs/tags/v${version}`)) === 0 ? 'exists' : 'is free'}`);
   }
 
@@ -256,10 +283,9 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   async function preflight(): Promise<void> {
     const result = await runPreflight(checkout, { online: values.online, http: deps.http, print, now: deps.now, env: deps.env });
-    if (result.gate !== null) {
-      const paths = checkout.paths(result.gate.version);
-      mkdirSync(paths.dir, { recursive: true });
-      writeFileSync(paths.gate, `${JSON.stringify(result.gate, null, 2)}\n`);
+    // What is kept is this run, whatever it ended with: a pass of an earlier run does not outlive a failure.
+    if (result.version !== '' && checkout.saveGate(result.version, result.gate)) {
+      print(`preflight: the gate record of an earlier run is removed (${checkout.paths(result.version).gate}): this run did not get as far as a build.`);
     }
     if (result.failed.length > 0) refuse(`preflight: ${result.failed.length} check(s) failed: ${result.failed.join(', ')}.`);
     if (!values.online) {
@@ -275,33 +301,45 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const version = checkout.version();
     const paths = checkout.paths(version);
     if (existsSync(paths.signedXpi) || existsSync(paths.record)) refuse(`${version} is already signed (${paths.signedXpi}): a version is signed once. Next: pnpm release publish`);
-    const gate = checkout.gate(version);
     const built = checkout.build();
-    const head = await checkout.git('rev-parse', 'HEAD');
-    const problems = gate === null ? ['no gate record — run pnpm release preflight --online'] : gateProblems(gate, { version, commit: head, now: deps.now().getTime(), xpiSha256: built.xpi.sha256, sourcesSha256: built.sources.sha256 });
-    if ((await checkout.git('status', '--porcelain')) !== '') problems.push('the working tree is not clean');
+    const building = { version, xpiSha256: built.xpi.sha256, sourcesSha256: built.sources.sha256 };
     /** The signed XPI and the record of the release, stored once. */
-    const store = (data: Buffer): void => {
-      if (gate === null) throw new Error('no gate record.');
+    const store = (gate: GateRecord, data: Buffer): void => {
       const xpi: ArtifactRef = { file: signedXpiName(version), sha256: sha256Hex(data), bytes: data.length };
       const record: ReleaseRecord = releaseRecord({ target: checkout.target, gate, signedXpi: xpi, signedAt: deps.now().toISOString() });
       mkdirSync(paths.dir, { recursive: true });
       writeFileSync(paths.signedXpi, data);
       writeFileSync(paths.record, `${JSON.stringify(record, null, 2)}\n`);
-      print(`    signed: ${xpi.file}, ${xpi.bytes} B, sha256 ${xpi.sha256}`);
+      print(`    signed: ${xpi.file}, ${xpi.bytes} B, sha256 ${xpi.sha256}, built from ${gate.commit.slice(0, 12)}`);
     };
 
     if (values.import !== undefined) {
       // AMO signed the version and web-ext did not bring the file: it was downloaded from the developer hub by hand.
-      if (problems.length > 0) refuse(`cannot take a signed XPI for ${version}:\n  ${problems.join('\n  ')}`);
-      store(importSigned(values.import, { version, geckoId: checkout.target.geckoId }, checkout.buildFiles(built.dir)));
+      // The gate that counts is the one the submission was made under; without a submission of ours — the last gate.
+      const gate = checkout.submitted(version) ?? checkout.gate(version);
+      const problems = gate === null ? ['no gate record and no record of a submission — this checkout never sent the version to AMO'] : importProblems(gate, building);
+      if (gate === null || problems.length > 0) refuse(`cannot take a signed XPI for ${version}:\n  ${problems.join('\n  ')}`);
+      const data = importSigned(values.import, { version, geckoId: checkout.target.geckoId }, checkout.buildFiles(built.dir));
+      if (dryRun) {
+        print(`dry run: ${values.import} is the build of ${gate.commit.slice(0, 12)}, signed (sha256 ${sha256Hex(data)}). Nothing was stored.`);
+        return;
+      }
+      store(gate, data);
       print('Next: pnpm release publish');
       return;
     }
 
+    const gate = checkout.gate(version);
+    const head = await checkout.git('rev-parse', 'HEAD');
+    const problems = gate === null ? ['no gate record — run pnpm release preflight --online'] : gateProblems(gate, { ...building, commit: head, now: deps.now().getTime() });
+    if ((await checkout.git('status', '--porcelain')) !== '') problems.push('the working tree is not clean');
     const plan = planOnly(version);
     if (problems.length > 0 && !plan) refuse(`cannot sign ${version}:\n  ${problems.join('\n  ')}`);
     for (const problem of problems) print(`note: ${problem}`);
+    const before = checkout.submitted(version);
+    if (before !== null && before.build.xpi.sha256 !== built.xpi.sha256) {
+      print(`note: ${version} was already sent to AMO once, from ${before.commit.slice(0, 12)} and with another build. AMO takes a version once: if it took that one, it refuses this one, and ${version} is spent — look at the developer hub first.`);
+    }
 
     const artifactsDir = join(paths.dir, 'web-ext-artifacts');
     const pnpmVersion = (await mustRun(deps.exec, { program: 'pnpm', args: ['--version'], cwd: checkout.root })).stdout.trim();
@@ -310,6 +348,19 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const spec = signCommand(input);
 
     const steps: Step[] = [
+      {
+        // The gate saw origin/main some time ago; a PR may have been merged since. A version is spent
+        // the moment AMO takes it, so the last look is here, while nothing is spent yet.
+        title: 'Check that the commit is still the tip of origin/main',
+        show: ['$ git fetch origin main --quiet', `HEAD ${head.slice(0, 12)} must be origin/main: a commit that is no longer the tip is not sent for signing`],
+        run: async () => {
+          await checkout.git('fetch', 'origin', 'main', '--quiet');
+          const tip = await checkout.git('rev-parse', 'origin/main');
+          if (tip !== head) {
+            refuse(`HEAD ${head.slice(0, 12)} is no longer the tip of origin/main (${tip.slice(0, 12)}): nothing was sent to AMO. git pull, then pnpm release preflight --online again — the gate is for one commit.`);
+          }
+        },
+      },
       {
         title: 'Write the notes for Mozilla’s reviewers',
         show: [`write ${paths.amoMetadata} (approval notes):`, ...notes.split('\n').map((line) => `  | ${line}`)],
@@ -322,15 +373,18 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       {
         title: `Sign ${version} at addons.mozilla.org (unlisted) with the sources archive, check the signed XPI against the build, store it with the record`,
         show: [
+          `write ${paths.submitted} — the gate this submission is made under (what «sign --import» goes by if AMO signs later than web-ext waits)`,
           ...renderCommand(spec),
           `the one .xpi in ${artifactsDir} must be signed, be ${checkout.target.geckoId} ${version} and hold the build's files unchanged`,
           `store ${paths.signedXpi}`,
           `write ${paths.record}`,
         ],
         run: async () => {
+          if (gate === null) throw new Error('no gate record.');
           requireEnv(ENV.amoKey);
           requireEnv(ENV.amoSecret);
-          store(await signBuild(deps.exec, input, { version, geckoId: checkout.target.geckoId }, () => checkout.buildFiles(built.dir), spec));
+          checkout.saveSubmitted(gate);
+          store(gate, await signBuild(deps.exec, input, { version, geckoId: checkout.target.geckoId }, () => checkout.buildFiles(built.dir), spec));
           rmSync(artifactsDir, { recursive: true, force: true });
         },
       },
@@ -372,11 +426,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const paths = checkout.paths(version);
     const plan = planOnly(version);
     const { record, recordSha256 } = recordFor(version, plan);
-    if (!plan) {
-      await requireReleaseTree(version, false);
-      const head = await checkout.git('rev-parse', 'HEAD');
-      if (record.commit !== head) refuse(`${version} was signed from ${record.commit.slice(0, 12)}, HEAD is ${head.slice(0, 12)}: publish from the commit that was signed.`);
-    }
+    if (!plan) await requirePublishable(record);
     requireSitePages(version);
     const steps = publishSteps(serverDeps(plan), {
       record,

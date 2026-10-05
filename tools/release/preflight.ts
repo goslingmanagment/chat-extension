@@ -1,6 +1,7 @@
 // `pnpm release preflight [--online]`: the pre-release gate (architecture.md
 // §13 «Выпуск» п. 1–2). Observes, hands each observation to its rule in
-// gate.ts, prints one line per check and writes .release/<version>/gate.json.
+// gate.ts and prints one line per check; cli.ts keeps what the run ended with
+// as .release/<version>/gate.json (Checkout.saveGate).
 //
 // Without --online it makes no network request at all: a rehearsal that checks
 // everything this machine can answer alone. With --online it also fetches
@@ -47,7 +48,9 @@ export interface PreflightOptions {
 }
 
 export interface PreflightResult {
-  /** null — there is no build to record (a cheap check failed before it). */
+  /** The version the run was about; '' — it could not even be read. */
+  readonly version: string;
+  /** null — there is no build to record (a cheap check failed before it, or `pnpm check` is red). */
   readonly gate: GateRecord | null;
   readonly failed: readonly string[];
   readonly skipped: readonly string[];
@@ -83,7 +86,7 @@ export async function runPreflight(checkout: Checkout, options: PreflightOptions
     version = checkout.version();
     return { ok: true, detail: `${version} (apps/extension/package.json)` };
   });
-  if (version === '') return { gate: null, failed: checks.filter((check) => !check.ok).map((check) => check.id), skipped };
+  if (version === '') return { version, gate: null, failed: checks.filter((check) => !check.ok).map((check) => check.id), skipped };
 
   const head = await checkout.git('rev-parse', 'HEAD');
   await guarded('branch', async () => evaluateBranch(await checkout.git('rev-parse', '--abbrev-ref', 'HEAD')));
@@ -180,9 +183,10 @@ export async function runPreflight(checkout: Checkout, options: PreflightOptions
 
   const failed = checks.filter((check) => !check.ok).map((check) => check.id);
   const finalBuild = found.build;
-  if (finalBuild === null || vendored === null) return { gate: null, failed, skipped };
+  if (finalBuild === null || vendored === null) return { version, gate: null, failed, skipped };
   const pick = ({ file, sha256, bytes }: ArtifactRef): ArtifactRef => ({ file, sha256, bytes });
   return {
+    version,
     gate: {
       schema: 1,
       version,

@@ -1,7 +1,7 @@
 // What the release tool reads from this checkout: the version, the changelog,
 // the site, the vendored manifests, the build in .output/, the records in
 // .release/, and git. The only module that touches the local filesystem
-// besides index.ts; the network is not here.
+// besides cli.ts; the network is not here.
 
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,7 +16,17 @@ import { BUILD_INSTRUCTIONS, CHANGELOG_FILE, noteFile, releaseTarget, SITE_DIR, 
 import { mustRun, type Exec } from './exec.ts';
 import type { VendorObservation } from './gate.ts';
 import type { LocalFile } from './publish.ts';
-import { parseGateRecord, parseReleaseRecord, releasePaths, type ArtifactRef, type GateRecord, type ReleasePaths, type ReleaseRecord } from './records.ts';
+import {
+  parseAnnouncedRecord,
+  parseGateRecord,
+  parseReleaseRecord,
+  releasePaths,
+  type AnnouncedRecord,
+  type ArtifactRef,
+  type GateRecord,
+  type ReleasePaths,
+  type ReleaseRecord,
+} from './records.ts';
 import { SITE_FILES, type SiteContext } from './site.ts';
 import { readPackageVersion } from './version.ts';
 import { sha256Hex } from './xpi.ts';
@@ -70,6 +80,19 @@ export class Checkout {
   /** The exit code of a git command that answers by it (`rev-parse --verify`, `merge-base --is-ancestor`). */
   async gitCode(...args: string[]): Promise<number> {
     return (await this.exec({ program: 'git', args, cwd: this.root })).code;
+  }
+
+  /** true — `older` is `newer` or one of its ancestors. Throws when git cannot tell (a commit it does not have). */
+  async isAncestor(older: string, newer: string): Promise<boolean> {
+    const code = await this.gitCode('merge-base', '--is-ancestor', older, newer);
+    if (code > 1) throw new Error(`git cannot tell whether ${older.slice(0, 12)} is part of ${newer.slice(0, 12)} (merge-base exited ${code}): is the commit fetched?`);
+    return code === 0;
+  }
+
+  /** The local tag `name`: the commit it points at and whether it is an annotated tag; null — there is none. */
+  async tag(name: string): Promise<{ readonly commit: string; readonly annotated: boolean } | null> {
+    if ((await this.gitCode('rev-parse', '-q', '--verify', `refs/tags/${name}^{commit}`)) !== 0) return null;
+    return { commit: await this.git('rev-parse', `refs/tags/${name}^{commit}`), annotated: (await this.git('cat-file', '-t', `refs/tags/${name}`)) === 'tag' };
   }
 
   // ── the site ──
@@ -134,6 +157,52 @@ export class Checkout {
   gate(version: string): GateRecord | null {
     const path = this.paths(version).gate;
     return existsSync(path) ? parseGateRecord(readFileSync(path, 'utf8')) : null;
+  }
+
+  /**
+   * Keeps what the last run of the gate ended with: its record, failed checks
+   * and all — or, when the run stopped before there was a build to record
+   * (null), nothing: the record of an earlier run is removed, so a pass never
+   * outlives a later failure. true — an earlier record was removed.
+   */
+  saveGate(version: string, gate: GateRecord | null): boolean {
+    const paths = this.paths(version);
+    if (gate === null) {
+      const had = existsSync(paths.gate);
+      rmSync(paths.gate, { force: true });
+      return had;
+    }
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.gate, `${JSON.stringify(gate, null, 2)}\n`);
+    return false;
+  }
+
+  /** The gate the version was submitted to AMO under (records.ts); null — this checkout never submitted it. */
+  submitted(version: string): GateRecord | null {
+    const path = this.paths(version).submitted;
+    return existsSync(path) ? parseGateRecord(readFileSync(path, 'utf8')) : null;
+  }
+
+  saveSubmitted(gate: GateRecord): void {
+    const paths = this.paths(gate.version);
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.submitted, `${JSON.stringify(gate, null, 2)}\n`);
+  }
+
+  announced(version: string): AnnouncedRecord | null {
+    const path = this.paths(version).announced;
+    return existsSync(path) ? parseAnnouncedRecord(readFileSync(path, 'utf8')) : null;
+  }
+
+  /** null — the send was refused outright: nothing was posted, nothing to remember. */
+  saveAnnounced(version: string, record: Omit<AnnouncedRecord, 'schema' | 'version'> | null): void {
+    const paths = this.paths(version);
+    if (record === null) {
+      rmSync(paths.announced, { force: true });
+      return;
+    }
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.announced, `${JSON.stringify({ schema: 1, version, ...record }, null, 2)}\n`);
   }
 
   record(version: string): ReleaseRecord | null {
