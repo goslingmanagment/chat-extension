@@ -22,8 +22,14 @@ import { signedXpiName, type ReleaseTarget } from './config.ts';
 export const SITE_PAGES = ['index.html', 'start.html', 'guide.html', 'whats-new.html', 'changelog.html', 'privacy.html'] as const;
 export const SITE_STYLESHEET = 'site.css';
 export const SITE_FILES: readonly string[] = [...SITE_PAGES, SITE_STYLESHEET];
-/** Pages with nothing of a release in them: they may be published ahead of one («Как начать» before the first invite). */
-export const VERSIONLESS_FILES: readonly string[] = ['start.html', 'guide.html', 'privacy.html', SITE_STYLESHEET];
+/**
+ * Pages with nothing of a release in them: they may be published ahead of one
+ * («Как начать» before the first invite). The stylesheet is not among them:
+ * the pages of the released version already on the server are drawn with it,
+ * so it goes out with a release or with `pages` — ahead of a release only when
+ * the server has none at all.
+ */
+export const VERSIONLESS_PAGES: readonly string[] = ['start.html', 'guide.html', 'privacy.html'];
 
 export interface SiteContext {
   readonly version: string;
@@ -133,7 +139,7 @@ export function siteProblems(files: ReadonlyMap<string, string>, context: SiteCo
   if (count(index, /data-cg="firefox"/g) < 1) problems.push('index.html: the oldest Firefox (data-cg="firefox") is not shown');
   if (count(files.get('whats-new.html') ?? '', /<!-- cg:begin whats-new -->/g) !== 1) problems.push('whats-new.html: no generated part «whats-new»');
   if (count(files.get('changelog.html') ?? '', /<!-- cg:begin changelog -->/g) !== 1) problems.push('changelog.html: no generated part «changelog»');
-  for (const name of VERSIONLESS_FILES) {
+  for (const name of VERSIONLESS_PAGES) {
     if (/data-cg="|<!-- cg:/.test(files.get(name) ?? '')) problems.push(`${name}: a page that is published ahead of a release must carry nothing of a release`);
   }
   if (problems.length > 0) return problems;

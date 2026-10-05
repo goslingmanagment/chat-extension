@@ -312,3 +312,133 @@ describe('main moves on between the gate, the signing and the publication', () =
     expect(servedVersion(h)).toBe(VERSION);
   });
 });
+
+describe('what a release does not do twice, and what it does again', () => {
+  it('sign --import refuses a file that is not the build, in a dry run as well; and a checkout that never passed the gate', async () => {
+    const h = world();
+    const file = join(h.root, '..', 'some.xpi');
+    writeFileSync(file, h.signedXpi());
+    expect(await h.run('sign', '--import', file)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/no gate record and no record of a submission/);
+
+    expect(await h.run('preflight', '--online')).toBe(0);
+    writeFileSync(file, 'not an archive at all');
+    for (const flags of [[], ['--dry-run']]) {
+      h.forget();
+      expect(await h.run('sign', '--import', file, ...flags)).toBe(1);
+      expect(h.err.join('\n')).toMatch(/not a zip archive/);
+      expect(existsSync(h.path(SIGNED_XPI))).toBe(false);
+    }
+  });
+
+  it('[UP-004] publish asks the hub again: a version signed earlier does not go out to a hub that no longer takes its SDK', async () => {
+    const h = world();
+    expect(await h.run('preflight', '--online')).toBe(0);
+    expect(await h.run('sign', '--confirm', VERSION)).toBe(0);
+    // Weeks pass; the hub drops the old contract.
+    h.world.health = { status: 200, body: JSON.stringify({ status: 'ok', contractHash: 'd'.repeat(64), compatibleClientSdks: ['d'.repeat(64)] }) };
+    h.forget();
+    expect(await h.run('publish', '--confirm', VERSION)).toBe(1);
+    expect(h.err.join('\n')).toMatch(/is not in the hub's compatibleClientSdks[\s\S]*Nothing was uploaded/);
+    expect(h.commands.filter((line) => /^(ssh|scp) /.test(line))).toEqual([]);
+    expect(existsSync(h.remoteDir)).toBe(false);
+  });
+
+  it('tag: the push failed — the next run pushes the tag that is already here instead of refusing', async () => {
+    const h = await released();
+    h.world.pushFails = true;
+    expect(await h.run('tag', '--confirm', VERSION)).toBe(1);
+    expect(h.world.localTags.get(`v${VERSION}`)).toEqual({ commit: COMMIT_A, annotated: true });
+    expect(h.world.originTags.size).toBe(0);
+
+    h.world.pushFails = false;
+    h.forget();
+    expect(await h.run('tag', '--confirm', VERSION), h.err.join('\n')).toBe(0);
+    expect(h.commands.filter((line) => line.startsWith('git tag -a '))).toEqual([]);
+    expect(h.commands).toContain(`git push origin v${VERSION}`);
+    expect(h.out.join('\n')).toContain(`The tag v${VERSION} is already here, on aaaaaaaaaaaa`);
+    expect(h.world.originTags.has(`v${VERSION}`)).toBe(true);
+  });
+
+  it('tag: a tag of that name that is not the tag of this release is not pushed', async () => {
+    const h = await released();
+    h.world.localTags.set(`v${VERSION}`, { commit: COMMIT_ELSEWHERE, annotated: true });
+    expect(await h.run('tag', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/already exists here and points at 999999999999, not at the signed commit aaaaaaaaaaaa/);
+    h.world.localTags.set(`v${VERSION}`, { commit: COMMIT_A, annotated: false });
+    expect(await h.run('tag', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/already exists here and is not an annotated tag/);
+    expect(h.outward()).toEqual([]);
+    expect(h.world.originTags.size).toBe(0);
+  });
+
+  it('[UP-005] announce: one post per version — a second run refuses, --again posts once more', async () => {
+    const h = await released();
+    h.world.telegram.push({ status: 200, body: { ok: true, result: { message_id: 7 } } });
+    expect(await h.run('announce', '--confirm', VERSION)).toBe(0);
+
+    h.forget();
+    expect(await h.run('announce', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/was already announced \(2026-10-05T11:00:00\.000Z, message 7\)\. Look at the channel first; .*--again/);
+    expect(h.posts).toEqual([]);
+    expect(h.requests).toEqual([]);
+    // The plan says the same, as a note.
+    h.forget();
+    expect(await h.run('announce', '--dry-run')).toBe(0);
+    expect(h.out[0]).toMatch(/^note: .* was already announced .* — a real run needs --again\.$/);
+
+    h.forget();
+    h.world.telegram.push({ status: 200, body: { ok: true, result: { message_id: 8 } } });
+    expect(await h.run('announce', '--confirm', VERSION, '--again')).toBe(0);
+    expect(h.posts).toHaveLength(1);
+    await h.run('status');
+    expect(h.out.find((line) => line.startsWith('announced '))).toMatch(/posted .*message 8$/);
+  });
+
+  it('announce: a send that may have reached the channel is remembered — the next run does not post blindly; a refusal is not', async () => {
+    const h = await released();
+    h.world.telegram.push({ status: 502, body: undefined }); // a gateway page instead of an answer
+    expect(await h.run('announce', '--confirm', VERSION)).toBe(1);
+    expect(h.err.join('\n')).toMatch(/the send is indeterminate/);
+    expect(h.posts).toHaveLength(1);
+
+    h.forget();
+    expect(await h.run('announce', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/an earlier send of the announcement of .* may have reached the channel\. Look at the channel first/);
+    expect(h.posts).toEqual([]);
+
+    // The owner looked: it is not there. --again; Telegram refuses this one outright — and what is known stays as it was.
+    h.forget();
+    h.world.telegram.push({ status: 400, body: { ok: false, error_code: 400, description: 'Bad Request: chat not found' } });
+    expect(await h.run('announce', '--confirm', VERSION, '--again')).toBe(1);
+    h.forget();
+    expect(await h.run('announce', '--confirm', VERSION)).toBe(2);
+    expect(h.err.join('\n')).toMatch(/may have reached the channel/);
+
+    // A refusal with nothing before it leaves nothing behind: the next run just posts.
+    h.remove();
+    const fresh = await released();
+    fresh.world.telegram.push({ status: 400, body: { ok: false, error_code: 400, description: 'Bad Request: chat not found' } });
+    expect(await fresh.run('announce', '--confirm', VERSION)).toBe(1);
+    fresh.world.telegram.push({ status: 200, body: { ok: true, result: { message_id: 9 } } });
+    expect(await fresh.run('announce', '--confirm', VERSION), fresh.err.join('\n')).toBe(0);
+  });
+
+  it('pages --versionless leaves the stylesheet of the released pages alone and says so', async () => {
+    const h = await released();
+    const css = readFileSync(h.remote('site.css'), 'utf8');
+    const index = readFileSync(h.remote('index.html'), 'utf8');
+    writeFileSync(h.path('site/site.css'), `${css}\n/* restyled for the next version */\n`);
+    writeFileSync(h.path('site/start.html'), readFileSync(h.path('site/start.html'), 'utf8').replace('</body>', '<!-- edited --></body>'));
+
+    expect(await h.run('pages', '--versionless', '--confirm', VERSION), h.err.join('\n')).toBe(0);
+    expect(readFileSync(h.remote('start.html'), 'utf8')).toContain('<!-- edited -->');
+    expect(readFileSync(h.remote('site.css'), 'utf8')).toBe(css);
+    expect(readFileSync(h.remote('index.html'), 'utf8')).toBe(index);
+    expect(h.out.join('\n')).toMatch(/NOT replaced: site\.css on the server differs from the one in the tree/);
+    // With the release (or `pages`) the stylesheet does go out.
+    h.forget();
+    expect(await h.run('pages', '--confirm', VERSION), h.err.join('\n')).toBe(0);
+    expect(readFileSync(h.remote('site.css'), 'utf8')).toContain('restyled for the next version');
+  });
+});

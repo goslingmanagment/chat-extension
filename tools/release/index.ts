@@ -7,13 +7,21 @@ import { randomBytes } from 'node:crypto';
 import { runCli } from './cli.ts';
 import { REPO_ROOT } from './config.ts';
 import { realExec } from './exec.ts';
-import { realHttp } from './publish.ts';
+import { httpTimeoutSeconds, httpWithTimeout, type Http } from './publish.ts';
+
+let http: Http;
+try {
+  http = httpWithTimeout(httpTimeoutSeconds(process.env));
+} catch (error) {
+  console.error(`release: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(2);
+}
 
 process.exit(
   await runCli(process.argv.slice(2), {
     root: REPO_ROOT,
     exec: realExec,
-    http: realHttp,
+    http,
     fetchImpl: fetch,
     env: process.env,
     print: (line) => console.log(line),

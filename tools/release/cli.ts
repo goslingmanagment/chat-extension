@@ -17,11 +17,13 @@
 // `--confirm <version>`; `--dry-run` prints the plan and nothing else:
 //   sign                           AMO: web-ext sign --channel unlisted
 //   sign --import <file.xpi>       no network: take a signed XPI downloaded from the
-//                                  developer hub by hand (AMO signed, web-ext timed out)
+//                                  developer hub by hand (AMO signed, web-ext timed out);
+//                                  with --dry-run it checks the file and stores nothing
 //   publish                        the server: XPI and record, the feed, the pages
 //   pages [--versionless]          the server: the pages alone
 //   tag                            git: the annotated tag vX.Y.Z, pushed to origin
-//   announce                       Telegram: the changelog section to the channel
+//   announce [--again]             Telegram: the changelog section to the channel, once
+//                                  per version unless told --again
 //   rollback --to <version>        the server: the feed back at an earlier version
 //
 // Secrets come from the environment at run time (config.ts `ENV`); nothing of
@@ -36,7 +38,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { composePost, sendPost, type FetchLike } from './announce.ts';
+import { AnnounceError, composePost, sendPost, type FetchLike } from './announce.ts';
 import { sectionOf } from './changelog.ts';
 import { ENV, noteFile, signedXpiName, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { commandStep, mustRun, renderCommand, runSteps, type Exec, type Print, type Step } from './exec.ts';
@@ -47,7 +49,7 @@ import { pagesOnlySteps, publishSteps, rollbackSteps, servedFeed, type Http, typ
 import { gateProblems, importProblems, type ArtifactRef, type GateRecord, type ReleaseRecord } from './records.ts';
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
-import { renderSite, siteProblems, SITE_FILES, VERSIONLESS_FILES } from './site.ts';
+import { renderSite, siteProblems, SITE_FILES, SITE_STYLESHEET, VERSIONLESS_PAGES } from './site.ts';
 import { bumpVersion, compareVersions, isVersion, setPackageVersion, type BumpKind } from './version.ts';
 import { sha256Hex } from './xpi.ts';
 
@@ -55,7 +57,7 @@ const USAGE = `pnpm release <command>
 
 local:    status · version [--set X.Y.Z | --bump patch|minor|major] · note · site [--check] · build
           preflight [--online] · announce --check
-outward:  sign · publish · pages [--versionless] · tag · announce · rollback --to <version>
+outward:  sign · publish · pages [--versionless] · tag · announce [--again] · rollback --to <version>
           each prints its plan and stops without --confirm <version>; --dry-run only prints
           sign --import <file.xpi> takes a signed XPI downloaded by hand (no network)
 
@@ -106,6 +108,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         versionless: { type: 'boolean', default: false },
         import: { type: 'string' },
         silent: { type: 'boolean', default: false },
+        again: { type: 'boolean', default: false },
       },
     });
   } catch (error) {
@@ -166,6 +169,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       target: checkout.target,
       nonce: deps.nonce(),
       sleep: deps.sleep,
+      env: deps.env,
+      say: print,
     };
   }
 
@@ -445,19 +450,23 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const plan = planOnly(version);
     const deps = serverDeps(plan);
     requireSitePages(version);
-    let only: readonly string[] = SITE_FILES;
     if (values.versionless) {
-      // Ahead of a release: only the pages that say nothing about a version.
-      only = VERSIONLESS_FILES;
+      // Ahead of a release: only the pages that say nothing about a version. The stylesheet the
+      // released pages are drawn with is not replaced — it is put in place only when there is none.
       if (!plan) await requireReleaseTree(version, false);
-    } else if (!plan) {
+      const [stylesheetIfAbsent] = checkout.publishablePages([SITE_STYLESHEET]);
+      const steps = pagesOnlySteps(deps, checkout.publishablePages(VERSIONLESS_PAGES), stylesheetIfAbsent === undefined ? {} : { stylesheetIfAbsent });
+      await outward(`publishing ${VERSIONLESS_PAGES.length} page(s) ahead of a release`, version, steps);
+      return;
+    }
+    if (!plan) {
       await requireReleaseTree(version, true);
       const served = await servedFeed(deps);
       if (served?.version !== version) {
         refuse(`the feed serves ${served?.version ?? 'nothing'}, the tree holds ${version}: the pages of a version go out with it (pnpm release publish). Pages that name no version can go ahead: --versionless`);
       }
     }
-    await outward(`publishing ${only.length} page file(s)`, version, pagesOnlySteps(deps, checkout.publishablePages(only)));
+    await outward(`publishing ${SITE_FILES.length} page file(s)`, version, pagesOnlySteps(deps, checkout.publishablePages(SITE_FILES)));
   }
 
   async function tag(): Promise<void> {
@@ -465,16 +474,25 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const plan = planOnly(version);
     const { record } = recordFor(version, plan);
     const name = `v${version}`;
+    // A tag that is already here is what a run left whose push failed: the same tag is pushed,
+    // not made again. Any other tag under this name is not ours to push.
+    const existing = await checkout.tag(name);
+    const foreign = existing === null ? null : existing.commit !== record.commit ? `points at ${existing.commit.slice(0, 12)}, not at the signed commit ${record.commit.slice(0, 12)}` : existing.annotated ? null : 'is not an annotated tag';
+    if (foreign !== null) {
+      const text = `the tag ${name} already exists here and ${foreign}`;
+      if (!plan) refuse(`${text}. It is not the tag of this release: look at it (git show ${name}), remove it (git tag -d ${name}) and run the command again.`);
+      print(`note: ${text} — a real run refuses.`);
+    }
     if (!plan) {
-      if ((await checkout.gitCode('rev-parse', '-q', '--verify', `refs/tags/${name}`)) === 0) refuse(`the tag ${name} already exists.`);
       const served = await servedFeed({ http: deps.http, target: checkout.target });
       if (served?.version !== version || served.sha256 !== record.xpi.sha256) refuse(`the feed does not serve ${version} with sha256 ${record.xpi.sha256} (it serves ${served?.version ?? 'nothing'}): tag what is served — pnpm release publish first.`);
     }
     const text = `ChatGoose для ChatSpace ${version} — signed and served from ${checkout.target.feedBase} (xpi sha256:${record.xpi.sha256}; SDK contract ${record.vendor.sdkContractHash}); built from ${record.commit}`;
-    await outward('pushing the release tag', version, [
-      commandStep(`Tag ${record.commit.slice(0, 12)} as ${name}`, deps.exec, { program: 'git', args: ['tag', '-a', name, '-m', text, record.commit], cwd: checkout.root }),
-      commandStep(`Push ${name} to origin`, deps.exec, { program: 'git', args: ['push', 'origin', name], cwd: checkout.root }),
-    ]);
+    const make: Step =
+      existing !== null && foreign === null
+        ? { title: `The tag ${name} is already here, on ${record.commit.slice(0, 12)}`, show: ['left by an earlier run whose push did not go through: nothing to make, only to push'], run: () => Promise.resolve() }
+        : commandStep(`Tag ${record.commit.slice(0, 12)} as ${name}`, deps.exec, { program: 'git', args: ['tag', '-a', name, '-m', text, record.commit], cwd: checkout.root });
+    await outward('pushing the release tag', version, [make, commandStep(`Push ${name} to origin`, deps.exec, { program: 'git', args: ['push', 'origin', name], cwd: checkout.root })]);
   }
 
   async function announce(): Promise<void> {
@@ -484,7 +502,18 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       print(`announce: the post of ${version} is valid, ${[...post].length} characters.`);
       return;
     }
-    if (!planOnly(version)) {
+    const plan = planOnly(version);
+    // One post per version: what an earlier run did, or may have done, is remembered here.
+    const earlier = checkout.announced(version);
+    if (earlier !== null && !values.again) {
+      const text =
+        earlier.state === 'posted'
+          ? `${version} was already announced (${earlier.at}${earlier.messageId === null ? '' : `, message ${earlier.messageId}`})`
+          : `an earlier send of the announcement of ${version} (${earlier.at}) may have reached the channel`;
+      if (!plan) refuse(`${text}. Look at the channel first; to post it once more all the same: --again`);
+      print(`note: ${text} — a real run needs --again.`);
+    }
+    if (!plan) {
       const served = await servedFeed({ http: deps.http, target: checkout.target });
       if (served?.version !== version) refuse(`the feed serves ${served?.version ?? 'nothing'}, not ${version}: announce what chatters can already get.`);
     }
@@ -493,11 +522,22 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         title: `Post the changelog section of ${version} to the channel ${ENV.telegramChannel}`,
         show: [`POST https://api.telegram.org/bot<${ENV.telegramToken}>/sendRichMessage${values.silent ? ' (without a notification)' : ''}:`, ...post.split('\n').map((line) => `  | ${line}`)],
         run: async () => {
-          const id = await sendPost({ botToken: requireEnv(ENV.telegramToken), chatId: requireEnv(ENV.telegramChannel) }, post, {
-            silent: values.silent,
-            fetchImpl: deps.fetchImpl,
-            sleep: deps.sleep,
-          });
+          const telegram = { botToken: requireEnv(ENV.telegramToken), chatId: requireEnv(ENV.telegramChannel) };
+          const at = deps.now().toISOString();
+          // Written before the request leaves: if this process dies now, the next run knows a send was under way.
+          checkout.saveAnnounced(version, { state: 'sending', at, messageId: null });
+          let id: number | null;
+          try {
+            id = await sendPost(telegram, post, { silent: values.silent, fetchImpl: deps.fetchImpl, sleep: deps.sleep });
+          } catch (error) {
+            // Telegram said no: nothing was posted by this run, and what is known of an earlier one stands.
+            // Anything else: it may have been posted.
+            const refused = error instanceof AnnounceError && !error.indeterminate;
+            const stands = earlier === null ? null : { state: earlier.state, at: earlier.at, messageId: earlier.messageId };
+            checkout.saveAnnounced(version, refused ? stands : { state: 'indeterminate', at, messageId: null });
+            throw error;
+          }
+          checkout.saveAnnounced(version, { state: 'posted', at, messageId: id });
           print(`    posted${id === null ? '' : ` (message ${id})`}`);
         },
       },

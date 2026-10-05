@@ -7,7 +7,7 @@ import { STRICT_MIN_VERSION } from '../../apps/extension/build/manifest.ts';
 import { SITE_BASE, SITE_PAGES as EXTENSION_LINKS } from '../../apps/extension/src/site.ts';
 import { parseChangelog } from './changelog.ts';
 import { CHANGELOG_FILE, releaseTarget, REPO_ROOT, SITE_DIR, VERSION_FILE } from './config.ts';
-import { renderPage, renderSite, siteProblems, SITE_FILES, SITE_PAGES, VERSIONLESS_FILES, xpiHref, type SiteContext } from './site.ts';
+import { renderPage, renderSite, siteProblems, SITE_FILES, SITE_PAGES, VERSIONLESS_PAGES, xpiHref, type SiteContext } from './site.ts';
 import { readPackageVersion } from './version.ts';
 
 const siteDir = join(REPO_ROOT, SITE_DIR);
@@ -55,7 +55,7 @@ describe('the site in the repository', () => {
   });
 
   it('pages published ahead of a release say nothing of a version', () => {
-    for (const name of VERSIONLESS_FILES) {
+    for (const name of VERSIONLESS_PAGES) {
       const text = committed.get(name) ?? '';
       expect(text, name).not.toMatch(/data-cg=|cg:begin/);
       expect(text, name).not.toContain(context.version);
