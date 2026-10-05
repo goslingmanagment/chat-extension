@@ -528,13 +528,39 @@ describe('dock: gates of the actions', () => {
     expect(h.dock().actions.fix.enabled).toBe(true);
   });
 
-  it('[AI-031] Hi is off once the fan wrote more than ten messages; [AI-036] Ping is never off on OnlyFans', async () => {
+  it('[AI-031] Hi is off once the chat shows more than ten messages of either side — as the hub counts them; [AI-036] Ping is never off on OnlyFans', async () => {
     const h = await start();
+    const shown = (fanMessages: number, modelMessages: number): void => h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages, modelMessages, loaded: fanMessages + modelMessages }, openChat);
     expect(h.dock().actions.hi.reason).toMatchObject({ id: 'hi-gate', code: 'CG-GATE-HI' });
     expect(h.dock().actions.ping.enabled).toBe(true);
-    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages: 2, loaded: 6 }, openChat);
+    shown(2, 4);
     await h.settle();
     expect(h.dock().actions.hi.enabled).toBe(true);
+    // A fan who wrote little and a model who wrote a lot: the hub would refuse the greeting (more than ten stored messages of
+    // any side), so the button says «это уже диалог» before the click, and the click asks the hub nothing.
+    shown(2, 9);
+    await h.settle();
+    expect(h.dock().actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate', code: 'CG-GATE-HI' }, hotkey: null });
+    const starts = h.bg.callsOf('op.start').length;
+    expect(await h.generate('hi')).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect(h.bg.callsOf('op.start')).toHaveLength(starts);
+    expect(h.bg.callsOf('token.issue')).toEqual([]);
+    shown(2, 8);
+    await h.settle();
+    expect(h.dock().actions.hi.enabled).toBe(true);
+  });
+
+  it('[AI-031] where the page cannot know — ten or fewer messages in ChatSpace’s window, more in the hub’s archive — the hub’s own refusal is shown in the gate’s words: «Это уже диалог» (CG-GATE-HI), not a generic hub error', async () => {
+    const h = await start();
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages: 2, modelMessages: 4, loaded: 6, hasOlder: true }, openChat);
+    await h.settle();
+    expect(h.dock().actions.hi.enabled).toBe(true);
+    h.script({ kind: 'http-error', status: 400, body: { error: 'gate_hi_greeting_limit' } });
+    expect(await h.generate('hi')).toMatchObject({ ok: true });
+    await h.finish();
+    const vm = result(h);
+    expect(vm).toMatchObject({ feature: 'hi', state: 'failed', error: { code: 'CG-GATE-HI' } });
+    expect(vm.error?.title).toBe('Это уже диалог');
   });
 
   it('[AI-051] Review needs history only when the whole short conversation is loaded; Recap opens its sheet anyway', async () => {

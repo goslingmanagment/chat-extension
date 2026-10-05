@@ -52,6 +52,24 @@ export function pingHint(segment: PingSegment | null | undefined): Exclude<PingS
   return segment === undefined || segment === null || segment === 'unknown' ? null : segment;
 }
 
+/**
+ * AI-031, NF-015: the hub's own Hi gate, as far as the page can know it. The
+ * hub refuses a greeting when the conversation has more than ten stored
+ * messages — EVERY message, the fan's and the model's alike (on the lane this
+ * client uses the hub has no word for «personal»: it counts its whole
+ * transcript, `gate_hi_greeting_limit`). The dock does not see the hub's
+ * archive; it sees ChatSpace's window of the open chat. More than ten
+ * confirmed messages of either side in that window is a certain fact — the
+ * conversation is a dialogue, and Reply is the feature for it — so Hi is not
+ * offered and no request is spent on a refusal. Ten or fewer says nothing
+ * certain (older history may lie beyond the window, the archive may hold what
+ * ChatSpace has not loaded): Hi stays on, and the hub's own refusal, when it
+ * comes, is shown in the gate's words (CG-GATE-HI).
+ */
+function hiGate(window: ChatWindow): Gate | null {
+  return window.loaded > HI_MAX_PERSONAL_MESSAGES ? gate('hi-gate') : null;
+}
+
 /** The reason `feature` cannot start in the open chat right now, or null. */
 export function featureGate(feature: FeatureId, facts: GateFacts): Gate | null {
   const window = facts.window;
@@ -62,8 +80,7 @@ export function featureGate(feature: FeatureId, facts: GateFacts): Gate | null {
   if (rule.requiresDraft && facts.draftEmpty === true) return gate('needs-draft');
   switch (feature) {
     case 'hi':
-      // AI-031: a fan's message is always personal, so more than ten of them is a dialog whatever else is there.
-      return window.fanMessages > HI_MAX_PERSONAL_MESSAGES ? gate('hi-gate') : null;
+      return hiGate(window);
     case 'ping':
       return pingGate(facts.platform, facts.pingSegment);
     case 'review':

@@ -196,11 +196,19 @@ describe('client gates', () => {
     expect(planStart(plan({ feature: 'fix' }))).toEqual({ ok: false, code: 'CG-GATE-DRAFT' });
   });
 
-  it('[AI-031] [NF-015] Hi stops being offered once the fan wrote more than ten messages: it is a dialog, the hub is not asked', () => {
-    expect(featureGate('hi', facts({ window: windowOf({ fanMessages: 10 }) }))).toBeNull();
-    expect(featureGate('hi', facts({ window: windowOf({ fanMessages: 11 }) }))).toEqual({ reason: 'hi-gate', code: 'CG-GATE-HI' });
-    // Model messages may be welcome or mass messages: they never gate here (the hub counts personal ones).
-    expect(featureGate('hi', facts({ window: windowOf({ fanMessages: 0, modelMessages: 40 }) }))).toBeNull();
+  it('[AI-031] [NF-015] Hi stops being offered once the open chat shows more than ten messages of either side — the hub’s own count: it is a dialog, the hub is not asked', () => {
+    const shown = (fanMessages: number, modelMessages: number, hasOlder: boolean | null = false) => windowOf({ loaded: fanMessages + modelMessages, fanMessages, modelMessages, hasOlder });
+    expect(featureGate('hi', facts({ window: shown(10, 0) }))).toBeNull();
+    expect(featureGate('hi', facts({ window: shown(11, 0) }))).toEqual({ reason: 'hi-gate', code: 'CG-GATE-HI' });
+    // The hub counts every stored message, whoever sent it: a fan who wrote little and a model who wrote a lot is a dialogue too.
+    expect(featureGate('hi', facts({ window: shown(2, 8) }))).toBeNull();
+    expect(featureGate('hi', facts({ window: shown(2, 9) }))).toEqual({ reason: 'hi-gate', code: 'CG-GATE-HI' });
+    expect(featureGate('hi', facts({ window: shown(0, 40) }))).toEqual({ reason: 'hi-gate', code: 'CG-GATE-HI' });
+    expect(featureGate('hi', facts({ window: shown(0, 11, true) }))).toEqual({ reason: 'hi-gate', code: 'CG-GATE-HI' });
+    // Ten or fewer in the window is not a certain «few»: older history may lie beyond it. Hi stays on — the hub decides, and says so in the gate's words.
+    expect(featureGate('hi', facts({ window: shown(3, 4, true) }))).toBeNull();
+    expect(featureGate('hi', facts({ window: shown(3, 4, null) }))).toBeNull();
+    expect(featureGate('hi', facts({ window: shown(0, 0) }))).toBeNull();
   });
 
   it('[AI-051] Review and the full Recap need 30 messages — only when the whole conversation is loaded', () => {
