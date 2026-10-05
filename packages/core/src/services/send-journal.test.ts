@@ -175,6 +175,82 @@ describe('[X8-07] the send journal: written before the command, never retried wh
   });
 });
 
+describe('[TL-004] [NF-019] a part the person sent themselves is a finished record, never an attempt (§6.6)', () => {
+  const delivered = (n: number, extra: Partial<SendJournalEntry> = {}): SendJournalEntry => entry(n, { state: 'sentObserved', platformMessageId: IDS.msg2, documentEpoch: 'native-send', ...extra });
+
+  it('it is written finished in ONE set: never `preparing`, it holds no fan and the fan’s next attempt begins', async () => {
+    const { local, journal } = setup();
+    await journal.start();
+    const before = local.calls.set;
+    expect(await journal.record(delivered(1))).toEqual({ ok: true, entry: delivered(1), persisted: true });
+    expect(local.calls.set - before).toBe(1);
+    expect(stored(local)?.entries).toEqual([delivered(1)]);
+    expect(journal.open()).toEqual([]);
+    expect(journal.stats()).toMatchObject({ records: 1, open: 0, uncertain: 0, dirty: false });
+    // The same fan, the next part: nothing holds it.
+    expect((await journal.begin(entry(2))).ok).toBe(true);
+    // Told again (the tab repeats a report): one record, no write.
+    const writes = local.calls.set;
+    expect(await journal.record(delivered(1))).toMatchObject({ ok: true, entry: { attemptId: uuid(501) } });
+    expect(local.calls.set).toBe(writes);
+    expect(journal.list().map((item) => [item.attemptId, item.state])).toEqual([[uuid(501), 'sentObserved'], [uuid(502), 'preparing']]);
+  });
+
+  it('only a proven delivery is taken: any other state, or no message id, is refused and nothing is written', async () => {
+    const { local, journal } = setup();
+    await journal.start();
+    const before = local.calls.set;
+    for (const state of ['preparing', 'nativeEnqueued', 'nativeAccepted', 'uncertain', 'held', 'notEnqueued', 'rejected'] as const) {
+      expect(await journal.record(entry(1, { state, platformMessageId: IDS.msg2 }))).toMatchObject({ ok: false, code: 'transition' });
+    }
+    expect(await journal.record(entry(1, { state: 'sentObserved' }))).toMatchObject({ ok: false, code: 'transition' });
+    expect(await journal.record({ ...delivered(1), attemptId: 'nope' })).toMatchObject({ ok: false, code: 'transition' });
+    expect(local.calls.set).toBe(before);
+    expect(journal.list()).toEqual([]);
+  });
+
+  it('an attempt of ours is never rewritten by it: an open attempt under that id keeps its state and its fan', async () => {
+    const { journal } = setup();
+    await journal.begin(entry(1));
+    expect(await journal.record(delivered(1))).toMatchObject({ ok: false, code: 'transition' });
+    expect(journal.get(uuid(501))?.state).toBe('preparing');
+    expect(journal.open().map((item) => item.attemptId)).toEqual([uuid(501)]);
+    // Another message id under a delivered record's id is another message: refused too.
+    expect((await journal.record(delivered(2, { fanRef: IDS.otherFan }))).ok).toBe(true);
+    expect(await journal.record(delivered(2, { fanRef: IDS.otherFan, platformMessageId: '987654' }))).toMatchObject({ ok: false, code: 'transition' });
+  });
+
+  it('after an unload it is still delivered — never «неизвестно, ушло ли»; it ages out with the finished records', async () => {
+    const first = setup();
+    await first.journal.record(delivered(1));
+    const second = setup({ local: first.local });
+    expect(await second.journal.start()).toMatchObject({ readable: true, records: 1, madeUncertain: [], uncertain: 0 });
+    expect(second.journal.get(uuid(501))).toEqual(delivered(1));
+    second.clock.advance(DAY + 1);
+    await second.journal.begin(entry(9));
+    expect(second.journal.list().map((item) => item.attemptId)).toEqual([uuid(509)]);
+  });
+
+  it('a write that failed keeps the fact in memory and writes it with the next change; a newer build’s journal is not touched', async () => {
+    const { local, journal, logs } = setup();
+    await journal.start();
+    local.failNext('set');
+    expect(await journal.record(delivered(1))).toMatchObject({ ok: true, persisted: false });
+    expect(journal.stats().dirty).toBe(true);
+    expect(logs.some((item) => item.msg === 'delivered record not saved')).toBe(true);
+    expect(stored(local)).toBeUndefined();
+    await journal.begin(entry(2, { fanRef: IDS.otherFan }));
+    expect(stored(local)?.entries.map((item) => item['state'])).toEqual(['sentObserved', 'preparing']);
+    expect(journal.stats().dirty).toBe(false);
+
+    const newer = createMemoryKv();
+    newer.data.set(KEY, { v: 99, entries: [] });
+    const other = setup({ local: newer });
+    expect(await other.journal.record(delivered(3))).toMatchObject({ ok: false, code: 'CG-STORAGE-VERSION' });
+    expect(newer.read(KEY)).toEqual({ v: 99, entries: [] });
+  });
+});
+
 describe('[X8-07] the journal after the background unloads or the browser restarts', () => {
   it('attempts left half-way become uncertain, once; uncertain and finished ones come back as they were', async () => {
     const first = setup();
