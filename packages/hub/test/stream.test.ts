@@ -3,16 +3,18 @@
 // retry, the persona fence and catalog, the prompt echo and the quota
 // (parity AI-140, AI-141, AU-026…AU-028, DB-002/003/006/008, TL-013).
 
-import { STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode, type HubFrame, type HubStreamRequest } from '@cg/contracts';
+import { AI_STREAM_CAPABILITIES, STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode, type HubFrame, type HubStreamRequest } from '@cg/contracts';
 import {
   BOOTSTRAP_ALL_OFF,
   BOOTSTRAP_PILOT_ON,
+  BOOTSTRAP_PILOT_PAGES,
   HTTP_SCENARIOS,
   HUB_ROUTE_PATHS,
   NOW_MS,
   SSE_SCENARIOS,
   WORLD,
   meta,
+  pageFeaturesOff,
   readStreamScenario,
   sseText,
   streamBody,
@@ -20,8 +22,8 @@ import {
 } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CATALOG_TTL_MS, STREAM_RETRY_DELAY_MS, errorWireOf, sdkStreamTransport } from '../src/index';
-import { fullStreamTransport, hubError, json, sse, sseFrame, testEnv } from './support/fake-hub';
+import { CATALOG_TTL_MS, STREAM_RETRY_DELAY_MS, errorWireOf, sdkStreamTransport, type AiStreamTransport } from '../src/index';
+import { hubError, json, sse, sseFrame, testEnv } from './support/fake-hub';
 import { flush, makeHarness, signIn, until, type Harness } from './support/harness';
 import { scenarioNamed, signInWorld } from './support/world';
 
@@ -62,7 +64,7 @@ function serveScenario(h: Harness, scenario: SseScenario): void {
 let h: Harness;
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
-  h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: fullStreamTransport() });
+  h = makeHarness({ paths: HUB_ROUTE_PATHS });
 });
 afterEach(() => {
   h.facade.dispose();
@@ -81,7 +83,8 @@ describe('[AI-140] [AI-141] every SSE scenario of the fake hub, read by the faca
       expect(posts).toHaveLength(scenario.expect.requests);
       for (const post of posts) {
         expect(post.body).toEqual(scenario.request.body);
-        expect(post.headers['x-kernel-ai-capabilities']).toBe(scenario.request.capabilities.length === 0 ? undefined : scenario.request.capabilities.join(','));
+        // The SDK writes the header itself: the tokens of the request, in the order of AI_STREAM_CAPABILITIES, joined by «, ».
+        expect(post.headers['x-kernel-ai-capabilities']).toBe(scenario.request.capabilities.length === 0 ? undefined : AI_STREAM_CAPABILITIES.filter((capability) => scenario.request.capabilities.includes(capability)).join(', '));
         expect(post.headers['x-client-version']).toBe('chat-extension/0.2.0');
       }
       const reference = readStreamScenario(scenario, NOW_MS);
@@ -186,11 +189,20 @@ describe('[AI-141] §7 retry rules: one transparent retry of a structured 503 be
     const result = h.facade.stream(reply, (frame) => frames.push(frame), new AbortController().signal);
     await vi.advanceTimersByTimeAsync(4_999);
     expect(posts).toBe(1);
-    expect(h.notices).toEqual([{ kind: 'retrying', clientRequestId: OP, retryAt: NOW_MS + STREAM_RETRY_DELAY_MS }]);
+    // What the operation is told, in order: the request left, the hub answered 503, the one retry waits.
+    expect(h.notices).toEqual([
+      { kind: 'sent', clientRequestId: OP, attempt: 1, at: NOW_MS },
+      { kind: 'answered', clientRequestId: OP, attempt: 1, at: NOW_MS, status: 503 },
+      { kind: 'retrying', clientRequestId: OP, retryAt: NOW_MS + STREAM_RETRY_DELAY_MS },
+    ]);
     await vi.advanceTimersByTimeAsync(1);
     await result;
     expect(posts).toBe(2);
     expect(frames.at(-1)?.type).toBe('done');
+    expect(h.notices.slice(3)).toEqual([
+      { kind: 'sent', clientRequestId: OP, attempt: 2, at: NOW_MS + STREAM_RETRY_DELAY_MS },
+      { kind: 'answered', clientRequestId: OP, attempt: 2, at: NOW_MS + STREAM_RETRY_DELAY_MS, status: 200 },
+    ]);
   });
 
   it('[AI-141] 502, an unstructured 503, a network failure and an EOF are never repeated', async () => {
@@ -201,7 +213,7 @@ describe('[AI-141] §7 retry rules: one transparent retry of a structured 503 be
       expect(result.error).not.toBeNull();
       expect(h.hub.of('aiFeatureStream').length - before).toBe(1);
     }
-    expect(h.notices).toEqual([]);
+    expect(h.notices.filter((notice) => notice.kind === 'retrying')).toEqual([]);
   });
 
   it('[AI-141] a cancel during the 5 s pause makes no second POST', async () => {
@@ -253,9 +265,12 @@ describe('[AI-140] [AU-028] the stream is a sensitive action: checked before any
   });
 
   it('[AI-140] page not granted, a feature flag off, a capability the hub or the transport lacks, below minVersion, a bad request', async () => {
-    await signIn(h, { ...WORLD_PILOT, bootstrap: BOOTSTRAP_ALL_OFF });
+    // The page's own row: Review off there, no capability declared — and every top-level flag false, which decides nothing.
+    const reviewOff = { ...pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['review']), capabilities: [] };
+    await signIn(h, { ...WORLD_PILOT, bootstrap: reviewOff });
     expect((await run(h, { ...reply, body: streamBody({ pageLabel: 'not-my-page' }) })).code).toBe('CG-BINDING-NOT-GRANTED');
-    expect((await run(h, { feature: 'chat-review', body: streamBody(), capabilities: [] })).code).toBe('CG-FEATURE-DISABLED');
+    const review = await run(h, { feature: 'chat-review', body: streamBody(), capabilities: [] });
+    expect(errorWireOf(review.error)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
     expect((await run(h, { ...reply, capabilities: ['context-v1'] })).code).toBe('CG-HUB-CAPABILITY');
     expect((await run(h, { ...reply, body: { ...streamBody(), model: 'x' } as never })).code).toBe('CG-HUB-REQUEST');
     h.hub.on('clientBootstrap', () => json(200, { ...BOOTSTRAP_PILOT_ON, minVersion: '9.0.0' }));
@@ -264,16 +279,83 @@ describe('[AI-140] [AU-028] the stream is a sensitive action: checked before any
     expect(h.hub.of('aiFeatureStream')).toEqual([]);
   });
 
-  it('[AI-140] the vendored SDK carries debug-input-v1 only: context-v1 is refused locally, never sent', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: sdkStreamTransport, env: testEnv({ debug: true }) });
-    await signIn(h, WORLD_PILOT);
-    expect(h.facade.streamCapabilities()).toEqual(['debug-input-v1']);
-    expect((await run(h, { ...reply, capabilities: ['context-v1'] })).code).toBe('CG-HUB-CAPABILITY');
+  it('[AI-140] the owner\'s master switch off for the page: no AI call leaves at all — Reply included, which has no flag of its own', async () => {
+    await signIn(h, { ...WORLD_PILOT, bootstrap: BOOTSTRAP_ALL_OFF });
+    for (const request of [reply, { feature: 'chat-review', body: streamBody(), capabilities: [] } as HubStreamRequest]) {
+      expect(errorWireOf((await run(h, request)).error)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'disabled' });
+    }
     expect(h.hub.of('aiFeatureStream')).toEqual([]);
   });
 
+  it('[AI-140] a pilot switched on page by page (every top-level flag false): Review and Reply go out', async () => {
+    await signIn(h, { ...WORLD_PILOT, bootstrap: BOOTSTRAP_PILOT_PAGES });
+    h.hub.on('aiFeatureStream', (call) => sse([meta(call.path.endsWith('/chat-review') ? 'chat-review' : 'fast-reply'), { type: 'content_delta', text: 'ok' }, { type: 'done', stopReason: null }].map(sseFrame).join('')));
+    expect((await run(h, { feature: 'chat-review', body: streamBody(), capabilities: [] })).error).toBeNull();
+    expect((await run(h, reply)).error).toBeNull();
+    expect(h.hub.of('aiFeatureStream')).toHaveLength(2);
+  });
+
+  it('[AI-140] the vendored SDK announces what the request asks — context-v1 and split-all-v1 on its own header — and reads `context_v1` by its own schema', async () => {
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }) });
+    await signIn(h, WORLD_PILOT);
+    // Declared by the hub ∩ carried by the transport: the SDK carries all three now.
+    expect(h.facade.streamCapabilities()).toEqual(['debug-input-v1', 'context-v1', 'split-all-v1']);
+    const scenario = scenarioNamed(SSE_SCENARIOS, 'hi-three-variants');
+    expect(scenario.request.capabilities).toEqual(['context-v1', 'split-all-v1']);
+    serveScenario(h, scenario);
+    const result = await run(h, scenario.request);
+    expect(result.error).toBeNull();
+    expect(h.hub.of('aiFeatureStream')[0]?.headers['x-kernel-ai-capabilities']).toBe('context-v1, split-all-v1');
+    // The frame passed the SDK's schema and then the contract's: the snapshot that served the generation.
+    expect(result.frames.find((frame) => frame.type === 'context_v1')).toMatchObject({ type: 'context_v1', source: expect.any(String) as string, live: { status: expect.any(String) as string } });
+  });
+
+  it('[AI-140] a `context_v1` frame with a key this build does not know yet is served; one the SDK\'s schema refuses is a contract failure, never a crash', async () => {
+    await signIn(h, WORLD_PILOT);
+    const scenario = scenarioNamed(SSE_SCENARIOS, 'reply-normal');
+    const response = scenario.responses[0];
+    if (response?.kind !== 'stream') throw new Error('stream expected');
+    const frames = response.steps.flatMap((step) => (step.kind === 'frame' ? [step.frame] : []));
+    const context = frames.find((frame) => frame.type === 'context_v1');
+    if (context === undefined) throw new Error('the scenario has a context frame');
+    const withFrame = (replacement: unknown) => () => sse(frames.map((frame) => sseFrame(frame.type === 'context_v1' ? replacement : frame)).join(''));
+    // A later hub adds a key: the frame is not strict on either side.
+    h.hub.on('aiFeatureStream', withFrame({ ...context, servedBy: 'a-later-reader' }));
+    const later = await run(h, scenario.request);
+    expect(later.error).toBeNull();
+    expect(later.frames.map((frame) => frame.type)).toContain('context_v1');
+    // A frame that is not what the SDK knows as `context_v1` (no `window`): refused before anything of it is used.
+    const { window: _window, ...broken } = context;
+    h.hub.on('aiFeatureStream', withFrame(broken));
+    const refused = await run(h, scenario.request);
+    expect(isHubCallError(refused.error) && refused.error.failure).toEqual({ kind: 'transport', failure: 'contract' });
+    expect(refused.code).toBe('CG-HUB-REQUEST');
+    expect(refused.frames.map((frame) => frame.type)).not.toContain('context_v1');
+  });
+
+  it('[AI-140] a hub older than the SDK: what its bootstrap does not declare is never announced — refused locally (CG-HUB-CAPABILITY), nothing sent; a capability this build does not know changes nothing', async () => {
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }) });
+    // Prod lags main: the bootstrap declares neither `context-v1` nor `split-all-v1`, and one token of a later hub.
+    await signIn(h, { ...WORLD_PILOT, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: ['shared-recaps-v1', 'recap-profile-v1', 'some-later-capability-v9'] } });
+    expect(h.facade.streamCapabilities()).toEqual(['debug-input-v1']);
+    for (const capability of ['context-v1', 'split-all-v1'] as const) {
+      const refused = await run(h, { ...reply, capabilities: [capability] });
+      expect(errorWireOf(refused.error)).toEqual({ code: 'CG-HUB-CAPABILITY', detail: capability });
+    }
+    expect(h.hub.of('aiFeatureStream')).toEqual([]);
+    // What depends on them reads «хаб не готов», in the hub's own word.
+    expect(h.facade.flagState('freshText', WORLD.pages.one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(h.facade.flagState('splitAll', WORLD.pages.one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(h.facade.flagState('recap', WORLD.pages.one.pageLabel)).toEqual({ usable: true, reason: null });
+    // And a plain request goes out without the header and runs.
+    h.hub.on('aiFeatureStream', () => sse([meta('fast-reply'), { type: 'content_delta', text: 'ok' }, { type: 'done', stopReason: null }].map(sseFrame).join('')));
+    const plain = await run(h, reply);
+    expect(plain.error).toBeNull();
+    expect(h.hub.of('aiFeatureStream')[0]?.headers['x-kernel-ai-capabilities']).toBeUndefined();
+  });
+
   it('[DB-002] through the vendored SDK: the debug header, the echo frame, the reply — end to end', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: sdkStreamTransport, env: testEnv({ debug: true }) });
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }) });
     await signIn(h, WORLD_PILOT);
     const scenario = scenarioNamed(SSE_SCENARIOS, 'debug-input-and-reasoning');
     const request: HubStreamRequest = { ...scenario.request, capabilities: ['debug-input-v1'] };
@@ -289,7 +371,7 @@ describe('[AI-140] [AU-028] the stream is a sensitive action: checked before any
   });
 
   it('[AI-140] the vendored SDK without debug: no capability header; a 409 persona refusal refreshes the catalog', async () => {
-    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: sdkStreamTransport });
+    h = makeHarness({ paths: HUB_ROUTE_PATHS });
     await signIn(h, WORLD_PILOT);
     await flush(20);
     const reads = h.hub.of('aiPersonaCatalog').length;
@@ -300,6 +382,110 @@ describe('[AI-140] [AU-028] the stream is a sensitive action: checked before any
     expect(h.hub.of('aiFeatureStream')[0]?.headers['x-kernel-ai-capabilities']).toBeUndefined();
     await flush(20);
     expect(h.hub.of('aiPersonaCatalog').length).toBe(reads + 1);
+  });
+});
+
+describe('[AI-141] where a request stands is said, never guessed: sent, answered, or not at all', () => {
+  const reply: HubStreamRequest = { feature: 'fast-reply', body: streamBody({ replyTone: 'casual' }), capabilities: [] };
+  const lines = (prefix: string) => h.logs.lines.filter((line) => line.message.startsWith(prefix));
+
+  beforeEach(async () => {
+    await signIn(h, WORLD_PILOT);
+    await flush(20);
+  });
+
+  it('[AI-141] an answered request leaves two lines — «request sent», «answered» — with the route, the attempt and timings, and never a payload', async () => {
+    h.hub.on('aiFeatureStream', () => sse([meta('fast-reply'), { type: 'content_delta', text: 'a secret reply text' }, { type: 'done', stopReason: null }].map(sseFrame).join('')));
+    expect((await run(h, reply)).error).toBeNull();
+    expect(lines('hub: stream request sent')).toEqual([{ level: 'info', message: 'hub: stream request sent', fields: { route: 'aiFeatureStream', feature: 'fast-reply', attempt: 1, epoch: 1, prepareMs: 0 } }]);
+    expect(lines('hub: stream answered')).toEqual([{ level: 'info', message: 'hub: stream answered', fields: { route: 'aiFeatureStream', feature: 'fast-reply', attempt: 1, epoch: 1, status: 200, answerMs: 0 } }]);
+    expect(lines('hub: stream aborted')).toEqual([]);
+    expect(h.notices).toEqual([
+      { kind: 'sent', clientRequestId: OP, attempt: 1, at: NOW_MS },
+      { kind: 'answered', clientRequestId: OP, attempt: 1, at: NOW_MS, status: 200 },
+    ]);
+    // Facts only: nothing of the request body or of the answer reaches the log.
+    expect(h.logs.text()).not.toContain('a secret reply text');
+    expect(h.logs.text()).not.toContain(reply.body.conversationRef);
+    expect(h.logs.text()).not.toContain(String(WORLD_PILOT.issued['token']));
+  });
+
+  it('[AI-141] sent and never answered: the caller\'s deadline cuts it, and the log says the hub had not answered — after how long', async () => {
+    h.hub.on('aiFeatureStream', () => 'hang');
+    const controller = new AbortController();
+    const result = h.facade.stream(reply, () => undefined, controller.signal).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(lines('hub: stream request sent')).toHaveLength(1);
+    expect(lines('hub: stream answered')).toEqual([]);
+    // The operation's `until-meta` deadline (the scheduler's) aborts the call.
+    controller.abort();
+    const error = await result;
+    expect(isHubCallError(error) && error.failure).toEqual({ kind: 'transport', failure: 'aborted' });
+    expect(lines('hub: stream aborted')).toEqual([
+      { level: 'warn', message: 'hub: stream aborted before the hub answered', fields: { route: 'aiFeatureStream', feature: 'fast-reply', attempt: 1, epoch: 1, waitedMs: 30_000 } },
+    ]);
+    expect(h.notices).toEqual([{ kind: 'sent', clientRequestId: OP, attempt: 1, at: NOW_MS }]);
+  });
+
+  it('[AI-141] the browser could not send it: CG-NETWORK at once — not a wait for the deadline — with its own log line', async () => {
+    h.hub.on('aiFeatureStream', () => 'network-error');
+    const result = await run(h, reply, undefined, { advance: 0 });
+    expect(isHubCallError(result.error) && result.error.failure).toEqual({ kind: 'transport', failure: 'network' });
+    expect(result.code).toBe('CG-NETWORK');
+    expect(lines('hub: stream answered')).toEqual([]);
+    expect(lines('hub: call failed').at(-1)).toMatchObject({ level: 'warn', fields: { route: 'aiFeatureStream', failure: 'network', code: 'CG-NETWORK' } });
+    expect(h.hub.of('aiFeatureStream')).toHaveLength(1);
+  });
+
+  it('[AI-141] a failure before the request is handed to the network — in the transport, while the request is put together — ends at once as CG-HUB-REQUEST with a log line', async () => {
+    const broken: AiStreamTransport = {
+      capabilities: sdkStreamTransport.capabilities,
+      open: () => Promise.reject(new RangeError('the request could not be put together')),
+    };
+    h.facade.dispose();
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: broken });
+    await signIn(h, WORLD_PILOT);
+    await flush(20);
+    const result = await run(h, reply, undefined, { advance: 0 });
+    expect(isHubCallError(result.error) && result.error.failure).toEqual({ kind: 'transport', failure: 'contract' });
+    expect(result.code).toBe('CG-HUB-REQUEST');
+    expect(lines('hub: stream request not sent')).toEqual([
+      { level: 'error', message: 'hub: stream request not sent', fields: { route: 'aiFeatureStream', feature: 'fast-reply', attempt: 1, epoch: 1, error: 'RangeError' } },
+    ]);
+    expect(lines('hub: call failed').at(-1)).toMatchObject({ fields: { route: 'aiFeatureStream', code: 'CG-HUB-REQUEST' } });
+    expect(h.hub.of('aiFeatureStream')).toEqual([]);
+    expect(h.notices).toEqual([]);
+    // The message of what threw is not logged: only its name.
+    expect(h.logs.text()).not.toContain('could not be put together');
+  });
+
+  it('[AI-141] a request the hub layer refuses itself (a page not granted, a capability missing) is logged with its check before it throws', async () => {
+    const refused = await run(h, { ...reply, body: streamBody({ pageLabel: 'not-my-page' }) });
+    expect(refused.code).toBe('CG-BINDING-NOT-GRANTED');
+    expect(lines('hub: stream refused before the request')).toEqual([
+      { level: 'warn', message: 'hub: stream refused before the request', fields: { route: 'aiFeatureStream', feature: 'fast-reply', kind: 'pageNotGranted', code: 'CG-BINDING-NOT-GRANTED', reason: null, epoch: 1 } },
+    ]);
+    expect(h.hub.of('aiFeatureStream')).toEqual([]);
+  });
+
+  it('[AI-141] cut before anything was sent (the sign-in ended while the request was prepared): the log says it never left', async () => {
+    const slow: AiStreamTransport = {
+      capabilities: sdkStreamTransport.capabilities,
+      // Never reaches `onRequest`: resolves quietly when the call is aborted, as the SDK's stream does.
+      open: (input) => new Promise((resolve) => input.signal.addEventListener('abort', () => resolve(), { once: true })),
+    };
+    h.facade.dispose();
+    h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: slow });
+    await signIn(h, WORLD_PILOT);
+    await flush(20);
+    const controller = new AbortController();
+    const result = h.facade.stream(reply, () => undefined, controller.signal).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(1_200);
+    controller.abort();
+    expect(isHubCallError(await result)).toBe(true);
+    expect(lines('hub: stream aborted')).toEqual([
+      { level: 'warn', message: 'hub: stream aborted before the request was sent', fields: { route: 'aiFeatureStream', feature: 'fast-reply', attempt: 1, epoch: 1, waitedMs: 1_200 } },
+    ]);
   });
 });
 

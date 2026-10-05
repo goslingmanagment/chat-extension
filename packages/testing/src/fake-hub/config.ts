@@ -1,10 +1,13 @@
 // The owner's hub configuration as the fake hub models it (hub-pr-plan.md PR 7–8,
 // §4.12): the master switch, the `*` and per-page feature flags, the served
 // capabilities, limits, minVersion, explicit host bindings, plus the fake
-// hub's own knobs. Bootstrap is computed from it the way the hub's
-// `evaluateClientFeature` does: platform → binding → master → flag →
-// capability. Presets reproduce the scenarios' BOOTSTRAP_PILOT_ON and
-// BOOTSTRAP_ALL_OFF exactly (config.test.ts).
+// hub's own knobs. Bootstrap is computed from it the way the hub does
+// (apps/runtime/src/services/client-features.ts): a page's feature by
+// `evaluateClientFeature` — platform → master → flag (the page's own row
+// wins over `*`) → binding → capability — and the top-level `flags` by
+// `clientBootstrapFlags`, from the `*` row ALONE. Presets reproduce the
+// scenarios' BOOTSTRAP_PILOT_PAGES, BOOTSTRAP_PILOT_ON and BOOTSTRAP_ALL_OFF
+// exactly (config.test.ts).
 
 import {
   CLIENT_FEATURE_FLAG_NAMES,
@@ -22,6 +25,9 @@ import {
 import { BINDING_KEY_ONE, BINDING_KEY_VIP, PILOT_FLAGS_OFF, SCENARIO_DATA, WORLD } from '../scenarios/hub';
 import { iso } from './clock';
 import { type BootstrapPresetName, type FakeHubConfigPatch } from './types';
+
+/** The preset of a fake hub nobody configured: the pilot as the owner runs it (a row per page, an empty `*`). */
+export const DEFAULT_PRESET: BootstrapPresetName = 'pilot-pages';
 
 export interface FakePage {
   readonly pageId: number;
@@ -85,6 +91,13 @@ const BASE = {
 
 export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
   switch (name) {
+    case 'pilot-pages': {
+      // What the owner really does: nothing in `*`, a row per pilot page that names only what is ON there.
+      // A flag the row does not name falls back to `*` — so a test still switches X8 on for everyone with
+      // `flags`, and switches a pilot flag off with `pageFlags`.
+      const row = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => !PILOT_FLAGS_OFF.includes(flag)).map((flag) => [flag, true]));
+      return { ...presetConfig('pilot-on'), flags: allFlags(() => false), pageFlags: { [WORLD.pages.one.pageLabel]: row, [WORLD.pages.vip.pageLabel]: row } };
+    }
     case 'pilot-on':
       return {
         ...BASE,
@@ -110,6 +123,15 @@ export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
     case 'master-off':
       return { ...presetConfig('pilot-on'), master: false };
   }
+}
+
+/**
+ * An owner change of the pilot pages' own rows (`chatExtensionFeatures["<pageLabel>"]`): the way a flag is
+ * switched where the pilot runs page by page — a page's own value wins over `"*"`, so a `flags` patch (the
+ * `"*"` row) changes nothing on a page that names the flag itself.
+ */
+export function pilotPageFlags(flags: Readonly<Partial<Record<ClientFeatureFlag, boolean>>>): Pick<FakeHubConfigPatch, 'pageFlags'> {
+  return { pageFlags: { [WORLD.pages.one.pageLabel]: flags, [WORLD.pages.vip.pageLabel]: flags } };
 }
 
 /** Applies an owner change; any change of what bootstrap shows bumps configRevision. */
@@ -149,12 +171,17 @@ export function flagOn(config: FakeHubConfig, pageLabel: string, flag: string): 
   return config.pageFlags[pageLabel]?.[flag] ?? config.flags[flag] === true;
 }
 
-/** `evaluateClientFeature`: whether a page's feature is available and why not. */
+/** The extension can bind a host account to the page: by its platform account id, or by an explicit owner binding. */
+function bindable(config: FakeHubConfig, page: FakePage): boolean {
+  return page.platformAccountId !== null || Object.values(config.bindingsByHost).includes(page.pageId);
+}
+
+/** `evaluateClientFeature`: whether a page's feature is available and why not, in the hub's order. */
 export function featureVerdict(config: FakeHubConfig, page: FakePage, flag: string): FeatureAvailability {
   if (page.platform !== 'onlyfans') return { available: false, reason: 'platform_unsupported' };
-  if (page.platformAccountId === null) return { available: false, reason: 'binding_missing' };
   if (!config.master) return { available: false, reason: 'disabled' };
   if (!flagOn(config, page.pageLabel, flag)) return { available: false, reason: 'flag_off' };
+  if (!bindable(config, page)) return { available: false, reason: 'binding_missing' };
   const known = narrowToken(CLIENT_FEATURE_FLAG_NAMES, flag);
   if (known !== null && !CLIENT_FLAG_REQUIREMENTS[known].capabilities.every((capability) => hasCapability(config.capabilities, capability))) {
     return { available: false, reason: 'hub_not_ready' };
@@ -189,6 +216,7 @@ export function bootstrapOf(config: FakeHubConfig, pages: readonly FakePage[], i
       features: Object.fromEntries(flagNames.map((flag) => [flag, featureVerdict(config, page, flag)])),
     })),
     bindingsByHost: Object.fromEntries(Object.entries(config.bindingsByHost).filter(([, pageId]) => pages.some((page) => page.pageId === pageId))),
+    // `clientBootstrapFlags`: the `*` row alone — a page's own row never shows here.
     flags: Object.fromEntries(flagNames.map((flag) => [flag, config.master && config.flags[flag] === true])),
     limits: config.limits,
     capabilities: [...config.capabilities],

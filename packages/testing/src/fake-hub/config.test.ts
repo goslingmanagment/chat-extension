@@ -1,12 +1,14 @@
 // The owner's hub configuration as the fake hub models it: the presets give
 // exactly the scenarios' bootstrap answers, features are judged in the hub's
-// order (platform → binding → master → flag → capability), and only owner
-// changes bump configRevision (= custody flagRevision).
+// order (platform → master → flag → binding → capability; hub
+// client-features.ts `evaluateClientFeature`), the top-level `flags` are the
+// owner's `"*"` row alone (`clientBootstrapFlags`), and only owner changes
+// bump configRevision (= custody flagRevision).
 
 import { BootstrapSchema, CLIENT_FEATURE_FLAG_NAMES } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, NOW_MS, WORLD } from '../scenarios/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, NOW_MS, WORLD } from '../scenarios/hub';
 import { FAKE_PAGES, bootstrapOf, featureVerdict, flagOn, patchConfig, presetConfig, type FakePage } from './config';
 import { createFakeHub } from './hub';
 import { hubCall } from './kit';
@@ -18,6 +20,20 @@ const fansly = FAKE_PAGES[2] as FakePage;
 describe('fake hub config: presets', () => {
   it('pilot-on is the scenarios’ BOOTSTRAP_PILOT_ON exactly', () => {
     expect(bootstrapOf(presetConfig('pilot-on'), FAKE_PAGES, chatter, NOW_MS)).toEqual(BOOTSTRAP_PILOT_ON);
+  });
+
+  it('pilot-pages — the default — is the scenarios’ BOOTSTRAP_PILOT_PAGES exactly: a row per page, `"*"` empty, every top-level flag false', () => {
+    const boot = bootstrapOf(presetConfig('pilot-pages'), FAKE_PAGES, chatter, NOW_MS);
+    expect(boot).toEqual(BOOTSTRAP_PILOT_PAGES);
+    expect(Object.values(boot.flags).some(Boolean)).toBe(false);
+    // The pages answer exactly what the `"*"` pilot answers: only the top-level flags tell the two apart.
+    expect(boot.pages).toEqual(BOOTSTRAP_PILOT_ON.pages);
+    expect(createFakeHub().config()).toEqual(presetConfig('pilot-pages'));
+    // A flag the page rows do not name still follows `"*"` (X8 for everyone in one patch); one they name is switched per page.
+    const x8 = patchConfig(presetConfig('pilot-pages'), { flags: { previewSend: true } });
+    expect(flagOn(x8, one.pageLabel, 'previewSend')).toBe(true);
+    const noStats = patchConfig(presetConfig('pilot-pages'), { flags: { stats: false }, pageFlags: { [one.pageLabel]: { review: false } } });
+    expect([flagOn(noStats, one.pageLabel, 'stats'), flagOn(noStats, one.pageLabel, 'review'), flagOn(noStats, WORLD.pages.vip.pageLabel, 'review')]).toEqual([true, false, true]);
   });
 
   it('all-off is the scenarios’ BOOTSTRAP_ALL_OFF exactly', () => {
@@ -49,11 +65,23 @@ describe('fake hub config: evaluateClientFeature order', () => {
     expect(featureVerdict({ ...pilot, master: false }, fansly, 'spenders')).toEqual({ available: false, reason: 'platform_unsupported' });
   });
 
-  it('then the binding: a page without platformAccountId is binding_missing', () => {
-    expect(featureVerdict(pilot, { ...one, platformAccountId: null }, 'spenders')).toEqual({ available: false, reason: 'binding_missing' });
+  it('then the master switch and the flag — before the binding is even looked at', () => {
+    const unbound = { ...one, platformAccountId: null };
+    const noBindings = { ...pilot, bindingsByHost: {} };
+    expect(featureVerdict({ ...noBindings, master: false }, unbound, 'spenders')).toEqual({ available: false, reason: 'disabled' });
+    expect(featureVerdict(noBindings, unbound, 'previewSend')).toEqual({ available: false, reason: 'flag_off' });
   });
 
-  it('then the master switch, the flag, and the capabilities the flag needs', () => {
+  it('then the binding: a page the extension cannot bind a host account to — no platform account id and no owner binding — is binding_missing', () => {
+    const unbound = { ...one, platformAccountId: null };
+    expect(featureVerdict({ ...pilot, bindingsByHost: {} }, unbound, 'spenders')).toEqual({ available: false, reason: 'binding_missing' });
+    // The owner's explicit host binding is a way to bind it too.
+    expect(featureVerdict(pilot, unbound, 'spenders')).toEqual({ available: true });
+    // A binding beats a missing capability in the order: no binding is said first.
+    expect(featureVerdict({ ...pilot, bindingsByHost: {}, capabilities: [] }, unbound, 'stats')).toEqual({ available: false, reason: 'binding_missing' });
+  });
+
+  it('then the capabilities the flag needs', () => {
     expect(featureVerdict({ ...pilot, master: false }, one, 'spenders')).toEqual({ available: false, reason: 'disabled' });
     expect(featureVerdict(pilot, one, 'previewSend')).toEqual({ available: false, reason: 'flag_off' });
     expect(featureVerdict({ ...pilot, capabilities: [] }, one, 'stats')).toEqual({ available: false, reason: 'hub_not_ready' });
@@ -96,6 +124,10 @@ describe('fake hub config: owner changes and configRevision', () => {
     const hub = createFakeHub();
     expect(hub.control({ op: 'config', patch: { flags: { previewSend: true } } })).toEqual({ ok: true, configRevision: WORLD.configRevision + 1 });
     expect(hub.config().flags['previewSend']).toBe(true);
+    expect(hub.control({ op: 'preset', name: 'pilot-pages' })).toEqual({ ok: true, configRevision: WORLD.configRevision + 2 });
+    expect(hub.config()).toEqual({ ...presetConfig('pilot-pages'), configRevision: WORLD.configRevision + 2 });
+    hub.control({ op: 'reset' });
+    hub.control({ op: 'config', patch: { flags: { previewSend: true } } });
     // A preset is an owner change too: the revision only grows, even when the preset's own is lower.
     expect(hub.control({ op: 'preset', name: 'all-off' })).toEqual({ ok: true, configRevision: WORLD.configRevision + 2 });
     expect(hub.config()).toEqual({ ...presetConfig('all-off'), configRevision: WORLD.configRevision + 2 });

@@ -7,11 +7,9 @@
 // exchanges only by their shape, so this file needs nothing from the test
 // harness package and stays inside the hub package's dependency rules.
 
-import { AI_STREAM_CAPABILITIES, HUB_ROUTES, type AiStreamCapability, type HubRouteKey } from '@cg/contracts';
-import { KernelApiError } from '@kernel/sdk';
+import { HUB_ROUTES, type HubRouteKey } from '@cg/contracts';
 
 import {
-  type AiStreamTransport,
   type FetchLike,
   type HubEnvironment,
   type HubKeyValueStore,
@@ -327,73 +325,5 @@ export function counterUuid(prefix = 'e'): () => string {
   return () => {
     n += 1;
     return `00000000-0000-4000-8${prefix === 'e' ? '0' : '1'}00-${n.toString(16).padStart(12, '0')}`;
-  };
-}
-
-// ── the AI stream with every capability ────────────────────────────────────
-
-/**
- * What `streamAiFeature` will do once the hub's H-4 SDK change is vendored:
- * the capability list on `x-kernel-ai-capabilities`, `event: ai` frames as
- * parsed JSON, a refused handshake as a KernelApiError with the envelope.
- */
-export function fullStreamTransport(capabilities: readonly AiStreamCapability[] = AI_STREAM_CAPABILITIES): AiStreamTransport {
-  return {
-    capabilities,
-    async open(input) {
-      const headers: Record<string, string> = { accept: 'text/event-stream', 'content-type': 'application/json', ...input.headers, authorization: `Bearer ${input.token}` };
-      if (input.capabilities.length > 0) headers['x-kernel-ai-capabilities'] = input.capabilities.join(',');
-      let response: Response;
-      try {
-        response = await input.fetch(`${input.hubOrigin}/api/v1/ai/features/${encodeURIComponent(input.feature)}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(input.body),
-          signal: input.signal,
-        });
-      } catch (error) {
-        if (input.signal.aborted) return;
-        void error;
-        throw new KernelApiError('network', 'network', null, 'network_error', null);
-      }
-      if (!response.ok || response.body === null) {
-        const text = await response.text();
-        let body: unknown = text;
-        try {
-          body = text === '' ? null : JSON.parse(text);
-        } catch {
-          // not JSON: kept as text
-        }
-        const envelope = (body ?? {}) as { error?: unknown };
-        const error = new KernelApiError('refused', response.status === 401 || response.status === 403 ? 'auth' : 'http', response.status, typeof envelope.error === 'string' ? envelope.error : null, body);
-        if (response.status === 401 || response.status === 403) input.onAuthError(error);
-        throw error;
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) return;
-          buffer += decoder.decode(value, { stream: true });
-          let boundary: number;
-          while ((boundary = buffer.indexOf('\n\n')) >= 0) {
-            const raw = buffer.slice(0, boundary);
-            buffer = buffer.slice(boundary + 2);
-            let event: string | null = null;
-            let data = '';
-            for (const line of raw.split('\n')) {
-              if (line.startsWith('event: ')) event = line.slice(7);
-              else if (line.startsWith('data: ')) data += line.slice(6);
-            }
-            if (event === 'ai' && data !== '') input.onFrame(JSON.parse(data));
-          }
-        }
-      } catch (error) {
-        if (input.signal.aborted) return;
-        throw error;
-      }
-    },
   };
 }

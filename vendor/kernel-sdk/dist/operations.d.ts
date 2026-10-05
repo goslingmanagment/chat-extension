@@ -23,6 +23,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/usage/chatters";
     };
+    readonly adminClientHealth: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/client-health";
+    };
     readonly adminConfig: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/config";
@@ -542,6 +546,22 @@ export declare const kernelOperations: {
     readonly cancelOfapiCommand: {
         readonly method: "POST";
         readonly path: "/api/v1/ofapi/commands/:commandId/cancel";
+    };
+    readonly clientAiUsageDaily: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/ai-usage";
+    };
+    readonly clientBootstrap: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/bootstrap";
+    };
+    readonly clientConversationRecaps: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/conversations/:fanRef/recaps";
+    };
+    readonly clientFanProfileFromGeneration: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/profile/from-generation";
     };
     readonly contentComments: {
         readonly method: "GET";

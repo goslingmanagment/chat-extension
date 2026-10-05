@@ -29,7 +29,7 @@ import * as z from 'zod/mini';
 import { type BootstrapService } from './bootstrap';
 import { flagState, pageOf } from './bootstrap-rules';
 import { type Connection, type HubContext } from './context';
-import { FacadeCallError, FacadeCheckError, toError, transportFailure } from './errors';
+import { FacadeCallError, FacadeCheckError, flagRefused, toError, transportFailure } from './errors';
 import { elapsedSince, stampNow, type HubKeyValueStore } from './ports';
 import { callScope, onAbort } from './wire';
 
@@ -103,7 +103,7 @@ export class SpendersBoardService {
     const entry = this.bootstrap.cached() ?? (await this.bootstrap.fresh());
     if (pageOf(entry.bootstrap, pageLabel) === null) throw new FacadeCheckError('pageNotGranted', 'spenders', connection.epoch);
     const state = flagState(entry.bootstrap, 'spenders', pageLabel);
-    if (!state.usable) throw new FacadeCheckError('featureDisabled', 'spenders', connection.epoch, state.reason ?? undefined);
+    if (!state.usable) throw flagRefused('spenders', state.reason, 'spenders', connection.epoch);
   }
 
   private join(build: Build, options: BoardOptions, connection: Connection): Promise<SpendersBoard> {

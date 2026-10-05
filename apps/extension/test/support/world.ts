@@ -13,6 +13,7 @@ import { parseTabPayload } from '@cg/contracts/tab-messages';
 import { createPageRpcClient, createTabRpcClient, type PageRpcClient, type TabRpcClient } from '@cg/platform';
 import { createFakeHub, type FakeHub } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
+import { routeSchemas } from '@kernel/sdk';
 
 import { createFakeBrowser, pageSender, tabSender, type FakeBrowser, type FakeContext } from '../../../../packages/platform/src/test-support/fake-browser.ts';
 import { composeBackground } from '../../src/composition/background.ts';
@@ -72,7 +73,8 @@ export function settingsFor(hubOrigin: string = HUB_ORIGIN, over: Partial<Settin
 
 export function createWorld(options: { readonly settings?: SettingsV1 | null; /** Another browser's hub: two installs, one hub. */ readonly hub?: FakeHub } = {}): World {
   const fake = createFakeBrowser();
-  const hub = options.hub ?? createFakeHub({ clock: 'system' });
+  // Every AI body is checked by the hub's own body schema (the vendored SDK's), as on the real hub.
+  const hub = options.hub ?? createFakeHub({ clock: 'system', streamBodySchema: routeSchemas.aiFeatureStream.body });
   // The owner linked the hub page to the creator account ChatSpace shows as the fixture account.
   if (options.hub === undefined) hub.control({ op: 'pageAccount', pageLabel: WORLD.pages.one.pageLabel, platformAccountId: account.platformAccountId });
   // The extension may run on ChatSpace (the manifest's host permission): without it nothing of ours rings there.

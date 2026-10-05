@@ -9,9 +9,7 @@ import {
   CLIENT_FEATURE_FLAG_NAMES,
   CLIENT_FLAG_REQUIREMENTS,
   NATIVE_ID_PATTERN,
-  hasCapability,
   hostBindingKey,
-  isFlagOn,
   narrowPlatform,
   type Bootstrap,
   type BootstrapLimits,
@@ -22,28 +20,23 @@ import {
   type HubBinding,
   type SessionIdentity,
 } from '@cg/contracts';
+import { pageFlagState, somePageFlagState, type FlagState } from '@cg/core/domain/ops';
 
-export interface FlagState {
-  readonly usable: boolean;
-  /**
-   * Why not: `flag_off`, `not_granted`, a page feature's reason (open token), `hub_not_ready` for a
-   * capability the hub has not declared (or no bootstrap yet), `bootstrap_expired` (the facade's
-   * gate: the bootstrap's ttl ran out and no refresh has landed).
-   */
-  readonly reason: string | null;
-}
+export type { FlagState };
 
-/** §4.12: a flag is usable when it is on, the page's feature is available, and every capability it needs is declared. */
+/**
+ * §4.12, by the one rule of `@cg/core/domain/ops` (flags.ts): a flag on a page is the PAGE's own feature
+ * (`pages[].features[flag]`) plus the capabilities it needs — the top-level `flags` carry the owner's `"*"`
+ * row alone and decide nothing here. `pageLabel: null` asks about no page in particular: usable on at
+ * least one granted page (the caller then applies the page's own value to what it acts on).
+ */
 export function flagState(bootstrap: Bootstrap, flag: ClientFeatureFlag, pageLabel: string | null): FlagState {
-  if (!isFlagOn(bootstrap.flags, flag)) return { usable: false, reason: 'flag_off' };
-  if (pageLabel !== null) {
-    const page = bootstrap.pages.find((candidate) => candidate.pageLabel === pageLabel);
-    if (page === undefined) return { usable: false, reason: 'not_granted' };
-    const feature = Object.prototype.hasOwnProperty.call(page.features, flag) ? page.features[flag] : undefined;
-    if (feature?.available !== true) return { usable: false, reason: feature?.reason ?? 'disabled' };
-  }
-  const missing = CLIENT_FLAG_REQUIREMENTS[flag].capabilities.filter((capability) => !hasCapability(bootstrap.capabilities, capability));
-  return missing.length > 0 ? { usable: false, reason: 'hub_not_ready' } : { usable: true, reason: null };
+  if (pageLabel === null) return somePageFlagState(bootstrap, flag);
+  return pageFlagState(
+    bootstrap,
+    bootstrap.pages.find((candidate) => candidate.pageLabel === pageLabel),
+    flag,
+  );
 }
 
 export function pageOf(bootstrap: Bootstrap, pageLabel: string): BootstrapPage | null {

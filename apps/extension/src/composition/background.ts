@@ -38,7 +38,6 @@
 // hub layer) and takes no result away.
 
 import {
-  AI_STREAM_CAPABILITIES,
   CONTRACTS_VERSION,
   HUB_CLIENT_CHECK_CODES,
   STORAGE_KEYS,
@@ -382,19 +381,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const resolve: ResolveHubError = (failure, context) => readings.get(failure) ?? resolveHubError(failure, context);
 
   /**
-   * The bootstrap as the operations read it. A request declares to the hub the stream capabilities its bootstrap
-   * names (`context-v1`, `split-all-v1`), and the hub layer refuses a request that declares one its transport
-   * cannot carry (CG-HUB-CAPABILITY) — the vendored SDK carries only the prompt echo until the hub's H-4 change
-   * is re-vendored (docs/hub-layer.md). So a capability the stream cannot carry is not shown to the operations:
-   * they run by the archive, without the fresh tail and without Split in Ping, Hi and Coach, instead of not at all.
+   * The bootstrap as the operations read it: the hub's own. A request announces to the hub only the stream
+   * capabilities this bootstrap declares (`context-v1`, `split-all-v1`), and the vendored SDK carries all of
+   * them. A hub older than the SDK simply declares fewer: what depends on a missing one reads «хаб не готов»
+   * (`hub_not_ready`) — nothing is announced that the hub did not offer.
    */
-  const bootstrapForOps = (): Bootstrap | null => {
-    const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
-    if (bootstrap === null || hubInstance === null) return bootstrap;
-    const carried = hubInstance.streamCapabilities();
-    const uncarried = AI_STREAM_CAPABILITIES.filter((capability) => capability !== 'debug-input-v1' && !carried.includes(capability)) as readonly string[];
-    return bootstrap.capabilities.some((capability) => uncarried.includes(capability)) ? { ...bootstrap, capabilities: bootstrap.capabilities.filter((capability) => !uncarried.includes(capability)) } : bootstrap;
-  };
+  const bootstrapForOps = (): Bootstrap | null => hubInstance?.cachedBootstrap()?.bootstrap ?? null;
 
   const environment = (): OpsEnvironment => {
     const current = settings.current();
@@ -433,6 +425,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // R11: how each feature's start becomes the hub's request and its answer a result ([NEXT] parts, Hi variants,
     // the Review frame, Recap blocks, Coach drafts).
     drivers: AI_FEATURE_DRIVERS,
+    // «Нет связи» vs «хаб не ответил вовремя» at a deadline: what the browser itself says about the connection.
+    online: () => navigator.onLine,
     hooks: {
       // The facade refreshes its catalog itself when it reads such a failure.
       refreshBootstrap: () => void hubInstance?.bootstrap({ force: true }).catch(() => undefined),
@@ -799,7 +793,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     instance.onCatalogChange(() => rpc.emit('catalog.changed', {}));
     instance.onQuotaChange((quota) => rpc.emit('quota.changed', { quota }));
     // §7 «Сервис недоступен, повтор через 5 с…»: the facade waits before its one retry; the operation says so.
-    instance.onStreamNotice((notice) => scheduler.noteRetry(notice.clientRequestId, notice.retryAt));
+    instance.onStreamNotice((notice) => {
+      if (notice.kind === 'retrying') scheduler.noteRetry(notice.clientRequestId, notice.retryAt);
+      // Where the request stands: a deadline that fires later says whether the hub had answered at all.
+      else scheduler.noteWire(notice.clientRequestId, notice.kind === 'sent' ? { kind: 'sent' } : { kind: 'answered', status: notice.status });
+    });
   }
 
   // ── request handlers (all registered now; each runs after the barrier) ─────

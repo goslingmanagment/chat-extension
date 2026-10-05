@@ -1,14 +1,19 @@
-// RouteTransport: the client/* routes of hub PRs #414… (H-2a…H-15) that the
-// vendored @kernel/sdk does not have yet. ONE module on purpose: after the
-// hub is re-vendored, each key here becomes an SDK operation
-// (`kernelOperations[key]`, `routeSchemas[key]`) and this file goes away —
-// the sdk-alignment test in @cg/testing fails the day a key appears in the
-// SDK. Same auth and headers as the SDK path; requests and answers are
-// checked with the frozen contract schemas (HUB_ROUTE_SCHEMAS) on both ends.
+// RouteTransport: the client/* routes of the hub plan that the vendored
+// @kernel/sdk does not have yet — the archive feed (H-9c), the Spenders
+// statistics and «ждут ответа» (H-8b, H-8c), the claim and its status (H-7b),
+// «Новые» (H-7c): their hub PRs are still drafts. ONE module on purpose:
+// once the hub is re-vendored with them, each key here becomes an SDK
+// operation (`kernelOperations[key]`, `routeSchemas[key]`) and leaves this
+// file — the sdk-alignment test in @cg/testing fails the day a key appears
+// in the SDK. The routes that already arrived (bootstrap, shared recaps, the
+// dossier save, the AI usage) go through the SDK path (transport.ts). Same
+// auth and headers as the SDK path; requests and answers are checked with
+// the frozen contract schemas (HUB_ROUTE_SCHEMAS) on both ends.
 
-import { HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HubRouteKey } from '@cg/contracts';
+import { HUB_ROUTES, type HubRouteKey } from '@cg/contracts';
 
 import { type FetchLike } from './ports';
+import { bodyOf, requestParts } from './request-parts';
 
 /** Hub routes this transport serves: every contract route not yet in the SDK. */
 export type ClientRouteKey = {
@@ -17,16 +22,12 @@ export type ClientRouteKey = {
 
 /** Paths of hub-pr-plan §4 (contracts carry none: they are sdk-custody markers). */
 export const CLIENT_ROUTE_PATHS = {
-  clientBootstrap: '/api/v1/client/bootstrap',
-  clientConversationRecaps: '/api/v1/client/pages/:pageLabel/conversations/:fanRef/recaps',
-  clientFanProfileFromGeneration: '/api/v1/client/pages/:pageLabel/fans/:fanRef/profile/from-generation',
   clientConversationFeed: '/api/v1/client/pages/:pageLabel/conversations/:fanRef/feed',
   clientSpenderStats: '/api/v1/client/pages/:pageLabel/spenders/stats',
   clientSpenderAwaitingReply: '/api/v1/client/pages/:pageLabel/spenders/awaiting-reply',
   clientFanClaim: '/api/v1/client/pages/:pageLabel/fans/:fanRef/claim',
   clientFanClaimStatus: '/api/v1/client/pages/:pageLabel/fans/:fanRef/claim',
   clientAudienceNew: '/api/v1/client/pages/:pageLabel/audience-new',
-  clientAiUsageDaily: '/api/v1/client/pages/:pageLabel/ai-usage',
 } as const satisfies Record<ClientRouteKey, string>;
 
 export const CLIENT_ROUTE_KEYS = Object.keys(CLIENT_ROUTE_PATHS) as ClientRouteKey[];
@@ -48,23 +49,11 @@ export interface WireRequest {
  * the request fails its strict contract schema: that is our bug, never sent.
  */
 export function clientWireRequest(route: ClientRouteKey, request: unknown): WireRequest {
-  const schema = HUB_ROUTE_SCHEMAS[route].request;
-  let fields: Record<string, unknown> = {};
-  if (schema !== null) {
-    const parsed = schema.safeParse(request);
-    if (!parsed.success) throw new TypeError(`${route}: request fails its contract schema`);
-    fields = { ...(parsed.data as Record<string, unknown>) };
-  }
-  const template: string = CLIENT_ROUTE_PATHS[route];
-  const path = template.replace(/:([A-Za-z]+)/g, (_match, name: string) => {
-    const value = fields[name];
-    delete fields[name];
-    return encodeURIComponent(String(value));
-  });
+  const { params, rest } = requestParts(route, CLIENT_ROUTE_PATHS[route], request);
+  const path = CLIENT_ROUTE_PATHS[route].replace(/\/:([A-Za-z0-9_]+)/g, (_match, name: string) => `/${encodeURIComponent(String(params[name]))}`);
   const { method } = HUB_ROUTES[route];
-  if (method === 'GET') return { method, pathAndQuery: `${path}${queryString(fields)}`, body: undefined };
-  const body = Object.prototype.hasOwnProperty.call(fields, 'body') ? fields['body'] : fields;
-  return { method, pathAndQuery: path, body };
+  if (method === 'GET') return { method, pathAndQuery: `${path}${queryString(rest)}`, body: undefined };
+  return { method, pathAndQuery: path, body: bodyOf(rest) };
 }
 
 /** Query values of the client routes are strings, numbers or booleans (the contract schemas are flat); anything else is our bug. */

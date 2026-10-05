@@ -86,13 +86,12 @@ import { bindingStillHolds, belowMinVersion, flagState, pageOf, resolveBinding, 
 import { CatalogService } from './catalog';
 import { HubContext, type CallFacts, type Connection } from './context';
 import { PromptEchoStore, type EchoTicket } from './debug-echo';
-import { FacadeCallError, FacadeCheckError, failureDetail, transportFailure } from './errors';
+import { FacadeCallError, FacadeCheckError, failureDetail, flagRefused, transportFailure } from './errors';
 import { SILENT_LOG, SYSTEM_CLOCK, type FetchLike, type HubClock, type HubEnvironment, type HubKeyValueStore, type HubLog, type UuidSource } from './ports';
 import { QuotaTracker } from './quota';
-import { type ClientRouteKey } from './route-transport';
 import { SpendersBoardService, type BoardOptions, type BoardRequest } from './spenders-board';
 import { StreamService, type StreamNotice } from './stream';
-import { HubWire } from './transport';
+import { HubWire, type ClientFamilyKey } from './transport';
 import { callScope, clientVersionHeaders } from './wire';
 
 export interface HubFacadeOptions {
@@ -589,6 +588,8 @@ export class ChatExtensionHub implements HubFacade {
    * usable only on a FRESH bootstrap — an expired one reads `bootstrap_expired`
    * until a refresh lands (§8.3: the owner may have switched it off since).
    * `await bootstrap()` first refreshes an expired one (or rejects with why not).
+   * The switch is the PAGE's own feature (`pageLabel`); `null` asks about no page
+   * in particular — usable on at least one granted page.
    */
   flagState(flag: ClientFeatureFlag, pageLabel: string | null): FlagState {
     const entry = this.bootstrapService.cached();
@@ -906,7 +907,7 @@ export class ChatExtensionHub implements HubFacade {
    * a hub without the route is never asked); the page granted; its flags.
    */
   private async client(
-    route: ClientRouteKey,
+    route: ClientFamilyKey,
     request: unknown,
     pageLabel: string,
     options: { readonly flags?: readonly ClientFeatureFlag[]; readonly fresh?: boolean; readonly facts?: CallFacts; readonly signal?: AbortSignalLike | undefined } = {},
@@ -920,7 +921,7 @@ export class ChatExtensionHub implements HubFacade {
     const routeFlag = HUB_ROUTES[route].flag;
     for (const flag of options.flags ?? (routeFlag === null ? [] : [routeFlag])) {
       const state = flagState(entry.bootstrap, flag, pageLabel);
-      if (!state.usable) throw new FacadeCheckError(flag === 'previewSend' ? 'previewSendOff' : 'featureDisabled', route, connection.epoch, state.reason ?? undefined);
+      if (!state.usable) throw flagRefused(flag, state.reason, route, connection.epoch);
     }
     return this.ctx.client(route, request, { signal: options.signal, facts: { pageLabel, ...options.facts } }, connection);
   }

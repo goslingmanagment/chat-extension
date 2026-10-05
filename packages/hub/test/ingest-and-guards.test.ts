@@ -6,6 +6,7 @@
 import {
   HUB_FORBIDDEN_OPERATIONS,
   HUB_ROUTE_KEYS,
+  HUB_ROUTES,
   INGEST_LIMITS,
   isHubCallError,
   type AcceptanceEvent,
@@ -17,7 +18,7 @@ import { kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SDK_ALLOWED_OPERATIONS, errorWireOf, stableEventId } from '../src/index';
-import { fullStreamTransport, hubError, json, sse } from './support/fake-hub';
+import { hubError, json, sse } from './support/fake-hub';
 import { flush, makeHarness, signIn, type Harness } from './support/harness';
 import { okBody, scenarioNamed, signInWorld } from './support/world';
 
@@ -36,7 +37,7 @@ const acceptance = (n: number): AcceptanceEvent => ({
 let h: Harness;
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW_MS, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
-  h = makeHarness({ paths: HUB_ROUTE_PATHS, streamTransport: fullStreamTransport() });
+  h = makeHarness({ paths: HUB_ROUTE_PATHS });
 });
 afterEach(() => {
   h.facade.dispose();
@@ -182,7 +183,10 @@ describe('[AU-029] routes this client never calls (§8.1 «Никогда»)', (
       const path = (kernelOperations as Record<string, { path: string }>)[operation]?.path ?? '';
       expect(path).not.toMatch(/^\/api\/v1\/(ofapi|events)|\/ai\/gateway|\/ai\/personas(\/|$)/);
     }
-    expect([...SDK_ALLOWED_OPERATIONS].sort()).toEqual([...HUB_ROUTE_KEYS.filter((key) => !key.startsWith('client')), 'pages'].sort());
+    // Every contract route the vendored SDK has (the client/* ones that arrived with hub e7e1037b among them), and nothing else.
+    expect([...SDK_ALLOWED_OPERATIONS].sort()).toEqual([...HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since === 'sdk'), 'pages'].sort());
+    for (const arrived of ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily']) expect(SDK_ALLOWED_OPERATIONS).toContain(arrived);
+    for (const draft of ['clientConversationFeed', 'clientSpenderStats', 'clientSpenderAwaitingReply', 'clientFanClaim', 'clientFanClaimStatus', 'clientAudienceNew']) expect(SDK_ALLOWED_OPERATIONS).not.toContain(draft);
   });
 
   it('[AU-029] a whole working session touches no OFAPI, events, full personas or raw gateway', async () => {

@@ -11,6 +11,7 @@ import { HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HubRouteKey } from '@cg/contracts';
 import { createClient, kernelOperations, routeSchemas, type KernelClientOptions } from '@kernel/sdk';
 
 import { type FetchLike } from './ports';
+import { bodyOf, requestParts } from './request-parts';
 
 /** Contract routes the vendored SDK serves. */
 export type SdkRouteKey = {
@@ -29,6 +30,11 @@ export const SDK_ALLOWED_OPERATIONS: readonly string[] = [
 ];
 export type SdkOperation = SdkRouteKey | 'pages';
 
+/** A contract route the vendored SDK has (`since: 'sdk'`): it goes through the SDK's manifest, auth and schemas. */
+export function isSdkRoute(route: HubRouteKey): route is SdkRouteKey {
+  return HUB_ROUTES[route].since === 'sdk';
+}
+
 export interface SdkCaller {
   readonly hubOrigin: string;
   /** null for the public routes (sign-in, health). */
@@ -43,6 +49,30 @@ export interface SdkRawInput {
   readonly params?: Record<string, string | number>;
   readonly query?: Record<string, unknown>;
   readonly body?: unknown;
+}
+
+/**
+ * The facade-level request of a client/* route (one flat object: path
+ * parameters with the query, or with a body) → the SDK's raw input, by the
+ * SDK's own manifest path. A scalar query only: anything else is our bug.
+ * Throws a TypeError when the request fails its strict contract schema —
+ * never sent (HB-006).
+ */
+export function sdkInputOf(operation: SdkRouteKey, request: unknown): SdkRawInput {
+  const def = kernelOperations[operation];
+  const { params, rest } = requestParts(operation, def.path, request);
+  const input: { params?: Record<string, string | number>; query?: Record<string, unknown>; body?: unknown } = {};
+  if (Object.keys(params).length > 0) input.params = { ...params };
+  if (def.method === 'GET' || def.method === 'DELETE') {
+    for (const [key, value] of Object.entries(rest)) {
+      if (value === undefined || value === null) continue;
+      if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') throw new TypeError(`${operation}: query field ${key} is not a scalar`);
+    }
+    if (Object.keys(rest).length > 0) input.query = { ...rest };
+  } else {
+    input.body = bodyOf(rest);
+  }
+  return input;
 }
 
 export function sdkOptions(caller: SdkCaller): KernelClientOptions {

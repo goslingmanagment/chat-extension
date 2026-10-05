@@ -1904,12 +1904,16 @@ export const agentHistorySatisfiedByEnum = z.enum([
     "already_satisfied",
 ]);
 /** "Почему ждёт" (plan §10): the engine's one closed dictionary. A reason is a
- *  BODY field, never a blocker — progress is not an epistemic limitation. */
+ *  BODY field, never a blocker — progress is not an epistemic limitation.
+ *  `route_budget` (the route's own pace admits the next request later) and
+ *  `route_hold` (a 429 holds the route) name what `pacer` covered for a route. */
 export const agentSyncWaitingReasonEnum = z.enum([
     "not_due",
     "pacer",
     "class_share",
     "page_hold",
+    "route_budget",
+    "route_hold",
     "resource_hold",
     "subject_breaker",
     "blocked_by_vendor",
@@ -2006,15 +2010,36 @@ export const agentHistoryRequestSchema = z.object({
         remainingEstimate: agentHistoryCountSchema.nullable(),
     }).strict(),
     /** Always two numbers (plan §4.3): a lower bound and an ESTIMATE. A chat's
-     *  length is unknown in advance, so there is no upper bound. */
+     *  length is unknown in advance, so there is no upper bound. The time is
+     *  what the reads take at the rate the page's budgets leave this request;
+     *  a hold in force is shown apart (`hold`), never in the seconds. */
     eta: z.object({
         lowerBoundSeconds: agentHistoryCountSchema,
         estimateSeconds: agentHistoryCountSchema.nullable(),
         basis: z.literal("estimate"),
-        /** Reads an hour this request gets now. */
+        /** Reads an hour this request gets while it is not held. */
         ratePerHour: z.number().nonnegative(),
-        /** The requests class's share of the page's sends, in percent. */
+        /** The requests class's share of the page's slots, in percent. */
         sharePercent: z.number().int().min(0).max(100),
+        /** The budget that sets the rate: the page's slots (its pause), the
+         *  `/message` route or its family (the chat list, a chat's detail and
+         *  `/message` together). */
+        limitedBy: z.enum(["page", "route", "family"]),
+        /** The route runs slower than its budget on this page since a 429 (it
+         *  rises only by a deliberate step); already in the rate. Null: at its
+         *  budget. */
+        slowdown: z.object({
+            route: z.string(),
+            effectivePerMin: z.number().positive(),
+            currentPerMin: z.number().positive(),
+        }).strict().nullable(),
+        /** A hold in force: nothing is read until it ends — the page's, or the
+         *  `/message` route's own after a 429. `until` null: no known instant
+         *  ends it (new credentials or the operator do). Null: none. */
+        hold: z.object({
+            scope: z.enum(["page", "route"]),
+            until: agentIsoTimestamp.nullable(),
+        }).strict().nullable(),
     }).strict(),
     /** 1-based place among the page's open requests (round robin). */
     queuePosition: z.number().int().positive().nullable(),
@@ -2102,9 +2127,11 @@ export const agentHistoryRequestListResponseSchema = z.object({
 // `agentSyncStatus` / `agentSyncWhy`; the owner routes in `routes-sync.ts`
 // serve the same shapes.
 //
-// A page that is `off` or `shadow` reports its SHADOW journal (`shadow: true`
-// on each work row): simulated work, nothing was sent. In step 2 every page is
-// one of the two.
+// No actor runs a page that is `off` or `shadow` (shadow mode is gone, step 4
+// S4-23; both stay values a row may hold): nothing is sent for it, and the
+// rows shadow mode left are never served. The `shadow` fields below are
+// wire-only constants since then — the released clients' schemas require the
+// keys, so they stay until a contract change retires them.
 //
 // The vocabularies mirror closed lists of the server
 // (`packages/db/src/repositories/sync/*.ts`, `apps/runtime/src/sync/engine/
@@ -2115,7 +2142,7 @@ export const agentSyncPageModeEnum = z.enum(["off", "shadow", "handover", "live"
 export const agentSyncWorkClassEnum = z.enum(["urgent", "requests", "planned"]);
 export const agentSyncWorkKindEnum = z.enum(["poll", "trigger", "goal", "repair"]);
 export const agentSyncWorkStateEnum = z.enum(["open", "running", "quarantined", "done", "cancelled", "superseded"]);
-export const agentSyncPageHoldKindEnum = z.enum(["rate_limit", "auth", "identity_mismatch", "network"]);
+export const agentSyncPageHoldKindEnum = z.enum(["auth", "identity_mismatch", "network"]);
 export const agentSyncAttemptOutcomeEnum = z.enum([
     "admitted",
     "sent",
@@ -2228,9 +2255,8 @@ export const agentSyncPageStatusSchema = z.object({
             file: z.string(),
             until: agentIsoTimestamp,
             step: agentSyncCountSchema,
-            /** The file's breaker, or an endpoint group's own 429 hold (the
-             *  conversation list's, the media statistics'). */
-            kind: z.enum(["breaker", "rate_limit_list", "rate_limit_media_stats"]),
+            /** The file's breaker (a 429 holds only its route, never a file). */
+            kind: z.enum(["breaker"]),
         }).strict()),
     }).strict(),
     breakers: z.object({ open: agentSyncCountSchema, blockedByVendor: agentSyncCountSchema }).strict(),
@@ -2250,7 +2276,7 @@ export const agentSyncPageStatusSchema = z.object({
         gapSince: agentIsoTimestamp.nullable(),
         decodeDebt: agentSyncCountSchema,
     }).strict().nullable(),
-    /** A page in `off`/`shadow`: what its shadow journal did over the hour. */
+    /** Always null since step 4 (S4-23): no page has a shadow journal. */
     shadow: z.object({
         attemptsLastHour: agentSyncCountSchema,
         demandVsEstimate: z.number().nonnegative().nullable(),
@@ -2263,7 +2289,7 @@ export const agentSyncWorkSchema = z.object({
     resource: z.string().min(1),
     /** '' for page-level work; a chat, fan, media … id otherwise. */
     subject: z.string(),
-    /** The shadow journal: simulated work, nothing was sent. */
+    /** Always false since step 4 (S4-23): a row shadow mode left is never served. */
     shadow: z.boolean(),
     kind: agentSyncWorkKindEnum,
     class: agentSyncWorkClassEnum,

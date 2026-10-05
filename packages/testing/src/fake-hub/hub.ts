@@ -45,11 +45,12 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
+import { streamBodyRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
-import { bootstrapOf, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
+import { bootstrapOf, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
 import { CursorSigner, DataModel, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, matchRoute, validateRequest } from './routing';
@@ -82,6 +83,14 @@ export interface FakeHubOptions {
   readonly config?: FakeHubConfigPatch;
   /** Multiplies every SSE delay (0 = none; default 1). */
   readonly timeScale?: number;
+  /**
+   * The hub's REAL body schema of the AI stream — the vendored SDK's
+   * `routeSchemas.aiFeatureStream.body`. With it every AI body is checked by
+   * the hub's own schema before anything else, as the hub's route does: a
+   * body the hub would answer 400 to fails here (the e2e harness and the
+   * wiring tests pass it; see ai-rules.ts).
+   */
+  readonly streamBodySchema?: BodySchemaLike;
 }
 
 interface Principal {
@@ -217,7 +226,7 @@ export class FakeHub {
   }
 
   private freshState(): State {
-    const preset = presetConfig(this.options.preset ?? 'pilot-on');
+    const preset = presetConfig(this.options.preset ?? DEFAULT_PRESET);
     const now = this.clock.now();
     return {
       config: this.options.config === undefined ? preset : patchConfig(preset, this.options.config),
@@ -512,6 +521,17 @@ export class FakeHub {
       capabilitiesHeader: request.headers.get(AI_CAPABILITIES_HEADER),
     });
     if (!facade.ok) return refuse({ route, servedBy: 'check', token }, 'bad_request', undefined, undefined, facade.issues);
+    if (route === 'aiFeatureStream') {
+      // As the hub's route does: its own body schema first, then the rules of its handler (ai-rules.ts) — both
+      // before our contract's mirror of them, so that a drift of the mirror cannot hide a body the hub refuses.
+      const { feature, body } = facade.request as { feature: string; body: unknown };
+      const real = this.options.streamBodySchema;
+      if (real !== undefined && !real.safeParse(body).success) {
+        return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', streamRefusalReason(facade.request), undefined, ['body: refused by the hub’s own body schema (vendored SDK)']);
+      }
+      const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body) : null;
+      if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, undefined, undefined, [rule.message]);
+    }
     const valid = validateRequest(route, facade.request);
     if (!valid.ok) {
       const reason = route === 'aiFeatureStream' ? streamRefusalReason(facade.request) : undefined;

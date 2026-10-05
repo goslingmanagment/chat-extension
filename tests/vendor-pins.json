@@ -1,13 +1,13 @@
 {
   "kernelSdk": {
-    "contractHash": "1378e7ee0ef27e97b18bba93ff7fed94d27edaa560f0a0051038267bcbaac09a",
-    "sourceCommit": "44b05ad579ec4a05a3e9eb0d5317e9bef0251afc",
-    "distSha256": "e8bf13edccf4a3dd9c8d59cfbc9f2c9914e4c2a6071dba61bd60a4771a94f72d",
-    "note": "Vendored from the hub commit deployed in prod on 2026-10-03 (image label agency-hub.source-revision=44b05ad579ec, /api/v1/health contractHash). Re-vendor with the hub's scripts/vendor-sdk.mjs, then update this pin in the same commit."
+    "contractHash": "9b9b09858008aa85e049e8ca5eeeab38bb4f794183589347a1e2576315a4e87b",
+    "sourceCommit": "e7e1037bae169076480da4c9d9f2b9b0d144210c",
+    "distSha256": "24e38ba6cde59734ac10099e0a4bd5ba49ae7a755eca84dd3c2214d9703f2ff1",
+    "note": "Vendored on 2026-10-04 from hub origin/main e7e1037b with the hub's scripts/vendor-sdk.mjs: the first SDK with the client/* routes of the plan that are merged (bootstrap, shared recaps, the dossier save, AI usage) and the `capabilities` option of the AI stream. The prod hub may run an older contract (deploys lag main; the live check of 2026-10-04 saw 5d8b8cb4…): the hub layer announces only what the bootstrap declares and reads the rest as hub_not_ready. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
     "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
-    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to the prod commit 44b05ad5)."
+    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to e7e1037b, the commit the SDK is vendored from)."
   }
 }

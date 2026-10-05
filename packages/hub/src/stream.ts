@@ -12,6 +12,14 @@
 //   else is ever repeated (502, EOF, timeouts, error frames).
 // - EOF without `done` is CG-STREAM-TRUNCATED; the `error` frame is terminal.
 // - Its timeouts (§7 table) belong to the operation: the caller aborts.
+// - Where an attempt stands is said, never guessed: a notice when the request
+//   is handed to the network (`sent`) and when the hub answers the handshake
+//   (`answered`), and a log line for each — route, attempt and timings, never
+//   a payload. A request that could not be built or sent fails at once with
+//   its own code (CG-HUB-REQUEST: our request; CG-NETWORK: the browser
+//   refused to send it) and a log line; a request that was sent and got no
+//   answer is the caller's deadline (CG-HUB-TIMEOUT), and the log says that
+//   the hub had not answered.
 
 import {
   HubFrameSchema,
@@ -23,6 +31,7 @@ import {
   type HubStreamRequest,
   type MetaFrame,
 } from '@cg/contracts';
+import { pageSwitchedOff } from '@cg/core/domain/ops';
 import { KernelApiError } from '@kernel/sdk';
 
 import { type AiStreamTransport } from './ai-stream-transport';
@@ -31,7 +40,7 @@ import { belowMinVersion, flagState, pageOf } from './bootstrap-rules';
 import { type CatalogService } from './catalog';
 import { type Connection, type HubContext } from './context';
 import { featureOfHub, type PromptEchoStore } from './debug-echo';
-import { FacadeCheckError, transportFailure } from './errors';
+import { FacadeCheckError, flagRefused, transportFailure } from './errors';
 import { type FetchLike } from './ports';
 import { type QuotaTracker } from './quota';
 import { callScope, errorFacts, isStructuredHubError } from './wire';
@@ -41,13 +50,17 @@ const isAborted = (outcome: AttemptOutcome): boolean => outcome.kind === 'failur
 /** §7: the one transparent retry waits this long. */
 export const STREAM_RETRY_DELAY_MS = 5_000;
 
-/** «Сервис недоступен, повтор через 5 с…» with «Отменить»: the operation shows it while the retry waits. */
-export interface StreamNotice {
-  readonly kind: 'retrying';
-  readonly clientRequestId: string;
-  /** Epoch ms of the retry. */
-  readonly retryAt: number;
-}
+/**
+ * What the operation is told about its stream while it runs:
+ * - `retrying` — «Сервис недоступен, повтор через 5 с…» with «Отменить»: the one retry waits;
+ * - `sent` — the request of this attempt was handed to the network (the hub may have it from here on);
+ * - `answered` — the hub answered the handshake with this status; frames, if any, follow.
+ * `at` is epoch ms of this hub layer's clock.
+ */
+export type StreamNotice =
+  | { readonly kind: 'retrying'; readonly clientRequestId: string; /** Epoch ms of the retry. */ readonly retryAt: number }
+  | { readonly kind: 'sent'; readonly clientRequestId: string; readonly attempt: number; readonly at: number }
+  | { readonly kind: 'answered'; readonly clientRequestId: string; readonly attempt: number; readonly at: number; readonly status: number };
 
 /** Hub features each owner flag guards on the stream (§4.12; the hub checks them too for the narrow token). */
 const FEATURE_FLAGS = { 'chat-review': 'review', 'fan-summary': 'recap', 'coach-chat': 'coach' } as const;
@@ -86,7 +99,16 @@ export class StreamService {
     const parsed = HubStreamRequestSchema.safeParse(request);
     if (!parsed.success) throw ctx.failure('aiFeatureStream', transportFailure('contract'), connection);
     const checked = parsed.data;
-    const pageId = await this.admit(checked, connection);
+    let pageId: number;
+    try {
+      pageId = await this.admit(checked, connection);
+    } catch (error) {
+      // Refused by the hub layer itself, before any request: said in the log with the check, never silently.
+      if (error instanceof FacadeCheckError) {
+        ctx.log('warn', 'hub: stream refused before the request', { route: 'aiFeatureStream', feature: checked.feature, kind: error.check, code: error.code, reason: error.reason ?? null, epoch: connection.epoch });
+      }
+      throw error;
+    }
     const opId = checked.body.clientRequestId;
     const echo = checked.capabilities.includes('debug-input-v1');
     if (echo) this.deps.echo.requested(opId, featureOfHub(checked.feature, checked.body.summaryMode));
@@ -131,14 +153,16 @@ export class StreamService {
     if (belowMinVersion(bootstrap, ctx.env.extensionVersion)) throw refuse('belowMinVersion');
     const page = pageOf(bootstrap, request.body.pageLabel);
     if (page === null) throw refuse('pageNotGranted');
+    // The owner's master switch is off for the page: the hub answers 409 to every AI call of this client there.
+    if (pageSwitchedOff(page)) throw refuse('featureDisabled', 'disabled');
     const flag = (FEATURE_FLAGS as Readonly<Record<string, 'review' | 'recap' | 'coach'>>)[request.feature];
     if (flag !== undefined) {
       const state = flagState(bootstrap, flag, page.pageLabel);
-      if (!state.usable) throw refuse('featureDisabled', state.reason ?? undefined);
+      if (!state.usable) throw flagRefused(flag, state.reason, 'aiFeatureStream', connection.epoch);
     }
     if (request.body.liveTextContext !== undefined) {
       const state = flagState(bootstrap, 'freshText', page.pageLabel);
-      if (!state.usable) throw refuse('featureDisabled', state.reason ?? undefined);
+      if (!state.usable) throw flagRefused('freshText', state.reason, 'aiFeatureStream', connection.epoch);
     }
     const unsupported = request.capabilities.filter((capability) => !this.available().includes(capability));
     if (unsupported.length > 0) throw refuse('capabilityMissing', unsupported.join(','));
@@ -169,6 +193,12 @@ export class StreamService {
     let stopped: AttemptOutcome | null = null;
     /** AU-012: the SDK's hook saw the refused handshake; the wipe it starts may abort the stream before the SDK throws. */
     let hookFailure: HubFailure | null = null;
+    /** Where this attempt stands on the wire (monotonic ms): handed to the network, answered by the hub. */
+    const startedMono = ctx.clock.monotonic();
+    let sentMono: number | null = null;
+    let answeredMono: number | null = null;
+    const opId = request.body.clientRequestId;
+    const facts = { route: 'aiFeatureStream', feature: request.feature, attempt, epoch: connection.epoch } as const;
     const stop = (outcome: AttemptOutcome) => {
       if (stopped === null) stopped = outcome;
       scope.dispose();
@@ -243,11 +273,29 @@ export class StreamService {
         onAuthError: (error) => {
           hookFailure = this.onAuthError(error, connection) ?? hookFailure;
         },
+        onRequest: () => {
+          sentMono = ctx.clock.monotonic();
+          ctx.log('info', 'hub: stream request sent', { ...facts, prepareMs: Math.round(sentMono - startedMono) });
+          this.deps.notify({ kind: 'sent', clientRequestId: opId, attempt, at: ctx.clock.now() });
+        },
+        onAnswer: (status) => {
+          answeredMono = ctx.clock.monotonic();
+          ctx.log('info', 'hub: stream answered', { ...facts, status, answerMs: Math.round(answeredMono - (sentMono ?? startedMono)) });
+          this.deps.notify({ kind: 'answered', clientRequestId: opId, attempt, at: ctx.clock.now(), status });
+        },
       });
     } catch (error) {
-      if (stopped === null) stopped = this.classify(error, scope.signal.aborted, framesSeen, attempt);
+      if (stopped === null) stopped = this.classify(error, scope.signal.aborted, framesSeen, attempt, sentMono !== null, facts);
     } finally {
       scope.dispose();
+    }
+    // Cut off (a deadline of the operation, a cancel, the sign-in ending) before the hub said anything: the
+    // log says how far the request got — it is the only trace of a request that never reached the hub.
+    if (scope.signal.aborted && answeredMono === null && hookFailure === null && (stopped === null || isAborted(stopped))) {
+      ctx.log('warn', sentMono === null ? 'hub: stream aborted before the request was sent' : 'hub: stream aborted before the hub answered', {
+        ...facts,
+        waitedMs: Math.round(ctx.clock.monotonic() - (sentMono ?? startedMono)),
+      });
     }
     if (stopped !== null && !(hookFailure !== null && isAborted(stopped))) return stopped;
     if (hookFailure !== null) return { kind: 'failure', failure: hookFailure, framesSeen };
@@ -256,19 +304,33 @@ export class StreamService {
     return { kind: 'failure', failure: transportFailure('truncated'), framesSeen };
   }
 
-  private classify(error: unknown, aborted: boolean, framesSeen: boolean, attempt: number): AttemptOutcome {
+  private classify(
+    error: unknown,
+    aborted: boolean,
+    framesSeen: boolean,
+    attempt: number,
+    requested: boolean,
+    facts: Readonly<Record<string, string | number>>,
+  ): AttemptOutcome {
     // A hub answer that arrived is read as such even when the 401 hook already ended the epoch (AU-012).
     if (aborted && !(error instanceof KernelApiError && error.status !== null)) return { kind: 'failure', failure: transportFailure('aborted'), framesSeen };
+    // A frame the SDK's own schema refused (it reports it with the status of the stream, 200): a contract failure.
+    if (error instanceof KernelApiError && error.category === 'contract') return { kind: 'failure', failure: transportFailure('contract'), framesSeen: true };
     if (error instanceof KernelApiError && error.status !== null) {
       const { reason } = errorFacts(error.body);
       const failure: HubFailure = { kind: 'http', status: error.status, error: error.code, reason, retryAfterMs: null };
       const retryable = attempt === 1 && !framesSeen && error.status === 503 && error.code === 'service_unavailable' && isStructuredHubError(error.body);
       return retryable ? { kind: 'retry' } : { kind: 'failure', failure, framesSeen };
     }
-    if (error instanceof KernelApiError) {
-      return { kind: 'failure', failure: transportFailure(error.category === 'contract' ? 'contract' : 'network'), framesSeen };
-    }
+    // The browser refused or lost the request (offline, DNS, a reset connection): CG-NETWORK — it could not be sent.
+    if (error instanceof KernelApiError) return { kind: 'failure', failure: transportFailure('network'), framesSeen };
     if (error instanceof SyntaxError) return { kind: 'failure', failure: transportFailure('contract'), framesSeen };
+    if (!requested) {
+      // Something threw while the request was being put together: nothing was handed to the network. That is
+      // our own request failing (CG-HUB-REQUEST), said at once — never a wait for the operation's deadline.
+      this.deps.ctx.log('error', 'hub: stream request not sent', { ...facts, error: error instanceof Error ? error.name : typeof error });
+      return { kind: 'failure', failure: transportFailure('contract'), framesSeen };
+    }
     // The body broke after the handshake: a cut stream.
     return { kind: 'failure', failure: transportFailure('truncated'), framesSeen };
   }
