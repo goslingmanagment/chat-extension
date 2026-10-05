@@ -93,6 +93,11 @@ export const UNAVAILABLE_REASONS = {
   'no-persona': { key: 'dock.reason.noPersona', code: 'CG-PERSONA-UNASSIGNED' },
   'hub-down': { key: 'dock.reason.hubDown', code: 'CG-HUB-UNAVAILABLE' },
   'reload-needed': { key: 'dock.reason.reloadNeeded', code: 'CG-RUNTIME-RELOADED' },
+  /**
+   * 1.5.0. The tab's port to the background is lost while the extension itself is the same instance (nothing
+   * was updated): the tab reconnects by itself, and until it does nothing can start. Not `reload-needed`.
+   */
+  'runtime-unreachable': { key: 'dock.reason.runtimeUnreachable', code: 'CG-RUNTIME-UNREACHABLE' },
   'quota-zero': { key: 'dock.reason.quotaZero', code: 'CG-QUOTA-DAILY' },
   'feature-disabled': { key: 'dock.reason.featureDisabled', code: 'CG-FEATURE-DISABLED' },
   /** A generation runs in this chat (here or in another tab): only its own button works (UI-008). */

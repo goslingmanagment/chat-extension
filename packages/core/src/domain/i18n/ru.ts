@@ -104,6 +104,7 @@ export const RU: I18nCatalog<'ru'> = {
   'dock.reason.hubNotReady': 'хаб пока не умеет эту функцию',
   'dock.reason.platformUnsupported': 'на этой платформе функции нет',
   'dock.reason.clientOutdated': 'расширение устарело, обновите его',
+  'dock.reason.runtimeUnreachable': 'нет связи с расширением, переподключаюсь',
   'dock.option.tone': 'Тон',
   'dock.option.toneValue': 'Тон: {tone}',
   'dock.option.toneTooltip': 'Тон на один ответ  {hotkey}',
@@ -338,6 +339,7 @@ export const RU: I18nCatalog<'ru'> = {
   'spenders.shelf.none': 'вне полок',
   'spenders.truncated': 'Показаны первые {shown} из {total}. Сузьте поиск или фильтр.',
   'spenders.truncatedNoTotal': 'Показаны первые {shown}. Сузьте поиск или фильтр.',
+  'spenders.waitingLocal': 'Ниже — не очередь хаба, а локальный фильтр: только те строки доски, что уже загружены.',
   'spenders.refresh': 'Обновить',
   'spenders.refreshTooltip': 'Перечитать данные хаба. AI не запускается',
   'spenders.footerNoTotal': {
@@ -921,6 +923,7 @@ export const RU: I18nCatalog<'ru'> = {
   'settings.status.row.chatspaceChecking': 'открыт, проверка ещё идёт',
   'settings.status.row.chatspacePartial': 'Сборка {build}, проверен частично',
   'settings.status.row.chatspacePartialNote': 'Не найдено: {missing}. Вставка работает через «Копировать».',
+  'settings.status.row.chatspaceCopyOnlyNote': 'Не найдено: {missing}. Вставка работает через «Копировать».',
   'settings.status.row.hubNoAccess': '{host}, нет доступа',
   'settings.status.row.hubDown': '{host}, нет связи',
   'settings.status.row.hubUnknown': '{host}, связь не проверялась',

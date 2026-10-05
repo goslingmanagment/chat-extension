@@ -3,8 +3,9 @@
 // a known zero is blank, unknown is «—». The client never rebuilds page
 // totals from visible rows: every number is the hub's, with coverage and asOf.
 
+import { type CgErrorView } from '../errors';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
-import { type SpendersFilter, type SpendersPeriod, type SpendersSort } from './actions';
+import { type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from './actions';
 import { type HotkeyLabel } from './catalog';
 import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
@@ -74,6 +75,13 @@ export interface SpendersBoardVM {
   readonly previewOpen: boolean;
   /** The board's keys footer (SP-034). */
   readonly keys: readonly { readonly label: Msg; readonly hotkey: HotkeyLabel }[];
+  /**
+   * 1.5.0. «Ждут ответа» is pressed and the hub's queue could not be read: the rows shown are the tab's own
+   * filter over the rows the board has loaded — a fallback, not the hub's queue over the whole page. The
+   * board says so above the list: the read's error with its CG code, «Повторить», and a line that the list
+   * is local (`spenders.waitingLocal`). Absent or null — the list is what its filter says it is.
+   */
+  readonly waitingFallback?: { readonly error: CgErrorView; readonly retry: UiAction } | null;
 }
 
 /** One number of the statistics with its own stamp. */
