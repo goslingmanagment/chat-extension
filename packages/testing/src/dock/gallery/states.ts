@@ -516,10 +516,10 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       entry({ of: 'recap.picker' }, recapPicker(ctx, views.ready())),
     ]),
   ),
-  state('x-recap-checking', 'extras', 'Recap: проверяю сохранённые (AI-061)', (ctx) =>
+  state('x-recap-checking', 'extras', 'Recap: проверяю сохранённые — «Собрать» уже можно (AI-061)', (ctx) =>
     one(ctx, recapDock(ctx), [
-      entry({ of: 'recap.view' }, recapView(ctx, views.empty(msg('common.empty')), 'short')),
-      entry({ of: 'recap.picker' }, recapPicker(ctx, views.loading(ctx.now - 400, msg('common.loading')))),
+      entry({ of: 'recap.view' }, recapView(ctx, views.loading(ctx.now - 400, msg('recap.checking')), 'short')),
+      entry({ of: 'recap.picker' }, recapPicker(ctx, views.loading(ctx.now - 400, msg('recap.checking')))),
     ]),
   ),
   state('x-recap-running', 'extras', 'Recap собирается', (ctx) =>

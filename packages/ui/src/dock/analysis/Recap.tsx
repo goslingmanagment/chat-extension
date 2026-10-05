@@ -119,15 +119,25 @@ function Refresh({ vm }: { readonly vm: ActionButtonVM }): JSX.Element {
   );
 }
 
+/**
+ * The saved recaps are still being read («Проверяю сохранённые Recap…») and a build can already be started:
+ * the build buttons do not wait for that read. It only tells what is saved — and when the hub is slow to
+ * reach it lasted 20 s on the first live check, with nothing to press meanwhile.
+ */
+export function checkingWithBuild(picker: RecapPickerVM): boolean {
+  return picker.view.s === 'loading' && (picker.build.short.enabled || picker.build.full.enabled);
+}
+
 function Picker({ picker, why }: { readonly picker: RecapPickerVM; readonly why: Msg | null }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  if (picker.view.s === 'loading' || picker.view.s === 'error' || picker.view.s === 'forbidden' || picker.view.s === 'offline') {
+  const checking = checkingWithBuild(picker);
+  if (!checking && (picker.view.s === 'loading' || picker.view.s === 'error' || picker.view.s === 'forbidden' || picker.view.s === 'offline')) {
     return <ViewState view={picker.view} />;
   }
   const slots = [picker.slots.short, picker.slots.full].filter((slot) => slot !== null);
   // «Recap ещё не сделан» only when nothing is saved: with a saved one the rows speak for themselves.
-  const note = slots.length > 0 ? null : (why ?? (picker.view.s === 'empty' ? picker.view.why : null));
+  const note = checking || slots.length > 0 ? null : (why ?? (picker.view.s === 'empty' ? picker.view.why : null));
   const build = picker.build.full;
   return (
     <div
@@ -139,12 +149,18 @@ function Picker({ picker, why }: { readonly picker: RecapPickerVM; readonly why:
         // Enter builds the full Recap (AI-060); a focused button answers for itself.
         if (event.target !== event.currentTarget || event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isComposing(event)) return;
         event.preventDefault();
-        // A held Enter builds one Recap.
-        if (build.enabled && !isHeldKey(event)) void dispatch(build.action);
+        // A held Enter builds one Recap. While the saved ones are still being read a build takes an explicit
+        // click: Enter must not spend a full Recap on a fan who may already have one.
+        if (build.enabled && !checking && !isHeldKey(event)) void dispatch(build.action);
       }}
     >
-      <span class="cg-gut" />
+      <span class="cg-gut">{checking ? <Spinner /> : null}</span>
       <div class="cg-pick__main">
+        {checking && picker.view.s === 'loading' ? (
+          <div class="cg-pick__note" role="status" aria-busy="true">
+            {picker.view.stage === null ? i18n.t('common.loading') : i18n.text(picker.view.stage)}
+          </div>
+        ) : null}
         {note === null ? null : <div class="cg-pick__note">{i18n.text(note)}</div>}
         {slots.map((slot) => (
           <div key={slot.length} class="cg-pick__slot" data-cg-slot={slot.length}>
@@ -157,7 +173,7 @@ function Picker({ picker, why }: { readonly picker: RecapPickerVM; readonly why:
         ))}
         <div class="cg-pick__acts">
           <ActionButton vm={picker.build.short} variant="line" />
-          <ActionButton vm={{ ...build, hotkey: build.hotkey ?? { display: '↵', aria: 'Enter', delivery: 'delivered', fallback: null } }} variant="line" />
+          <ActionButton vm={checking ? { ...build, hotkey: null } : { ...build, hotkey: build.hotkey ?? { display: '↵', aria: 'Enter', delivery: 'delivered', fallback: null } }} variant="line" />
         </div>
       </div>
     </div>
@@ -185,7 +201,8 @@ export function RecapView({ place, debugPart }: ViewProps): JSX.Element {
   if (running(recap.state)) return <Running title={title} opId={recap.opId} phase={recap.phase} text={text} debug={debug} />;
 
   if (recap.markdown === null) {
-    const failed = recap.view.s === 'error' || recap.view.s === 'forbidden' || recap.view.s === 'offline' || recap.view.s === 'loading';
+    // The read of the saved recaps does not hold the build buttons back: the picker shows its own «Проверяю…» line.
+    const failed = recap.view.s === 'error' || recap.view.s === 'forbidden' || recap.view.s === 'offline' || (recap.view.s === 'loading' && !checkingWithBuild(picker));
     return (
       <>
         <Head title={title} acts={close}>
