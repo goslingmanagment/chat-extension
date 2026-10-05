@@ -455,6 +455,61 @@ describe('options: «Статус»', () => {
     expect(text(w, row(w, 'contract')?.note)).toBe('Не найдено: composerBridge.');
   });
 
+  it('[ST-025] [PU-006] «Вставка работает через „Копировать“» is said only where the dock really is copy-only: a lost anchor of something else leaves «Вставка работает», in «Статус» and in the popup', async () => {
+    const withHost = (host: ReturnType<typeof hostReport>): ReturnType<typeof workingState> => {
+      const state = workingState();
+      const tab = state.diagnostics.tabs[0];
+      state.diagnostics = { ...state.diagnostics, tabs: tab === undefined ? [] : [{ ...tab, host }] };
+      return state;
+    };
+    const base = hostReport(PAGES_NOW);
+
+    // ChatSpace lost its send queue: the preview send is off, the dock generates and inserts as before.
+    const noQueue = withHost({
+      ...base,
+      anchors: { ...base.anchors, pendingMessages: 'missing' },
+      capabilities: { ...base.capabilities, sendObserve: { state: 'off', reason: 'pendingMessages', code: 'CG-SEND-HOST' }, previewSend: { state: 'off', reason: 'pendingMessages', code: 'CG-SEND-HOST' } },
+    });
+    let w = await open({ state: noQueue });
+    expect(row(w, 'chatspace')).toMatchObject({ level: 'warn' });
+    expect(text(w, row(w, 'chatspace')?.value)).toBe('Сборка index-0000test, проверен частично');
+    expect(text(w, row(w, 'chatspace')?.note)).toBe('Не найдено: pendingMessages. Вставка работает.');
+    world?.client.dispose();
+    w = await open({ page: 'popup', state: noQueue });
+    let popup = w.client.getSnapshot({ of: 'popup' });
+    expect(popup.pills.host).toBe('partial');
+    expect(popup.problems).toEqual([expect.objectContaining({ code: 'CG-HOST-CONTRACT', body: 'Не найдено: pendingMessages. Вставка работает.' })]);
+    world?.client.dispose();
+
+    // The field's bridge is gone: the insert capability is closed, parts are only copied.
+    const noBridge = withHost({
+      ...base,
+      anchors: { ...base.anchors, composerBridge: 'missing' },
+      capabilities: { ...base.capabilities, insert: { state: 'off', reason: 'composerBridge', code: 'CG-HOST-COMPOSER-MISSING' }, draftRead: { state: 'off', reason: 'composerBridge', code: 'CG-HOST-COMPOSER-MISSING' } },
+    });
+    w = await open({ state: noBridge });
+    expect(text(w, row(w, 'chatspace')?.note)).toBe('Не найдено: composerBridge. Вставка работает через «Копировать».');
+    world?.client.dispose();
+    w = await open({ page: 'popup', state: noBridge });
+    popup = w.client.getSnapshot({ of: 'popup' });
+    expect(popup.pills.host).toBe('copy-only');
+    expect(popup.problems.map((problem) => [problem.code, problem.body])).toEqual([['CG-HOST-CONTRACT', 'Часть функций выключена до проверки. Вставка работает через «Копировать».']]);
+    world?.client.dispose();
+
+    // The account list changed its shape: the insert capability itself is on, but the dock does not know whose
+    // chat this is and writes nothing (its «только Копировать» banner) — the same words here.
+    const noIdentity = withHost({
+      ...base,
+      anchors: { ...base.anchors, accounts: 'shape' },
+      capabilities: { ...base.capabilities, accounts: { state: 'contractBroken', reason: 'accounts', code: 'CG-HOST-CONTRACT' }, identity: { state: 'contractBroken', reason: 'accounts', code: 'CG-HOST-CONTRACT' } },
+    });
+    w = await open({ state: noIdentity });
+    expect(text(w, row(w, 'chatspace')?.note)).toBe('Не найдено: accounts, identity. Вставка работает через «Копировать».');
+    world?.client.dispose();
+    w = await open({ page: 'popup', state: noIdentity });
+    expect(w.client.getSnapshot({ of: 'popup' }).pills.host).toBe('copy-only');
+  });
+
   it('[ST-025] [PU-006] the tap and the preview send switched off are not a partly checked ChatSpace: their anchors are absent by design', async () => {
     // What the host adapter reports on a shift where the owner has not switched X8 on and the tap is not in the
     // document: both anchors `missing`, their capabilities `off` — nothing of ChatSpace changed.

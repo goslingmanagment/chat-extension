@@ -150,6 +150,9 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(status.chatspace.level).toBe('warn');
     expect(status.chatspace.text).toContain('проверен частично');
     expect(status.chatspace.text).toContain('pendingMessages');
+    // pilot-readiness §5 п. 13: «Вставить» worked a moment ago — «Статус» does not send the person to «Копировать».
+    expect(status.chatspace.text).toContain('Вставка работает.');
+    expect(status.chatspace.text).not.toContain('Копировать');
     expect(status.popupCodes).toContain('CG-HOST-CONTRACT');
     expect(status.popupPills.join(' ')).toContain('контракт частично');
   });
@@ -171,6 +174,8 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     const status = await statusPage();
     expect(status.chatspace.level).toBe('warn');
     expect(status.chatspace.text).toContain('composerBridge');
+    // Here the insert really is gone, and «Статус» says the same as the dock.
+    expect(status.chatspace.text).toContain('Вставка работает через «Копировать»');
     expect(status.popupCodes).toContain('CG-HOST-CONTRACT');
   });
 

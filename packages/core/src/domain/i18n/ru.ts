@@ -922,7 +922,7 @@ export const RU: I18nCatalog<'ru'> = {
   'settings.status.row.chatspaceClosedNote': 'Откройте ChatSpace в этом браузере — расширение подключится само.',
   'settings.status.row.chatspaceChecking': 'открыт, проверка ещё идёт',
   'settings.status.row.chatspacePartial': 'Сборка {build}, проверен частично',
-  'settings.status.row.chatspacePartialNote': 'Не найдено: {missing}. Вставка работает через «Копировать».',
+  'settings.status.row.chatspacePartialNote': 'Не найдено: {missing}. Вставка работает.',
   'settings.status.row.chatspaceCopyOnlyNote': 'Не найдено: {missing}. Вставка работает через «Копировать».',
   'settings.status.row.hubNoAccess': '{host}, нет доступа',
   'settings.status.row.hubDown': '{host}, нет связи',

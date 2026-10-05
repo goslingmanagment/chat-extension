@@ -867,7 +867,7 @@ export const EN: I18nCatalog<'en'> = {
   'settings.status.row.chatspaceClosedNote': 'Open ChatSpace in this browser — the extension connects by itself.',
   'settings.status.row.chatspaceChecking': 'open, still being checked',
   'settings.status.row.chatspacePartial': 'Build {build}, partly checked',
-  'settings.status.row.chatspacePartialNote': 'Not found: {missing}. Use «Copy» instead of insert.',
+  'settings.status.row.chatspacePartialNote': 'Not found: {missing}. Insert works.',
   'settings.status.row.chatspaceCopyOnlyNote': 'Not found: {missing}. Use «Copy» instead of insert.',
   'settings.status.row.hubNoAccess': '{host}, no access',
   'settings.status.row.hubDown': '{host}, no connection',

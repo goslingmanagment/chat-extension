@@ -86,7 +86,14 @@ export const FEATURE_LABEL_KEYS = {
  */
 const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
 
-/** What a host report lacks: anchors that are not `ok` and capabilities the contract check closed. */
+/**
+ * What a host report lacks: anchors that are not `ok` and capabilities the contract check closed.
+ *
+ * `insert` — whether the dock writes a part into the field, by the dock's own rule (ai/workspace.ts): it is
+ * copy-only without the `insert` capability and without the host's identity (the route and the account), and
+ * nothing else of the report takes «Вставить» away. «Статус» and the popup say «через „Копировать“» by this
+ * one fact, so a lost anchor of something else (the send queue, the chat list) is not called a lost insert.
+ */
 export function hostGaps(report: HostContractReport): { readonly anchors: string[]; readonly broken: string[]; readonly insert: boolean } {
   const anchors = Object.entries(report.anchors)
     .filter(([anchor, state]) => state !== 'ok' && !SWITCHED_ANCHORS.includes(anchor))
@@ -94,7 +101,8 @@ export function hostGaps(report: HostContractReport): { readonly anchors: string
   const broken = Object.entries(report.capabilities)
     .filter(([, capability]) => capability.state === 'contractBroken' || capability.state === 'degraded')
     .map(([name]) => name);
-  return { anchors, broken, insert: report.capabilities.insert?.state === 'on' };
+  const on = (capability: 'insert' | 'identity' | 'route'): boolean => report.capabilities[capability]?.state === 'on';
+  return { anchors, broken, insert: on('insert') && on('identity') && on('route') };
 }
 
 /** The report of the tab the person most likely looks at: the one with an open chat, else the first that reported. */
@@ -131,7 +139,13 @@ function chatspaceRow(model: PagesModel): StatusRowVM {
   if (missing.length === 0) {
     return row('chatspace', 'ok', msg('settings.status.row.chatspaceValue', { build }), msg('settings.status.row.chatspaceChecked', { time: { time: host.report.checkedAt } }));
   }
-  return row('chatspace', 'warn', msg('settings.status.row.chatspacePartial', { build }), msg('settings.status.row.chatspacePartialNote', { missing: missing.slice(0, 8).join(', ') }));
+  // 1.5.0: «Вставка работает через „Копировать“» only when the dock really is copy-only.
+  return row('chatspace', 'warn', msg('settings.status.row.chatspacePartial', { build }), msg(gaps.insert ? 'settings.status.row.chatspacePartialNote' : 'settings.status.row.chatspaceCopyOnlyNote', { missing: missingAnchors(gaps) }));
+}
+
+/** «Не найдено: …» of a partly checked ChatSpace: the anchors and the closed capabilities, each name once, the first eight. */
+export function missingAnchors(gaps: { readonly anchors: readonly string[]; readonly broken: readonly string[] }): string {
+  return [...new Set([...gaps.anchors, ...gaps.broken])].slice(0, 8).join(', ');
 }
 
 function hubRow(model: PagesModel): StatusRowVM {
