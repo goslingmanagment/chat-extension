@@ -8,11 +8,22 @@
 # A Draft PR runs nothing: both jobs are skipped (a skipped job costs no runner
 # and counts as passed for a required check). Marking the PR ready starts them.
 #
+# A change of documents alone — docs/**, site/**, *.md in the root — does not
+# run the e2e suite: the job starts, sees what changed (its second step,
+# tools/ci/e2e-needed.sh) and ends green within seconds instead of half an
+# hour. `check` always runs in full: it is what tests the site, the changelog
+# and the parity tables. Why inside the job and not `paths-ignore` on the
+# workflow: a workflow that does not start reports nothing, and a PR with a
+# required check would wait for it forever. Why not a job of its own in front:
+# that is a second wait for a runner (and for the PC's priority hook), and a
+# gate job that failed would turn the jobs behind it into «skipped», which a
+# required check reads as passed.
+#
 # Runner pool, as in hub, fansly-chat, onlyfans-chat and taskindex: the
 # repository variable CI_POOL=pc sends the first attempt to the owner's
 # self-hosted runners; any other value, and every re-run (the PC may have died
-# mid-run), uses GitHub-hosted runners. The job ids are the required checks:
-# keep them.
+# mid-run), uses GitHub-hosted runners. Branch protection matches a required
+# check by the job's `name:` — «pnpm check» and «pnpm e2e»: keep the names.
 #
 # No secret is read here and none is needed: the jobs build, lint and test
 # against the synthetic stand and the fake hub on loopback. The runners hold no
@@ -108,10 +119,24 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # Two commits deep: on a PR this is GitHub's merge commit, and the next
+      # step compares it with its first parent, the base branch.
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      # Documents alone (see the top of this file): every step below is
+      # skipped and the job ends green. Any doubt is `e2e=true`; the steps test
+      # for «not false», so a step that said nothing skips nothing either.
+      - name: Does this change need e2e?
+        id: scope
+        env:
+          CG_PUSH_BEFORE: ${{ github.event.before }}
+        run: tools/ci/e2e-needed.sh >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
+        if: steps.scope.outputs.e2e != 'false'
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
@@ -119,6 +144,7 @@ jobs:
       # The same step as in `check`; tools/ci/e2e-docker.sh mounts this prefix
       # into the container.
       - name: Setup pnpm
+        if: steps.scope.outputs.e2e != 'false'
         run: |
           pinned="$(node -p 'require("./package.json").packageManager')"
           pinned="${pinned%%+*}"
@@ -130,6 +156,7 @@ jobs:
           echo "$prefix/bin" >> "$GITHUB_PATH"
 
       - name: Install dependencies
+        if: steps.scope.outputs.e2e != 'false'
         env:
           PNPM_PC_STORE: ${{ runner.environment == 'self-hosted' && '1' || '' }}
         run: |
@@ -139,8 +166,20 @@ jobs:
       # Both builds, the stand, the fake hub, WebdriverIO, geckodriver and
       # Firefox all run inside one container with --network none: rootless
       # Docker on the PC, the stock daemon on a hosted runner.
+      #
+      # `exec`: when a run is cancelled (a newer push to the PR does that) or
+      # times out, the runner signals the step's own process and nothing below
+      # it. Without `exec` that process is the shell around the script: it
+      # dies, and the container goes on running the suite in this checkout.
+      # With it the script takes the signal and removes its container.
       - name: e2e (headless Firefox in the pinned image, no network)
-        run: tools/ci/e2e-docker.sh
+        if: steps.scope.outputs.e2e != 'false'
+        run: exec tools/ci/e2e-docker.sh
+
+      # What a SIGKILL leaves: the script had ten seconds and did not make it.
+      - name: Remove the e2e container, if one is left
+        if: always() && steps.scope.outputs.e2e != 'false'
+        run: if [ -x tools/ci/e2e-docker.sh ]; then tools/ci/e2e-docker.sh --remove-container; fi
 
       # WebdriverIO and geckodriver logs of a failed run; the stand is
       # synthetic, so there is nothing private in them.
