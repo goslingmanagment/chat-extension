@@ -61,6 +61,28 @@ if [ "$gecko_version" != "$CG_E2E_GECKODRIVER" ]; then
 fi
 [ "$mismatch" = 0 ] || exit 1
 
+# The suite was written on the owner's Mac and measures what that Firefox
+# shows; three settings make this one show the same.
+# - A Russian-language browser: the extension follows navigator.languages, and
+#   the specs read Russian texts. intl.accept_languages is a localized pref —
+#   a default value is read as the address of a string bundle — so it is set
+#   as a user value, by AutoConfig.
+# - Overlay scrollbars, as on macOS: a classic scrollbar takes 6 px out of a
+#   column the specs measure.
+# - -moz-osx-font-smoothing, which only a Mac build parses by default: one
+#   spec reads it back from the stand.
+firefox_home=$(dirname "$(readlink -f "$firefox_bin")")
+cat > "$firefox_home/defaults/pref/cg-e2e.js" << 'PREFS'
+pref("general.config.filename", "cg-e2e.cfg");
+pref("general.config.obscure_value", 0);
+pref("ui.useOverlayScrollbars", 1);
+pref("layout.css.osx-font-smoothing.enabled", true);
+PREFS
+cat > "$firefox_home/cg-e2e.cfg" << 'CFG'
+// AutoConfig: the first line is always skipped.
+pref("intl.accept_languages", "ru-RU, ru, en-US, en");
+CFG
+
 # WebdriverIO fetches geckodriver from GitHub before the first session unless
 # the version it is asked for already lies in its cache folder as
 # geckodriver-<version>; it then starts the binary GECKODRIVER_PATH names.
