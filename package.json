@@ -22,7 +22,8 @@
     "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",
     "perf": "pnpm build:test && pnpm --filter @cg/testing perf",
     "dev": "node tools/dev/index.ts",
-    "sign:dry-run": "node tools/sign-dry-run/index.ts"
+    "sign:dry-run": "node tools/sign-dry-run/index.ts",
+    "release": "node tools/release/index.ts"
   },
   "devDependencies": {
     "@cg/testing": "workspace:*",
