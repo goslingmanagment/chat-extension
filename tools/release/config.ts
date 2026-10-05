@@ -84,6 +84,18 @@ export const ENV = {
   telegramChannel: 'TELEGRAM_CHANNEL_ID',
   /** owner/repo of the hub on GitHub, for the «vendored from hub main» check (default below). */
   hubRepo: 'CG_HUB_REPO',
+  /** Seconds one read of a public address may take (default below): raise it over a slow route to the server. */
+  httpTimeout: 'CG_RELEASE_HTTP_TIMEOUT_S',
 } as const;
+
+/**
+ * The secrets among them. A child process gets one only when its command
+ * names it (`secretEnv`): `web-ext sign` gets the AMO keys, nobody gets the
+ * bot token — the request to Telegram is made by this process.
+ */
+export const SECRET_ENV: readonly string[] = [ENV.amoKey, ENV.amoSecret, ENV.telegramToken];
+
+/** One GET of the feed, a page or an XPI: generous, the XPI is read back whole. */
+export const DEFAULT_HTTP_TIMEOUT_S = 120;
 
 export const DEFAULT_HUB_REPO = 'goslingmanagment/hub';

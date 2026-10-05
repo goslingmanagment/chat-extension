@@ -1,10 +1,14 @@
 // Running other programs and showing what would be run. Every outward step of
 // a release is a list of Steps: `--dry-run` prints each step's `show` lines —
 // the exact command lines and scripts — and runs nothing; a real run prints
-// the same lines and then runs them. Secrets travel only in the environment of
-// the one child that needs them and are shown by name, never by value.
+// the same lines and then runs them. A secret reaches only the child whose
+// command names it (`secretEnv`) — every other child gets this process's
+// environment without the secrets the tool knows (config.ts `SECRET_ENV`) —
+// and is shown by name, never by value.
 
 import { spawn } from 'node:child_process';
+
+import { SECRET_ENV } from './config.ts';
 
 export interface CommandSpec {
   readonly program: string;
@@ -14,7 +18,7 @@ export interface CommandSpec {
   readonly stdin?: string;
   /** Extra environment for this child only. */
   readonly env?: Readonly<Record<string, string>>;
-  /** Names of environment variables whose values must not be shown (they are passed through from this process). */
+  /** The secrets this child needs: passed through from this process's environment, shown by name only. */
   readonly secretEnv?: readonly string[];
   /** Print the child's output as it comes instead of capturing it. */
   readonly inherit?: boolean;
@@ -28,11 +32,20 @@ export interface CommandResult {
 
 export type Exec = (spec: CommandSpec) => Promise<CommandResult>;
 
+/**
+ * The environment of a child: this process's without the secrets its command
+ * does not name, then the command's own additions.
+ */
+export function childEnv(spec: Pick<CommandSpec, 'env' | 'secretEnv'>, base: Readonly<Record<string, string | undefined>> = process.env, secrets: readonly string[] = SECRET_ENV): Record<string, string | undefined> {
+  const withheld = secrets.filter((name) => !(spec.secretEnv ?? []).includes(name));
+  return { ...Object.fromEntries(Object.entries(base).filter(([name]) => !withheld.includes(name))), ...spec.env };
+}
+
 export const realExec: Exec = (spec) =>
   new Promise((resolve, reject) => {
     const child = spawn(spec.program, [...spec.args], {
       cwd: spec.cwd,
-      env: { ...process.env, ...spec.env },
+      env: childEnv(spec),
       stdio: [spec.stdin === undefined ? 'ignore' : 'pipe', spec.inherit === true ? 'inherit' : 'pipe', spec.inherit === true ? 'inherit' : 'pipe'],
     });
     const out: Buffer[] = [];
