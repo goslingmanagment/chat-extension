@@ -19,6 +19,7 @@ import {
   REFUSAL_VM_SAMPLES,
   SPOKEN_MONEY_SAMPLES,
   STATS_ATTENTION_SAMPLES,
+  STATS_REMAINDER_SAMPLES,
   TOAST_VM_SAMPLES,
   UI_ACTION_SAMPLES,
   ZONED_TIME_SAMPLES,
@@ -470,6 +471,27 @@ describe('a page the owner switched off, and what a refused switch says (1.3.0)'
 
   it('[HK-026] the line and the reasons of a switch that is off have their words in the catalog', () => {
     for (const key of ['dock.status.pageOff', 'dock.reason.pageOff', 'dock.reason.hubNotReady', 'dock.reason.platformUnsupported', 'dock.reason.clientOutdated'] as const) {
+      expect(C.UI_TEXT_KEYS).toContain(key);
+      expect(C.isPluralKey(key)).toBe(false);
+    }
+  });
+});
+
+describe('the remainder rows of the statistics’ tier table (1.4.0)', () => {
+  it('[SP-044] a tier without bounds says which remainder it is — «без тира» or «не распределено» — by its own field; a tier with bounds carries none', () => {
+    expectTypeOf<C.SpendersStatsVM['shelves'][number]['remainder']>().toEqualTypeOf<C.StatsRemainder | undefined>();
+    expect(C.STATS_REMAINDERS).toEqual(['untiered', 'unattributed']);
+    const [tier, untiered, unattributed] = STATS_REMAINDER_SAMPLES.valid;
+    expect(tier?.remainder).toBeUndefined();
+    expect([untiered?.remainder, unattributed?.remainder]).toEqual(['untiered', 'unattributed']);
+    // Two rows without bounds are still two rows: their ids differ.
+    expect(untiered?.range).toEqual(unattributed?.range);
+    expect(untiered?.id).not.toBe(unattributed?.id);
+    expect(STATS_REMAINDER_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[HK-026] each remainder has its words in the catalog', () => {
+    for (const key of ['stats.shelf.untiered', 'stats.shelf.unattributed'] as const) {
       expect(C.UI_TEXT_KEYS).toContain(key);
       expect(C.isPluralKey(key)).toBe(false);
     }

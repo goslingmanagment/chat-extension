@@ -247,6 +247,29 @@ export const STATS_ATTENTION_SAMPLES: { readonly valid: readonly C.SpendersStats
 };
 
 /**
+ * The remainder rows of the statistics' tier table (1.4.0): the hub sends two
+ * tiers without bounds — `untiered` and `unattributed` — and they are told
+ * apart by `remainder`, never by the missing bounds. Optional: a row without
+ * it is a tier with its bounds, as before.
+ */
+type StatsShelf = C.SpendersStatsVM['shelves'][number];
+const SHELF_BASE: StatsShelf = { id: 'shelf-600-plus', range: { fromMills: 600_000, toMills: null }, fans: 31, lifetime: 52_000_000, period: 40_000_000, share: 0.42 };
+const NO_BOUNDS = { fromMills: null, toMills: null } as const;
+export const STATS_REMAINDER_SAMPLES: { readonly valid: readonly StatsShelf[]; readonly invalid: readonly unknown[] } = {
+  valid: [
+    SHELF_BASE,
+    { ...SHELF_BASE, id: 'shelf-outside', range: NO_BOUNDS, remainder: 'untiered', fans: 109, lifetime: null, period: 0, share: 0 },
+    { ...SHELF_BASE, id: 'shelf-unattributed', range: NO_BOUNDS, remainder: 'unattributed', fans: 0, lifetime: null, period: 1_250_000, share: 0.04 },
+  ],
+  invalid: [
+    // @ts-expect-error a remainder is one of the hub's two keys, not any tier key
+    { ...SHELF_BASE, remainder: '600-plus' } satisfies StatsShelf,
+    // @ts-expect-error nor a flag
+    { ...SHELF_BASE, range: NO_BOUNDS, remainder: true } satisfies StatsShelf,
+  ],
+};
+
+/**
  * The footer of the options page (1.2.0, ST-005): optional, so a view without
  * it still is an OptionsVM; a link the build does not know is null, not a
  * made-up address.

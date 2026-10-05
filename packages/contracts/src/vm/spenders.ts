@@ -87,6 +87,10 @@ export interface CountStat {
   readonly stamp: DataStamp;
 }
 
+/** The remainder rows of the Spenders statistics' tier table (1.4.0), by the hub's own tier keys. */
+export const STATS_REMAINDERS = ['untiered', 'unattributed'] as const;
+export type StatsRemainder = (typeof STATS_REMAINDERS)[number];
+
 export interface SpendersStatsVM {
   /** `error` — the stats failed; the board keeps working (the stats-error scenario). */
   readonly view: VmView;
@@ -107,6 +111,13 @@ export interface SpendersStatsVM {
   readonly shelves: readonly {
     readonly id: string;
     readonly range: { readonly fromMills: MoneyMills | null; readonly toMills: MoneyMills | null };
+    /**
+     * 1.4.0. A remainder row of the hub's tier table — a tier without bounds, told by its key, never by the
+     * missing bounds (the hub sends two of them): `untiered` — fans no tier takes («Без тира»,
+     * `stats.shelf.untiered`), `unattributed` — money of the window no fan is counted for («Не распределено»,
+     * `stats.shelf.unattributed`). Absent — a tier with its bounds, labelled by `range`.
+     */
+    readonly remainder?: StatsRemainder;
     readonly fans: number | null;
     readonly lifetime: MoneyMills | null;
     readonly period: MoneyMills | null;

@@ -342,6 +342,8 @@ export const EN: I18nCatalog<'en'> = {
   'stats.silent8to21': 'Silent 8–21 days',
   'stats.silentOver21': 'Silent over 21 days',
   'stats.noData': 'No data',
+  'stats.shelf.untiered': 'No tier',
+  'stats.shelf.unattributed': 'Unattributed',
   'stats.noSilenceData': 'No silence data',
   'stats.chart.title': 'Revenue by day',
   'stats.chart.max': 'max {money}',

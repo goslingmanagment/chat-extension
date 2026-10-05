@@ -83,7 +83,7 @@ export const UI_TEXT_KEYS = [
   'stats.avgCheck', 'stats.shelves', 'stats.colFans', 'stats.colPeriod', 'stats.table.shelf', 'stats.table.fans', 'stats.table.lifetime',
   'stats.table.period', 'stats.attention', 'stats.awaiting', 'stats.newPayers', 'stats.newPayersObserved', 'stats.silent8to21', 'stats.silentOver21', 'stats.noData',
   'stats.noSilenceData', 'stats.chart.title', 'stats.chart.max', 'stats.chart.axisToday', 'stats.chart.dayTip', 'stats.tile.todaySub',
-  'stats.tile.d7Sub', 'stats.tile.payersSub', 'stats.footer', 'stats.footerFull', 'stats.regionLabel',
+  'stats.tile.d7Sub', 'stats.tile.payersSub', 'stats.footer', 'stats.footerFull', 'stats.regionLabel', 'stats.shelf.untiered', 'stats.shelf.unattributed',
   'preview.label', 'preview.moneyIn', 'preview.meta', 'preview.metaFanUnknown', 'preview.metaOurUnknown', 'preview.closeAria', 'preview.notOpened',
   'preview.notOpenedTooltip', 'preview.notOpenedAfterSend', 'preview.notOpenedAfterSendTooltip', 'preview.archiveLag', 'preview.fanWroteNew', 'preview.feed.tip', 'preview.feed.bought', 'preview.feed.empty',
   'preview.feed.emptySubscribed', 'preview.feed.label', 'preview.feed.fanPrefix', 'preview.feed.deleted', 'preview.feed.automatic', 'preview.feed.priced',

@@ -370,6 +370,8 @@ export const RU: I18nCatalog<'ru'> = {
   'stats.silent8to21': 'Молчат 8–21 день',
   'stats.silentOver21': 'Молчат дольше 21 дня',
   'stats.noData': 'Нет данных',
+  'stats.shelf.untiered': 'Без тира',
+  'stats.shelf.unattributed': 'Не распределено',
   'stats.noSilenceData': 'Нет данных о молчании',
   'stats.chart.title': 'Выручка по дням',
   'stats.chart.max': 'максимум {money}',
