@@ -45,6 +45,12 @@ jobs:
     if: github.event.pull_request.draft != true
     runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 25
+    env:
+      # ESLint with type information takes about 4 GiB for this workspace. Node
+      # sizes its default heap from the machine's memory — about 2 GiB on a
+      # small runner — and the lint step then dies with «heap out of memory»
+      # (seen in a 4 GiB container). The same bound the hub's CI sets.
+      NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
       - name: Checkout

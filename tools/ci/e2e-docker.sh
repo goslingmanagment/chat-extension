@@ -64,5 +64,5 @@ fi
 exec docker run --rm --init --network none --shm-size 2g --user 0:0 \
   --workdir "$root" "${mounts[@]}" \
   --env "CG_NODE_BIN=$node_home/bin" --env "CG_PNPM_BIN=$pnpm_home/bin" --env "CG_NODE_LIBS=$node_libs" \
-  --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env "CG_E2E_CHOWN=$chown_to" \
+  --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env "CG_E2E_CHOWN=$chown_to" \
   --entrypoint bash "$CG_E2E_IMAGE" "$root/tools/ci/e2e-in-container.sh" "$@"
