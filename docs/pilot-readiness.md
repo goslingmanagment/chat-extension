@@ -425,7 +425,8 @@ X12 (`docs/decisions.md`, п. 28–52).
 
 Только Firefox, только dev-профиль, только тестовый чат владельца (какой — решение X9 в
 `docs/decisions.md`). Чужие чаты не открывать: открытие помечает чат прочитанным. Запуск —
-README, «Живые проверки»: `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev`,
+README, «Живые проверки»:
+`CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev --debugger-port 6111`,
 войти на странице настроек. На живой вкладке не нажимать ⌘1–9, J, K и ⌘U: это наша
 навигация по чатам, она открывает чаты других фанов. Флаг `navigation` на живых
 страницах на время проверок остаётся выключенным. «Открыть чат» на доске и «Открыть и

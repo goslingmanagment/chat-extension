@@ -65,9 +65,13 @@ a boundary you need to cross is a design question, not a lint exception.
 - `pnpm vitest run <path>` and, from `packages/testing`,
   `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` — one test
   file or one spec (the spec needs `pnpm build && pnpm build:test` first).
-- `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev` — the
-  test build in the owner's persistent Firefox dev profile, rebuilt on change
-  (README «Живые проверки»). Only for X9 checks, only in the test chat. On
+- `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev
+  --debugger-port 6111` — the test build in the owner's persistent Firefox dev
+  profile on its fixed debugger port, rebuilt on change (README «Живые
+  проверки»). Only for X9 checks, only in the test chat. A plain `pnpm dev`
+  uses `.dev-profile/` of the worktree on a port of its own; the launcher
+  asks the Firefox behind a port which profile it runs before it installs,
+  and refuses another one. On
   macOS it starts Firefox through LaunchServices (`open`) and installs the
   build over the debugger port — never start the Firefox binary (or
   `web-ext run`) from an agent shell there: it breaks the machine's Orca

@@ -6,7 +6,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createPacketDecoder, encodePacket, installTemporaryAddon, MAX_PACKET_BYTES, probePort } from './rdp.ts';
+import { checkRunningProfile, PROFILE_MARKER_PREF, profileMarker } from './profile.ts';
+import { createPacketDecoder, encodePacket, installTemporaryAddon, MAX_PACKET_BYTES, probePort, RdpError, readDebuggerProfile, type DebuggerProfile } from './rdp.ts';
 
 const utf8 = (text: string): Buffer => Buffer.from(text, 'utf8');
 
@@ -288,6 +289,151 @@ describe('installTemporaryAddon', () => {
     const firefox = await fakeFirefox(firefoxReply);
     await expect(installTemporaryAddon({ port: firefox.port, addonPath: '.output/firefox-mv3-test' })).rejects.toThrow(/must be absolute/);
     expect(firefox.requests).toEqual([]);
+  });
+});
+
+// ── Whose Firefox answers on the port ──
+
+const PREFS_ACTOR = 'server1.conn0.preferenceActor1';
+const DEVICE_ACTOR = 'server1.conn0.deviceActor2';
+const OUR_PROFILE = '/profiles/Профили dev/cg (1)';
+
+/** A Firefox that runs a profile: `marker` — the marker pref's value (null — the pref is not set), `name` — what its device description calls the profile. */
+function firefoxOf(profile: { readonly marker: string | null; readonly name: string | null }, actors: { readonly prefs?: boolean; readonly device?: boolean } = {}): Reply {
+  return (socket, request) => {
+    switch (request['type']) {
+      case 'getRoot':
+        socket.write(encodePacket({ from: 'root', addonsActor: ADDONS_ACTOR, ...(actors.prefs === false ? {} : { preferenceActor: PREFS_ACTOR }), ...(actors.device === false ? {} : { deviceActor: DEVICE_ACTOR }) }));
+        return;
+      case 'getCharPref':
+        // As Firefox does: a pref that is not set is an error answer of the actor.
+        if (request['value'] !== PROFILE_MARKER_PREF || profile.marker === null) socket.write(encodePacket({ from: PREFS_ACTOR, error: 'unknownError', message: 'NS_ERROR_UNEXPECTED: Component returned failure code' }));
+        else socket.write(encodePacket({ from: PREFS_ACTOR, value: profile.marker }));
+        return;
+      case 'getDescription':
+        socket.write(encodePacket({ from: DEVICE_ACTOR, value: { apptype: 'firefox', version: '157.0', ...(profile.name === null ? {} : { profile: profile.name }) } }));
+        return;
+      case 'installTemporaryAddon':
+        socket.write(encodePacket({ from: ADDONS_ACTOR, addon: { id: ADDON_ID, actor: false } }));
+    }
+  };
+}
+
+/** The launcher's own acceptance (index.ts): the profile of this run, or why not. */
+const onlyProfile = (dir: string) => ({
+  markerPref: PROFILE_MARKER_PREF,
+  accept: (running: DebuggerProfile): string | null => {
+    const check = checkRunningProfile(running, dir);
+    return check.same ? null : `this Firefox runs ANOTHER profile: ${check.running} — not the dev profile ${dir}.`;
+  },
+});
+
+const failureOf = (promise: Promise<unknown>): Promise<{ kind: string; message: string } | null> =>
+  promise.then(
+    () => null,
+    (error: unknown) => (error instanceof RdpError ? { kind: error.kind, message: error.message } : { kind: 'not-an-RdpError', message: String(error) }),
+  );
+
+describe('readDebuggerProfile', () => {
+  it('asks the preference actor for the marker and the device actor for the profile’s name, changes nothing, and closes the socket', async () => {
+    const firefox = await fakeFirefox(firefoxOf({ marker: profileMarker(OUR_PROFILE), name: 'cg (1)' }));
+    await expect(readDebuggerProfile({ port: firefox.port, markerPref: PROFILE_MARKER_PREF })).resolves.toEqual({ marker: profileMarker(OUR_PROFILE), name: 'cg (1)' });
+    expect(firefox.requests).toEqual([
+      { to: 'root', type: 'getRoot' },
+      { to: PREFS_ACTOR, type: 'getCharPref', value: 'chatgoose.dev.profile' },
+      { to: DEVICE_ACTOR, type: 'getDescription' },
+    ]);
+    await firefox.connectionClosed;
+  });
+
+  it('a Firefox without the marker (started before it existed, or not ours): no marker, its profile’s name', async () => {
+    const firefox = await fakeFirefox(firefoxOf({ marker: null, name: 'firefox-dev-profile' }));
+    await expect(readDebuggerProfile({ port: firefox.port, markerPref: PROFILE_MARKER_PREF })).resolves.toEqual({ marker: null, name: 'firefox-dev-profile' });
+  });
+
+  it('a Firefox that offers neither actor, or names no profile, tells nothing — which is not «ours»', async () => {
+    const bare = await fakeFirefox(firefoxOf({ marker: 'x', name: 'y' }, { prefs: false, device: false }));
+    await expect(readDebuggerProfile({ port: bare.port, markerPref: PROFILE_MARKER_PREF })).resolves.toEqual({ marker: null, name: null });
+    expect(bare.requests).toEqual([{ to: 'root', type: 'getRoot' }]);
+    const unnamed = await fakeFirefox(firefoxOf({ marker: null, name: null }));
+    await expect(readDebuggerProfile({ port: unnamed.port, markerPref: PROFILE_MARKER_PREF })).resolves.toEqual({ marker: null, name: null });
+  });
+
+  it('tells what answers on the port: nothing; something that is not a Firefox debugger (another protocol, silence, a wrong greeting, a slammed door); a debugger that failed', async () => {
+    const ask = (port: number) => failureOf(readDebuggerProfile({ port, markerPref: PROFILE_MARKER_PREF, greetingTimeoutMs: 120 }));
+    expect(await ask(await closedPort())).toMatchObject({ kind: 'no-listener', message: expect.stringMatching(/cannot connect to the Firefox debugger at 127\.0\.0\.1:\d+/) as string });
+
+    const http = createServer((socket) => {
+      socket.on('error', () => undefined);
+      socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+    });
+    expect(await ask(await listen(http))).toMatchObject({ kind: 'not-a-debugger', message: expect.stringMatching(/malformed packet length "HTTP\/1\.1 400 Bad Request/) as string });
+
+    // A listener that waits for the client to speak first (most servers): no greeting.
+    const silent = await fakeFirefox(() => undefined, null);
+    expect(await ask(silent.port)).toMatchObject({ kind: 'not-a-debugger', message: expect.stringMatching(/no answer within 120 ms while waiting for the greeting/) as string });
+    expect(silent.requests).toEqual([]);
+
+    const stranger = await fakeFirefox(() => undefined, { from: 'somebody-else', hello: true });
+    expect(await ask(stranger.port)).toMatchObject({ kind: 'not-a-debugger', message: expect.stringMatching(/unexpected greeting/) as string });
+
+    const slammed = createServer((socket) => socket.destroy());
+    expect((await ask(await listen(slammed)))?.kind).toBe('not-a-debugger');
+
+    const broken = await fakeFirefox((socket) => socket.write(encodePacket({ from: 'root', error: 'unrecognizedPacketType', message: 'no getRoot here' })));
+    expect(await ask(broken.port)).toMatchObject({ kind: 'failed', message: expect.stringMatching(/getRoot failed/) as string });
+  });
+});
+
+describe('installTemporaryAddon into the Firefox of ONE profile', () => {
+  it('asks which profile the Firefox runs in the same connection, then installs', async () => {
+    const firefox = await fakeFirefox(firefoxOf({ marker: profileMarker(OUR_PROFILE), name: 'cg (1)' }));
+    await expect(installTemporaryAddon({ port: firefox.port, addonPath: ADDON_DIR, profile: onlyProfile(OUR_PROFILE) })).resolves.toEqual({ addonId: ADDON_ID });
+    expect(firefox.requests.map((request) => (request as { type: string }).type)).toEqual(['getRoot', 'getCharPref', 'getDescription', 'installTemporaryAddon']);
+    await firefox.connectionClosed;
+  });
+
+  it('a Firefox of another profile gets NO install request: refused with both profiles named, the socket closed', async () => {
+    // A person's signed-in Firefox that listens on the port this run was pointed at.
+    const live = '/Users/owner/Documents/ChatGoose/firefox-dev-profile';
+    const firefox = await fakeFirefox(firefoxOf({ marker: profileMarker(live), name: 'firefox-dev-profile' }));
+    const failure = await failureOf(installTemporaryAddon({ port: firefox.port, addonPath: ADDON_DIR, profile: onlyProfile('/repo/worktree/.dev-profile') }));
+    expect(failure?.kind).toBe('other-profile');
+    expect(failure?.message).toContain(`this Firefox runs ANOTHER profile: ${live} — not the dev profile /repo/worktree/.dev-profile.`);
+    expect(firefox.requests.map((request) => (request as { type: string }).type)).toEqual(['getRoot', 'getCharPref', 'getDescription']);
+    await firefox.connectionClosed;
+  });
+
+  it('two worktrees whose profile directories have the same name are still two profiles: the marker decides, not the name', async () => {
+    const firefox = await fakeFirefox(firefoxOf({ marker: profileMarker('/repo/b/.dev-profile'), name: '.dev-profile' }));
+    expect((await failureOf(installTemporaryAddon({ port: firefox.port, addonPath: ADDON_DIR, profile: onlyProfile('/repo/a/.dev-profile') })))?.kind).toBe('other-profile');
+    expect(firefox.requests.some((request) => (request as { type: string }).type === 'installTemporaryAddon')).toBe(false);
+  });
+
+  it('a Firefox without a marker is taken by the name of its profile directory, and refused when that differs or is not told', async () => {
+    const legacy = await fakeFirefox(firefoxOf({ marker: null, name: 'firefox-dev-profile' }));
+    await expect(installTemporaryAddon({ port: legacy.port, addonPath: ADDON_DIR, profile: onlyProfile('/home/u/Documents/ChatGoose/firefox-dev-profile') })).resolves.toEqual({ addonId: ADDON_ID });
+    const everyday = await fakeFirefox(firefoxOf({ marker: null, name: 'default-release' }));
+    expect(await failureOf(installTemporaryAddon({ port: everyday.port, addonPath: ADDON_DIR, profile: onlyProfile('/repo/a/.dev-profile') }))).toMatchObject({ kind: 'other-profile', message: expect.stringContaining('a profile named "default-release"') as string });
+    const mute = await fakeFirefox(firefoxOf({ marker: 'x', name: 'y' }, { prefs: false, device: false }));
+    expect((await failureOf(installTemporaryAddon({ port: mute.port, addonPath: ADDON_DIR, profile: onlyProfile('/repo/a/.dev-profile') })))?.kind).toBe('other-profile');
+    for (const firefox of [everyday, mute]) expect(firefox.requests.some((request) => (request as { type: string }).type === 'installTemporaryAddon')).toBe(false);
+  });
+
+  it('every failure carries its kind: a refused install and a lost connection are a debugger that failed, a port nobody listens on is that', async () => {
+    const refusing = await fakeFirefox((socket, request) => {
+      if (request['type'] === 'getRoot') socket.write(encodePacket({ from: 'root', addonsActor: ADDONS_ACTOR }));
+      else socket.write(encodePacket({ from: ADDONS_ACTOR, error: 'unknownError', message: 'manifest.json not found' }));
+    });
+    expect((await failureOf(installTemporaryAddon({ port: refusing.port, addonPath: ADDON_DIR })))?.kind).toBe('failed');
+    const dropping = await fakeFirefox((socket) => socket.destroy());
+    expect((await failureOf(installTemporaryAddon({ port: dropping.port, addonPath: ADDON_DIR })))?.kind).toBe('failed');
+    expect((await failureOf(installTemporaryAddon({ port: await closedPort(), addonPath: ADDON_DIR })))?.kind).toBe('no-listener');
+    const http = createServer((socket) => {
+      socket.on('error', () => undefined);
+      socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+    });
+    expect((await failureOf(installTemporaryAddon({ port: await listen(http), addonPath: ADDON_DIR })))?.kind).toBe('not-a-debugger');
   });
 });
 

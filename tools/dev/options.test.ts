@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_DEBUGGER_PORT, devRunner, parseDebuggerPort, parseDevOptions } from './options.ts';
+import { OWNER_PROFILE_DEBUGGER_PORT, devRunner, parseDebuggerPort, parseDevOptions } from './options.ts';
 
 describe('devRunner', () => {
   it('never gives macOS a child Firefox', () => {
@@ -14,8 +14,10 @@ describe('devRunner', () => {
 });
 
 describe('parseDevOptions', () => {
-  it('defaults: watch on, the Firefox app, the default port, no page', () => {
-    expect(parseDevOptions([], {})).toEqual({ watch: true, firefoxBinary: undefined, firefoxApp: 'Firefox', debuggerPort: DEFAULT_DEBUGGER_PORT, url: undefined });
+  it('defaults: watch on, the Firefox app, no page, and NO port — the port is the profile’s own (profile.ts), never one every profile shares', () => {
+    expect(parseDevOptions([], {})).toEqual({ watch: true, firefoxBinary: undefined, firefoxApp: 'Firefox', debuggerPort: undefined, url: undefined });
+    // The owner's durable profile keeps its fixed port by naming it.
+    expect(parseDevOptions(['--debugger-port', String(OWNER_PROFILE_DEBUGGER_PORT)], {}).debuggerPort).toBe(6111);
   });
 
   it('reads the flags', () => {
@@ -35,7 +37,7 @@ describe('parseDevOptions', () => {
   it('takes the port from CG_DEV_DEBUGGER_PORT, and the flag over it', () => {
     expect(parseDevOptions([], { CG_DEV_DEBUGGER_PORT: ' 6333 ' }).debuggerPort).toBe(6333);
     expect(parseDevOptions(['--debugger-port', '6444'], { CG_DEV_DEBUGGER_PORT: '6333' }).debuggerPort).toBe(6444);
-    expect(parseDevOptions([], { CG_DEV_DEBUGGER_PORT: '  ' }).debuggerPort).toBe(DEFAULT_DEBUGGER_PORT);
+    expect(parseDevOptions([], { CG_DEV_DEBUGGER_PORT: '  ' }).debuggerPort).toBeUndefined();
   });
 
   it('refuses what is not a port', () => {

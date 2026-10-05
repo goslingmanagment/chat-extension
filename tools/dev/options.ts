@@ -4,12 +4,10 @@
 import { parseArgs } from 'node:util';
 
 /**
- * The debugger port of the dev Firefox on macOS. Not Firefox's own default
- * (6000, also the X11 port): a port that answers is taken for our dev Firefox
- * and gets the test build installed, so it must not be one another Firefox is
- * likely to listen on.
+ * The port every profile shared before each got its own (profile.ts `devDebuggerPort`). It stays the fixed port
+ * of the owner's durable profile, passed explicitly (README «Живые проверки»); nothing defaults to it any more.
  */
-export const DEFAULT_DEBUGGER_PORT = 6111;
+export const OWNER_PROFILE_DEBUGGER_PORT = 6111;
 export const DEBUGGER_PORT_ENV = 'CG_DEV_DEBUGGER_PORT';
 /** What `open -a` gets: an application name or a path to an .app. */
 export const DEFAULT_FIREFOX_APP = 'Firefox';
@@ -21,19 +19,15 @@ export interface DevOptions {
   readonly firefoxBinary: string | undefined;
   /** macOS: `--firefox-app <name-or-path>`. */
   readonly firefoxApp: string;
-  /** macOS: `--debugger-port <n>`, else CG_DEV_DEBUGGER_PORT, else the default. */
-  readonly debuggerPort: number;
+  /** macOS: `--debugger-port <n>`, else CG_DEV_DEBUGGER_PORT; undefined — the port derived from the profile (profile.ts). */
+  readonly debuggerPort: number | undefined;
   /** macOS: `--url <url>`, the page to open on start. None by default: the launcher never opens the live site itself. */
   readonly url: string | undefined;
 }
 
 export type DevRunner = 'launch-services' | 'web-ext';
 
-/**
- * macOS never gets a child Firefox: starting the Firefox binary from an
- * agent's shell breaks the machine's Orca Computer Use accessibility
- * permission system-wide (launch-macos.ts).
- */
+/** macOS never gets a child Firefox (launch-macos.ts; AGENTS.md «Commands»). */
 export const devRunner = (platform: string): DevRunner => (platform === 'darwin' ? 'launch-services' : 'web-ext');
 
 export function parseDebuggerPort(raw: string, source: string): number {
@@ -60,7 +54,7 @@ export function parseDevOptions(argv: readonly string[], env: Readonly<Record<st
 
   const portFlag = values['debugger-port'];
   const portEnv = env[DEBUGGER_PORT_ENV]?.trim();
-  let debuggerPort = DEFAULT_DEBUGGER_PORT;
+  let debuggerPort: number | undefined;
   if (portFlag !== undefined) debuggerPort = parseDebuggerPort(portFlag, '--debugger-port');
   else if (portEnv !== undefined && portEnv !== '') debuggerPort = parseDebuggerPort(portEnv, DEBUGGER_PORT_ENV);
 

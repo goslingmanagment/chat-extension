@@ -4,7 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEV_PREFS, ensureDevPrefs, prefLine, USER_JS, withDevPrefs } from './prefs.ts';
+import { DEV_PREFS, devPrefsOf, ensureDevPrefs, prefLine, USER_JS, withDevPrefs } from './prefs.ts';
+import { PROFILE_MARKER_PREF, profileMarker } from './profile.ts';
 
 const ALL_FIVE = [
   'user_pref("devtools.debugger.remote-enabled", true);',
@@ -85,8 +86,33 @@ describe('withDevPrefs', () => {
   });
 });
 
+describe('the marker that names the profile', () => {
+  const dir = '/Users/u/Профили dev/cg (1)';
+  const line = `user_pref("${PROFILE_MARKER_PREF}", "${profileMarker(dir)}");`;
+
+  it('is one more line of user.js: the profile’s absolute path, percent-encoded, in double quotes', () => {
+    expect(devPrefsOf(dir)).toEqual([...DEV_PREFS, [PROFILE_MARKER_PREF, profileMarker(dir)]]);
+    expect(withDevPrefs('', devPrefsOf(dir))).toBe(`${ALL_FIVE}${line}\n`);
+    expect(line).toBe('user_pref("chatgoose.dev.profile", "/Users/u/%D0%9F%D1%80%D0%BE%D1%84%D0%B8%D0%BB%D0%B8%20dev/cg%20(1)");');
+  });
+
+  it('a profile directory that was moved or copied gets its own path: the old marker is rewritten in place, once', () => {
+    const copied = `${ALL_FIVE}user_pref("${PROFILE_MARKER_PREF}", "/somewhere/else (old)"); // copied with the profile\nuser_pref("a.b", 1);\n`;
+    const result = withDevPrefs(copied, devPrefsOf(dir));
+    expect(result).toBe(`${ALL_FIVE}${line}\nuser_pref("a.b", 1);\n`);
+    expect(withDevPrefs(result, devPrefsOf(dir))).toBe(result);
+    expect(count(result, PROFILE_MARKER_PREF)).toBe(1);
+  });
+
+  it('spells a string value so that user.js reads it back: quotes and backslashes escaped, non-ASCII as \\uXXXX', () => {
+    expect(prefLine('x.y', 'a "b" \\ ё')).toBe('user_pref("x.y", "a \\"b\\" \\\\ \\u0451");');
+    expect(prefLine('x.y', true)).toBe('user_pref("x.y", true);');
+  });
+});
+
 describe('ensureDevPrefs', () => {
   let root = '';
+  const marked = (profile: string): string => `${ALL_FIVE}user_pref("${PROFILE_MARKER_PREF}", "${profileMarker(profile)}");\n`;
 
   afterEach(() => {
     if (root) rmSync(root, { recursive: true, force: true });
@@ -96,7 +122,7 @@ describe('ensureDevPrefs', () => {
     root = mkdtempSync(join(tmpdir(), 'cg-dev-prefs-'));
     const profile = join(root, 'nested', 'profile');
     expect(ensureDevPrefs(profile)).toBe('created');
-    expect(readFileSync(join(profile, USER_JS), 'utf8')).toBe(ALL_FIVE);
+    expect(readFileSync(join(profile, USER_JS), 'utf8')).toBe(marked(profile));
     expect(ensureDevPrefs(profile)).toBe('unchanged');
   });
 
@@ -107,7 +133,7 @@ describe('ensureDevPrefs', () => {
     expect(ensureDevPrefs(root)).toBe('updated');
     const text = readFileSync(join(root, USER_JS), 'utf8');
     expect(text.startsWith('user_pref("browser.startup.page", 0);\nuser_pref("devtools.debugger.prompt-connection", false);\n')).toBe(true);
-    for (const [name, value] of DEV_PREFS) expect(count(text, prefLine(name, value))).toBe(1);
+    for (const [name, value] of devPrefsOf(root)) expect(count(text, prefLine(name, value))).toBe(1);
     expect(readFileSync(join(root, 'prefs.js'), 'utf8')).toBe('// Firefox owns this file\n');
     expect(ensureDevPrefs(root)).toBe('unchanged');
     expect(existsSync(join(root, 'nested'))).toBe(false);
