@@ -48,7 +48,9 @@ if ! docker info --format '{{json .SecurityOptions}}' | grep -q rootless; then
   chown_to="$(id -u):$(id -g)"
 fi
 
-docker pull --quiet "$CG_E2E_IMAGE"
+# A digest names the image exactly, so one that is already here needs no word
+# from the registry: a run on the PC does not depend on Docker Hub being up.
+docker image inspect "$CG_E2E_IMAGE" > /dev/null 2>&1 || docker pull --quiet "$CG_E2E_IMAGE"
 # A tag of our own: the runners' daily clean-up keeps tagged images.
 docker tag "$CG_E2E_IMAGE" "cg-e2e-firefox:${CG_E2E_IMAGE##*sha256:}"
 

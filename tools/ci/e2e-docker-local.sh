@@ -50,7 +50,7 @@ echo "e2e-docker-local: step 1 — Linux install in the volume $volume ($node_im
   '
 
 echo "e2e-docker-local: step 2 — the run, no network"
-docker pull --quiet "$CG_E2E_IMAGE"
+docker image inspect "$CG_E2E_IMAGE" > /dev/null 2>&1 || docker pull --quiet "$CG_E2E_IMAGE"
 exec docker run --rm --init --network none --shm-size 2g --user 0:0 \
   --workdir /sim/work --mount "type=volume,source=$volume,target=/sim" \
   --env CG_NODE_BIN=/sim/node/bin --env CG_PNPM_BIN=/sim/pnpm/bin --env CG_NODE_LIBS=/sim/node-libs \
