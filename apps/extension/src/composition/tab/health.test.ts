@@ -125,4 +125,48 @@ describe('client_health of a tab', () => {
     w.health.dispose();
     expect(w.cleared()).toBe(1);
   });
+
+  it('a contract change that arrives while a report is on its way is not dropped: the newest contract goes out as soon as that one lands — once, however many changes came', async () => {
+    let contract = { build: 'index-Synthetic1', checkedAt: 1 } as unknown as HostContractReport;
+    const sent: TabHealthReport[] = [];
+    const landing: (() => void)[] = [];
+    const health = startTabHealth({
+      // The background answers when the test lets it: the report is «in flight» until then.
+      send(report) {
+        sent.push(report);
+        return new Promise((resolve) => landing.push(() => resolve(true)));
+      },
+      contract: () => contract,
+      domNodes: () => 0,
+      now: () => 1_700_000_000_000,
+      perfNow: () => 0,
+      setInterval: () => 1,
+      clearInterval: () => undefined,
+    });
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    };
+    // ChatSpace loads: the contract is reported, and changes twice more before the background has answered.
+    health.report(true);
+    contract = { build: 'index-Synthetic1', checkedAt: 2 } as unknown as HostContractReport;
+    health.report(true);
+    contract = { build: 'index-Synthetic1', checkedAt: 3 } as unknown as HostContractReport;
+    health.report(true);
+    await settle();
+    expect(sent.map((report) => (report.host as unknown as { checkedAt: number }).checkedAt)).toEqual([1]);
+    // The first one lands: the contract as it is NOW follows at once — not a minute later, and not twice.
+    landing.shift()?.();
+    await settle();
+    expect(sent.map((report) => (report.host as unknown as { checkedAt: number }).checkedAt)).toEqual([1, 3]);
+    landing.shift()?.();
+    await settle();
+    expect(sent).toHaveLength(2);
+    // A minute tick with nothing to say during a flight asks for nothing afterwards.
+    health.report(true);
+    health.report();
+    landing.shift()?.();
+    await settle();
+    expect(sent).toHaveLength(3);
+    health.dispose();
+  });
 });
