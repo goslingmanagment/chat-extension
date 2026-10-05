@@ -75,6 +75,8 @@ interface QueueEntry {
   loading: boolean;
   error: CgErrorWire | null;
   run: number;
+  /** This walk already started over once because the hub no longer took its cursor: a second refusal is an error, not a loop. */
+  cursorRestarted?: boolean;
 }
 
 export interface SpendersControllerDeps {
@@ -402,12 +404,15 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     changed();
   }
 
-  /** One page of «ждут ответа»: the first (a new walk) or the one behind the cursor. */
-  async function loadQueue(restart: boolean): Promise<void> {
+  /**
+   * One page of «ждут ответа»: the first (a new walk) or the one behind the cursor. `afterCursorRefusal` — the walk
+   * starts over because the hub refused its cursor: that happens once per walk.
+   */
+  async function loadQueue(restart: boolean, afterCursorRefusal = false): Promise<void> {
     const id = pageId();
     if (id === null || !usable('stats')) return;
     if (queue.loading && !restart) return;
-    if (restart) queue = { state: EMPTY_QUEUE, loading: false, error: null, run: queue.run };
+    if (restart) queue = { state: EMPTY_QUEUE, loading: false, error: null, run: queue.run, cursorRestarted: afterCursorRefusal };
     const cursor = restart ? null : queue.state.nextCursor;
     if (!restart && cursor === null) return;
     const atEpoch = epoch;
@@ -421,6 +426,11 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       const page: QueuePage = answer.payload;
       queue.state = appendQueuePage(queue.state, cursor, page);
       queue.error = null;
+    } else if (cursor !== null && answer.error.code === 'CG-HUB-REQUEST' && queue.cursorRestarted !== true) {
+      // The hub no longer takes the cursor (400 `bad_request` · `cursor_invalid`: the queue was rebuilt under the walk).
+      // Nothing is wrong with the list itself: the walk starts over from the first page — once. A second refusal
+      // of the same walk is an error like any other, never a loop of requests.
+      return loadQueue(true, true);
     } else queue.error = answer.error;
     changed('board');
   }

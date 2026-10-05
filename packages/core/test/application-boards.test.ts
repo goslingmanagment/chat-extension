@@ -597,6 +597,52 @@ describe('[SP-006] [SP-018] [SP-019] [SP-020] [SP-021] period, search, filters, 
     expect(cursors[1]).not.toBeNull();
     expect(cursors[2]).not.toBe(cursors[1]);
   });
+  it('[SP-047] a cursor the hub no longer takes (400 `cursor_invalid`) starts the walk over from the first page — once: no error card for it, and no loop of requests when the hub refuses again', async () => {
+    const refused = { code: 'CG-HUB-REQUEST', detail: 'HTTP 400 • bad_request/cursor_invalid' } as const;
+    const cursorsOf = (h: Harness): (string | null)[] => h.bg.requests.filter((r) => r.type === 'spenders.queue').map((r) => (r.payload as { cursor: string | null }).cursor);
+    const h = await harness({ queuePageSize: 2 });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    expect(h.boards.spenders.getSnapshot(BOARD).footer).toMatchObject({ loaded: 2, total: 5 });
+
+    // The queue was rebuilt under the walk: the second page's cursor is refused.
+    h.bg.failNext('spenders.queue', refused);
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    let vm = h.boards.spenders.getSnapshot(BOARD);
+    // One more request, without a cursor: the first page again — and the list is a list, not an error.
+    expect(cursorsOf(h).map((cursor) => cursor === null)).toEqual([true, false, true]);
+    expect(vm.view.s).not.toBe('error');
+    expect(vm.footer).toMatchObject({ loaded: 2, total: 5, shown: 2 });
+    expect(vm.canLoadMore).toBe(true);
+    // The new walk goes on from its own cursor.
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    expect(h.boards.spenders.getSnapshot(BOARD).footer).toMatchObject({ loaded: 4, total: 5 });
+    expect(cursorsOf(h)).toHaveLength(4);
+
+    // Refused again in the same walk: the queue's own failure now (the board falls back to its own rows, as for
+    // any failed queue read) — nothing is asked a third time by itself.
+    h.bg.failNext('spenders.queue', refused);
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    await h.advance(60_000);
+    expect(cursorsOf(h)).toHaveLength(5);
+    vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(vm.canLoadMore).toBe(false);
+    expect(vm.footer.total).not.toBe(5);
+
+    // A refusal of the FIRST page is not a cursor's: an error at once, no restart.
+    const first = await harness({ queuePageSize: 2 });
+    await first.dispatch(open('spenders'));
+    first.bg.failNext('spenders.queue', refused);
+    await first.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    expect(cursorsOf(first)).toEqual([null]);
+    // Any other failure of a later page keeps its own error, without a restart either.
+    const offline = await harness({ queuePageSize: 2 });
+    await offline.dispatch(open('spenders'));
+    await offline.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    offline.bg.failNext('spenders.queue', { code: 'CG-HUB-UNAVAILABLE' });
+    await offline.dispatch({ type: 'LoadMore', list: 'spenders' });
+    expect(cursorsOf(offline).map((cursor) => cursor === null)).toEqual([true, false]);
+  });
 });
 
 describe('[SP-044] [SP-049] statistics come after the ranking and fail on their own', () => {
