@@ -36,8 +36,9 @@ html, body { margin: 0; padding: 0; background: var(--cg-surface); }
    left is cut only once the title is down to its 30 %, so neither is ever squeezed out and the row never grows. */
 .pg-popup__line--fit > b { flex: 0 1 auto; }
 .pg-popup__line--fit > .pg-popup__aside { flex: 0 1000 auto; min-width: 30%; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-.pg-popup__under { margin-top: 1px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-.pg-popup__under .pg-pagetag { font-size: inherit; overflow-wrap: normal; }
+.pg-popup__under { margin-top: 1px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); text-align: right; }
+/* The tag is its own box of the row's width: a long label ends in «…» inside it and never reaches past the popup. */
+.pg-popup__under .pg-pagetag { display: block; font-size: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .pg-popup__copy { font: inherit; color: inherit; border-radius: var(--cg-r-sm); }
 .pg-popup__copy:hover { color: var(--cg-ink-strong); text-decoration: underline; text-decoration-color: var(--cg-rule-3); text-underline-offset: 2px; }
 .pg-popup__err { font-size: var(--cg-text-sm); color: var(--cg-ink-2); }

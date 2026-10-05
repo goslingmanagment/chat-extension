@@ -745,7 +745,7 @@ describe('options: the sections', () => {
     // The row is the one that fits: the styles cut both sides instead of letting the row grow (the widths are the e2e's to measure).
     expect(line?.className).toBe('pg-popup__line pg-popup__line--fit');
     expect(PAGES_CSS).toMatch(/\.pg-popup__line--fit > \.pg-popup__aside \{[^}]*min-width: 30%;[^}]*text-overflow: ellipsis;/);
-    expect(PAGES_CSS).toMatch(/\.pg-popup__under \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
+    expect(PAGES_CSS).toMatch(/\.pg-popup__under \.pg-pagetag \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
   });
 
   it('[ST-069] [ST-070] [ST-076] accounts: the number is copied, the label is typed, «К вкладке» goes to ChatSpace', async () => {

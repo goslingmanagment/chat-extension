@@ -149,7 +149,7 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design Â
           line: box('.pg-popup__line--fit'),
           name: box('.pg-popup__line--fit > b'),
           aside: box('.pg-popup__line--fit > .pg-popup__aside'),
-          under: box('.pg-popup__under'),
+          under: box('.pg-popup__under .pg-pagetag'),
         };
       });
       expect(boxes.popup?.width).toBe(360);
@@ -177,7 +177,7 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design Â
     await capture('pages-popup-same-title-light');
     expectHealthy(await probe(), 'light');
     const fits = await browser.execute(() =>
-      ['.pg-popup__line--fit > b', '.pg-popup__line--fit > .pg-popup__aside', '.pg-popup__under'].map((selector) => {
+      ['.pg-popup__line--fit > b', '.pg-popup__line--fit > .pg-popup__aside', '.pg-popup__under .pg-pagetag'].map((selector) => {
         const node = document.querySelector<HTMLElement>(selector);
         return node === null ? null : { text: (node.textContent ?? '').trim(), cut: node.scrollWidth > node.clientWidth, top: node.getBoundingClientRect().top };
       }),
