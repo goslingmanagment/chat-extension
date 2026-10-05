@@ -16,7 +16,7 @@
 
 import { type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { type HostAccount, type HostKind } from '@cg/contracts/ids';
-import { pageFlagState, starFlag } from '@cg/core/domain/ops';
+import { flagUsable, pageFlagState, starFlag } from '@cg/core/domain/ops';
 
 /** How the hub layer resolved an account (`ChatExtensionHub.resolveBinding`), as far as this rule reads it. */
 export type AccountBinding =
@@ -57,4 +57,15 @@ export function createAccountSwitch(deps: AccountSwitchDeps): AccountSwitch {
  */
 export function incomingFactUsable(fact: { readonly source: string; readonly host: HostKind; readonly hostAccountId: string }, accountSwitch: AccountSwitch): boolean {
   return fact.source !== 'ws-tap' || accountSwitch(fact.host, fact.hostAccountId, 'wsTap') !== false;
+}
+
+/**
+ * Whether a human send of an operation's part may be taken for known (`op.reportSent`: the hub's registration of
+ * a greeting, telemetry `sent`). It is ChatSpace's socket that tells it, and the socket of a page may be listened
+ * to only where the page's own `wsTap` is usable — the tab's tap is one for all its accounts, on while any page
+ * has it. No operation (forgotten by now) or no bootstrap: there is no page to ask, and the report is taken as
+ * before — its own checks follow.
+ */
+export function humanSendObservable(view: { readonly target: { readonly binding: { readonly pageId: number } } } | null, bootstrap: Bootstrap | null): boolean {
+  return view === null || bootstrap === null || flagUsable(bootstrap, view.target.binding.pageId, 'wsTap');
 }

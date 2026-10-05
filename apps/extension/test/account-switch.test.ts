@@ -8,7 +8,7 @@ import { resolveBinding } from '@cg/hub';
 import { BOOTSTRAP_PILOT_PAGES, WORLD, pageFeaturesOff } from '@cg/testing/hub';
 import { describe, expect, it } from 'vitest';
 
-import { createAccountSwitch, incomingFactUsable } from '../src/composition/background/account-switch.ts';
+import { createAccountSwitch, humanSendObservable, incomingFactUsable } from '../src/composition/background/account-switch.ts';
 
 const session: SessionIdentity = { hubOrigin: WORLD.hubOrigin, userId: WORLD.user.userId, login: WORLD.user.username, role: 'chatter', epoch: 1 };
 const accountOf = (hostAccountId: string, platformAccountId: string | null): HostAccount => ({ host: 'chatspace', hostAccountId, platform: 'onlyfans', platformAccountId, username: null, displayName: null });
@@ -85,5 +85,21 @@ describe('whose WS-tap facts are ours to use', () => {
 
   it('signed out there is no switch to ask: the fact is used (the message sound needs no hub)', () => {
     expect(incomingFactUsable(fact(ONE, 'ws-tap'), switchOver(null))).toBe(true);
+  });
+});
+
+describe('whose human sends are ours to know (`op.reportSent`)', () => {
+  const viewOn = (pageId: number) => ({ target: { binding: { pageId } } });
+
+  it('a send of an operation is recorded only where the PAGE of the operation has `wsTap`: another page’s tap vouches for nothing', () => {
+    expect(humanSendObservable(viewOn(WORLD.pages.one.pageId), ONE_OFF)).toBe(false);
+    expect(humanSendObservable(viewOn(WORLD.pages.vip.pageId), ONE_OFF)).toBe(true);
+    // A page the bootstrap does not list has no tap to listen to.
+    expect(humanSendObservable(viewOn(404), ONE_OFF)).toBe(false);
+  });
+
+  it('no operation (forgotten by now) or no bootstrap: there is no page to ask — the report goes to its own checks as before', () => {
+    expect(humanSendObservable(null, ONE_OFF)).toBe(true);
+    expect(humanSendObservable(viewOn(WORLD.pages.one.pageId), null)).toBe(true);
   });
 });

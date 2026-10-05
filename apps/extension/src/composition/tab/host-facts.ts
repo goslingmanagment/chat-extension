@@ -18,8 +18,11 @@
 //   the adapter's part B (the tap, X8, the AI mark), and its limit sets the
 //   deadline of «Открыть и вставить». The adapter serves every account of
 //   the tab, so each part is on while the switch is usable on at least one
-//   granted page; the page's own value is applied where the page is known —
-//   the background per fact (the tap), the preview per send (X8, the mark).
+//   granted page — its capability report says «the tap is on in this tab»,
+//   not «on for this page». The page's own value is applied wherever what
+//   the tap heard is USED: the background per incoming fact (the sound, the
+//   stale mark) and per reported human send (`op.reportSent`: the page of
+//   the operation), the preview per send (X8 and its freshness, the mark).
 //
 // Facts only: ids, digests, booleans. Never a message text.
 

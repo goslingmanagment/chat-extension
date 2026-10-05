@@ -477,6 +477,48 @@ describe('a human send of a part that came from a board (§6.6, H-7)', () => {
   });
 });
 
+describe('a human send on a page whose WS tap is off (§6.6, §6.8)', () => {
+  it('[NF-019] `op.reportSent` is not taken for known where the operation’s page has `wsTap` off: nothing is registered at the hub, nothing reported; switched on, the same report is', async () => {
+    const w = world();
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+    const binding = await bindingOf(tab);
+    const FAN = WORLD.newFan;
+    const token = await tab.client.request('token.issue', { kind: 'generate', surface: 'newcomers' });
+    const opId = admitted(
+      await tab.client.request('op.start', {
+        feature: 'hi',
+        surface: 'newcomers',
+        target: { binding, chat: { ...chat, platformFanId: FAN }, fanRef: FAN, conversationRef: FAN },
+        cause: { kind: 'click', actionToken: token.ok ? token.payload.actionToken : '' },
+        tone: null,
+        split: false,
+        window: 100,
+        variantCount: 1,
+      }),
+    );
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.state === 'done', 'the greeting is ready');
+    const setTap = async (on: boolean): Promise<void> => {
+      w.hub.control({ op: 'config', patch: { pageFlags: { [PAGE]: { wsTap: on } } } });
+      expect(await w.page().request('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+    };
+    const report = { opId, part: { variant: 0, index: 0 }, pendingId: 'pending-1', platformMessageId: '4100', edited: false };
+
+    // The owner left the tap off for this page: the tab's one tap (on for another page) is not this page's to use.
+    await setTap(false);
+    expect(await tab.client.request('op.reportSent', report)).toEqual({ ok: true, payload: { recorded: false } });
+    await sleep(150);
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim')).toHaveLength(0);
+    expect(w.fake.areas.local.get(NATIVE_SENDS_KEY)).toBeUndefined();
+
+    await setTap(true);
+    expect(await tab.client.request('op.reportSent', report)).toMatchObject({ ok: true });
+    await until(() => callsTo(w.hub.read().entries, 'clientFanClaim').length === 1, 'the hub heard of the send');
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim')[0]).toMatchObject({ status: 200, request: { fanRef: FAN, body: { action: 'registerNativeSend', platformMessageId: '4100' } } });
+  });
+});
+
 describe('a hand-sent greeting whose registration the hub did not hear (§8.5, X5: no second greeting)', () => {
   it('[NF-019] a hub outage and an event-page restart do not lose it: the registration is journaled, and the next instance delivers it with the same attempt id', async () => {
     const w = world();

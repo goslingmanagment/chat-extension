@@ -862,6 +862,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (route.chat !== null && chatKeyOf(route.chat) === chatKeyOf(track.target.chat)) return refusal('CG-SEND-ACTIVE-CHAT');
     if (!subscribed(track)) return refusal('CG-SEND-FAN');
     if (track.feature === 'fix' && draftRevision(track) !== track.previewRevision) return refusal('CG-SEND-PART');
+    // Freshness is the WS tap's (§6.7.5), and the tap is the page's own switch: the adapter keeps one tap for the
+    // whole tab (on while any page has it), so a page whose `wsTap` is off must not be vouched for by another's.
+    if (!pageFlag(ctx, 'wsTap')) return refusal('CG-SEND-FRESHNESS');
     if (track.checkpoint === null) return refusal('CG-SEND-FRESHNESS');
     if (track.fanWrote || view.stale?.reason === 'fan-wrote') return refusal('CG-SEND-STALE');
     const served = servedContextHold(track.checkpoint, view.servedContext);

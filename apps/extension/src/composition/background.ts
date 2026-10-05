@@ -110,7 +110,7 @@ import {
 } from '@cg/platform';
 
 import { CHATSPACE_MATCHES, LOOPBACK_MATCHES } from '../hosts';
-import { createAccountSwitch, incomingFactUsable } from './background/account-switch';
+import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
@@ -906,6 +906,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }) => {
     const view = scheduler.view(opId);
+    // A human send is told by ChatSpace's socket, and whose socket may be listened to is the PAGE's own `wsTap`
+    // (the tab keeps one tap while any page has it). With the switch off on the operation's page the send is not
+    // ours to know: nothing is registered and no `sent` is reported — as on a tab that has no tap at all.
+    if (!humanSendObservable(view, hubInstance?.cachedBootstrap()?.bootstrap ?? null)) {
+      logger.info('bg.sends', 'human send not recorded: the tap is off for the page', { fields: { pageId: view?.target.binding.pageId ?? null } });
+      return ok({ recorded: false });
+    }
     // §6.6, §8.5: a human send proven by its receipt and echo. For a part of a preview or of a «Новые» card the
     // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub —
     // the registration is journaled and stays owed until the hub answers.

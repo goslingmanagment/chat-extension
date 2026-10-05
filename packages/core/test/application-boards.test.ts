@@ -1455,6 +1455,15 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(partsOf(noCheckpoint.h, 'spenders')[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-FRESHNESS' });
     expect((lastPayload(noCheckpoint.h, 'op.start') as Record<string, unknown>)['checkpoint']).toBeUndefined();
 
+    // The WS tap is the page's own switch, and freshness is the tap's: with `wsTap` off on THIS page nothing of it
+    // may be vouched for — whatever the tab's one tap hears for another page (the host's capability stays on).
+    const noTap = await withReply({ config: { ...X8, pageFlags: { [PAGE.pageLabel]: { wsTap: false } } } });
+    expect(noTap.h.host.current().contract.capabilities.previewSend.state).toBe('on');
+    expect(partsOf(noTap.h, 'spenders')[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-FRESHNESS' });
+    expect(await noTap.h.dispatch({ type: 'SendPart', operationId: noTap.opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-FRESHNESS' });
+    expect(noTap.h.clicks).toEqual([]);
+    expect(partsOf(noTap.h, 'spenders')[0]?.openInsert).toEqual({ s: 'available' });
+
     const noCard = await harness({ config: X8 });
     noCard.bg.failNext('fan.card', { code: 'CG-DATA-UNAVAILABLE' });
     await noCard.dispatch(open('spenders'));
