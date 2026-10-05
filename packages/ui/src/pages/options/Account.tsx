@@ -147,8 +147,9 @@ export function AccountSection({ body, signIn, anchor }: { readonly body: Accoun
           {body.pages.map((page, index) => (
             <li key={index}>
               <b>{page.pageName}</b>
-              <span>
-                {page.platform} · {page.persona ?? i18n.t('settings.account.noPersona')}
+              <span data-pg-page-label={page.pageLabel}>
+                {page.platform}
+                {page.pageLabel === undefined ? '' : ` · ${page.pageLabel}`} · {page.persona ?? i18n.t('settings.account.noPersona')}
               </span>
             </li>
           ))}

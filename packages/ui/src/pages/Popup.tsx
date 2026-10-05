@@ -10,7 +10,7 @@ import { type JSX } from 'preact';
 import { type PopupVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, CodeLine, Dot, ErrorCard, GooseMark, Icon, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
-import { PageLayers, useAct, usePageServices } from './shared';
+import { PageLayers, PageTag, useAct, usePageServices } from './shared';
 
 function Pill({ label, mark }: { readonly label: string; readonly mark: 'ok' | 'ring' | 'danger' }): JSX.Element {
   // «ChatSpace: подключён» — the state in strong ink after the colon.
@@ -96,7 +96,17 @@ function Rows({ vm }: { readonly vm: PopupVM }): JSX.Element {
         <div class="pg-popup__cap">{i18n.t('popup.persona')}</div>
         <div class="pg-popup__line">
           <b>{persona.s === 'set' ? persona.label : persona.s === 'no-persona' ? i18n.t('popup.personaNone') : i18n.t('popup.notConnected')}</b>
-          {persona.s === 'not-connected' ? null : <span class="pg-popup__aside">{i18n.t('popup.personaFor', { page: persona.pageName })}</span>}
+          {persona.s === 'not-connected' ? null : (
+            <span class="pg-popup__aside">
+              {i18n.t('popup.personaFor', { page: persona.pageName })}
+              {persona.page === undefined ? null : (
+                <>
+                  {' · '}
+                  <PageTag tag={persona.page} />
+                </>
+              )}
+            </span>
+          )}
         </div>
       </div>
       {vm.account === null || signOut === null ? null : (

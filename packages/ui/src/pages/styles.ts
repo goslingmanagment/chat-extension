@@ -120,6 +120,8 @@ ${dark('.pg-nav__a[aria-current="page"]')} { box-shadow: none; }
 .pg-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
 .pg-value { color: var(--cg-ink-strong); font-weight: 500; overflow-wrap: anywhere; min-width: 0; }
 .pg-muted { color: var(--cg-ink-muted); }
+.pg-pagetag { color: var(--cg-ink-muted); font-size: var(--cg-text-sm2); font-weight: 400; overflow-wrap: anywhere; }
+.pg-value > .pg-pagetag { margin-left: 8px; }
 .pg-page .cg-check--14 { color: var(--cg-ink-strong); font-weight: 500; font-size: inherit; }
 .pg-page .cg-check--14[aria-checked="false"] { color: var(--cg-ink-2); }
 .pg-page .cg-check--14[aria-disabled="true"] { color: var(--cg-ink-faint); }

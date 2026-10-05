@@ -226,6 +226,22 @@ export function troubledState(now: number = PAGES_NOW): BackgroundState {
   };
 }
 
+/**
+ * The owner's own hub (1.3.0): several pages of ONE title — «Lora Vie» on OnlyFans twice and on Fansly once —
+ * and one page on a platform this build has no word for. Only the platform and the hub's page label tell them
+ * apart; every list of pages must show both.
+ */
+export function sameTitleState(now: number = PAGES_NOW): BackgroundState {
+  const state = workingState(now);
+  const tags: Readonly<Record<number, { readonly title: string; readonly pageLabel: string; readonly platform: string }>> = {
+    11: { title: 'Lora Vie', pageLabel: 'lora-vip', platform: 'onlyfans' },
+    12: { title: 'Lora Vie', pageLabel: 'lora-free', platform: 'onlyfans' },
+    13: { title: 'Lora Vie', pageLabel: 'lora-fansly', platform: 'fansly' },
+    14: { title: 'Lilly', pageLabel: 'lilly-new', platform: 'somewhere-new' },
+  };
+  return { ...state, bootstrap: { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => ({ ...page, ...tags[page.pageId] })) } };
+}
+
 /** Nobody signed in yet: the first run, with the checklist still on. */
 export function signedOutState(now: number = PAGES_NOW): BackgroundState {
   const state = workingState(now);
