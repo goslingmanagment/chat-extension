@@ -78,6 +78,25 @@ describe('the Telegram announcement', () => {
     expect(half.calls).toHaveLength(1);
   });
 
+  it('a 5xx is indeterminate too — a gateway error can come after the post was taken — and is not retried; a 4xx is a refusal', async () => {
+    // nginx in front of the Bot API: an HTML page, not JSON.
+    const gateway: Reply = { ok: false, status: 502, json: () => Promise.reject(new Error('Unexpected token <')) };
+    const bad = scripted([gateway]);
+    const error = (await sendPost(target, 'x', bad).catch((caught: unknown) => caught)) as AnnounceError;
+    expect(error).toBeInstanceOf(AnnounceError);
+    expect(error.indeterminate).toBe(true);
+    expect(error.message).toBe('server error (HTTP 502 with an unreadable body): the send is indeterminate — a 5xx can come after the post was accepted; look at the channel before trying again');
+    expect(bad.calls).toHaveLength(1);
+
+    const internal = scripted([reply(500, { ok: false, error_code: 500, description: 'Internal Server Error' })]);
+    await expect(sendPost(target, 'x', internal)).rejects.toMatchObject({ indeterminate: true });
+    expect(internal.calls).toHaveLength(1);
+
+    // A page of a filtering proxy instead of Telegram's answer: the request never got there.
+    const blocked: Reply = { ok: false, status: 403, json: () => Promise.reject(new Error('Unexpected token <')) };
+    await expect(sendPost(target, 'x', scripted([blocked]))).rejects.toMatchObject({ indeterminate: false, message: 'Telegram error 403: HTTP 403 with an unreadable body' });
+  });
+
   it('the bot token never reaches an error message', async () => {
     const leaky = scripted([new Error(`request to https://api.telegram.org/bot${TOKEN}/sendRichMessage failed`)]);
     const transport = (await sendPost(target, 'x', leaky).catch((caught: unknown) => caught)) as Error;

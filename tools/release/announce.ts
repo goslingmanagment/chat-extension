@@ -6,9 +6,13 @@
 // release.
 //
 // The sender follows the family rule «an indeterminate send is never
-// retried»: any failure after the request left is indeterminate, and only an
-// explicit 429 with a short wait gets one retry. The bot token is part of the
-// request address, so no address and no raw error text reaches the output.
+// retried»: any failure after the request left is indeterminate — a transport
+// error, a 2xx whose body did not come, and every 5xx (a 502 or 504 of a
+// gateway can come after Telegram took the post) — and only an explicit 429
+// with a short wait gets one retry. A 4xx is a refusal: nothing was posted.
+// The bot token is part of the request address, so no address and no raw
+// error text reaches the output. cli.ts remembers each send per version, so a
+// second `announce` of one version asks for `--again`.
 
 import { blocksMarkdown, type ChangelogSection } from './changelog.ts';
 
@@ -87,6 +91,9 @@ async function attempt(target: TelegramTarget, markdown: string, silent: boolean
   const retryAfter = json?.parameters?.retry_after;
   if (json?.error_code === 429 && typeof retryAfter === 'number') return { kind: 'rate-limited', seconds: retryAfter };
   const description = json === null ? `HTTP ${response.status} with an unreadable body` : typeof json.description === 'string' ? json.description : `HTTP ${response.status} without a description`;
+  if (response.status >= 500) {
+    throw new AnnounceError(`server error (${redact(description, target.botToken)}): the send is indeterminate — a 5xx can come after the post was accepted; look at the channel before trying again`, true);
+  }
   const code = typeof json?.error_code === 'number' ? json.error_code : response.status;
   return { kind: 'failed', message: `Telegram error ${code}: ${redact(description, target.botToken)}` };
 }
