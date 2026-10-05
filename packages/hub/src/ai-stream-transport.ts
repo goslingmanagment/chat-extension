@@ -55,8 +55,12 @@ export const SDK_STREAM_CAPABILITIES: readonly AiStreamCapability[] = AI_STREAM_
 export const sdkStreamTransport: AiStreamTransport = {
   capabilities: SDK_STREAM_CAPABILITIES,
   async open(input) {
+    if (input.signal.aborted) return;
     /** The one request of this attempt, seen where it leaves: when it was handed over and what came back. */
     const observed: FetchLike = async (url, init) => {
+      // A call that was cut before this point is never handed to the network — and never said to have been.
+      // (The SDK listens for `abort` only from here on: a signal aborted earlier would not stop its request.)
+      if (input.signal.aborted) throw new DOMException('The stream was cut before its request was sent', 'AbortError');
       input.onRequest?.();
       const response = await input.fetch(url, init);
       input.onAnswer?.(response.status);

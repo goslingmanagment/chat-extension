@@ -489,6 +489,153 @@ describe('[AI-141] where a request stands is said, never guessed: sent, answered
   });
 });
 
+describe('[AI-141] [HB-011] a generation never waits silently for a bootstrap refresh', () => {
+  // The first live check: Fix and Hi ended with CG-HUB-TIMEOUT after 30 s and the hub had seen no request of
+  // theirs — the stream was waiting for a bootstrap refresh that hung on the network path, and said nothing.
+  const reply: HubStreamRequest = { feature: 'fast-reply', body: streamBody({ replyTone: 'casual' }), capabilities: [] };
+  const lines = (prefix: string) => h.logs.lines.filter((line) => line.message.startsWith(prefix));
+  const TTL_MS = BOOTSTRAP_PILOT_ON.ttlSec * 1000;
+  const facts = { route: 'aiFeatureStream', feature: 'fast-reply', epoch: 1 };
+  const answered = () => sse([meta('fast-reply'), { type: 'content_delta', text: 'ok' }, { type: 'done', stopReason: null }].map(sseFrame).join(''));
+
+  beforeEach(async () => {
+    await signIn(h, WORLD_PILOT);
+    await flush(20);
+    h.hub.on('aiFeatureStream', answered);
+  });
+
+  it('[AI-141] the bootstrap ran out a moment ago and its refresh hangs: the generation goes out at once on the cached one, and the log says so', async () => {
+    h.hub.on('clientBootstrap', () => 'hang');
+    await vi.advanceTimersByTimeAsync(TTL_MS + 200); // expired; the refresh of its ttl is in flight and never answers
+    expect(h.facade.cachedBootstrap()?.fresh).toBe(false);
+    const reads = h.hub.of('clientBootstrap').length;
+    const result = await run(h, reply, undefined, { advance: 0 });
+    expect(result.error).toBeNull();
+    expect(result.frames.map((frame) => frame.type)).toEqual(['meta', 'content_delta', 'done']);
+    expect(h.hub.of('aiFeatureStream')).toHaveLength(1);
+    expect(lines('hub: stream served from a just-expired bootstrap')).toEqual([
+      { level: 'info', message: 'hub: stream served from a just-expired bootstrap', fields: { ...facts, expiredMs: 200, refresh: 'running' } },
+    ]);
+    expect(lines('hub: stream waits')).toEqual([]);
+    // The refresh already in flight is the only one: a generation does not pile requests onto a slow link.
+    expect(h.hub.of('clientBootstrap')).toHaveLength(reads);
+  });
+
+  it('[AI-141] the refresh failed and waits for its pause: still served from the cached one for 2 × ttl after the expiry — the hub checks every call itself', async () => {
+    h.hub.on('clientBootstrap', () => hubError(503, 'service_unavailable'));
+    await vi.advanceTimersByTimeAsync(TTL_MS + 1_000);
+    expect((await run(h, reply, undefined, { advance: 0 })).error).toBeNull();
+    expect(lines('hub: stream served from a just-expired bootstrap').at(-1)?.fields).toEqual({ ...facts, expiredMs: 1_000, refresh: 'scheduled' });
+    expect(lines('hub: bootstrap refresh failed')[0]).toEqual({
+      level: 'warn',
+      message: 'hub: bootstrap refresh failed',
+      fields: { route: 'clientBootstrap', failures: 1, retryInMs: 5_000, cached: 'expired', epoch: 1 },
+    });
+    // The last moment of the grace: 2 × ttl after the expiry.
+    await vi.advanceTimersByTimeAsync(2 * TTL_MS - 1_000);
+    expect((await run(h, reply, undefined, { advance: 0 })).error).toBeNull();
+    expect(lines('hub: stream served from a just-expired bootstrap').at(-1)?.fields).toMatchObject({ expiredMs: 2 * TTL_MS });
+    expect(h.hub.of('aiFeatureStream')).toHaveLength(2);
+    // What the cached bootstrap does not allow is still refused here, expired or not.
+    expect((await run(h, { ...reply, body: streamBody({ pageLabel: 'not-my-page' }) }, undefined, { advance: 0 })).code).toBe('CG-BINDING-NOT-GRANTED');
+    expect(h.hub.of('aiFeatureStream')).toHaveLength(2);
+  });
+
+  it('[AI-141] expired longer ago than that, the refresh still hanging: the generation waits — only as long as the operation lives — and the log says it waited and that nothing was sent', async () => {
+    h.hub.on('clientBootstrap', () => 'hang');
+    await vi.advanceTimersByTimeAsync(3 * TTL_MS + 1_000);
+    const before = h.logs.lines.length;
+    const controller = new AbortController();
+    const result = h.facade.stream(reply, () => undefined, controller.signal).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(lines('hub: stream waits for a bootstrap refresh')).toEqual([{ level: 'info', message: 'hub: stream waits for a bootstrap refresh', fields: { ...facts, cached: 'expired' } }]);
+    controller.abort(); // the operation's deadline (the scheduler's until-meta), or «Отменить»
+    const error = await result;
+    expect(isHubCallError(error) && { route: error.route, failure: error.failure }).toEqual({ route: 'aiFeatureStream', failure: { kind: 'transport', failure: 'aborted' } });
+    expect(h.logs.lines.slice(before).filter((line) => line.message.startsWith('hub: stream'))).toEqual([
+      { level: 'info', message: 'hub: stream waits for a bootstrap refresh', fields: { ...facts, cached: 'expired' } },
+      { level: 'warn', message: 'hub: stream waited for a bootstrap refresh', fields: { ...facts, waitMs: 10_000, outcome: 'aborted' } },
+      { level: 'warn', message: 'hub: stream aborted before the request was sent', fields: { ...facts, attempt: 1, waitedMs: 10_000 } },
+    ]);
+    // Nothing left for the hub, and nothing says it did.
+    expect(h.hub.of('aiFeatureStream')).toEqual([]);
+    expect(h.notices).toEqual([]);
+    // The refresh lands later: it never revives the operation that was cut.
+    h.hub.on('clientBootstrap', () => json(200, BOOTSTRAP_PILOT_ON));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(h.facade.cachedBootstrap()?.fresh).toBe(true);
+    expect(h.hub.of('aiFeatureStream')).toEqual([]);
+    expect(lines('hub: stream request sent')).toEqual([]);
+  });
+
+  it('[AI-141] the awaited refresh lands in time: the generation goes out, and the log says how long it waited', async () => {
+    h.hub.on('clientBootstrap', () => 'hang');
+    // 901 s in: every refresh so far has timed out and the next retry waits for its pause; the one this
+    // generation starts answers after 4 s.
+    await vi.advanceTimersByTimeAsync(3 * TTL_MS + 1_000);
+    h.hub.on('clientBootstrap', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 4_000));
+      return json(200, { ...BOOTSTRAP_PILOT_ON, issuedAt: new Date(Date.now()).toISOString() });
+    });
+    expect(h.facade.cachedBootstrap()?.fresh).toBe(false);
+    const result = await run(h, reply, undefined, { advance: 4_000 });
+    expect(result.error).toBeNull();
+    expect(lines('hub: stream waited for a bootstrap refresh')).toEqual([{ level: 'warn', message: 'hub: stream waited for a bootstrap refresh', fields: { ...facts, waitMs: 4_000, outcome: 'refreshed' } }]);
+    expect(lines('hub: stream request sent')).toHaveLength(1);
+    expect(h.hub.of('aiFeatureStream')).toHaveLength(1);
+  });
+
+  it('[AI-141] the awaited refresh fails first: its own error ends the generation, with the bootstrap call\'s «slow call» and «call failed» lines next to the wait', async () => {
+    h.hub.on('clientBootstrap', () => 'hang');
+    await vi.advanceTimersByTimeAsync(3 * TTL_MS + 1_000);
+    const before = h.logs.lines.length;
+    const result = await run(h, reply, undefined, { advance: 30_000 });
+    expect(result.code).toBe('CG-HUB-TIMEOUT');
+    expect(isHubCallError(result.error) && result.error.route).toBe('clientBootstrap');
+    const after = h.logs.lines.slice(before);
+    expect(after.map((line) => line.message)).toEqual([
+      'hub: stream waits for a bootstrap refresh',
+      'hub: slow call',
+      'hub: call failed',
+      'hub: bootstrap refresh failed',
+      'hub: stream waited for a bootstrap refresh',
+    ]);
+    expect(after[1]?.fields).toEqual({ route: 'clientBootstrap', ms: 30_000, outcome: 'failed', failure: 'timeout', epoch: 1 });
+    expect(after[2]?.fields).toEqual({ route: 'clientBootstrap', failure: 'timeout', code: 'CG-HUB-TIMEOUT', disposition: 'show', epoch: 1 });
+    expect(after[4]?.fields).toEqual({ ...facts, waitMs: 30_000, outcome: 'failed' });
+    expect(h.hub.of('aiFeatureStream')).toEqual([]);
+    expect(h.notices).toEqual([]);
+  });
+
+  it('[AI-141] an operation that is already cut when its stream is asked for: no request, no «request sent» — through the vendored SDK too, which would not stop it by itself', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const result = await run(h, reply, controller.signal, { advance: 0 });
+    expect(isHubCallError(result.error) && result.error.failure).toEqual({ kind: 'transport', failure: 'aborted' });
+    expect(lines('hub: stream')).toEqual([{ level: 'warn', message: 'hub: stream aborted before the request was sent', fields: { ...facts, attempt: 1, waitedMs: 0 } }]);
+    expect(h.hub.of('aiFeatureStream')).toEqual([]);
+    expect(h.notices).toEqual([]);
+    // The transport by itself: an aborted call is never handed to fetch and never reported as handed over.
+    const fetched = vi.fn<typeof fetch>();
+    const onRequest = vi.fn();
+    await sdkStreamTransport.open({
+      hubOrigin: 'https://hub.example.test',
+      token: 'synthetic',
+      headers: {},
+      fetch: fetched,
+      feature: reply.feature,
+      body: reply.body,
+      capabilities: [],
+      signal: controller.signal,
+      onFrame: () => undefined,
+      onAuthError: () => undefined,
+      onRequest,
+    });
+    expect(fetched).not.toHaveBeenCalled();
+    expect(onRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe('[AU-026] [AU-027] the persona catalog', () => {
   it('[AU-026] metadata only, bound to the sign-in; [AU-027] refreshed every 5 min, at sign-in and on «Проверить связь»', async () => {
     await signIn(h, WORLD_PILOT);

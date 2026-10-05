@@ -1,6 +1,13 @@
 // The AI stream (architecture.md §7, §8.4; AI-140, AI-141, DB-002…, TL-013).
-// - A sensitive action: needs a fresh bootstrap, the page granted, the
-//   feature's flag usable, the persona still in the catalog, minVersion met.
+// - A sensitive action: needs a bootstrap, the page granted, the feature's
+//   flag usable, the persona still in the catalog, minVersion met.
+// - It never waits silently for a bootstrap refresh (the first live check:
+//   Fix and Hi died after 30 s with no stream request at all). A cached
+//   bootstrap that expired no more than 2 × ttlSec ago admits the generation
+//   while its refresh runs — the hub checks every AI call again; an older
+//   one or none is waited for, but only as long as the operation lives, and
+//   the wait is said in the log. Nothing is ever handed to the network for
+//   an operation that was cut meanwhile.
 // - Frames are checked strictly by the contract (after the SDK's own check):
 //   an unknown frame, anything before `meta`, a second `meta`, `context_v1`
 //   after output or not asked for, an unasked `debug_input_v1` — all end the
@@ -35,15 +42,15 @@ import { pageSwitchedOff } from '@cg/core/domain/ops';
 import { KernelApiError } from '@kernel/sdk';
 
 import { type AiStreamTransport } from './ai-stream-transport';
-import { type BootstrapService } from './bootstrap';
+import { type BootstrapEntry, type BootstrapService } from './bootstrap';
 import { belowMinVersion, flagState, pageOf } from './bootstrap-rules';
 import { type CatalogService } from './catalog';
-import { type Connection, type HubContext } from './context';
+import { SLOW_CALL_MS, type Connection, type HubContext } from './context';
 import { featureOfHub, type PromptEchoStore } from './debug-echo';
 import { FacadeCheckError, flagRefused, transportFailure } from './errors';
 import { type FetchLike } from './ports';
 import { type QuotaTracker } from './quota';
-import { callScope, errorFacts, isStructuredHubError } from './wire';
+import { callScope, errorFacts, isStructuredHubError, onAbort } from './wire';
 
 const isAborted = (outcome: AttemptOutcome): boolean => outcome.kind === 'failure' && outcome.failure.kind === 'transport' && outcome.failure.failure === 'aborted';
 
@@ -64,6 +71,11 @@ export type StreamNotice =
 
 /** Hub features each owner flag guards on the stream (§4.12; the hub checks them too for the narrow token). */
 const FEATURE_FLAGS = { 'chat-review': 'review', 'fan-summary': 'recap', 'coach-chat': 'coach' } as const;
+
+/** The operation was cut (its deadline, a cancel) before anything was handed to the network. */
+class CutBeforeRequest extends Error {
+  override readonly name = 'CutBeforeRequest' as const;
+}
 
 type AttemptOutcome =
   | { readonly kind: 'done' }
@@ -99,10 +111,17 @@ export class StreamService {
     const parsed = HubStreamRequestSchema.safeParse(request);
     if (!parsed.success) throw ctx.failure('aiFeatureStream', transportFailure('contract'), connection);
     const checked = parsed.data;
+    const startedMono = ctx.clock.monotonic();
     let pageId: number;
     try {
-      pageId = await this.admit(checked, connection);
+      pageId = await this.admit(checked, connection, signal);
+      // The wait for a bootstrap may have outlived the operation: nothing is handed to the network for it.
+      if (signal.aborted) throw new CutBeforeRequest();
     } catch (error) {
+      if (error instanceof CutBeforeRequest) {
+        ctx.log('warn', 'hub: stream aborted before the request was sent', { route: 'aiFeatureStream', feature: checked.feature, attempt: 1, epoch: connection.epoch, waitedMs: Math.round(ctx.clock.monotonic() - startedMono) });
+        throw ctx.failure('aiFeatureStream', transportFailure('aborted'), connection);
+      }
       // Refused by the hub layer itself, before any request: said in the log with the check, never silently.
       if (error instanceof FacadeCheckError) {
         ctx.log('warn', 'hub: stream refused before the request', { route: 'aiFeatureStream', feature: checked.feature, kind: error.check, code: error.code, reason: error.reason ?? null, epoch: connection.epoch });
@@ -143,10 +162,50 @@ export class StreamService {
     }
   }
 
+  /**
+   * The bootstrap a generation is admitted by. Fresh from the cache: at once. Expired no more than 2 × ttlSec
+   * ago: at once too, while its refresh runs — said in the log. None, or an older one: the refresh is waited
+   * for, raced with the operation's own signal, and the wait is said in the log when it starts and when it ends.
+   */
+  private async bootstrapFor(request: HubStreamRequest, connection: Connection, signal: AbortSignalLike): Promise<BootstrapEntry> {
+    const { ctx, bootstrap } = this.deps;
+    const facts = { route: 'aiFeatureStream', feature: request.feature, epoch: connection.epoch } as const;
+    const recent = bootstrap.recent();
+    if (recent !== null) {
+      if (recent.refresh !== null) ctx.log('info', 'hub: stream served from a just-expired bootstrap', { ...facts, expiredMs: recent.expiredMs, refresh: recent.refresh });
+      return recent.entry;
+    }
+    if (signal.aborted) throw new CutBeforeRequest();
+    const started = ctx.clock.monotonic();
+    const waited = () => Math.round(ctx.clock.monotonic() - started);
+    ctx.log('info', 'hub: stream waits for a bootstrap refresh', { ...facts, cached: bootstrap.cached() === null ? 'none' : 'expired' });
+    const refresh = bootstrap.refresh();
+    let stop: () => void = () => undefined;
+    const cut = new Promise<null>((resolve) => {
+      stop = onAbort(signal, () => resolve(null));
+    });
+    try {
+      const entry = await Promise.race([refresh, cut]);
+      if (entry === null) {
+        // The refresh goes on for whoever asks next; its own failure is its own line.
+        refresh.catch(() => undefined);
+        ctx.log('warn', 'hub: stream waited for a bootstrap refresh', { ...facts, waitMs: waited(), outcome: 'aborted' });
+        throw new CutBeforeRequest();
+      }
+      ctx.log(waited() >= SLOW_CALL_MS ? 'warn' : 'info', 'hub: stream waited for a bootstrap refresh', { ...facts, waitMs: waited(), outcome: 'refreshed' });
+      return entry;
+    } catch (error) {
+      if (!(error instanceof CutBeforeRequest)) ctx.log('warn', 'hub: stream waited for a bootstrap refresh', { ...facts, waitMs: waited(), outcome: 'failed' });
+      throw error;
+    } finally {
+      stop();
+    }
+  }
+
   /** The sensitive-action gate; the page's id for the quota. */
-  private async admit(request: HubStreamRequest, connection: Connection): Promise<number> {
+  private async admit(request: HubStreamRequest, connection: Connection, signal: AbortSignalLike): Promise<number> {
     const { ctx } = this.deps;
-    const entry = await this.deps.bootstrap.fresh();
+    const entry = await this.bootstrapFor(request, connection, signal);
     const { bootstrap } = entry;
     const refuse = (check: ConstructorParameters<typeof FacadeCheckError>[0], reason?: string) =>
       new FacadeCheckError(check, 'aiFeatureStream', connection.epoch, reason);
@@ -259,6 +318,12 @@ export class StreamService {
           return stop({ kind: 'done' });
       }
     };
+    // Cut already (the operation's deadline or a cancel fell between two steps): nothing is handed to the network.
+    if (scope.signal.aborted) {
+      scope.dispose();
+      ctx.log('warn', 'hub: stream aborted before the request was sent', { ...facts, waitedMs: 0 });
+      return { kind: 'failure', failure: transportFailure('aborted'), framesSeen: false };
+    }
     try {
       await this.deps.transport.open({
         hubOrigin: connection.hubOrigin,
