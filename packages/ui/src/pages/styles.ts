@@ -32,6 +32,12 @@ html, body { margin: 0; padding: 0; background: var(--cg-surface); }
 .pg-popup__line > b, .pg-popup__main { font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .pg-popup__line > b .cg-dot { margin-right: 6px; }
 .pg-popup__aside { flex: none; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; }
+/* A row whose right side is somebody's free text (a page title): it gives way first and ends in «…»; the name on the
+   left is cut only once the title is down to its 30 %, so neither is ever squeezed out and the row never grows. */
+.pg-popup__line--fit > b { flex: 0 1 auto; }
+.pg-popup__line--fit > .pg-popup__aside { flex: 0 1000 auto; min-width: 30%; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.pg-popup__under { margin-top: 1px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.pg-popup__under .pg-pagetag { font-size: inherit; overflow-wrap: normal; }
 .pg-popup__copy { font: inherit; color: inherit; border-radius: var(--cg-r-sm); }
 .pg-popup__copy:hover { color: var(--cg-ink-strong); text-decoration: underline; text-decoration-color: var(--cg-rule-3); text-underline-offset: 2px; }
 .pg-popup__err { font-size: var(--cg-text-sm); color: var(--cg-ink-2); }

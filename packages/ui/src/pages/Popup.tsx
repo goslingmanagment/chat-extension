@@ -10,7 +10,7 @@ import { type JSX } from 'preact';
 import { type PopupVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, CodeLine, Dot, ErrorCard, GooseMark, Icon, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
-import { PageLayers, PageTag, useAct, usePageServices } from './shared';
+import { PageLayers, PageTag, pageTagText, useAct, usePageServices } from './shared';
 
 function Pill({ label, mark }: { readonly label: string; readonly mark: 'ok' | 'ring' | 'danger' }): JSX.Element {
   // «ChatSpace: подключён» — the state in strong ink after the colon.
@@ -94,20 +94,21 @@ function Rows({ vm }: { readonly vm: PopupVM }): JSX.Element {
     <>
       <div class="pg-popup__sec">
         <div class="pg-popup__cap">{i18n.t('popup.persona')}</div>
-        <div class="pg-popup__line">
+        {/* The persona's name is what the row is for: a long page title is cut with «…» and never squeezes it out. */}
+        <div class="pg-popup__line pg-popup__line--fit">
           <b>{persona.s === 'set' ? persona.label : persona.s === 'no-persona' ? i18n.t('popup.personaNone') : i18n.t('popup.notConnected')}</b>
           {persona.s === 'not-connected' ? null : (
-            <span class="pg-popup__aside">
+            <span class="pg-popup__aside" title={i18n.t('popup.personaFor', { page: persona.pageName })}>
               {i18n.t('popup.personaFor', { page: persona.pageName })}
-              {persona.page === undefined ? null : (
-                <>
-                  {' · '}
-                  <PageTag tag={persona.page} />
-                </>
-              )}
             </span>
           )}
         </div>
+        {/* The platform and the hub's page label — what tells pages of one title apart — on a muted line of their own. */}
+        {persona.s === 'not-connected' || persona.page === undefined ? null : (
+          <div class="pg-popup__under" title={pageTagText(persona.page)}>
+            <PageTag tag={persona.page} />
+          </div>
+        )}
       </div>
       {vm.account === null || signOut === null ? null : (
         <div class="pg-popup__sec">

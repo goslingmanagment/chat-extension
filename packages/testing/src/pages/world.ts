@@ -242,6 +242,26 @@ export function sameTitleState(now: number = PAGES_NOW): BackgroundState {
   return { ...state, bootstrap: { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => ({ ...page, ...tags[page.pageId] })) } };
 }
 
+/** What the popup must fit into its 360 px: a persona, a page title and a hub page label that are each longer than a row. */
+export const LONG_TITLE = {
+  persona: 'Лора · VIP · вечерняя смена с длинным названием персоны',
+  title: 'Lora Vie — The Official And Only Page Of Lora With A Very Long Title',
+  pageLabel: 'lora-vie-official-and-only-page-with-a-very-long-hub-label-2026',
+} as const;
+
+/** The same shift on a hub whose page has a long title and a long label, with a persona whose name is long too. */
+export function longTitleState(now: number = PAGES_NOW): BackgroundState {
+  const state = workingState(now);
+  const bound = state.bootstrap.pages[0];
+  if (bound === undefined) return state;
+  const personas = state.catalog.personas.map((persona, index) => (index === 0 ? { ...persona, displayName: LONG_TITLE.persona } : persona));
+  return {
+    ...state,
+    catalog: { ...state.catalog, personas },
+    bootstrap: { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => (page.pageId === bound.pageId ? { ...page, title: LONG_TITLE.title, pageLabel: LONG_TITLE.pageLabel } : page)) },
+  };
+}
+
 /** Nobody signed in yet: the first run, with the checklist still on. */
 export function signedOutState(now: number = PAGES_NOW): BackgroundState {
   const state = workingState(now);

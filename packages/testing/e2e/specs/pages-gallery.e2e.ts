@@ -132,6 +132,65 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
     });
   }
 
+  for (const theme of THEMES) {
+    it(`[PU-007] popup, a long persona name, page title and page label: nothing sticks out of 360 px, and the persona’s name is not squeezed out · ${theme}`, async () => {
+      await open(`page=popup&state=long-title&theme=${theme}`, POPUP);
+      await capture(`pages-popup-long-title-${theme}`);
+      expectHealthy(await probe(), theme);
+      const boxes = await browser.execute(() => {
+        const box = (selector: string): { left: number; right: number; width: number; scrollWidth: number; clientWidth: number } | null => {
+          const node = document.querySelector<HTMLElement>(selector);
+          if (node === null) return null;
+          const rect = node.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, width: rect.width, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth };
+        };
+        return {
+          popup: box('.pg-popup'),
+          line: box('.pg-popup__line--fit'),
+          name: box('.pg-popup__line--fit > b'),
+          aside: box('.pg-popup__line--fit > .pg-popup__aside'),
+          under: box('.pg-popup__under'),
+        };
+      });
+      expect(boxes.popup?.width).toBe(360);
+      const { line, name, aside, under } = boxes;
+      if (line === null || name === null || aside === null || under === null) throw new Error('the persona row is not drawn');
+      // Every piece stays inside the row, and the row inside the popup.
+      for (const piece of [name, aside, under]) {
+        expect(piece.left).toBeGreaterThanOrEqual(line.left - 0.5);
+        expect(piece.right).toBeLessThanOrEqual(line.right + 0.5);
+      }
+      expect(line.right).toBeLessThanOrEqual(360);
+      // The name keeps most of its row; the title keeps its share; each of the three is cut with «…», not dropped.
+      expect(name.width).toBeGreaterThan(line.width * 0.5);
+      expect(aside.width).toBeGreaterThanOrEqual(line.width * 0.3 - 1);
+      for (const piece of [name, aside, under]) expect(piece.scrollWidth).toBeGreaterThan(piece.clientWidth);
+      // The name and the title do not overlap.
+      expect(name.right).toBeLessThanOrEqual(aside.left + 0.5);
+      // What «…» hides is said in full on hover.
+      expect(await browser.execute(() => document.querySelector('.pg-popup__under')?.getAttribute('title'))).toMatch(/^OnlyFans · lora-vie-official-and-only-page-with-a-very-long-hub-label-2026$/);
+    });
+  }
+
+  it('[PU-005] popup, an ordinary shift: a short name and a short title are not cut, and the tag has its own line under them', async () => {
+    await open('page=popup&state=same-title&theme=light', POPUP);
+    await capture('pages-popup-same-title-light');
+    expectHealthy(await probe(), 'light');
+    const fits = await browser.execute(() =>
+      ['.pg-popup__line--fit > b', '.pg-popup__line--fit > .pg-popup__aside', '.pg-popup__under'].map((selector) => {
+        const node = document.querySelector<HTMLElement>(selector);
+        return node === null ? null : { text: (node.textContent ?? '').trim(), cut: node.scrollWidth > node.clientWidth, top: node.getBoundingClientRect().top };
+      }),
+    );
+    expect(fits.map((piece) => [piece?.text, piece?.cut])).toEqual([
+      ['Лора · VIP', false],
+      ['для Lora Vie', false],
+      ['OnlyFans · lora-vip', false],
+    ]);
+    // The tag is under the name's line, not beside it.
+    expect((fits[2]?.top ?? 0) - (fits[0]?.top ?? 0)).toBeGreaterThan(10);
+  });
+
   it('[PU-001] [PU-002] popup: the background does not answer; nobody is signed in', async () => {
     await open('page=popup&state=unreachable&theme=light', POPUP);
     await capture('pages-popup-unreachable-light');
