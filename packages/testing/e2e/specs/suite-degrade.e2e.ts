@@ -26,7 +26,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { callsTo } from '../../src/fake-hub/journal';
 import { suspendBackground } from '../support/background';
 import { bridgeWrites, composerText, EDITOR, MOD, pageJournal, pageJournalMark, PANEL, queueAdds, waitForComposerText } from '../support/chat';
-import { fillSessionStorage, freeSessionStorage, readReport, waitForReport } from '../support/extension';
+import { fillSessionStorage, freeSessionStorage, pageRpc, readReport, waitForReport } from '../support/extension';
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
@@ -79,6 +79,43 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     const healthy = await statusPage();
     expect(healthy.chatspace.level).toBe('ok');
     expect(healthy.popupCodes).not.toContain('CG-HOST-CONTRACT');
+  });
+
+  it('[UI-011] the owner switches ChatGoose off for the page (the master switch): the dock stays, says so in one line, every AI button is dimmed — a click starts nothing and the hub is asked nothing; switched on again, it works', async () => {
+    /** The background reads the owner's switches again (as its 5-minute refresh does); the tab hears `bootstrap.changed`. */
+    const rereadBootstrap = async (): Promise<void> => {
+      await shift.toPages();
+      try {
+        expect(await pageRpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+      } finally {
+        await shift.toStand();
+      }
+    };
+    const hubMark = await hub().mark();
+    await hub().command({ op: 'config', patch: { master: false } });
+    await rereadBootstrap();
+    const off = await dockIs((d) => d.notice !== null, 'the dock says the page is switched off', 20_000);
+    // Not an error state: the dock is `ready`, without a banner of a failure — and nothing of AI can be started.
+    expect(off).toMatchObject({ status: 'ready', mode: 'copy-only', notice: 'CG-FEATURE-DISABLED', banner: null, refusal: null });
+    expect(Object.values(off.actions).some(Boolean)).toBe(false);
+    const said = await oursText('dock');
+    expect(said).toContain('ChatGoose выключен для этой страницы');
+    expect(said).toContain('CG-FEATURE-DISABLED');
+    // A click on a dimmed button: no generation, no refusal card, no request to the hub (it would answer 409).
+    await pressOurs('dock', '.cg-strip button', /^Reply/);
+    await pressOurs('dock', '.cg-strip button', /^Ping/);
+    await browser.pause(700);
+    const still = await dockIs(() => true, 'the dock');
+    expect(still).toMatchObject({ result: null, refusal: null, notice: 'CG-FEATURE-DISABLED' });
+    expect(callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream')).toEqual([]);
+    expect(await oursText('toast')).not.toContain('CG-HUB');
+
+    // The owner switches it on again: the same dock works, without a reload of the tab.
+    await hub().command({ op: 'config', patch: { master: true } });
+    await rereadBootstrap();
+    const on = await dockIs((d) => d.notice === null && d.actions['reply'] === true, 'the dock works again', 20_000);
+    expect(on).toMatchObject({ status: 'ready', mode: 'insert', banner: null });
+    expect(await oursText('dock')).not.toContain('выключен для этой страницы');
   });
 
   it('[RB-008] [ER-049] [DB-031] ChatSpace lost its send queue (the store is gone): the preview send is off with CG-SEND-HOST, the dock still generates and inserts; «Статус» names the anchor, the popup says «контракт частично»', async () => {

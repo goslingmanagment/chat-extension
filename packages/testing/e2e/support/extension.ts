@@ -64,6 +64,8 @@ export interface DockReport {
   /** The label of the hub page the open account is bound to, once a generation could start for it. */
   readonly page: string;
   readonly banner: string | null;
+  /** The code of the status line of a dock that is otherwise ready («ChatGoose выключен для этой страницы»); null — none. */
+  readonly notice: string | null;
   /** Part A of the host contract in one word: `ok`, `degraded`, `broken`. */
   readonly contract: string;
   readonly target: string | null;
