@@ -605,6 +605,14 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await look('panel-01-fan', { check: async () => void (await inWindow('panel', '.cg-fp')) });
       await ours('panel', '.cg-fp__tabs [role="tab"]:last-child').click();
       await waitOursText('panel', 'Hubert, 34', 'the Recap of the fan panel', { timeout: 20_000 });
+      // pilot-readiness §5 п. 12: the Recap tab and the footer speak of one archive in one voice — the hub's copy of
+      // a Recap carries no coverage of its own, and that is not «неполный» over the footer's «архив полный».
+      const footer = await oursText('panel', '.cg-fp__foot');
+      const recapFacts = await oursText('panel', '.cg-fp__kv');
+      facts['fanPanelArchive'] = { footer, recapFacts };
+      expect(footer).toContain('архив полный');
+      expect(recapFacts).toMatch(/Архив\s*полный/);
+      expect(recapFacts).not.toContain('неполный');
       await look('panel-02-fan-recap', { all: false, check: async () => void (await inWindow('panel', '.cg-fp')) });
       await closeAll();
     });

@@ -116,13 +116,21 @@ function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
   );
 }
 
-function recapArchive(i18n: I18n, recap: RecapViewVM): string {
+type Coverage = FanPanelVM['footer']['stamp']['coverage'];
+
+/**
+ * «Архив» of the Recap tab. A Recap that knows what it was built over says so; one that does not (a copy read back
+ * from the hub carries no coverage) is not called «неполный» for a thing nobody measured: it says what the panel's
+ * footer says of the same archive, and «неизвестно» when the panel does not know either.
+ */
+function recapArchive(i18n: I18n, recap: RecapViewVM, panel: Coverage): string {
   if (recap.archiveLag !== null) return recap.archiveLag.messages === null ? i18n.t('fanPanel.recap.archivePartial') : i18n.plural('recap.archiveLag', recap.archiveLag.messages);
-  return i18n.t(recap.stamp.coverage === 'complete' ? 'fanPanel.recap.archiveComplete' : 'fanPanel.recap.archivePartial');
+  const coverage = recap.stamp.coverage === 'unknown' ? panel : recap.stamp.coverage;
+  return i18n.t(coverage === 'complete' ? 'fanPanel.recap.archiveComplete' : coverage === 'partial' ? 'fanPanel.recap.archivePartial' : 'common.unknown');
 }
 
 /** The Recap tab: the shared Recap of the page, fan and persona (D-31), short or full, with its facts. */
-function RecapTab(): JSX.Element {
+function RecapTab({ archive }: { readonly archive: Coverage }): JSX.Element {
   const i18n = useI18n();
   const hints = useHints();
   const dispatch = useDispatch();
@@ -174,7 +182,7 @@ function RecapTab(): JSX.Element {
                 value={recap.saved.s === 'saved' ? i18n.t('fanPanel.recap.hubSaved') : recap.saved.s === 'saving' ? i18n.t('common.saving') : recap.saved.error.title}
               />
             )}
-            <Kv label={i18n.t('fanPanel.recap.archive')} value={recapArchive(i18n, recap)} />
+            <Kv label={i18n.t('fanPanel.recap.archive')} value={recapArchive(i18n, recap, archive)} />
           </dl>
         ) : null}
         <div class="cg-fp__acts">
@@ -254,7 +262,7 @@ export function FanPanel(): JSX.Element {
             </div>
             <div class="cg-fp__body" role="tabpanel" id={`${TABS_ID}-${vm.tab}`} aria-labelledby={`${TABS_ID}-tab-${vm.tab}`} tabIndex={0}>
               {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
-              {vm.tab === 'fan' ? <FanTab vm={vm} /> : <RecapTab />}
+              {vm.tab === 'fan' ? <FanTab vm={vm} /> : <RecapTab archive={vm.footer.stamp.coverage} />}
             </div>
             <div class="cg-fp__foot">
               <span>{vm.footer.stamp.asOf === null ? '' : i18n.t('common.dataAsOfCap', { time: { time: vm.footer.stamp.asOf } })}</span>
