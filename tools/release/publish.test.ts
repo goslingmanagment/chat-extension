@@ -1,6 +1,8 @@
 // The server steps end to end, on this machine: the "server" is a temporary
 // folder (the local transport runs the very scripts ssh would feed to `sh -s`),
-// and a loopback HTTP server serves that folder the way the site is served.
+// and a loopback HTTP server serves that folder the way the site is served —
+// and stands in for the hub: its health document is a file of that folder too.
+// Every address of the target is on 127.0.0.1; nothing here may reach a real one.
 
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
@@ -13,9 +15,9 @@ import { writeZip } from '../lib/zip-write.ts';
 import { releaseTarget, type ReleaseTarget } from './config.ts';
 import { realExec, runSteps, type Step } from './exec.ts';
 import { parseFeed } from './feed.ts';
-import { pagesOnlySteps, publishSteps, realHttp, rollbackSteps, servedFeed, type LocalFile, type PublishInput, type ServerDeps } from './publish.ts';
+import { httpTimeoutSeconds, pagesOnlySteps, publishSteps, realHttp, rollbackSteps, servedFeed, type LocalFile, type PublishInput, type ServerDeps } from './publish.ts';
 import type { ReleaseRecord } from './records.ts';
-import { checkRemoteDir, checkSiteFolder, localTransport, sshTransport } from './remote.ts';
+import { checkRemoteDir, checkSiteFolder, localTransport, replaceScript, sshTransport, type Transport } from './remote.ts';
 import { sha256Hex, SIGNATURE_FILES } from './xpi.ts';
 
 let root = '';
@@ -23,6 +25,7 @@ let server: Server;
 let target: ReleaseTarget;
 let remoteDir = '';
 let nonce = 0;
+const SDK_HASH = 'c'.repeat(64);
 
 const local = (name: string): string => join(root, 'local', name);
 const remote = (name: string): string => join(remoteDir, name);
@@ -56,7 +59,7 @@ function release(version: string, options: { signed?: boolean; salt?: string; pa
     xpi: { file: `chatgoose-chatspace-${version}.xpi`, sha256: sha256Hex(xpi), bytes: xpi.length },
     unsignedXpiSha256: 'a'.repeat(64),
     sourcesSha256: 'b'.repeat(64),
-    vendor: { sdkContractHash: 'c'.repeat(64), sdkSourceCommit: 'e'.repeat(40), hotkeysSha256: 'f'.repeat(64) },
+    vendor: { sdkContractHash: SDK_HASH, sdkSourceCommit: 'e'.repeat(40), hotkeysSha256: 'f'.repeat(64) },
   };
   const recordText = `${JSON.stringify(record, null, 2)}\n`;
   writeFileSync(join(dir, record.xpi.file), xpi);
@@ -95,7 +98,8 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   const port = typeof address === 'object' && address !== null ? address.port : 0;
-  target = releaseTarget({ siteBase: `http://127.0.0.1:${port}/chat-extension/` });
+  target = releaseTarget({ siteBase: `http://127.0.0.1:${port}/chat-extension/`, hubOrigin: `http://127.0.0.1:${port}` });
+  for (const address of [target.siteBase, target.feedBase, target.feedUrl, target.hubOrigin]) expect(address).toMatch(/^http:\/\/127\.0\.0\.1:\d+(\/|$)/);
 });
 
 afterAll(async () => {
@@ -110,7 +114,16 @@ beforeEach(() => {
   remoteDir = join(root, 'www', 'chat-extension');
   mkdirSync(join(root, 'local'), { recursive: true });
   mkdirSync(join(root, 'www'), { recursive: true });
+  hubHealth({ status: 'ok', contractHash: SDK_HASH, compatibleClientSdks: [SDK_HASH] });
 });
+
+/** What the stand-in hub answers at /api/v1/health; null — it is down. */
+function hubHealth(body: unknown): void {
+  rmSync(join(root, 'www', 'api'), { recursive: true, force: true });
+  if (body === null) return;
+  mkdirSync(join(root, 'www', 'api', 'v1'), { recursive: true });
+  writeFileSync(join(root, 'www', 'api', 'v1', 'health'), JSON.stringify(body));
+}
 
 describe('publishing a release', () => {
   it('[UP-001] [UP-006] the first release: the XPI and its record under versioned names, then the feed, then the pages — and each is read back', async () => {
@@ -140,12 +153,79 @@ describe('publishing a release', () => {
     await runSteps(publishSteps(deps(), release('0.1.0')), { dryRun: true, print: (line) => printed.push(line) });
     expect(existsSync(remoteDir)).toBe(false);
     const text = printed.join('\n');
-    expect(text).toContain('[dry-run] 1/8 Check what the feed serves now');
+    expect(text).toContain(`[dry-run] 1/9 Check that the production hub still takes the SDK of this release\n    GET ${target.hubOrigin}/api/v1/health — healthy, and compatibleClientSdks lists ${SDK_HASH}`);
+    expect(text).toContain('[dry-run] 2/9 Check what the feed serves now');
     expect(text).toContain(`$ cp ${local('release-0.1.0/chatgoose-chatspace-0.1.0.xpi')} ${remote('firefox/.chatgoose-chatspace-0.1.0.xpi.upload-')}`);
     expect(text).toContain("$ sh -s <<'SCRIPT'");
     expect(text).toContain(`mv -f '${remote('firefox/.updates.json.upload-')}`);
     expect(text).toContain(`GET ${target.feedUrl} — must serve 0.1.0 → ${target.feedBase}chatgoose-chatspace-0.1.0.xpi`);
     expect(text).toContain(`GET ${target.siteBase}index.html — sha256 `);
+    // What a failed step does about its own uploads is part of the plan.
+    expect(text).toContain('if any of the above fails — remove what this run uploaded:');
+    expect(text).toContain(`rm -f '${remote('firefox/.chatgoose-chatspace-0.1.0.xpi.upload-')}`);
+    expect(text).toContain(`rm -f '${remote('firefox/.updates.json.upload-')}`);
+    expect(text).toContain(`rm -f '${remote('.index.html.upload-')}`);
+  });
+
+  it('[UP-004] the hub is asked again on the day of the publication: one that no longer takes the SDK of the release, or is down, stops it before anything is uploaded', async () => {
+    hubHealth({ status: 'ok', contractHash: 'd'.repeat(64), compatibleClientSdks: ['d'.repeat(64)] });
+    await expect(run(publishSteps(deps(), release('0.1.0')))).rejects.toThrow(/is not in the hub's compatibleClientSdks[\s\S]*Nothing was uploaded: 0\.1\.0 was signed 2026-10-05T11:30:00\.000Z/);
+    expect(existsSync(remoteDir)).toBe(false);
+    hubHealth(null);
+    await expect(run(publishSteps(deps(), release('0.1.0')))).rejects.toThrow(/the hub health answered HTTP 404/);
+    expect(existsSync(remoteDir)).toBe(false);
+  });
+
+  it('a failed upload leaves no temporary file in the served folder: the feed damaged on its way up', async () => {
+    await run(publishSteps(deps(), release('0.1.0')));
+    const local_ = localTransport();
+    const damaging: Transport = { ...local_, upload: (from, to) => (to.includes('updates.json') ? { program: 'sh', args: ['-c', 'echo damaged > "$1"', 'sh', to] } : local_.upload(from, to)) };
+    await expect(run(publishSteps({ ...deps(), transport: damaging }, release('0.1.1')))).rejects.toThrow(/upload damaged/);
+    expect(leftovers()).toEqual([]);
+    // The XPI of 0.1.1 is in place, the feed is where it was: the run can simply be repeated.
+    expect(await servedVersion()).toBe('0.1.0');
+    await run(publishSteps(deps(), release('0.1.1')));
+    expect(await servedVersion()).toBe('0.1.1');
+    expect(leftovers()).toEqual([]);
+  });
+
+  it('… and a page that did not get there: the ones already uploaded are removed, the pages on the server stay whole', async () => {
+    await run(publishSteps(deps(), release('0.1.0', { pages: { 'index.html': 'old index', 'start.html': 'old start', 'site.css': 'old css' } })));
+    const input = release('0.1.1', { pages: { 'index.html': 'new index', 'start.html': 'new start', 'site.css': 'new css' } });
+    rmSync(input.pages[1]?.path ?? '');
+    await expect(run(publishSteps(deps(), input))).rejects.toThrow(/cp .*exited 1/);
+    expect(leftovers()).toEqual([]);
+    expect([remoteText('index.html'), remoteText('start.html'), remoteText('site.css')]).toEqual(['old index', 'old start', 'old css']);
+  });
+
+  it('the server-side script itself removes a damaged upload, also when the connection is gone before the tool can', async () => {
+    mkdirSync(remoteDir, { recursive: true });
+    writeFileSync(remote('.a.upload-x'), 'a');
+    writeFileSync(remote('.b.upload-x'), 'damaged');
+    const script = replaceScript([
+      { tmp: remote('.a.upload-x'), final: remote('a'), sha256: sha256Hex('a') },
+      { tmp: remote('.b.upload-x'), final: remote('b'), sha256: sha256Hex('b') },
+    ]);
+    expect(await realExec({ program: 'sh', args: ['-s'], stdin: script })).toMatchObject({ code: 3 });
+    // Nothing was renamed, nothing temporary is left.
+    expect(readdirSync(remoteDir)).toEqual([]);
+  });
+
+  it('the XPI that cannot be read back stops the run before the feed, and says that running it again is safe', async () => {
+    await run(publishSteps(deps(), release('0.1.0')));
+    const slow: ServerDeps = { ...deps(), http: (url) => (url.endsWith('-0.1.1.xpi') ? Promise.resolve({ status: 0, body: Buffer.alloc(0) }) : realHttp(url)), env: { CG_RELEASE_HTTP_TIMEOUT_S: '300' } };
+    const input = release('0.1.1');
+    await expect(run(publishSteps(slow, input))).rejects.toThrow(/chatgoose-chatspace-0\.1\.1\.xpi: HTTP no answer\nThe feed was not touched[\s\S]*Running the command again is safe[\s\S]*CG_RELEASE_HTTP_TIMEOUT_S=<seconds> \(now 300\)/);
+    expect(await servedVersion()).toBe('0.1.0');
+    await run(publishSteps(deps(), input));
+    expect(await servedVersion()).toBe('0.1.1');
+  });
+
+  it('how long one read may take comes from the environment: whole seconds, 120 unless said', () => {
+    expect(httpTimeoutSeconds({})).toBe(120);
+    expect(httpTimeoutSeconds({ CG_RELEASE_HTTP_TIMEOUT_S: '' })).toBe(120);
+    expect(httpTimeoutSeconds({ CG_RELEASE_HTTP_TIMEOUT_S: '600' })).toBe(600);
+    for (const bad of ['abc', '1.5', '0', '4', '99999', '-30', '60s']) expect(() => httpTimeoutSeconds({ CG_RELEASE_HTTP_TIMEOUT_S: bad }), bad).toThrow(/whole seconds from 5 to 3600/);
   });
 
   it('the next release replaces the feed by one rename and keeps the feed before it', async () => {
@@ -207,6 +287,40 @@ describe('publishing a release', () => {
     expect([remoteText('index.html'), remoteText('start.html'), remoteText('site.css')]).toEqual(['old index', 'new start', 'new css']);
     expect(remoteText('firefox/updates.json')).toBe(feed);
     expect(leftovers()).toEqual([]);
+  });
+});
+
+describe('pages ahead of a release', () => {
+  it('the stylesheet goes up only when the site has none; one that is there draws the released pages and is left as it is', async () => {
+    const dir = local('ahead');
+    mkdirSync(dir, { recursive: true });
+    const said: string[] = [];
+    const ahead = (css: string, start: string): Promise<void> => {
+      const [sheet] = pages({ 'site.css': css }, dir);
+      return run(pagesOnlySteps({ ...deps(), say: (line) => said.push(line) }, pages({ 'start.html': start }, dir), sheet === undefined ? {} : { stylesheetIfAbsent: sheet }));
+    };
+    // The very first publication: no stylesheet on the server yet.
+    await ahead('first css', 'start 1');
+    expect([remoteText('site.css'), remoteText('start.html')]).toEqual(['first css', 'start 1']);
+    // The same stylesheet again: nothing to do, nothing to say.
+    await ahead('first css', 'start 2');
+    expect(said).toEqual([]);
+    // The tree's stylesheet has changed since: the page goes out, the stylesheet does not.
+    await ahead('restyled', 'start 3');
+    expect([remoteText('site.css'), remoteText('start.html')]).toEqual(['first css', 'start 3']);
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/NOT replaced: site\.css on the server differs from the one in the tree/);
+    expect(leftovers()).toEqual([]);
+  });
+
+  it('the plan says in words that the stylesheet is not replaced', async () => {
+    const dir = local('ahead-plan');
+    mkdirSync(dir, { recursive: true });
+    const printed: string[] = [];
+    const [sheet] = pages({ 'site.css': 'css' }, dir);
+    await runSteps(pagesOnlySteps(deps(), pages({ 'start.html': 'start' }, dir), sheet === undefined ? {} : { stylesheetIfAbsent: sheet }), { dryRun: true, print: (line) => printed.push(line) });
+    expect(printed.join('\n')).toContain('[dry-run] 2/4 Put site.css in place only if the site has none yet\n    site.css on the server draws the pages of the released version: one that is there is NOT replaced');
+    expect(existsSync(remoteDir)).toBe(false);
   });
 });
 

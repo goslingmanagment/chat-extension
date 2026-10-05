@@ -105,9 +105,43 @@ export function placeImmutableScript(file: { readonly tmp: string; readonly fina
   ].join('\n');
 }
 
+/** How placeIfAbsentScript says that another file is there and stays. */
+export const KEPT = 'kept as it is';
+
+/**
+ * Puts an uploaded file under its final name only if there is no file there
+ * yet; a file that is there stays as it is, same bytes or other, and the
+ * script says which. For the stylesheet ahead of a release.
+ */
+export function placeIfAbsentScript(file: { readonly tmp: string; readonly final: string; readonly sha256: string }): string {
+  return [
+    'set -eu',
+    'umask 022',
+    SUM,
+    `tmp=${q(file.tmp)}`,
+    `final=${q(file.final)}`,
+    `want=${q(file.sha256)}`,
+    'got=$(sum "$tmp")',
+    'if [ "$got" != "$want" ]; then rm -f "$tmp"; echo "upload damaged: sha256 $got, expected $want" >&2; exit 3; fi',
+    'if [ -e "$final" ]; then',
+    '  have=$(sum "$final")',
+    '  rm -f "$tmp"',
+    `  if [ "$have" = "$want" ]; then echo "already in place: $final"; else echo "${KEPT}: $final"; fi`,
+    'else',
+    '  chmod 644 "$tmp"',
+    '  mv "$tmp" "$final"',
+    '  echo "placed: $final"',
+    'fi',
+    '',
+  ].join('\n');
+}
+
+
 /**
  * Replaces files by rename, in the given order. With `keepPrevious`, the file
  * being replaced is first copied to that name (the feed keeps the one before).
+ * A damaged upload stops it before anything is renamed, and its temporary
+ * files do not stay in the served folder.
  */
 export function replaceScript(files: ReadonlyArray<{ readonly tmp: string; readonly final: string; readonly sha256: string; readonly keepPrevious?: string }>): string {
   return [
@@ -115,7 +149,7 @@ export function replaceScript(files: ReadonlyArray<{ readonly tmp: string; reado
     'umask 022',
     SUM,
     // Everything is checked before anything is renamed.
-    ...files.map((file) => `[ "$(sum ${q(file.tmp)})" = ${q(file.sha256)} ] || { echo "upload damaged: ${file.final}" >&2; exit 3; }`),
+    ...files.map((file) => `[ "$(sum ${q(file.tmp)})" = ${q(file.sha256)} ] || { rm -f ${files.map((each) => q(each.tmp)).join(' ')}; echo "upload damaged: ${file.final}" >&2; exit 3; }`),
     ...files.flatMap((file) => [
       // Not on a repeated run: the same bytes again would replace the real previous file with the current one.
       ...(file.keepPrevious === undefined ? [] : [`if [ -f ${q(file.final)} ] && ! cmp -s ${q(file.tmp)} ${q(file.final)}; then cp -p ${q(file.final)} ${q(file.keepPrevious)}; fi`]),
