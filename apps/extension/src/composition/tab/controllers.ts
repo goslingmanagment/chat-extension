@@ -307,7 +307,7 @@ export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, pr
 
   const context = chunk.createPageContext({ rpc, host: boardsHost });
   const surfaces = new chunk.Surfaces();
-  const navigator = chunk.createChatNavigator({ rpc, host: boardsHost, ids });
+  const navigator = chunk.createChatNavigator({ rpc, host: boardsHost, ids, context });
   let timeZone = 'UTC';
   try {
     timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';

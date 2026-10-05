@@ -60,7 +60,7 @@ import { targetPage } from '../../domain/fanpanel/model';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
-import { issueCause, type ChatNavigator } from '../boards/navigate';
+import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -1548,6 +1548,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (identityChanged(track)) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     const identity = host.current().identity;
     if (identity === null) return refused(type, localError('CG-HOST-NOT-READY', i18n));
+    // The person's click on this part: the preview's own switch and `insertion` on ITS page — never `navigation`.
+    const switchedOff = boardOpenRefusal(context.current(), boardsOf(track.source), true);
+    if (switchedOff !== null) return refused(type, errorOf(switchedOff, i18n));
     const issued = await issueCause(rpc, 'navigate', track.surface);
     if (!issued.ok) return refused(type, localError(issued.code, i18n));
     if (identityChanged(track)) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
@@ -1607,10 +1610,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return done(type);
   }
 
-  async function openChat(type: UiActionType, fanRef: string, surface: Surface): Promise<ActionReceipt> {
+  /** The switches a click in a preview answers to on its page: the preview's own, and the list's for a card of «Новые». */
+  const boardsOf = (source: PreviewSource): readonly BoardSwitch[] => (source === 'newcomers' ? ['preview', 'newcomers'] : ['preview']);
+
+  async function openChat(type: UiActionType, fanRef: string, surface: Surface, source: PreviewSource): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
-    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface);
+    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface, boardsOf(source));
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
     return done(type, 'opened');
@@ -1654,7 +1660,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (to.kind === 'chat') {
         const parsed = parseFanHandle(to.targetHandle);
         // A list answers for its own handles; the palette's fans have no list.
-        return parsed !== null && parsed.source === 'palette' && parsed.pageId === context.current().binding?.pageId ? openChat(type, parsed.fanRef, 'preview') : null;
+        return parsed !== null && parsed.source === 'palette' && parsed.pageId === context.current().binding?.pageId ? openChat(type, parsed.fanRef, 'preview', 'palette') : null;
       }
       return null;
     }
@@ -1687,7 +1693,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const owner = attemptOwner.get(action.attemptId);
       const track = owner === undefined ? undefined : tracks.get(owner.opId);
       // §6.7.8: the only way on from an unknown outcome — look at the chat. Nothing is sent or inserted.
-      return track === undefined ? null : openChat(type, track.fanRef, track.surface);
+      return track === undefined ? null : openChat(type, track.fanRef, track.surface, track.source);
     }
     if (action.type === 'Regenerate' || action.type === 'CancelGeneration' || action.type === 'HideResult' || action.type === 'ExpandResult' || action.type === 'SendPart' || action.type === 'OpenAndInsertPart') {
       const track = tracks.get(action.operationId);

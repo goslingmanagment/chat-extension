@@ -1070,8 +1070,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     // §8.3: an expired bootstrap blocks a new insert or navigation until it is read again; results stay.
     // Without a hub layer (its start step failed) there is no sign-in to insert a result of; ChatSpace's own
-    // list still navigates.
-    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, hubInstance, wireOf);
+    // list still navigates. Whose switch a navigation asks is its surface's: ours (`navigation`) or a board's own.
+    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, surface, hubInstance, wireOf);
     if (refusal !== null) {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
       return { ok: false, error: refusal };

@@ -9,7 +9,7 @@ import type { TabPresence } from '@cg/core/services';
 import { describe, expect, it } from 'vitest';
 
 import { pickCommandTab, type CommandTab } from '../src/composition/background/tab-command.ts';
-import { tokenRefusal, type TokenGateHub } from '../src/composition/background/token-gate.ts';
+import { NAVIGATE_SWITCHES, tokenRefusal, type TokenGateHub } from '../src/composition/background/token-gate.ts';
 
 const tab = (n: number, registeredAt = n): CommandTab => ({ tabSessionId: `tab-${n}`, tabId: n, registeredAt });
 const seen = (n: number, over: { focused?: boolean; visible?: boolean; accounts?: `chatspace:${string}`[]; updatedAt?: number } = {}): TabPresence => ({
@@ -68,52 +68,91 @@ describe('the token gate over the bootstrap', () => {
 
   it('a generation and a send are not judged here: their own requests read the bootstrap', async () => {
     const s = state({ session: null, bootstrap: null, flags: { insertion: { usable: false, reason: 'flag_off' } } });
-    expect(await tokenRefusal('generate', hubOf(s), wire)).toBeNull();
-    expect(await tokenRefusal('send', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('generate', 'dock', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('send', 'preview', hubOf(s), wire)).toBeNull();
     expect(s.refreshes).toBe(0);
   });
 
   it('nobody signed in: navigation needs no hub, an insert has nothing to insert', async () => {
     const s = state({ session: null, bootstrap: null });
-    expect(await tokenRefusal('navigate', hubOf(s), wire)).toBeNull();
-    expect(await tokenRefusal('insert', hubOf(s), wire)).toEqual({ code: 'CG-AUTH-REQUIRED' });
+    expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('insert', 'dock', hubOf(s), wire)).toEqual({ code: 'CG-AUTH-REQUIRED' });
     expect(s.refreshes).toBe(0);
   });
 
   it('signed in without a bootstrap: navigation is ChatSpace’s own; an insert waits for the bootstrap to be read', async () => {
     const s = state({ bootstrap: null, flags: { insertion: { usable: false, reason: 'hub_not_ready' } } });
-    expect(await tokenRefusal('navigate', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire)).toBeNull();
     s.refresh = () => {
       s.flags['insertion'] = { usable: true, reason: null };
       return Promise.resolve();
     };
-    expect(await tokenRefusal('insert', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('insert', 'dock', hubOf(s), wire)).toBeNull();
     expect(s.refreshes).toBe(1);
   });
 
   it('[AU-027] an expired bootstrap is read again once: a hub that answers lets the action through, a silent one refuses it with its own reason', async () => {
     const s = state({ flags: { insertion: { usable: false, reason: 'bootstrap_expired' }, navigation: { usable: false, reason: 'bootstrap_expired' } } });
     s.refresh = () => Promise.reject(new Error('offline'));
-    expect(await tokenRefusal('insert', hubOf(s), wire)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
-    expect(await tokenRefusal('navigate', hubOf(s), wire)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
+    expect(await tokenRefusal('insert', 'dock', hubOf(s), wire)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
+    expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
     expect(s.refreshes).toBe(2);
     s.refresh = () => {
       s.flags['insertion'] = { usable: true, reason: null };
       return Promise.resolve();
     };
-    expect(await tokenRefusal('insert', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('insert', 'dock', hubOf(s), wire)).toBeNull();
     // The refresh landed and the owner had switched navigation off meanwhile.
     s.refresh = () => {
       s.flags['navigation'] = { usable: false, reason: 'flag_off' };
       return Promise.resolve();
     };
-    expect(await tokenRefusal('navigate', hubOf(s), wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+    expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
   });
 
   it('a fresh bootstrap: the owner’s switch decides, and nothing is read again', async () => {
     const s = state({ flags: { insertion: { usable: false, reason: 'flag_off' } } });
-    expect(await tokenRefusal('insert', hubOf(s), wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
-    expect(await tokenRefusal('navigate', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('insert', 'dock', hubOf(s), wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+    expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire)).toBeNull();
     expect(s.refreshes).toBe(0);
+  });
+
+  it('[SP-035] a click on a fan in a board asks the board’s switch, never `navigation`: with `navigation` off everywhere the board still opens the chat', async () => {
+    const off = { usable: false, reason: 'flag_off' };
+    const s = state({ flags: { navigation: off } });
+    // Our own navigation (J/K, ⌘U, ⌘1–9, quick jump, the palette's chats) is the owner's `navigation`…
+    for (const surface of ['overlay', 'dock', 'coach'] as const) expect(await tokenRefusal('navigate', surface, hubOf(s), wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+    // …a Spenders row, a preview, a card of «Новые» are not.
+    expect(await tokenRefusal('navigate', 'preview', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('navigate', 'newcomers', hubOf(s), wire)).toBeNull();
+    expect(NAVIGATE_SWITCHES).toMatchObject({ overlay: ['navigation'], preview: ['spenders', 'preview'], newcomers: ['newcomers', 'preview'] });
+    expect(Object.values(NAVIGATE_SWITCHES).filter((flags) => flags.includes('navigation'))).toHaveLength(3);
+  });
+
+  it('[SP-035] a board that is off on every page opens nothing, whatever `navigation` says; one of its switches on is enough here — the page’s own is the tab’s to ask', async () => {
+    const off = { usable: false, reason: 'flag_off' };
+    const s = state({ flags: { spenders: off, preview: off, newcomers: { usable: false, reason: 'hub_not_ready' } } });
+    expect(await tokenRefusal('navigate', 'overlay', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('navigate', 'preview', hubOf(s), wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+    // «Новые» without its hub route: the refresh is tried once, and its reason is what the person is told.
+    expect(await tokenRefusal('navigate', 'newcomers', hubOf(s), wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'hub_not_ready' });
+    expect(s.refreshes).toBe(1);
+    s.flags['preview'] = { usable: true, reason: null };
+    expect(await tokenRefusal('navigate', 'preview', hubOf(s), wire)).toBeNull();
+    expect(await tokenRefusal('navigate', 'newcomers', hubOf(s), wire)).toBeNull();
+    expect(s.refreshes).toBe(1);
+  });
+
+  it('[AU-027] a board’s click on an expired bootstrap reads it again once, like any other write', async () => {
+    const expired = { usable: false, reason: 'bootstrap_expired' };
+    const s = state({ flags: { spenders: expired, preview: expired } });
+    s.refresh = () => Promise.reject(new Error('offline'));
+    expect(await tokenRefusal('navigate', 'preview', hubOf(s), wire)).toEqual({ code: 'CG-NETWORK', detail: 'offline' });
+    s.refresh = () => {
+      s.flags['spenders'] = { usable: true, reason: null };
+      return Promise.resolve();
+    };
+    expect(await tokenRefusal('navigate', 'preview', hubOf(s), wire)).toBeNull();
+    expect(s.refreshes).toBe(2);
   });
 });

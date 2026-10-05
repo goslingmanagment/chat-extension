@@ -721,6 +721,43 @@ describe('[SP-033] [SP-034] [SP-035] [SP-042] [SP-043] keys, opening a chat, a c
     expect(failing.boards.spenders.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fanHandle('spenders', 99, '5001') } })).toBeNull();
   });
 
+  it('[SP-035] the click on a fan is the board’s own switch on its page, not `navigation`: with `navigation` off the Spenders row, a card of «Новые» and «Открыть и вставить» still open the chat; a board switched off on the page opens nothing', async () => {
+    // The live pilot: `navigation` is off in the owner's `"*"` row and on the page itself.
+    const navigationOff: FakeHubConfigPatch = { ...X8, flags: { ...X8.flags, navigation: false }, pageFlags: { [PAGE.pageLabel]: { navigation: false } } };
+    const h = await harness({ config: navigationOff });
+    expect(h.bootstrap.pages.find((page) => page.pageId === PAGE.pageId)?.features['navigation']).toEqual({ available: false, reason: 'flag_off' });
+    expect(h.bootstrap.flags['navigation']).toBe(false);
+    await h.dispatch(open('spenders'));
+    expect(await h.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: spender('5001') } })).toMatchObject({ ok: true, outcome: 'opened' });
+    await h.dispatch(open('newcomers'));
+    expect(await h.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: newcomer('2010') } })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.host.calls.navigations.map((intent) => intent.target.platformFanId)).toEqual(['5001', '2010']);
+    const insert = await withReply({ config: navigationOff, answers: { navigate: [{ state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } }] } });
+    expect(partsOf(insert.h, 'spenders')[0]?.openInsert).toMatchObject({ s: 'available' });
+    expect(await insert.h.dispatch({ type: 'OpenAndInsertPart', operationId: insert.opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(insert.h.host.calls.navigations[0]?.thenInsert).toMatchObject({ text: 'Hey you' });
+
+    // The owner switches the board off on the page while it is open (`navigation` may say anything): the click of
+    // a row that is still on screen opens nothing — neither the host nor the background is asked.
+    for (const [surface, flag, handle] of [['spenders', 'spenders', spender('5001')], ['newcomers', 'newcomers', newcomer('2010')]] as const) {
+      const off = await harness();
+      await off.dispatch(open(surface));
+      off.hub.control({ op: 'config', patch: { flags: { navigation: true }, pageFlags: { [PAGE.pageLabel]: { [flag]: false, navigation: true } } } });
+      off.bg.setBootstrap((await hubCall(off.hub.fetch, off.hub.origin, 'clientBootstrap', null, { token: off.hub.issueToken() }).then((response) => response.json())) as Bootstrap);
+      await off.flush();
+      const tokens = count(off, 'token.issue');
+      expect(await off.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: handle } }), `${flag} off on the page`).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+      expect([off.host.calls.navigations, count(off, 'token.issue') - tokens]).toEqual([[], 0]);
+    }
+    // The preview's own switch gates «Открыть и вставить» the same way.
+    const previewOff = await withReply();
+    previewOff.h.hub.control({ op: 'config', patch: { pageFlags: { [PAGE.pageLabel]: { preview: false } } } });
+    previewOff.h.bg.setBootstrap((await hubCall(previewOff.h.hub.fetch, previewOff.h.hub.origin, 'clientBootstrap', null, { token: previewOff.h.hub.issueToken() }).then((response) => response.json())) as Bootstrap);
+    await previewOff.h.flush();
+    expect(await previewOff.h.dispatch({ type: 'OpenAndInsertPart', operationId: previewOff.opId, part: 0 })).toMatchObject({ ok: false });
+    expect(previewOff.h.host.calls.navigations).toEqual([]);
+  });
+
   it('[SP-033] [SP-034] the keys footer lists the board keys; a key becomes the action of the focused row', async () => {
     const h = await harness();
     await h.dispatch(open('spenders'));

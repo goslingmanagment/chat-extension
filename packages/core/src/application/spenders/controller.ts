@@ -550,7 +550,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   async function openChat(type: UiAction['type'], fanRef: string): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
-    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview');
+    // The person's click on this fan in the Spenders board: the board's own switch on its page, not `navigation`.
+    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['spenders']);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     // SP-035: the chat opened — the board gets out of the way.
     surfaces.closeBoards();

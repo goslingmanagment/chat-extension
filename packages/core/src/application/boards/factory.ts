@@ -74,7 +74,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
   const ownContext = deps.context === undefined;
   const context = deps.context ?? createPageContext({ rpc, host });
   const surfaces = new Surfaces();
-  const navigator = createChatNavigator({ rpc, host, ids });
+  const navigator = createChatNavigator({ rpc, host, ids, context });
 
   const spenders = createSpendersController({
     rpc,

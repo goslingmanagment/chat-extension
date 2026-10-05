@@ -657,7 +657,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   async function openChat(type: UiActionType, fanRef: string): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
-    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers');
+    // The person's click on this fan in «Новые»: the list's own switch on its page, not `navigation`.
+    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers', ['newcomers']);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
     return done(type, 'opened');
