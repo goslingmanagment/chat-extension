@@ -61,7 +61,7 @@ a boundary you need to cross is a design question, not a lint exception.
 - `pnpm check` — typecheck, lint, test, build, webext-lint, size, gates,
   parity, archive-check. Green before every commit.
 - `pnpm e2e` — both builds, the stand, the fake hub, headless Firefox
-  (about 13 minutes). Green before Ready. No network beyond loopback.
+  (about 18 minutes). Green before Ready. No network beyond loopback.
 - `pnpm vitest run <path>` and, from `packages/testing`,
   `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` — one test
   file or one spec (the spec needs `pnpm build && pnpm build:test` first).
