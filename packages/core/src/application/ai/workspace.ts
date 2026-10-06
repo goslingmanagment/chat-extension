@@ -164,6 +164,8 @@ export const BOARD_QUESTION_STEP_MS = 100;
 export const SENT_REPORT_TRIES = 4;
 const SENT_REPORTS_KEPT = 32;
 type SentReport = TabRequestPayload<'op.reportSent'>;
+/** A part of a board's result the board no longer answers for: «часть устарела — обновите ответ» (CG-SEND-PART). */
+const STALE_BOARD_PART: PartBlock = { reason: 'send-unavailable', code: 'CG-SEND-PART', view: { id: 'send-unavailable', code: 'CG-SEND-PART', text: { key: 'send.reason.part' } } };
 /** «Cannot ask yet»: the field of the chat is not seen (not ready, or the host's identity is still on its way). */
 const FIELD_NOT_SEEN_YET: readonly CgCode[] = ['CG-HOST-COMPOSER-MISSING', 'CG-HOST-NOT-READY'];
 /** Chats whose tone or open sheet the tab remembers. */
@@ -253,6 +255,7 @@ export class AiWorkspace {
         for (const listener of [...this.insertListeners]) listener(record, part);
       },
       hold: (record, part) => this.boardHold(record, part),
+      recheck: (record, part) => this.boardHoldNow(record, part),
     });
   }
 
@@ -821,11 +824,29 @@ export class AiWorkspace {
   }
 
   private boardHold(record: OpRecord, part: PartRef): PartBlock | null {
-    const facts = this.boardPart(record.view.opId, part);
-    if (facts === null) return null;
+    if (!this.boardOps.has(record.view.opId)) return null;
+    const facts = this.boards?.part(record.view.opId, part) ?? null;
+    // The board no longer holds the result (it aged out there, or the boards are not bound): which parts were sent
+    // and what holds the fan is not known any more. Such a part is never «insertable as if nothing were known» —
+    // it says it is out of date; copying is still there.
+    if (facts === null) return STALE_BOARD_PART;
     // A delivered part is never put into a composer again (ui-design §3.2); a held fan says why.
     if (facts.sentAt !== null) return { reason: 'send-unavailable', code: 'CG-SEND-PART' };
     return facts.hold === null ? null : { reason: facts.hold.id, code: facts.hold.code ?? 'CG-SEND-BUSY', view: facts.hold };
+  }
+
+  /**
+   * The same at the person's click in the dock — «Вставить» of a board's part, or an answer to its Б2 question:
+   * the journal of the fan's sends is read first, as the board's own «Открыть и вставить» reads it (§6.7.8). What
+   * `boardHold` answers between clicks is what this tab last heard; an uncertain send another tab began since
+   * the hand-over holds the fan from this read on. A journal that does not answer is not «nothing holds it».
+   */
+  private async boardHoldNow(record: OpRecord, part: PartRef): Promise<PartBlock | null> {
+    const opId = record.view.opId;
+    if (!this.boardOps.has(opId)) return null;
+    const read = this.boards === null ? 'gone' : await this.boards.sync(opId);
+    if (read === 'unread') return { reason: 'runtime-unreachable', code: 'CG-RUNTIME-UNREACHABLE' };
+    return this.boardHold(record, part);
   }
 
   // ── the page tail (the archive lag, the language gate) ───────────────────

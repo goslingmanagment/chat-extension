@@ -51,10 +51,22 @@ export interface BoardPartFacts {
   readonly hold: ReasonVM | null;
 }
 
+/**
+ * What a look into the journal at the person's click came to: `read` — `part()` now answers from the journal as
+ * it is; `unread` — the journal did not answer; `gone` — the board does not hold the result (any more).
+ */
+export type BoardSync = 'read' | 'unread' | 'gone';
+
 /** The boards' side of the results the dock shows; bound late — the boards load with the first board the person opens. */
 export interface BoardResults {
-  /** null — the board does not hold the result (any more). */
+  /** null — the board does not hold the result (any more): what was sent and what holds the fan is not known. */
   part(opId: string, part: PartRef): BoardPartFacts | null;
+  /**
+   * Reads what the journal knows of the sends to the result's fan NOW — at the person's click in the dock, as the
+   * board's own «Открыть и вставить» does (§6.7.8: another tab may hold the fan since the hand-over). What
+   * `part()` answers between clicks is what this tab last heard.
+   */
+  sync(opId: string): Promise<BoardSync>;
   /** A card shows the result now: its «Скрыть», «Развернуть» and «Копировать» are that card's, not the dock's. */
   showing(opId: string): boolean;
   subscribe(listener: () => void): () => void;

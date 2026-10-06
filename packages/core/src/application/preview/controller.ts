@@ -64,7 +64,7 @@ import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
 import { targetPage } from '../../domain/fanpanel/model';
-import { type BoardHandover, type BoardPartFacts, type BoardResults } from '../board-handover';
+import { type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '../board-handover';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
@@ -1914,6 +1914,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     },
     results: {
       part: dockedPart,
+      async sync(opId): Promise<BoardSync> {
+        const track = tracks.get(opId);
+        if (track === undefined || !docked.has(opId)) return 'gone';
+        const journal = await sendsNow(track.pageId, track.fanRef);
+        // Another identity, or the result aged out, while the journal was read.
+        if (tracks.get(opId) !== track || !docked.has(opId)) return 'gone';
+        return journal === null ? 'read' : 'unread';
+      },
       showing(opId) {
         const track = tracks.get(opId);
         return track !== undefined && !track.hidden && targets.has(track.handle) && currentOp.get(track.handle) === opId;

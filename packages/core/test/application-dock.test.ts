@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
-import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults } from '@cg/core/application/ai';
+import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
@@ -2234,12 +2234,32 @@ describe('dock: the sign-in and the views', () => {
 // ── a board's result in the dock of its own chat (§6.5) ────────────────────
 
 /** The boards' side as the preview's controller gives it: what the test says of each part, and whether a card shows the result. */
-function boardSide(): BoardResults & { readonly parts: Map<string, BoardPartFacts>; onCard: boolean; told(): void } {
+function boardSide(): BoardResults & {
+  readonly parts: Map<string, BoardPartFacts>;
+  onCard: boolean;
+  /** The board does not hold the result any more (its track aged out). */
+  gone: boolean;
+  /** What a look into the journal at a click comes to; and what the journal says then that this tab had not heard. */
+  journal: BoardSync;
+  atSync: (() => void) | null;
+  syncs: number;
+  told(): void;
+} {
   const listeners = new Set<() => void>();
   const side = {
     parts: new Map<string, BoardPartFacts>(),
     onCard: false,
-    part: (_opId: string, part: { readonly variant?: number; readonly index: number }): BoardPartFacts | null => side.parts.get(`${part.variant ?? 0}:${part.index}`) ?? { sentAt: null, hold: null },
+    gone: false,
+    journal: 'read' as BoardSync,
+    atSync: null as (() => void) | null,
+    syncs: 0,
+    part: (_opId: string, part: { readonly variant?: number; readonly index: number }): BoardPartFacts | null => (side.gone ? null : (side.parts.get(`${part.variant ?? 0}:${part.index}`) ?? { sentAt: null, hold: null })),
+    sync: (): Promise<BoardSync> => {
+      side.syncs += 1;
+      if (side.gone) return Promise.resolve('gone');
+      if (side.journal === 'read') side.atSync?.();
+      return Promise.resolve(side.journal);
+    },
     showing: () => side.onCard,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -2584,6 +2604,119 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
     await h.settle();
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
     expect(h.fake.calls.inserts).toHaveLength(1);
+  });
+
+  it('[NF-022] [X8-08] «Вставить» in the dock reads the journal at the click, as the board’s «Открыть и вставить» does: an uncertain send another tab began since the hand-over holds the part; a journal that does not answer is not «nothing holds it»', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    const uncertain = { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 1 } } } as const;
+    // Another tab sent part 1 of this fan through its preview, and the outcome is unknown. This tab was told
+    // nothing (the board holds what it last heard): the row still offers «Вставить».
+    expect(partsOf(h)[1]).toMatchObject({ insert: 'idle', insertBlocked: null });
+    side.atSync = () => side.parts.set('0:1', { sentAt: null, hold: uncertain });
+    const before = side.syncs;
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(side.syncs).toBe(before + 1);
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue').filter((call) => (call as { kind: string }).kind === 'insert')).toEqual([]);
+    // What the read found is on the row now.
+    expect(partsOf(h)[1]?.insertBlocked).toEqual(uncertain);
+    // The journal does not answer (the port is down, the background did not read it): refused, never guessed.
+    side.atSync = null;
+    side.parts.delete('0:1');
+    side.journal = 'unread';
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // It answers and nothing holds the fan: the part goes in — one read per click.
+    side.journal = 'read';
+    const reads = side.syncs;
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(side.syncs).toBe(reads + 1);
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    // The dock's own reply asks nobody: there is no board behind it.
+    h.host.openChat(openChat);
+    await h.settle();
+    const own = await reply(h, 'the dock’s own');
+    const quiet = side.syncs;
+    expect(await h.dispatch({ type: 'InsertPart', operationId: own, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(side.syncs).toBe(quiet);
+  });
+
+  it('[NEW-05] [NF-022] an answer to the Б2 question is a write of its own: the journal is read again at the answer — a fan held since the question, or a part sent meanwhile, is not written over an old «Добавить в конец»', async () => {
+    for (const since of ['held', 'sent'] as const) {
+      const h = await start();
+      const side = boardSide();
+      h.ai.workspace.bindBoards(side);
+      const opId = await previewReply(h, 'one [NEXT] two');
+      h.host.openChat(previewChat);
+      h.host.type('mine in the chat');
+      await h.settle();
+      expect(await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }))).toBe(true);
+      await h.settle();
+      const confirm = result(h).confirm;
+      expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 } });
+      // The question stands. Meanwhile, in another tab…
+      side.atSync = () =>
+        side.parts.set(
+          '0:0',
+          since === 'sent'
+            ? { sentAt: new Date(NOW_MS + 60_000).toISOString(), hold: null }
+            : { sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } } },
+        );
+      expect([since, await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' })]).toMatchObject([since, { ok: false, code: since === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN' }]);
+      // Nothing was written, the person's words are as they were, and the question is gone with its «да».
+      expect(h.fake.calls.inserts).toEqual([]);
+      expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat');
+      expect(result(h).confirm).toBeNull();
+      // «Отмена» needs no read: it writes nothing.
+      const again = await start();
+      const other = boardSide();
+      again.ai.workspace.bindBoards(other);
+      const next = await previewReply(again, 'one [NEXT] two');
+      again.host.openChat(previewChat);
+      again.host.type('mine in the chat');
+      await again.settle();
+      await again.ai.workspace.adoptBoardResult(handover(next, { outcome: 'needs-confirm' }));
+      await again.settle();
+      const reads = other.syncs;
+      expect(await again.dispatch({ type: 'AnswerConfirm', confirmationId: result(again).confirm?.confirmationId as string, choice: 'cancel' })).toMatchObject({ ok: true });
+      expect(other.syncs).toBe(reads);
+    }
+  });
+
+  it('[NF-022] the board no longer holds the result (it aged out there): the dock does not offer its parts as if nothing were known — «часть устарела — обновите ответ», and «Вставить» writes nothing', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    expect(partsOf(h)[1]).toMatchObject({ insert: 'idle', insertBlocked: null });
+    // Half an hour later the preview drops the result; the dock still shows it.
+    side.gone = true;
+    side.told();
+    await h.settle();
+    const stale = { id: 'send-unavailable', code: 'CG-SEND-PART', text: { key: 'send.reason.part' } };
+    expect(result(h).opId).toBe(opId);
+    expect(partsOf(h).map((part) => part.insertBlocked)).toEqual([stale, stale]);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // Copying is still there: the text is on screen.
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: partsOf(h)[1]?.copyHandle as string })).toMatchObject({ ok: true });
+    // The boards are not bound at all (their chunk went away): the same.
+    h.ai.workspace.bindBoards(null);
+    await h.settle();
+    expect(partsOf(h).map((part) => part.insertBlocked)).toEqual([stale, stale]);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    expect(h.fake.calls.inserts).toEqual([]);
   });
 
   it('a card that shows the same result answers for its own buttons: while it is open the dock takes neither its «Скрыть» nor its «Развернуть» nor its «Копировать»; «Ещё раз» is never the dock’s for a board’s result', async () => {

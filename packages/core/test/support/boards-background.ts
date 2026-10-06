@@ -82,6 +82,14 @@ export class BoardsBackground {
   settings: SettingsV1;
   catalog: PersonaCatalog;
   settingsRevision = 1;
+  /** Events of the background do not reach this tab while set (a fact another tab's port carried, a lost batch): the tab is told nothing. */
+  quiet = false;
+  /**
+   * The tab's port (platform rpc-tab.ts). Anything but `ready` is a port that is down: what the background emits
+   * meanwhile is lost for the tab, and a request ends at once with CG-RUNTIME-UNREACHABLE.
+   */
+  private connection: 'ready' | 'reconnecting' | 'lost' = 'ready';
+  private readonly stateListeners = new Set<(state: 'ready' | 'reconnecting' | 'lost') => void>();
   private readonly listeners = new Map<TabEventType, Set<(payload: unknown) => void>>();
   private readonly failures = new Map<BoardsRequestType, CgErrorWire[]>();
   private readonly holds = new Map<BoardsRequestType, Promise<void>[]>();
@@ -133,7 +141,14 @@ export class BoardsBackground {
 
   // ── the tab side ──
 
-  readonly rpc: TabRpc = {
+  readonly rpc: TabRpc & Required<Pick<TabRpc, 'onState' | 'state'>> = {
+    onState: (listener) => {
+      this.stateListeners.add(listener);
+      return () => {
+        this.stateListeners.delete(listener);
+      };
+    },
+    state: () => this.connection,
     request: <T extends BoardsRequestType>(type: T, payload: TabRequestPayload<T>): Promise<RpcResult<TabResponsePayload<T>>> => this.request(type, payload),
     onEvent: <T extends TabEventType>(type: T, listener: (payload: TabEventPayload<T>) => void): (() => void) => {
       const set = this.listeners.get(type) ?? new Set();
@@ -155,7 +170,15 @@ export class BoardsBackground {
   };
 
   emit<T extends TabEventType>(type: T, payload: TabEventPayload<T>): void {
+    // A port that is down carries nothing: what is emitted meanwhile is lost for the tab.
+    if (this.quiet || this.connection !== 'ready') return;
     for (const listener of [...(this.listeners.get(type) ?? [])]) listener(payload);
+  }
+
+  /** The tab's port goes down or comes back. */
+  setConnection(state: 'ready' | 'reconnecting' | 'lost'): void {
+    this.connection = state;
+    for (const listener of [...this.stateListeners]) listener(state);
   }
 
   /**
@@ -206,6 +229,7 @@ export class BoardsBackground {
 
   private async request<T extends BoardsRequestType>(type: T, payload: TabRequestPayload<T>): Promise<RpcResult<TabResponsePayload<T>>> {
     this.requests.push({ type, payload });
+    if (this.connection !== 'ready') return fail({ code: 'CG-RUNTIME-UNREACHABLE', detail: this.connection });
     const gate = this.holds.get(type)?.shift();
     if (gate !== undefined) await gate;
     const failure = this.failures.get(type)?.shift();

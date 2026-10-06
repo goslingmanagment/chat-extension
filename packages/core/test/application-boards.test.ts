@@ -2360,6 +2360,36 @@ describe('[NEW-01] [NEW-05] after «Открыть и вставить» the res
     expect(results.part(opId, { index: 0 })).toBeNull();
   });
 
+  it('[NF-022] [X8-08] the dock’s click is answered from the journal as it is at that click (`sync`): what this tab was never told is read then; a journal that does not answer, and a result the controller does not hold, say so', async () => {
+    const { h, opId } = await withReply({ config: {}, answers: { navigate: [applied] } });
+    const results = h.boards.preview.results;
+    // Not handed over: nothing of it is the dock's to ask about.
+    expect(await results.sync(opId)).toBe('gone');
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    // The part is delivered — and the word about it does not reach this tab (it went over another tab's port).
+    await h.advance(20_000);
+    const sentAt = iso(h.clock.now());
+    h.bg.quiet = true;
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    h.bg.quiet = false;
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    // The click in the dock: the journal is read now, and the part is what the journal says it is.
+    const asked = count(h, 'send.list');
+    expect(await results.sync(opId)).toBe('read');
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt, hold: null });
+    // The journal does not answer: that is said — never taken for «nothing holds the fan».
+    h.bg.failNext('send.list', { code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(await results.sync(opId)).toBe('unread');
+    // Another sign-in: the result is nobody's here.
+    h.bg.signIn({ ...session, userId: session.userId + 1, epoch: session.epoch + 1 });
+    await h.flush();
+    expect(await results.sync(opId)).toBe('gone');
+    expect(results.part(opId, { index: 0 })).toBeNull();
+  });
+
   it('[NF-022] a part of the fan whose outcome is unknown holds the rest of the result in the dock as well', async () => {
     const { h, opId } = await withReply({ answers: { navigate: [applied], commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
     const results = h.boards.preview.results;

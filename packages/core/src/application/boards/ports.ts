@@ -14,10 +14,20 @@ export type RpcResult<T> = { readonly ok: true; readonly payload: T } | { readon
 
 export type BoardsRequestType = Exclude<TabRequestType, 'tab.register'>;
 
+/** The port to the background as the tab's client names it: only `ready` carries requests and events. */
+export type RpcConnection = 'connecting' | 'ready' | 'reconnecting' | 'lost' | 'reloaded' | 'closed';
+
 /** The tab ↔ background protocol as the controllers use it (@cg/platform `TabRpcClient`). */
 export interface TabRpc {
   request<T extends BoardsRequestType>(type: T, payload: TabRequestPayload<T>): Promise<RpcResult<TabResponsePayload<T>>>;
   onEvent<T extends TabEventType>(type: T, listener: (payload: TabEventPayload<T>) => void): () => void;
+  /**
+   * The port's state. While it is down the background's events are lost for this tab — a sign-in, a persona, an
+   * owner switch may change unheard — so whoever keeps a copy of that state reads it again when the port is back.
+   * Absent — a client whose port is never lost (a test double that has none).
+   */
+  onState?(listener: (state: RpcConnection) => void): () => void;
+  state?(): RpcConnection;
 }
 
 /** Time and one-shot timers; `now()` is epoch ms. */

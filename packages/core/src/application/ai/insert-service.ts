@@ -97,6 +97,12 @@ export interface InsertServiceDeps {
   inserted(record: OpRecord, part: PartRef): void;
   /** Why this very part is not inserted now, beyond the chat's own state (a board's result in the dock: a sent part, a held fan, §6.5); null — nothing. */
   hold?(record: OpRecord, part: PartRef): PartBlock | null;
+  /**
+   * The same question asked at the person's click, right before a write, of whoever knows more than this tab
+   * last heard (a board's result in the dock: the journal of the fan's sends is read now — another tab may hold
+   * the fan since). null — nothing holds the part.
+   */
+  recheck?(record: OpRecord, part: PartRef): Promise<PartBlock | null>;
 }
 
 interface PendingWrite {
@@ -220,13 +226,21 @@ export class InsertService {
     const text = partText(record, part);
     // Only a finished, fully parsed result has parts to insert (§7).
     if (text === null) return failed('CG-OUTPUT-UNUSABLE');
-    const block = this.blockOf(record, part);
+    const block = this.blockOf(record, part) ?? (await this.heldNow(record, part));
     if (block !== null) return failed(block.code);
     const ready = await this.prepare(record, part);
     if (!ready.ok) return ready.outcome;
     const decision = decideDraft(ready.draft, { editorObserved: this.deps.context(record).editorObserved });
     if (decision.kind === 'confirm') return this.ask(record, part, text, 'insert', decision.reason, ready.draft, decision.formatLoss);
     return this.write(record, part, text, 'replace', ready.draft, null, cause, 'insert');
+  }
+
+  /** `recheck` of the deps: what holds the part by a look taken at this very click; the views hear what it found. */
+  private async heldNow(record: OpRecord, part: PartRef): Promise<PartBlock | null> {
+    if (this.deps.recheck === undefined) return null;
+    const held = await this.deps.recheck(record, part);
+    this.deps.changed();
+    return held;
   }
 
   /**
@@ -365,6 +379,15 @@ export class InsertService {
       this.writes.delete(confirmationId);
       this.deps.changed();
       return { kind: 'canceled' };
+    }
+    // The answer is a write of its own: what holds the part is asked again now — the question may have stood for
+    // minutes, and a part sent meanwhile, or a fan held by another tab, is not written over an old «да».
+    const held = pending.purpose === 'insert' ? (this.blockOf(record, pending.part) ?? (await this.heldNow(record, pending.part))) : null;
+    if (held !== null) {
+      this.book.dropOp(pending.opId);
+      this.writes.delete(confirmationId);
+      this.deps.changed();
+      return failed(held.code);
     }
     const ready = await this.prepare(record, pending.part, pending.purpose !== 'fix-restore');
     if (!ready.ok) {
