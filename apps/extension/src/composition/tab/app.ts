@@ -617,7 +617,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   function ensureBoards(): Promise<TabBoards> {
     return (boards ??= Promise.all([stageTwo, env.lazy<typeof BoardsChunk>('boards'), env.lazy<typeof PreviewChunk>('boards-preview')]).then(
       ([, chunk, preview]) =>
-        startBoards(world, chunk, preview, (intentId, opId, part) => facts.noteInsert(intentId, opId, part), {
+        startBoards(world, chunk, preview, facts, {
           bind: (results) => ai.workspace.bindBoards(results),
           // §6.5: the chat is open — its dock goes on with the result. What the dock could not take is said aloud.
           handover(handover) {

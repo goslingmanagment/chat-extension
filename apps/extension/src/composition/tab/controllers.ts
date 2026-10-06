@@ -14,8 +14,6 @@
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
-import type { InsertIntent, NavigationIntent, NavigateOptions } from '@cg/contracts/host';
-import type { PartRef } from '@cg/contracts/ids';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
@@ -32,6 +30,7 @@ import type * as PreviewChunk from '../../../lazy/entries/boards-preview';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type { GestureGate } from './action-gate';
 import { adopt, type ControllerRpc, type LooseController } from './client';
+import { boardsHostOver, type HostFacts } from './host-facts';
 import type { TabKeys } from './keys';
 
 /** Timers and time as every controller family takes them (numbers as handles). */
@@ -295,7 +294,7 @@ export async function startBoards(
   world: TabWorld,
   chunk: typeof BoardsChunk,
   previewChunk: typeof PreviewChunk,
-  noteInsert: (intentId: string, opId: string, part: PartRef) => void,
+  inserts: Pick<HostFacts, 'noteInsert' | 'forgetInsert'>,
   dock: BoardsDock,
 ): Promise<TabBoards> {
   const { router, keys, host, i18n, clock, ids, win, toasts } = world;
@@ -303,28 +302,9 @@ export async function startBoards(
   const overlays = keys.overlays;
 
   // A part of a board goes into the composer through the host port as it is; the tab only remembers which insert
-  // belongs to which part, so a human send of that draft is reported for its operation (§6.6; host-facts.ts).
-  const boardsHost: ChatSpaceHostPort = new Proxy(host, {
-    get(target, property) {
-      if (property === 'navigate') {
-        return (intent: NavigationIntent, options?: NavigateOptions) =>
-          target.navigate(intent, options).then((receipt) => {
-            const then = intent.thenInsert;
-            if (then !== undefined && receipt.insert?.state === 'applied') noteInsert(then.intentId, then.operationId, then.part);
-            return receipt;
-          });
-      }
-      if (property === 'insert') {
-        return (intent: InsertIntent) =>
-          target.insert(intent).then((receipt) => {
-            if (receipt.state === 'applied') noteInsert(intent.intentId, intent.operationId, intent.part);
-            return receipt;
-          });
-      }
-      const value: unknown = Reflect.get(target, property, target);
-      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
-    },
-  });
+  // belongs to which part — before the insert starts — so a human send of that draft is reported for its
+  // operation (§6.6; host-facts.ts).
+  const boardsHost = boardsHostOver(host, inserts);
 
   const context = chunk.createPageContext({ rpc, host: boardsHost });
   const surfaces = new chunk.Surfaces();
