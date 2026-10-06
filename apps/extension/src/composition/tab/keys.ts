@@ -125,7 +125,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
   const dispatcher = createEarlyKeyDispatcher({
     platform,
     window: win,
-    document: { source: doc, hidden: () => doc.hidden },
+    document: { source: doc, hidden: () => doc.hidden, focused: () => doc.hasFocus() },
     ownership: createKeyboardProbe(doc, mounts.registry),
     state,
     timers: { setTimer: (ms, fn) => win.setTimeout(fn, ms), clearTimer: (handle) => win.clearTimeout(handle as number) },

@@ -412,6 +412,58 @@ describe('R17 — the early key dispatcher on the stand', () => {
       await browser.keys([MOD, '2']);
       expect((await inputLog()).ran).toEqual([]);
     });
+
+    it('[HK-022] [NEW-07] a keyup the system took: the popup lives only until the mouse says ⌘/Ctrl is up; with the key really down the mouse changes nothing', async () => {
+      await open(chatPath(ACC, a1));
+      await focusOurs('dock-card');
+      expect(await input('focusState')).toEqual({ focused: true, hidden: false });
+      // The keyup goes «to the system»: the page hears ⌘/Ctrl go down and nothing after it.
+      await input('loseKeyup');
+      await browser.action('key').down(MOD).pause(700).up(MOD).perform();
+      expect((await inputLog()).quick).toEqual([true]);
+      // Nothing tells the page — until the mouse moves: its event carries no modifier.
+      await browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ x: 320, y: 240 }).move({ x: 340, y: 260 }).perform();
+      expect((await inputLog()).quick).toEqual([true, false]);
+      expect((await inputLog()).overlays).toEqual([]);
+      // The engine was reset with it: a digit now is a digit, not ⌘N.
+      await browser.keys(['3']);
+      expect((await inputLog()).ran).toEqual([]);
+      await input('clear');
+
+      // The key is really held: the mouse moves under it (towards a row) and the popup stays; letting go closes it.
+      await browser.action('key').down(MOD).pause(700).perform(true);
+      expect((await inputLog()).quick).toEqual([true]);
+      await browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ x: 360, y: 280 }).move({ x: 380, y: 300 }).perform(true);
+      expect((await inputLog()).quick).toEqual([true]);
+      await browser.action('key').up(MOD).perform();
+      expect((await inputLog()).quick).toEqual([true, false]);
+    });
+
+    it('[HK-022] [NEW-07] the focus leaves under a held ⌘/Ctrl (another tab comes to the front): the popup closes, and back in the tab the stale modifier opens nothing', async () => {
+      await open(chatPath(ACC, a1));
+      await focusOurs('dock-card');
+      const tab = await browser.getWindowHandle();
+      await browser.action('key').down(MOD).pause(700).perform(true);
+      expect((await inputLog()).quick).toEqual([true]);
+      // Another tab takes the front: this one is hidden and loses the focus; its keyup will never come here.
+      await browser.newWindow('about:blank', { type: 'tab' });
+      await browser.pause(300);
+      await browser.closeWindow();
+      await browser.switchToWindow(tab);
+      const back = await inputLog();
+      expect(back.quick).toEqual([true, false]);
+      expect(back.overlays).toEqual([]);
+      // Nothing is pressed here: however long, no popup comes back from what was «held» before.
+      await browser.pause(900);
+      expect((await inputLog()).quick).toEqual([true, false]);
+      await browser.releaseActions();
+      await browser.pause(600);
+      expect((await inputLog()).quick).toEqual([true, false]);
+      // A fresh hold works as ever.
+      await focusOurs('dock-card');
+      await browser.action('key').down(MOD).pause(700).up(MOD).perform();
+      expect((await inputLog()).quick).toEqual([true, false, true, false]);
+    });
   });
 
   describe('which combinations reach the page', () => {
