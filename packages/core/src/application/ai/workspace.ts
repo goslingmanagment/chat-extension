@@ -19,7 +19,7 @@ import { chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdent
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type ActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
-import { type AiQuotaSnapshot } from '@cg/contracts/tab-messages';
+import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
 import { fanScriptOf, featureGate, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript } from '../../domain/features';
@@ -156,6 +156,14 @@ export const COPIED_MARK_MS = 2_000;
  */
 export const BOARD_QUESTION_WAIT_MS = 5_000;
 export const BOARD_QUESTION_STEP_MS = 100;
+/**
+ * §6.6: how many times one human-send report is said before it is given up, and how many wait for the port. The
+ * report is the only word the background (and through it the hub) gets of that send, so a port lost under the
+ * request is not the end of it — the same discipline as the boards' own reports (the tab's host facts).
+ */
+export const SENT_REPORT_TRIES = 4;
+const SENT_REPORTS_KEPT = 32;
+type SentReport = TabRequestPayload<'op.reportSent'>;
 /** «Cannot ask yet»: the field of the chat is not seen (not ready, or the host's identity is still on its way). */
 const FIELD_NOT_SEEN_YET: readonly CgCode[] = ['CG-HOST-COMPOSER-MISSING', 'CG-HOST-NOT-READY'];
 /** Chats whose tone or open sheet the tab remembers. */
@@ -222,6 +230,8 @@ export class AiWorkspace {
   /** Whose results the tab holds: undefined — not known yet, null — nobody is signed in. */
   private signIn: string | null | undefined = undefined;
   private portWasDown = false;
+  /** Human-send reports nobody answered, waiting for the port to come back. */
+  private readonly unsaidSends: { readonly report: SentReport; readonly tries: number }[] = [];
   private disposed = false;
 
   constructor(readonly ports: AiPorts) {
@@ -976,7 +986,27 @@ export class AiWorkspace {
     if (platformMessageId === null || draft.insertIntentId === null || draft.editedSinceInsert === null) return;
     const origin = this.inserts.intent(draft.insertIntentId);
     if (origin === null) return;
-    void this.ports.rpc.request('op.reportSent', { opId: origin.opId, part: origin.part, pendingId: fact.pendingId, platformMessageId, edited: draft.editedSinceInsert });
+    this.reportSent({ opId: origin.opId, part: origin.part, pendingId: fact.pendingId, platformMessageId, edited: draft.editedSinceInsert });
+  }
+
+  /**
+   * Says a human send to the background until it is heard: acknowledged, or refused in the background's own
+   * words. Only «nobody answered» (the port was lost under the request) is said again, when the port is back, a
+   * bounded number of times; the background takes a repeat as the same fact (the registration is keyed by the
+   * operation, the part and the message's id). A report of what already happened — it never sends anything.
+   */
+  private reportSent(report: SentReport, tries = 1): void {
+    void this.ports.rpc.request('op.reportSent', report).then((answer) => {
+      if (this.disposed || answer.ok || answer.error.code !== 'CG-RUNTIME-UNREACHABLE' || tries >= SENT_REPORT_TRIES) return;
+      this.unsaidSends.push({ report, tries: tries + 1 });
+      if (this.unsaidSends.length > SENT_REPORTS_KEPT) this.unsaidSends.shift();
+      // The port is already back (the request itself outlived a reconnect): no state change will come.
+      if (this.env.connection === 'ready') this.flushSentReports();
+    });
+  }
+
+  private flushSentReports(): void {
+    for (const { report, tries } of this.unsaidSends.splice(0)) this.reportSent(report, tries);
   }
 
   // ── reactions ────────────────────────────────────────────────────────────
@@ -1034,6 +1064,7 @@ export class AiWorkspace {
   private onEnvironment(change: EnvironmentChange): void {
     if (change === 'connection') {
       const state = this.env.connection;
+      if (state === 'ready') this.flushSentReports();
       if (state === 'reconnecting' || state === 'lost') this.portWasDown = true;
       else if (state === 'ready' && this.portWasDown) {
         this.portWasDown = false;

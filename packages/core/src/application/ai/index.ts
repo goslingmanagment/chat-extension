@@ -163,4 +163,4 @@ export {
 } from './ports';
 export { RECAP_STATUS, SHARED_RECAPS_TTL_MS, RecapBook, type RecapOwner, type SharedRead } from './recap-book';
 export { sameView, type AiController, type CauseKind } from './surface';
-export { AiWorkspace, BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, CHAT_UI_MAX, COPIED_MARK_MS, QUOTA_LOW_AT, isOwnSurface, type ReadyTarget, type RefusalState, type Sheet, type Situation, type StartRequest, type StartResult } from './workspace';
+export { AiWorkspace, BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, CHAT_UI_MAX, COPIED_MARK_MS, QUOTA_LOW_AT, SENT_REPORT_TRIES, isOwnSurface, type ReadyTarget, type RefusalState, type Sheet, type Situation, type StartRequest, type StartResult } from './workspace';

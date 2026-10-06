@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
-import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults } from '@cg/core/application/ai';
+import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
@@ -2313,6 +2313,50 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
     expect(result(h).expanded).toBe(true);
     expect(await h.dispatch({ type: 'HideResult', operationId: opId })).toMatchObject({ ok: true });
     expect(h.dock().result).toBeNull();
+  });
+
+  it('[TL-004] [NF-019] a part inserted from the dock and sent by the person: the report the background never heard (the port was lost under it) is said again when the port is back — the same report, a bounded number of times', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    const sent = (): void =>
+      h.host.humanSend({ chat: previewChat, pendingId: 'pending-9', textDigest: 'feedbeef00000007', platformMessageId: '4101', draft: { revision: 2, provenance: 'our-insert', insertIntentId: h.fake.calls.inserts[0]?.intentId as string, editedSinceInsert: false } });
+    const report = { opId, part: { index: 1 }, pendingId: 'pending-9', platformMessageId: '4101', edited: false };
+    // The port is lost when the person presses Send: nobody hears the report — the part would never read
+    // «Отправлено» and the hub would never be told.
+    h.bg.setConnection('lost');
+    sent();
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toEqual([report]);
+    // The port is back: the same report once more, and this time it is heard.
+    h.bg.setConnection('ready');
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toEqual([report, report]);
+    // Heard: a later reconnect says nothing again.
+    h.bg.setConnection('lost');
+    h.bg.setConnection('ready');
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toHaveLength(2);
+
+    // A port that goes away under every answer is not asked for ever: the report is said a bounded number of times.
+    const before = h.bg.callsOf('op.reportSent').length;
+    h.bg.dropped.set('op.reportSent', 100);
+    sent();
+    for (let i = 0; i < SENT_REPORT_TRIES + 3; i += 1) await h.settle();
+    expect(h.bg.callsOf('op.reportSent').length - before).toBe(SENT_REPORT_TRIES);
+    h.bg.setConnection('lost');
+    h.bg.setConnection('ready');
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent').length - before).toBe(SENT_REPORT_TRIES);
+    // A refusal in the background's own words is an answer: not said again.
+    h.bg.dropped.clear();
+    // Nothing of this ever wrote or sent anything.
+    expect(h.fake.calls.inserts).toHaveLength(1);
   });
 
   it('[NEW-05] [UI-020] the chat holds the person’s own text: nothing was written — the question «Заменить / Добавить в конец / Отмена» stands in that chat’s dock, and only their answer writes', async () => {
