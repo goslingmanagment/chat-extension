@@ -110,6 +110,8 @@ const OWN_SURFACES: readonly string[] = ['palette', 'quick-jump', 'cheatsheet'];
 export function createNavigationController(deps: NavigationControllerDeps): NavigationController {
   const { host, i18n, overlays } = deps;
   let inFlight = false;
+  /** The latest word about the quick-jump popup: a close (or a newer open) outdates an open that still reads the switch. */
+  let quickJumpAsk = 0;
 
   const fail = (code: CgCode): ActionReceipt => failedReceipt('Navigate', code, i18n);
   const done = (outcome: 'opened' | 'noop' | 'done'): ActionReceipt => ({ ok: true, type: 'Navigate', outcome });
@@ -186,6 +188,23 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     return open({ hostAccountId: target.chat.hostAccountId, platformFanId: target.chat.platformFanId }, cause);
   };
 
+  /**
+   * The quick-jump popup names the chats our navigation would open, so it stands under the same owner switch as
+   * the keys — `ownerSwitch` of the account on screen — and stricter than a key: it opens only on a definite
+   * «on». A page whose owner left `navigation` off, the master switch off, a binding that is ambiguous or not
+   * read yet, nobody signed in: no popup at all — nothing lists other fans' chats and no row is there to click
+   * (opening a chat marks it read on OnlyFans). Silent: holding ⌘/Ctrl is not a command to refuse aloud.
+   */
+  const openQuickJump = async (): Promise<ActionReceipt> => {
+    const ask = (quickJumpAsk += 1);
+    const accountId = currentAccountId();
+    if (deps.ownerSwitch !== undefined && (await deps.ownerSwitch(accountId)) !== true) return done('noop');
+    // The modifier went up, or the person is in another account, while the switch was read: nothing opens late.
+    if (ask !== quickJumpAsk || currentAccountId() !== accountId || overlays.isOpen('quick-jump')) return done('noop');
+    overlays.set('quick-jump', true);
+    return done('opened');
+  };
+
   const dispatch = (action: UiAction): Promise<ActionReceipt> | null => {
     if (action.type !== 'Navigate') return null;
     const to = action.to;
@@ -202,6 +221,10 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
       return hostAccountId === null ? null : open({ hostAccountId, platformFanId: null }, cause);
     }
     if (to.kind === 'surface' && OWN_SURFACES.includes(to.surface)) {
+      if (to.surface === 'quick-jump') {
+        if (to.open) return openQuickJump();
+        quickJumpAsk += 1;
+      }
       const was = overlays.isOpen(to.surface);
       overlays.set(to.surface, to.open);
       return Promise.resolve(done(was === to.open ? 'noop' : to.open ? 'opened' : 'done'));

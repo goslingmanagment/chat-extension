@@ -16,19 +16,24 @@
 //   reason; what is typed into its search field — two layouts, `]`, `?` — is
 //   text and starts nothing;
 // - Enter on a part of ours is «Вставить»: ChatSpace sends nothing;
+// - ⌘/Ctrl held alone opens «Быстрый переход» only where the owner's
+//   `navigation` is on for the page: with it off the hold opens nothing and
+//   says nothing, ⌘1–9 and J are refused aloud, and no chat is opened;
 // - a browser on Windows (a second Firefox that says so): Ctrl+Alt+S is
 //   Recap and ChatSpace's translator, which listens for Alt+S, does not flip.
 
-import { browser, expect } from '@wdio/globals';
+import { $, browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
+import { pilotPageFlags } from '../../src/fake-hub/config';
 import { callsTo } from '../../src/fake-hub/journal';
 import { composerText, historyLoads, MOD, pageJournal, pageJournalMark, PANEL, sendsOf, serverSince, typeDraft, waitForComposerText } from '../support/chat';
+import { pageRpc } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { ours, oursExists, oursFocus, oursText, waitOursText } from '../support/ours';
 import { inBrowser, startSecondBrowser } from '../support/second';
-import { dockIs, startShift } from '../support/shift';
+import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
 const ACC = STAND_IDS.accounts.a;
@@ -40,6 +45,7 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
   const { hub } = useFakeHub();
   let journalStart = 0;
   let windows: WebdriverIO.Browser | null = null;
+  let shift: Shift;
 
   const route = async (): Promise<string | null> => (await callStand('route')).chatId;
   const overlays = async (): Promise<readonly string[]> => (await dockIs(() => true, 'the dock')).overlays;
@@ -70,7 +76,7 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
     await standServer.reset();
     journalStart = await standServer.mark();
     await hub().command({ op: 'config', patch: { aiNameFan: true } });
-    await startShift(hub(), { settings: { generation: { split: true } }, viewport: { width: 1440, height: 900 } });
+    shift = await startShift(hub(), { settings: { generation: { split: true } }, viewport: { width: 1440, height: 900 } });
     await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock of the open chat is ready');
   });
 
@@ -242,6 +248,73 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       // Three Esc presses inside our window, and ChatSpace's chat tab is still there.
       expect(await route()).toBe(a2);
       expect(await pageEvents(page, 'chat-tab-closed')).toBe(0);
+    });
+  });
+
+  describe('the ⌘-hold quick jump under the owner’s `navigation` switch', () => {
+    const popup = (): Promise<boolean> => oursExists('modal', '[data-cg-quickjump]');
+    /** The background reads the owner's switches again (as its 5-minute refresh does); the tab hears `bootstrap.changed`. */
+    const setNavigation = async (on: boolean): Promise<void> => {
+      await hub().command({ op: 'config', patch: pilotPageFlags({ navigation: on }) });
+      await shift.toPages();
+      try {
+        expect(await pageRpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+      } finally {
+        await shift.toStand();
+      }
+    };
+    /** ⌘/Ctrl goes down alone, outside any field, and stays down past the 400 ms of the hold. */
+    const hold = async (): Promise<void> => {
+      await $('[data-stand-conversation-header]').click();
+      await browser.action('key').down(MOD).pause(900).perform(true);
+    };
+    const letGo = (): Promise<void> => browser.action('key').up(MOD).perform();
+
+    after(async () => {
+      await browser.releaseActions();
+      await hub().command({ op: 'config', patch: pilotPageFlags({ navigation: true }) });
+    });
+
+    it('[NEW-07] [HK-037] `navigation` on: the hold opens «Быстрый переход» with the chats of ChatSpace’s list, letting go closes it. `navigation` off for the page: the hold opens nothing and says nothing, ⌘2 and J are refused aloud, no chat is opened; on again — the popup is back', async function () {
+      this.timeout(120_000);
+      const here = await route();
+      await hold();
+      await browser.waitUntil(popup, { timeout: 5000, timeoutMsg: 'the quick jump did not open under a held ⌘/Ctrl with `navigation` on' });
+      expect(await overlays()).toEqual(['quick-jump']);
+      const shown = await oursText('modal', '[data-cg-quickjump]');
+      expect(shown).toContain('Быстрый переход');
+      expect(shown).toMatch(/Fan \w+/);
+      await letGo();
+      await waitOverlays([], 'letting ⌘/Ctrl go closes the quick jump');
+      expect(await popup()).toBe(false);
+
+      // The owner leaves `navigation` off for the page — the live case of 2026-10-07.
+      await setNavigation(false);
+      await dockIs((d) => d.status === 'ready', 'the dock after the owner’s switches were read again', 20_000);
+      const standMark = await standServer.mark();
+      await hold();
+      await browser.pause(600);
+      expect(await popup()).toBe(false);
+      expect(await overlays()).toEqual([]);
+      // A hold is not a command: nothing is said about it.
+      expect(await oursText('toast')).not.toContain('CG-FEATURE-DISABLED');
+      // A digit under the held modifier is one, and it is refused with the reason — no chat opens.
+      await browser.action('key').down('2').up('2').perform(true);
+      await waitOursText('toast', 'CG-FEATURE-DISABLED', '⌘2 on a page without `navigation` says why it does nothing');
+      await letGo();
+      expect(await popup()).toBe(false);
+      await browser.keys(['j']);
+      await browser.pause(500);
+      expect(await route()).toBe(here);
+      expect(historyLoads(await serverSince(standMark))).toEqual([]);
+
+      // Switched on again: the same hold opens the popup, without a reload of the tab.
+      await setNavigation(true);
+      await hold();
+      await browser.waitUntil(popup, { timeout: 5000, timeoutMsg: 'the quick jump did not come back with `navigation` on again' });
+      await letGo();
+      await waitOverlays([], 'the quick jump closed');
+      expect(await route()).toBe(here);
     });
   });
 

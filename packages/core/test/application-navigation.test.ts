@@ -104,7 +104,8 @@ interface WorldOptions {
   readonly snapshot?: Partial<HostSnapshot>;
   readonly chatList?: readonly NavigationItem[];
   readonly answers?: HostAnswers;
-  readonly ownerSwitch?: boolean | null;
+  /** The owner's `navigation` switch as the tab would answer it; a function — an answer that is slow or moves. */
+  readonly ownerSwitch?: boolean | null | ((hostAccountId: string | null) => boolean | null | Promise<boolean | null>);
 }
 
 function world(options: WorldOptions = {}) {
@@ -121,7 +122,7 @@ function world(options: WorldOptions = {}) {
   const toasts = new FakeToasts();
   const cause = createCauseHint();
   const i18n = createI18n({ language: 'ru', now: () => clock.now() });
-  const navigation = createNavigationController({ host, rpc, i18n, ids: sequentialIds(0x700), clock, overlays, toasts, cause, ownerSwitch: () => options.ownerSwitch ?? null });
+  const navigation = createNavigationController({ host, rpc, i18n, ids: sequentialIds(0x700), clock, overlays, toasts, cause, ownerSwitch: (hostAccountId) => (typeof options.ownerSwitch === 'function' ? options.ownerSwitch(hostAccountId) : (options.ownerSwitch ?? null)) });
   const go = async (action: UiAction): Promise<ActionReceipt | null> => {
     const pending = navigation.dispatch(action);
     if (pending === null) return null;
@@ -406,7 +407,8 @@ describe('chat navigation', () => {
   });
 
   it('[HK-036] [NEW-07] the palette, the quick jump and the cheatsheet open and close by Navigate; the dispatcher sees them at once', async () => {
-    const w = world();
+    // The quick jump opens only where the owner's `navigation` is on (below); the palette and the cheatsheet ask nothing.
+    const w = world({ ownerSwitch: true });
     for (const surface of ['palette', 'quick-jump', 'cheatsheet'] as const) {
       expect(await w.go({ type: 'Navigate', to: { kind: 'surface', surface, open: true } })).toEqual({ ok: true, type: 'Navigate', outcome: 'opened' });
       expect(w.overlays.top()).toBe(surface);
@@ -438,11 +440,92 @@ describe('the quick jump', () => {
     expect(controller.dispatch(view.items[1]?.action as UiAction)).toBeNull();
   });
 
+  it('[NEW-07] [HK-037] the popup opens only where the owner’s `navigation` is definitely on for the account on screen: off, unknown or unread — no popup, no word, nothing to click', async () => {
+    const popup: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: true } };
+    const close: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: false } };
+    // Off (the page's own switch, the master switch, a binding that could not be told), and unknown (nobody signed
+    // in, the bootstrap not read): the hold opens nothing and says nothing — it is not a command to refuse aloud.
+    for (const answer of [false, null] as const) {
+      const w = world({ ownerSwitch: answer });
+      const seen: boolean[] = [];
+      w.overlays.subscribe(() => seen.push(w.overlays.isOpen('quick-jump')));
+      expect(await w.go(popup)).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+      expect(w.overlays.isOpen('quick-jump')).toBe(false);
+      expect(seen).toEqual([]);
+      expect(w.toasts.shown).toEqual([]);
+      expect([w.host.calls.navigations, w.rpc.of('token.issue')]).toEqual([[], []]);
+      // Letting the modifier go is nothing to close.
+      expect(await w.go(close)).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    }
+    // The switch is asked for the account on screen, each time the popup is asked for.
+    const asked: (string | null)[] = [];
+    const on = world({ ownerSwitch: (account) => (asked.push(account), true) });
+    expect(await on.go(popup)).toEqual({ ok: true, type: 'Navigate', outcome: 'opened' });
+    expect(on.overlays.isOpen('quick-jump')).toBe(true);
+    expect(asked).toEqual([ACC]);
+    expect(await on.go(popup)).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(asked).toEqual([ACC, ACC]);
+    // The owner switches it off while the popup is closed: the next hold opens nothing.
+    let allowed = true;
+    const moving = world({ ownerSwitch: () => allowed });
+    expect((await moving.go(popup))?.ok && moving.overlays.isOpen('quick-jump')).toBe(true);
+    await moving.go(close);
+    allowed = false;
+    expect(await moving.go(popup)).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(moving.overlays.isOpen('quick-jump')).toBe(false);
+  });
+
+  it('[NEW-07] the switch is read while the hold goes on: a modifier let go meanwhile, or another account on screen by then, and nothing opens late', async () => {
+    const popup: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: true } };
+    const close: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: false } };
+    let answer: (allowed: boolean) => void = () => undefined;
+    const slow = (): Promise<boolean> => new Promise((resolve) => (answer = resolve));
+    // Let go before the switch answered: the answer «on» opens nothing.
+    const released = world({ ownerSwitch: slow });
+    const opening = released.navigation.dispatch(popup);
+    expect(released.overlays.isOpen('quick-jump')).toBe(false);
+    void released.navigation.dispatch(close);
+    answer(true);
+    expect(await opening).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(released.overlays.isOpen('quick-jump')).toBe(false);
+    // Held again: only the latest hold counts — the first answer opens nothing, the second opens the popup once.
+    const twice = world({ ownerSwitch: slow });
+    const first = twice.navigation.dispatch(popup);
+    const firstAnswer = answer;
+    const second = twice.navigation.dispatch(popup);
+    firstAnswer(true);
+    expect(await first).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(twice.overlays.isOpen('quick-jump')).toBe(false);
+    answer(true);
+    expect(await second).toEqual({ ok: true, type: 'Navigate', outcome: 'opened' });
+    // The person is in another account by the time the switch of the first one answers: its «on» is not theirs.
+    const moved = world({ ownerSwitch: slow });
+    const late = moved.navigation.dispatch(popup);
+    moveRoute(moved, { epoch: 7, name: 'chat', account: OTHER_ACCOUNT, chat: { host: 'chatspace', hostAccountId: OTHER_ACCOUNT.hostAccountId, platformFanId: '2001' } });
+    answer(true);
+    expect(await late).toEqual({ ok: true, type: 'Navigate', outcome: 'noop' });
+    expect(moved.overlays.isOpen('quick-jump')).toBe(false);
+  });
+
+  it('[NEW-07] an open popup is for the account it opened in: another account on screen closes it — its chats are not listed under the first one’s permission', async () => {
+    const w = world({ ownerSwitch: true });
+    const controller = createQuickJumpController({ host: w.host, i18n: w.i18n, overlays: w.overlays, clock: w.clock });
+    await w.go({ type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: true } });
+    expect(w.overlays.isOpen('quick-jump')).toBe(true);
+    // Another chat of the same account: the popup stays and looks again.
+    moveRoute(w, { epoch: 8, name: 'chat', account: hostAccount, chat: chat('2003') });
+    expect(w.overlays.isOpen('quick-jump')).toBe(true);
+    // Another account: closed at once; the next hold asks that account's own switch.
+    moveRoute(w, { epoch: 9, name: 'chat', account: OTHER_ACCOUNT, chat: { host: 'chatspace', hostAccountId: OTHER_ACCOUNT.hostAccountId, platformFanId: '2001' } });
+    expect(w.overlays.isOpen('quick-jump')).toBe(false);
+    controller.dispose();
+  });
+
   it('[NEW-07] a row of the popup opens the chat the person sees in it, wherever ChatSpace\'s list has moved since; the popup looks again only when it is told to', async () => {
     const shownList = [item('2005', 0, 'Jake Morrison'), item('2002', 1, 'Fan Two'), item('2003', 2, 'Theodore Whitfield'), item('2004', 3, 'Marco Rinaldi')];
     const movedList = [item('2004', 0, 'Marco Rinaldi', 1), item('2005', 1, 'Jake Morrison'), item('2002', 2, 'Fan Two'), item('2003', 3, 'Theodore Whitfield')];
     let live = shownList;
-    const w = world({ chatList: shownList });
+    const w = world({ chatList: shownList, ownerSwitch: true });
     w.host.listCachedChats = (_account, limit) => live.slice(0, limit);
     const controller = createQuickJumpController({ host: w.host, i18n: w.i18n, overlays: w.overlays, clock: w.clock });
     const seen: QuickJumpVM[] = [];

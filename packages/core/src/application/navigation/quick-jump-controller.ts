@@ -2,7 +2,11 @@
 // ⌘/Ctrl held alone for 400 ms shows the first nine chats of the list the
 // person sees, numbered — our own window, nothing is drawn into ChatSpace's
 // rows (Б9). A digit under the held modifier opens that chat; letting the
-// modifier go closes the popup. A host-only view: no hub, no sign-in.
+// modifier go closes the popup. The view itself reads the host only; whether
+// the popup may open at all is the owner's `navigation` switch of the account
+// on screen, asked by the navigation controller that opens it — so the popup
+// is for one account: when the account on screen changes it closes, and the
+// next hold asks that account's own switch.
 //
 // A row names its chat, not its place: the action of row N is «open this
 // chat», so a click or a digit opens what the person sees in that row even
@@ -30,9 +34,16 @@ export function createQuickJumpController(deps: QuickJumpControllerDeps): Surfac
   const changes = createEmitter();
   let wasOpen = overlays.isOpen('quick-jump');
 
+  const accountOnScreen = (): string | null => {
+    const { route } = host.current();
+    return route.account?.hostAccountId ?? route.chat?.hostAccountId ?? null;
+  };
+  /** The account the open popup was allowed for. */
+  let openedFor: string | null = accountOnScreen();
+
   const build = (): QuickJumpVM => {
     const snapshot = host.current();
-    const accountId = snapshot.route.account?.hostAccountId ?? snapshot.route.chat?.hostAccountId ?? null;
+    const accountId = accountOnScreen();
     const capability = snapshot.contract.capabilities.chatList;
     if (capability.state === 'off' || capability.state === 'contractBroken') {
       return { view: { s: 'error', error: codeView('CG-HOST-CONTRACT', deps.i18n), retry: null }, items: [] };
@@ -70,13 +81,17 @@ export function createQuickJumpController(deps: QuickJumpControllerDeps): Surfac
       changes.emit();
       return;
     }
+    openedFor = accountOnScreen();
     // The host port answers from its own copy and only then reads ChatSpace's list again: this look starts
     // that read, the second one shows what it brought.
     look();
     void deps.clock.setTimer(LIST_SETTLE_MS, () => overlays.isOpen('quick-jump') && look());
   });
   const unsubscribeHost = host.subscribe((event) => {
-    if (overlays.isOpen('quick-jump') && (event.type === 'route' || event.type === 'accounts')) look();
+    if (!overlays.isOpen('quick-jump') || (event.type !== 'route' && event.type !== 'accounts')) return;
+    // Another account is on screen: its chats are not shown under the permission of the one before.
+    if (accountOnScreen() !== openedFor) overlays.set('quick-jump', false);
+    else look();
   });
 
   return {
