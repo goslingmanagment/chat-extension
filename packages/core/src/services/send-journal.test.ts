@@ -231,6 +231,29 @@ describe('[TL-004] [NF-019] a part the person sent themselves is a finished reco
     expect(second.journal.list().map((item) => item.attemptId)).toEqual([uuid(509)]);
   });
 
+  it('a journal that cannot be read keeps nothing of the record — its memory is replaced by the disk when it reads again; offered again then, the record is written. One too old to keep is not written at all', async () => {
+    const local = createMemoryKv();
+    local.data.set(KEY, 'not a journal');
+    const { journal, clock } = setup({ local });
+    expect((await journal.start()).readable).toBe(false);
+    const writes = local.calls.set;
+    // No promise is made: «kept in memory» here would be gone with the first successful read.
+    expect(await journal.record(delivered(1))).toMatchObject({ ok: false, code: 'CG-STORAGE-READ' });
+    expect(journal.get(uuid(501))).toBeNull();
+    expect([local.calls.set, local.read(KEY)]).toEqual([writes, 'not a journal']);
+    // The key is readable again (the outside value is gone): the record, offered again, is in the journal for good.
+    local.data.delete(KEY);
+    expect(await journal.record(delivered(1))).toMatchObject({ ok: true, persisted: true });
+    expect((await journal.begin(entry(2, { fanRef: IDS.otherFan }))).ok).toBe(true);
+    expect(stored(local)?.entries.map((item) => item['state'])).toEqual(['sentObserved', 'preparing']);
+    // A delivery older than finished records are kept: nothing to hold, and no write each time it is offered.
+    const before = local.calls.set;
+    clock.advance(DAY + 1);
+    expect(await journal.record(delivered(3, { fanRef: '8003' }))).toMatchObject({ ok: true, persisted: false });
+    expect(await journal.record(delivered(3, { fanRef: '8003' }))).toMatchObject({ ok: true, persisted: false });
+    expect([local.calls.set, journal.get(uuid(503))]).toEqual([before, null]);
+  });
+
   it('a write that failed keeps the fact in memory and writes it with the next change; a newer build’s journal is not touched', async () => {
     const { local, journal, logs } = setup();
     await journal.start();

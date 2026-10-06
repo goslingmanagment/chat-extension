@@ -190,6 +190,22 @@ describe('sendJournalStoreOver — a part the person sent themselves (§6.6)', (
     expect(second.journal.get(uuid(2))?.state).toBe('preparing');
   });
 
+  it('[RB-007] a record that came while the journal could not be read is not lost when it reads again: the next write of the list journals it', async () => {
+    const data = new Map<string, unknown>([[SEND_KEY, 'not a journal']]);
+    const { store, journal, local } = world(data);
+    // The person's send is told while the key holds something this build cannot read: nothing is kept on a promise.
+    await expect(store.set(SEND_KEY, [native(1)])).resolves.toBeUndefined();
+    expect(journal.get(uuid(1))).toBeNull();
+    expect(local.data.get(SEND_KEY)).toBe('not a journal');
+    // The key reads again. The coordinator writes its list at the next click — the record is still in that list.
+    data.delete(SEND_KEY);
+    await store.set(SEND_KEY, [native(1), entry(2)]);
+    expect(states(local)).toEqual([[uuid(1), 'sentObserved'], [uuid(2), 'preparing']]);
+    // …and after an unload the part is still delivered.
+    const again = world(data);
+    expect(((await again.store.get(SEND_KEY)) as SendJournalEntry[]).map((item) => [item.attemptId, item.state])).toEqual([[uuid(1), 'sentObserved'], [uuid(2), 'uncertain']]);
+  });
+
   it('a record the journal does not take never rejects the write: the attempt next to it is journaled, the record is offered again', async () => {
     const { store, journal, local } = world();
     await store.get(SEND_KEY);

@@ -27,7 +27,10 @@
 //   `preparing` record would hold the fan, read «неизвестно, ушло ли» after
 //   an unload, and its refused move to `sentObserved` would fail every later
 //   write of the list. A record of what the person did never rejects a
-//   write: a journal that does not take it now is asked again next time.
+//   write: a journal that does not take it now is asked again next time —
+//   and «took it» is read from the journal itself at every write, never
+//   remembered here: a journal that could not be read when the record came
+//   holds nothing of it once it reads again.
 
 import { type SendJournalEntry } from '@cg/contracts/send';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
@@ -74,14 +77,15 @@ export function sendJournalStoreOver(journal: SendJournal): ThrowingStore {
       const entries = value as readonly SendJournalEntry[];
       for (const entry of entries) {
         const existing = journal.get(entry.attemptId);
+        if (isNativeSendEntry(entry)) {
+          // The person's own send: a finished record, never an open one — and never a reason to refuse this write.
+          // Offered for as long as the journal does not hold it.
+          if (existing === null) await journal.record(entry);
+          continue;
+        }
         if (existing === null) {
           // A finished attempt the journal no longer keeps (its own bound): nothing to hold, nothing to write.
           if (seen.has(entry.attemptId) && entry.state !== 'preparing') continue;
-          if (isNativeSendEntry(entry)) {
-            // The person's own send: a finished record, never an open one — and never a reason to refuse this write.
-            if ((await journal.record(entry)).ok) seen.add(entry.attemptId);
-            continue;
-          }
           const begun = await journal.begin(asPreparing(entry));
           if (!begun.ok) throw new StorageCallError(begun.code, `${KEY} ${entry.attemptId}`);
           seen.add(entry.attemptId);
