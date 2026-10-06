@@ -366,9 +366,22 @@ describe('[RB-010] a port lost under a living extension', () => {
     let brokenStarts = 0;
     world.fake.onWake(() => void (brokenStarts += 1));
     world.fake.unloadBackground();
-    // The quick attempts (100/200/400 ms) pass; the beats go on asking — one try at a time, however many beats.
+    // The quick attempts (100/200/400 ms) pass; the beats go on asking.
     await sleep(1000);
     expect(brokenStarts).toBe(1);
+    expect(tab.life.signal.aborted).toBe(false);
+    // One try at a time, however many beats: a page that takes the connection and never answers `tab.register`
+    // (its start hangs) leaves the try waiting — and the beats that follow open no second port next to it.
+    const openPorts = (): number => [...tab.context.ports].filter((port) => port.connected).length;
+    world.fake.onWake((context) => {
+      brokenStarts += 1;
+      context.api.runtime.onConnect.addListener(() => undefined);
+    });
+    world.fake.unloadBackground();
+    await until(() => brokenStarts === 2, 'a beat woke the hanging page');
+    await sleep(400);
+    expect(openPorts()).toBe(1);
+    expect(brokenStarts).toBe(2);
     expect(tab.life.signal.aborted).toBe(false);
     // The broken page goes away and a working one is there (the browser restarted the background, the storage came back):
     // nothing tells the tab — its next beat finds it.
@@ -382,7 +395,7 @@ describe('[RB-010] a port lost under a living extension', () => {
     world.fake.onWake(() => void (brokenStarts += 1));
     world.fake.unloadBackground();
     await sleep(1000);
-    expect(brokenStarts).toBe(2);
+    expect(brokenStarts).toBe(3);
     world.fake.unloadBackground();
     world.start();
     tab.focus(true);
