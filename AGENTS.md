@@ -86,13 +86,16 @@ a boundary you need to cross is a design question, not a lint exception.
   mechanism. Headless Firefox driven by geckodriver (`pnpm e2e`, `pnpm perf`)
   is exempt.
 - `pnpm release <command>` — cutting a release (`docs/release.md`). `status`,
-  `version`, `note`, `site`, `build`, `preflight` are local (`preflight
-  --online` also reads origin, the served feed and the production hub's
-  health). `sign`, `publish`,
-  `pages`, `tag`, `announce`, `rollback` leave the machine: without
-  `--confirm <version>` they only print their plan. `--confirm` is the
+  `version`, `note`, `site`, `build`, `preflight` are local. `preflight
+  --online` also reads, and only reads: origin (`git fetch`, `git
+  ls-remote`), the served feed, the production hub's health, and GitHub's API
+  about the hub repository (`gh api repos/<hub>/compare/…`: is the vendored
+  SDK's commit on the hub's main). `sign`, `publish`, `pages`, `tag`,
+  `announce`, `rollback` leave the machine: without `--confirm <version>` they
+  only print their plan and make no request at all. `--confirm` is the
   owner's word: an agent passes it only when the owner asked for that very
-  step.
+  step. A test of the tool never uses a real address: `tools/release/*.test.ts`
+  run against loopback and a scripted world (`cli-world.ts`).
 - `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
   `pnpm e2e` inside the pinned Firefox image with no network (needs Docker).
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity

@@ -1,7 +1,7 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 214,
+    "unit": 216,
     "e2e": 32
   },
   "totals": {
@@ -1049,11 +1049,11 @@
     {"id":"BG-007","function":"Захват сессии Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"BG-008","function":"Проба voice","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"BG-009","function":"Опрос маршрута 500 мс","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
-    {"id":"UP-001","function":"Свой фид обновлений","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/feed.test.ts","tools/release/publish.test.ts"],"e2e":[],"covered":true},
-    {"id":"UP-002","function":"Подпись AMO unlisted","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/publish.test.ts","tools/release/records.test.ts","tools/release/sign.test.ts","tools/release/xpi.test.ts"],"e2e":[],"covered":true},
+    {"id":"UP-001","function":"Свой фид обновлений","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/cli.test.ts","tools/release/feed.test.ts","tools/release/publish.test.ts"],"e2e":[],"covered":true},
+    {"id":"UP-002","function":"Подпись AMO unlisted","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/cli.test.ts","tools/release/publish.test.ts","tools/release/records.test.ts","tools/release/sign.test.ts","tools/release/xpi.test.ts"],"e2e":[],"covered":true},
     {"id":"UP-003","function":"Предполётные проверки релиза","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/gate.test.ts","tools/release/note.test.ts","tools/release/preflight.test.ts","tools/release/publish.test.ts","tools/release/records.test.ts","tools/release/version.test.ts"],"e2e":[],"covered":true},
-    {"id":"UP-004","function":"Гейт контракта ядра в релизе","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/gate.test.ts","tools/release/preflight.test.ts"],"e2e":[],"covered":true},
-    {"id":"UP-005","function":"Предпроверка и анонс в Telegram","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/announce.test.ts","tools/release/changelog.test.ts"],"e2e":[],"covered":true},
+    {"id":"UP-004","function":"Гейт контракта ядра в релизе","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/cli.test.ts","tools/release/gate.test.ts","tools/release/preflight.test.ts","tools/release/publish.test.ts"],"e2e":[],"covered":true},
+    {"id":"UP-005","function":"Предпроверка и анонс в Telegram","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/announce.test.ts","tools/release/changelog.test.ts","tools/release/cli.test.ts"],"e2e":[],"covered":true},
     {"id":"UP-006","function":"Версия на страницах, выкладка и тег","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/gate.test.ts","tools/release/publish.test.ts","tools/release/site.test.ts","tools/release/version.test.ts"],"e2e":[],"covered":true},
     {"id":"UP-007","function":"Гейт «AI только через ядро»","target":"пилот","owner":"R19","milestones":["M7"],"planned":"manual-smoke","pilot":true,"unit":["tools/release/ai-through-hub.test.ts"],"e2e":[],"covered":true},
     {"id":"UP-008","function":"Доступ к хабу после обновления","target":"пилот","owner":"R10","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-lifecycle.test.ts","apps/extension/test/wiring-pages.test.ts","packages/core/test/services-runtime.test.ts"],"e2e":["packages/testing/e2e/specs/release-xpi.e2e.ts"],"covered":true},
