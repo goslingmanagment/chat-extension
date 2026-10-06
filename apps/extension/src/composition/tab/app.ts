@@ -49,7 +49,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
-import { adopt, boardReceiptToast, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently } from './client';
+import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
@@ -625,7 +625,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
               (taken) => taken,
               () => false,
             ).then((taken) => {
-              const left = disposed ? null : handoverToast(handover.outcome, taken);
+              // Said only in the chat it is about: the person may have gone on while the dock waited for the field.
+              const left = disposed ? null : handoverToast(handover.outcome, taken, chatOnScreen(host.current().route, handover.chat));
               if (left !== null) say(left.code, left.scope, left.title);
             });
           },

@@ -8,7 +8,7 @@ import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import type { TokenAnswer } from './action-gate';
-import { adopt, boardReceiptToast, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, type LooseController } from './client';
+import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
 const done = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
@@ -166,12 +166,23 @@ describe('what a click on a board’s part came to, when the board has no place 
   });
 
   it('[NEW-05] the dock of the opened chat takes the result (§6.5); only when it could not, and nothing was written over the person’s text, the reason is said — «В поле ввода уже есть ваш текст»', () => {
-    expect(handoverToast('needs-confirm', false)).toEqual({ code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' });
+    expect(handoverToast('needs-confirm', false, true)).toEqual({ code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' });
     // The question is on screen in the dock: a toast would say it twice.
-    expect(handoverToast('needs-confirm', true)).toBeNull();
+    expect(handoverToast('needs-confirm', true, true)).toBeNull();
     // The part is in the field whether or not the dock shows the rest: nothing to say.
-    expect(handoverToast('inserted', true)).toBeNull();
-    expect(handoverToast('inserted', false)).toBeNull();
+    expect(handoverToast('inserted', true, true)).toBeNull();
+    expect(handoverToast('inserted', false, true)).toBeNull();
+  });
+
+  it('[NEW-05] «В поле ввода уже есть ваш текст» is said only in the chat it is about: a person who went on to another chat while the dock waited for the field is told nothing there', () => {
+    const chat = { hostAccountId: '910101', platformFanId: '74001006' };
+    // Still in the chat the result was made for: told.
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat } }, chat))).not.toBeNull();
+    // Another fan's chat, the same fan in another account, no chat at all: not told.
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat, platformFanId: '74001001' } }, chat))).toBeNull();
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat, hostAccountId: '910102' } }, chat))).toBeNull();
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: null }, chat))).toBeNull();
+    expect(handoverToast('inserted', false, false)).toBeNull();
   });
 
   it('[X8-03] an attempt held before ChatSpace’s queue for a passing reason is said — its row goes back to «Отправить»; what the row keeps is not', () => {

@@ -1062,6 +1062,40 @@ describe('the hotkey runner', () => {
     expect(toastTitles(locked.toasts, locked.i18n)).toEqual(['Тон на один ответ недоступен: нельзя менять, пока идёт генерация']);
   });
 
+  it('[RB-010] [HK-026] the port to the background is lost: every key of the strip — Tone and Split too — says «нет связи с расширением», not «хаб недоступен»', async () => {
+    const unreachable = reason('runtime-unreachable');
+    const base = dock(CTX, 'hub-down', { code: 'CG-RUNTIME-UNREACHABLE' });
+    // The dock as its controller builds it over a lost port (application-dock.test.ts [RB-010]): the status is
+    // `hub-down` with the code of the lost port, there is no target while the strip is off, and every action and
+    // both options carry the reason.
+    const lost = {
+      ...base,
+      targetHandle: null,
+      actions: Object.fromEntries(Object.entries(base.actions).map(([id, action]) => [id, { ...action, enabled: false, reason: unreachable }])) as typeof base.actions,
+      options: { ...base.options, toneReason: unreachable, splitReason: unreachable },
+    };
+    const r = runnerRig();
+    r.client.set({ of: 'dock' }, lost);
+    for (const id of ['tone', 'split', 'reply', 'recap'] as const) expect([id, await r.run(id)]).toEqual([id, undefined]);
+    expect(r.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE']);
+    expect(toastTitles(r.toasts, r.i18n)).toEqual([
+      'Тон на один ответ недоступен: нет связи с расширением, переподключаюсь',
+      'Split: ответ частями недоступен: нет связи с расширением, переподключаюсь',
+      'Reply недоступен: нет связи с расширением, переподключаюсь',
+      'Recap недоступен: нет связи с расширением, переподключаюсь',
+    ]);
+    expect(r.client.dispatched).toEqual([]);
+    // A view that carries no reason of its own: the status' code alone still tells a lost port from a hub that is down.
+    const bare = runnerRig();
+    bare.client.set({ of: 'dock' }, { ...lost, actions: Object.fromEntries(Object.entries(lost.actions).map(([id, action]) => [id, { ...action, reason: null }])) as typeof base.actions, options: { ...lost.options, toneReason: null, splitReason: null } });
+    for (const id of ['tone', 'reply'] as const) await bare.run(id);
+    expect(bare.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE']);
+    // The hub that really does not answer is still «хаб недоступен».
+    const down = runnerRig({ targetHandle: null }, 'hub-down');
+    await down.run('tone');
+    expect(toastTitles(down.toasts, down.i18n)).toEqual(['Тон на один ответ недоступен: хаб недоступен, AI вернётся, когда он ответит']);
+  });
+
   it('[HK-011] Split is a switch with a toast', async () => {
     const r = runnerRig();
     expect(await r.run('split')).toEqual({ type: 'SetPreference', key: 'generation.split', value: true });

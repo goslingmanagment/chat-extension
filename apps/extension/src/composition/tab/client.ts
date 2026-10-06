@@ -95,9 +95,18 @@ export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { r
  * left to say when it did not take it: a chat whose field holds the person's own text got nothing written and
  * has no question on screen — the person is told why, in the words of the question. A part that was inserted
  * needs no word: it is in the field.
+ *
+ * `inThatChat` — the chat the result was made for is the one on screen now. «В поле ввода уже есть ваш текст» is
+ * about THAT chat's field: a person who has gone on to another chat meanwhile (the dock waits a few seconds for
+ * the field before it gives up) is not told it there — it would read as a word about the chat in front of them.
  */
-export function handoverToast(outcome: 'inserted' | 'needs-confirm', taken: boolean): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey } | null {
-  return outcome === 'needs-confirm' && !taken ? { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' } : null;
+export function handoverToast(outcome: 'inserted' | 'needs-confirm', taken: boolean, inThatChat: boolean): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey } | null {
+  return outcome === 'needs-confirm' && !taken && inThatChat ? { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' } : null;
+}
+
+/** Whether the chat on screen (the host's route) is this one. */
+export function chatOnScreen(route: { readonly chat: { readonly hostAccountId: string; readonly platformFanId: string } | null }, chat: { readonly hostAccountId: string; readonly platformFanId: string }): boolean {
+  return route.chat !== null && route.chat.hostAccountId === chat.hostAccountId && route.chat.platformFanId === chat.platformFanId;
 }
 
 /**
