@@ -758,8 +758,8 @@ export class AiWorkspace {
     const persona = handover.personaDefinitionId;
     if (persona === null || !this.env.session || !here()) return false;
     if (this.ops.get(handover.opId) === null) await this.ops.syncChat(key);
-    const record = here() ? this.ops.vouch(handover.opId, persona, handover.split) : null;
-    if (record === null || isOwnSurface(record.view.surface) || chatKeyOf(record.view.target.chat) !== key) return false;
+    const record = here() ? this.ops.vouch(handover.opId, key, persona, handover.split) : null;
+    if (record === null) return false;
     this.boardOps.add(handover.opId);
     if (handover.outcome === 'inserted') this.inserts.noteInserted(record, handover.part);
     this.setSheet(key, { kind: 'draft', opId: handover.opId });

@@ -1165,6 +1165,21 @@ describe('dock: a result this tab did not start', () => {
     expect(tab.host.draftOf(openChat)?.plainText).toBe('cached answer');
   });
 
+  it('[AI-125] a hand-over that names a result of the dock itself vouches for nothing: a persona this tab does not know stays unknown, and the result is still not inserted', async () => {
+    const h = await start();
+    const opId = await reply(h, 'cached answer');
+    const tab = await otherTab(h);
+    tab.ai.workspace.bindBoards(boardSide());
+    expect(tab.ai.workspace.ops.get(opId)).toMatchObject({ own: false, memo: { personaDefinitionId: null } });
+    // Something hands the dock its own reply as if a board had made it, with a persona to take on trust.
+    expect(await tab.ai.workspace.adoptBoardResult(handover(opId, { chat: openChat }))).toBe(false);
+    // Refused — and nothing was written on the way to the refusal.
+    expect(tab.ai.workspace.ops.get(opId)?.memo.personaDefinitionId).toBeNull();
+    expect(tab.ai.workspace.isBoardResult(opId)).toBe(false);
+    expect(await tab.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(tab.host.inserts).toBe(0);
+  });
+
   it('a run adopted while it still runs is of the page\'s current persona: its result inserts', async () => {
     const h = await start();
     h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply') }, delta('from the first tab', 1_000), doneStep] });
