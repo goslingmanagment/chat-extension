@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Руководство — ChatGoose для ChatSpace</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23727064' d='M1.5 8.8C3 10.3 5.8 11.1 8.4 11.1C10 11.1 11.2 10.3 11.6 8.9C11.9 7.6 12 6.2 12.1 5C12.2 3.4 13.1 2.2 14.6 2.2C15.6 2.2 16.4 2.8 16.7 3.6L19 4.5L16.7 5.3C16.3 5.8 15.6 6 14.9 5.9C14.6 7.2 14.5 8.6 14.5 10C14.5 14.2 11.6 16.8 7.8 16.8C4.4 16.8 2 14.4 1.7 11.2Z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav" aria-label="Разделы">
+      <a class="nav__brand" href="index.html">
+        <svg class="goose" width="24" height="24" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M1.5 8.8C3 10.3 5.8 11.1 8.4 11.1C10 11.1 11.2 10.3 11.6 8.9C11.9 7.6 12 6.2 12.1 5C12.2 3.4 13.1 2.2 14.6 2.2C15.6 2.2 16.4 2.8 16.7 3.6L19 4.5L16.7 5.3C16.3 5.8 15.6 6 14.9 5.9C14.6 7.2 14.5 8.6 14.5 10C14.5 14.2 11.6 16.8 7.8 16.8C4.4 16.8 2 14.4 1.7 11.2Z"/><circle class="goose__eye" cx="14.5" cy="3.6" r=".65"/></svg>
+        <span class="nav__name">ChatGoose <span class="nav__host">для ChatSpace</span></span>
+      </a>
+      <ul class="nav__list">
+        <li><a class="nav__link" href="index.html">Установка</a></li>
+        <li><a class="nav__link" href="start.html">Как начать</a></li>
+        <li><a class="nav__link" href="guide.html" aria-current="page">Руководство</a></li>
+        <li><a class="nav__link" href="whats-new.html">Что нового</a></li>
+        <li><a class="nav__link" href="changelog.html">История версий</a></li>
+        <li><a class="nav__link" href="privacy.html">О данных</a></li>
+      </ul>
+    </nav>
+
+    <main class="main">
+      <div class="main__inner">
+                <h1>Руководство</h1>
+        <p class="lead">Что делает ChatGoose в ChatSpace и как этим пользоваться. Сочетания клавиш записаны для Mac; на Windows вместо <kbd>⌘</kbd> — <kbd>Ctrl</kbd>, вместо <kbd>⌘</kbd><kbd>⇧</kbd> — <kbd>Ctrl</kbd><kbd>Alt</kbd>. Они работают и на русской раскладке.</p>
+
+        <h2 id="rules">Три правила</h2>
+        <ul>
+          <li><strong>Отправляете только вы.</strong> «Вставить» кладёт текст в поле ввода ChatSpace. Сообщение уходит, когда вы сами нажали Send. У каждого результата написано «черновик · не отправлено».</li>
+          <li><strong>Открытый чат становится прочитанным.</strong> Так устроен ChatSpace. Чтобы посмотреть переписку и не снять «непрочитанное», пользуйтесь превью на доске Spenders: там написано «Чат не открыт, останется непрочитанным».</li>
+          <li><strong>Ошибка ChatGoose подписана.</strong> Она начинается со слов «ChatGoose · CG-…». Если такой строки нет, это сообщение самого ChatSpace.</li>
+        </ul>
+
+        <h2 id="dock">Полоса над полем ввода</h2>
+        <p>В открытом чате над полем ввода — одна строка ChatGoose. Результат открывается над ней и сдвигает переписку вверх; закрыть его — <kbd>Esc</kbd>.</p>
+        <ul class="rows rows--keys">
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>E</kbd></span>
+            <span class="row__name">Reply</span>
+            <span class="row__value">Ответ на последние сообщения фана
+              <span class="row__note">В тоне, выбранном в меню «Тон»: Casual, Flirt, Sell или Spice.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>I</kbd></span>
+            <span class="row__name">Fix</span>
+            <span class="row__value">Правит ваш черновик из поля ввода
+              <span class="row__note">Поле не меняется, пока вы не нажали «Заменить мой черновик». «Вернуть мой текст» возвращает исходный.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>G</kbd></span>
+            <span class="row__name">Hi</span>
+            <span class="row__value">Приветствие для нового фана
+              <span class="row__note">Несколько вариантов на выбор. В чате, где уже идёт разговор, Hi недоступна: там нужен Reply.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>P</kbd></span>
+            <span class="row__name">Ping</span>
+            <span class="row__value">Напоминание фану, который замолчал</span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>.</kbd></span>
+            <span class="row__name">Отмена</span>
+            <span class="row__value">Останавливает генерацию, которая идёт</span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd></span>
+            <span class="row__name">Split</span>
+            <span class="row__value">Ответ серией из двух-трёх сообщений
+              <span class="row__note">Каждую часть вставляете и отправляете отдельно, по порядку.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>O</kbd></span>
+            <span class="row__name">Тон</span>
+            <span class="row__value">Меняет тон следующего Reply</span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd></span>
+            <span class="row__name">Recap</span>
+            <span class="row__value">Сводка по фану: кто он, что покупал, о чём говорили
+              <span class="row__note">Коротко или полностью. Сохранённую сводку видят и другие чаттеры этой страницы.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>B</kbd></span>
+            <span class="row__name">Review</span>
+            <span class="row__value">Оценка вашей переписки в этом чате и что улучшить</span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd></span>
+            <span class="row__name">Coach</span>
+            <span class="row__value">Боковая панель: задайте вопрос о чате и получите совет с черновиками</span>
+          </li>
+        </ul>
+        <p class="muted">Кнопки Help в расширении пока нет: спросить совета по чату можно в Coach. Одновременно идут не больше трёх генераций на вкладку и одна на чат. Четвёртая не встаёт в очередь: ChatGoose покажет, какие три идут.</p>
+
+        <h2 id="insert">Вставка</h2>
+        <ul>
+          <li>«Вставить» кладёт часть ответа в поле того чата, для которого она написана. Если вы успели уйти в другой чат, вставки не будет — ChatGoose скажет об этом.</li>
+          <li>Если в поле уже есть ваш текст, ChatGoose спросит, заменить его или оставить. Без ответа текст остаётся цел.</li>
+          <li>Если вставка недоступна (например, ChatSpace обновился и поле ввода изменилось), вместо «Вставить» будет «Копировать».</li>
+          <li>«Фан написал новое» — ответ написан до последнего сообщения фана. Перечитайте чат и при необходимости сгенерируйте заново.</li>
+        </ul>
+
+        <h2 id="spenders">Spenders</h2>
+        <p><kbd>⌘</kbd><kbd>⇧</kbd><kbd>M</kbd> открывает доску фанов страницы с тратами. Список слева; справа превью переписки выбранного фана из архива ChatGoose.</p>
+        <ul>
+          <li>Превью не открывает чат в ChatSpace, поэтому чат остаётся непрочитанным.</li>
+          <li>Ответ можно подготовить прямо в превью: Reply, а для нового фана — Hi. «Открыть и вставить» открывает нужный чат и кладёт текст в поле — отправляете вы.</li>
+          <li>Если владелец включил отправку из превью, рядом с частью есть синяя кнопка «Отправить». Она отправляет одну часть одним кликом через сам ChatSpace. «Принято ChatSpace» и «Отправлено» — разные состояния. При «Неизвестно, ушло ли» не отправляйте повторно: сначала проверьте чат.</li>
+          <li><kbd>Esc</kbd> закрывает доску, а не вкладку чата.</li>
+        </ul>
+
+        <h2 id="newcomers">«Новые»</h2>
+        <p>Подписчики страницы за последние 48 часов. Hi в карточке готовит приветствие и ставит бронь: «бронь: вы». Если фана уже взял другой чаттер, в карточке написано, у кого бронь, и Hi недоступна — двое одного фана не приветствуют. «Новые» открываются из палитры <kbd>⌘</kbd><kbd>K</kbd>.</p>
+
+        <h2 id="keys">Палитра и переходы</h2>
+        <ul class="rows rows--keys">
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>K</kbd></span>
+            <span class="row__name">Палитра</span>
+            <span class="row__value">Все действия ChatGoose и поиск по ним</span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>?</kbd></span>
+            <span class="row__name">Шпаргалка</span>
+            <span class="row__value">Все сочетания клавиш на одном экране</span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>]</kbd></span>
+            <span class="row__name">Панель фана</span>
+            <span class="row__value">Траты, сводка и заметки о фане сбоку от чата</span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>J</kbd> <kbd>K</kbd></span>
+            <span class="row__name">Чаты</span>
+            <span class="row__value">Следующий и предыдущий чат в списке
+              <span class="row__note">Переход открывает чат, значит, он станет прочитанным.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__keys"><kbd>⌘</kbd><kbd>U</kbd></span>
+            <span class="row__name">Непрочитанный</span>
+            <span class="row__value">Следующий чат с непрочитанным</span>
+          </li>
+        </ul>
+        <p class="muted">Часть сочетаний Firefox может забрать себе. Какие дошли до ChatGoose на вашем компьютере, видно в «Настройках» → «Хоткеи»; у каждого действия есть кнопка и строка в палитре. Сочетания клавиш для отправки нет нарочно.</p>
+
+        <h2 id="sound">Звук</h2>
+        <p>ChatGoose подаёт сигнал, когда фан пишет в чат, который сейчас не открыт, и отдельный сигнал — на нового подписчика. Тон, громкость и проверка звука — в «Настройках» → «Вид и звук»; выключить звук для отдельной модели — в разделе «Аккаунты».</p>
+
+        <h2 id="settings">Настройки</h2>
+        <ul>
+          <li><strong>Статус.</strong> Готово ли всё к смене: расширение, ChatSpace, хаб, вход, привязка, персона, квота. Здесь же «Скопировать отчёт для тимлида».</li>
+          <li><strong>Аккаунт ChatGoose.</strong> Вход и выход.</li>
+          <li><strong>Персоны и аккаунты.</strong> Какая персона пишет на какой странице и к какой странице привязан аккаунт OnlyMonster.</li>
+          <li><strong>Генерация, хоткеи, вид и звук.</strong> Ваши личные настройки на этом компьютере.</li>
+          <li><strong>Диагностика.</strong> «Выгрузить диагностику» сохраняет файл для поддержки. Текстов переписки и паролей в нём нет.</li>
+        </ul>
+
+        <h2 id="trouble">Если что-то не так</h2>
+        <ul>
+          <li><strong>«Расширение обновилось. Перезагрузите вкладку».</strong> Перезагрузите вкладку ChatSpace: недописанный текст в поле сначала скопируйте.</li>
+          <li><strong>«ChatGoose выключен владельцем».</strong> Для этой страницы функция выключена. Это не поломка.</li>
+          <li><strong>Квота.</strong> Счётчик появляется, только когда генераций осталось мало. Когда они кончились, кнопки ждут обновления квоты; время написано рядом.</li>
+          <li><strong>Любая строка «ChatGoose · CG-…».</strong> Пришлите тимлиду отчёт из раздела «Статус» и скажите, что нажимали.</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

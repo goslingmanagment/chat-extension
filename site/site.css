@@ -1,0 +1,483 @@
+/* The release site of ChatGoose для ChatSpace (docs/release.md «Страницы»).
+   A sibling of the extension's own settings page (docs/ui-design.md §2,
+   §3.10, §4.24): the same tokens with their stock values, the left column of
+   sections, hairline rows. Flat: no cards, no gradients, no colour that does
+   not mean something. No scripts, no web fonts, no images — the goose is
+   inline SVG. The theme is the system's, by CSS variables alone. */
+
+:root {
+  color-scheme: light dark;
+
+  --cg-ink-strong: #13120f;
+  --cg-ink: #1a1813;
+  --cg-ink-2: #3d3b32;
+  --cg-ink-muted: #727064;
+  --cg-ink-faint: #aba89c;
+
+  --cg-rule: #eae9e5;
+  --cg-rule-2: #e1e0da;
+  --cg-rule-3: #cbcac3;
+
+  --cg-surface: #ffffff;
+  --cg-sunk: #f6f5f4;
+  --cg-hover: #f1f1ee;
+  --cg-press: #eae9e5;
+  --cg-nav-bg: #f6f5f4;
+  --cg-nav-current: #ffffff;
+  --cg-nav-ring: var(--cg-rule-2);
+
+  --cg-focus: #0a6dff;
+
+  --cg-font-page: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --cg-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --cg-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cg-ink-strong: #ffffff;
+    --cg-ink: #e1e0da;
+    --cg-ink-2: #cbcac3;
+    --cg-ink-muted: #aba89c;
+    --cg-ink-faint: #535146;
+
+    --cg-rule: #222019;
+    --cg-rule-2: #333129;
+    --cg-rule-3: #3d3b32;
+
+    --cg-surface: #13120f;
+    --cg-sunk: #1a1813;
+    --cg-hover: #222019;
+    --cg-press: #2a2820;
+    --cg-nav-bg: rgb(26 24 19 / 0.5);
+    --cg-nav-current: #222019;
+    --cg-nav-ring: transparent;
+
+    --cg-focus: #4791ff;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--cg-surface);
+  color: var(--cg-ink);
+  font: 400 14px/20px var(--cg-font-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cg-focus);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
+a {
+  color: var(--cg-ink-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--cg-rule-3);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 120ms var(--cg-ease);
+}
+
+a:hover {
+  text-decoration-color: var(--cg-ink-strong);
+}
+
+/* ── Shell: the column of sections and the page ── */
+
+.shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.nav {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 20px 12px;
+  background: var(--cg-nav-bg);
+  border-right: 1px solid var(--cg-rule);
+}
+
+.nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 14px;
+  color: var(--cg-ink-strong);
+  text-decoration: none;
+}
+
+.nav__name {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+/* On a line of its own: the name of the product never gets cut. */
+.nav__host {
+  display: block;
+  color: var(--cg-ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.goose {
+  flex: none;
+  display: block;
+  fill: var(--cg-ink-2);
+}
+
+.goose__eye {
+  fill: var(--cg-surface);
+}
+
+.nav__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav__link {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--cg-ink-2);
+  text-decoration: none;
+  transition: background-color 120ms var(--cg-ease), color 120ms var(--cg-ease);
+}
+
+.nav__link:hover {
+  background: var(--cg-hover);
+}
+
+.nav__link[aria-current="page"] {
+  background: var(--cg-nav-current);
+  box-shadow: inset 0 0 0 1px var(--cg-nav-ring);
+  color: var(--cg-ink-strong);
+  font-weight: 500;
+}
+
+.main {
+  min-width: 0;
+  padding: 28px 40px 56px;
+}
+
+.main__inner {
+  max-width: 760px;
+}
+
+/* ── Text ── */
+
+h1 {
+  margin: 0;
+  color: var(--cg-ink-strong);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lead {
+  max-width: 72ch;
+  margin: 6px 0 20px;
+  color: var(--cg-ink-2);
+}
+
+h2 {
+  margin: 32px 0 0;
+  color: var(--cg-ink-strong);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+h3 {
+  margin: 16px 0 0;
+  color: var(--cg-ink-strong);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+p,
+ul,
+ol {
+  max-width: 72ch;
+  margin: 8px 0 0;
+}
+
+ul,
+ol {
+  padding-left: 20px;
+}
+
+li + li {
+  margin-top: 4px;
+}
+
+strong {
+  color: var(--cg-ink-strong);
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--cg-ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+code {
+  font: 12.5px/18px var(--cg-mono);
+  color: var(--cg-ink);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--cg-rule-2);
+  color: var(--cg-ink-2);
+  font: 11px/18px var(--cg-mono);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Install: the one action of the site ── */
+
+.install {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 14px 0 16px;
+  border-bottom: 1px solid var(--cg-rule-2);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--cg-rule-3);
+  color: var(--cg-ink-strong);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 120ms var(--cg-ease), color 120ms var(--cg-ease);
+}
+
+.btn:hover {
+  background: var(--cg-hover);
+}
+
+.btn:active {
+  background: var(--cg-press);
+}
+
+/* Monochrome on purpose: a blue fill in ChatGoose means «the text goes to the fan». */
+.btn--primary {
+  background: var(--cg-ink-strong);
+  box-shadow: none;
+  color: var(--cg-surface);
+}
+
+.btn--primary:hover {
+  background: var(--cg-ink-2);
+}
+
+.btn--primary:active {
+  background: var(--cg-ink);
+}
+
+.install__facts {
+  color: var(--cg-ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.install__facts b {
+  color: var(--cg-ink-strong);
+  font-weight: 500;
+}
+
+/* ── Rows: a mark, a name, what it means (the «Статус» grid of the settings) ── */
+
+.rows {
+  max-width: none;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--cg-rule-2);
+}
+
+.install + .rows {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 22px 196px minmax(0, 1fr);
+  column-gap: 12px;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--cg-rule);
+}
+
+.row + .row {
+  margin-top: 0;
+}
+
+.row__mark {
+  color: var(--cg-ink-muted);
+  font-size: 12px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row__name {
+  color: var(--cg-ink-2);
+}
+
+/* A row that starts with keys instead of a mark. */
+.rows--keys .row {
+  grid-template-columns: 84px 134px minmax(0, 1fr);
+}
+
+.row__keys {
+  display: flex;
+  gap: 3px;
+  align-items: flex-start;
+  padding-top: 1px;
+  white-space: nowrap;
+}
+
+.row__value {
+  min-width: 0;
+  color: var(--cg-ink-strong);
+  font-weight: 500;
+}
+
+.row__note {
+  display: block;
+  margin-top: 2px;
+  color: var(--cg-ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+.row__note code {
+  font-size: 12px;
+}
+
+/* ── Releases (made from CHANGELOG.md) ── */
+
+.release {
+  padding: 16px 0 20px;
+  border-bottom: 1px solid var(--cg-rule);
+}
+
+.release:first-of-type {
+  margin-top: 12px;
+  border-top: 1px solid var(--cg-rule-2);
+}
+
+.release__title {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.release__label {
+  margin-left: 6px;
+  color: var(--cg-ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+/* ── Foot ── */
+
+.foot {
+  max-width: none;
+  margin-top: 40px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cg-rule);
+  color: var(--cg-ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Narrow windows: the sections go on top, the rows lose a column ── */
+
+@media (max-width: 860px) {
+  .shell {
+    display: block;
+  }
+
+  .nav {
+    position: static;
+    height: auto;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--cg-rule);
+  }
+
+  .nav__brand {
+    padding-bottom: 8px;
+  }
+
+  .nav__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .main {
+    padding: 20px 16px 40px;
+  }
+
+  .row {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .rows--keys .row {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+
+  .row__value {
+    grid-column: 2;
+    margin-top: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

@@ -7,6 +7,8 @@ dist/
 coverage/
 .dev-profile/
 .cache/
+# signed XPIs and the records of a release (tools/release); never committed
+.release/
 test-results/
 wdio-logs/
 *.log
