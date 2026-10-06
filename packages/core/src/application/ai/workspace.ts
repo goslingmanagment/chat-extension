@@ -149,6 +149,15 @@ export const isOwnSurface = (surface: Surface): boolean => surface !== 'preview'
 
 /** How long «Скопировано» stays on a part (ui-design §4.3). */
 export const COPIED_MARK_MS = 2_000;
+
+/**
+ * §6.5 п. 4: how long the dock of a chat a board has just opened is asked again for the Б2 question while it does
+ * not see that chat's field yet, and how often. ChatSpace shows the chat first; the dock's reading follows.
+ */
+export const BOARD_QUESTION_WAIT_MS = 5_000;
+export const BOARD_QUESTION_STEP_MS = 100;
+/** «Cannot ask yet»: the field of the chat is not seen (not ready, or the host's identity is still on its way). */
+const FIELD_NOT_SEEN_YET: readonly CgCode[] = ['CG-HOST-COMPOSER-MISSING', 'CG-HOST-NOT-READY'];
 /** Chats whose tone or open sheet the tab remembers. */
 export const CHAT_UI_MAX = 64;
 /** UI-031: «AI: осталось N» from this many requests down. */
@@ -754,7 +763,33 @@ export class AiWorkspace {
     this.boardOps.add(handover.opId);
     if (handover.outcome === 'inserted') this.inserts.noteInserted(record, handover.part);
     this.setSheet(key, { kind: 'draft', opId: handover.opId });
-    return handover.outcome === 'inserted' || (await this.inserts.askAbout(handover.opId, handover.part)).kind !== 'failed';
+    return handover.outcome === 'inserted' || (await this.askAboutBoardPart(handover.opId, handover.part, here));
+  }
+
+  /**
+   * §6.5 п. 4: the Б2 question about a board's part, in the dock of the chat the board opened. The board's
+   * navigation ends the moment ChatSpace shows the chat; the dock's own reading of that chat's field may be a step
+   * behind, and a dock that does not see the field yet cannot ask. So it is asked again until it can be — for a
+   * few seconds, while this is still the open chat and the dock still holds the result. Only ever a question:
+   * nothing is written here. false — it could not be asked (the composition says it as a toast instead).
+   */
+  private async askAboutBoardPart(opId: string, part: PartRef, here: () => boolean): Promise<boolean> {
+    const { clock } = this.ports;
+    const deadline = clock.now() + BOARD_QUESTION_WAIT_MS;
+    for (;;) {
+      const outcome = await this.inserts.askAbout(opId, part);
+      // Asked; or the field needs no question any more; or the person's own click on this result is at work.
+      if (outcome.kind !== 'failed') return true;
+      if (!FIELD_NOT_SEEN_YET.includes(outcome.error.code) || clock.now() + BOARD_QUESTION_STEP_MS > deadline) return false;
+      await new Promise<void>((resolve) => {
+        const timer = clock.setTimer(BOARD_QUESTION_STEP_MS, () => {
+          this.timers.delete(timer);
+          resolve();
+        });
+        this.timers.add(timer);
+      });
+      if (this.disposed || !here() || !this.boardOps.has(opId)) return false;
+    }
   }
 
   /** A result a board made and the dock shows (§6.5). */

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
-import { COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults } from '@cg/core/application/ai';
+import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
@@ -2358,6 +2358,92 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
     expect(result(h).confirm).toBeNull();
     expect(partsOf(h).map((part) => `${part.insert}:${part.next}`)).toEqual(['idle:true', 'idle:false']);
     expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[NEW-05] ChatSpace shows the opened chat a step before the dock sees its field: the question is not dropped for a toast — it stands as soon as the field is seen, and nothing is written meanwhile', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    h.host.type('mine in the chat');
+    // The board's navigation has ended; the dock's reading of the field of that chat has not arrived yet.
+    h.host.setComposer({ ready: false });
+    await h.settle();
+    let taken: boolean | null = null;
+    void h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' })).then((answer) => (taken = answer));
+    await h.clock.advance(BOARD_QUESTION_STEP_MS * 3);
+    // Not asked yet, not given up either: the result is in the dock, nothing is written, no answer for the toast.
+    expect(taken).toBeNull();
+    expect(result(h)).toMatchObject({ opId, confirm: null });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // The field is seen: the question about the chosen part stands.
+    h.host.setComposer({ ready: true });
+    await h.clock.advance(BOARD_QUESTION_STEP_MS);
+    expect(taken).toBe(true);
+    expect(result(h).confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 } });
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'preview' }]);
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat');
+    // Asked once: the wait is over, no later step asks again or writes.
+    const confirmationId = result(h).confirm?.confirmationId;
+    await h.clock.advance(BOARD_QUESTION_WAIT_MS);
+    expect(result(h).confirm?.confirmationId).toBe(confirmationId);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[NEW-05] the wait for the field is short and ends by itself: a field that never comes, a chat the person left, a reason that will not pass — the dock says it could not ask, and asks nothing later', async () => {
+    // The field never comes: after the wait the answer is «could not ask» (the composition's toast), nothing is asked.
+    const never = await start();
+    never.ai.workspace.bindBoards(boardSide());
+    const first = await previewReply(never, 'one [NEXT] two');
+    never.host.openChat(previewChat);
+    never.host.type('mine in the chat');
+    never.host.setComposer({ ready: false });
+    await never.settle();
+    let gaveUp: boolean | null = null;
+    void never.ai.workspace.adoptBoardResult(handover(first, { outcome: 'needs-confirm' })).then((answer) => (gaveUp = answer));
+    await never.clock.advance(BOARD_QUESTION_WAIT_MS - BOARD_QUESTION_STEP_MS * 2);
+    expect(gaveUp).toBeNull();
+    await never.clock.advance(BOARD_QUESTION_STEP_MS * 3);
+    expect(gaveUp).toBe(false);
+    // The field comes after that: nobody asks behind the person's back.
+    never.host.setComposer({ ready: true });
+    await never.clock.advance(BOARD_QUESTION_WAIT_MS);
+    expect(result(never).confirm).toBeNull();
+    expect(never.fake.calls.inserts).toEqual([]);
+
+    // The person went to another chat during the wait: no question there, and none in the chat they left.
+    const left = await start();
+    left.ai.workspace.bindBoards(boardSide());
+    const second = await previewReply(left, 'one [NEXT] two');
+    left.host.openChat(previewChat);
+    left.host.type('mine in the chat');
+    left.host.setComposer({ ready: false });
+    await left.settle();
+    let away: boolean | null = null;
+    void left.ai.workspace.adoptBoardResult(handover(second, { outcome: 'needs-confirm' })).then((answer) => (away = answer));
+    await left.clock.advance(BOARD_QUESTION_STEP_MS);
+    left.host.openChat(openChat);
+    await left.clock.advance(BOARD_QUESTION_STEP_MS * 2);
+    expect(away).toBe(false);
+    expect(left.dock().result).toBeNull();
+    left.host.openChat(previewChat);
+    await left.clock.advance(BOARD_QUESTION_WAIT_MS);
+    expect(left.dock().result?.confirm ?? null).toBeNull();
+    expect(left.fake.calls.inserts).toEqual([]);
+
+    // A blocked fan is not «the field is not seen yet»: answered at once, without a wait.
+    const blocked = await start();
+    blocked.ai.workspace.bindBoards(boardSide());
+    const third = await previewReply(blocked, 'one [NEXT] two');
+    blocked.host.openChat(previewChat);
+    blocked.host.type('mine in the chat');
+    blocked.host.setComposer({ hidden: true });
+    await blocked.settle();
+    const timers = blocked.clock.pending;
+    expect(await blocked.ai.workspace.adoptBoardResult(handover(third, { outcome: 'needs-confirm' }))).toBe(false);
+    expect(blocked.clock.pending).toBe(timers);
+    expect(blocked.fake.calls.inserts).toEqual([]);
   });
 
   it('[AI-125] [AI-126] the dock does not take what it cannot vouch for: another chat is open, the persona is not known or is another one, the operation is the dock’s own or unknown — and then it inserts nothing of it', async () => {
