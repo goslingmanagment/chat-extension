@@ -1792,6 +1792,54 @@ describe('dock: a start the background did not admit is never silent', () => {
     expect(h.bg.callsOf('bootstrap.get').length).toBeGreaterThan(reads);
   });
 
+  it('[RB-010] back after an outage the dock takes nothing for current that it read before: the owner’s switch that changed unheard is read first — «Вставить» pressed in the very step the port returns writes nothing', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one [NEXT] two');
+    expect(h.dock()).toMatchObject({ status: 'ready', mode: 'insert' });
+    const reads = { bootstrap: h.bg.callsOf('bootstrap.get').length, settings: h.bg.callsOf('settings.get').length };
+    h.bg.setConnection('lost');
+    // The owner switches `insertion` off for the page. The background reads it and tells the tabs — this tab's
+    // port is down: it hears nothing.
+    const off: Bootstrap = { ...pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['insertion']), configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1 };
+    h.bg.bootstrap = off;
+    h.bg.emit(null, 'bootstrap.changed', { configRevision: off.configRevision, issuedAt: new Date(NOW_MS).toISOString() });
+    await h.settle();
+    // The port is back. In this very step — before any answer — the copy from before the outage is not «ready»:
+    h.bg.setConnection('ready');
+    expect(h.dock()).toMatchObject({ status: 'loading-chat' });
+    expect(Object.values(h.dock().actions).some((action) => action.enabled)).toBe(false);
+    // …and a click that lands now inserts nothing by the old switch.
+    const early = h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
+    expect(await early).toMatchObject({ ok: false });
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue').filter((call) => (call as { kind: string }).kind === 'insert')).toEqual([]);
+    await h.settle();
+    // Read again, by itself — the settings and the bootstrap both — and the page is copy-only now.
+    expect(h.bg.callsOf('bootstrap.get').length).toBe(reads.bootstrap + 1);
+    expect(h.bg.callsOf('settings.get').length).toBe(reads.settings + 1);
+    expect(h.dock()).toMatchObject({ status: 'ready', mode: 'copy-only' });
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false });
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[RB-010] [AI-126] the persona of the page changed while the port was down: back, the result of the old persona is gone before anything of it can be inserted', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one [NEXT] two');
+    expect(result(h).opId).toBe(opId);
+    h.bg.setConnection('lost');
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: 'other', definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    h.bg.setConnection('ready');
+    // Before the settings are read again nothing of the old persona is written…
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 }).catch(() => ({ ok: false }))).toMatchObject({ ok: false });
+    expect(h.fake.calls.inserts).toEqual([]);
+    await h.settle();
+    // …and once they are, its result has left the dock.
+    expect(h.dock().result).toBeNull();
+    await expect(h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).rejects.toThrow(/no controller took/);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
   it('[UP-009] an extension that was really reloaded or updated under the tab is the other state: «Расширение обновилось» (CG-RUNTIME-RELOADED) with «Перезагрузить вкладку», and no reconnect is asked for', async () => {
     const h = await start();
     h.bg.setConnection('reloaded');

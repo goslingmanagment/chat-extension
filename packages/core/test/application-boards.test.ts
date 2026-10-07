@@ -8,15 +8,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
-import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
+import { createBoardsControllers, fanHandle, pageFlag, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
 import { type BoardHandover } from '@cg/core/application/preview';
-import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS } from '@cg/core/application/preview';
+import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS, RESYNC_RETRY_MS } from '@cg/core/application/preview';
 import { SEARCH_DEBOUNCE_MS } from '@cg/core/application/spenders';
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
 import { PreviewSendDriver } from '@cg/core/services';
 import { createFakeHub, hubCall, type FakeHub, type FakeHubConfigPatch } from '@cg/testing/fake-hub';
 import { DOCUMENT, FakeHostPort, HOST_IDS, contractReport, hostAccount, memory as hostMemory, startSnapshot, type HostAnswers, type HostScript, type HostStep } from '@cg/testing/host';
-import { NOW_MS, WORLD, contextFrame, meta } from '@cg/testing/hub';
+import { NOW_MS, WORLD, contextFrame, meta, pageFeaturesOff } from '@cg/testing/hub';
 
 import { BoardsBackground } from './support/boards-background';
 import { FakeClock, sequentialIds, settle } from './support/clock';
@@ -2406,6 +2406,137 @@ describe('[NEW-01] [NEW-05] after «Открыть и вставить» the res
     expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain' });
     expect(results.part(opId, { index: 0 })).toMatchObject({ sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { params: { n: 1 } } } });
     expect(results.part(opId, { index: 1 })).toMatchObject({ sentAt: null, hold: { id: 'part-uncertain' } });
+  });
+});
+
+describe('[RB-010] the port to the background was down: nothing of the boards acts on what was read before the outage', () => {
+  const applied: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } };
+  const otherPersona = (h: Harness): SettingsV1 => ({ ...h.bg.settings, personas: { ...h.bg.settings.personas, byPageId: { ...h.bg.settings.personas.byPageId, [String(PAGE.pageId)]: { key: 'other', definitionId: WORLD.persona.otherDefinitionId } } } });
+  const insertOf = (h: Harness, index = 0) => partsOf(h, 'spenders')[index]?.openInsert;
+
+  it('the page context is «нет связи» from the moment the port goes down until everything was read again — the identity and its epoch stay; what changed unheard is what the boards say afterwards', async () => {
+    const { h } = await withReply({ answers: { navigate: [applied] } });
+    const context = h.boards.context;
+    const before = context.current();
+    expect(before).toMatchObject({ phase: 'ready', persona: { definitionId: WORLD.persona.definitionId } });
+    const asked = { session: count(h, 'session.get'), bootstrap: count(h, 'bootstrap.get'), binding: count(h, 'binding.resolve') };
+    h.bg.setConnection('reconnecting');
+    expect(context.current()).toMatchObject({ phase: 'blocked', blocker: { code: 'CG-RUNTIME-UNREACHABLE' }, epoch: before.epoch, binding: before.binding, persona: before.persona });
+    expect(insertOf(h)).toMatchObject({ s: 'unavailable' });
+    h.bg.setConnection('lost');
+    // The owner switches `insertion` off for the page and the person's settings give the page another persona:
+    // both events go to a port that is down.
+    h.bg.setBootstrap({ ...pageFeaturesOff(h.bg.bootstrap, ['insertion']), configRevision: h.bg.bootstrap.configRevision + 1 });
+    h.bg.setSettings(otherPersona(h));
+    await h.flush();
+    expect(context.current()).toMatchObject({ phase: 'blocked', blocker: { code: 'CG-RUNTIME-UNREACHABLE' }, persona: before.persona });
+    // The port is back. Until the new reading is in, the old one is not «ready» again…
+    h.bg.setConnection('ready');
+    expect(context.current().phase).toBe('blocked');
+    await h.flush();
+    // …and then it is what the background says now — read once, by the context itself.
+    expect({ session: count(h, 'session.get'), bootstrap: count(h, 'bootstrap.get'), binding: count(h, 'binding.resolve') }).toEqual({ session: asked.session + 1, bootstrap: asked.bootstrap + 1, binding: asked.binding + 1 });
+    const after = context.current();
+    expect(after).toMatchObject({ phase: 'ready', blocker: null, persona: { definitionId: WORLD.persona.otherDefinitionId } });
+    expect(pageFlag(after, 'insertion')).toBe(false);
+    // The same person on the same page: lists and feeds are not thrown away.
+    expect(after.epoch).toBe(before.epoch);
+  });
+
+  it('[NF-016] the persona changed while the port was down: «Открыть и вставить» of a result made under the old one puts nothing into the chat — during the outage, at the moment the port is back, and after', async () => {
+    const { h, opId } = await withReply({ answers: { navigate: [applied] } });
+    expect(insertOf(h)).toEqual({ s: 'available' });
+    h.bg.setConnection('lost');
+    h.bg.setSettings(otherPersona(h));
+    await h.flush();
+    // The port is down: the click is refused before anything is asked of the page.
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false });
+    h.bg.setConnection('ready');
+    // The very step the port came back in: the context has not read the settings yet — and is not trusted.
+    const early = h.boards.preview.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })!;
+    await h.flush();
+    expect(await early).toMatchObject({ ok: false });
+    // Read again: the page speaks as another persona now, and the text of the old one is not put into a chat.
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(h.host.calls.navigations).toEqual([]);
+    expect(h.host.calls.inserts).toEqual([]);
+    expect(h.handovers).toEqual([]);
+  });
+
+  it('[RB-003] a generation whose end was said into a port that was down does not show «генерация» for ever: back, the card shows how it ended — the result, or «прервано» when the background no longer knows the run', async () => {
+    const start = async (): Promise<{ h: Harness; opId: string }> => {
+      const h = await harness({ config: X8 });
+      await h.dispatch(open('spenders'));
+      await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+      await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+      const { opId } = h.script(0, 'fast-reply', 'Hey you\n[NEXT]\nMissed me?');
+      await h.dispatch({ type: 'Generate', targetHandle: spender('5000'), feature: 'reply', options: {} });
+      return { h, opId };
+    };
+    const shown = (h: Harness) => h.boards.preview.getSnapshot(preview('spenders')).result;
+
+    // The run finishes in the background while the port is down: its batches and its `op.done` reach nobody.
+    const done = await start();
+    done.h.bg.setConnection('reconnecting');
+    await done.h.advance(5000);
+    expect(shown(done.h)).toMatchObject({ opId: done.opId, state: expect.stringMatching(/admitted|requesting|streaming/) as unknown, parts: null });
+    const lists = count(done.h, 'op.list');
+    done.h.bg.setConnection('ready');
+    await done.h.flush();
+    expect(count(done.h, 'op.list')).toBeGreaterThan(lists);
+    expect(shown(done.h)).toMatchObject({ opId: done.opId, state: 'done' });
+    expect(shown(done.h)?.parts?.map((part) => part.text)).toEqual(['Hey you', 'Missed me?']);
+    // Nothing was generated, inserted or sent by coming back.
+    expect([count(done.h, 'op.start'), done.h.host.calls.inserts, done.h.host.calls.commits]).toEqual([1, [], []]);
+
+    // The background started anew meanwhile and knows nothing of the run: it is interrupted, with its code.
+    const gone = await start();
+    gone.h.bg.setConnection('lost');
+    // (The test's scheduler still runs the stream; a background that forgot the run says nothing more of it.)
+    gone.h.bg.quiet = true;
+    gone.h.bg.opList = { ops: [], truncated: false };
+    gone.h.bg.setConnection('ready');
+    await gone.h.flush();
+    expect(shown(gone.h)).toMatchObject({ opId: gone.opId, state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
+    expect(gone.h.boards.preview.getSnapshot(preview('spenders')).bar.locked).toBe(false);
+
+    // The background's list could not be read right away: asked once more a moment later — and only once more.
+    const late = await start();
+    late.h.bg.setConnection('lost');
+    late.h.bg.quiet = true;
+    late.h.bg.opList = { ops: [], truncated: false };
+    late.h.bg.failNext('op.list', { code: 'CG-RUNTIME-UNREACHABLE' });
+    const before = count(late.h, 'op.list');
+    late.h.bg.setConnection('ready');
+    await late.h.flush();
+    expect(count(late.h, 'op.list')).toBe(before + 1);
+    expect(shown(late.h)?.state).not.toBe('interrupted');
+    await late.h.clock.advance(RESYNC_RETRY_MS - 1);
+    expect(count(late.h, 'op.list')).toBe(before + 1);
+    await late.h.clock.advance(1);
+    await late.h.flush();
+    expect(count(late.h, 'op.list')).toBe(before + 2);
+    // Read now: the background knows nothing of the run.
+    expect(shown(late.h)).toMatchObject({ state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
+  });
+
+  it('[TL-004] a part the person sent while the port was down is «Отправлено» once it is back: the sends of every fan this tab follows — an open card, a result in the dock — are read again', async () => {
+    const { h, opId } = await withReply({ config: {}, answers: { navigate: [applied] } });
+    const results = h.boards.preview.results;
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    await h.advance(20_000);
+    const sentAt = iso(h.clock.now());
+    h.bg.setConnection('reconnecting');
+    // ChatSpace's own Send; another tab told the background — this tab's port was down.
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(results.part(opId, { index: 0 })).toMatchObject({ sentAt: null });
+    const asked = count(h, 'send.list');
+    h.bg.setConnection('ready');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt, hold: null });
   });
 });
 

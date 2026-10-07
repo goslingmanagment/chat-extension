@@ -523,18 +523,20 @@ export class AiWorkspace {
    * page (`CG-BINDING-MISSING`) has no page row to ask, and only there the owner's `"*"` value decides — so does
    * `null`, no account on screen. Everything in between fails closed, `false`: the binding is ambiguous, could
    * not be read (the hub or the background did not answer, the data is not ready), or ChatSpace has not listed
-   * the account yet — its page may well say «off». null — unknown: nobody is signed in or the bootstrap is not
-   * read (what needs no hub goes on).
+   * the account yet — its page may well say «off». So does a sign-in whose switches are not in hand: the
+   * bootstrap is not read yet, is being read again after the port was down, or could not be read — the page may
+   * say «off», and what was known before an outage is not what it says now. null — unknown — is left for the
+   * one case that needs no hub: nobody is signed in (ChatSpace's own list goes on, §6.9).
    */
   async accountFlag(hostAccountId: string | null, flag: ClientFeatureFlag): Promise<boolean | null> {
-    if (this.env.bootstrap.s !== 'ready') return null;
+    if (this.env.bootstrap.s !== 'ready') return this.env.session === null ? null : false;
     if (hostAccountId === null) return starFlag(this.env.bootstrap.value, flag);
     const account = this.ports.host.current().accounts.find((candidate) => candidate.hostAccountId === hostAccountId) ?? null;
     if (account === null) return false;
     const binding = await this.env.bindingRead(account);
     // The bootstrap may have been read again (or lost with the sign-in) while the binding was.
     const bootstrap = this.env.bootstrap;
-    if (bootstrap.s !== 'ready' || binding.s === 'idle') return null;
+    if (bootstrap.s !== 'ready' || binding.s === 'idle') return this.env.session === null ? null : false;
     if (binding.s === 'ready') return flagUsable(bootstrap.value, binding.value.pageId, flag);
     return binding.s === 'error' && binding.error.code === 'CG-BINDING-MISSING' ? starFlag(bootstrap.value, flag) : false;
   }

@@ -165,7 +165,35 @@ describe('[HK-037] the owner’s `navigation` switch is the page’s own for a b
     expect(await opened(out)).toBe(false);
   });
 
-  it('an account ChatSpace has not listed yet fails closed; nobody signed in or no bootstrap is «unknown» — ChatSpace’s own list needs no hub', async () => {
+  it('[RB-010] the port to the background was down: back, the switch is not answered from what was read before — while the bootstrap is read again every account is «off», then each is what its page says now', async () => {
+    const w = await world();
+    expect([await w.flag(A), await w.flag(B)]).toEqual([false, true]);
+    w.h.bg.setConnection('lost');
+    // The owner turns navigation off on page B too. This tab's port is down: it hears nothing.
+    const off = { ...pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['navigation']), flags: { ...BOOTSTRAP_PILOT_PAGES.flags, navigation: true }, configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1 };
+    w.h.bg.bootstrap = off;
+    w.h.bg.emit(null, 'bootstrap.changed', { configRevision: off.configRevision, issuedAt: new Date(NOW_MS).toISOString() });
+    await w.h.settle();
+    w.h.bg.setConnection('ready');
+    // In the step the port returns the old answer for B («on») is not given, and «unknown» — which lets a key
+    // walk — is not either: somebody is signed in, and their page may say off.
+    const before = w.touched();
+    expect(failed(await w.go(jump(B, '2010')))).toBe('CG-FEATURE-DISABLED');
+    expect(w.touched()).toEqual(before);
+    await w.h.settle();
+    expect([await w.flag(A), await w.flag(B), await w.flag(UNBOUND)]).toEqual([false, false, true]);
+    expect(failed(await w.go(jump(B, '2010')))).toBe('CG-FEATURE-DISABLED');
+    expect(w.fake.calls.navigations).toEqual([]);
+    // The hub cannot be read after the port is back: still nobody's «on».
+    const down = await world();
+    down.h.bg.setConnection('lost');
+    down.h.bg.bootstrap = { error: { code: 'CG-HUB-UNAVAILABLE' } };
+    down.h.bg.setConnection('ready');
+    await down.h.settle();
+    expect([await down.flag(A), await down.flag(B), await down.flag(null)]).toEqual([false, false, false]);
+  });
+
+  it('an account ChatSpace has not listed yet fails closed; nobody signed in is «unknown» — ChatSpace’s own list needs no hub; a sign-in whose bootstrap is not read is not', async () => {
     const w = await world();
     expect(await w.h.ai.workspace.accountFlag('999999', 'navigation')).toBe(false);
     expect(failed(await w.go({ type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: '999999', platformFanId: '2001' }) } }))).toBe('CG-FEATURE-DISABLED');

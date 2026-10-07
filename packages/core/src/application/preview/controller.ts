@@ -86,6 +86,8 @@ const TRACKS_MAX = STORAGE_LIMITS.resultsPerTab;
 const DISPLAY_CAUSE = { kind: 'click', actionToken: 'preflight-display-only' } as const;
 /** Past the insert's own deadline, for the host's answer to arrive first. */
 const DEFERRED_GRACE_MS = 1500;
+/** After the port came back: how long until the background's list of operations is asked once more when it did not answer. */
+export const RESYNC_RETRY_MS = 2_000;
 /**
  * How long a part stays off after the hub's `preview_send_rate_limited`. The
  * hub counts sends per minute (`limits.previewSendPerMinute`) and an attempt
@@ -242,6 +244,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const listed = new Map<string, { readonly pageId: number; readonly fanRef: string; readonly items: Map<string, SendListItem> }>();
   const fanKey = (pageId: number, fanRef: string): string => `${pageId}|${fanRef}`;
   let pruneTimer: number | null = null;
+  /** The port to the background was down since this tab last heard everything. */
+  let portWasDown = false;
   let drafts: DraftStore = EMPTY_DRAFTS;
   const draftListeners = new Set<() => void>();
   const draftsChanged = (): void => {
@@ -790,16 +794,65 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     changedFor(state.handle);
   }
 
-  async function syncOp(track: OpTrack): Promise<void> {
+  /**
+   * Reads the operation as the background has it now. `lost` — it is asked because the port was down and the
+   * events of the meantime are gone (`resync`): a run the background's list no longer names ended without a word
+   * and is interrupted here, so its card does not show «генерация» for ever. false — the list was not read.
+   */
+  async function syncOp(track: OpTrack, lost = false): Promise<boolean> {
     const answer = await rpc.request('op.list', { scope: 'tab', chatKey: chatKeyOf(track.target.chat) });
-    if (disposed || !answer.ok || tracks.get(track.opId) !== track) return;
+    if (disposed || tracks.get(track.opId) !== track) return true;
+    if (!answer.ok) return false;
     const view = answer.payload.ops.find((op) => op.opId === track.opId);
-    if (view === undefined) return;
-    if (isTerminalOpState(view.state)) return finish(track, view);
+    if (view === undefined) {
+      if (lost && !isTerminalOpState(track.mirror.state)) {
+        const now = clock.now();
+        finish(track, { opId: track.opId, feature: track.feature, surface: track.surface, target: track.target, state: 'interrupted', phase: { name: 'settled', since: now }, startedAt: track.startedAt, toneUsed: track.toneUsed, endedAt: now, error: { code: 'CG-OP-INTERRUPTED' } });
+      }
+      return true;
+    }
+    if (isTerminalOpState(view.state)) {
+      finish(track, view);
+      return true;
+    }
     const ahead = (view.text ?? '').length > track.mirror.text.length || view.state !== track.mirror.state;
     if (ahead && track.mirror.done === null) {
-      track.mirror = { ...mirrorFromView(view), seq: track.lastSeq };
+      // After a lost port the batches of the new tab session count from this view on.
+      track.mirror = { ...mirrorFromView(view), seq: lost ? 0 : track.lastSeq };
+      if (lost) track.lastSeq = 0;
       changedFor(track.handle);
+    }
+    return true;
+  }
+
+  /**
+   * The port to the background came back (the event page restarted, or the tab got a new session): what the
+   * background said meanwhile is lost for this tab. Every result still shown as running is read again — one that
+   * ended is shown as it ended, one the background no longer knows is interrupted — and so are the sends of every
+   * fan this tab follows (an open card, a result in the dock): a part sent, held or resolved during the outage is
+   * what the journal says now. The page context reads itself again (boards/context.ts). Nothing is generated,
+   * inserted or sent from here.
+   */
+  let resyncTimer: number | null = null;
+  async function resync(retry = true): Promise<void> {
+    if (resyncTimer !== null) clock.clearTimer(resyncTimer);
+    resyncTimer = null;
+    let unread = false;
+    for (const track of [...tracks.values()]) {
+      if (isTerminalOpState(track.mirror.state)) continue;
+      if (!(await syncOp(track, true))) unread = true;
+      if (disposed) return;
+    }
+    const fans = new Map<string, { readonly pageId: number; readonly fanRef: string }>();
+    for (const of of [...targets.values(), ...[...docked].flatMap((opId) => tracks.get(opId) ?? [])]) fans.set(fanKey(of.pageId, of.fanRef), of);
+    for (const fan of fans.values()) void loadSends(fan.pageId, fan.fanRef);
+    // The background's own list could not be read: once more after a moment, so a run whose end was lost with the
+    // port does not keep spinning until the next reconnect.
+    if (unread && retry && !disposed) {
+      resyncTimer = clock.setTimer(RESYNC_RETRY_MS, () => {
+        resyncTimer = null;
+        void resync(false);
+      });
     }
   }
 
@@ -1846,6 +1899,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (track !== undefined) finish(track, view);
     }),
     rpc.onEvent('send.state', ({ view }) => onAttemptView(view)),
+    rpc.onState?.((connection) => {
+      if (connection === 'ready') {
+        if (!portWasDown) return;
+        portWasDown = false;
+        void resync();
+      } else if (connection !== 'connecting') portWasDown = true;
+    }) ?? ((): void => undefined),
     host.subscribe((event: HostEvent) => {
       if (event.type === 'route') {
         const pending = pendingInsert;
@@ -1943,6 +2003,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       for (const track of tracks.values()) clearHoldTimers(track);
       if (pruneTimer !== null) clock.clearTimer(pruneTimer);
       pruneTimer = null;
+      if (resyncTimer !== null) clock.clearTimer(resyncTimer);
+      resyncTimer = null;
       if (pendingInsert !== null) {
         pendingInsert.abort.abort();
         if (pendingInsert.timer !== null) clock.clearTimer(pendingInsert.timer);

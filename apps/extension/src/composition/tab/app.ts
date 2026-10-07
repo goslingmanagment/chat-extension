@@ -576,7 +576,10 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   offs.push(
     rpc.onState(() => {
       // A new tab session after a lost port: the background kept nothing of this tab in memory — the host
-      // contract («Статус», client_health) goes to it again. The controllers read their own state anew.
+      // contract («Статус», client_health) goes to it again. Every controller family reads its own state anew,
+      // each on the same event: the AI environment drops its bootstrap and bindings and reads them again (the dock
+      // is not `ready` meanwhile) and the op store asks about its runs; the boards' page context is blocked while
+      // the port is down and reads itself again, and the preview asks about its runs and the sends of its fans.
       if (rpc.state() === 'ready') sendHealth();
     }),
     rpc.onEvent('settings.changed', (state) => {

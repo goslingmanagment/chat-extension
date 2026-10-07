@@ -22,6 +22,7 @@ import {
   type HubBinding,
   type HubFailure,
   type HubRouteKey,
+  type OpView,
   type PartRef,
   type PersonaCatalog,
   type SendAttemptView,
@@ -82,6 +83,8 @@ export class BoardsBackground {
   settings: SettingsV1;
   catalog: PersonaCatalog;
   settingsRevision = 1;
+  /** What `op.list` answers instead of the scheduler's own list (a background that started anew and forgot its runs). */
+  opList: { readonly ops: OpView[]; readonly truncated: boolean } | null = null;
   /** Events of the background do not reach this tab while set (a fact another tab's port carried, a lost batch): the tab is told nothing. */
   quiet = false;
   /**
@@ -341,7 +344,7 @@ export class BoardsBackground {
       const state = this.scheduler.cancel(opId);
       return Promise.resolve(state === null ? fail({ code: 'CG-UNKNOWN' }) : ok({ state }));
     },
-    'op.list': ({ scope, chatKey }) => Promise.resolve(ok(this.scheduler.list(this.options.tab, scope, chatKey))),
+    'op.list': ({ scope, chatKey }) => Promise.resolve(ok(this.opList ?? this.scheduler.list(this.options.tab, scope, chatKey))),
     'op.reportCopy': () => Promise.resolve(ok({ recorded: true })),
     'op.reportInsert': () => Promise.resolve(ok({ recorded: true })),
     'op.reportShown': () => Promise.resolve(ok({ recorded: true })),
