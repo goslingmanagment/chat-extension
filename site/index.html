@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Установка — ChatGoose для ChatSpace</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%23727064' d='M1.5 8.8C3 10.3 5.8 11.1 8.4 11.1C10 11.1 11.2 10.3 11.6 8.9C11.9 7.6 12 6.2 12.1 5C12.2 3.4 13.1 2.2 14.6 2.2C15.6 2.2 16.4 2.8 16.7 3.6L19 4.5L16.7 5.3C16.3 5.8 15.6 6 14.9 5.9C14.6 7.2 14.5 8.6 14.5 10C14.5 14.2 11.6 16.8 7.8 16.8C4.4 16.8 2 14.4 1.7 11.2Z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav" aria-label="Разделы">
+      <a class="nav__brand" href="index.html">
+        <svg class="goose" width="24" height="24" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M1.5 8.8C3 10.3 5.8 11.1 8.4 11.1C10 11.1 11.2 10.3 11.6 8.9C11.9 7.6 12 6.2 12.1 5C12.2 3.4 13.1 2.2 14.6 2.2C15.6 2.2 16.4 2.8 16.7 3.6L19 4.5L16.7 5.3C16.3 5.8 15.6 6 14.9 5.9C14.6 7.2 14.5 8.6 14.5 10C14.5 14.2 11.6 16.8 7.8 16.8C4.4 16.8 2 14.4 1.7 11.2Z"/><circle class="goose__eye" cx="14.5" cy="3.6" r=".65"/></svg>
+        <span class="nav__name">ChatGoose <span class="nav__host">для ChatSpace</span></span>
+      </a>
+      <ul class="nav__list">
+        <li><a class="nav__link" href="index.html" aria-current="page">Установка</a></li>
+        <li><a class="nav__link" href="start.html">Как начать</a></li>
+        <li><a class="nav__link" href="guide.html">Руководство</a></li>
+        <li><a class="nav__link" href="whats-new.html">Что нового</a></li>
+        <li><a class="nav__link" href="changelog.html">История версий</a></li>
+        <li><a class="nav__link" href="privacy.html">О данных</a></li>
+      </ul>
+    </nav>
+
+    <main class="main">
+      <div class="main__inner">
+        <h1>ChatGoose для ChatSpace</h1>
+        <p class="lead">AI-помощник чаттера прямо в ChatSpace: ответы, правка черновика, приветствия, пинги, сводки, оценка чата и доска Spenders. Расширение для Firefox.</p>
+
+        <div class="install">
+          <a class="btn btn--primary" data-cg="xpi" href="firefox/chatgoose-chatspace-0.1.0.xpi">Установить в Firefox</a>
+          <span class="install__facts">Версия <b data-cg="version">0.1.0</b> · Firefox <b data-cg="firefox">142</b> и новее · обновляется само</span>
+        </div>
+
+        <ol class="rows">
+          <li class="row">
+            <span class="row__mark">1</span>
+            <span class="row__name">Откройте в Firefox</span>
+            <span class="row__value">Эта страница должна быть открыта в Firefox на компьютере
+              <span class="row__note">В других браузерах и на телефоне расширение не ставится.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__mark">2</span>
+            <span class="row__name">Установите</span>
+            <span class="row__value">Нажмите «Установить в Firefox»
+              <span class="row__note">Firefox спросит разрешение: «Продолжить установку», затем «Добавить».</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__mark">3</span>
+            <span class="row__name">Согласие на данные</span>
+            <span class="row__value">Firefox покажет, какие данные обрабатывает расширение
+              <span class="row__note">Без согласия оно не работает. Что это за данные и куда они идут — в разделе <a href="privacy.html">«О данных»</a>.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__mark">4</span>
+            <span class="row__name">Войдите</span>
+            <span class="row__value">Значок расширения → «Настройки» → вход
+              <span class="row__note">Логин и пароль те же, что в приложении ChatGoose. Подробно — <a href="start.html">«Как начать»</a>.</span>
+            </span>
+          </li>
+          <li class="row">
+            <span class="row__mark">5</span>
+            <span class="row__name">Откройте ChatSpace</span>
+            <span class="row__value">Над полем ввода появится полоса ChatGoose
+              <span class="row__note">Если вкладка ChatSpace была открыта до установки, перезагрузите её.</span>
+            </span>
+          </li>
+        </ol>
+
+        <h2>Обновления</h2>
+        <p>Firefox сам проверяет обновления примерно раз в сутки и ставит их без вопросов. Вкладки ChatSpace, открытые до обновления, попросят перезагрузку.</p>
+        <p>Проверить вручную: откройте <code>about:addons</code>, нажмите на шестерёнку и выберите «Проверить наличие обновлений». Версию видно в настройках расширения, в разделе «Статус».</p>
+
+        <h2>Если у вас уже стоит ChatGoose</h2>
+        <p>Расширение ChatGoose для Fansly и приложение ChatGoose для OnlyFans остаются и работают как раньше. Новое расширение работает только в ChatSpace; у него свои настройки и свои обновления, старые оно не трогает.</p>
+        <p>Страницы, которые тимлид перевёл на ChatSpace, ведите здесь. Приветствия новым подписчикам на этих страницах отправляйте только из расширения, не из приложения.</p>
+
+        <p class="foot">ChatGoose для ChatSpace <span data-cg="version">0.1.0</span> · Gosling Agency</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

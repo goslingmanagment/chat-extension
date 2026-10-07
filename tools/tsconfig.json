@@ -29,6 +29,9 @@
       "path": "../apps/extension/tsconfig.node.json"
     },
     {
+      "path": "../apps/extension/tsconfig.json"
+    },
+    {
       "path": "../packages/contracts"
     },
     {

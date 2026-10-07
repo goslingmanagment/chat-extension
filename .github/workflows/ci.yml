@@ -1,0 +1,193 @@
+# CI (docs/architecture.md §13, docs/release.md «CI»).
+#
+# Two jobs on a ready PR, on every push to main and on a manual run:
+#   check  `pnpm check` — typecheck, lint, test, build, webext-lint, size,
+#          gates, parity, archive-check (§3);
+#   e2e    `pnpm e2e` — headless Firefox and geckodriver inside the image pinned
+#          by digest in tools/ci/e2e-image.sh, in a container with no network.
+# A Draft PR runs nothing: both jobs are skipped (a skipped job costs no runner
+# and counts as passed for a required check). Marking the PR ready starts them.
+#
+# A change of documents alone — docs/**, site/**, *.md in the root — does not
+# run the e2e suite: the job starts, sees what changed (its second step,
+# tools/ci/e2e-needed.sh) and ends green within seconds instead of half an
+# hour. `check` always runs in full: it is what tests the site, the changelog
+# and the parity tables. Why inside the job and not `paths-ignore` on the
+# workflow: a workflow that does not start reports nothing, and a PR with a
+# required check would wait for it forever. Why not a job of its own in front:
+# that is a second wait for a runner (and for the PC's priority hook), and a
+# gate job that failed would turn the jobs behind it into «skipped», which a
+# required check reads as passed.
+#
+# Runner pool, as in hub, fansly-chat, onlyfans-chat and taskindex: the
+# repository variable CI_POOL=pc sends the first attempt to the owner's
+# self-hosted runners; any other value, and every re-run (the PC may have died
+# mid-run), uses GitHub-hosted runners. Branch protection matches a required
+# check by the job's `name:` — «pnpm check» and «pnpm e2e»: keep the names.
+#
+# No secret is read here and none is needed: the jobs build, lint and test
+# against the synthetic stand and the fake hub on loopback. The runners hold no
+# production credentials, no browser profile with OnlyMonster and no cookies.
+
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A superseded PR head has nothing left to prove — cancel its run. Each push to
+# main (and each manual run) gets a group of its own: GitHub keeps only ONE
+# pending run per group, so a shared group would let a newer push evict an
+# older pending one, and main keeps a finished run per commit.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: pnpm check
+    if: github.event.pull_request.draft != true
+    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 25
+    env:
+      # ESLint with type information needs about 3.5 GiB of heap for this
+      # workspace. Node sizes its default heap from the machine's memory —
+      # about 2 GiB on a small runner — and the lint step then dies with «heap
+      # out of memory» (seen in a 4 GiB container). The same bound the hub's CI
+      # sets. It is a ceiling for every Node process of the job, not a
+      # reservation.
+      NODE_OPTIONS: --max-old-space-size=4096
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Node 26 (.nvmrc). The PC image has no Node on PATH: every job brings
+      # its own.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      # Node 26 ships no corepack (the other repositories take pnpm from the
+      # corepack of Node 22), so npm installs pnpm at the exact version
+      # package.json "packageManager" pins — one pin, no drift — into this
+      # job's runner temp: nothing shared between runners changes. npm's own
+      # cache in $HOME serves the next job on the PC without the registry.
+      - name: Setup pnpm
+        run: |
+          pinned="$(node -p 'require("./package.json").packageManager')"
+          pinned="${pinned%%+*}"
+          prefix="$RUNNER_TEMP/pnpm"
+          npm install --global --prefix "$prefix" --prefer-offline --no-audit --no-fund --loglevel=error "$pinned"
+          running="$("$prefix/bin/pnpm" --version)"
+          echo "npm $(npm --version) installed pnpm $running; package.json pins $pinned"
+          [ "pnpm@$running" = "$pinned" ] || { echo "::error::pnpm $running is installed but package.json pins $pinned"; exit 1; }
+          echo "$prefix/bin" >> "$GITHUB_PATH"
+
+      # The PC's runners share one pnpm store in $HOME (safe for concurrent
+      # installs, same filesystem as the work dirs, so packages hard-link).
+      # Hosted runners use pnpm's default store and no Actions cache: they are
+      # the fallback, and a cold install here is under a minute.
+      - name: Install dependencies
+        env:
+          PNPM_PC_STORE: ${{ runner.environment == 'self-hosted' && '1' || '' }}
+        run: |
+          if [ -n "$PNPM_PC_STORE" ]; then export npm_config_store_dir="$HOME/.local/share/pnpm/store"; fi
+          pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm check
+
+      # architecture.md §14: known vulnerabilities are reported, they do not
+      # fail the job (the registry's answer changes without a commit of ours).
+      - name: Dependency audit (warnings only)
+        run: pnpm audit --audit-level high || echo "::warning title=pnpm audit::pnpm audit reports vulnerabilities or could not reach the registry — see the log of this step"
+
+  e2e:
+    name: pnpm e2e
+    if: github.event.pull_request.draft != true
+    runs-on: ${{ vars.CI_POOL == 'pc' && github.run_attempt == '1' && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
+    # About 18 minutes on the owner's Mac; slower runners get room.
+    timeout-minutes: 60
+
+    steps:
+      # Two commits deep: on a PR this is GitHub's merge commit, and the next
+      # step compares it with its first parent, the base branch.
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      # Documents alone (see the top of this file): every step below is
+      # skipped and the job ends green. Any doubt is `e2e=true`; the steps test
+      # for «not false», so a step that said nothing skips nothing either.
+      - name: Does this change need e2e?
+        id: scope
+        env:
+          CG_PUSH_BEFORE: ${{ github.event.before }}
+        run: tools/ci/e2e-needed.sh >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.scope.outputs.e2e != 'false'
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      # The same step as in `check`; tools/ci/e2e-docker.sh mounts this prefix
+      # into the container.
+      - name: Setup pnpm
+        if: steps.scope.outputs.e2e != 'false'
+        run: |
+          pinned="$(node -p 'require("./package.json").packageManager')"
+          pinned="${pinned%%+*}"
+          prefix="$RUNNER_TEMP/pnpm"
+          npm install --global --prefix "$prefix" --prefer-offline --no-audit --no-fund --loglevel=error "$pinned"
+          running="$("$prefix/bin/pnpm" --version)"
+          echo "npm $(npm --version) installed pnpm $running; package.json pins $pinned"
+          [ "pnpm@$running" = "$pinned" ] || { echo "::error::pnpm $running is installed but package.json pins $pinned"; exit 1; }
+          echo "$prefix/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        if: steps.scope.outputs.e2e != 'false'
+        env:
+          PNPM_PC_STORE: ${{ runner.environment == 'self-hosted' && '1' || '' }}
+        run: |
+          if [ -n "$PNPM_PC_STORE" ]; then export npm_config_store_dir="$HOME/.local/share/pnpm/store"; fi
+          pnpm install --frozen-lockfile
+
+      # Both builds, the stand, the fake hub, WebdriverIO, geckodriver and
+      # Firefox all run inside one container with --network none: rootless
+      # Docker on the PC, the stock daemon on a hosted runner.
+      #
+      # `exec`: when a run is cancelled (a newer push to the PR does that) or
+      # times out, the runner signals the step's own process and nothing below
+      # it. Without `exec` that process is the shell around the script: it
+      # dies, and the container goes on running the suite in this checkout.
+      # With it the script takes the signal and removes its container.
+      - name: e2e (headless Firefox in the pinned image, no network)
+        if: steps.scope.outputs.e2e != 'false'
+        run: exec tools/ci/e2e-docker.sh
+
+      # What a SIGKILL leaves: the script had ten seconds and did not make it.
+      - name: Remove the e2e container, if one is left
+        if: always() && steps.scope.outputs.e2e != 'false'
+        run: if [ -x tools/ci/e2e-docker.sh ]; then tools/ci/e2e-docker.sh --remove-container; fi
+
+      # WebdriverIO and geckodriver logs of a failed run; the stand is
+      # synthetic, so there is nothing private in them.
+      - name: Upload e2e logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .cache/wdio
+          if-no-files-found: ignore
+          retention-days: 7

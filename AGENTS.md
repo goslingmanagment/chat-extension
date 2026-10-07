@@ -26,7 +26,8 @@ release is vendored only from a deployed hub commit. The prod hub may run an
 older contract — the hub layer announces
 only what the bootstrap declares. Still ahead: the hub PRs that are not merged
 yet (feed, Spenders stats, claim, «Новые») and the next re-vendor, the owner's
-next live checks (X9), CI and release (R19), Fansly (R20). What works and what is left: `README.md` «Что уже работает»; decisions
+next live checks (X9), the first real CI run and the first release (the R19 tooling is
+built, nothing of it has run outward yet: `docs/release.md`), Fansly (R20). What works and what is left: `README.md` «Что уже работает»; decisions
 taken without the owner: `docs/decisions.md` X12; what is proven end to end on
 the stand, what waits for the hub and the owner's smoke checklist:
 `docs/pilot-readiness.md`.
@@ -50,7 +51,11 @@ pnpm monorepo, TypeScript strict, Firefox MV3 (WXT), Preact.
 - `packages/ui` — Preact surfaces; data only through `AppClient`.
 - `packages/testing` — the stand, the fake hub, e2e. Never ships.
 - `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`. `tools/` — size budgets,
-  gates, parity, archive check, dev runner.
+  gates, parity, archive check, dev runner, the release tool (`release`) and
+  the CI e2e job (`ci`).
+- `site/` — the release site (install, «Как начать», the guide, «Что нового»,
+  the history, «О данных»). The version, the XPI link and the changelog parts
+  in it are written by `pnpm release site`, never by hand.
 
 The package graph is enforced by `pnpm lint` (ESLint + dependency-cruiser);
 a boundary you need to cross is a design question, not a lint exception.
@@ -80,6 +85,19 @@ a boundary you need to cross is a design question, not a lint exception.
   at all, likely after an Orca restart), so this is caution, not a known
   mechanism. Headless Firefox driven by geckodriver (`pnpm e2e`, `pnpm perf`)
   is exempt.
+- `pnpm release <command>` — cutting a release (`docs/release.md`). `status`,
+  `version`, `note`, `site`, `build`, `preflight` are local. `preflight
+  --online` also reads, and only reads: origin (`git fetch`, `git
+  ls-remote`), the served feed, the production hub's health, and GitHub's API
+  about the hub repository (`gh api repos/<hub>/compare/…`: is the vendored
+  SDK's commit on the hub's main). `sign`, `publish`, `pages`, `tag`,
+  `announce`, `rollback` leave the machine: without `--confirm <version>` they
+  only print their plan and make no request at all. `--confirm` is the
+  owner's word: an agent passes it only when the owner asked for that very
+  step. A test of the tool never uses a real address: `tools/release/*.test.ts`
+  run against loopback and a scripted world (`cli-world.ts`).
+- `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
+  `pnpm e2e` inside the pinned Firefox image with no network (needs Docker).
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
   rows a test names. Name the row in the test title: `it('[ST-042] …')`.
 
@@ -95,6 +113,11 @@ a boundary you need to cross is a design question, not a lint exception.
 - `docs/parity/` — the parity checklist, its map to modules and work
   packages, the machine manifest (810 rows, `pnpm parity`) and the coverage
   report (`coverage.md`).
+- `docs/release.md` — the runbook: CI and the PC runners, how to cut a release,
+  how an update reaches chatters, rollback, coexistence with the Fansly
+  extension and the desktop, pilot evidence, what is not verified yet.
+  `CHANGELOG.md` is the chatter-facing text of each version (the site and the
+  announcement are made from it); `BUILD.md` is for Mozilla's reviewers.
 - `docs/decisions.md` — decision log (quick-ref table + entries). The hub keeps
   no decision log; a cross-repo ruling is recorded here and in the sibling
   clients' logs, pointing at the hub doc or package that carries it.

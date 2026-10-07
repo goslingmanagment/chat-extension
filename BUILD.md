@@ -1,0 +1,48 @@
+# Building the extension from this source archive
+
+For Mozilla's add-on reviewers. This archive is the source of the Firefox
+extension "ChatGoose для ChatSpace" (`chat-extension@gosling.agency`): a pnpm
+workspace in TypeScript. The submitted XPI is bundled and minified by WXT
+(Vite); these steps rebuild it byte for byte.
+
+## Requirements
+
+- Node.js 26 (the major version is in `.nvmrc`).
+- pnpm 10.33.1 (pinned in `package.json`, `packageManager`). Node 26 ships
+  without corepack, so install it directly: `npm install -g pnpm@10.33.1`.
+- Any operating system. The submitted build was made on macOS.
+
+## Steps
+
+In the root of the unpacked archive:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+The extension is then in `apps/extension/.output/firefox-mv3/` — the same
+files as in the submitted XPI. The build also writes
+`apps/extension/.output/chatgoose-chatspace-<version>-firefox.zip`, an archive
+of that folder.
+
+## What is in the archive
+
+- `apps/extension` — entry points, the manifest policy (`build/manifest.ts`)
+  and the WXT configuration.
+- `packages/*` — the extension's own code.
+- `vendor/kernel-sdk`, `vendor/chatgoose-hotkeys` — two packages of ours,
+  generated from our server's repository and committed as built JavaScript
+  with type declarations; they are not minified. Each carries a
+  `*.vendor.json` with the commit it was generated from.
+- `pnpm-lock.yaml` — exact versions of every third-party dependency. All of
+  them come from the npm registry; nothing is downloaded by a build script.
+
+Tests, the test stand and internal documentation are not part of the archive:
+they are not needed to build the XPI.
+
+## Remote code
+
+The extension loads and evaluates no remote code. It talks to one server, the
+agency's own (`https://gosling-agency.ru`), and receives data and settings
+from it, never scripts.
