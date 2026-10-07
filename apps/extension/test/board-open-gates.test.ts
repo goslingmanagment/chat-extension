@@ -156,6 +156,13 @@ describe('[SP-035] a click on a fan in a board is the board’s own switch on it
     expect(boardOpenRefusal(one, ['preview', 'newcomers'], true)).toBeNull();
     // A board without a bound page has no switch to ask.
     expect(boardOpenRefusal({ ...vip, binding: null }, ['preview'])).toEqual({ code: 'CG-BINDING-MISSING' });
+    // [RB-010] The port to the background is down, or the page is read again after it came back: the switches
+    // in hand are from before the outage — the owner may have changed them unheard. Nothing is opened by them.
+    const waiting = { ...one, phase: 'blocked' as const, blocker: { code: 'CG-RUNTIME-UNREACHABLE' as const } };
+    expect(boardOpenRefusal(waiting, ['preview'])).toEqual({ code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(boardOpenRefusal(waiting, ['preview', 'newcomers'], true)).toEqual({ code: 'CG-RUNTIME-UNREACHABLE' });
+    // A page whose last reading merely failed (the hub did not answer) is still the page it was.
+    expect(boardOpenRefusal({ ...one, phase: 'blocked' as const, blocker: { code: 'CG-HUB-TIMEOUT' as const } }, ['preview'], true)).toBeNull();
   });
 
   it('a chat of another account than the board’s is not the board’s to open: its page’s switch was never asked', async () => {
