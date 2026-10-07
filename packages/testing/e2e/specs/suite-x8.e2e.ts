@@ -20,7 +20,7 @@ import { PAGE } from '../../src/scenarios/hub';
 import { composerText, historyLoads, pageJournal, pageJournalMark, PANEL, queueAdds, sendsOf, serverSince, typeDraft } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursBox, oursExists, oursText, pressOurs, waitOursText } from '../support/ours';
+import { oursBox, oursExists, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -52,11 +52,15 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await waitOursText('modal', reply(fan)[1], 'the preview’s result', { timeout: 20_000, selector: '.cg-pvr' });
   };
   const part = (index: number): string => `.cg-pv [data-cg-part="${index}"]`;
-  /** The send state of a part as the preview draws it: the part's own word and its row's. */
+  /**
+   * The send state of a part as the preview draws it: the part's own word and its row's, both from one moment of the
+   * page (`readOurs`): the row goes when the part is sent, and a command that reads a row that has just gone waits
+   * 15 s for it — as long as `waitSend` itself.
+   */
   const sendState = async (index: number): Promise<string> => {
-    if (!(await oursExists('modal', part(index)))) return 'no-part';
-    const own = await ours('modal', part(index)).getAttribute('data-cg-send-state');
-    const row = (await oursExists('modal', `${part(index)} .cg-pvs`)) ? await ours('modal', `${part(index)} .cg-pvs`).getAttribute('data-cg-send') : null;
+    const drawn = await readOurs('modal', part(index), (node) => [node.getAttribute('data-cg-send-state'), node.querySelector('.cg-pvs')?.getAttribute('data-cg-send') ?? null] as const);
+    if (drawn === null) return 'no-part';
+    const [own, row] = drawn;
     return row === null || row === own ? String(own) : `${String(own)}/${row}`;
   };
   const waitSend = async (index: number, wanted: string | RegExp, message: string, timeout = 15_000): Promise<string> => {
