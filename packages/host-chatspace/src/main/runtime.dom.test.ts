@@ -652,6 +652,117 @@ describe('MAIN runtime — degraded composers', () => {
     expect(after.provenance).toBe('human-or-unknown');
   });
 
+  /** The composer events told since `from`, and the anchors the last contract event names as misshaped. */
+  const told = (h: Harness, from: number) => ({
+    ready: h.events.slice(from).filter((event) => event.t === 'composer').map((event) => (event.payload['state'] as { ready: boolean } | null)?.ready ?? null),
+    shape: (h.events.slice(from).filter((event) => event.t === 'contract').at(-1)?.payload['shape'] as string[] | undefined) ?? null,
+  });
+  /** TipTap's chunk loads after the composer: its element is put into the page now, with nothing else happening there. */
+  const editorArrives = async (h: Harness, late: FakeComposer): Promise<void> => {
+    late.frame.append(late.prose);
+    // The observer's callback, then the frame it asks for.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    h.frame();
+  };
+
+  it('[RB-008] the editor arrives after the composer: the composer turns ready with no other event of the page', async () => {
+    const h = await start((page) => {
+      composer = page.addComposer(ACC, FAN);
+      composer.prose.remove();
+    });
+    const from = h.events.length;
+    expect(h.events.filter((event) => event.t === 'composer').at(-1)?.payload['state']).toMatchObject({ ready: false });
+    await editorArrives(h, composer);
+    expect(told(h, from).ready).toEqual([true]);
+  });
+
+  it('[RB-008] without the frame a late editor is noticed too: the watch sits on the slot’s own ancestors, and the composer turns ready', async () => {
+    const h = await start((page) => {
+      composer = page.addComposer(ACC, FAN, { frame: false });
+      composer.prose.remove();
+    });
+    const from = h.events.length;
+    expect(h.events.filter((event) => event.t === 'composer').at(-1)?.payload['state']).toMatchObject({ ready: false });
+    await editorArrives(h, composer);
+    expect(told(h, from).ready).toEqual([true]);
+  });
+
+  /** The nodes MAIN puts an observer on while `run` runs (its only observer is the one that waits for an editor). */
+  const watchedIn = async (run: (watched: Node[]) => Promise<void>): Promise<void> => {
+    const watched: Node[] = [];
+    const Native = window.MutationObserver;
+    class Recording extends Native {
+      override observe(target: Node, options?: MutationObserverInit): void {
+        watched.push(target);
+        super.observe(target, options);
+      }
+    }
+    window.MutationObserver = Recording;
+    try {
+      await run(watched);
+    } finally {
+      window.MutationObserver = Native;
+    }
+  };
+
+  it('[RB-008] [RB-022] without the frame the watch stays on the composer’s own nodes: never an ancestor that holds another composer (§6.10)', async () => {
+    await watchedIn(async (watched) => {
+      let hidden: FakeComposer | null = null;
+      const h = await start((page) => {
+        hidden = page.addComposer(ACC, OTHER, { frame: false, shown: false });
+        composer = page.addComposer(ACC, FAN, { frame: false });
+        // A build whose slot sits right in the composer's shell: its fourth ancestor is the container of all composers.
+        composer.frame.prepend(composer.slot);
+        composer.prose.remove();
+      });
+      const other = hidden as unknown as FakeComposer;
+      expect(watched).toEqual([composer.tab]);
+      expect(composer.tab.contains(other.slot)).toBe(false);
+      const from = h.events.length;
+      // Another chat's composer gets an editor: not a change of the open chat's composer, nothing is read for it.
+      other.prose.remove();
+      other.frame.append(other.prose);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      h.frame();
+      expect(told(h, from).ready).toEqual([]);
+      await editorArrives(h, composer);
+      expect(told(h, from).ready).toEqual([true]);
+    });
+  });
+
+  it('[RB-008] [RB-022] without the frame the watch never sits on the body, however shallow the page (§6.10)', async () => {
+    await watchedIn(async (watched) => {
+      const h = await start((page) => {
+        composer = page.addComposer(ACC, FAN, { frame: false });
+        // The one composer of a page two levels deep: slot → shell → body.
+        composer.frame.prepend(composer.slot);
+        document.body.append(composer.frame);
+        composer.prose.remove();
+      });
+      expect(watched).toEqual([composer.frame]);
+      const from = h.events.length;
+      await editorArrives(h, composer);
+      expect(told(h, from).ready).toEqual([true]);
+    });
+  });
+
+  it('[RB-008] an editor without a handle that arrives late is still told: the composer is ready and the anchor says «shape» (no CAS promise)', async () => {
+    const h = await start((page) => {
+      composer = page.addComposer(ACC, FAN, { editor: false });
+      composer.prose.remove();
+    });
+    const from = h.events.length;
+    expect(h.events.filter((event) => event.t === 'contract').at(-1)?.payload['shape']).toEqual([]);
+    await editorArrives(h, composer);
+    expect(told(h, from)).toEqual({ ready: [true], shape: ['composerBridge'] });
+    // One reading for the arrival: later changes inside the frame do not read the composer again.
+    const after = h.events.length;
+    composer.frame.append(document.createElement('span'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    h.frame();
+    expect(told(h, after).ready).toEqual([]);
+  });
+
   it('[RB-008] without the bridge the composer is not ready and the anchor is missing', async () => {
     const h = await start((page) => {
       composer = page.addComposer(ACC, FAN, { bridge: false });

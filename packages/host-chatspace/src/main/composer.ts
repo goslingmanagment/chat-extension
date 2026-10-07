@@ -134,6 +134,18 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
     return null;
   };
 
+  /**
+   * Where a composer's editor appears: its frame; when the frame changed, the highest of the ancestors `editorElement`
+   * searches (the slot's four, while they hold no other composer) — below the body. The runtime watches it for a late editor.
+   */
+  const editorRoot = (slot: Element): Element | null => {
+    let root = slot.closest(FRAME_SELECTOR);
+    if (root) return root;
+    let node: Element | null = slot;
+    for (let depth = 0; depth < 4 && (node = node.parentElement) && node !== doc.body && node.querySelectorAll(SLOT_SELECTOR).length < 2; depth += 1) root = node;
+    return root;
+  };
+
   const detach = (composer: Composer): void => {
     try {
       composer.off?.();
@@ -224,6 +236,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
   return {
     box,
     editorElement,
+    editorRoot,
     bridgeOf,
     read,
     attach,
