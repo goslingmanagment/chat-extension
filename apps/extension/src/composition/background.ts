@@ -288,7 +288,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       presence.tabRegistered(info.tabSessionId);
       armAlarms();
       sound.sync();
-      logger.info('bg.tabs', 'tab registered', { fields: { late: info.request.lateInjection, contracts: info.request.contractsVersion }, ctx: { tabSessionId: info.tabSessionId } });
+      logger.info('bg.tabs', 'tab registered', { fields: { late: info.request.lateInjection, contractsVersion: info.request.contractsVersion }, ctx: { tabSessionId: info.tabSessionId } });
     },
     onTabGone(info) {
       // BG-006: a closed tab only detaches its surfaces; its generations go on.

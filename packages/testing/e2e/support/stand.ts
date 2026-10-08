@@ -162,6 +162,10 @@ export const standServer = {
   holdMimic: async (hold: boolean): Promise<void> => {
     await control('/__stand/state', { body: { holdMimic: hold } });
   },
+  /** Holds the fans endpoint until released: a page loaded meanwhile does not know the fans of its chats yet. */
+  holdFans: async (hold: boolean): Promise<void> => {
+    await control('/__stand/state', { body: { holdFans: hold } });
+  },
   state: async (): Promise<{ sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> }> =>
     (await control('/__stand/state')) as { sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> },
   /** Outside requests the browser tried (the egress sink), after the cursor `since`. */

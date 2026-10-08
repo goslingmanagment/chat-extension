@@ -112,6 +112,8 @@ export interface ChatSpaceHostPort extends HostPort {
 }
 
 const keyOf = (chat: ChatRef): ChatKey => `${chat.host}:${chat.hostAccountId}:${chat.platformFanId}`;
+/** The reads of page memory the port keeps a cache of (the bridge's own request names). */
+type ReadKind = 'chatWindow' | 'fan' | 'listChats' | 'listAccounts';
 const sameChat = (a: ChatRef | null | undefined, b: ChatRef | null | undefined): boolean => !!a && !!b && keyOf(a) === keyOf(b);
 const rejected = (code: CgCode): InsertReceipt => ({ state: 'rejected', code });
 /** How long a cached chat list counts as fresh before a read asks MAIN again (no timer). */
@@ -179,6 +181,14 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const inFlight = new Set<string>();
   /** Reads asked for while the same read was in flight: it runs once more afterwards. */
   const dirty = new Set<string>();
+  /**
+   * Reads whose last ask failed, by key. Like an answer — `null` included —, a failure stands until MAIN's state may
+   * have changed: a getter does not ask again for it; a route, chat-cache or contract event does (`refreshOpenChat`,
+   * `chatCache`), as it does for every read it touches.
+   */
+  const failedReads = new Set<string>();
+  /** The run of identical failures of each kind of read: the log hears its 1st, 10th, 100th… one and how it ended. */
+  const failing = new Map<ReadKind, { readonly failure: string; count: number }>();
 
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
@@ -257,8 +267,31 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
 
   // ── cache refresh (reads of page memory through MAIN) ──
 
+  /**
+   * A read failed. The log hears a run of the same failure of the same kind of read once — and its 10th, 100th…
+   * time with the count —, not once per ask: a page that keeps answering the same way filled the log segment in two
+   * seconds (fourth live check). `requestKind` is the bridge's own name of the read, a fixed word, never a text.
+   */
+  const readFailed = (kind: ReadKind, failure: string): void => {
+    const run = failing.get(kind);
+    if (run?.failure === failure) {
+      run.count += 1;
+      if (Number.isInteger(Math.log10(run.count))) diag({ event: 'read-failed', detail: { requestKind: kind, failure, repeats: run.count } });
+      return;
+    }
+    failing.set(kind, { failure, count: 1 });
+    diag({ event: 'read-failed', detail: { requestKind: kind, failure } });
+  };
+  /** A read answered: a run of failures of its kind is over — said, with its count, when it was more than one. */
+  const readAnswered = (kind: ReadKind): void => {
+    const run = failing.get(kind);
+    if (run === undefined) return;
+    failing.delete(kind);
+    if (run.count > 1) diag({ event: 'read-recovered', detail: { requestKind: kind, failure: run.failure, repeats: run.count } });
+  };
+
   /** One read per key at a time; asked again meanwhile, it runs once more when the first is done (a change is never lost). */
-  const once = (key: string, work: () => Promise<void>): void => {
+  const once = (key: string, kind: ReadKind, work: () => Promise<void>): void => {
     if (!bridge || disposed) return;
     if (inFlight.has(key)) {
       dirty.add(key);
@@ -266,17 +299,24 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     }
     inFlight.add(key);
     void work()
-      .catch((error: unknown) => {
-        if (error instanceof BridgeCallError) diag({ event: 'read-failed', detail: { request: error.t, failure: error.failure } });
-      })
+      .then(
+        () => {
+          failedReads.delete(key);
+          readAnswered(kind);
+        },
+        (error: unknown) => {
+          failedReads.add(key);
+          readFailed(kind, error instanceof BridgeCallError ? error.failure : 'error');
+        },
+      )
       .finally(() => {
         inFlight.delete(key);
-        if (dirty.delete(key)) once(key, work);
+        if (dirty.delete(key)) once(key, kind, work);
       });
   };
 
   const refreshWindow = (chat: ChatRef): void =>
-    once(`window:${keyOf(chat)}`, async () => {
+    once(`window:${keyOf(chat)}`, 'chatWindow', async () => {
       const window = await (bridge as MainBridgeClient).request('chatWindow', { acc: chat.hostAccountId, fan: chat.platformFanId, max: BRIDGE_LIMITS.maxSnapshotMessages });
       windows.clear();
       windows.set(keyOf(chat), window);
@@ -284,7 +324,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     });
 
   const refreshFan = (chat: ChatRef, announce: boolean): void =>
-    once(`fan:${keyOf(chat)}`, async () => {
+    once(`fan:${keyOf(chat)}`, 'fan', async () => {
       const fan = await (bridge as MainBridgeClient).request('fan', { acc: chat.hostAccountId, fan: chat.platformFanId });
       fans.delete(keyOf(chat));
       fans.set(keyOf(chat), fan);
@@ -293,7 +333,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     });
 
   const refreshList = (hostAccountId: string): void =>
-    once(`list:${hostAccountId}`, async () => {
+    once(`list:${hostAccountId}`, 'listChats', async () => {
       const items = await (bridge as MainBridgeClient).request('listChats', { acc: hostAccountId, limit: BRIDGE_LIMITS.maxArrayLength });
       lists.set(hostAccountId, { items, at: clock() });
     });
@@ -313,7 +353,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   };
 
   const refreshAccounts = (): void =>
-    once('accounts', async () => {
+    once('accounts', 'listAccounts', async () => {
       accounts = await (bridge as MainBridgeClient).request('listAccounts', {});
       emit({ type: 'accounts', accounts });
       recompute();
@@ -451,7 +491,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     }
     if (!probe || probe.readyStateAtStart === 'loading' || reloadNeeded) return;
     reloadNeeded = true;
-    diag({ event: 'late-start', detail: { readyStateAtStart: probe.readyStateAtStart } });
+    diag({ event: 'late-start', detail: { startReadyState: probe.readyStateAtStart } });
     emit({ type: 'reloadNeeded' });
   };
   const ready = bridge
@@ -641,13 +681,15 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     chatWindow(chat: ChatRef): ChatWindow | null {
       if (!sameChat(chat, route.chat)) return null;
       const cached = windows.get(keyOf(chat));
-      if (cached === undefined && capability('chatWindow')) refreshWindow(chat);
+      // Never asked, or the last ask failed and nothing of MAIN's state has moved since: asked once, not per call.
+      if (cached === undefined && capability('chatWindow') && !failedReads.has(`window:${keyOf(chat)}`)) refreshWindow(chat);
       return cached ?? null;
     },
 
+    /** A `null` MAIN answered («ChatSpace holds no such fan yet») is kept like any answer until its state moves. */
     fan(chat: ChatRef): HostFan | null {
       const cached = fans.get(keyOf(chat));
-      if (cached === undefined && capability('fan')) refreshFan(chat, false);
+      if (cached === undefined && capability('fan') && !failedReads.has(`fan:${keyOf(chat)}`)) refreshFan(chat, false);
       return cached ?? null;
     },
 

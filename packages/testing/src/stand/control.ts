@@ -74,7 +74,7 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     return;
   }
   if (path === '/__stand/state' && method === 'GET') {
-    ok({ sockets: hub.summary(), scripts: state.pendingScripts(), permissions: state.permissions, owner: state.owner, mimic: state.mimic, mimicHeld: state.mimicHeld, withholdAuth: state.withholdAuth, traffic: state.traffic });
+    ok({ sockets: hub.summary(), scripts: state.pendingScripts(), permissions: state.permissions, owner: state.owner, mimic: state.mimic, mimicHeld: state.mimicHeld, fansHeld: state.fansHeld, withholdAuth: state.withholdAuth, traffic: state.traffic });
     return;
   }
   if (path === '/__stand/egress' && method === 'GET') {
@@ -143,6 +143,7 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     if (Array.isArray(body['permissions'])) state.permissions = body['permissions'].filter((item): item is string => typeof item === 'string');
     if (typeof body['owner'] === 'boolean') state.owner = body['owner'];
     if (typeof body['holdMimic'] === 'boolean') state.holdMimic(body['holdMimic']);
+    if (typeof body['holdFans'] === 'boolean') state.holdFans(body['holdFans']);
     if (typeof body['mimic'] === 'object' && body['mimic'] !== null) state.mimic = body['mimic'] as MimicState;
     if (Array.isArray(body['fans'])) {
       for (const item of body['fans'] as unknown[]) {

@@ -94,8 +94,8 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
 
   it('[LG-016] ChatSpace fills a store after our script started (a reload of 0.195): its start-up is no error of the day and no warning; the settled contract is written once, whole', async function () {
     this.timeout(90_000);
-    /** Today's CG-HOST-CONTRACT, and the host contract records of the tab script that started after `from`, read on the extension page. */
-    const readBack = async (from: number): Promise<{ readonly contractErrors: number; readonly records: readonly LogRecord[] }> => {
+    /** Today's CG-HOST-CONTRACT, and the host contract records (and every record) of the tab script that started after `from`, read on the extension page. */
+    const readBack = async (from: number): Promise<{ readonly contractErrors: number; readonly records: readonly LogRecord[]; readonly all: readonly LogRecord[] }> => {
       await shift.toPages();
       try {
         const diagnostics = await pageRpc<{ counters: Record<string, number> }>('diagnostics.get');
@@ -104,8 +104,9 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
         if (!diagnostics.ok || !file.ok) throw new Error('diagnostics were not read');
         const records = (JSON.parse(file.payload.body) as { logs?: { recent?: LogRecord[] } }).logs?.recent ?? [];
         const session = records.find((record) => record.msg === 'tab script started' && Date.parse(record.ts) >= from)?.ctx?.tabSessionId;
-        const ofSession = session === undefined ? [] : records.filter((record) => record.ctx?.tabSessionId === session && record.scope === 'tab.host' && /^host contract/.test(record.msg));
-        return { contractErrors: diagnostics.payload.counters['CG-HOST-CONTRACT'] ?? 0, records: ofSession };
+        const all = session === undefined ? [] : records.filter((record) => record.ctx?.tabSessionId === session);
+        const ofSession = all.filter((record) => record.scope === 'tab.host' && /^host contract/.test(record.msg));
+        return { contractErrors: diagnostics.payload.counters['CG-HOST-CONTRACT'] ?? 0, records: ofSession, all };
       } finally {
         await browser.url(testBuildPage(QUIET_PAGE));
         await shift.toStand();
@@ -118,7 +119,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     // composer 1.5 s before its accounts and permissions start to load.
     await openStand(chatPath(ACC, a1), { slowStartMs: 1500 });
     await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock after the slow start', 20_000);
-    let seen: Awaited<ReturnType<typeof readBack>> = { contractErrors: before, records: [] };
+    let seen: Awaited<ReturnType<typeof readBack>> = { contractErrors: before, records: [], all: [] };
     await browser.waitUntil(
       async () => {
         seen = await readBack(from);
@@ -136,6 +137,44 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(seen.records.some((record) => record.fields?.['starting'] === true && record.fields['ok'] === false)).toBe(true);
     const settled = seen.records.filter((record) => record.fields?.['starting'] === undefined);
     expect(settled.map((record) => [record.level, record.msg, record.code ?? null, record.fields?.['ok']])).toEqual([['info', 'host contract checked', null, true]]);
+    // What the records name is readable: the contracts' version is a fixed word, not a masked text.
+    expect(seen.all.find((record) => record.msg === 'tab script started')?.fields?.['contractsVersion']).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('[LG-008] a chat whose fan ChatSpace does not know yet (the fourth live check): MAIN’s «no such fan yet» is an answer — not one read is written as failed', async function () {
+    this.timeout(90_000);
+    // On a reload of the tab, ChatSpace showed the chat before its fan was in its map. MAIN answered `fan` with an
+    // honest null, the bridge took it for a broken answer, kept nothing and was asked again on every look at the
+    // chat: 30 `read-failed {invalid-answer}` records in two seconds, more than half of the log segment.
+    await standServer.holdFans(true);
+    const from = Date.now();
+    try {
+      await openStand(chatPath(ACC, a1));
+      await dockIs((d) => d.status === 'ready' && d.target?.endsWith(`:${a1}`) === true, 'the dock of a chat whose fan is not known yet', 20_000);
+      // The views look at the chat on every change while ChatSpace goes on loading: two seconds of it.
+      await browser.pause(2000);
+    } finally {
+      await standServer.holdFans(false);
+    }
+    // ChatSpace learns the fan (the adapter's own spec follows it to the tab: stack.dom.test.ts).
+    await browser.waitUntil(async () => (await callStand('queryState', ['fansMap', ACC])).hasData, { timeout: 10_000, timeoutMsg: 'the stand did not load its fans' });
+    await browser.pause(500);
+    await shift.toPages();
+    let read: { readonly all: readonly LogRecord[]; readonly fails: readonly LogRecord[] };
+    try {
+      await browser.url(testBuildPage('options.html'));
+      const file = await pageRpc<{ body: string }>('diagnostics.export', { format: 'json' });
+      if (!file.ok) throw new Error('diagnostics were not exported');
+      const records = (JSON.parse(file.payload.body) as { logs?: { recent?: LogRecord[] } }).logs?.recent ?? [];
+      const session = records.find((record) => record.msg === 'tab script started' && Date.parse(record.ts) >= from)?.ctx?.tabSessionId;
+      const all = session === undefined ? [] : records.filter((record) => record.ctx?.tabSessionId === session);
+      read = { all, fails: all.filter((record) => record.msg === 'read-failed' || record.msg === 'read-recovered') };
+    } finally {
+      await browser.url(testBuildPage(QUIET_PAGE));
+      await shift.toStand();
+    }
+    expect(read.all.length).toBeGreaterThan(0);
+    expect(read.fails.map((record) => [record.msg, record.fields ?? null])).toEqual([]);
   });
 
   it('[UI-011] the owner switches ChatGoose off for the page (the master switch): the dock stays, says so in one line, every AI button is dimmed — a click starts nothing and the hub is asked nothing; switched on again, it works', async () => {
