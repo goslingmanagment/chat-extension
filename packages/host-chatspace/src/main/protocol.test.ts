@@ -7,6 +7,7 @@ import {
   BRIDGE_ERRORS,
   BRIDGE_ERRORS_BEFORE_EXECUTION,
   BRIDGE_PROTOCOL_VERSION,
+  BRIDGE_TAG_KEY,
   BRIDGE_TAGS,
   BRIDGE_UNDROPPABLE_EVENTS,
   BRIDGE_WRITE_FAILURES,
@@ -29,6 +30,7 @@ import { PAYLOAD } from './requests';
 describe('[EX-008] MAIN bridge literals', () => {
   it('match @cg/contracts (MAIN cannot import it)', () => {
     expect(protocol.PROTOCOL_VERSION).toBe(BRIDGE_PROTOCOL_VERSION);
+    expect(protocol.TAG_KEY).toBe(BRIDGE_TAG_KEY);
     expect(protocol.TAG_MAIN_READY).toBe(BRIDGE_TAGS.mainReady);
     expect(protocol.TAG_ISO_HELLO).toBe(BRIDGE_TAGS.isoHello);
     expect(protocol.TAG_CONNECT).toBe(BRIDGE_TAGS.connect);
@@ -59,6 +61,7 @@ describe('[EX-008] MAIN bridge literals', () => {
   it('the isolated side’s early copies match too (wire.ts)', () => {
     expect(wire.PROTOCOL_VERSION).toBe(BRIDGE_PROTOCOL_VERSION);
     expect(wire.TAGS).toEqual(BRIDGE_TAGS);
+    expect(wire.TAG_KEY).toBe(BRIDGE_TAG_KEY);
     expect([...wire.ERRORS_BEFORE_EXECUTION]).toEqual([...BRIDGE_ERRORS_BEFORE_EXECUTION]);
     expect([...wire.WRITE_REQUESTS]).toEqual([...BRIDGE_WRITE_REQUESTS]);
     expect([...wire.UNDROPPABLE_EVENTS]).toEqual([...BRIDGE_UNDROPPABLE_EVENTS]);

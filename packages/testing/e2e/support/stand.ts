@@ -222,7 +222,7 @@ export async function composerRoots(): Promise<{ readonly all: string[]; readonl
 /** Where the dock host sits: the stand composer key of its parent, and whether it is the first child. */
 export async function dockPlacement(): Promise<{ readonly hosts: number; readonly parentKey: string | null; readonly firstChild: boolean; readonly visible: boolean }> {
   return browser.execute(() => {
-    const hosts = document.querySelectorAll<HTMLElement>('[data-cg="dock"]');
+    const hosts = document.querySelectorAll<HTMLElement>('[data-host="dock"]');
     const host = hosts[0];
     const parent = host?.parentElement ?? null;
     return {

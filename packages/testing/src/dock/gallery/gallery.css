@@ -3,7 +3,7 @@
    conversation background (neutral-50 light, black dark), the `dark` class, a
    feed above and a composer frame below the dock host. None of it is
    ChatSpace's code or CSS; our surfaces read only the triplets and get the
-   scheme as data-cg-scheme on their host. */
+   scheme as data-scheme on their host. */
 :root {
   --color-om-white: 255 255 255;
   --color-om-neutral-0: 255 255 255;
@@ -64,7 +64,7 @@ html[data-gal-single] .gal-cap { display: none; }
 .gal-bubble { max-width: 70%; padding: 8px 12px; border-radius: 16px; background: var(--gal-card); color: rgb(var(--color-om-neutral-900)); font-size: 14px; line-height: 20px; }
 html.dark .gal-bubble { color: rgb(var(--color-om-neutral-200)); }
 /* ChatSpace keeps `contain: layout style` on our host (architecture.md §6.3). */
-[data-cg="dock"] { display: block; contain: layout style; }
+[data-host="dock"] { display: block; contain: layout style; }
 .gal-composer { height: 120px; border: 1px solid var(--gal-line); border-radius: 16px; background: var(--gal-card); box-sizing: border-box; padding: 14px 16px; color: var(--gal-ink); }
 /* Overlays: a page the size of the window with ChatSpace's top bar and account rail drawn as plain boxes. */
 .gal-page { position: fixed; inset: 0; display: grid; grid-template: 44px 1fr / 64px 1fr 64px; background: var(--gal-bg); }
@@ -73,4 +73,4 @@ html.dark .gal-bubble { color: rgb(var(--color-om-neutral-200)); }
 .gal-page__rail--right { border-right: 0; border-left: 1px solid var(--gal-line); }
 .gal-page__main { display: flex; flex-direction: column; justify-content: flex-end; padding: 0 20px 16px; min-width: 0; }
 .gal-page__main .gal-stage { width: auto; max-width: 853px; }
-[data-cg="overlay"] { position: fixed; inset: 0; pointer-events: none; contain: layout style; }
+[data-host="overlay"] { position: fixed; inset: 0; pointer-events: none; contain: layout style; }

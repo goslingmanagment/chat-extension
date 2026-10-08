@@ -1,7 +1,7 @@
 /* The gallery page plays ChatSpace: the --color-om-* triplets of 0.172.0 on
    <html> (identical in both themes), its font, its conversation background
    (neutral-50 light, black dark) and the `dark` class. Our surface reads only
-   the triplets; the scheme reaches it as data-cg-scheme on its host. */
+   the triplets; the scheme reaches it as data-scheme on its host. */
 :root {
   --color-om-white: 255 255 255;
   --color-om-neutral-0: 255 255 255;

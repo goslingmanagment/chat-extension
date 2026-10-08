@@ -262,9 +262,9 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       const s = await waitForHarnessState(state, (x) => x.composer?.hidden === true && x.mounts.dock.kind === 'copy-only-row', 'blocked fan row');
       expect(s.identity?.composerInstanceId).toBeNull();
       const placement = await browser.execute(() => {
-        const host = document.querySelector('[data-cg="dock"]');
+        const host = document.querySelector('[data-host="dock"]');
         const container = document.querySelector('[data-stand-composers]');
-        return { inContainer: host?.parentElement === container, last: container?.lastElementChild === host, mode: host?.getAttribute('data-cg-mode') ?? null };
+        return { inContainer: host?.parentElement === container, last: container?.lastElementChild === host, mode: host?.getAttribute('data-mode') ?? null };
       });
       expect(placement).toEqual({ inContainer: true, last: true, mode: 'copy-only' });
       await callStand('openChat', ACC, a1);
@@ -281,7 +281,7 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       await browser.pause(100);
       expect(await browser.execute(() => document.querySelectorAll('[data-chat-tab]').length)).toBe(tabs);
       await harness('dismissible', 'modal', 'e2e', false);
-      expect(await browser.execute(() => document.querySelector('[data-cg-layer="modal"]')?.hasAttribute('data-dismissible-open'))).toBe(false);
+      expect(await browser.execute(() => document.querySelector('[data-layer="modal"]')?.hasAttribute('data-dismissible-open'))).toBe(false);
     });
   });
 
@@ -578,7 +578,7 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       const s = await waitForHarnessState(state, (x) => x.mounts.dock.kind === 'fixed-overlay' && x.identity?.chat?.platformFanId === a1 && x.composer?.ready === true, 'fixed overlay, composer ready');
       expect(s.contract.capabilities['dockMount']).toEqual({ state: 'degraded', reason: 'composerFrame' });
       const host = await browser.execute(() => {
-        const element = document.querySelector<HTMLElement>('[data-cg="dock"]');
+        const element = document.querySelector<HTMLElement>('[data-host="dock"]');
         return { parentIsHtml: element?.parentElement === document.documentElement, position: element?.style.position ?? null };
       });
       expect(host).toEqual({ parentIsHtml: true, position: 'fixed' });

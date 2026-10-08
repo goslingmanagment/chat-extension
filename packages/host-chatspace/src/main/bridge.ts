@@ -1,9 +1,9 @@
 // The MAIN bridge boot (architecture.md §5.3, §11): a dependency-free bundle in
 // the page's own world at document_start. On install (≤ 1 ms) it only
 // captures natives, mints the document epoch and starts the handshake:
-// 1. MAIN posts {cg: 'main-ready', v} and listens for 'iso-hello';
+// 1. MAIN posts {tag: 'main-ready', v} and listens for 'iso-hello';
 // 2. the isolated script posts 'iso-hello' and listens for 'main-ready';
-// 3. whoever comes second, the isolated side sends port2 with {cg: 'connect', v, nonce};
+// 3. whoever comes second, the isolated side sends port2 with {tag: 'connect', v, nonce};
 // 4. MAIN accepts only the first valid 'connect' and drops its window listener.
 //
 // The boot owns the port: the envelope check, write deduplication by request
@@ -37,6 +37,7 @@ import {
   STATE_EVENTS,
   TAG_CONNECT,
   TAG_ISO_HELLO,
+  TAG_KEY,
   TAG_MAIN_READY,
   UI_EVENT_GAP_MS,
   WRITE_MEMORY,
@@ -205,14 +206,14 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
     );
   };
 
-  const announce = (): void => post({ cg: TAG_MAIN_READY, v: PROTOCOL_VERSION }, targetOrigin);
+  const announce = (): void => post({ [TAG_KEY]: TAG_MAIN_READY, v: PROTOCOL_VERSION }, targetOrigin);
 
   const onWindowMessage = (event: MessageEvent): void => {
     const data: unknown = event.data;
     if (event.source !== win || !isPlain(data) || data['v'] !== PROTOCOL_VERSION) return;
-    if (data['cg'] === TAG_ISO_HELLO) return announce();
+    if (data[TAG_KEY] === TAG_ISO_HELLO) return announce();
     const received = event.ports[0];
-    if (data['cg'] !== TAG_CONNECT || port || !received || typeof data['nonce'] !== 'string') return;
+    if (data[TAG_KEY] !== TAG_CONNECT || port || !received || typeof data['nonce'] !== 'string') return;
     port = received;
     unlisten('message', onWindowMessage, true);
     port.onmessage = onPortMessage;

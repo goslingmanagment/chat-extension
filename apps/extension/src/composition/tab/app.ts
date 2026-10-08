@@ -757,7 +757,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
           buttons: root.querySelectorAll('button').length,
           text: root.querySelector('[data-cg-surface="dock"]')?.textContent ?? null,
           height: hostElement.getBoundingClientRect().height,
-          scheme: hostElement.getAttribute('data-cg-scheme'),
+          scheme: hostElement.getAttribute('data-scheme'),
           language: i18n.language,
         });
       };

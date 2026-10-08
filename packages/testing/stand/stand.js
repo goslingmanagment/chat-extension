@@ -3,11 +3,11 @@
 // prove timing without reaching into the extension.
 (function () {
   var html = document.documentElement;
-  var tapKey = Symbol.for('chatgoose.wsTap');
+  var tapKey = Symbol.for('wsTap');
   html.setAttribute('data-stand-ready-state-at-head', document.readyState);
   html.setAttribute('data-stand-ws-tap-at-head', String(Object.prototype.hasOwnProperty.call(window, tapKey)));
   window.addEventListener('message', function (event) {
-    if (event.source === window && event.data && event.data.cg === 'main-ready') {
+    if (event.source === window && event.data && event.data.tag === 'main-ready') {
       html.setAttribute('data-stand-saw-main-ready', '1');
     }
   });

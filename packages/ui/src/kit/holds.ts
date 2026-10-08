@@ -1,6 +1,6 @@
 // Attributes that several of our surfaces may hold on one element at once
 // (architecture.md §6.3, §10.2 п. 5): the overlay host carries the palette,
-// Spenders, «Новые» and the toasts in one shadow root, so `data-cg-scheme`
+// Spenders, «Новые» and the toasts in one shadow root, so `data-scheme`
 // and `data-dismissible-open` stay while any surface there still needs them
 // and go with the last one. Each hold is released once; a second release of
 // the same hold does nothing.

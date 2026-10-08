@@ -8,7 +8,7 @@
 // needs the tap to mean anything — the freshness counters, the X8 send port,
 // the receipt observer, the observation of human sends — ships in the tap
 // script, so the document_start bundle stays within its budget (§11). The tap
-// leaves its handle under the non-enumerable `Symbol.for('chatgoose.wsTap')`;
+// leaves its handle under the non-enumerable `Symbol.for('wsTap')`;
 // the runtime takes it once and lends the tap script its page reads and its
 // event channel (`LiveHost`), and gets the live port back.
 //
@@ -161,7 +161,7 @@ export interface LivePort {
   readonly anchor: () => string;
 }
 
-/** The tap's handle under `Symbol.for('chatgoose.wsTap')`. */
+/** The tap's handle under `Symbol.for('wsTap')`. */
 export interface WsTapHandle {
   readonly version: 1;
   /** Sockets constructed through the tap since install. */

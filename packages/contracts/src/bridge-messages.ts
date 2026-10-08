@@ -30,6 +30,8 @@ import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestam
 import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema, checkpointMatches } from './send';
 
 const EmptySchema = z.strictObject({});
+/** A guarded site of MAIN, as a machine token (it goes into the logs as is). */
+export const FAULT_SITE_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,31}$/;
 
 // ── Payloads ───────────────────────────────────────────────────────────────
 
@@ -196,6 +198,11 @@ export const FROM_MAIN = {
     draft: SentDraftSchema,
   }),
   previewSendState: z.strictObject({ view: SendAttemptViewSchema }),
+  /**
+   * A failure of our own MAIN code that a guard caught (decision X22): the site — the callback ChatSpace or the browser
+   * called — and how often it failed in this document; sent when the count reaches 1, 2, 4, 8… The isolated side logs it.
+   */
+  fault: z.strictObject({ source: z.string().check(z.regex(FAULT_SITE_PATTERN)), count: z.int().check(z.gte(1)) }),
 } as const satisfies Record<FromMainType, z.ZodMiniType>;
 
 export type FromMainPayload<T extends FromMainType> = z.infer<(typeof FROM_MAIN)[T]>;
@@ -266,6 +273,7 @@ export const BridgeEventSchema = z.discriminatedUnion('t', [
   eventFrame('coverage'),
   eventFrame('humanSend'),
   eventFrame('previewSendState'),
+  eventFrame('fault'),
 ]);
 export type BridgeEvent = z.infer<typeof BridgeEventSchema>;
 

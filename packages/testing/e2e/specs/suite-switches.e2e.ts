@@ -184,7 +184,7 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
           const stand = (window as unknown as { __stand: { openChat(account: string, fan: string): unknown } }).__stand;
           const onClick = (event: Event): void => {
             // A click inside our closed root reaches the page as a click on its host.
-            if (!(event.target instanceof Element) || event.target.closest('[data-cg="dock"]') === null) return;
+            if (!(event.target instanceof Element) || event.target.closest('[data-host="dock"]') === null) return;
             window.removeEventListener('click', onClick, true);
             void stand.openChat(account, fan);
           };

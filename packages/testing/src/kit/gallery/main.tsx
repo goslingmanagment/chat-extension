@@ -48,7 +48,7 @@ if (config !== null) config.textContent = `${scheme} · ${language}${column > 0 
 const world = kitWorld('gallery-ready', language);
 world.deps.scheme.set(scheme);
 const host = document.createElement('div');
-host.setAttribute('data-cg', 'gallery');
+host.setAttribute('data-host', 'gallery');
 document.getElementById('gallery')?.append(host);
 const root = host.attachShadow({ mode: 'closed' });
 const failures: KitFailure[] = [];

@@ -160,8 +160,8 @@ describe('MAIN ↔ isolated bridge (§5.3)', () => {
     }
   });
 
-  it('freshness and receipt events are the undroppable ones', () => {
-    expect([...C.BRIDGE_UNDROPPABLE_EVENTS].sort()).toEqual(['coverage', 'humanSend', 'incoming', 'previewSendState']);
+  it('freshness, receipt and fault events are the undroppable ones', () => {
+    expect([...C.BRIDGE_UNDROPPABLE_EVENTS].sort()).toEqual(['coverage', 'fault', 'humanSend', 'incoming', 'previewSendState']);
   });
 
   it('MAIN gets no hub ticket, binding or action token', () => {

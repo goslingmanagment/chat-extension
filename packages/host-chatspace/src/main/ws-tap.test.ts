@@ -119,14 +119,14 @@ describe('[X8-04] the WS tap wraps only the constructor (§6.8 п. 1–3, 11)', 
     const handle = installWsTap(win);
     expect(handle).not.toBeNull();
     expect(installWsTap(win)).toBeNull();
-    expect(Reflect.get(win, Symbol.for('chatgoose.wsTap'))).toBe(handle);
-    expect(Object.keys(win)).not.toContain('chatgoose.wsTap');
+    expect(Reflect.get(win, Symbol.for('wsTap'))).toBe(handle);
+    expect(Object.keys(win)).not.toContain('wsTap');
     expect(Object.getOwnPropertySymbols(win).map((key) => Object.getOwnPropertyDescriptor(win, key)?.enumerable)).toEqual([false]);
     new win.WebSocket(URL_OK);
     expect(handle?.socketCount()).toBe(1);
     handle?.dispose();
     expect(win.WebSocket).toBe(FakeSocket);
-    expect(Reflect.get(win, Symbol.for('chatgoose.wsTap'))).toBeUndefined();
+    expect(Reflect.get(win, Symbol.for('wsTap'))).toBeUndefined();
 
     // A later wrapper of someone else stays where it is.
     const second = installWsTap(win);

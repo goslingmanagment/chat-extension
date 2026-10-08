@@ -175,7 +175,7 @@ describe('R17 — the early key dispatcher on the stand', () => {
       const page = await pageMark();
       expect(await input('overlay', 'palette', true)).toEqual({ open: ['palette'], dismissible: true });
       // The host of our open window carries ChatSpace's own «something dismissible is open» mark.
-      expect(await browser.execute(() => document.querySelectorAll('[data-cg="overlay"][data-dismissible-open]').length)).toBe(1);
+      expect(await browser.execute(() => document.querySelectorAll('[data-host="overlay"][data-dismissible-open]').length)).toBe(1);
       await inComposer();
       await browser.keys(Key.Escape);
       expect((await inputLog()).overlays).toEqual([]);

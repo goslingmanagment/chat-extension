@@ -19,7 +19,7 @@ import type { FromMainPayload, ToMainData, ToMainPayload } from '@cg/contracts/b
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 
 import type { Validation, ValidationLoader } from './validation';
-import { ERRORS_BEFORE_EXECUTION, PROTOCOL_VERSION, TAGS, UNDROPPABLE_EVENTS } from './wire';
+import { ERRORS_BEFORE_EXECUTION, PROTOCOL_VERSION, TAG_KEY, TAGS, UNDROPPABLE_EVENTS } from './wire';
 
 /** Why a call produced no answer: a MAIN refusal, or the transport. */
 export type BridgeFailure = BridgeError | 'timeout' | 'closed' | 'invalid-answer';
@@ -94,10 +94,10 @@ export function connectMainBridge(win: Window, validation: ValidationLoader, tim
     };
     const onWindowMessage = (event: MessageEvent): void => {
       const data: unknown = event.data;
-      if (settled || event.source !== win || !isRecord(data) || data['cg'] !== TAGS.mainReady || data['v'] !== PROTOCOL_VERSION) return;
+      if (settled || event.source !== win || !isRecord(data) || data[TAG_KEY] !== TAGS.mainReady || data['v'] !== PROTOCOL_VERSION) return;
       finish();
       const channel = new MessageChannel();
-      win.postMessage({ cg: TAGS.connect, v: PROTOCOL_VERSION, nonce: randomNonce(win) }, targetOrigin, [channel.port2]);
+      win.postMessage({ [TAG_KEY]: TAGS.connect, v: PROTOCOL_VERSION, nonce: randomNonce(win) }, targetOrigin, [channel.port2]);
       resolve(createClient(channel.port1, win, validation));
     };
     const timer = setTimeout(() => {
@@ -106,7 +106,7 @@ export function connectMainBridge(win: Window, validation: ValidationLoader, tim
       reject(new Error('main-bridge-timeout'));
     }, timeoutMs);
     win.addEventListener('message', onWindowMessage, true);
-    win.postMessage({ cg: TAGS.isoHello, v: PROTOCOL_VERSION }, targetOrigin);
+    win.postMessage({ [TAG_KEY]: TAGS.isoHello, v: PROTOCOL_VERSION }, targetOrigin);
   });
 }
 

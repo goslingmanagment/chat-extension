@@ -11,6 +11,8 @@ import type { CgCode } from '@cg/contracts/errors';
 
 /** contracts BRIDGE_PROTOCOL_VERSION. */
 export const PROTOCOL_VERSION = 1;
+/** contracts BRIDGE_TAG_KEY: the handshake message's key for its tag. */
+export const TAG_KEY = 'tag';
 /** contracts BRIDGE_TAGS. */
 export const TAGS = { mainReady: 'main-ready', isoHello: 'iso-hello', connect: 'connect' } as const;
 /** contracts BRIDGE_ERRORS_BEFORE_EXECUTION: a write refused with one of these did not happen. */
@@ -18,7 +20,7 @@ export const ERRORS_BEFORE_EXECUTION: readonly BridgeError[] = ['unknown-request
 /** contracts BRIDGE_WRITE_REQUESTS. */
 export const WRITE_REQUESTS: readonly ToMainType[] = ['insertGuarded', 'navigate', 'previewSendCommit'];
 /** contracts BRIDGE_UNDROPPABLE_EVENTS: never coalesced or dropped. */
-export const UNDROPPABLE_EVENTS: readonly string[] = ['incoming', 'coverage', 'humanSend', 'previewSendState'];
+export const UNDROPPABLE_EVENTS: readonly string[] = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'fault'];
 /** contracts BRIDGE_WRITE_FAILURES: the fixed outcome of a write that may have run (timeout, lost answer, `internal`). */
 export const WRITE_FAILURES = {
   insertGuarded: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' },

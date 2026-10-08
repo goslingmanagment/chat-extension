@@ -59,7 +59,7 @@ DOM, мост ChatSpace для вставки и — для отправки и�
   человека; на ней стоит метка `DELIVERED_KEY_MARK` (`Symbol.for('cg.key.delivered')`),
   по которой её узнаёт наш интерфейс (`ui-contract.md`, решение 12). `routeOfLocation` — маршрут по
   адресу, пока MAIN ещё не ответил. `createKeyPendingMark(host)` ставит на хост дока
-  `data-cg-key-pending` и `aria-busy`, пока нажатая клавиша ждёт ленивую часть или первое
+  `data-pending` и `aria-busy`, пока нажатая клавиша ждёт ленивую часть или первое
   состояние чата (HK-024, HK-025): до загрузки интерфейса это единственный знак ожидания.
 - `buildContractReport`, `createThemeReader`, `readStoredDraft`, `host-contract.ts` (все
   строки ChatSpace в одном месте; копия MAIN закреплена тестом).
@@ -72,7 +72,7 @@ DOM, мост ChatSpace для вставки и — для отправки и�
 человеком едут в **скрипте тапа** (`chatspace-ws`, `installWsTap`), а не в бандле
 `document_start`: без тапа ничего из этого не работает (нет свежести — нет отправки), а в
 10 КиБ основного бандла оно не помещается. В основном бандле — только связка: рантайм один
-раз берёт ручку тапа под `Symbol.for('chatgoose.wsTap')` (`handle.attach(liveHost)`),
+раз берёт ручку тапа под `Symbol.for('wsTap')` (`handle.attach(liveHost)`),
 отдаёт ему чтения страницы и канал событий (`main/live.ts`: `LiveHost`) и получает «живой
 порт» (`LivePort`). Порядок двух скриптов на `document_start` не важен (e2e гоняет оба):
 пока ручки нет, рантайм ищет её при каждой следующей надобности, так что запрос,

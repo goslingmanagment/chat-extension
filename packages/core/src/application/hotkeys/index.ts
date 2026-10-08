@@ -20,7 +20,7 @@
 //      dispatcher.connect(runner);
 //    A key kept from before the lazy part — and a key of the dock pressed before the dock has its
 //    first state — waits for that state (HK-025): «Загрузка…» is on screen from `attach` until the
-//    key runs or is dropped, and the dock host carries `data-cg-key-pending` from the keydown on.
+//    key runs or is dropped, and the dock host carries `data-pending` from the keydown on.
 // 3. Whoever mounts an overlay calls overlays.set(surface, open) (the palette,
 //    the quick jump and the cheatsheet are set by R17's own controllers).
 

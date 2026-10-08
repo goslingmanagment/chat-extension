@@ -1,7 +1,7 @@
 /* The boards gallery page plays ChatSpace's frame: the --color-om-* triplets
    of 0.172.0 on <html> (identical in both themes), its page background, the
    `dark` class, a 44 px top bar and a 64 px account rail. Our surfaces read
-   only the triplets; the scheme reaches them as data-cg-scheme on their host.
+   only the triplets; the scheme reaches them as data-scheme on their host.
    Nothing here is ChatSpace's code or CSS. */
 :root {
   --color-om-white: 255 255 255;
@@ -55,4 +55,4 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg-pag
 .bg-rail { position: fixed; top: 0; left: 0; bottom: 0; width: 64px; }
 .bg-main { position: fixed; top: 44px; left: 64px; right: 8px; bottom: 8px; border-radius: 8px; background: var(--bg-main); box-shadow: inset 0 0 0 1px var(--bg-line); }
 /* The overlay host as host-chatspace makes it (ui-design §3.4): outside the app, fixed, clicks pass through. */
-[data-cg="overlay"] { position: fixed; inset: 0; pointer-events: none; z-index: 900; }
+[data-host="overlay"] { position: fixed; inset: 0; pointer-events: none; z-index: 900; }

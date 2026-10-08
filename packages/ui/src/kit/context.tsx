@@ -45,7 +45,7 @@ export interface KitFailure {
 export interface KitEnv {
   readonly deps: MountDeps;
   readonly root: ShadowRoot | Document;
-  /** Our host element (gets data-cg-scheme, data-dismissible-open); null on a page rendered into the document. */
+  /** Our host element (gets data-scheme, data-dismissible-open); null on a page rendered into the document. */
   readonly host: HTMLElement | null;
   readonly surface: MountSurfaceKind | null;
   readonly now: () => number;

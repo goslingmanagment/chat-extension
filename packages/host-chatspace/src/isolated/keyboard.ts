@@ -70,8 +70,8 @@ export function routeOfLocation(location: Pick<Location, 'pathname'>): { readonl
   return { kind: match === null ? 'other' : match[2] === undefined ? 'account' : 'chat', epoch: location.pathname };
 }
 
-/** On the dock host while a key of ours waits for the lazy part or for the chat's first state (HK-024, HK-025). */
-export const KEY_PENDING_ATTRIBUTE = 'data-cg-key-pending';
+/** On the dock host while a key of ours waits for the lazy part or for the chat's first state (HK-024, HK-025); the page sees it: a neutral name (X22). */
+export const KEY_PENDING_ATTRIBUTE = 'data-pending';
 
 /**
  * The one sign of a waiting key that exists before anything of ours can

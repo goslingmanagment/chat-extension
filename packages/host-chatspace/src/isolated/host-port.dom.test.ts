@@ -330,6 +330,25 @@ describe('[BG-002] state from MAIN', () => {
     expect((await host.recheck()).capabilities.dockMount).toEqual({ state: 'degraded', reason: 'composerFrame' });
   });
 
+  it('[X22] a failure MAIN’s guard kept from the page is logged by site, each time its count at least doubled, for a bounded number of sites', async () => {
+    const { bridge, diagnostics } = await port();
+    const fault = (source: string, count: number): void => bridge.emit({ t: 'fault', payload: { source, count } });
+    // MAIN sends 1, 2, 4, 8…; a count that did not double (a page forging the event) says nothing new.
+    for (const count of [1, 2, 3, 4, 5, 8]) fault('route', count);
+    fault('cacheAfter', 1);
+    const logged = (): unknown[] => diagnostics.filter((diagnostic) => diagnostic.event === 'main-fault');
+    expect(logged()).toEqual([
+      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 1 } },
+      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 2 } },
+      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 4 } },
+      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'route', count: 8 } },
+      { event: 'main-fault', code: 'CG-UNKNOWN', detail: { source: 'cacheAfter', count: 1 } },
+    ]);
+    // Sites beyond the cap are not logged: a page that invents names cannot flood the log.
+    for (let i = 0; i < 100; i += 1) fault(`forged${i}`, 1);
+    expect(new Set(logged().map((diagnostic) => (diagnostic as HostDiagnostic).detail?.['source'])).size).toBe(64);
+  });
+
   it('reads answer from the cache that chat-cache events refresh; nothing is loaded for other chats', async () => {
     const window = { chat: chat(), state: 'ready', loaded: 2, fanMessages: 1, modelMessages: 1, lastFanMessageId: '4004', lastFanMessageAt: null, lastModelMessageAt: null, hasOlder: null } as const;
     const row = { chat: chat(), position: 0, displayName: 'Two', username: 'two', unreadCount: 1, isOnline: null };

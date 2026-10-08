@@ -13,7 +13,7 @@
 | `actions.ts` | `UiAction` (строгие схемы zod/mini), `UserOptions` (разрешённый список), `PreferenceKey` с типом значения по пути в `SettingsV1`, `NavigationTarget` |
 | `catalog.ts` | `ActionCatalog`, `HotkeyLabel` (подпись, `aria-keyshortcuts`, доставка, запасная клавиша), причины недоступности с ключом i18n и кодом CG |
 | `i18n.ts` | порт `I18n`: `t`, `plural`, `formatMoneyMills`, `formatAge`, `formatTime`, `formatDuration`; `Msg` — ключ с параметрами |
-| `theme.ts` | имена токенов `--cg-*` (ровно список ui-design §2.2), сигнал схемы, атрибут `data-cg-scheme` |
+| `theme.ts` | имена токенов `--cg-*` (ровно список ui-design §2.2), сигнал схемы, атрибут `data-scheme` |
 | `result.ts`, `dock.ts` | `ResultVM`, `PartVM`, `PreviewSendView` (девять состояний) и `previewSendStateOf` (попытка и preflight → состояние), `DockVM` |
 | `analysis.ts` | `RecapPickerVM`, `RecapViewVM`, `ReviewVM`, `CoachVM` |
 | `spenders.ts`, `preview.ts`, `newcomers.ts` | доска и статистика, превью, «Новые» с бронью |

@@ -59,7 +59,7 @@ async function probe(): Promise<Probe> {
       overflow: [...pages.overflow()],
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
-      scheme: document.documentElement.getAttribute('data-cg-scheme'),
+      scheme: document.documentElement.getAttribute('data-scheme'),
     };
   });
 }

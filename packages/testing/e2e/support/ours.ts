@@ -13,10 +13,10 @@ import { $, browser } from '@wdio/globals';
 export type Where = 'dock' | 'panel' | 'modal' | 'toast';
 
 const HOSTS: Readonly<Record<Where, string>> = {
-  dock: '[data-cg="dock"]',
-  panel: '[data-cg="overlay"][data-cg-layer="panel"]',
-  modal: '[data-cg="overlay"][data-cg-layer="modal"]',
-  toast: '[data-cg="overlay"][data-cg-layer="toast"]',
+  dock: '[data-host="dock"]',
+  panel: '[data-host="overlay"][data-layer="panel"]',
+  modal: '[data-host="overlay"][data-layer="modal"]',
+  toast: '[data-host="overlay"][data-layer="toast"]',
 };
 
 export const hostSelector = (where: Where): string => HOSTS[where];

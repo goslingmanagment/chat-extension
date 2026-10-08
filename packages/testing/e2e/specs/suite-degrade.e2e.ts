@@ -220,9 +220,9 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     const ready = await dockIs((d) => d.status === 'ready' && d.kind === 'in-flow', 'the dock over the open chat');
     const [active] = (await composerRoots()).active;
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: active, firstChild: true, visible: true });
-    await browser.execute(() => document.querySelector('[data-cg="dock"]')?.parentElement?.setAttribute('data-e2e-before', ''));
+    await browser.execute(() => document.querySelector('[data-host="dock"]')?.parentElement?.setAttribute('data-e2e-before', ''));
     await callStand('remountComposers', REMOUNT_GAP_MS);
-    const onNewField = async (): Promise<boolean> => browser.execute(() => document.querySelector('[data-cg="dock"]')?.parentElement?.matches('[data-stand-composer]:not([data-e2e-before])') === true);
+    const onNewField = async (): Promise<boolean> => browser.execute(() => document.querySelector('[data-host="dock"]')?.parentElement?.matches('[data-stand-composer]:not([data-e2e-before])') === true);
     await browser.waitUntil(onNewField, { timeout: 5000, timeoutMsg: 'the dock did not come back over the re-rendered composer' });
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: active, firstChild: true, visible: true });
     const back = await dockIs((d) => d.kind === 'in-flow' && d.inFlowFirstChild, 'the dock says it is in flow again');
@@ -236,7 +236,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(await composerText(ACC, a1)).toBe('');
     await pressOurs('dock', '.cg-strip button', /^Reply/);
     await dockIs((d) => d.result?.state === 'done' && d.result.parts === 2, 'the Reply result', 20_000);
-    const onNewField = async (): Promise<boolean> => browser.execute(() => document.querySelector('[data-cg="dock"]')?.parentElement?.matches('[data-stand-composer]:not([data-e2e-before])') === true);
+    const onNewField = async (): Promise<boolean> => browser.execute(() => document.querySelector('[data-host="dock"]')?.parentElement?.matches('[data-stand-composer]:not([data-e2e-before])') === true);
     /** ChatSpace renders its composers again (`gapMs` 0 — in one step); the person then presses «Вставить» of `part` once. */
     const firstInsertAfter = async (gapMs: number, part: 0 | 1): Promise<void> => {
       await browser.execute(() => document.querySelectorAll('[data-stand-composer]').forEach((root) => root.setAttribute('data-e2e-before', '')));
@@ -487,7 +487,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(said).toContain('CG-RUNTIME-RELOADED');
     expect(said).toContain('расширение обновилось, перезагрузите вкладку');
     // One host of each kind on the page: the dead instance's dock is gone.
-    expect(await browser.execute(() => document.querySelectorAll('[data-cg="dock"]').length)).toBe(1);
+    expect(await browser.execute(() => document.querySelectorAll('[data-host="dock"]').length)).toBe(1);
     // The stream was cut with the old background; nobody asked the hub again.
     await browser.pause(1500);
     expect(await streams(hubMark)).toEqual(['aborted']);

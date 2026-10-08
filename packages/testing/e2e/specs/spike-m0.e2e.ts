@@ -53,7 +53,7 @@ async function dockOnFixture(message: string, predicate: (report: SpikeReport) =
   return report;
 }
 
-const dockHeight = (): Promise<number> => browser.execute(() => document.querySelector('[data-cg="dock"]')?.getBoundingClientRect().height ?? 0);
+const dockHeight = (): Promise<number> => browser.execute(() => document.querySelector('[data-host="dock"]')?.getBoundingClientRect().height ?? 0);
 
 describe('spike M0 on the M1 build — the start of the content scripts', () => {
   // stand.js probes the WebSocket constructor with a socket to the closed loopback port 9.
@@ -96,7 +96,7 @@ describe('spike M0 on the M1 build — the start of the content scripts', () => 
     expect(report?.app).toBeUndefined();
     expect(report?.appError).toBeUndefined();
     expect(report?.dock).toBeUndefined();
-    expect(await browser.execute(() => document.querySelectorAll('[data-cg]').length)).toBe(0);
+    expect(await browser.execute(() => document.querySelectorAll('[data-host]').length)).toBe(0);
   });
 
   it(`§11 timings over ${TIMING_LOADS} loads: the whole synchronous start of the MAIN bundle (≤ 1 ms, X11) and of the isolated bundle (≤ 3 ms)`, async () => {
@@ -146,7 +146,7 @@ describe('spike M0 on the M1 build — the start of the content scripts', () => 
     expect(report.dock).toMatchObject({ kind: 'in-flow', inFlowFirstChild: true, styleMode: 'adopted', contract: 'ok', banner: 'CG-AUTH-REQUIRED' });
     const roots = await composerRoots();
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
-    expect(await browser.execute(() => document.querySelector('[data-cg="dock"]')?.shadowRoot ?? null)).toBeNull();
+    expect(await browser.execute(() => document.querySelector('[data-host="dock"]')?.shadowRoot ?? null)).toBeNull();
     // Our sheets apply inside the closed root: an unstyled status row is a ~20 px block, ours is the 34 px strip and its banner.
     const height = await dockHeight();
     expect(height).toBeGreaterThanOrEqual(34);
@@ -188,7 +188,7 @@ describe('spike M0 on the M1 build — the start of the content scripts', () => 
     // Removal has no page-visible event to wait for.
     await browser.pause(1000);
     const afterRemove = await readReport();
-    const hostsAfterRemove = await browser.execute(() => document.querySelectorAll('[data-cg]').length);
+    const hostsAfterRemove = await browser.execute(() => document.querySelectorAll('[data-host]').length);
     evidence['addonId'] = await installTestBuild();
     const afterInstall = await waitForReport((r) => r.startedAt !== before.startedAt && r.main !== undefined && settled(r), 'new instance injected into the open tab');
     evidence['reinstall'] = { before: { startedAt: before.startedAt }, afterRemove, hostsAfterRemove, afterInstall };

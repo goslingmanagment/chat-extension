@@ -186,7 +186,7 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await waitOverlays(['fan-panel', 'cheatsheet'], '`?` opens the cheatsheet');
       await waitOursText('modal', 'Клавиши ChatGoose', 'the cheatsheet');
       // ChatSpace is told something dismissible of ours is open: its own Esc must not take the chat tab.
-      expect(await browser.execute(() => document.querySelectorAll('[data-cg="overlay"][data-dismissible-open]').length)).toBeGreaterThan(0);
+      expect(await browser.execute(() => document.querySelectorAll('[data-host="overlay"][data-dismissible-open]').length)).toBeGreaterThan(0);
 
       await browser.keys(Key.Escape);
       await waitOverlays(['fan-panel'], 'the first Esc closes the cheatsheet');

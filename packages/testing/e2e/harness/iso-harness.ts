@@ -234,7 +234,7 @@ const api = {
   },
   overlay(layer: OverlayLayer) {
     const overlay = started.mounts.overlay(layer);
-    return { layer: overlay.host.getAttribute('data-cg-layer'), z: overlay.host.style.zIndex, inHtml: overlay.host.parentElement === document.documentElement };
+    return { layer: overlay.host.getAttribute('data-layer'), z: overlay.host.style.zIndex, inHtml: overlay.host.parentElement === document.documentElement };
   },
   dismissible(target: 'dock' | OverlayLayer, owner: string, open: boolean) {
     started.mounts.setDismissibleOpen(target, owner, open);

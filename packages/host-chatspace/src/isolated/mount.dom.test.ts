@@ -2,7 +2,10 @@ import type { ComposerState } from '@cg/contracts/host';
 import { MountPointsSchema } from '@cg/contracts/host';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { SCHEME_ATTRIBUTE } from '@cg/contracts/vm';
+
 import { createFakePage, type FakePage } from '../testing/fake-page';
+import { createKeyPendingMark } from './keyboard';
 import { COMPOSER_SLOT_SELECTOR, createMountManager, findComposerMount, mountClosedHost, OVERLAY_Z, removeStaleHosts, waitForComposerMount, type MountDiagnostic, type MountManager } from './mount';
 
 const ACC = '1001';
@@ -45,7 +48,7 @@ afterEach(() => {
   manager?.dispose();
   manager = null;
   document.body.replaceChildren();
-  for (const host of document.querySelectorAll('[data-cg]')) host.remove();
+  for (const host of document.querySelectorAll('[data-host]')) host.remove();
 });
 
 describe('[UI-001] the dock docks in flow above the active composer (§6.3)', () => {
@@ -78,7 +81,7 @@ describe('[UI-001] the dock docks in flow above the active composer (§6.3)', ()
     await tick();
     expect(b.root.firstChild).toBe(mounts.dock.host);
     expect(mounts.dock.root).toBe(root);
-    expect(document.querySelectorAll('[data-cg="dock"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-host="dock"]')).toHaveLength(1);
     expect(seen).toEqual(['in-flow:c-2002', 'in-flow:c-2003']);
   });
 
@@ -375,7 +378,7 @@ describe('[UI-001] the dock docks in flow above the active composer (§6.3)', ()
     mounts.update(state('2002', { hidden: true, ready: false }));
     await tick();
     expect(page.composers.lastChild).toBe(mounts.dock.host);
-    expect(mounts.dock.host.getAttribute('data-cg-mode')).toBe('copy-only');
+    expect(mounts.dock.host.getAttribute('data-mode')).toBe('copy-only');
     expect(mounts.points().dock).toMatchObject({ kind: 'copy-only-row', composerInstanceId: null });
   });
 
@@ -406,7 +409,7 @@ describe('overlays and the hotkey dispatcher registry (§6.3, §9.1)', () => {
       [toast.host, OVERLAY_Z.toast],
     ] as const) {
       expect(host.parentElement).toBe(document.documentElement);
-      expect(host.getAttribute('data-cg')).toBe('overlay');
+      expect(host.getAttribute('data-host')).toBe('overlay');
       expect(host.shadowRoot).toBeNull();
       expect(host.style.position).toBe('fixed');
       expect(host.style.zIndex).toBe(String(z));
@@ -477,5 +480,75 @@ describe('legacy helpers (R00 composition root)', () => {
     expect(host.host.shadowRoot).toBeNull();
     expect(removeStaleHosts(document)).toBe(1);
     expect(parent.childNodes).toHaveLength(0);
+  });
+
+  it('[X22] removeStaleHosts takes only our host shape: a page element with the same neutral attribute stays; a host of a build before X22 goes', () => {
+    const theirs = document.createElement('div');
+    theirs.setAttribute('data-host', 'dock');
+    theirs.append(document.createElement('span'));
+    const span = document.createElement('span');
+    span.setAttribute('data-host', 'overlay');
+    const old = document.createElement('div');
+    old.setAttribute('data-cg', 'dock');
+    document.body.append(theirs, span, old);
+    expect(removeStaleHosts(document)).toBe(1);
+    expect([theirs.isConnected, span.isConnected, old.isConnected]).toEqual([true, true, false]);
+  });
+});
+
+/**
+ * What the page sees of us (decision X22): the hosts. Its telemetry may print a clicked element — ChatSpace 0.195.0's
+ * Sentry prints the tag, `#id`, every `.class` and only `aria-label`, `type`, `name`, `title`, `alt`, or the value of
+ * `data-sentry-component`/`-element` — and records keypresses only on text fields. So a host is a plain `div`, never
+ * editable, carries none of those, and its attributes are only these neutral ones.
+ */
+const ALLOWED_HOST_ATTRIBUTES = new Set(['data-host', 'data-mode', 'data-layer', 'data-pending', 'data-scheme', 'data-dismissible-open', 'aria-busy', 'style']);
+const pinned = (host: HTMLElement): void => {
+  expect(host.tagName).toBe('DIV');
+  expect(host.localName).toBe('div');
+  expect(host.isContentEditable).toBe(false);
+  expect(host.getAttribute('contenteditable')).toBeNull();
+  expect(host.closest('[contenteditable], input, textarea')).toBeNull();
+  expect([...host.attributes].map((attribute) => attribute.name).filter((name) => !ALLOWED_HOST_ATTRIBUTES.has(name))).toEqual([]);
+  for (const attribute of host.attributes) {
+    // Neither the extension's name nor its prefix in a name or a value the page can read.
+    expect(`${attribute.name}=${attribute.value}`).not.toMatch(/chatgoose|goose|\bcg\b|cg-|data-sentry/i);
+  }
+  // Nothing of ours in the light DOM: the content lives in the closed root.
+  expect(host.childNodes).toHaveLength(0);
+  expect(host.shadowRoot).toBeNull();
+};
+
+describe('[X22] our hosts as the page sees them', () => {
+  it('the dock in every mode, every overlay layer, with our windows open and a key waiting: plain divs with neutral attributes only', async () => {
+    const mounts = setup();
+    const composer = page.addComposer(ACC, '2002');
+    mounts.update(state('2002'));
+    await tick();
+    expect(mounts.points().dock.kind).toBe('in-flow');
+    // The UI kit mirrors the scheme on the host (packages/ui kit/scheme.ts); the key mark sets its two attributes.
+    mounts.dock.host.setAttribute(SCHEME_ATTRIBUTE, 'dark');
+    createKeyPendingMark(mounts.dock.host)(true);
+    mounts.setDismissibleOpen('dock', 'menu', true);
+    pinned(mounts.dock.host);
+    expect(mounts.dock.host.parentElement?.isContentEditable).toBe(false);
+    for (const layer of ['panel', 'modal', 'toast'] as const) {
+      const overlay = mounts.overlay(layer);
+      overlay.host.setAttribute(SCHEME_ATTRIBUTE, 'light');
+      mounts.setDismissibleOpen(layer, 'window', true);
+      pinned(overlay.host);
+    }
+    // The copy-only row of a blocked fan (ChatSpace hides the composer).
+    page.show(composer, false);
+    mounts.update(state('2002', { hidden: true, ready: false }));
+    await tick();
+    expect(mounts.dock.host.getAttribute('data-mode')).toBe('copy-only');
+    pinned(mounts.dock.host);
+    // The fixed overlay over a composer without its frame root (a new build).
+    page.addComposer(ACC, '2003', { frame: false });
+    mounts.update(state('2003'));
+    await tick();
+    expect(mounts.dock.host.getAttribute('data-mode')).toBe('overlay');
+    pinned(mounts.dock.host);
   });
 });

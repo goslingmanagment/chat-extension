@@ -1,7 +1,7 @@
 // MountPort helpers (architecture.md §10.2 п. 5, §6.3; EX-012, CS-005): the
 // host side creates a closed shadow root (dock host, overlay host) and hands
 // it over; the kit adopts the shared sheets, mirrors the scheme on the host
-// element as `data-cg-scheme`, renders the surface into one `.cg-root`
+// element as `data-scheme`, renders the surface into one `.cg-root`
 // element inside KitRoot, and gives back an Unmount that releases everything
 // it took: the Preact tree, the element, the subscriptions, the attributes
 // and the sheets. Several surfaces may share one root (the overlay host):

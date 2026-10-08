@@ -100,7 +100,7 @@ export async function readOptions(): Promise<OptionsState> {
       })),
       hubAddress: address !== null ? address.value : clean(document.querySelector('[data-pg-anchor="hub-address"] .pg-value')?.textContent) || null,
       text: clean(document.querySelector('#app')?.textContent),
-      scheme: document.documentElement.getAttribute('data-cg-scheme'),
+      scheme: document.documentElement.getAttribute('data-scheme'),
       lang: document.documentElement.lang,
       documentTitle: document.title,
     };

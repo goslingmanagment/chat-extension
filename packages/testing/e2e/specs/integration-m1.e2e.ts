@@ -183,12 +183,12 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(roots.active).toHaveLength(1);
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
     const host = await browser.execute(() => {
-      const node = document.querySelector('[data-cg="dock"]');
+      const node = document.querySelector('[data-host="dock"]');
       return {
         shadowRootVisibleToPage: node?.shadowRoot !== null,
         lightChildren: node?.childElementCount ?? -1,
         // Every element of ours in the page's tree is a host element: nothing is rendered outside a root.
-        ours: [...document.querySelectorAll('[data-cg]')].map((element) => element.getAttribute('data-cg')).sort(),
+        ours: [...document.querySelectorAll('[data-host]')].map((element) => element.getAttribute('data-host')).sort(),
         classesOfOursInPage: document.querySelectorAll('[class*="cg-"]').length,
       };
     });
@@ -424,7 +424,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     const report = await waitForReport((r) => r.main !== undefined, 'MAIN probe after the reload');
     expect(report.main).toMatchObject({ readyStateAtStart: 'loading', wsTap: true });
     const sockets = await browser.execute(() => {
-      const tap = (window as unknown as Record<symbol, { socketCount(): number } | undefined>)[Symbol.for('chatgoose.wsTap')];
+      const tap = (window as unknown as Record<symbol, { socketCount(): number } | undefined>)[Symbol.for('wsTap')];
       return tap?.socketCount() ?? -1;
     });
     expect(sockets).toBeGreaterThanOrEqual(1);
@@ -462,7 +462,7 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     await waitForStandReady();
     const report = await waitForReport((r) => r.main !== undefined, 'MAIN probe without the tap');
     expect(report.main?.wsTap).toBe(false);
-    expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('chatgoose.wsTap')))).toBe(false);
+    expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('wsTap')))).toBe(false);
 
     // And on again: the switch is the owner's in both directions.
     await hub().command({ op: 'config', patch: pilotPageFlags({ wsTap: true }) });

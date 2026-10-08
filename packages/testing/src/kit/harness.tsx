@@ -40,7 +40,7 @@ export interface MountKitOptions {
 export function mountKit(view: FunctionComponent, options: MountKitOptions = {}): MountedKit {
   const world = kitWorld(options.scenario, options.language);
   const host = document.createElement('div');
-  host.setAttribute('data-cg', options.kind ?? 'dock');
+  host.setAttribute('data-host', options.kind ?? 'dock');
   (options.parent ?? document.body).append(host);
   const root = host.attachShadow({ mode: 'closed' });
   const failures: KitFailure[] = [];

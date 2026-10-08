@@ -26,7 +26,7 @@ function world(): World {
   const registry = createShadowRootRegistry();
   const host = (kind: string): { host: HTMLElement; root: ShadowRoot; button: HTMLButtonElement } => {
     const element = document.createElement('div');
-    element.setAttribute('data-cg', kind);
+    element.setAttribute('data-host', kind);
     const root = element.attachShadow({ mode: 'closed' });
     registry.register(element, root);
     const button = document.createElement('button');

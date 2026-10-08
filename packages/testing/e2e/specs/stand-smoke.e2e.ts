@@ -111,7 +111,7 @@ describe('stand smoke — the test build on the ChatSpace-like fixture', () => {
     expect(report.rpc).toEqual({ state: 'ready', registered: true, registrations: 1 });
     // The tap is registered only by the bootstrap flag of a sign-in (§6.8 п. 10).
     expect(report.main?.wsTap).toBe(false);
-    expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('chatgoose.wsTap')))).toBe(false);
+    expect(await browser.execute(() => Object.prototype.hasOwnProperty.call(window, Symbol.for('wsTap')))).toBe(false);
     const sockets = (await standServer.state()).sockets;
     expect(sockets.some((socket) => socket.label === 'native' && socket.authenticated && socket.accounts.includes(accountA))).toBe(true);
 

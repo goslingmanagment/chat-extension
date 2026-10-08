@@ -7,7 +7,7 @@
 //
 // A closed shadow root sees neither the host's `.dark` class nor
 // `:host-context()` (Firefox has none), so the mount writes the resolved
-// scheme to `data-cg-scheme` on our host element and the dark values key on
+// scheme to `data-scheme` on our host element and the dark values key on
 // it. Extension pages put the same attribute on <html>.
 
 import { THEME_TOKEN_NAMES, type ColorScheme, type ThemeTokenName } from '@cg/contracts/vm';
@@ -179,8 +179,8 @@ export function tokenValue(name: ThemeTokenName, scheme: ColorScheme): string {
 
 /** The scheme selectors: our shadow hosts and, on extension pages, <html>. */
 export const LIGHT_SCOPE = ':host, :root';
-export const DARK_HOST = ':host([data-cg-scheme="dark"])';
-export const DARK_PAGE = ':root[data-cg-scheme="dark"]';
+export const DARK_HOST = ':host([data-scheme="dark"])';
+export const DARK_PAGE = ':root[data-scheme="dark"]';
 export const DARK_SCOPE = `${DARK_HOST}, ${DARK_PAGE}`;
 
 /** `X` under the dark scheme, inside a shadow root and on a page. */

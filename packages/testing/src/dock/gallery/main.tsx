@@ -129,7 +129,7 @@ function stage(item: GalleryState, parent: HTMLElement, world: KitWorld): Mounte
   const composerRoot = document.createElement('div');
   composerRoot.className = 'gal-composer-root';
   const host = document.createElement('div');
-  host.setAttribute('data-cg', 'dock');
+  host.setAttribute('data-host', 'dock');
   composerRoot.append(host);
   if (item.noComposer !== true) {
     const composer = document.createElement('div');
@@ -172,7 +172,7 @@ async function show(): Promise<void> {
     const main = page();
     stage({ ...item, surface: 'dock' }, main, world);
     const overlay = document.createElement('div');
-    overlay.setAttribute('data-cg', 'overlay');
+    overlay.setAttribute('data-host', 'overlay');
     document.documentElement.append(overlay);
     const definition = item.surface === 'toasts' ? toastsSurface : await lazyOverlays[item.surface]();
     mountInto(item, world, overlay, item.surface, definition);

@@ -56,7 +56,7 @@ const hitAt = (selector: string): Promise<string> =>
     const rect = node.getBoundingClientRect();
     const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
     if (hit === null) return 'nothing';
-    return hit === node || node.contains(hit) ? 'itself' : `${hit.tagName.toLowerCase()}[data-cg=${hit.getAttribute('data-cg') ?? ''}]`;
+    return hit === node || node.contains(hit) ? 'itself' : `${hit.tagName.toLowerCase()}[data-host=${hit.getAttribute('data-host') ?? ''}]`;
   }, selector);
 
 /**

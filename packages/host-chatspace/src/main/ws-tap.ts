@@ -316,7 +316,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   };
 }
 
-/** Installs the tap and leaves its handle under the non-enumerable `Symbol.for('chatgoose.wsTap')`; null when one is there already. */
+/** Installs the tap and leaves its handle under the non-enumerable `Symbol.for('wsTap')`; null when one is there already. */
 export function installWsTap(win: Window & typeof globalThis = window): WsTapHandle | null {
   const key = Symbol.for(WS_TAP_KEY);
   if (key in win) return null;

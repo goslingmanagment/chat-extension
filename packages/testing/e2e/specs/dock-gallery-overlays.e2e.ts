@@ -19,7 +19,7 @@ describe('dock gallery: the overlays — toasts, the cheatsheet, Coach, the expa
   const under = (x: number, y: number): Promise<string> =>
     browser.execute((left, top) => {
       const element = document.elementFromPoint(left, top);
-      return element === null ? 'nothing' : element.getAttribute('data-cg') === 'overlay' ? 'overlay' : element.className.toString();
+      return element === null ? 'nothing' : element.getAttribute('data-host') === 'overlay' ? 'overlay' : element.className.toString();
     }, x, y);
 
   async function expectOverlay(id: (typeof OVERLAYS)[number], view: Size): Promise<void> {
