@@ -8,7 +8,7 @@
 // schema of its own type.
 
 import { BridgeEventEnvelopeSchema, BridgeResponseSchema, checkBridgeFrame, type BridgeError, type BridgeRejectReason, type FromMainType, type ToMainType } from '@cg/contracts/bridge';
-import { FROM_MAIN, parseBridgeData, type FromMainPayload, type ToMainData } from '@cg/contracts/bridge-messages';
+import { FROM_MAIN, TO_MAIN, type FromMainPayload, type ToMainData } from '@cg/contracts/bridge-messages';
 import { InsertIntentSchema, NavigationIntentSchema } from '@cg/contracts/host';
 import { DispatchTicketSchema, PreviewSendRequestSchema } from '@cg/contracts/send';
 
@@ -36,9 +36,13 @@ export function checkFrame(raw: unknown): CheckedFrame {
   return { kind: 'reject', reason: 'envelope' };
 }
 
-/** Stage three of an answer: the answer schema of the request's own type. */
-export function parseAnswer<T extends ToMainType>(t: T, data: unknown): ToMainData<T> | null {
-  return parseBridgeData(t, data);
+/**
+ * Stage three of an answer: the answer schema of the request's own type. The result says whether it passed —
+ * `null` is a valid answer of several reads («ChatSpace holds no such fan / chat yet»), never a failure by itself.
+ */
+export function parseAnswer<T extends ToMainType>(t: T, data: unknown): { readonly ok: true; readonly data: ToMainData<T> } | { readonly ok: false } {
+  const parsed = TO_MAIN[t].data.safeParse(data);
+  return parsed.success ? { ok: true, data: parsed.data as ToMainData<T> } : { ok: false };
 }
 
 /** Stage three of an event: the payload schema of its type. */

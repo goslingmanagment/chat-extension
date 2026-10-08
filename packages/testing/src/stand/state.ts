@@ -27,6 +27,8 @@ export class StandState {
   readonly hiddenAccounts = new Set<string>();
   /** While held, the Mimic endpoints answer only when released (the page's «Mimic data loading» state). */
   private mimicGate: { readonly opened: Promise<void>; readonly open: () => void } | null = null;
+  /** While held, the fans endpoint answers only when released (a chat shown before ChatSpace knows its fan). */
+  private fansGate: { readonly opened: Promise<void>; readonly open: () => void } | null = null;
   /** While true, the socket never answers `auth` with `authenticated`. */
   withholdAuth = false;
   /** What the socket sends on its own (summaries, typing). */
@@ -43,6 +45,7 @@ export class StandState {
     this.owner = false;
     this.hiddenAccounts.clear();
     this.holdMimic(false);
+    this.holdFans(false);
     this.withholdAuth = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.scripts.clear();
@@ -62,6 +65,27 @@ export class StandState {
 
   get mimicHeld(): boolean {
     return this.mimicGate !== null;
+  }
+
+  /** Holds the fans endpoint (`platforms/onlyfans/fans`): a page loaded meanwhile has a chat whose fan it does not know yet. */
+  holdFans(hold: boolean): void {
+    if (hold && this.fansGate === null) {
+      let open: () => void = () => undefined;
+      const opened = new Promise<void>((resolve) => (open = resolve));
+      this.fansGate = { opened, open };
+    } else if (!hold && this.fansGate !== null) {
+      this.fansGate.open();
+      this.fansGate = null;
+    }
+  }
+
+  get fansHeld(): boolean {
+    return this.fansGate !== null;
+  }
+
+  /** Resolves at once, or when a hold of the fans is released. */
+  fansReleased(): Promise<void> {
+    return this.fansGate?.opened ?? Promise.resolve();
   }
 
   /** Resolves at once, or when a hold is released. */

@@ -215,6 +215,60 @@ describe('[EX-008] [BG-002] the adapter end to end in one document', () => {
     expect((await started.bridge)?.stats().rejected).toEqual({});
   });
 
+  it('[LG-008] the boot of the fourth live check: ChatSpace holds no such fan yet — MAIN says so once per change of its state, nothing is logged as a failure', async () => {
+    // The export of 2026-10-08: on a reload of the tab, 30 «read-failed {request: [text len=3], failure: invalid-answer}»
+    // in 1.85 s. MAIN answered `fan` with null — the open chat's fan was not in ChatSpace's map yet —, the bridge
+    // client took that valid null for a broken answer, nothing was kept, and every look at the chat asked again.
+    const win = shimWindow();
+    const asked: string[] = [];
+    main = installMainBridge(win, {
+      runtime: (context) => {
+        const runtime = createMainRuntime(context);
+        return { handle: (t, payload) => (asked.push(t), runtime.handle(t, payload)), dispose: () => runtime.dispose() };
+      },
+    });
+    // The open chat's fan is not in ChatSpace's map yet (its fans load after the chat).
+    const map = page.cache.store['getQueryData'] as (key: readonly unknown[]) => Record<string, unknown> | undefined;
+    const fans = { ...(map(['fansMap', '1001']) ?? {}) };
+    delete fans['2002'];
+    page.cache.silent(['fansMap', '1001'], fans);
+    const diagnostics: Array<{ event: string; detail?: Readonly<Record<string, unknown>> }> = [];
+    started = startChatSpaceHost({ win, validation: loadValidation, redeem: () => Promise.resolve(true), drafts: { getItem: () => null }, firstSearchMs: 50, onDiagnostic: (d) => diagnostics.push(d) });
+    const host = await started.host;
+    await until(() => host.identity()?.chat?.platformFanId === '2002', 'the chat is open');
+    const chat = host.identity()?.chat;
+    if (!chat) throw new Error('no chat');
+    const fanReads = (): number => asked.filter((t) => t === 'fan').length;
+    // The tab's views look at the chat on every change of anything (30 looks in the export), and the page's
+    // history and chat list fill in meanwhile: what MAIN is asked follows the page's state, not the looks.
+    const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 30));
+    const look = async (times: number): Promise<void> => {
+      for (let i = 0; i < times; i += 1) {
+        expect(host.fan(chat)).toBeNull();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    };
+    await settle();
+    const start = fanReads();
+    await look(15);
+    await settle();
+    expect(fanReads() - start).toBe(0);
+    // A change of ChatSpace's state for the open chat: its history grows (a cache action MAIN hears) — asked again, once.
+    const history = map(['chatMessages', '1001', '2002']);
+    page.cache.set(['chatMessages', '1001', '2002'], history);
+    await settle();
+    await look(15);
+    await settle();
+    expect(fanReads() - start).toBe(1);
+    // The fan comes into ChatSpace's map: the next change brings it.
+    page.cache.set(['fansMap', '1001'], { ...fans, '2002': { id: '2002', name: 'Fan Two', customName: null, username: 'fan_two', isBlocked: false, canReceiveMessages: true, isRestricted: false, lastSeen: null } });
+    await until(() => host.fan(chat)?.displayName === 'Fan Two', 'the fan arrived');
+    expect(fanReads() - start).toBe(2);
+    // A null is an answer: no record of a failed read, nothing counted as a broken answer.
+    expect(diagnostics.filter((d) => d.event === 'read-failed')).toEqual([]);
+    expect((await started.bridge)?.stats().invalidAnswers).toBe(0);
+  });
+
   it('[AU-030] [ER-048] without MAIN the port still answers: not ready, nothing written', async () => {
     const win = shimWindow();
     const diagnostics: Array<{ event: string }> = [];

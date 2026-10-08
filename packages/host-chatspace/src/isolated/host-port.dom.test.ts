@@ -4,6 +4,7 @@
 import type { ToMainType } from '@cg/contracts/bridge';
 import type { ComposerState, HostEvent, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
 import { HostContractReportSchema, InsertReceiptSchema, LiveTextTailSchema, NavigationReceiptSchema } from '@cg/contracts/host';
+import { createRedactor, redactRecord } from '@cg/core/domain/logging';
 import { describe, expect, it } from 'vitest';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
@@ -243,6 +244,56 @@ describe('[BG-002] state from MAIN', () => {
     expect(host.identity()?.composerInstanceId).toBe('c1');
   });
 
+  it('[LG-008] a read that keeps failing the same way: asked again only when MAIN’s state moves, logged once — then at its 10th time with the count — and its end said once, with the read named', async () => {
+    let outcome: 'broken' | 'ok' | 'slow' = 'broken';
+    const fanOf = { chat: chat(), username: 'one', displayName: 'One', isBlocked: false, canReceiveMessages: true, isRestricted: false, isOnline: null, lastSeenAt: null, buyingPowerLabel: null, insights: null, bio: null, lists: null };
+    const { host, bridge, diagnostics } = await port({
+      fan: () => (outcome === 'ok' ? fanOf : Promise.reject(new BridgeCallError(outcome === 'broken' ? 'invalid-answer' : 'timeout', 'fan'))),
+    });
+    const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+    const fanReads = (): number => bridge.calls.filter((call) => call.t === 'fan').length;
+    const records = () => diagnostics.filter((d) => d.event === 'read-failed' || d.event === 'read-recovered');
+    await tick();
+    // The start asked once (the route of the snapshot) and failed.
+    expect(fanReads()).toBe(1);
+    expect(records()).toEqual([{ event: 'read-failed', detail: { requestKind: 'fan', failure: 'invalid-answer' } }]);
+    // Thirty looks at the chat — every view does one on every change of anything: nothing is asked, nothing written.
+    for (let i = 0; i < 30; i += 1) expect(host.fan(chat())).toBeNull();
+    await tick();
+    expect(fanReads()).toBe(1);
+    // Nine changes of ChatSpace's state for the open chat: each asks once; the tenth failure in a row is written with its count.
+    for (let i = 0; i < 9; i += 1) {
+      bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
+      await tick();
+    }
+    expect(fanReads()).toBe(10);
+    expect(records()).toEqual([
+      { event: 'read-failed', detail: { requestKind: 'fan', failure: 'invalid-answer' } },
+      { event: 'read-failed', detail: { requestKind: 'fan', failure: 'invalid-answer', repeats: 10 } },
+    ]);
+    // MAIN answers again: the run is over, said once; a getter keeps the answer.
+    outcome = 'ok';
+    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
+    await tick();
+    expect(host.fan(chat())).toMatchObject({ displayName: 'One' });
+    expect(records().at(-1)).toEqual({ event: 'read-recovered', detail: { requestKind: 'fan', failure: 'invalid-answer', repeats: 10 } });
+    // Another way of failing is news: written at once.
+    outcome = 'slow';
+    bridge.emit({ t: 'chatCache', payload: { acc: ACC, fan: FAN } });
+    await tick();
+    expect(records().at(-1)).toEqual({ event: 'read-failed', detail: { requestKind: 'fan', failure: 'timeout' } });
+    expect(records()).toHaveLength(4);
+  });
+
+  it('[LG-003] the record names the read: `requestKind` is a fixed word the log keeps, not a text it masks', () => {
+    const redactor = createRedactor();
+    const clean = redactRecord({ ts: new Date().toISOString(), seq: 1, level: 'info', scope: 'tab.host', msg: 'read-failed', fields: { requestKind: 'fan', failure: 'invalid-answer', repeats: 10 } }, redactor);
+    expect(clean.fields).toEqual({ requestKind: 'fan', failure: 'invalid-answer', repeats: 10 });
+    // The same rule still masks a text under that name.
+    const text = redactRecord({ ts: new Date().toISOString(), seq: 2, level: 'info', scope: 'tab.host', msg: 'read-failed', fields: { requestKind: 'hey there, how are you' } }, redactor);
+    expect(text.fields).toEqual({ requestKind: '[text len=22]' });
+  });
+
   it('[BG-002] MAIN injected after document_start (an update under an open tab): reloadNeeded, also for a late subscriber', async () => {
     const bridge = fakeBridge({ snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [] });
     bridge.client.probe = () => Promise.resolve({ v: 1, readyStateAtStart: 'complete', installMs: 0, wsTap: false });
@@ -254,7 +305,7 @@ describe('[BG-002] state from MAIN', () => {
     host.subscribe((event) => seen.push(event.type));
     await Promise.resolve();
     expect(seen).toEqual(['reloadNeeded']);
-    expect(diagnostics).toContainEqual({ event: 'late-start', detail: { readyStateAtStart: 'complete' } });
+    expect(diagnostics).toContainEqual({ event: 'late-start', detail: { startReadyState: 'complete' } });
     const normal = await port();
     const quiet: string[] = [];
     normal.host.subscribe((event) => quiet.push(event.type));

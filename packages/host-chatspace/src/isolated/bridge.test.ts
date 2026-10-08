@@ -211,6 +211,15 @@ describe('[EX-008] the boot routes requests to the runtime', () => {
     expect(client.stats().invalidAnswers).toBe(1);
   });
 
+  it('a `null` its schema allows is an answer, not a broken one: «ChatSpace holds no such fan / chat yet» (fourth live check)', async () => {
+    const { client } = await connected((t) => (t === 'fan' || t === 'chatWindow' ? null : t === 'listAccounts' ? null : undefined));
+    expect(await client.request('fan', { acc: '1001', fan: '2002' })).toBeNull();
+    expect(await client.request('chatWindow', { acc: '1001', fan: '2002', max: 10 })).toBeNull();
+    // Where the schema allows no null, a null is still a broken answer.
+    expect(((await client.request('listAccounts', {}).catch((e: unknown) => e)) as BridgeCallError).failure).toBe('invalid-answer');
+    expect(client.stats().invalidAnswers).toBe(1);
+  });
+
   it('a request that gets no answer times out (2 s by default) and is never retried', async () => {
     const { client } = await connected(() => new Promise(() => undefined));
     const error = (await client.request('listAccounts', {}, 30).catch((e: unknown) => e)) as BridgeCallError;

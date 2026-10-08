@@ -198,6 +198,7 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
   }
 
   if (method === 'GET' && rest === 'platforms/onlyfans/fans') {
+    await state.fansReleased();
     const items = list('fan_ids').flatMap((fanId) => {
       const chat = state.chat(accountId, fanId);
       return chat ? [rawFan(chat.fan)] : [];

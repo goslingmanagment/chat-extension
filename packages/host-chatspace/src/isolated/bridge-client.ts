@@ -183,12 +183,13 @@ function createClient(port: MessagePort, win: Window, validation: ValidationLoad
     pending.delete(frame.id);
     clearTimeout(entry.timer);
     if (!frame.ok) return entry.reject(new BridgeCallError(frame.err, frame.t));
-    const data = check.parseAnswer(frame.t, frame.data);
-    if (data === null) {
+    // A `null` answer that its schema allows is an answer (`fan`, `chatWindow`, `readTail`: «not there yet»).
+    const answer = check.parseAnswer(frame.t, frame.data);
+    if (!answer.ok) {
       counts.invalidAnswers += 1;
       return entry.reject(new BridgeCallError('invalid-answer', frame.t));
     }
-    entry.resolve(data);
+    entry.resolve(answer.data);
   };
 
   port.onmessage = (event: MessageEvent) => {

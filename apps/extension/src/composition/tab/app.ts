@@ -175,7 +175,7 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   });
   const capture = installErrorCapture(win, logger, { ownOrigin: env.ownOrigin, everythingIsOurs: false }, () => Date.now());
   offs.push(capture.uninstall);
-  logEvent(logger, 'tabStarted', { fields: { lateInjection: env.lateInjection, staleHosts: env.staleHosts, contracts: env.contractsVersion } });
+  logEvent(logger, 'tabStarted', { fields: { lateInjection: env.lateInjection, staleHosts: env.staleHosts, contractsVersion: env.contractsVersion } });
   const onDiagnostic = (diagnostic: HostDiagnostic | MountDiagnostic): void => {
     const code = 'code' in diagnostic ? diagnostic.code : undefined;
     const detail = 'detail' in diagnostic ? diagnostic.detail : 'count' in diagnostic && diagnostic.count !== undefined ? { count: diagnostic.count } : undefined;
