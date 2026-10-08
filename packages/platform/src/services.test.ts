@@ -172,6 +172,22 @@ describe('[EX-018] Firefox specifics', () => {
     expect(isExtensionContextAlive()).toBe(false);
   });
 
+  it('[LG-018] lifecycle: a promise the onSuspend listener returns goes back to Firefox, which waits for it before the unload', async () => {
+    const fake = createFakeBrowser();
+    const background = fake.startBackground();
+    const lifecycle = createLifecycle(background.api);
+    let written = false;
+    lifecycle.onSuspend(() => Promise.resolve().then(() => void (written = true)));
+    lifecycle.onSuspend(() => undefined);
+    // What Firefox's runtime.onSuspend gets back from each listener.
+    const answers = background.events.onSuspend.emit();
+    expect(answers[1]).toBeUndefined();
+    expect(answers[0]).toBeInstanceOf(Promise);
+    expect(written).toBe(false);
+    await answers[0];
+    expect(written).toBe(true);
+  });
+
   it('[LG-018] lifecycle: installed, updated, browser start and suspend reach the background that wired them', () => {
     const fake = createFakeBrowser();
     const background = fake.startBackground();
@@ -179,7 +195,9 @@ describe('[EX-018] Firefox specifics', () => {
     const seen: unknown[] = [];
     const offInstalled = lifecycle.onInstalled((details) => seen.push(details));
     lifecycle.onStartup(() => seen.push('startup'));
-    lifecycle.onSuspend(() => seen.push('suspend'));
+    lifecycle.onSuspend(() => {
+      seen.push('suspend');
+    });
     lifecycle.onSuspendCanceled(() => seen.push('suspend-canceled'));
     fake.fireInstalled({ reason: 'install', temporary: true });
     fake.fireInstalled({ reason: 'update', previousVersion: '0.9.0' });

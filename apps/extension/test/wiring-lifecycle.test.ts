@@ -446,6 +446,23 @@ describe('[LG-016] [LG-018] the start record says why the event page started', (
     expect(ready).toEqual([1, 2, 3]);
   });
 
+  it('[LG-018] the suspend record is handed to Firefox: runtime.onSuspend gets the write of the log, and the page goes only once it is done', async () => {
+    world = createWorld();
+    world.start();
+    expect(await world.page().request('session.get', {})).toMatchObject({ ok: true });
+    const background = world.fake.background();
+    if (background === null) throw new Error('no background');
+    // What Firefox's runtime.onSuspend gets back from each listener of the page: it waits for a promise (≤ 5 s).
+    const answers = background.events.onSuspend.emit();
+    const waited = answers.filter((answer): answer is Promise<void> => answer instanceof Promise);
+    expect(waited).toHaveLength(1);
+    await Promise.all(waited);
+    // Only now does Firefox unload the page: whatever was still on its way is gone with it.
+    world.fake.unloadBackground();
+    const lifecycle = (await exportedLogs(world)).filter((record) => record.scope === 'bg.lifecycle').map((record) => record.msg);
+    expect(lifecycle).toEqual(['background started', 'background suspending', 'background started']);
+  });
+
   it('[ST-012] [UP-008] a real install opens the settings once — the first run starts on the sign-in screen with the checklist; a temporary install, an update and a browser start open nothing, and none of them talks to the hub', async () => {
     for (const [fire, opened] of [
       [(w: World) => w.fake.fireInstalled({ reason: 'install', temporary: false }), ['openOptionsPage']],

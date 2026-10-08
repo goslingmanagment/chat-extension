@@ -97,7 +97,7 @@ export interface FakeContext {
     readonly onAlarm: FakeEvent<(alarm: AlarmApi) => void>;
     readonly onInstalled: FakeEvent<(details: InstalledDetailsApi) => void>;
     readonly onStartup: FakeEvent<() => void>;
-    readonly onSuspend: FakeEvent<() => void>;
+    readonly onSuspend: FakeEvent<() => void | Promise<void>>;
     readonly onSuspendCanceled: FakeEvent<() => void>;
     readonly permissionsAdded: FakeEvent<(permissions: PermissionsSetApi) => void>;
     readonly permissionsRemoved: FakeEvent<(permissions: PermissionsSetApi) => void>;
@@ -260,7 +260,7 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
       onAlarm: new FakeEvent<(alarm: AlarmApi) => void>(),
       onInstalled: new FakeEvent<(details: InstalledDetailsApi) => void>(),
       onStartup: new FakeEvent<() => void>(),
-      onSuspend: new FakeEvent<() => void>(),
+      onSuspend: new FakeEvent<() => void | Promise<void>>(),
       onSuspendCanceled: new FakeEvent<() => void>(),
       permissionsAdded: new FakeEvent<(permissions: PermissionsSetApi) => void>(),
       permissionsRemoved: new FakeEvent<(permissions: PermissionsSetApi) => void>(),

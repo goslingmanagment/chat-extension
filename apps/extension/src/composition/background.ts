@@ -724,9 +724,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     logEvent(logger, 'browserStarted');
   });
   lifecycle.onSuspend(() => {
-    // The last word of this instance: what was logged goes to the store now, nothing later is guaranteed.
+    // The last word of this instance: what was logged goes to the store now. The write is handed to Firefox, which
+    // unloads the page only once it is done (at most 5 s): started here and not handed over, it was cut by the unload
+    // whenever the store was slower than the unload, and the record of this very suspend was lost (LG-018).
     logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.active().length, sends: sends.counts().open, uptimeMs: Date.now() - started } });
-    void logging.logs.flush();
+    return logging.logs.flush();
   });
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
 
