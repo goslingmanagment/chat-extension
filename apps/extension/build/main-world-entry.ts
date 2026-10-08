@@ -16,14 +16,28 @@
 // upgrade renames its virtual modules, the plugin stops matching and the
 // wrapper comes back — `pnpm gates` then fails on its marker in the built
 // MAIN bundles (tools/gates `main-world-bundle`).
+//
+// A TEST build's bridge bundle also carries the positive control of the
+// sentry-gate e2e, on the loopback stand only: a page event
+// (MAIN_THROW_PROBE_EVENT) makes a listener of the MAIN script throw, not
+// guarded — what an escape of ours would look like to the page and to its
+// Sentry (the frame's URL, a full error or «Script error.»). A release build
+// never has it (tools/gates `release-bundle`).
 
 import type { Plugin } from 'vite';
 
 /** WXT's virtual entry modules of a MAIN content script and of an unlisted script, as resolved ids. */
 const WXT_ENTRY = /^\0virtual:wxt-(?:content-script-main-world|unlisted-script)-entrypoint\?(.+)$/;
 
-/** `entries` — the absolute input paths of the MAIN-world entry points. */
-export function mainWorldEntryPlugin(entries: readonly string[]): Plugin {
+/** The page event that makes the TEST build's MAIN script throw (the e2e's positive control); never in a release build. */
+export const MAIN_THROW_PROBE_EVENT = 'cg-e2e-main-throw';
+const LOOPBACK = String.raw`/^(?:127\.0\.0\.1|localhost)$/.test(location.hostname)`;
+
+/**
+ * `entries` — the absolute input paths of the MAIN-world entry points; `probe` — the one (a TEST build's bridge) that
+ * also gets the positive control.
+ */
+export function mainWorldEntryPlugin(entries: readonly string[], options: { readonly probe?: string } = {}): Plugin {
   return {
     name: 'cg:main-world-entry',
     // Before WXT's own loader of the same id.
@@ -31,7 +45,11 @@ export function mainWorldEntryPlugin(entries: readonly string[]): Plugin {
     load(id) {
       const input = WXT_ENTRY.exec(id)?.[1];
       if (input === undefined || !entries.includes(input)) return null;
-      return `import definition from ${JSON.stringify(input)};\ndefinition.main();\n`;
+      const probe =
+        input === options.probe
+          ? `if (${LOOPBACK}) addEventListener(${JSON.stringify(MAIN_THROW_PROBE_EVENT)}, function mainWorldProbe() { throw new Error('e2e: an error of a MAIN-world script that nothing caught'); });\n`
+          : '';
+      return `import definition from ${JSON.stringify(input)};\ndefinition.main();\n${probe}`;
     },
   };
 }

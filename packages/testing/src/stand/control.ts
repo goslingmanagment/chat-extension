@@ -8,6 +8,7 @@ import type { CallOrigin, MimicState, SendOutcome, SocketTraffic } from '../../f
 import { STAND_TOKEN_PATH } from '../../fixture-chatspace/src/protocol';
 import type { StandMessage } from './dataset';
 import type { EgressPage } from './egress-sink';
+import type { SentryInbox } from './sentry-inbox';
 import type { ApiContext } from './api';
 import { readJson, sendJson } from './api';
 import { newMessageFrame } from './wire';
@@ -18,6 +19,8 @@ export interface EgressLog {
 
 export interface ControlContext extends ApiContext {
   readonly egress: EgressLog | null;
+  /** The page's Sentry envelopes (?stand-sentry=1); absent in a context without the collector. */
+  readonly sentry?: SentryInbox;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {});
@@ -75,6 +78,14 @@ export async function handleControl(context: ControlContext, request: IncomingMe
   }
   if (path === '/__stand/state' && method === 'GET') {
     ok({ sockets: hub.summary(), scripts: state.pendingScripts(), permissions: state.permissions, owner: state.owner, mimic: state.mimic, mimicHeld: state.mimicHeld, fansHeld: state.fansHeld, withholdAuth: state.withholdAuth, traffic: state.traffic });
+    return;
+  }
+  if (path === '/__stand/sentry' && method === 'GET') {
+    ok(context.sentry?.read(Number(url.searchParams.get('since') ?? 0)) ?? { envelopes: [], next: 0 });
+    return;
+  }
+  if (path === '/__stand/sentry/reset' && method === 'POST') {
+    ok({ next: context.sentry?.clear() ?? 0 });
     return;
   }
   if (path === '/__stand/egress' && method === 'GET') {

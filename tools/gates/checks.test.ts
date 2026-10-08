@@ -152,6 +152,8 @@ describe('gate: release bundle', () => {
 
   it('flags the background egress probe', () => {
     expect(gates(checkReleaseBundle([file('background.js', 'fetch("https://cg-bg-probe.invalid/probe")')]))).toEqual(['release-bundle']);
+    // The sentry-gate e2e's throwing MAIN probe (a TEST build's only, decision X22).
+    expect(gates(checkReleaseBundle([file('content-scripts/chatspace-main.js', 'addEventListener("cg-e2e-main-throw",function(){throw new Error("x")})')]))).toEqual(['release-bundle']);
   });
 
   it('flags the spike timing marks', () => {

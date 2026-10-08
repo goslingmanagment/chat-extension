@@ -36,6 +36,9 @@ async function boot(): Promise<void> {
   const pinia = createPinia();
   const router = createStandRouter();
   const app = createApp({ name: 'App', setup: () => () => h(MainLayout) });
+  // Sentry before the app is used and mounted, as ChatSpace 0.195.0 starts it: its wrappers of timers and listeners
+  // stand under everything the app (and an extension's runtime, after the mount) registers later.
+  if (env.sentry) (await import('./sentry')).startSentry(app);
   app.use(pinia);
   app.use(router);
 

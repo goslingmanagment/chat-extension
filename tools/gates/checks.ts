@@ -207,6 +207,7 @@ export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
     [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
     [/chat-extension-test@/, 'test gecko id'],
     [/__cgBundleMarks/, 'spike timing marks'],
+    [/cg-e2e-main-throw/, 'the sentry-gate e2e\'s throwing MAIN probe'],
   ];
   const violations: Violation[] = [];
   for (const file of files) {

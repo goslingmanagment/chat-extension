@@ -66,8 +66,11 @@ export default defineConfig({
       // The extension pages: their one shared bundle is cut into three files (build/page-chunks.ts).
       if (entrypoints.some((entry) => PAGE_ENTRY_NAMES.includes(entry.name))) splitPageChunks(config as PageBuildConfig);
       // The MAIN-world scripts start without WXT's entry wrapper, which rethrows into the page (build/main-world-entry.ts).
+      // A TEST build's bridge also carries the sentry-gate e2e's positive control (loopback only).
       const mainWorld = entrypoints.filter((entry) => MAIN_WORLD_ENTRY_NAMES.includes(entry.name));
-      if (mainWorld.length > 0) config.plugins = [...(config.plugins ?? []), mainWorldEntryPlugin(mainWorld.map((entry) => entry.inputPath.replaceAll('\\', '/')))];
+      const pathOf = (entry: { readonly inputPath: string }): string => entry.inputPath.replaceAll('\\', '/');
+      const bridge = mainWorld.find((entry) => entry.name === 'chatspace-main');
+      if (mainWorld.length > 0) config.plugins = [...(config.plugins ?? []), mainWorldEntryPlugin(mainWorld.map(pathOf), flavor === 'test' && bridge !== undefined ? { probe: pathOf(bridge) } : {})];
       if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace' || entry.name === 'chatspace-main')) return;
       config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },

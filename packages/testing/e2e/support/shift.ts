@@ -32,6 +32,8 @@ export interface ShiftOptions extends WorldOptions {
   readonly user?: { readonly username: string; readonly password: string };
   /** The hub's world is already set (a second browser of the same spec): only this browser's own shift is started. */
   readonly world?: false;
+  /** The ChatSpace tab runs Sentry as ChatSpace 0.195.0 does, reporting to the stand's collector (sentry-gate e2e). */
+  readonly sentry?: boolean;
 }
 
 export interface Shift {
@@ -92,9 +94,10 @@ export async function startShift(hub: FakeHubControlClient, options: ShiftOption
     await browser.browsingContextSetViewport({ context: standTab, viewport: { width: options.viewport.width, height: options.viewport.height } });
   }
   const chat = options.chat === undefined ? ([STAND_IDS.accounts.a, STAND_IDS.fans.a1] as const) : options.chat;
-  if (chat === null) await openStand(chatPath(STAND_IDS.accounts.a));
+  const sentry = options.sentry === true ? { sentry: true } : {};
+  if (chat === null) await openStand(chatPath(STAND_IDS.accounts.a), sentry);
   else {
-    await openStand(chatPath(chat[0], chat[1]));
+    await openStand(chatPath(chat[0], chat[1]), sentry);
     await waitForChatReady(chat[0], chat[1]);
   }
   const rpc: Shift['rpc'] = async (type, payload = {}) => {

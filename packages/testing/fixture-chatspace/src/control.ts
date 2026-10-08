@@ -165,6 +165,14 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
       else url.searchParams.set(STAND_BREAK_PARAM, breaks.join(','));
       location.assign(url.toString());
     },
+    sentryProbe: async (message) => {
+      if (!env.sentry) return false;
+      const sentry = await import('./sentry');
+      sentry.throwFromPage(message);
+      // The error goes out from the global handler a task later; then everything still held.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return sentry.flushSentry();
+    },
   };
   Object.defineProperty(window, '__stand', { value: api, configurable: true, enumerable: false, writable: false });
   return {
