@@ -6,6 +6,11 @@
 // the runtime hook up from `window`, where the page could take it first. The
 // runtime does nothing before DOMContentLoaded, so the work at document_start
 // stays the boot's (≤ 1 ms, §11; the e2e measures the whole bundle).
+//
+// The page's own world: nothing of ours may throw into it (decision X22). The
+// bundle starts without WXT's wrapper (build/main-world-entry.ts), and the
+// install keeps its own failure: without the boot there is no channel to
+// report it on.
 
 import { createMainRuntime, installMainBridge } from '@cg/host-chatspace/main';
 import type { ContentScriptDefinition } from 'wxt';
@@ -19,7 +24,11 @@ const definition: ContentScriptDefinition = defineContentScript({
   runAt: 'document_start',
   allFrames: false,
   main() {
-    installMainBridge(window, { runtime: createMainRuntime });
+    try {
+      installMainBridge(window, { runtime: createMainRuntime });
+    } catch {
+      // No bridge in this document: the tab says «not ready» (CG-HOST-NOT-READY).
+    }
   },
 });
 

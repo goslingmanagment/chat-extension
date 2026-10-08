@@ -15,6 +15,7 @@ import { defineConfig } from 'wxt';
 
 import { artifactNames, isFlavorArtifact } from './build/artifacts.ts';
 import { bundleTimingPlugin } from './build/bundle-timing.ts';
+import { mainWorldEntryPlugin } from './build/main-world-entry.ts';
 import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from './build/manifest.ts';
 import { PAGE_ENTRY_NAMES, splitPageChunks, type PageBuildConfig } from './build/page-chunks.ts';
 import { SOURCE_DOTFILES, STAND_SOURCE_GLOBS } from './build/sources-archive.ts';
@@ -26,6 +27,8 @@ const artifacts = artifactNames('{{version}}', flavor);
 const repoRoot = resolve(import.meta.dirname, '../..');
 
 let lazyChunks: LazyChunkInfo[] = [];
+/** The entry points that run in the page's own world (chatspace-main: the bridge; chatspace-ws: the WS tap). */
+const MAIN_WORLD_ENTRY_NAMES = ['chatspace-main', 'chatspace-ws'];
 
 export default defineConfig({
   srcDir: 'src',
@@ -62,6 +65,9 @@ export default defineConfig({
     'vite:build:extendConfig': (entrypoints, config) => {
       // The extension pages: their one shared bundle is cut into three files (build/page-chunks.ts).
       if (entrypoints.some((entry) => PAGE_ENTRY_NAMES.includes(entry.name))) splitPageChunks(config as PageBuildConfig);
+      // The MAIN-world scripts start without WXT's entry wrapper, which rethrows into the page (build/main-world-entry.ts).
+      const mainWorld = entrypoints.filter((entry) => MAIN_WORLD_ENTRY_NAMES.includes(entry.name));
+      if (mainWorld.length > 0) config.plugins = [...(config.plugins ?? []), mainWorldEntryPlugin(mainWorld.map((entry) => entry.inputPath.replaceAll('\\', '/')))];
       if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace' || entry.name === 'chatspace-main')) return;
       config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },

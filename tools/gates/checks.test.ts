@@ -261,4 +261,22 @@ describe('gate: MAIN-world bundles (§4, D-06)', () => {
       'chatspace-ws.js',
     ]);
   });
+
+  it('[X22] flags a console call, a debugger statement and WXT’s rethrowing entry wrapper in a MAIN bundle — not elsewhere', () => {
+    const violations = checkMainWorldBundles([
+      file('content-scripts/chatspace-main.js', '(function(){try{a()}catch(e){console.error(e)}})()'),
+      file('chatspace-ws.js', '(function(){debugger;})()'),
+      file('chatspace-ws.js', '(function(){var c=console;c?.["log"]("x")})()'),
+      file('content-scripts/chatspace-main.js', 'throw $.error(`The content script "chatspace-main" crashed on startup!`,e),e'),
+      file('content-scripts/chatspace.js', 'console.log("isolated")'),
+      // A no-op logger object and a longer word are not a console reference.
+      file('chatspace-ws.js', 'var $={debug:(...e)=>void 0};var t=`consoles`;'),
+    ]);
+    expect(violations.map((violation) => [violation.path, violation.message.match(/carries (.+?) «/)?.[1]])).toEqual([
+      ['content-scripts/chatspace-main.js', 'a console reference'],
+      ['chatspace-ws.js', 'a debugger statement'],
+      ['chatspace-ws.js', 'a console reference'],
+      ['content-scripts/chatspace-main.js', 'WXT\'s entry wrapper (it rethrows into the page)'],
+    ]);
+  });
 });

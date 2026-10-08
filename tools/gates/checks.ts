@@ -331,19 +331,33 @@ export function checkSdkCustody(
   return violations;
 }
 
-/** Built MAIN-world bundles (bridge and WS tap). */
+/**
+ * Built MAIN-world bundles (bridge and WS tap). The manifest's MAIN content scripts must all be here (index.ts checks
+ * it); a script the background registers in the MAIN world is added by hand.
+ */
 export const MAIN_WORLD_BUNDLES: readonly string[] = ['content-scripts/chatspace-main.js', 'chatspace-ws.js'];
 
 /**
  * 8. The MAIN-world bundles stay self-contained (§4, D-06): no extension API
  * (it does not exist in the page world — a stray import of @cg/platform shows
- * up as `globalThis.browser` / `runtime.getURL`) and no zod (contracts).
+ * up as `globalThis.browser` / `runtime.getURL`) and no zod (contracts). And
+ * nothing that would speak to the page's telemetry (decision X22): no
+ * `console` at all (ChatSpace's Sentry keeps every console line as a breadcrumb
+ * and sends it with its next error), no `debugger`, and not WXT's entry
+ * wrapper, which rethrows a failed start into the page (its log line is the
+ * marker; apps/extension/build/main-world-entry.ts keeps it out). The source
+ * has the same `console` rule (ESLint); this catches what a dependency or the
+ * build brings in.
  */
 export function checkMainWorldBundles(files: readonly SourceFile[]): Violation[] {
   const markers: Array<[RegExp, string]> = [
     [/\b(?:browser|chrome)\s*(?:\?\.|\.|\[)|globalThis\.(?:browser|chrome)\b/, 'extension API access'],
     [/\bruntime\.(?:getURL|id|connect|sendMessage)\b/, 'extension runtime call'],
     [/\$Zod|\bZodError\b/, 'zod'],
+    // Any reference: an alias (`var c = console`) calls it just the same.
+    [/\bconsole\b/, 'a console reference'],
+    [/\bdebugger\b/, 'a debugger statement'],
+    [/crashed on startup/, 'WXT\'s entry wrapper (it rethrows into the page)'],
   ];
   const violations: Violation[] = [];
   for (const file of files) {
