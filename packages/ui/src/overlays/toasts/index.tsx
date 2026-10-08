@@ -1,6 +1,8 @@
 // @cg/ui/overlays/toasts — the toast host of the overlay root (architecture.md
 // §9.5, §10.1: not lazy; ui-design §3.9, §4.22): top right, 12 px under
-// ChatSpace's top bar, never over its Send; newest first, at most three. It
+// ChatSpace's top bar, never over its Send — and, while a side panel of ours
+// is open, left of it (the host's `place`), never over its header and
+// controls; newest first, at most three. It
 // draws the controller's toasts (the `toasts` view: «AI готово · fan», errors
 // of operations) and the UI's own (ToastPort, `createToastHost`). Toasts never
 // take focus; their buttons are reachable with Tab; errors are alerts.
@@ -13,7 +15,7 @@ import { TOAST_MAX, ToastItem, mountKitSurface, useDispatch, useI18n, useKit, us
 import { overlayRootCss } from '../layer';
 import { type LocalToast, type ToastHost } from './store';
 
-export { TOAST_LIFETIME_MS, TOAST_LIMIT, createToastHost, type LocalToast, type ToastHost, type ToastHostOptions } from './store';
+export { TOAST_LIFETIME_MS, TOAST_LIMIT, createToastHost, type LocalToast, type ToastHost, type ToastHostOptions, type ToastPlace } from './store';
 
 /** Under ChatSpace's top bar by this much (ui-design §3.9). */
 const TOP_GAP_PX = 12;
@@ -44,8 +46,14 @@ export function ToastsView({ host }: ToastsViewProps): JSX.Element {
   }));
   const all = [...own, ...view.toasts.map((toast) => ({ toast, local: false }))].slice(0, TOAST_MAX);
   const box = geometry.value.container;
+  // Beside an open side panel: the stack slides there once, with the panel, and back when it closes (ui-design §3.9).
+  const place = host?.place.value ?? null;
+  const style = {
+    ...(box === null ? {} : { top: `${box.top + TOP_GAP_PX}px` }),
+    ...(place === null ? {} : { right: `${place.right}px`, width: `${place.width}px` }),
+  };
   return (
-    <div class="cg-toasts" aria-live="polite" style={box === null ? undefined : { top: `${box.top + TOP_GAP_PX}px` }}>
+    <div class="cg-toasts" aria-live="polite" data-cg-place={place === null ? undefined : 'beside-panel'} style={style}>
       {all.map(({ toast, local: mine }) => (
         <ToastItem
           key={toast.id}

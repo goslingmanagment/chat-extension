@@ -127,9 +127,12 @@ export const TOAST_CSS = `
   position: fixed; z-index: ${LAYERS.toast}; top: 56px; right: 84px; width: min(360px, calc(100vw - 32px));
   display: flex; flex-direction: column; gap: 8px; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink);
   pointer-events: none;
+  /* To an open side panel and back (ui-design §3.9): one slide, as long as a toast's own appearance (§2.9). */
+  transition: right 140ms var(--cg-ease), width 140ms var(--cg-ease);
 }
 .cg-toasts > * { pointer-events: auto; }
 @media (max-width: 600px) { .cg-toasts { right: 16px; } }
+@media (prefers-reduced-motion: reduce) { .cg-toasts { transition: none; } }
 .cg-toast {
   display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: start; padding: 10px 6px 10px 0;
   background: var(--cg-surface); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg);
