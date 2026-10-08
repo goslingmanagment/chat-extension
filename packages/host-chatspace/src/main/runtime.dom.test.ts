@@ -8,7 +8,7 @@ import { DraftWireSchema, MainSnapshotSchema } from '@cg/contracts/bridge-messag
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakePage } from '../testing/fake-page';
+import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakeEditor, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from './bridge';
 import { createMainRuntime } from './runtime';
 
@@ -328,6 +328,28 @@ describe('MAIN runtime — guarded insert (§6.4)', () => {
     const after = await draft(h);
     expect(after).toMatchObject({ provenance: 'our-insert', revision: 2, plainText: 'Hello there' });
     expect(receipt.state === 'applied' && receipt.draftDigest).toBe(after.digest);
+  });
+
+  it('[RB-009] [NEW-06] the person sends the draft before the write is verified: the receipt is the write’s own — applied, never «nothing written»', async () => {
+    const h = harness as Harness;
+    const intent = await openIntent(h);
+    const pending = h.call('insertGuarded', { intent });
+    expect(composer.calls).toEqual(['setText']);
+    // ChatSpace's Send in the same frame as the write: the queue took the draft, and the field is empty before
+    // MAIN's verification runs. The text was written — the editor's own transactions inside the call say so.
+    (composer.editor as FakeEditor).type('');
+    const receipt = InsertReceiptSchema.parse(await settleWrite(h, pending));
+    expect(receipt).toMatchObject({ state: 'applied', draftRevision: 2 });
+    // What the person did after the write stays theirs: the draft is empty now, no longer our insert.
+    expect(await draft(h)).toMatchObject({ provenance: 'empty', revision: 3 });
+  });
+
+  it('[RB-009] the person types over the write before it is verified: applied as written; the draft is theirs from then on', async () => {
+    const h = harness as Harness;
+    const pending = h.call('insertGuarded', { intent: await openIntent(h) });
+    (composer.editor as FakeEditor).type('Hello there, and my own words');
+    expect(InsertReceiptSchema.parse(await settleWrite(h, pending))).toMatchObject({ state: 'applied', draftRevision: 2 });
+    expect(await draft(h)).toMatchObject({ provenance: 'human-or-unknown', revision: 3 });
   });
 
   it('[UI-019] a text with Windows line ends is written with plain ones: ChatSpace’s bridge turns only \\n into a line break', async () => {
@@ -847,6 +869,21 @@ describe('MAIN runtime — navigation (§6.5, §6.9)', () => {
     h.frame();
     expect(NavigationReceiptSchema.parse(await pending)).toMatchObject({ state: 'navigated', insert: { state: 'applied' } });
     expect(target.calls).toEqual(['setText']);
+  });
+
+  it('[NEW-01] [RB-009] the person presses Send before the deferred insert is verified: the receipt says applied, so the send of that draft can be attributed', async () => {
+    const h = harness as Harness;
+    const target = h.page.all.find((item) => item.fan === OTHER) as FakeComposer;
+    const pending = h.call('navigate', { intent: { intentId: uuid(12), acc: ACC, fan: OTHER, thenInsert: deferred() } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    h.frame();
+    h.frame();
+    expect(target.calls).toEqual(['setText']);
+    // ChatSpace's Send between the write and the frame of its verification: the field is emptied.
+    (target.editor as FakeEditor).type('');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    h.frame();
+    expect(NavigationReceiptSchema.parse(await pending)).toMatchObject({ state: 'navigated', insert: { state: 'applied' } });
   });
 
   it('[NEW-01] a human draft in the target is not replaced: rejected with confirm-human-draft', async () => {
