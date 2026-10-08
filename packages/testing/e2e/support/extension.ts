@@ -51,6 +51,8 @@ export function standUrl(path = '/spike.html'): string {
 export interface DockReport {
   readonly styleMode: string;
   readonly kind: string;
+  /** MAIN's name of the message field the dock stands over (its composer instance); null — the dock stands nowhere. */
+  readonly composer: string | null;
   readonly inFlowFirstChild: boolean;
   /** DockVM: whether a chat is open, the status and its banner's code, insert or copy-only. */
   readonly visible: boolean;

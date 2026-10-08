@@ -555,7 +555,15 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   // ── requests ──
 
   const handle = (t: string, payload: Plain): unknown => {
-    if (t === 'snapshot') return { ...routePayload(), composer: composerState(), accounts: reader.accounts(), contract: contractPayload() };
+    if (t === 'snapshot') {
+      // The isolated side also asks when the page may show another composer than the one MAIN last told of (a re-render
+      // that moved no store). What this search finds goes out as the composer event too, a frame later: that side
+      // follows the composer by events, and from such a question takes nothing else (host-port.ts) — an answer is
+      // outside «never repeat an equal event».
+      const composer = composerState();
+      frame(() => composerNow(true));
+      return { ...routePayload(), composer, accounts: reader.accounts(), contract: contractPayload() };
+    }
     if (t === 'listAccounts') return reader.accounts();
     if (!app) return ERR_NOT_READY;
     const acc = payload['acc'] as string;

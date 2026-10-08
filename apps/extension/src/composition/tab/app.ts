@@ -713,6 +713,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
         probe.set('dock', {
           styleMode: mounted.dockStyleMode,
           kind: mounts.points().dock.kind,
+          // MAIN's name of the field the dock stands over: another one after ChatSpace rendered the field again.
+          composer: mounts.points().dock.composerInstanceId,
           inFlowFirstChild: hostElement.parentElement?.firstElementChild === hostElement,
           visible: dock.visible,
           status: dock.status,

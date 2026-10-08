@@ -674,6 +674,8 @@ describe('MAIN runtime — degraded composers', () => {
     expect(after.provenance).toBe('human-or-unknown');
   });
 
+  /** Every composer state MAIN has put on its event stream (the harness keeps equal ones too; the bridge sends only a changed one). */
+  const composerEvents = (h: Harness) => h.events.filter((event) => event.t === 'composer').map((event) => event.payload['state'] as { instanceId: string; ready: boolean } | null);
   /** The composer events told since `from`, and the anchors the last contract event names as misshaped. */
   const told = (h: Harness, from: number) => ({
     ready: h.events.slice(from).filter((event) => event.t === 'composer').map((event) => (event.payload['state'] as { ready: boolean } | null)?.ready ?? null),
@@ -709,23 +711,57 @@ describe('MAIN runtime — degraded composers', () => {
     expect(told(h, from).ready).toEqual([true]);
   });
 
-  it('[RB-008] ChatSpace renders the composer again while its editor still loads: the watch moves to the new nodes, and the new composer turns ready', async () => {
+  it('[RB-008] ChatSpace renders the composer again while its editor still loads: asked, MAIN tells of the new composer by its event, the watch moves to the new nodes, and the new composer turns ready', async () => {
     const h = await start((page) => {
       composer = page.addComposer(ACC, FAN);
       composer.prose.remove();
     });
     const first = h.runtime.handle('snapshot', {}) as { composer: { instanceId: string; ready: boolean } };
     expect(first.composer.ready).toBe(false);
+    h.frame();
     // New nodes of the same chat's composer, its editor not there yet; nothing of the stores moves.
     const again = h.page.renderAgain(composer);
     again.prose.remove();
-    // The dock went over the new nodes and the isolated side asked MAIN to look again (host-port `onRenewed`).
+    h.frame();
+    expect(composerEvents(h).at(-1)).toMatchObject({ instanceId: first.composer.instanceId });
+    // The dock stands over the new nodes and the isolated side asks MAIN to look again (host-port `onRenewed`).
     const renewed = h.runtime.handle('snapshot', {}) as { composer: { instanceId: string; ready: boolean } };
     expect(renewed.composer.ready).toBe(false);
     expect(renewed.composer.instanceId).not.toBe(first.composer.instanceId);
+    // What the question found goes out as the composer event a frame later: the isolated side takes no answer.
+    h.frame();
+    expect(composerEvents(h).at(-1)).toMatchObject({ instanceId: renewed.composer.instanceId, ready: false });
     const from = h.events.length;
     await editorArrives(h, again);
     expect(told(h, from).ready).toEqual([true]);
+  });
+
+  it('[RB-008] asked after a re-render, MAIN tells of the new composer by its event even when nothing else would: an editor without a handle is never attached, so no draft event follows', async () => {
+    /** A field whose editor object cannot be taken (a new build): the bridge writes, nothing of its document is observed. */
+    const handleless = (target: FakeComposer): void => {
+      let text = '';
+      Object.defineProperty(target.prose, 'innerText', { configurable: true, get: () => text });
+      Object.defineProperty(target.slot, '__omComposerBridge', { configurable: true, value: { setText: (value: string) => (text = value), insertText: (value: string) => (text += value), focus: () => undefined } });
+    };
+    const h = await start((page) => {
+      composer = page.addComposer(ACC, FAN, { editor: false });
+      handleless(composer);
+    });
+    const first = h.runtime.handle('snapshot', {}) as { composer: { instanceId: string; ready: boolean } };
+    expect(first.composer.ready).toBe(true);
+    h.frame();
+    const again = h.page.renderAgain(composer, { editor: false });
+    handleless(again);
+    // Nothing tells MAIN: no store moved, and there is no editor object whose arrival it would watch.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    h.frame();
+    expect(composerEvents(h).at(-1)).toMatchObject({ instanceId: first.composer.instanceId });
+    const renewed = h.runtime.handle('snapshot', {}) as { composer: { instanceId: string } };
+    h.frame();
+    expect(composerEvents(h).at(-1)).toMatchObject({ instanceId: renewed.composer.instanceId, ready: true });
+    expect(renewed.composer.instanceId).not.toBe(first.composer.instanceId);
+    // The first «Вставить» after that: the draft read with the new identity, the guarded write into the new field.
+    expect(await settleWrite(h, h.call('insertGuarded', { intent: await openIntent(h) }))).toMatchObject({ state: 'applied' });
   });
 
   /** The nodes MAIN puts an observer on while `run` runs (its only observer is the one that waits for an editor). */

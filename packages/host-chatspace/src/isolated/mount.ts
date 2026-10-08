@@ -14,11 +14,15 @@
 // which reads the composer on store events, the composer that comes back is
 // the same one, so it says nothing); it goes when the dock leaves with the
 // chat. A document-wide observer runs only during the first search.
-// - The dock went over new nodes while MAIN still names the composer it stood
-//   over (a re-render, with a pause or in one step): MAIN still holds the old
-//   nodes, and an insert with that composer's identity would be refused.
-//   `onRenewed` says so once per new nodes, and the port asks MAIN to look
-//   again (host-port.ts) — before the person can click «Вставить».
+// - The dock stands over other nodes than the ones it first stood over for the
+//   composer MAIN names, and MAIN has said nothing new for RENEWED_SETTLE_MS:
+//   ChatSpace rendered that composer again (with a pause or in one step) and
+//   MAIN, which still holds the old nodes, did not hear of it — an insert with
+//   that composer's identity would be refused. `onRenewed` says so once per
+//   new nodes, and the port asks MAIN to look again (host-port.ts). A chat
+//   switch looks the same for a moment — ChatSpace shows the other chat's
+//   composer before MAIN's report of it arrives — and is never taken for one:
+//   MAIN's own word comes within the settle time and ends the wait.
 // - The fan is blocked (ChatSpace hides the composer): a narrow copy-only row
 //   at the end of the composers container (CG-GATE-FAN-BLOCKED).
 // - The frame root is missing (a new build): a fixed overlay over the
@@ -49,6 +53,11 @@ const FIXED_DOCK_Z = OVERLAY_Z.panel;
 const ANCESTOR_DEPTH = 6;
 /** The widest composer box a slot's ancestors can give when the frame is gone. */
 const MIN_COMPOSER_WIDTH = 240;
+/**
+ * How long MAIN gets to tell of another composer by itself before a dock over other nodes is taken for a re-render
+ * MAIN did not hear of. On a chat switch MAIN reports within a frame and its two 20 ms event gaps (§5.3).
+ */
+export const RENEWED_SETTLE_MS = 100;
 
 export interface ClosedHost {
   readonly host: HTMLElement;
@@ -150,6 +159,8 @@ export interface MountDiagnostic {
 export interface MountManagerOptions {
   /** How long the document-wide observer of the first search lives (§6.3), ms. */
   readonly firstSearchMs?: number;
+  /** RENEWED_SETTLE_MS, for a test that cannot wait. */
+  readonly renewedSettleMs?: number;
   readonly onDiagnostic?: (diagnostic: MountDiagnostic) => void;
 }
 
@@ -169,10 +180,11 @@ export interface MountManager {
   /** Re-evaluates the dock's place now («Проверить»). */
   refresh(): void;
   /**
-   * The dock was placed over new nodes of a composer while MAIN still reports
-   * the one it stood over before (the same `instanceId`): ChatSpace rendered
-   * that composer again and MAIN, which reads composers on store events, did
-   * not hear of it. Said once per new nodes, after the dock is in place.
+   * The dock has stood over other nodes than the ones it first stood over for
+   * the composer MAIN names (the same `instanceId`), and MAIN said nothing new
+   * for the settle time: ChatSpace rendered that composer again and MAIN,
+   * which reads composers on store events, did not hear of it. Said once per
+   * new nodes; never for a chat switch MAIN reports by itself.
    */
   onRenewed(listener: () => void): () => void;
   /** `data-dismissible-open` on a host while any owner keeps one of our windows open there (§6.3, §9.1). */
@@ -209,8 +221,12 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   let disposed = false;
   let lastPoints = '';
   let containerElement: Element | null = null;
-  /** The slot the dock last stood over, and MAIN's composer it stood there for; kept while the dock waits (a pause). */
-  let placed: { readonly slot: Element; readonly instanceId: string } | null = null;
+  /** The nodes the dock first stood over for the composer MAIN names now; kept while the dock waits for them (a pause). */
+  let home: { readonly instanceId: string; readonly slot: Element } | null = null;
+  /** The other nodes MAIN was asked about (once per nodes), and the ones whose settle time runs or has just passed. */
+  let asked: Element | null = null;
+  let settling: { readonly slot: Element; readonly timer: ReturnType<typeof setTimeout> } | null = null;
+  let settled: Element | null = null;
   const renewedListeners = new Set<() => void>();
 
   const diag = (diagnostic: MountDiagnostic): void => options.onDiagnostic?.(diagnostic);
@@ -363,14 +379,47 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     setKind(next, next === 'in-flow' || next === 'fixed-overlay' ? (composer?.instanceId ?? null) : null);
     observeSizes();
     notify();
-    // Over other nodes of the composer MAIN still names: ChatSpace rendered it again, unheard by MAIN (a pause between
-    // keeps `placed`: the dock waited for it). Another composer — a chat switch, a blocked fan — is MAIN's own news.
-    const renewed = (next === 'in-flow' || next === 'fixed-overlay') && over !== null && composer !== null && placed !== null && placed.slot !== over && placed.instanceId === composer.instanceId;
-    if (over !== null && composer !== null && (next === 'in-flow' || next === 'fixed-overlay')) placed = { slot: over, instanceId: composer.instanceId };
-    else if (composer === null || next !== 'none') placed = null;
-    if (!renewed) return;
-    diag({ event: 'composer-renewed' });
-    for (const listener of [...renewedListeners]) listener();
+    renewal(next === 'in-flow' || next === 'fixed-overlay' ? over : null);
+  }
+
+  const stopSettling = (): void => {
+    if (settling) clearTimeout(settling.timer);
+    settling = null;
+  };
+
+  /**
+   * `slot` — the nodes the dock stands over now (null — it stands nowhere, or in the copy-only row). Other nodes than
+   * the ones it first stood over for the composer MAIN still names: either a chat switch whose report from MAIN is on
+   * its way (ChatSpace shows the other chat's composer first), or a re-render MAIN did not hear of. MAIN gets its
+   * settle time: its word of another composer (or of none) makes these nodes that composer's own and ends the wait;
+   * its silence means a re-render, said once for these nodes. A pause in between keeps `home`: the dock waited.
+   */
+  function renewal(slot: Element | null): void {
+    if (!composer || composer.hidden) {
+      home = null;
+      asked = null;
+    } else if (slot && home?.instanceId !== composer.instanceId) {
+      home = { instanceId: composer.instanceId, slot };
+      asked = null;
+    }
+    if (!slot || !home || slot === home.slot || slot === asked) return stopSettling();
+    if (settled === slot) {
+      asked = slot;
+      diag({ event: 'composer-renewed' });
+      for (const listener of [...renewedListeners]) listener();
+    } else if (settling?.slot !== slot) {
+      stopSettling();
+      const timer = setTimeout(() => {
+        settling = null;
+        if (disposed) return;
+        // Where the dock should stand now — a switch there and back may have left it over a field ChatSpace hides
+        // again — and, still over these nodes with MAIN silent, the re-render is said.
+        settled = slot;
+        place();
+        settled = null;
+      }, options.renewedSettleMs ?? RENEWED_SETTLE_MS);
+      settling = { slot, timer };
+    }
   }
 
   /** One ResizeObserver: the dock's box (for the overlay) and the fixed-width container (§6.3). */
@@ -488,6 +537,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
       overlays.clear();
       listeners.clear();
       renewedListeners.clear();
+      stopSettling();
     },
   };
 }

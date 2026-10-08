@@ -17,6 +17,13 @@ const state = (fan: string, over: Partial<ComposerState> = {}): ComposerState =>
 const tick = async (): Promise<void> => {
   for (let i = 0; i < 3; i += 1) await Promise.resolve();
 };
+/** The time MAIN gets to tell of another composer by itself (RENEWED_SETTLE_MS, short for the tests). */
+const SETTLE_MS = 30;
+/** MAIN said nothing for its settle time. */
+const silence = async (): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, SETTLE_MS + 15));
+  await tick();
+};
 /** A DOM change reached the mount manager: its observers delivered, its placement ran. */
 const settle = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -30,7 +37,7 @@ const diagnostics: MountDiagnostic[] = [];
 function setup(): MountManager {
   page = createFakePage(document);
   diagnostics.length = 0;
-  manager = createMountManager(document, { onDiagnostic: (d) => diagnostics.push(d), firstSearchMs: 50 });
+  manager = createMountManager(document, { onDiagnostic: (d) => diagnostics.push(d), firstSearchMs: 50, renewedSettleMs: SETTLE_MS });
   return manager;
 }
 
@@ -150,7 +157,7 @@ describe('[UI-001] the dock docks in flow above the active composer (§6.3)', ()
     expect(mounts.points().dock.kind).toBe('in-flow');
   });
 
-  it('[RB-008] over new nodes of the composer MAIN still names — after a pause and in one step — it says so once, with the dock already in place', async () => {
+  it('[RB-008] over new nodes of the composer MAIN still names — after a pause and in one step — and MAIN silent for its settle time: it says so once, with the dock in place', async () => {
     const mounts = setup();
     const a = page.addComposer(ACC, '2002');
     let renewed = 0;
@@ -161,32 +168,119 @@ describe('[UI-001] the dock docks in flow above the active composer (§6.3)', ()
     });
     mounts.update(state('2002'));
     await tick();
+    await silence();
     expect(renewed).toBe(0);
-    // With a pause: the dock waits, then goes over the new nodes.
+    // With a pause: the dock waits, then goes over the new nodes — and MAIN gets its time to speak first.
     a.tab.remove();
     await settle();
+    await silence();
     expect(renewed).toBe(0);
     const b = page.renderAgain(a);
     await settle();
     expect(b.root.firstChild).toBe(mounts.dock.host);
+    expect(renewed).toBe(0);
+    await silence();
     expect([renewed, dockThere]).toEqual([1, true]);
     expect(diagnostics.filter((d) => d.event === 'composer-renewed')).toHaveLength(1);
-    // Placed again over the same nodes («Проверить», a resize): nothing new.
+    // Placed again over the same nodes («Проверить», a resize, more silence): nothing new.
     mounts.refresh();
     await tick();
+    await silence();
     expect(renewed).toBe(1);
     // In one step: Vue swaps the nodes in one render, the page is never without the composer.
     const c = page.renderAgain(b);
     await settle();
     expect(c.root.firstChild).toBe(mounts.dock.host);
+    await silence();
     expect([renewed, dockThere]).toEqual([2, true]);
-    // MAIN has looked again and names the new composer: that is no re-render of the page.
+    // MAIN has looked again and names the new composer: these nodes are its own now.
     mounts.update(state('2002', { instanceId: 'c-2002-renewed' }));
     await tick();
+    await silence();
     expect(renewed).toBe(2);
   });
 
-  it('[RB-008] another composer is MAIN’s own news, never «rendered again»: a chat switch, a blocked fan, a dock that left with the chat', async () => {
+  it('[RB-014] [RB-015] a chat switch is no re-render: ChatSpace shows the other chat’s composer first, MAIN’s report of it comes after — nothing is said, whatever the old nodes became', async () => {
+    const mounts = setup();
+    const a = page.addComposer(ACC, '2002');
+    let renewed = 0;
+    mounts.onRenewed(() => (renewed += 1));
+    mounts.update(state('2002'));
+    await tick();
+    // Another chat in a new ChatSpace tab: its composer is rendered and shown, the first one stays in the page, hidden.
+    page.show(a, false);
+    const b = page.addComposer(ACC, '2003');
+    await settle();
+    // The dock is over what the page shows, while MAIN still names the first chat's composer…
+    expect(b.root.firstChild).toBe(mounts.dock.host);
+    expect(mounts.points().dock.composerInstanceId).toBe('c-2002');
+    // …and MAIN's own word comes within its settle time.
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS / 3));
+    mounts.update(state('2003'));
+    await tick();
+    await silence();
+    expect(renewed).toBe(0);
+    // Another chat put into the SAME tab: the old composer's nodes go and new ones come in one render — to the page
+    // exactly a re-render in one step. MAIN says «none yet» (the route has not followed), then the new composer.
+    const c = page.renderAgain(b);
+    await settle();
+    expect(c.root.firstChild).toBe(mounts.dock.host);
+    mounts.update(null);
+    await tick();
+    mounts.update(state('2004'));
+    await tick();
+    await silence();
+    expect(c.root.firstChild).toBe(mounts.dock.host);
+    expect(renewed).toBe(0);
+    expect(diagnostics.filter((d) => d.event === 'composer-renewed')).toEqual([]);
+  });
+
+  it('[RB-015] a chat opened and left again before MAIN said anything of it: after the settle time the dock is back over the first chat’s field, and nothing is said', async () => {
+    const mounts = setup();
+    const a = page.addComposer(ACC, '2002');
+    let renewed = 0;
+    mounts.onRenewed(() => (renewed += 1));
+    mounts.update(state('2002'));
+    await tick();
+    page.show(a, false);
+    const b = page.addComposer(ACC, '2003');
+    await settle();
+    expect(b.root.firstChild).toBe(mounts.dock.host);
+    // Back at once — ChatSpace only shows and hides its composers, no node comes or goes, and to MAIN nothing changed.
+    page.show(b, false);
+    page.show(a, true);
+    await silence();
+    expect(a.root.firstChild).toBe(mounts.dock.host);
+    expect(mounts.points().dock).toMatchObject({ kind: 'in-flow', composerInstanceId: 'c-2002' });
+    expect(renewed).toBe(0);
+  });
+
+  it('[RB-008] MAIN silent over other nodes is asked about them once — not again while the dock stays there, and again for the next nodes', async () => {
+    const mounts = setup();
+    const a = page.addComposer(ACC, '2002');
+    let renewed = 0;
+    mounts.onRenewed(() => (renewed += 1));
+    mounts.update(state('2002'));
+    await tick();
+    const b = page.renderAgain(a);
+    await settle();
+    await silence();
+    expect(renewed).toBe(1);
+    // MAIN, asked, had nothing new to say (it could not tell the composer's chat): no second question for these nodes.
+    b.frame.append(document.createElement('span'));
+    b.tab.append(document.createElement('div'));
+    await settle();
+    await silence();
+    mounts.refresh();
+    await silence();
+    expect(renewed).toBe(1);
+    page.renderAgain(b);
+    await settle();
+    await silence();
+    expect(renewed).toBe(2);
+  });
+
+  it('[RB-008] another composer is MAIN’s own news, never «rendered again»: a blocked fan, a dock that left with the chat', async () => {
     const mounts = setup();
     const a = page.addComposer(ACC, '2002');
     const b = page.addComposer(ACC, '2003', { shown: false });
@@ -209,6 +303,7 @@ describe('[UI-001] the dock docks in flow above the active composer (§6.3)', ()
     const again = page.renderAgain(b);
     mounts.update(state('2003'));
     await settle();
+    await silence();
     expect(again.root.firstChild).toBe(mounts.dock.host);
     expect(renewed).toBe(0);
   });

@@ -201,12 +201,15 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     /** ChatSpace renders its composers again (`gapMs` 0 — in one step); the person then presses «Вставить» of `part` once. */
     const firstInsertAfter = async (gapMs: number, part: 0 | 1): Promise<void> => {
       await browser.execute(() => document.querySelectorAll('[data-stand-composer]').forEach((root) => root.setAttribute('data-e2e-before', '')));
+      const field = (await dockIs((d) => d.kind === 'in-flow' && d.composer !== null, 'the dock over the field')).composer;
       const page = await pageJournalMark();
       await callStand('remountComposers', gapMs);
       await browser.waitUntil(onNewField, { timeout: 5000, timeoutMsg: `the dock did not come back over the re-rendered composer (${gapMs} ms)` });
-      // The field is there and works, as the person sees it: then one click.
+      // The field is there and works, as the person sees it, and MAIN — silent for its settle time (a tenth of a
+      // second: a chat switch would have been its own news by then), then asked — has told of the new field.
       await waitForChatReady(ACC, a1);
-      await dockIs((d) => d.kind === 'in-flow' && d.inFlowFirstChild && d.mode === 'insert', 'the dock is in flow over the new field');
+      await dockIs((d) => d.kind === 'in-flow' && d.inFlowFirstChild && d.mode === 'insert' && d.composer !== null && d.composer !== field, 'the dock is in flow over the new field, and the tab knows it is a new one', 5000);
+      // Then one click.
       await pressOurs('dock', `[data-cg-part="${part}"] button`, /^Вставить/);
       await waitForComposerText(ACC, a1, reply(a1)[part], `the first «Вставить» after a re-render (${gapMs === 0 ? 'in one step' : `${gapMs} ms pause`})`);
       const journal = await pageJournal(page);

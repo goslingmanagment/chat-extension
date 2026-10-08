@@ -200,24 +200,47 @@ describe('[BG-002] state from MAIN', () => {
     expect(updates.at(-1)).toMatchObject({ instanceId: 'c9' });
   });
 
-  it('[RB-008] the dock went over new nodes of the composer MAIN still names: MAIN is asked to look again, once at a time, and the identity names the new composer — nothing is written', async () => {
-    let instance = 'c1';
-    const { host, bridge, renew, updates } = await port({ snapshot: () => snapshot({ composer: composer({ instanceId: instance }) }) });
+  it('[RB-008] the dock stands over new nodes of the composer MAIN still names: MAIN is asked to look again and its composer EVENT is followed — the answer itself is never taken', async () => {
+    let answer: Record<string, unknown> = snapshot({ composer: composer({ instanceId: 'c2' }) });
+    const { host, bridge, renew, updates } = await port({ snapshot: () => answer });
     const snapshots = (): number => bridge.calls.filter((call) => call.t === 'snapshot').length;
+    // The first snapshot of the start is taken as ever.
+    expect(host.identity()?.composerInstanceId).toBe('c2');
+    bridge.emit({ t: 'composer', payload: { state: composer({ instanceId: 'c3' }) } });
     const before = snapshots();
-    expect(host.identity()?.composerInstanceId).toBe('c1');
-    // ChatSpace rendered the composer again; MAIN, asked, finds the new one (a new node is a new composer).
-    instance = 'c2';
-    renew();
-    // Asked again while the first read is out: one more read follows it, never two at once.
-    renew();
+    // ChatSpace rendered the composer again; MAIN, asked, finds the new one (a new node is a new composer)…
+    answer = snapshot({ composer: composer({ instanceId: 'c4' }) });
     renew();
     expect(snapshots()).toBe(before + 1);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(snapshots()).toBe(before + 2);
-    expect(host.identity()).toMatchObject({ routeEpoch: 4, chat: chat(), composerInstanceId: 'c2' });
-    expect(updates.at(-1)).toMatchObject({ instanceId: 'c2' });
-    expect(bridge.calls.filter((call) => call.t !== 'snapshot' && call.t !== 'listAccounts' && call.t !== 'chatWindow' && call.t !== 'fan' && call.t !== 'listChats').map((call) => call.t)).toEqual([]);
+    // …and this side waits for MAIN's event: what an answer says is outside MAIN's «never repeat an equal event».
+    expect(host.identity()?.composerInstanceId).toBe('c3');
+    bridge.emit({ t: 'composer', payload: { state: composer({ instanceId: 'c4' }) } });
+    expect(host.identity()).toMatchObject({ routeEpoch: 4, chat: chat(), composerInstanceId: 'c4' });
+    expect(updates.at(-1)).toMatchObject({ instanceId: 'c4' });
+    expect(bridge.calls.filter((call) => !['snapshot', 'listAccounts', 'chatWindow', 'fan', 'listChats'].includes(call.t)).map((call) => call.t)).toEqual([]);
+  });
+
+  it('[RB-014] [RB-015] an answer from the middle of a chat switch never becomes this side’s composer: «none yet» told to a question does not outlive the switch back, which MAIN has no event for', async () => {
+    // CI on PR #16: a snapshot asked during a switch said «no composer yet», was taken as the composer, and MAIN — back
+    // on the first chat before it had sent anything — had nothing new to say: the dock stayed «copy only» for good.
+    let answer: Record<string, unknown> = snapshot();
+    let lost = false;
+    const { host, renew, updates } = await port({ snapshot: () => (lost ? Promise.reject(new BridgeCallError('timeout', 'snapshot')) : answer) });
+    expect(host.identity()?.composerInstanceId).toBe('c1');
+    const told = updates.length;
+    answer = snapshot({ route: { epoch: 5, name: 'chat', account, chat: chat(OTHER) }, composer: null });
+    renew();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // MAIN sends no composer event: when it looks, it is on the first chat again with the composer it last told of.
+    expect(host.identity()).toMatchObject({ routeEpoch: 4, chat: chat(), composerInstanceId: 'c1' });
+    expect(host.current().composer).toMatchObject({ instanceId: 'c1', ready: true });
+    expect(updates.length).toBe(told);
+    // A question that got no answer changes nothing either.
+    lost = true;
+    renew();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(host.identity()?.composerInstanceId).toBe('c1');
   });
 
   it('[BG-002] MAIN injected after document_start (an update under an open tab): reloadNeeded, also for a late subscriber', async () => {

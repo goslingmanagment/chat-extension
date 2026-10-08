@@ -164,6 +164,57 @@ describe('[EX-008] [BG-002] the adapter end to end in one document', () => {
     expect((await started.bridge)?.stats().rejected).toEqual({});
   });
 
+  it('[RB-014] [RB-015] a chat switch is no re-render: the page shows the other chat’s field first — MAIN is asked nothing, and a chat left again before MAIN said anything keeps its composer', async () => {
+    // CI on PR #16 (suite-switches, suite-dock under load): the dock went over the other chat's field on the page's
+    // own change, that was taken for a re-render, MAIN's snapshot from the middle of the switch said «no composer yet»
+    // and was taken as the composer. Back on the first chat MAIN had no event to send — it never repeats an equal
+    // one —, and the dock stayed without its field: «copy only», no «Вставить».
+    const win = shimWindow();
+    const asked: string[] = [];
+    main = installMainBridge(win, {
+      runtime: (context) => {
+        const runtime = createMainRuntime(context);
+        return { handle: (t, payload) => (asked.push(t), runtime.handle(t, payload)), dispose: () => runtime.dispose() };
+      },
+    });
+    started = startChatSpaceHost({ win, validation: loadValidation, redeem: () => Promise.resolve(true), drafts: { getItem: () => null }, firstSearchMs: 50 });
+    const host = await started.host;
+    const dock = started.mounts.dock.host;
+    await until(() => Boolean(host.identity()?.composerInstanceId) && host.mounts().dock.kind === 'in-flow', 'identity and dock');
+    const first = page.all.find((composer) => composer.fan === '2002');
+    if (!first) throw new Error('no composer');
+    const before = host.identity()?.composerInstanceId;
+    // MAIN's events of the start are out (UI_EVENT_GAP_MS).
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const snapshots = (): number => asked.filter((t) => t === 'snapshot').length;
+    const start = snapshots();
+
+    // Another chat in a new ChatSpace tab: its field is rendered and shown at once; no store has told MAIN yet.
+    page.show(first, false);
+    const other = page.addComposer('1001', '2004');
+    await until(() => other.root.firstChild === dock, 'the dock is over what the page shows');
+    // …and the person is back on the first chat before MAIN looked: to MAIN nothing ever changed.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    page.showOnly('1001', '2002');
+    await until(() => first.root.firstChild === dock, 'the dock is back over the first chat’s field');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(host.identity()).toMatchObject({ chat: { platformFanId: '2002' }, composerInstanceId: before });
+    expect(host.current().composer).toMatchObject({ instanceId: before, ready: true });
+    expect(host.mounts().dock).toMatchObject({ kind: 'in-flow', composerInstanceId: before });
+    expect(snapshots()).toBe(start);
+
+    // The ordinary switch: the field first, MAIN's report a moment later — its own events, no question.
+    page.showOnly('1001', '2004');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    page.go('1001', '2004');
+    await until(() => host.identity()?.chat?.platformFanId === '2004' && Boolean(host.identity()?.composerInstanceId), 'MAIN told of the other chat');
+    await until(() => other.root.firstChild === dock, 'the dock is over the other chat’s field');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(host.identity()?.composerInstanceId).not.toBe(before);
+    expect(snapshots()).toBe(start);
+    expect((await started.bridge)?.stats().rejected).toEqual({});
+  });
+
   it('[AU-030] [ER-048] without MAIN the port still answers: not ready, nothing written', async () => {
     const win = shimWindow();
     const diagnostics: Array<{ event: string }> = [];

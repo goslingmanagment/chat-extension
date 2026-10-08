@@ -424,11 +424,17 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   /**
    * ChatSpace rendered the open chat's composer again from new nodes and MAIN did not hear of it (it reads composers on
    * store events): it still names the old composer, whose nodes are gone, and a «Вставить» made with that identity would
-   * be refused. The dock is over the new nodes now, so MAIN is asked to look again at once — its snapshot finds the new
-   * composer, binds it to the chat by the same rule as ever, and the identity is the new one before the person clicks.
+   * be refused. The dock stands over the new nodes and MAIN stayed silent (mount.ts `onRenewed`), so MAIN is asked to
+   * look again: asked for a snapshot, it finds the new composer, binds it to the chat by the same rule as ever — and
+   * says it in its composer EVENT (runtime.ts). The answer itself is not taken: MAIN's state reaches this side by one
+   * way only. MAIN never repeats an event equal to its last one, and it knows nothing of what an answer told — a
+   * composer taken from an answer in the middle of a chat switch («none yet») stayed for good when MAIN, back on the
+   * first chat, had nothing new to say: the dock was left «copy only» over a field that was there (CI, PR #16).
    * A read only: nothing of the insert's checks changes, here or in MAIN.
    */
-  const unsubscribeRenewed = mounts.onRenewed(() => once('snapshot', snapshot));
+  const unsubscribeRenewed = mounts.onRenewed(() => {
+    if (bridge && !disposed) void bridge.request('snapshot', {}).catch(() => undefined);
+  });
   /**
    * MAIN came after document_start (the extension was installed or updated
    * under an open tab): ChatSpace started without us, so the person is asked
