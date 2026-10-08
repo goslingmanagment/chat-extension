@@ -10,6 +10,7 @@
 import { HUB_ROUTE_KEYS, HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HUB_FORBIDDEN_OPERATIONS, type HubRouteKey } from '@cg/contracts';
 
 import { HUB_ROUTE_PATHS } from '../scenarios/hub/types';
+import { type BodySchemaLike } from './ai-rules';
 
 /** The request header the AI stream carries its capability list in (comma list). */
 export const AI_CAPABILITIES_HEADER = 'x-kernel-ai-capabilities';
@@ -224,6 +225,40 @@ export function facadeRequestOf(route: HubRouteKey, wire: WireRequest): FacadeRe
     else merge('body', parsed.body);
   }
   return issues.length > 0 ? { ok: false, issues } : { ok: true, request };
+}
+
+// ── the hub's own route schemas (the vendored SDK's `routeSchemas`) ────────
+
+/** One route of the hub as its server reads it: `routeSchemas[route]` of the vendored SDK fits. */
+export interface HubRouteSchemasLike {
+  readonly params?: BodySchemaLike;
+  readonly querystring?: BodySchemaLike;
+  readonly body?: BodySchemaLike;
+  readonly response: Readonly<Partial<Record<number, BodySchemaLike>>>;
+}
+
+/** The hub's route table by operation key; `routeSchemas` of the vendored SDK fits. */
+export type HubRouteTableLike = Readonly<Partial<Record<string, HubRouteSchemasLike>>>;
+
+/**
+ * What the hub's server refuses in a wire request before its handler runs: the
+ * decoded path params, the query (a repeated key is an array, every value a
+ * string — the hub's querystring parser) and the JSON body, each by the route's
+ * own schema. A part the route has no schema for is not read. The issues name
+ * the part, never a value.
+ */
+export function hubSchemaRefusal(route: HubRouteSchemasLike, wire: { readonly params: Readonly<Record<string, string>>; readonly query: URLSearchParams; readonly body: unknown }): readonly string[] {
+  const query: Record<string, string | string[]> = {};
+  for (const key of new Set(wire.query.keys())) {
+    const values = wire.query.getAll(key);
+    query[key] = values.length === 1 ? (values[0] ?? '') : values;
+  }
+  const parts: readonly (readonly ['params' | 'querystring' | 'body', BodySchemaLike | undefined, unknown])[] = [
+    ['params', route.params, wire.params],
+    ['querystring', route.querystring, query],
+    ['body', route.body, wire.body],
+  ];
+  return parts.filter(([, schema, value]) => schema !== undefined && !schema.safeParse(value).success).map(([part]) => `${part}: refused by the hub’s own ${part} schema (vendored SDK)`);
 }
 
 export type ValidationResult = { readonly ok: true; readonly request: unknown } | { readonly ok: false; readonly issues: readonly string[] };

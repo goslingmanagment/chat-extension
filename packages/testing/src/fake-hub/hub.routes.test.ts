@@ -1,17 +1,20 @@
 // Every route of the contracts' hub route table, served by the fake hub's model
-// in-process: existing SDK operations through the vendored SDK itself (its
-// own schemas check the answers, the way the background will call them), the
-// new client routes by hand; every 200 passes HUB_ROUTE_SCHEMAS. Then the
-// model's checks: a route of an undeclared capability is not deployed, a page
-// not granted is 404, an owner flag off is 409 with its reason.
+// in-process: the older SDK operations through the vendored SDK itself (its
+// own schemas check the answers, the way the background calls them), the
+// client routes by hand; every 200 passes HUB_ROUTE_SCHEMAS, and a client
+// route's also the hub's own response schema (the vendored SDK's), which the
+// fake hub here also checks every client request by. Then the model's
+// checks: a route of an undeclared capability is not deployed, a page not
+// granted is 404, an owner flag off is 409 with its reason.
 
 import { HUB_ROUTE_KEYS, HUB_ROUTE_SCHEMAS, HUB_ROUTES, type HubRouteKey } from '@cg/contracts';
-import { createClient } from '@kernel/sdk';
+import { createClient, routeSchemas } from '@kernel/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { PAGE, WORLD, uuid } from '../scenarios/hub';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall, readSse } from './kit';
+import { type HubRouteTableLike } from './routing';
 
 type Sdk = Record<string, (input?: Record<string, unknown>) => Promise<unknown>>;
 
@@ -26,6 +29,7 @@ async function ok(route: HubRouteKey, request: unknown): Promise<unknown> {
   const body = (await response.json()) as unknown;
   expect(response.status, `${route}: ${JSON.stringify(body).slice(0, 300)}`).toBe(200);
   expect(HUB_ROUTE_SCHEMAS[route].response.safeParse(body).success, route).toBe(true);
+  if (route.startsWith('client')) expect(SDK_ROUTES[route]?.response[200]?.safeParse(body).success, `${route}: the hub's own response schema`).toBe(true);
   return body;
 }
 
@@ -40,8 +44,10 @@ async function refused(route: HubRouteKey, request: unknown, status: number, err
   });
 }
 
+const SDK_ROUTES = routeSchemas as unknown as HubRouteTableLike;
+
 beforeEach(() => {
-  hub = createFakeHub();
+  hub = createFakeHub({ routeSchemas });
   token = hub.issueToken();
   sdk = createClient({ baseUrl: hub.origin, fetch: hub.fetch, auth: { mode: 'bearer', token: () => token } }) as unknown as Sdk;
 });
@@ -343,9 +349,38 @@ describe('fake hub routes: the model’s own checks', () => {
     await refused('clientAudienceNew', { pageLabel: PAGE, windowHours: 48 }, 409, 'client_feature_disabled', 'disabled');
   });
 
-  it('«Новые» wider than the hub allows is refused', async () => {
+  it('«Новые» wider than the hub allows is refused as its query schema refuses it: a plain 400, no reason', async () => {
     hub.control({ op: 'config', patch: { limits: { audienceWindowHours: 72 } } });
-    await refused('clientAudienceNew', { pageLabel: PAGE, windowHours: 168 }, 400, 'bad_request', 'window_too_wide');
+    const response = await call('clientAudienceNew', { pageLabel: PAGE, windowHours: 168 });
+    const body = (await response.json()) as { error: string; reason?: string };
+    expect({ status: response.status, error: body.error, hasReason: 'reason' in body }).toEqual({ status: 400, error: 'bad_request', hasReason: false });
+  });
+
+  it('the claim status has no flag of its own, but the master switch refuses it — as the hub\'s `requireClientPage` does', async () => {
+    await ok('clientFanClaimStatus', { pageLabel: PAGE, fanRef: WORLD.newFan });
+    hub.control({ op: 'config', patch: { master: false } });
+    await refused('clientFanClaimStatus', { pageLabel: PAGE, fanRef: WORLD.newFan }, 409, 'client_feature_disabled', 'disabled');
+  });
+
+  it('with the hub\'s REAL route schemas (the vendored SDK\'s), a client request the hub\'s server would refuse is refused here first, the part named', async () => {
+    const raw = (path: string): Promise<Response> => hub.fetch(`${hub.origin}${path}`, { headers: { authorization: `Bearer ${token}` } });
+    const refusedBy = async (response: Response): Promise<unknown> => ({ status: response.status, message: ((await response.json()) as { message: string }).message });
+    expect(await refusedBy(await raw(`/api/v1/client/pages/${PAGE}/conversations/0404/feed`))).toEqual({ status: 400, message: 'fake hub: params: refused by the hub’s own params schema (vendored SDK)' });
+    expect(await refusedBy(await raw(`/api/v1/client/pages/${PAGE}/conversations/${WORLD.fan}/feed?limit=50&persona=x`))).toEqual({ status: 400, message: 'fake hub: querystring: refused by the hub’s own querystring schema (vendored SDK)' });
+    expect(await refusedBy(await raw(`/api/v1/client/pages/${PAGE}/spenders/stats?windowDays=7&timeZone=UTC`))).toEqual({ status: 400, message: 'fake hub: querystring: refused by the hub’s own querystring schema (vendored SDK)' });
+    // And the claim body (1.6.0: a revision past the hub's 32-bit columns).
+    const body = { action: 'dispatch', attemptId: uuid(0x4a9), instanceId: WORLD.instanceId, purpose: 'preview-reply', group: { generationRef: uuid(0x200), variant: 0, partCount: 1 }, partIndex: 0, textRevision: 2_147_483_648, flagRevision: 1 };
+    const post = await hub.fetch(`${hub.origin}/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect(await refusedBy(post)).toEqual({ status: 400, message: 'fake hub: body: refused by the hub’s own body schema (vendored SDK)' });
+  });
+
+  it('with the hub\'s REAL route schemas, a model answer the hub\'s own response schema refuses is a fake hub bug (500), not data', async () => {
+    const never = { safeParse: () => ({ success: false }) };
+    const strict = createFakeHub({ routeSchemas: { clientSpenderStats: { response: { 200: never } } } });
+    const response = await hubCall(strict.fetch, strict.origin, 'clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }, { token: strict.issueToken() });
+    const answer = (await response.json()) as { error: string; reason: string; message: string };
+    expect({ status: response.status, error: answer.error, reason: answer.reason }).toEqual({ status: 500, error: 'internal_error', reason: 'fake_hub_bug' });
+    expect(answer.message).toContain('refused by the hub’s own response schema of 200 (vendored SDK)');
   });
 
   it('the model’s own answer is checked against the response schema: a contract-invalid answer is 500 fake_hub_bug with the issues journaled', async () => {
