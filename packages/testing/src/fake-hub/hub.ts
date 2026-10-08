@@ -734,7 +734,6 @@ export class FakeHub {
     return {
       now: this.clock.now(),
       userId: principal.user.userId,
-      tokenId: principal.token.id,
       leaseSec: limits.claimLeaseSec,
       ticketSec: limits.dispatchTicketSec,
       perMinute: limits.previewSendPerMinute,

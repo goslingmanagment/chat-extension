@@ -211,12 +211,12 @@ describe('fake hub routes: new client routes (H-2…H-15)', () => {
     expect(rest).toMatchObject({ loaded: 5, nextCursor: null });
   });
 
-  it('clientFanClaim and clientFanClaimStatus: a lease is owned, the status shows it', async () => {
+  it('clientFanClaim and clientFanClaimStatus: a lease is owned; the status, which names no install, reads it as the caller\'s own elsewhere', async () => {
     covers('clientFanClaim');
     covers('clientFanClaimStatus');
     const lease = { action: 'claim', leaseToken: uuid(0x300), instanceId: WORLD.instanceId };
     expect(await ok('clientFanClaim', { pageLabel: PAGE, fanRef: WORLD.newFan, body: lease })).toMatchObject({ lease: { state: 'owned', leaseToken: uuid(0x300) }, flagRevision: WORLD.configRevision });
-    expect(await ok('clientFanClaimStatus', { pageLabel: PAGE, fanRef: WORLD.newFan })).toMatchObject({ lease: { state: 'owned' }, custody: null });
+    expect(await ok('clientFanClaimStatus', { pageLabel: PAGE, fanRef: WORLD.newFan })).toMatchObject({ lease: { state: 'held', heldBy: 'you-elsewhere', leaseToken: null }, custody: null });
   });
 
   it('clientAudienceNew: «Новые» of the window with claim summaries', async () => {

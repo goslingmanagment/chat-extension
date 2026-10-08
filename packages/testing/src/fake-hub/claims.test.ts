@@ -105,8 +105,8 @@ describe('fake hub claims: lease and greeting', () => {
       const out = await post(a, dispatch(id, part));
       expect(out.state.custody).toMatchObject({ attemptId: id, state: 'dispatching', ticketExpiresAt: '2026-10-03T10:00:10.000Z' });
       expect(out.state.custody?.ticket).toMatch(/^tkt-/);
-      // The ticket is answered once: a repeat only reads, and the status never shows one.
-      expect((await post(a, dispatch(id, part))).state.custody).toMatchObject({ attemptId: id, state: 'dispatching', ticket: null, ticketExpiresAt: null });
+      // The ticket is answered once: a repeat only reads, and the status never shows one (its deadline it does: hub `toWire`).
+      expect((await post(a, dispatch(id, part))).state.custody).toMatchObject({ attemptId: id, state: 'dispatching', ticket: null, ticketExpiresAt: '2026-10-03T10:00:10.000Z' });
       expect((await status(a)).custody).toMatchObject({ attemptId: id, ticket: null });
       const done = await post(a, sent(id, String(4100 + part)));
       expect(done.state.custody?.state).toBe('sent');
@@ -138,9 +138,9 @@ describe('fake hub claims: lease and greeting', () => {
     expect(refused(await post(b, lease('renew', B_LEASE, B_INSTANCE)))).toEqual({ status: 409, error: 'claim_busy', reason: null });
     expect(refused(await post(b, dispatch(attempt(), 0, { leaseToken: B_LEASE, instanceId: B_INSTANCE })))).toEqual({ status: 409, error: 'claim_busy', reason: null });
     expect((await status(b)).lease).toEqual({ state: 'held', leaseToken: null, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: 'someone-else' });
-    // A release by someone else releases nothing.
+    // A release by someone else releases nothing: the holder's claim with its token still answers `owned`.
     expect((await post(b, lease('release', B_LEASE, B_INSTANCE))).state.lease.state).toBe('held');
-    expect((await status(a)).lease.state).toBe('owned');
+    expect((await post(a, lease('claim'))).state.lease.state).toBe('owned');
   });
 
   it('two installs of one chatter: the second sees «you elsewhere» and cannot take the lease', async () => {
@@ -152,23 +152,40 @@ describe('fake hub claims: lease and greeting', () => {
     expect((await post(a2, lease('renew'))).state.lease.state).toBe('owned');
   });
 
-  it('two installs of one chatter over GET and «Новые»: only the install (device token) holding the lease sees `owned` and its lease token', async () => {
+  it('the status GET and «Новые» name no install, as on the hub (H-7b): the caller\'s own live lease is `held` by `you-elsewhere` on every install, never `owned`, never its token; a claim with the token answers `owned`', async () => {
     await post(a, lease('claim'));
-    expect((await status(a)).lease).toEqual({ state: 'owned', leaseToken: LEASE, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: null });
-    expect((await status(a2)).lease).toEqual({ state: 'held', leaseToken: null, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: 'you-elsewhere' });
-    expect((await status(b)).lease).toEqual({ state: 'held', leaseToken: null, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: 'someone-else' });
+    const held = { state: 'held', leaseToken: null, expiresAt: '2026-10-03T10:02:00.000Z', heldBy: 'you-elsewhere' };
+    expect((await status(a)).lease).toEqual(held);
+    expect((await status(a2)).lease).toEqual(held);
+    expect((await status(b)).lease).toEqual({ ...held, heldBy: 'someone-else' });
     const summary = async (token: string) => {
       const response = await hubCall(hub.fetch, hub.origin, 'clientAudienceNew', { pageLabel: PAGE, windowHours: 48 }, { token });
       return ((await response.json()) as { items: Array<{ fanRef: string; claim: unknown }> }).items.find((item) => item.fanRef === FAN)?.claim;
     };
-    expect(await summary(a)).toEqual({ greeting: 'none', lease: 'owned', heldBy: null, custody: null });
-    expect(await summary(a2)).toEqual({ greeting: 'none', lease: 'held', heldBy: 'you-elsewhere', custody: null });
-    // The holding install signed in again (a new token): its next renew moves the lease to that token.
-    expect((await post(a2, lease('renew'))).state.lease).toMatchObject({ state: 'owned', leaseToken: LEASE });
-    expect((await status(a2)).lease).toMatchObject({ state: 'owned', leaseToken: LEASE });
-    expect((await status(a)).lease).toMatchObject({ state: 'held', leaseToken: null, heldBy: 'you-elsewhere' });
+    expect(await summary(a)).toEqual({ greeting: 'none', lease: 'held', heldBy: 'you-elsewhere', custody: null });
+    expect(await summary(b)).toEqual({ greeting: 'none', lease: 'held', heldBy: 'someone-else', custody: null });
+    // Only a POST that names the install and the lease token is the owner's: an idempotent claim, from either token of that install.
+    expect((await post(a2, lease('claim'))).state.lease).toMatchObject({ state: 'owned', leaseToken: LEASE });
+    expect((await post(a, lease('renew'))).state.lease).toMatchObject({ state: 'owned', leaseToken: LEASE });
     const dump = JSON.stringify([await status(a), await status(b), await summary(a), await summary(b)]);
     expect(dump).not.toContain(LEASE);
+  });
+
+  it('the status GET shows anyone\'s unresolved send, else only the caller\'s own last preview send; a desktop greeting that may have gone holds the fan', async () => {
+    await post(a, lease('claim'));
+    const mine = attempt();
+    await post(a, dispatch(mine, 0));
+    // Unresolved: everyone sees it.
+    expect((await status(b)).custody).toMatchObject({ attemptId: mine, state: 'dispatching', ticket: null });
+    await post(a, sent(mine, '4100'));
+    // Finished: only its sender sees it.
+    expect((await status(a)).custody).toMatchObject({ attemptId: mine, state: 'sent' });
+    expect((await status(b)).custody).toBeNull();
+    // No send of ours to this fan: a desktop command that may have greeted holds it, under the command's id.
+    hub.control({ op: 'desktopHold', pageLabel: PAGE, fanRef: WORLD.fan, held: true });
+    const desktop = (await status(b, WORLD.fan)).custody;
+    expect({ ...desktop, attemptId: undefined }).toEqual({ attemptId: undefined, state: 'uncertain-held', ticket: null, ticketExpiresAt: null });
+    expect(desktop?.attemptId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it('the lease expires lazily after claimLeaseSec unless renewed; then anyone may claim', async () => {
@@ -195,7 +212,7 @@ describe('fake hub claims: lease and greeting', () => {
       const response = await hubCall(hub.fetch, hub.origin, 'clientAudienceNew', { pageLabel: PAGE, windowHours: 48 }, { token });
       return ((await response.json()) as { items: Array<{ fanRef: string; claim: unknown }> }).items.find((item) => item.fanRef === FAN)?.claim;
     };
-    expect(await read(a)).toEqual({ greeting: 'none', lease: 'owned', heldBy: null, custody: null });
+    expect(await read(a)).toEqual({ greeting: 'none', lease: 'held', heldBy: 'you-elsewhere', custody: null });
     expect(await read(b)).toEqual({ greeting: 'none', lease: 'held', heldBy: 'someone-else', custody: null });
   });
 });
