@@ -763,8 +763,11 @@ export const HUB_SCHEMA_FIXTURES = [
 
   // ── newcomers, claim, custody ──
   fixture('ClaimGroup', C.ClaimGroupSchema, [group, { ...group, variant: 2, partCount: 10 }], [{ ...group, variant: 3 }, { ...group, partCount: 0 }, { ...group, generationRef: 'gen-1' }]),
-  fixture('ClaimBody', C.ClaimBodySchema, Object.values(claimBodies), [
+  fixture('ClaimBody', C.ClaimBodySchema, [...Object.values(claimBodies), { ...claimBodies.dispatch, textRevision: C.CLAIM_REVISION_MAX, flagRevision: C.CLAIM_REVISION_MAX }], [
     { ...claimBodies.dispatch, partIndex: 2 },
+    // 1.6.0: the hub keeps both revisions in 32-bit columns and answers 400 to a larger one.
+    { ...claimBodies.dispatch, textRevision: C.CLAIM_REVISION_MAX + 1 },
+    { ...claimBodies.dispatch, flagRevision: C.CLAIM_REVISION_MAX + 1 },
     { action: 'failed', attemptId: uuid(5), instanceId: INSTANCE, reason: 'native_rejected' },
     { action: 'failed', attemptId: uuid(5), instanceId: INSTANCE, reason: 'native_rejected', httpStatus: 401 },
     { action: 'failed', attemptId: uuid(5), instanceId: INSTANCE, reason: 'native_rejected', httpStatus: 503 },

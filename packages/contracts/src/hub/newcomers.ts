@@ -61,6 +61,13 @@ export const ClaimGroupSchema = z.strictObject({
 export type ClaimGroup = z.infer<typeof ClaimGroupSchema>;
 
 const PartIndexSchema = z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1));
+/**
+ * The largest `textRevision` and `flagRevision` the hub takes (1.6.0): the
+ * columns that keep them are 32-bit (hub `clientRevision`), and it answers 400
+ * to a larger one. Such a dispatch is not sent at all.
+ */
+export const CLAIM_REVISION_MAX = 2_147_483_647;
+const ClaimRevisionSchema = z.int().check(z.gte(0), z.lte(CLAIM_REVISION_MAX));
 /** Lease actions carry the lease token and the client install id (`instanceId`, a UUID per install). */
 const leaseAction = <A extends 'claim' | 'renew' | 'release'>(action: A) =>
   z.strictObject({ action: z.literal(action), leaseToken: UuidSchema, instanceId: UuidSchema });
@@ -84,11 +91,11 @@ export const ClaimBodySchema = z
       purpose: SendPurposeSchema,
       group: ClaimGroupSchema,
       partIndex: PartIndexSchema,
-      textRevision: CountSchema,
+      textRevision: ClaimRevisionSchema,
       /** Required for a greeting until it is confirmed. */
       leaseToken: z.optional(UuidSchema),
       /** = bootstrap configRevision the client acted on. */
-      flagRevision: CountSchema,
+      flagRevision: ClaimRevisionSchema,
     }),
     z.strictObject({
       action: z.literal('sent'),
