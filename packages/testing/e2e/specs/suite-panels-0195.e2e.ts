@@ -12,8 +12,9 @@
 //   is whole in view, the fan panel's sections are whole, and the wheel
 //   scrolls a panel's body;
 // - ChatSpace's panel closed (the composer reaches the rail, under our panel's
-//   place): the panel still ends at the dock's top, and the Coach answer keeps
-//   its room — the panel scrolls as a whole when it is that short.
+//   place): the panel still ends at the dock's top, the question field stays
+//   on screen, the Coach answer opens at its start, and «Скрыть» on the dock's
+//   result gives the panel its height back.
 // Pictures in both themes go to .cache/e2e/.
 
 import { $, browser, expect } from '@wdio/globals';
@@ -23,7 +24,7 @@ import { callsTo } from '../../src/fake-hub/journal';
 import { EDITOR, SEND, twoFrames } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { hostSelector, ours, oursBox, oursByText, oursExists, oursFocus, oursText, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
+import { allOurs, hostSelector, ours, oursBox, oursByText, oursExists, oursFocus, oursText, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
 import { dockIs, startShift } from '../support/shift';
 import { callStand, foreignCalls, standServer } from '../support/stand';
 import { saveStandSnapshots, setViewport } from '../support/visual';
@@ -228,7 +229,7 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     await closeAll();
   });
 
-  it('[CS-031] ChatSpace’s panel closed — the composer reaches under our panel’s place: the panel ends at the dock’s top, and the Coach answer keeps its room', async function () {
+  it('[CS-031] [AI-080] ChatSpace’s panel closed — the composer reaches under our panel’s place: the panel ends at the dock’s top, the question field stays on screen, the answer opens at its start; «Скрыть» gives the height back', async function () {
     this.timeout(180_000);
     await closeAll();
     await callStand('setSidePanel', 'closed');
@@ -244,15 +245,28 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     const dock = await pageBox(hostSelector('dock'));
     // The panel ends where the dock begins — not short of it, not past it.
     expect(Math.abs(box.y + box.height - (dock?.y ?? 0)) <= 1).toBe(true);
-    // The answer's room: the turns keep their height; what does not fit scrolls with the panel.
+    // The question field and «Спросить» stay on screen however short the panel is.
+    expect(await reach('panel', '.cg-co__ask textarea')).toEqual({ clippedPx: 0, onTop: true });
+    expect(await reach('panel', '.cg-co__send .cg-btn')).toEqual({ clippedPx: 0, onTop: true });
+    // The answer is taller than what is left for the turns: it opens at its start, not at the ready questions under it.
     const turns = await oursBox('panel', '.cg-co__turns');
-    expect(['turns height', (turns?.height ?? 0) >= 150]).toEqual(['turns height', true]);
-    await ours('panel', '.cg-co__turn[data-cg-answer] .cg-co__md').scrollIntoView({ block: 'nearest' });
-    await twoFrames();
-    const answer = await oursBox('panel', '.cg-co__turn[data-cg-answer] .cg-co__md');
-    expect(['answer starts inside the panel', (answer?.y ?? 0) >= box.y && (answer?.y ?? 0) < box.y + box.height]).toEqual(['answer starts inside the panel', true]);
-
+    // The newest answer: the earlier ones of this chat's dialog are above it.
+    const answers = await allOurs('panel', '.cg-co__turn[data-cg-answer] .cg-co__md').getElements();
+    const newest = answers.at(-1);
+    if (newest === undefined) throw new Error('no Coach answer on screen');
+    const answer = await browser.execute((node: HTMLElement) => {
+      const rect = node.getBoundingClientRect();
+      return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+    }, newest as unknown as HTMLElement);
+    expect(['answer starts inside the turns', (answer?.y ?? -1) >= (turns?.y ?? 0) && (answer?.y ?? Infinity) + 20 <= (turns?.y ?? 0) + (turns?.height ?? 0)]).toEqual(['answer starts inside the turns', true]);
     await pictures('panels-0195-closed-coach');
+
+    // «Скрыть» on the dock's result: the dock is the strip again, and the panel takes the height back.
+    await pressOurs('dock', '.cg-dock button', /^Скрыть/);
+    await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
+    await twoFrames();
+    const tall = await composerFree('.cg-coach');
+    expect(['Coach after «Скрыть»', tall.height >= 0.7 * WINDOW.height]).toEqual(['Coach after «Скрыть»', true]);
     await closeAll();
     await callStand('setSidePanel', 'open');
   });

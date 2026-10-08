@@ -25,9 +25,8 @@ export const DIALOG_CSS = `
   display: flex; flex-direction: column; background: var(--cg-surface); border-left: 1px solid var(--cg-rule);
   /* A panel that ends above the dock (the composer stays free) closes with the same hairline. */
   border-bottom: 1px solid var(--cg-rule);
-  /* Its scrolling part keeps a floor (Coach's turns, the fan panel's body): a panel shorter than its fixed rows and
-     that floor scrolls as a whole, so nothing of it is out of reach; a part scrolled to its end hands the wheel on to
-     the panel, and the panel keeps it from the page under it. */
+  /* A panel shorter than its fixed rows (a big zoom above an open result) scrolls as a whole: nothing of it is cut
+     off out of reach, and the panel keeps the wheel from the page under it. */
   overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
 }
 .cg-confirm-dlg { padding: 16px 18px 14px; }

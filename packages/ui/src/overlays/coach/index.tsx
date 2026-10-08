@@ -214,10 +214,16 @@ export function CoachView(): JSX.Element {
   const list = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const last = vm.turns[vm.turns.length - 1];
-  // A new turn or its answer scrolls into view.
+  // A new turn or its answer scrolls into view. A finished answer taller than the list opens at its start — its
+  // first lines, not the ready questions under it: a short panel (above an open result in the dock) still shows
+  // the answer (third live check).
   useLayoutEffect(() => {
     const element = list.current;
-    if (element !== null) element.scrollTop = element.scrollHeight;
+    if (element === null) return;
+    const done = last === undefined || isRunning(last.state) ? null : [...element.querySelectorAll<HTMLElement>('[data-cg-answer]')].find((node) => node.dataset['cgAnswer'] === last.id);
+    if (done !== undefined && done !== null && done.offsetHeight > element.clientHeight) {
+      element.scrollTop += done.getBoundingClientRect().top - element.getBoundingClientRect().top;
+    } else element.scrollTop = element.scrollHeight;
   }, [vm.turns.length, last?.state]);
   // The panel is mounted when the person opens Coach: the question field takes focus (AI-080).
   // A switch of the chat under an open panel mounts nothing and moves no focus.
@@ -362,7 +368,7 @@ ${overlayRootCss('coach', 'panel')}
 .cg-co__bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: 32px; padding: 3px 8px 3px 16px; border-top: 1px solid var(--cg-rule); border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-co__bar .is-lag { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-strong); font-weight: 500; }
 .cg-co__bar .cg-btn { margin-left: auto; }
-.cg-co__turns { flex: 1; min-height: 160px; overflow-y: auto; scrollbar-width: thin; padding: 6px 0 12px; }
+.cg-co__turns { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 6px 0 12px; }
 .cg-co__turn { padding: 10px 16px 4px; }
 .cg-co__who { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-bottom: 2px; }
 .cg-co__turn p, .cg-co__md { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }
