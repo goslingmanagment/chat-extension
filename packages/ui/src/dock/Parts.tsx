@@ -4,8 +4,9 @@
 // THAT part, never the next one by itself, and nothing is ever sent from
 // here. Parts are one tab stop: ↑ ↓ move between them, ← → between the
 // variants of Hi. The Б2 question («в поле уже есть ваш текст») opens inside
-// the part being inserted, with focus on «Добавить в конец»; Fix and the
-// drafts of a Coach turn ask it the same way (ConfirmRow, useConfirmFocus).
+// the part being inserted, with focus on «Отмена» (X18): a stray Enter or
+// Space changes nothing in the field. Fix and the drafts of a Coach turn ask
+// it the same way (ConfirmRow, useConfirmFocus).
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef } from 'preact/hooks';
@@ -98,16 +99,21 @@ export interface ConfirmRowProps {
   readonly asker: string;
 }
 
-/** Б2: «Заменить», «Добавить в конец» (the default), «Отмена Esc» (ui-design §4.6). */
+/**
+ * Б2: «Заменить», «Добавить в конец», «Отмена Esc» (ui-design §4.6). The focus
+ * it takes is on «Отмена» (decision X18): Enter or Space pressed by chance
+ * right after the question appears answers it with the one choice that
+ * leaves the field as it was.
+ */
 export function ConfirmRow({ confirm, takeFocus, onAnswer, home, asker }: ConfirmRowProps): JSX.Element {
   const i18n = useI18n();
   const { root, deps } = useKit();
   const dispatch = useDispatch();
   const box = useRef<HTMLDivElement>(null);
-  const append = useRef<HTMLButtonElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
   // The question takes focus when the person's own action asked it: their insert, or focus already inside our root.
   useLayoutEffect(() => {
-    if (takeFocus.current || activeIn(root) !== null) focusQuietly(append.current);
+    if (takeFocus.current || activeIn(root) !== null) focusQuietly(cancel.current);
     takeFocus.current = false;
   }, [confirm.confirmationId]);
   const answer = (choice: 'replace' | 'append' | 'cancel'): void => {
@@ -136,8 +142,8 @@ export function ConfirmRow({ confirm, takeFocus, onAnswer, home, asker }: Confir
         {confirm.formatLoss ? <span class="cg-confirm__loss"> {i18n.t('confirm.formatLoss')}</span> : null}
       </span>
       <Button label={i18n.t('confirm.replace')} variant="line" onClick={() => answer('replace')} />
-      <Button label={i18n.t('confirm.append')} variant="line" buttonRef={append} onClick={() => answer('append')} />
-      <Button label={i18n.t('common.cancel')} variant="quiet" hotkey={deps.catalog.entry('close').hotkey ?? i18n.t('common.key.esc')} onClick={() => answer('cancel')} />
+      <Button label={i18n.t('confirm.append')} variant="line" onClick={() => answer('append')} />
+      <Button label={i18n.t('common.cancel')} variant="quiet" hotkey={deps.catalog.entry('close').hotkey ?? i18n.t('common.key.esc')} buttonRef={cancel} onClick={() => answer('cancel')} />
     </div>
   );
 }
