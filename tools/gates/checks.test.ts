@@ -8,6 +8,7 @@ import {
   checkBrowserApiScope,
   checkHtmlSinks,
   checkMainWorldBundles,
+  checkMainWorldGuards,
   checkOnlyMonsterReferences,
   checkReleaseBundle,
   checkSdkCustody,
@@ -278,5 +279,63 @@ describe('gate: MAIN-world bundles (§4, D-06)', () => {
       ['chatspace-ws.js', 'a console reference'],
       ['content-scripts/chatspace-main.js', 'WXT\'s entry wrapper (it rethrows into the page)'],
     ]);
+  });
+});
+
+describe('[X22] gate: MAIN-world guards', () => {
+  const main = (name: string, text: string): ReturnType<typeof file> => file(`packages/host-chatspace/src/main/${name}.ts`, text);
+
+  it('flags a callback handed to the page or the browser without guard(…)', () => {
+    const violations = checkMainWorldGuards([
+      main(
+        'a',
+        [
+          'store.$onAction(({ after }) => after(() => undefined));',
+          'router?.afterEach(onRoute);',
+          'host.queue()?.$subscribe?.(() => sync(), { flush: "sync" });',
+          'win.setInterval(tick, 30_000);',
+          'new (win as W).MutationObserver(() => undefined);',
+          'port.onmessage = (event) => handle(event);',
+          'editor.on("transaction", listener);',
+          'socket.addEventListener("message", onMessage);',
+          'queueMicrotask(release);',
+        ].join('\n'),
+      ),
+    ]);
+    expect(violations.map((violation) => violation.line)).toEqual([1, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(violations.every((violation) => violation.gate === 'main-world-guard')).toBe(true);
+  });
+
+  it('a guard(…) call, or a const of the same file bound to one, passes; so does a null handler and what is not a registration', () => {
+    const violations = checkMainWorldGuards([
+      main(
+        'b',
+        [
+          "const onMessage = guard('message', (event: MessageEvent) => read(event));",
+          "const onRoute: Listener = guard('route', () => undefined);",
+          'socket.addEventListener("message", onMessage);',
+          'socket.removeEventListener("message", onMessage);',
+          'router.afterEach(onRoute);',
+          "store.$onAction(guard('cache', ({ after }) => after(guard('cacheAfter', () => undefined))), true);",
+          "new MutationObserver(guard('watch', () => undefined));",
+          'port.onmessage = null;',
+          'setTimer(stop, 15_000);',
+          'frame(() => composerNow());',
+          'livePort()?.sent(args[0], after, onError);',
+        ].join('\n'),
+      ),
+      // Another folder and tests are not MAIN.
+      file('packages/host-chatspace/src/isolated/x.ts', 'store.$onAction(() => undefined);'),
+      main('x.test', 'store.$onAction(() => undefined);'),
+    ]);
+    expect(violations).toEqual([]);
+  });
+
+  it('a `let` bound to a guard can be reassigned: it does not count', () => {
+    expect(checkMainWorldGuards([main('c', "let cb = guard('x', () => undefined);\nsocket.addEventListener('close', cb);")])).toHaveLength(1);
+  });
+
+  it('the MAIN source of this repo is clean', () => {
+    expect(checkMainWorldGuards(readTree(`${REPO_ROOT}packages/host-chatspace/src/main`, (path) => path.endsWith('.ts')).map((entry) => ({ ...entry, path: `packages/host-chatspace/src/main/${entry.path}` })))).toEqual([]);
   });
 });

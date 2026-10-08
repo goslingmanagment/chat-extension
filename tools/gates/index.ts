@@ -56,5 +56,5 @@ for (const violation of violations) {
 }
 if (violations.length > 0) fail(`gates: ${violations.length} violation(s).`);
 console.log(
-  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), no storage listener in the tab — all clean.`,
+  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), no storage listener in the tab — all clean.`,
 );
