@@ -9,7 +9,8 @@
 //   installs on one hub, the sound's decisions, a page's command for a tab,
 //   «Очистить локальные данные», the update record;
 // - what an expired bootstrap blocks and what it leaves;
-// - a release build against a hub without `client/bootstrap`: no compat mode.
+// - a release build against a hub without `client/bootstrap`: no compat mode;
+// - today's prod hub (an older contract) under a newer vendored SDK.
 
 import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, TAB_REQUESTS, TAB_REQUEST_TYPES, parseTabPayload, type IncomingFact, type SendJournalEntry, type TabRequestType } from '@cg/contracts';
 import { TAB_REQUEST_FIXTURES, account, chat, journalEntry } from '@cg/contracts/fixtures';
@@ -17,6 +18,7 @@ import { GREETING_LEASES_KEY, NATIVE_SENDS_KEY, createSendJournal } from '@cg/co
 import { createKeyValueStore, createTabRpcClient } from '@cg/platform';
 import { PILOT_CAPABILITIES, callsTo, hubErrorBody, pilotPageFlags } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
+import { KERNEL_CONTRACT_HASH } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { pageSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
@@ -1047,5 +1049,61 @@ describe('a hub without `client/bootstrap` and the narrow token (today’s prod 
     expect(await options.request('session.get', {})).toEqual({ ok: true, payload: { session: null } });
     expect(w.fake.areas.local.get(STORAGE_KEYS.authToken)).toBeUndefined();
     expect(w.hub.read().entries.filter((entry) => entry.kind === 'legacy')).toEqual([]);
+  });
+});
+
+describe('a hub older than the vendored SDK: today’s prod (contract 27ef8a3d…, before hub PRs #477–#481) under the SDK of hub c8514c5c', () => {
+  /** What prod's bootstrap declares until the deploy: the capabilities served before #477–#481 (hub client-capabilities.ts at 4a470029). */
+  const PROD_CAPABILITIES = ['context-v1', 'live-text-v1', 'shared-recaps-v1', 'recap-profile-v1', 'split-all-v1', 'ai-usage-v1'];
+  const PROD_HASH = '27ef8a3d87baecbb9f80da209591015567b065f379344c69bd49770dd287cd91';
+  const NEW_ROUTES = ['clientConversationFeed', 'clientSpenderStats', 'clientSpenderAwaitingReply', 'clientFanClaim', 'clientFanClaimStatus', 'clientAudienceNew'] as const;
+
+  it('works as today — sign-in, Reply, the Spenders board, the fan card, the recaps; the features of the new routes read `hub_not_ready` and are refused before any request', async () => {
+    const w = world();
+    // The owner's pilot rows switch every feature on; only the hub decides what it can serve. Its health lists the old SDKs only.
+    w.hub.control({ op: 'config', patch: { capabilities: PROD_CAPABILITIES } });
+    w.hub.control({ op: 'health', contractHash: PROD_HASH, compatibleClientSdks: [PROD_HASH, 'b95b765c12f50905cb8f98c2d9644cf5adc4234299cd6516f0cd649b39235aab'] });
+    w.start();
+    await signInWithPersona(w);
+    const tab = await workingTab(w);
+
+    const bootstrap = await tab.client.request('bootstrap.get', {});
+    const features = bootstrap.ok ? bootstrap.payload.pages.find((page) => page.pageLabel === PAGE)?.features : undefined;
+    for (const flag of ['preview', 'stats', 'newcomers'] as const) expect([flag, features?.[flag]]).toEqual([flag, { available: false, reason: 'hub_not_ready' }]);
+    for (const flag of ['insertion', 'spenders', 'fanPanel', 'recap', 'review', 'coach'] as const) expect([flag, features?.[flag]]).toEqual([flag, { available: true }]);
+
+    // What works today still works.
+    const opId = admitted(await startReply(tab, await bindingOf(tab)));
+    await until(async () => (await opsOf(tab)).find((op) => op.opId === opId)?.endedAt !== undefined, 'the Reply ended');
+    expect((await opsOf(tab)).find((op) => op.opId === opId)).toMatchObject({ state: 'done' });
+    expect(await tab.client.request('spenders.board', { pageId: PAGE_ID, period: '30d' })).toMatchObject({ ok: true, payload: { pageLabel: PAGE } });
+    expect(await tab.client.request('fan.card', { pageId: PAGE_ID, fanRef: '5003', period: '30d' })).toMatchObject({ ok: true, payload: { fan: { platformUserId: '5003' } } });
+    expect(await tab.client.request('recap.read', { pageId: PAGE_ID, fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId })).toMatchObject({ ok: true });
+
+    // What needs a route prod does not have yet: refused with a code, never asked of the hub.
+    const refusals = [
+      await tab.client.request('spenders.stats', { pageId: PAGE_ID, windowDays: 30, timeZone: 'Europe/Moscow' }),
+      await tab.client.request('spenders.queue', { pageId: PAGE_ID, cursor: null, limit: 50 }),
+      await tab.client.request('feed.read', { pageId: PAGE_ID, fanRef: WORLD.fan, cursor: null, limit: 50 }),
+      await tab.client.request('newcomers.list', { pageId: PAGE_ID, windowHours: 48, cursor: null }),
+      await tab.client.request('newcomers.claim', { pageId: PAGE_ID, fanRef: WORLD.newFan, action: 'claim' }),
+    ];
+    expect(refusals.map((answer) => (answer.ok ? 'answered' : answer.error.code))).toEqual(['CG-HUB-CAPABILITY', 'CG-HUB-CAPABILITY', 'CG-HUB-CAPABILITY', 'CG-HUB-CAPABILITY', 'CG-HUB-CAPABILITY']);
+    await sleep(300);
+    const entries = w.hub.read().entries;
+    for (const route of NEW_ROUTES) expect([route, callsTo(entries, route)]).toEqual([route, []]);
+    // Nothing the hub refused, nothing it would not know: every call of the session is a route prod has.
+    expect(entries.filter((entry) => entry.kind === 'route' && (entry.status ?? 0) >= 400)).toEqual([]);
+
+    // The vendored SDK is not on prod's list: «Аккаунт» says so (the release gate refuses on the same fact); nothing else follows from it.
+    const diagnostics = await w.page().request('diagnostics.get', {});
+    await until(async () => {
+      const read = await w.page().request('diagnostics.get', {});
+      return read.ok && read.payload.hub.sdk.compatible !== null;
+    }, 'the hub health read');
+    const sdk = await w.page().request('diagnostics.get', {});
+    expect(diagnostics.ok).toBe(true);
+    expect(sdk.ok && sdk.payload.hub.sdk).toEqual({ vendoredHash: KERNEL_CONTRACT_HASH, hubHash: PROD_HASH, compatible: false });
+    expect(await w.page().request('session.get', {})).toMatchObject({ ok: true, payload: { session: { login: WORLD.user.username } } });
   });
 });
