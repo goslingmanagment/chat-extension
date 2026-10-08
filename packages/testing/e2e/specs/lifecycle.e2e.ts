@@ -10,7 +10,10 @@
 //   registers again; the new instance has the sign-in, the tab's chat, its
 //   host contract and the alarms, and the log says what happened;
 // - a change of the settings reaches the open tab and the pages;
-// - a new instance with another sign-in state is asked again by the tab.
+// - a new instance with another sign-in state is asked again by the tab;
+// - [LG-010] the day's error counters survive a restart of the add-on itself
+//   (what an update, a reinstall and a restart of the browser do: they empty
+//   storage.session), while «since the start» begins anew.
 // The privileged side of Firefox is driven through e2e/support/background.ts.
 
 import { DEFAULT_SETTINGS, STORAGE_KEYS, type LogRecord, type SettingsV1 } from '@cg/contracts';
@@ -21,7 +24,7 @@ import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { backgroundState, setBackgroundIdleTimeout, suspendBackground, waitForBackgroundState } from '../support/background';
 import { clearDraft, composerText, typeDraft } from '../support/chat';
-import { assignPersona, installTestBuild, pageRpc, readReport, standUrl, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
+import { assignPersona, installTestBuild, pageRpc, readLocalStorage, readReport, standUrl, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from '../support/extension';
 import { fakeHubOrigin, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { oursText, pressOurs } from '../support/ours';
@@ -374,5 +377,68 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     expect(report.dock).toMatchObject({ login: '', page: '', banner: 'CG-AUTH-REQUIRED' });
     await toPages();
     expect(await pageRpc('session.get')).toEqual({ ok: true, payload: { session: null } });
+  });
+
+  // Last in the file: the add-on restarts, its pages close and the ChatSpace tab is left with the old content scripts.
+  it('[LG-010] the day’s error counters survive a restart of the add-on — an update, a reinstall or a restart of the browser empties storage.session: «Ошибки за сегодня» keeps what was counted, «since the start» begins anew', async function () {
+    this.timeout(120_000);
+    type Counted = ReadonlyArray<{ readonly code: string; readonly count: number }>;
+    /** The counters of the diagnostics export (the options page's request). */
+    const counters = async (): Promise<{ day: string; today: Counted; sinceStart: Counted }> => {
+      await browser.url(testBuildPage('options.html'));
+      const file = await pageRpc<{ body: string }>('diagnostics.export', { format: 'json' });
+      if (!file.ok) throw new Error(`diagnostics.export: ${file.error.code}`);
+      return (JSON.parse(file.payload.body) as { counters: { day: string; today: Counted; sinceStart: Counted } }).counters;
+    };
+    // A code nothing of this spec produces by itself, counted the way a tab's or a page's error is: a coded record.
+    const CODE = 'CG-CLIPBOARD';
+    const of = (list: Counted): number => list.find((entry) => entry.code === CODE)?.count ?? 0;
+    await toPages();
+    const record = (seq: number): LogRecord => ({ ts: new Date().toISOString(), seq, level: 'error', scope: 'pg.e2e', msg: 'probe', code: CODE });
+    expect(await pageRpc('log.write', { records: [record(1), record(2), record(3)] })).toMatchObject({ ok: true, payload: { accepted: 3 } });
+    const before = await counters();
+    expect([of(before.today), of(before.sinceStart)]).toEqual([3, 3]);
+    // The counters reach storage.local two seconds after a change — codes and counts, nothing else.
+    type Kept = { readonly v?: number; readonly day?: string; readonly today?: Record<string, number> };
+    let kept: Kept | undefined;
+    await browser.waitUntil(
+      async () => {
+        kept = (await readLocalStorage(['log.counters']))['log.counters'] as Kept | undefined;
+        return kept?.today?.[CODE] === 3;
+      },
+      { timeout: 10_000, timeoutMsg: 'the day’s counters did not reach storage.local' },
+    );
+    expect(kept).toMatchObject({ v: 1, day: before.day });
+    expect(Object.keys(kept ?? {}).sort()).toEqual(['day', 'previous', 'previousDay', 'today', 'v']);
+
+    // The add-on restarts itself, as an update does: asked from its own page, which goes away with it.
+    const closing = await browser.getWindowHandle();
+    await browser.execute(() => {
+      setTimeout(() => (globalThis as unknown as { browser: { runtime: { reload(): void } } }).browser.runtime.reload(), 50);
+    });
+    await browser.waitUntil(async () => !(await browser.getWindowHandles()).includes(closing), { timeout: 15_000, timeoutMsg: 'the extension’s own page did not close with the restart' });
+    await toStand();
+    pagesTab = (await browser.createWindow('tab')).handle;
+    await toPages();
+    // The add-on is back when its own page opens and its new event page answers (from the restored state).
+    let after: Awaited<ReturnType<typeof counters>> = { day: '', today: [], sinceStart: [] };
+    await browser.waitUntil(
+      async () => {
+        try {
+          after = await counters();
+          return after.day === before.day;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 20_000, interval: 300, timeoutMsg: 'the restarted add-on did not answer' },
+    );
+    expect(['today', of(after.today)]).toEqual(['today', 3]);
+    expect(['since the start', of(after.sinceStart)]).toEqual(['since the start', 0]);
+    // And the day goes on.
+    expect(await pageRpc('log.write', { records: [record(4)] })).toMatchObject({ ok: true, payload: { accepted: 1 } });
+    const later = await counters();
+    expect([of(later.today), of(later.sinceStart)]).toEqual([4, 1]);
+    await browser.url(testBuildPage('debug-journal.html'));
   });
 });

@@ -231,6 +231,127 @@ describe('[LG-003] the redactor knows the live token', () => {
   });
 });
 
+describe('[LG-010] «Ошибки за сегодня» is the calendar day’s, not the add-on’s run', () => {
+  const DAY = 86_400_000;
+  /** A record of a page with a CG code: the path a tab's and a page's errors take to the day's counters. */
+  const coded = (seq: number, code: LogRecord['code'], at = Date.now()): LogRecord => ({ ts: new Date(at).toISOString(), seq, level: 'error', scope: 'pg.test', msg: 'probe', code });
+  type Counted = ReadonlyArray<{ readonly code: string; readonly count: number }>;
+  /** The counters of the diagnostics export — what the owner reads. */
+  const counters = async (w: World): Promise<{ day: string; today: Counted; previousDay: string | null; previous: Counted; sinceStart: Counted }> => {
+    const file = await w.page().request('diagnostics.export', { format: 'json' });
+    if (!file.ok) throw new Error(`diagnostics.export: ${file.error.code}`);
+    return (JSON.parse(file.payload.body) as { counters: { day: string; today: Counted; previousDay: string | null; previous: Counted; sinceStart: Counted } }).counters;
+  };
+  type Kept = { readonly today?: Record<string, number> } | undefined;
+  /** The day's counters are on disk as `today` (they are written two seconds after a change), and the event page is gone. */
+  const unload = async (w: World, today: Record<string, number>): Promise<void> => {
+    await until(() => JSON.stringify((w.fake.areas.local.get('log.counters') as Kept)?.today) === JSON.stringify(today), `the day’s counters ${JSON.stringify(today)} were saved`, 6000);
+    const background = w.fake.background();
+    if (background === null) throw new Error('no background');
+    // As Firefox unloads an idle page: `runtime.onSuspend`, whose promises it waits for, then the page is gone.
+    await Promise.all(background.events.onSuspend.emit().filter((answer): answer is Promise<void> => answer instanceof Promise));
+    w.fake.unloadBackground();
+  };
+  const dayKey = (ms: number): string => {
+    const date = new Date(ms);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  it('a restart of the browser, an update or a reinstall of the add-on — all of them empty storage.session — keeps the day’s counts; «since the start» begins anew; only codes and counts are on disk', async () => {
+    world = createWorld();
+    world.start();
+    expect(await world.page().request('log.write', { records: [coded(1, 'CG-NETWORK'), coded(2, 'CG-NETWORK'), coded(3, 'CG-HUB-TIMEOUT')] })).toMatchObject({ ok: true, payload: { accepted: 3 } });
+    const before = await counters(world);
+    const counted = [
+      { code: 'CG-NETWORK', count: 2 },
+      { code: 'CG-HUB-TIMEOUT', count: 1 },
+    ];
+    expect([before.today, before.sinceStart]).toEqual([counted, counted]);
+
+    // The chatter restarts Firefox in the middle of the shift (or the add-on is updated under them).
+    await unload(world, { 'CG-NETWORK': 2, 'CG-HUB-TIMEOUT': 1 });
+    world.fake.areas.session.clear();
+    const after = await counters(world);
+    expect(world.starts()).toBe(2);
+    expect(after.day).toBe(before.day);
+    expect(after.today).toEqual(counted);
+    expect(after.sinceStart).toEqual([]);
+
+    // The new instance goes on counting into the same day.
+    expect(await world.page().request('log.write', { records: [coded(4, 'CG-NETWORK')] })).toMatchObject({ ok: true, payload: { accepted: 1 } });
+    const later = await counters(world);
+    expect(later.today).toEqual([
+      { code: 'CG-NETWORK', count: 3 },
+      { code: 'CG-HUB-TIMEOUT', count: 1 },
+    ]);
+    expect(later.sinceStart).toEqual([{ code: 'CG-NETWORK', count: 1 }]);
+
+    // What is on disk: the day, codes and counts — nothing of the records themselves, nothing in storage.session.
+    await unload(world, { 'CG-NETWORK': 3, 'CG-HUB-TIMEOUT': 1 });
+    expect(world.fake.areas.local.get('log.counters')).toEqual({ v: 1, day: before.day, today: { 'CG-NETWORK': 3, 'CG-HUB-TIMEOUT': 1 }, previousDay: null, previous: {} });
+    expect(world.fake.areas.session.has('log.counters')).toBe(false);
+  });
+
+  it('the counters reach the disk by themselves two seconds after a change: a browser that is closed without a word loses at most those', async () => {
+    world = createWorld();
+    world.start();
+    expect(await world.page().request('log.write', { records: [coded(1, 'CG-HUB-UNAVAILABLE')] })).toMatchObject({ ok: true });
+    expect(world.fake.areas.local.has('log.counters')).toBe(false);
+    // Never in `runtime.onSuspend`: a storage write there comes back to the page as `storage.onChanged`, and an event
+    // that reaches a page being suspended cancels its unload (Firefox) — the event page would never go.
+    const writes: string[] = [];
+    world.fake.background()?.events.storageChanged.addListener((changes, area) => void writes.push(...Object.keys(changes).map((key) => `${area}:${key}`)));
+    await Promise.all((world.fake.background()?.events.onSuspend.emit() ?? []).filter((answer): answer is Promise<void> => answer instanceof Promise));
+    await sleep(20);
+    expect(writes).toEqual([]);
+    await until(() => world.fake.areas.local.has('log.counters'), 'the day’s counters were saved', 5000);
+    await sleep(5);
+    expect(writes).toEqual(['local:log.counters']);
+    // The browser is gone at once: no onSuspend, nothing of storage.session left.
+    world.fake.unloadBackground();
+    world.fake.areas.session.clear();
+    expect((await counters(world)).today).toEqual([{ code: 'CG-HUB-UNAVAILABLE', count: 1 }]);
+  });
+
+  it('a kept day that is over is «the day before»; older days are dropped; a value that is not ours is ignored and replaced', async () => {
+    const now = Date.now();
+    world = createWorld();
+    world.fake.areas.local.set('log.counters', { v: 1, day: dayKey(now - DAY), today: { 'CG-NETWORK': 4, 'not a code': 9, 'CG-TIMEOUT': 'text' }, previousDay: dayKey(now - 3 * DAY), previous: { 'CG-HUB-TIMEOUT': 7 } });
+    world.start();
+    const first = await counters(world);
+    expect(first).toMatchObject({ day: dayKey(now), today: [], previousDay: dayKey(now - DAY), previous: [{ code: 'CG-NETWORK', count: 4 }] });
+    world.fake.unloadBackground();
+
+    world.fake.areas.local.set('log.counters', 'a text that was never ours');
+    expect(await world.page().request('log.write', { records: [coded(1, 'CG-NETWORK')] })).toMatchObject({ ok: true });
+    expect((await counters(world)).today).toEqual([{ code: 'CG-NETWORK', count: 1 }]);
+    await unload(world, { 'CG-NETWORK': 1 });
+    expect(world.fake.areas.local.get('log.counters')).toEqual({ v: 1, day: dayKey(now), today: { 'CG-NETWORK': 1 }, previousDay: null, previous: {} });
+  });
+
+  it('[ST-110] «Очистить локальные данные» empties the day — in memory and on disk; a sign-out leaves it, as it leaves the log', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    const page = world.page();
+    expect(await page.request('log.write', { records: [coded(1, 'CG-NETWORK'), coded(2, 'CG-NETWORK')] })).toMatchObject({ ok: true });
+    const sized = await page.request('diagnostics.get', {});
+    expect(sized.ok && typeof sized.payload.footprint?.logsKB).toBe('number');
+
+    expect(await page.request('session.signOut', {})).toMatchObject({ ok: true });
+    expect((await counters(world)).today).toContainEqual({ code: 'CG-NETWORK', count: 2 });
+
+    expect(await page.request('data.clear', { confirmed: true })).toEqual({ ok: true, payload: { cleared: true } });
+    const cleared = await counters(world);
+    expect([cleared.today, cleared.previous, cleared.previousDay]).toEqual([[], [], null]);
+    expect(world.fake.areas.local.get('log.counters')).toMatchObject({ today: {}, previous: {}, previousDay: null });
+    // Not written back by the instance that goes on, and still empty after a restart.
+    await unload(world, {});
+    world.fake.areas.session.clear();
+    expect((await counters(world)).today).toEqual([]);
+  });
+});
+
 describe('an extension page left open without a ChatSpace tab', () => {
   it('[BG-003] does not restart the event page after its idle unload: the page’s event port is parked — its next request wakes the background, and the events are heard again', async () => {
     world = createWorld();
