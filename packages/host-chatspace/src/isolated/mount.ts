@@ -9,8 +9,11 @@
 // UI tree move with it). When Vue re-creates the frame root our host goes
 // with it; we come back on the next composer or route change, or when a
 // childList observer (no subtree) on the frame root's ancestors up to the
-// composers container sees a node replaced. A document-wide observer runs
-// only during the first search.
+// composers container sees a node replaced. That watch stays while MAIN
+// reports a composer the page does not show (a re-mount with a pause: to MAIN,
+// which reads the composer on store events, the composer that comes back is
+// the same one, so it says nothing); it goes when the dock leaves with the
+// chat. A document-wide observer runs only during the first search.
 // - The fan is blocked (ChatSpace hides the composer): a narrow copy-only row
 //   at the end of the composers container (CG-GATE-FAN-BLOCKED).
 // - The frame root is missing (a new build): a fixed overlay over the
@@ -227,12 +230,19 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     if (kind === 'fixed-overlay') positionFixed();
   };
 
+  /** The nodes `ancestors` observes. */
+  let watched: Element[] = [];
+  const unwatch = (): void => {
+    ancestors.disconnect();
+    watched = [];
+  };
   /** childList observers (no subtree) on `from` and its ancestors up to ANCESTOR_DEPTH or #app. */
   const watchFrom = (from: Element | null): void => {
-    ancestors.disconnect();
+    unwatch();
     let node = from;
     for (let depth = 0; node && depth < ANCESTOR_DEPTH && node !== doc.body && node.id !== 'app'; depth += 1, node = node.parentElement) {
       ancestors.observe(node, { childList: true });
+      watched.push(node);
     }
   };
 
@@ -324,7 +334,12 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     } else {
       dockHost.remove();
       resetDockStyle();
-      ancestors.disconnect();
+      // MAIN reports an open composer the page does not show (none, or two for a moment): ChatSpace is rendering it
+      // again, and MAIN will not say when it is back — to MAIN it is the same composer. The dock keeps watching where
+      // it stood (the composers container when nothing of that place is left) and comes back with the new nodes.
+      // Without a composer the dock left with the chat: nothing to wait for.
+      if (!composer) unwatch();
+      else if (!watched.some((node) => node.isConnected)) watchFrom(composersContainer());
     }
     if (next !== 'fixed-overlay') fixedBox = null;
     if (next !== 'none') stopFirstSearch();
@@ -434,7 +449,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     dispose() {
       disposed = true;
       stopFirstSearch();
-      ancestors.disconnect();
+      unwatch();
       resize.disconnect();
       win.removeEventListener('resize', onWindowResize);
       dockHost.remove();
