@@ -24,6 +24,8 @@ export const SESSION_KEYS = {
 export const LOCAL_KEYS = {
   /** Registrations of human sends the hub has not answered yet (§6.6, H-7): ids only. */
   nativeSends: 'send.native',
+  /** The error counters of today and of the day before, by CG code (LG-010): codes and counts only. */
+  dayCounters: 'log.counters',
 } as const;
 
 /** One stored result (an OpView: up to 64k characters of stream plus the parsed result). */
@@ -44,6 +46,8 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [STORAGE_KEYS.newcomersDrafts]: STORAGE_LIMITS.previewDraftsTotalBytes,
   /** No text: at most 200 registrations of a few hundred bytes. */
   [LOCAL_KEYS.nativeSends]: 256 * KiB,
+  /** Two days × the CG registry (about a hundred codes), some forty bytes a code. */
+  [LOCAL_KEYS.dayCounters]: 16 * KiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
 };

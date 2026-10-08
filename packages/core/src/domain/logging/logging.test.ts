@@ -1,6 +1,9 @@
+import { CG_CODES } from '@cg/contracts/errors';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { LogRecordFromUiSchema, LogRecordSchema, type LogRecord } from '@cg/contracts/logs';
 import { describe, expect, it } from 'vitest';
+
+import { LOCAL_KEYS, storageBudgetOf } from '../storage';
 
 import {
   CodeCounters,
@@ -605,6 +608,73 @@ describe('[LG-010] error counters by CG code for the day', () => {
     nextDay.restore(snapshot, T0 + 86_400_000);
     expect(nextDay.todayCounts(T0 + 86_400_000)).toEqual([]);
     expect(nextDay.snapshot(T0 + 86_400_000).previous).toEqual({ 'CG-NETWORK': 3 });
+  });
+});
+
+describe('[LG-010] «today» is the calendar day: what is kept across a restart of the add-on or of the browser', () => {
+  it('what goes to disk is two days of codes and counts — no «since the start», no text, nothing else', () => {
+    const counters = new CodeCounters(T0 - 86_400_000);
+    counters.count('CG-NETWORK', T0 - 86_400_000, 2);
+    counters.count('CG-HUB-UNAVAILABLE', T0);
+    counters.count('CG-TIMEOUT', T0 - 5 * 86_400_000);
+    const kept = counters.days(T0);
+    expect(kept).toEqual({ v: 1, day: localDayKey(T0), today: { 'CG-HUB-UNAVAILABLE': 1 }, previousDay: localDayKey(T0 - 86_400_000), previous: { 'CG-NETWORK': 2 } });
+    expect(Object.keys(kept).sort()).toEqual(['day', 'previous', 'previousDay', 'today', 'v']);
+    // The whole registry on both days stays far inside the key's budget.
+    const full = new CodeCounters(T0 - 86_400_000);
+    for (const code of CG_CODES) full.count(code, T0 - 86_400_000, 1_000_000_000);
+    for (const code of CG_CODES) full.count(code, T0, 1_000_000_000);
+    expect(JSON.stringify(full.days(T0)).length).toBeLessThan(storageBudgetOf(LOCAL_KEYS.dayCounters) ?? 0);
+  });
+
+  it('a new instance adds the kept day to what it has counted itself before the read — once; «since the start» is its own', () => {
+    const first = new CodeCounters(T0);
+    first.count('CG-NETWORK', T0, 3);
+    first.count('CG-HUB-TIMEOUT', T0, 2);
+    const kept = JSON.parse(JSON.stringify(first.days(T0))) as unknown;
+    // The next instance (the browser was restarted) met an error of its own before the stored days were read.
+    const second = new CodeCounters(T0 + 60_000);
+    second.count('CG-NETWORK', T0 + 60_000);
+    second.restore(kept, T0 + 61_000);
+    second.restore(kept, T0 + 62_000);
+    expect(second.todayCounts(T0 + 63_000)).toEqual([
+      { code: 'CG-NETWORK', count: 4 },
+      { code: 'CG-HUB-TIMEOUT', count: 2 },
+    ]);
+    expect(second.sessionCounts()).toEqual([{ code: 'CG-NETWORK', count: 1 }]);
+  });
+
+  it('a kept day that is not today is the day before; an older or a later one, and junk, are dropped', () => {
+    const yesterday = new CodeCounters(T0 - 86_400_000);
+    yesterday.count('CG-NETWORK', T0 - 86_400_000, 5);
+    const fromYesterday = new CodeCounters(T0);
+    fromYesterday.restore(yesterday.days(T0 - 86_400_000), T0);
+    expect(fromYesterday.days(T0)).toMatchObject({ today: {}, previousDay: localDayKey(T0 - 86_400_000), previous: { 'CG-NETWORK': 5 } });
+    // The stored «day before» is older than the one this instance already has: it does not replace it.
+    const rolled = new CodeCounters(T0 - 86_400_000);
+    rolled.count('CG-TIMEOUT', T0 - 86_400_000);
+    rolled.count('CG-TIMEOUT', T0);
+    const older = new CodeCounters(T0 - 3 * 86_400_000);
+    older.count('CG-NETWORK', T0 - 3 * 86_400_000, 9);
+    rolled.restore(older.days(T0 - 3 * 86_400_000), T0);
+    expect(rolled.days(T0)).toMatchObject({ today: { 'CG-TIMEOUT': 1 }, previousDay: localDayKey(T0 - 86_400_000), previous: { 'CG-TIMEOUT': 1 } });
+    // A day after today (the clock went back), a day that is no date, texts in place of counts.
+    for (const junk of [{ v: 1, day: localDayKey(T0 + 2 * 86_400_000), today: { 'CG-NETWORK': 7 } }, { day: 'yesterday', today: { 'CG-NETWORK': 7 } }, { day: localDayKey(T0), today: { 'CG-NETWORK': 'seven', 'a draft text': 1 } }, 'text', 7, null]) {
+      const fresh = new CodeCounters(T0);
+      fresh.restore(junk, T0);
+      expect(fresh.days(T0)).toEqual({ v: 1, day: localDayKey(T0), today: {}, previousDay: null, previous: {} });
+    }
+  });
+
+  it('«Очистить локальные данные» empties the kept days; «since the start» stays this instance’s own', () => {
+    const counters = new CodeCounters(T0 - 86_400_000);
+    counters.count('CG-NETWORK', T0 - 86_400_000);
+    counters.count('CG-NETWORK', T0, 2);
+    counters.clearDays(T0);
+    expect(counters.days(T0)).toEqual({ v: 1, day: localDayKey(T0), today: {}, previousDay: null, previous: {} });
+    expect(counters.sessionCounts()).toEqual([{ code: 'CG-NETWORK', count: 3 }]);
+    counters.count('CG-NETWORK', T0 + 1000);
+    expect(counters.todayCounts(T0 + 1000)).toEqual([{ code: 'CG-NETWORK', count: 1 }]);
   });
 });
 

@@ -39,7 +39,7 @@ export {
   type RecordInput,
 } from './record';
 export { Ring } from './ring';
-export { CodeCounters, localDayKey, type CodeCount, type CodeCountersSnapshot } from './counters';
+export { CodeCounters, localDayKey, type CodeCount, type CodeCountersSnapshot, type DayCountersSnapshot } from './counters';
 export { createLogger, type ConsolePort, type LogOptions, type LogSink, type Logger, type LoggerOptions, type LoggerStats } from './logger';
 export { FORWARDER_BACKLOG_MAX, createLogForwarder, type ForwarderOptions, type ForwarderStats, type LogForwarder } from './forwarder';
 export {

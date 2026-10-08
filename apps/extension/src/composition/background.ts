@@ -261,7 +261,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // The settings owner needs the logger and the logger reads debug mode from the settings: the owner arrives second.
   let settingsOwner: SettingsOwner | null = null;
   const debugEnabled = (): boolean => settingsOwner?.current().debug.enabled ?? false;
-  const logging = createBackgroundLogging({ session, debugEnabled, ctx: () => (hubInstance?.session() ? { session: hubInstance.session()?.epoch ?? 0 } : undefined) });
+  const logging = createBackgroundLogging({ session, local, debugEnabled, ctx: () => (hubInstance?.session() ? { session: hubInstance.session()?.epoch ?? 0 } : undefined) });
   const { logger } = logging;
   const serviceLog = serviceLogOf(logger);
   const coreLog = logSinkOf(logger);
@@ -542,7 +542,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     healthSupported: () => hasCapability(capabilities(), 'client-health-perf-v1'),
     chatSpaceOpen: () => rpc.tabs().length > 0,
     client: () => ({ version: env.extensionVersion, browserMajor: env.browserMajor ?? 0, os: env.os }),
-    footprint: () => ({ cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round(logging.logs.stats().bytes / 1024) }),
+    footprint: () => ({ cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round((logging.logs.stats().bytes + logging.countersBytes()) / 1024) }),
     // What is off for this install: the switches usable on none of its pages (never the top-level `"*"` flags).
     disabled() {
       const bootstrap = hubInstance?.cachedBootstrap()?.bootstrap ?? null;
@@ -618,7 +618,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       ops: { active: active.length, snapshot: active.map((op) => ({ opId: op.opId, feature: op.feature, surface: op.surface, state: op.state, phase: op.phase.name, startedAt: op.startedAt })) },
       sends: { ...sends.counts(), journal: sendJournal.list() },
       debug: { enabled: current.debug.enabled, prompts: promptStats() },
-      footprint: { cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round(logging.logs.stats().bytes / 1024) },
+      footprint: { cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round((logging.logs.stats().bytes + logging.countersBytes()) / 1024) },
     };
   };
   const diagnostics = new DiagnosticsService({ facts, logs: logging.logs, redactor: logging.redactor, logger });
@@ -1059,7 +1059,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('data.clear', async () => {
     const results = scheduler.clearFinished();
     clearDebug();
-    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), sendJournal.removeFinished(), scheduler.idle()]);
+    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), logging.clearCounters(), sendJournal.removeFinished(), scheduler.idle()]);
     const cleared = done.every((step) => step.status === 'fulfilled');
     logger.info('bg.data', 'local data cleared', { fields: { results, cleared } });
     return ok({ cleared });

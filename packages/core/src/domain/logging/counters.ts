@@ -1,8 +1,11 @@
 // Error counters by CG code for the day (LG-010): «ошибки хаба за сегодня» in
 // «Аккаунт», the counters of «Диагностика» and of the export. The day is the
 // browser's local calendar day; a new day starts the count from zero, the
-// previous day stays readable until the next change. The background may
-// persist a snapshot (storage.session) to survive an event-page restart.
+// previous day stays readable until the next change. The background keeps
+// the two days (`days()`: codes and counts, nothing else) in storage.local, so
+// «today» is the calendar day's — across an unload of the event page, an
+// update or a reinstall of the add-on and a restart of the browser. «Since
+// the start» is this instance's own and is kept nowhere.
 
 import { CG_CODES, isCgCode, type CgCode, type CgKind } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
@@ -22,12 +25,22 @@ export interface CodeCountersSnapshot {
   readonly session: Readonly<Partial<Record<CgCode, number>>>;
 }
 
+/** What is kept on disk: today and the day before, by code — no text, no ids, nothing of «since the start». */
+export interface DayCountersSnapshot {
+  readonly v: 1;
+  readonly day: string;
+  readonly today: Readonly<Partial<Record<CgCode, number>>>;
+  readonly previousDay: string | null;
+  readonly previous: Readonly<Partial<Record<CgCode, number>>>;
+}
+
 export interface CodeCount {
   readonly code: CgCode;
   readonly count: number;
 }
 
 const MAX_COUNT = 1_000_000_000;
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 function sorted(record: Readonly<Partial<Record<CgCode, number>>>): CodeCount[] {
   return CG_CODES.flatMap((code) => {
@@ -42,6 +55,8 @@ export class CodeCounters {
   private previousDay: string | null = null;
   private previous = new Map<CgCode, number>();
   private readonly session = new Map<CgCode, number>();
+  /** The stored days were added: a second restore adds nothing again. */
+  private restored = false;
 
   constructor(now: number) {
     this.day = localDayKey(now);
@@ -100,9 +115,19 @@ export class CodeCounters {
     };
   }
 
-  /** Restores today's and the previous day's counts (not the session's): unknown codes and bad numbers are skipped. */
+  /** Today and the day before, as they go to disk: codes and counts only. */
+  days(now: number): DayCountersSnapshot {
+    this.roll(now);
+    return { v: 1, day: this.day, today: Object.fromEntries(this.today), previousDay: this.previousDay, previous: Object.fromEntries(this.previous) };
+  }
+
+  /**
+   * Adds what an earlier instance kept of today and of the day before (not «since the start») to what this one has
+   * counted so far: unknown codes and bad numbers are skipped. A stored day that is not today is the previous day
+   * — when it is later than the one this instance knows —, anything older is dropped. Once: a second call adds nothing.
+   */
   restore(snapshot: unknown, now: number): void {
-    if (snapshot === null || typeof snapshot !== 'object') return;
+    if (this.restored || snapshot === null || typeof snapshot !== 'object') return;
     const read = (value: unknown): Map<CgCode, number> => {
       const out = new Map<CgCode, number>();
       if (value === null || typeof value !== 'object') return out;
@@ -111,17 +136,35 @@ export class CodeCounters {
       }
       return out;
     };
-    const record = snapshot as Partial<Record<keyof CodeCountersSnapshot, unknown>>;
-    const today = localDayKey(now);
-    if (record.day === today) {
-      for (const [code, count] of read(record.today)) this.today.set(code, Math.max(count, this.today.get(code) ?? 0));
-      if (typeof record.previousDay === 'string') {
-        this.previousDay = record.previousDay;
-        this.previous = read(record.previous);
+    const add = (into: Map<CgCode, number>, stored: Map<CgCode, number>): void => {
+      for (const [code, count] of stored) into.set(code, Math.min(MAX_COUNT, count + (into.get(code) ?? 0)));
+    };
+    const record = snapshot as Partial<Record<keyof DayCountersSnapshot, unknown>>;
+    if (typeof record.day !== 'string' || !DAY_KEY.test(record.day)) return;
+    this.roll(now);
+    this.restored = true;
+    if (record.day === this.day) {
+      add(this.today, read(record.today));
+      if (typeof record.previousDay === 'string' && DAY_KEY.test(record.previousDay) && record.previousDay < this.day) {
+        if (this.previousDay === null || record.previousDay > this.previousDay) {
+          this.previousDay = record.previousDay;
+          this.previous = read(record.previous);
+        } else if (record.previousDay === this.previousDay) add(this.previous, read(record.previous));
       }
-    } else if (typeof record.day === 'string') {
-      this.previousDay = record.day;
-      this.previous = read(record.today);
+    } else if (record.day < this.day) {
+      if (this.previousDay === null || record.day > this.previousDay) {
+        this.previousDay = record.day;
+        this.previous = read(record.today);
+      } else if (record.day === this.previousDay) add(this.previous, read(record.today));
     }
+    // A stored day after today (the clock was set back): not ours to show as today or as the day before.
+  }
+
+  /** «Очистить локальные данные»: the kept days are emptied; «since the start» is this instance's own and stays. */
+  clearDays(now: number): void {
+    this.roll(now);
+    this.today = new Map();
+    this.previous = new Map();
+    this.previousDay = null;
   }
 }

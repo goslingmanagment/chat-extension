@@ -1,7 +1,7 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 217,
+    "unit": 218,
     "e2e": 33
   },
   "totals": {
@@ -317,8 +317,8 @@
       "planned": "unit",
       "rows": 426,
       "inUnit": 426,
-      "inE2e": 89,
-      "unitOnly": 337,
+      "inE2e": 90,
+      "unitOnly": 336,
       "uncovered": 0
     },
     {
@@ -785,7 +785,7 @@
     {"id":"ST-107","function":"Масштаб `uiScale`","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true},
     {"id":"ST-108","function":"Списки OF/OM → полки Spenders","target":"ждёт владельца","owner":"R12","milestones":[],"planned":"n/a","pilot":false,"unit":["apps/extension/test/wiring-pages.test.ts"],"e2e":["packages/testing/e2e/specs/pages-wiring.e2e.ts"],"covered":true},
     {"id":"ST-109","function":"«Только спендеры», сортировка «Онлайн»","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
-    {"id":"ST-110","function":"«Данные»","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/contracts/test/vm.test.ts","packages/core/src/services/logs/logs.test.ts","packages/core/test/services-scheduler.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/pages/controller.test.ts","packages/testing/src/pages/pages.test.tsx"],"e2e":[],"covered":true},
+    {"id":"ST-110","function":"«Данные»","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","apps/extension/test/wiring-lifecycle.test.ts","packages/contracts/test/vm.test.ts","packages/core/src/services/logs/logs.test.ts","packages/core/test/services-scheduler.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/pages/controller.test.ts","packages/testing/src/pages/pages.test.tsx"],"e2e":[],"covered":true},
     {"id":"ST-111","function":"«Обновления»","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true},
     {"id":"ST-112","function":"«Активность»: синк, кредиты, аудит отправок","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/hub-boundary.test.ts"],"e2e":[],"covered":true},
     {"id":"ST-120","function":"Справочник хоткеев","target":"пилот","owner":"R16","milestones":["M1"],"planned":"stand-visual","pilot":true,"unit":["packages/contracts/test/vm.test.ts","packages/core/src/application/pages/hotkeys.test.ts","packages/testing/src/pages/controller.test.ts","packages/testing/src/pages/pages.test.tsx"],"e2e":[],"covered":true},
@@ -944,7 +944,7 @@
     {"id":"LG-007","function":"Формат записи","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/logging/logging.test.ts"],"e2e":[],"covered":true},
     {"id":"LG-008","function":"Ограничения размера записи","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/core/src/domain/logging/logging.test.ts"],"e2e":[],"covered":true},
     {"id":"LG-009","function":"Поля ошибки","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/logging/logging.test.ts"],"e2e":[],"covered":true},
-    {"id":"LG-010","function":"Счётчики ошибок по кодам","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/logging/logging.test.ts"],"e2e":[],"covered":true},
+    {"id":"LG-010","function":"Счётчики ошибок по кодам","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/background-logging.test.ts","apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/domain/logging/logging.test.ts"],"e2e":["packages/testing/e2e/specs/lifecycle.e2e.ts"],"covered":true},
     {"id":"LG-011","function":"Лог из интерфейса в фон","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/logging/logging.test.ts","packages/core/src/services/logs/logs.test.ts"],"e2e":[],"covered":true},
     {"id":"LG-012","function":"Лог не мешает работе","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/background-stores.test.ts","packages/core/src/domain/logging/logging.test.ts","packages/core/src/services/logs/logs.test.ts"],"e2e":[],"covered":true},
     {"id":"LG-013","function":"Логи входа и выхода","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/core/src/domain/logging/logging.test.ts"],"e2e":[],"covered":true},
