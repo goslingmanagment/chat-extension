@@ -183,10 +183,14 @@ describe('[AU-029] routes this client never calls (§8.1 «Никогда»)', (
       const path = (kernelOperations as Record<string, { path: string }>)[operation]?.path ?? '';
       expect(path).not.toMatch(/^\/api\/v1\/(ofapi|events)|\/ai\/gateway|\/ai\/personas(\/|$)/);
     }
-    // Every contract route the vendored SDK has (the client/* ones that arrived with hub e7e1037b among them), and nothing else.
+    // Every contract route (all of them SDK operations since hub c8514c5c), and nothing else.
     expect([...SDK_ALLOWED_OPERATIONS].sort()).toEqual([...HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since === 'sdk'), 'pages'].sort());
-    for (const arrived of ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily']) expect(SDK_ALLOWED_OPERATIONS).toContain(arrived);
-    for (const draft of ['clientConversationFeed', 'clientSpenderStats', 'clientSpenderAwaitingReply', 'clientFanClaim', 'clientFanClaimStatus', 'clientAudienceNew']) expect(SDK_ALLOWED_OPERATIONS).not.toContain(draft);
+    expect([...SDK_ALLOWED_OPERATIONS].sort()).toEqual([...HUB_ROUTE_KEYS, 'pages'].sort());
+    // The cabinet's resolve and list of held sends came with the same SDK: a device token never reaches them.
+    for (const cabinet of ['clientSendCustodyResolve', 'clientSendCustodyList']) {
+      expect(kernelOperations).toHaveProperty(cabinet);
+      expect(SDK_ALLOWED_OPERATIONS).not.toContain(cabinet);
+    }
   });
 
   it('[AU-029] a whole working session touches no OFAPI, events, full personas or raw gateway', async () => {

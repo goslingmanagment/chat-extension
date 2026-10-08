@@ -88,9 +88,10 @@ export const config: WebdriverIO.Config = {
     process.env['CG_STAND_ORIGIN'] = stand.origin;
     process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
     // The fake hub: system clock, the pilot preset (switched on page by page, the owner's `"*"` row empty); specs
-    // reset and script it through its control API. Every AI body is checked by the hub's own body schema (the
-    // vendored SDK's): a request the real hub would answer 400 to fails here, not on the first live check.
-    hub = await startFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body });
+    // reset and script it through its control API. Every AI body is checked by the hub's own body schema, every
+    // client/* request and model answer by the hub's own route schemas (the vendored SDK's): a request the real
+    // hub would answer 400 to fails here, not on the first live check.
+    hub = await startFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas });
     process.env['CG_FAKE_HUB_ORIGIN'] = hub.origin;
     // The sink's port is known only now; workers start with these capabilities.
     for (const capability of capabilities as WebdriverIO.Capabilities[]) {

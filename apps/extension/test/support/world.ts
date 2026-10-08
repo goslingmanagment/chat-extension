@@ -73,8 +73,8 @@ export function settingsFor(hubOrigin: string = HUB_ORIGIN, over: Partial<Settin
 
 export function createWorld(options: { readonly settings?: SettingsV1 | null; /** Another browser's hub: two installs, one hub. */ readonly hub?: FakeHub } = {}): World {
   const fake = createFakeBrowser();
-  // Every AI body is checked by the hub's own body schema (the vendored SDK's), as on the real hub.
-  const hub = options.hub ?? createFakeHub({ clock: 'system', streamBodySchema: routeSchemas.aiFeatureStream.body });
+  // Every AI body, client/* request and client/* model answer is checked by the hub's own schemas (the vendored SDK's), as on the real hub.
+  const hub = options.hub ?? createFakeHub({ clock: 'system', streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas });
   // The owner linked the hub page to the creator account ChatSpace shows as the fixture account.
   if (options.hub === undefined) hub.control({ op: 'pageAccount', pageLabel: WORLD.pages.one.pageLabel, platformAccountId: account.platformAccountId });
   // The extension may run on ChatSpace (the manifest's host permission): without it nothing of ours rings there.

@@ -53,7 +53,7 @@ import { checkCommand } from './command';
 import { bootstrapOf, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
 import { CursorSigner, DataModel, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
-import { AI_CAPABILITIES_HEADER, facadeRequestOf, matchRoute, validateRequest } from './routing';
+import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
 import { Gates, sseBody } from './sse';
 import {
   type BootstrapPresetName,
@@ -91,7 +91,21 @@ export interface FakeHubOptions {
    * wiring tests pass it; see ai-rules.ts).
    */
   readonly streamBodySchema?: BodySchemaLike;
+  /**
+   * The hub's REAL route schemas — the vendored SDK's `routeSchemas`. With
+   * them every client/* request is checked by the hub's own params,
+   * querystring and body schemas before our contract's mirror, as the hub's
+   * server does (a request the hub would answer 400 to fails here), and every
+   * answer the model serves on a client/* route by the hub's own response
+   * schema besides ours (an answer the SDK would refuse is a fake hub bug).
+   * The e2e harness and the wiring tests pass it; this package's shipped-side
+   * code never imports the SDK.
+   */
+  readonly routeSchemas?: HubRouteTableLike;
 }
+
+/** The routes the hub's own schemas are checked on (`FakeHubOptions.routeSchemas`): the client family. */
+const isClientRoute = (route: HubRouteKey): boolean => route.startsWith('client');
 
 interface Principal {
   readonly token: TokenRecord;
@@ -534,6 +548,12 @@ export class FakeHub {
       const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body) : null;
       if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, undefined, undefined, [rule.message]);
     }
+    const real = isClientRoute(route) ? this.options.routeSchemas?.[route] : undefined;
+    if (real !== undefined) {
+      // As the hub's server does: its route's own params, querystring and body schemas, before our contract's mirror.
+      const issues = hubSchemaRefusal(real, { params: match.params, query: url.searchParams, body: bodyText === '' ? undefined : (JSON.parse(bodyText) as unknown) });
+      if (issues.length > 0) return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, issues);
+    }
     const valid = validateRequest(route, facade.request);
     if (!valid.ok) {
       const reason = route === 'aiFeatureStream' ? streamRefusalReason(facade.request) : undefined;
@@ -571,6 +591,8 @@ export class FakeHub {
     }
     // H-7 claim and custody are OnlyFans-only (§4.12): every action and the status, the flag-free ones included.
     if (spec.routeClass === 'claim' && page !== null && page.platform !== 'onlyfans') return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
+    // The claim status has no flag of its own, but the hub's master switch refuses it (hub `requireClientPage`).
+    if (route === 'clientFanClaimStatus' && !s.config.master) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'disabled');
 
     let outcome: Outcome;
     try {
@@ -598,8 +620,13 @@ export class FakeHub {
     if (outcome.kind === 'json') {
       if (servedBy === 'model' && outcome.status >= 200 && outcome.status < 300) {
         const checked = (HUB_ROUTE_SCHEMAS[record.route].response as unknown as SafeParser).safeParse(outcome.body);
-        if (!checked.success) {
-          const issues = checked.error.issues.map((issue) => `self-check ${issue.path.map(String).join('.')}: ${issue.code}`);
+        // And by the hub's own response schema of the status (the vendored SDK's), where the harness passed it.
+        const real = isClientRoute(record.route) ? this.options.routeSchemas?.[record.route] : undefined;
+        const realRefused = real !== undefined && real.response[outcome.status]?.safeParse(outcome.body).success !== true;
+        if (!checked.success || realRefused) {
+          const issues = checked.success
+            ? [`self-check: refused by the hub’s own response schema of ${String(outcome.status)} (vendored SDK)`]
+            : checked.error.issues.map((issue) => `self-check ${issue.path.map(String).join('.')}: ${issue.code}`);
           this.journal.record({ ...fullBase, status: 500, error: 'internal_error', reason: 'fake_hub_bug', servedBy: 'check', issues });
           return json(500, hubErrorBody('internal_error', 500, 'fake_hub_bug', issues.join('; ')));
         }
@@ -707,7 +734,6 @@ export class FakeHub {
     return {
       now: this.clock.now(),
       userId: principal.user.userId,
-      tokenId: principal.token.id,
       leaseSec: limits.claimLeaseSec,
       ticketSec: limits.dispatchTicketSec,
       perMinute: limits.previewSendPerMinute,
@@ -806,7 +832,8 @@ export class FakeHub {
       }
       case 'clientAudienceNew': {
         const query = request as AudienceNewQuery;
-        if (query.windowHours > s.config.limits.audienceWindowHours) return { kind: 'refuse', refusal: { error: 'bad_request', reason: 'window_too_wide' } };
+        // The hub bounds the window by its query schema (the limit it announces): a plain 400, no reason.
+        if (query.windowHours > s.config.limits.audienceWindowHours) return { kind: 'refuse', refusal: { error: 'bad_request' } };
         const ctx = this.claimContext(need(page), need(principal));
         return read(s.data.audienceNew(need(page), query, now, (fanRef) => s.claims.summary(query.pageLabel, fanRef, ctx)));
       }

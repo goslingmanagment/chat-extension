@@ -1,8 +1,9 @@
 // The hub facade (architecture.md §5.8, §8; contracts hub/facade.ts): the
-// background's only door to the hub. Built over the vendored @kernel/sdk for
-// the operations it has and over the RouteTransport for the client/* routes
-// it does not have yet. Background-only (§4): the token, the network and the
-// SDK never reach a content script, a page or a lazy chunk.
+// background's only door to the hub. Built over the vendored @kernel/sdk:
+// every operation of the contract, the client/* routes included, goes through
+// its manifest, auth and schemas (transport.ts). Background-only (§4): the
+// token, the network and the SDK never reach a content script, a page or a
+// lazy chunk.
 //
 // Never called: the hub's OFAPI routes, the event streams, full personas,
 // the raw AI gateway, Fansly's outreach route, pageTopSpenders (§8.1,

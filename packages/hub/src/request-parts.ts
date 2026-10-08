@@ -1,9 +1,8 @@
 // A facade-level request → what goes on the wire, for the routes whose
 // contract request is one flat object (hub-pr-plan §4): the `:param`s of the
-// route's path are taken out of it, and the rest is the query (GET) or the
-// body (a claim carries its body under `body`). One reading for both
-// transports — the vendored SDK's manifest path and the RouteTransport's own
-// — so a route that moves into the SDK keeps its request as it was.
+// route's path (the vendored SDK's manifest path) are taken out of it, and the
+// rest is the query (GET) or the body (a claim carries its body under
+// `body`).
 //
 // The request is checked against its strict contract schema first: a request
 // that fails it is our bug and is never sent (HB-006).
