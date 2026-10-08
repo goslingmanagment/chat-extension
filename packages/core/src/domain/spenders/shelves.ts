@@ -178,6 +178,16 @@ export function shelfTotals(shelf: Shelf, scope: ShelfScope): ShelfTotals {
   };
 }
 
+/**
+ * The shelf header of a narrowed list (a search, a filter, the «ждут ответа» queue): it speaks of the fans the list
+ * shows on that shelf — their count, and sums over exactly them (null when an amount of one of them is unknown). The
+ * hub's bucket count is the page's, not the tab's: «$600+ 31» over the five who wait for a reply was the third live
+ * check's complaint.
+ */
+export function shownTotals(rows: readonly SpenderRow[]): ShelfTotals {
+  return { fans: rows.length, lifetime: sum(rows, (row) => row.lifetime), period: sum(rows, (row) => row.period) };
+}
+
 /** SP-010: rows a shelf shows in the plain «Все» view before «ещё N · показать»; `position` counts non-empty shelves. */
 export function shelfPreviewCount(position: number, members: number): number {
   if (members > SHELF_COLLAPSED_ABOVE) return 0;
