@@ -12,14 +12,15 @@
 // it: the newest version folder under $CG_CHATSPACE_BUNDLES, the root of the
 // copies (docs/architecture.md §6.2 says where it lives; the path is not
 // repeated here — the sources archive carries no trace of the copy).
-// Exit code: 0 — every anchor present and every role module found; 1 — not.
+// Exit code: 0 — every anchor present, every role module found and the send
+// path's anchors only in the role modules; 1 — not.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { fail } from '../lib/paths.ts';
-import { buildOf, checkAnchors, diffCopies, missingRoles, receiptProfile, type BundleFile } from './check.ts';
+import { buildOf, checkAnchors, diffCopies, missingRoles, receiptProfile, sendPathOutsideRoles, type BundleFile } from './check.ts';
 
 const { values } = parseArgs({ options: { dir: { type: 'string' }, against: { type: 'string' }, json: { type: 'boolean', default: false } } });
 
@@ -57,11 +58,12 @@ const results = checkAnchors(copy.files);
 const scripts = copy.files.filter((file) => file.name.endsWith('.js')).map((file) => file.name);
 const profile = receiptProfile(scripts, copy.version);
 const noRole = missingRoles(profile.modules);
+const sendPath = sendPathOutsideRoles(copy.files);
 const diff = values.against !== undefined ? diffCopies(readCopy(values.against).files, copy.files) : null;
 const missing = results.filter((result) => !result.present);
 
 if (values.json) {
-  console.log(JSON.stringify({ dir, version: copy.version, build: copy.build, anchors: results, receiptProfile: profile, missingRoles: noRole, diff }, null, 2));
+  console.log(JSON.stringify({ dir, version: copy.version, build: copy.build, anchors: results, receiptProfile: profile, missingRoles: noRole, sendPathOutsideRoles: sendPath, diff }, null, 2));
 } else {
   console.log(`host-contract-check: ${dir}`);
   console.log(`version ${copy.version ?? 'unknown'}, build ${copy.build ?? 'unknown'}, ${copy.files.length} files\n`);
@@ -73,6 +75,12 @@ if (values.json) {
   console.log('\nreceipt profile of this copy (the role modules of the send path, §6.2):');
   console.log(JSON.stringify(profile, null, 2));
   if (noRole.length > 0) console.log(`MISSING role modules: ${noRole.join(', ')} — this build matches no profile; the send path must be read again.`);
+  if (sendPath.length === 0) console.log('send path: every one of its anchors is in the role modules.');
+  for (const problem of sendPath) {
+    const where = problem.at.length === 0 ? 'found nowhere' : `outside the role modules: ${problem.at.join(', ')}${problem.count > problem.at.length ? ` (+${problem.count - problem.at.length})` : ''}`;
+    console.log(`SEND PATH ${problem.part}: ${problem.anchor} — ${where}`);
+  }
+  if (sendPath.length > 0) console.log('the send path is not where the profile looks: the bundler regrouped or changed it, and a profile of this adapter would leave it out — the role list needs an adapter release (§6.2 «Перегруппировка модулей»).');
   if (diff) {
     console.log(`\nagainst ${values.against}:`);
     console.log(diff.roles.length === 0 ? '  role modules: unchanged' : diff.roles.map((change) => `  role ${change.role}: ${change.from ?? '—'} → ${change.to ?? '—'}`).join('\n'));
@@ -83,6 +91,10 @@ if (values.json) {
     console.log(`  code around the anchors in the role modules: ${diff.code.reduce((sum, item) => sum + item.same, 0)} place(s) unchanged, ${moved.reduce((sum, item) => sum + item.changed.length, 0)} changed`);
     for (const item of moved) console.log(`    ${item.role}: ${item.anchor} — ${item.changed.slice(0, 6).join(', ')}${item.changed.length > 6 ? ` (+${item.changed.length - 6})` : ''}`);
   }
-  console.log(`\n${missing.length === 0 ? 'every anchor is present' : `${missing.length} anchor(s) MISSING`}; the profile above is a candidate — it goes into the hub only after the send path of this build was read (§6.2).`);
+  const verdict =
+    noRole.length > 0 || sendPath.length > 0
+      ? 'the profile above is NOT a candidate: this adapter does not read the send path of this build (§6.2).'
+      : 'the profile above is a candidate — it goes into the hub only after the send path of this build was read (§6.2).';
+  console.log(`\n${missing.length === 0 ? 'every anchor is present' : `${missing.length} anchor(s) MISSING`}; ${verdict}`);
 }
-if (missing.length > 0 || noRole.length > 0) process.exit(1);
+if (missing.length > 0 || noRole.length > 0 || sendPath.length > 0) process.exit(1);

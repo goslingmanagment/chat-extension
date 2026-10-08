@@ -100,6 +100,45 @@ export const MODULE_PATTERN = /\/assets\/([\w.-]+?)-([\w-]{8})\.js$/;
  */
 export const RECEIPT_MODULE_ROLES: readonly string[] = ['notificationEntry', 'composables', 'onlyfans', 'accounts', 'inbox'];
 
+/** How a send-path anchor is written in a bundle: a whole identifier, a string literal in any quotes, or the text as is. */
+export interface SendPathAnchor {
+  /** The part of the send path it marks. */
+  readonly part: string;
+  readonly kind: 'member' | 'string' | 'text';
+  readonly value: string;
+}
+
+/**
+ * The regroup tripwire of `tools/host-contract-check` (§6.2 «Перегруппировка
+ * модулей»): strings that mark the send path. Every place a copy of ChatSpace
+ * has one of them must be a module of a role above; one found in any other
+ * file — the entry module `index-*` included (in 0.172.0 and 0.195.0 none of
+ * them is there) — means the bundler moved part of the send path out of the
+ * profile, and the build needs an adapter release. One found nowhere is a
+ * changed send path. The HTTP client's strings are Ky's own API (`fetch`
+ * captured when a request is made, the hooks that carry the token and the
+ * 401 handler). The queue's action is not listed: its name lives in the send
+ * port only (tools/gates), and its callers and an unrelated stream method of
+ * the same name may sit anywhere — the tool checks instead that it is in the
+ * module of the queue store.
+ */
+export const SEND_PATH_ANCHORS: readonly SendPathAnchor[] = [
+  { part: 'composer bridge', kind: 'member', value: '__omComposerBridge' },
+  { part: 'translator store', kind: 'string', value: STORE_TRANSLATOR },
+  { part: 'translator store', kind: 'member', value: 'getAccountSettings' },
+  { part: 'queue store', kind: 'string', value: STORE_QUEUE },
+  { part: 'queue store', kind: 'member', value: 'messagesByAccountId' },
+  { part: 'queue store', kind: 'member', value: 'processingByAccountId' },
+  { part: 'queue store', kind: 'string', value: GUARD_CODE },
+  { part: 'HTTP client', kind: 'text', value: 'globalThis.fetch.bind(globalThis)' },
+  { part: 'HTTP client', kind: 'member', value: 'prefixUrl' },
+  { part: 'HTTP client', kind: 'member', value: 'beforeRequest' },
+  { part: 'HTTP client', kind: 'member', value: 'afterResponse' },
+  { part: 'open-chat echo handler', kind: 'string', value: KEY_MESSAGES },
+  { part: 'open-chat echo handler', kind: 'member', value: 'confirmEchoedMessage' },
+  { part: 'socket bus', kind: 'text', value: WS_PATH },
+];
+
 /**
  * The adapter's own version, reported in the contract check; a receipt
  * profile names the version it was approved for (§6.2). It changes when the
