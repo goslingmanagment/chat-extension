@@ -54,7 +54,7 @@ import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, t
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
-import { panelGeometryOf } from './panel-geometry';
+import { panelGeometryOf, type DockBox } from './panel-geometry';
 import { followRecapTab } from './recap-tab';
 import { mountSurfaces, overlayRoot } from './surfaces';
 import { toastOfTab, type ToastFacts } from './toast-events';
@@ -233,15 +233,19 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     return { width: points.dock.width, feedHeight: null, viewportHeight: win.innerHeight, container: points.overlay.container };
   };
   const geometry = new Value<SurfaceGeometry>(geometryOf());
-  // The side panels end where our dock begins (tab/panel-geometry.ts): the composer and the strip stay free.
-  const dockTop = (): number | null => {
+  // A side panel that would lie over our dock ends where the dock begins (tab/panel-geometry.ts): the composer and
+  // the strip stay free. One beside the composer (ChatSpace 0.195's own panel of the fan is open) keeps its height.
+  const dockBox = (): DockBox | null => {
     const dockHost = mounts.dock.host;
-    return mounts.points().dock.kind === 'none' || !dockHost.isConnected ? null : dockHost.getBoundingClientRect().top;
+    if (mounts.points().dock.kind === 'none' || !dockHost.isConnected) return null;
+    const rect = dockHost.getBoundingClientRect();
+    return { top: rect.top, left: rect.left, right: rect.right };
   };
-  const panelGeometryNow = (): SurfaceGeometry => panelGeometryOf(geometryOf(), dockTop(), { width: doc.documentElement.clientWidth, height: win.innerHeight });
+  const panelGeometryNow = (): SurfaceGeometry => panelGeometryOf(geometryOf(), dockBox(), { width: doc.documentElement.clientWidth, height: win.innerHeight });
   const panelGeometry = new Value<SurfaceGeometry>(panelGeometryNow());
-  // The dock grows with its result and moves with the composer under it (a longer draft, another chat): both are
-  // a resize of the dock or of the frame it sits in. Nothing is polled.
+  // The dock grows with its result and moves with the composer under it (a longer draft, another chat), and it
+  // narrows when ChatSpace opens its own panel of the fan beside the chat: each is a resize of the dock or of the
+  // frame it sits in. Nothing is polled.
   const dockResize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => panelGeometry.set(panelGeometryNow())) : null;
   let dockObserved: Element | null = null;
   const observeDock = (): void => {

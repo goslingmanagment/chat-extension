@@ -362,7 +362,7 @@ ${overlayRootCss('coach', 'panel')}
 .cg-co__bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: 32px; padding: 3px 8px 3px 16px; border-top: 1px solid var(--cg-rule); border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-co__bar .is-lag { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-strong); font-weight: 500; }
 .cg-co__bar .cg-btn { margin-left: auto; }
-.cg-co__turns { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 6px 0 12px; }
+.cg-co__turns { flex: 1; min-height: 160px; overflow-y: auto; scrollbar-width: thin; padding: 6px 0 12px; }
 .cg-co__turn { padding: 10px 16px 4px; }
 .cg-co__who { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-bottom: 2px; }
 .cg-co__turn p, .cg-co__md { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }

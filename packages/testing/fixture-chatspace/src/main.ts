@@ -22,10 +22,12 @@ import { useAccountsStore, useChatTabEntries, useTabEntries } from './stores/acc
 import { useChatListStore, useChatsStore } from './stores/chats';
 import { MainLayout } from './ui/layout';
 import { installNavigation } from './ui/navigation';
+import { installSidePanel } from './ui/side-panel';
 import { installTheme } from './ui/theme';
 
 async function boot(): Promise<void> {
   installTheme();
+  installSidePanel();
   record('boot', { breaks: env.breaks });
   await getToken();
 

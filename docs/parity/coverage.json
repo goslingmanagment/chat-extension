@@ -2,7 +2,7 @@
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
     "unit": 216,
-    "e2e": 32
+    "e2e": 33
   },
   "totals": {
     "name": "всего",
@@ -317,8 +317,8 @@
       "planned": "unit",
       "rows": 426,
       "inUnit": 426,
-      "inE2e": 88,
-      "unitOnly": 338,
+      "inE2e": 89,
+      "unitOnly": 337,
       "uncovered": 0
     },
     {
@@ -393,7 +393,7 @@
     {"id":"AI-069","function":"Показ рекапа","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/recap-tab.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-output.test.ts","packages/hub/test/client-routes.test.ts","packages/testing/src/dock/analysis.test.tsx"],"e2e":[],"covered":true},
     {"id":"AI-070","function":"«Scan отстаёт от чата»","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-coach-recap.test.ts","packages/testing/src/dock/analysis.test.tsx"],"e2e":[],"covered":true},
     {"id":"AI-071","function":"Указатель на готовое досье","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/hub/test/client-routes.test.ts"],"e2e":[],"covered":true},
-    {"id":"AI-080","function":"Coach: открытие","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/testing/src/dock/strip.test.tsx","packages/testing/src/overlays/coach.test.tsx"],"e2e":["packages/testing/e2e/specs/tab-wiring.e2e.ts"],"covered":true},
+    {"id":"AI-080","function":"Coach: открытие","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/testing/src/dock/strip.test.tsx","packages/testing/src/overlays/coach.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-panels-0195.e2e.ts","packages/testing/e2e/specs/tab-wiring.e2e.ts"],"covered":true},
     {"id":"AI-081","function":"Пустое состояние Coach","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/contracts/test/coach.test.ts","packages/core/test/application-coach.test.ts","packages/testing/src/overlays/coach.test.tsx"],"e2e":["packages/testing/e2e/specs/tab-wiring.e2e.ts"],"covered":true},
     {"id":"AI-082","function":"Поле вопроса","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/testing/src/overlays/coach.test.tsx"],"e2e":[],"covered":true},
     {"id":"AI-083","function":"Пузырь ожидания с фазами","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/testing/src/overlays/coach.test.tsx"],"e2e":[],"covered":true},
@@ -1105,10 +1105,10 @@
     {"id":"CS-028","function":"Эмодзи, отложенная отправка, загрузка с диска","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"CS-029","function":"«Онлайн»","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"CS-030","function":"Превью и Ping из «Онлайн»","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/navigation/navigation.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-navigation.test.ts"],"e2e":[],"covered":true},
-    {"id":"CS-031","function":"Панель фана `]`","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/recap-tab.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":["packages/testing/e2e/specs/boards-gallery.e2e.ts","packages/testing/e2e/specs/suite-panels.e2e.ts"],"covered":true},
+    {"id":"CS-031","function":"Панель фана `]`","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/panel-geometry.test.ts","apps/extension/src/composition/tab/recap-tab.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":["packages/testing/e2e/specs/boards-gallery.e2e.ts","packages/testing/e2e/specs/suite-panels-0195.e2e.ts","packages/testing/e2e/specs/suite-panels.e2e.ts"],"covered":true},
     {"id":"CS-032","function":"Info: кто это, «РИСК ОТТОКА»","target":"пилот + ChatSpace","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/contracts/test/vm.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
     {"id":"CS-033","function":"Info: траты по видам","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
-    {"id":"CS-034","function":"Info: подписка подробно","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
+    {"id":"CS-034","function":"Info: подписка подробно","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-panels-0195.e2e.ts"],"covered":true},
     {"id":"CS-035","function":"Info: «О себе» (био)","target":"пилот + ChatSpace","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/contracts/test/vm.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
     {"id":"CS-036","function":"Возраст данных панели","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
     {"id":"CS-037","function":"Пустые состояния панели фана","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},

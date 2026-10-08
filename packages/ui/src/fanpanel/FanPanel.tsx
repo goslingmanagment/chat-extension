@@ -286,7 +286,7 @@ export const FAN_PANEL_CSS = `
 .cg-fp__name { font-size: var(--cg-text-xl); line-height: 20px; font-weight: 600; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-fp__sub { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-fp__tabs { flex: none; padding: 0 12px 8px; border-bottom: 1px solid var(--cg-rule); }
-.cg-fp__body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.cg-fp__body { flex: 1; min-height: 160px; overflow-y: auto; scrollbar-width: thin; }
 .cg-fp__body:focus-visible { outline-offset: -2px; }
 .cg-fp__sec { padding: 12px 16px; border-top: 1px solid var(--cg-rule); }
 .cg-fp__sec:first-child { border-top: 0; }
