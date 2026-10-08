@@ -247,7 +247,7 @@ describe('the Coach panel', () => {
 
   const asks = (part: ConfirmVM['part'], kind: ConfirmVM['kind'] = 'human-draft'): ConfirmVM => ({ confirmationId: uuid(501), kind, part, formatLoss: false });
 
-  it('[AI-086] a draft inserted into a composer that has the person\'s text asks first: the question opens in that part, with focus on «Добавить в конец»', async () => {
+  it('[AI-086] a draft inserted into a composer that has the person\'s text asks first: the question opens in that part, with focus on «Отмена» (X18)', async () => {
     const steps: ScenarioStep[] = [
       { label: 'asks', at: 10, views: [entry({ of: 'coach' }, coach(ctx, views.ready(), [coachTurn(ctx, 1, { confirm: asks({ index: 1 }) })]))] },
       { label: 'answered', at: 20, views: [entry({ of: 'coach' }, coach(ctx, views.ready(), [coachTurn(ctx, 1)]))] },
@@ -267,7 +267,7 @@ describe('the Coach panel', () => {
     expect(group.closest('.cg-part')?.getAttribute('data-cg-part')).toBe('1');
     expect(kit.$$('.cg-confirm')).toHaveLength(1);
     expect([...group.querySelectorAll('button')].map((element) => text(element.querySelector('.cg-btn__t')))).toEqual(['Заменить', 'Добавить в конец', 'Отмена']);
-    expect(kit.root.activeElement).toBe([...group.querySelectorAll('button')][1]);
+    expect(kit.root.activeElement).toBe([...group.querySelectorAll('button')][2]);
     await flush(() => ([...group.querySelectorAll('button')][0] as HTMLElement).click());
     expect(kit.client.dispatched).toEqual([
       { type: 'InsertPart', operationId: uuid(401), part: 1 },

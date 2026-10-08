@@ -316,7 +316,7 @@ describe('Б2: the composer already has the person\'s text', () => {
     expect(text(group.querySelector('.cg-confirm__q'))).toBe('Текст в поле изменился после генерации. Форматирование черновика пропадёт.');
   });
 
-  it('[UI-020] the person\'s own insert puts focus on «Добавить в конец»; Esc is «Отмена» and gives focus back to «Вставить» of that part', async () => {
+  it('[UI-020] the person\'s own insert puts focus on «Отмена» (X18); Esc is «Отмена» too and gives focus back to «Вставить» of that part', async () => {
     // The insert is answered with `needs-confirm` and the question arrives through the view; the answer takes it away again.
     kit = mountDock({
       ...withResult(reply()),
@@ -331,9 +331,9 @@ describe('Б2: the composer already has the person\'s text', () => {
     });
     await flush(() => byLabel('Вставить', partRows()[0]).click());
     await settle(2);
-    const append = byLabel('Добавить в конец');
-    expect(kit.root.activeElement).toBe(append);
-    await flush(() => append.dispatchEvent(keydown('Escape')));
+    const cancel = byLabel('Отмена');
+    expect(kit.root.activeElement).toBe(cancel);
+    await flush(() => cancel.dispatchEvent(keydown('Escape')));
     expect(kit.client.dispatched.map((action) => action.type)).toEqual(['InsertPart', 'AnswerConfirm']);
     expect(kit.client.dispatched[1]).toEqual({ type: 'AnswerConfirm', confirmationId: uuid(201), choice: 'cancel' });
     // The question is gone and «Вставить» is back on screen: focus is on it, not lost with the row.
@@ -341,6 +341,82 @@ describe('Б2: the composer already has the person\'s text', () => {
     expect(kit.root.activeElement).toBe(partRows()[0]?.querySelector('.cg-ins'));
     // Esc answered the question; it did not also hide the result.
     expect(kit.client.dispatched.some((action) => action.type === 'HideResult')).toBe(false);
+  });
+
+  /**
+   * What the browser does with a key on the focused <button> (happy-dom does none of it): Enter clicks it on
+   * keydown, Space on keyup — unless a handler of ours prevented the keydown (the repeat of a held Enter is).
+   */
+  const pressFocused = async (key: 'Enter' | ' ', init: KeyboardEventInit = {}): Promise<void> => {
+    const target = kit?.root.activeElement as HTMLElement;
+    const down = keydown(key, init);
+    await flush(() => target.dispatchEvent(down));
+    if (down.defaultPrevented) return;
+    if (key === ' ') await flush(() => target.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, cancelable: true, composed: true })));
+    await flush(() => target.click());
+  };
+
+  it('[UI-020] [NEW-05] a stray Enter or Space right after the question appears is «Отмена» (X18): nothing is written, the question closes, focus is back on «Вставить»; a held Enter answers nothing by its repeat', async () => {
+    // Each insert is asked anew (a new confirmation); the controller's views are stepped by hand after each action.
+    const again = reply({ confirm: { confirmationId: uuid(202), kind: 'human-draft', part: { index: 0 }, formatLoss: false } });
+    kit = mountDock({
+      ...withResult(reply()),
+      steps: [
+        { label: 'asks', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: asking('human-draft') }))] },
+        { label: 'answered', at: 20, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply() }))] },
+        { label: 'asks again', at: 30, views: [entry({ of: 'dock' }, dockVm('ready', { result: again }))] },
+        { label: 'answered again', at: 40, views: [entry({ of: 'dock' }, dockVm('ready', { result: reply() }))] },
+      ],
+      reactions: [
+        { on: 'InsertPart', receipt: { ok: true, type: 'InsertPart', outcome: 'needs-confirm' } },
+        { on: 'AnswerConfirm', receipt: { ok: true, type: 'AnswerConfirm', outcome: 'noop' } },
+      ],
+    });
+    const step = async (index: number): Promise<void> => {
+      await flush(() => kit?.client.goTo(index));
+      await settle(2);
+    };
+    const answers = (): string[] => (kit?.client.dispatched ?? []).map((action) => (action.type === 'AnswerConfirm' ? action.choice : action.type));
+    const insert = (): HTMLElement => partRows()[0]?.querySelector('.cg-ins') as HTMLElement;
+    // A click on «Вставить», then Enter typed by chance: the focused button is «Отмена».
+    await flush(() => byLabel('Вставить', partRows()[0]).click());
+    await step(0);
+    expect(kit.root.activeElement).toBe(byLabel('Отмена', kit.$('.cg-confirm') as HTMLElement));
+    await pressFocused('Enter');
+    expect(answers()).toEqual(['InsertPart', 'cancel']);
+    await step(1);
+    expect(kit.$('.cg-confirm')).toBeNull();
+    expect(kit.root.activeElement).toBe(insert());
+    // Enter on «Вставить» itself asks again; the repeat of that held Enter lands on «Отмена» and is swallowed.
+    await pressFocused('Enter');
+    await step(2);
+    expect(kit.$('.cg-confirm')).not.toBeNull();
+    expect(kit.root.activeElement).toBe(byLabel('Отмена'));
+    await pressFocused('Enter', { repeat: true });
+    await pressFocused('Enter', { repeat: true });
+    expect(answers()).toEqual(['InsertPart', 'cancel', 'InsertPart']);
+    // Space typed by chance is «Отмена» as well.
+    await pressFocused(' ');
+    expect(kit.client.dispatched.at(-1)).toEqual({ type: 'AnswerConfirm', confirmationId: uuid(202), choice: 'cancel' });
+    await step(3);
+    expect(kit.$('.cg-confirm')).toBeNull();
+    expect(kit.root.activeElement).toBe(insert());
+    // «Заменить» and «Добавить в конец» stay one Tab away, and only their own press writes.
+    expect(kit.client.dispatched.some((action) => action.type === 'AnswerConfirm' && action.choice !== 'cancel')).toBe(false);
+  });
+
+  it('[UI-020] Tab goes through the question in its order, «Заменить», «Добавить в конец», «Отмена»; the focus it takes stands on the last', async () => {
+    kit = mountDock({
+      ...withResult(reply()),
+      steps: [{ label: 'asks', at: 10, views: [entry({ of: 'dock' }, dockVm('ready', { result: asking('human-draft') }))] }],
+      reactions: [{ on: 'InsertPart', receipt: { ok: true, type: 'InsertPart', outcome: 'needs-confirm' }, thenStep: 0 }],
+    });
+    await flush(() => byLabel('Вставить', partRows()[0]).click());
+    await settle(2);
+    const group = kit.$('.cg-confirm') as HTMLElement;
+    const order = tabbables(group);
+    expect(order.map((element) => text(element.querySelector('.cg-btn__t')))).toEqual(['Заменить', 'Добавить в конец', 'Отмена']);
+    expect(kit.root.activeElement).toBe(order[2]);
   });
 
   it('[UI-020] «Заменить» and «Добавить в конец» move focus nowhere by themselves: the host puts it into the composer after the insert', async () => {
@@ -424,7 +500,7 @@ describe('Fix', () => {
 
   const changed = { confirmationId: uuid(203), kind: 'draft-changed', part: { index: 0 }, formatLoss: false } as const;
 
-  it('[AI-022] [NEW-05] the draft changed while Fix was made: the consent is void, and the question opens under «После Fix» with focus on «Добавить в конец»', async () => {
+  it('[AI-022] [NEW-05] the draft changed while Fix was made: the consent is void, and the question opens under «После Fix» with focus on «Отмена»', async () => {
     kit = mountDock({
       ...withResult(fix()),
       steps: [
@@ -446,14 +522,14 @@ describe('Fix', () => {
     // Under the text of «После Fix», on the sunk background of the block it is about.
     expect(text(group.parentElement?.querySelector('.cg-cap'))).toBe('После Fix');
     expect(kit.$('.cg-fixbox')?.classList.contains('is-confirm')).toBe(true);
-    expect(kit.root.activeElement).toBe(byLabel('Добавить в конец', group));
+    expect(kit.root.activeElement).toBe(byLabel('Отмена', group));
     // The button that asked gives its place to the question; «Копировать» stays.
     expect(kit.$('.cg-fix__go')).toBeNull();
     expect(kit.$('.cg-fix__acts .cg-copy-main')).not.toBeNull();
     // Enter on the block does not ask to replace again over an open question.
     await flush(() => kit?.$('.cg-fixbox')?.dispatchEvent(keydown('Enter')));
     expect(kit.client.dispatched).toHaveLength(1);
-    await flush(() => byLabel('Добавить в конец', group).dispatchEvent(keydown('Escape')));
+    await flush(() => byLabel('Отмена', group).dispatchEvent(keydown('Escape')));
     expect(kit.client.dispatched).toEqual([
       { type: 'ReplaceMyDraft', operationId: uuid(103), part: 0 },
       { type: 'AnswerConfirm', confirmationId: uuid(203), choice: 'cancel' },
@@ -500,7 +576,7 @@ describe('Fix', () => {
     await settle(2);
     const group = kit.$('.cg-confirm') as HTMLElement;
     expect(text(group.parentElement?.querySelector('.cg-cap'))).toBe('После Fix, уже в поле ввода');
-    expect(kit.root.activeElement).toBe(byLabel('Добавить в конец', group));
+    expect(kit.root.activeElement).toBe(byLabel('Отмена', group));
     // The offer still counts down; its button waits behind the question.
     expect(kit.$('.cg-fix__back')).toBeNull();
     expect(text(kit.$('.cg-fix__acts .cg-count'))).toBe('30 с');
