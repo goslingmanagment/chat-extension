@@ -1627,7 +1627,7 @@ export type ClientTokenProfile = keyof typeof CLIENT_TOKEN_PROFILES;
    - для H-0 — 403 на персоны и сырой шлюз, а владелец правит персону в кабинете.
 5. Флаги включает владелец в кабинете — каждое включение попадает в аудит. Для каждого флага — своё «да».
    - Сначала `chatExtensionEnabled` и `chatExtensionFeatures` только для `lora-of` и `lora-vip-of`.
-   - `aiLiveTextContextMode`: `shadow` → `serve` после сверки id на тестовом чате.
+   - `aiLiveTextContextMode`: `shadow` → `serve` после сверки id на тестовом чате. *(Сделано 2026-10-08: в `shadow` прислано 2, совпало 2, конфликтов 0; затем `serve` — решение X20.)*
    - `aiTranscriptDeepMaxRows` — после EXPLAIN.
    - Сбор приветственного шаблона — политикой сбора OFAPI.
    - `previewSend` — только после гейтов X8 и вашего решения по п. 7.
