@@ -19,13 +19,15 @@ pages) work together on the ChatSpace-like stand against the fake hub.
 Contracts are frozen at 1.6.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
 `docs/contracts-changelog.md`. The SDK is a development vendor from hub
-`1e5f6ed9` (2026-10-05): the head of the hub branch
-`client/synthetic-examples-in-comments` (hub PR #482, pending merge), which is
-hub `main` `4a470029` plus synthetic examples in two contract comments. A
-release is vendored only from a deployed hub commit. The prod hub may run an
-older contract — the hub layer announces
-only what the bootstrap declares. Still ahead: the hub PRs that are not merged
-yet (feed, Spenders stats, claim, «Новые») and the next re-vendor, the owner's
+`main` `c8514c5c` (2026-10-08, contract `38a87253…`): every hub route written
+for this client is in it, and every hub call goes one way, through the SDK
+(the temporary RouteTransport is gone). A release is vendored only from a
+deployed hub commit. The prod hub still runs the older contract `27ef8a3d…`
+until the owner deploys: the hub layer calls a route only when the bootstrap
+declares its capability, so on prod the feed, Spenders stats, «Новые» and the
+claim read `hub_not_ready` and the rest works as before (`docs/pilot-readiness.md`
+§3). Still ahead: the hub deploy (the owner's call) and the re-vendor from the
+deployed commit before a release, the owner's
 next live checks (X9), the first real CI run and the first release (the R19 tooling is
 built, nothing of it has run outward yet: `docs/release.md`), Fansly (R20). What works and what is left: `README.md` «Что уже работает»; decisions
 taken without the owner: `docs/decisions.md` X12; what is proven end to end on
