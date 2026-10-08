@@ -290,6 +290,40 @@ describe('[SP-007] [SP-008] [SP-011] shelves are the hub buckets', () => {
     expect(shelfTotals(outside.shelves.at(-1)!, outside)).toEqual({ fans: null, lifetime: null, period: 400 });
   });
 
+  it('[SP-011] a narrowed list — a filter, a search, the «ждут ответа» queue — counts the fans it shows on a shelf and sums over them (third live check: «$600+ 31» over five rows)', () => {
+    // A 30-day board, whole: the hub counts 31 fans on $600+ over the page; three paid in the period, two of them wait.
+    const board = smallBoard(
+      [
+        { id: '101', lifetime: usd(3208), period: usd(5), fanAt: at(-86_400 * 8), weAt: at(-86_400 * 8 + 60) },
+        { id: '102', lifetime: usd(2475), period: usd(1316), fanAt: at(-8 * 3600), weAt: at(-11 * 3600) },
+        { id: '103', lifetime: usd(1298), period: usd(55), fanAt: at(-2 * 86_400), weAt: at(-3 * 86_400) },
+        { id: '104', lifetime: usd(391), period: usd(10), fanAt: at(-86_400 * 11), weAt: at(-86_400 * 14) },
+      ],
+      {},
+      { '600-plus': 31, '350-600': 25 },
+    );
+    const index = indexBoard(board);
+    expect(index).toMatchObject({ period: '30d', wholeScope: true, basis: 'page' });
+    // The plain view keeps the shelf's own numbers: the bucket's count, the period sum of its payers.
+    expect(viewBoard(index, query()).shelves.map((shelf) => [shelf.id, shelf.totals])).toEqual([
+      ['shelf-600-plus', { fans: 31, lifetime: null, period: usd(1376) }],
+      ['shelf-350-600', { fans: 25, lifetime: null, period: usd(10) }],
+    ]);
+    // «Ждут ответа» (a filter of the loaded rows): two on $600+, one on $350–600 — and the sums are theirs.
+    const waiting = viewBoard(index, query({ filters: pressFilter(NO_FILTERS, 'waiting') }));
+    expect(waiting.shelves.map((shelf) => [shelf.id, shelf.rows.length, shelf.totals])).toEqual([
+      ['shelf-600-plus', 2, { fans: 2, lifetime: usd(2475 + 1298), period: usd(1316 + 55) }],
+      ['shelf-350-600', 1, { fans: 1, lifetime: usd(391), period: usd(10) }],
+    ]);
+    // A search narrows the same way.
+    expect(viewBoard(index, query({ query: '101' })).shelves.map((shelf) => shelf.totals)).toEqual([{ fans: 1, lifetime: usd(3208), period: usd(5) }]);
+    // The server's queue placed on the shelves: a fan the board does not hold has no period spend — the sum is unknown, not smaller.
+    const [queued] = board.items.slice(1, 2).map((entry) => spenderRows([entry], '30d')[0]!);
+    const late = { ...queued!, fanRef: '7777', name: 'late_fan', period: null };
+    const sourced = viewBoard(index, query({ filters: pressFilter(NO_FILTERS, 'waiting') }), [queued!, late]);
+    expect(sourced.shelves.map((shelf) => [shelf.id, shelf.totals])).toEqual([['shelf-600-plus', { fans: 2, lifetime: usd(2475 * 2), period: null }]]);
+  });
+
   it('[SP-011] the whole lifetime board is its own shelves: the count and the sums are of the very rows listed', () => {
     // The hub's bucket counts were read apart from the ranking and say 0 and 7: the header never pairs them with the rows' sums.
     const whole = indexBoard(smallBoard(specs, { period: 'lifetime' }, { '350-600': 7 }));

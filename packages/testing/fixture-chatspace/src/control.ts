@@ -19,6 +19,7 @@ import { draftKey } from './ui/bridge';
 import { remountComposers } from './ui/composer';
 import type { Navigation } from './ui/navigation';
 import { composerSnapshots, findComposer, messageListState } from './ui/registry';
+import { setSidePanel } from './ui/side-panel';
 import { setFixedWidth, setThemeMode } from './ui/theme';
 
 /** The page's own fetch as it was at boot: control calls must not pass through anything the extension installed. */
@@ -50,6 +51,7 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
     closeActiveChatTab: () => nav.closeActiveChatTab('control'),
     setTheme: (mode) => setThemeMode(mode),
     setFixedWidth: (on, align) => setFixedWidth(on, align),
+    setSidePanel: (state) => setSidePanel(state),
     composers: () => composerSnapshots(),
     composerState: (accountId, chatId) => {
       const editor = findComposer(accountId, chatId)?.editor.tiptap ?? null;

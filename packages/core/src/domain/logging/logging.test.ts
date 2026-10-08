@@ -670,10 +670,22 @@ describe('mandatory events', () => {
 
   it('[LG-016] the host contract record names the build and the missing anchors, with a code when broken', () => {
     const h = harness();
-    logHostContract(h.logger, { build: 'index-DEVowLko', adapterVersion: '1', ok: false, missing: ['fansMap'], degraded: ['freshText'] }, true);
+    logHostContract(h.logger, { build: 'index-DEVowLko', adapterVersion: '1', ok: false, missing: ['fansMap'], degraded: ['freshText'] }, 'changed');
     expect(h.sunk[0]).toMatchObject({ code: 'CG-HOST-CONTRACT', msg: 'host contract changed', fields: { build: 'index-DEVowLko', missing: ['fansMap'], degraded: ['freshText'] } });
     logHostContract(h.logger, { build: null, adapterVersion: '1', ok: true, missing: [], degraded: [] });
     expect(h.sunk[1]?.code).toBeUndefined();
+    logHostContract(h.logger, { build: 'index-DEVowLko', adapterVersion: '1', ok: false, missing: ['fansMap'], degraded: [] });
+    expect(h.sunk[2]).toMatchObject({ level: 'info', code: 'CG-HOST-CONTRACT', msg: 'host contract checked' });
+    expect(h.logger.counters.todayCounts(T0)).toEqual([{ code: 'CG-HOST-CONTRACT', count: 2 }]);
+  });
+
+  it('[LG-016] a broken contract while ChatSpace is still starting is an info record without the code: not an error of the day, no warning', () => {
+    const h = harness();
+    logHostContract(h.logger, { build: 'index-p8xPkCj8', adapterVersion: '1', ok: false, missing: ['accounts', 'mimic'], degraded: ['identity'] }, 'starting');
+    expect(h.sunk[0]).toMatchObject({ level: 'info', msg: 'host contract checked', fields: { ok: false, missing: ['accounts', 'mimic'], starting: true } });
+    expect(h.sunk[0]?.code).toBeUndefined();
+    expect(h.logger.counters.todayCounts(T0)).toEqual([]);
+    expect(h.lines.filter((line) => line.level === 'warn')).toEqual([]);
   });
 
   it('[LG-013] [LG-014] [LG-015] [LG-018] every mandatory event has a valid scope and a fixed message', () => {

@@ -32,6 +32,9 @@ export const CONTROL_REQUEST_HEADER = 'x-stand-control';
 /** Query flag that boots the page with ChatSpace anchors removed or renamed (a «new build»). */
 export const STAND_BREAK_PARAM = 'stand-break';
 
+/** Query flag that mounts the app this many ms before its app-wide data start to load (a ChatSpace whose stores fill late). */
+export const STAND_SLOW_START_PARAM = 'stand-slow-start';
+
 /**
  * Who made a call, as the stand server labels it:
  * - `native` — the page's own client (the role ChatSpace plays);
@@ -222,6 +225,11 @@ export interface StandControl {
   closeActiveChatTab(): Promise<void>;
   setTheme(mode: 'light' | 'dark'): void;
   setFixedWidth(on: boolean, align?: 'left' | 'center' | 'right'): void;
+  /**
+   * ChatSpace 0.195's right side of a chat (ui/side-panel.ts): `none` — the 0.172 layout, the composer reaches the
+   * window's edge; `closed` — the icon rail only; `open` — the fan's 320 px panel next to the conversation and the rail.
+   */
+  setSidePanel(state: 'none' | 'closed' | 'open'): void;
   composers(): readonly ComposerSnapshot[];
   composerState(accountId: string, chatId: string): { readonly text: string; readonly html: string; readonly marks: Readonly<Record<string, boolean>> } | null;
   draft(accountId: string, chatId: string): unknown;

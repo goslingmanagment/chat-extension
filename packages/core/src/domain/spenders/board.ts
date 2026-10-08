@@ -14,7 +14,7 @@ import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
 
 import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, type BoardFilters } from './filters';
 import { spenderRows, type SpenderRow } from './rows';
-import { UNBOUNDED, buildShelves, needsCents, shelfPreviewCount, shelfTotals, type BucketBasis, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
+import { UNBOUNDED, buildShelves, needsCents, shelfPreviewCount, shelfTotals, shownTotals, type BucketBasis, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
 
 export interface BoardIndex {
   readonly pageLabel: string;
@@ -119,7 +119,9 @@ export interface BoardView {
  * its first rows (SP-010) until revealed. A search or a filter shows every
  * match and drops shelves without one; an empty shelf is never drawn.
  * `source` — rows from another read placed on the board's shelves (the
- * server's «ждут ответа» queue): the shelf headers keep the board's numbers.
+ * server's «ждут ответа» queue). The plain view's shelf headers carry the
+ * board's numbers (`shelfTotals`); a narrowed list's count the fans it shows
+ * there, and sum over them (`shownTotals`).
  */
 export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonly SpenderRow[]): BoardView {
   const needle = searchNeedle(query.query);
@@ -147,7 +149,8 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
     shelves.push({
       id: shelf.id,
       range: shelf.range,
-      totals: shelfTotals(own.get(shelf.id) ?? shelf, index),
+      // A narrowed list's header counts what the list shows on the shelf; the plain view's is the shelf's own.
+      totals: narrowed ? shownTotals(matching) : shelfTotals(own.get(shelf.id) ?? shelf, index),
       rows,
       hidden: sorted.length - rows.length,
       cents: new Set(rows.filter((row) => needsCents(row.lifetime, lifetimeShelved ? shelf.range : UNBOUNDED)).map((row) => row.fanRef)),

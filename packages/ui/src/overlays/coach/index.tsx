@@ -214,10 +214,16 @@ export function CoachView(): JSX.Element {
   const list = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const last = vm.turns[vm.turns.length - 1];
-  // A new turn or its answer scrolls into view.
+  // A new turn or its answer scrolls into view. A finished answer taller than the list opens at its start — its
+  // first lines, not the ready questions under it: a short panel (above an open result in the dock) still shows
+  // the answer (third live check).
   useLayoutEffect(() => {
     const element = list.current;
-    if (element !== null) element.scrollTop = element.scrollHeight;
+    if (element === null) return;
+    const done = last === undefined || isRunning(last.state) ? null : [...element.querySelectorAll<HTMLElement>('[data-cg-answer]')].find((node) => node.dataset['cgAnswer'] === last.id);
+    if (done !== undefined && done !== null && done.offsetHeight > element.clientHeight) {
+      element.scrollTop += done.getBoundingClientRect().top - element.getBoundingClientRect().top;
+    } else element.scrollTop = element.scrollHeight;
   }, [vm.turns.length, last?.state]);
   // The panel is mounted when the person opens Coach: the question field takes focus (AI-080).
   // A switch of the chat under an open panel mounts nothing and moves no focus.

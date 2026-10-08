@@ -48,7 +48,7 @@ export async function layoutViewport(): Promise<Viewport> {
 /** Saves one screenshot per theme × viewport. Restores the theme and the viewport after. */
 export async function saveStandSnapshots(
   name: string,
-  options: { readonly themes?: readonly Theme[]; readonly viewports?: readonly Viewport[] } = {},
+  options: { readonly themes?: readonly Theme[]; readonly viewports?: readonly Viewport[]; readonly settleMs?: number } = {},
 ): Promise<Snapshot[]> {
   mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
   const original = await browser.execute(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
@@ -59,6 +59,8 @@ export async function saveStandSnapshots(
       for (const theme of options.themes ?? (['light', 'dark'] as const)) {
         await callStand('setTheme', theme);
         await nextFrames();
+        // Our controls ease their colours over 120 ms: a picture taken at once may catch them half way between themes.
+        if (options.settleMs !== undefined) await browser.pause(options.settleMs);
         const path = `${E2E_EVIDENCE_DIR}${name}-${theme}-${viewport.width}x${viewport.height}.png`;
         await browser.saveScreenshot(path);
         snapshots.push({ path, theme, viewport, measured: await layoutViewport() });

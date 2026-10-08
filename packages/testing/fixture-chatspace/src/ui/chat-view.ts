@@ -43,6 +43,7 @@ import { usePendingMessages, type PendingEntry } from '../stores/pending-message
 import { ConversationComposers, type ComposerSlot } from './composer';
 import { useNavigation } from './navigation';
 import { registerMessageList } from './registry';
+import { ChatDetailsPanel, SidePanelRail, sidePanel } from './side-panel';
 
 const BOTTOM_SLACK_PX = 2;
 const LOAD_OLDER_AT_PX = 40;
@@ -432,6 +433,9 @@ export const ChatView = defineComponent({
           conversation(),
           h(ConversationComposers, { slots: slots.value, activeTabId: activeTabId.value, hideActive: notFound.value || fan.value?.isBlocked === true }),
         ]),
+        // ChatSpace 0.195: the fan's own panel next to an open chat, and the icon rail at the far right (side-panel.ts).
+        sidePanel.state === 'open' && chatId.value !== null ? h(ChatDetailsPanel) : null,
+        sidePanel.state === 'none' ? null : h(SidePanelRail),
       ]);
   },
 });

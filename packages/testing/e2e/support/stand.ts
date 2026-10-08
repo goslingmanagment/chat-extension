@@ -53,10 +53,12 @@ export async function waitForStandReady(timeout = 15_000): Promise<void> {
   if (state === 'failed') throw new Error('stand page failed to boot (see window.__stand journal / boot-failed)');
 }
 
-/** Opens a stand path (optionally as a «new build» without some anchors) and waits for the app — and for the open chat, if any. */
-export async function openStand(path: string, options: { readonly breaks?: readonly StandBreak[]; readonly waitForChat?: boolean; readonly csp?: 'strict' } = {}): Promise<void> {
+/** Opens a stand path (optionally as a «new build» without some anchors, or with a slow start) and waits for the app — and for the open chat, if any. */
+export async function openStand(path: string, options: { readonly breaks?: readonly StandBreak[]; readonly waitForChat?: boolean; readonly csp?: 'strict'; readonly slowStartMs?: number } = {}): Promise<void> {
   const url = new URL(path, standOrigin());
   if (options.breaks !== undefined && options.breaks.length > 0) url.searchParams.set('stand-break', options.breaks.join(','));
+  // A slow start: the app is on the page this long before its app-wide data start to load.
+  if (options.slowStartMs !== undefined) url.searchParams.set('stand-slow-start', String(options.slowStartMs));
   // The fixture's document comes with a strict CSP (src/stand-server.ts `strictFixtureCsp`).
   if (options.csp !== undefined) url.searchParams.set('csp', options.csp);
   await browser.url(url.toString());

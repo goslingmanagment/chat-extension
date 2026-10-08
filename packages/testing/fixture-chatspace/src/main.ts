@@ -1,7 +1,9 @@
 // Boot of the ChatSpace-like stand page: session token → Vue app with Pinia
 // and the router on #app (so `#app.__vue_app__.config.globalProperties` has
 // `$pinia` and `$router`) → app-wide queries (accounts and permissions
-// awaited, Mimic data not) → socket → test-control API.
+// awaited, Mimic data not) → socket → test-control API. A slow start
+// (?stand-slow-start=<ms>) mounts the app first and loads that data later, as
+// ChatSpace 0.195 does.
 // Everything this page shows is synthetic (packages/testing/src/stand/dataset.ts).
 
 import './styles.css';
@@ -22,10 +24,12 @@ import { useAccountsStore, useChatTabEntries, useTabEntries } from './stores/acc
 import { useChatListStore, useChatsStore } from './stores/chats';
 import { MainLayout } from './ui/layout';
 import { installNavigation } from './ui/navigation';
+import { installSidePanel } from './ui/side-panel';
 import { installTheme } from './ui/theme';
 
 async function boot(): Promise<void> {
   installTheme();
+  installSidePanel();
   record('boot', { breaks: env.breaks });
   await getToken();
 
@@ -40,14 +44,41 @@ async function boot(): Promise<void> {
   // until it does, composers stay unrendered (ui/composer.ts).
   const cache = useQueryCache();
   const appObserver = {};
-  const appQueryOptions: QueryOptions<unknown>[] = [accountsQuery(), permissionsQuery(), mimicSettingsQuery(), mimicChatsQuery()];
-  const appQueries = appQueryOptions.map((options) => {
+  const load = (options: QueryOptions<unknown>): Promise<unknown> => {
     const entry = cache.ensure(options);
     cache.track(entry, appObserver);
     return cache.refresh(entry);
-  });
-  await Promise.all(appQueries.slice(0, 2));
-  useTabEntries().seed((cache.getQueryData<Account[]>(accountsQuery().key) ?? []).map((account) => String(account.id)));
+  };
+  const loadAccounts = async (): Promise<void> => {
+    await Promise.all([load(accountsQuery()), load(permissionsQuery())]);
+    useTabEntries().seed((cache.getQueryData<Account[]>(accountsQuery().key) ?? []).map((account) => String(account.id)));
+  };
+
+  if (env.slowStartMs > 0) {
+    // A slow start (?stand-slow-start): as ChatSpace 0.195, the app and the open chat's composer are on the page
+    // first and the accounts and permissions come later — an extension that starts with the composer reads empty
+    // stores for a moment.
+    void load(mimicSettingsQuery());
+    void load(mimicChatsQuery());
+    useAccountsStore();
+    useChatTabEntries();
+    useChatsStore();
+    useChatListStore();
+    const navigation = installNavigation(router);
+    const control = installControl(navigation);
+    socket.connect();
+    app.mount('#app');
+    await router.isReady();
+    await new Promise((resolve) => setTimeout(resolve, env.slowStartMs));
+    await loadAccounts();
+    finish(control);
+    return;
+  }
+
+  const accounts = loadAccounts();
+  void load(mimicSettingsQuery());
+  void load(mimicChatsQuery());
+  await accounts;
   useAccountsStore();
   useChatTabEntries();
   useChatsStore();
@@ -58,6 +89,10 @@ async function boot(): Promise<void> {
   socket.connect();
   app.mount('#app');
   await router.isReady();
+  finish(control);
+}
+
+function finish(control: { readonly markReady: () => void }): void {
   if (isBroken('vue-app')) Reflect.deleteProperty(document.querySelector('#app') ?? {}, '__vue_app__');
   control.markReady();
   document.documentElement.dataset['standReady'] = '1';

@@ -49,6 +49,7 @@ export {
   logStart,
   logUsage,
   type HostContractFacts,
+  type HostContractLogKind,
   type LogEventId,
   type LogEventSpec,
   type StartFacts,

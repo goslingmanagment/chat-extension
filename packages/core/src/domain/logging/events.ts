@@ -101,10 +101,22 @@ export interface HostContractFacts {
   readonly degraded: readonly string[];
 }
 
-export function logHostContract(logger: Logger, facts: HostContractFacts, changed = false): LogRecord | null {
-  return logEvent(logger, changed ? 'hostContractChanged' : 'hostContract', {
-    ...(facts.ok ? {} : { code: 'CG-HOST-CONTRACT' as CgCode }),
-    fields: { ...facts, missing: [...facts.missing], degraded: [...facts.degraded] },
+/**
+ * How a contract result is written: `checked` — the first result that counts (the start-up settled), `changed` — a
+ * later change, `starting` — a result while ChatSpace is still starting (its stores fill one by one).
+ */
+export type HostContractLogKind = 'checked' | 'changed' | 'starting';
+
+/**
+ * A broken contract carries CG-HOST-CONTRACT (an error of the day) once it counts. While ChatSpace is still starting it
+ * is not a fault yet: an info record without the code, marked `starting` (third live check: a reload logged the code
+ * four times in its first second, and the contract was whole a second later).
+ */
+export function logHostContract(logger: Logger, facts: HostContractFacts, kind: HostContractLogKind = 'checked'): LogRecord | null {
+  const starting = kind === 'starting';
+  return logEvent(logger, kind === 'changed' ? 'hostContractChanged' : 'hostContract', {
+    ...(facts.ok || starting ? {} : { code: 'CG-HOST-CONTRACT' as CgCode }),
+    fields: { ...facts, missing: [...facts.missing], degraded: [...facts.degraded], ...(starting ? { starting: true } : {}) },
   });
 }
 
