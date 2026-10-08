@@ -17,6 +17,11 @@ const state = (fan: string, over: Partial<ComposerState> = {}): ComposerState =>
 const tick = async (): Promise<void> => {
   for (let i = 0; i < 3; i += 1) await Promise.resolve();
 };
+/** A DOM change reached the mount manager: its observers delivered, its placement ran. */
+const settle = async (): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await tick();
+};
 
 let manager: MountManager | null = null;
 let page: FakePage;
@@ -109,6 +114,86 @@ describe('[UI-001] the dock docks in flow above the active composer (§6.3)', ()
     await new Promise((resolve) => setTimeout(resolve, 0));
     await tick();
     expect(fresh.firstChild).toBe(mounts.dock.host);
+  });
+
+  it('[RB-008] comes back when ChatSpace renders the composer again after a pause — the same chat, new nodes, nothing new from MAIN', async () => {
+    const mounts = setup();
+    const a = page.addComposer(ACC, '2002');
+    mounts.update(state('2002'));
+    await tick();
+    expect(a.root.firstChild).toBe(mounts.dock.host);
+    // ChatSpace takes the composer area down (a re-mount with a pause: a leave transition, a layout swap, an async part) …
+    a.tab.remove();
+    await settle();
+    expect(mounts.points().dock.kind).toBe('none');
+    expect(diagnostics).toContainEqual({ event: 'composer-not-found' });
+    // … and renders it again a moment later. MAIN reads the composer on store events, not on DOM ones: it says nothing new.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const b = page.addComposer(ACC, '2002');
+    await settle();
+    expect(b.root.firstChild).toBe(mounts.dock.host);
+    expect(mounts.points().dock).toMatchObject({ kind: 'in-flow', composerInstanceId: 'c-2002' });
+  });
+
+  it('[RB-008] comes back after a re-mount whose new composer came in before the old one left (two visible for a moment: none)', async () => {
+    const mounts = setup();
+    const a = page.addComposer(ACC, '2002');
+    mounts.update(state('2002'));
+    await tick();
+    const b = page.addComposer(ACC, '2002');
+    await settle();
+    expect(mounts.points().dock.kind).toBe('none');
+    expect(diagnostics).toContainEqual({ event: 'composer-ambiguous', count: 2 });
+    a.tab.remove();
+    await settle();
+    expect(b.root.firstChild).toBe(mounts.dock.host);
+    expect(mounts.points().dock.kind).toBe('in-flow');
+  });
+
+  it('[RB-008] a composer MAIN reports before the page shows it, the dock having stood nowhere yet: it waits on the composers container', async () => {
+    const mounts = setup();
+    page.addComposer(ACC, '2003', { shown: false });
+    // The first search (firstSearchMs: 50) is over.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    mounts.update(state('2002'));
+    await tick();
+    expect(mounts.points().dock.kind).toBe('none');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const a = page.addComposer(ACC, '2002');
+    await settle();
+    expect(a.root.firstChild).toBe(mounts.dock.host);
+  });
+
+  it('while it waits for its composer the dock watches child lists only (no subtree, no timer); with no composer at all it watches nothing', async () => {
+    const mounts = setup();
+    const hidden = page.addComposer(ACC, '2003', { shown: false });
+    const a = page.addComposer(ACC, '2002');
+    mounts.update(state('2002'));
+    await tick();
+    a.root.remove();
+    await settle();
+    expect(mounts.points().dock.kind).toBe('none');
+    let searches = 0;
+    const original = document.querySelectorAll.bind(document);
+    Object.defineProperty(document, 'querySelectorAll', { configurable: true, value: (selector: string) => ((searches += selector === COMPOSER_SLOT_SELECTOR ? 1 : 0), original(selector)) });
+    try {
+      // Changes deeper down (a field of a hidden tab, the strip of a composer) are not ours to look at.
+      hidden.prose.append(document.createTextNode('typing'));
+      hidden.frame.append(document.createElement('span'));
+      await settle();
+      expect(searches).toBe(0);
+      // The dock left with the chat (no composer): ChatSpace's renders cost no search at all.
+      mounts.update(null);
+      await tick();
+      searches = 0;
+      a.tab.append(document.createElement('div'));
+      page.composers.append(document.createElement('div'));
+      await settle();
+      expect(searches).toBe(0);
+      expect(mounts.points().dock.kind).toBe('none');
+    } finally {
+      Reflect.deleteProperty(document, 'querySelectorAll');
+    }
   });
 
   it('no composer (another route) — the dock leaves; two visible composers — none, and the ambiguity is logged', async () => {

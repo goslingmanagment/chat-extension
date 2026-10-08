@@ -533,6 +533,30 @@ describe('the ChatSpace-like stand on its own', () => {
     }
   });
 
+  it('remountComposers: the composers are rendered again after a pause — new nodes, the same chats and tabs; no route, no fetch', async () => {
+    await callStand('openChat', accountA, a1);
+    await waitForChatReady(accountA, a1);
+    const route = await callStand('route');
+    const before = (await callStand('composers')).map(({ key, shown }) => ({ key, shown }));
+    expect(before.length).toBeGreaterThan(0);
+    await browser.execute(() => document.querySelectorAll('[data-stand-composer]').forEach((root) => root.setAttribute('data-e2e-before', '')));
+    const page = await pageMark();
+    await callStand('remountComposers', 300);
+    expect((await callStand('composers')).map(({ key, shown }) => ({ key, shown }))).toEqual(before);
+    expect(await browser.execute(() => ({ old: document.querySelectorAll('[data-e2e-before]').length, now: document.querySelectorAll('[data-stand-composer]').length }))).toEqual({ old: 0, now: before.length });
+    await waitForChatReady(accountA, a1);
+    const journal = await pageJournal(page);
+    const keys = before.map((composer) => composer.key).sort();
+    const unmounted = journal.filter((entry) => entry.type === 'composer-unmounted');
+    const mounted = journal.filter((entry) => entry.type === 'composer-mounted');
+    expect(unmounted.map((entry) => String(entry['key'])).sort()).toEqual(keys);
+    expect(mounted.map((entry) => String(entry['key'])).sort()).toEqual(keys);
+    // The pause is real: every composer was gone for it before any came back.
+    expect(Math.min(...mounted.map((entry) => entry.at)) - Math.max(...unmounted.map((entry) => entry.at))).toBeGreaterThanOrEqual(250);
+    expect(journal.filter((entry) => entry.type === 'route' || entry.type === 'query-fetch')).toEqual([]);
+    expect(await callStand('route')).toEqual(route);
+  });
+
   it('chat-list scopes, anchored history and pinned messages use the host keys', async () => {
     const listKey = (...rest: string[]): string[] => ['chatList', accountA, ...rest];
     const active = async (key: string[]): Promise<boolean> => (await callStand('queryState', key)).active;

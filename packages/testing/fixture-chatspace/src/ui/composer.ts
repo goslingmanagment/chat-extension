@@ -1,7 +1,8 @@
 // Composers (metadata.ts «composer-dom»): one per visited chat tab of the
 // route's account, all rendered, only the active one shown (v-show), keyed
 // `${tabId}:${accountId}:${chatId}`; the active one is hidden while the route
-// chat is not found or its fan is blocked.
+// chat is not found or its fan is blocked. The stand's `remountComposers`
+// renders them all again (a round number in the Vue key), with a pause.
 //
 // Inside each, the OnlyFans composer exists only when ChatSpace would let the
 // human compose (canComposeMessages): the role may send (no
@@ -29,7 +30,7 @@
 // `data-dismissible-open` while open.
 
 import type { JSONContent } from '@tiptap/core';
-import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref, vShow, watch, withDirectives, type PropType, type VNode } from 'vue';
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, vShow, watch, withDirectives, type PropType, type VNode } from 'vue';
 
 import { env, isBroken } from '../env';
 import { record } from '../journal';
@@ -317,6 +318,23 @@ export interface ComposerSlot {
   readonly chatId: string;
 }
 
+/** `remountComposers`: the block's composers are down, and the round of re-renders (part of their Vue keys). */
+const remount = ref({ down: false, round: 0 });
+
+/**
+ * The stand's control `remountComposers`: ChatSpace renders its composers again without a store change — every
+ * composer of the block is taken down and, `gapMs` later, rendered anew: new nodes, the same chats and tabs. Nothing
+ * of Pinia or the query cache moves, so MAIN, which reads the composer on store events, hears nothing of it.
+ */
+export async function remountComposers(gapMs: number): Promise<void> {
+  record('stand-composers-remount', { gapMs });
+  remount.value = { down: true, round: remount.value.round };
+  await nextTick();
+  await delay(gapMs);
+  remount.value = { down: false, round: remount.value.round + 1 };
+  await nextTick();
+}
+
 /** The block of composers under the message list. */
 export const ConversationComposers = defineComponent({
   name: 'ConversationComposers',
@@ -331,10 +349,13 @@ export const ConversationComposers = defineComponent({
       h(
         'div',
         { class: 'shrink-0 composers', 'data-stand-composers': '' },
-        props.slots.map((slot) => {
-          const shown = slot.tabId === props.activeTabId && !props.hideActive;
-          return withDirectives(h(ConversationComposer, { key: slot.key, composerKey: slot.key, tabId: slot.tabId, accountId: slot.accountId, chatId: slot.chatId, shown }), [[vShow, shown]]);
-        }),
+        remount.value.down
+          ? []
+          : props.slots.map((slot) => {
+              const shown = slot.tabId === props.activeTabId && !props.hideActive;
+              const key = `${slot.key}#${remount.value.round}`;
+              return withDirectives(h(ConversationComposer, { key, composerKey: slot.key, tabId: slot.tabId, accountId: slot.accountId, chatId: slot.chatId, shown }), [[vShow, shown]]);
+            }),
       );
   },
 });
