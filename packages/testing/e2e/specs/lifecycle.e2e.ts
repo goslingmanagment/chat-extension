@@ -144,7 +144,7 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     // (read again only past a minute, §8.3) finds it fresh.
     expect(await pageRpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
     const mark = await hub().mark();
-    await suspendBackground();
+    expect(await suspendBackground()).toBe('stopped');
     await toStand();
     const report = await waitForReport((r) => (rpcOf(r)?.registrations ?? 0) > registrations && rpcOf(r)?.state === 'ready', 'the tab registered again with the new instance');
     expect(rpcOf(report)?.registered).toBe(true);
@@ -220,7 +220,7 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
     await toStand();
     const registrations = rpcOf(await readReport())?.registrations ?? 0;
     await toPages();
-    await suspendBackground();
+    expect(await suspendBackground()).toBe('stopped');
     await toStand();
     await waitForReport((r) => (rpcOf(r)?.registrations ?? 0) > registrations && rpcOf(r)?.state === 'ready', 'the tab registered with the instance that counts the short timeout');
     await toPages();
@@ -367,7 +367,7 @@ describe('lifecycle — the event page under an open ChatSpace tab', () => {
       const api = (globalThis as unknown as { browser: { storage: { local: { remove(key: string): Promise<void> } } } }).browser;
       await api.storage.local.remove(key);
     }, STORAGE_KEYS.authToken);
-    await suspendBackground();
+    expect(await suspendBackground()).toBe('stopped');
     await toStand();
     await waitForReport((r) => (rpcOf(r)?.registrations ?? 0) > registrations && rpcOf(r)?.state === 'ready', 'the tab registered again');
     const report = await dockIs((dock) => dock.status === 'not-signed-in', 'the dock learned that nobody is signed in');

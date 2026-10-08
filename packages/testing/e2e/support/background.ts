@@ -38,22 +38,54 @@ export async function backgroundState(id: string = TEST_GECKO_ID): Promise<Backg
   return state as BackgroundState;
 }
 
+/** How many times a suspension that an event canceled is tried again, and the pause before each try. */
+const SUSPEND_TRIES = 5;
+const SUSPEND_RETRY_MS = 300;
+
 /**
  * Suspends the event page as an expired idle timer does — `runtime.onSuspend`, then the unload — without
- * waiting for the timer. Whatever would reset the timer is ignored. Resolves with the state right after.
+ * waiting for the timer; whatever would reset the timer is ignored. Resolves with the state right after.
+ *
+ * An event that reaches the page while it is suspending cancels the suspension (Firefox: an idle reset in the
+ * state `suspending` puts the page back to `running` and fires `runtime.onSuspendCanceled`) — what Firefox's own
+ * idle timer meets too, and then it tries again later. The page's own work of a moment ago is such an event: a
+ * request answered just now may still be writing, and the `storage.onChanged` of that write reaches the page's
+ * own listeners a moment after the answer. So a canceled suspension is tried again, a few times; if every try is
+ * canceled, the events that canceled them are named.
  */
 export async function suspendBackground(id: string = TEST_GECKO_ID): Promise<BackgroundState> {
-  const answer = await inChrome((driver) =>
-    driver.executeAsyncScript(
-      `const [id, done] = arguments;
-       const extension = WebExtensionPolicy.getByID(id).extension;
-       extension.terminateBackground({ disableResetIdleForTest: true }).then(() => done({ state: extension.backgroundState }), (error) => done({ error: String(error) }));`,
-      [id],
-    ),
-  );
-  const result = answer as { state?: BackgroundState; error?: string };
-  if (result.state === undefined) throw new Error(`the background was not suspended: ${result.error ?? 'no answer'}`);
-  return result.state;
+  const canceled: string[] = [];
+  for (let attempt = 1; ; attempt += 1) {
+    const answer = await inChrome((driver) =>
+      driver.executeAsyncScript(
+        `const [id, done] = arguments;
+         const extension = WebExtensionPolicy.getByID(id).extension;
+         const resets = [];
+         let canceledBy = null;
+         const onReset = (_, data) => resets.push(data?.eventName ?? data?.reason ?? '?');
+         const onCanceled = () => { canceledBy = resets; };
+         extension.on('background-script-reset-idle', onReset);
+         extension.on('background-script-suspend-canceled', onCanceled);
+         const end = (result) => {
+           extension.off('background-script-reset-idle', onReset);
+           extension.off('background-script-suspend-canceled', onCanceled);
+           done(result);
+         };
+         extension.terminateBackground({ disableResetIdleForTest: true }).then(
+           () => end({ state: extension.backgroundState, canceledBy }),
+           (error) => end({ error: String(error) }),
+         );`,
+        [id],
+      ),
+    );
+    const result = answer as { state?: BackgroundState; canceledBy?: string[] | null; error?: string };
+    if (result.state === undefined) throw new Error(`the background was not suspended: ${result.error ?? 'no answer'}`);
+    if (result.canceledBy === null || result.canceledBy === undefined) return result.state;
+    // The idle reset that canceled it runs before the listener above: the names are of the events that came then.
+    canceled.push(`try ${attempt}: ${[...new Set(result.canceledBy)].join(', ') || 'an event'}`);
+    if (attempt >= SUSPEND_TRIES) throw new Error(`the background was not suspended: every try was canceled by an event reaching it (${canceled.join('; ')})`);
+    await browser.pause(SUSPEND_RETRY_MS);
+  }
 }
 
 /**
