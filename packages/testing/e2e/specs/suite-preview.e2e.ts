@@ -96,7 +96,7 @@ describe('§12 п. 4 on the wired extension — a preview on the Spenders board 
     expect(preview).toContain('черновик · не отправлено');
     // The preview send is off for this page (the pilot's default): the row says why, and «Открыть и вставить» is the way.
     expect(preview).toContain('CG-SEND-OFF');
-    expect(await oursByText('modal', '.cg-pv button', /^Открыть и вставить/)).not.toBeNull();
+    await waitOursByText('modal', '.cg-pv button', /^Открыть и вставить/, 'the preview offers «Открыть и вставить»');
     // What was read is the hub's: the archive feed and one generation for exactly this fan.
     const calls = (await hub().journal(hubMark)).entries;
     expect(callsTo(calls, 'clientConversationFeed').map((call) => (call.request as { fanRef?: string }).fanRef)).toContain(a4);
@@ -133,7 +133,7 @@ describe('§12 п. 4 on the wired extension — a preview on the Spenders board 
     expect(shown).toContain(reply(a4)[0]);
     expect(shown).toContain(reply(a4)[1]);
     expect(shown).toContain('вставлено');
-    expect(await oursByText('dock', '[data-cg-part="1"] button', /^Вставить/)).not.toBeNull();
+    await waitOursByText('dock', '[data-cg-part="1"] button', /^Вставить/, 'part 2 has «Вставить» in the dock');
     // A new answer for this chat is the strip's buttons: the board's result has no «Ещё раз» here.
     expect(await oursByText('dock', '.cg-sheet .cg-head button', /^Ещё раз/)).toBeNull();
     // Taking the result over wrote nothing more.
@@ -171,7 +171,7 @@ describe('§12 п. 4 on the wired extension — a preview on the Spenders board 
     // The dock of the chat knows the part is delivered: «Отправлено», and part 2 is the next one to insert.
     await waitOursText('dock', /Отправлено/, 'the dock shows part 1 as sent', { selector: '[data-cg-part="0"]' });
     expect(await oursByText('dock', '[data-cg-part="0"] button', /^Вставить/)).toBeNull();
-    expect(await oursByText('dock', '[data-cg-part="1"] button', /^Вставить/)).not.toBeNull();
+    await waitOursByText('dock', '[data-cg-part="1"] button', /^Вставить/, 'part 2 has «Вставить» in the dock');
     // The preview that made the result says the same: part 1 «Отправлено», and part 2 no longer waits «после части 1» with
     // only «Копировать» — it is offered for «Открыть и вставить». Its own «Отправить» is as off as it was.
     await openPreview('Fan Dune', 'read-after-send');
@@ -179,7 +179,7 @@ describe('§12 п. 4 on the wired extension — a preview on the Spenders board 
     expect(preview).toContain('CG-SEND-OFF');
     expect(preview).not.toContain('Отправка после части');
     expect(preview.match(/Отправлено \d/g) ?? []).toHaveLength(1);
-    expect(await oursByText('modal', '[data-cg-part="1"] button', /^Открыть и вставить/)).not.toBeNull();
+    await waitOursByText('modal', '[data-cg-part="1"] button', /^Открыть и вставить/, 'part 2 offers «Открыть и вставить»');
     expect(await oursByText('modal', '[data-cg-part="0"] button', /^Открыть и вставить/)).toBeNull();
     expect(await oursExists('modal', '.cg-pv .cg-btn--primary:not([aria-disabled="true"])')).toBe(false);
     await browser.keys('Escape');
@@ -253,7 +253,8 @@ describe('§12 п. 4 on the wired extension — a preview on the Spenders board 
     // §6.5 п. 4: the question is asked where the person now is — in the dock of the opened chat, about the chosen part.
     const asked = await waitOursText('dock', HUMAN_DRAFT, 'the question about the person’s own text, in the dock of the opened chat', { selector: '[data-cg-part="0"]' });
     expect(asked).toContain(reply(a6)[0]);
-    for (const answer of ['Заменить', 'Добавить в конец', 'Отмена']) expect(await oursByText('dock', '[data-cg-part="0"] button', new RegExp(`^${answer}`))).not.toBeNull();
+    // Looked for as the person sees them: the sheet fades in, and a button that is drawn yet has no text to read.
+    for (const answer of ['Заменить', 'Добавить в конец', 'Отмена']) await waitOursByText('dock', '[data-cg-part="0"] button', new RegExp(`^${answer}`), `the answer «${answer}» of the question`);
     // Said once, in the dock: no toast repeats it.
     expect(await oursText('toast')).not.toContain('CG-DRAFT-CHANGED');
     // Longer than the insert takes when the field is empty (the test above): nothing came, and nothing will without an answer.
