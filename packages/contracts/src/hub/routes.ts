@@ -53,13 +53,13 @@ export const HUB_ROUTES = {
     capabilities: ['recap-profile-v1'],
     narrowToken: true,
   },
-  clientConversationFeed: { method: 'GET', routeClass: 'page', since: 'H-9c', flag: 'preview', capabilities: ['archive-feed-v1'], narrowToken: true },
-  clientSpenderStats: { method: 'GET', routeClass: 'page', since: 'H-8b', flag: 'stats', capabilities: ['spenders-stats-v1'], narrowToken: true },
-  clientSpenderAwaitingReply: { method: 'GET', routeClass: 'page', since: 'H-8c', flag: 'stats', capabilities: ['awaiting-reply-v1'], narrowToken: true },
+  clientConversationFeed: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'preview', capabilities: ['archive-feed-v1'], narrowToken: true },
+  clientSpenderStats: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'stats', capabilities: ['spenders-stats-v1'], narrowToken: true },
+  clientSpenderAwaitingReply: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'stats', capabilities: ['awaiting-reply-v1'], narrowToken: true },
   /** Flag by action: `newcomers` for claim/renew/dispatch(greeting), `previewSend` for any dispatch; status and registerNativeSend need none. */
-  clientFanClaim: { method: 'POST', routeClass: 'claim', since: 'H-7b', flag: null, capabilities: ['preview-send-custody-v1'], narrowToken: true },
-  clientFanClaimStatus: { method: 'GET', routeClass: 'claim', since: 'H-7b', flag: null, capabilities: ['preview-send-custody-v1'], narrowToken: true },
-  clientAudienceNew: { method: 'GET', routeClass: 'page', since: 'H-7c', flag: 'newcomers', capabilities: ['audience-new-v1'], narrowToken: true },
+  clientFanClaim: { method: 'POST', routeClass: 'claim', since: 'sdk', flag: null, capabilities: ['preview-send-custody-v1'], narrowToken: true },
+  clientFanClaimStatus: { method: 'GET', routeClass: 'claim', since: 'sdk', flag: null, capabilities: ['preview-send-custody-v1'], narrowToken: true },
+  clientAudienceNew: { method: 'GET', routeClass: 'page', since: 'sdk', flag: 'newcomers', capabilities: ['audience-new-v1'], narrowToken: true },
   clientAiUsageDaily: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['ai-usage-v1'], narrowToken: true },
 } as const satisfies Record<string, HubRouteSpec>;
 

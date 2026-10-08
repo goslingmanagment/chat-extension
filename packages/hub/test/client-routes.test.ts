@@ -1,16 +1,17 @@
-// The client/* routes of hub PRs #414… through the RouteTransport: archive
-// feed (H-9), «Новые» (H-7c), claim and custody (H-7b), shared recaps and
-// the dossier (H-13, H-5), every scenario of the fake hub with its
+// The client/* routes, all of them through the vendored SDK since the
+// re-vendor of hub c8514c5c: archive feed (H-9), «Новые» (H-7c), claim and
+// custody (H-7b), Spenders statistics and «ждут ответа» (H-8), shared recaps
+// and the dossier (H-13, H-5), every scenario of the fake hub with its
 // expected reading (parity NF-010, NF-023, NF-026, SN-012, AI-060…AI-071,
 // AI-097, NEW-02, HB-006).
 
-import { CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp } from '@cg/contracts';
+import { CLAIM_REVISION_MAX, CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp } from '@cg/contracts';
 import { HUB_SAMPLES } from '@cg/contracts/fixtures';
 import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, uuid, type HttpExchange, pageFeaturesOff } from '@cg/testing/hub';
 import { kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CLIENT_ROUTE_KEYS, CLIENT_ROUTE_PATHS, clientWireRequest, errorWireOf, isClientRoute, isSdkRoute, sdkInputOf, type ChatExtensionHub } from '../src/index';
+import { errorWireOf, isSdkRoute, sdkInputOf, type ChatExtensionHub } from '../src/index';
 import { hubError, json } from './support/fake-hub';
 import { flush, makeHarness, signIn, type Harness } from './support/harness';
 import { scenarioNamed, signInWorld } from './support/world';
@@ -210,22 +211,16 @@ describe('[NF-026] claim and custody: never repeated, flags checked for taking w
   });
 });
 
-describe('[HB-006] the RouteTransport: one module, the contract schemas on both ends', () => {
-  it('[HB-006] serves exactly the contract routes the vendored SDK lacks, at the fake hub\'s paths', () => {
-    const notInSdk = HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since !== 'sdk');
-    expect([...CLIENT_ROUTE_KEYS].sort()).toEqual([...notInSdk].sort());
-    // What is left after the re-vendor of hub e7e1037b: the routes whose hub PRs are still drafts.
-    expect([...CLIENT_ROUTE_KEYS].sort()).toEqual(['clientAudienceNew', 'clientConversationFeed', 'clientFanClaim', 'clientFanClaimStatus', 'clientSpenderAwaitingReply', 'clientSpenderStats']);
-    for (const key of CLIENT_ROUTE_KEYS) expect(CLIENT_ROUTE_PATHS[key]).toBe(HUB_ROUTE_PATHS[key]);
-    expect(isClientRoute('clientAudienceNew')).toBe(true);
-    // The routes that arrived in the SDK are its operations now, not this transport's.
-    for (const key of ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily', 'me'] as const) expect([key, isClientRoute(key)]).toEqual([key, false]);
+/** The six client/* routes that came with the re-vendor of hub c8514c5c (hub PRs #477–#481). */
+const ARRIVED_C8514C5C = ['clientAudienceNew', 'clientConversationFeed', 'clientFanClaim', 'clientFanClaimStatus', 'clientSpenderAwaitingReply', 'clientSpenderStats'] as const;
+
+describe('[HB-006] one transport: every client/* route goes through the vendored SDK', () => {
+  it('[HB-006] every contract route is an SDK operation, at the fake hub\'s path and method — the six of hub c8514c5c included', () => {
+    for (const key of HUB_ROUTE_KEYS) expect([key, isSdkRoute(key), kernelOperations[key]]).toEqual([key, true, { method: HUB_ROUTES[key].method, path: HUB_ROUTE_PATHS[key] }]);
+    for (const key of ARRIVED_C8514C5C) expect([key, HUB_ROUTES[key].since]).toEqual([key, 'sdk']);
   });
 
-  it('[HB-006] a client route the SDK has goes by the SDK\'s own manifest path: the same request, the path parameters taken out of it', async () => {
-    for (const key of ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily'] as const) {
-      expect([key, isSdkRoute(key), kernelOperations[key].path]).toEqual([key, true, HUB_ROUTE_PATHS[key]]);
-    }
+  it('[HB-006] a client route goes by the SDK\'s own manifest path: the same request, the path parameters taken out of it', async () => {
     expect(sdkInputOf('clientBootstrap', null)).toEqual({});
     expect(sdkInputOf('clientConversationRecaps', { pageLabel: 'model one', fanRef: WORLD.fan, personaDefinitionId: WORLD.persona.definitionId })).toEqual({
       params: { pageLabel: 'model one', fanRef: WORLD.fan },
@@ -234,9 +229,22 @@ describe('[HB-006] the RouteTransport: one module, the contract schemas on both 
     const save = scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges.find((exchange) => exchange.route === 'clientFanProfileFromGeneration');
     const { pageLabel, fanRef, ...body } = save?.request as { pageLabel: string; fanRef: string } & Record<string, unknown>;
     expect(sdkInputOf('clientFanProfileFromGeneration', save?.request)).toEqual({ params: { pageLabel, fanRef }, body });
+    expect(sdkInputOf('clientConversationFeed', { pageLabel: 'model one', fanRef: WORLD.fan, cursor: 'a/b', limit: 50, summaryWindow: 100 })).toEqual({
+      params: { pageLabel: 'model one', fanRef: WORLD.fan },
+      query: { cursor: 'a/b', limit: 50, summaryWindow: 100 },
+    });
+    expect(sdkInputOf('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'Europe/Moscow' })).toEqual({ params: { pageLabel: PAGE }, query: { windowDays: 30, timeZone: 'Europe/Moscow' } });
+    expect(sdkInputOf('clientSpenderAwaitingReply', { pageLabel: PAGE, limit: 50 })).toEqual({ params: { pageLabel: PAGE }, query: { limit: 50 } });
+    expect(sdkInputOf('clientAudienceNew', { pageLabel: PAGE, windowHours: 48 })).toEqual({ params: { pageLabel: PAGE }, query: { windowHours: 48 } });
+    // A claim carries its body under `body`: that object is the POST body; the status read takes the path alone.
+    const claim = scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges[1]?.request as ClaimOp;
+    expect(sdkInputOf('clientFanClaim', claim)).toEqual({ params: { pageLabel: claim.pageLabel, fanRef: claim.fanRef }, body: claim.body });
+    expect(sdkInputOf('clientFanClaimStatus', { pageLabel: PAGE, fanRef: WORLD.newFan })).toEqual({ params: { pageLabel: PAGE, fanRef: WORLD.newFan } });
     // A request outside its contract schema is our bug: never turned into a call.
     expect(() => sdkInputOf('clientConversationRecaps', { pageLabel: PAGE, fanRef: WORLD.fan, persona: 'x' })).toThrow(TypeError);
     expect(() => sdkInputOf('clientConversationRecaps', { fanRef: WORLD.fan })).toThrow(TypeError);
+    expect(() => sdkInputOf('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 500 })).toThrow(TypeError);
+    expect(() => sdkInputOf('clientAudienceNew', { pageLabel: PAGE, windowHours: 48, persona: 'x' })).toThrow(TypeError);
 
     // End to end: the recaps read leaves through the SDK with the SDK's headers, at the path with its parameters encoded.
     h.hub.serve(scenarioNamed(HTTP_SCENARIOS, 'recaps-and-dossier').exchanges);
@@ -247,41 +255,56 @@ describe('[HB-006] the RouteTransport: one module, the contract schemas on both 
     expect(sent?.path).toBe(`/api/v1/client/pages/${PAGE}/conversations/${WORLD.fan}/recaps`);
   });
 
-  it('[HB-006] a request outside its schema is never sent; an extra key is our bug', async () => {
-    expect(() => clientWireRequest('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 500 })).toThrow(TypeError);
-    expect(() => clientWireRequest('clientAudienceNew', { pageLabel: PAGE, windowHours: 48, persona: 'x' })).toThrow(TypeError);
-    expect(clientWireRequest('clientConversationFeed', { pageLabel: 'model one', fanRef: WORLD.fan, cursor: 'a/b', limit: 50 })).toEqual({
-      method: 'GET',
-      pathAndQuery: `/api/v1/client/pages/model%20one/conversations/${WORLD.fan}/feed?cursor=a%2Fb&limit=50`,
-      body: undefined,
-    });
+  it('[HB-006] on the wire: the feed\'s query encoded, the claim body as the POST body, the status read a GET of the same path, «Новые» with its window', async () => {
+    const feed = scenarioNamed(HTTP_SCENARIOS, 'feed-pages').exchanges[0];
+    h.hub.on('clientConversationFeed', () => json(200, feed?.response.body));
+    await h.facade.feed({ pageLabel: PAGE, fanRef: WORLD.fan, cursor: 'a/b', limit: 50 });
+    expect(h.hub.of('clientConversationFeed')[0]).toMatchObject({ method: 'GET', path: `/api/v1/client/pages/${PAGE}/conversations/${WORLD.fan}/feed`, query: { cursor: 'a/b', limit: '50' }, body: undefined });
+
+    const [, dispatch] = scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges;
+    h.hub.on('clientFanClaim', () => json(200, dispatch?.response.body));
+    await h.facade.claim(dispatch?.request as ClaimOp);
+    expect(h.hub.of('clientFanClaim')[0]).toMatchObject({ method: 'POST', path: `/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`, query: {}, body: (dispatch?.request as ClaimOp).body });
+    expect(h.hub.of('clientFanClaim')[0]?.headers).toMatchObject({ 'content-type': 'application/json', authorization: `Bearer ${String(WORLD_ON.issued['token'])}`, 'x-client-version': 'chat-extension/0.2.0' });
+
+    h.hub.on('clientFanClaimStatus', () => json(200, dispatch?.response.body));
+    await h.facade.claimStatus(PAGE, WORLD.newFan);
+    expect(h.hub.of('clientFanClaimStatus')[0]).toMatchObject({ method: 'GET', path: `/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`, query: {}, body: undefined });
+
+    const audience = scenarioNamed(HTTP_SCENARIOS, 'audience-new').exchanges[0];
+    h.hub.on('clientAudienceNew', () => json(200, audience?.response.body));
+    await h.facade.audienceNew({ pageLabel: PAGE, windowHours: 48 });
+    expect(h.hub.of('clientAudienceNew')[0]).toMatchObject({ method: 'GET', path: `/api/v1/client/pages/${PAGE}/audience-new`, query: { windowHours: '48' } });
+  });
+
+  it('[HB-006] a request outside its schema is never sent; an extra key is our bug — a dispatch past the hub\'s 32-bit revisions too (1.6.0)', async () => {
     const error = await h.facade.feed({ pageLabel: PAGE, fanRef: WORLD.fan, limit: 500 }).catch((reason: unknown) => reason);
     expect(errorWireOf(error)?.code).toBe('CG-HUB-REQUEST');
     expect(h.hub.of('clientConversationFeed')).toEqual([]);
+    const tooFar: ClaimOp = {
+      pageLabel: PAGE,
+      fanRef: WORLD.newFan,
+      body: { action: 'dispatch', attemptId: uuid(0x4a9), instanceId: WORLD.instanceId, purpose: 'preview-reply', group: { generationRef: uuid(0x200), variant: 0, partCount: 1 }, partIndex: 0, textRevision: CLAIM_REVISION_MAX + 1, flagRevision: WORLD.configRevision },
+    };
+    expect(errorWireOf(await h.facade.claim(tooFar).catch((reason: unknown) => reason))?.code).toBe('CG-HUB-REQUEST');
+    expect(h.hub.of('clientFanClaim')).toEqual([]);
   });
 
-  it('[HB-006] an answer outside its schema is a hub failure, never data; the auth and client headers are the SDK\'s', async () => {
+  it('[HB-006] an answer outside its schema is a hub failure, never data — whichever of the SDK\'s schema and our mirror refuses it', async () => {
     h.hub.on('clientConversationFeed', () => json(200, { items: 'nope' }));
     const error = await h.facade.feed({ pageLabel: PAGE, fanRef: WORLD.fan, limit: 50 }).catch((reason: unknown) => reason);
     expect(isHubCallError(error) && error.failure).toEqual({ kind: 'transport', failure: 'contract' });
     expect(errorWireOf(error)?.code).toBe('CG-HUB-REQUEST');
-    const sent = h.hub.of('clientConversationFeed')[0];
-    expect(sent?.headers).toMatchObject({ authorization: `Bearer ${String(WORLD_ON.issued['token'])}`, 'x-client-version': 'chat-extension/0.2.0', accept: 'application/json' });
-  });
-
-  it('[HB-006] the claim body goes as the POST body; the status read is a GET of the same path', () => {
-    const exchange = scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges[1];
-    expect(clientWireRequest('clientFanClaim', exchange?.request)).toEqual({
-      method: 'POST',
-      pathAndQuery: `/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`,
-      body: (exchange?.request as ClaimOp).body,
-    });
-    expect(clientWireRequest('clientFanClaimStatus', { pageLabel: PAGE, fanRef: WORLD.newFan })).toEqual({
-      method: 'GET',
-      pathAndQuery: `/api/v1/client/pages/${PAGE}/fans/${WORLD.newFan}/claim`,
-      body: undefined,
-    });
-    expect(clientWireRequest('clientAudienceNew', { pageLabel: PAGE, windowHours: 48 })).toEqual({ method: 'GET', pathAndQuery: `/api/v1/client/pages/${PAGE}/audience-new?windowHours=48`, body: undefined });
+    // A claim state the hub's own schema refuses (a lease state no automaton has): never read as data.
+    const [, dispatch] = scenarioNamed(HTTP_SCENARIOS, 'claim-greeting-two-parts').exchanges;
+    const state = dispatch?.response.body as Record<string, Record<string, unknown>>;
+    h.hub.on('clientFanClaimStatus', () => json(200, { ...state, lease: { ...state['lease'], state: 'stolen' } }));
+    const refused = await h.facade.claimStatus(PAGE, WORLD.newFan).catch((reason: unknown) => reason);
+    expect(isHubCallError(refused) && refused.failure).toEqual({ kind: 'transport', failure: 'contract' });
+    // A success status the SDK does not declare for the route is not an answer either.
+    h.hub.on('clientSpenderStats', () => json(201, HUB_SAMPLES.stats));
+    const undeclared = await h.facade.spendersStats({ pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }).catch((reason: unknown) => reason);
+    expect(isHubCallError(undeclared) && undeclared.failure).toEqual({ kind: 'transport', failure: 'contract' });
   });
 });
 

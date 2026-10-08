@@ -6,9 +6,9 @@
 //   plus what the background services need around it: sign-in custody with
 //   epochs and events, bootstrap cache and binding, the persona catalog, the
 //   AI stream with the prompt echo and the quota snapshot, the Spenders board.
-// - Two transports: the vendored SDK for the operations it has, and the
-//   RouteTransport (route-transport.ts) for the client/* routes of hub PRs
-//   #414… until they are re-vendored.
+// - One transport: the vendored SDK (sdk-transport.ts), its manifest, auth
+//   and schemas, for every operation of the contract, the client/* routes
+//   included (since the re-vendor of hub c8514c5c).
 // - DEV-ONLY compat mode for a hub without those routes: docs/hub-layer.md.
 
 import { KERNEL_CONTRACT_HASH, KERNEL_SDK_VERSION } from '@kernel/sdk';
@@ -82,7 +82,6 @@ export { SDK_STREAM_CAPABILITIES, sdkStreamTransport, type AiStreamOpen, type Ai
 export { STREAM_RETRY_DELAY_MS, type StreamNotice } from './stream';
 export { featureOfHub, type EchoTicket } from './debug-echo';
 export { BOARD_SESSION_KEY, mergePages, type BoardOptions, type BoardRequest } from './spenders-board';
-export { CLIENT_ROUTE_KEYS, CLIENT_ROUTE_PATHS, clientWireRequest, isClientRoute, type ClientRouteKey, type WireRequest } from './route-transport';
 export { SDK_ALLOWED_OPERATIONS, isSdkRoute, sdkInputOf, type SdkOperation, type SdkRouteKey } from './sdk-transport';
 export { FacadeCallError, FacadeCheckError, failureDetail } from './errors';
 export { CLIENT_NAME, CLIENT_VERSION_HEADER, REQUEST_TIMEOUT_MS, clientVersionHeaders, retryAfterMs } from './wire';

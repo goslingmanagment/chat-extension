@@ -1,17 +1,19 @@
 // One request to the hub, end to end, as facts: a checked answer or a
-// HubFailure. Two paths: the vendored SDK (sdk-transport.ts) and the
-// RouteTransport for client/* routes not vendored yet (route-transport.ts).
-// A client/* route takes whichever of the two has it: the day a route arrives
-// in the SDK (HUB_ROUTES `since: 'sdk'`) it goes through the SDK's manifest
-// and schemas, and nothing above this file changes.
+// HubFailure. One path: the vendored SDK (sdk-transport.ts) — its manifest
+// method and path, its auth plumbing, its response schema first and our
+// contract mirror second. A client/* route arrives from the facade as one
+// flat request; its path parameters are taken out by the SDK's own manifest
+// path (`sdkInputOf`), the rest is the query or the body. Since the re-vendor
+// of hub c8514c5c every contract route is an SDK operation; one that is not
+// (a route added to the contract before its hub PR is vendored) is refused
+// here as a contract failure and never sent.
 // Nothing here retries, wipes a sign-in or shows anything: the facade reads
 // the facts (errors, dispositions, the 401 rule).
 
-import { HUB_ROUTE_SCHEMAS, type AbortSignalLike, type HubFailure, type HubRouteKey } from '@cg/contracts';
+import { type AbortSignalLike, type HubFailure, type HubRouteKey } from '@cg/contracts';
 
 import { transportFailure } from './errors';
 import { type FetchLike, type HubClock } from './ports';
-import { clientWireRequest, isClientRoute, sendClientRoute } from './route-transport';
 import { checkSdkAnswer, isSdkRoute, sdkInputOf, sendSdkOperation, type SdkOperation, type SdkRawInput } from './sdk-transport';
 import { callScope, httpFailureOf, readJson, thrownFailure } from './wire';
 
@@ -24,7 +26,7 @@ export interface WireCall {
   readonly timeoutMs: number | null;
 }
 
-/** Every client/* route of the contract (`clientBootstrap`, `clientConversationRecaps`…), whichever transport carries it. */
+/** Every client/* route of the contract (`clientBootstrap`, `clientConversationRecaps`, `clientFanClaim`…). */
 export type ClientFamilyKey = Extract<HubRouteKey, `client${string}`>;
 
 export type WireResult = { readonly ok: true; readonly value: unknown; readonly status: number } | { readonly ok: false; readonly failure: HubFailure; readonly body: unknown };
@@ -65,41 +67,14 @@ export class HubWire {
   }
 
   async client(route: ClientFamilyKey, call: WireCall & { readonly token: string }, request: unknown): Promise<WireResult> {
-    if (isSdkRoute(route)) {
-      let input: SdkRawInput;
-      try {
-        input = sdkInputOf(route, request);
-      } catch {
-        return contractFailure();
-      }
-      return this.sdk(route, call, input);
-    }
-    // Neither the SDK nor the RouteTransport has it: a route of the contract nobody can send.
-    if (!isClientRoute(route)) return contractFailure();
-    let wire;
+    // A route of the contract the vendored SDK does not have: nobody can send it.
+    if (!isSdkRoute(route)) return contractFailure();
+    let input: SdkRawInput;
     try {
-      wire = clientWireRequest(route, request);
+      input = sdkInputOf(route, request);
     } catch {
       return contractFailure();
     }
-    const scope = callScope(this.deps.clock, call.signals, call.timeoutMs);
-    try {
-      const response = await sendClientRoute(
-        { hubOrigin: call.hubOrigin, token: call.token, headers: this.deps.headers(), fetch: this.deps.fetch, signal: scope.signal },
-        wire,
-      );
-      if (!response.ok) {
-        const { failure, body } = await httpFailureOf(response, this.deps.clock.now());
-        return { ok: false, failure, body };
-      }
-      const read = await readJson(response);
-      if (!read.ok) return scope.signal.aborted ? { ok: false, failure: thrownFailure(null, scope), body: null } : contractFailure();
-      const checked = HUB_ROUTE_SCHEMAS[route].response.safeParse(read.value);
-      return checked.success ? { ok: true, value: checked.data, status: response.status } : contractFailure();
-    } catch (error) {
-      return { ok: false, failure: thrownFailure(error, scope), body: null };
-    } finally {
-      scope.dispose();
-    }
+    return this.sdk(route, call, input);
   }
 }

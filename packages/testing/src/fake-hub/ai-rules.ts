@@ -1,9 +1,8 @@
 // What the hub's own handler refuses in an AI body AFTER its schema accepted
 // it — the rules of `prepareAiFeatureStream` (hub
-// apps/runtime/src/modules/ai/features/index.ts as it stands at 1e5f6ed9,
-// the commit the SDK is vendored from: the head of the unmerged hub branch
-// `client/synthetic-examples-in-comments`, hub PR #482 — not hub `main`. The
-// file is the same there as at e7e1037b, where these rules were first read),
+// apps/runtime/src/modules/ai/features/index.ts as it stands at c8514c5c,
+// hub `main` and the commit the SDK is vendored from. The hub's AI module is
+// the same there as at e7e1037b, where these rules were first read),
 // in the hub's order and with the hub's own messages. They are code on the hub, not schema, so the body schema of
 // the vendored SDK cannot show them: the first live check met one of them
 // (the Coach preset sent with our own question → 400 in 10 ms) only on the

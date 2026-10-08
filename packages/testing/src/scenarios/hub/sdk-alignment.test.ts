@@ -1,13 +1,15 @@
 // The contracts' hub DTOs against the vendored @kernel/sdk (test-only import;
 // nothing that ships reaches the SDK outside the background): operation
 // keys, methods and paths; the SDK's own schemas accept our scenario
-// answers, requests and error bodies; and its response types are assignable
-// to ours (a misnamed or missing field fails the build). Routes the SDK does
-// not have yet must stay absent until a re-vendor brings them.
+// answers, requests (path, query and body, as the hub's route reads them)
+// and error bodies; and its response types are assignable to ours (a
+// misnamed or missing field fails the build). A contract route the SDK does
+// not have must stay `since` its hub change until a re-vendor brings it;
+// since hub c8514c5c there is none.
 //
 // And the request side of the AI stream, with the hub's REAL body schema
-// (`routeSchemas.aiFeatureStream.body` of the vendored SDK — hub 1e5f6ed9,
-// the head of hub PR #482) and the rules of the hub's own handler (fake-hub/ai-rules.ts):
+// (`routeSchemas.aiFeatureStream.body` of the vendored SDK — hub main
+// c8514c5c) and the rules of the hub's own handler (fake-hub/ai-rules.ts):
 // every feature's body, as its driver builds it from a start the tab can
 // make, must be one the hub accepts. The first live check met a body the
 // hub answers 400 to (the Coach preset sent with our own question) that no
@@ -19,11 +21,15 @@ import {
   FEATURE_IDS,
   HUB_ROUTE_KEYS,
   HUB_ROUTES,
+  HubErrorBodySchema,
   HubStreamRequestSchema,
   TONES,
   type AiUsageReport,
+  type AudienceNewPage,
   type AutoLists,
   type Bootstrap,
+  type ClaimState,
+  type FeedPage,
   type Dossier,
   type FeatureId,
   type HubAuthState,
@@ -33,11 +39,13 @@ import {
   type IngestResult,
   type PersonaCatalog,
   type ProfileFromGenerationResponse,
+  type QueuePage,
   type RecapStatus,
   type SharedRecaps,
   type SpenderBatch,
   type SpenderDetail,
   type SpendersPage,
+  type SpendersStats,
   type StartOp,
 } from '@cg/contracts';
 import { AI_FEATURE_DRIVERS, FEATURE_POLICIES } from '@cg/core/domain/features';
@@ -68,12 +76,20 @@ export type SdkResponsesFitOurDtos = [
   Assignable<KernelOperationResponse<'clientConversationRecaps'>, SharedRecaps>,
   Assignable<KernelOperationResponse<'clientFanProfileFromGeneration'>, ProfileFromGenerationResponse>,
   Assignable<KernelOperationResponse<'clientAiUsageDaily'>, AiUsageReport>,
+  // The six that arrived with hub c8514c5c (hub PRs #477–#481).
+  Assignable<KernelOperationResponse<'clientConversationFeed'>, FeedPage>,
+  Assignable<KernelOperationResponse<'clientSpenderStats'>, SpendersStats>,
+  Assignable<KernelOperationResponse<'clientSpenderAwaitingReply'>, QueuePage>,
+  Assignable<KernelOperationResponse<'clientFanClaim'>, ClaimState>,
+  Assignable<KernelOperationResponse<'clientFanClaimStatus'>, ClaimState>,
+  Assignable<KernelOperationResponse<'clientAudienceNew'>, AudienceNewPage>,
 ];
 
 interface LooseSchema {
   safeParse(value: unknown): { success: boolean; error?: unknown };
 }
 interface LooseRoute {
+  readonly params?: LooseSchema;
   readonly querystring?: LooseSchema;
   readonly body?: LooseSchema;
   readonly response: Readonly<Record<number, LooseSchema>>;
@@ -83,20 +99,45 @@ const sdkOperations = kernelOperations as unknown as Readonly<Record<string, { m
 
 const existing = HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since === 'sdk');
 
-/** Our facade request → the SDK's querystring/body for the routes whose request we mirror one to one. */
-function sdkRequestOf(route: string, request: Record<string, unknown>): { part: 'querystring' | 'body'; value: unknown } | null {
+type RequestPart = 'params' | 'querystring' | 'body';
+
+/**
+ * Our facade request → what the hub's route reads of it: path params,
+ * querystring (every value a string, as on the wire) or body. A client/*
+ * route's request is one flat object (request-parts.ts of @cg/hub): its path
+ * params by the SDK's manifest path, the rest the query (GET) or the body (a
+ * claim carries its body under `body`). The other routes whose request we
+ * mirror one to one go whole.
+ */
+function sdkRequestOf(route: string, request: Record<string, unknown>): readonly { part: RequestPart; value: unknown }[] {
   switch (route) {
     case 'authIssueDeviceTokenWithPassword':
-      return { part: 'body', value: request };
-    case 'aiRecapStatus':
-    case 'spenders':
-      return { part: 'querystring', value: request };
     case 'spenderBatch':
     case 'ingestObservations':
-      return { part: 'body', value: request };
+      return [{ part: 'body', value: request }];
+    case 'aiRecapStatus':
+    case 'spenders':
+      return [{ part: 'querystring', value: request }];
     default:
-      return null;
+      break;
   }
+  if (!route.startsWith('client')) return [];
+  const operation = sdkOperations[route];
+  if (operation === undefined) throw new Error(route);
+  const rest: Record<string, unknown> = { ...request };
+  const params: Record<string, unknown> = {};
+  for (const [, name = ''] of operation.path.matchAll(/\/:([A-Za-z0-9_]+)/g)) {
+    params[name] = rest[name];
+    delete rest[name];
+  }
+  const parts: { part: RequestPart; value: unknown }[] = Object.keys(params).length > 0 ? [{ part: 'params', value: params }] : [];
+  if (operation.method === 'GET') {
+    const query = Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value as string | number | boolean)]));
+    parts.push({ part: 'querystring', value: query });
+  } else {
+    parts.push({ part: 'body', value: route === 'clientFanClaim' ? rest['body'] : rest });
+  }
+  return parts;
 }
 
 describe('contracts vs the vendored SDK', () => {
@@ -118,21 +159,61 @@ describe('contracts vs the vendored SDK', () => {
         const route = sdkRoutes[exchange.route];
         if (route === undefined) throw new Error(exchange.route);
         const label = `${s.name} ${exchange.route} ${exchange.response.status}`;
-        const answer = route.response[exchange.response.status];
+        // A 5xx the route does not declare comes from the hub's own error handler, which answers any route in the
+        // error shape (an unavailable database, a restart): the SDK has no schema for it, the hub's error body is the check.
+        const status = exchange.response.status;
+        const answer = route.response[status] ?? (status >= 500 ? HubErrorBodySchema : undefined);
         expect(answer, `${label}: status declared by the SDK`).toBeDefined();
         const parsed = answer?.safeParse(exchange.response.body);
         expect(parsed?.success, `${label}: ${JSON.stringify(parsed?.error ?? '').slice(0, 300)}`).toBe(true);
-        const request = exchange.request === null ? null : sdkRequestOf(exchange.route, exchange.request as Record<string, unknown>);
-        if (request !== null) expect(route[request.part]?.safeParse(request.value).success, `${label} request`).toBe(true);
+        const parts = exchange.request === null ? [] : sdkRequestOf(exchange.route, exchange.request as Record<string, unknown>);
+        for (const { part, value } of parts) {
+          const schema = route[part];
+          // The hub's route reads no such part (a route without query or body): ours must not send one either.
+          if (schema === undefined) expect([label, part, value]).toEqual([label, part, {}]);
+          else expect(schema.safeParse(value).success, `${label} request ${part}`).toBe(true);
+        }
       }
     }
   });
 
-  it('the routes that arrived with hub e7e1037b are SDK operations now; the ones whose hub PRs are drafts are still absent', () => {
-    const arrived = ['clientBootstrap', 'clientConversationRecaps', 'clientFanProfileFromGeneration', 'clientAiUsageDaily'] as const;
+  it('every contract route is an SDK operation: the six of hub c8514c5c joined the four of e7e1037b; nothing is left for a raw call', () => {
+    const arrived = [
+      'clientBootstrap',
+      'clientConversationRecaps',
+      'clientFanProfileFromGeneration',
+      'clientAiUsageDaily',
+      'clientConversationFeed',
+      'clientSpenderStats',
+      'clientSpenderAwaitingReply',
+      'clientFanClaim',
+      'clientFanClaimStatus',
+      'clientAudienceNew',
+    ] as const;
     for (const key of arrived) expect([key, HUB_ROUTES[key].since, sdkOperations[key]?.path]).toEqual([key, 'sdk', HUB_ROUTE_PATHS[key]]);
-    const drafts = HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since !== 'sdk');
-    expect([...drafts].sort()).toEqual(['clientAudienceNew', 'clientConversationFeed', 'clientFanClaim', 'clientFanClaimStatus', 'clientSpenderAwaitingReply', 'clientSpenderStats']);
+    expect(HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since !== 'sdk')).toEqual([]);
+  });
+
+  it('every client/* scenario request is one the hub\'s route reads: path, query and body, each part checked', () => {
+    const checked = new Set<string>();
+    for (const s of HTTP_SCENARIOS) {
+      for (const exchange of s.exchanges) {
+        if (!exchange.route.startsWith('client') || exchange.request === null) continue;
+        for (const { part } of sdkRequestOf(exchange.route, exchange.request as Record<string, unknown>)) checked.add(`${exchange.route}.${part}`);
+      }
+    }
+    for (const key of ['clientConversationFeed.params', 'clientConversationFeed.querystring', 'clientSpenderStats.querystring', 'clientSpenderAwaitingReply.querystring', 'clientFanClaim.body', 'clientFanClaimStatus.params', 'clientAudienceNew.querystring']) {
+      expect(checked, key).toContain(key);
+    }
+    // And the hub refuses what our contract refuses: a dispatch past its 32-bit revisions (contracts 1.6.0), an extra query key.
+    const body = sdkRoutes['clientFanClaim']?.body;
+    const query = sdkRoutes['clientConversationFeed']?.querystring;
+    if (body === undefined || query === undefined) throw new Error('claim body / feed query');
+    const dispatch = { action: 'dispatch', attemptId: uuid(0x4a9), instanceId: WORLD.instanceId, purpose: 'preview-reply', group: { generationRef: uuid(0x200), variant: 0, partCount: 1 }, partIndex: 0, textRevision: 0, flagRevision: 1 };
+    expect(body.safeParse(dispatch).success).toBe(true);
+    expect(body.safeParse({ ...dispatch, textRevision: 2_147_483_648 }).success).toBe(false);
+    expect(query.safeParse({ limit: '50' }).success).toBe(true);
+    expect(query.safeParse({ limit: '50', persona: 'x' }).success).toBe(false);
   });
 
   it('the stream body of every scenario passes the SDK\'s own body schema — the H-4b/H-4c fields included', () => {

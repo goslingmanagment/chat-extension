@@ -28,7 +28,7 @@ export const FORBIDDEN_OPERATION_ROUTES = {
   followerOutreachAttempt: { method: 'POST', path: '/api/v1/pages/:pageLabel/follower-outreach/attempt' },
   pageTopSpenders: { method: 'GET', path: '/api/v1/pages/:pageLabel/top-spenders' },
   clientSendCustodyResolve: { method: 'POST', path: '/api/v1/pages/:pageLabel/client-send-custody/:attemptId/resolve' },
-  clientSendCustodyList: { method: 'GET', path: '/api/v1/pages/:pageLabel/client-send-custody' },
+  clientSendCustodyList: { method: 'GET', path: '/api/v1/client-send-custody' },
 } as const satisfies Record<(typeof HUB_FORBIDDEN_OPERATIONS)[number], { readonly method: string; readonly path: string }>;
 
 /**

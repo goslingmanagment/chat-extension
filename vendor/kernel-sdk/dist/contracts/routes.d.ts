@@ -10948,9 +10948,9 @@ export declare const ofapiCaptureOperatorStatusResponseSchema: z.ZodObject<{
             }>;
             creditState: z.ZodEnum<{
                 indeterminate: "indeterminate";
+                released: "released";
                 reserved: "reserved";
                 settled: "settled";
-                released: "released";
             }>;
             reservedCredits: z.ZodNumber;
             settledCredits: z.ZodNullable<z.ZodNumber>;
@@ -11027,9 +11027,9 @@ export declare const ofapiCaptureAttemptResolveResponseSchema: z.ZodObject<{
         }>;
         creditState: z.ZodEnum<{
             indeterminate: "indeterminate";
+            released: "released";
             reserved: "reserved";
             settled: "settled";
-            released: "released";
         }>;
         reservedCredits: z.ZodNumber;
         settledCredits: z.ZodNullable<z.ZodNumber>;
@@ -11196,9 +11196,9 @@ export declare const ofapiExportCreateReconcileResponseSchema: z.ZodObject<{
         }>;
         creditState: z.ZodEnum<{
             indeterminate: "indeterminate";
+            released: "released";
             reserved: "reserved";
             settled: "settled";
-            released: "released";
         }>;
         reservedCredits: z.ZodNumber;
         settledCredits: z.ZodNullable<z.ZodNumber>;
@@ -14623,9 +14623,9 @@ declare const baseRouteSchemas: {
                         }>;
                         creditState: z.ZodEnum<{
                             indeterminate: "indeterminate";
+                            released: "released";
                             reserved: "reserved";
                             settled: "settled";
-                            released: "released";
                         }>;
                         reservedCredits: z.ZodNumber;
                         settledCredits: z.ZodNullable<z.ZodNumber>;
@@ -14763,9 +14763,9 @@ declare const baseRouteSchemas: {
                     }>;
                     creditState: z.ZodEnum<{
                         indeterminate: "indeterminate";
+                        released: "released";
                         reserved: "reserved";
                         settled: "settled";
-                        released: "released";
                     }>;
                     reservedCredits: z.ZodNumber;
                     settledCredits: z.ZodNullable<z.ZodNumber>;
@@ -15114,9 +15114,9 @@ declare const baseRouteSchemas: {
                     }>;
                     creditState: z.ZodEnum<{
                         indeterminate: "indeterminate";
+                        released: "released";
                         reserved: "reserved";
                         settled: "settled";
-                        released: "released";
                     }>;
                     reservedCredits: z.ZodNumber;
                     settledCredits: z.ZodNullable<z.ZodNumber>;

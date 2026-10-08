@@ -41,6 +41,18 @@
   бы в сеть; теперь `dispatch` с ним не собирается (`CG-HUB-REQUEST` до сети). На деле
   ни одна из ревизий до этой границы не доходит. Фикстуры — граница в верных телах
   `ClaimBody`, на единицу больше — в неверных.
+- **`HUB_ROUTES`: шесть маршрутов стали операциями SDK.** У `clientConversationFeed`,
+  `clientSpenderStats`, `clientSpenderAwaitingReply`, `clientFanClaim`,
+  `clientFanClaimStatus` и `clientAudienceNew` поле `since` — `sdk` (было `H-9c`,
+  `H-8b`, `H-8c`, `H-7b`, `H-7b`, `H-7c`): они пришли с перевендорингом SDK из `main`
+  хаба `c8514c5c` (PR хаба #477–#481). Хаб взял наши формы запросов и ответов как есть:
+  поле в поле, те же методы и пути, тот же курсор (непрозрачная подписанная строка до
+  2048 символов) и те же причины отказа (`cursor_invalid`, `cursor_window_mismatch`,
+  `unknown_time_zone`, коды брони); поле говорит только, каким транспортом слой хаба
+  их шлёт. RouteTransport (`packages/hub/src/route-transport.ts`) удалён: все маршруты
+  контракта идут одним путём, через SDK. Значения `H-7b`, `H-7c`, `H-8b`, `H-8c`,
+  `H-9c` в типе `since` остались. `HUB_FORBIDDEN_OPERATIONS` не менялся: новые операции
+  кабинета `clientSendCustodyResolve` и `clientSendCustodyList` в нём уже были.
 
 ## 1.5.0 — 2026-10-05 (закрытие известных недоделок; добавочное)
 
