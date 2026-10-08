@@ -1,8 +1,8 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 218,
-    "e2e": 33
+    "unit": 222,
+    "e2e": 34
   },
   "totals": {
     "name": "всего",
