@@ -91,6 +91,10 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
       env.routeDelayMs = ms;
       record('stand-route-delay', { ms });
     },
+    sendAfterNextWrite: (accountId, chatId) => {
+      env.sendAfterWrite = `${accountId}:${chatId}`;
+      record('stand-send-after-write', { accountId, chatId });
+    },
     injectFanMessage: async (accountId, fanId, text) => {
       const result = (await control('/__stand/fan-message', { accountId, fanId, ...(text !== undefined ? { text } : {}) })) as { id: string };
       return result.id;

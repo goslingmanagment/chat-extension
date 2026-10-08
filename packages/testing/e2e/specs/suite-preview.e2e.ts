@@ -37,8 +37,9 @@ import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } fro
 
 const ACC = STAND_IDS.accounts.a;
 const { a1, a4, a6, a7 } = STAND_IDS.fans;
-/** Fan Iris of the stand's account a (the dataset names its fans beyond a8 by the same pattern). */
+/** Fans Iris and Juniper of the stand's account a (the dataset names its fans beyond a8 by the same pattern). */
 const a9 = '74001009';
+const a10 = '74001010';
 const reply = (fan: string): readonly [string, string] => [`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`];
 /** `limits.navInsertTimeoutSec` of this run: how long «Открыть и вставить» waits for the chat's field. */
 const NAV_TIMEOUT_SEC = 3;
@@ -328,5 +329,37 @@ describe('§12 п. 4 on the wired extension — a preview on the Spenders board 
     // The generation is kept: the preview of that fan still has its result.
     await openPreview('Fan Iris');
     await waitOursText('modal', reply(a9)[0], 'the result is still in the preview', { selector: '.cg-pv' });
+  });
+
+  it('[TL-004] [NEW-01] the person presses Send the moment the part lands, before the page confirmed the insert: the send is still that part’s, and the hub registers it', async () => {
+    await callStand('openChat', ACC, a1);
+    await dockIs((d) => d.target?.endsWith(`:${a1}`) === true && d.status === 'ready', 'back in the first chat');
+    const hubMark = await hub().mark();
+    const standMark = await standServer.mark();
+    await openPreview('Fan Juniper');
+    await generate(a10);
+    // ChatSpace's own Send right after the text lands in the fan's field, before a frame passes — a quick hand, or a
+    // busy machine whose frames come late: the field is empty again before the insert is confirmed.
+    await callStand('sendAfterNextWrite', ACC, a10);
+    await pressOurs('modal', '.cg-pv button', /^Открыть и вставить/);
+    await boardClosed();
+    await browser.waitUntil(async () => sendsOf(await serverSince(standMark), a10).length === 1, { timeout: 10_000, timeoutMsg: 'ChatSpace did not send the part' });
+    expect(sendsOf(await serverSince(standMark), a10).map((entry) => [entry.origin, entry.detail?.['plain']])).toEqual([['native', reply(a10)[0]]]);
+    // The part was written, then the person sent it: the hub hears of that send as the part's (§6.6).
+    let claims: string[] = [];
+    await browser
+      .waitUntil(
+        async () =>
+          (claims = callsTo((await hub().journal(hubMark)).entries, 'clientFanClaim')
+            .filter((call) => (call.request as { fanRef?: string }).fanRef === a10)
+            .map((call) => `${(call.request as { body: { action: string } }).body.action}:${call.status}`)).length > 0,
+        { timeout: 10_000, interval: 50 },
+      )
+      .catch(() => undefined);
+    expect(claims).toEqual(['registerNativeSend:200']);
+    const custody = (await hub().status()).claims.find((claim) => claim.pageLabel === PAGE && claim.fanRef === a10);
+    expect(custody?.attempts.map((attempt) => [attempt.state, attempt.partIndex])).toEqual([['sent', 0]]);
+    // Nothing tells the person the insert failed: it did not. (The toast of the test above may still be up.)
+    expect(await oursText('toast')).not.toContain('CG-INSERT-FAILED');
   });
 });
