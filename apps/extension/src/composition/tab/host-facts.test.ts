@@ -9,7 +9,7 @@ import type { ControllerRpc } from './client';
 import { SENT_REPORT_TRIES, boardsHostOver, contractFactsOf, forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
 
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
-const PROFILE = { adapterVersion: '0.2.0', modules: { notificationEntry: 'a', composables: 'b', messages: 'c', accounts: 'd', inbox: 'e' } };
+const PROFILE = { adapterVersion: '0.3.0', modules: { notificationEntry: 'a', composables: 'b', onlyfans: 'c', accounts: 'd', inbox: 'e' } };
 
 /**
  * A bootstrap as the hub answers it for a pilot switched on page by page: the page's own features carry the
@@ -330,11 +330,11 @@ describe('what the adapter is told while the tab learns who is signed in', () =>
 
 describe('the host contract in the tab’s log', () => {
   const report = (anchors: Record<string, string>, capabilities: Record<string, { state: string }> = {}): HostContractReport =>
-    ({ build: 'index-abc', adapterVersion: '0.2.0', checkedAt: 1, anchors: { app: 'ok', router: 'ok', ...anchors }, capabilities: { insert: { state: 'on' }, ...capabilities } }) as unknown as HostContractReport;
+    ({ build: 'index-abc', adapterVersion: '0.3.0', checkedAt: 1, anchors: { app: 'ok', router: 'ok', ...anchors }, capabilities: { insert: { state: 'on' }, ...capabilities } }) as unknown as HostContractReport;
 
   it('[DB-031] the tap and the preview send switched off are not a ChatSpace that changed: the record lists them and carries no error', () => {
     const off = contractFactsOf(report({ wsFrames: 'missing', receiptProfile: 'missing' }, { previewSend: { state: 'off' }, incoming: { state: 'off' } }));
-    expect(off).toEqual({ build: 'index-abc', adapterVersion: '0.2.0', ok: true, missing: ['wsFrames', 'receiptProfile'], degraded: ['previewSend', 'incoming'] });
+    expect(off).toEqual({ build: 'index-abc', adapterVersion: '0.3.0', ok: true, missing: ['wsFrames', 'receiptProfile'], degraded: ['previewSend', 'incoming'] });
     expect(contractFactsOf(report({})).ok).toBe(true);
   });
 

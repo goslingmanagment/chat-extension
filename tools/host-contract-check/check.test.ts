@@ -37,7 +37,8 @@ function fullCopy(): BundleFile[] {
     { name: 'notificationEntry-BBBBBBBB.js', text: 'import { a } from "./composables-CCCCCCCC.js";\nimport { b } from "./inbox-GGGGGGGG.js";' },
     { name: 'composables-CCCCCCCC.js', text: 'import { v } from "./vue.runtime.esm-bundler-HHHHHHHH.js";' },
     { name: 'composables-DDDDDDDD.js', text: '' },
-    { name: 'messages-EEEEEEEE.js', text: '' },
+    { name: 'onlyfans-EEEEEEEE.js', text: '' },
+    { name: 'onlyfans-E2E2E2E2.js', text: '' },
     { name: 'accounts-FFFFFFFF.js', text: '' },
     { name: 'inbox-GGGGGGGG.js', text: '' },
   ];
@@ -77,12 +78,32 @@ describe('host-contract-check (§6.2 «Сверка с новой сборкой
     const names = copy.map((file) => file.name);
     expect(buildOf(copy[0]?.text ?? '')).toBe('index-AAAAAAAA');
     const modules = receiptFingerprint(names);
-    expect(modules).toEqual({ notificationEntry: 'BBBBBBBB', composables: 'CCCCCCCC+DDDDDDDD', messages: 'EEEEEEEE', accounts: 'FFFFFFFF', inbox: 'GGGGGGGG' });
+    expect(modules).toEqual({ notificationEntry: 'BBBBBBBB', composables: 'CCCCCCCC+DDDDDDDD', onlyfans: 'E2E2E2E2+EEEEEEEE', accounts: 'FFFFFFFF', inbox: 'GGGGGGGG' });
     // The same rule as the adapter's: what it reads in the page is what the tool prints for the copy.
     expect(modules).toEqual(receiptModules(names.map((name) => `https://chat.example.test/assets/${name}`), 'https://chat.example.test'));
     expect(receiptProfile(names, '0.999.0')).toEqual({ id: 'chatspace-0.999.0', adapterVersion: contract.ADAPTER_VERSION, modules });
     expect(missingRoles(modules)).toEqual([]);
     expect(missingRoles(receiptFingerprint(names.filter((name) => !name.startsWith('inbox'))))).toEqual(['inbox']);
+  });
+
+  it('a copy with 0.195.0’s file names (names only) prints the reviewed hub value: every role found, `onlyfans` from two modules', () => {
+    // The script files of the 0.195.0 copy that matter here, as `ls` gives them: the role modules and a few of no role.
+    const names = ['ChatView-CnMzMAt4.js', 'MainLayout-Dyqw2t1H.js', 'accounts-CN9N-pj3.js', 'composables-C25sVtl7.js', 'composables-DKWzNPeA.js', 'inbox-DUukOf_u.js', 'index-p8xPkCj8.js', 'notificationEntry-BaWeHDsj.js', 'onlyfans-DqEV2pNo.js', 'onlyfans-SstGvKHV.js', 'runtime-dom.esm-bundler-Ydpp0psT.js'];
+    const reviewed = JSON.parse(
+      '[{"id":"chatspace-0.195.0","adapterVersion":"0.3.0","modules":{"notificationEntry":"BaWeHDsj","composables":"C25sVtl7+DKWzNPeA","onlyfans":"DqEV2pNo+SstGvKHV","accounts":"CN9N-pj3","inbox":"DUukOf_u"}}]',
+    ) as unknown[];
+    expect([receiptProfile(names, '0.195.0')]).toEqual(reviewed);
+    expect(missingRoles(receiptFingerprint(names))).toEqual([]);
+  });
+
+  it('a copy laid out like 0.172.0 — a `messages` module and no `onlyfans` one — misses the `onlyfans` role: no profile can match', () => {
+    const names = fullCopy()
+      .map((file) => file.name)
+      .filter((name) => !name.startsWith('onlyfans-'))
+      .concat('messages-EEEEEEEE.js');
+    const modules = receiptFingerprint(names);
+    expect(modules).not.toHaveProperty('messages');
+    expect(missingRoles(modules)).toEqual(['onlyfans']);
   });
 
   it('against another copy: which role modules and which of their imports changed — hashes only', () => {

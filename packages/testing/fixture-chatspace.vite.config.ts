@@ -19,13 +19,20 @@ export const FIXTURE_BUILD_DIR = fileURLToPath(new URL('../../.cache/fixture-cha
  * the socket, the composer, the accounts and chat stores, the query
  * definitions with Mimic's — so the e2e reads real `modulepreload` links and
  * resource timing entries, not a list a test made up.
+ *
+ * The layout is ChatSpace 0.195.0's: no `messages` module (0.172.0 had one);
+ * the composer, its bridge and the translator store are an `onlyfans` module,
+ * and a second, small `onlyfans` module carries the platform's message model
+ * the queue and the stores import. Two modules of one role give the role a
+ * fingerprint of two hashes joined with `+`, as on the real page.
  */
 const ROLE_MODULES: ReadonlyArray<{ readonly name: string; readonly test: RegExp }> = [
   { name: 'notificationEntry', test: /fixture-chatspace\/src\/stores\/pending-messages\.ts$/ },
-  { name: 'messages', test: /fixture-chatspace\/src\/(ui\/(composer|bridge|editor-handle|registry)|stores\/composer)\.ts$/ },
+  { name: 'onlyfans', test: /fixture-chatspace\/src\/(ui\/(composer|bridge|editor-handle|registry)|stores\/composer)\.ts$/ },
+  { name: 'onlyfans', test: /fixture-chatspace\/src\/query\/model\.ts$/ },
   { name: 'accounts', test: /fixture-chatspace\/src\/stores\/(accounts|chats|stored)\.ts$/ },
   { name: 'inbox', test: /fixture-chatspace\/src\/query\/(queries|use-query)\.ts$/ },
-  { name: 'composables', test: /fixture-chatspace\/src\/(net\/|query\/(cache|model)\.ts$|env\.ts$|journal\.ts$|protocol\.ts$)/ },
+  { name: 'composables', test: /fixture-chatspace\/src\/(net\/|query\/cache\.ts$|env\.ts$|journal\.ts$|protocol\.ts$)/ },
   // Libraries go below all of them (as in ChatSpace's own build), so no module waits on the entry module that imports it.
   // The editor's own libraries stay with the editor: it loads later, like ChatSpace's.
   { name: 'vue.runtime', test: /node_modules\/(?!\.pnpm\/)(?!@tiptap\/|prosemirror-|orderedmap\/|rope-sequence\/|w3c-keyname\/|linkifyjs\/)/ },

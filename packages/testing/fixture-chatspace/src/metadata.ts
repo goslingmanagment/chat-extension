@@ -170,9 +170,15 @@ export const FIXTURE_CONTRACTS: readonly FixtureContract[] = [
   },
   {
     id: 'module-names',
-    contract: 'the build is split into modules named <role>-<hash>.js, loaded as module scripts and modulepreload links; the send path lives in notificationEntry, composables, messages, accounts and inbox (§6.2 receipt profile)',
+    contract:
+      'the build is split into modules named <role>-<hash>.js, loaded as module scripts and modulepreload links; the send path lives in notificationEntry, composables, onlyfans, accounts and inbox (§6.2 receipt profile) — laid out as in 0.195.0, where the composer, its bridge and the translator store are a second onlyfans module and there is no messages module (0.172.0 had one)',
     stand: ['../../fixture-chatspace.vite.config.ts'],
     basis: 'observed',
-    observedAt: ['index.html:10-23 (entry script and modulepreload links)', 'file names of the 0.172.0 copy', 'notificationEntry:1427-1640 (queue), messages:18602-18911 (composer send), composables:85389-86465 (client, socket)'],
+    observedAt: [
+      'index.html:10-23 (entry script and modulepreload links)',
+      'file names of the 0.172.0 and 0.195.0 copies',
+      'notificationEntry:1427-1640 (queue), messages:18602-18911 (composer send), composables:85389-86465 (client, socket)',
+      '0.195.0: the composer’s onlyfans module :20198-20258 (composer send), :16132-16232 (bridge), :3404-3425 (translator); research analysis 0.172.0-vs-0.195.0, send-path-review.md',
+    ],
   },
 ];

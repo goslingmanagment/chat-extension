@@ -26,8 +26,8 @@ const composer: ComposerState = { chat: openChat, instanceId: 'c1', ready: true,
 const wire = (over: Record<string, unknown> = {}) => ({ build: 'index-0000fake', missing: [], shape: [], receiptModules: {}, ...over });
 const snapshot = (contract = wire()) => ({ route: { epoch: 4, name: 'chat', account, chat: openChat }, hostLoginEpoch: 'L1', composer, accounts: [account], contract });
 
-/** The modules a page of the approved build has loaded. */
-const MODULES = { notificationEntry: 'BBBBBBBB', composables: 'CCCCCCCC', messages: 'EEEEEEEE', accounts: 'FFFFFFFF', inbox: 'GGGGGGGG' };
+/** The modules a page of the approved build has loaded (laid out like ChatSpace 0.195.0: two `onlyfans` modules). */
+const MODULES = { notificationEntry: 'BBBBBBBB', composables: 'CCCCCCCC', onlyfans: 'DDDDDDDD+EEEEEEEE', accounts: 'FFFFFFFF', inbox: 'GGGGGGGG' };
 const PROFILE = { id: 'chatspace-test', adapterVersion: ADAPTER_VERSION, modules: MODULES };
 const CONFIG: ChatSpaceLiveConfig = { wsTap: true, previewSend: true, markAiGenerated: true, receiptProfiles: [PROFILE] };
 
@@ -163,8 +163,21 @@ describe('[X8-06] the preview send capability (§6.2, §6.7.11)', () => {
     expect(diagnostics.at(-1)).toEqual({ event: 'receipt-profile', detail: { profile: 'chatspace-next' } });
   });
 
-  it('the chat’s modules load with the first chat: the profile is judged again when the route or the contract changes', async () => {
-    const { messages: _late, ...early } = MODULES;
+  it('a page laid out like ChatSpace 0.172.0 — a `messages` module, no `onlyfans` one — matches no profile of this adapter: X8 off (CG-SEND-RECEIPT)', async () => {
+    const { onlyfans: _gone, ...rest } = MODULES;
+    const old = { ...rest, messages: 'EEEEEEEE' };
+    loadModules(old);
+    // Even a profile naming exactly what that page loaded, for this adapter version: `messages` is not a role any more.
+    const { host, diagnostics } = await start({}, { configure: { ...CONFIG, receiptProfiles: [{ ...PROFILE, id: 'chatspace-0.172-like', modules: old }, PROFILE] } });
+    expect(host.previewSend).toBeNull();
+    expect(host.probe().capabilities.previewSend).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
+    expect(host.probe().capabilities.insert).toEqual({ state: 'on' });
+    expect(diagnostics).toContainEqual({ event: 'receipt-profile', code: 'CG-SEND-RECEIPT', detail: { profile: null } });
+  });
+
+  it('the main layout’s modules load after the page’s first ones: the profile is judged again when the route or the contract changes', async () => {
+    // Before the main layout: the queue and the composer’s `onlyfans` module are not there, the small `onlyfans` one is.
+    const { notificationEntry: _late, ...early } = { ...MODULES, onlyfans: 'DDDDDDDD' };
     loadModules(early);
     const { host, bridge } = await start();
     expect(host.previewSend).toBeNull();

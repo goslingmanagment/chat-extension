@@ -47,7 +47,7 @@ function world() {
   return { log, sunk, kinds, advance, errorsToday, warnings, pending: () => timers.size };
 }
 
-const facts = (ok: boolean, missing: readonly string[]): HostContractFacts => ({ build: 'index-p8xPkCj8', adapterVersion: '0.2.0', ok, missing, degraded: [] });
+const facts = (ok: boolean, missing: readonly string[]): HostContractFacts => ({ build: 'index-p8xPkCj8', adapterVersion: '0.3.0', ok, missing, degraded: [] });
 
 /** The reload of the third live check (diagnostics 2026-10-08 15:32:56–57): broken four times, whole within 0.8 s. */
 const LIVE_RELOAD: readonly (readonly [atMs: number, HostContractFacts])[] = [
