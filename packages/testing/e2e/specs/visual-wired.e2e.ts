@@ -30,7 +30,7 @@ import { clearDraft, composerText, MOD, PANEL, pressSend, SEND, twoFrames, typeD
 import { pageRpc } from '../support/extension';
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursBox, oursExists, oursFocus, oursText, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
+import { ours, oursBox, oursExists, oursFocus, oursText, pressOurs, readOurs, waitOursText, type Box, type Where } from '../support/ours';
 import { capturePage, openOptions, openPopup, signOutFromAccount, waitForOptions, waitForPopup } from '../support/pages';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
@@ -288,7 +288,20 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await typeDraft('привет, это мой текст');
       await pressOurs('dock', '[data-cg-part="1"] button', /^Вставить/);
       await waitOursText('dock', 'Добавить в конец', 'the Б2 question');
-      await look('dock-06-confirm');
+      // The person's own insert asked: the question holds the focus on «Отмена» (X18). Which button has it, and whether its
+      // ring is drawn (the browser draws it after a key, not after a click), is in the pictures and in the facts.
+      const confirmFocus: unknown[] = [];
+      const focusOnCancel = (ring: boolean) => async (): Promise<void> => {
+        const focus = await readOurs('dock', '.cg-confirm :focus', (node) => ({ text: node.querySelector('.cg-btn__t')?.textContent ?? '', ring: node.matches(':focus-visible') }));
+        expect(focus).toEqual({ text: current.lang === 'ru' ? 'Отмена' : 'Cancel', ring });
+        confirmFocus.push({ ...current, ...focus });
+      };
+      await look('dock-06-confirm', { check: focusOnCancel(false) });
+      // The same focus reached by the keys (Shift+Tab to «Добавить в конец», Tab back): the ring on the quiet «Отмена».
+      await browser.keys([Key.Shift, Key.Tab]);
+      await browser.keys(Key.Tab);
+      await look('dock-06-confirm-keys', { check: focusOnCancel(true) });
+      facts['confirmFocus'] = confirmFocus;
       await browser.keys(Key.Escape);
       await clearDraft();
       await hideResult();

@@ -8,7 +8,9 @@
 //   history, and keeps its bottom on a resize of the window;
 // - Б2: a part is never written over the person's own draft without their
 //   answer — «Отмена» writes nothing, «Добавить в конец» keeps their words,
-//   «Заменить» replaces them only by its own click;
+//   «Заменить» replaces them only by its own click; the question takes the
+//   focus on «Отмена», so a stray Enter or Space right after it appears
+//   writes nothing (X18);
 // - the answer is for one revision of the draft: typing A→B→A, formatting,
 //   ChatSpace's translator and a restored draft each make it stale — the old
 //   answer writes nothing and the question is asked anew;
@@ -27,7 +29,7 @@ import { Key } from 'webdriverio';
 import { bridgeWrites, clearDraft, composerText, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, pressSend, scrollList, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
+import { oursExists, oursFocus, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, composerRoots, dockPlacement, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 import { setViewport } from '../support/visual';
@@ -185,6 +187,22 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       for (const answer of ['Заменить', 'Добавить в конец', 'Отмена']) await waitOursByText('dock', '[data-cg-part="0"] button', new RegExp(`^${answer}`), `the answer «${answer}» of the question`);
       await pressOurs('dock', '[data-cg-part="0"] button', /^Отмена/);
       await waitOursText('dock', HUMAN_DRAFT, 'the question is gone', { gone: true });
+      expect(await composerText(ACC, a2)).toBe('my own words');
+      expect(await writesSince(mark)).toEqual([]);
+      expect((await dockIs(() => true, 'the dock')).result).toMatchObject({ inserted: 0, state: 'done' });
+    });
+
+    it('[NEW-05] [UI-020] a stray Enter or Space right after the question appears is «Отмена» (X18): the field keeps the person’s words, nothing is written', async () => {
+      const mark = await pageJournalMark();
+      for (const [name, key] of [['Enter', Key.Enter], ['Space', Key.Space]] as const) {
+        await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/, `${name}: «Вставить»`);
+        await waitOursText('dock', HUMAN_DRAFT, `${name}: the question about the person’s own text`);
+        expect((await oursFocus('dock'))?.text).toMatch(/^Отмена/);
+        await browser.keys(key);
+        await waitOursText('dock', HUMAN_DRAFT, `${name}: the question is gone`, { gone: true });
+        expect(await composerText(ACC, a2)).toBe('my own words');
+      }
+      await browser.pause(400);
       expect(await composerText(ACC, a2)).toBe('my own words');
       expect(await writesSince(mark)).toEqual([]);
       expect((await dockIs(() => true, 'the dock')).result).toMatchObject({ inserted: 0, state: 'done' });

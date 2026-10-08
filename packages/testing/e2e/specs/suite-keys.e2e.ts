@@ -120,17 +120,28 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await dockIs((d) => d.result?.feature === 'reply' && d.result.state === 'done' && d.result.parts === 2, 'a Reply with two parts', 20_000);
     });
 
-    it('[HK-030] Enter on a part of ours is «Вставить»: the part goes into ChatSpace’s field by the person’s own answer, and ChatSpace sends nothing', async () => {
+    it('[HK-030] Enter on a part of ours is «Вставить»: the part goes into ChatSpace’s field only by the person’s own answer, and ChatSpace sends nothing', async () => {
       const standMark = await standServer.mark();
       const page = await pageJournalMark();
+      const asked = 'В поле ввода уже есть ваш текст.';
       await focusPart(0);
       await browser.keys(Key.Enter);
-      // The field holds the person's own words: Enter asked first (Б2); Enter again is the default answer, «Добавить в конец».
-      await waitOursText('dock', 'В поле ввода уже есть ваш текст.', 'the question about the person’s own text');
+      // The field holds the person's own words: Enter asked first (Б2), with the focus on «Отмена» (X18) — Enter again changes nothing.
+      await waitOursText('dock', asked, 'the question about the person’s own text');
+      expect((await oursFocus('dock'))?.text).toMatch(/^Отмена/);
+      await browser.keys(Key.Enter);
+      await waitOursText('dock', asked, 'the question is gone after Enter on «Отмена»', { gone: true });
+      expect(await composerText(ACC, a1)).toBe('some words of mine');
+      // The focus is back on «Вставить» of that part: Enter asks again, Shift+Tab goes to «Добавить в конец», Enter there adds the part.
+      expect((await oursFocus('dock'))?.text).toMatch(/^Вставить/);
+      await browser.keys(Key.Enter);
+      await waitOursText('dock', asked, 'the question, asked again');
+      expect((await oursFocus('dock'))?.text).toMatch(/^Отмена/);
+      await browser.keys([Key.Shift, Key.Tab]);
       expect((await oursFocus('dock'))?.text).toBe('Добавить в конец');
       await browser.keys(Key.Enter);
       await waitForComposerText(ACC, a1, `some words of mine\n${reply(a1)[0]}`, 'the part is added to the person’s words');
-      // Two Enter presses inside our root, and not one reached ChatSpace's editor as a send.
+      // Four Enter presses inside our root, and not one reached ChatSpace's editor as a send.
       await browser.pause(400);
       expect(sendsOf(await serverSince(standMark))).toEqual([]);
       expect(await pageEvents(page, 'composer-submit')).toBe(0);
