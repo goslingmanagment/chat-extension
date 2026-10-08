@@ -64,6 +64,7 @@ const mounts = {
   refresh: () => undefined,
   points: (): MountPoints => ({ dock: { kind: 'in-flow', composerInstanceId: 'c1', width: 700 }, overlay: { ready: true, container: null } }),
   onChange: () => () => undefined,
+  onRenewed: () => () => undefined,
   frameAnchor: () => 'ok',
   dispose: () => undefined,
 } as unknown as MountManager;

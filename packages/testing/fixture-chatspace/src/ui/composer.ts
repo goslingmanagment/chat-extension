@@ -2,7 +2,8 @@
 // route's account, all rendered, only the active one shown (v-show), keyed
 // `${tabId}:${accountId}:${chatId}`; the active one is hidden while the route
 // chat is not found or its fan is blocked. The stand's `remountComposers`
-// renders them all again (a round number in the Vue key), with a pause.
+// renders them all again (a round number in the Vue key), with a pause or in
+// one step.
 //
 // Inside each, the OnlyFans composer exists only when ChatSpace would let the
 // human compose (canComposeMessages): the role may send (no
@@ -323,14 +324,18 @@ const remount = ref({ down: false, round: 0 });
 
 /**
  * The stand's control `remountComposers`: ChatSpace renders its composers again without a store change — every
- * composer of the block is taken down and, `gapMs` later, rendered anew: new nodes, the same chats and tabs. Nothing
- * of Pinia or the query cache moves, so MAIN, which reads the composer on store events, hears nothing of it.
+ * composer of the block is taken down and, `gapMs` later, rendered anew: new nodes, the same chats and tabs. `gapMs`
+ * 0 — in one step: one render of the block swaps the old nodes for the new ones (a changed key), the page is never
+ * without a composer. Nothing of Pinia or the query cache moves, so MAIN, which reads the composer on store events,
+ * hears nothing of it.
  */
 export async function remountComposers(gapMs: number): Promise<void> {
   record('stand-composers-remount', { gapMs });
-  remount.value = { down: true, round: remount.value.round };
-  await nextTick();
-  await delay(gapMs);
+  if (gapMs > 0) {
+    remount.value = { down: true, round: remount.value.round };
+    await nextTick();
+    await delay(gapMs);
+  }
   remount.value = { down: false, round: remount.value.round + 1 };
   await nextTick();
 }

@@ -301,6 +301,74 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
     expect(Object.entries(diagnostics.ok ? diagnostics.payload.counters : { missing: 1 }).filter(([name, count]) => (name.startsWith('p1.') || name === 'CG-INSERT-MISPLACED' || name === 'missing') && count > 0)).toEqual([]);
   });
 
+  it('[RB-015] [RB-008] a chat opened and left again at once: MAIN is asked nothing in the middle of a chat switch, and the dock is back over the first chat’s field with «Вставить»', async () => {
+    // CI on PR #16 (this spec and suite-dock, under load). ChatSpace shows the other chat's field before MAIN's report
+    // of it arrives; the dock went over it, that was taken for a re-render of the field, and MAIN was asked for a
+    // snapshot at once — on every chat switch. Its answer was taken as the open chat's composer, outside MAIN's event
+    // stream: «no composer yet» from the middle of a switch stayed for good when MAIN, back on the first chat, had no
+    // new event to send (the dock «copy only», nothing to insert), and an answer that came ahead of MAIN's own event
+    // put the dock back in the frame it had left in (ChatSpace's list lost its bottom).
+    // Here the page opens the other chat right after a frame and is back 8 ms later — or the moment MAIN answers a
+    // snapshot (it sees MAIN's frames leave, §14). A chat switch is MAIN's own news: nothing is asked of it, and the
+    // dock ends over the first chat's field with «Вставить». The lost composer itself needs a frame that comes late
+    // (a loaded machine): the adapter's own specs stage it (stack.dom.test.ts, host-port.dom.test.ts).
+    for (const [from, other] of [
+      [a1, a2],
+      [a2, a4],
+      [a4, a1],
+    ] as const) {
+      await callStand('openChat', ACC, from);
+      await waitForChatReady(ACC, from);
+      await dockIs((d) => d.target?.endsWith(`:${from}`) === true && d.status === 'ready' && d.kind === 'in-flow' && d.mode === 'insert', `the dock of chat ${from}`);
+      // Nothing of that switch is still on its way.
+      await browser.pause(150);
+      const asked = await browser.execute(
+        async (acc: string, there: string, back: string) => {
+          type Frame = { readonly v?: unknown; readonly kind?: unknown; readonly t?: unknown };
+          const stand = (window as unknown as { __stand: { openChat(accountId: string, chatId: string): Promise<void> } }).__stand;
+          const original = Reflect.get(MessagePort.prototype, 'postMessage') as (this: MessagePort, ...args: unknown[]) => void;
+          let snapshots = 0;
+          let left = false;
+          const goBack = (): void => {
+            if (left) return;
+            left = true;
+            void stand.openChat(acc, back);
+          };
+          Reflect.set(MessagePort.prototype, 'postMessage', function (this: MessagePort, message: unknown, ...rest: unknown[]): void {
+            original.call(this, message, ...rest);
+            const frame = message as Frame | null;
+            if (typeof frame !== 'object' || frame === null || frame.v !== 1 || frame.kind !== 'res' || frame.t !== 'snapshot') return;
+            snapshots += 1;
+            goBack();
+          });
+          try {
+            await new Promise<void>((resolve) =>
+              requestAnimationFrame(() => {
+                void stand.openChat(acc, there);
+                resolve();
+              }),
+            );
+            await new Promise((resolve) => setTimeout(resolve, 8));
+            goBack();
+            // MAIN's settle time for a field it did not tell of, and more.
+            await new Promise((resolve) => setTimeout(resolve, 250));
+          } finally {
+            Reflect.set(MessagePort.prototype, 'postMessage', original);
+          }
+          return snapshots;
+        },
+        ACC,
+        other,
+        from,
+      );
+      await waitForChatReady(ACC, from);
+      const back = await dockIs((d) => d.target?.endsWith(`:${from}`) === true && d.status === 'ready' && d.kind === 'in-flow' && d.mode === 'insert', `the dock of chat ${from} after a look into ${other} and back`, 5000);
+      expect(back).toMatchObject({ banner: null, inFlowFirstChild: true });
+      // A chat switch is MAIN's own news: nothing was asked of it.
+      expect([from, other, 'snapshots asked of MAIN', asked]).toEqual([from, other, 'snapshots asked of MAIN', 0]);
+    }
+  });
+
   // Last in the file: the page keeps renumbering MAIN's frames after it (see `holdRouteFrames`).
   it('[RB-015] [RB-008] the route of a chat already left comes after the composer of the chat now open — the order quick switches give on a busy page; the dock comes back over that chat’s field', async () => {
     // What `pnpm perf` met after ten quick switches (docs/pilot-readiness.md §5 п. 15): the dock stayed «copy only»,

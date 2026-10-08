@@ -280,8 +280,31 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
   Object.defineProperty(app, '__vue_app__', { configurable: true, value: { config: { globalProperties: { $router: router, $pinia: pinia } } } });
 
   const all: FakeComposer[] = [];
+  type ComposerOptions = { shown?: boolean; frame?: boolean; bridge?: boolean; editor?: boolean };
   /** Adds a per-tab composer: tab > div.relative (root) > .composer-frame > strip > slot; .ProseMirror in the frame. */
-  const addComposer = (acc: string, fan: string, opts: { shown?: boolean; frame?: boolean; bridge?: boolean; editor?: boolean } = {}): FakeComposer => {
+  const addComposer = (acc: string, fan: string, opts: ComposerOptions = {}): FakeComposer => {
+    const composer = build(acc, fan, opts);
+    composers.append(composer.tab);
+    const entry = { id: `tab-${all.length + 1}`, chatId: fan };
+    tabsOf(acc).entries.push(entry);
+    if (opts.shown ?? true) tabsOf(acc).activeEntryId = entry.id;
+    show(composer, opts.shown ?? true);
+    all.push(composer);
+    return composer;
+  };
+  /**
+   * ChatSpace renders a composer again (a re-mount): new nodes for the same chat tab, no store or cache action. Its
+   * old nodes still in the page — swapped in one step; already taken down (a pause) — the new ones come at the end.
+   */
+  const renderAgain = (old: FakeComposer, opts: ComposerOptions = {}): FakeComposer => {
+    const composer = build(old.acc, old.fan, opts);
+    show(composer, old.tab.style.display !== 'none');
+    if (old.tab.isConnected) old.tab.replaceWith(composer.tab);
+    else composers.append(composer.tab);
+    all.splice(all.indexOf(old), 1, composer);
+    return composer;
+  };
+  function build(acc: string, fan: string, opts: ComposerOptions): FakeComposer {
     const tab = doc.createElement('div');
     tab.setAttribute('data-tab', `${acc}:${fan}`);
     const root = doc.createElement('div');
@@ -298,12 +321,8 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
     frame.append(strip, prose);
     root.append(frame);
     tab.append(root);
-    composers.append(tab);
     for (const element of [tab, root, frame, strip, slot, prose]) stubLayout(element);
     const composer: FakeComposer = { key: `${acc}:${fan}`, acc, fan, tab, root, frame, slot, prose, editor: null, calls: [] };
-    const entry = { id: `tab-${all.length + 1}`, chatId: fan };
-    tabsOf(acc).entries.push(entry);
-    if (opts.shown ?? true) tabsOf(acc).activeEntryId = entry.id;
     if (opts.editor !== false) attachEditor(composer);
     if (opts.bridge !== false) {
       Object.defineProperty(slot, '__omComposerBridge', {
@@ -332,10 +351,8 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
         },
       });
     }
-    show(composer, opts.shown ?? true);
-    all.push(composer);
     return composer;
-  };
+  }
   function attachEditor(composer: FakeComposer): FakeEditor {
     const editor = new FakeEditor();
     composer.editor = editor;
@@ -353,7 +370,7 @@ export function createFakePage(doc: Document, options: FakePageOptions = {}) {
     for (const composer of all) show(composer, composer.acc === acc && composer.fan === fan);
   };
 
-  return { app, composers, router, pinia, cache, stores, tabs: stateByAccountId, addStore, addComposer, attachEditor, show, showOnly, go, pushes, all, setPush: (impl: typeof pushImpl) => (pushImpl = impl) };
+  return { app, composers, router, pinia, cache, stores, tabs: stateByAccountId, addStore, addComposer, renderAgain, attachEditor, show, showOnly, go, pushes, all, setPush: (impl: typeof pushImpl) => (pushImpl = impl) };
 }
 
 export type FakePage = ReturnType<typeof createFakePage>;
