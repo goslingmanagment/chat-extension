@@ -241,6 +241,13 @@ export interface StandControl {
    */
   setRouteDelayMs(ms: number): void;
   /**
+   * ChatSpace renders its composers again without a store change (a re-mount
+   * with a pause: a leave transition, a layout swap, an async part): every
+   * composer is taken down and, `gapMs` later, rendered anew — new nodes, the
+   * same chats. Resolves once the new ones are in the document.
+   */
+  remountComposers(gapMs: number): Promise<void>;
+  /**
    * The person presses ChatSpace's Send right after the next text the
    * composer bridge writes into that chat's field, before a frame passes (a
    * quick hand, or a busy machine whose frames come late). Once.

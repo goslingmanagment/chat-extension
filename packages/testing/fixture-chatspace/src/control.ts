@@ -16,6 +16,7 @@ import { useChatsStore } from './stores/chats';
 import { useComposerTranslator } from './stores/composer';
 import { usePendingMessages } from './stores/pending-messages';
 import { draftKey } from './ui/bridge';
+import { remountComposers } from './ui/composer';
 import type { Navigation } from './ui/navigation';
 import { composerSnapshots, findComposer, messageListState } from './ui/registry';
 import { setFixedWidth, setThemeMode } from './ui/theme';
@@ -91,6 +92,7 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
       env.routeDelayMs = ms;
       record('stand-route-delay', { ms });
     },
+    remountComposers: (gapMs) => remountComposers(gapMs),
     sendAfterNextWrite: (accountId, chatId) => {
       env.sendAfterWrite = `${accountId}:${chatId}`;
       record('stand-send-after-write', { accountId, chatId });
