@@ -58,8 +58,9 @@ Spenders v2, корзины, ingest и все маршруты `client/*` — bo
 клиента только по `x-client-version` ниже минимума владельца (`client_outdated`), а это
 версия расширения, не SDK. Поэтому на хабе со старым контрактом всё, что он умеет,
 работает, а функции его новых маршрутов читаются из bootstrap как `hub_not_ready` и не
-вызываются: так сборка из `c8514c5c` работает против прода `27ef8a3d…` до выкладки
-(`apps/extension/test/wiring-background.test.ts`, «a hub older than the vendored SDK»).
+вызываются: так сборка из `c8514c5c` работала против прода `27ef8a3d…`, пока хаб не
+выложили 2026-10-08 (`apps/extension/test/wiring-background.test.ts`, «a hub older than
+the vendored SDK»).
 
 Особенность вендоренного SDK: путь `spenderBatch` — `/api/v2/spenders:batch`,
 а сборщик путей SDK читает `:batch` как параметр и падает. Такой путь слой

@@ -1,13 +1,13 @@
 {
   "kernelSdk": {
     "contractHash": "38a87253174c65d4948b3970142e5c9877eb6ed3aad7c43f4f49e3ecab56d525",
-    "sourceCommit": "c8514c5c773917ba72e116e3a359af11d4eec0ef",
-    "distSha256": "f46758209499f7015b3d6eff89d7949ffd6190341f872ac0fbf3003c6732aab6",
-    "note": "A DEVELOPMENT vendor, made on 2026-10-08 with the hub's scripts/vendor-sdk.mjs from hub main c8514c5c (#483). Hub main gained seven merged PRs for this client since the vendor before (1e5f6ed9, 27ef8a3d…): #482 synthetic comment examples, #477 Spenders stats, #480 awaiting-reply, #478 archive feed, #479 claim and send custody, #481 audience-new, #483 held sends (dashboard). Against 27ef8a3d… the contract only adds: the six client routes (clientConversationFeed, clientSpenderStats, clientSpenderAwaitingReply, clientFanClaim, clientFanClaimStatus, clientAudienceNew), the two cabinet routes clientSendCustodyResolve and clientSendCustodyList (never called), and the narrow token's scopes for the six; no existing operation or schema changed, so the SDK reads every answer of a hub on 27ef8a3d… as before. The prod hub still runs 27ef8a3d… until the owner deploys: its bootstrap declares none of archive-feed-v1, spenders-stats-v1, awaiting-reply-v1, preview-send-custody-v1, audience-new-v1, so those features read hub_not_ready and the hub layer never calls their routes. The release rule stays: a release is vendored only from a deployed hub commit (the release gate refuses an SDK hash the prod health does not list in compatibleClientSdks). Re-vendor with the same script, then update this pin in the same commit."
+    "sourceCommit": "58f766cd0382b9f7741c4f14a06b6693694bb635",
+    "distSha256": "7e78bcd34ff00388a226636b037f3515cd8e101b0c46a1d004a421d748ec0e94",
+    "note": "Vendored on 2026-10-08 with the hub's scripts/vendor-sdk.mjs from hub main 58f766cd (#492) — the commit DEPLOYED to production that day (prod health: contractHash 38a87253…, compatibleClientSdks lists it), so this vendor satisfies the release rule: a release is vendored only from a deployed hub commit (the release gate refuses an SDK hash the prod health does not list in compatibleClientSdks). Against the vendor before (c8514c5c, same contract 38a87253…) only comments changed: #492 wrote down what the Spenders asOf stamp means in packages/contracts/src/routes.ts; no operation, schema or scope changed (hub #484–#491 did not touch the SDK). The prod bootstrap declares archive-feed-v1, spenders-stats-v1, awaiting-reply-v1, preview-send-custody-v1, audience-new-v1, live-text-v1 and split-all-v1. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
     "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
-    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to c8514c5c, the commit the SDK is vendored from: only its README and the script's usage comment changed since)."
+    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to 58f766cd, the commit the SDK is vendored from: only its README and the script's usage comment changed since)."
   }
 }
