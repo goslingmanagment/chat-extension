@@ -288,15 +288,16 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await typeDraft('привет, это мой текст');
       await pressOurs('dock', '[data-cg-part="1"] button', /^Вставить/);
       await waitOursText('dock', 'Добавить в конец', 'the Б2 question');
-      // The person's own insert asked: the question holds the focus on «Отмена» (X18). Which button has it, and whether its
-      // ring is drawn (the browser draws it after a key, not after a click), is in the pictures and in the facts.
+      // The person's own insert asked: the question holds the focus on «Отмена» (X18). Whether its ring is drawn after a
+      // click is the browser's call (Firefox draws none); it is in the picture and in the facts.
       const confirmFocus: unknown[] = [];
-      const focusOnCancel = (ring: boolean) => async (): Promise<void> => {
+      const focusOnCancel = (ring: boolean | null) => async (): Promise<void> => {
         const focus = await readOurs('dock', '.cg-confirm :focus', (node) => ({ text: node.querySelector('.cg-btn__t')?.textContent ?? '', ring: node.matches(':focus-visible') }));
-        expect(focus).toEqual({ text: current.lang === 'ru' ? 'Отмена' : 'Cancel', ring });
+        expect(focus?.text).toBe(current.lang === 'ru' ? 'Отмена' : 'Cancel');
+        if (ring !== null) expect(focus?.ring).toBe(ring);
         confirmFocus.push({ ...current, ...focus });
       };
-      await look('dock-06-confirm', { check: focusOnCancel(false) });
+      await look('dock-06-confirm', { check: focusOnCancel(null) });
       // The same focus reached by the keys (Shift+Tab to «Добавить в конец», Tab back): the ring on the quiet «Отмена».
       await browser.keys([Key.Shift, Key.Tab]);
       await browser.keys(Key.Tab);
