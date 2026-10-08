@@ -1,7 +1,7 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 216,
+    "unit": 217,
     "e2e": 33
   },
   "totals": {
@@ -950,7 +950,7 @@
     {"id":"LG-013","function":"Логи входа и выхода","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/core/src/domain/logging/logging.test.ts"],"e2e":[],"covered":true},
     {"id":"LG-014","function":"Сбои телеметрии в лог","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/logging/logging.test.ts"],"e2e":[],"covered":true},
     {"id":"LG-015","function":"Логи AI","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/logging/logging.test.ts","packages/core/src/services/telemetry/telemetry.test.ts"],"e2e":[],"covered":true},
-    {"id":"LG-016","function":"Запись о старте","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/domain/logging/logging.test.ts"],"e2e":["packages/testing/e2e/specs/lifecycle.e2e.ts"],"covered":true},
+    {"id":"LG-016","function":"Запись о старте","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/contract-log.test.ts","apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/domain/logging/logging.test.ts"],"e2e":["packages/testing/e2e/specs/lifecycle.e2e.ts","packages/testing/e2e/specs/suite-degrade.e2e.ts"],"covered":true},
     {"id":"LG-017","function":"Журнал смены чата и вставок","target":"пилот","owner":"R10","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/logging/logging.test.ts","packages/core/test/domain-insert.test.ts"],"e2e":[],"covered":true},
     {"id":"LG-018","function":"Логи OFAPI, синка, медиа, обновлений, жизненного цикла","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/domain/logging/logging.test.ts","packages/platform/src/services.test.ts"],"e2e":["packages/testing/e2e/specs/lifecycle.e2e.ts"],"covered":true},
     {"id":"LG-019","function":"Логи и аудит Message Guard","target":"убрано владельцем","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true},

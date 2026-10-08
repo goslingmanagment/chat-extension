@@ -32,6 +32,9 @@ export const CONTROL_REQUEST_HEADER = 'x-stand-control';
 /** Query flag that boots the page with ChatSpace anchors removed or renamed (a «new build»). */
 export const STAND_BREAK_PARAM = 'stand-break';
 
+/** Query flag that mounts the app this many ms before its app-wide data start to load (a ChatSpace whose stores fill late). */
+export const STAND_SLOW_START_PARAM = 'stand-slow-start';
+
 /**
  * Who made a call, as the stand server labels it:
  * - `native` — the page's own client (the role ChatSpace plays);

@@ -18,11 +18,15 @@
 // - the extension itself is reloaded under the open tab in the middle of a
 //   stream: «Перезагрузите вкладку» (CG-RUNTIME-RELOADED), every action off,
 //   the hub's stream cut and never asked again; «Перезагрузить вкладку»
-//   brings the dock back.
+//   brings the dock back;
+// - ChatSpace fills a store after our script started (a reload of 0.195): the
+//   contract is broken for a moment, and that start-up is no error of the day
+//   and no warning — only the settled contract is judged.
 // What the adapter does with each lost anchor has its spec without the
 // extension (host-adapter.e2e.ts); here the person sees it — in the dock, in
 // the preview, in the settings, in the popup.
 
+import type { LogRecord } from '@cg/contracts/logs';
 import { $, browser, expect } from '@wdio/globals';
 
 import { pilotPageFlags } from '../../src/fake-hub/config';
@@ -84,6 +88,52 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     const healthy = await statusPage();
     expect(healthy.chatspace.level).toBe('ok');
     expect(healthy.popupCodes).not.toContain('CG-HOST-CONTRACT');
+  });
+
+  it('[LG-016] ChatSpace fills a store after our script started (a reload of 0.195): its start-up is no error of the day and no warning; the settled contract is written once, whole', async function () {
+    this.timeout(90_000);
+    /** Today's CG-HOST-CONTRACT, and the host contract records of the tab script that started after `from`, read on the extension page. */
+    const readBack = async (from: number): Promise<{ readonly contractErrors: number; readonly records: readonly LogRecord[] }> => {
+      await shift.toPages();
+      try {
+        const diagnostics = await pageRpc<{ counters: Record<string, number> }>('diagnostics.get');
+        await browser.url(testBuildPage('options.html'));
+        const file = await pageRpc<{ body: string }>('diagnostics.export', { format: 'json' });
+        if (!diagnostics.ok || !file.ok) throw new Error('diagnostics were not read');
+        const records = (JSON.parse(file.payload.body) as { logs?: { recent?: LogRecord[] } }).logs?.recent ?? [];
+        const session = records.find((record) => record.msg === 'tab script started' && Date.parse(record.ts) >= from)?.ctx?.tabSessionId;
+        const ofSession = session === undefined ? [] : records.filter((record) => record.ctx?.tabSessionId === session && record.scope === 'tab.host' && /^host contract/.test(record.msg));
+        return { contractErrors: diagnostics.payload.counters['CG-HOST-CONTRACT'] ?? 0, records: ofSession };
+      } finally {
+        await browser.url(testBuildPage(QUIET_PAGE));
+        await shift.toStand();
+      }
+    };
+    const before = (await readBack(Date.now())).contractErrors;
+    const from = Date.now();
+    // The third live check: after a reload ChatSpace 0.195 filled its stores one by one, the contract was broken for
+    // a second, and the day counted CG-HOST-CONTRACT four times. Here the stand shows its app and the open chat's
+    // composer 1.5 s before its accounts and permissions start to load.
+    await openStand(chatPath(ACC, a1), { slowStartMs: 1500 });
+    await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock after the slow start', 20_000);
+    let seen: Awaited<ReturnType<typeof readBack>> = { contractErrors: before, records: [] };
+    await browser.waitUntil(
+      async () => {
+        seen = await readBack(from);
+        // The settled record — or, from a build that writes no `starting`, the change that made the contract whole.
+        return seen.records.some((record) => record.fields?.['starting'] === undefined && record.fields?.['ok'] === true);
+      },
+      { timeout: 30_000, interval: 1000, timeoutMsg: 'the new tab wrote no whole host contract' },
+    );
+    // Once more: the day's counters are read before the export, and the last records may have come in between.
+    seen = await readBack(from);
+    // No error of the day, no warning, no code on any record of the start-up.
+    expect(['CG-HOST-CONTRACT today', seen.contractErrors - before]).toEqual(['CG-HOST-CONTRACT today', 0]);
+    expect(seen.records.filter((record) => record.level !== 'info' || record.code !== undefined).map((record) => [record.level, record.msg, record.code ?? null])).toEqual([]);
+    // The start-up really was broken, and it was written as such — without the code, at info.
+    expect(seen.records.some((record) => record.fields?.['starting'] === true && record.fields['ok'] === false)).toBe(true);
+    const settled = seen.records.filter((record) => record.fields?.['starting'] === undefined);
+    expect(settled.map((record) => [record.level, record.msg, record.code ?? null, record.fields?.['ok']])).toEqual([['info', 'host contract checked', null, true]]);
   });
 
   it('[UI-011] the owner switches ChatGoose off for the page (the master switch): the dock stays, says so in one line, every AI button is dimmed — a click starts nothing and the hub is asked nothing; switched on again, it works', async () => {

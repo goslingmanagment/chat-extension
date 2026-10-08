@@ -1,7 +1,8 @@
 // Boot-time settings of the stand page: which anchors a «new build» lost
-// (?stand-break=…, §6.2 degradation tests) and the few knobs tests may turn.
+// (?stand-break=…, §6.2 degradation tests), a slow start (?stand-slow-start=…)
+// and the few knobs tests may turn.
 
-import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, type StandBreak } from './protocol';
+import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, STAND_SLOW_START_PARAM, type StandBreak } from './protocol';
 
 const KNOWN_BREAKS = /^(vue-app|router-name|composer-bridge|composer-slot|composer-frame|editor-handle|draft-key|store:[A-Za-z_]+|query-key:[A-Za-z]+)$/;
 
@@ -25,8 +26,20 @@ function readApiOrigin(): string {
 
 const randomId = (): string => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID().slice(0, 8) : String(Math.random()).slice(2, 10));
 
+/** `?stand-slow-start=<ms>`: the app is on the page this long before its app-wide data (a slow start, as on ChatSpace 0.195). */
+function readSlowStart(search: string): number {
+  const ms = Number(new URLSearchParams(search).get(STAND_SLOW_START_PARAM) ?? '0');
+  return Number.isFinite(ms) && ms > 0 ? Math.min(ms, 30_000) : 0;
+}
+
 export const env = {
   breaks: readBreaks(location.search),
+  /**
+   * How long the app is mounted before its app-wide data (accounts, permissions, Mimic) start to load. ChatSpace 0.195
+   * is on the page before its stores are full: the extension that starts with it sees a broken contract for a moment
+   * (third live check). 0 — the stand's usual order: the data first, then the app.
+   */
+  slowStartMs: readSlowStart(location.search),
   /** Origin of the native API and the socket (ChatSpace: the apex domain, not the page's chat. host). */
   apiOrigin: readApiOrigin(),
   /** This page load; native request ids are `<bootId>.<n>`, unique across reloads. */

@@ -51,6 +51,7 @@ import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
 import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
+import { createContractLog } from './contract-log';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
@@ -557,10 +558,15 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     if (health !== null) health.report(true);
     else void rpc.request('health.report', { report: bareReport(host.current().contract) });
   };
-  let contractLogged = false;
+  // ChatSpace's start-up is not written as a broken contract (tab/contract-log.ts); the health report is not delayed.
+  const contractLog = createContractLog((facts, kind) => logHostContract(logger, facts, kind), {
+    now: () => Date.now(),
+    setTimer: (ms, fn) => win.setTimeout(fn, ms),
+    clearTimer: (handle) => win.clearTimeout(handle as number),
+  });
+  offs.push(() => contractLog.dispose());
   const reportContract = (report: HostContractReport): void => {
-    logHostContract(logger, contractFactsOf(report), contractLogged);
-    contractLogged = true;
+    contractLog.report(contractFactsOf(report));
     sendHealth();
   };
   offs.push(host.onContract(reportContract));
