@@ -23,6 +23,11 @@
 // surface, with the container cut at the dock's top when they must give way.
 // Windows (Spenders, «Новые», the palette) keep the whole container: they are
 // modal on purpose.
+//
+// The toasts stand top right, over the place of the panels (third live check:
+// «Recap сохранён в хаб» lay on Coach's header). While a side panel is open
+// the stack stands left of it, 20 px off — as it keeps 20 px off ChatSpace's
+// rail — and comes back when the panel closes (ui-design §3.9).
 
 import type { SurfaceGeometry } from '@cg/contracts/vm';
 
@@ -55,4 +60,31 @@ export function panelGeometryOf(base: SurfaceGeometry, dock: DockBox | null, vie
   if (dock.right <= panelLeft || dock.left >= panelRight) return base;
   const height = Math.max(0, Math.min(container.height, Math.floor(dock.top - container.top)));
   return { ...base, container: { ...container, height } };
+}
+
+/** The toast stack's width and its gap to what it stands beside (ui-design §3.9). */
+export const TOAST_WIDTH_PX = 360;
+export const TOAST_GAP_PX = 20;
+/** The narrowest stack beside a panel, and its margin to the window's left edge. */
+const TOAST_MIN_WIDTH_PX = 240;
+const TOAST_EDGE_PX = 16;
+
+/** Where the toast stack stands: its right edge `right` px from the window's right edge, at most `width` wide. */
+export interface ToastPlace {
+  readonly right: number;
+  readonly width: number;
+}
+
+/**
+ * The toast stack beside an open side panel: left of the panel's 320 px at the
+ * right edge of the container (of the window without one), `TOAST_GAP_PX`
+ * off, up to 360 px wide. null — no side panel open, or a window too narrow
+ * for a stack beside it (under ~600 px): the stack keeps its own place.
+ */
+export function toastPlaceOf(panelOpen: boolean, base: SurfaceGeometry, viewportWidth: number): ToastPlace | null {
+  if (!panelOpen) return null;
+  const panelLeft = base.container === null ? viewportWidth - SIDE_PANEL_WIDTH_PX : base.container.left + base.container.width - SIDE_PANEL_WIDTH_PX;
+  const room = Math.floor(panelLeft - TOAST_GAP_PX - TOAST_EDGE_PX);
+  if (room < TOAST_MIN_WIDTH_PX) return null;
+  return { right: Math.max(0, Math.round(viewportWidth - panelLeft)) + TOAST_GAP_PX, width: Math.min(TOAST_WIDTH_PX, room) };
 }

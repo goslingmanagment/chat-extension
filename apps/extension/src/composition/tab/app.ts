@@ -55,9 +55,9 @@ import { createContractLog } from './contract-log';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
 import type { TabProbe } from './probe';
-import { panelGeometryOf, type DockBox } from './panel-geometry';
+import { panelGeometryOf, toastPlaceOf, type DockBox } from './panel-geometry';
 import { followRecapTab } from './recap-tab';
-import { mountSurfaces, overlayRoot } from './surfaces';
+import { mountSurfaces, OVERLAY_MOUNTS, overlayRoot } from './surfaces';
 import { toastOfTab, type ToastFacts } from './toast-events';
 import { Value } from './values';
 
@@ -272,6 +272,15 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   const catalog = navigationChunk.createActionCatalog(keys.platform);
   const toasts = dockChunk.createToastHost();
   offs.push(() => toasts.dispose());
+  // While a side panel is open the toasts stand left of it, never over its header (tab/panel-geometry.ts): they move
+  // when a panel opens or closes and when the window or ChatSpace's container changes — not with the dock.
+  const placeToasts = (): void => {
+    const panelOpen = keys.overlays.list().some((overlay) => OVERLAY_MOUNTS[overlay]?.layer === 'panel');
+    toasts.setPlace(toastPlaceOf(panelOpen, geometryOf(), doc.documentElement.clientWidth));
+  };
+  placeToasts();
+  win.addEventListener('resize', placeToasts);
+  offs.push(keys.overlays.subscribe(placeToasts), mounts.onChange(placeToasts), () => win.removeEventListener('resize', placeToasts));
   const clipboard: MountDeps['clipboard'] = {
     writeText: (text) =>
       win.navigator.clipboard.writeText(text).then(

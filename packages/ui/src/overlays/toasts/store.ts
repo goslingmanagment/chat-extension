@@ -5,6 +5,8 @@
 // most three stay, the newest first; hover or focus inside holds its timer.
 // One timer per toast, none when the queue is empty. Toasts of operations and
 // of the background come through the `toasts` view; the host draws both.
+// Where the stack stands is the tab's to say (`setPlace`): beside an open side
+// panel, never over its header and controls (ui-design §3.9).
 
 import { signal, type ReadonlySignal } from '@preact/signals';
 
@@ -27,9 +29,22 @@ export interface LocalToast {
   readonly expiresAt: number | null;
 }
 
+/**
+ * Where the stack stands while a side panel of ours is open (ui-design §3.9): its right edge `right` px from the
+ * window's right edge — left of the panel —, at most `width` px wide. Its top does not change.
+ */
+export interface ToastPlace {
+  readonly right: number;
+  readonly width: number;
+}
+
 export interface ToastHost extends ToastPort {
   /** Newest first, at most TOAST_LIMIT. */
   readonly toasts: ReadonlySignal<readonly LocalToast[]>;
+  /** null — the stack's own place, top right (no side panel open). */
+  readonly place: ReadonlySignal<ToastPlace | null>;
+  /** The whole stack — the UI's toasts and the controller's — moves there; an equal place changes nothing. */
+  setPlace(place: ToastPlace | null): void;
   /** Hover or focus inside a toast stops its countdown; leaving resumes what was left. */
   hold(id: ToastId, hold: boolean): void;
   /** Drops every toast and timer. */
@@ -53,6 +68,7 @@ const keyOf = (toast: Pick<ToastRequest, 'code' | 'scope'>): string => `${toast.
 export function createToastHost(options: ToastHostOptions = {}): ToastHost {
   const now = options.now ?? Date.now;
   const toasts = signal<readonly LocalToast[]>([]);
+  const place = signal<ToastPlace | null>(null);
   let entries: Entry[] = [];
   let serial = 0;
 
@@ -78,6 +94,12 @@ export function createToastHost(options: ToastHostOptions = {}): ToastHost {
 
   return {
     toasts,
+    place,
+    setPlace(next) {
+      const current = place.value;
+      if (current === next || (current !== null && next !== null && current.right === next.right && current.width === next.width)) return;
+      place.value = next === null ? null : { right: next.right, width: next.width };
+    },
     show(request) {
       const key = keyOf(request);
       for (const entry of entries.filter((item) => keyOf(item.toast) === key)) stop(entry);

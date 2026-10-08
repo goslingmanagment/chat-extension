@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type ToastRequest } from '@cg/contracts';
+import { COMPONENTS_SOURCE } from '@cg/ui/kit';
 import { TOASTS_STYLE, TOAST_LIFETIME_MS, TOAST_LIMIT, ToastsView, createToastHost, toastsSurface, type ToastHost } from '@cg/ui/overlays';
 
 import { FANS, aiReadyToast, button, cgError, entry, handles, msg, toast, toasts, views } from '../scenarios/app-client';
@@ -93,6 +94,40 @@ describe('the UI\'s own toast queue (ToastPort)', () => {
     host.dismiss(again);
     expect(ids()).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('[ER-009] where the stack stands: beside an open side panel (ui-design §3.9)', () => {
+  it('the host keeps one place for the whole stack; an equal place changes nothing; null is the stack’s own place', () => {
+    host = createToastHost({ now: () => Date.now() });
+    expect(host.place.value).toBeNull();
+    const seen: unknown[] = [];
+    const off = host.place.subscribe((value) => seen.push(value));
+    host.setPlace({ right: 340, width: 360 });
+    host.setPlace({ right: 340, width: 360 });
+    host.setPlace(null);
+    host.setPlace(null);
+    off();
+    expect(seen).toEqual([null, { right: 340, width: 360 }, null]);
+  });
+
+  it('the UI’s own toasts and the controller’s move together, and come back when the panel closes; the top stays', async () => {
+    kit = mount([toast(ctx, 'c-1', 'info', { title: 'one' })]);
+    (host as ToastHost).show(request());
+    await flush();
+    const stack = kit.$('.cg-toasts') as HTMLElement;
+    expect([stack.style.right, stack.style.width, stack.hasAttribute('data-cg-place')]).toEqual(['', '', false]);
+    await flush(() => (host as ToastHost).setPlace({ right: 340, width: 300 }));
+    expect([stack.style.right, stack.style.width, stack.getAttribute('data-cg-place')]).toEqual(['340px', '300px', 'beside-panel']);
+    expect(kit.$$('.cg-toast')).toHaveLength(2);
+    expect(stack.style.top).toBe('');
+    await flush(() => (host as ToastHost).setPlace(null));
+    expect([stack.style.right, stack.style.width, stack.hasAttribute('data-cg-place')]).toEqual(['', '', false]);
+  });
+
+  it('it slides there in the panel’s own 140 ms — never under reduced motion', () => {
+    expect(COMPONENTS_SOURCE.css).toMatch(/\.cg-toasts \{[^}]*transition: right 140ms var\(--cg-ease\), width 140ms var\(--cg-ease\)/);
+    expect(COMPONENTS_SOURCE.css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.cg-toasts \{ transition: none; \} \}/);
   });
 });
 

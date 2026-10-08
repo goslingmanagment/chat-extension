@@ -14,7 +14,12 @@
 // - ChatSpace's panel closed (the composer reaches the rail, under our panel's
 //   place): the panel still ends at the dock's top, the question field stays
 //   on screen, the Coach answer opens at its start, and «Скрыть» on the dock's
-//   result gives the panel its height back.
+//   result gives the panel its height back;
+// - a toast never lies over an open panel: «Recap сохранён в хаб» lay on
+//   Coach's header on the live check. Shown before a panel opens, the stack
+//   moves once, left of it; shown while a panel is open, it comes there;
+//   with the panel closed it is back at its own place — in the owner's window
+//   and in a narrow one.
 // Pictures in both themes go to .cache/e2e/.
 
 import { $, browser, expect } from '@wdio/globals';
@@ -30,6 +35,11 @@ import { callStand, foreignCalls, standServer } from '../support/stand';
 import { saveStandSnapshots, setViewport } from '../support/visual';
 
 const WINDOW = { width: 1728, height: 930 } as const;
+/** A narrow window (the owner's smoke checklist: about 1100 px). */
+const NARROW = { width: 1100, height: 800 } as const;
+/** ui-design §3.9: the toasts' own place, 84 px off the window's right edge, and their gap to an open panel. */
+const TOAST_RIGHT = 84;
+const TOAST_GAP = 20;
 /** A panel shorter than this share of the window is the live check's cramped panel. */
 const TALL_SHARE = 0.8;
 
@@ -225,6 +235,79 @@ describe('the side panels on ChatSpace 0.195’s layout — the owner’s 1728 �
     expect(['the Recap tab overflows its body', before.room > 0]).toEqual(['the Recap tab overflows its body', true]);
     await browser.action('wheel').scroll({ origin: await ours('panel', '.cg-fp__body').getElement(), deltaX: 0, deltaY: 300, duration: 50 }).perform();
     await browser.waitUntil(async () => (await scrollOf('panel', '.cg-fp__body')).top > before.top, { timeout: 5000, timeoutMsg: 'the wheel over the fan panel did not scroll it' });
+    await setViewport(WINDOW);
+    await closeAll();
+  });
+
+  it('[ER-009] [CS-031] a toast never lies over an open side panel: shown before the panel opens it moves once, left of it; shown while it is open it comes there; closed, it is back', async function () {
+    this.timeout(240_000);
+    await closeAll();
+    await callStand('setSidePanel', 'open');
+    await openFullRecap();
+    const toastBox = (): Promise<Box | null> => oursBox('toast', '.cg-toast');
+    const panelBox = (): Promise<Box | null> => oursBox('panel', '.cg-side');
+    /** «Recap сохранён в хаб» — the live check's toast: the full Recap built again and saved to the hub. */
+    const savedToast = async (): Promise<void> => {
+      await waitOursText('toast', 'Recap сохранён в хаб', 'the toast before went by itself', { gone: true, timeout: 15_000 });
+      await pressOurs('dock', '.cg-dock button', /^Обновить/);
+      await waitOursText('toast', 'Recap сохранён в хаб', 'the «Recap сохранён в хаб» toast', { timeout: 20_000 });
+      // Its 140 ms appearance (6 px up) is over: where it stands is measured, not where it rises from.
+      await browser.pause(250);
+    };
+    /** The toast is whole left of the open panel, 20 px off — not one pixel of the panel's header or controls under it. */
+    const besidePanel = async (width: number, message: string): Promise<Box> => {
+      let toast: Box | null = null;
+      let panel: Box | null = null;
+      try {
+        await browser.waitUntil(
+          async () => {
+            [toast, panel] = [await toastBox(), await panelBox()];
+            return toast !== null && panel !== null && overlap(toast, panel) === 0 && Math.abs(panel.x - (toast.x + toast.width) - TOAST_GAP) <= 1;
+          },
+          { timeout: 2000, interval: 50 },
+        );
+      } catch {
+        throw new Error(`${message}: the toast ${JSON.stringify(toast)} is not 20 px left of the panel ${JSON.stringify(panel)}`);
+      }
+      const shown = toast as unknown as Box;
+      expect([message, shown.x >= 16, Math.round(shown.x + shown.width) <= width]).toEqual([message, true, true]);
+      return shown;
+    };
+    /** Pictures in both themes while the pointer holds the toast on screen (hover stops its countdown). */
+    const pictures = async (name: string, viewport: { readonly width: number; readonly height: number }): Promise<void> => {
+      await browser.action('pointer').move({ origin: await ours('toast', '.cg-toast__t').getElement(), x: 0, y: 0 }).perform();
+      await saveStandSnapshots(name, { viewports: [viewport], settleMs: 300 });
+      await setViewport(WINDOW);
+    };
+
+    // The live check's order: the toast first, then the panel. Without a panel the toast stands where the panel will.
+    await savedToast();
+    const own = await toastBox();
+    expect(own === null ? null : Math.round(WINDOW.width - (own.x + own.width))).toBe(TOAST_RIGHT);
+    expect((own?.x ?? 0) + (own?.width ?? 0)).toBeGreaterThan(WINDOW.width - 320);
+    await pressOurs('dock', '.cg-strip button', /^Coach/);
+    await waitOursText('panel', 'Coach', 'the Coach panel');
+    const moved = await besidePanel(WINDOW.width, 'Coach opened under a toast');
+    // One move, sideways: the top stays.
+    expect(Math.round(moved.y)).toBe(Math.round(own?.y ?? -1));
+    await closeAll();
+    await browser.waitUntil(async () => {
+      const back = await toastBox();
+      return back === null || Math.round(WINDOW.width - (back.x + back.width)) === TOAST_RIGHT;
+    }, { timeout: 2000, timeoutMsg: 'with the panel closed the toast did not come back to its own place' });
+
+    // The panel first, then the toast: it comes beside the panel, at the owner's window and at a narrow one.
+    await leaveField();
+    await browser.keys([']']);
+    await waitOursText('panel', 'Fan Alder', 'the fan panel');
+    await savedToast();
+    await besidePanel(WINDOW.width, 'a toast while the fan panel is open (1728 px)');
+    await pictures('toast-beside-panel', WINDOW);
+    await setViewport(NARROW);
+    await twoFrames();
+    await savedToast();
+    await besidePanel(NARROW.width, 'a toast while the fan panel is open (1100 px)');
+    await pictures('toast-beside-panel', NARROW);
     await setViewport(WINDOW);
     await closeAll();
   });

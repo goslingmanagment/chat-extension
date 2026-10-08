@@ -333,8 +333,8 @@
       "planned": "stand-visual",
       "rows": 153,
       "inUnit": 153,
-      "inE2e": 53,
-      "unitOnly": 100,
+      "inE2e": 54,
+      "unitOnly": 99,
       "uncovered": 0
     },
     {
@@ -863,7 +863,7 @@
     {"id":"ER-006","function":"Срок повтора","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts","packages/core/test/application-shell.test.ts","packages/testing/src/dock/result.test.tsx","packages/testing/src/kit/errors.test.tsx"],"e2e":[],"covered":true},
     {"id":"ER-007","function":"Пояснение ядра под заголовком","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts","packages/testing/src/dock/result.test.tsx"],"e2e":[],"covered":true},
     {"id":"ER-008","function":"Тексты ошибок по-русски везде","target":"пилот","owner":"R18","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts"],"e2e":[],"covered":true},
-    {"id":"ER-009","function":"Тосты","target":"пилот","owner":"R13","milestones":["M1"],"planned":"stand-visual","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts","packages/core/test/application-shell.test.ts","packages/testing/src/kit/toasts.test.tsx","packages/testing/src/overlays/toasts.test.tsx"],"e2e":[],"covered":true},
+    {"id":"ER-009","function":"Тосты","target":"пилот","owner":"R13","milestones":["M1"],"planned":"stand-visual","pilot":true,"unit":["apps/extension/src/composition/tab/panel-geometry.test.ts","packages/core/src/domain/errors/errors.test.ts","packages/core/test/application-shell.test.ts","packages/testing/src/kit/toasts.test.tsx","packages/testing/src/overlays/toasts.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-panels-0195.e2e.ts"],"covered":true},
     {"id":"ER-010","function":"Тост ошибки","target":"пилот","owner":"R13","milestones":["M1"],"planned":"stand-visual","pilot":true,"unit":["packages/contracts/test/vm.test.ts","packages/core/src/domain/errors/errors.test.ts","packages/core/test/application-shell.test.ts","packages/testing/src/kit/toasts.test.tsx","packages/testing/src/overlays/toasts.test.tsx"],"e2e":[],"covered":true},
     {"id":"ER-011","function":"Кнопка «Настройки» в тосте и карточке","target":"пилот","owner":"R13","milestones":["M1"],"planned":"stand-visual","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts","packages/core/test/application-shell.test.ts","packages/testing/src/kit/toasts.test.tsx","packages/testing/src/overlays/toasts.test.tsx"],"e2e":[],"covered":true},
     {"id":"ER-012","function":"Тост несинхронизированного рекапа","target":"пилот","owner":"R13","milestones":["M1"],"planned":"stand-visual","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts","packages/core/test/application-shell.test.ts","packages/testing/src/kit/toasts.test.tsx","packages/testing/src/pages/pages.test.tsx"],"e2e":[],"covered":true},
