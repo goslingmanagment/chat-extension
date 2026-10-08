@@ -54,13 +54,26 @@ window.addEventListener(
   { capture: true },
 );
 
+// «The system took the keyup» (the app switcher, a system shortcut): when a test arms it, the next keyup of ⌘/Ctrl
+// stops here, before the dispatcher — the page never hears that the modifier went up, as it does not on a real ⌘-Tab.
+let loseKeyup = false;
+window.addEventListener(
+  'keyup',
+  (event) => {
+    if (!loseKeyup || !event.isTrusted || (event.key !== 'Meta' && event.key !== 'Control')) return;
+    loseKeyup = false;
+    event.stopImmediatePropagation();
+  },
+  { capture: true },
+);
+
 // The one sign of a waiting key before our UI exists: the dock host's attribute.
 const early = createEarlyNotices({ onWaiting: createKeyPendingMark(started.mounts.dock.host) });
 
 const dispatcher = createEarlyKeyDispatcher({
   platform,
   window,
-  document: { source: document, hidden: () => document.hidden },
+  document: { source: document, hidden: () => document.hidden, focused: () => document.hasFocus() },
   ownership: probe,
   state: keyState,
   timers: { setTimer: (ms, fn) => setTimeout(fn, ms), clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>) },
@@ -225,6 +238,15 @@ const api = {
     dockSettled = true;
     for (const listener of [...readyListeners]) listener();
     return true;
+  },
+  /** The next keyup of ⌘/Ctrl never reaches the dispatcher. */
+  loseKeyup() {
+    loseKeyup = true;
+    return true;
+  },
+  /** What the dispatcher's own probes read. */
+  focusState() {
+    return { focused: document.hasFocus(), hidden: document.hidden };
   },
   /** A key the page forges: a scripted event on `window`, as a script of the site could dispatch. */
   forge(init: KeyboardEventInit) {

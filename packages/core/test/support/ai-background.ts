@@ -125,6 +125,10 @@ export class FakeBackground {
   opList: { readonly ops: OpView[]; readonly truncated: boolean } | null = null;
   /** Failures of the next `op.list` requests, in order. */
   readonly opListErrors: CgErrorWire[] = [];
+  /** How many times a tab asked the port to be opened again (`reconnect()`: the person's «Повторить» over a lost port). */
+  reconnects = 0;
+  /** Request types whose next answers are lost with the port under them (CG-RUNTIME-UNREACHABLE «port lost»), and how many times. */
+  readonly dropped = new Map<string, number>();
   /** Failures of the next `op.start` requests, in order: the background refused before any admission (its journal could not be written, its settings are not read). */
   readonly startErrors: CgErrorWire[] = [];
   /** Answers of `recap.save`, in order; an empty queue answers `saved`. */
@@ -241,6 +245,14 @@ export class FakeBackground {
         if (!parseTabPayload('req', type, payload).ok) throw new ContractViolation(`request ${type} breaks its schema: ${JSON.stringify(payload)}`);
         this.calls.push({ tab, type, payload });
         if (this.connection === 'reloaded') return { ok: false, error: { code: 'CG-RUNTIME-RELOADED' } };
+        // Nothing is sent over a lost port: the request ends at once (platform rpc-tab.ts).
+        if (this.connection === 'lost') return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'lost' } };
+        const drops = this.dropped.get(type) ?? 0;
+        if (drops > 0) {
+          // The port went away under the request: whatever the background did with it, the tab heard nothing.
+          this.dropped.set(type, drops - 1);
+          return { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'port lost' } };
+        }
         if (this.held.has(type)) await new Promise<void>((resume) => this.waiting.push(resume));
         const answer = (await this.answer(tab, type, payload)) as RpcAnswer<TabResponsePayload<T>>;
         if (this.slow.has(type)) await new Promise<void>((resume) => this.waiting.push(resume));
@@ -264,6 +276,9 @@ export class FakeBackground {
       },
       state: () => this.connection,
       tabSessionId: () => tab,
+      reconnect: () => {
+        this.reconnects += 1;
+      },
     };
   }
 

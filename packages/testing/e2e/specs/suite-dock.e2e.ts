@@ -27,7 +27,7 @@ import { Key } from 'webdriverio';
 import { bridgeWrites, clearDraft, composerText, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, pressSend, scrollList, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { oursByText, oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
+import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, composerRoots, dockPlacement, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 import { setViewport } from '../support/visual';
@@ -182,7 +182,7 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/);
       await waitOursText('dock', HUMAN_DRAFT, 'the question about the person’s own text');
       expect(await composerText(ACC, a2)).toBe('my own words');
-      for (const answer of ['Заменить', 'Добавить в конец', 'Отмена']) expect(await oursByText('dock', '[data-cg-part="0"] button', new RegExp(`^${answer}`))).not.toBeNull();
+      for (const answer of ['Заменить', 'Добавить в конец', 'Отмена']) await waitOursByText('dock', '[data-cg-part="0"] button', new RegExp(`^${answer}`), `the answer «${answer}» of the question`);
       await pressOurs('dock', '[data-cg-part="0"] button', /^Отмена/);
       await waitOursText('dock', HUMAN_DRAFT, 'the question is gone', { gone: true });
       expect(await composerText(ACC, a2)).toBe('my own words');

@@ -27,7 +27,7 @@ import { PAGE } from '../../src/scenarios/hub';
 import { MOD, PANEL, pressSend, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursExists, oursFocus, oursText, pressOurs, waitOursText } from '../support/ours';
+import { oursExists, oursFocus, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, standApiOrigin, standOrigin, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -50,7 +50,7 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
 
   const part = (index: number): string => `.cg-pv [data-cg-part="${index}"]`;
   const sentInPreview = (): Promise<void> =>
-    browser.waitUntil(async () => (await oursExists('modal', part(0))) && (await ours('modal', part(0)).getAttribute('data-cg-send-state')) === 'sent', { timeout: 20_000, timeoutMsg: 'the part was not confirmed as sent' }).then(() => undefined);
+    browser.waitUntil(async () => (await readOurs('modal', part(0), (node) => node.getAttribute('data-cg-send-state'))) === 'sent', { timeout: 20_000, timeoutMsg: 'the part was not confirmed as sent' }).then(() => undefined);
   const openPreview = async (name: string): Promise<void> => {
     if (!(await oursExists('modal', '[aria-label="Spenders"]'))) await browser.keys([...PANEL, 'm']);
     await waitOursText('modal', name, `the board lists ${name}`, { timeout: 20_000, selector: '[aria-label="Доска Spenders"]' });

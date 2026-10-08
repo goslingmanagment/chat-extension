@@ -134,6 +134,18 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
     return null;
   };
 
+  /**
+   * Where a composer's editor appears: its frame; when the frame changed, the highest of the ancestors `editorElement`
+   * searches (the slot's four, while they hold no other composer) — below the body. The runtime watches it for a late editor.
+   */
+  const editorRoot = (slot: Element): Element | null => {
+    let root = slot.closest(FRAME_SELECTOR);
+    if (root) return root;
+    let node: Element | null = slot;
+    for (let depth = 0; depth < 4 && (node = node.parentElement) && node !== doc.body && node.querySelectorAll(SLOT_SELECTOR).length < 2; depth += 1) root = node;
+    return root;
+  };
+
   const detach = (composer: Composer): void => {
     try {
       composer.off?.();
@@ -224,6 +236,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
   return {
     box,
     editorElement,
+    editorRoot,
     bridgeOf,
     read,
     attach,
@@ -291,17 +304,27 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
         writing = null;
       }
       if (stray) return { state: 'uncertain', code: CG_MISPLACED };
-      if (composer.editor && composer.revision !== before) {
+      /**
+       * What the call left in an observed editor, whose own transactions inside the call wrote it. The person may
+       * change the draft before the verification below runs — ChatSpace's Send empties the field in the same frame,
+       * typing goes on — and their change is not the write's outcome: the write is judged by what it left. Read
+       * then, a sent draft would look like nothing written, and the send of our text could not be attributed (§6.6).
+       */
+      const left = composer.editor && composer.revision !== before ? { revision: composer.revision, draft: read(composer) } : null;
+      if (left) {
         composer.provenance = wholeOurs ? 'our-insert' : 'human-or-unknown';
         composer.ours = wholeOurs ? intent.intentId : null;
-        composer.from = { id: intent.intentId, revision: composer.revision };
+        composer.from = { id: intent.intentId, revision: left.revision };
       }
       const wanted = normalize(text);
       return Promise.resolve().then(
         () =>
           new Promise<Receipt>((resolve) =>
             frame(() => {
-              const after = read(composer);
+              const now = read(composer);
+              // A transaction after the call — not ours — moved the draft on: judged by what the call left.
+              const moved = left !== null && composer.revision !== left.revision;
+              const after = moved ? left.draft : now;
               const value = normalize(after.text);
               // An append must also have changed the document: a draft that already ended with the text proves nothing.
               if (append ? value.endsWith(wanted) && after.digest !== draft.digest : value === wanted) {
@@ -309,7 +332,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
                   composer.seen = after.digest;
                   composer.provenance = wholeOurs ? 'our-insert' : 'human-or-unknown';
                 }
-                resolve({ state: 'applied', draftRevision: composer.revision, draftDigest: after.digest, ms: Math.max(0, win.performance.now() - started) });
+                resolve({ state: 'applied', draftRevision: moved ? left.revision : composer.revision, draftDigest: after.digest, ms: Math.max(0, win.performance.now() - started) });
               } else resolve(after.digest === draft.digest ? rejected(CG_INSERT_FAILED) : { state: 'uncertain', code: CG_UNCERTAIN });
             }),
           ),

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
-import { COPIED_MARK_MS, KEYS_FOOTER_RESULTS, readArtifactHandle, readTargetHandle, targetHandle } from '@cg/core/application/ai';
+import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
@@ -528,13 +528,39 @@ describe('dock: gates of the actions', () => {
     expect(h.dock().actions.fix.enabled).toBe(true);
   });
 
-  it('[AI-031] Hi is off once the fan wrote more than ten messages; [AI-036] Ping is never off on OnlyFans', async () => {
+  it('[AI-031] Hi is off once the chat shows more than ten messages of either side — as the hub counts them; [AI-036] Ping is never off on OnlyFans', async () => {
     const h = await start();
+    const shown = (fanMessages: number, modelMessages: number): void => h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages, modelMessages, loaded: fanMessages + modelMessages }, openChat);
     expect(h.dock().actions.hi.reason).toMatchObject({ id: 'hi-gate', code: 'CG-GATE-HI' });
     expect(h.dock().actions.ping.enabled).toBe(true);
-    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages: 2, loaded: 6 }, openChat);
+    shown(2, 4);
     await h.settle();
     expect(h.dock().actions.hi.enabled).toBe(true);
+    // A fan who wrote little and a model who wrote a lot: the hub would refuse the greeting (more than ten stored messages of
+    // any side), so the button says «это уже диалог» before the click, and the click asks the hub nothing.
+    shown(2, 9);
+    await h.settle();
+    expect(h.dock().actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate', code: 'CG-GATE-HI' }, hotkey: null });
+    const starts = h.bg.callsOf('op.start').length;
+    expect(await h.generate('hi')).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
+    expect(h.bg.callsOf('op.start')).toHaveLength(starts);
+    expect(h.bg.callsOf('token.issue')).toEqual([]);
+    shown(2, 8);
+    await h.settle();
+    expect(h.dock().actions.hi.enabled).toBe(true);
+  });
+
+  it('[AI-031] where the page cannot know — ten or fewer messages in ChatSpace’s window, more in the hub’s archive — the hub’s own refusal is shown in the gate’s words: «Это уже диалог» (CG-GATE-HI), not a generic hub error', async () => {
+    const h = await start();
+    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), fanMessages: 2, modelMessages: 4, loaded: 6, hasOlder: true }, openChat);
+    await h.settle();
+    expect(h.dock().actions.hi.enabled).toBe(true);
+    h.script({ kind: 'http-error', status: 400, body: { error: 'gate_hi_greeting_limit' } });
+    expect(await h.generate('hi')).toMatchObject({ ok: true });
+    await h.finish();
+    const vm = result(h);
+    expect(vm).toMatchObject({ feature: 'hi', state: 'failed', error: { code: 'CG-GATE-HI' } });
+    expect(vm.error?.title).toBe('Это уже диалог');
   });
 
   it('[AI-051] Review needs history only when the whole short conversation is loaded; Recap opens its sheet anyway', async () => {
@@ -1139,6 +1165,21 @@ describe('dock: a result this tab did not start', () => {
     expect(tab.host.draftOf(openChat)?.plainText).toBe('cached answer');
   });
 
+  it('[AI-125] a hand-over that names a result of the dock itself vouches for nothing: a persona this tab does not know stays unknown, and the result is still not inserted', async () => {
+    const h = await start();
+    const opId = await reply(h, 'cached answer');
+    const tab = await otherTab(h);
+    tab.ai.workspace.bindBoards(boardSide());
+    expect(tab.ai.workspace.ops.get(opId)).toMatchObject({ own: false, memo: { personaDefinitionId: null } });
+    // Something hands the dock its own reply as if a board had made it, with a persona to take on trust.
+    expect(await tab.ai.workspace.adoptBoardResult(handover(opId, { chat: openChat }))).toBe(false);
+    // Refused — and nothing was written on the way to the refusal.
+    expect(tab.ai.workspace.ops.get(opId)?.memo.personaDefinitionId).toBeNull();
+    expect(tab.ai.workspace.isBoardResult(opId)).toBe(false);
+    expect(await tab.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(tab.host.inserts).toBe(0);
+  });
+
   it('a run adopted while it still runs is of the page\'s current persona: its result inserts', async () => {
     const h = await start();
     h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply') }, delta('from the first tab', 1_000), doneStep] });
@@ -1711,20 +1752,104 @@ describe('dock: a start the background did not admit is never silent', () => {
     expect(h.toasts.at(-1)).toMatchObject({ kind: 'error', code: 'CG-STORAGE-WRITE', scope: 'coach.ask' });
   });
 
-  it('a port lost for good: the dock says CG-RUNTIME-UNREACHABLE and offers the reload, instead of a ready strip that starts nothing', async () => {
+  it('[RB-010] a port lost under a living extension is not an update: the dock says «Расширение не отвечает» (CG-RUNTIME-UNREACHABLE) with «Повторить» — never «расширение обновилось, перезагрузите вкладку» — and comes back by itself when the background answers', async () => {
     const h = await start();
+    const opId = await reply(h, 'kept while the port is down');
     expect(h.dock().status).toBe('ready');
     h.bg.setConnection('lost');
     await h.settle();
     const vm = h.dock();
-    expect(vm.status).toBe('reload-needed');
-    expect(vm.statusError?.code).toBe('CG-RUNTIME-UNREACHABLE');
-    expect(vm.view).toMatchObject({ s: 'error', error: { code: 'CG-RUNTIME-UNREACHABLE' }, retry: { type: 'ReloadTab' } });
-    expect(vm.actions.reply).toMatchObject({ enabled: false });
-    // The port came back (a reconnect by the person): the strip is ready again.
+    // The line of a service that is away, with a retry — not the card that asks to reload the tab.
+    expect(vm.status).toBe('hub-down');
+    expect(vm.statusError).toMatchObject({ code: 'CG-RUNTIME-UNREACHABLE', title: 'Расширение не отвечает' });
+    expect(vm.statusError?.body).toContain('восстанавливается сама');
+    expect(vm.view).toMatchObject({ s: 'offline', error: { code: 'CG-RUNTIME-UNREACHABLE' }, retry: { type: 'ReloadView', selector: { of: 'dock' } } });
+    // Every action is off with the real cause, and its key is not printed.
+    for (const id of DOCK_ACTION_IDS) {
+      expect(vm.actions[id], id).toMatchObject({ enabled: false, hotkey: null, reason: { id: 'runtime-unreachable', code: 'CG-RUNTIME-UNREACHABLE', text: { key: 'dock.reason.runtimeUnreachable' } } });
+    }
+    expect(vm.options.toneReason?.id).toBe('runtime-unreachable');
+    expect(JSON.stringify(vm)).not.toContain('reloadNeeded');
+    expect(JSON.stringify(vm)).not.toContain('CG-RUNTIME-RELOADED');
+    // What was generated before stays on screen: ChatSpace and the result are as they were.
+    expect(result(h)).toMatchObject({ opId, state: 'done' });
+    // A key that would start something is refused with the same code (its card takes the sheet), and nothing is asked of the hub.
+    const starts = h.bg.callsOf('op.start').length;
+    expect(vm.targetHandle).toBeNull();
+    expect(await h.dispatch({ type: 'Generate', targetHandle: targetHandle('dock', openChat), feature: 'reply', options: {} })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(h.bg.callsOf('op.start')).toHaveLength(starts);
+    // «Повторить» asks the background again — once per click; the dock stays as it is until the background answers.
+    expect(h.bg.reconnects).toBe(0);
+    expect(await h.dispatch(vm.view.s === 'offline' && vm.view.retry !== null ? vm.view.retry : { type: 'ReloadTab' })).toMatchObject({ ok: true });
+    expect(h.bg.reconnects).toBe(1);
+    expect(h.dock().status).toBe('hub-down');
+    // The background answered (the tab's own beat, or that click): the same dock is ready again, everything read anew — no reload of the tab.
+    const reads = h.bg.callsOf('bootstrap.get').length;
     h.bg.setConnection('ready');
     await h.settle();
-    expect(h.dock().status).toBe('ready');
+    expect(h.dock()).toMatchObject({ status: 'ready', statusError: null });
+    expect(h.dock().actions.reply).toMatchObject({ enabled: true, reason: null });
+    expect(h.bg.callsOf('bootstrap.get').length).toBeGreaterThan(reads);
+  });
+
+  it('[RB-010] back after an outage the dock takes nothing for current that it read before: the owner’s switch that changed unheard is read first — «Вставить» pressed in the very step the port returns writes nothing', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one [NEXT] two');
+    expect(h.dock()).toMatchObject({ status: 'ready', mode: 'insert' });
+    const reads = { bootstrap: h.bg.callsOf('bootstrap.get').length, settings: h.bg.callsOf('settings.get').length };
+    h.bg.setConnection('lost');
+    // The owner switches `insertion` off for the page. The background reads it and tells the tabs — this tab's
+    // port is down: it hears nothing.
+    const off: Bootstrap = { ...pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['insertion']), configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1 };
+    h.bg.bootstrap = off;
+    h.bg.emit(null, 'bootstrap.changed', { configRevision: off.configRevision, issuedAt: new Date(NOW_MS).toISOString() });
+    await h.settle();
+    // The port is back. In this very step — before any answer — the copy from before the outage is not «ready»:
+    h.bg.setConnection('ready');
+    expect(h.dock()).toMatchObject({ status: 'loading-chat' });
+    expect(Object.values(h.dock().actions).some((action) => action.enabled)).toBe(false);
+    // …and a click that lands now inserts nothing by the old switch.
+    const early = h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 });
+    expect(await early).toMatchObject({ ok: false });
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue').filter((call) => (call as { kind: string }).kind === 'insert')).toEqual([]);
+    await h.settle();
+    // Read again, by itself — the settings and the bootstrap both — and the page is copy-only now.
+    expect(h.bg.callsOf('bootstrap.get').length).toBe(reads.bootstrap + 1);
+    expect(h.bg.callsOf('settings.get').length).toBe(reads.settings + 1);
+    expect(h.dock()).toMatchObject({ status: 'ready', mode: 'copy-only' });
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false });
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[RB-010] [AI-126] the persona of the page changed while the port was down: back, the result of the old persona is gone before anything of it can be inserted', async () => {
+    const h = await start();
+    const opId = await reply(h, 'one [NEXT] two');
+    expect(result(h).opId).toBe(opId);
+    h.bg.setConnection('lost');
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: 'other', definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    h.bg.setConnection('ready');
+    // Before the settings are read again nothing of the old persona is written…
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 }).catch(() => ({ ok: false }))).toMatchObject({ ok: false });
+    expect(h.fake.calls.inserts).toEqual([]);
+    await h.settle();
+    // …and once they are, its result has left the dock.
+    expect(h.dock().result).toBeNull();
+    await expect(h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).rejects.toThrow(/no controller took/);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[UP-009] an extension that was really reloaded or updated under the tab is the other state: «Расширение обновилось» (CG-RUNTIME-RELOADED) with «Перезагрузить вкладку», and no reconnect is asked for', async () => {
+    const h = await start();
+    h.bg.setConnection('reloaded');
+    await h.settle();
+    const vm = h.dock();
+    expect(vm.status).toBe('reload-needed');
+    expect(vm.statusError?.code).toBe('CG-RUNTIME-RELOADED');
+    expect(vm.view).toMatchObject({ s: 'error', error: { code: 'CG-RUNTIME-RELOADED' }, retry: { type: 'ReloadTab' } });
+    expect(vm.actions.reply).toMatchObject({ enabled: false, reason: { id: 'reload-needed', code: 'CG-RUNTIME-RELOADED' } });
+    expect(h.bg.reconnects).toBe(0);
   });
 });
 
@@ -2151,5 +2276,538 @@ describe('dock: the sign-in and the views', () => {
     expect(new Set(tokens).size).toBe(tokens.length);
     expect(tokens.every((token) => token !== tokenN(1))).toBe(true);
     expect(h.bg.calls.every((call) => call.tab === TAB)).toBe(true);
+  });
+});
+
+// ── a board's result in the dock of its own chat (§6.5) ────────────────────
+
+/** The boards' side as the preview's controller gives it: what the test says of each part, and whether a card shows the result. */
+function boardSide(): BoardResults & {
+  readonly parts: Map<string, BoardPartFacts>;
+  onCard: boolean;
+  /** The board does not hold the result any more (its track aged out). */
+  gone: boolean;
+  /** What a look into the journal at a click comes to; and what the journal says then that this tab had not heard. */
+  journal: BoardSync;
+  atSync: (() => void) | null;
+  syncs: number;
+  told(): void;
+} {
+  const listeners = new Set<() => void>();
+  const side = {
+    parts: new Map<string, BoardPartFacts>(),
+    onCard: false,
+    gone: false,
+    journal: 'read' as BoardSync,
+    atSync: null as (() => void) | null,
+    syncs: 0,
+    part: (_opId: string, part: { readonly variant?: number; readonly index: number }): BoardPartFacts | null => (side.gone ? null : (side.parts.get(`${part.variant ?? 0}:${part.index}`) ?? { sentAt: null, hold: null })),
+    sync: (): Promise<BoardSync> => {
+      side.syncs += 1;
+      if (side.gone) return Promise.resolve('gone');
+      if (side.journal === 'read') side.atSync?.();
+      return Promise.resolve(side.journal);
+    },
+    showing: () => side.onCard,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    told: () => listeners.forEach((listener) => listener()),
+  };
+  return side;
+}
+
+/**
+ * A reply a preview generated for the fan of `previewChat` while another chat was open — as the preview's
+ * controller starts it: surface `preview`, its own token. Resolves with the finished operation's id.
+ */
+async function previewReply(h: Harness, text: string, surface: 'preview' | 'newcomers' = 'preview'): Promise<string> {
+  const rpc = h.bg.rpc(TAB);
+  const bound = await rpc.request('binding.resolve', { account: hostAccount });
+  const token = await rpc.request('token.issue', { kind: 'generate', surface });
+  if (!bound.ok || !token.ok) throw new Error('no binding or token');
+  h.script(h.streamOf(surface === 'preview' ? 'fast-reply' : 'hi-greeting', [text]));
+  const admitted = await rpc.request('op.start', {
+    feature: surface === 'preview' ? 'reply' : 'hi',
+    surface,
+    target: { binding: bound.payload.binding, chat: previewChat, fanRef: previewChat.platformFanId, conversationRef: previewChat.platformFanId },
+    cause: { kind: 'click', actionToken: token.payload.actionToken },
+    tone: null,
+    split: true,
+    window: 100,
+    ...(surface === 'newcomers' ? { variantCount: 1 as const } : {}),
+  });
+  if (!admitted.ok || !admitted.payload.ok) throw new Error(`not admitted: ${JSON.stringify(admitted)}`);
+  await h.finish();
+  return admitted.payload.opId;
+}
+
+const handover = (opId: string, over: Partial<BoardHandover> = {}): BoardHandover => ({ opId, chat: previewChat, personaDefinitionId: WORLD.persona.definitionId, split: true, part: { index: 0 }, outcome: 'inserted', ...over });
+
+describe('dock: a board’s result goes on in the dock of the chat «Открыть и вставить» opened (§6.5)', () => {
+  it('[NEW-01] after the insert the dock shows the rest of the same operation: part 1 «вставлено», part 2 «Вставить» — one click, the dock’s own guarded write into that chat', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    // Nothing of a preview's result is in the dock of another chat.
+    expect(h.dock().result).toBeNull();
+    // «Открыть и вставить»: ChatSpace opened the fan's chat and the host put part 1 into its field.
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId))).toBe(true);
+    await h.settle();
+    const vm = result(h);
+    expect(vm).toMatchObject({ opId, surface: 'preview', feature: 'reply', state: 'done', canRegenerate: false, fix: null, confirm: null, draftNotSent: true, sendProgress: null });
+    expect(partsOf(h).map((part) => `${part.text}:${part.insert}:${part.collapsed}:${part.next}`)).toEqual(['one:done:true:false', 'two:idle:false:true']);
+    expect(vm.meta).toContainEqual({ key: 'result.meta.inserted', params: { done: 1, total: 2 } });
+    // Nothing was written or asked of the background by taking the result over.
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    // Part 2 by its own click: a token of the click, a CAS on the draft as the host holds it now, into the operation's own chat.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.fake.calls.inserts[0]).toMatchObject({ operationId: opId, part: { index: 1 }, target: previewChat, text: 'two', mode: 'replace', expected: { kind: 'open' }, cause: { kind: 'click' } });
+    expect(partsOf(h).map((part) => part.insert)).toEqual(['done', 'done']);
+    // A human send of that draft is the operation's `sent`: the hub registers it as a part of the preview's group.
+    h.host.humanSend({ chat: previewChat, pendingId: 'pending-9', textDigest: 'feedbeef00000007', platformMessageId: '4101', draft: { revision: 2, provenance: 'our-insert', insertIntentId: h.fake.calls.inserts[0]?.intentId as string, editedSinceInsert: false } });
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toEqual([{ opId, part: { index: 1 }, pendingId: 'pending-9', platformMessageId: '4101', edited: false }]);
+    // Copy, expand and hide are the dock's while it shows the result.
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: partsOf(h)[1]?.copyHandle as string })).toMatchObject({ ok: true });
+    expect(h.clipboard.texts).toEqual(['two']);
+    expect(await h.dispatch({ type: 'ExpandResult', operationId: opId, expanded: true })).toMatchObject({ ok: true });
+    expect(result(h).expanded).toBe(true);
+    expect(await h.dispatch({ type: 'HideResult', operationId: opId })).toMatchObject({ ok: true });
+    expect(h.dock().result).toBeNull();
+  });
+
+  it('[TL-004] [NF-019] a part inserted from the dock and sent by the person: the report the background never heard (the port was lost under it) is said again when the port is back — the same report, a bounded number of times', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    const sent = (): void =>
+      h.host.humanSend({ chat: previewChat, pendingId: 'pending-9', textDigest: 'feedbeef00000007', platformMessageId: '4101', draft: { revision: 2, provenance: 'our-insert', insertIntentId: h.fake.calls.inserts[0]?.intentId as string, editedSinceInsert: false } });
+    const report = { opId, part: { index: 1 }, pendingId: 'pending-9', platformMessageId: '4101', edited: false };
+    // The port is lost when the person presses Send: nobody hears the report — the part would never read
+    // «Отправлено» and the hub would never be told.
+    h.bg.setConnection('lost');
+    sent();
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toEqual([report]);
+    // The port is back: the same report once more, and this time it is heard.
+    h.bg.setConnection('ready');
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toEqual([report, report]);
+    // Heard: a later reconnect says nothing again.
+    h.bg.setConnection('lost');
+    h.bg.setConnection('ready');
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent')).toHaveLength(2);
+
+    // A port that goes away under every answer is not asked for ever: the report is said a bounded number of times.
+    const before = h.bg.callsOf('op.reportSent').length;
+    h.bg.dropped.set('op.reportSent', 100);
+    sent();
+    for (let i = 0; i < SENT_REPORT_TRIES + 3; i += 1) await h.settle();
+    expect(h.bg.callsOf('op.reportSent').length - before).toBe(SENT_REPORT_TRIES);
+    h.bg.setConnection('lost');
+    h.bg.setConnection('ready');
+    await h.settle();
+    expect(h.bg.callsOf('op.reportSent').length - before).toBe(SENT_REPORT_TRIES);
+    // A refusal in the background's own words is an answer: not said again.
+    h.bg.dropped.clear();
+    // Nothing of this ever wrote or sent anything.
+    expect(h.fake.calls.inserts).toHaveLength(1);
+  });
+
+  it('[NEW-05] [UI-020] the chat holds the person’s own text: nothing was written — the question «Заменить / Добавить в конец / Отмена» stands in that chat’s dock, and only their answer writes', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    h.host.type('mine in the chat');
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }))).toBe(true);
+    await h.settle();
+    const confirm = result(h).confirm;
+    expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 }, formatLoss: false });
+    expect(partsOf(h).map((part) => `${part.insert}:${part.next}`)).toEqual(['idle:true', 'idle:false']);
+    // Asked, never written: no token, no host write, the person's words untouched.
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'preview' }]);
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat');
+    // «Добавить в конец» is the person's own click: one write, on the revision the question was about.
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.fake.calls.inserts[0]).toMatchObject({ operationId: opId, part: { index: 0 }, target: previewChat, mode: 'append', text: 'one', confirmationId: confirm?.confirmationId });
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat\none');
+    expect(result(h).confirm).toBeNull();
+    expect(partsOf(h).map((part) => `${part.insert}:${part.next}`)).toEqual(['done:false', 'idle:true']);
+  });
+
+  it('[NEW-05] «Отмена» leaves the person’s text alone and the result in the dock; the text changed since the question — the answer is void and the question is asked again', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    h.host.type('mine');
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }));
+    await h.settle();
+    const first = result(h).confirm?.confirmationId as string;
+    h.host.type('mine, and more');
+    await h.settle();
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: first, choice: 'replace' })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    const second = result(h).confirm?.confirmationId as string;
+    expect(second).not.toBe(first);
+    expect(await h.dispatch({ type: 'AnswerConfirm', confirmationId: second, choice: 'cancel' })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine, and more');
+    expect(result(h)).toMatchObject({ opId, confirm: null });
+  });
+
+  it('[NEW-05] the field needs no question any more (the person emptied it meanwhile): none is asked, «Вставить» is one click away', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }))).toBe(true);
+    await h.settle();
+    expect(result(h).confirm).toBeNull();
+    expect(partsOf(h).map((part) => `${part.insert}:${part.next}`)).toEqual(['idle:true', 'idle:false']);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[NEW-05] ChatSpace shows the opened chat a step before the dock sees its field: the question is not dropped for a toast — it stands as soon as the field is seen, and nothing is written meanwhile', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    h.host.type('mine in the chat');
+    // The board's navigation has ended; the dock's reading of the field of that chat has not arrived yet.
+    h.host.setComposer({ ready: false });
+    await h.settle();
+    let taken: boolean | null = null;
+    void h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' })).then((answer) => (taken = answer));
+    await h.clock.advance(BOARD_QUESTION_STEP_MS * 3);
+    // Not asked yet, not given up either: the result is in the dock, nothing is written, no answer for the toast.
+    expect(taken).toBeNull();
+    expect(result(h)).toMatchObject({ opId, confirm: null });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // The field is seen: the question about the chosen part stands.
+    h.host.setComposer({ ready: true });
+    await h.clock.advance(BOARD_QUESTION_STEP_MS);
+    expect(taken).toBe(true);
+    expect(result(h).confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 } });
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'preview' }]);
+    expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat');
+    // Asked once: the wait is over, no later step asks again or writes.
+    const confirmationId = result(h).confirm?.confirmationId;
+    await h.clock.advance(BOARD_QUESTION_WAIT_MS);
+    expect(result(h).confirm?.confirmationId).toBe(confirmationId);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[NEW-05] the wait for the field is short and ends by itself: a field that never comes, a chat the person left, a reason that will not pass — the dock says it could not ask, and asks nothing later', async () => {
+    // The field never comes: after the wait the answer is «could not ask» (the composition's toast), nothing is asked.
+    const never = await start();
+    never.ai.workspace.bindBoards(boardSide());
+    const first = await previewReply(never, 'one [NEXT] two');
+    never.host.openChat(previewChat);
+    never.host.type('mine in the chat');
+    never.host.setComposer({ ready: false });
+    await never.settle();
+    let gaveUp: boolean | null = null;
+    void never.ai.workspace.adoptBoardResult(handover(first, { outcome: 'needs-confirm' })).then((answer) => (gaveUp = answer));
+    await never.clock.advance(BOARD_QUESTION_WAIT_MS - BOARD_QUESTION_STEP_MS * 2);
+    expect(gaveUp).toBeNull();
+    await never.clock.advance(BOARD_QUESTION_STEP_MS * 3);
+    expect(gaveUp).toBe(false);
+    // The field comes after that: nobody asks behind the person's back.
+    never.host.setComposer({ ready: true });
+    await never.clock.advance(BOARD_QUESTION_WAIT_MS);
+    expect(result(never).confirm).toBeNull();
+    expect(never.fake.calls.inserts).toEqual([]);
+
+    // The person went to another chat during the wait: no question there, and none in the chat they left.
+    const left = await start();
+    left.ai.workspace.bindBoards(boardSide());
+    const second = await previewReply(left, 'one [NEXT] two');
+    left.host.openChat(previewChat);
+    left.host.type('mine in the chat');
+    left.host.setComposer({ ready: false });
+    await left.settle();
+    let away: boolean | null = null;
+    void left.ai.workspace.adoptBoardResult(handover(second, { outcome: 'needs-confirm' })).then((answer) => (away = answer));
+    await left.clock.advance(BOARD_QUESTION_STEP_MS);
+    left.host.openChat(openChat);
+    await left.clock.advance(BOARD_QUESTION_STEP_MS * 2);
+    expect(away).toBe(false);
+    expect(left.dock().result).toBeNull();
+    left.host.openChat(previewChat);
+    await left.clock.advance(BOARD_QUESTION_WAIT_MS);
+    expect(left.dock().result?.confirm ?? null).toBeNull();
+    expect(left.fake.calls.inserts).toEqual([]);
+
+    // A blocked fan is not «the field is not seen yet»: answered at once, without a wait.
+    const blocked = await start();
+    blocked.ai.workspace.bindBoards(boardSide());
+    const third = await previewReply(blocked, 'one [NEXT] two');
+    blocked.host.openChat(previewChat);
+    blocked.host.type('mine in the chat');
+    blocked.host.setComposer({ hidden: true });
+    await blocked.settle();
+    const timers = blocked.clock.pending;
+    expect(await blocked.ai.workspace.adoptBoardResult(handover(third, { outcome: 'needs-confirm' }))).toBe(false);
+    expect(blocked.clock.pending).toBe(timers);
+    expect(blocked.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[AI-125] [AI-126] the dock does not take what it cannot vouch for: another chat is open, the persona is not known or is another one, the operation is the dock’s own or unknown — and then it inserts nothing of it', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    // The person is still (or already) in another chat.
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId))).toBe(false);
+    expect(h.dock().result).toBeNull();
+    h.host.openChat(previewChat);
+    await h.settle();
+    // The result came back after a tab reload: the controller that shows it does not know its persona.
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { personaDefinitionId: null }))).toBe(false);
+    expect(await h.ai.workspace.adoptBoardResult(handover(uuid(0xdead)))).toBe(false);
+    expect(h.dock().result).toBeNull();
+    // Not taken — not the dock's: «Вставить» of that operation is nobody's here.
+    await expect(h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).rejects.toThrow(/no controller took/);
+    expect(h.fake.calls.inserts).toEqual([]);
+    // Taken under one persona, it is not taken again under another.
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId))).toBe(true);
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { personaDefinitionId: WORLD.persona.otherDefinitionId }))).toBe(false);
+    // A reply of the dock itself is never a board's result.
+    h.host.openChat(openChat);
+    await h.settle();
+    const own = await reply(h, 'the dock’s own');
+    expect(await h.ai.workspace.adoptBoardResult(handover(own, { chat: openChat }))).toBe(false);
+    expect(result(h)).toMatchObject({ opId: own, surface: 'dock', canRegenerate: true });
+  });
+
+  it('[AI-126] the page’s persona changed after the hand-over: the result leaves the dock, and nothing of it is inserted', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    expect(result(h).opId).toBe(opId);
+    h.bg.changePersona(WORLD.pages.one.pageId, { key: 'other', definitionId: WORLD.persona.otherDefinitionId });
+    await h.settle();
+    expect(h.dock().result).toBeNull();
+    await expect(h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).rejects.toThrow(/no controller took/);
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('[TL-004] what the board knows of the parts shows in the dock: a delivered part reads «Отправлено» and is not inserted again; a part of the fan on its way or with an unknown outcome holds «Вставить» with the reason', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    // The person pressed ChatSpace's Send on part 1; the background journaled it and the board read it.
+    const sentAt = new Date(NOW_MS + 60_000).toISOString();
+    side.parts.set('0:0', { sentAt, hold: null });
+    side.told();
+    await h.settle();
+    const [first, second] = partsOf(h);
+    expect(first).toMatchObject({ send: { s: 'sent', at: sentAt }, collapsed: true, next: false, label: { key: 'part.ariaSent', params: { n: 1 } } });
+    expect(second).toMatchObject({ insert: 'idle', next: true, insertBlocked: null });
+    expect(second?.send).toBeUndefined();
+    expect(result(h)).toMatchObject({ draftNotSent: false, sendProgress: { sent: 1, total: 2 } });
+    expect(result(h).meta).toContainEqual({ key: 'result.meta.sentProgress', params: { sent: 1, total: 2 } });
+    expect(result(h).meta.map((item) => item.key)).not.toContain('result.meta.inserted');
+    // A delivered part is never put into a composer again, whatever asks.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    // Another tab sent part 2 through the preview and its outcome is unknown: the fan is held, here as in the preview.
+    side.parts.set('0:1', { sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } } });
+    side.told();
+    await h.settle();
+    expect(partsOf(h)[1]?.insertBlocked).toEqual({ id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } });
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // The hold ends (the hub resolved it «не ушло»): the part is the dock's to insert again.
+    side.parts.delete('0:1');
+    side.told();
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+  });
+
+  it('[NF-022] [X8-08] «Вставить» in the dock reads the journal at the click, as the board’s «Открыть и вставить» does: an uncertain send another tab began since the hand-over holds the part; a journal that does not answer is not «nothing holds it»', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    const uncertain = { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 1 } } } as const;
+    // Another tab sent part 1 of this fan through its preview, and the outcome is unknown. This tab was told
+    // nothing (the board holds what it last heard): the row still offers «Вставить».
+    expect(partsOf(h)[1]).toMatchObject({ insert: 'idle', insertBlocked: null });
+    side.atSync = () => side.parts.set('0:1', { sentAt: null, hold: uncertain });
+    const before = side.syncs;
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(side.syncs).toBe(before + 1);
+    expect(h.fake.calls.inserts).toEqual([]);
+    expect(h.bg.callsOf('token.issue').filter((call) => (call as { kind: string }).kind === 'insert')).toEqual([]);
+    // What the read found is on the row now.
+    expect(partsOf(h)[1]?.insertBlocked).toEqual(uncertain);
+    // The journal does not answer (the port is down, the background did not read it): refused, never guessed.
+    side.atSync = null;
+    side.parts.delete('0:1');
+    side.journal = 'unread';
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // It answers and nothing holds the fan: the part goes in — one read per click.
+    side.journal = 'read';
+    const reads = side.syncs;
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(side.syncs).toBe(reads + 1);
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    // The dock's own reply asks nobody: there is no board behind it.
+    h.host.openChat(openChat);
+    await h.settle();
+    const own = await reply(h, 'the dock’s own');
+    const quiet = side.syncs;
+    expect(await h.dispatch({ type: 'InsertPart', operationId: own, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(side.syncs).toBe(quiet);
+  });
+
+  it('[NEW-05] [NF-022] an answer to the Б2 question is a write of its own: the journal is read again at the answer — a fan held since the question, or a part sent meanwhile, is not written over an old «Добавить в конец»', async () => {
+    for (const since of ['held', 'sent'] as const) {
+      const h = await start();
+      const side = boardSide();
+      h.ai.workspace.bindBoards(side);
+      const opId = await previewReply(h, 'one [NEXT] two');
+      h.host.openChat(previewChat);
+      h.host.type('mine in the chat');
+      await h.settle();
+      expect(await h.ai.workspace.adoptBoardResult(handover(opId, { outcome: 'needs-confirm' }))).toBe(true);
+      await h.settle();
+      const confirm = result(h).confirm;
+      expect(confirm).toMatchObject({ kind: 'human-draft', part: { index: 0 } });
+      // The question stands. Meanwhile, in another tab…
+      side.atSync = () =>
+        side.parts.set(
+          '0:0',
+          since === 'sent'
+            ? { sentAt: new Date(NOW_MS + 60_000).toISOString(), hold: null }
+            : { sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } } },
+        );
+      expect([since, await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' })]).toMatchObject([since, { ok: false, code: since === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN' }]);
+      // Nothing was written, the person's words are as they were, and the question is gone with its «да».
+      expect(h.fake.calls.inserts).toEqual([]);
+      expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat');
+      expect(result(h).confirm).toBeNull();
+      // «Отмена» needs no read: it writes nothing.
+      const again = await start();
+      const other = boardSide();
+      again.ai.workspace.bindBoards(other);
+      const next = await previewReply(again, 'one [NEXT] two');
+      again.host.openChat(previewChat);
+      again.host.type('mine in the chat');
+      await again.settle();
+      await again.ai.workspace.adoptBoardResult(handover(next, { outcome: 'needs-confirm' }));
+      await again.settle();
+      const reads = other.syncs;
+      expect(await again.dispatch({ type: 'AnswerConfirm', confirmationId: result(again).confirm?.confirmationId as string, choice: 'cancel' })).toMatchObject({ ok: true });
+      expect(other.syncs).toBe(reads);
+    }
+  });
+
+  it('[NF-022] the board no longer holds the result (it aged out there): the dock does not offer its parts as if nothing were known — «часть устарела — обновите ответ», and «Вставить» writes nothing', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    expect(partsOf(h)[1]).toMatchObject({ insert: 'idle', insertBlocked: null });
+    // Half an hour later the preview drops the result; the dock still shows it.
+    side.gone = true;
+    side.told();
+    await h.settle();
+    const stale = { id: 'send-unavailable', code: 'CG-SEND-PART', text: { key: 'send.reason.part' } };
+    expect(result(h).opId).toBe(opId);
+    expect(partsOf(h).map((part) => part.insertBlocked)).toEqual([stale, stale]);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    expect(h.fake.calls.inserts).toEqual([]);
+    // Copying is still there: the text is on screen.
+    expect(await h.dispatch({ type: 'Copy', artifactHandle: partsOf(h)[1]?.copyHandle as string })).toMatchObject({ ok: true });
+    // The boards are not bound at all (their chunk went away): the same.
+    h.ai.workspace.bindBoards(null);
+    await h.settle();
+    expect(partsOf(h).map((part) => part.insertBlocked)).toEqual([stale, stale]);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    expect(h.fake.calls.inserts).toEqual([]);
+  });
+
+  it('a card that shows the same result answers for its own buttons: while it is open the dock takes neither its «Скрыть» nor its «Развернуть» nor its «Копировать»; «Ещё раз» is never the dock’s for a board’s result', async () => {
+    const h = await start();
+    const side = boardSide();
+    h.ai.workspace.bindBoards(side);
+    const opId = await previewReply(h, 'one [NEXT] two');
+    h.host.openChat(previewChat);
+    await h.settle();
+    await h.ai.workspace.adoptBoardResult(handover(opId));
+    await h.settle();
+    const handle = partsOf(h)[1]?.copyHandle as string;
+    side.onCard = true;
+    for (const action of [
+      { type: 'HideResult', operationId: opId },
+      { type: 'ExpandResult', operationId: opId, expanded: true },
+      { type: 'Copy', artifactHandle: handle },
+      { type: 'InsertPart', operationId: opId, part: 1 },
+      { type: 'Regenerate', operationId: opId },
+    ] as const satisfies readonly UiAction[]) {
+      await expect(h.dispatch(action), action.type).rejects.toThrow(/no controller took/);
+    }
+    expect(result(h).opId).toBe(opId);
+    expect(h.clipboard.texts).toEqual([]);
+    side.onCard = false;
+    await expect(h.dispatch({ type: 'Regenerate', operationId: opId })).rejects.toThrow(/no controller took/);
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+  });
+
+  it('[NF-011] a greeting of «Новые» goes on the same way: its one variant’s parts in the dock, no Fix block, no «Ещё раз»', async () => {
+    const h = await start();
+    h.ai.workspace.bindBoards(boardSide());
+    const opId = await previewReply(h, 'hello there [NEXT] welcome', 'newcomers');
+    h.host.openChat(previewChat);
+    await h.settle();
+    expect(await h.ai.workspace.adoptBoardResult(handover(opId, { part: { variant: 0, index: 0 } }))).toBe(true);
+    await h.settle();
+    const vm = result(h);
+    expect(vm).toMatchObject({ opId, surface: 'newcomers', feature: 'hi', canRegenerate: false, fix: null });
+    const shownParts = vm.variants?.[0]?.parts ?? vm.parts ?? [];
+    expect(shownParts.map((part) => `${part.text}:${part.insert}`)).toEqual(['hello there:done', 'welcome:idle']);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts[0]).toMatchObject({ operationId: opId, part: { variant: 0, index: 1 }, target: previewChat, text: 'welcome' });
   });
 });

@@ -467,13 +467,31 @@ describe('a human send of a part that came from a board (§6.6, H-7)', () => {
     expect(claim).toMatchObject({ status: 200, request: { fanRef: FAN, body: { action: 'registerNativeSend', purpose: 'greeting', partIndex: 0, platformMessageId: '4100' } } });
     const status = w.hub.control({ op: 'status' }) as { claims: { fanRef: string; greeting: string }[] };
     expect(status.claims.find((item) => item.fanRef === FAN)?.greeting).toBe('confirmed');
+    // The same fact for this install's tabs: the part is a delivered part of its group in the fan's sends (`send.list`),
+    // and every tab was told — the card that made it shows «Отправлено» and offers the next part. No ticket was asked.
+    const sends = await tab.client.request('send.list', { pageId: PAGE_ID, fanRef: FAN });
+    expect(sends).toMatchObject({ ok: true, payload: { attempts: [{ opId, purpose: 'greeting', partIndex: 0, group: { variant: 0, partCount: 1 }, view: { state: 'sentObserved', platformMessageId: '4100' } }], truncated: false } });
+    expect(callsTo(w.hub.read().entries, 'clientFanClaim').map((call) => (call.request as { body: { action: string } }).body.action)).toEqual(['registerNativeSend']);
+    // On disk it is a finished record of the send journal — never an open attempt: an open one would hold the fan,
+    // read «неизвестно, ушло ли» after an unload, and fail every later write of the journal (every X8 send).
+    const journaled = (): { attemptId: string; state: string; documentEpoch: string; fanRef: string; platformMessageId?: string }[] =>
+      ((w.fake.areas.local.get(STORAGE_KEYS.sendJournal) as { entries: { attemptId: string; state: string; documentEpoch: string; fanRef: string; platformMessageId?: string }[] } | undefined)?.entries ?? []);
+    await until(() => journaled().length === 1, 'the delivered part is in the send journal');
+    expect(journaled()).toMatchObject([{ state: 'sentObserved', documentEpoch: 'native-send', fanRef: FAN, platformMessageId: '4100' }]);
+    // The tab repeats a report the port never acknowledged: still one record, one registration.
+    expect(await tab.client.request('op.reportSent', { opId, part: { variant: 0, index: 0 }, pendingId: 'pending-1', platformMessageId: '4100', edited: false })).toMatchObject({ ok: true });
+    const again = await tab.client.request('send.list', { pageId: PAGE_ID, fanRef: FAN });
+    expect(again.ok ? again.payload.attempts : null).toHaveLength(1);
+    expect(journaled().map((item) => item.state)).toEqual(['sentObserved']);
 
-    // A reply of the open chat's dock: telemetry only, nothing for the hub's custody.
+    // A reply of the open chat's dock: telemetry only, nothing for the hub's custody and nothing in the fan's sends.
     const reply = admitted(await startReply(tab, binding));
     await until(async () => (await opsOf(tab)).find((op) => op.opId === reply)?.state === 'done', 'the reply is ready');
     expect(await tab.client.request('op.reportSent', { opId: reply, part: { index: 0 }, pendingId: 'pending-2', platformMessageId: '4101', edited: true })).toMatchObject({ ok: true });
     await sleep(100);
     expect(callsTo(w.hub.read().entries, 'clientFanClaim')).toHaveLength(1);
+    const dockSends = await tab.client.request('send.list', { pageId: PAGE_ID, fanRef: chat.platformFanId });
+    expect(dockSends).toMatchObject({ ok: true, payload: { attempts: [] } });
   });
 });
 
@@ -511,6 +529,8 @@ describe('a human send on a page whose WS tap is off (§6.6, §6.8)', () => {
     await sleep(150);
     expect(callsTo(w.hub.read().entries, 'clientFanClaim')).toHaveLength(0);
     expect(w.fake.areas.local.get(NATIVE_SENDS_KEY)).toBeUndefined();
+    // Nor is the part journaled as delivered: with the tap off the send is not ours to know.
+    expect(await tab.client.request('send.list', { pageId: PAGE_ID, fanRef: FAN })).toMatchObject({ ok: true, payload: { attempts: [] } });
 
     await setTap(true);
     expect(await tab.client.request('op.reportSent', report)).toMatchObject({ ok: true });

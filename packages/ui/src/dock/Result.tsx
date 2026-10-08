@@ -36,8 +36,8 @@ export interface ResultContentProps {
   readonly quiet?: boolean;
 }
 
-/** «Фан написал новое» above the parts (ui-design §4.7): the answer does not know the new message; inserting stays allowed. */
-function StaleRow({ onAgain, reason }: { readonly onAgain: () => void; readonly reason: string | null }): JSX.Element {
+/** «Фан написал новое» above the parts (ui-design §4.7): the answer does not know the new message; inserting stays allowed. `onAgain` null — the result has no «Ещё раз» here. */
+function StaleRow({ onAgain, reason }: { readonly onAgain: (() => void) | null; readonly reason: string | null }): JSX.Element {
   const i18n = useI18n();
   return (
     <div class="cg-stale" role="status">
@@ -47,7 +47,7 @@ function StaleRow({ onAgain, reason }: { readonly onAgain: () => void; readonly 
       <span class="cg-stale__t">
         <b>{i18n.t('result.stale.title')}</b> {i18n.t('result.stale.body')}
       </span>
-      <Button label={i18n.t('common.again')} variant="line" reason={reason} onClick={onAgain} />
+      {onAgain === null ? null : <Button label={i18n.t('common.again')} variant="line" reason={reason} onClick={onAgain} />}
     </div>
   );
 }
@@ -113,6 +113,9 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
   const only = result.parts?.length === 1 ? result.parts[0] : undefined;
   const fix = result.fix !== null && only !== undefined ? { vm: result.fix, part: only } : null;
   const replaced = fix?.vm.replaced === true;
+  // A result a board made, shown in the dock of its chat (architecture.md §6.5): the rest of an answer to insert.
+  // «Ещё раз» is the board's (its tone, its Fix source, the lease of «Новые»); here a new answer is the strip's buttons.
+  const board = result.surface === 'preview' || result.surface === 'newcomers';
   const hint = (keys: string, label: string, optional = false): KeyHint => ({ keys, label, ...(optional ? { optional } : {}) });
   const copyKey = hotkeyText(deps.catalog.entry('copy-part').hotkey)?.display ?? null;
   const hints: KeyHint[] = [
@@ -128,7 +131,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
         title={title}
         acts={
           <>
-            {replaced ? null : <AgainButton hotkey={deps.catalog.entry(actionOf(result.feature)).hotkey} reason={againReason} onClick={again} />}
+            {replaced || board ? null : <AgainButton hotkey={deps.catalog.entry(actionOf(result.feature)).hotkey} reason={againReason} onClick={again} />}
             {props.close}
           </>
         }
@@ -137,7 +140,7 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
         {result.draftNotSent ? <DraftLabel /> : null}
       </Head>
       <div class="cg-body">
-        {result.stale === null ? null : <StaleRow onAgain={again} reason={againReason} />}
+        {result.stale === null ? null : <StaleRow onAgain={board ? null : again} reason={againReason} />}
         {fix !== null ? (
           <FixBody opId={result.opId} fix={fix.vm} part={fix.part} mode={mode} confirm={result.confirm} />
         ) : result.variants !== null ? (

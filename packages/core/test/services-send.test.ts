@@ -396,6 +396,93 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(third.coordinator.attemptsOf(lock).attempts.map((item) => item.view.attemptId)).toEqual([A]);
   });
 
+  it('[TL-004] §6.6 a part the person sent from the composer is journaled as delivered: `send.list` names it, the tabs hear it, the next part of the group may go — and nothing is dispatched, locked or reported for it', async () => {
+    const lock = sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: previewTarget.fanRef });
+    const clock = new FakeClock(NOW_MS);
+    const store = new MemoryStore();
+    const h = sendHarness({ clock, store });
+    const N = uuid(0x600);
+    const group = { generationRef: GEN, variant: 0, partCount: 2 };
+    const sentView = { attemptId: N, state: 'sentObserved', platformMessageId: WORLD.messages.sentByUs } as const;
+    expect(h.coordinator.nativeSent({ attemptId: N, view: doneView(), part: { index: 0 }, platformMessageId: WORLD.messages.sentByUs })).toEqual(sentView);
+    await h.coordinator.idle();
+    // A fact about what the person did: the hub was asked nothing, no lock is held, no preview-send telemetry is told.
+    expect(h.hub.claims).toEqual([]);
+    expect(h.hub.statusReads).toEqual([]);
+    expect(h.sent).toEqual([]);
+    expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 0 });
+    expect(h.events.of('send.state')).toEqual([{ to: null, payload: { view: sentView } }]);
+    const listed = h.coordinator.attemptsOf(lock);
+    expect(listed).toEqual({ attempts: [{ opId: OP, purpose: 'preview-reply', group, partIndex: 0, view: sentView, updatedAt: NOW_MS }], truncated: false });
+    expect(SendListItemSchema.safeParse(listed.attempts[0]).success).toBe(true);
+    const journal = store.data.get(STORAGE_KEYS.sendJournal) as unknown[];
+    expect(journal).toHaveLength(1);
+    expect(SendJournalEntrySchema.safeParse(journal[0]).success).toBe(true);
+    expect(journal[0]).toMatchObject({ attemptId: N, state: 'sentObserved', partIndex: 0, platformMessageId: WORLD.messages.sentByUs, documentEpoch: 'native-send' });
+    expect(JSON.stringify(journal)).not.toContain('part text');
+    // The tab says it again (its first report was never acknowledged): the same record, no second one, no second event.
+    expect(h.coordinator.nativeSent({ attemptId: uuid(0x601), view: doneView(), part: { index: 0 }, platformMessageId: WORLD.messages.sentByUs })).toEqual(sentView);
+    expect(h.coordinator.attemptsOf(lock).attempts).toHaveLength(1);
+    expect(h.events.of('send.state')).toHaveLength(1);
+    // X8 never sends that part a second time — by a click of any preview revision — and nothing reaches the hub for the click.
+    expect(await h.coordinator.begin(TAB, h.begin())).toEqual({ ok: false, view: sentView });
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502), previewRevision: 4 }))).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-PART' } });
+    expect(h.hub.claims).toEqual([]);
+    await h.coordinator.idle();
+    // The event page unloads: the next instance still knows the part is delivered, and asks the hub nothing about it.
+    const second = sendHarness({ clock, store });
+    await second.coordinator.restore();
+    expect(second.coordinator.attemptsOf(lock).attempts).toEqual([{ opId: OP, purpose: 'preview-reply', group, partIndex: 0, view: sentView, updatedAt: NOW_MS }]);
+    expect(second.hub.claims).toEqual([]);
+    expect(second.hub.statusReads).toEqual([]);
+    expect(await second.coordinator.begin(TAB, second.begin())).toEqual({ ok: false, view: sentView });
+    // The next part of the group is free to go: by its own click, with its own dispatch.
+    second.hub.claimScript.push(ticketFor(uuid(0x503)), okAnswer(uuid(0x503), 'failed'));
+    expect((await second.coordinator.begin(TAB, second.begin({ attemptId: uuid(0x503), part: { index: 1 } }))).ok).toBe(true);
+    await second.coordinator.report(TAB, { attemptId: uuid(0x503), state: 'held', code: 'CG-SEND-HOST' });
+    await second.coordinator.idle();
+    expect(actions(second)).toEqual(['dispatch', 'failed:not_enqueued']);
+    // It ages out with the results, like any ended record.
+    await clock.advance(31 * 60_000);
+    const third = sendHarness({ clock, store });
+    await third.coordinator.restore();
+    expect(third.coordinator.attemptsOf(lock).attempts).toEqual([]);
+  });
+
+  it('[TL-004] §6.6 only a part of a finished preview or «Новые» result is recorded: the dock’s own, an unfinished one, a part that is not there — nothing; a greeting is a greeting', () => {
+    const h = sendHarness();
+    const lock = sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: previewTarget.fanRef });
+    const told = (view: OpView, index: number, n: number): unknown => h.coordinator.nativeSent({ attemptId: uuid(0x600 + n), view, part: { index }, platformMessageId: WORLD.messages.sentByUs });
+    expect(told(doneView({ surface: 'dock' }), 0, 0)).toBeNull();
+    expect(told(doneView({ state: 'failed' }), 0, 1)).toBeNull();
+    expect(told(doneView({ generationRef: undefined }), 0, 2)).toBeNull();
+    expect(told(doneView(), 2, 3)).toBeNull();
+    expect(h.coordinator.attemptsOf(lock).attempts).toEqual([]);
+    expect(h.events.of('send.state')).toEqual([]);
+    expect(told(doneView({ surface: 'newcomers', feature: 'hi', result: { kind: 'variants', variants: [['hello there']] } }), 0, 4)).toMatchObject({ state: 'sentObserved' });
+    expect(h.coordinator.attemptsOf(lock).attempts).toMatchObject([{ purpose: 'greeting', group: { generationRef: GEN, variant: 0, partCount: 1 }, partIndex: 0 }]);
+  });
+
+  it('[TL-004] §6.6 a part an X8 attempt already delivered is not recorded twice; an unknown outcome of that part still holds the fan', async () => {
+    const lock = sendLockKey({ hubOrigin: previewTarget.binding.hubOrigin, pageId: previewTarget.binding.pageId, platform: previewTarget.binding.platform, fanRef: previewTarget.fanRef });
+    const h = sendHarness();
+    h.hub.claimScript.push(ticketFor(A), okAnswer(A, 'sent'));
+    await h.coordinator.begin(TAB, h.begin());
+    await report(h, 'a', 'nativeEnqueued', {}, 'p');
+    await report(h, 'a', 'nativeAccepted', { platformMessageId: WORLD.messages.sentByUs });
+    await report(h, 'a', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs });
+    expect(h.coordinator.nativeSent({ attemptId: uuid(0x600), view: doneView(), part: { index: 0 }, platformMessageId: WORLD.messages.fanLatest })).toMatchObject({ attemptId: A, state: 'sentObserved' });
+    expect(h.coordinator.attemptsOf(lock).attempts.map((item) => item.view.attemptId)).toEqual([A]);
+    // Part 1 went through X8 and its outcome is unknown; the person then sent it by hand. Both are known, and the fan stays held.
+    const B = uuid(0x501);
+    h.hub.claimScript.push(ticketFor(B));
+    await h.coordinator.begin(TAB, h.begin({ attemptId: B, part: { index: 1 } }));
+    await h.coordinator.report(TAB, { attemptId: B, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
+    expect(h.coordinator.nativeSent({ attemptId: uuid(0x601), view: doneView(), part: { index: 1 }, platformMessageId: WORLD.messages.fanFirst })).toMatchObject({ attemptId: uuid(0x601), state: 'sentObserved' });
+    expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 1 });
+    expect(h.coordinator.attemptsOf(lock).attempts.map((item) => [item.partIndex, item.view.state])).toEqual([[1, 'uncertain'], [0, 'sentObserved'], [1, 'sentObserved']]);
+  });
+
   it('[X8-01] a stale token does not burn the part; after a hub resolve «not sent» the same part may be clicked again', async () => {
     const h = sendHarness();
     expect(await h.coordinator.begin(TAB, { ...h.begin(), cause: { kind: 'click', actionToken: 'tok_expired_0000000000' } })).toMatchObject({ ok: false, view: { code: 'CG-SEND-PART' } });

@@ -13,7 +13,7 @@
 import type { JSONContent } from '@tiptap/core';
 import { watch, type ObjectDirective, type Ref } from 'vue';
 
-import { isBroken } from '../env';
+import { env, isBroken } from '../env';
 import { record } from '../journal';
 import type { ComposerContent } from '../stores/pending-messages';
 import type { EditorHandle } from './editor-handle';
@@ -41,6 +41,16 @@ export interface BridgeTarget {
   readonly setInsertPayload: (accountId: string, chatId: string, payload: ComposerContent) => void;
 }
 
+/** `sendAfterNextWrite`: the composer's own Send button, pressed once the write's task is over and before a frame. */
+function sendIfAsked(element: HTMLElement, target: BridgeTarget): void {
+  if (env.sendAfterWrite !== `${target.accountId}:${target.chatId}`) return;
+  env.sendAfterWrite = null;
+  queueMicrotask(() => {
+    record('stand-send-pressed', { accountId: target.accountId, chatId: target.chatId });
+    element.closest('[data-stand-composer]')?.querySelector<HTMLElement>('[data-stand-send]')?.click();
+  });
+}
+
 export function applyBridge(element: HTMLElement, target: BridgeTarget): void {
   const host = element as BridgeHost;
   const editor = target.editor;
@@ -55,6 +65,7 @@ export function applyBridge(element: HTMLElement, target: BridgeTarget): void {
       editor.clear();
       if (text !== '') editor.insertContent(textToParagraph(text));
       editor.focus();
+      sendIfAsked(element, target);
     },
     insertText: (text) => {
       call('insertText');

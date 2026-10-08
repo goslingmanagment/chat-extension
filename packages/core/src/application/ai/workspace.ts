@@ -19,7 +19,7 @@ import { chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdent
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type ActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
-import { type AiQuotaSnapshot } from '@cg/contracts/tab-messages';
+import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
 import { fanScriptOf, featureGate, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript } from '../../domain/features';
@@ -27,6 +27,7 @@ import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
 import { archiveLag, type ArchiveLag, type ArchivePoint, type RecapSlotKey } from '../../domain/recap';
+import { type BoardHandover, type BoardPartFacts, type BoardResults } from '../board-handover';
 import { PAGE_OFF_REASON, flagReasonVm } from '../flag-reason';
 import { TabEnvironment, type EnvironmentChange, type PersonaState } from './environment';
 import { artifactHandle, readArtifactHandle, targetHandle, type Artifact } from './handles';
@@ -148,6 +149,25 @@ export const isOwnSurface = (surface: Surface): boolean => surface !== 'preview'
 
 /** How long «Скопировано» stays on a part (ui-design §4.3). */
 export const COPIED_MARK_MS = 2_000;
+
+/**
+ * §6.5 п. 4: how long the dock of a chat a board has just opened is asked again for the Б2 question while it does
+ * not see that chat's field yet, and how often. ChatSpace shows the chat first; the dock's reading follows.
+ */
+export const BOARD_QUESTION_WAIT_MS = 5_000;
+export const BOARD_QUESTION_STEP_MS = 100;
+/**
+ * §6.6: how many times one human-send report is said before it is given up, and how many wait for the port. The
+ * report is the only word the background (and through it the hub) gets of that send, so a port lost under the
+ * request is not the end of it — the same discipline as the boards' own reports (the tab's host facts).
+ */
+export const SENT_REPORT_TRIES = 4;
+const SENT_REPORTS_KEPT = 32;
+type SentReport = TabRequestPayload<'op.reportSent'>;
+/** A part of a board's result the board no longer answers for: «часть устарела — обновите ответ» (CG-SEND-PART). */
+const STALE_BOARD_PART: PartBlock = { reason: 'send-unavailable', code: 'CG-SEND-PART', view: { id: 'send-unavailable', code: 'CG-SEND-PART', text: { key: 'send.reason.part' } } };
+/** «Cannot ask yet»: the field of the chat is not seen (not ready, or the host's identity is still on its way). */
+const FIELD_NOT_SEEN_YET: readonly CgCode[] = ['CG-HOST-COMPOSER-MISSING', 'CG-HOST-NOT-READY'];
 /** Chats whose tone or open sheet the tab remembers. */
 export const CHAT_UI_MAX = 64;
 /** UI-031: «AI: осталось N» from this many requests down. */
@@ -197,6 +217,10 @@ export class AiWorkspace {
   private readonly startListeners = new Set<(record: OpRecord) => void>();
   private readonly insertListeners = new Set<(record: OpRecord, part: PartRef) => void>();
   private readonly resetListeners = new Set<(filter: (chatKey: ChatKey, pageId: number) => boolean) => void>();
+  /** Results a board made that the dock shows in their own chat (§6.5). */
+  private readonly boardOps = new Set<string>();
+  private boards: BoardResults | null = null;
+  private offBoards: (() => void) | null = null;
   private readonly offs: (() => void)[] = [];
   private readonly timers = new Set<unknown>();
   private hostReload = false;
@@ -208,6 +232,8 @@ export class AiWorkspace {
   /** Whose results the tab holds: undefined — not known yet, null — nobody is signed in. */
   private signIn: string | null | undefined = undefined;
   private portWasDown = false;
+  /** Human-send reports nobody answered, waiting for the port to come back. */
+  private readonly unsaidSends: { readonly report: SentReport; readonly tries: number }[] = [];
   private disposed = false;
 
   constructor(readonly ports: AiPorts) {
@@ -228,6 +254,8 @@ export class AiWorkspace {
       inserted: (record, part) => {
         for (const listener of [...this.insertListeners]) listener(record, part);
       },
+      hold: (record, part) => this.boardHold(record, part),
+      recheck: (record, part) => this.boardHoldNow(record, part),
     });
   }
 
@@ -291,6 +319,8 @@ export class AiWorkspace {
 
   dispose(): void {
     this.disposed = true;
+    this.offBoards?.();
+    this.offBoards = null;
     for (const off of this.offs.splice(0)) off();
     for (const timer of this.timers) this.ports.clock.clearTimer(timer);
     this.timers.clear();
@@ -388,9 +418,11 @@ export class AiWorkspace {
     const off = (status: DockStatus, reason: UnavailableReasonId, error: CgErrorWire | null): Situation => ({ ...base, status, statusError: error, off: reason });
 
     if (this.hostReload || this.env.reloadNeeded) return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-RELOADED' });
-    // The port is lost for good (every reconnect failed): what the tab remembers of the sign-in still reads
-    // «ready», but nothing would start. The dock says so and offers the one thing that helps — a reload.
-    if (this.env.connection === 'lost') return off('reload-needed', 'reload-needed', { code: 'CG-RUNTIME-UNREACHABLE' });
+    // The port is lost and its quick reconnects failed, but the extension is the same instance — nothing was
+    // updated, so this is not «перезагрузите вкладку». What the tab remembers of the sign-in still reads «ready»,
+    // yet nothing would start: the dock says «Расширение не отвечает» in the line of a service that is away, with
+    // «Повторить»; the tab keeps asking the background by itself and the dock comes back when it answers.
+    if (this.env.unreachable) return off('hub-down', 'runtime-unreachable', { code: 'CG-RUNTIME-UNREACHABLE' });
     const session = this.env.session;
     const settings = this.env.settings;
     if (session === undefined || settings === null) {
@@ -491,18 +523,20 @@ export class AiWorkspace {
    * page (`CG-BINDING-MISSING`) has no page row to ask, and only there the owner's `"*"` value decides — so does
    * `null`, no account on screen. Everything in between fails closed, `false`: the binding is ambiguous, could
    * not be read (the hub or the background did not answer, the data is not ready), or ChatSpace has not listed
-   * the account yet — its page may well say «off». null — unknown: nobody is signed in or the bootstrap is not
-   * read (what needs no hub goes on).
+   * the account yet — its page may well say «off». So does a sign-in whose switches are not in hand: the
+   * bootstrap is not read yet, is being read again after the port was down, or could not be read — the page may
+   * say «off», and what was known before an outage is not what it says now. null — unknown — is left for the
+   * one case that needs no hub: nobody is signed in (ChatSpace's own list goes on, §6.9).
    */
   async accountFlag(hostAccountId: string | null, flag: ClientFeatureFlag): Promise<boolean | null> {
-    if (this.env.bootstrap.s !== 'ready') return null;
+    if (this.env.bootstrap.s !== 'ready') return this.env.session === null ? null : false;
     if (hostAccountId === null) return starFlag(this.env.bootstrap.value, flag);
     const account = this.ports.host.current().accounts.find((candidate) => candidate.hostAccountId === hostAccountId) ?? null;
     if (account === null) return false;
     const binding = await this.env.bindingRead(account);
     // The bootstrap may have been read again (or lost with the sign-in) while the binding was.
     const bootstrap = this.env.bootstrap;
-    if (bootstrap.s !== 'ready' || binding.s === 'idle') return null;
+    if (bootstrap.s !== 'ready' || binding.s === 'idle') return this.env.session === null ? null : false;
     if (binding.s === 'ready') return flagUsable(bootstrap.value, binding.value.pageId, flag);
     return binding.s === 'error' && binding.error.code === 'CG-BINDING-MISSING' ? starFlag(bootstrap.value, flag) : false;
   }
@@ -712,6 +746,111 @@ export class AiWorkspace {
     };
   }
 
+  // ── a board's result in the dock (§6.5) ──────────────────────────────────
+
+  /** The boards' side of the results the dock shows, once the boards are loaded (the tab's composition root binds it). */
+  bindBoards(boards: BoardResults | null): void {
+    this.offBoards?.();
+    this.boards = boards;
+    this.offBoards =
+      boards?.subscribe(() => {
+        if (this.boardOps.size > 0) this.bump();
+      }) ?? null;
+  }
+
+  /**
+   * §6.5: «Открыть и вставить» opened the chat of a board's result — from now on the rest of that result is
+   * worked with here, in the chat's dock: the part that went into the composer reads «вставлено», the others
+   * are inserted one click each under the dock's own rules (§6.4), and where the composer held the person's own
+   * text the Б2 question about the part stands in the dock (п. 4). Nothing is written here.
+   *
+   * false — the dock did not take it: the person is already in another chat, the result is not known to this
+   * tab or not of a persona it can vouch for, or the question could not be asked.
+   */
+  async adoptBoardResult(handover: BoardHandover): Promise<boolean> {
+    const key = chatKeyOf(handover.chat);
+    const here = (): boolean => this.situation().chat?.key === key;
+    const persona = handover.personaDefinitionId;
+    if (persona === null || !this.env.session || !here()) return false;
+    if (this.ops.get(handover.opId) === null) await this.ops.syncChat(key);
+    const record = here() ? this.ops.vouch(handover.opId, key, persona, handover.split) : null;
+    if (record === null) return false;
+    this.boardOps.add(handover.opId);
+    if (handover.outcome === 'inserted') this.inserts.noteInserted(record, handover.part);
+    this.setSheet(key, { kind: 'draft', opId: handover.opId });
+    return handover.outcome === 'inserted' || (await this.askAboutBoardPart(handover.opId, handover.part, here));
+  }
+
+  /**
+   * §6.5 п. 4: the Б2 question about a board's part, in the dock of the chat the board opened. The board's
+   * navigation ends the moment ChatSpace shows the chat; the dock's own reading of that chat's field may be a step
+   * behind, and a dock that does not see the field yet cannot ask. So it is asked again until it can be — for a
+   * few seconds, while this is still the open chat and the dock still holds the result. Only ever a question:
+   * nothing is written here. false — it could not be asked (the composition says it as a toast instead).
+   */
+  private async askAboutBoardPart(opId: string, part: PartRef, here: () => boolean): Promise<boolean> {
+    const { clock } = this.ports;
+    const deadline = clock.now() + BOARD_QUESTION_WAIT_MS;
+    for (;;) {
+      const outcome = await this.inserts.askAbout(opId, part);
+      // Asked; or the field needs no question any more; or the person's own click on this result is at work.
+      if (outcome.kind !== 'failed') return true;
+      if (!FIELD_NOT_SEEN_YET.includes(outcome.error.code) || clock.now() + BOARD_QUESTION_STEP_MS > deadline) return false;
+      await new Promise<void>((resolve) => {
+        const timer = clock.setTimer(BOARD_QUESTION_STEP_MS, () => {
+          this.timers.delete(timer);
+          resolve();
+        });
+        this.timers.add(timer);
+      });
+      if (this.disposed || !here() || !this.boardOps.has(opId)) return false;
+    }
+  }
+
+  /** A result a board made and the dock shows (§6.5). */
+  isBoardResult(opId: string): boolean {
+    return this.boardOps.has(opId);
+  }
+
+  /** What the board says of a part of such a result; null — not a board's result, or the board no longer holds it. */
+  boardPart(opId: string, part: PartRef): BoardPartFacts | null {
+    return this.boardOps.has(opId) ? (this.boards?.part(opId, part) ?? null) : null;
+  }
+
+  /**
+   * Whether an action on an operation is the dock's to take: an operation of the open chat's own surfaces, or a
+   * board's result the dock shows — unless a card shows that result right now: its buttons are the card's then.
+   */
+  answersFor(record: OpRecord): boolean {
+    return isOwnSurface(record.view.surface) || (this.boardOps.has(record.view.opId) && this.boards?.showing(record.view.opId) !== true);
+  }
+
+  private boardHold(record: OpRecord, part: PartRef): PartBlock | null {
+    if (!this.boardOps.has(record.view.opId)) return null;
+    const facts = this.boards?.part(record.view.opId, part) ?? null;
+    // The board no longer holds the result (it aged out there, or the boards are not bound): which parts were sent
+    // and what holds the fan is not known any more. Such a part is never «insertable as if nothing were known» —
+    // it says it is out of date; copying is still there.
+    if (facts === null) return STALE_BOARD_PART;
+    // A delivered part is never put into a composer again (ui-design §3.2); a held fan says why.
+    if (facts.sentAt !== null) return { reason: 'send-unavailable', code: 'CG-SEND-PART' };
+    return facts.hold === null ? null : { reason: facts.hold.id, code: facts.hold.code ?? 'CG-SEND-BUSY', view: facts.hold };
+  }
+
+  /**
+   * The same at the person's click in the dock — «Вставить» of a board's part, or an answer to its Б2 question:
+   * the journal of the fan's sends is read first, as the board's own «Открыть и вставить» reads it (§6.7.8). What
+   * `boardHold` answers between clicks is what this tab last heard; an uncertain send another tab began since
+   * the hand-over holds the fan from this read on. A journal that does not answer is not «nothing holds it».
+   */
+  private async boardHoldNow(record: OpRecord, part: PartRef): Promise<PartBlock | null> {
+    const opId = record.view.opId;
+    if (!this.boardOps.has(opId)) return null;
+    const read = this.boards === null ? 'gone' : await this.boards.sync(opId);
+    if (read === 'unread') return { reason: 'runtime-unreachable', code: 'CG-RUNTIME-UNREACHABLE' };
+    return this.boardHold(record, part);
+  }
+
   // ── the page tail (the archive lag, the language gate) ───────────────────
 
   /**
@@ -813,7 +952,7 @@ export class AiWorkspace {
     if (artifact === null) return false;
     if (artifact.kind === 'recap') return this.recaps.slots.byLocalId(artifact.localId) !== null;
     const record = this.ops.get(artifact.opId);
-    return record !== null && isOwnSurface(record.view.surface);
+    return record !== null && this.answersFor(record);
   }
 
   /** «Копировать»: `copied` is reported only after the clipboard write succeeded (TL-006, Б14). */
@@ -870,7 +1009,27 @@ export class AiWorkspace {
     if (platformMessageId === null || draft.insertIntentId === null || draft.editedSinceInsert === null) return;
     const origin = this.inserts.intent(draft.insertIntentId);
     if (origin === null) return;
-    void this.ports.rpc.request('op.reportSent', { opId: origin.opId, part: origin.part, pendingId: fact.pendingId, platformMessageId, edited: draft.editedSinceInsert });
+    this.reportSent({ opId: origin.opId, part: origin.part, pendingId: fact.pendingId, platformMessageId, edited: draft.editedSinceInsert });
+  }
+
+  /**
+   * Says a human send to the background until it is heard: acknowledged, or refused in the background's own
+   * words. Only «nobody answered» (the port was lost under the request) is said again, when the port is back, a
+   * bounded number of times; the background takes a repeat as the same fact (the registration is keyed by the
+   * operation, the part and the message's id). A report of what already happened — it never sends anything.
+   */
+  private reportSent(report: SentReport, tries = 1): void {
+    void this.ports.rpc.request('op.reportSent', report).then((answer) => {
+      if (this.disposed || answer.ok || answer.error.code !== 'CG-RUNTIME-UNREACHABLE' || tries >= SENT_REPORT_TRIES) return;
+      this.unsaidSends.push({ report, tries: tries + 1 });
+      if (this.unsaidSends.length > SENT_REPORTS_KEPT) this.unsaidSends.shift();
+      // The port is already back (the request itself outlived a reconnect): no state change will come.
+      if (this.env.connection === 'ready') this.flushSentReports();
+    });
+  }
+
+  private flushSentReports(): void {
+    for (const { report, tries } of this.unsaidSends.splice(0)) this.reportSent(report, tries);
   }
 
   // ── reactions ────────────────────────────────────────────────────────────
@@ -928,6 +1087,7 @@ export class AiWorkspace {
   private onEnvironment(change: EnvironmentChange): void {
     if (change === 'connection') {
       const state = this.env.connection;
+      if (state === 'ready') this.flushSentReports();
       if (state === 'reconnecting' || state === 'lost') this.portWasDown = true;
       else if (state === 'ready' && this.portWasDown) {
         this.portWasDown = false;
@@ -986,6 +1146,7 @@ export class AiWorkspace {
   private forget(opIds: readonly string[]): void {
     for (const opId of opIds) {
       this.inserts.dropOp(opId);
+      this.boardOps.delete(opId);
       this.expanded.delete(opId);
       this.shown.delete(opId);
       for (const handle of [...this.copies.keys()]) if (readArtifactHandle(handle)?.kind !== 'recap' && handle.includes(opId)) this.copies.delete(handle);

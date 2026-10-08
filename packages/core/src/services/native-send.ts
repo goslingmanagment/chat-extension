@@ -27,7 +27,7 @@ import { type ClaimOp, type HubFacade, type HubFailure } from '@cg/contracts/hub
 import { type PartRef } from '@cg/contracts/ids';
 import { type OpView } from '@cg/contracts/ops';
 
-import { reportRetryable } from '../domain/send';
+import { nativePartOf, reportRetryable } from '../domain/send';
 import { LOCAL_KEYS } from '../domain/storage';
 import { NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink } from './ports';
 import { REPORT_RETRY_DELAYS_MS } from './send-coordinator';
@@ -68,11 +68,8 @@ export interface NativeSendDeps {
 export type NativeSendClaim = ClaimOp & { readonly body: Extract<ClaimOp['body'], { readonly action: 'registerNativeSend' }> };
 
 export function nativeSendClaim(view: OpView, part: PartRef, platformMessageId: string, ids: { readonly attemptId: string; readonly instanceId: string }): NativeSendClaim | null {
-  if (view.surface !== 'preview' && view.surface !== 'newcomers') return null;
-  if (view.state !== 'done' || view.generationRef === undefined || view.result === undefined) return null;
-  const variant = part.variant ?? 0;
-  const parts = view.result.kind === 'parts' ? (variant === 0 ? view.result.parts : undefined) : view.result.kind === 'variants' ? view.result.variants[variant] : undefined;
-  if (parts === undefined || part.index >= parts.length) return null;
+  const sent = nativePartOf(view, part);
+  if (sent === null) return null;
   return {
     pageLabel: view.target.binding.pageLabel,
     fanRef: view.target.fanRef,
@@ -80,9 +77,9 @@ export function nativeSendClaim(view: OpView, part: PartRef, platformMessageId: 
       action: 'registerNativeSend',
       attemptId: ids.attemptId,
       instanceId: ids.instanceId,
-      purpose: view.surface === 'newcomers' ? 'greeting' : 'preview-reply',
-      group: { generationRef: view.generationRef, variant, partCount: parts.length },
-      partIndex: part.index,
+      purpose: sent.purpose,
+      group: sent.group,
+      partIndex: sent.partIndex,
       platformMessageId,
     },
   };

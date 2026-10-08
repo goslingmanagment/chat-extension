@@ -25,7 +25,7 @@ import { type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
-import { button, dataView, failureClass, failureView, loadingView, localError, localKey, msg, stamp } from '../boards/views';
+import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, localKey, msg, stamp } from '../boards/views';
 
 /** The search waits this long after the last keystroke (SP-019). */
 export const SEARCH_DEBOUNCE_MS = 150;
@@ -262,6 +262,10 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
     const index = current?.index ?? null;
     const sourced = current?.sourced ?? false;
+    // «Ждут ответа» is the hub's queue over the whole page (SP-047). When its read failed the rows on screen are this
+    // tab's own filter over what the board has loaded — a fallback the board must name, with the read's own error
+    // and «Повторить» (ER-025: a failed read is never passed off as a list), not a list that only looks like the queue.
+    const queueFailed = current !== null && blocked === null && filters.main === 'waiting' && pageFlag(ctx, 'stats') && queue.error !== null ? queue.error : null;
     return {
       view,
       pageName: ctx.page?.title ?? null,
@@ -288,6 +292,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         { label: msg('cheatsheet.row.search'), hotkey: localKey('/', '/') },
         { label: msg('common.close'), hotkey: localKey('Esc', 'Escape') },
       ],
+      waitingFallback: queueFailed === null ? null : { error: errorOf(queueFailed, i18n), retry: boardRetry },
     };
   }
 
@@ -412,7 +417,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const id = pageId();
     if (id === null || !usable('stats')) return;
     if (queue.loading && !restart) return;
-    if (restart) queue = { state: EMPTY_QUEUE, loading: false, error: null, run: queue.run, cursorRestarted: afterCursorRefusal };
+    // A walk that starts over after a failed read keeps saying so until this read answers: the list on screen is
+    // still the local fallback, and its notice must not blink away for the time of the request.
+    if (restart) queue = { state: EMPTY_QUEUE, loading: false, error: queue.error, run: queue.run, cursorRestarted: afterCursorRefusal };
     const cursor = restart ? null : queue.state.nextCursor;
     if (!restart && cursor === null) return;
     const atEpoch = epoch;

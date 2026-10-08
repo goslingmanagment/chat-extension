@@ -7,7 +7,7 @@
 // is ambiguous, unread or unknown fails closed (docs/protocols/hub.md «Флаги:
 // решает страница»). Synthetic ids only.
 
-import { type ActionReceipt, type CgCode, type HostAccount, type NavigationItem, type UiAction } from '@cg/contracts';
+import { CLIENT_FEATURE_FLAG_NAMES, type ActionReceipt, type CgCode, type HostAccount, type NavigationItem, type UiAction } from '@cg/contracts';
 import { chatHandle, createNavigationController, createOverlayState } from '@cg/core/application/navigation';
 import { createI18n } from '@cg/core/domain/i18n';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
@@ -36,6 +36,7 @@ async function world(bootstrap = A_OFF) {
   const fake = new FakeHostPort({ start: { ...startSnapshot, accounts: [A, B, UNBOUND] }, memory: { ...memory, chatList: LIST }, checkpoint: null, answers: {}, timeline: [] });
   const parts: HarnessParts = { baseHost: fake, memory, catalog: createFakeCatalog(ctxOf({ now: NOW_MS })), bootstrap, resolve: resolveHubErrorReference, meta: (feature) => meta(feature as Parameters<typeof meta>[0]) };
   const h = await readyHarness(parts);
+  const overlays = createOverlayState();
   // Wired as the tab does: the switch is the workspace's answer for the account.
   const navigation = createNavigationController({
     host: h.host,
@@ -43,7 +44,7 @@ async function world(bootstrap = A_OFF) {
     i18n: createI18n({ language: 'ru', now: () => h.clock.now() }),
     ids: sequentialIds(0x700),
     clock: h.clock,
-    overlays: createOverlayState(),
+    overlays,
     ownerSwitch: (hostAccountId) => h.ai.workspace.accountFlag(hostAccountId, 'navigation'),
   });
   const go = async (action: UiAction): Promise<ActionReceipt> => {
@@ -56,7 +57,7 @@ async function world(bootstrap = A_OFF) {
   const flag = (account: HostAccount | null) => h.ai.workspace.accountFlag(account?.hostAccountId ?? null, 'navigation');
   /** What reached the host and what was asked of the background for a navigation. */
   const touched = () => ({ navigations: fake.calls.navigations.length, tokens: h.bg.callsOf('token.issue').length });
-  return { h, fake, navigation, go, flag, touched };
+  return { h, fake, navigation, overlays, go, flag, touched };
 }
 
 const failed = (receipt: ActionReceipt): CgCode | null => (receipt.ok ? null : receipt.code);
@@ -117,7 +118,82 @@ describe('[HK-037] the owner’s `navigation` switch is the page’s own for a b
     });
   }
 
-  it('an account ChatSpace has not listed yet fails closed; nobody signed in or no bootstrap is «unknown» — ChatSpace’s own list needs no hub', async () => {
+  it('[NEW-07] the ⌘-hold popup «Быстрый переход» stands under the same switch and needs its definite «on»: page off, master switch off, a binding not told, nobody signed in — no popup; the page that says on — the popup', async () => {
+    const POPUP: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: true } };
+    const CLOSE: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'quick-jump', open: false } };
+    const opened = async (w: Awaited<ReturnType<typeof world>>): Promise<boolean> => {
+      expect((await w.go(POPUP)).ok).toBe(true);
+      const open = w.overlays.isOpen('quick-jump');
+      await w.go(CLOSE);
+      return open;
+    };
+    // The live case (2026-10-07): the open chat is on page A, whose owner left `navigation` off — `"*"` says on.
+    const w = await world();
+    const before = w.touched();
+    expect(await opened(w)).toBe(false);
+    // Nothing was asked of the background or of ChatSpace for a popup that did not open.
+    expect(w.touched()).toEqual(before);
+    // The person goes to an account of page B, whose own row says on: there the hold opens the popup.
+    w.h.host.openChat({ host: 'chatspace', hostAccountId: B.hostAccountId, platformFanId: '2010' }, B);
+    await w.h.settle();
+    expect(await opened(w)).toBe(true);
+    // Back on A it is closed again: the answer is the account's on screen, asked at every hold.
+    w.h.host.openChat(openChat, A);
+    await w.h.settle();
+    expect(await opened(w)).toBe(false);
+
+    // The owner's master switch is off: every page answers «disabled», `"*"` or not.
+    const master = await world({ ...pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, CLIENT_FEATURE_FLAG_NAMES, { reason: 'disabled' }), flags: { ...BOOTSTRAP_PILOT_PAGES.flags, navigation: true } });
+    expect(await master.flag(A)).toBe(false);
+    expect(await opened(master)).toBe(false);
+
+    // A binding that could not be told fails closed for the popup as for the keys.
+    const untold = await world({ ...BOOTSTRAP_PILOT_PAGES, flags: { ...BOOTSTRAP_PILOT_PAGES.flags, navigation: true } });
+    expect(await opened(untold)).toBe(true);
+    untold.h.bg.bindingError = { code: 'CG-BINDING-AMBIGUOUS' };
+    untold.h.bg.bootstrap = { ...BOOTSTRAP_PILOT_PAGES, configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1 };
+    untold.h.bg.emit(null, 'bootstrap.changed', { configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1, issuedAt: new Date(NOW_MS).toISOString() });
+    await untold.h.settle();
+    expect(await opened(untold)).toBe(false);
+
+    // Nobody signed in: the switch is unknown. A key still walks ChatSpace's own list (§6.9); the popup, which
+    // would list other fans' chats on a guess, does not open.
+    const out = await world({ ...BOOTSTRAP_PILOT_PAGES, flags: { ...BOOTSTRAP_PILOT_PAGES.flags, navigation: true } });
+    out.h.bg.changeSession(null, 'sign-out');
+    await out.h.settle();
+    expect(await out.flag(A)).toBeNull();
+    expect(await opened(out)).toBe(false);
+  });
+
+  it('[RB-010] the port to the background was down: back, the switch is not answered from what was read before — while the bootstrap is read again every account is «off», then each is what its page says now', async () => {
+    const w = await world();
+    expect([await w.flag(A), await w.flag(B)]).toEqual([false, true]);
+    w.h.bg.setConnection('lost');
+    // The owner turns navigation off on page B too. This tab's port is down: it hears nothing.
+    const off = { ...pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['navigation']), flags: { ...BOOTSTRAP_PILOT_PAGES.flags, navigation: true }, configRevision: BOOTSTRAP_PILOT_PAGES.configRevision + 1 };
+    w.h.bg.bootstrap = off;
+    w.h.bg.emit(null, 'bootstrap.changed', { configRevision: off.configRevision, issuedAt: new Date(NOW_MS).toISOString() });
+    await w.h.settle();
+    w.h.bg.setConnection('ready');
+    // In the step the port returns the old answer for B («on») is not given, and «unknown» — which lets a key
+    // walk — is not either: somebody is signed in, and their page may say off.
+    const before = w.touched();
+    expect(failed(await w.go(jump(B, '2010')))).toBe('CG-FEATURE-DISABLED');
+    expect(w.touched()).toEqual(before);
+    await w.h.settle();
+    expect([await w.flag(A), await w.flag(B), await w.flag(UNBOUND)]).toEqual([false, false, true]);
+    expect(failed(await w.go(jump(B, '2010')))).toBe('CG-FEATURE-DISABLED');
+    expect(w.fake.calls.navigations).toEqual([]);
+    // The hub cannot be read after the port is back: still nobody's «on».
+    const down = await world();
+    down.h.bg.setConnection('lost');
+    down.h.bg.bootstrap = { error: { code: 'CG-HUB-UNAVAILABLE' } };
+    down.h.bg.setConnection('ready');
+    await down.h.settle();
+    expect([await down.flag(A), await down.flag(B), await down.flag(null)]).toEqual([false, false, false]);
+  });
+
+  it('an account ChatSpace has not listed yet fails closed; nobody signed in is «unknown» — ChatSpace’s own list needs no hub; a sign-in whose bootstrap is not read is not', async () => {
     const w = await world();
     expect(await w.h.ai.workspace.accountFlag('999999', 'navigation')).toBe(false);
     expect(failed(await w.go({ type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: '999999', platformFanId: '2001' }) } }))).toBe('CG-FEATURE-DISABLED');

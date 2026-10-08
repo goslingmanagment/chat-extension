@@ -47,7 +47,7 @@ export interface FeaturePolicy {
 
 /** AI-051: Review and the full Recap need this many messages. */
 export const MIN_MESSAGES_FOR_DEEP = 30;
-/** AI-031: Hi is for a conversation with at most this many personal messages. */
+/** AI-031: Hi is for a conversation with at most this many messages — of either side, as the hub counts them (`gate_hi_greeting_limit`). */
 export const HI_MAX_PERSONAL_MESSAGES = 10;
 
 function policy(feature: FeatureId, row: Omit<FeaturePolicy, 'split' | 'freshText' | 'timeouts'>): FeaturePolicy {

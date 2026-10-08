@@ -20,7 +20,7 @@ import { PAGE } from '../../src/scenarios/hub';
 import { composerText, historyLoads, pageJournal, pageJournalMark, PANEL, queueAdds, sendsOf, serverSince, typeDraft } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursBox, oursExists, oursText, pressOurs, waitOursText } from '../support/ours';
+import { oursBox, oursExists, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -52,11 +52,15 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await waitOursText('modal', reply(fan)[1], 'the preview’s result', { timeout: 20_000, selector: '.cg-pvr' });
   };
   const part = (index: number): string => `.cg-pv [data-cg-part="${index}"]`;
-  /** The send state of a part as the preview draws it: the part's own word and its row's. */
+  /**
+   * The send state of a part as the preview draws it: the part's own word and its row's, both from one moment of the
+   * page (`readOurs`): the row goes when the part is sent, and a command that reads a row that has just gone waits
+   * 15 s for it — as long as `waitSend` itself.
+   */
   const sendState = async (index: number): Promise<string> => {
-    if (!(await oursExists('modal', part(index)))) return 'no-part';
-    const own = await ours('modal', part(index)).getAttribute('data-cg-send-state');
-    const row = (await oursExists('modal', `${part(index)} .cg-pvs`)) ? await ours('modal', `${part(index)} .cg-pvs`).getAttribute('data-cg-send') : null;
+    const drawn = await readOurs('modal', part(index), (node) => [node.getAttribute('data-cg-send-state'), node.querySelector('.cg-pvs')?.getAttribute('data-cg-send') ?? null] as const);
+    if (drawn === null) return 'no-part';
+    const [own, row] = drawn;
     return row === null || row === own ? String(own) : `${String(own)}/${row}`;
   };
   const waitSend = async (index: number, wanted: string | RegExp, message: string, timeout = 15_000): Promise<string> => {
@@ -80,6 +84,20 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     callsTo((await hub().journal(mark)).entries, 'clientFanClaim')
       .filter((call) => (call.request as { fanRef?: string }).fanRef === fan)
       .map((call) => `${(call.request as { body: { action: string } }).body.action}:${call.status}${call.error === null ? '' : `:${call.error}/${String(call.reason)}`}`);
+  /**
+   * The hub's custody calls for a fan since `mark`, once the hub heard of the outcome the page already shows. The
+   * page shows an outcome the moment MAIN observed it; the tab's report reaches the hub through the background a
+   * moment later. Compared whole: a call too many fails as well as one that never came.
+   */
+  const expectCustody = async (mark: number, fan: string, expected: readonly string[]): Promise<void> => {
+    let heard: string[] = [];
+    try {
+      await browser.waitUntil(async () => (heard = await custody(mark, fan)).length >= expected.length, { timeout: 10_000, interval: 50 });
+    } catch {
+      // Compared below: the failure names what the hub did hear.
+    }
+    expect(heard).toEqual(expected);
+  };
   const attemptsOf = async (fan: string): Promise<Array<readonly [string, number]>> =>
     ((await hub().status()).claims.find((claim) => claim.pageLabel === PAGE && claim.fanRef === fan)?.attempts ?? []).map((attempt) => [attempt.state, attempt.partIndex] as const);
 
@@ -126,7 +144,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     expect(sends.map((entry) => [entry.origin, entry.chatId, entry.detail?.['plain']])).toEqual([['native', a4, reply(a4)[0]]]);
     expect(sends[0]?.detail).toMatchObject({ isCopied: false, isAiGenerated: true, internalTemplateId: null, replyTime: null, previousMessage: null, platformMetadata: {} });
     expect(queueAdds(await pageJournal(mark))).toHaveLength(1);
-    expect(await custody(hubMark, a4)).toEqual(['dispatch:200', 'sent:200']);
+    await expectCustody(hubMark, a4, ['dispatch:200', 'sent:200']);
     expect(await attemptsOf(a4)).toEqual([['sent', 0]]);
     const shown = await oursText('modal', '.cg-pv');
     expect(shown).toContain('отправлено 1 из 2');
@@ -137,7 +155,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await pressSendOf(1);
     await waitSend(1, 'sent', 'the second part is sent');
     expect(sendsOf(await serverSince(standMark)).map((entry) => entry.detail?.['plain'])).toEqual([...reply(a4)]);
-    expect(await custody(hubMark, a4)).toEqual(['dispatch:200', 'sent:200', 'dispatch:200', 'sent:200']);
+    await expectCustody(hubMark, a4, ['dispatch:200', 'sent:200', 'dispatch:200', 'sent:200']);
     expect(await oursText('modal', '.cg-pvr')).toContain('отправлено 2 из 2');
 
     // The fan's chat was never opened: no tab, no composer, no history; the person's own draft is where it was.
@@ -167,7 +185,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await waitSend(0, 'sent', 'the part is sent');
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
     expect(queueAdds(await pageJournal(mark))).toHaveLength(1);
-    expect(await custody(hubMark, a6)).toEqual(['dispatch:200', 'sent:200']);
+    await expectCustody(hubMark, a6, ['dispatch:200', 'sent:200']);
     expect(await attemptsOf(a6)).toEqual([['sent', 0]]);
   });
 
@@ -186,7 +204,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     // No «Отправить ещё раз» for a refusal of the text itself; the person edits it in ChatSpace.
     expect(await oursExists('modal', `${part(0)} .cg-pvs__send`)).toBe(false);
     expect(await oursExists('modal', `${part(0)} .cg-pvs__open`)).toBe(true);
-    expect(await custody(hubMark, a7)).toEqual(['dispatch:200', 'failed:200']);
+    await expectCustody(hubMark, a7, ['dispatch:200', 'failed:200']);
     await browser.pause(700);
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
   });
@@ -312,7 +330,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
       await browser.switchToWindow(firstTab);
       await waitSend(0, 'sent', 'the first tab’s part is sent');
       expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
-      expect(await custody(hubMark, a11)).toEqual(['dispatch:200', 'sent:200']);
+      await expectCustody(hubMark, a11, ['dispatch:200', 'sent:200']);
     } finally {
       await browser.switchToWindow(secondTab);
       await browser.closeWindow();

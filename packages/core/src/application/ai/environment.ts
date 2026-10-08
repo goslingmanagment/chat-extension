@@ -93,9 +93,11 @@ export class TabEnvironment {
       rpc.onState((state) => {
         const before = this.connectionValue;
         this.connectionValue = state;
+        // A new port is a new background (or a new tab session): everything is read again — and nothing of the
+        // copy held from before the outage is taken for current meanwhile (`resync`).
+        const back = state === 'ready' && before !== 'ready' && before !== 'connecting';
+        if (back) this.resync();
         this.emit('connection');
-        // A new port is a new background (or a new tab session): everything is read again.
-        if (state === 'ready' && before !== 'ready' && before !== 'connecting') this.reload();
       }),
     );
     this.reload();
@@ -139,6 +141,15 @@ export class TabEnvironment {
   /** The extension was reloaded or updated under the tab: only a reload of the tab helps (CG-RUNTIME-RELOADED). */
   get reloadNeeded(): boolean {
     return this.connectionValue === 'reloaded';
+  }
+
+  /**
+   * The port to the background is lost and its quick reconnects failed, while the extension is the same instance
+   * (CG-RUNTIME-UNREACHABLE): the tab keeps asking, and nothing can start until the background answers. Not an
+   * update — no reload of the tab is asked for.
+   */
+  get unreachable(): boolean {
+    return this.connectionValue === 'lost';
   }
 
   page(pageId: number): BootstrapPage | null {
@@ -234,6 +245,9 @@ export class TabEnvironment {
 
   /** Reads everything again («Повторить» of the hub-down banner, a reconnect). */
   reload(): void {
+    // «Повторить» over a lost port: the background is asked again first. What is read below then fails at once
+    // (nothing is sent over a lost port), and everything is read anew when the port answers (`onState`).
+    if (this.connectionValue === 'lost') this.rpc.reconnect?.();
     this.generation += 1;
     const generation = this.generation;
     // A read that failed for the hub's or the transport's reasons is made again; «not bound» is an answer, not a failure.
@@ -254,6 +268,42 @@ export class TabEnvironment {
         return;
       }
       this.sessionChanged(answer.payload.session);
+    });
+  }
+
+  /**
+   * The port is back after it was down. Every event of the meantime was lost — a sign-in, a persona, an owner
+   * switch, a binding may have changed unheard — so the copy held here is no longer known to be true. It is not
+   * kept as `ready` while it is read again: the bootstrap (the page's switches and its binding revision) and the
+   * bindings are dropped at once, and the bootstrap is asked for only after the settings are in (the persona of a
+   * page comes from them). Until then nothing is there to insert, navigate or generate by; a read that fails
+   * leaves the hub line saying why.
+   */
+  private resync(): void {
+    this.generation += 1;
+    const generation = this.generation;
+    this.dropBindings();
+    this.quotaAsked.clear();
+    this.bootstrapValue = LOADING;
+    this.emit('bootstrap');
+    const failed = (error: CgErrorWire): void => {
+      this.bootstrapValue = { s: 'error', error };
+      this.emit('bootstrap');
+    };
+    void this.rpc.request('settings.get', {}).then((settings) => {
+      if (generation !== this.generation) return;
+      if (!settings.ok) return failed(settings.error);
+      // An event may have brought a newer revision meanwhile.
+      if (this.settingsValue === null || this.settingsValue.revision <= settings.payload.revision) {
+        this.settingsValue = settings.payload;
+        this.emit('settings');
+      }
+      void this.rpc.request('session.get', {}).then((answer) => {
+        if (generation !== this.generation) return;
+        if (!answer.ok) return failed(answer.error);
+        // The same sign-in finds no bootstrap here and reads it; another one drops everything as ever.
+        this.sessionChanged(answer.payload.session);
+      });
     });
   }
 

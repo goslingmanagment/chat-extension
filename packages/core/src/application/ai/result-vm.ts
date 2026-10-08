@@ -26,21 +26,24 @@ export function partVm(ws: AiWorkspace, record: OpRecord, part: PartRef, text: s
   const copy = ws.copyState(handle);
   const block = ws.inserts.blockOf(record, part);
   const insertBlocked: ReasonVM | null = block === null ? null : (block.view ?? catalog.reason(block.reason));
+  // A board's result shown in its chat's dock (§6.5): a part that is delivered reads «Отправлено», as in its preview.
+  const sentAt = ws.boardPart(opId, part)?.sentAt ?? null;
   return {
     index: part.index,
     variant: part.variant ?? null,
-    label: msg('part.aria', { n: part.index + 1 }),
+    label: msg(sentAt === null ? 'part.aria' : 'part.ariaSent', { n: part.index + 1 }),
     numbered: options.numbered,
     text,
-    next: options.next && state.insert !== 'done',
+    next: options.next && state.insert !== 'done' && sentAt === null,
     insert: state.insert,
     insertError: state.insertError === null ? null : errorVm(state.insertError, i18n),
     insertBlocked,
     copy,
     copyError: copy === 'failed' ? errorVm({ code: 'CG-CLIPBOARD' }, i18n) : null,
     copyHandle: handle,
-    // An inserted part folds into one line and frees the room for the next (ui-design §3.2).
-    collapsed: state.insert === 'done',
+    // An inserted part folds into one line and frees the room for the next (ui-design §3.2); so does a sent one.
+    collapsed: state.insert === 'done' || sentAt !== null,
+    ...(sentAt === null ? {} : { send: { s: 'sent', at: sentAt } as const }),
   };
 }
 
@@ -48,7 +51,7 @@ export function partVm(ws: AiWorkspace, record: OpRecord, part: PartRef, text: s
 export function partVms(ws: AiWorkspace, record: OpRecord, texts: readonly string[], variant: number | null, mayBeNext: boolean): PartVM[] {
   const opId = record.view.opId;
   const refs = texts.map((_, index): PartRef => (variant === null ? { index } : { variant, index }));
-  const nextIndex = mayBeNext ? refs.findIndex((ref) => ws.inserts.partState(opId, ref).insert !== 'done') : -1;
+  const nextIndex = mayBeNext ? refs.findIndex((ref) => ws.inserts.partState(opId, ref).insert !== 'done' && (ws.boardPart(opId, ref)?.sentAt ?? null) === null) : -1;
   return texts.map((text, index) => partVm(ws, record, refs[index] as PartRef, text, { numbered: texts.length > 1, next: index === nextIndex }));
 }
 
@@ -64,6 +67,17 @@ function variantVms(ws: AiWorkspace, record: OpRecord, variants: readonly (reado
 
 const insertedCount = (ws: AiWorkspace, opId: string, texts: readonly string[], variant: number | null): number =>
   texts.filter((_, index) => ws.inserts.partState(opId, variant === null ? { index } : { variant, index }).insert === 'done').length;
+
+/** «отправлено N из M» of a board's result the dock shows (§6.5): the variant in work, or the only message; null — nothing of it is delivered. */
+function sentProgress(ws: AiWorkspace, opId: string, result: OpResult | undefined): { readonly sent: number; readonly total: number } | null {
+  if (result === undefined || !ws.isBoardResult(opId)) return null;
+  const variants = result.kind === 'parts' ? [result.parts] : result.kind === 'variants' ? result.variants : [];
+  for (const [variant, texts] of variants.entries()) {
+    const sent = texts.filter((_, index) => (ws.boardPart(opId, result.kind === 'parts' ? { index } : { variant, index })?.sentAt ?? null) !== null).length;
+    if (sent > 0) return { sent, total: texts.length };
+  }
+  return null;
+}
 
 function metaOf(ws: AiWorkspace, record: OpRecord, result: OpResult | undefined, unparsed: boolean, toneUsed: Tone | null): Msg[] {
   const { i18n } = ws.ports;
@@ -131,7 +145,12 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
   const sameChat = situation.chat !== null && situation.chat.key === chatKeyOf(view.target.chat);
   const expanded = ws.isExpanded(view.opId);
   const debugOn = situation.ready?.settings.debug.enabled ?? ws.env.settings?.settings.debug.enabled ?? false;
-  const fix = fixVm(ws, record);
+  // A board's result in the dock (§6.5) is the rest of an answer to insert: its parts, never Fix's «Заменить мой
+  // черновик» (its source was the preview's own field) and never «Ещё раз» — a new answer is the strip's buttons.
+  const board = ws.isBoardResult(view.opId);
+  const fix = board ? null : fixVm(ws, record);
+  const sent = sentProgress(ws, view.opId, result);
+  const meta = metaOf(ws, record, result, unparsed, view.toneUsed);
   const wire = view.state === 'failed' ? view.error : view.state === 'interrupted' ? (view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : undefined;
 
   // «Повторить» waits for its deadline; a quota of zero waits for the day to turn. On a page nothing of ours runs on
@@ -160,12 +179,13 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
     streamText: preview.length > 0 ? preview : null,
     parts: result?.kind === 'parts' ? partVms(ws, record, result.parts, null, true) : null,
     variants: result?.kind === 'variants' ? variantVms(ws, record, result.variants) : null,
-    meta: metaOf(ws, record, result, unparsed, view.toneUsed),
+    // Once a part is delivered the head counts the delivered ones — «вставлено N из M» would say the lesser thing next to it.
+    meta: sent === null ? meta : [...meta.filter((item) => item.key !== 'result.meta.inserted'), msg('result.meta.sentProgress', sent)],
     splitRequested: result?.kind === 'parts' ? result.splitRequested : record.memo.split,
     targetName: sameChat ? situation.fanName : (ws.ports.host.fan(view.target.chat)?.displayName ?? null),
     // A draft is never mistaken for a sent message; after Fix replaced the draft it is in the field already.
-    draftNotSent: result !== undefined && isDraftFeature(feature) && fix?.replaced !== true,
-    sendProgress: null,
+    draftNotSent: result !== undefined && isDraftFeature(feature) && fix?.replaced !== true && sent === null,
+    sendProgress: sent,
     error: wire === undefined ? null : errorVm(wire, i18n),
     errorActions:
       wire === undefined
@@ -173,7 +193,7 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
         : errorActions(wire, { catalog, now, again: options.regenerate, againHotkey: featureHotkey(catalog, feature), openChat: null, againOff: pageOff }),
     stale: view.stale ?? null,
     toneUsed: view.toneUsed,
-    canRegenerate: !running && regenerateReason === null && fix?.replaced !== true,
+    canRegenerate: !running && regenerateReason === null && fix?.replaced !== true && !board,
     regenerateReason,
     confirm: confirmVm(ws, view.opId),
     fix,

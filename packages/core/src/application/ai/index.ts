@@ -141,6 +141,7 @@ export function createAiSurfaces(ports: AiPorts): AiSurfaces {
 }
 
 export { COACH_ARCHIVES_MAX, createCoachController, type CoachController } from '../coach/controller';
+export { type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '../board-handover';
 export { KEYS_FOOTER_RESULTS, createDockController, type DockController } from '../dock/controller';
 export { RECAP_UI_CHATS_MAX, createRecapController, type RecapController } from '../recap/controller';
 export { createReviewController, type ReviewController } from '../review/controller';
@@ -162,4 +163,4 @@ export {
 } from './ports';
 export { RECAP_STATUS, SHARED_RECAPS_TTL_MS, RecapBook, type RecapOwner, type SharedRead } from './recap-book';
 export { sameView, type AiController, type CauseKind } from './surface';
-export { AiWorkspace, CHAT_UI_MAX, COPIED_MARK_MS, QUOTA_LOW_AT, isOwnSurface, type ReadyTarget, type RefusalState, type Sheet, type Situation, type StartRequest, type StartResult } from './workspace';
+export { AiWorkspace, BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, CHAT_UI_MAX, COPIED_MARK_MS, QUOTA_LOW_AT, SENT_REPORT_TRIES, isOwnSurface, type ReadyTarget, type RefusalState, type Sheet, type Situation, type StartRequest, type StartResult } from './workspace';

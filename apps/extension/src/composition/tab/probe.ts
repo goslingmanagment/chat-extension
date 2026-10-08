@@ -6,6 +6,8 @@
 // extension reports for itself — which start ran, what the bridge and the
 // background answered, and what the dock actually shows.
 
+import type { BrowserApi, PortApi } from '@cg/platform';
+
 /** Same key as build/bundle-timing.ts (the marks around this bundle, test builds only). */
 const BUNDLE_MARKS_KEY = '__cgBundleMarks';
 
@@ -17,6 +19,16 @@ const BUNDLE_MARKS_KEY = '__cgBundleMarks';
 export const HOLD_WRITE_ATTRIBUTE = 'data-cg-spike-hold';
 const HOLD_WRITE_MAX_MS = 2000;
 
+/**
+ * The stand page asks for the tab's port to the background to be down: `<html data-cg-spike-port="down">`. While
+ * the attribute stands, the port the tab holds is cut and no new one opens — what a background that cannot
+ * answer looks like from the tab — while the extension itself stays the very same instance. The e2e
+ * (lifecycle.e2e.ts) has no other way there: a real Firefox restarts an unloaded event page, and that page
+ * answers `tab.register`, faster than the tab gives up on it. Lifting the attribute changes nothing by itself:
+ * the tab's own next try opens a real port to the real background.
+ */
+export const PORT_DOWN_ATTRIBUTE = 'data-cg-spike-port';
+
 export interface TabProbe {
   set(key: string, value: unknown): void;
   /** composeTab's own synchronous time; the bundle-wide number follows a task later. */
@@ -26,6 +38,8 @@ export interface TabProbe {
    * MAIN's is ahead. Counted in the report (`writesReached`), and held for as long as the stand page asked.
    */
   holdWrite(): Promise<void>;
+  /** The tab's browser API with the stand's port switch in front of `runtime.connect` (PORT_DOWN_ATTRIBUTE). */
+  api(real: BrowserApi): BrowserApi;
 }
 
 interface BundleMarks {
@@ -56,6 +70,40 @@ export function createTabProbe(win: Window): TabProbe {
   let writesReached = 0;
   return {
     set,
+    api(real) {
+      const down = (): boolean => html.getAttribute(PORT_DOWN_ATTRIBUTE) === 'down';
+      /** Cuts the port the tab holds now, the way the browser tells a tab its background went away. */
+      let cut: (() => void) | null = null;
+      new MutationObserver(() => {
+        if (down()) cut?.();
+      }).observe(html, { attributes: true, attributeFilter: [PORT_DOWN_ATTRIBUTE] });
+      const connect = (info: { name: string }): PortApi => {
+        if (down()) throw new Error('the stand holds the port down');
+        const port = real.runtime.connect(info);
+        const gone = new Set<(port: PortApi) => void>();
+        port.onDisconnect.addListener((closed) => gone.forEach((listener) => listener(closed)));
+        cut = () => {
+          cut = null;
+          port.disconnect();
+          gone.forEach((listener) => listener(port));
+        };
+        return {
+          name: port.name,
+          postMessage: (message) => port.postMessage(message),
+          disconnect: () => port.disconnect(),
+          onMessage: port.onMessage,
+          onDisconnect: { addListener: (listener) => void gone.add(listener), removeListener: (listener) => void gone.delete(listener) },
+        };
+      };
+      const runtime = new Proxy(real.runtime, {
+        get(target, property) {
+          if (property === 'connect') return connect;
+          const value: unknown = Reflect.get(target, property, target);
+          return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+        },
+      });
+      return new Proxy(real, { get: (target, property) => (property === 'runtime' ? runtime : (Reflect.get(target, property, target) as unknown)) });
+    },
     holdWrite() {
       writesReached += 1;
       set('writesReached', writesReached);

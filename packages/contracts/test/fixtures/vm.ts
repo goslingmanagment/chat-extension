@@ -270,6 +270,24 @@ export const STATS_REMAINDER_SAMPLES: { readonly valid: readonly StatsShelf[]; r
 };
 
 /**
+ * «Ждут ответа» whose hub queue could not be read (1.5.0): the board shows
+ * its own filter over the loaded rows and says so — the read's error with
+ * its code and «Повторить». Optional: a board without the field (or with
+ * null) shows what its filter says.
+ */
+type WaitingFallback = NonNullable<C.SpendersBoardVM['waitingFallback']>;
+const QUEUE_ERROR: C.CgErrorView = { code: 'CG-HUB-TIMEOUT', title: 'Хаб не ответил вовремя', body: 'Попробуйте ещё раз.' };
+export const WAITING_FALLBACK_SAMPLES: { readonly valid: readonly (WaitingFallback | null | undefined)[]; readonly invalid: readonly unknown[] } = {
+  valid: [undefined, null, { error: QUEUE_ERROR, retry: { type: 'ReloadView', selector: { of: 'spenders.board' } } }],
+  invalid: [
+    // @ts-expect-error the failure is a rendered error with its code, never a bare code
+    { error: 'CG-HUB-TIMEOUT', retry: { type: 'ReloadView', selector: { of: 'spenders.board' } } } satisfies WaitingFallback,
+    // @ts-expect-error «Повторить» is an action of the board, not a flag
+    { error: QUEUE_ERROR, retry: true } satisfies WaitingFallback,
+  ],
+};
+
+/**
  * The footer of the options page (1.2.0, ST-005): optional, so a view without
  * it still is an OptionsVM; a link the build does not know is null, not a
  * made-up address.

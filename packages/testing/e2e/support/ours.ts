@@ -33,6 +33,31 @@ export async function oursExists(where: Where, selector: string): Promise<boolea
   return host.shadow$(selector).isExisting();
 }
 
+/**
+ * One reading of an element of ours, taken in a single step of the page: `read` runs there on the first element that
+ * matches (it is sent to the page as its source: it can use nothing but its argument). null — nothing matches now,
+ * nothing of ours is mounted there, or the element left the page while we looked.
+ *
+ * For anything a poll reads. An element command (`getAttribute`, `getText`…) on an element that is not there WAITS
+ * for it, `waitforTimeout` long — so «is it there? then read it» in two commands hangs for 15 s whenever the element
+ * goes between them, and it goes exactly when the awaited state comes (a sent part has no send row any more). The
+ * poll then ends on what it read before, although the page shows the new state.
+ */
+export async function readOurs<T>(where: Where, selector: string, read: (node: HTMLElement) => T): Promise<T | null> {
+  const host = $(HOSTS[where]);
+  if (!(await host.isExisting())) return null;
+  // `getElements` never waits: no match is an empty list.
+  const [node] = await host.shadow$$(selector).getElements();
+  if (node === undefined) return null;
+  try {
+    // One function of the page: the node still in it, and what `read` says of it, from the same moment.
+    const answer: unknown = await browser.execute(`const node = arguments[0]; return node.isConnected ? [(${read.toString()})(node)] : null`, node);
+    return Array.isArray(answer) ? (answer[0] as T) : null;
+  } catch {
+    return null; // re-rendered under us
+  }
+}
+
 const squash = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
 /** The first element matching `selector` whose rendered text is `text` (or matches it); null — none on screen. */

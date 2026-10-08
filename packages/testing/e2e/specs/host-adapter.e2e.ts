@@ -595,6 +595,33 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       expect(await harness<Receipt>('insert', { text: 'second' })).toMatchObject({ state: 'rejected', needs: 'confirm-human-draft' });
     });
 
+    // The two tests above depend on which comes first on the machine: the editor's chunk, or the last thing that
+    // makes the adapter read the composer (the history landing). The two below fix the order — the editor comes
+    // 1.5 s after the composer, long after everything else — so the editor's own arrival is what the adapter must
+    // notice. (How early the composer was seen not ready is not asserted: that would depend on the machine again.)
+    const LATE_EDITOR_MS = 1500;
+    const openWithLateEditor = async (breaks: readonly StandBreak[]): Promise<void> => {
+      await open(chatPath(ACC), breaks, false);
+      await callStand('setEditorDelayMs', LATE_EDITOR_MS);
+      await callStand('openChat', ACC, a1);
+    };
+    /** The wait of these two tests holds the stand's own delay; the rest of it is the usual budget. */
+    const LATE_EDITOR_WAIT_MS = LATE_EDITOR_MS + 8000;
+
+    it('[RB-008] without the frame root an editor that loads after everything else is still noticed: the composer turns ready', async () => {
+      await openWithLateEditor(['composer-frame']);
+      await waitForHarnessState(state, (x) => x.mounts.dock.kind === 'fixed-overlay' && x.identity?.chat?.platformFanId === a1 && x.composer?.ready === true, 'fixed overlay, composer ready once the late editor is there', LATE_EDITOR_WAIT_MS);
+      const receipt = await harness<Receipt>('insert', { text: 'into the late editor' });
+      expect({ state: receipt.state, code: receipt.code ?? null }).toEqual({ state: 'applied', code: null });
+    });
+
+    it('[RB-008] without the editor handle an editor that loads after everything else is still noticed: insert degrades, the composer is ready', async () => {
+      await openWithLateEditor(['editor-handle']);
+      const caps = await waitForHarnessState(capabilities, (c) => c['insert']?.state === 'degraded', 'insert degraded once the late editor is there', LATE_EDITOR_WAIT_MS);
+      expect(caps['draftRead']).toEqual({ state: 'degraded', reason: 'editor' });
+      expect((await state()).composer).toMatchObject({ ready: true });
+    });
+
     it('[RB-008] a moved draft key degrades draftRead once a typed draft has no key', async () => {
       await open(chatPath(ACC, a1), ['draft-key']);
       await settledOn(a1);

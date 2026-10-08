@@ -8,7 +8,7 @@ import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import type { TokenAnswer } from './action-gate';
-import { adopt, boardReceiptToast, closesPalette, controllerRpc, createTabClient, heldSilently, type LooseController } from './client';
+import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
 const done = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
@@ -157,12 +157,32 @@ describe('what a click on a board’s part came to, when the board has no place 
     expect(boardReceiptToast(send, { ok: true, type: 'SendPart', outcome: 'started' })).toBeNull();
   });
 
-  it('[NEW-01] «Открыть и вставить» into a chat that holds the person’s own text says «В поле ввода уже есть ваш текст»; an insert that was made, canceled or timed out is not said twice', () => {
-    expect(boardReceiptToast(insert, { ok: true, type: 'OpenAndInsertPart', outcome: 'needs-confirm' })).toEqual({ code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' });
+  it('[NEW-01] [NEW-05] «Открыть и вставить» is never said by its receipt: the question about the person’s own text stands in the opened chat’s dock, an insert that was made, canceled or timed out has its own word', () => {
+    expect(boardReceiptToast(insert, { ok: true, type: 'OpenAndInsertPart', outcome: 'needs-confirm' })).toBeNull();
     expect(boardReceiptToast(insert, { ok: true, type: 'OpenAndInsertPart', outcome: 'opened' })).toBeNull();
     // The preview's controller says these itself as it closes (its notifier): «Вставка отменена», «Чат открывается слишком долго».
     expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-INSERT-CANCELED'))).toBeNull();
     expect(boardReceiptToast(insert, refused('OpenAndInsertPart', 'CG-NAV-TIMEOUT'))).toBeNull();
+  });
+
+  it('[NEW-05] the dock of the opened chat takes the result (§6.5); only when it could not, and nothing was written over the person’s text, the reason is said — «В поле ввода уже есть ваш текст»', () => {
+    expect(handoverToast('needs-confirm', false, true)).toEqual({ code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' });
+    // The question is on screen in the dock: a toast would say it twice.
+    expect(handoverToast('needs-confirm', true, true)).toBeNull();
+    // The part is in the field whether or not the dock shows the rest: nothing to say.
+    expect(handoverToast('inserted', true, true)).toBeNull();
+    expect(handoverToast('inserted', false, true)).toBeNull();
+  });
+
+  it('[NEW-05] «В поле ввода уже есть ваш текст» is said only in the chat it is about: a person who went on to another chat while the dock waited for the field is told nothing there', () => {
+    const chat = { hostAccountId: '910101', platformFanId: '74001006' };
+    // Still in the chat the result was made for: told.
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat } }, chat))).not.toBeNull();
+    // Another fan's chat, the same fan in another account, no chat at all: not told.
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat, platformFanId: '74001001' } }, chat))).toBeNull();
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: { ...chat, hostAccountId: '910102' } }, chat))).toBeNull();
+    expect(handoverToast('needs-confirm', false, chatOnScreen({ chat: null }, chat))).toBeNull();
+    expect(handoverToast('inserted', false, false)).toBeNull();
   });
 
   it('[X8-03] an attempt held before ChatSpace’s queue for a passing reason is said — its row goes back to «Отправить»; what the row keeps is not', () => {

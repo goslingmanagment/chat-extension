@@ -37,6 +37,8 @@ export const env = {
   editorChunkDelayMs: 0,
   /** Time every navigation waits in an async router guard (ChatSpace: sign-in and flag checks before the route changes). */
   routeDelayMs: 0,
+  /** `account:chat` whose next bridge write is followed at once by the person's Send (`sendAfterNextWrite`); null — none. */
+  sendAfterWrite: null as string | null,
 };
 
 export function isBroken(item: StandBreak): boolean {

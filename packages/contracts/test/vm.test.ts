@@ -20,6 +20,7 @@ import {
   SPOKEN_MONEY_SAMPLES,
   STATS_ATTENTION_SAMPLES,
   STATS_REMAINDER_SAMPLES,
+  WAITING_FALLBACK_SAMPLES,
   TOAST_VM_SAMPLES,
   UI_ACTION_SAMPLES,
   ZONED_TIME_SAMPLES,
@@ -492,6 +493,30 @@ describe('the remainder rows of the statistics’ tier table (1.4.0)', () => {
 
   it('[HK-026] each remainder has its words in the catalog', () => {
     for (const key of ['stats.shelf.untiered', 'stats.shelf.unattributed'] as const) {
+      expect(C.UI_TEXT_KEYS).toContain(key);
+      expect(C.isPluralKey(key)).toBe(false);
+    }
+  });
+});
+
+describe('what was added in 1.5.0: a lost port is not an update, a failed «Ждут ответа» read is said, «Статус» tells copy-only from partial', () => {
+  it('[RB-010] [UP-009] the reason of a lost port is its own — «нет связи с расширением» with CG-RUNTIME-UNREACHABLE — and never the update’s «перезагрузите вкладку»', () => {
+    expect(C.UNAVAILABLE_REASON_IDS).toContain('runtime-unreachable');
+    expect(C.UNAVAILABLE_REASONS['runtime-unreachable']).toEqual({ key: 'dock.reason.runtimeUnreachable', code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(C.UNAVAILABLE_REASONS['reload-needed']).toEqual({ key: 'dock.reason.reloadNeeded', code: 'CG-RUNTIME-RELOADED' });
+  });
+
+  it('[SP-029] [SP-047] the board may say that «Ждут ответа» is its own filter, with the failed read’s error and «Повторить»', () => {
+    expectTypeOf<C.SpendersBoardVM['waitingFallback']>().toEqualTypeOf<{ readonly error: C.CgErrorView; readonly retry: C.UiAction } | null | undefined>();
+    const [absent, none, said] = WAITING_FALLBACK_SAMPLES.valid;
+    expect([absent, none]).toEqual([undefined, null]);
+    expect(said?.error.code).toBe('CG-HUB-TIMEOUT');
+    expect(C.UiActionSchema.safeParse(said?.retry).success).toBe(true);
+    expect(WAITING_FALLBACK_SAMPLES.invalid).toHaveLength(2);
+  });
+
+  it('[HK-026] the three new texts have their keys in the catalog', () => {
+    for (const key of ['dock.reason.runtimeUnreachable', 'spenders.waitingLocal', 'settings.status.row.chatspaceCopyOnlyNote'] as const) {
       expect(C.UI_TEXT_KEYS).toContain(key);
       expect(C.isPluralKey(key)).toBe(false);
     }

@@ -8,7 +8,9 @@
 // Firefox unloads an event page after 30 s without an event delivered to it
 // (`extensions.background.idle.timeout`); an open port does not hold it, a
 // message arriving over the port does. `onSuspend` is the last word: nothing
-// asynchronous is guaranteed to finish after it.
+// asynchronous started there finishes after it — unless the listener returns
+// it: Firefox waits for that promise (up to `extensions.webextensions.runtime
+// .timeout`, 5 s) before it unloads the page.
 
 import { defaultBrowser, type BrowserApi } from './browser-api';
 
@@ -27,7 +29,8 @@ export interface LifecyclePort {
   onInstalled(listener: (details: InstalledDetails) => void): () => void;
   /** The browser started with the extension already installed. */
   onStartup(listener: () => void): () => void;
-  onSuspend(listener: () => void): () => void;
+  /** The page is about to be unloaded; a promise the listener returns is waited for by Firefox (at most 5 s). */
+  onSuspend(listener: () => void | Promise<void>): () => void;
   /** The unload was called off: an event arrived while the page was suspending. */
   onSuspendCanceled(listener: () => void): () => void;
 }
@@ -48,7 +51,12 @@ export function createLifecycle(api: BrowserApi = defaultBrowser()): LifecyclePo
       return () => api.runtime.onInstalled.removeListener(wrapped);
     },
     onStartup: plain(api.runtime.onStartup),
-    onSuspend: plain(api.runtime.onSuspend),
+    onSuspend(listener) {
+      // What the listener returns goes back to Firefox: its `runtime.onSuspend` waits for a promise.
+      const wrapped = (): void | Promise<void> => listener();
+      api.runtime.onSuspend.addListener(wrapped);
+      return () => api.runtime.onSuspend.removeListener(wrapped);
+    },
     onSuspendCanceled: plain(api.runtime.onSuspendCanceled),
   };
 }

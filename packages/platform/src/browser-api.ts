@@ -83,7 +83,8 @@ export interface RuntimeApi {
   readonly onInstalled: EventApi<(details: InstalledDetailsApi) => void>;
   readonly onStartup: EventApi<() => void>;
   /** The event page is about to be unloaded. */
-  readonly onSuspend: EventApi<() => void>;
+  /** Firefox waits for a promise a listener returns (up to `extensions.webextensions.runtime.timeout`, 5 s) before it unloads the page. */
+  readonly onSuspend: EventApi<() => void | Promise<void>>;
   readonly onSuspendCanceled: EventApi<() => void>;
 }
 

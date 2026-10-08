@@ -23,6 +23,7 @@
 
 import { $, browser, expect } from '@wdio/globals';
 
+import { pilotPageFlags } from '../../src/fake-hub/config';
 import { callsTo } from '../../src/fake-hub/journal';
 import { suspendBackground } from '../support/background';
 import { bridgeWrites, composerText, EDITOR, MOD, pageJournal, pageJournalMark, PANEL, queueAdds, waitForComposerText } from '../support/chat';
@@ -32,10 +33,10 @@ import { useNetworkTrap } from '../support/network-trap';
 import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
 import { waitForOptions, waitForPopup } from '../support/pages';
 import { dockIs, startShift, type Shift } from '../support/shift';
-import { chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
+import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
 const ACC = STAND_IDS.accounts.a;
-const { a1, a2, a4, a5 } = STAND_IDS.fans;
+const { a1, a2, a4, a5, a6 } = STAND_IDS.fans;
 const reply = (fan: string): readonly [string, string] => [`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`];
 
 describe('§12 п. 4 on the wired extension — degradation and restarts: what the person sees and what is never repeated', () => {
@@ -150,6 +151,9 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(status.chatspace.level).toBe('warn');
     expect(status.chatspace.text).toContain('проверен частично');
     expect(status.chatspace.text).toContain('pendingMessages');
+    // pilot-readiness §5 п. 13: «Вставить» worked a moment ago — «Статус» does not send the person to «Копировать».
+    expect(status.chatspace.text).toContain('Вставка работает.');
+    expect(status.chatspace.text).not.toContain('Копировать');
     expect(status.popupCodes).toContain('CG-HOST-CONTRACT');
     expect(status.popupPills.join(' ')).toContain('контракт частично');
   });
@@ -171,6 +175,8 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     const status = await statusPage();
     expect(status.chatspace.level).toBe('warn');
     expect(status.chatspace.text).toContain('composerBridge');
+    // Here the insert really is gone, and «Статус» says the same as the dock.
+    expect(status.chatspace.text).toContain('Вставка работает через «Копировать»');
     expect(status.popupCodes).toContain('CG-HOST-CONTRACT');
   });
 
@@ -208,6 +214,73 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     const done = await dockIs((d) => d.result?.state === 'done', 'the Reply once the storage has room', 20_000);
     expect(done.refusal).toBeNull();
     expect(await streams(hubMark)).toEqual(['done']);
+  });
+
+  it('[RB-010] the tab’s port to the background was down and came back by itself: a preview generation that ended unheard is on its card as it ended, and an owner switch that changed unheard is what the dock and the preview go by — nothing is inserted on the word of before the outage', async function () {
+    this.timeout(180_000);
+    /** The stand holds the tab's port down, or lets it through again (the TEST build's probe, tab/probe.ts). */
+    const holdPort = (down: boolean): Promise<void> =>
+      browser.execute((isDown: boolean) => {
+        if (isDown) document.documentElement.setAttribute('data-cg-spike-port', 'down');
+        else document.documentElement.removeAttribute('data-cg-spike-port');
+      }, down);
+    const setInsertion = async (on: boolean): Promise<void> => {
+      await hub().command({ op: 'config', patch: pilotPageFlags({ insertion: on }) });
+      // The background reads the owner's switches again (as its 5-minute refresh does) and tells the tabs.
+      await shift.toPages();
+      try {
+        expect(await pageRpc('bootstrap.get', { force: true })).toMatchObject({ ok: true });
+      } finally {
+        await shift.toStand();
+      }
+    };
+    await openStand(chatPath(ACC, a5));
+    await dockIs((d) => d.status === 'ready' && d.mode === 'insert' && d.actions['reply'] === true, 'the dock of a healthy ChatSpace', 20_000);
+    try {
+      // A Reply in a preview, slow enough to end while the port is down.
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 500 } });
+      const hubMark = await hub().mark();
+      await browser.keys([...PANEL, 'm']);
+      await waitOursText('modal', 'Fan Fern', 'the board', { timeout: 20_000 });
+      await pressOurs('modal', '[data-cg-key^="fan:"]', /^Fan Fern/);
+      await pressOurs('modal', '.cg-pv button', /^Reply/);
+      await browser.waitUntil(async () => callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').length === 1, { timeout: 15_000, timeoutMsg: 'the preview’s generation did not reach the hub' });
+
+      // The port goes down under the running generation; every quick attempt to open it again fails.
+      await holdPort(true);
+      await dockIs((d) => d.banner === 'CG-RUNTIME-UNREACHABLE', 'the tab lost its port', 20_000);
+      // The generation ends at the hub and in the background; its end is said into a port that is down.
+      await browser.waitUntil(async () => (await streams(hubMark)).includes('done'), { timeout: 30_000, timeoutMsg: 'the stream did not end at the hub' });
+      await browser.pause(800);
+      expect(await oursExists('modal', '.cg-pv [data-cg-part]')).toBe(false);
+      // Meanwhile the owner switches `insertion` off for the page. The background reads it; this tab hears nothing.
+      await setInsertion(false);
+      expect((await dockIs(() => true, 'the dock')).banner).toBe('CG-RUNTIME-UNREACHABLE');
+      const page = await pageJournalMark();
+
+      // The port is let through again. Nobody clicks: the tab's own beat finds the background.
+      await holdPort(false);
+      const back = await dockIs((d) => d.banner === null && d.status === 'ready', 'the tab came back by itself', 40_000);
+      // The dock goes by the owner's switch as it is NOW — read again with the port, not at the next 5-minute event.
+      expect(back).toMatchObject({ status: 'ready', mode: 'copy-only' });
+      // The card shows how its generation ended: the text, not «генерация» for ever.
+      await waitOursText('modal', reply(a6)[0], 'the preview shows the result of the generation that ended unheard', { timeout: 20_000, selector: '.cg-pvr' });
+      expect(await oursExists('modal', '.cg-pv [data-cg-part="0"]')).toBe(true);
+      // …and «Открыть и вставить» is not offered on the word of before the outage: the page has no `insertion` now.
+      await browser.waitUntil(async () => !(await oursExists('modal', '.cg-pv .cg-pvs__open:not([aria-disabled="true"])')), { timeout: 10_000, timeoutMsg: '«Открыть и вставить» is still offered although the owner switched insertion off during the outage' });
+      await pressOurs('modal', '.cg-pv [data-cg-part="0"] .cg-pvs__open', /^Открыть и вставить/);
+      await browser.pause(800);
+      expect((await callStand('route')).chatId).toBe(a5);
+      expect(bridgeWrites(await pageJournal(page))).toEqual([]);
+      expect(await streams(hubMark)).toEqual(['done']);
+    } finally {
+      await holdPort(false);
+      await browser.keys('Escape');
+      await browser.keys('Escape');
+      await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0 } });
+      await setInsertion(true);
+    }
+    await dockIs((d) => d.status === 'ready' && d.mode === 'insert', 'the dock inserts again once the owner switched it back on', 30_000);
   });
 
   it('[RB-003] the event page is unloaded in the middle of a stream: «Операция прервана» (CG-OP-INTERRUPTED) with «Ещё раз» — the hub is not asked again until the person presses it', async () => {

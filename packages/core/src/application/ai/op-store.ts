@@ -197,6 +197,27 @@ export class OpStore {
     return this.ofChat(chatKey).find((record) => !isTerminalOpState(record.view.state)) ?? null;
   }
 
+  /**
+   * A finished result of a board that its own controller hands to the dock (§6.5): that controller made it and
+   * vouches for what an adopted, already finished result does not say by itself — the persona it was made under
+   * and its Split snapshot. Only what this tab does not know is taken: a persona it knows otherwise refuses the
+   * hand-over. null — no such finished operation of a board in that chat here, or it is not that persona's.
+   *
+   * Every check comes before the one write: a hand-over that names an operation of the dock itself, or of another
+   * chat, vouches for nothing — a result whose persona this tab does not know stays one that is never inserted
+   * (§7 «Ограда»).
+   */
+  vouch(opId: string, chatKey: ChatKey, personaDefinitionId: string, split: boolean): OpRecord | null {
+    const entry = this.entries.get(opId);
+    if (entry === undefined || !isTerminalOpState(entry.view.state)) return null;
+    const { surface, target } = entry.view;
+    if ((surface !== 'preview' && surface !== 'newcomers') || chatKeyOf(target.chat) !== chatKey) return null;
+    const known = entry.memo.personaDefinitionId;
+    if (known !== null && known !== personaDefinitionId) return null;
+    if (known === null) entry.memo = { ...entry.memo, personaDefinitionId, split };
+    return this.recordOf(entry);
+  }
+
   // ── commands ─────────────────────────────────────────────────────────────
 
   async start(start: StartOp, memo: Omit<StartMemo, 'start' | 'split'>): Promise<StartOutcome> {

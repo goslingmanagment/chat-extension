@@ -140,10 +140,12 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     }
     return type === 'tab.presence' && isAck(payload) ? { ok: true, payload } : { ok: false };
   };
+  // A TEST build on the loopback stand may hold the port down (the probe; release has none): the client under it is the real one.
+  const api = probe === null ? env.api : probe.api(env.api ?? defaultBrowser());
   const rpc = createTabRpcClient({
     validate,
     register: { host: 'chatspace', lateInjection: env.lateInjection, contractsVersion: CONTRACTS_VERSION },
-    ...(env.api === undefined ? {} : { api: env.api }),
+    ...(api === undefined ? {} : { api }),
   });
   life.addEventListener('abort', () => rpc.close());
   /** How many times the background answered `tab.register`: more than one — it started again under this tab. */
@@ -187,13 +189,27 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
       });
     }, PRESENCE_DELAY_MS);
   }
-  const onVisibility = (): void => reportPresence();
+  /**
+   * The port was lost and the quick attempts failed (RB-010), yet the extension is the same instance: the
+   * background is asked again — on every beat of the keepalive, and at once when the person comes back to the
+   * tab. The client stays `lost` until it answers, so nothing flickers; an extension that was really reloaded
+   * or updated answers nothing ever, and the client says `reloaded` instead (UP-009).
+   */
+  const reconnectIfLost = (): void => {
+    if (rpc.state() === 'lost') rpc.reconnect();
+  };
+  const onVisibility = (): void => {
+    reconnectIfLost();
+    reportPresence();
+  };
   doc.addEventListener('visibilitychange', onVisibility);
   win.addEventListener('focus', onVisibility);
   win.addEventListener('blur', onVisibility);
-  // BG-003: the keepalive. Only a registered tab beats; a lost port reconnects by itself (rpc-tab.ts).
+  // BG-003: the keepalive. Only a registered tab beats; a lost port reconnects by itself (rpc-tab.ts) — at once, and
+  // then on every beat for as long as it stays lost.
   const keepalive = setInterval(() => {
     if (rpc.state() === 'ready') reportPresence();
+    else reconnectIfLost();
   }, env.keepaliveMs ?? KEEPALIVE_MS);
   life.addEventListener('abort', () => {
     doc.removeEventListener('visibilitychange', onVisibility);

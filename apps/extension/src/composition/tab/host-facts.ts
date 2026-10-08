@@ -13,7 +13,11 @@
 //   answered nothing, and the report goes again once the port is back — the
 //   background takes a repeat as the same registration. The dock's own
 //   inserts are reported by R11's workspace, which knows them; an
-//   attribution that is not known is never guessed;
+//   attribution that is not known is never guessed. Which part an insert
+//   belongs to is remembered BEFORE the insert starts (`boardsHostOver`):
+//   the page writes the text first and answers a frame later, and the
+//   person's Send may be seen in between — a send whose insert is not known
+//   yet would be dropped for good;
 // - the owner's switches and the receipt profiles of the bootstrap configure
 //   the adapter's part B (the tap, X8, the AI mark), and its limit sets the
 //   deadline of «Открыть и вставить». The adapter serves every account of
@@ -26,7 +30,7 @@
 //
 // Facts only: ids, digests, booleans. Never a message text.
 
-import type { HostContractReport } from '@cg/contracts/host';
+import type { HostContractReport, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import { flagOnSomePage } from '@cg/core/domain/ops';
@@ -44,8 +48,10 @@ const SENT_REPORTS_KEPT = 32;
 type SentReport = { readonly opId: string; readonly part: PartRef; readonly pendingId: string; readonly platformMessageId: string; readonly edited: boolean };
 
 export interface HostFacts {
-  /** An insert of a board's part reached the composer: a human send of that draft is its `sent`. */
+  /** An insert of a board's part is going to the composer: a human send of the draft it leaves there is that part's `sent`. */
   noteInsert(intentId: string, opId: string, part: PartRef): void;
+  /** That insert wrote nothing (the host said so): there is no draft of it to send. */
+  forgetInsert(intentId: string): void;
   /** The bootstrap as the tab knows it now; null — nobody is signed in, or it is not read yet. */
   configure(bootstrap: Bootstrap | null): void;
   dispose(): void;
@@ -150,6 +156,9 @@ export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; reado
       inserts.set(intentId, { opId, part });
       if (inserts.size > INSERTS_KEPT) inserts.delete(inserts.keys().next().value ?? '');
     },
+    forgetInsert(intentId) {
+      inserts.delete(intentId);
+    },
     configure(bootstrap) {
       if (bootstrap !== null) deps.setNavInsertTimeoutMs(bootstrap.limits.navInsertTimeoutSec * 1000);
       const config = liveConfigOf(bootstrap);
@@ -165,4 +174,46 @@ export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; reado
       waiting.length = 0;
     },
   };
+}
+
+/** The host said the insert wrote nothing: refused, or never reached. `applied` and `uncertain` (the write may have run) are not that. */
+const wroteNothing = (receipt: InsertReceipt | null): boolean => receipt === null || receipt.state === 'rejected';
+
+/**
+ * The host port as the boards use it (§6.6). A part of a board goes into the composer through the host port as it
+ * is; the tab only remembers which insert belongs to which part, so a human send of that draft is reported for its
+ * operation. It is remembered BEFORE the call: MAIN writes the text in the same step it gets the command and
+ * resolves the receipt a microtask and a frame later, so the person's Send — and the page's word about it, which
+ * names the insert the draft descends from — can come before the receipt does. An insert the host says wrote
+ * nothing is forgotten again. One whose outcome is not known (a bridge failure after the write may have run)
+ * stays: only the page's own word that the sent draft descends from it makes a `sent`, and that word comes only
+ * if the write did run.
+ */
+export function boardsHostOver(host: ChatSpaceHostPort, inserts: Pick<HostFacts, 'noteInsert' | 'forgetInsert'>): ChatSpaceHostPort {
+  return new Proxy(host, {
+    get(target, property) {
+      if (property === 'navigate') {
+        return (intent: NavigationIntent, options?: NavigateOptions) => {
+          const then = intent.thenInsert;
+          if (then === undefined) return target.navigate(intent, options);
+          inserts.noteInsert(then.intentId, then.operationId, then.part);
+          return target.navigate(intent, options).then((receipt) => {
+            if (wroteNothing(receipt.insert)) inserts.forgetInsert(then.intentId);
+            return receipt;
+          });
+        };
+      }
+      if (property === 'insert') {
+        return (intent: InsertIntent) => {
+          inserts.noteInsert(intent.intentId, intent.operationId, intent.part);
+          return target.insert(intent).then((receipt) => {
+            if (wroteNothing(receipt)) inserts.forgetInsert(intent.intentId);
+            return receipt;
+          });
+        };
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
 }

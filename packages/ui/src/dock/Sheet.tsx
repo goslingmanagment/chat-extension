@@ -69,7 +69,14 @@ function bannerOf(vm: DockVM, t: (key: 'cg.hubUnavailable.banner' | 'cg.hostCont
         copyCode: false,
       };
     case 'hub-down':
-      return { error: withBody(error, t('cg.hubUnavailable.banner')), dot: 'danger', action: remedy === null ? null : button('common.retry', remedy), copyCode: false };
+      // The hub is away: «ChatSpace работает как обычно. AI вернётся, когда хаб ответит». A lost port to the extension's
+      // own background (1.5.0) is another service with its own words — the registry's: nothing there is the hub's.
+      return {
+        error: error.code === 'CG-RUNTIME-UNREACHABLE' ? error : withBody(error, t('cg.hubUnavailable.banner')),
+        dot: 'danger',
+        action: remedy === null ? null : button('common.retry', remedy),
+        copyCode: false,
+      };
     case 'blocked-fan':
       return { error, dot: 'ring', action: null, copyCode: false };
     case 'ready':

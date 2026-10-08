@@ -245,6 +245,36 @@ describe('fan panel', () => {
     expect(ui.actionsOf('RefreshRecap')).toEqual([]);
   });
 
+  it('[CS-036] a Recap whose coverage is not known says of the archive what the footer says: never «неполный» over «архив полный»', async () => {
+    // A Recap read back from the hub carries no coverage of its own.
+    const unknown = recapView(ctx, views.ready(), 'short', { stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'unknown' } });
+    const foot = (): string => textOf(ui?.$$('.cg-fp__foot span')[1] ?? null);
+    const archive = (): string[] | undefined => rows(0).find(([term]) => term === 'Архив');
+
+    ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, tab: 'recap' }), unknown, '14b'));
+    expect(foot()).toBe('архив полный, 412 сообщений');
+    expect(archive()).toEqual(['Архив', 'полный']);
+    ui.unmount();
+
+    // The panel's archive is known to be cut: both labels say so.
+    ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, tab: 'recap', footer: { stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'partial' }, archiveMessages: 37 } }), unknown, '14b'));
+    expect(foot()).toBe('охват неполный, 37 сообщений');
+    expect(archive()).toEqual(['Архив', 'неполный']);
+    ui.unmount();
+
+    // Nobody knows: «неизвестно», not a guess either way.
+    ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, tab: 'recap', footer: { stamp: { asOf: null, coverage: 'unknown' }, archiveMessages: null } }), unknown, '14b'));
+    expect(foot()).toBe('охват неизвестен');
+    expect(archive()).toEqual(['Архив', 'неизвестно']);
+    ui.unmount();
+
+    // A Recap that knows it was built over a cut transcript still says so, whatever the archive is now.
+    const cut = recapView(ctx, views.partial({ kind: 'coverage', level: 'partial' }), 'short', { archiveLag: null });
+    ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, tab: 'recap' }), cut, '14b'));
+    expect(foot()).toBe('архив полный, 412 сообщений');
+    expect(archive()).toEqual(['Архив', 'неполный']);
+  });
+
   it('no Recap yet: the tab says so and offers to build one', async () => {
     const none = recapView(ctx, views.empty({ key: 'cg.recapNotFound.title' }), 'short');
     ui = await mountBoardSettled('fan-panel', panel((vm) => ({ ...vm, tab: 'recap' }), none, '14b'));

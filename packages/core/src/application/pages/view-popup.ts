@@ -12,7 +12,7 @@ import { formatMicroUsd } from '../../domain/debug';
 import { hotkeyOf } from './hotkeys';
 import { QUOTA_LOW, boundPageOf, boundPageTagOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
-import { hostGaps, hostReportOf, hubState } from './view-status';
+import { hostGaps, hostReportOf, hubState, missingAnchors } from './view-status';
 
 function hostPill(model: PagesModel): PopupVM['pills']['host'] {
   const host = hostReportOf(model);
@@ -29,7 +29,14 @@ function problemsOf(model: PagesModel, host: PopupVM['pills']['host']): CgErrorV
   if (model.hubAccess === false) problems.push(codeError(model, 'CG-HUB-HOST-PERMISSION'));
   if (model.bootstrap.s === 'error') problems.push(errorOf(model, model.bootstrap.error));
   else if (hubState(model) === 'down') problems.push(errorOf(model, valueOf(model.diagnostics)?.hub.lastError ?? { code: 'CG-HUB-UNAVAILABLE' }));
-  if (host === 'partial' || host === 'copy-only') problems.push(codeError(model, 'CG-HOST-CONTRACT'));
+  if (host === 'copy-only') problems.push(codeError(model, 'CG-HOST-CONTRACT'));
+  else if (host === 'partial') {
+    // The code's own text ends in «Вставка работает через „Копировать“»: not so here — the insert works, so the line
+    // names what was not found, in the words of the «Статус» row.
+    const report = hostReportOf(model)?.report ?? null;
+    const body = report === null ? null : model.t.text('settings.status.row.chatspacePartialNote', { missing: missingAnchors(hostGaps(report)) });
+    problems.push(body === null ? codeError(model, 'CG-HOST-CONTRACT') : { ...codeError(model, 'CG-HOST-CONTRACT'), body });
+  }
   // One line per code: the same problem seen twice is one problem.
   return problems.filter((problem, index) => problems.findIndex((other) => other.code === problem.code) === index);
 }

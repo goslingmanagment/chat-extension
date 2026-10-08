@@ -724,9 +724,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     logEvent(logger, 'browserStarted');
   });
   lifecycle.onSuspend(() => {
-    // The last word of this instance: what was logged goes to the store now, nothing later is guaranteed.
+    // The last word of this instance: what was logged goes to the store now. The write is handed to Firefox, which
+    // unloads the page only once it is done (at most 5 s): started here and not handed over, it was cut by the unload
+    // whenever the store was slower than the unload, and the record of this very suspend was lost (LG-018).
     logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.active().length, sends: sends.counts().open, uptimeMs: Date.now() - started } });
-    void logging.logs.flush();
+    return logging.logs.flush();
   });
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
 
@@ -917,6 +919,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub —
     // the registration is journaled and stays owed until the hub answers.
     void nativeSends.register(view, part, platformMessageId);
+    // The same fact for this install's own tabs: the part is journaled as delivered, so the preview that made it
+    // shows it «Отправлено» and offers the group's next part (`send.list`, `send.state`). Never a send of ours.
+    if (view !== null) sends.nativeSent({ attemptId: IDS.uuid(), view, part, platformMessageId });
     return ok({
       recorded: telemetry.report('sent', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
     });

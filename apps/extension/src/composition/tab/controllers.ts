@@ -14,8 +14,6 @@
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
-import type { InsertIntent, NavigationIntent, NavigateOptions } from '@cg/contracts/host';
-import type { PartRef } from '@cg/contracts/ids';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
@@ -32,6 +30,7 @@ import type * as PreviewChunk from '../../../lazy/entries/boards-preview';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type { GestureGate } from './action-gate';
 import { adopt, type ControllerRpc, type LooseController } from './client';
+import { boardsHostOver, type HostFacts } from './host-facts';
 import type { TabKeys } from './keys';
 
 /** Timers and time as every controller family takes them (numbers as handles). */
@@ -269,6 +268,18 @@ export interface TabBoards {
   dispose(): void;
 }
 
+/**
+ * Where a board's result goes on once «Открыть и вставить» has opened its chat (architecture.md §6.5): the dock
+ * of that chat. The boards and the AI workspace live in different chunks and know nothing of each other; this
+ * is the one place they meet.
+ */
+export interface BoardsDock {
+  /** The preview's word about the parts of the results the dock shows; null — the boards are gone. */
+  bind(results: PreviewChunk.BoardResults | null): void;
+  /** The chat is open: the dock takes the result (and asks the Б2 question when the composer holds the person's text). */
+  handover(handover: PreviewChunk.BoardHandover): void;
+}
+
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
 const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette'];
 
@@ -279,34 +290,21 @@ const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'pal
  * before that would be closed by its own «another identity» rule (SP-042) the
  * moment the first read lands — and the preview reads its local drafts.
  */
-export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, previewChunk: typeof PreviewChunk, noteInsert: (intentId: string, opId: string, part: PartRef) => void): Promise<TabBoards> {
+export async function startBoards(
+  world: TabWorld,
+  chunk: typeof BoardsChunk,
+  previewChunk: typeof PreviewChunk,
+  inserts: Pick<HostFacts, 'noteInsert' | 'forgetInsert'>,
+  dock: BoardsDock,
+): Promise<TabBoards> {
   const { router, keys, host, i18n, clock, ids, win, toasts } = world;
   const rpc = world.rpc;
   const overlays = keys.overlays;
 
   // A part of a board goes into the composer through the host port as it is; the tab only remembers which insert
-  // belongs to which part, so a human send of that draft is reported for its operation (§6.6; host-facts.ts).
-  const boardsHost: ChatSpaceHostPort = new Proxy(host, {
-    get(target, property) {
-      if (property === 'navigate') {
-        return (intent: NavigationIntent, options?: NavigateOptions) =>
-          target.navigate(intent, options).then((receipt) => {
-            const then = intent.thenInsert;
-            if (then !== undefined && receipt.insert?.state === 'applied') noteInsert(then.intentId, then.operationId, then.part);
-            return receipt;
-          });
-      }
-      if (property === 'insert') {
-        return (intent: InsertIntent) =>
-          target.insert(intent).then((receipt) => {
-            if (receipt.state === 'applied') noteInsert(intent.intentId, intent.operationId, intent.part);
-            return receipt;
-          });
-      }
-      const value: unknown = Reflect.get(target, property, target);
-      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
-    },
-  });
+  // belongs to which part — before the insert starts — so a human send of that draft is reported for its
+  // operation (§6.6; host-facts.ts).
+  const boardsHost = boardsHostOver(host, inserts);
 
   const context = chunk.createPageContext({ rpc, host: boardsHost });
   const surfaces = new chunk.Surfaces();
@@ -395,8 +393,10 @@ export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, pr
     clipboard: { writeText: (text) => world.clipboard.writeText(text).then((result) => result.ok) },
     // A message from a surface that has just closed («Вставка отменена», «Чат не готов…»).
     notifier: { notify: (code: CgCode, scope: string) => void toasts.show({ kind: toastKindOf(code), code, scope, title: { key: CG_REGISTRY[code].title }, body: { key: CG_REGISTRY[code].body } }) },
+    handover: (handover) => dock.handover(handover),
   });
   late.preview = preview;
+  dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged });
 
@@ -423,6 +423,7 @@ export async function startBoards(world: TabWorld, chunk: typeof BoardsChunk, pr
 
   return {
     dispose() {
+      dock.bind(null);
       win.removeEventListener('online', onOnline);
       win.removeEventListener('offline', onOnline);
       offSurfaces();

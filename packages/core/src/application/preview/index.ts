@@ -2,6 +2,7 @@
 // palette's online fans (view `preview`): the archive feed, the local draft,
 // generation, «Отправить» and «Открыть и вставить».
 
+export { type BoardHandover, type BoardPartFacts, type BoardResults } from '../board-handover';
 export * from './controller';
 export * from './palette';
 export * from './result';

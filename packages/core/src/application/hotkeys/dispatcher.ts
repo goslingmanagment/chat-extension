@@ -17,6 +17,18 @@
 // — the newest one only — and runs once both are there, if the chat is still
 // the same one and the key is not too old (HK-024, HK-025). A cold-start ⌘E
 // becomes Reply, not a «чат ещё загружается» toast.
+//
+// What is known of a held modifier is only what the keyboard said while the
+// page had the focus (HK-022). A keyup is lost whenever the focus is
+// elsewhere when the key goes up — ⌘-Tab, a click into another app, the
+// browser's own panels, the system taking the key. So the state is dropped
+// on every way the focus can leave AND when it comes back (window blur and
+// focus, a hidden tab, pagehide): nothing that was «held» before counts
+// after, only a fresh trusted keydown does. The quick-jump popup, which is
+// alive only while ⌘/Ctrl is held, is never armed or opened in a document
+// that is hidden or has no focus, and while it is armed or open the pointer
+// is listened to: a trusted mouse move that says the modifier is up ends it
+// (the keyup went to the system, not to the page).
 
 import {
   createKeyResolver,
@@ -134,8 +146,11 @@ export interface EarlyKeyDispatcherOptions {
   readonly platform: HotkeyPlatform;
   /** `window`: keydown and keyup in capture, blur. */
   readonly window: EventSourceLike;
-  /** `document`: visibilitychange; `hidden()` reads `document.hidden`. */
-  readonly document?: { readonly source: EventSourceLike; hidden(): boolean };
+  /**
+   * `document`: visibilitychange; `hidden()` reads `document.hidden`, `focused()` — `document.hasFocus()`
+   * (omitted — taken for focused: a test that has no focus to speak of).
+   */
+  readonly document?: { readonly source: EventSourceLike; hidden(): boolean; focused?(): boolean };
   readonly ownership: KeyOwnership;
   readonly state: DispatcherState;
   readonly timers: DispatcherTimers;
@@ -162,6 +177,8 @@ export interface EarlyKeyDispatcher {
 export const QUICK_JUMP_HOLD_MS = 400;
 /** A kept key older than this is not run: the person has moved on. */
 export const KEPT_KEY_TTL_MS = 5000;
+/** `window` events after which nothing is known of the keyboard: the focus left, came back, or the page is put away. */
+const FOCUS_EVENTS = ['blur', 'focus', 'pagehide'] as const;
 
 interface KeptKey {
   readonly command: KeyCommand;
@@ -263,17 +280,41 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     settleKept();
   };
 
+  /** The page is not where the person's keys go: the tab is hidden, or the focus is in another window, app or the browser's own UI. */
+  const away = (): boolean => options.document?.hidden() === true || options.document?.focused?.() === false;
+
+  /**
+   * A keyup the system took (the app switcher, a system shortcut) never reaches the page, and nothing else says
+   * the modifier went up — except the pointer: every mouse event carries the modifiers as they are. Listened to
+   * only while a hold is armed or the popup is open.
+   */
+  let watching = false;
+  const onPointer: Listener = (raw) => {
+    const event = raw as { readonly isTrusted?: unknown; readonly metaKey?: unknown; readonly ctrlKey?: unknown } | null;
+    if (event === null || typeof event !== 'object' || event.isTrusted !== true) return;
+    if ((platform === 'mac' ? event.metaKey : event.ctrlKey) === false) reset();
+  };
+  const watchPointer = (): void => {
+    const wanted = !disposed && (holdTimer !== null || quickJumpOpen);
+    if (wanted === watching) return;
+    watching = wanted;
+    if (wanted) options.window.addEventListener('mousemove', onPointer, { capture: true });
+    else options.window.removeEventListener('mousemove', onPointer, { capture: true });
+  };
+
   const cancelHold = (): void => {
     if (holdTimer !== null) {
       timers.clearTimer(holdTimer);
       holdTimer = null;
     }
+    watchPointer();
   };
 
   const closeQuickJump = (): void => {
     cancelHold();
     if (!quickJumpOpen) return;
     quickJumpOpen = false;
+    watchPointer();
     sink?.quickJump(false);
   };
 
@@ -298,12 +339,18 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     const focus = ownership.focus(event);
     if (focus === 'composer' || focus === 'field' || focus === 'ours-field') return;
     if (state.route().kind === 'other' || state.overlays().length > 0 || ownership.nativeModalOpen()) return;
+    // A key that reached a page without the focus has no keyup to wait for.
+    if (away()) return;
     holdTimer = timers.setTimer(QUICK_JUMP_HOLD_MS, () => {
       holdTimer = null;
-      if (disposed || sink === null || !resolver.primaryHeldAlone()) return;
-      quickJumpOpen = true;
-      sink.quickJump(true);
+      // The hold is judged again when its time comes: the focus may have left without a word (no blur was heard).
+      if (!disposed && sink !== null && resolver.primaryHeldAlone() && !away()) {
+        quickJumpOpen = true;
+        sink.quickJump(true);
+      }
+      watchPointer();
     });
+    watchPointer();
   };
 
   const handleKeydown = (event: KeyEventLike): void => {
@@ -355,6 +402,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
       // The digit ran against the popup as the person saw it; only then the popup goes.
       if (underPopup) {
         quickJumpOpen = false;
+        watchPointer();
         sink?.quickJump(false);
       }
     } else if (decision.refusal !== null && decision.command !== null) {
@@ -383,19 +431,22 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
     if (isPrimaryModifierKey(event, platform)) closeQuickJump();
   };
 
-  /** HK-022: a modifier held across a blur or a hidden tab is an unknown state. */
-  const reset = (): void => {
+  /**
+   * HK-022: a modifier held across a blur or a hidden tab is an unknown state — and so is one that was «held»
+   * when the focus comes back: its keyup may have gone anywhere meanwhile. Whatever was armed or open ends.
+   */
+  function reset(): void {
     resolver.reset();
     closeQuickJump();
-  };
-  const onBlur: Listener = () => reset();
+  }
+  const onFocusChange: Listener = () => reset();
   const onVisibility: Listener = () => {
     if (options.document?.hidden() === true) reset();
   };
 
   options.window.addEventListener('keydown', onKeydown, { capture: true });
   options.window.addEventListener('keyup', onKeyup, { capture: true });
-  options.window.addEventListener('blur', onBlur);
+  for (const type of FOCUS_EVENTS) options.window.addEventListener(type, onFocusChange);
   options.document?.source.addEventListener('visibilitychange', onVisibility);
 
   return {
@@ -420,7 +471,7 @@ export function createEarlyKeyDispatcher(options: EarlyKeyDispatcherOptions): Ea
       kept = null;
       options.window.removeEventListener('keydown', onKeydown, { capture: true });
       options.window.removeEventListener('keyup', onKeyup, { capture: true });
-      options.window.removeEventListener('blur', onBlur);
+      for (const type of FOCUS_EVENTS) options.window.removeEventListener(type, onFocusChange);
       options.document?.source.removeEventListener('visibilitychange', onVisibility);
     },
   };

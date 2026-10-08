@@ -8,14 +8,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
-import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
-import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS } from '@cg/core/application/preview';
+import { createBoardsControllers, fanHandle, pageFlag, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
+import { type BoardHandover } from '@cg/core/application/preview';
+import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS, RESYNC_RETRY_MS } from '@cg/core/application/preview';
 import { SEARCH_DEBOUNCE_MS } from '@cg/core/application/spenders';
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
 import { PreviewSendDriver } from '@cg/core/services';
 import { createFakeHub, hubCall, type FakeHub, type FakeHubConfigPatch } from '@cg/testing/fake-hub';
 import { DOCUMENT, FakeHostPort, HOST_IDS, contractReport, hostAccount, memory as hostMemory, startSnapshot, type HostAnswers, type HostScript, type HostStep } from '@cg/testing/host';
-import { NOW_MS, WORLD, contextFrame, meta } from '@cg/testing/hub';
+import { NOW_MS, WORLD, contextFrame, meta, pageFeaturesOff } from '@cg/testing/hub';
 
 import { BoardsBackground } from './support/boards-background';
 import { FakeClock, sequentialIds, settle } from './support/clock';
@@ -73,6 +74,8 @@ interface Harness {
   secondTab(): Promise<BoardsControllers>;
   readonly clicks: PreviewSendClick[];
   readonly notes: { readonly code: CgCode; readonly scope: string }[];
+  /** What «Открыть и вставить» handed to the dock of the opened chat (§6.5). */
+  readonly handovers: BoardHandover[];
   readonly copied: string[];
   /** `newcomers.drafts` as every tab of the browser shares it: `external` is another tab's write, `failSaves` the browser refusing writes. */
   readonly draftStore: { value: unknown; saves: number; failSaves: number; external(value: unknown): void };
@@ -184,6 +187,7 @@ async function harness(options: Options = {}): Promise<Harness> {
   const newDriver = (): PreviewSendDriver => new PreviewSendDriver({ port: host.previewSend, background: bg.sendPort, ids: attemptIds, onView: (view) => viewListeners.forEach((listener) => listener(view)), clock });
   let driver = newDriver();
   const notes: { code: CgCode; scope: string }[] = [];
+  const handovers: BoardHandover[] = [];
   const copied: string[] = [];
   const draftListeners = new Set<(value: unknown) => void>();
   const draftStore = {
@@ -235,6 +239,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     },
     clipboard: { writeText: (text) => (options.clipboard === false ? Promise.resolve(false) : (copied.push(text), Promise.resolve(true))) },
     notifier: { notify: (code, scope) => notes.push({ code, scope }) },
+    handover: (handover) => handovers.push(handover),
     connectivity: {
       online: () => isOnline,
       subscribe: (listener) => {
@@ -293,6 +298,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     },
     clicks,
     notes,
+    handovers,
     copied,
     draftStore,
     fresh,
@@ -597,6 +603,63 @@ describe('[SP-006] [SP-018] [SP-019] [SP-020] [SP-021] period, search, filters, 
     expect(cursors[1]).not.toBeNull();
     expect(cursors[2]).not.toBe(cursors[1]);
   });
+  it('[SP-029] [SP-047] the queue read fails: the board shows its own filter over the loaded rows AND says so — the read’s error with its code and «Повторить», never a list that only looks like the hub’s queue; «Повторить» reads the queue again', async () => {
+    const h = await harness({ queuePageSize: 2 });
+    await h.dispatch(open('spenders'));
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toBeNull();
+    h.bg.failNext('spenders.queue', { code: 'CG-HUB-TIMEOUT', detail: 'HTTP 504 • gateway_timeout' });
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    let vm = h.boards.spenders.getSnapshot(BOARD);
+    // The fallback is named: the error of that very read, and the way out.
+    expect(vm.waitingFallback).toMatchObject({ error: { code: 'CG-HUB-TIMEOUT', title: 'Хаб не ответил вовремя', detail: 'HTTP 504 • gateway_timeout' }, retry: { type: 'ReloadView', selector: BOARD } });
+    // What is under it is the board's own «ждёт ответа» among the rows it has loaded — not the hub's five over the whole
+    // page. Here that filter finds nobody: without the notice the board would simply say «никого не нашли».
+    const local = vm.shelves.flatMap((shelf) => shelf.rows);
+    expect(local.every((row) => row.waiting)).toBe(true);
+    expect(vm.view).toEqual(local.length === 0 ? { s: 'empty', why: { key: 'spenders.empty' } } : expect.objectContaining({ s: 'partial' }));
+    expect(vm.footer.shown).toBe(local.length);
+    expect(vm.canLoadMore).toBe(false);
+    expect(vm.footer.total).not.toBe(5);
+    expect(count(h, 'spenders.queue')).toBe(1);
+    // Nothing is asked again by itself (ER-025): the person presses «Повторить».
+    await h.advance(60_000);
+    expect(count(h, 'spenders.queue')).toBe(1);
+    // The retry fails as well: the notice stays, with the error of the newest read.
+    h.bg.failNext('spenders.queue', { code: 'CG-HUB-UNAVAILABLE' });
+    const release = h.bg.hold('spenders.queue');
+    const retried = h.dispatch(vm.waitingFallback?.retry ?? open('spenders'));
+    await h.flush();
+    // While the retry is on its way the list is still the local one, and still says so.
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toMatchObject({ error: { code: 'CG-HUB-TIMEOUT' } });
+    release();
+    await retried;
+    vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(vm.waitingFallback).toMatchObject({ error: { code: 'CG-HUB-UNAVAILABLE' } });
+    expect(count(h, 'spenders.queue')).toBe(2);
+    // The hub answers: the list is the hub's queue over the whole page, and the notice is gone.
+    await h.dispatch(vm.waitingFallback?.retry ?? open('spenders'));
+    vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(vm.waitingFallback).toBeNull();
+    expect(vm.footer).toMatchObject({ loaded: 2, total: 5 });
+    expect(vm.canLoadMore).toBe(true);
+    // Another filter is not the queue's business: with «Все» pressed nothing is said even after a failed read.
+    h.bg.failNext('spenders.queue', { code: 'CG-HUB-TIMEOUT' });
+    await h.dispatch({ type: 'LoadMore', list: 'spenders' });
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toMatchObject({ error: { code: 'CG-HUB-TIMEOUT' } });
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'all' });
+    expect(h.boards.spenders.getSnapshot(BOARD).waitingFallback).toBeNull();
+  });
+
+  it('[SP-047] «Ждут ответа» with the statistics switched off for the page is the board’s own filter by design: no read, no error, no notice', async () => {
+    const h = await harness({ config: { pageFlags: { [PAGE.pageLabel]: { stats: false } } } });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    const vm = h.boards.spenders.getSnapshot(BOARD);
+    expect(count(h, 'spenders.queue')).toBe(0);
+    expect(vm.waitingFallback).toBeNull();
+    expect(vm.shelves.flatMap((shelf) => shelf.rows).every((row) => row.waiting)).toBe(true);
+  });
+
   it('[SP-047] a cursor the hub no longer takes (400 `cursor_invalid`) starts the walk over from the first page — once: no error card for it, and no loop of requests when the hub refuses again', async () => {
     const refused = { code: 'CG-HUB-REQUEST', detail: 'HTTP 400 • bad_request/cursor_invalid' } as const;
     const cursorsOf = (h: Harness): (string | null)[] => h.bg.requests.filter((r) => r.type === 'spenders.queue').map((r) => (r.payload as { cursor: string | null }).cursor);
@@ -2012,6 +2075,85 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
   });
 });
 
+describe('[TL-004] [NF-019] a part the person sent with ChatSpace’s own Send is a sent part of its group (§6.6, §6.7.9)', () => {
+  const applied: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } };
+  const reopen = async (h: Harness, handle: string): Promise<void> => {
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+  };
+
+  it('the preview send is off: after «Открыть и вставить» and the person’s Send the preview shows part 1 «Отправлено» and offers part 2 for «Открыть и вставить» — not «после части 1» for ever; nothing is sent by us', async () => {
+    const { h, opId, handle } = await withReply({ config: {}, answers: { navigate: [applied, applied] } });
+    const before = partsOf(h, 'spenders');
+    expect(before.map((part) => part.send)).toMatchObject([{ s: 'unavailable', code: 'CG-SEND-OFF' }, { s: 'unavailable', code: 'CG-SEND-OFF' }]);
+    // Parts go in their order: the second one waits behind the first, with only «Копировать» on its row.
+    expect(before.map((part) => part.sendOrder)).toEqual([null, { kind: 'after', part: 1 }]);
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null } });
+    // The person presses ChatSpace's Send; the tab proves it by the receipt and the echo, the background journals the part as delivered.
+    await h.advance(30_000);
+    const sentAt = iso(h.clock.now());
+    expect(h.bg.humanSent(opId, { index: 0 }, '4100')).toMatchObject({ state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    await h.advance(5_000);
+    await reopen(h, handle);
+    const vm = h.boards.preview.getSnapshot(preview('spenders'));
+    const [first, second] = vm.result?.parts ?? [];
+    expect(vm.result?.opId).toBe(opId);
+    expect(first?.send).toEqual({ s: 'sent', at: sentAt });
+    expect(first?.openInsert).toEqual({ s: 'hidden' });
+    expect(vm.result?.sendProgress).toEqual({ sent: 1, total: 2 });
+    expect(vm.result?.draftNotSent).toBe(false);
+    // The next part goes the same honest way: the person's own click opens the chat and inserts it. The send stays off.
+    expect(second?.sendOrder).toBeNull();
+    expect(second?.next).toBe(true);
+    expect(second?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-OFF' });
+    expect(second?.openInsert).toEqual({ s: 'available' });
+    // The sent part is not put into the chat again; the next one is, by its own click — one navigation, one deferred insert.
+    expect((await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).ok).toBe(false);
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.host.calls.navigations.map((intent) => intent.thenInsert?.part)).toEqual([{ index: 0 }, { index: 1 }]);
+    // Nothing was sent or queued by us at any point.
+    expect(h.host.calls.commits).toEqual([]);
+    expect(count(h, 'op.start')).toBe(1);
+  });
+
+  it('a card of the fan that is open when the send is proven — in this tab or another — shows it at once: the journal is read, nobody has to reopen anything', async () => {
+    const { h, opId } = await withReply({ config: {} });
+    const asked = count(h, 'send.list');
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    const [first, second] = partsOf(h, 'spenders');
+    expect(first?.send?.s).toBe('sent');
+    expect(second?.sendOrder).toBeNull();
+    expect(second?.openInsert).toEqual({ s: 'available' });
+    // Told again (the tab repeated its report): the same record, nothing new to read.
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+  });
+
+  it('X8 is on: the part sent by hand is not offered for «Отправить» again, and the next part may be sent by its own click', async () => {
+    const { h, opId, handle } = await withReply({ answers: { navigate: [applied] } });
+    expect(partsOf(h, 'spenders').map((part) => part.send?.s)).toEqual(['available', 'available']);
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    // The person goes back to another chat: a result is never sent into the chat that is open (§6.7.4 п. 6).
+    h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5009' } } });
+    await h.flush();
+    await reopen(h, handle);
+    const [first, second] = partsOf(h, 'spenders');
+    expect(first?.send?.s).toBe('sent');
+    expect(second?.sendOrder).toBeNull();
+    // The checkpoint of the generation is this tab's own: the second part may go through ChatSpace's queue by its own click.
+    expect(second?.send).toEqual({ s: 'available' });
+    expect((await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).ok).toBe(false);
+    expect(h.host.calls.commits).toEqual([]);
+  });
+});
+
 describe('[SP-035] «Открыть и вставить» is one navigation with one deferred insert', () => {
   it('opens the exact chat with the part as a deferred insert, closes the board, and reports the insert', async () => {
     const { h, opId } = await withReply({ answers: { navigate: [{ state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } }] } });
@@ -2135,6 +2277,266 @@ describe('[SP-035] «Открыть и вставить» is one navigation with
     expect(off.h.host.calls.navigations).toEqual([]);
     const degraded = await withReply({ start: { contract: contractReport({ navigate: { state: 'contractBroken', reason: 'router' } }) } });
     expect(partsOf(degraded.h, 'spenders')[0]?.openInsert).toMatchObject({ s: 'unavailable', reason: { id: 'host-degraded', code: 'CG-HOST-CONTRACT' } });
+  });
+});
+
+describe('[NEW-01] [NEW-05] after «Открыть и вставить» the result goes on in the dock of the opened chat (§6.5)', () => {
+  const applied: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } };
+  const humanDraft: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' } };
+  const chat = { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } as const;
+
+  it('the part went into the field: the result is handed to the dock with the persona it was made under; a chat that holds the person’s own text is handed over as a question, not as a toast', async () => {
+    const inserted = await withReply({ answers: { navigate: [applied] } });
+    expect(await inserted.h.dispatch({ type: 'OpenAndInsertPart', operationId: inserted.opId, part: 1 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(inserted.h.handovers).toEqual([{ opId: inserted.opId, chat, personaDefinitionId: WORLD.persona.definitionId, split: true, part: { index: 1 }, outcome: 'inserted' }]);
+
+    const asked = await withReply({ answers: { navigate: [humanDraft] } });
+    expect(await asked.h.dispatch({ type: 'OpenAndInsertPart', operationId: asked.opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(asked.h.handovers).toEqual([{ opId: asked.opId, chat, personaDefinitionId: WORLD.persona.definitionId, split: true, part: { index: 0 }, outcome: 'needs-confirm' }]);
+    // The chat is open with the person's words in its field: the board got out of the way, and nothing is said by a toast from here.
+    expect(asked.h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null } });
+    expect(asked.h.notes).toEqual([]);
+    expect(asked.h.host.calls.inserts).toEqual([]);
+  });
+
+  it('nothing is handed over when nothing reached the chat: a navigation that failed, a canceled or timed-out insert', async () => {
+    const failed = await withReply({ answers: { navigate: [{ state: 'failed', code: 'CG-NAV-TIMEOUT', insert: null }] } });
+    await failed.h.dispatch({ type: 'OpenAndInsertPart', operationId: failed.opId, part: 0 });
+    expect(failed.h.handovers).toEqual([]);
+    const canceled = await withReply({ slowNavigate: true });
+    const pending = canceled.h.boards.preview.dispatch({ type: 'OpenAndInsertPart', operationId: canceled.opId, part: 0 })!;
+    await canceled.h.flush();
+    await canceled.h.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
+    canceled.h.nav.release();
+    await pending;
+    expect(canceled.h.handovers).toEqual([]);
+    expect(canceled.h.boards.preview.results.part(canceled.opId, { index: 0 })).toBeNull();
+  });
+
+  it('a result that came back after a tab reload has no known persona: it is handed over as such, so the dock declines it (§7 «Ограда») — and the controller does not follow it', async () => {
+    const { h, opId, handle } = await withReply({ answers: { navigate: [applied] } });
+    await h.reload();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    expect(h.boards.preview.getSnapshot(preview('spenders')).result?.opId).toBe(opId);
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.handovers).toMatchObject([{ opId, personaDefinitionId: null, outcome: 'inserted' }]);
+    expect(h.boards.preview.results.part(opId, { index: 0 })).toBeNull();
+  });
+
+  it('[TL-004] the controller goes on telling the dock about the parts while the card is closed: a part the person sent is «sent» the moment the journal names it; an unknown outcome of the fan holds every part', async () => {
+    const { h, opId, handle } = await withReply({ config: {}, answers: { navigate: [applied] } });
+    const results = h.boards.preview.results;
+    let told = 0;
+    results.subscribe(() => (told += 1));
+    // Before the hand-over the controller says nothing of the result to anybody.
+    expect(results.part(opId, { index: 0 })).toBeNull();
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    expect(results.part(opId, { index: 1 })).toEqual({ sentAt: null, hold: null });
+    expect(results.showing(opId)).toBe(false);
+    // The card is closed; the person presses ChatSpace's own Send. The background journals it and tells the tabs.
+    await h.advance(20_000);
+    const sentAt = iso(h.clock.now());
+    const asked = count(h, 'send.list');
+    const before = told;
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    expect(told).toBeGreaterThan(before);
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt, hold: null });
+    expect(results.part(opId, { index: 1 })).toEqual({ sentAt: null, hold: null });
+    // The card opened again shows the same result: its buttons are the card's own.
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    expect(results.showing(opId)).toBe(true);
+    await h.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
+    expect(results.showing(opId)).toBe(false);
+    // Another sign-in: nothing of the old identity is told.
+    h.bg.signIn({ ...session, userId: session.userId + 1, epoch: session.epoch + 1 });
+    await h.flush();
+    expect(results.part(opId, { index: 0 })).toBeNull();
+  });
+
+  it('[NF-022] [X8-08] the dock’s click is answered from the journal as it is at that click (`sync`): what this tab was never told is read then; a journal that does not answer, and a result the controller does not hold, say so', async () => {
+    const { h, opId } = await withReply({ config: {}, answers: { navigate: [applied] } });
+    const results = h.boards.preview.results;
+    // Not handed over: nothing of it is the dock's to ask about.
+    expect(await results.sync(opId)).toBe('gone');
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    // The part is delivered — and the word about it does not reach this tab (it went over another tab's port).
+    await h.advance(20_000);
+    const sentAt = iso(h.clock.now());
+    h.bg.quiet = true;
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    h.bg.quiet = false;
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    // The click in the dock: the journal is read now, and the part is what the journal says it is.
+    const asked = count(h, 'send.list');
+    expect(await results.sync(opId)).toBe('read');
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt, hold: null });
+    // The journal does not answer: that is said — never taken for «nothing holds the fan».
+    h.bg.failNext('send.list', { code: 'CG-RUNTIME-UNREACHABLE' });
+    expect(await results.sync(opId)).toBe('unread');
+    // Another sign-in: the result is nobody's here.
+    h.bg.signIn({ ...session, userId: session.userId + 1, epoch: session.epoch + 1 });
+    await h.flush();
+    expect(await results.sync(opId)).toBe('gone');
+    expect(results.part(opId, { index: 0 })).toBeNull();
+  });
+
+  it('[NF-022] a part of the fan whose outcome is unknown holds the rest of the result in the dock as well', async () => {
+    const { h, opId } = await withReply({ answers: { navigate: [applied], commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+    const results = h.boards.preview.results;
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 1 })).toEqual({ sentAt: null, hold: null });
+    // The person went on to another chat; from the card of the fan part 2 is sent through the preview, and its outcome is unknown.
+    h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5009' } } });
+    await h.flush();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+    // Part 1 was only inserted, never sent: the group's order asks for it first. The person sends it from the card.
+    expect((await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).ok).toBe(true);
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain' });
+    expect(results.part(opId, { index: 0 })).toMatchObject({ sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { params: { n: 1 } } } });
+    expect(results.part(opId, { index: 1 })).toMatchObject({ sentAt: null, hold: { id: 'part-uncertain' } });
+  });
+});
+
+describe('[RB-010] the port to the background was down: nothing of the boards acts on what was read before the outage', () => {
+  const applied: NavigationReceipt = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } };
+  const otherPersona = (h: Harness): SettingsV1 => ({ ...h.bg.settings, personas: { ...h.bg.settings.personas, byPageId: { ...h.bg.settings.personas.byPageId, [String(PAGE.pageId)]: { key: 'other', definitionId: WORLD.persona.otherDefinitionId } } } });
+  const insertOf = (h: Harness, index = 0) => partsOf(h, 'spenders')[index]?.openInsert;
+
+  it('the page context is «нет связи» from the moment the port goes down until everything was read again — the identity and its epoch stay; what changed unheard is what the boards say afterwards', async () => {
+    const { h } = await withReply({ answers: { navigate: [applied] } });
+    const context = h.boards.context;
+    const before = context.current();
+    expect(before).toMatchObject({ phase: 'ready', persona: { definitionId: WORLD.persona.definitionId } });
+    const asked = { session: count(h, 'session.get'), bootstrap: count(h, 'bootstrap.get'), binding: count(h, 'binding.resolve') };
+    h.bg.setConnection('reconnecting');
+    expect(context.current()).toMatchObject({ phase: 'blocked', blocker: { code: 'CG-RUNTIME-UNREACHABLE' }, epoch: before.epoch, binding: before.binding, persona: before.persona });
+    expect(insertOf(h)).toMatchObject({ s: 'unavailable' });
+    h.bg.setConnection('lost');
+    // The owner switches `insertion` off for the page and the person's settings give the page another persona:
+    // both events go to a port that is down.
+    h.bg.setBootstrap({ ...pageFeaturesOff(h.bg.bootstrap, ['insertion']), configRevision: h.bg.bootstrap.configRevision + 1 });
+    h.bg.setSettings(otherPersona(h));
+    await h.flush();
+    expect(context.current()).toMatchObject({ phase: 'blocked', blocker: { code: 'CG-RUNTIME-UNREACHABLE' }, persona: before.persona });
+    // The port is back. Until the new reading is in, the old one is not «ready» again…
+    h.bg.setConnection('ready');
+    expect(context.current().phase).toBe('blocked');
+    await h.flush();
+    // …and then it is what the background says now — read once, by the context itself.
+    expect({ session: count(h, 'session.get'), bootstrap: count(h, 'bootstrap.get'), binding: count(h, 'binding.resolve') }).toEqual({ session: asked.session + 1, bootstrap: asked.bootstrap + 1, binding: asked.binding + 1 });
+    const after = context.current();
+    expect(after).toMatchObject({ phase: 'ready', blocker: null, persona: { definitionId: WORLD.persona.otherDefinitionId } });
+    expect(pageFlag(after, 'insertion')).toBe(false);
+    // The same person on the same page: lists and feeds are not thrown away.
+    expect(after.epoch).toBe(before.epoch);
+  });
+
+  it('[NF-016] the persona changed while the port was down: «Открыть и вставить» of a result made under the old one puts nothing into the chat — during the outage, at the moment the port is back, and after', async () => {
+    const { h, opId } = await withReply({ answers: { navigate: [applied] } });
+    expect(insertOf(h)).toEqual({ s: 'available' });
+    h.bg.setConnection('lost');
+    h.bg.setSettings(otherPersona(h));
+    await h.flush();
+    // The port is down: the click is refused before anything is asked of the page.
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false });
+    h.bg.setConnection('ready');
+    // The very step the port came back in: the context has not read the settings yet — and is not trusted.
+    const early = h.boards.preview.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })!;
+    await h.flush();
+    expect(await early).toMatchObject({ ok: false });
+    // Read again: the page speaks as another persona now, and the text of the old one is not put into a chat.
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(h.host.calls.navigations).toEqual([]);
+    expect(h.host.calls.inserts).toEqual([]);
+    expect(h.handovers).toEqual([]);
+  });
+
+  it('[RB-003] a generation whose end was said into a port that was down does not show «генерация» for ever: back, the card shows how it ended — the result, or «прервано» when the background no longer knows the run', async () => {
+    const start = async (): Promise<{ h: Harness; opId: string }> => {
+      const h = await harness({ config: X8 });
+      await h.dispatch(open('spenders'));
+      await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+      await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+      const { opId } = h.script(0, 'fast-reply', 'Hey you\n[NEXT]\nMissed me?');
+      await h.dispatch({ type: 'Generate', targetHandle: spender('5000'), feature: 'reply', options: {} });
+      return { h, opId };
+    };
+    const shown = (h: Harness) => h.boards.preview.getSnapshot(preview('spenders')).result;
+
+    // The run finishes in the background while the port is down: its batches and its `op.done` reach nobody.
+    const done = await start();
+    done.h.bg.setConnection('reconnecting');
+    await done.h.advance(5000);
+    expect(shown(done.h)).toMatchObject({ opId: done.opId, state: expect.stringMatching(/admitted|requesting|streaming/) as unknown, parts: null });
+    const lists = count(done.h, 'op.list');
+    done.h.bg.setConnection('ready');
+    await done.h.flush();
+    expect(count(done.h, 'op.list')).toBeGreaterThan(lists);
+    expect(shown(done.h)).toMatchObject({ opId: done.opId, state: 'done' });
+    expect(shown(done.h)?.parts?.map((part) => part.text)).toEqual(['Hey you', 'Missed me?']);
+    // Nothing was generated, inserted or sent by coming back.
+    expect([count(done.h, 'op.start'), done.h.host.calls.inserts, done.h.host.calls.commits]).toEqual([1, [], []]);
+
+    // The background started anew meanwhile and knows nothing of the run: it is interrupted, with its code.
+    const gone = await start();
+    gone.h.bg.setConnection('lost');
+    // (The test's scheduler still runs the stream; a background that forgot the run says nothing more of it.)
+    gone.h.bg.quiet = true;
+    gone.h.bg.opList = { ops: [], truncated: false };
+    gone.h.bg.setConnection('ready');
+    await gone.h.flush();
+    expect(shown(gone.h)).toMatchObject({ opId: gone.opId, state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
+    expect(gone.h.boards.preview.getSnapshot(preview('spenders')).bar.locked).toBe(false);
+
+    // The background's list could not be read right away: asked once more a moment later — and only once more.
+    const late = await start();
+    late.h.bg.setConnection('lost');
+    late.h.bg.quiet = true;
+    late.h.bg.opList = { ops: [], truncated: false };
+    late.h.bg.failNext('op.list', { code: 'CG-RUNTIME-UNREACHABLE' });
+    const before = count(late.h, 'op.list');
+    late.h.bg.setConnection('ready');
+    await late.h.flush();
+    expect(count(late.h, 'op.list')).toBe(before + 1);
+    expect(shown(late.h)?.state).not.toBe('interrupted');
+    await late.h.clock.advance(RESYNC_RETRY_MS - 1);
+    expect(count(late.h, 'op.list')).toBe(before + 1);
+    await late.h.clock.advance(1);
+    await late.h.flush();
+    expect(count(late.h, 'op.list')).toBe(before + 2);
+    // Read now: the background knows nothing of the run.
+    expect(shown(late.h)).toMatchObject({ state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
+  });
+
+  it('[TL-004] a part the person sent while the port was down is «Отправлено» once it is back: the sends of every fan this tab follows — an open card, a result in the dock — are read again', async () => {
+    const { h, opId } = await withReply({ config: {}, answers: { navigate: [applied] } });
+    const results = h.boards.preview.results;
+    await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 });
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt: null, hold: null });
+    await h.advance(20_000);
+    const sentAt = iso(h.clock.now());
+    h.bg.setConnection('reconnecting');
+    // ChatSpace's own Send; another tab told the background — this tab's port was down.
+    h.bg.humanSent(opId, { index: 0 }, '4100');
+    await h.flush();
+    expect(results.part(opId, { index: 0 })).toMatchObject({ sentAt: null });
+    const asked = count(h, 'send.list');
+    h.bg.setConnection('ready');
+    await h.flush();
+    expect(count(h, 'send.list')).toBe(asked + 1);
+    expect(results.part(opId, { index: 0 })).toEqual({ sentAt, hold: null });
   });
 });
 

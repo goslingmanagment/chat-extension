@@ -21,9 +21,20 @@
 //   that comes before the restore never frees a fan.
 // - After an unload the journal has already turned half-way attempts into
 //   `uncertain` (§6.7.7 п. 6); the coordinator restores them as such.
+// - A part the person sent themselves (§6.6, the coordinator's `nativeSent`)
+//   is in the list too, born `sentObserved`. It is no attempt: it goes to
+//   the journal as a finished record (`record`), never through `begin` — a
+//   `preparing` record would hold the fan, read «неизвестно, ушло ли» after
+//   an unload, and its refused move to `sentObserved` would fail every later
+//   write of the list. A record of what the person did never rejects a
+//   write: a journal that does not take it now is asked again next time —
+//   and «took it» is read from the journal itself at every write, never
+//   remembered here: a journal that could not be read when the record came
+//   holds nothing of it once it reads again.
 
 import { type SendJournalEntry } from '@cg/contracts/send';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
+import { isNativeSendEntry } from '@cg/core/domain/send';
 import { type KeyValueStore as ThrowingStore, type SendJournal, type SendJournalUpdate } from '@cg/core/services';
 
 import { StorageCallError } from './ports';
@@ -66,6 +77,12 @@ export function sendJournalStoreOver(journal: SendJournal): ThrowingStore {
       const entries = value as readonly SendJournalEntry[];
       for (const entry of entries) {
         const existing = journal.get(entry.attemptId);
+        if (isNativeSendEntry(entry)) {
+          // The person's own send: a finished record, never an open one — and never a reason to refuse this write.
+          // Offered for as long as the journal does not hold it.
+          if (existing === null) await journal.record(entry);
+          continue;
+        }
         if (existing === null) {
           // A finished attempt the journal no longer keeps (its own bound): nothing to hold, nothing to write.
           if (seen.has(entry.attemptId) && entry.state !== 'preparing') continue;

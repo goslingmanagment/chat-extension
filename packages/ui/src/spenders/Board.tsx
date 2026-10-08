@@ -379,6 +379,7 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
       : i18n.plural('spenders.footer', board.footer.total, { loaded: board.footer.loaded, coverage });
   const footerText = shown === null ? loaded : `${loaded}${i18n.t('spenders.footerShown', { n: shown })}`;
   const hasRows = items.length > 0;
+  const fallback = board.waitingFallback ?? null;
   const showList = hasRows && board.view.s !== 'error' && board.view.s !== 'forbidden' && board.view.s !== 'empty';
 
   return (
@@ -404,6 +405,15 @@ export function Board({ board, boardRef }: BoardProps): JSX.Element {
           <ViewState view={board.view} />
         </div>
       ) : null}
+      {/* 1.5.0, SP-029: «Ждут ответа» is the hub's queue; when its read failed the rows below are the tab's own filter. */}
+      {fallback === null ? null : (
+        <div class="cg-bd__banner" data-cg-waiting-fallback={fallback.error.code}>
+          <ViewState view={{ s: 'error', ...fallback }} />
+          <div class="cg-sp__line" role="status">
+            {i18n.t('spenders.waitingLocal')}
+          </div>
+        </div>
+      )}
       {showList ? (
         <div class="cg-bd__list" ref={wrapRef}>
           <VirtualList

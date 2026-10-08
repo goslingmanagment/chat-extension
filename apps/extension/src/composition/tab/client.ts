@@ -80,15 +80,33 @@ export function createTabClient(deps: TabClientDeps): AppClient {
  * as a toast, or null when the surface says it itself:
  * - «Отправить» refused before any attempt began (the fan is held by a send of another tab, the journal did
  *   not answer, the result belongs to another sign-in): the button only unlocks, so the reason is said here.
- *   A refusal of an attempt that did begin is the part's own row;
- * - «Открыть и вставить» into a chat whose field holds the person's own text: the chat is open, nothing was
- *   written over their words, and the board that could say so has closed. (The Б2 question of §6.5 п. 4 in
- *   that chat's dock is not built yet; the person is told why nothing was inserted.)
+ *   A refusal of an attempt that did begin is the part's own row.
+ * «Открыть и вставить» into a chat whose field holds the person's own text is not said here any more: the
+ * question stands in that chat's dock (§6.5 п. 4), and the composition says a toast only when the dock could
+ * not take it (`handoverToast`).
  */
 export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey | null } | null {
   if (action.type === 'SendPart' && !receipt.ok) return { code: receipt.code, scope: 'board.send', title: null };
-  if (action.type === 'OpenAndInsertPart' && receipt.ok && receipt.outcome === 'needs-confirm') return { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' };
   return null;
+}
+
+/**
+ * «Открыть и вставить» opened the chat and the dock of that chat was to go on with the result (§6.5). What is
+ * left to say when it did not take it: a chat whose field holds the person's own text got nothing written and
+ * has no question on screen — the person is told why, in the words of the question. A part that was inserted
+ * needs no word: it is in the field.
+ *
+ * `inThatChat` — the chat the result was made for is the one on screen now. «В поле ввода уже есть ваш текст» is
+ * about THAT chat's field: a person who has gone on to another chat meanwhile (the dock waits a few seconds for
+ * the field before it gives up) is not told it there — it would read as a word about the chat in front of them.
+ */
+export function handoverToast(outcome: 'inserted' | 'needs-confirm', taken: boolean, inThatChat: boolean): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey } | null {
+  return outcome === 'needs-confirm' && !taken && inThatChat ? { code: 'CG-DRAFT-CHANGED', scope: 'board.insert', title: 'confirm.humanDraft' } : null;
+}
+
+/** Whether the chat on screen (the host's route) is this one. */
+export function chatOnScreen(route: { readonly chat: { readonly hostAccountId: string; readonly platformFanId: string } | null }, chat: { readonly hostAccountId: string; readonly platformFanId: string }): boolean {
+  return route.chat !== null && route.chat.hostAccountId === chat.hostAccountId && route.chat.platformFanId === chat.platformFanId;
 }
 
 /**
@@ -118,7 +136,7 @@ export function heldSilently(view: Pick<SendAttemptView, 'state' | 'code'> | nul
 type Answer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire };
 
 /** The background's client as the controllers see it. */
-export type ControllerRpc = Pick<TabRpcClient, 'request' | 'onEvent' | 'onState' | 'state' | 'tabSessionId'>;
+export type ControllerRpc = Pick<TabRpcClient, 'request' | 'onEvent' | 'onState' | 'state' | 'tabSessionId' | 'reconnect'>;
 
 /**
  * `observe` hears what a controller asks (the type and the payload it sent,
@@ -144,5 +162,6 @@ export function controllerRpc(rpc: TabRpcClient, tokens: Pick<TabActionTokens, '
     onState: (listener) => rpc.onState(listener),
     state: () => rpc.state(),
     tabSessionId: () => rpc.tabSessionId(),
+    reconnect: () => rpc.reconnect(),
   };
 }

@@ -38,7 +38,6 @@ import {
   ERR_IDENTITY,
   ERR_NOT_READY,
   ERR_UNKNOWN_REQUEST,
-  FRAME_SELECTOR,
   KEY_ACCOUNTS,
   KEY_CHAT_LIST,
   KEY_FANS,
@@ -163,9 +162,14 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     emit('contract', contractPayload);
   };
 
-  /** While the active composer has no editor yet, a short narrow observer on its frame waits for TipTap (never on body, §6.10). */
-  const watchEditor = (composer: Composer): void => {
-    const target = composer.slot.closest(FRAME_SELECTOR);
+  /**
+   * While the active composer has no editor yet, a short narrow observer waits for TipTap (never on body, §6.10): on
+   * the composer's frame, or — a build without that frame — on the few ancestors of the slot the editor is looked for
+   * in. `seen` — the editor's element was there at the read that started the watch. An element that arrives later
+   * changes the composer's state even when its handle cannot be taken (no CAS promise): the state is read again.
+   */
+  const watchEditor = (composer: Composer, seen: boolean): void => {
+    const target = composers?.editorRoot(composer.slot);
     if (editorWatch || !target || !composers) return;
     const stop = (): void => {
       editorWatch?.disconnect();
@@ -173,7 +177,10 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     };
     const watch = new (win as Window & typeof globalThis).MutationObserver(() => {
       composers?.attach(composer);
-      if (composer.editor || !composer.slot.isConnected) stop();
+      if (composer.editor || !composer.slot.isConnected) return stop();
+      if (seen || !composers?.editorElement(composer.slot)) return;
+      seen = true;
+      composerSoon();
     });
     watch.observe(target, { childList: true, subtree: true });
     editorWatch = watch;
@@ -205,7 +212,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     const editor = composers.editorElement(composer.slot);
     // `shape` — the bridge is there but the editor behind it is not observable (no CAS promise, §6.4).
     if (editor) mark('composerBridge', !bridge ? 'missing' : composer.editor ? 'ok' : 'shape');
-    if (!composer.editor) watchEditor(composer);
+    if (!composer.editor) watchEditor(composer, !!editor);
     const draft = composers.read(composer);
     return { chat, instanceId: composer.id, ready: !!bridge && !!editor, hidden: false, draft: { revision: composer.revision, provenance: composers.provenance(composer, draft) } };
   };

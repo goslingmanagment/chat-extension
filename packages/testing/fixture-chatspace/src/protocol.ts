@@ -240,6 +240,12 @@ export interface StandControl {
    * route follows.
    */
   setRouteDelayMs(ms: number): void;
+  /**
+   * The person presses ChatSpace's Send right after the next text the
+   * composer bridge writes into that chat's field, before a frame passes (a
+   * quick hand, or a busy machine whose frames come late). Once.
+   */
+  sendAfterNextWrite(accountId: string, chatId: string): void;
   injectFanMessage(accountId: string, fanId: string, text?: string): Promise<string>;
   scriptSend(accountId: string, chatId: string, outcomes: readonly SendOutcome[]): Promise<void>;
   setFan(accountId: string, fanId: string, patch: FanPatch): Promise<void>;

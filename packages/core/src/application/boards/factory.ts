@@ -8,6 +8,7 @@
 import { type HostPort } from '@cg/contracts/host';
 import { type I18n } from '@cg/contracts/vm';
 
+import { type BoardHandover } from '../board-handover';
 import { createFanPanelController, type FanPanelController } from '../fanpanel/controller';
 import { createNewcomersController, type NewcomersController } from '../newcomers/controller';
 import { createPreviewController, type PreviewController } from '../preview/controller';
@@ -33,6 +34,8 @@ export interface BoardsDeps {
   readonly clipboard?: ClipboardWriter | null;
   /** Toasts for a surface that has just closed. */
   readonly notifier?: BoardsNotifier | null;
+  /** §6.5: «Открыть и вставить» opened the chat — the dock of that chat goes on with the result. */
+  readonly handover?: ((handover: BoardHandover) => void) | null;
   readonly connectivity?: Connectivity | null;
   readonly random?: RandomSource;
   /** IANA zone of the statistics' calendar; the browser's own when absent. */
@@ -120,6 +123,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     drafts: deps.drafts ?? null,
     clipboard: deps.clipboard ?? null,
     notifier: deps.notifier ?? null,
+    handover: deps.handover ?? null,
   });
   late.preview = preview;
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());

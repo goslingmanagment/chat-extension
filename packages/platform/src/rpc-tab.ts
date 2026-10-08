@@ -7,7 +7,11 @@
 //   have run (§7: nothing indeterminate is repeated); the client reconnects
 //   after 100/200/400 ms and registers again (a new tab session); requests
 //   issued meanwhile wait for it within their own timeout. All attempts
-//   failed — `lost`, until `reconnect()` (a human action).
+//   failed — `lost`: requests end at once with CG-RUNTIME-UNREACHABLE. `lost`
+//   is not for ever while the extension is the same instance: `reconnect()`
+//   — the tab's keepalive beat, the tab coming back on screen, the person's
+//   «Повторить» — tries once more, quietly: the state stays `lost` until the
+//   background answers, so a try that failed changes nothing on screen.
 // - The extension itself was reloaded or updated under the tab: the runtime
 //   is gone for good — `reloaded`, everything ends with CG-RUNTIME-RELOADED
 //   (the «перезагрузите вкладку» banner, UP-009).
@@ -51,7 +55,10 @@ export interface TabRpcClient {
   onState(listener: (state: RpcConnectionState, tabSessionId: string | null) => void): () => void;
   state(): RpcConnectionState;
   tabSessionId(): string | null;
-  /** After `lost`: try again (on a human action). */
+  /**
+   * After `lost`: one more try — the tab's keepalive beat, the tab coming back on screen, the person's «Повторить».
+   * The state stays `lost` until the background answers `tab.register` (then `ready`); a try in flight is not doubled.
+   */
   reconnect(): void;
   close(): void;
 }
@@ -148,7 +155,8 @@ export function createTabRpcClient(options: TabRpcClientOptions): TabRpcClient {
       return;
     }
     endAll(wasSent, 'CG-RUNTIME-UNREACHABLE', 'port lost');
-    scheduleRetry();
+    // A quiet try from `lost` failed: nothing changes, the next `reconnect()` asks again.
+    if (state !== 'lost') scheduleRetry();
   }
 
   function scheduleRetry(): void {
@@ -278,9 +286,8 @@ export function createTabRpcClient(options: TabRpcClientOptions): TabRpcClient {
     state: () => state,
     tabSessionId: () => session,
     reconnect() {
-      if (state !== 'lost') return;
+      if (state !== 'lost' || port !== null) return;
       attempt = 0;
-      setState('connecting');
       connect();
     },
     close() {

@@ -437,6 +437,90 @@ describe('[RB-010] the tab port reconnects 100/200/400 ms after the background g
     expect(await client.request('settings.get', {})).toEqual({ ok: true, payload: settingsState });
   });
 
+  it('[RB-010] `lost` is not for ever while the extension is the same instance: every `reconnect()` asks once more, quietly — the state stays `lost` (nothing flickers) until the background answers, then `ready` with a new session', async () => {
+    const w = world();
+    const { client, context } = tabClient(w.fake);
+    await vi.waitFor(() => expect(client.state()).toBe('ready'));
+    const first = client.tabSessionId();
+    let wakes = 0;
+    w.fake.onWake(() => void (wakes += 1)); // the event page starts but registers nothing
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(100 + 200 + 400 + 10);
+    expect(client.state()).toBe('lost');
+    const quick = wakes;
+    /** Ports the tab has opened so far, and how many of them are still open (the fake keeps every port a context opened). */
+    const ports = (): { readonly opened: number; readonly open: number } => ({ opened: context.ports.size, open: [...context.ports].filter((port) => port.connected).length });
+    const states: string[] = [];
+    client.onState((state) => states.push(state));
+    // The event page that starts now takes the connection and never gets ready (its start hangs): a try is
+    // accepted and not answered.
+    w.fake.onWake((woken) => {
+      wakes += 1;
+      createBackgroundRpc({ api: woken.api, tabHosts: TAB_HOSTS, ready: new Promise(() => undefined), contractsVersion: CONTRACTS_VERSION, testBuild: true });
+    });
+    w.fake.unloadBackground();
+    const before = ports();
+    expect(before.open).toBe(0);
+    // The tab's keepalive beats: one try per beat, and a try still waiting for its answer is not doubled — the
+    // beats that follow open no second port.
+    client.reconnect();
+    client.reconnect();
+    client.reconnect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ports()).toEqual({ opened: before.opened + 1, open: 1 });
+    expect(wakes).toBe(quick + 1);
+    expect(client.state()).toBe('lost');
+    // Requests still end at once: nothing is queued behind a background that may never answer.
+    expect(await client.request('settings.get', {})).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'lost' } });
+    // The hanging page goes away under the try: the try failed, the state did not move, and no quick retries start.
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(client.state()).toBe('lost');
+    expect(states).toEqual([]);
+    expect(ports()).toEqual({ opened: before.opened + 1, open: 0 });
+    // The next beat is a new try: one more port, one more start of the page.
+    client.reconnect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(wakes).toBe(quick + 2);
+    expect(ports()).toEqual({ opened: before.opened + 2, open: 1 });
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(wakes).toBe(quick + 2);
+    expect(states).toEqual([]);
+    // The background works again: the next beat registers, with a new tab session.
+    w.fake.onWake((context) => {
+      const rpc = createBackgroundRpc({ api: context.api, tabHosts: TAB_HOSTS, ready: Promise.resolve(), contractsVersion: CONTRACTS_VERSION, testBuild: true });
+      rpc.handle('settings.get', () => ({ ok: true, payload: settingsState }));
+    });
+    client.reconnect();
+    await vi.waitFor(() => expect(client.state()).toBe('ready'));
+    expect(states).toEqual(['ready']);
+    expect(client.tabSessionId()).not.toBe(first);
+    expect(await client.request('settings.get', {})).toEqual({ ok: true, payload: settingsState });
+    // Ready again: the next loss gets its three quick attempts as before.
+    w.fake.onWake(() => undefined);
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.state()).toBe('reconnecting');
+  });
+
+  it('[UP-009] a quiet try that finds the extension reloaded says so: `reloaded` (CG-RUNTIME-RELOADED), and nothing is asked again', async () => {
+    const w = world();
+    const { client } = tabClient(w.fake);
+    await vi.waitFor(() => expect(client.state()).toBe('ready'));
+    w.fake.onWake(() => undefined);
+    w.fake.unloadBackground();
+    await vi.advanceTimersByTimeAsync(100 + 200 + 400 + 10);
+    expect(client.state()).toBe('lost');
+    // The extension is updated while the tab waits: the next beat finds the runtime gone.
+    w.fake.reloadExtension();
+    client.reconnect();
+    expect(client.state()).toBe('reloaded');
+    expect(await client.request('settings.get', {})).toEqual({ ok: false, error: { code: 'CG-RUNTIME-RELOADED', detail: 'extension reloaded' } });
+    client.reconnect();
+    expect(client.state()).toBe('reloaded');
+  });
+
   it('a successful reconnect resets the attempts: the next loss gets all three again', async () => {
     const w = world();
     const { client } = tabClient(w.fake);

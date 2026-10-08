@@ -26,11 +26,11 @@ import { callsTo } from '../../src/fake-hub/journal';
 import { PAGE } from '../../src/scenarios/hub';
 import { meta } from '../../src/scenarios/hub/sse';
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
-import { clearDraft, MOD, PANEL, SEND, twoFrames, typeDraft } from '../support/chat';
+import { clearDraft, composerText, MOD, PANEL, pressSend, SEND, twoFrames, typeDraft } from '../support/chat';
 import { pageRpc } from '../support/extension';
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursBox, oursExists, oursFocus, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
+import { ours, oursBox, oursExists, oursFocus, oursText, pressOurs, waitOursText, type Box, type Where } from '../support/ours';
 import { capturePage, openOptions, openPopup, signOutFromAccount, waitForOptions, waitForPopup } from '../support/pages';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
@@ -432,6 +432,33 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await waitForChatReady(ACC, a1);
       await ready(a1);
     });
+
+    it('[RB-010] the port to the background is lost while the extension is the same instance: «Расширение не отвечает» with «Повторить»', async function () {
+      this.timeout(180_000);
+      /** The stand holds the tab's port down, or lets it through again (the TEST build's probe). */
+      const holdPort = (down: boolean): Promise<void> =>
+        browser.execute((isDown: boolean) => {
+          if (isDown) document.documentElement.setAttribute('data-cg-spike-port', 'down');
+          else document.documentElement.removeAttribute('data-cg-spike-port');
+        }, down);
+      // A change of the theme reaches the tab over the very port that is down: each look is set first, then the port is cut.
+      for (const theme of ['dark', 'light'] as const) {
+        await setLook({ theme, lang: 'ru' });
+        await noToasts();
+        await holdPort(true);
+        const lost = await dockIs((d) => d.banner === 'CG-RUNTIME-UNREACHABLE', 'the dock says the extension does not answer', 20_000);
+        facts['portLost'] = { status: lost.status, banner: lost.banner, view: lost.view };
+        await twoFrames();
+        await inWindow('dock', '.cg-dock');
+        await inWindow('dock', '.cg-banner');
+        const path = `${VISUAL_DIR}dock-24-port-lost-${theme}-ru.png`;
+        await shoot(path, true);
+        taken.push(path);
+        await holdPort(false);
+        await pressOurs('dock', '.cg-banner button', /^Повторить/);
+        await ready(a1);
+      }
+    });
   });
 
   describe('the windows and the panels', () => {
@@ -468,6 +495,83 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       expect(await oursExists('modal', '.cg-sp')).toBe(false);
     });
 
+    it('[SP-029] [SP-047] «Ждут ответа» whose hub queue did not read: the error with its code and «Повторить» over the board’s own rows, named as the local filter; «Повторить» brings the hub’s queue', async function () {
+      this.timeout(240_000);
+      await leaveField();
+      await browser.keys([...PANEL, 'm']);
+      await browser.waitUntil(() => oursExists('modal', '.cg-sp'), { timeout: 20_000, timeoutMsg: 'the board did not open' });
+      // The statistics column was left unfolded over the list: back to the list.
+      if (await oursExists('modal', '.cg-stx')) await pressOurs('modal', '.cg-sp button', /^Свернуть к списку/);
+      await waitOursText('modal', 'Fan Alder', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
+      // The hub does not answer the queue this once.
+      await hub().command({ op: 'scriptHttp', match: 'route', exchanges: [{ route: 'clientSpenderAwaitingReply', request: {}, response: { status: 504, body: { error: 'gateway_timeout' } } }] });
+      await pressOurs('modal', '.cg-sp__tools button', /^Ждут ответа/);
+      await browser.waitUntil(() => oursExists('modal', '[data-cg-waiting-fallback]'), { timeout: 15_000, timeoutMsg: 'the board did not say that the queue was not read' });
+      const said = await oursText('modal', '[data-cg-waiting-fallback]');
+      expect(said).toMatch(/ChatGoose · CG-/);
+      expect(said).toContain('локальный фильтр');
+      // The board's own rows are still on screen under the notice: the stand's fans who wrote last.
+      expect(await oursExists('modal', '.cg-bd [data-cg-fan]')).toBe(true);
+      facts['waitingFallback'] = { code: await ours('modal', '[data-cg-waiting-fallback]').getAttribute('data-cg-waiting-fallback') };
+      await look('board-07-waiting-fallback', {
+        check: async () => {
+          await inWindow('modal', '.cg-sp');
+          await inWindow('modal', '[data-cg-waiting-fallback]');
+        },
+      });
+      // «Повторить»: the hub answers, the list is its queue, the notice is gone.
+      await pressOurs('modal', '[data-cg-waiting-fallback] button', /^Повторить/);
+      await browser.waitUntil(async () => !(await oursExists('modal', '[data-cg-waiting-fallback]')), { timeout: 15_000, timeoutMsg: 'the notice stayed after the queue was read' });
+      await pressOurs('modal', '.cg-sp__tools button', /^Все/);
+      await closeAll();
+      expect(await oursExists('modal', '.cg-sp')).toBe(false);
+    });
+
+    it('[NEW-01] [NEW-05] a preview’s result in the dock of the chat «Открыть и вставить» opened: the question about the person’s own text, the rest of the result, a part the person sent', async function () {
+      this.timeout(300_000);
+      // The person left a draft in that fan's chat earlier.
+      await open(a9, ACC, true);
+      await ready(a9);
+      await hideResult();
+      await clearDraft();
+      await typeDraft('привет, это мой текст');
+      await open(a1);
+      await ready(a1);
+      await leaveField();
+      await browser.keys([...PANEL, 'm']);
+      await browser.waitUntil(() => oursExists('modal', '.cg-sp'), { timeout: 20_000, timeoutMsg: 'the board did not open' });
+      // The statistics column was left unfolded over the list: back to the list.
+      if (await oursExists('modal', '.cg-stx')) await pressOurs('modal', '.cg-sp button', /^Свернуть к списку/);
+      await waitOursText('modal', 'Fan Iris', 'the board lists the stand’s fans', { timeout: 20_000, selector: '.cg-sp' });
+      await pressOurs('modal', '[data-cg-key^="fan:"]', /^Fan Iris/);
+      await waitOursText('modal', 'Чат не открыт, останется непрочитанным', 'the preview says the chat stays unread', { selector: '.cg-pv' });
+      await pressOurs('modal', '.cg-pv button', /^Reply/);
+      await waitOursText('modal', 'the set is still waiting', 'the preview’s result', { timeout: 20_000, selector: '.cg-pv' });
+      await pressOurs('modal', '.cg-pv button', /^Открыть и вставить/);
+      await dockIs((d) => d.target?.endsWith(`:${a9}`) === true && d.result?.parts === 3 && d.status === 'ready', 'the dock of the fan’s chat took the preview’s result');
+      // §6.5 п. 4: the chat holds the person's own text — the question stands in that chat's dock, nothing was written.
+      await browser.waitUntil(() => oursExists('dock', '[data-cg-confirm="human-draft"]'), { timeout: 10_000, timeoutMsg: 'the question about the person’s own text did not appear in the dock' });
+      expect(await composerText(ACC, a9)).toBe('привет, это мой текст');
+      await look('dock-21-board-confirm', {
+        check: async () => {
+          await inWindow('dock', '.cg-dock');
+          await inWindow('dock', '[data-cg-confirm="human-draft"]');
+          // A board's result has no «Ещё раз» in the dock: a new answer is the strip's buttons.
+          expect(await oursExists('dock', '.cg-sheet .cg-again')).toBe(false);
+        },
+      });
+      await ours('dock', '[data-cg-confirm="human-draft"] button').click();
+      await dockIs((d) => d.result?.inserted === 1, 'the first part replaced the person’s text by their own click');
+      await look('dock-22-board-inserted', { all: false, check: async () => void (await inWindow('dock', '.cg-dock')) });
+      // The person presses ChatSpace's own Send: the part reads «Отправлено», the next one leads.
+      await pressSend();
+      await browser.waitUntil(async () => (await oursText('dock', '[data-cg-part="0"]')).includes('Отправлено'), { timeout: 15_000, timeoutMsg: 'the dock did not show the sent part' });
+      await look('dock-23-board-sent', { check: async () => void (await inWindow('dock', '.cg-dock')) });
+      await hideResult();
+      await open(a1);
+      await ready(a1);
+    });
+
     it('«Новые»: the list, a card with its greeting', async function () {
       this.timeout(240_000);
       await leaveField();
@@ -501,6 +605,14 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await look('panel-01-fan', { check: async () => void (await inWindow('panel', '.cg-fp')) });
       await ours('panel', '.cg-fp__tabs [role="tab"]:last-child').click();
       await waitOursText('panel', 'Hubert, 34', 'the Recap of the fan panel', { timeout: 20_000 });
+      // pilot-readiness §5 п. 12: the Recap tab and the footer speak of one archive in one voice — the hub's copy of
+      // a Recap carries no coverage of its own, and that is not «неполный» over the footer's «архив полный».
+      const footer = await oursText('panel', '.cg-fp__foot');
+      const recapFacts = await oursText('panel', '.cg-fp__kv');
+      facts['fanPanelArchive'] = { footer, recapFacts };
+      expect(footer).toContain('архив полный');
+      expect(recapFacts).toMatch(/Архив\s*полный/);
+      expect(recapFacts).not.toContain('неполный');
       await look('panel-02-fan-recap', { all: false, check: async () => void (await inWindow('panel', '.cg-fp')) });
       await closeAll();
     });

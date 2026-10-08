@@ -15,6 +15,13 @@
 // generates for the fan, «Ещё раз» is off and no part is offered for
 // «Открыть и вставить» — whichever result is on the card, and after a tab
 // reload too (the background's journal is read back with `send.list`).
+//
+// «Открыть и вставить» closes the board and opens the fan's chat. From then
+// on the rest of the result is worked with in that chat's dock (§6.5): the
+// result is handed over (`handover`) and this controller keeps saying what
+// it knows of its parts (`results`) — which are delivered, what holds the
+// fan — for as long as it keeps the result. The dock inserts under its own
+// rules; nothing is inserted or sent from here by that.
 
 import { type CgCode, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { TONES, type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
@@ -57,6 +64,7 @@ import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
 import { targetPage } from '../../domain/fanpanel/model';
+import { type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '../board-handover';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
@@ -78,6 +86,8 @@ const TRACKS_MAX = STORAGE_LIMITS.resultsPerTab;
 const DISPLAY_CAUSE = { kind: 'click', actionToken: 'preflight-display-only' } as const;
 /** Past the insert's own deadline, for the host's answer to arrive first. */
 const DEFERRED_GRACE_MS = 1500;
+/** After the port came back: how long until the background's list of operations is asked once more when it did not answer. */
+export const RESYNC_RETRY_MS = 2_000;
 /**
  * How long a part stays off after the hub's `preview_send_rate_limited`. The
  * hub counts sends per minute (`limits.previewSendPerMinute`) and an attempt
@@ -202,6 +212,8 @@ export interface PreviewControllerDeps {
   readonly drafts: DraftStorePort | null;
   readonly clipboard: ClipboardWriter | null;
   readonly notifier: BoardsNotifier | null;
+  /** §6.5: «Открыть и вставить» opened the chat — the result goes on in that chat's dock. Absent — no dock takes it. */
+  readonly handover?: ((handover: BoardHandover) => void) | null;
 }
 
 export interface PreviewController extends SurfaceController<'preview'> {
@@ -211,6 +223,8 @@ export interface PreviewController extends SurfaceController<'preview'> {
   draftOf(source: PreviewSource, pageId: number, fanRef: string): { readonly text: string; readonly threadRevision: string | null } | null;
   /** A draft was written, cleared or read from storage: the lists that show «есть черновик» follow. */
   onDrafts(listener: () => void): () => void;
+  /** What this controller knows of the parts of the results it handed to the dock (§6.5). */
+  readonly results: BoardResults;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -230,6 +244,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const listed = new Map<string, { readonly pageId: number; readonly fanRef: string; readonly items: Map<string, SendListItem> }>();
   const fanKey = (pageId: number, fanRef: string): string => `${pageId}|${fanRef}`;
   let pruneTimer: number | null = null;
+  /** The port to the background was down since this tab last heard everything. */
+  let portWasDown = false;
   let drafts: DraftStore = EMPTY_DRAFTS;
   const draftListeners = new Set<() => void>();
   const draftsChanged = (): void => {
@@ -238,6 +254,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const revisions = new Map<string, number>();
   const slot = new DeferredInsertSlot();
   let pendingInsert: PendingInsert | null = null;
+  /** Results handed to the dock of their chat (§6.5): the sends of their fans are followed while they are kept. */
+  const docked = new Set<string>();
+  const dockListeners = new Set<() => void>();
+  const dockChanged = (): void => {
+    if (docked.size > 0) for (const listener of [...dockListeners]) listener();
+  };
   /** The boards are closing because a chat is being opened by us: not the person closing the preview. */
   let closingForNavigation = false;
   let epoch = context.current().epoch;
@@ -253,9 +275,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (disposed) return;
     if (source === undefined) for (const s of SOURCES) cells[s].invalidate();
     else cells[source].invalidate();
+    dockChanged();
   };
   const changedFor = (handle: TargetHandle): void => {
     for (const s of SOURCES) if (surfaces.current().preview[s] === handle) cells[s].invalidate();
+    dockChanged();
   };
 
   const nowIso = (): string => new Date(clock.now()).toISOString();
@@ -508,7 +532,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // The person closed the preview before the chat opened: the pending insert is given up (§6.5).
     if (pendingInsert !== null && pendingInsert.track.handle === handle && !closingForNavigation) cancelInsert('preview-closed');
     // What the journal listed for the fan is read again when a card of the fan opens.
-    if (!cardOpen(state.pageId, state.fanRef)) listed.delete(fanKey(state.pageId, state.fanRef));
+    if (!followed(state.pageId, state.fanRef)) listed.delete(fanKey(state.pageId, state.fanRef));
     pruneTracks();
   }
 
@@ -523,6 +547,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function dropTrack(track: OpTrack): void {
     clearHoldTimers(track);
     tracks.delete(track.opId);
+    docked.delete(track.opId);
     if (currentOp.get(track.handle) === track.opId) currentOp.delete(track.handle);
     for (const attempt of track.attempts.values()) if (attemptOwner.get(attempt.attemptId)?.opId === track.opId) attemptOwner.delete(attempt.attemptId);
   }
@@ -704,6 +729,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   /** A card of the fan is open in this tab. */
   const cardOpen = (pageId: number, fanRef: string): boolean => [...targets.values()].some((target) => target.pageId === pageId && target.fanRef === fanRef);
+  /** The fan's sends are this tab's to follow: a card of the fan is open, or the dock shows a result made for the fan (§6.5). */
+  const followed = (pageId: number, fanRef: string): boolean =>
+    cardOpen(pageId, fanRef) || [...docked].some((opId) => tracks.get(opId)?.pageId === pageId && tracks.get(opId)?.fanRef === fanRef);
 
   /** Reads what the background's journal knows of the sends to a fan; false — it did not answer (or the fan's card is gone). */
   async function loadSends(pageId: number, fanRef: string): Promise<boolean> {
@@ -714,8 +742,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       for (const attempt of track.attempts.values()) if (attempt.view.state === 'uncertain' && attempt.resolved === undefined) uncertainNow.add(attempt.attemptId);
     }
     const answer = await rpc.request('send.list', { pageId, fanRef });
-    // The list is kept only while a card of the fan is open (it is read again when one opens).
-    if (disposed || atEpoch !== epoch || !answer.ok || !cardOpen(pageId, fanRef)) return false;
+    // The list is kept only while a card of the fan is open (it is read again when one opens) or the dock shows its result.
+    if (disposed || atEpoch !== epoch || !answer.ok || !followed(pageId, fanRef)) return false;
     const before = listed.get(fanKey(pageId, fanRef))?.items;
     const items = new Map<string, SendListItem>();
     for (const item of answer.payload.attempts) {
@@ -766,16 +794,65 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     changedFor(state.handle);
   }
 
-  async function syncOp(track: OpTrack): Promise<void> {
+  /**
+   * Reads the operation as the background has it now. `lost` — it is asked because the port was down and the
+   * events of the meantime are gone (`resync`): a run the background's list no longer names ended without a word
+   * and is interrupted here, so its card does not show «генерация» for ever. false — the list was not read.
+   */
+  async function syncOp(track: OpTrack, lost = false): Promise<boolean> {
     const answer = await rpc.request('op.list', { scope: 'tab', chatKey: chatKeyOf(track.target.chat) });
-    if (disposed || !answer.ok || tracks.get(track.opId) !== track) return;
+    if (disposed || tracks.get(track.opId) !== track) return true;
+    if (!answer.ok) return false;
     const view = answer.payload.ops.find((op) => op.opId === track.opId);
-    if (view === undefined) return;
-    if (isTerminalOpState(view.state)) return finish(track, view);
+    if (view === undefined) {
+      if (lost && !isTerminalOpState(track.mirror.state)) {
+        const now = clock.now();
+        finish(track, { opId: track.opId, feature: track.feature, surface: track.surface, target: track.target, state: 'interrupted', phase: { name: 'settled', since: now }, startedAt: track.startedAt, toneUsed: track.toneUsed, endedAt: now, error: { code: 'CG-OP-INTERRUPTED' } });
+      }
+      return true;
+    }
+    if (isTerminalOpState(view.state)) {
+      finish(track, view);
+      return true;
+    }
     const ahead = (view.text ?? '').length > track.mirror.text.length || view.state !== track.mirror.state;
     if (ahead && track.mirror.done === null) {
-      track.mirror = { ...mirrorFromView(view), seq: track.lastSeq };
+      // After a lost port the batches of the new tab session count from this view on.
+      track.mirror = { ...mirrorFromView(view), seq: lost ? 0 : track.lastSeq };
+      if (lost) track.lastSeq = 0;
       changedFor(track.handle);
+    }
+    return true;
+  }
+
+  /**
+   * The port to the background came back (the event page restarted, or the tab got a new session): what the
+   * background said meanwhile is lost for this tab. Every result still shown as running is read again — one that
+   * ended is shown as it ended, one the background no longer knows is interrupted — and so are the sends of every
+   * fan this tab follows (an open card, a result in the dock): a part sent, held or resolved during the outage is
+   * what the journal says now. The page context reads itself again (boards/context.ts). Nothing is generated,
+   * inserted or sent from here.
+   */
+  let resyncTimer: number | null = null;
+  async function resync(retry = true): Promise<void> {
+    if (resyncTimer !== null) clock.clearTimer(resyncTimer);
+    resyncTimer = null;
+    let unread = false;
+    for (const track of [...tracks.values()]) {
+      if (isTerminalOpState(track.mirror.state)) continue;
+      if (!(await syncOp(track, true))) unread = true;
+      if (disposed) return;
+    }
+    const fans = new Map<string, { readonly pageId: number; readonly fanRef: string }>();
+    for (const of of [...targets.values(), ...[...docked].flatMap((opId) => tracks.get(opId) ?? [])]) fans.set(fanKey(of.pageId, of.fanRef), of);
+    for (const fan of fans.values()) void loadSends(fan.pageId, fan.fanRef);
+    // The background's own list could not be read: once more after a moment, so a run whose end was lost with the
+    // port does not keep spinning until the next reconnect.
+    if (unread && retry && !disposed) {
+      resyncTimer = clock.setTimer(RESYNC_RETRY_MS, () => {
+        resyncTimer = null;
+        void resync(false);
+      });
     }
   }
 
@@ -940,17 +1017,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   // ── part rows ──
 
   /**
-   * Why a part of this result cannot be opened and inserted. §6.7.8, §6.7.9:
-   * one uncertain part holds the fan — nothing of the fan is offered for
-   * insertion while it stands, whichever result made it; one part is in work
-   * at a time. NF-017: an answer that cannot be a message is copy-only.
+   * Why a part of this result is not put into the fan's chat, by what is
+   * known of the fan. §6.7.8, §6.7.9: one uncertain part holds the fan —
+   * nothing of the fan is offered for insertion while it stands, whichever
+   * result made it; one part is in work at a time. NF-017: an answer that
+   * cannot be a message is copy-only. §6.5: a greeting of «Новые» needs its
+   * lease until the first part is confirmed.
    */
-  function openInsertBlock(track: OpTrack, variant: number, sends: FanSends): ReasonVM | null {
-    const ctx = context.current();
-    if (ctx.phase !== 'ready') return reason('feature-disabled');
-    if (!pageFlag(ctx, 'insertion')) return flagReasonVm(pageFlagOf(ctx, 'insertion'));
-    const capabilities = host.current().contract.capabilities;
-    if (capabilities.navigate.state !== 'on' || capabilities.insert.state !== 'on') return reason('host-degraded');
+  function fanHold(track: OpTrack, variant: number, sends: FanSends): ReasonVM | null {
     if (sends.uncertain !== null) return reason('part-uncertain', { n: sends.uncertain.part + 1 });
     if (sends.inFlight) return reason('parts-sending');
     const texts = partsOfResult(track.mirror.done?.result, variant);
@@ -961,6 +1035,26 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (!greeted) return reason(deps.greeting.claim(track.fanRef).s === 'other' ? 'claim-busy' : 'claim-expired');
     }
     return null;
+  }
+
+  /** Why a part of this result cannot be opened and inserted: the page, the switch and the host first, then what holds the fan. */
+  function openInsertBlock(track: OpTrack, variant: number, sends: FanSends): ReasonVM | null {
+    const ctx = context.current();
+    if (ctx.phase !== 'ready') return reason('feature-disabled');
+    if (!pageFlag(ctx, 'insertion')) return flagReasonVm(pageFlagOf(ctx, 'insertion'));
+    const capabilities = host.current().contract.capabilities;
+    if (capabilities.navigate.state !== 'on' || capabilities.insert.state !== 'on') return reason('host-degraded');
+    return fanHold(track, variant, sends);
+  }
+
+  /** §6.5: what the dock that shows a result of this controller is told of one of its parts. */
+  function dockedPart(opId: string, part: PartRef): BoardPartFacts | null {
+    const track = tracks.get(opId);
+    if (track === undefined || !docked.has(opId)) return null;
+    const variant = part.variant ?? 0;
+    const attempt = track.attempts.get(partKey(variant, part.index));
+    if (attempt !== undefined && (attempt.resolved === 'sent' || attempt.view.state === 'sentObserved')) return { sentAt: attempt.sentAt ?? nowIso(), hold: null };
+    return { sentAt: null, hold: fanHold(track, variant, fanSends(track.pageId, track.fanRef, track.opId)) };
   }
 
   function rowsOf(track: OpTrack, variant: number | null, index: number): PartRows {
@@ -1019,6 +1113,15 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (unclaimed.size > 64) unclaimed.clear();
       const before = unclaimed.get(view.attemptId);
       if (before === undefined || attemptReachable(before.state, view.state)) unclaimed.set(view.attemptId, view);
+      // A delivered part nobody here began and no list names: the person sent it with ChatSpace's own Send after
+      // «Открыть и вставить» (§6.6) — in this tab or in another. The journal says whose part it is: the open
+      // cards read it. A click of this tab still on its way to the coordinator may be what is told; its own
+      // answer brings the state then.
+      if (view.state === 'sentObserved' && before === undefined && ![...tracks.values()].some((track) => track.clicked.size > 0)) {
+        const fans = new Map<string, { readonly pageId: number; readonly fanRef: string }>();
+        for (const of of [...targets.values(), ...[...docked].flatMap((opId) => tracks.get(opId) ?? [])]) fans.set(fanKey(of.pageId, of.fanRef), of);
+        for (const fan of fans.values()) void loadSends(fan.pageId, fan.fanRef);
+      }
       return;
     }
     const track = tracks.get(owner.opId);
@@ -1516,8 +1619,16 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     pending.track.openInsert = null;
     touchDesk(pending.track);
     changedFor(pending.track.handle);
-    if (outcome.kind === 'inserted') return done('OpenAndInsertPart', 'opened', { opId: pending.track.opId });
-    if (outcome.kind === 'needs-confirm') return done('OpenAndInsertPart', 'needs-confirm', { opId: pending.track.opId });
+    if (outcome.kind === 'inserted' || outcome.kind === 'needs-confirm') {
+      // §6.5: the chat is open — the rest of the result, and the question about the person's own text, are its dock's.
+      const { track } = pending;
+      const hand = deps.handover ?? null;
+      if (hand !== null) {
+        if (track.personaDefinitionId !== null) docked.add(track.opId);
+        hand({ opId: track.opId, chat: track.target.chat, personaDefinitionId: track.personaDefinitionId, split: track.splitRequested, part: outcome.insert.part, outcome: outcome.kind });
+      }
+      return done('OpenAndInsertPart', outcome.kind === 'inserted' ? 'opened' : 'needs-confirm', { opId: track.opId });
+    }
     // The preview is gone by now: the person hears it as a toast («Вставка отменена», «Чат не готов…»).
     deps.notifier?.notify(outcome.code, `preview:${pending.track.handle}`);
     return refused('OpenAndInsertPart', localError(outcome.code, i18n));
@@ -1766,6 +1877,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         targets.clear();
         kept = [];
         tracks.clear();
+        docked.clear();
         currentOp.clear();
         attemptOwner.clear();
         unclaimed.clear();
@@ -1787,6 +1899,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (track !== undefined) finish(track, view);
     }),
     rpc.onEvent('send.state', ({ view }) => onAttemptView(view)),
+    rpc.onState?.((connection) => {
+      if (connection === 'ready') {
+        if (!portWasDown) return;
+        portWasDown = false;
+        void resync();
+      } else if (connection !== 'connecting') portWasDown = true;
+    }) ?? ((): void => undefined),
     host.subscribe((event: HostEvent) => {
       if (event.type === 'route') {
         const pending = pendingInsert;
@@ -1853,8 +1972,30 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         draftListeners.delete(listener);
       };
     },
+    results: {
+      part: dockedPart,
+      async sync(opId): Promise<BoardSync> {
+        const track = tracks.get(opId);
+        if (track === undefined || !docked.has(opId)) return 'gone';
+        const journal = await sendsNow(track.pageId, track.fanRef);
+        // Another identity, or the result aged out, while the journal was read.
+        if (tracks.get(opId) !== track || !docked.has(opId)) return 'gone';
+        return journal === null ? 'read' : 'unread';
+      },
+      showing(opId) {
+        const track = tracks.get(opId);
+        return track !== undefined && !track.hidden && targets.has(track.handle) && currentOp.get(track.handle) === opId;
+      },
+      subscribe(listener) {
+        dockListeners.add(listener);
+        return () => {
+          dockListeners.delete(listener);
+        };
+      },
+    },
     dispose() {
       disposed = true;
+      dockListeners.clear();
       offStore?.();
       draftListeners.clear();
       for (const off of offs) off();
@@ -1862,6 +2003,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       for (const track of tracks.values()) clearHoldTimers(track);
       if (pruneTimer !== null) clock.clearTimer(pruneTimer);
       pruneTimer = null;
+      if (resyncTimer !== null) clock.clearTimer(resyncTimer);
+      resyncTimer = null;
       if (pendingInsert !== null) {
         pendingInsert.abort.abort();
         if (pendingInsert.timer !== null) clock.clearTimer(pendingInsert.timer);

@@ -239,7 +239,11 @@ describe('§12 п. 4 on the wired extension — «Новые»: the greeting lea
     // One POST by ChatSpace's own client, to exactly this fan; the hub's custody went dispatch → sent, and the greeting is confirmed.
     const sends = sendsOf(await serverSince(standMark));
     expect(sends.map((entry) => [entry.origin, entry.chatId, entry.detail?.['plain']])).toEqual([['native', a5, `Hi and welcome! @${a5}`]]);
-    const custody = (await claims(mark, a5)).map((claim) => claim.split(':').slice(1).join(':'));
+    // The card says «sent» the moment MAIN saw the receipt and the echo; the hub hears it from the background a moment later.
+    let custody: string[] = [];
+    await browser
+      .waitUntil(async () => (custody = (await claims(mark, a5)).map((claim) => claim.split(':').slice(1).join(':'))).length >= 3, { timeout: 10_000, interval: 50 })
+      .catch(() => undefined);
     expect(custody).toEqual(['claim:200', 'dispatch:200', 'sent:200']);
     const state = (await hub().status()).claims.find((claim) => claim.pageLabel === PAGE && claim.fanRef === a5);
     expect(state?.greeting).toBe('confirmed');

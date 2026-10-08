@@ -64,6 +64,14 @@ const STATUS_REASON: Readonly<Record<DockStatus, UnavailableReasonId>> = {
   'reload-needed': 'reload-needed',
 };
 
+/**
+ * Why the whole strip is off, by the dock's status. One status has two causes: `hub-down` is also the port to the
+ * background lost under a living extension (contracts 1.5.0) — told apart by the status' own code, so a key says
+ * «нет связи с фоном», not «хаб недоступен».
+ */
+const statusReason = (dock: Pick<DockVM, 'status' | 'statusError'>): UnavailableReasonId =>
+  dock.status === 'hub-down' && dock.statusError?.code === 'CG-RUNTIME-UNREACHABLE' ? 'runtime-unreachable' : STATUS_REASON[dock.status];
+
 /** Commands that read the open chat's dock: they wait for its first authoritative state (HK-025). */
 const NEEDS_DOCK: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach', 'tone', 'split'];
 /** The dock has its first authoritative state: anything but «чат загружается». */
@@ -138,13 +146,13 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     const dock = dockView();
     const state = dock.actions[id];
     if (!dock.visible || dock.targetHandle === null) {
-      unavailable(id, state.reason ?? reasonOf(STATUS_REASON[dock.status]));
+      unavailable(id, state.reason ?? reasonOf(statusReason(dock)));
       return null;
     }
     // Its own generation runs: the key does nothing (Cancel is ⌘.).
     if (state.busy) return null;
     if (!state.enabled) {
-      unavailable(id, state.reason ?? reasonOf(STATUS_REASON[dock.status]));
+      unavailable(id, state.reason ?? reasonOf(statusReason(dock)));
       return null;
     }
     return { dock, state, target: dock.targetHandle };
@@ -187,7 +195,8 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     const options = where === 'preview' ? previewView()?.bar : dockView().options;
     const target = where === 'preview' ? (previewView()?.handle ?? null) : dockView().targetHandle;
     if (options === undefined || target === null) {
-      unavailable('tone', reasonOf(where === 'preview' ? 'feature-disabled' : STATUS_REASON[dockView().status]));
+      // The strip that is off says why in its own words (the dock's `toneReason`); else the status does.
+      unavailable('tone', options?.toneReason ?? reasonOf(where === 'preview' ? 'feature-disabled' : statusReason(dockView())));
       return;
     }
     if (options.locked || options.toneReason !== null) {

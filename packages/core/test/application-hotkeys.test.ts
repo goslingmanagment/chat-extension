@@ -28,7 +28,8 @@ interface Rig {
   readonly notices: EarlyNotice[];
   /** Keys that reached ChatSpace's own capture listener on `window` (registered after ours). */
   readonly native: FakeKey[];
-  readonly page: { route: RouteKind; epoch: string; overlays: OverlayKind[]; sheet: boolean; hidden: boolean };
+  /** `focused` — `document.hasFocus()`: false while the focus is in another window, another app or the browser's own UI. */
+  readonly page: { route: RouteKind; epoch: string; overlays: OverlayKind[]; sheet: boolean; hidden: boolean; focused: boolean };
   readonly dispatcher: ReturnType<typeof createEarlyKeyDispatcher>;
   readonly platform: HotkeyPlatform;
   readonly handlerMs: number[];
@@ -43,12 +44,12 @@ function rig(platform: HotkeyPlatform = 'mac', connect = true, onEarly?: (notice
   const notices: EarlyNotice[] = [];
   const native: FakeKey[] = [];
   const handlerMs: number[] = [];
-  const page = { route: 'chat' as RouteKind, epoch: CHAT, overlays: [] as OverlayKind[], sheet: false, hidden: false };
+  const page = { route: 'chat' as RouteKind, epoch: CHAT, overlays: [] as OverlayKind[], sheet: false, hidden: false, focused: true };
   let tick = 0;
   const dispatcher = createEarlyKeyDispatcher({
     platform,
     window: win,
-    document: { source: doc, hidden: () => page.hidden },
+    document: { source: doc, hidden: () => page.hidden, focused: () => page.focused },
     ownership: own,
     state: { route: () => ({ kind: page.route, epoch: page.epoch }), overlays: () => page.overlays, dockSheet: () => page.sheet },
     timers: clock,
@@ -189,8 +190,9 @@ describe('the early dispatcher', () => {
     const sink = new RecordingSink();
     const dispatcher = createEarlyKeyDispatcher({ platform: 'mac', window: win, ownership: own, state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now(), resolver });
     dispatcher.connect(sink);
-    // One listener of each kind on `window`, in capture: nothing else of ours listens for keys there.
-    expect([win.count('keydown'), win.count('keyup'), win.count('blur')]).toEqual([1, 1, 1]);
+    // One listener of each kind on `window`, in capture: nothing else of ours listens for keys there. The pointer
+    // is not listened to at all while no hold is armed and no popup is open.
+    expect([win.count('keydown'), win.count('keyup'), win.count('blur'), win.count('focus'), win.count('pagehide'), win.count('mousemove')]).toEqual([1, 1, 1, 1, 1, 0]);
     win.fire('keydown', new FakeKey('MetaLeft', { key: 'Meta', metaKey: true }));
     win.fire('keydown', new FakeKey('KeyE', { metaKey: true }));
     win.fire('keydown', new FakeKey('KeyA'));
@@ -199,7 +201,7 @@ describe('the early dispatcher', () => {
     expect(keyup).toHaveBeenCalledTimes(1);
     expect(sink.ran).toEqual([{ id: 'reply', slot: null, target: 'dock' }]);
     dispatcher.dispose();
-    expect([win.count('keydown'), win.count('keyup'), win.count('blur')]).toEqual([0, 0, 0]);
+    expect([win.count('keydown'), win.count('keyup'), win.count('blur'), win.count('focus'), win.count('pagehide'), win.count('mousemove')]).toEqual([0, 0, 0, 0, 0, 0]);
     win.fire('keydown', new FakeKey('KeyA'));
     expect(keydown).toHaveBeenCalledTimes(3);
   });
@@ -668,6 +670,162 @@ describe('the early dispatcher', () => {
     expect(sink.quick).toEqual([]);
   });
 
+  it('[HK-022] [NEW-07] the open popup closes on every way the focus can leave — window blur, a hidden tab, pagehide — and when the focus comes back; an armed hold ends the same way', async () => {
+    const leave: Readonly<Record<string, (r: Rig) => void>> = {
+      'window blur (⌘-Tab, another window, the browser’s own panels)': (r) => r.win.fire('blur'),
+      'the tab is hidden': (r) => {
+        r.page.hidden = true;
+        r.doc.fire('visibilitychange');
+      },
+      pagehide: (r) => r.win.fire('pagehide'),
+      // No blur was heard (the keyup and the blur both went to the system): the focus coming back is the first word.
+      'the focus comes back': (r) => r.win.fire('focus'),
+    };
+    for (const [name, go] of Object.entries(leave)) {
+      // The popup is open: it closes, and the keyup that never comes is not waited for.
+      const open = rig('mac');
+      open.win.fire('keydown', primaryKey('mac', true));
+      await open.clock.advance(QUICK_JUMP_HOLD_MS);
+      expect([name, open.sink.quick]).toEqual([name, [true]]);
+      go(open);
+      expect([name, open.sink.quick]).toEqual([name, [true, false]]);
+      expect([name, open.win.count('mousemove')]).toEqual([name, 0]);
+      // The hold is armed and not over yet: it ends, nothing opens later.
+      const armed = rig('mac');
+      armed.win.fire('keydown', primaryKey('mac', true));
+      await armed.clock.advance(QUICK_JUMP_HOLD_MS / 2);
+      go(armed);
+      await armed.clock.advance(5000);
+      expect([name, armed.sink.quick]).toEqual([name, []]);
+      expect([name, armed.clock.pending]).toEqual([name, 0]);
+    }
+  });
+
+  it('[HK-022] [NEW-07] a ⌘/Ctrl that was «held» before the focus came back opens nothing: only a fresh, trusted, non-repeated keydown arms the hold', async () => {
+    for (const platform of ['mac', 'win'] as const) {
+      const r = rig(platform);
+      // ⌘ goes down, the person ⌘-Tabs away: the keyup goes to the system, the window loses the focus.
+      r.win.fire('keydown', primaryKey(platform, true));
+      r.page.focused = false;
+      r.win.fire('blur');
+      await r.clock.advance(5000);
+      // Back in the window. Nothing was pressed here: no hold, however long nothing happens.
+      r.page.focused = true;
+      r.win.fire('focus');
+      await r.clock.advance(5000);
+      expect(r.sink.quick).toEqual([]);
+      // A key that was down all along repeats (Windows): a repeat is not a press.
+      r.win.fire('keydown', platform === 'mac' ? new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, repeat: true }) : new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, repeat: true }));
+      await r.clock.advance(5000);
+      expect(r.sink.quick).toEqual([]);
+      // A forged keydown of the page is not one either (§14).
+      r.win.fire('keydown', platform === 'mac' ? new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, isTrusted: false }) : new FakeKey('ControlLeft', { key: 'Control', ctrlKey: true, isTrusted: false }));
+      await r.clock.advance(5000);
+      expect(r.sink.quick).toEqual([]);
+      // The person lets go and presses it anew: that is a hold.
+      r.win.fire('keyup', primaryKey(platform, false));
+      r.win.fire('keydown', primaryKey(platform, true));
+      await r.clock.advance(QUICK_JUMP_HOLD_MS);
+      expect(r.sink.quick).toEqual([true]);
+      r.win.fire('keyup', primaryKey(platform, false));
+      expect(r.sink.quick).toEqual([true, false]);
+    }
+  });
+
+  it('[HK-022] [NEW-07] a keydown that reaches a page without the focus, or a hidden one, arms nothing; a focus that left without a blur is seen when the hold’s time comes', async () => {
+    // The live case (2026-10-07): ⌘ came down as the window was losing the focus — the blur was already heard, no
+    // keyup would ever come, and 400 ms later the popup opened in a window nobody was typing in, and stayed.
+    const unfocused = rig('mac');
+    unfocused.page.focused = false;
+    unfocused.win.fire('blur');
+    unfocused.win.fire('keydown', primaryKey('mac', true));
+    await unfocused.clock.advance(5000);
+    expect(unfocused.sink.quick).toEqual([]);
+    expect([unfocused.clock.pending, unfocused.win.count('mousemove')]).toEqual([0, 0]);
+
+    const hidden = rig('mac');
+    hidden.page.hidden = true;
+    hidden.win.fire('keydown', primaryKey('mac', true));
+    await hidden.clock.advance(5000);
+    expect(hidden.sink.quick).toEqual([]);
+
+    // The focus was there at the keydown and is gone when the 400 ms are over — and no blur said so.
+    const silent = rig('mac');
+    silent.win.fire('keydown', primaryKey('mac', true));
+    await silent.clock.advance(QUICK_JUMP_HOLD_MS - 1);
+    silent.page.focused = false;
+    await silent.clock.advance(5000);
+    expect(silent.sink.quick).toEqual([]);
+    expect(silent.win.count('mousemove')).toEqual(0);
+    // Nothing is left armed: with the focus back, the stale ⌘ still opens nothing.
+    silent.page.focused = true;
+    await silent.clock.advance(5000);
+    expect(silent.sink.quick).toEqual([]);
+
+    // A dispatcher that is told nothing of the focus (no probe) works as before.
+    const win = new FakeWindow();
+    const clock = new FakeClock(NOW);
+    const sink = new RecordingSink();
+    const plain = createEarlyKeyDispatcher({ platform: 'mac', window: win, ownership: new FakeOwnership(), state: { route: () => ({ kind: 'chat', epoch: CHAT }), overlays: () => [], dockSheet: () => false }, timers: clock, now: () => clock.now() });
+    plain.connect(sink);
+    win.fire('keydown', primaryKey('mac', true));
+    await clock.advance(QUICK_JUMP_HOLD_MS);
+    expect(sink.quick).toEqual([true]);
+  });
+
+  it('[NEW-07] a keyup the system took is told by the pointer: a trusted mouse move without ⌘/Ctrl ends the hold and closes the popup; one with it, or a forged one, changes nothing', async () => {
+    for (const platform of ['mac', 'win'] as const) {
+      const held = platform === 'mac' ? { isTrusted: true, metaKey: true, ctrlKey: false } : { isTrusted: true, metaKey: false, ctrlKey: true };
+      const up = { isTrusted: true, metaKey: false, ctrlKey: false };
+      const r = rig(platform);
+      // Nothing armed: the pointer is not listened to.
+      expect(r.win.count('mousemove')).toBe(0);
+      r.win.fire('keydown', primaryKey(platform, true));
+      // Armed: listened to. The person moves the mouse with the modifier down — towards a row, say: the hold goes on.
+      expect(r.win.count('mousemove')).toBe(1);
+      r.win.fire('mousemove', held);
+      await r.clock.advance(QUICK_JUMP_HOLD_MS);
+      expect(r.sink.quick).toEqual([true]);
+      r.win.fire('mousemove', held);
+      // A synthetic move of the page says nothing (§14).
+      r.win.fire('mousemove', { ...up, isTrusted: false });
+      expect(r.sink.quick).toEqual([true]);
+      // The keyup never came (the app switcher took it and was cancelled: the window kept the focus, no blur).
+      // The next real move of the mouse carries no modifier: the popup closes, and nothing listens any more.
+      r.win.fire('mousemove', up);
+      expect(r.sink.quick).toEqual([true, false]);
+      expect(r.win.count('mousemove')).toBe(0);
+      // The engine was reset with it: the «held» modifier fires nothing under the next key.
+      r.win.fire('keydown', new FakeKey('KeyE', primaryMods(platform)));
+      expect(r.sink.ran).toEqual([]);
+
+      // The same while the hold is only armed: it ends before the popup ever opens.
+      const armed = rig(platform);
+      armed.win.fire('keydown', primaryKey(platform, true));
+      await armed.clock.advance(QUICK_JUMP_HOLD_MS / 2);
+      armed.win.fire('mousemove', up);
+      await armed.clock.advance(5000);
+      expect(armed.sink.quick).toEqual([]);
+      expect([armed.clock.pending, armed.win.count('mousemove')]).toEqual([0, 0]);
+
+      // Every way the popup ends stops the listening: the keyup, a digit, another key.
+      for (const end of [
+        (x: Rig) => x.win.fire('keyup', primaryKey(platform, false)),
+        (x: Rig) => x.win.fire('keydown', new FakeKey('Digit2', primaryMods(platform))),
+        (x: Rig) => x.win.fire('keydown', new FakeKey('KeyC', primaryMods(platform))),
+        (x: Rig) => x.dispatcher.disconnect(),
+        (x: Rig) => x.dispatcher.dispose(),
+      ]) {
+        const x = rig(platform);
+        x.win.fire('keydown', primaryKey(platform, true));
+        await x.clock.advance(QUICK_JUMP_HOLD_MS);
+        expect(x.win.count('mousemove')).toBe(1);
+        end(x);
+        expect(x.win.count('mousemove')).toBe(0);
+      }
+    }
+  });
+
   it('a forged keyup never moves the engine either: the page cannot end a real ⌘ hold or close the popup (§14)', async () => {
     const r = rig('mac');
     r.win.fire('keydown', primaryKey('mac', true));
@@ -902,6 +1060,40 @@ describe('the hotkey runner', () => {
     const locked = runnerRig({ actionsOptions: { busy: 'reply' } });
     expect(await locked.run('tone')).toBeUndefined();
     expect(toastTitles(locked.toasts, locked.i18n)).toEqual(['Тон на один ответ недоступен: нельзя менять, пока идёт генерация']);
+  });
+
+  it('[RB-010] [HK-026] the port to the background is lost: every key of the strip — Tone and Split too — says «нет связи с расширением», not «хаб недоступен»', async () => {
+    const unreachable = reason('runtime-unreachable');
+    const base = dock(CTX, 'hub-down', { code: 'CG-RUNTIME-UNREACHABLE' });
+    // The dock as its controller builds it over a lost port (application-dock.test.ts [RB-010]): the status is
+    // `hub-down` with the code of the lost port, there is no target while the strip is off, and every action and
+    // both options carry the reason.
+    const lost = {
+      ...base,
+      targetHandle: null,
+      actions: Object.fromEntries(Object.entries(base.actions).map(([id, action]) => [id, { ...action, enabled: false, reason: unreachable }])) as typeof base.actions,
+      options: { ...base.options, toneReason: unreachable, splitReason: unreachable },
+    };
+    const r = runnerRig();
+    r.client.set({ of: 'dock' }, lost);
+    for (const id of ['tone', 'split', 'reply', 'recap'] as const) expect([id, await r.run(id)]).toEqual([id, undefined]);
+    expect(r.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE']);
+    expect(toastTitles(r.toasts, r.i18n)).toEqual([
+      'Тон на один ответ недоступен: нет связи с расширением, переподключаюсь',
+      'Split: ответ частями недоступен: нет связи с расширением, переподключаюсь',
+      'Reply недоступен: нет связи с расширением, переподключаюсь',
+      'Recap недоступен: нет связи с расширением, переподключаюсь',
+    ]);
+    expect(r.client.dispatched).toEqual([]);
+    // A view that carries no reason of its own: the status' code alone still tells a lost port from a hub that is down.
+    const bare = runnerRig();
+    bare.client.set({ of: 'dock' }, { ...lost, actions: Object.fromEntries(Object.entries(lost.actions).map(([id, action]) => [id, { ...action, reason: null }])) as typeof base.actions, options: { ...lost.options, toneReason: null, splitReason: null } });
+    for (const id of ['tone', 'reply'] as const) await bare.run(id);
+    expect(bare.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-RUNTIME-UNREACHABLE', 'CG-RUNTIME-UNREACHABLE']);
+    // The hub that really does not answer is still «хаб недоступен».
+    const down = runnerRig({ targetHandle: null }, 'hub-down');
+    await down.run('tone');
+    expect(toastTitles(down.toasts, down.i18n)).toEqual(['Тон на один ответ недоступен: хаб недоступен, AI вернётся, когда он ответит']);
   });
 
   it('[HK-011] Split is a switch with a toast', async () => {

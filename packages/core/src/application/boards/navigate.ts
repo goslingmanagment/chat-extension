@@ -39,6 +39,9 @@ export type BoardSwitch = 'spenders' | 'preview' | 'newcomers';
  * puts a text into the chat («Открыть и вставить»): the page's `insertion` switch too.
  */
 export function boardOpenRefusal(state: PageContextState, boards: readonly BoardSwitch[], insert = false): CgErrorWire | null {
+  // The port to the background is down, or the page is being read again after it came back: the switches held
+  // here are from before the outage — the owner may have changed them unheard. Nothing is opened by them.
+  if (state.phase === 'blocked' && state.blocker?.code === 'CG-RUNTIME-UNREACHABLE') return state.blocker;
   if (state.binding === null) return { code: 'CG-BINDING-MISSING' };
   for (const flag of insert ? ([...boards, 'insertion'] as const) : boards) {
     const switched = pageFlagOf(state, flag);

@@ -22,6 +22,11 @@
 //   diagnostics, bounded by count and age.
 // - A finished record is final: no same-state rewrite; an id once observed
 //   (`pendingId`, `platformMessageId`) is never replaced by another.
+// - One kind of record was never an attempt (§6.6): a part the person sent
+//   with ChatSpace's own Send, proven by its receipt and echo. It is written
+//   finished (`record`: `sentObserved` with the message's id) and was never
+//   open — it does not pass through `preparing`, holds no fan, permits no
+//   enqueue, and an unload cannot turn it into «неизвестно, ушло ли».
 // - The key is watched: when something outside the journal removes or
 //   overwrites it («Очистить локальные данные», storage.local.clear) and the
 //   stored value no longer holds the open records, the journal writes its
@@ -76,6 +81,16 @@ export type SendJournalAdvance =
   | { readonly ok: true; readonly entry: SendJournalEntry; readonly persisted: boolean }
   | { readonly ok: false; readonly code: 'unknown-attempt' | 'transition' | 'CG-STORAGE-VERSION'; readonly detail: string };
 
+/**
+ * `record`: `persisted: false` — in the journal's memory, written with the next change. A journal that cannot be
+ * read (`CG-STORAGE-READ`) or belongs to a newer build keeps NOTHING of the record: what it holds in memory is
+ * replaced by the disk at its next successful read, so a promise made now would be lost then — the record is to be
+ * offered again.
+ */
+export type SendJournalRecorded =
+  | { readonly ok: true; readonly entry: SendJournalEntry; readonly persisted: boolean }
+  | { readonly ok: false; readonly code: 'transition' | 'CG-STORAGE-VERSION' | 'CG-STORAGE-READ'; readonly detail: string };
+
 export interface SendJournalRecovery {
   readonly readable: boolean;
   readonly records: number;
@@ -103,6 +118,13 @@ export interface SendJournal {
   /** Journal a new attempt in `preparing` BEFORE anything goes to MAIN; a failure means: do not enqueue. */
   begin(entry: SendJournalEntry): Promise<SendJournalBegin>;
   advance(attemptId: string, update: SendJournalUpdate): Promise<SendJournalAdvance>;
+  /**
+   * A delivery that was never an attempt of ours (§6.6: the person's own Send of an inserted part): a FINISHED
+   * record from its birth — `sentObserved` with the message's id, nothing else is taken. It is kept and bounded
+   * like every finished record, never holds its fan and is no permit for anything. The same record told again
+   * changes nothing; an attempt already journaled under that id is never rewritten from here.
+   */
+  record(entry: SendJournalEntry): Promise<SendJournalRecorded>;
   /**
    * The hub resolved an uncertain attempt (H-7 `resolve`, audited there): the
    * record leaves the journal. Only `uncertain`: a live attempt
@@ -386,6 +408,35 @@ export function createSendJournal(deps: SendJournalDeps): SendJournal {
         dirty = !saved.ok;
         if (!saved.ok) log({ level: 'error', scope: SCOPE, msg: 'send state not saved', code: saved.code, fields: { state: update.state } });
         return { ok: true, entry: copy(checked.data), persisted: saved.ok };
+      });
+    },
+    async record(input) {
+      await ensureStarted();
+      return chain(async (): Promise<SendJournalRecorded> => {
+        await retryIfUnreadable();
+        if (mode === 'newer') return { ok: false, code: 'CG-STORAGE-VERSION', detail: 'send journal of a newer build' };
+        // Nothing is kept on a promise: memory of an unreadable journal is replaced by the disk when it reads again.
+        if (mode !== 'ok') return { ok: false, code: 'CG-STORAGE-READ', detail: 'send journal unreadable' };
+        const checked = SendJournalEntrySchema.safeParse(input);
+        // Only a proven delivery is a finished fact from its birth; everything else is an attempt and begins as one.
+        if (!checked.success || checked.data.state !== 'sentObserved' || checked.data.platformMessageId === undefined) {
+          return { ok: false, code: 'transition', detail: 'not a delivered record' };
+        }
+        const entry = checked.data;
+        const existing = find(entry.attemptId);
+        if (existing) {
+          const same = existing.state === entry.state && existing.platformMessageId === entry.platformMessageId;
+          return same ? { ok: true, entry: copy(existing), persisted: !dirty } : { ok: false, code: 'transition', detail: 'attempt already journaled' };
+        }
+        // Older than a finished record is kept: nothing to write (and nothing to write again each time it is offered).
+        if (clock.now() - entry.updatedAt > limits.finishedTtlMs) return { ok: true, entry: copy(entry), persisted: false };
+        const next = bounded([...entries, entry], clock.now());
+        // The fact happened: memory keeps it even if the disk does not; it is written with the next change.
+        entries = next;
+        const saved = await persist(next);
+        dirty = !saved.ok;
+        if (!saved.ok) log({ level: 'error', scope: SCOPE, msg: 'delivered record not saved', code: saved.code });
+        return { ok: true, entry: copy(entry), persisted: saved.ok };
       });
     },
     async release(attemptId) {

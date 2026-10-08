@@ -9,6 +9,14 @@
 // background did not answer, the hub timed out) says nothing about who the
 // person is: the identity it could not confirm stays, with the epoch, and
 // the views say «нет связи» over what they last showed.
+//
+// The port to the background can be lost and come back in a living tab. While
+// it is down every event is lost — a sign-in, a persona, an owner switch or a
+// binding may change unheard — so what this context holds is no longer known
+// to be true: it is `blocked` (CG-RUNTIME-UNREACHABLE) from the moment the
+// port goes down until everything was read again after it came back. Nothing
+// inserts, navigates or sends by a snapshot taken before the outage; the
+// identity and the epoch stay unless the new reading says they changed.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
@@ -17,7 +25,7 @@ import { type HostAccount, type HubBinding, type SessionIdentity } from '@cg/con
 import { type SettingsV1 } from '@cg/contracts/settings';
 
 import { flagRefusal, flagStateOf, flagUsable, type FlagState } from '../../domain/ops/flags';
-import { type TabRpc } from './ports';
+import { type RpcConnection, type TabRpc } from './ports';
 import { failureClass } from './views';
 
 export interface PagePersona {
@@ -44,7 +52,7 @@ export interface PageContextState {
 export interface PageContextPort {
   current(): PageContextState;
   subscribe(listener: (state: PageContextState) => void): () => void;
-  /** Reads everything again (a human «Повторить», a reconnect). */
+  /** Reads everything again (a human «Повторить»; the context does it by itself when the port to the background comes back). */
   refresh(): Promise<void>;
   dispose(): void;
 }
@@ -192,8 +200,26 @@ export function createPageContext(deps: PageContextDeps): PageContextPort {
     if ((account?.hostAccountId ?? null) !== (state.account?.hostAccountId ?? null) || (account?.platformAccountId ?? null) !== (state.account?.platformAccountId ?? null)) safeRefresh();
   };
 
+  /** The port was down since the last complete reading: what is held may be out of date. */
+  let portWasDown = false;
+  const onPort = (connection: RpcConnection): void => {
+    if (connection === 'ready') {
+      // Also a context that was made while the port was down: its first reading never happened.
+      if (!portWasDown && state.phase === 'ready') return;
+      portWasDown = false;
+      safeRefresh();
+      return;
+    }
+    if (connection === 'connecting') return;
+    portWasDown = true;
+    // A reading still on its way was asked of a port that is gone: its answers are not waited for.
+    run += 1;
+    if (state.phase === 'ready') blocked({ code: 'CG-RUNTIME-UNREACHABLE' });
+  };
+
   const unsubscribe = [
     host.subscribe(onHost),
+    rpc.onState?.(onPort) ?? ((): void => undefined),
     rpc.onEvent('session.changed', safeRefresh),
     rpc.onEvent('bootstrap.changed', safeRefresh),
     rpc.onEvent('flags.changed', safeRefresh),

@@ -1,12 +1,12 @@
 // What the page tells the tab and the tab passes on (tab/host-facts.ts).
 
-import type { HostContractReport, HostEvent } from '@cg/contracts/host';
+import type { HostContractReport, HostEvent, InsertIntent, InsertReceipt, NavigationIntent, NavigationReceipt } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { describe, expect, it } from 'vitest';
 
 import type { ControllerRpc } from './client';
-import { SENT_REPORT_TRIES, contractFactsOf, forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
+import { SENT_REPORT_TRIES, boardsHostOver, contractFactsOf, forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
 
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
 const PROFILE = { adapterVersion: '0.2.0', modules: { notificationEntry: 'a', composables: 'b', messages: 'c', accounts: 'd', inbox: 'e' } };
@@ -189,6 +189,105 @@ describe('facts of the page → the background', () => {
     refused.setState('ready');
     await turns();
     expect(refused.sent).toHaveLength(1);
+  });
+
+  it('[TL-004] [NF-019] the page writes the text first and answers a frame later: a Send seen before the insert’s receipt is back is still that part’s `sent` — the board’s insert is known before it starts', async () => {
+    const applied: InsertReceipt = { state: 'applied', draftRevision: 3, draftDigest: 'a'.repeat(16), ms: 4 };
+    const insert = { intentId: 'intent-1', operationId: 'op-1', part: { index: 1 } } as unknown as InsertIntent;
+    const navigation = { intentId: 'nav-1', thenInsert: insert } as unknown as NavigationIntent;
+    const report = ['op.reportSent', { opId: 'op-1', part: { index: 1 }, pendingId: 'pending-1', platformMessageId: '9001', edited: false }];
+    /** The page: each call is answered when the test says so (MAIN's receipt comes a microtask and a frame after its write). */
+    const page = () => {
+      const calls: string[] = [];
+      let answerNavigate: (receipt: NavigationReceipt) => void = () => undefined;
+      let failNavigate: (error: Error) => void = () => undefined;
+      let answerInsert: (receipt: InsertReceipt) => void = () => undefined;
+      const host = {
+        navigate(intent: NavigationIntent) {
+          calls.push(`navigate:${intent.intentId}`);
+          return new Promise<NavigationReceipt>((resolve, reject) => {
+            answerNavigate = resolve;
+            failNavigate = reject;
+          });
+        },
+        insert(intent: InsertIntent) {
+          calls.push(`insert:${intent.intentId}`);
+          return new Promise<InsertReceipt>((resolve) => (answerInsert = resolve));
+        },
+        current: () => 'snapshot',
+      };
+      return { host: host as unknown as Parameters<typeof boardsHostOver>[0], calls, answerNavigate: (receipt: NavigationReceipt) => answerNavigate(receipt), failNavigate: () => failNavigate(new Error('bridge gone')), answerInsert: (receipt: InsertReceipt) => answerInsert(receipt) };
+    };
+
+    // «Открыть и вставить»: the text is in the field, the person presses Send at once, the receipt is not back yet.
+    const w = world();
+    const p = page();
+    const boards = boardsHostOver(p.host, w.facts);
+    const going = boards.navigate(navigation);
+    expect(p.calls).toEqual(['navigate:nav-1']);
+    w.emit(humanSend({ edited: false }));
+    expect(w.sent).toEqual([report]);
+    p.answerNavigate({ state: 'navigated', routeEpoch: 2, insert: applied });
+    expect(await going).toMatchObject({ state: 'navigated', insert: applied });
+    // What the port has besides is the port's own.
+    expect((boards as unknown as { current(): string }).current()).toBe('snapshot');
+
+    // The same for an insert into the open chat (a board's «Вставить»).
+    const direct = world();
+    const dp = page();
+    const inserting = boardsHostOver(dp.host, direct.facts).insert(insert);
+    direct.emit(humanSend({ edited: false }));
+    expect(direct.sent).toEqual([report]);
+    dp.answerInsert(applied);
+    await inserting;
+
+    // The host says nothing was written — refused, or the insert was never reached: no draft of it exists, and a
+    // send that names it later (it cannot) is not ours to report.
+    for (const receipt of [
+      { state: 'navigated', routeEpoch: 2, insert: { state: 'rejected', code: 'CG-DRAFT-CHANGED', needs: 'confirm-human-draft' } },
+      { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: null },
+    ] as NavigationReceipt[]) {
+      const refused = world();
+      const rp = page();
+      const asked = boardsHostOver(rp.host, refused.facts).navigate(navigation);
+      rp.answerNavigate(receipt);
+      await asked;
+      refused.emit(humanSend());
+      expect(refused.sent).toEqual([]);
+    }
+    const rejected = world();
+    const jp = page();
+    const refusedInsert = boardsHostOver(jp.host, rejected.facts).insert(insert);
+    jp.answerInsert({ state: 'rejected', code: 'CG-INSERT-CHAT-CHANGED' });
+    await refusedInsert;
+    rejected.emit(humanSend());
+    expect(rejected.sent).toEqual([]);
+
+    // The outcome is not known (the bridge failed after the write may have run, or the call itself broke): the
+    // insert stays remembered — only the page's own word that the sent draft descends from it makes a `sent`.
+    const unknown = world();
+    const up = page();
+    const uncertain = boardsHostOver(up.host, unknown.facts).navigate(navigation);
+    up.answerNavigate({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } });
+    await uncertain;
+    unknown.emit(humanSend({ edited: false }));
+    expect(unknown.sent).toEqual([report]);
+    const broken = world();
+    const bp = page();
+    const thrown = boardsHostOver(bp.host, broken.facts).navigate(navigation);
+    bp.failNavigate();
+    await expect(thrown).rejects.toThrow('bridge gone');
+    broken.emit(humanSend({ edited: false }));
+    expect(broken.sent).toEqual([report]);
+
+    // A navigation that inserts nothing remembers nothing.
+    const plain = world();
+    const pp = page();
+    const opening = boardsHostOver(pp.host, plain.facts).navigate({ intentId: 'nav-2' } as unknown as NavigationIntent);
+    pp.answerNavigate({ state: 'navigated', routeEpoch: 2, insert: null });
+    await opening;
+    plain.emit(humanSend());
+    expect(plain.sent).toEqual([]);
   });
 
   it('only the last 64 inserts are remembered; dispose stops listening', () => {
