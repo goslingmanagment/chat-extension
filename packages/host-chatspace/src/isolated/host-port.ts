@@ -140,7 +140,10 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
 
   let route: RouteState = { epoch: 0, name: 'other', account: null, chat: null };
   let hostLoginEpoch: string | null = null;
+  /** The open chat's composer: MAIN's last report while it is of the route's chat; null otherwise (`syncComposer`). */
   let composer: ComposerState | null = null;
+  /** MAIN's last composer report, whatever chat it is of. Kept: MAIN never repeats an unchanged one. */
+  let reported: ComposerState | null = null;
   let accounts: readonly HostAccount[] = [];
   let wire: ContractWireInput | null = null;
   /** §6.2 `draftKey`: unchecked counts as fine; it turns `missing` when a non-empty draft has no key. */
@@ -322,18 +325,34 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     const moved = next.epoch !== route.epoch || !sameChat(next.chat, route.chat);
     route = next;
     hostLoginEpoch = loginEpoch;
-    // The composer state belongs to the chat we left (the dock leaves it too); MAIN reports the new one a frame later.
-    if (composer && !sameChat(composer.chat, route.chat)) setComposer(null);
+    // The composer of the chat we left is no longer the open chat's (the dock leaves it too); MAIN reports the new one
+    // a frame later — or has reported it already, its route event being the one that came late (`syncComposer`).
+    syncComposer();
     if (moved) emit({ type: 'route', route });
     if (moved) refreshReceipt();
     recompute();
     refreshOpenChat();
   };
 
-  const setComposer = (next: ComposerState | null): void => {
+  /**
+   * The open chat's composer from MAIN's last report and the route — whichever of the two came last. MAIN's route and
+   * composer events are coalesced each on its own, there and in the bridge client (§5.3), so they can come in another
+   * order than MAIN's own: after quick switches the composer of the chat MAIN came back to may come before a route
+   * event of a chat it has already left, and MAIN sends that composer only once (an unchanged state is not repeated).
+   * Dropping the report on that late route left the dock «copy only» over a field that was there (`pnpm perf`); kept,
+   * it is the open chat's again as soon as the route of its chat comes.
+   */
+  const syncComposer = (): void => {
+    const next = reported && sameChat(reported.chat, route.chat) ? reported : null;
+    if (next === composer) return;
     composer = next;
     mounts.update(next);
     emit({ type: 'composer', composer: next });
+  };
+
+  const setComposer = (next: ComposerState | null): void => {
+    reported = next;
+    syncComposer();
   };
 
   const snapshot = async (): Promise<void> => {

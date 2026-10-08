@@ -172,6 +172,30 @@ describe('[BG-002] state from MAIN', () => {
     expect(seen).toEqual(['composer', 'route', 'composer']);
   });
 
+  it('[RB-015] events of the two types may come out of order (each is coalesced on its own); a late route of a chat already left does not lose the composer MAIN will not repeat', async () => {
+    // What `pnpm perf` met after quick switches: MAIN reported the composer of the chat it came back to while that
+    // chat's route event still waited in MAIN's coalescing, and a route event of a chat in between, held here by the
+    // client's coalescing, came after it. MAIN never sends an unchanged state again: dropping the composer on that
+    // late route left the dock «copy only» (CG-HOST-COMPOSER-MISSING) over a field that was there.
+    const THIRD = '2004';
+    const { host, bridge, updates } = await port();
+    const route = (epoch: number, fan: string): BridgeEvent => ({ t: 'route', payload: { route: { epoch, name: 'chat', account, chat: chat(fan) }, hostLoginEpoch: 'L1' } });
+    bridge.emit(route(5, OTHER));
+    bridge.emit({ t: 'composer', payload: { state: null } });
+    bridge.emit(route(6, THIRD));
+    // MAIN is back on FAN (epochs 7 and 8), its route event not out yet: the composer of FAN comes first…
+    bridge.emit({ t: 'composer', payload: { state: composer({ instanceId: 'c9' }) } });
+    // …while this side is still on THIRD: no composer of the open chat yet.
+    expect(host.identity()?.composerInstanceId).toBeNull();
+    // The route of a chat MAIN has already left, then the route MAIN is on.
+    bridge.emit(route(7, OTHER));
+    expect(host.current().composer).toBeNull();
+    bridge.emit(route(8, FAN));
+    expect(host.identity()).toMatchObject({ routeEpoch: 8, chat: chat(), composerInstanceId: 'c9' });
+    expect(host.current().composer).toMatchObject({ instanceId: 'c9', ready: true });
+    expect(updates.at(-1)).toMatchObject({ instanceId: 'c9' });
+  });
+
   it('[BG-002] MAIN injected after document_start (an update under an open tab): reloadNeeded, also for a late subscriber', async () => {
     const bridge = fakeBridge({ snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [] });
     bridge.client.probe = () => Promise.resolve({ v: 1, readyStateAtStart: 'complete', installMs: 0, wsTap: false });
