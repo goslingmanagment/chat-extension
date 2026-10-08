@@ -73,7 +73,7 @@ function page(initial: readonly NavigationItem[]) {
 }
 
 const points: MountPoints = { dock: { kind: 'in-flow', composerInstanceId: 'c1', width: 700 }, overlay: { ready: true, container: null } };
-const mounts = { update: () => undefined, refresh: () => undefined, points: () => points, onChange: () => () => undefined, frameAnchor: () => 'ok', dispose: () => undefined } as unknown as MountManager;
+const mounts = { update: () => undefined, refresh: () => undefined, points: () => points, onChange: () => () => undefined, onRenewed: () => () => undefined, frameAnchor: () => 'ok', dispose: () => undefined } as unknown as MountManager;
 const theme: ThemeReader = {
   current: (): HostTheme => ({ scheme: 'dark', tokens: { '--color-om-neutral-0': '255 255 255' }, fixedWidth: false }),
   onChange: () => () => undefined,

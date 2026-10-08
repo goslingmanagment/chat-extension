@@ -93,6 +93,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   const endedInserts = new Set<string>();
   const observed = new WeakSet<object>();
   let editorWatch: MutationObserver | null = null;
+  /** The composer `editorWatch` waits for. */
+  let editorWatchOf: Composer | null = null;
   /**
    * The composer last found by a full search, in its route epoch: while the
    * person types into it, the composer state is re-read without the layout
@@ -167,15 +169,21 @@ export function createMainRuntime(context: MainContext): MainRuntime {
    * the composer's frame, or — a build without that frame — on the few ancestors of the slot the editor is looked for
    * in. `seen` — the editor's element was there at the read that started the watch. An element that arrives later
    * changes the composer's state even when its handle cannot be taken (no CAS promise): the state is read again.
+   * One watch at a time, for the active composer: a watch left for another one (ChatSpace rendered the composer
+   * again while its editor was still loading — the old nodes are gone) gives way to the new composer's.
    */
   const watchEditor = (composer: Composer, seen: boolean): void => {
     const target = composers?.editorRoot(composer.slot);
-    if (editorWatch || !target || !composers) return;
+    if ((editorWatch && editorWatchOf === composer) || !target || !composers) return;
+    editorWatch?.disconnect();
+    let watch: MutationObserver | null = null;
     const stop = (): void => {
-      editorWatch?.disconnect();
+      watch?.disconnect();
+      if (editorWatch !== watch) return;
       editorWatch = null;
+      editorWatchOf = null;
     };
-    const watch = new (win as Window & typeof globalThis).MutationObserver(() => {
+    watch = new (win as Window & typeof globalThis).MutationObserver(() => {
       composers?.attach(composer);
       if (composer.editor || !composer.slot.isConnected) return stop();
       if (seen || !composers?.editorElement(composer.slot)) return;
@@ -184,6 +192,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     });
     watch.observe(target, { childList: true, subtree: true });
     editorWatch = watch;
+    editorWatchOf = composer;
     setTimer(stop, EDITOR_WATCH_MS);
   };
 

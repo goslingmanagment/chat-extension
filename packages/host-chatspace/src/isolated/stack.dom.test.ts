@@ -105,6 +105,65 @@ describe('[EX-008] [BG-002] the adapter end to end in one document', () => {
     expect((await started.bridge)?.stats().rejected).toEqual({});
   });
 
+  it('[RB-008] [UI-019] ChatSpace renders the open chat’s composer again — after a pause, in one step: the first insert once the dock is back goes into the new field', async () => {
+    const win = shimWindow();
+    main = installMainBridge(win, { runtime: createMainRuntime });
+    started = startChatSpaceHost({ win, validation: loadValidation, redeem: () => Promise.resolve(true), drafts: { getItem: () => null }, firstSearchMs: 50 });
+    const host = await started.host;
+    const dock = started.mounts.dock.host;
+    await until(() => Boolean(host.identity()?.composerInstanceId) && host.mounts().dock.kind === 'in-flow', 'identity and dock');
+    /** The person’s one «Вставить»: the draft read with the identity the port has now, then the guarded write. */
+    const insertOnce = async (text: string, n: number) => {
+      const identity = host.identity();
+      if (!identity?.chat || !identity.composerInstanceId) throw new Error('no identity');
+      const draft = await host.readDraft(identity);
+      const now = Date.now();
+      return host.insert({
+        intentId: `00000000-0000-4000-8000-0000000000b${n}`,
+        operationId: '00000000-0000-4000-8000-0000000000a2',
+        part: { index: 0 },
+        target: identity.chat,
+        expected: { kind: 'open', documentEpoch: identity.documentEpoch, routeEpoch: identity.routeEpoch, composerInstanceId: identity.composerInstanceId, draftRevision: draft.revision, draftDigest: draft.digest },
+        mode: 'replace',
+        text,
+        confirmationId: null,
+        createdAt: now,
+        expiresAt: now + 5000,
+        cause: { kind: 'click', actionToken: `tok_stack_renew_00000${n}` },
+      });
+    };
+    const first = page.all.find((composer) => composer.fan === '2002');
+    if (!first) throw new Error('no composer');
+    const before = host.identity()?.composerInstanceId;
+    const routeEpoch = host.identity()?.routeEpoch;
+    // MAIN's events of the start are out (it coalesces them, UI_EVENT_GAP_MS): none of them is read during the pause.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // With a pause: the field is gone for a moment and comes back from new nodes; no store or cache action, no route.
+    first.tab.remove();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const second = page.renderAgain(first);
+    await until(() => second.root.firstChild === dock, 'the dock is back over the new field');
+    // MAIN was asked to look again: the identity names the new field before any click.
+    await until(() => host.identity()?.composerInstanceId !== before, 'the identity names the new field');
+    expect(host.identity()?.routeEpoch).toBe(routeEpoch);
+    expect(await insertOnce('after a pause', 1)).toMatchObject({ state: 'applied' });
+    expect(second.editor?.text).toBe('after a pause');
+    expect(first.calls).toEqual([]);
+
+    // In one step: the old nodes are swapped for new ones in one render, the page is never without the field.
+    const middle = host.identity()?.composerInstanceId;
+    const third = page.renderAgain(second);
+    await until(() => third.root.firstChild === dock, 'the dock is over the field swapped in one step');
+    await until(() => host.identity()?.composerInstanceId !== middle, 'the identity names the field swapped in one step');
+    expect(await insertOnce('in one step', 2)).toMatchObject({ state: 'applied' });
+    expect(third.editor?.text).toBe('in one step');
+    expect(second.calls).toEqual(['setText']);
+    // The other chat’s field (a hidden tab) was never touched.
+    expect(page.all.find((composer) => composer.fan === '2003')?.calls).toEqual([]);
+    expect((await started.bridge)?.stats().rejected).toEqual({});
+  });
+
   it('[AU-030] [ER-048] without MAIN the port still answers: not ready, nothing written', async () => {
     const win = shimWindow();
     const diagnostics: Array<{ event: string }> = [];

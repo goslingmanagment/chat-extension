@@ -252,7 +252,9 @@ export interface StandControl {
    * ChatSpace renders its composers again without a store change (a re-mount
    * with a pause: a leave transition, a layout swap, an async part): every
    * composer is taken down and, `gapMs` later, rendered anew — new nodes, the
-   * same chats. Resolves once the new ones are in the document.
+   * same chats. `gapMs` 0 — in one step: one render swaps the old nodes for
+   * the new ones (a changed key), never a moment without a composer.
+   * Resolves once the new ones are in the document.
    */
   remountComposers(gapMs: number): Promise<void>;
   /**

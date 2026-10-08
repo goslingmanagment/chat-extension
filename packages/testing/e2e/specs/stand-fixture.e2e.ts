@@ -557,6 +557,36 @@ describe('the ChatSpace-like stand on its own', () => {
     expect(await callStand('route')).toEqual(route);
   });
 
+  it('remountComposers(0): the composers are rendered again in one step — the old nodes swapped for new ones in one render, never a moment without them', async () => {
+    await callStand('openChat', accountA, a1);
+    await waitForChatReady(accountA, a1);
+    const route = await callStand('route');
+    const before = (await callStand('composers')).map(({ key, shown }) => ({ key, shown }));
+    expect(before.length).toBeGreaterThan(0);
+    // Every change of the composers block, batch by batch, as an observer of the page sees it.
+    await browser.execute(() => {
+      document.querySelectorAll('[data-stand-composer]').forEach((root) => root.setAttribute('data-e2e-before', ''));
+      const block = document.querySelector('[data-stand-composers]');
+      const batches: Array<{ removed: number; added: number }> = [];
+      const count = (nodes: NodeList): number => [...nodes].filter((node) => node instanceof Element && node.matches('[data-stand-composer-slot]')).length;
+      new MutationObserver((records) => batches.push({ removed: records.reduce((sum, record) => sum + count(record.removedNodes), 0), added: records.reduce((sum, record) => sum + count(record.addedNodes), 0) })).observe(block as Element, { childList: true });
+      (window as unknown as { __e2eBatches: typeof batches }).__e2eBatches = batches;
+    });
+    const page = await pageMark();
+    await callStand('remountComposers', 0);
+    expect((await callStand('composers')).map(({ key, shown }) => ({ key, shown }))).toEqual(before);
+    expect(await browser.execute(() => ({ old: document.querySelectorAll('[data-e2e-before]').length, now: document.querySelectorAll('[data-stand-composer]').length }))).toEqual({ old: 0, now: before.length });
+    // One render: all the old nodes out and all the new ones in, in the same batch.
+    expect(await browser.execute(() => (window as unknown as { __e2eBatches: unknown }).__e2eBatches)).toEqual([{ removed: before.length, added: before.length }]);
+    await waitForChatReady(accountA, a1);
+    const journal = await pageJournal(page);
+    const keys = before.map((composer) => composer.key).sort();
+    expect(journal.filter((entry) => entry.type === 'composer-unmounted').map((entry) => String(entry['key'])).sort()).toEqual(keys);
+    expect(journal.filter((entry) => entry.type === 'composer-mounted').map((entry) => String(entry['key'])).sort()).toEqual(keys);
+    expect(journal.filter((entry) => entry.type === 'route' || entry.type === 'query-fetch')).toEqual([]);
+    expect(await callStand('route')).toEqual(route);
+  });
+
   it('chat-list scopes, anchored history and pinned messages use the host keys', async () => {
     const listKey = (...rest: string[]): string[] => ['chatList', accountA, ...rest];
     const active = async (key: string[]): Promise<boolean> => (await callStand('queryState', key)).active;

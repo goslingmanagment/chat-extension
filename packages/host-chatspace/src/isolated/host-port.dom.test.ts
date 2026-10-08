@@ -57,16 +57,20 @@ function fakeBridge(answers: Partial<Record<ToMainType, Answer>>) {
 function fakeMounts() {
   const updates: Array<ComposerState | null> = [];
   let frame: 'ok' | 'missing' = 'ok';
+  const renewed = new Set<() => void>();
   const points: MountPoints = { dock: { kind: 'in-flow', composerInstanceId: 'c1', width: 700 }, overlay: { ready: true, container: null } };
   const mounts = {
     update: (state: ComposerState | null) => updates.push(state),
     refresh: () => undefined,
     points: () => points,
     onChange: () => () => undefined,
+    onRenewed: (listener: () => void) => (renewed.add(listener), () => renewed.delete(listener)),
     frameAnchor: () => frame,
     dispose: () => undefined,
   } as unknown as MountManager;
-  return { mounts, updates, setFrame: (value: 'ok' | 'missing') => (frame = value) };
+  /** The dock went over new nodes of the composer MAIN still names (mount.ts `onRenewed`). */
+  const renew = (): void => renewed.forEach((listener) => listener());
+  return { mounts, updates, renew, setFrame: (value: 'ok' | 'missing') => (frame = value) };
 }
 
 const themeStub: ThemeReader = {
@@ -83,7 +87,7 @@ const storedDraft = (text: string) => JSON.stringify({ body: { json: { type: 'do
 
 async function port(answers: Partial<Record<ToMainType, Answer>> = {}, options: { redeem?: boolean; drafts?: ReturnType<typeof storage>; navInsertTimeoutMs?: number | (() => number | undefined) } = {}) {
   const bridge = fakeBridge({ snapshot: () => snapshot(), listAccounts: () => [account], chatWindow: () => null, fan: () => null, listChats: () => [], ...answers });
-  const { mounts, updates, setFrame } = fakeMounts();
+  const { mounts, updates, renew, setFrame } = fakeMounts();
   const redeemed: string[] = [];
   const diagnostics: HostDiagnostic[] = [];
   const host = createChatSpaceHostPort({
@@ -101,7 +105,7 @@ async function port(answers: Partial<Record<ToMainType, Answer>> = {}, options: 
     onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
   });
   await host.ready;
-  return { host, bridge, updates, redeemed, diagnostics, setFrame };
+  return { host, bridge, updates, redeemed, diagnostics, renew, setFrame };
 }
 
 const insertIntent = (over: Partial<InsertIntent> = {}): InsertIntent => ({
@@ -194,6 +198,26 @@ describe('[BG-002] state from MAIN', () => {
     expect(host.identity()).toMatchObject({ routeEpoch: 8, chat: chat(), composerInstanceId: 'c9' });
     expect(host.current().composer).toMatchObject({ instanceId: 'c9', ready: true });
     expect(updates.at(-1)).toMatchObject({ instanceId: 'c9' });
+  });
+
+  it('[RB-008] the dock went over new nodes of the composer MAIN still names: MAIN is asked to look again, once at a time, and the identity names the new composer — nothing is written', async () => {
+    let instance = 'c1';
+    const { host, bridge, renew, updates } = await port({ snapshot: () => snapshot({ composer: composer({ instanceId: instance }) }) });
+    const snapshots = (): number => bridge.calls.filter((call) => call.t === 'snapshot').length;
+    const before = snapshots();
+    expect(host.identity()?.composerInstanceId).toBe('c1');
+    // ChatSpace rendered the composer again; MAIN, asked, finds the new one (a new node is a new composer).
+    instance = 'c2';
+    renew();
+    // Asked again while the first read is out: one more read follows it, never two at once.
+    renew();
+    renew();
+    expect(snapshots()).toBe(before + 1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(snapshots()).toBe(before + 2);
+    expect(host.identity()).toMatchObject({ routeEpoch: 4, chat: chat(), composerInstanceId: 'c2' });
+    expect(updates.at(-1)).toMatchObject({ instanceId: 'c2' });
+    expect(bridge.calls.filter((call) => call.t !== 'snapshot' && call.t !== 'listAccounts' && call.t !== 'chatWindow' && call.t !== 'fan' && call.t !== 'listChats').map((call) => call.t)).toEqual([]);
   });
 
   it('[BG-002] MAIN injected after document_start (an update under an open tab): reloadNeeded, also for a late subscriber', async () => {

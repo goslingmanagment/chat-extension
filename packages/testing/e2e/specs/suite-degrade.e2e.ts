@@ -3,6 +3,8 @@
 // fake hub.
 // - ChatSpace renders its composers again after a pause (the same chat, new
 //   nodes, nothing MAIN hears of): the dock comes back over the new field;
+//   after such a re-render — with a pause or in one step — the person's
+//   FIRST «Вставить» writes into the new field of the same chat;
 // - ChatSpace «updated» and lost a store (its send queue): the feature that
 //   needs it — the preview send — is off with its code, everything else
 //   works; «Статус» of the settings names the anchor that is gone, the popup
@@ -32,7 +34,7 @@ import { $, browser, expect } from '@wdio/globals';
 import { pilotPageFlags } from '../../src/fake-hub/config';
 import { callsTo } from '../../src/fake-hub/journal';
 import { suspendBackground } from '../support/background';
-import { bridgeWrites, composerText, EDITOR, MOD, pageJournal, pageJournalMark, PANEL, queueAdds, waitForComposerText } from '../support/chat';
+import { bridgeWrites, clearDraft, composerText, EDITOR, MOD, pageJournal, pageJournalMark, PANEL, queueAdds, waitForComposerText } from '../support/chat';
 import { fillSessionStorage, freeSessionStorage, pageRpc, readReport, waitForReport } from '../support/extension';
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
@@ -186,6 +188,42 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: active, firstChild: true, visible: true });
     const back = await dockIs((d) => d.kind === 'in-flow' && d.inFlowFirstChild, 'the dock says it is in flow again');
     expect(back).toMatchObject({ status: 'ready', target: ready.target });
+  });
+
+  it('[RB-008] [UI-019] after ChatSpace renders the composer again — with a pause, and in one step — the FIRST «Вставить» writes into the new field of the same chat', async () => {
+    // pilot-readiness §5 п. 15д: MAIN still held the old field, whose nodes were gone, and re-read the composer only on
+    // the click — the first «Вставить» said «Чат ещё не готов» (CG-HOST-NOT-READY) and wrote nothing, the second one wrote.
+    await dockIs((d) => d.status === 'ready' && d.kind === 'in-flow' && d.actions['reply'] === true, 'the dock over the open chat');
+    expect(await composerText(ACC, a1)).toBe('');
+    await pressOurs('dock', '.cg-strip button', /^Reply/);
+    await dockIs((d) => d.result?.state === 'done' && d.result.parts === 2, 'the Reply result', 20_000);
+    const onNewField = async (): Promise<boolean> => browser.execute(() => document.querySelector('[data-cg="dock"]')?.parentElement?.matches('[data-stand-composer]:not([data-e2e-before])') === true);
+    /** ChatSpace renders its composers again (`gapMs` 0 — in one step); the person then presses «Вставить» of `part` once. */
+    const firstInsertAfter = async (gapMs: number, part: 0 | 1): Promise<void> => {
+      await browser.execute(() => document.querySelectorAll('[data-stand-composer]').forEach((root) => root.setAttribute('data-e2e-before', '')));
+      const page = await pageJournalMark();
+      await callStand('remountComposers', gapMs);
+      await browser.waitUntil(onNewField, { timeout: 5000, timeoutMsg: `the dock did not come back over the re-rendered composer (${gapMs} ms)` });
+      // The field is there and works, as the person sees it: then one click.
+      await waitForChatReady(ACC, a1);
+      await dockIs((d) => d.kind === 'in-flow' && d.inFlowFirstChild && d.mode === 'insert', 'the dock is in flow over the new field');
+      await pressOurs('dock', `[data-cg-part="${part}"] button`, /^Вставить/);
+      await waitForComposerText(ACC, a1, reply(a1)[part], `the first «Вставить» after a re-render (${gapMs === 0 ? 'in one step' : `${gapMs} ms pause`})`);
+      const journal = await pageJournal(page);
+      // The page really rendered its composers again, and our one write went into the open chat's new field.
+      expect(journal.filter((entry) => entry.type === 'composer-mounted').length).toBeGreaterThan(0);
+      expect(bridgeWrites(journal)).toEqual([{ method: 'setText', chatId: a1 }]);
+      expect(await oursText('dock')).not.toContain('Чат ещё не готов');
+      expect(queueAdds(journal)).toEqual([]);
+    };
+    await firstInsertAfter(REMOUNT_GAP_MS, 0);
+    // The person empties the field; ChatSpace swaps the composer nodes in one render — never a moment without a field.
+    await clearDraft();
+    await waitForComposerText(ACC, a1, '', 'the person emptied the field');
+    await firstInsertAfter(0, 1);
+    // The field is left empty for the specs that follow (ChatSpace keeps a draft across a reload).
+    await clearDraft();
+    await waitForComposerText(ACC, a1, '', 'the field is empty again');
   });
 
   it('[RB-008] [ER-049] [DB-031] ChatSpace lost its send queue (the store is gone): the preview send is off with CG-SEND-HOST, the dock still generates and inserts; «Статус» names the anchor, the popup says «контракт частично»', async () => {

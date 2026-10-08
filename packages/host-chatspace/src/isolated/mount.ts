@@ -14,6 +14,11 @@
 // which reads the composer on store events, the composer that comes back is
 // the same one, so it says nothing); it goes when the dock leaves with the
 // chat. A document-wide observer runs only during the first search.
+// - The dock went over new nodes while MAIN still names the composer it stood
+//   over (a re-render, with a pause or in one step): MAIN still holds the old
+//   nodes, and an insert with that composer's identity would be refused.
+//   `onRenewed` says so once per new nodes, and the port asks MAIN to look
+//   again (host-port.ts) — before the person can click «Вставить».
 // - The fan is blocked (ChatSpace hides the composer): a narrow copy-only row
 //   at the end of the composers container (CG-GATE-FAN-BLOCKED).
 // - The frame root is missing (a new build): a fixed overlay over the
@@ -137,7 +142,7 @@ export function removeStaleHosts(doc: Document): number {
 }
 
 export interface MountDiagnostic {
-  readonly event: 'composer-ambiguous' | 'composer-not-found' | 'container-not-found' | 'frame-missing';
+  readonly event: 'composer-ambiguous' | 'composer-not-found' | 'container-not-found' | 'frame-missing' | 'composer-renewed';
   /** How many active composers were seen (ambiguity). */
   readonly count?: number;
 }
@@ -163,6 +168,13 @@ export interface MountManager {
   update(composer: ComposerState | null): void;
   /** Re-evaluates the dock's place now («Проверить»). */
   refresh(): void;
+  /**
+   * The dock was placed over new nodes of a composer while MAIN still reports
+   * the one it stood over before (the same `instanceId`): ChatSpace rendered
+   * that composer again and MAIN, which reads composers on store events, did
+   * not hear of it. Said once per new nodes, after the dock is in place.
+   */
+  onRenewed(listener: () => void): () => void;
   /** `data-dismissible-open` on a host while any owner keeps one of our windows open there (§6.3, §9.1). */
   setDismissibleOpen(target: 'dock' | OverlayLayer, owner: string, open: boolean): void;
   /** Our hosts and their closed roots, for the hotkey dispatcher (§9.1). */
@@ -197,6 +209,9 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   let disposed = false;
   let lastPoints = '';
   let containerElement: Element | null = null;
+  /** The slot the dock last stood over, and MAIN's composer it stood there for; kept while the dock waits (a pause). */
+  let placed: { readonly slot: Element; readonly instanceId: string } | null = null;
+  const renewedListeners = new Set<() => void>();
 
   const diag = (diagnostic: MountDiagnostic): void => options.onDiagnostic?.(diagnostic);
 
@@ -297,6 +312,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     let next: DockKind = 'none';
     let parent: Element | null = null;
     let box: Element | null = null;
+    let over: Element | null = null;
     if (composer?.hidden) {
       parent = composersContainer();
       if (parent) next = 'copy-only-row';
@@ -305,6 +321,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
       const active = activeSlots(doc);
       if (active.length > 1) diag({ event: 'composer-ambiguous', count: active.length });
       const slot = active.length === 1 ? active[0] : undefined;
+      over = slot ?? null;
       const root = slot?.closest(FRAME_SELECTOR)?.parentElement ?? null;
       if (slot && root) {
         next = 'in-flow';
@@ -346,6 +363,14 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     setKind(next, next === 'in-flow' || next === 'fixed-overlay' ? (composer?.instanceId ?? null) : null);
     observeSizes();
     notify();
+    // Over other nodes of the composer MAIN still names: ChatSpace rendered it again, unheard by MAIN (a pause between
+    // keeps `placed`: the dock waited for it). Another composer — a chat switch, a blocked fan — is MAIN's own news.
+    const renewed = (next === 'in-flow' || next === 'fixed-overlay') && over !== null && composer !== null && placed !== null && placed.slot !== over && placed.instanceId === composer.instanceId;
+    if (over !== null && composer !== null && (next === 'in-flow' || next === 'fixed-overlay')) placed = { slot: over, instanceId: composer.instanceId };
+    else if (composer === null || next !== 'none') placed = null;
+    if (!renewed) return;
+    diag({ event: 'composer-renewed' });
+    for (const listener of [...renewedListeners]) listener();
   }
 
   /** One ResizeObserver: the dock's box (for the overlay) and the fixed-width container (§6.3). */
@@ -434,6 +459,12 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
       if (!same) schedule();
     },
     refresh: schedule,
+    onRenewed(listener) {
+      renewedListeners.add(listener);
+      return () => {
+        renewedListeners.delete(listener);
+      };
+    },
     setDismissibleOpen(target, owner, open) {
       const owners = dismissible.get(target) ?? new Set<string>();
       dismissible.set(target, owners);
@@ -456,6 +487,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
       for (const host of overlays.values()) host.remove();
       overlays.clear();
       listeners.clear();
+      renewedListeners.clear();
     },
   };
 }

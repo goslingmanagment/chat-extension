@@ -422,6 +422,14 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const unsubscribeTheme = theme.onChange(() => recompute());
   const unsubscribeMounts = mounts.onChange(() => recompute());
   /**
+   * ChatSpace rendered the open chat's composer again from new nodes and MAIN did not hear of it (it reads composers on
+   * store events): it still names the old composer, whose nodes are gone, and a «Вставить» made with that identity would
+   * be refused. The dock is over the new nodes now, so MAIN is asked to look again at once — its snapshot finds the new
+   * composer, binds it to the chat by the same rule as ever, and the identity is the new one before the person clicks.
+   * A read only: nothing of the insert's checks changes, here or in MAIN.
+   */
+  const unsubscribeRenewed = mounts.onRenewed(() => once('snapshot', snapshot));
+  /**
    * MAIN came after document_start (the extension was installed or updated
    * under an open tab): ChatSpace started without us, so the person is asked
    * to reload. Sticky: a subscriber that comes later still hears it.
@@ -753,6 +761,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       unsubscribeBridge();
       unsubscribeTheme();
       unsubscribeMounts();
+      unsubscribeRenewed();
       eventListeners.clear();
       contractListeners.clear();
       sendListeners.clear();

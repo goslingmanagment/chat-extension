@@ -709,6 +709,25 @@ describe('MAIN runtime — degraded composers', () => {
     expect(told(h, from).ready).toEqual([true]);
   });
 
+  it('[RB-008] ChatSpace renders the composer again while its editor still loads: the watch moves to the new nodes, and the new composer turns ready', async () => {
+    const h = await start((page) => {
+      composer = page.addComposer(ACC, FAN);
+      composer.prose.remove();
+    });
+    const first = h.runtime.handle('snapshot', {}) as { composer: { instanceId: string; ready: boolean } };
+    expect(first.composer.ready).toBe(false);
+    // New nodes of the same chat's composer, its editor not there yet; nothing of the stores moves.
+    const again = h.page.renderAgain(composer);
+    again.prose.remove();
+    // The dock went over the new nodes and the isolated side asked MAIN to look again (host-port `onRenewed`).
+    const renewed = h.runtime.handle('snapshot', {}) as { composer: { instanceId: string; ready: boolean } };
+    expect(renewed.composer.ready).toBe(false);
+    expect(renewed.composer.instanceId).not.toBe(first.composer.instanceId);
+    const from = h.events.length;
+    await editorArrives(h, again);
+    expect(told(h, from).ready).toEqual([true]);
+  });
+
   /** The nodes MAIN puts an observer on while `run` runs (its only observer is the one that waits for an editor). */
   const watchedIn = async (run: (watched: Node[]) => Promise<void>): Promise<void> => {
     const watched: Node[] = [];
