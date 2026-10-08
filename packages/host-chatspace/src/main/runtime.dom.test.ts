@@ -10,7 +10,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakeEditor, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from './bridge';
+import { faultCounter, guardWith } from './guard';
 import { createMainRuntime } from './runtime';
+
+/** The boot's guard and fault counter as MainContext takes them. */
+const guards = (fail: (site: string) => void) => ({ guard: guardWith(fail), fault: fail });
 
 const ACC = '1001';
 const FAN = '2002';
@@ -35,12 +39,16 @@ async function start(setup?: (page: FakePage) => void): Promise<Harness> {
   setup?.(page);
   const events: Harness['events'] = [];
   let frames: Array<() => void> = [];
+  const fail = faultCounter((source, count) => events.push({ t: 'fault', payload: { source, count } }));
+  const guard = guardWith(fail);
   const context: MainContext = {
     win: window,
     documentEpoch: 'doc1',
     now: () => performance.now(),
     setTimer: (callback, ms) => setTimeout(callback, ms),
     frame: (callback) => frames.push(callback),
+    guard,
+    fault: fail,
     emit: (t, build) => events.push({ t, payload: build() }),
     post: (t, payload) => events.push({ t, payload }),
   };
@@ -1035,7 +1043,7 @@ describe('MAIN runtime — requests', () => {
     h.dispose();
     document.body.replaceChildren();
     const events: string[] = [];
-    const bare = createMainRuntime({ win: window, documentEpoch: 'doc2', now: () => 0, setTimer: (cb, ms) => setTimeout(cb, ms), frame: (cb) => cb(), emit: (t) => events.push(t), post: (t) => events.push(t) });
+    const bare = createMainRuntime({ win: window, documentEpoch: 'doc2', now: () => 0, setTimer: (cb, ms) => setTimeout(cb, ms), frame: (cb) => cb(), ...guards(() => undefined), emit: (t) => events.push(t), post: (t) => events.push(t) });
     expect(bare.handle('fan', { acc: ACC, fan: FAN })).toBe('not-ready');
     expect(bare.handle('listAccounts', {})).toEqual([]);
     // While #app is not there (still searching or given up), only `app` is reported, as missing.

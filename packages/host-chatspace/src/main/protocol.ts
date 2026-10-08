@@ -17,6 +17,8 @@ export const RUNTIME_KEY = 'mainRuntime';
 export const KIND_REQ = 'req';
 export const KIND_RES = 'res';
 export const KIND_EVT = 'evt';
+/** The event that carries a guarded failure's count (guard.ts; contracts FROM_MAIN.fault). */
+export const EVT_FAULT = 'fault';
 
 /** contracts BRIDGE_ERRORS. */
 export const ERR_UNKNOWN_REQUEST = 'unknown-request';

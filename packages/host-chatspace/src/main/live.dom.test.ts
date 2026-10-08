@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeSocket, fakeLive, fakeQueue, frames, scriptedFetch, type FakeQueue, type FetchCall } from '../testing/fake-live';
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from './bridge';
+import { faultCounter, guardWith } from './guard';
 import { createMainRuntime } from './runtime';
 import { installWsTap } from './ws-tap';
 
@@ -60,12 +61,16 @@ async function start(order: 'tap-first' | 'bridge-first' | 'no-tap' = 'tap-first
 
   const events: Harness['events'] = [];
   let frames_: Array<() => void> = [];
+  const fail = faultCounter((source, count) => events.push({ t: 'fault', payload: { source, count } }));
+  const guard = guardWith(fail);
   const context: MainContext = {
     win: window,
     documentEpoch: 'doc1',
     now: () => performance.now(),
     setTimer: (callback, ms) => setTimeout(callback, ms),
     frame: (callback) => frames_.push(callback),
+    guard,
+    fault: fail,
     emit: (t, build) => events.push({ t, payload: build() }),
     post: (t, payload) => events.push({ t, payload }),
   };

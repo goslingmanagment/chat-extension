@@ -8,11 +8,12 @@
 // (`createMainRuntime`) reads and writes ChatSpace. The extension ships them
 // as ONE bundle — `installMainBridge(window, { runtime: createMainRuntime })`,
 // ≤ 10 KiB gzip (§11, decision X11). The other way, a later MAIN script
-// (`exposeRuntimeHook` + `attachMainRuntime`), is not used: the page could
+// (`exposeMainRuntimeHook` + `attachMainRuntime`), is not used: the page could
 // take the hook first.
 
 export {
   attachMainRuntime,
+  exposeMainRuntimeHook,
   installMainBridge,
   type MainBridgeHandle,
   type MainBridgeOptions,

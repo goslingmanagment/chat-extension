@@ -31,6 +31,11 @@
 //   (MAX_FRAME) and measured (§6.8 п. 3, §11): frames seen, their total and
 //   the longest one, read through the handle (`frameTime`).
 // - Cleanup restores the global only if it is still ours (п. 11).
+// - Our listeners, the sleep tick and the adoption of a socket are guarded
+//   (guard.ts): a failure of ours goes to the bridge's count once the live
+//   port is attached (before that it is only dropped). The constructor itself
+//   is never inside a guard: whatever `new WebSocket` throws reaches the page
+//   as it would without us.
 //
 // The same script carries the rest of §6.6–§6.8 — the send port, the receipt
 // observer, the observation of human sends (live-port.ts): none of it means
@@ -38,6 +43,7 @@
 // (§11). The bridge's runtime takes it through the handle (live.ts).
 
 import { idOf, isPlain } from './check';
+import { guardWith } from './guard';
 import { createLivePort } from './live-port';
 import { type Checkpoint, type LiveHost, type Tap, type TapSink, type WsTapHandle } from './live';
 import { iso } from './page';
@@ -98,6 +104,9 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   let frames = 0;
   let spent = 0;
   let slowest = 0;
+  // Counted by the bridge, once the live port is attached.
+  const fail = (site: string): void => sink?.fault(site);
+  const guard = guardWith(fail);
 
   const armed = (state: Account | undefined): boolean => on && authed && socket?.readyState === SOCKET_OPEN && !left.some(delivers) && !!state && state.subscribed && state.framed;
   const report = (acc: string, state: Account, reason: string): void => {
@@ -138,7 +147,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     if (now - tickAt > TICK_MS + GAP_MS) lose('sleep');
     tickAt = now;
   };
-  const timer = win.setInterval(tick, TICK_MS);
+  const timer = win.setInterval(guard('tick', tick), TICK_MS);
   /** The `wsFrames` anchor follows the last frame that named a message. */
   const readable = (ok: boolean): void => {
     if (bad !== ok) return;
@@ -213,28 +222,23 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       if (acc) touch(acc);
     }
   };
-  // Both listen on one socket at a time: `adopt` takes them off the previous one.
-  const onMessage = (event: MessageEvent): void => {
+  // Both listen on one socket at a time: `adopt` takes them off the previous one. A failure of ours stays in them: the frame is the page's.
+  const onMessage = guard('message', (event: MessageEvent) => {
     const from = performance.now();
     try {
       read(event.data);
-    } catch {
-      // A failure of ours stays here: the frame is the page's.
+    } finally {
+      const took = performance.now() - from;
+      frames += 1;
+      spent += took;
+      if (took > slowest) slowest = took;
     }
-    const took = performance.now() - from;
-    frames += 1;
-    spent += took;
-    if (took > slowest) slowest = took;
-  };
-  const onClose = (): void => {
+  });
+  const onClose = guard('close', () => {
     authed = false;
-    try {
-      lose('closed');
-      sink?.changed();
-    } catch {
-      // As above.
-    }
-  };
+    lose('closed');
+    sink?.changed();
+  });
   const release = (): void => {
     socket?.removeEventListener('message', onMessage);
     socket?.removeEventListener('close', onClose);
@@ -256,12 +260,14 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
 
   const Tapped = new Proxy(Native, {
     construct(target, args: ConstructorParameters<typeof WebSocket>, newTarget) {
+      // The page's own call: what the constructor throws is the page's, never caught here.
       const made = Reflect.construct(target, args, newTarget) as WebSocket;
       constructed += 1;
       try {
         if (on && String(args[0]).split(/[?#]/)[0]?.endsWith(WS_PATH)) adopt(made);
       } catch {
         // The socket is the page's; a failure of ours never reaches it.
+        fail('socket');
       }
       return made;
     },
@@ -288,6 +294,8 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   };
 
   return {
+    guard,
+    fail,
     constructed: () => constructed,
     on: () => on,
     anchor: () => (bad ? 'shape' : on && authed ? 'ok' : 'missing'),

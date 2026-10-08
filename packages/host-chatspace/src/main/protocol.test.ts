@@ -13,6 +13,7 @@ import {
   BRIDGE_WRITE_FAILURES,
   BRIDGE_WRITE_REQUESTS,
   BridgeResponseSchema,
+  FROM_MAIN_TYPES,
   TO_MAIN_TYPES,
   WS_TAP_SYMBOL_KEY,
 } from '@cg/contracts/bridge';
@@ -31,6 +32,7 @@ describe('[EX-008] MAIN bridge literals', () => {
   it('match @cg/contracts (MAIN cannot import it)', () => {
     expect(protocol.PROTOCOL_VERSION).toBe(BRIDGE_PROTOCOL_VERSION);
     expect(protocol.TAG_KEY).toBe(BRIDGE_TAG_KEY);
+    expect(protocol.EVT_FAULT).toBe(FROM_MAIN_TYPES.at(-1));
     expect(protocol.TAG_MAIN_READY).toBe(BRIDGE_TAGS.mainReady);
     expect(protocol.TAG_ISO_HELLO).toBe(BRIDGE_TAGS.isoHello);
     expect(protocol.TAG_CONNECT).toBe(BRIDGE_TAGS.connect);

@@ -6,7 +6,7 @@
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { attachMainRuntime, installMainBridge, type MainContext, type MainRuntime } from '../main/bridge';
+import { attachMainRuntime, exposeMainRuntimeHook, installMainBridge, type MainContext, type MainRuntime } from '../main/bridge';
 import { BridgeCallError, connectMainBridge, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { loadValidation } from './validation';
 
@@ -97,7 +97,8 @@ describe('[EX-008] MAIN ↔ isolated handshake (§5.3)', () => {
 describe('[EX-008] the boot routes requests to the runtime', () => {
   it('without a runtime everything but probe is not ready; a later MAIN script attaches it through the one-shot hook', async () => {
     const win = fakeWindow();
-    const main = installMainBridge(win, { exposeRuntimeHook: true });
+    const main = installMainBridge(win);
+    exposeMainRuntimeHook(main, win);
     const client = await connectMainBridge(win, loadValidation, 1000);
     cleanups.push(() => client.close(), () => main.dispose());
     const refused = await client.request('listAccounts', {}).catch((error: unknown) => error);

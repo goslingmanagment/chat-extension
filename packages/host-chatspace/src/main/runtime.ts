@@ -18,6 +18,10 @@
 // invalidate*, insertMessage/setInsertPayload, synthetic paste, body
 // observers with subtree, DOM polling on a timer, faked focus/visibility,
 // writes into .ProseMirror, global CSS.
+// Every callback ChatSpace or the browser calls — the router's afterEach,
+// the Pinia plugin, the stores' $onAction and $subscribe with their `after`,
+// the editor watch, DOMContentLoaded — goes through the boot's `guard`
+// (guard.ts): a failure of ours never stops ChatSpace's own work.
 
 import { type MainContext, type MainRuntime } from './bridge';
 import { isPlain, type Plain } from './check';
@@ -68,7 +72,7 @@ const COMPOSER_KEYS = [KEY_FANS, KEY_MESSAGES, KEY_MIMIC_CHATS, KEY_MIMIC_SETTIN
 const GLOBAL_ANCHOR_KEYS = [KEY_ACCOUNTS, KEY_PERMISSIONS, KEY_MIMIC_SETTINGS, KEY_MIMIC_CHATS];
 
 export function createMainRuntime(context: MainContext): MainRuntime {
-  const { win, now, setTimer, frame, emit } = context;
+  const { win, now, setTimer, frame, emit, guard, fault } = context;
   const doc = win.document;
   const clock = Date.now;
   let app: App | null = null;
@@ -183,13 +187,15 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       editorWatch = null;
       editorWatchOf = null;
     };
-    watch = new (win as Window & typeof globalThis).MutationObserver(() => {
-      composers?.attach(composer);
-      if (composer.editor || !composer.slot.isConnected) return stop();
-      if (seen || !composers?.editorElement(composer.slot)) return;
-      seen = true;
-      composerSoon();
-    });
+    watch = new (win as Window & typeof globalThis).MutationObserver(
+      guard('editorWatch', () => {
+        composers?.attach(composer);
+        if (composer.editor || !composer.slot.isConnected) return stop();
+        if (seen || !composers?.editorElement(composer.slot)) return;
+        seen = true;
+        composerSoon();
+      }),
+    );
     watch.observe(target, { childList: true, subtree: true });
     editorWatch = watch;
     editorWatchOf = composer;
@@ -226,11 +232,11 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     return { chat, instanceId: composer.id, ready: !!bridge && !!editor, hidden: false, draft: { revision: composer.revision, provenance: composers.provenance(composer, draft) } };
   };
   const composerNow = (typed = false): void => emit('composer', () => ({ state: composerState(typed) }));
-  /** Re-read a frame later: Vue renders after the store change that triggered us. */
-  const composerSoon = (): void => {
+  /** Re-read a frame later: Vue renders after the store change that triggered us. Also the chat tabs' `after` (ChatSpace calls it). */
+  const composerSoon = guard('composerSoon', () => {
     typing = null;
     frame(() => composerNow());
-  };
+  });
   /** A draft changed: the composer it belongs to, when it is the one last found, is re-read without a new search. */
   const onComposerChange = (draftOf?: Composer): void => {
     if (draftOf && draftOf === typing?.composer) frame(() => composerNow(true));
@@ -308,6 +314,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       return { digest: digest(normalize(now.text)), draft: { revision: composer.revision, provenance, insertIntentId: from?.id ?? null, editedSinceInsert: from ? !ours : null } };
     },
     changed: () => emit('contract', contractPayload),
+    fault,
   };
   /**
    * Taken on first need once the handle is there: the tap script may run before or after this one, and a request may
@@ -388,7 +395,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         if (stable < 2 || !composer || !composers) return frame(step);
         pending = null;
         endedInserts.add(intent.intentId);
-        void Promise.resolve(composers.write(composer, intent, null, usedConsents)).then((insert) => resolve({ state: 'navigated', routeEpoch, insert }));
+        // The receipt follows the write: should it ever fail, the navigation's answer fails with it (`internal`), never the page.
+        resolve(Promise.resolve(composers.write(composer, intent, null, usedConsents)).then((insert): NavReceipt => ({ state: 'navigated', routeEpoch, insert })));
       };
       frame(step);
     });
@@ -433,18 +441,20 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     });
   };
 
-  const onRouteChange = (_to: unknown, _from: unknown, failure?: unknown): void => {
+  /** ChatSpace's router calls it inside every navigation: a failure of ours would reject the `push` and skip later guards. */
+  const onRouteChange = guard('route', (_to: unknown, _from: unknown, failure?: unknown) => {
     if (failure || disposed) return;
     routeEpoch += 1;
     typing = null;
     if (!pushing) pending?.cancel(CG_CANCELED);
     emit('route', routePayload);
     settle();
-  };
+  });
 
-  const onCacheAction: ActionListener = ({ name, args, after }) => {
+  /** Pinia calls it before every cache action, and its `after` once the action is done: a failure of ours would fail the action. */
+  const onCacheAction: ActionListener = guard('cache', ({ name, args, after }: Parameters<ActionListener>[0]) => {
     if (disposed || CACHE_READS.includes(name)) return;
-    after(() => {
+    after(guard('cacheAfter', () => {
       const first = args[0];
       const key = (isPlain(first) && Array.isArray(first['key']) ? first['key'] : Array.isArray(first) ? first : []) as unknown[];
       const read = route();
@@ -466,8 +476,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       if (COMPOSER_KEYS.includes(head)) composerSoon();
       // The open chat's history, its fan, its row of the list: the isolated side re-reads what it shows.
       if ((head === KEY_MESSAGES && key[2] === fan) || head === KEY_FANS || head === KEY_CHAT_LIST) emit('chatCache', () => ({ acc: read.acc, fan }));
-    });
-  };
+    }));
+  });
 
   const onStore = (store: PageStore): void => {
     if (observed.has(store)) return;
@@ -475,32 +485,30 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     try {
       if (store.$id === STORE_CACHE) store.$onAction(onCacheAction, true);
       // A chat tab activated, closed or given another chat: ChatSpace shows another composer, maybe before the route follows.
-      if (store.$id === STORE_TABS) store.$onAction(({ after }) => after(composerSoon), true);
+      if (store.$id === STORE_TABS) store.$onAction(guard('tabs', ({ after }: Parameters<ActionListener>[0]) => after(composerSoon)), true);
       if (store.$id === STORE_QUEUE)
-        store.$onAction(({ name, args, after, onError }) => {
-          if (disposed) return;
-          // A send, ours or the person's: the live port hears of it before the queue acts (§6.6).
-          // Pinia calls us inside ChatSpace's own action: a failure of ours must never reach its send.
-          try {
-            if (name === QUEUE_SEND) livePort()?.sent(args[0], after, onError);
-          } catch {
-            // The send goes on unobserved.
-          }
-          // A sign-out resets ChatSpace's send queue: a new host login epoch (identities from before no longer match).
-          if (name !== 'resetAll') return;
-          login += 1;
-          emit('route', routePayload);
-        }, true);
+        store.$onAction(
+          guard('queue', ({ name, args, after, onError }: Parameters<ActionListener>[0]) => {
+            if (disposed) return;
+            // A send, ours or the person's: the live port hears of it before the queue acts (§6.6). Pinia calls us inside
+            // ChatSpace's own action: a failure of ours must never reach its send, nor stop the sign-out check below.
+            try {
+              if (name === QUEUE_SEND) livePort()?.sent(args[0], after, onError);
+            } catch {
+              fault('sent');
+            }
+            // A sign-out resets ChatSpace's send queue: a new host login epoch (identities from before no longer match).
+            if (name !== 'resetAll') return;
+            login += 1;
+            emit('route', routePayload);
+          }),
+          true,
+        );
       // Only with a tap: its freshness needs every change of ChatSpace's subscription set (§6.7.5).
       if (store.$id === STORE_ACCOUNTS && store.$subscribe && livePort()) {
+        // Inside ChatSpace's own state change: a failure of ours stays here.
         store.$subscribe(
-          () => {
-            try {
-              live?.sync();
-            } catch {
-              // Inside ChatSpace's own state change: a failure of ours stays here.
-            }
-          },
+          guard('accounts', () => live?.sync()),
           { detached: true, flush: 'sync' },
         );
         subscriptions = store;
@@ -515,12 +523,13 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   const attachApp = (found: App): void => {
     app = found;
     reader = createReader(doc, found.pinia);
-    composers = createComposers(win, onComposerChange, frame);
+    composers = createComposers(win, onComposerChange, frame, guard);
     routeEpoch = 1;
     try {
       found.router?.afterEach(onRouteChange);
-      // Stores created later reach us through a plugin; we never create a store (§6.1).
-      found.pinia?.use(({ store }) => onStore(store));
+      // Stores created later reach us through a plugin; we never create a store (§6.1). It runs inside ChatSpace's
+      // creation of each store: a failure of ours would leave a component without its store.
+      found.pinia?.use(guard('plugin', ({ store }: { store: PageStore }) => onStore(store)));
       for (const store of found.pinia?._s.values() ?? []) onStore(store);
     } catch {
       // Reported by the contract check.
@@ -545,10 +554,10 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     attempt();
   };
 
-  const onDomReady = (): void => {
+  const onDomReady = guard('ready', () => {
     doc.removeEventListener('DOMContentLoaded', onDomReady);
     searchApp();
-  };
+  });
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', onDomReady);
   else setTimer(searchApp, 0);
 

@@ -14,7 +14,11 @@
 //   `input` events and changed text, and a non-empty draft always needs consent.
 // Writes go only through ChatSpace's own `__omComposerBridge` (setText,
 // insertText, focus) — never insertMessage, never into .ProseMirror directly.
+// The editor's listeners run inside ChatSpace's own transaction (Tiptap emits
+// `transaction` before `update`), the `input` listener inside the person's
+// typing: all are guarded (guard.ts) — a failure of ours never stops either.
 
+import { type Guard } from './guard';
 import { type InsertWire } from './requests';
 import { CG_COMPOSER_MISSING, CG_DRAFT_CHANGED, CG_INSERT_FAILED, CG_MISPLACED, CG_UNCERTAIN, EDITOR_SELECTOR, FRAME_SELECTOR, SLOT_SELECTOR } from './protocol';
 
@@ -99,9 +103,9 @@ export type Composers = ReturnType<typeof createComposers>;
  * `changed` — a draft or an editor changed (the bridge re-reads the composer
  * state on the next frame); `draftOf` names the composer whose document
  * changed when nothing else did (typing), so the runtime may skip the layout
- * reads of a full search. `frame` — one frame, or the fallback timer.
+ * reads of a full search. `frame` — one frame, or the fallback timer; `guard` — the boot's (guard.ts).
  */
-export function createComposers(win: Window, changed: (draftOf?: Composer) => void, frame: (callback: () => void) => void) {
+export function createComposers(win: Window, changed: (draftOf?: Composer) => void, frame: (callback: () => void) => void, guard: Guard) {
   const doc = win.document;
   const bySlot = new WeakMap<Element, Composer>();
   let next = 1;
@@ -176,8 +180,8 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
     const editor = editorElement(composer.slot)?.editor as Editor | undefined;
     if (!editor || editor === composer.editor || typeof editor.on !== 'function' || typeof editor.getJSON !== 'function' || !editor.commands) return;
     detach(composer);
-    const listener: TxListener = (payload) => onTransaction(composer, payload);
-    const destroyed = (): void => detach(composer);
+    const listener: TxListener = guard('transaction', (payload: Parameters<TxListener>[0]) => onTransaction(composer, payload));
+    const destroyed = guard('destroy', () => detach(composer));
     try {
       editor.on('transaction', listener);
       editor.on('destroy', destroyed);
@@ -222,7 +226,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
   };
 
   /** Without an observed editor, typing in a composer frame is the revision signal (degraded); one capture listener on the document. */
-  const onInput = (event: Event): void => {
+  const onInput = guard('input', (event: Event) => {
     const slot = event.target instanceof Element ? event.target.closest(FRAME_SELECTOR)?.querySelector(SLOT_SELECTOR) : null;
     const composer = slot ? bySlot.get(slot) : undefined;
     if (!composer || composer.editor) return;
@@ -230,7 +234,7 @@ export function createComposers(win: Window, changed: (draftOf?: Composer) => vo
     composer.ours = null;
     composer.provenance = 'human-or-unknown';
     changed();
-  };
+  });
   doc.addEventListener('input', onInput, true);
 
   return {

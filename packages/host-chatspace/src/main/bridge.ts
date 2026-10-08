@@ -22,13 +22,22 @@
 // The page sees all of this and can post anything on the port, so the
 // isolated side checks every frame from MAIN; MAIN checks every request by
 // hand and holds no secrets.
+//
+// Nothing of ours ever throws into the page (guard.ts): the boot's own
+// listeners, the frames and timers it lends the runtime and the event channel
+// are guarded by construction — a builder, a `stringify` or a `postMessage`
+// that fails drops its frame and is counted — and the runtime gets the same
+// `guard` for the callbacks it hands ChatSpace. A count goes out as the
+// `fault` event (1, 2, 4, 8… per site).
 
 import { count, int, is, isPlain, isToken, orNull, shape, type Plain } from './check';
+import { faultCounter, guardWith, type Guard } from './guard';
 import {
   ERR_BAD_REQUEST,
   ERR_INTERNAL,
   ERR_NOT_READY,
   ERR_STALE_DOCUMENT,
+  EVT_FAULT,
   FRAME_FALLBACK_MS,
   KIND_EVT,
   KIND_RES,
@@ -51,9 +60,14 @@ export interface MainContext {
   readonly documentEpoch: string;
   /** performance.now as captured at load. */
   readonly now: () => number;
+  /** A timer; its callback is guarded (site `timer`). */
   readonly setTimer: (callback: () => void, ms: number) => unknown;
-  /** One frame, or a timer when the tab gets no frames. */
+  /** One frame, or a timer when the tab gets no frames; its callback is guarded (site `frame`). */
   readonly frame: (callback: () => void) => void;
+  /** For every other callback the runtime hands the page or the browser (guard.ts). */
+  readonly guard: Guard;
+  /** A failure of ours caught by hand, where the rest of the callback must go on (guard.ts). */
+  readonly fault: (site: string) => void;
   /**
    * A UI event: throttled per type, the latest wins (§5.3). A state event
    * (STATE_EVENTS) equal to the last one sent is not repeated; a signal
@@ -90,13 +104,6 @@ export interface MainBridgeHandle {
 export interface MainBridgeOptions {
   /** The runtime of the same bundle, attached at once. */
   readonly runtime?: MainRuntimeFactory;
-  /**
-   * Leave a one-shot hook for a later MAIN script (`attachMainRuntime`) under
-   * a non-enumerable Symbol.for key, like the WS tap's hand-off. The page can
-   * see it too: at worst it takes the hook first and the bridge stays without
-   * a runtime (host not ready) — nothing the page could not do anyway (§14).
-   */
-  readonly exposeRuntimeHook?: boolean;
 }
 
 /** The request envelope (contracts BridgeRequestSchema minus the payload). */
@@ -111,7 +118,7 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
   const post = win.postMessage.bind(win);
   const listen = win.addEventListener.bind(win);
   const unlisten = win.removeEventListener.bind(win);
-  const setTimer = win.setTimeout.bind(win);
+  const later = win.setTimeout.bind(win);
   const nextFrame = win.requestAnimationFrame.bind(win);
   const stringify = JSON.stringify;
   // eslint-disable-next-line @typescript-eslint/unbound-method -- native captured at load, always invoked with .call
@@ -135,8 +142,16 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
   const lastAt: Record<string, number> = {};
   const queued: Record<string, () => Plain> = {};
 
+  // The counts of both MAIN scripts (the tap's come through the live port); a report goes straight to the port, a failing one is dropped.
+  const fail = faultCounter((source, count) => send({ kind: KIND_EVT, t: EVT_FAULT, payload: { source, count } }));
+  const guard = guardWith(fail);
+  /** A frame that cannot go (a payload `postMessage` cannot clone) is dropped and counted. */
   const send = (frame: Plain): void => {
-    if (!disposed) port?.postMessage({ v: PROTOCOL_VERSION, ...frame, documentEpoch: documentEpoch(), seq: seq++ });
+    try {
+      if (!disposed) port?.postMessage({ v: PROTOCOL_VERSION, ...frame, documentEpoch: documentEpoch(), seq: seq++ });
+    } catch {
+      fail('send');
+    }
   };
 
   const context: MainContext = {
@@ -145,20 +160,23 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
       return documentEpoch();
     },
     now,
-    setTimer,
+    setTimer: (callback, ms) => later(guard('timer', callback), ms),
     frame: (callback) => {
       let done = false;
-      const run = (): void => {
+      const run = guard('frame', () => {
         if (done) return;
         done = true;
         callback();
-      };
-      setTimer(run, FRAME_FALLBACK_MS);
+      });
+      later(run, FRAME_FALLBACK_MS);
       nextFrame(run);
     },
+    guard,
+    fault: fail,
     emit: (t, build) => {
       if (!port) return;
-      const flush = (): void => {
+      // A builder that throws drops its event (the next one of the type is built afresh).
+      const flush = guard('emit', () => {
         const latest = queued[t];
         delete queued[t];
         if (!latest) return;
@@ -170,18 +188,18 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
         }
         lastAt[t] = now();
         send({ kind: KIND_EVT, t, payload });
-      };
+      });
       const waiting = t in queued;
       queued[t] = build;
       if (waiting) return;
       const wait = (lastAt[t] ?? -1e9) + UI_EVENT_GAP_MS - now();
-      if (wait > 0) setTimer(flush, wait);
+      if (wait > 0) later(flush, wait);
       else flush();
     },
     post: (t, payload) => send({ kind: KIND_EVT, t, payload }),
   };
 
-  const onPortMessage = (event: MessageEvent): void => {
+  const onPortMessage = guard('port', (event: MessageEvent) => {
     const data: unknown = event.data;
     if (!isRequestEnvelope(data)) return;
     const { id, t, payload, documentEpoch: theirs } = data as { id: number; t: string; payload: unknown; documentEpoch: string | null };
@@ -193,6 +211,7 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
       try {
         outcome = runtime ? runtime.handle(t, payload) : ERR_NOT_READY;
       } catch {
+        fail('handle');
         outcome = ERR_INTERNAL;
       }
       if (WRITE_REQUESTS.includes(t)) {
@@ -200,15 +219,16 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
         if (writes.size > WRITE_MEMORY) writes.delete(writes.keys().next().value as number);
       }
     }
-    void Promise.resolve(outcome).then(
+    // `send` never throws: neither handler can, so the promise this makes never rejects.
+    Promise.resolve(outcome).then(
       (value) => send(typeof value === 'string' ? { kind: KIND_RES, id, t, ok: false, err: value } : { kind: KIND_RES, id, t, ok: true, data: value ?? null }),
       () => send({ kind: KIND_RES, id, t, ok: false, err: ERR_INTERNAL }),
     );
-  };
+  });
 
   const announce = (): void => post({ [TAG_KEY]: TAG_MAIN_READY, v: PROTOCOL_VERSION }, targetOrigin);
 
-  const onWindowMessage = (event: MessageEvent): void => {
+  const onWindowMessage = guard('handshake', (event: MessageEvent) => {
     const data: unknown = event.data;
     if (event.source !== win || !isPlain(data) || data['v'] !== PROTOCOL_VERSION) return;
     if (data[TAG_KEY] === TAG_ISO_HELLO) return announce();
@@ -217,13 +237,14 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
     port = received;
     unlisten('message', onWindowMessage, true);
     port.onmessage = onPortMessage;
-  };
+  });
 
   const attach = (factory: MainRuntimeFactory): boolean => {
     if (runtime || disposed) return false;
     try {
       runtime = factory(context);
     } catch {
+      fail('attach');
       return false;
     }
     return true;
@@ -232,7 +253,6 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
   listen('message', onWindowMessage, true);
   announce();
   if (options.runtime) attach(options.runtime);
-  if (options.exposeRuntimeHook) Object.defineProperty(win, Symbol.for(RUNTIME_KEY), { value: attach, configurable: true });
   installMs = now() - startedAt;
 
   return {
@@ -250,6 +270,16 @@ export function installMainBridge(win: Window = window, options: MainBridgeOptio
       port = null;
     },
   };
+}
+
+/**
+ * Leaves a one-shot hook for a later MAIN script (`attachMainRuntime`) under a non-enumerable Symbol.for key, like the
+ * WS tap's hand-off. The page can see it too: at worst it takes the hook first and the bridge stays without a runtime
+ * (host not ready) — nothing the page could not do anyway (§14). The extension does not use it (decision X11): a
+ * function of its own, so a bundle that never calls it does not carry it.
+ */
+export function exposeMainRuntimeHook(handle: MainBridgeHandle, win: Window = window): void {
+  Object.defineProperty(win, Symbol.for(RUNTIME_KEY), { value: (factory: MainRuntimeFactory) => handle.attach(factory), configurable: true });
 }
 
 /** A later MAIN script attaches the runtime through the boot's one-shot hook; false when there is none or it was taken. */
