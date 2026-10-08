@@ -162,9 +162,11 @@ DOM, мост ChatSpace для вставки и — для отправки и�
     `sendObserve`, `receipt`, `previewSend`; якоря `wsFrames`, `receiptProfile`.
 - Профиль квитанции: адаптер читает из DOM и `performance` адреса загруженных модулей
   (ничего не скачивает), берёт хеши из имён `/assets/<роль>-<хеш>.js` для ролей
-  `notificationEntry, composables, messages, accounts, inbox` и сверяет с
+  `notificationEntry, composables, onlyfans, accounts, inbox` и сверяет с
   `limits.previewSendReceiptProfiles` (все роли и `adapterVersion`). Нет совпадения — X8
-  выключен с `CG-SEND-RECEIPT`, остальное работает.
+  выключен с `CG-SEND-RECEIPT`, остальное работает. Роли — по раскладке ChatSpace
+  0.195.0 (адаптер 0.3.0): модуля `messages` там нет, его содержимое во втором модуле
+  `onlyfans` (`docs/architecture.md` §6.2).
 
 **Подключить (интегратору).** В `chatspace-main.content.ts` —
 `installMainBridge(window, { runtime: createMainRuntime })`; `chatspace-ws.ts` уже зовёт

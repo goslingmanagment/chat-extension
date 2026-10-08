@@ -234,7 +234,12 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       const loaded = await harness<{ modules: Record<string, string> }>('receiptProfile');
       // What the page's DOM and resource timing show is what the build wrote to disk.
       expect(loaded.modules).toEqual(standProfile().modules);
-      expect(Object.keys(loaded.modules).sort()).toEqual(['accounts', 'composables', 'inbox', 'messages', 'notificationEntry']);
+      expect(Object.keys(loaded.modules).sort()).toEqual(['accounts', 'composables', 'inbox', 'notificationEntry', 'onlyfans']);
+      // Laid out like ChatSpace 0.195.0: no `messages` module; two `onlyfans` modules, one fingerprint of both hashes, sorted.
+      expect(readdirSync(`${FIXTURE_BUILD_DIR}assets`).filter((name) => name.startsWith('messages-'))).toEqual([]);
+      const onlyfans = (loaded.modules['onlyfans'] ?? '').split('+');
+      expect(onlyfans).toHaveLength(2);
+      expect(onlyfans).toEqual([...onlyfans].sort());
       evidence['receiptProfile'] = loaded;
       expect(report?.adapterVersion).toBe(ADAPTER_VERSION);
       for (const name of ['previewSend', 'receipt', 'sendObserve', 'incoming']) expect([name, report?.capabilities[name]]).toEqual([name, { state: 'on' }]);

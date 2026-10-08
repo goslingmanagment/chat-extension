@@ -77,26 +77,75 @@ export const MODULE_PATTERN = /\/assets\/([\w.-]+?)-([\w-]{8})\.js$/;
 /**
  * The modules the X8 send path and its receipt live in (§6.2 «профиль пути
  * отправки и квитанции»), by the name before the hash, with what each
- * carries in 0.172.0:
- * - `notificationEntry` — the send queue store and its sequence, the request body;
- * - `composables` — the HTTP client (where `fetch` is captured), the 401
- *   handler, the socket bus, the query cache, the role permissions;
- * - `messages` — the echo handler of the open chat, the composer and its
- *   translator;
+ * carries in 0.195.0 (a role may have several modules; its fingerprint is
+ * all their hashes):
+ * - `notificationEntry` — the send queue store and its sequence, the request
+ *   body and its single POST, the quick reply from a notification;
+ * - `composables` (two modules) — the HTTP client (where `fetch` is
+ *   captured), the 401 handler, the socket bus and its frame normalizer, the
+ *   query cache, the role permissions;
+ * - `onlyfans` (two modules) — a small one the page loads at once (OnlyFans
+ *   helpers the queue and the client import) and the one that loads with the
+ *   main layout: the composer and its Send, `__omComposerBridge`, the
+ *   translator store, the echo handler of the open chat. In 0.172.0 that
+ *   content was a `messages` module, which 0.195.0 no longer has;
  * - `accounts` — the accounts store and its socket subscriptions, the chat
- *   list's echo handling, the fans map;
+ *   list's echo handling, the fans map, the API error handler;
  * - `inbox` — Mimic's settings and chats.
  * The entry module (`index-*`) is not one of them: it is the build
- * fingerprint, a diagnostic.
+ * fingerprint, a diagnostic. (In 0.195.0 it also installs the Sentry wrapper
+ * of `window.fetch` that the captured `fetch` now goes through: reviewed and
+ * accepted, §6.2.) When ChatSpace's bundler regroups these modules, the list
+ * changes with an adapter release — a new hub value alone cannot follow.
  */
-export const RECEIPT_MODULE_ROLES: readonly string[] = ['notificationEntry', 'composables', 'messages', 'accounts', 'inbox'];
+export const RECEIPT_MODULE_ROLES: readonly string[] = ['notificationEntry', 'composables', 'onlyfans', 'accounts', 'inbox'];
+
+/** How a send-path anchor is written in a bundle: a whole identifier, a string literal in any quotes, or the text as is. */
+export interface SendPathAnchor {
+  /** The part of the send path it marks. */
+  readonly part: string;
+  readonly kind: 'member' | 'string' | 'text';
+  readonly value: string;
+}
+
+/**
+ * The regroup tripwire of `tools/host-contract-check` (§6.2 «Перегруппировка
+ * модулей»): strings that mark the send path. Every place a copy of ChatSpace
+ * has one of them must be a module of a role above; one found in any other
+ * file — the entry module `index-*` included (in 0.172.0 and 0.195.0 none of
+ * them is there) — means the bundler moved part of the send path out of the
+ * profile, and the build needs an adapter release. One found nowhere is a
+ * changed send path. The HTTP client's strings are Ky's own API (`fetch`
+ * captured when a request is made, the hooks that carry the token and the
+ * 401 handler). The queue's action is not listed: its name lives in the send
+ * port only (tools/gates), and its callers and an unrelated stream method of
+ * the same name may sit anywhere — the tool checks instead that it is in the
+ * module of the queue store.
+ */
+export const SEND_PATH_ANCHORS: readonly SendPathAnchor[] = [
+  { part: 'composer bridge', kind: 'member', value: '__omComposerBridge' },
+  { part: 'translator store', kind: 'string', value: STORE_TRANSLATOR },
+  { part: 'translator store', kind: 'member', value: 'getAccountSettings' },
+  { part: 'queue store', kind: 'string', value: STORE_QUEUE },
+  { part: 'queue store', kind: 'member', value: 'messagesByAccountId' },
+  { part: 'queue store', kind: 'member', value: 'processingByAccountId' },
+  { part: 'queue store', kind: 'string', value: GUARD_CODE },
+  { part: 'HTTP client', kind: 'text', value: 'globalThis.fetch.bind(globalThis)' },
+  { part: 'HTTP client', kind: 'member', value: 'prefixUrl' },
+  { part: 'HTTP client', kind: 'member', value: 'beforeRequest' },
+  { part: 'HTTP client', kind: 'member', value: 'afterResponse' },
+  { part: 'open-chat echo handler', kind: 'string', value: KEY_MESSAGES },
+  { part: 'open-chat echo handler', kind: 'member', value: 'confirmEchoedMessage' },
+  { part: 'socket bus', kind: 'text', value: WS_PATH },
+];
 
 /**
  * The adapter's own version, reported in the contract check; a receipt
  * profile names the version it was approved for (§6.2). It changes when the
- * adapter's reading of the send path changes.
+ * adapter's reading of the send path changes — the role list above included
+ * (0.3.0: `messages` → `onlyfans`, ChatSpace 0.195.0).
  */
-export const ADAPTER_VERSION = '0.2.0';
+export const ADAPTER_VERSION = '0.3.0';
 
 /**
  * Member names of ChatSpace's own objects that the MAIN side reads or calls

@@ -7,9 +7,10 @@
 // (packages/host-chatspace/src/isolated/host-contract.ts) — present or
 // missing, with file:line of the first places; the receipt-profile
 // fingerprint of the copy (the role modules of the send path, §6.2 «профиль
-// пути отправки и квитанции»); and, against another copy, which role modules
-// and which of their imports changed. It prints names, lines and hashes —
-// never ChatSpace's code.
+// пути отправки и квитанции»); whether the send path's own anchors all sit in
+// those role modules (the regroup tripwire, §6.2 «Перегруппировка модулей»);
+// and, against another copy, which role modules and which of their imports
+// changed. It prints names, lines and hashes — never ChatSpace's code.
 
 import { createHash } from 'node:crypto';
 
@@ -136,6 +137,47 @@ export function receiptProfile(fileNames: readonly string[], version: string | n
 /** Roles of the send path that have no module in the copy: such a build matches no profile. */
 export function missingRoles(modules: Readonly<Record<string, string>>): string[] {
   return contract.RECEIPT_MODULE_ROLES.filter((role) => !(role in modules));
+}
+
+/** A send-path anchor found outside the role modules, or nowhere at all: the build regrouped or changed its send path. */
+export interface SendPathProblem {
+  readonly part: string;
+  readonly anchor: string;
+  /** Places outside the role modules, `file:line` (the first few); empty — found nowhere. */
+  readonly at: readonly string[];
+  readonly count: number;
+}
+
+const isRoleModule = (fileName: string): boolean => {
+  const role = contract.MODULE_PATTERN.exec(`/assets/${fileName}`)?.[1];
+  return role !== undefined && contract.RECEIPT_MODULE_ROLES.includes(role);
+};
+
+/** The send path's anchors (host-contract.ts SEND_PATH_ANCHORS) as the tool looks for them. */
+export function sendPathAnchors(): Anchor[] {
+  const pattern = (anchor: contract.SendPathAnchor): RegExp => (anchor.kind === 'member' ? word(anchor.value) : anchor.kind === 'string' ? literal(anchor.value) : text(anchor.value));
+  return contract.SEND_PATH_ANCHORS.map((anchor) => ({ id: `${anchor.kind} ${anchor.value}`, group: anchor.part, pattern: pattern(anchor) }));
+}
+
+/**
+ * The regroup tripwire (§6.2 «Перегруппировка модулей»): every send-path
+ * anchor must be found, and only in the role modules; the queue's action must
+ * be in the module of the queue store. Nothing returned — the send path is
+ * where the profile looks.
+ */
+export function sendPathOutsideRoles(files: readonly BundleFile[], limit = 3): SendPathProblem[] {
+  const problems: SendPathProblem[] = [];
+  for (const anchor of sendPathAnchors()) {
+    const found = checkAnchors(files, [anchor], Number.MAX_SAFE_INTEGER)[0];
+    const outside = (found?.at ?? []).filter((place) => !isRoleModule(place.slice(0, place.lastIndexOf(':'))));
+    if (found === undefined || !found.present) problems.push({ part: anchor.group, anchor: anchor.id, at: [], count: 0 });
+    else if (outside.length > 0) problems.push({ part: anchor.group, anchor: anchor.id, at: outside.slice(0, limit), count: outside.length });
+  }
+  const storeFiles = files.filter((file) => literal(contract.STORE_QUEUE).test(file.text));
+  const action = word(QUEUE_ACTION);
+  const without = storeFiles.filter((file) => !action.test(file.text)).map((file) => file.name);
+  if (storeFiles.length > 0 && without.length > 0) problems.push({ part: 'queue action', anchor: `queue action ${QUEUE_ACTION} beside store ${contract.STORE_QUEUE}`, at: without.slice(0, limit), count: without.length });
+  return problems;
 }
 
 /** The modules a role module imports statically, by name without the hash, with their hashes. */

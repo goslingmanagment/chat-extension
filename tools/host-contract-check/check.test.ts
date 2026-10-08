@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import * as contract from '../../packages/host-chatspace/src/isolated/host-contract.ts';
 import { receiptModules } from '../../packages/host-chatspace/src/isolated/receipt-profile.ts';
 import { QUEUE_SEND } from '../../packages/host-chatspace/src/main/send-port.ts';
-import { buildOf, checkAnchors, contractAnchors, diffCopies, importsOf, missingRoles, QUEUE_ACTION, receiptFingerprint, receiptProfile, shapeOf, type BundleFile } from './check.ts';
+import { buildOf, checkAnchors, contractAnchors, diffCopies, importsOf, missingRoles, QUEUE_ACTION, receiptFingerprint, receiptProfile, sendPathOutsideRoles, shapeOf, type BundleFile } from './check.ts';
 
 /** A copy that has every anchor: one line per string, written the way a minified build writes them. */
 function fullCopy(): BundleFile[] {
@@ -37,10 +37,35 @@ function fullCopy(): BundleFile[] {
     { name: 'notificationEntry-BBBBBBBB.js', text: 'import { a } from "./composables-CCCCCCCC.js";\nimport { b } from "./inbox-GGGGGGGG.js";' },
     { name: 'composables-CCCCCCCC.js', text: 'import { v } from "./vue.runtime.esm-bundler-HHHHHHHH.js";' },
     { name: 'composables-DDDDDDDD.js', text: '' },
-    { name: 'messages-EEEEEEEE.js', text: '' },
+    { name: 'onlyfans-EEEEEEEE.js', text: '' },
+    { name: 'onlyfans-E2E2E2E2.js', text: '' },
     { name: 'accounts-FFFFFFFF.js', text: '' },
     { name: 'inbox-GGGGGGGG.js', text: '' },
   ];
+}
+
+/** How a send-path anchor is written in a minified build: names and strings only. */
+const written = (anchor: contract.SendPathAnchor): string => (anchor.kind === 'member' ? `a.${anchor.value} = 1;` : anchor.kind === 'string' ? `k = \`${anchor.value}\`;` : `u = "${anchor.value}";`);
+/** Where 0.195.0 keeps each part of the send path: the queue, the client and the socket, the composer's `onlyfans` module. */
+const PLACES_0195: Readonly<Record<string, string>> = {
+  'queue store': 'notificationEntry-BBBBBBBB.js',
+  'HTTP client': 'composables-CCCCCCCC.js',
+  'socket bus': 'composables-CCCCCCCC.js',
+  'composer bridge': 'onlyfans-EEEEEEEE.js',
+  'translator store': 'onlyfans-EEEEEEEE.js',
+  'open-chat echo handler': 'onlyfans-EEEEEEEE.js',
+};
+/** A copy with the send path's anchors written into the files `places` names (by part); the queue's action beside the queue store unless moved. */
+function sendPathCopy(places: Readonly<Record<string, string>> = PLACES_0195, options: { readonly skip?: string; readonly queueActionIn?: string } = {}): BundleFile[] {
+  const texts = new Map<string, string[]>(
+    ['index-AAAAAAAA.js', 'notificationEntry-BBBBBBBB.js', 'composables-CCCCCCCC.js', 'composables-DDDDDDDD.js', 'onlyfans-EEEEEEEE.js', 'onlyfans-E2E2E2E2.js', 'accounts-FFFFFFFF.js', 'inbox-GGGGGGGG.js', 'ChatView-ZZZZZZZZ.js'].map((name) => [name, ['var x = 1;']]),
+  );
+  const write = (name: string, line: string): void => {
+    texts.set(name, [...(texts.get(name) ?? []), line]);
+  };
+  for (const anchor of contract.SEND_PATH_ANCHORS) if (anchor.value !== options.skip) write(places[anchor.part] ?? 'ChatView-ZZZZZZZZ.js', written(anchor));
+  write(options.queueActionIn ?? places['queue store'] ?? '', `store.${QUEUE_ACTION}(e);`);
+  return [...texts].map(([name, lines]) => ({ name, text: lines.join('\n') }));
 }
 
 describe('host-contract-check (§6.2 «Сверка с новой сборкой»)', () => {
@@ -77,12 +102,67 @@ describe('host-contract-check (§6.2 «Сверка с новой сборкой
     const names = copy.map((file) => file.name);
     expect(buildOf(copy[0]?.text ?? '')).toBe('index-AAAAAAAA');
     const modules = receiptFingerprint(names);
-    expect(modules).toEqual({ notificationEntry: 'BBBBBBBB', composables: 'CCCCCCCC+DDDDDDDD', messages: 'EEEEEEEE', accounts: 'FFFFFFFF', inbox: 'GGGGGGGG' });
+    expect(modules).toEqual({ notificationEntry: 'BBBBBBBB', composables: 'CCCCCCCC+DDDDDDDD', onlyfans: 'E2E2E2E2+EEEEEEEE', accounts: 'FFFFFFFF', inbox: 'GGGGGGGG' });
     // The same rule as the adapter's: what it reads in the page is what the tool prints for the copy.
     expect(modules).toEqual(receiptModules(names.map((name) => `https://chat.example.test/assets/${name}`), 'https://chat.example.test'));
     expect(receiptProfile(names, '0.999.0')).toEqual({ id: 'chatspace-0.999.0', adapterVersion: contract.ADAPTER_VERSION, modules });
     expect(missingRoles(modules)).toEqual([]);
     expect(missingRoles(receiptFingerprint(names.filter((name) => !name.startsWith('inbox'))))).toEqual(['inbox']);
+  });
+
+  it('a copy with 0.195.0’s file names (names only) prints the reviewed hub value: every role found, `onlyfans` from two modules', () => {
+    // The script files of the 0.195.0 copy that matter here, as `ls` gives them: the role modules and a few of no role.
+    const names = ['ChatView-CnMzMAt4.js', 'MainLayout-Dyqw2t1H.js', 'accounts-CN9N-pj3.js', 'composables-C25sVtl7.js', 'composables-DKWzNPeA.js', 'inbox-DUukOf_u.js', 'index-p8xPkCj8.js', 'notificationEntry-BaWeHDsj.js', 'onlyfans-DqEV2pNo.js', 'onlyfans-SstGvKHV.js', 'runtime-dom.esm-bundler-Ydpp0psT.js'];
+    const reviewed = JSON.parse(
+      '[{"id":"chatspace-0.195.0","adapterVersion":"0.3.0","modules":{"notificationEntry":"BaWeHDsj","composables":"C25sVtl7+DKWzNPeA","onlyfans":"DqEV2pNo+SstGvKHV","accounts":"CN9N-pj3","inbox":"DUukOf_u"}}]',
+    ) as unknown[];
+    expect([receiptProfile(names, '0.195.0')]).toEqual(reviewed);
+    expect(missingRoles(receiptFingerprint(names))).toEqual([]);
+  });
+
+  it('a copy laid out like 0.172.0 — a `messages` module and no `onlyfans` one — misses the `onlyfans` role: no profile can match', () => {
+    const names = fullCopy()
+      .map((file) => file.name)
+      .filter((name) => !name.startsWith('onlyfans-'))
+      .concat('messages-EEEEEEEE.js');
+    const modules = receiptFingerprint(names);
+    expect(modules).not.toHaveProperty('messages');
+    expect(missingRoles(modules)).toEqual(['onlyfans']);
+  });
+
+  it('[X8-06] the send path’s anchors name the composer bridge, the translator store, the queue store, the HTTP client and the open-chat echo handler — never the queue action itself', () => {
+    expect(new Set(contract.SEND_PATH_ANCHORS.map((anchor) => anchor.part))).toEqual(new Set(['composer bridge', 'translator store', 'queue store', 'HTTP client', 'open-chat echo handler', 'socket bus']));
+    expect(contract.SEND_PATH_ANCHORS.map((anchor) => anchor.value)).not.toContain(QUEUE_ACTION);
+  });
+
+  it('[X8-06] the regroup tripwire: 0.195.0’s layout passes — every send-path anchor is in a role module, the queue action beside its store', () => {
+    expect(sendPathOutsideRoles(sendPathCopy())).toEqual([]);
+  });
+
+  it('[X8-06] the regroup tripwire: an anchor in a file of no role — the entry module included — fails with its place', () => {
+    const moved = sendPathOutsideRoles(sendPathCopy({ ...PLACES_0195, 'composer bridge': 'ChatView-ZZZZZZZZ.js' }));
+    expect(moved).toEqual([{ part: 'composer bridge', anchor: 'member __omComposerBridge', at: [expect.stringMatching(/^ChatView-ZZZZZZZZ\.js:\d+$/)], count: 1 }]);
+    const entry = sendPathOutsideRoles(sendPathCopy({ ...PLACES_0195, 'HTTP client': 'index-AAAAAAAA.js' }));
+    expect(entry.map((problem) => [problem.part, problem.at[0]?.split(':')[0]])).toEqual(contract.SEND_PATH_ANCHORS.filter((anchor) => anchor.part === 'HTTP client').map(() => ['HTTP client', 'index-AAAAAAAA.js']));
+    // A second copy outside the roles counts even when the role module has one too.
+    const copy = sendPathCopy().map((file) => (file.name === 'ChatView-ZZZZZZZZ.js' ? { ...file, text: `${file.text}\nq = [\`${contract.KEY_MESSAGES}\`, a, f];` } : file));
+    expect(sendPathOutsideRoles(copy).map((problem) => problem.anchor)).toEqual([`string ${contract.KEY_MESSAGES}`]);
+  });
+
+  it('[X8-06] the regroup tripwire: 0.172.0’s layout under this adapter fails — `messages-*` holds the composer bridge, the translator and the echo handler, though no role is missing', () => {
+    const copy = sendPathCopy({ ...PLACES_0195, 'composer bridge': 'messages-HHHHHHHH.js', 'translator store': 'messages-HHHHHHHH.js', 'open-chat echo handler': 'messages-HHHHHHHH.js' });
+    // The blind spot it closes: a small `onlyfans` module is there, so every role has a module.
+    expect(missingRoles(receiptFingerprint(copy.map((file) => file.name)))).toEqual([]);
+    const problems = sendPathOutsideRoles(copy);
+    expect(problems.map((problem) => problem.part)).toEqual(['composer bridge', 'translator store', 'translator store', 'open-chat echo handler', 'open-chat echo handler']);
+    expect(problems.every((problem) => problem.at.every((place) => place.startsWith('messages-HHHHHHHH.js:')))).toBe(true);
+  });
+
+  it('[X8-06] the regroup tripwire: an anchor found nowhere, or a queue store without its action beside it, fails too', () => {
+    expect(sendPathOutsideRoles(sendPathCopy(PLACES_0195, { skip: 'afterResponse' }))).toEqual([{ part: 'HTTP client', anchor: 'member afterResponse', at: [], count: 0 }]);
+    expect(sendPathOutsideRoles(sendPathCopy(PLACES_0195, { queueActionIn: 'ChatView-ZZZZZZZZ.js' }))).toEqual([
+      { part: 'queue action', anchor: `queue action ${QUEUE_ACTION} beside store ${contract.STORE_QUEUE}`, at: ['notificationEntry-BBBBBBBB.js'], count: 1 },
+    ]);
   });
 
   it('against another copy: which role modules and which of their imports changed — hashes only', () => {
