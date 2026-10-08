@@ -1,6 +1,8 @@
 // §12 п. 4 on the wired extension, part 7 — degradation and restarts
 // (architecture.md §6.2, §7, §13): the TEST build on the stand against the
 // fake hub.
+// - ChatSpace renders its composers again after a pause (the same chat, new
+//   nodes, nothing MAIN hears of): the dock comes back over the new field;
 // - ChatSpace «updated» and lost a store (its send queue): the feature that
 //   needs it — the preview send — is off with its code, everything else
 //   works; «Статус» of the settings names the anchor that is gone, the popup
@@ -33,11 +35,13 @@ import { useNetworkTrap } from '../support/network-trap';
 import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
 import { waitForOptions, waitForPopup } from '../support/pages';
 import { dockIs, startShift, type Shift } from '../support/shift';
-import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
+import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
 const ACC = STAND_IDS.accounts.a;
 const { a1, a2, a4, a5, a6 } = STAND_IDS.fans;
 const reply = (fan: string): readonly [string, string] => [`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`];
+/** How long ChatSpace's composers are gone in a re-mount: far more than the dock takes to look for them. */
+const REMOUNT_GAP_MS = 300;
 
 describe('§12 п. 4 on the wired extension — degradation and restarts: what the person sees and what is never repeated', () => {
   useNetworkTrap();
@@ -117,6 +121,21 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
     const on = await dockIs((d) => d.notice === null && d.actions['reply'] === true, 'the dock works again', 20_000);
     expect(on).toMatchObject({ status: 'ready', mode: 'insert', banner: null });
     expect(await oursText('dock')).not.toContain('выключен владельцем');
+  });
+
+  it('[RB-008] [UI-001] ChatSpace renders its composers again after a pause — the same chat, new nodes, no store change, so MAIN says nothing new: the dock comes back over the new field by itself', async () => {
+    // A re-mount with a pause (a leave transition, a layout swap, an async part): when the dock looked, there was no
+    // composer, and the composer that came back is the same one to MAIN — only the DOM says it is there again.
+    const ready = await dockIs((d) => d.status === 'ready' && d.kind === 'in-flow', 'the dock over the open chat');
+    const [active] = (await composerRoots()).active;
+    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: active, firstChild: true, visible: true });
+    await browser.execute(() => document.querySelector('[data-cg="dock"]')?.parentElement?.setAttribute('data-e2e-before', ''));
+    await callStand('remountComposers', REMOUNT_GAP_MS);
+    const onNewField = async (): Promise<boolean> => browser.execute(() => document.querySelector('[data-cg="dock"]')?.parentElement?.matches('[data-stand-composer]:not([data-e2e-before])') === true);
+    await browser.waitUntil(onNewField, { timeout: 5000, timeoutMsg: 'the dock did not come back over the re-rendered composer' });
+    expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: active, firstChild: true, visible: true });
+    const back = await dockIs((d) => d.kind === 'in-flow' && d.inFlowFirstChild, 'the dock says it is in flow again');
+    expect(back).toMatchObject({ status: 'ready', target: ready.target });
   });
 
   it('[RB-008] [ER-049] [DB-031] ChatSpace lost its send queue (the store is gone): the preview send is off with CG-SEND-HOST, the dock still generates and inserts; «Статус» names the anchor, the popup says «контракт частично»', async () => {
