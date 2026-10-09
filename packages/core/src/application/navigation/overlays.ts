@@ -26,7 +26,10 @@ export interface OverlayState {
   set(overlay: OverlayKind, open: boolean, close?: UiAction): void;
   /** The action registered with the open overlay; null — none, or the overlay is closed. */
   closeAction(overlay: OverlayKind): UiAction | null;
-  /** Where the open preview came from (its view selector needs it); null — no preview. */
+  /**
+   * Where the open preview came from (its view selector needs it); null — no preview. A preview from the
+   * palette is a window of its own; one from Spenders or «Новые» is a part of their window.
+   */
   previewFrom(): PreviewSource | null;
   setPreview(from: PreviewSource | null): void;
   subscribe(listener: () => void): () => void;
@@ -61,8 +64,13 @@ export function createOverlayState(): OverlayState {
     closeAction: (overlay) => (open.includes(overlay) ? (closers.get(overlay) ?? null) : null),
     previewFrom: () => preview,
     setPreview(from) {
+      const moved = preview !== from;
       preview = from;
+      const before = open;
       set('preview', from !== null);
+      // Another source while a preview stays open: what is mounted for it changes (the palette's preview is a
+      // window of its own, CS-030), so the listeners hear it even though the list of open overlays did not move.
+      if (moved && open === before) changed();
     },
     subscribe(listener) {
       listeners.add(listener);

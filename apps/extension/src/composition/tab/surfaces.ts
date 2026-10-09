@@ -37,16 +37,22 @@ interface OverlaySpec {
   readonly entry: LazyEntryName;
   /** The surface inside the entry's module. */
   readonly pick: (module: Record<string, unknown>) => Surface;
+  /** Mounted only while this holds too (the overlay alone may stand for a part of another window); absent — always. */
+  readonly only?: (overlays: OverlayState) => boolean;
 }
 
 const surfaceOf = (module: Record<string, unknown>): Surface => module['surface'] as Surface;
 
-/** What OverlayState calls open → what is mounted for it. A preview and a dialog are parts of other surfaces. */
+/**
+ * What OverlayState calls open → what is mounted for it. A dialog is a part of another surface, and so is a
+ * preview from Spenders or «Новые»; a preview from the palette's «Онлайн» is a window of its own (CS-030, X24).
+ */
 export const OVERLAY_MOUNTS: Readonly<Partial<Record<OverlayKind, OverlaySpec>>> = {
   coach: { kind: 'coach', layer: 'panel', entry: 'coach', pick: surfaceOf },
   'fan-panel': { kind: 'fan-panel', layer: 'panel', entry: 'fan-panel', pick: surfaceOf },
   spenders: { kind: 'spenders', layer: 'modal', entry: 'spenders', pick: surfaceOf },
   newcomers: { kind: 'newcomers', layer: 'modal', entry: 'newcomers', pick: surfaceOf },
+  preview: { kind: 'preview', layer: 'modal', entry: 'preview', pick: surfaceOf, only: (overlays) => overlays.previewFrom() === 'palette' },
   palette: { kind: 'palette', layer: 'modal', entry: 'palette', pick: surfaceOf },
   'quick-jump': { kind: 'quick-jump', layer: 'modal', entry: 'palette', pick: (module) => module['quickJumpSurface'] as Surface },
   cheatsheet: { kind: 'cheatsheet', layer: 'modal', entry: 'cheatsheet', pick: surfaceOf },
@@ -111,6 +117,8 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
   let disposed = false;
 
   const layerRoot = (layer: OverlayLayer): ShadowRoot => overlayRoot(mounts, layer);
+  /** The overlay is open and stands for this surface now. */
+  const shown = (overlay: OverlayKind, spec: OverlaySpec): boolean => overlays.isOpen(overlay) && (spec.only?.(overlays) ?? true);
 
   const put = (kind: MountSurfaceKind, again: () => DockChunk.KitMount): DockChunk.KitMount => {
     const mount = again();
@@ -160,7 +168,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     const wanted = loading.get(overlay) === true;
     loading.delete(overlay);
     // Closed, or the tab went away, while the chunk was loading.
-    if (!wanted || disposed || !overlays.isOpen(overlay)) return;
+    if (!wanted || disposed || !shown(overlay, spec)) return;
     try {
       put(spec.kind, () => ui.mountKitSurface(spec.kind, layerRoot(spec.layer), spec.layer === 'panel' ? (env.panelDeps ?? deps) : deps, surface, options));
     } catch (error) {
@@ -173,9 +181,8 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
 
   const sync = (): void => {
     if (disposed) return;
-    const now = new Set(overlays.list());
     for (const [overlay, spec] of Object.entries(OVERLAY_MOUNTS) as [OverlayKind, OverlaySpec][]) {
-      if (now.has(overlay)) void open(overlay, spec);
+      if (shown(overlay, spec)) void open(overlay, spec);
       else {
         if (loading.has(overlay)) loading.set(overlay, false);
         drop(spec.kind);

@@ -32,8 +32,8 @@ const ZOOMED = [
   { zoom: 150, width: 960, height: 600 },
   { zoom: 200, width: 720, height: 450 },
 ] as const;
-/** One state of each surface at every zoom: the preview with «Отправить», a greeting in work, the fan panel, the palette. */
-const ZOOM_STATES = ['11a', '11i', '13b', '14a', '15a'] as const;
+/** One state of each surface at every zoom: the preview with «Отправить», a greeting in work, the fan panel, the palette, the palette's preview window. */
+const ZOOM_STATES = ['11a', '11i', '13b', '14a', '15a', 'online-b'] as const;
 /** With a preview open the statistics column gives way at this width and below; Spenders is one column from the second one down. */
 const SPENDERS_NO_STATS_PX = 1120;
 const SPENDERS_ONE_COLUMN_PX = 860;
@@ -64,6 +64,8 @@ const STATES: Readonly<Record<string, string>> = {
   '15a': '.cg-pal',
   '15b': '.cg-pal',
   'quick-jump': '.cg-qj',
+  'online-a': '.cg-pvw .cg-pv',
+  'online-b': '.cg-pvw .cg-pvp',
 };
 
 /** Budgets of architecture.md §11. */

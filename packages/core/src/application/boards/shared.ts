@@ -22,8 +22,9 @@ const CLOSED: SurfacesState = { spenders: false, newcomers: false, fanPanel: fal
 
 /**
  * Open state of the R12 overlays. The lists are one window at a time: opening
- * one closes the other with its preview. The composition root reads it to
- * mount and unmount the surfaces.
+ * one closes the other with its preview. The palette's preview (CS-030) is a
+ * window of its own and one of them too: it closes the lists, and a list
+ * closes it. The composition root reads it to mount and unmount the surfaces.
  */
 export class Surfaces {
   private state: SurfacesState = CLOSED;
@@ -59,9 +60,9 @@ export class Surfaces {
   setList(list: 'spenders' | 'newcomers', open: boolean): void {
     const s = this.state;
     if (list === 'spenders') {
-      this.set(open ? { ...s, spenders: true, newcomers: false, preview: { ...s.preview, newcomers: null } } : { ...s, spenders: false, preview: { ...s.preview, spenders: null } });
+      this.set(open ? { ...s, spenders: true, newcomers: false, preview: { ...s.preview, newcomers: null, palette: null } } : { ...s, spenders: false, preview: { ...s.preview, spenders: null } });
     } else {
-      this.set(open ? { ...s, newcomers: true, spenders: false, preview: { ...s.preview, spenders: null } } : { ...s, newcomers: false, preview: { ...s.preview, newcomers: null } });
+      this.set(open ? { ...s, newcomers: true, spenders: false, preview: { ...s.preview, spenders: null, palette: null } } : { ...s, newcomers: false, preview: { ...s.preview, newcomers: null } });
     }
   }
 
@@ -70,7 +71,10 @@ export class Surfaces {
   }
 
   setPreview(source: PreviewSource, handle: TargetHandle | null): void {
-    this.set({ ...this.state, preview: { ...this.state.preview, [source]: handle } });
+    const s = this.state;
+    // The palette's preview opens in its own window: the lists and their previews close.
+    if (source === 'palette' && handle !== null) this.set({ ...s, spenders: false, newcomers: false, preview: { spenders: null, newcomers: null, palette: handle } });
+    else this.set({ ...s, preview: { ...s.preview, [source]: handle } });
   }
 
   /** A chat opens from a board: the lists and their previews close (SP-035). */

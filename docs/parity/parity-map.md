@@ -1041,7 +1041,7 @@
 | CS-027 | Message Guard в черновике | решение владельца | убрано владельцем | — | — | — | **решено** Б10 |
 | CS-028 | Эмодзи, отложенная отправка, загрузка с диска | ChatSpace | даёт ChatSpace | — | — | — |  |
 | CS-029 | «Онлайн» | ChatSpace | даёт ChatSpace | — | — | — |  |
-| CS-030 | Превью и Ping из «Онлайн» | решение владельца | пилот | core/app/preview · core/navigation | R12 · R17 | M6 | **решено** превью и Ping для фанов, которых ChatSpace уже показал онлайн; своего опроса онлайна нет (B (В12 → А7)) |
+| CS-030 | Превью и Ping из «Онлайн» | решение владельца | пилот | core/app/preview · core/navigation · ui/preview | R12 · R17 | M6 | **решено** превью и Ping для фанов, которых ChatSpace уже показал онлайн; своего опроса онлайна нет (B (В12 → А7)); точка входа — группа «Онлайн» палитры, превью в своём окне (X24) |
 | CS-031 | Панель фана `]` | решение владельца | пилот | core/fanpanel · ui/fanpanel · hub/spenders | R12 · R15 · R08 | M6 | **решено** А8 |
 | CS-032 | Info: кто это, «РИСК ОТТОКА» | ChatSpace | пилот + ChatSpace | core/fanpanel · ui/fanpanel · hub/spenders | R12 · R15 · R08 | M6 | **перекласс.** родная Info остаётся; наша панель: подписка, автопродление, риск оттока из spenderDetail (A · B) |
 | CS-033 | Info: траты по видам | решение владельца | пилот | core/fanpanel · ui/fanpanel · hub/spenders | R12 · R15 · R08 | M6 | **решено** А8: spenderDetail.typeBreakdown |

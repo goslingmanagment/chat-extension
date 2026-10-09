@@ -277,8 +277,15 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     else cells[source].invalidate();
     dockChanged();
   };
+  /** The card of `handle` and every other open card of the same fan: a result of the fan may stand on any of them. */
   const changedFor = (handle: TargetHandle): void => {
-    for (const s of SOURCES) if (surfaces.current().preview[s] === handle) cells[s].invalidate();
+    const fan = parseFanHandle(handle);
+    for (const s of SOURCES) {
+      const open = surfaces.current().preview[s];
+      if (open === null) continue;
+      const other = open === handle ? null : parseFanHandle(open);
+      if (open === handle || (fan !== null && other !== null && other.pageId === fan.pageId && other.fanRef === fan.fanRef)) cells[s].invalidate();
+    }
     dockChanged();
   };
 
@@ -538,6 +545,24 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   // ── operations ──
 
+  /**
+   * The open card that shows the result: its own, or another card of the same fan that took it up — the
+   * previews are one window at a time, so a result made in Spenders stands alone in the palette's window of the
+   * fan, and the other way round (X24). null — no open card shows it.
+   */
+  function shownOn(track: OpTrack): TargetState | null {
+    if (currentOp.get(track.handle) === track.opId) {
+      const own = targets.get(track.handle);
+      if (own !== undefined) return own;
+    }
+    for (const [handle, opId] of currentOp) {
+      if (opId !== track.opId) continue;
+      const state = targets.get(handle);
+      if (state !== undefined) return state;
+    }
+    return null;
+  }
+
   /** A part of this result is on its way or its outcome is unknown: the result holds its fan and is neither hidden nor dropped. */
   function holdsFan(track: OpTrack): boolean {
     if (track.clicked.size > 0) return true;
@@ -560,7 +585,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    */
   function pruneTracks(): void {
     const now = clock.now();
-    const kept = (track: OpTrack): boolean => holdsFan(track) || (currentOp.get(track.handle) === track.opId && targets.has(track.handle)) || pendingInsert?.track === track;
+    const kept = (track: OpTrack): boolean => holdsFan(track) || shownOn(track) !== null || pendingInsert?.track === track;
     for (const track of [...tracks.values()]) {
       const ended = track.mirror.done?.endedAt ?? null;
       if (!kept(track) && ended !== null && now - ended > OP_LIMITS.resultTtlMs) dropTrack(track);
@@ -888,8 +913,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function markFanWrote(track: OpTrack, at: string | null): void {
     track.fanWrote = true;
     track.fanWroteAt = at ?? track.fanWroteAt;
-    const state = targets.get(track.handle);
-    if (state !== undefined) startPoll(state);
+    const state = targets.get(track.handle) ?? shownOn(track);
+    if (state !== null && state !== undefined) startPoll(state);
   }
 
   // ── the send gate ──
@@ -903,7 +928,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   /** The hub confirms a current subscription of the fan to this page (X8 condition 9). */
   function subscribed(track: OpTrack): boolean {
     if (track.source === 'newcomers') return deps.greeting?.subscribed(track.fanRef) ?? false;
-    const page = targetPage(targets.get(track.handle)?.card ?? null, track.pageId);
+    const page = targetPage((targets.get(track.handle) ?? shownOn(track))?.card ?? null, track.pageId);
     if (page === null || !page.isSubscriber) return false;
     if (page.subscriptionExpiresAt === null) return true;
     const ends = Date.parse(page.subscriptionExpiresAt);
@@ -1832,7 +1857,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         return Promise.resolve(done(type));
       }
       if (action.type === 'Regenerate') {
-        const state = stateOf(track.handle);
+        const state = stateOf(track.handle) ?? shownOn(track);
         if (state === null) return Promise.resolve(refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n)));
         const rule = regenerateRule(track);
         if (!rule.allowed) return Promise.resolve(refused(type, localError(rule.reason === null ? 'CG-SEND-BUSY' : reasonCode(rule.reason), i18n)));
@@ -1915,7 +1940,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
           else cancelInsert('human-navigation');
         }
         // Only a result on an open card asks MAIN again: a closed card costs no bridge call.
-        for (const track of tracks.values()) if (track.mirror.done !== null && currentOp.get(track.handle) === track.opId && targets.has(track.handle)) void refreshPreflight(track);
+        for (const track of tracks.values()) if (track.mirror.done !== null && shownOn(track) !== null) void refreshPreflight(track);
         changed();
         return;
       }
@@ -1932,7 +1957,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         return;
       }
       if (event.type === 'coverage' || event.type === 'accounts') {
-        for (const track of tracks.values()) if (track.mirror.done !== null && currentOp.get(track.handle) === track.opId && targets.has(track.handle)) void refreshPreflight(track);
+        for (const track of tracks.values()) if (track.mirror.done !== null && shownOn(track) !== null) void refreshPreflight(track);
       }
     }),
   );
@@ -1984,7 +2009,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       },
       showing(opId) {
         const track = tracks.get(opId);
-        return track !== undefined && !track.hidden && targets.has(track.handle) && currentOp.get(track.handle) === opId;
+        return track !== undefined && !track.hidden && shownOn(track) !== null;
       },
       subscribe(listener) {
         dockListeners.add(listener);

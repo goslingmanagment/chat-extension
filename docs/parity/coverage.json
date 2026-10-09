@@ -1,8 +1,8 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 223,
-    "e2e": 34
+    "unit": 224,
+    "e2e": 35
   },
   "totals": {
     "name": "всего",
@@ -317,8 +317,8 @@
       "planned": "unit",
       "rows": 426,
       "inUnit": 426,
-      "inE2e": 92,
-      "unitOnly": 334,
+      "inE2e": 94,
+      "unitOnly": 332,
       "uncovered": 0
     },
     {
@@ -374,7 +374,7 @@
     {"id":"AI-035","function":"Ping","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":[],"covered":true},
     {"id":"AI-036","function":"Ping для активного фана","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts"],"e2e":[],"covered":true},
     {"id":"AI-037","function":"Сегмент Ping на клиенте","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
-    {"id":"AI-038","function":"Показ сегмента Ping A/B","target":"пилот","owner":"R12","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-spenders.test.ts","packages/testing/src/boards/preview.test.tsx"],"e2e":[],"covered":true},
+    {"id":"AI-038","function":"Показ сегмента Ping A/B","target":"пилот","owner":"R12","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-spenders.test.ts","packages/testing/src/boards/preview.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-online.e2e.ts"],"covered":true},
     {"id":"AI-039","function":"Шаблоны реактивации","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts"],"e2e":[],"covered":true},
     {"id":"AI-050","function":"Review","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":[],"covered":true},
     {"id":"AI-051","function":"Минимум 30 сообщений","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/core/test/application-dock.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/analysis.test.tsx"],"e2e":[],"covered":true},
@@ -542,7 +542,7 @@
     {"id":"SP-053","function":"Догрузка переписки в превью","target":"пилот","owner":"R12","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-spenders.test.ts","packages/testing/src/boards/preview.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-preview.e2e.ts"],"covered":true},
     {"id":"SP-054","function":"Отправка из превью","target":"пилот + Fansly","owner":"R10","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-send.test.ts","packages/core/test/services-native-send.test.ts","packages/core/test/services-send.test.ts","packages/host-chatspace/src/isolated/live.dom.test.ts","packages/host-chatspace/src/main/live.dom.test.ts","packages/host-chatspace/src/main/send-port.test.ts","packages/testing/src/boards/gallery.test.ts","packages/testing/src/boards/send.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-x8.e2e.ts","packages/testing/e2e/specs/x8-send.e2e.ts"],"covered":true},
     {"id":"SP-055","function":"AI в превью","target":"пилот","owner":"R12","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/testing/src/boards/preview.test.tsx"],"e2e":[],"covered":true},
-    {"id":"SP-056","function":"Соседний фан в превью","target":"пилот","owner":"R12","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-spenders.test.ts","packages/testing/src/boards/preview.test.tsx"],"e2e":[],"covered":true},
+    {"id":"SP-056","function":"Соседний фан в превью","target":"пилот","owner":"R12","milestones":["M4"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-spenders.test.ts","packages/testing/src/boards/preview.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-online.e2e.ts"],"covered":true},
     {"id":"SP-057","function":"Цена платного обновления","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/hub-boundary.test.ts"],"e2e":[],"covered":true},
     {"id":"NF-001","function":"Вход в «Новые»","target":"пилот","owner":"R12","milestones":["M5"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/testing/src/boards/newcomers.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-newcomers.e2e.ts"],"covered":true},
     {"id":"NF-002","function":"Окно «Новых»","target":"пилот","owner":"R12","milestones":["M5"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/testing/src/boards/newcomers.test.tsx"],"e2e":[],"covered":true},
@@ -1032,7 +1032,7 @@
     {"id":"RB-019","function":"Фан в контексте вкладки","target":"пилот","owner":"R10","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/services-scheduler.test.ts"],"e2e":[],"covered":true},
     {"id":"RB-020","function":"Новое состояние побеждает","target":"пилот","owner":"R10","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-ops.test.ts","packages/core/test/domain-send.test.ts"],"e2e":[],"covered":true},
     {"id":"RB-021","function":"Одна операция на чат","target":"пилот","owner":"R10","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/domain-ops.test.ts","packages/core/test/services-scheduler.test.ts"],"e2e":[],"covered":true},
-    {"id":"RB-022","function":"Ничто не помечает чаты прочитанным","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts","packages/testing/e2e/specs/suite-shift.e2e.ts","packages/testing/e2e/specs/x8-send.e2e.ts"],"covered":true},
+    {"id":"RB-022","function":"Ничто не помечает чаты прочитанным","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-online.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts","packages/testing/e2e/specs/suite-shift.e2e.ts","packages/testing/e2e/specs/x8-send.e2e.ts"],"covered":true},
     {"id":"RB-023","function":"Повторы и параллелизм REST Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"RB-024","function":"Отправки десктопа (outbox)","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"RB-025","function":"Опрос и сверка списка чатов","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
@@ -1104,7 +1104,7 @@
     {"id":"CS-027","function":"Message Guard в черновике","target":"убрано владельцем","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true},
     {"id":"CS-028","function":"Эмодзи, отложенная отправка, загрузка с диска","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"CS-029","function":"«Онлайн»","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
-    {"id":"CS-030","function":"Превью и Ping из «Онлайн»","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/navigation/navigation.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-navigation.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/stand-fixture.e2e.ts"],"covered":true},
+    {"id":"CS-030","function":"Превью и Ping из «Онлайн»","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/surfaces.test.ts","packages/core/src/domain/hotkeys/hotkeys.test.ts","packages/core/src/domain/navigation/navigation.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-hotkeys.test.ts","packages/core/test/application-navigation.test.ts","packages/testing/src/boards/preview-window.test.tsx","packages/testing/src/kit/mount.test.tsx"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/stand-fixture.e2e.ts","packages/testing/e2e/specs/suite-online.e2e.ts"],"covered":true},
     {"id":"CS-031","function":"Панель фана `]`","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/panel-geometry.test.ts","apps/extension/src/composition/tab/recap-tab.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":["packages/testing/e2e/specs/boards-gallery.e2e.ts","packages/testing/e2e/specs/suite-panels-0195.e2e.ts","packages/testing/e2e/specs/suite-panels.e2e.ts"],"covered":true},
     {"id":"CS-032","function":"Info: кто это, «РИСК ОТТОКА»","target":"пилот + ChatSpace","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/contracts/test/vm.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
     {"id":"CS-033","function":"Info: траты по видам","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},

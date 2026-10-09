@@ -6,13 +6,13 @@
 // the browser, the network or ChatSpace's DOM.
 
 import { type HostPort } from '@cg/contracts/host';
-import { type I18n } from '@cg/contracts/vm';
+import { type ActionReceipt, type I18n } from '@cg/contracts/vm';
 
 import { type BoardHandover } from '../board-handover';
 import { createFanPanelController, type FanPanelController } from '../fanpanel/controller';
 import { createNewcomersController, type NewcomersController } from '../newcomers/controller';
 import { createPreviewController, type PreviewController } from '../preview/controller';
-import { createPaletteDirectory, type PaletteDirectory } from '../preview/palette';
+import { createPaletteDirectory, openOnlinePreview, type OnlineChat, type PaletteDirectory } from '../preview/palette';
 import { createSpendersController, type SpendersController } from '../spenders/controller';
 import { createPageContext, type PageContextPort } from './context';
 import { createChatNavigator } from './navigate';
@@ -56,6 +56,8 @@ export interface BoardsControllers {
   readonly fanPanel: FanPanelController;
   /** The fans ChatSpace shows online, for the palette's group (CS-030). */
   readonly palette: PaletteDirectory;
+  /** The palette's «Онлайн» choice: OUR preview of the fan in its own window, walking the list the palette showed (X24). */
+  openOnline(chat: OnlineChat, shown: readonly OnlineChat[]): Promise<ActionReceipt>;
   /** Every controller, in the order the router offers them an action. */
   readonly controllers: readonly SurfaceController[];
   /** Which of these overlays are open: the composition root mounts and unmounts by it. */
@@ -136,6 +138,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     newcomers,
     fanPanel,
     palette,
+    openOnline: (chat, shown) => openOnlinePreview(palette, preview, i18n, chat, shown),
     controllers,
     surfaces,
     context,

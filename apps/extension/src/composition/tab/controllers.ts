@@ -14,6 +14,7 @@
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
+import type { ChatRef } from '@cg/contracts/ids';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
@@ -143,7 +144,14 @@ export interface TabNavigation {
   dispose(): void;
 }
 
-export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, catalog: ActionCatalog, ai: TabAi, open: { coach(): Promise<ActionReceipt> }): TabNavigation {
+/** What the navigation family opens through the other families (the composition root binds them late). */
+export interface NavigationOpeners {
+  coach(): Promise<ActionReceipt>;
+  /** The palette's «Онлайн» choice: OUR preview of the fan in its own window (the boards' `openOnline`, X24). */
+  preview(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt>;
+}
+
+export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, catalog: ActionCatalog, ai: TabAi, open: NavigationOpeners): TabNavigation {
   const { router, keys, gate, client, host, i18n, clock, toasts, logger } = world;
   const overlays = keys.overlays;
   const offs: (() => void)[] = [];
@@ -171,6 +179,8 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     clock,
     overlays,
     dock: { get: dockView, subscribe: (listener) => router.subscribe({ of: 'dock' }, () => listener()) },
+    // «Онлайн» (CS-030): a fan ChatSpace shows online opens in our preview window; no chat is opened (X24).
+    preview: { open: (chat, shown) => open.preview(chat, shown) },
   });
   const quickJump = chunk.createQuickJumpController({ host, i18n, overlays, clock });
   const cheatsheet = chunk.createCheatsheetController({ catalog });
@@ -265,6 +275,8 @@ export function dockChatBridge(ai: typeof AiChunk, navigation: NavigationChunk.N
 // ── boards: Spenders, «Новые», the fan panel, the preview ───────────────────
 
 export interface TabBoards {
+  /** The palette's «Онлайн» choice: OUR preview of the fan in its own window, walking the list the palette showed (X24). */
+  openOnline(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt>;
   dispose(): void;
 }
 
@@ -422,6 +434,7 @@ export async function startBoards(
   await Promise.all([context.refresh().catch(() => undefined), preview.ready().catch(() => undefined)]);
 
   return {
+    openOnline: (chat, shown) => previewChunk.openOnlinePreview(palette, preview, i18n, chat, shown),
     dispose() {
       dock.bind(null);
       win.removeEventListener('online', onOnline);

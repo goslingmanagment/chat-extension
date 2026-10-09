@@ -20,6 +20,7 @@
     "./newcomers": "./src/newcomers/index.ts",
     "./fanpanel": "./src/fanpanel/index.ts",
     "./palette": "./src/palette/index.ts",
+    "./preview": "./src/preview/index.ts",
     "./pages": "./src/pages/index.ts"
   },
   "dependencies": {

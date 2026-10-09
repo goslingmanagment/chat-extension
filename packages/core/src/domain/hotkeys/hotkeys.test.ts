@@ -520,6 +520,23 @@ describe('whose key is it', () => {
     }
   });
 
+  it('[CS-030] the palette’s preview window alone (X24): its fan’s keys generate there, Esc closes it, and no key walks ChatSpace’s chats under it', () => {
+    for (const route of ['chat', 'account'] as const) {
+      for (const focus of ['ours', 'page'] as const) {
+        const alone = ctx({ route, overlays: ['preview'], focus, combo: true });
+        for (const id of ['reply', 'fix', 'hi', 'ping', 'tone', 'split'] as const) expect([route, focus, ran(decideKey(cmd(id), alone))]).toEqual([route, focus, `${id}@preview`]);
+        expect(ran(decideKey(cmd('cancel'), alone))).toBe('cancel@preview');
+        // ⌘U and ⌘1–9 are refused: opening a chat would mark it read on OnlyFans.
+        for (const id of ['next-unread', 'quick-jump'] as const) expect(decideKey(cmd(id), alone)).toMatchObject({ act: 'claim', run: null, refusal: 'overlay-open' });
+        // J and K (no ⌘) are the window's own: inside it they walk the palette's list, never ChatSpace's chats.
+        for (const id of ['chat-next', 'chat-previous'] as const) expect(ran(decideKey(cmd(id), ctx({ route, overlays: ['preview'], focus, combo: false })))).toBeNull();
+      }
+    }
+    // Esc: with the focus inside, the window's own Esc first, then the top of ours; outside it, the top of ours at once.
+    expect(decideKey(cmd('close'), ctx({ overlays: ['preview'], focus: 'ours' }))).toMatchObject({ act: 'isolate', otherwise: { id: 'close', target: 'global' } });
+    expect(ran(decideKey(cmd('close'), ctx({ overlays: ['preview'], focus: 'page' })))).toBe('close@global');
+  });
+
   it('[HK-030] [SP-033] inside our UI a key ChatSpace would act on is kept from it and left to our element; typing passes untouched', () => {
     // Enter on a card or in the Coach question, the arrows of a list, Tab, ⌘C: never a dispatcher command.
     expect(decideUnmatched({ composing: false, focus: 'ours', combo: true })).toEqual({ act: 'isolate', otherwise: null });

@@ -23,6 +23,7 @@
 import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { HostContractReport } from '@cg/contracts/host';
+import type { ChatRef } from '@cg/contracts/ids';
 import type { Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import type { UiLocale, UiTheme } from '@cg/contracts/settings';
@@ -357,7 +358,17 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     const receipt = await router.dispatch({ type: 'Generate', targetHandle: target, feature: 'coach', options: {} });
     return { ...receipt, type: 'Navigate' };
   };
-  const navigation = startNavigation(world, navigationChunk, catalog, ai, { coach: openCoach });
+  /**
+   * The palette's «Онлайн» (CS-030): OUR preview of the fan in its own window, with the boards (X24). The palette
+   * stays open on a refusal — nobody signed in, no binding, ChatSpace no longer shows the fan online — and the
+   * reason is a toast: the palette itself has no place for it.
+   */
+  const openOnline = async (chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt> => {
+    const receipt = await ensureBoards().then((started) => started.openOnline(chat, shown));
+    if (!receipt.ok && !disposed) say(receipt.code, 'palette.online', null);
+    return receipt;
+  };
+  const navigation = startNavigation(world, navigationChunk, catalog, ai, { coach: openCoach, preview: openOnline });
   offs.push(() => navigation.dispose());
   offs.push(router.register(adopt(dockChatBridge(aiChunk, navigation.navigation, gate))));
 
@@ -408,6 +419,10 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
 
   // ── the surfaces: the dock and the toasts now, every overlay with its first show ──
   const focus = { last: null as Element | null };
+  // Where the person is as the application starts: with no chat open it starts on a key of ours (⌘K, HK-024), and
+  // the window that key opens gives the focus back there — no focusin has been heard yet.
+  const startedIn = doc.activeElement;
+  if (startedIn !== null && startedIn !== doc.body && startedIn !== doc.documentElement && mounts.registry.rootOf(startedIn) === null) focus.last = startedIn;
   const onFocusIn = (event: Event): void => {
     // Where the person was before one of our windows took the focus: the composer, a row of ChatSpace's list.
     if (mounts.registry.hostOf(event) === null && event.target instanceof Element) focus.last = event.target;
@@ -491,6 +506,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     onLoadFailed(kind: MountSurfaceKind) {
       // The window did not come: say so and let the keys go back to the page.
       toasts.show({ kind: 'error', code: 'CG-UI-FAILED', scope: `surface.${kind}`, title: { key: 'cg.uiFailed.title' }, body: { key: 'cg.uiFailed.body' } });
+      // The palette's preview window is the boards' state: closed there, its overlay and its source go with it.
+      if (kind === 'preview' && router.serves('preview')) void router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
       for (const overlay of keys.overlays.list()) if (overlay === kind) keys.overlays.set(overlay, false);
     },
   });

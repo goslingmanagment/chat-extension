@@ -8,7 +8,8 @@
 //
 // ChatSpace's own palette stays as it is; this one never loads a page of the
 // chat list and never polls who is online — «Онлайн» lists only the fans
-// ChatSpace itself already shows online, and opens OUR preview for them.
+// ChatSpace itself already shows online, and opens OUR preview for them in a
+// window of its own (X24): the chat is not opened and stays unread.
 //
 // ChatSpace's rows come from the host port's own copy of its list, which the
 // port reads again only when asked and tells nobody when the read lands (the
@@ -135,8 +136,12 @@ export interface PaletteControllerDeps {
   readonly dock: { get(): DockVM | null; subscribe(listener: () => void): () => void };
   /** Hub rows; omitted — `createPaletteHub(rpc)`. */
   readonly hub?: PaletteHubPort;
-  /** Our preview of a fan ChatSpace shows online (CS-030); omitted — no «Онлайн» group. */
-  readonly preview?: { open(chat: ChatRef): Promise<ActionReceipt> };
+  /**
+   * Our preview of a fan ChatSpace shows online (CS-030), in its own window (X24); omitted — no «Онлайн»
+   * group. `shown` — the group as the person saw it at the choice, in its order: the preview's previous and
+   * next walk exactly these fans.
+   */
+  readonly preview?: { open(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt> };
 }
 
 type Loaded<T> = { readonly at: number; readonly source: PaletteSource<T> };
@@ -474,11 +479,17 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       }
       return Promise.resolve({ ok: true, type: 'Search', outcome: 'done' });
     }
-    // An online fan's row opens OUR preview (the chat stays unread), through the preview's own controller.
+    // An online fan's row opens OUR preview (the chat stays unread), through the preview's own controller; the
+    // group on screen goes with it, for the preview's neighbours.
     if (action.type === 'OpenPreview' && deps.preview !== undefined) {
       const chat = parseChatHandle(action.targetHandle);
       if (chat === null) return null;
-      return deps.preview.open({ host: host.kind, ...chat }).then((receipt) => {
+      const shown: ChatRef[] = [];
+      for (const row of snapshotView().groups.find((group) => group.id === 'online')?.items ?? []) {
+        const other = row.action.type === 'OpenPreview' ? parseChatHandle(row.action.targetHandle) : null;
+        if (other !== null) shown.push({ host: host.kind, ...other });
+      }
+      return deps.preview.open({ host: host.kind, ...chat }, shown).then((receipt) => {
         if (receipt.ok) overlays.set('palette', false);
         return receipt;
       });
