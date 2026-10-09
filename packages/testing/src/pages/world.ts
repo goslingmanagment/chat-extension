@@ -91,7 +91,7 @@ function runningOp(n: number, feature: OpView['feature'], fan: string, now: numb
 export function workingState(now: number = PAGES_NOW): BackgroundState {
   const hub = DEFAULT_SETTINGS.hub.baseUrl;
   const accounts: SeenAccountFixture[] = [
-    { account: account('1001', '3003', 'loravie_vip', 'LoraVie VIP'), lastSeenAt: iso(now - MIN), openTabs: 1 },
+    { account: account('1001', '3003', 'loravie_vip', 'LoraVie VIP'), lastSeenAt: iso(now - MIN), openTabs: 1, routeTabs: 1 },
     { account: account('1002', '3004', 'loravie_free', 'LoraVie Free'), lastSeenAt: iso(now - 3 * HOUR), openTabs: 0 },
     { account: account('1003', '3005', 'lora_reels', 'Lora Reels'), lastSeenAt: iso(now - 26 * HOUR), openTabs: 0 },
     { account: account('1004', '3006', 'anna_m', 'Anna M'), lastSeenAt: iso(now - 50 * HOUR), openTabs: 0 },

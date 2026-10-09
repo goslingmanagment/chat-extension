@@ -179,6 +179,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
           .request('tab.presence', {
             chat: snapshot.route.chat,
             routeEpoch: snapshot.route.epoch,
+            // The account the route is on, chat open or not: of the loaded accounts, the one the person works under.
+            routeAccount: snapshot.route.account,
             visible: doc.visibilityState === 'visible',
             focused: doc.hasFocus(),
             ...(include ? { accounts: [...accounts] } : {}),

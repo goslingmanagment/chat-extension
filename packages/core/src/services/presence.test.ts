@@ -98,6 +98,41 @@ describe('[AU-034] [AU-035] seen host accounts in storage.local `presence` (§9.
     expect(presence.seenAccounts().map((item) => item.openTabs)).toEqual([0, 1]);
   });
 
+  it('[AU-034] a tab with two accounts loaded is on one of them: routeTabs counts the route, openTabs the loaded ones', async () => {
+    const { presence } = setup();
+    // ChatSpace on /accounts/<other>/chats, no chat open: both accounts loaded, the route on the second one listed.
+    await presence.report('tab-a', { chat: null, routeEpoch: 1, visible: true, focused: true, accounts: [account, other], routeAccount: other });
+    const counts = () => presence.seenAccounts().map((item) => [item.account.hostAccountId, item.openTabs, item.routeTabs]);
+    expect(counts()).toEqual([
+      [IDS.otherAcc, 1, 1],
+      [IDS.acc, 1, 0],
+    ]);
+    expect(presence.tabs()[0]?.routeAccount).toBe(`chatspace:${IDS.otherAcc}`);
+    // The route moves to the first account (a chat of it opens); the loaded list is not sent again and stays.
+    await presence.report('tab-a', { chat, routeEpoch: 2, visible: true, focused: true, routeAccount: account });
+    expect(counts()).toEqual([
+      [IDS.otherAcc, 1, 0],
+      [IDS.acc, 1, 1],
+    ]);
+    // A route that names no account, and a report from a tab before contracts 1.8.0, are on none.
+    await presence.report('tab-a', { chat: null, routeEpoch: 3, visible: true, focused: true, routeAccount: null });
+    expect(counts()).toEqual([
+      [IDS.otherAcc, 1, 0],
+      [IDS.acc, 1, 0],
+    ]);
+    await presence.report('tab-b', { chat: null, routeEpoch: 1, visible: true, focused: true, accounts: [other] });
+    expect(presence.tabs().find((tab) => tab.tabSessionId === 'tab-b')?.routeAccount).toBeNull();
+    expect(counts()).toEqual([
+      [IDS.otherAcc, 2, 0],
+      [IDS.acc, 1, 0],
+    ]);
+    presence.tabGone('tab-a');
+    expect(counts()).toEqual([
+      [IDS.otherAcc, 1, 0],
+      [IDS.acc, 0, 0],
+    ]);
+  });
+
   it('[AU-035] a known account is refreshed at most every 10 minutes, or when it changed; one set per change', async () => {
     const { presence, local, clock } = setup();
     await presence.report('tab-a', { chat, routeEpoch: 1, visible: true, focused: true, accounts: [account] });

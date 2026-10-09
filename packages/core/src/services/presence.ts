@@ -6,7 +6,9 @@
 //   shows comes with its `tab.presence` reports. In memory only — a tab
 //   session lives as long as its port, and after the event page unloads
 //   every tab registers again and reports anew. Out-of-order reports (an
-//   older route epoch) are ignored.
+//   older route epoch) are ignored. A tab's ChatSpace may have several
+//   accounts loaded; the one its route is on is the one the person works
+//   under there (`routeTabs`, «Статус»), the loaded ones are `openTabs`.
 // - Seen host accounts: the `presence` key of storage.local, newest first,
 //   at most 500 (PresenceStoreSchema). One set per change, and a known
 //   account's time is refreshed at most every 10 minutes, so reports do not
@@ -28,6 +30,8 @@ export interface TabPresenceReport {
   readonly visible: boolean;
   readonly focused: boolean;
   readonly accounts?: readonly HostAccount[] | undefined;
+  /** The account the tab's route is on; absent — a tab from before contracts 1.8.0. */
+  readonly routeAccount?: HostAccount | null | undefined;
 }
 
 export interface TabPresence {
@@ -39,6 +43,11 @@ export interface TabPresence {
   readonly focused: boolean;
   /** Host accounts this tab's ChatSpace has loaded (its last list). */
   readonly accounts: readonly HostAccountKey[];
+  /**
+   * The one account the tab's route is on, chat open or not: ChatSpace loads every account of the person,
+   * so `accounts` may hold several. null — the route names none, or the tab did not say (before 1.8.0).
+   */
+  readonly routeAccount: HostAccountKey | null;
   readonly updatedAt: number;
 }
 
@@ -47,6 +56,8 @@ export interface SeenAccountView {
   readonly lastSeenAt: string;
   /** Tabs whose last list has this account. */
   readonly openTabs: number;
+  /** Tabs whose route is on this account now: the account the person works under there. */
+  readonly routeTabs: number;
 }
 
 export interface PresenceService {
@@ -179,6 +190,9 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         visible: report.visible,
         focused: report.focused,
         accounts: accountKeys,
+        // Every report carries the route as it is now (the tab sends it with each); an older tab's report
+        // says nothing of it, and nothing is assumed.
+        routeAccount: report.routeAccount ? hostAccountKeyOf(report.routeAccount.host, report.routeAccount.hostAccountId) : null,
         updatedAt: now,
       });
       notify();
@@ -213,8 +227,12 @@ export function createPresence(deps: PresenceDeps): PresenceService {
       return seen.map((item) => {
         const key = hostAccountKeyOf(item.account.host, item.account.hostAccountId);
         let openTabs = 0;
-        for (const tab of tabs.values()) if (tab.accounts.includes(key)) openTabs += 1;
-        return { account: { ...item.account }, lastSeenAt: item.lastSeenAt, openTabs };
+        let routeTabs = 0;
+        for (const tab of tabs.values()) {
+          if (tab.accounts.includes(key)) openTabs += 1;
+          if (tab.routeAccount === key) routeTabs += 1;
+        }
+        return { account: { ...item.account }, lastSeenAt: item.lastSeenAt, openTabs, routeTabs };
       });
     },
     clearSeen() {

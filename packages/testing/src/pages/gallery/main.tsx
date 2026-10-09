@@ -61,7 +61,7 @@ function stateOf(name: string): BackgroundState {
   if (name === 'debug') state.settings = { ...state.settings, debug: { enabled: true, renderTrace: false } };
   if (name === 'no-chatspace') {
     state.diagnostics = { ...state.diagnostics, tabs: [], sound: { ...state.diagnostics.sound, listeningTabs: 0 } };
-    state.accounts = state.accounts.map((entry) => ({ ...entry, openTabs: 0 }));
+    state.accounts = state.accounts.map((entry) => ({ ...entry, openTabs: 0, routeTabs: 0 }));
   }
   state.settings = { ...state.settings, ui: { ...state.settings.ui, theme, locale: language } };
   return state;

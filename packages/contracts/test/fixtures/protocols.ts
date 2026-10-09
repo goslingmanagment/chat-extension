@@ -74,8 +74,19 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'tab.presence': {
     req: {
-      valid: [{ chat, routeEpoch: 5, visible: true, focused: true }, { chat: null, routeEpoch: 0, visible: false, focused: false, accounts: [account] }],
-      invalid: [{ chat, visible: true, focused: true }, { chat: null, routeEpoch: 0, visible: false, focused: false, accounts: [{ ...account, hostAccountId: 'acc' }] }],
+      valid: [
+        { chat, routeEpoch: 5, visible: true, focused: true },
+        { chat: null, routeEpoch: 0, visible: false, focused: false, accounts: [account] },
+        // 1.8.0: the route's account, chat open or not; null — the route names none.
+        { chat: null, routeEpoch: 2, visible: true, focused: true, accounts: [account], routeAccount: account },
+        { chat, routeEpoch: 3, visible: true, focused: false, routeAccount: null },
+      ],
+      invalid: [
+        { chat, visible: true, focused: true },
+        { chat: null, routeEpoch: 0, visible: false, focused: false, accounts: [{ ...account, hostAccountId: 'acc' }] },
+        { chat: null, routeEpoch: 2, visible: true, focused: true, routeAccount: { ...account, hostAccountId: 'acc' } },
+        { chat: null, routeEpoch: 2, visible: true, focused: true, routeAccount: account.hostAccountId },
+      ],
     },
     res: ack,
   },
@@ -85,7 +96,10 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'accounts.seen': {
     req: empty,
-    res: { valid: [{ accounts: [{ account, lastSeenAt: ISO, openTabs: 2 }] }, { accounts: [] }], invalid: [{ accounts: [{ account, lastSeenAt: ISO }] }] },
+    res: {
+      valid: [{ accounts: [{ account, lastSeenAt: ISO, openTabs: 2 }] }, { accounts: [] }, { accounts: [{ account, lastSeenAt: ISO, openTabs: 2, routeTabs: 1 }] }],
+      invalid: [{ accounts: [{ account, lastSeenAt: ISO }] }, { accounts: [{ account, lastSeenAt: ISO, openTabs: 2, routeTabs: -1 }] }],
+    },
   },
   'session.get': {
     req: empty,
