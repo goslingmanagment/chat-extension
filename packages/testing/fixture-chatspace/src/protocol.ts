@@ -207,6 +207,18 @@ export interface FanPatch {
   readonly isRestricted?: boolean;
   readonly canReceiveChatMessage?: boolean;
   readonly subscribedOn?: boolean;
+  /** When the platform last saw the fan (ISO); ChatSpace counts a fan the presence poll has not answered for as online for 5 minutes after it. */
+  readonly lastSeen?: string | null;
+}
+
+/** The chat list's presence poll (ui/fans-online.ts), in ms; ChatSpace's own values are the defaults in env.ts. */
+export interface FansOnlineTimings {
+  /** After the rows on screen changed, the poll waits this long. */
+  readonly settleMs: number;
+  /** A fan asked for less than this long ago is not asked again. */
+  readonly freshMs: number;
+  /** The next look after an answer (or after a look that found nobody to ask). */
+  readonly everyMs: number;
 }
 
 export interface OpenChatOptions {
@@ -272,6 +284,8 @@ export interface StandControl {
   scriptSend(accountId: string, chatId: string, outcomes: readonly SendOutcome[]): Promise<void>;
   setFan(accountId: string, fanId: string, patch: FanPatch): Promise<void>;
   setFanOnline(accountId: string, fanId: string, online: boolean): void;
+  /** The presence poll's timings from now on (a test reaches the next round without waiting 5 minutes). */
+  setFansOnlineTimings(patch: Partial<FansOnlineTimings>): void;
   setTranslator(accountId: string, settings: Partial<TranslatorSettings>): void;
   setMimic(state: MimicState): Promise<void>;
   /** The role's permissions, and whether the user owns the organisation (owners send even with of_block_message_sending). */

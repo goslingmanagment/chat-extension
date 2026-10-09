@@ -853,6 +853,40 @@ describe('the palette', () => {
     expect(bare.controller.dispatch({ type: 'OpenPreview', targetHandle: chatHandle(chat('2004')) })).toBeNull();
   });
 
+  it('[CS-030] [HK-036] the palette shows who ChatSpace shows online now, not at its last opening: it looks again once the read its opening started has landed', async () => {
+    // ChatSpace's own poll marked two fans online after the adapter's copy was read; the read an opening starts lands
+    // only after the hub and the background answered (nothing tells anyone it landed).
+    const before = [item('2005', 0, 'Jake Morrison'), item('2002', 1, 'Fan Two', 0, false), item('2004', 2, 'Marco Rinaldi', null, false)];
+    const now = [item('2005', 0, 'Jake Morrison'), item('2002', 1, 'Fan Two', 0, true), item('2004', 2, 'Marco Rinaldi', null, true)];
+    const p = paletteWorld({ chatList: before });
+    let copy = { items: before as readonly NavigationItem[], at: p.clock.now() };
+    let reads = 0;
+    p.host.listCachedChats = (_account, limit) => {
+      if (p.clock.now() - copy.at > 1000) void p.clock.setTimer(40, () => ((reads += 1), (copy = { items: now, at: p.clock.now() })));
+      return copy.items.slice(0, limit);
+    };
+    await p.clock.advance(180_000);
+    await p.open();
+    // The first look is the old copy: nobody online.
+    expect(p.group('online')).toEqual([]);
+    await p.clock.advance(LIST_SETTLE_MS);
+    expect(p.group('online').map((entry) => entry.label)).toEqual(['Fan Two', 'Marco Rinaldi']);
+    // One read of ChatSpace's list (the page's memory) and nothing else asked: the background only for the running generations.
+    expect(reads).toBe(1);
+    expect(p.rpc.requests.map((request) => request.type)).toEqual(['op.list']);
+    // Closed before the second look: nothing is built for nobody.
+    const closed = paletteWorld();
+    const seen: PaletteVM[] = [];
+    closed.controller.subscribe({ of: 'palette' }, (view) => seen.push(view as PaletteVM));
+    await closed.open();
+    closed.overlays.set('palette', false);
+    const atClose = seen.length;
+    await closed.clock.advance(LIST_SETTLE_MS);
+    expect(seen.length).toBe(atClose);
+    closed.controller.dispose();
+    expect(closed.clock.pending).toBe(0);
+  });
+
   it('[HK-036] the palette follows the dock and the route while it is open, forgets its query when it closes, and is silent when closed', async () => {
     const p = paletteWorld();
     const seen: PaletteVM[] = [];

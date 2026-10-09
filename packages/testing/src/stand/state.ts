@@ -33,6 +33,8 @@ export class StandState {
   withholdAuth = false;
   /** What the socket sends on its own (summaries, typing). */
   traffic: SocketTraffic = DEFAULT_SOCKET_TRAFFIC;
+  /** Fans the presence endpoint (`fans-online`) answers as online, by `${accountId}:${fanId}`; nobody on start. */
+  readonly onlineFans = new Set<string>();
   private readonly tokens = new Set<string>();
   private tokenSeq = 0;
   private messageSeq = 5_900_000_000;
@@ -48,6 +50,7 @@ export class StandState {
     this.holdFans(false);
     this.withholdAuth = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
+    this.onlineFans.clear();
     this.scripts.clear();
     // Issued tokens stay valid: an open page keeps its session across a reset.
   }
@@ -126,6 +129,16 @@ export class StandState {
     if (!chat) return false;
     Object.assign(chat.fan, patch);
     return true;
+  }
+
+  /** Who of the account's fans the presence endpoint answers as online from now on (the rest of them — offline). */
+  setOnline(accountId: string, fanIds: readonly string[]): void {
+    for (const key of [...this.onlineFans]) if (key.startsWith(`${accountId}:`)) this.onlineFans.delete(key);
+    for (const fanId of fanIds) this.onlineFans.add(chatKey(accountId, fanId));
+  }
+
+  isOnline(accountId: string, fanId: string): boolean {
+    return this.onlineFans.has(chatKey(accountId, fanId));
   }
 
   appendMessage(accountId: string, fanId: string, message: StandMessage): void {

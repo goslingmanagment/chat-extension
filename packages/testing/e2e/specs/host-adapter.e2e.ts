@@ -17,6 +17,7 @@ import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
 import type { StandBreak } from '../../fixture-chatspace/src/protocol';
+import { createDataset } from '../../src/stand/dataset';
 import { harness, installHostHarness, waitForHarness, waitForHarnessState, type InstalledHarness } from '../support/host-harness';
 import { setViewport } from '../support/visual';
 import { useNetworkTrap } from '../support/network-trap';
@@ -643,6 +644,67 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
       const caps = await waitForHarnessState(capabilities, (c) => c['accounts']?.state !== 'on', 'accounts off');
       expect(caps['identity']?.state).not.toBe('on');
       expect((await state()).identity).toBeNull();
+    });
+  });
+
+  describe('[CS-030] who is online: what ChatSpace itself shows (§6.9)', () => {
+    /** The rows inside the list's own box (as ChatSpace's IntersectionObserver counts them), and the rows with its green dot. */
+    const list = (): Promise<{ onScreen: string[]; dots: string[] }> =>
+      browser.execute(() => {
+        const box = document.querySelector('.chats-panel__list')?.getBoundingClientRect();
+        const rows = [...document.querySelectorAll<HTMLElement>('.chats-panel__list [data-chat-id]')];
+        const inside = (row: HTMLElement): boolean => {
+          const rect = row.getBoundingClientRect();
+          return box !== undefined && rect.bottom >= box.top && rect.top <= box.bottom;
+        };
+        return {
+          onScreen: rows.filter(inside).map((row) => row.dataset['chatId'] ?? '').sort(),
+          dots: rows.filter((row) => row.querySelector('.avatar--online') !== null).map((row) => row.dataset['chatId'] ?? '').sort(),
+        };
+      });
+    /** Who the adapter's cached list of the account says is online (the list the palette reads). */
+    const readOnline = async (): Promise<string[]> =>
+      (await harness<Array<{ chat: { platformFanId: string }; isOnline: boolean | null }>>('listChatsOf', ACC, 50))
+        .filter((row) => row.isOnline === true)
+        .map((row) => row.chat.platformFanId)
+        .sort();
+    const presenceCalls = async (since: number): Promise<Array<{ origin: string }>> => (await standServer.journal(since)).entries.filter((entry) => String(entry.path).endsWith('/fans-online'));
+    const everyFan = [...createDataset().chats.values()].filter((chat) => chat.accountId === ACC).map((chat) => chat.fan.id);
+
+    after(async () => {
+      await standServer.presence(ACC, []);
+    });
+
+    it('[CS-030] with no chat open, the list the adapter reads says online exactly where ChatSpace’s own dot is — the presence ChatSpace asked for, nothing of ours', async () => {
+      // Every fan is online on the server; ChatSpace asks only about the rows on screen, and only those get a dot.
+      await standServer.presence(ACC, everyFan);
+      const mark = await standServer.mark();
+      await open(chatPath(ACC), [], false);
+      await browser.waitUntil(
+        async () => {
+          const now = await list();
+          return now.onScreen.length > 0 && now.dots.join() === now.onScreen.join();
+        },
+        { timeout: 10_000, timeoutMsg: 'ChatSpace’s own dots on the rows on screen' },
+      );
+      const { dots } = await list();
+      // The answer went into ChatSpace's chats store (no cache entry moved); the adapter's copy is read again when it is over a second old.
+      expect(await waitForHarnessState(readOnline, (ids) => ids.join() === dots.join(), 'the adapter reads the same fans', 10_000)).toEqual(dots);
+      const asked = await presenceCalls(mark);
+      expect(asked.length).toBeGreaterThan(0);
+      expect(asked.every((entry) => entry.origin === 'native')).toBe(true);
+    });
+
+    it('[CS-030] presence that changes later reaches the adapter’s next read with ChatSpace’s own next look', async () => {
+      const mark = await standServer.mark();
+      const { onScreen } = await list();
+      const stays = onScreen[0] ?? '';
+      await standServer.presence(ACC, [stays]);
+      // ChatSpace looks again in 5 minutes; shortened here.
+      await callStand('setFansOnlineTimings', { freshMs: 0, everyMs: 300 });
+      await browser.waitUntil(async () => (await list()).dots.join() === stays, { timeout: 10_000, timeoutMsg: 'ChatSpace’s dots follow its next answer' });
+      expect(await waitForHarnessState(readOnline, (ids) => ids.join() === stays, 'the adapter follows', 10_000)).toEqual([stays]);
+      expect((await presenceCalls(mark)).every((entry) => entry.origin === 'native')).toBe(true);
     });
   });
 

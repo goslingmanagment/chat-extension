@@ -9,6 +9,12 @@
 // ChatSpace's own palette stays as it is; this one never loads a page of the
 // chat list and never polls who is online — «Онлайн» lists only the fans
 // ChatSpace itself already shows online, and opens OUR preview for them.
+//
+// ChatSpace's rows come from the host port's own copy of its list, which the
+// port reads again only when asked and tells nobody when the read lands (the
+// navigation controller's LIST_SETTLE_MS). So the palette looks twice, as the
+// quick jump does: the look that opens it starts the read, the look a moment
+// later shows what it brought — who is online now, not at the last opening.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
@@ -34,7 +40,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { onlineChats, searchRows, normalizeQuery, type SearchRow } from '../../domain/navigation';
-import { accountHandle, chatHandle, parseChatHandle } from './navigation-controller';
+import { LIST_SETTLE_MS, accountHandle, chatHandle, parseChatHandle } from './navigation-controller';
 import { type OverlayState } from './overlays';
 import { createEmitter, type SurfaceController, type TabClock, type TabRpc } from './ports';
 
@@ -418,6 +424,17 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
 
   // ── what moves the view ──
 
+  let disposed = false;
+  let settleTimer: unknown = null;
+  /** The look that just ran started the host port's read of ChatSpace's list; the next one shows what it brought. */
+  const lookAgain = (): void => {
+    if (settleTimer !== null) deps.clock.clearTimer(settleTimer);
+    settleTimer = deps.clock.setTimer(LIST_SETTLE_MS, () => {
+      settleTimer = null;
+      if (!disposed && overlays.isOpen('palette')) changes.emit();
+    });
+  };
+
   const subscriptions = [
     overlays.subscribe(() => {
       const open = overlays.isOpen('palette');
@@ -433,12 +450,15 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
         refreshRunning();
       }
       changes.emit();
+      if (open) lookAgain();
     }),
     deps.dock.subscribe(() => overlays.isOpen('palette') && changes.emit()),
     host.subscribe((event) => {
       if (overlays.isOpen('palette') && (event.type === 'route' || event.type === 'accounts')) {
         refreshHub();
         changes.emit();
+        // Another account on screen: its list is read now, and shown once the read is in.
+        lookAgain();
       }
     }),
     deps.rpc.onEvent('op.done', () => overlays.isOpen('palette') && refreshRunning()),
@@ -475,6 +495,9 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
     },
     dispatch,
     dispose() {
+      disposed = true;
+      if (settleTimer !== null) deps.clock.clearTimer(settleTimer);
+      settleTimer = null;
       for (const unsubscribe of subscriptions) unsubscribe();
     },
   };

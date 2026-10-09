@@ -86,10 +86,21 @@ export const FIXTURE_CONTRACTS: readonly FixtureContract[] = [
   },
   {
     id: 'chats',
-    contract: 'store chats (isFanOnline by fan id, typing), chatList socket updates and cache-only markChatAsRead, chatMessages socket upsert + confirmEchoedMessage (§6.7.3, §6.8)',
+    contract: 'store chats (isFanOnline(fanId, lastSeen): the presence answer, else lastSeen within 5 min; typing), chatList socket updates and cache-only markChatAsRead, chatMessages socket upsert + confirmEchoedMessage (§6.7.3, §6.8, §6.9)',
     stand: ['stores/chats.ts'],
     basis: 're-expressed',
     observedAt: ['accounts:6219-6290', 'accounts:6295-6372', 'messages:21403-21440'],
+  },
+  {
+    id: 'fans-online',
+    contract:
+      'the chat list polls presence for the rows on screen (IntersectionObserver over [data-chat-id]): POST accounts/{acc}/platforms/onlyfans/fans-online {fan_ids} 2 s after the rows changed, a fan again after 1 min, the next look in 5 min, only while the page is visible; the answer goes to chats.updateOnlineStatuses — a store action, no cache entry moves; the row dot is isFanOnline(chat.id, fan.lastSeen) (§6.9, CS-030)',
+    stand: ['ui/fans-online.ts', 'stores/chats.ts', 'ui/chat-view.ts', '../../src/stand/api.ts'],
+    basis: 're-expressed',
+    observedAt: [
+      '0.200.0: accounts:8250-8289 (rows on screen), accounts:8290-8380 (the poll and its timers), accounts:7688-7751 (store chats: isFanOnline, updateOnlineStatuses)',
+      '0.200.0: composables:92620-92626 (lastSeen within 5 min), ChatView:8654 (the row dot); unchanged in 0.195.0 and 0.201.0 (research analysis 0.200.0-vs-0.201.0, send-path-review.md)',
+    ],
   },
   {
     id: 'translator',

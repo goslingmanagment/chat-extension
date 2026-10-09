@@ -25,6 +25,8 @@ export interface StandFan {
   readonly totalSpent: number;
   readonly buyingPower: number;
   readonly lastPaymentAt: string | null;
+  /** When the platform last saw the fan (ISO); null on start — a test sets it (`setFan`). */
+  lastSeen: string | null;
   /** What the server-side chat-list filters see (pinned, who_tipped, priority, fan lists). */
   readonly pinnedChat: boolean;
   readonly tipped: boolean;
@@ -108,6 +110,7 @@ export function createDataset(): StandDataset {
         totalSpent: (index * 37) % 400,
         buyingPower: index % 6,
         lastPaymentAt: index % 3 === 0 ? null : new Date(BASE_TIME - index * 86_400_000).toISOString(),
+        lastSeen: null,
         pinnedChat: index % 5 === 1,
         tipped: (index * 37) % 400 > 0 && index % 2 === 0,
         priority: index % 3 === 0,

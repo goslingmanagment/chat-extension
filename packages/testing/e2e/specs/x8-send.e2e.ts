@@ -691,7 +691,7 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       await nativeQueueAction('resend', ACC, failed[0]?.id ?? '');
       await browser.waitUntil(async () => (await queueEntries()).length === 0, { timeout: 5000 });
       expect(sendsOf(await serverSince(guard.server))).toHaveLength(2);
-      expect((await pageSince(page)).filter((entry) => entry.type === 'http-request' && entry['method'] === 'POST').map((entry) => entry['fetchCapture'])).toEqual(['native']);
+      expect((await pageSince(page)).filter((entry) => entry.type === 'http-request' && entry['method'] === 'POST' && String(entry['path']).endsWith('/messages')).map((entry) => entry['fetchCapture'])).toEqual(['native']);
       expect(queueAdds(await pageSince(page))).toEqual([]);
       await browser.pause(200);
       expect((await statesOf(guard.attemptId)).map((view) => view.state)).toEqual(['rejected']);
