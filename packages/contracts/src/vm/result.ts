@@ -60,6 +60,13 @@ export const SEND_REASON_KEYS = {
 } as const satisfies Partial<Record<CgCode, I18nKey>>;
 export type SendReasonCode = keyof typeof SEND_REASON_KEYS;
 
+/**
+ * 1.10.0: the text of CG-SEND-HOST while ChatSpace has not created yet what the preview send reads — no chat
+ * composer has been open in the page since it loaded (the host contract's anchor is `notYet`). The code stays
+ * CG-SEND-HOST; the text says what lifts it: open any chat.
+ */
+export const SEND_REASON_HOST_NOT_YET = 'send.reason.hostNotYet' as const satisfies I18nKey;
+
 export function isSendReasonCode(code: CgCode): code is SendReasonCode {
   return Object.prototype.hasOwnProperty.call(SEND_REASON_KEYS, code);
 }
@@ -71,7 +78,7 @@ export function isSendReasonCode(code: CgCode): code is SendReasonCode {
  */
 export type PreviewSendView =
   | { readonly s: 'available' }
-  /** The code explains the disabled button (never a toast); `reason` is its text (SEND_REASON_KEYS). */
+  /** The code explains the disabled button (never a toast); `reason` is its text (SEND_REASON_KEYS, or SEND_REASON_HOST_NOT_YET). */
   | { readonly s: 'unavailable'; readonly code: SendReasonCode; readonly reason: Msg }
   | { readonly s: 'held-stale'; readonly at: IsoTimestamp | null }
   | { readonly s: 'queued' }

@@ -30,6 +30,7 @@ import {
   chatWindow,
   composerState,
   contractWire,
+  contractWireNotYet,
   diagnostics,
   fan,
   humanDraft,
@@ -480,7 +481,7 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
   accounts: empty,
   composer: { valid: [{ state: composerState }, { state: null }], invalid: [{ state: { ...composerState, ready: 'yes' } }] },
   chatCache: { valid: [accFan], invalid: [{ ...accFan, fan: 2002 }] },
-  contract: { valid: [contractWire], invalid: [{ ...contractWire, receiptModules: undefined }] },
+  contract: { valid: [contractWire, contractWireNotYet], invalid: [{ ...contractWire, receiptModules: undefined }, { ...contractWire, notYet: ['nope'] }] },
   incoming: {
     valid: [{ ...accFan, msgId: IDS.msg1, fromFan: true, automatic: false, tip: true, sentAt: null, socketEpoch: 2, fanSequence: 9 }],
     invalid: [{ ...accFan, msgId: IDS.msg1, fromFan: true, automatic: false, tip: true, sentAt: null, socketEpoch: 2, fanSequence: 9, text: 'hi' }],

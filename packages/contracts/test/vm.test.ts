@@ -113,7 +113,8 @@ describe('catalog', () => {
     const keys = new Set<string>(C.I18N_KEYS);
     for (const reason of Object.values(C.UNAVAILABLE_REASONS)) expect(keys.has(reason.key), reason.key).toBe(true);
     const sendReasonKeys = C.I18N_KEYS.filter((key) => key.startsWith('send.reason.'));
-    expect(Object.values(C.SEND_REASON_KEYS).sort()).toEqual([...sendReasonKeys].sort());
+    // One text per code, and one more of CG-SEND-HOST: ChatSpace has not created yet what the send reads (1.10.0).
+    expect([...Object.values(C.SEND_REASON_KEYS), C.SEND_REASON_HOST_NOT_YET].sort()).toEqual([...sendReasonKeys].sort());
     for (const code of Object.keys(C.SEND_REASON_KEYS)) expect(C.isCgCode(code), code).toBe(true);
   });
 
@@ -520,6 +521,21 @@ describe('what was added in 1.5.0: a lost port is not an update, a failed «Жд
       expect(C.UI_TEXT_KEYS).toContain(key);
       expect(C.isPluralKey(key)).toBe(false);
     }
+  });
+});
+
+describe('an anchor ChatSpace creates later (1.10.0)', () => {
+  it('[DB-031] [ST-025] `notYet` is an anchor state of its own; the bridge carries it in an optional list; three texts say it', () => {
+    expect(C.ANCHOR_STATES).toEqual(['ok', 'missing', 'shape', 'notYet']);
+    expectTypeOf<C.HostContractReport['anchors'][C.AnchorId]>().toEqualTypeOf<'ok' | 'missing' | 'shape' | 'notYet'>();
+    expectTypeOf<C.ContractWire['notYet']>().toEqualTypeOf<C.AnchorId[] | undefined>();
+    for (const key of ['send.reason.hostNotYet', 'settings.status.row.chatspaceNotYetNote', 'settings.status.row.contractNotYet'] as const) {
+      expect(C.UI_TEXT_KEYS).toContain(key);
+      expect(C.isPluralKey(key)).toBe(false);
+    }
+    expect(C.SEND_REASON_HOST_NOT_YET).toBe('send.reason.hostNotYet');
+    // A wire of a MAIN before 1.10.0 (no list) is still a wire.
+    expect(C.ContractWireSchema.safeParse({ build: null, missing: ['composerTranslator'], shape: [], receiptModules: {} }).success).toBe(true);
   });
 });
 

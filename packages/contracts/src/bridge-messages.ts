@@ -41,6 +41,11 @@ export const ContractWireSchema = z.strictObject({
   missing: z.array(AnchorIdSchema).check(z.maxLength(32)),
   /** Present, but of an unexpected shape. */
   shape: z.array(AnchorIdSchema).check(z.maxLength(32)),
+  /**
+   * Not there yet, as expected before the first chat composer of the page (1.10.0): ChatSpace creates its composer
+   * translator store with that composer. Absent — a MAIN before 1.10.0, which lists every absent anchor in `missing`.
+   */
+  notYet: z.optional(z.array(AnchorIdSchema).check(z.maxLength(32))),
   /** X8 receipt profile: module role → fingerprint of the loaded module, matched against bootstrap profiles (§6.2). */
   receiptModules: z.record(boundedText(64), boundedText(128)).check(
     z.refine((r) => Object.keys(r).length <= 32, { message: 'too many receipt modules' }),
