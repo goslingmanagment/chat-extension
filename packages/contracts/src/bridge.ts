@@ -184,14 +184,15 @@ export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendCommit'] as const satisfies readonly ToMainType[];
 
 /** Events MAIN → isolated (§5.3 `FromMain`), never with message text. */
-export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'fault'] as const;
+export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault'] as const;
 export type FromMainType = (typeof FROM_MAIN_TYPES)[number];
 
 /**
  * Freshness and receipt events are never dropped or coalesced; their counters are updated before any thinning. Nor is
- * a fault report (one per site and doubling, decision X22): coalesced, a site's report would hide another's.
+ * a fault report (one per site and doubling, decision X22): coalesced, a site's report would hide another's. Nor the
+ * X8 fuse (1.11.0, decision X25): one lost would leave the preview send on.
  */
-export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'fault'] as const satisfies readonly FromMainType[];
+export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault'] as const satisfies readonly FromMainType[];
 
 // ── Probe ──────────────────────────────────────────────────────────────────
 

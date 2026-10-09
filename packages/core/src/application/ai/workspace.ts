@@ -307,6 +307,9 @@ export class AiWorkspace {
           case 'coverage':
             this.bump();
             break;
+          // The X8 fuse (decision X25) is the tab's to report; what it turns off comes with the host contract.
+          case 'sendFuse':
+            break;
         }
       }),
       host.onContract(() => this.bump()),

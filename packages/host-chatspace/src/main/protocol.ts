@@ -19,6 +19,8 @@ export const KIND_RES = 'res';
 export const KIND_EVT = 'evt';
 /** The event that carries a guarded failure's count (guard.ts; contracts FROM_MAIN.fault). */
 export const EVT_FAULT = 'fault';
+/** The event that trips the X8 fuse after a send (receipt.ts; contracts FROM_MAIN.previewSendFuse, decision X25). */
+export const EVT_FUSE = 'previewSendFuse';
 
 /** contracts BRIDGE_ERRORS. */
 export const ERR_UNKNOWN_REQUEST = 'unknown-request';

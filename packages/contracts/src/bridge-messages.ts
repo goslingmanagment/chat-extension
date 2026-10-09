@@ -27,7 +27,7 @@ import {
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
 import { BRIDGE_LIMITS, SEND_LIMITS } from './limits';
 import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
-import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema, checkpointMatches } from './send';
+import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema, SendFuseFactSchema, checkpointMatches } from './send';
 
 const EmptySchema = z.strictObject({});
 /** A guarded site of MAIN, as a machine token (it goes into the logs as is). */
@@ -204,6 +204,11 @@ export const FROM_MAIN = {
   }),
   previewSendState: z.strictObject({ view: SendAttemptViewSchema }),
   /**
+   * 1.11.0 (decision X25): after an X8 send MAIN saw what trips the fuse — another text, a second message of one
+   * click, another chat or account (SendFuseFact). Once per attempt; never a text.
+   */
+  previewSendFuse: SendFuseFactSchema,
+  /**
    * A failure of our own MAIN code that a guard caught (decision X22): the site — the callback ChatSpace or the browser
    * called — and how often it failed in this document; sent when the count reaches 1, 2, 4, 8… The isolated side logs it.
    */
@@ -278,6 +283,7 @@ export const BridgeEventSchema = z.discriminatedUnion('t', [
   eventFrame('coverage'),
   eventFrame('humanSend'),
   eventFrame('previewSendState'),
+  eventFrame('previewSendFuse'),
   eventFrame('fault'),
 ]);
 export type BridgeEvent = z.infer<typeof BridgeEventSchema>;

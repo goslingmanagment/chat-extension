@@ -34,7 +34,8 @@ import {
   boundedText,
   displayText,
 } from './primitives';
-import { type FreshnessCheckpoint, type PreviewSendPort } from './send';
+import { type FreshnessCheckpoint, type PreviewSendPort, type SendFuseFact } from './send';
+import { RECEIPT_MATCH_KINDS } from './send-rules';
 
 export type Unsubscribe = () => void;
 
@@ -106,6 +107,12 @@ export const HostContractReportSchema = z.strictObject({
   checkedAt: EpochMsSchema,
   anchors: z.record(AnchorIdSchema, z.enum(ANCHOR_STATES)),
   capabilities: z.record(HostCapabilitySchema, CapabilityStateSchema),
+  /**
+   * 1.11.0 (decision X25): the receipt profile of the bootstrap that let X8 in on this page, and how — `exact` (a
+   * reviewed build) or `anyBuild` (the hub's «any build» sentinel: no review). Absent — none matched, or the
+   * preview send is not switched on (an adapter before 1.11.0 never says).
+   */
+  receiptMatch: z.optional(z.strictObject({ profile: boundedText(64), kind: z.enum(RECEIPT_MATCH_KINDS) })),
 });
 export type HostContractReport = z.infer<typeof HostContractReportSchema>;
 
@@ -485,6 +492,11 @@ export type HostEvent =
   | { readonly type: 'incoming'; readonly fact: IncomingFact }
   | { readonly type: 'coverage'; readonly coverage: CoverageEvent }
   | { readonly type: 'humanSend'; readonly fact: HumanSendFact }
+  /**
+   * 1.11.0 (decision X25): MAIN saw, after an X8 send, what trips the fuse. The port has already turned X8 off in
+   * this document; the tab tells the background, which keeps the fuse for the browser.
+   */
+  | { readonly type: 'sendFuse'; readonly fuse: SendFuseFact }
   | { readonly type: 'reloadNeeded' };
 
 /** §5.2. Lives in the isolated world; MAIN is reached only through the bridge. */

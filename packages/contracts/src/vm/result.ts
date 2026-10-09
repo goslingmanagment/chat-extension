@@ -39,6 +39,8 @@ export const SEND_REASON_KEYS = {
   'CG-SEND-OFF': 'send.reason.off',
   'CG-SEND-HOST': 'send.reason.host',
   'CG-SEND-RECEIPT': 'send.reason.receipt',
+  /** 1.11.0: the X8 fuse (decision X25) turned the preview send off in this browser. */
+  'CG-SEND-FUSE': 'send.reason.fuse',
   'CG-SEND-ACTIVE-CHAT': 'send.reason.activeChat',
   'CG-SEND-HISTORY': 'send.reason.history',
   'CG-SEND-PERMISSION': 'send.reason.permission',

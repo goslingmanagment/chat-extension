@@ -33,6 +33,8 @@ describe('[EX-008] MAIN bridge literals', () => {
     expect(protocol.PROTOCOL_VERSION).toBe(BRIDGE_PROTOCOL_VERSION);
     expect(protocol.TAG_KEY).toBe(BRIDGE_TAG_KEY);
     expect(protocol.EVT_FAULT).toBe(FROM_MAIN_TYPES.at(-1));
+    expect(protocol.EVT_FUSE).toBe(FROM_MAIN_TYPES.at(-2));
+    expect(BRIDGE_UNDROPPABLE_EVENTS).toContain(protocol.EVT_FUSE);
     expect(protocol.TAG_MAIN_READY).toBe(BRIDGE_TAGS.mainReady);
     expect(protocol.TAG_ISO_HELLO).toBe(BRIDGE_TAGS.isoHello);
     expect(protocol.TAG_CONNECT).toBe(BRIDGE_TAGS.connect);

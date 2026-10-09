@@ -28,6 +28,58 @@
   правки карты паритета или реестра исключений. Реестр CG в документах —
   `node tools/cg-registry/generate.ts`.
 
+## 1.11.0 — 2026-10-09 (X8 на любой сборке ChatSpace и предохранитель, решение X25)
+
+Старые потребители не ломаются: всё новое — необязательные поля, новые сообщения, новый код
+CG, новое действие и новые ключи. Значение хаба не меняется по форме: профиль «любая сборка»
+— обычный `ReceiptProfile` с `modules` = `{"*":"*"}`.
+
+Владелец отменил правило X21 (2026-10-09): X8 допускается на любой сборке ChatSpace, пока
+ничего не сломалось, а после каждой отправки с известным исходом квитанцию сверяет
+предохранитель.
+
+- **Профиль-метка «любая сборка»** (`send-rules.ts`, без схем — его читает ранний старт
+  изолированного мира): `ANY_BUILD_MODULE` (`*`) и `isAnyBuildReceiptProfile(profile)` —
+  профиль, у которого в `modules` ровно `{"*":"*"}`.
+  Совпадает с любой сборкой, если версия адаптера та же и на странице загружены модули всех
+  ролей пути отправки. Точные профили работают рядом, совпавший точный называется первым.
+- **`RECEIPT_MATCH_KINDS`** (`send-rules.ts`): `exact`, `anyBuild`.
+- **`HostContractReport.receiptMatch`** — необязательное `{ profile, kind }`: какой профиль
+  пустил X8 на этой странице и как. Его показывают «Статус», выгрузка диагностики, журнал
+  вкладки и `client_health`.
+- **Предохранитель** (`send-rules.ts`, `send.ts`): причины `SEND_FUSE_REASONS` (`text`,
+  `count`, `target`, `uncertain`), места `SEND_FUSE_EVIDENCE` (`request`, `response`,
+  `echo`, `queue`, `outcomes`), порог `SEND_FUSE_UNCERTAIN_RUN` (3); схемы `SendFuseFact`
+  (что увидел MAIN: попытка, причина, место, длины двух текстов — никогда сам текст),
+  `SendFuse` (что хранит фон: когда, почему, на какой сборке, какая попытка; сборка `null` —
+  любая: не была известна или предохранитель сработал на двух сборках подряд),
+  `SendFuseState` (`fuse` и время последнего сброса `resetAt`); `sendFuseHolds(fuse, build)`
+  в `send-rules.ts` — держит ли предохранитель вкладку этой сборки (неизвестную — держит).
+- **Код `CG-SEND-FUSE`** (после `CG-SEND-RECEIPT`; прил. А, реестр, тексты ru/en): отправка из
+  превью выключена предохранителем в этом браузере до новой сборки ChatSpace или сброса в
+  «Статусе». Он же — новое условие в `PREVIEW_SEND_CONDITION_CODES` и причина
+  `send.reason.fuse` в `SEND_REASON_KEYS`. Повтором клика не снимается, но в
+  `SEND_HOLD_CODES_WITHOUT_RETRY` не входит: после сброса та же часть отправляется новым
+  кликом.
+- **Мост MAIN:** событие `previewSendFuse` (`SendFuseFact`), в `BRIDGE_UNDROPPABLE_EVENTS`
+  (стоит перед `fault`, `fault` остаётся последним).
+- **Порт хоста:** событие `HostEvent` `sendFuse`.
+- **Протокол вкладки и страниц:** запросы `send.fuse` (вкладка сообщает о срабатывании:
+  `fact` и сборка вкладки), `send.fuseState` (состояние предохранителя), `send.fuseReset`
+  (только страница настроек: «Сбросить предохранитель»); событие `send.fuse`; необязательное
+  поле `SendBegin.hostBuild` (сборка ChatSpace вкладки: фон держит отправку с
+  `CG-SEND-FUSE`, пока предохранитель назван этой сборкой); необязательное поле
+  `DiagnosticsSnapshot.sendFuse`.
+- **Действие `ResetSendFuse`** — кнопка строки «Отправка из превью» в «Статусе».
+- **Ключи:** `send.reason.fuse`; `settings.status.row.previewSendExact`,
+  `…previewSendAnyBuild`, `…previewSendAnyBuildNote`, `…previewSendFused`,
+  `…previewSendFusedNote`, `settings.status.fuse.reset`,
+  `settings.status.fuse.reason.{text,count,target,uncertain}`,
+  `settings.status.row.contractReceiptExact`, `…contractReceiptAnyBuild`,
+  `settings.status.warning.sendFused`; тексты кода `cg.sendFuse.*` выводятся из кода.
+- Фикстуры — верные и неверные для каждой новой схемы, запроса, ответа и события (нет текста
+  в факте, нет неизвестных причин и мест, нет попытки без id).
+
 ## 1.10.0 — 2026-10-09 (стор, которого ChatSpace ещё не создал: «ещё нет», а не «не найдено»)
 
 Старые потребители не ломаются: одно новое значение в словаре состояний якоря, одно

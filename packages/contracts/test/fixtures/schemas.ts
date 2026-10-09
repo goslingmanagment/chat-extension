@@ -421,6 +421,41 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [journalEntry, { ...journalEntry, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', pendingId: uuid(7) }],
     [{ ...journalEntry, text: 'hey' }, { ...journalEntry, partIndex: 2 }],
   ),
+  // 1.11.0: the X8 fuse (decision X25) — what MAIN saw, the fuse the background keeps, its state. Never a text.
+  fixture(
+    'SendFuseFact',
+    C.SendFuseFactSchema,
+    [
+      { attemptId: uuid(5), reason: 'text', where: 'echo', sentChars: 21, seenChars: 9 },
+      { attemptId: uuid(5), reason: 'count', where: 'request' },
+    ],
+    [
+      { attemptId: uuid(5), reason: 'text', where: 'echo', text: 'Hi there' },
+      { attemptId: uuid(5), reason: 'loud', where: 'echo' },
+      { attemptId: uuid(5), reason: 'text', where: 'dom' },
+    ],
+  ),
+  fixture(
+    'SendFuse',
+    C.SendFuseSchema,
+    [
+      { trippedAt: T0, reason: 'target', where: 'request', build: 'index-p8xPkCj8', attemptId: uuid(5) },
+      { trippedAt: T0, reason: 'uncertain', where: 'outcomes', build: null, attemptId: null },
+    ],
+    [
+      { trippedAt: T0, reason: 'target', where: 'request', build: 'index-p8xPkCj8' },
+      { trippedAt: T0, reason: 'uncertain', where: 'outcomes', build: null, attemptId: null, fanRef: '2002' },
+    ],
+  ),
+  fixture(
+    'SendFuseState',
+    C.SendFuseStateSchema,
+    [
+      { fuse: null, resetAt: null },
+      { fuse: { trippedAt: T0, reason: 'count', where: 'echo', build: null, attemptId: uuid(5) }, resetAt: T0 - 1 },
+    ],
+    [{ fuse: null }, { fuse: null, resetAt: 'yesterday' }],
+  ),
 
   // ── host ──
   fixture('HostCapability', C.HostCapabilitySchema, ['previewSend'], ['send']),
@@ -430,8 +465,19 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     'HostContractReport',
     C.HostContractReportSchema,
     // 1.10.0: an anchor ChatSpace creates later is `notYet`, not `missing`.
-    [contractReport, { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'notYet' } }],
-    [{ ...contractReport, anchors: { app: 'ok' } }, { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'later' } }],
+    // 1.11.0: which receipt profile let X8 in, and how — a reviewed build or the hub's «any build» sentinel.
+    [
+      contractReport,
+      { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'notYet' } },
+      { ...contractReport, receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } },
+      { ...contractReport, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } },
+    ],
+    [
+      { ...contractReport, anchors: { app: 'ok' } },
+      { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'later' } },
+      { ...contractReport, receiptMatch: { profile: 'any-build', kind: 'any' } },
+      { ...contractReport, receiptMatch: { kind: 'exact' } },
+    ],
   ),
   fixture('RouteState', C.RouteStateSchema, [routeState, { epoch: 0, name: 'other', account: null, chat: null }], [{ epoch: 5, name: 'inbox', account: null, chat: null }]),
   fixture('ComposerState', C.ComposerStateSchema, [composerState], [{ ...composerState, draft: { revision: 4, provenance: 'x' } }]),

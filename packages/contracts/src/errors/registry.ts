@@ -115,6 +115,7 @@ const SPECS = {
   'CG-SEND-OFF': { kind: 'send', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count', settings: 'status' },
   'CG-SEND-HOST': { kind: 'send', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count+sample', settings: 'status' },
   'CG-SEND-RECEIPT': { kind: 'send', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count+sample', settings: 'status' },
+  'CG-SEND-FUSE': { kind: 'send', severity: 'warn', recovery: 'open-settings', retry: 'none', telemetry: 'count+sample', settings: 'status' },
   'CG-SEND-ACTIVE-CHAT': { kind: 'send', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-SEND-HISTORY': { kind: 'send', severity: 'info', recovery: 'open-chat', retry: 'none', telemetry: 'count' },
   'CG-SEND-PERMISSION': { kind: 'send', severity: 'warn', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
