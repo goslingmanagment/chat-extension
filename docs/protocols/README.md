@@ -121,8 +121,8 @@ R01 делали четыре исполнителя, интегратор св�
 
 ## Мост MAIN ↔ изолированный мир (§5.3)
 
-16 запросов в MAIN (`TO_MAIN_TYPES`; `cancelInsert` — с 1.1.0), 9 сообщений из MAIN
-(`FROM_MAIN_TYPES`).
+16 запросов в MAIN (`TO_MAIN_TYPES`; `cancelInsert` — с 1.1.0), 11 сообщений из MAIN
+(`FROM_MAIN_TYPES`; `fault` — с 1.7.0, `previewSendFuse` — с 1.11.0).
 
 - **Конверт:** `{v: 1, kind, id, t, documentEpoch, seq, payload}`; ответ несёт тот
   же `t`, `ok: true` + `data` или `ok: false` + транспортную ошибку (`BRIDGE_ERRORS`,
@@ -152,8 +152,9 @@ R01 делали четыре исполнителя, интегратор св�
 
 ## Протокол вкладки и страниц с фоном (§5.4)
 
-51 запрос (`TAB_REQUESTS`; `recap.save`, `send.list`, `tab.command`, `data.clear`, `settings.open` и `debug.open` — с 1.2.0) и 12 событий
-(`TAB_EVENTS`; `tab.command` — с 1.2.0). Страницы шлют запросы
+54 запроса (`TAB_REQUESTS`; `recap.save`, `send.list`, `tab.command`, `data.clear`, `settings.open` и `debug.open` — с 1.2.0;
+`send.fuse`, `send.fuseState` и `send.fuseReset` — с 1.11.0) и 13 событий
+(`TAB_EVENTS`; `tab.command` — с 1.2.0, `send.fuse` — с 1.11.0). Страницы шлют запросы
 через `runtime.sendMessage`, события получают по порту `cg-page`. Ошибка ответа —
 `kind: 'res'`, `ok: false`, `CgErrorWire` (код и факты): текст ошибки
 (`CgErrorView`) строит получатель на текущем языке, язык переключается на лету.

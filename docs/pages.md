@@ -102,7 +102,7 @@ mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, syst
 | `openLink` | `createLinkOpener`: новая вкладка, только `https://` |
 | `env.version` | `extensionVersionOf`: версия из манифеста, прочитанная сразу |
 | `env.hostOrigin` | адрес ChatSpace из `apps/extension/src/hosts.ts` |
-| `env.links`, `helpUrl` | адреса «Что нового», «История версий» и «Как начать» — `apps/extension/src/site.ts`, рядом с фидом обновлений. Самих страниц сайта ещё нет (R19): до выпуска ссылки ведут на 404 |
+| `env.links`, `helpUrl` | адреса «Что нового», «История версий» и «Как начать» — `apps/extension/src/site.ts`, рядом с фидом обновлений. Страницы сайта выложены с выпуском 0.1.0 (`site/`, `docs/release.md`, раздел 10) |
 | `catalog` | `createActionCatalog` из `@cg/core/domain/hotkeys` — тот же каталог R17, что во вкладке: его подписи клавиш и отметки доставки важнее схемы |
 | `report` | сбои контроллера и отрисовки уходят в лог фона (`log.write`): класс ошибки и код, без текста |
 

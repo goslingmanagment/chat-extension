@@ -1,7 +1,8 @@
 # AGENTS.md — ChatGoose Extension (`chat-extension`)
 
 Browser extension that adds ChatGoose AI (Reply with tones and Split, Fix, Hi,
-Ping, Recap, Review, Help, Coach), the Spenders board, "New" subscribers,
+Ping, Recap, Review, Coach; Help was removed by the owner — parity exception
+`NEG-HELP`), the Spenders board, "New" subscribers,
 hotkeys and sound on top of OnlyMonster ChatSpace (`chat.onlymonster.ai`,
 OnlyFans) first and fansly.com second. Successor to the Electron desktop
 (`~/code/1-platform/onlyfans-chat`) and the Fansly extension
@@ -28,10 +29,13 @@ reads; what a page gets is the owner's per-page switch
 (`chatExtensionFeatures`: on the owner's test page everything but
 `previewSend`, `docs/pilot-readiness.md` §2–§3). The hub layer still calls a
 route only when the bootstrap declares its capability, so on an older hub
-those features read `hub_not_ready` and the rest works. Still ahead: sending
-from the preview (X8, the owner's call), the owner's next live checks (X9)
-and the first release (the R19 tooling is built and CI runs on the owner's PC
-runners; nothing has been released yet: `docs/release.md`), Fansly (R20). What works and what is left: `README.md` «Что уже работает»; decisions
+those features read `hub_not_ready` and the rest works. Version 0.1.0 was
+released on 2026-10-10: signed by Mozilla, served by the update feed, tagged
+`v0.1.0`; CI runs on the owner's PC runners (`docs/release.md`; what the
+release did and did not verify is its §12). Still ahead: the «После выкладки»
+checks of the release note and the announcement, the pilot, sending from the
+preview (X8, the owner's call), the owner's next live checks (X9), Fansly
+(R20). What works and what is left: `README.md` «Что уже работает»; decisions
 taken without the owner: `docs/decisions.md` X12; what is proven end to end on
 the stand, what waits for the hub and the owner's smoke checklist:
 `docs/pilot-readiness.md`.
