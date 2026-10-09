@@ -242,6 +242,10 @@ describe('[LG-020] «Скопировать отчёт»', () => {
     expect(text).toContain('errors today: CG-HUB-TIMEOUT ×3, CG-INSERT-MISPLACED ×1');
     expect(text).toContain('p1: p1.insert-misplaced ×1');
     expect(text).toContain('chatspace tabs: 1 · index-DEVowLko missing fansMap');
+    // An anchor ChatSpace creates with the page's first chat is named apart, not as missing.
+    const waiting = contract();
+    const notYet = copyReport(facts({ tabs: [{ tabSessionId: TAB, host: { ...waiting, anchors: { ...waiting.anchors, composerTranslator: 'notYet' } }, chatKey: null }] }), [], redactor());
+    expect(notYet).toContain('chatspace tabs: 1 · index-DEVowLko ok notYet composerTranslator');
     expect(text).toContain('error [tab.insert] CG-INSERT-FAILED insert failed [redacted]');
     expect(text).not.toContain(TOKEN);
     const quiet = copyReport(

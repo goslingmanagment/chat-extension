@@ -445,7 +445,7 @@ export type HostCapability = 'identity' | 'route' | 'accounts' | 'dockMount' | '
   | 'theme' | 'previewSend' | 'receipt';
 export interface CapabilityState { state: 'on' | 'degraded' | 'off' | 'contractBroken'; reason?: string }
 export interface HostContractReport { build: string | null /* 'index-DEVowLko' */; adapterVersion: string;
-  checkedAt: number; anchors: Record<AnchorId, 'ok' | 'missing' | 'shape'>;
+  checkedAt: number; anchors: Record<AnchorId, 'ok' | 'missing' | 'shape' | 'notYet' /* 1.10.0 */>;
   capabilities: Record<HostCapability, CapabilityState> }
 export interface RouteState { epoch: number; name: 'chat' | 'accounts-overview' | 'other';
   account: HostAccount | null; chat: ChatRef | null }
@@ -828,12 +828,22 @@ export interface HubFacade {
 | ключ черновика | после первого ввода | чтение и сверка — через редактор | деградация |
 | кадры WS `account_new_message` | первые кадры текущего сокета | звук — по сторам; свежесть X8 неизвестна | `CG-SEND-FRESHNESS` |
 | `["chatList",acc,…]` | схема | J/K, ⌘U, ⌘1–9 выключены | деградация |
-| `composerTranslator`, `mimicSettings/mimicChats`, `userPermissions` | форма | X8 выключен (не можем проверить условия) | `CG-SEND-HOST` |
+| `composerTranslator`, `mimicSettings/mimicChats`, `userPermissions` | форма; `composerTranslator` до первого поля ввода чата в документе — «ещё нет» (`notYet`, ниже) | X8 выключен (не можем проверить условия) | `CG-SEND-HOST` |
 | путь отправки и квитанции X8 (§6.7.6) | отпечатки существенных модулей и проверки формы совпадают с одним из проверенных профилей `limits.previewSendReceiptProfiles` | X8 выключен, «Открыть и вставить» работает | `CG-SEND-RECEIPT` |
 | тема | вычисленные стили | своя тема | деградация |
 
 **Когда проверяем:** на старте, когда появился нужный стор, при первом переходе в чат,
 при сбое монтирования, при смене отпечатка сборки или существенных модулей. Таймеров нет.
+
+**Якорь, которого ещё нет** (`notYet`, контракты 1.10.0). ChatSpace создаёт стор
+`composerTranslator` в `setup` поля ввода чата и держит его до перезагрузки страницы
+(0.195.0–0.202.0). Пока в документе не было ни одного поля ввода (слот
+`[data-id="browser-composer-translator"]`), MAIN называет отсутствующий стор `notYet`, а
+не `missing`; первое поле ввода — и стор без него уже `missing`, до перезагрузки. `notYet` —
+не поломка контракта: «Статус», popup, журнал вкладки и `client_health` её поломкой не
+считают. Но X8 при нём выключен (`CG-SEND-HOST`, причина — сам якорь), и у «Отправить»
+текст «откройте любой чат…»; настоящая поломка другого якоря отправки называется
+раньше. Сами стор не создаём (§6.1).
 
 **Состояния возможности** (`HostCapability`): `on`, `degraded`, `off`, `contractBroken`,
 у каждого — код причины. Отпечаток сборки — сигнал для диагностики, а не единственная

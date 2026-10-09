@@ -207,7 +207,7 @@ describe('[NEW-03] client_health histograms', () => {
   });
 });
 
-function contract(overrides: Partial<{ anchors: Partial<Record<(typeof ANCHOR_IDS)[number], 'ok' | 'missing' | 'shape'>>; off: readonly (typeof HOST_CAPABILITIES)[number][] }> = {}): HostContractReport {
+function contract(overrides: Partial<{ anchors: Partial<Record<(typeof ANCHOR_IDS)[number], 'ok' | 'missing' | 'shape' | 'notYet'>>; off: readonly (typeof HOST_CAPABILITIES)[number][] }> = {}): HostContractReport {
   return {
     build: 'index-DEVowLko',
     adapterVersion: '1.0.0',
@@ -302,6 +302,12 @@ describe('[NEW-03] the client_health window', () => {
     expect(hostSignature(hostSummary(contract({ anchors: { app: 'missing' } })))).not.toBe(a);
     expect(hostSignature(hostSummary({ ...contract(), build: 'index-NEW' }))).not.toBe(a);
     expect(hostSummary(null)).toEqual({ build: null, contractOk: false, missing: ['no-report'], degraded: [] });
+  });
+
+  it('[NEW-03] [DB-031] a store ChatSpace has not created yet (no chat opened since the page loaded) is no failure of the contract; once a composer was there, its absence is', () => {
+    const waiting = { ...contract({ anchors: { composerTranslator: 'notYet' } }), capabilities: { ...contract().capabilities, previewSend: { state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' } } } as HostContractReport;
+    expect(hostSummary(waiting)).toEqual({ build: 'index-DEVowLko', contractOk: true, missing: [], degraded: ['previewSend:off'] });
+    expect(hostSummary(contract({ anchors: { composerTranslator: 'missing' } }))).toMatchObject({ contractOk: false, missing: ['composerTranslator'] });
   });
 
   it('[NEW-03] handlers are sampled 1 in 20', () => {

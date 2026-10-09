@@ -603,6 +603,57 @@ describe('options: «Статус»', () => {
     expect(text(degraded, row(degraded, 'chatspace')?.note)).toContain('incoming');
   });
 
+  it('[ST-025] [PU-006] [DB-031] no chat opened since the page loaded: the translator store ChatSpace has not created yet is no gap — «подключён», with what the preview send waits for; once a composer was there, the same absent store is «проверен частично» as before', async () => {
+    const withHost = (host: ReturnType<typeof hostReport>): ReturnType<typeof workingState> => {
+      const state = workingState();
+      const tab = state.diagnostics.tabs[0];
+      state.diagnostics = { ...state.diagnostics, tabs: tab === undefined ? [] : [{ ...tab, host }] };
+      return state;
+    };
+    const base = hostReport(PAGES_NOW);
+    // What the adapter reports after a reload with the preview send switched on and no chat opened yet.
+    const notYet = withHost({
+      ...base,
+      anchors: { ...base.anchors, composerTranslator: 'notYet' },
+      capabilities: { ...base.capabilities, previewSend: { state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' } },
+    });
+    let w = await open({ state: notYet });
+    expect(row(w, 'chatspace')).toMatchObject({ level: 'ok' });
+    expect(text(w, row(w, 'chatspace')?.value)).toBe('Сборка index-0000test, подключён');
+    expect(text(w, row(w, 'chatspace')?.note)).toBe('Отправка из превью заработает, когда вы откроете любой чат.');
+    const readiness = options(w, 'status').body?.readiness;
+    expect(readiness?.s).toBe('ready');
+    expect(readiness?.s === 'ready' ? readiness.warnings : null).not.toContainEqual({ key: 'settings.status.warning.hostPartial' });
+    await w.client.dispatch({ type: 'SetPreference', key: 'debug.enabled', value: true });
+    expect(row(w, 'contract')).toMatchObject({ level: 'ok' });
+    expect(text(w, row(w, 'contract')?.note)).toBe('На месте все, кроме тех, что ChatSpace создаёт с первым открытым чатом: composerTranslator.');
+    world?.client.dispose();
+    w = await open({ page: 'popup', state: notYet });
+    expect(w.client.getSnapshot({ of: 'popup' })).toMatchObject({ view: { s: 'ready' }, pills: { host: 'connected' }, problems: [] });
+    world?.client.dispose();
+
+    // The owner's switch is off: the store is still not there, but nothing waits for it — the usual note.
+    w = await open({ state: withHost({ ...base, anchors: { ...base.anchors, composerTranslator: 'notYet' }, capabilities: { ...base.capabilities, previewSend: { state: 'off', reason: 'flag', code: 'CG-SEND-OFF' } } }) });
+    expect(row(w, 'chatspace')).toMatchObject({ level: 'ok' });
+    expect(text(w, row(w, 'chatspace')?.note)).toContain('проверены в');
+    world?.client.dispose();
+
+    // A chat's composer was there and the store did not come: ChatSpace changed — today's words.
+    const missing = withHost({
+      ...base,
+      anchors: { ...base.anchors, composerTranslator: 'missing' },
+      capabilities: { ...base.capabilities, previewSend: { state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' } },
+    });
+    w = await open({ state: missing });
+    expect(row(w, 'chatspace')).toMatchObject({ level: 'warn' });
+    expect(text(w, row(w, 'chatspace')?.value)).toBe('Сборка index-0000test, проверен частично');
+    expect(text(w, row(w, 'chatspace')?.note)).toBe('Не найдено: composerTranslator. Вставка работает.');
+    world?.client.dispose();
+    w = await open({ page: 'popup', state: missing });
+    expect(w.client.getSnapshot({ of: 'popup' }).pills.host).toBe('partial');
+    world?.client.dispose();
+  });
+
   it('[ST-026] the hub not answering is «нет связи» with the hub error, and the page is offline over what it knew', async () => {
     const w = await open();
     w.background.failNext('bootstrap.get', { code: 'CG-HUB-UNAVAILABLE' }, 3);

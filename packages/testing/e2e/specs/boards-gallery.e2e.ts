@@ -66,6 +66,7 @@ const STATES: Readonly<Record<string, string>> = {
   'quick-jump': '.cg-qj',
   'online-a': '.cg-pvw .cg-pv',
   'online-b': '.cg-pvw .cg-pvp',
+  'online-c': '.cg-pvw .cg-pvp',
 };
 
 /** Budgets of architecture.md §11. */

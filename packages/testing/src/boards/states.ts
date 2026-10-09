@@ -379,6 +379,9 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('quick-jump', 'Quick jump ⌘1–9', 'quick-jump', (ctx) => [entry({ of: 'quick-jump' }, quickJump(ctx, views.ready()))]),
   state('online-a', '«Онлайн» of the palette: the preview in its own window (X24)', 'preview', (ctx) => onlineState(ctx, null)),
   state('online-b', '«Онлайн» of the palette: Reply of three parts, «Отправить» on each (X24)', 'preview', (ctx) => onlineState(ctx, [AVAILABLE, AVAILABLE, AVAILABLE])),
+  state('online-c', '«Онлайн» of the palette before the page’s first chat: «Отправить» says to open any chat (CG-SEND-HOST, contracts 1.10.0)', 'preview', (ctx) =>
+    onlineState(ctx, [{ s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.hostNotYet') }, AVAILABLE, AVAILABLE]),
+  ),
   state('board-list', 'The board without a preview', 'spenders', (ctx) => [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS)), entry({ of: 'spenders.stats' }, statsOf(ctx))]),
   state('board-1000', 'A thousand fans: the virtual list', 'spenders', (ctx) => {
     const fans = manyFans(1000);

@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
+import { DEFAULT_SETTINGS, sendLockKey, type Bootstrap, type CgCode, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type IncomingFact, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersStats, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, pageFlag, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
 import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE, RATE_LIMIT_HOLD_MS, RESYNC_RETRY_MS } from '@cg/core/application/preview';
@@ -90,6 +90,8 @@ interface Harness {
   flush(): Promise<void>;
   /** A host event now (a route change, an incoming message). */
   hostEvent(event: HostEvent): void;
+  /** The host's contract report changes now (a store ChatSpace created, a profile that matched). */
+  hostContract(report: HostContractReport): void;
   /** A state MAIN observed for an attempt. */
   sendState(view: SendAttemptView): void;
   /** Scripts the next AI stream of the operation with the n-th id (0 — the first Generate). */
@@ -184,7 +186,17 @@ async function harness(options: Options = {}): Promise<Harness> {
   const viewListeners = new Set<(view: SendAttemptView) => void>();
   const clicks: PreviewSendClick[] = [];
   const attemptIds = sequentialIds(0x500);
-  const newDriver = (): PreviewSendDriver => new PreviewSendDriver({ port: host.previewSend, background: bg.sendPort, ids: attemptIds, onView: (view) => viewListeners.forEach((listener) => listener(view)), clock });
+  // As the tab's composition root does: the port is read at each click, it follows the host's capability.
+  const newDriver = (): PreviewSendDriver =>
+    new PreviewSendDriver({
+      get port() {
+        return host.previewSend;
+      },
+      background: bg.sendPort,
+      ids: attemptIds,
+      onView: (view) => viewListeners.forEach((listener) => listener(view)),
+      clock,
+    });
   let driver = newDriver();
   const notes: { code: CgCode; scope: string }[] = [];
   const handovers: BoardHandover[] = [];
@@ -335,6 +347,10 @@ async function harness(options: Options = {}): Promise<Harness> {
     flush,
     hostEvent(event) {
       timeline.push({ kind: 'event', at: clock.now() - NOW_MS, event });
+      host.advance();
+    },
+    hostContract(report) {
+      timeline.push({ kind: 'contract', at: clock.now() - NOW_MS, report });
       host.advance();
     },
     sendState(view) {
@@ -1669,6 +1685,31 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     await noCard.dispatch({ type: 'Generate', targetHandle: spender('5000'), feature: 'reply', options: {} });
     await noCard.advance(200);
     expect(partsOf(noCard, 'spenders')[0]?.send).toMatchObject({ s: 'unavailable', code: 'CG-SEND-FAN', reason: { key: 'send.reason.fan' } });
+  });
+
+  it('[X8-03] [DB-031] no chat opened since the page loaded: «Отправить» says to open any chat (CG-SEND-HOST) and sends nothing; with the store the first chat brings, the part can be sent', async () => {
+    const waiting = { ...contractReport({ previewSend: { state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' } }), anchors: { ...contractReport().anchors, composerTranslator: 'notYet' as const } };
+    const { h, opId } = await withReply({ start: { contract: waiting } });
+    expect(h.host.previewSend).toBeNull();
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-HOST', reason: { key: 'send.reason.hostNotYet' } });
+    expect(partsOf(h, 'spenders')[0]?.openInsert).toEqual({ s: 'available' });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-HOST' });
+    expect(h.clicks).toEqual([]);
+    expect(h.host.calls.preflights).toEqual([]);
+    expect(h.host.calls.commits).toEqual([]);
+
+    // The person opened a chat and closed it again: ChatSpace created the store and keeps it — the row follows at once.
+    h.hostContract(contractReport());
+    await h.flush();
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'available' });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
+    await h.flush();
+    expect(h.host.calls.commits).toHaveLength(1);
+
+    // A chat's composer was there and the store did not come (ChatSpace changed): the general words, as before.
+    const gone = { ...waiting, anchors: { ...waiting.anchors, composerTranslator: 'missing' as const } };
+    const broken = await withReply({ start: { contract: gone } });
+    expect(partsOf(broken.h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-HOST', reason: { key: 'send.reason.host' } });
   });
 
   it('unavailable by the page: MAIN’s own answer explains the button (Mimic), and the context the hub did not serve holds it', async () => {

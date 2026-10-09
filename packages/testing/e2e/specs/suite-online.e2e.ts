@@ -10,11 +10,17 @@
 //   no chat, loads no history, and the fan's unread mark stays;
 // - J and K walk the list the palette showed, in its order, still with no
 //   chat opened;
-// - Ping in the window asks the hub only. With no chat open ChatSpace has not
-//   loaded what its sending needs, so «Отправить» (X8, the owner's switch on
-//   here) says why it cannot (CG-SEND-HOST) and sends nothing, and «Открыть и
-//   вставить» is offered — the same rows and conditions as in Spenders;
+// - Ping in the window asks the hub only. No chat has been opened since the
+//   page loaded, so ChatSpace has not created yet what its sending reads (its
+//   composer translator store comes with the first chat's composer): «Отправить»
+//   (X8, the owner's switch on here) says to open any chat (CG-SEND-HOST) and
+//   sends nothing, and «Открыть и вставить» is offered — the same rows and
+//   conditions as in Spenders;
 // - Esc closes the window and the focus is back where it was before ⌘K;
+// - «Статус» meanwhile says ChatSpace is connected — with a note that sending
+//   from the preview starts with any chat, not «проверен частично»; once the
+//   person opened a chat and closed it again, the note is the usual one, and
+//   «Отправить» in the window is available (nothing is pressed);
 // - with a chat of the person's own open, «Отправить» in the window sends the
 //   part through ChatSpace's own queue by one click, and the online fan's chat
 //   is still not opened.
@@ -27,6 +33,7 @@ import { bridgeWrites, historyLoads, MOD, pageJournal, pageJournalMark, queueAdd
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { oursBox, oursExists, pressOurs, readOurs, waitOursText } from '../support/ours';
+import { readChatSpaceStatus } from '../support/pages';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -187,7 +194,7 @@ describe('CS-030 on the wired extension — the palette’s «Онлайн» ope
     expect((await dockIs(() => true, 'the dock')).overlays).toEqual(['preview']);
   });
 
-  it('[CS-030] [AI-038] Ping in the window asks the hub only; with no chat open ChatSpace’s send queue is not loaded, so «Отправить» says why and sends nothing — «Открыть и вставить» is offered', async () => {
+  it('[CS-030] [AI-038] [X8-03] Ping in the window asks the hub only; no chat opened since the page loaded, so «Отправить» says to open any chat and sends nothing — «Открыть и вставить» is offered', async () => {
     const fan = shown[0] ?? '';
     const standMark = await standServer.mark();
     const hubMark = await hub().mark();
@@ -200,6 +207,9 @@ describe('CS-030 on the wired extension — the palette’s «Онлайн» ope
     const row = await readOurs('modal', '.cg-pvw [data-cg-part="0"]', (node) => ({ state: node.getAttribute('data-cg-send-state'), text: (node.textContent ?? '').replace(/\s+/g, ' ') }));
     expect(row?.state).toBe('unavailable');
     expect(row?.text).toContain('CG-SEND-HOST');
+    // Not «ChatSpace is not taking sends»: what lifts it is the person's own next step.
+    expect(row?.text).toContain('Отправка недоступна: откройте любой чат, и она заработает. Пока вставьте часть в чат вручную.');
+    expect(row?.text).not.toContain('ChatSpace сейчас не принимает');
     expect(row?.text).toContain('Открыть и вставить');
     await pressOurs('modal', '.cg-pvw [data-cg-part="0"] .cg-pvs__send', /^Отправить/);
     await browser.pause(500);
@@ -218,6 +228,46 @@ describe('CS-030 on the wired extension — the palette’s «Онлайн» ope
     expect(await browser.execute(() => document.activeElement?.hasAttribute('data-stand-chat-order') ?? false)).toBe(true);
     expect(await browser.execute(() => [...document.querySelectorAll('[data-host="overlay"]')].some((host) => host.hasAttribute('data-dismissible-open')))).toBe(false);
     expect((await callStand('route')).chatId ?? null).toBeNull();
+  });
+
+  it('[ST-025] [PU-006] [X8-03] «Статус» says ChatSpace is connected and that sending from the preview starts with any chat; a chat opened and closed — the usual note, and «Отправить» in the window is available', async () => {
+    const fan = shown[0] ?? '';
+    const waiting = await readChatSpaceStatus(shift, (row) => row.text.includes('заработает'));
+    expect(waiting.chatspace.level).toBe('ok');
+    expect(waiting.chatspace.text).toContain('подключён');
+    expect(waiting.chatspace.text).toContain('Отправка из превью заработает, когда вы откроете любой чат.');
+    expect(waiting.chatspace.text).not.toContain('частично');
+    expect(waiting.chatspace.text).not.toContain('composerTranslator');
+    expect(waiting.popupCodes).not.toContain('CG-HOST-CONTRACT');
+    expect(waiting.popupPills.join(' ')).toContain('подключён');
+
+    // The person opens a chat of their own and closes it: ChatSpace created what its sending reads, and keeps it.
+    await callStand('openChat', ACC, a1);
+    await waitForChatReady(ACC, a1);
+    await callStand('closeActiveChatTab');
+    await browser.waitUntil(async () => ((await callStand('route')).chatId ?? null) === null, { timeout: 5000, timeoutMsg: 'the chat did not close' });
+    const ready = await readChatSpaceStatus(shift, (row) => !row.text.includes('заработает'));
+    expect(ready.chatspace.level).toBe('ok');
+    expect(ready.chatspace.text).toContain('проверены в');
+    expect(ready.popupPills.join(' ')).toContain('подключён');
+
+    // The window of the same fan again: its Ping is there, and «Отправить» is available now. Nothing is pressed.
+    const standMark = await standServer.mark();
+    await browser.execute(() => document.querySelector<HTMLElement>('[data-stand-chat-order]')?.focus());
+    await browser.keys([MOD, 'k']);
+    await browser.waitUntil(async () => ((await onlineGroup()) ?? []).length === ONLINE.length, { timeout: 15_000, timeoutMsg: 'the palette shows no «Онлайн» group of three' });
+    await pressOurs('modal', '.cg-pal__item', new RegExp(`^${NAMES[fan] ?? '?'}`), 'the fan of «Онлайн»');
+    await waitOursText('modal', ping(fan), 'the window shows the fan’s Ping', { timeout: 15_000, selector: '.cg-pvw .cg-pvr' });
+    let state: string | null = null;
+    await browser.waitUntil(async () => (state = await readOurs('modal', '.cg-pvw [data-cg-part="0"]', (node) => node.getAttribute('data-cg-send-state'))) === 'available', {
+      timeout: 10_000,
+      timeoutMsg: `«Отправить» did not become available: ${String(state)}`,
+    });
+    expect(await readOurs('modal', '.cg-pvw [data-cg-part="0"]', (node) => node.querySelector('.cg-pvs__code')?.textContent ?? null)).toBeNull();
+    expect(sendsOf(await serverSince(standMark))).toEqual([]);
+    await noChatOpened(standMark);
+    await browser.keys(Key.Escape);
+    await browser.waitUntil(async () => !(await oursExists('modal', '.cg-pvw')), { timeout: 5000, timeoutMsg: 'Esc did not close the window' });
   });
 
   it('[CS-030] [X8] with a chat of the person’s own open, «Отправить» in the window sends the part through ChatSpace’s own queue by one click — the online fan’s chat is still not opened', async () => {

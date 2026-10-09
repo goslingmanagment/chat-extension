@@ -89,6 +89,16 @@ describe('[SP-054] «Отправить»: the nine states, their words and thei
     expect(sends()).toEqual([]);
   });
 
+  it('[X8-03] unavailable until the page’s first chat: the same CG-SEND-HOST, its reason says to open any chat; nothing is sent', async () => {
+    ui = await mountBoardSettled('spenders', previewOf([{ s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.hostNotYet') }]));
+    const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
+    expect(send.getAttribute('aria-disabled')).toBe('true');
+    expect(buttons(0)).toEqual(['Отправить', 'Открыть и вставить', 'Копировать часть 1']);
+    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-HOST: Отправка недоступна: откройте любой чат, и она заработает. Пока вставьте часть в чат вручную.');
+    await flush(() => send.click());
+    expect(sends()).toEqual([]);
+  });
+
   it('queued: a ring and «В очереди ChatSpace»; nothing to press (we never cancel ChatSpace’s queue)', async () => {
     ui = await mountBoardSettled('spenders', previewOf([{ s: 'queued' }]));
     expect(stateWords(0)).toBe('В очереди ChatSpace');

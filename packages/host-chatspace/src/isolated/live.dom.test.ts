@@ -244,6 +244,28 @@ describe('[X8-06] the preview send capability (§6.2, §6.7.11)', () => {
     pending.host.dispose();
   });
 
+  it('[DB-031] before the page’s first chat composer the translator store is not there yet: no port, every send held with CG-SEND-HOST before MAIN is asked — then the store comes and X8 is on', async () => {
+    loadModules();
+    const { host, bridge } = await start({}, { contract: wire({ notYet: ['composerTranslator'] }) });
+    const report = host.probe();
+    expect(report.anchors.composerTranslator).toBe('notYet');
+    expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' });
+    expect(report.capabilities.insert).toEqual({ state: 'on' });
+    expect(host.previewSend).toBeNull();
+    // The person opens a chat: ChatSpace creates the store with its composer, MAIN says so.
+    bridge.emit({ t: 'contract', payload: wire() });
+    expect(host.probe().anchors.composerTranslator).toBe('ok');
+    expect(host.previewSend).not.toBeNull();
+    // A port taken while it was on still refuses by itself the moment the store is «not yet» again (a new document's
+    // MAIN): the send is held before MAIN is asked anything.
+    const port = host.previewSend;
+    bridge.emit({ t: 'contract', payload: wire({ notYet: ['composerTranslator'] }) });
+    const asked = bridge.calls.length;
+    expect(await port?.preflight(request())).toEqual({ ok: false, code: 'CG-SEND-HOST' });
+    expect(await port?.commit(request(), ticket())).toEqual({ state: 'held', code: 'CG-SEND-HOST' });
+    expect(bridge.calls.slice(asked).filter((call) => call.t.startsWith('previewSend'))).toEqual([]);
+  });
+
   it('a condition’s anchor that cannot be read keeps X8 off', async () => {
     loadModules();
     const { host } = await start({}, { contract: wire({ missing: ['mimic'] }) });

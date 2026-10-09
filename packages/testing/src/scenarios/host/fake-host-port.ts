@@ -152,7 +152,6 @@ class FakePreviewSendPort implements PreviewSendPort {
 export class FakeHostPort implements HostPort {
   readonly kind = 'chatspace' as const;
   readonly platform = 'onlyfans' as const;
-  readonly previewSend: PreviewSendPort | null;
   readonly calls: HostCalls = { redeemed: [], inserts: [], navigations: [], checkpoints: [], preflights: [], commits: [] };
 
   private snapshot: HostSnapshot;
@@ -179,7 +178,11 @@ export class FakeHostPort implements HostPort {
       commit: [...(script.answers.commit ?? [])],
     };
     this.sendPort = new FakePreviewSendPort(this);
-    this.previewSend = script.start.contract.capabilities.previewSend.state === 'on' ? this.sendPort : null;
+  }
+
+  /** As the adapter's: a port only while the capability in the current report is on (a `contract` step moves it). */
+  get previewSend(): PreviewSendPort | null {
+    return this.snapshot.contract.capabilities.previewSend.state === 'on' ? this.sendPort : null;
   }
 
   /** @internal The next scripted answer of a kind, or undefined when the queue is empty. */

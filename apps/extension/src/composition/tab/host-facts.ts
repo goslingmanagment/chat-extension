@@ -33,6 +33,7 @@
 import type { HostContractReport, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
+import { anchorGap, anchorsNotYet } from '@cg/core/domain/host';
 import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 
@@ -66,18 +67,27 @@ export interface HostFacts {
 const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
 
 /**
- * The host contract as the tab's log says it (DB-031): every anchor that is not `ok`, every capability that is
- * not `on` — and `ok` false, which makes the record a CG-HOST-CONTRACT of «ошибки за сегодня», only when an
- * anchor of ChatSpace itself is gone.
+ * The host contract as the tab's log says it (DB-031): every anchor that is gone or changed, every capability that
+ * is not `on` — and `ok` false, which makes the record a CG-HOST-CONTRACT of «ошибки за сегодня», only when an
+ * anchor of ChatSpace itself is gone. An anchor ChatSpace has not created yet (`notYet`: the composer translator
+ * store before the page's first chat) is listed apart and is no error: every reload has it until a chat is opened.
  */
-export function contractFactsOf(report: HostContractReport): { readonly build: string | null; readonly adapterVersion: string; readonly ok: boolean; readonly missing: string[]; readonly degraded: string[] } {
+export function contractFactsOf(report: HostContractReport): {
+  readonly build: string | null;
+  readonly adapterVersion: string;
+  readonly ok: boolean;
+  readonly missing: string[];
+  readonly degraded: string[];
+  readonly notYet?: string[];
+} {
   const missing = Object.entries(report.anchors)
-    .filter(([, state]) => state !== 'ok')
+    .filter(([, state]) => anchorGap(state))
     .map(([anchor]) => anchor);
+  const later = anchorsNotYet(report);
   const degraded = Object.entries(report.capabilities)
     .filter(([, capability]) => capability.state !== 'on')
     .map(([name]) => name);
-  return { build: report.build, adapterVersion: report.adapterVersion, ok: missing.every((anchor) => SWITCHED_ANCHORS.includes(anchor)), missing, degraded };
+  return { build: report.build, adapterVersion: report.adapterVersion, ok: missing.every((anchor) => SWITCHED_ANCHORS.includes(anchor)), missing, degraded, ...(later.length === 0 ? {} : { notYet: later }) };
 }
 
 const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] };

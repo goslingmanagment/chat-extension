@@ -51,6 +51,7 @@ import {
   KEY_PERMISSIONS,
   LIVE_REQUESTS,
   ROUTE_CHAT,
+  SLOT_SELECTOR,
   STORE_ACCOUNTS,
   STORE_CACHE,
   STORE_QUEUE,
@@ -111,6 +112,12 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   let live: LivePort | null | undefined;
   /** The accounts store is watched: only then its subscription set means anything. */
   let subscriptions: PageStore | null = null;
+  /**
+   * A chat composer of ChatSpace has been in this document (§6.2). ChatSpace creates its composer translator store
+   * in a composer's setup and keeps it until the page reloads, so before the first composer that store is «not yet»
+   * (`notYet`), and after it a store that is not there is missing. Once seen, seen: closing the chat changes nothing.
+   */
+  let composerSeen = false;
 
   // ── reads ──
 
@@ -118,6 +125,14 @@ export function createMainRuntime(context: MainContext): MainRuntime {
   const loginEpoch = (): string | null => (app ? `L${login}` : null);
   const accountOf = (acc: string | null) => reader.accounts().find((account) => account.hostAccountId === acc) ?? null;
   const blocked = (read: Route): boolean => !!read.fan && reader.rawFan(read.acc as string, read.fan)?.['isBlocked'] === true;
+  /** Whether a composer has been here; asked only while the translator store is absent — one query of the slot until the first one. */
+  const composerMounted = (): boolean => (composerSeen ||= doc.querySelector(SLOT_SELECTOR) !== null);
+  /** The search found a composer: the first one in the document turns an absent translator store from «not yet» into missing. */
+  const sawComposer = (): void => {
+    if (composerSeen) return;
+    composerSeen = true;
+    emit('contract', contractPayload);
+  };
 
   const routePayload = (): Plain => {
     const read = route();
@@ -142,6 +157,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     const read = route();
     if (!settled || !composers || !read.fan) return null;
     const slot = composers.activeSlot();
+    // One visible composer or several (ambiguous): either way ChatSpace has mounted one.
+    if (slot !== null) sawComposer();
     if (!slot) return slot;
     const tab = reader.tabChat(read.acc as string);
     if (tab === undefined) return { slot, confirmed: false };
@@ -249,10 +266,10 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       app: app && findApp(doc)?.app === app.app ? 'ok' : 'missing',
       router: !app?.router ? 'missing' : hasChatRoute(app.router) ? 'ok' : 'shape',
     };
-    if (app) Object.assign(found, Object.assign(sticky, reader.anchors(read.acc, read.fan)), { wsFrames: livePort()?.anchor() ?? 'missing' });
+    if (app) Object.assign(found, Object.assign(sticky, reader.anchors(read.acc, read.fan, composerMounted)), { wsFrames: livePort()?.anchor() ?? 'missing' });
     const listed = (state: string): string[] => MAIN_ANCHORS.filter((key) => (found[key] ?? 'ok') === state);
     // Without #app (still searching, or given up after 60 s) the host is simply not ready: nothing else is judged.
-    return { build: reader.build(), missing: app ? listed('missing') : ['app'], shape: app ? listed('shape') : [], receiptModules: {} };
+    return { build: reader.build(), missing: app ? listed('missing') : ['app'], shape: app ? listed('shape') : [], notYet: app ? listed('notYet') : [], receiptModules: {} };
   };
 
   const identityMatches = (expected: Identity): boolean => {

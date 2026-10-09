@@ -10,7 +10,7 @@ import { type CgCode } from '@cg/contracts/errors';
 import { type PreviewSendPreflight, type SendAttemptView, type SendGroup } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode, type SendAttemptState } from '@cg/contracts/send-rules';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
-import { SEND_REASON_KEYS, previewSendStateOf, type OpenInsertVM, type PreviewSendView, type ReasonVM, type SendOrderVM } from '@cg/contracts/vm';
+import { SEND_REASON_HOST_NOT_YET, SEND_REASON_KEYS, previewSendStateOf, type OpenInsertVM, type PreviewSendView, type ReasonVM, type SendOrderVM } from '@cg/contracts/vm';
 
 import { groupProgress, sendOrderOf, type FanAttempt } from '../../domain/send/groups';
 import { msg } from '../boards/views';
@@ -52,6 +52,11 @@ export interface SendRowInput {
   readonly staleAt: IsoTimestamp | null;
   /** Local clock, ISO: stands in for a time the attempt did not record. */
   readonly nowIso: IsoTimestamp;
+  /**
+   * The host's preview send is off only because ChatSpace has not created yet what it reads (no chat opened in the
+   * page since it loaded, `previewSendWaitsForChat`): CG-SEND-HOST then says «open any chat», not «not taking sends».
+   */
+  readonly hostWaitsForChat?: boolean;
 }
 
 /** The row of one part: the contract's state table plus its texts and times. */
@@ -66,7 +71,7 @@ export function sendRow(input: SendRowInput): PreviewSendView {
     case 'accepted':
       return state;
     case 'unavailable':
-      return { s: 'unavailable', code: state.code, reason: msg(SEND_REASON_KEYS[state.code]) };
+      return { s: 'unavailable', code: state.code, reason: msg(state.code === 'CG-SEND-HOST' && input.hostWaitsForChat === true ? SEND_REASON_HOST_NOT_YET : SEND_REASON_KEYS[state.code]) };
     case 'held-stale':
       return { s: 'held-stale', at: input.staleAt };
     case 'sent':

@@ -26,6 +26,7 @@ import {
   type TabHealthReport,
 } from '@cg/contracts/telemetry';
 
+import { anchorGap } from '../host';
 import { Histogram } from './histogram';
 
 export const HEALTH_SAMPLES_PER_METRIC_MAX = 20_000;
@@ -59,7 +60,8 @@ export function hostSummary(report: HostContractReport | null): HostSummary {
   if (report === null) return { build: null, contractOk: false, missing: ['no-report'], degraded: [] };
   const missing = ANCHOR_IDS.flatMap((anchor) => {
     const state = report.anchors[anchor];
-    if (state === undefined || state === 'ok') return [];
+    // `notYet` (ChatSpace creates the anchor with the page's first chat) is no failure; what it keeps off is in `degraded`.
+    if (!anchorGap(state)) return [];
     return [state === 'shape' ? `${anchor}:shape` : anchor];
   });
   const degraded = HOST_CAPABILITIES.flatMap((capability) => {

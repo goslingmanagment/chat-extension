@@ -318,6 +318,61 @@ describe('MAIN runtime — reads (§6.1)', () => {
   });
 });
 
+describe('MAIN runtime — the composer translator store: not yet before the first composer, missing after one (§6.2)', () => {
+  type Wire = { missing: string[]; shape: string[]; notYet: string[] };
+  const contracts = (h: Harness): Wire[] => h.events.filter((event) => event.t === 'contract').map((event) => event.payload as unknown as Wire);
+  const snapshotWire = (h: Harness): Wire => (h.runtime.handle('snapshot', {}) as { contract: Wire }).contract;
+
+  it('[DB-031] [ST-025] a page loaded with no chat open: ChatSpace has not created the store yet — `notYet`, not missing; it comes with the first chat and stays after it closes', async () => {
+    // ChatSpace's own order: a chat's composer creates the store in its setup, then renders.
+    const h = await start((page) => page.go(ACC));
+    expect(snapshotWire(h)).toMatchObject({ notYet: ['composerTranslator'] });
+    expect(snapshotWire(h).missing).not.toContain('composerTranslator');
+    expect(contracts(h).at(-1)?.notYet).toEqual(['composerTranslator']);
+
+    h.page.addStore(fakeStore('composerTranslator', { getAccountSettings: () => ({ value: { enabled: false, autoTranslate: true } }) }));
+    const first = h.page.addComposer(ACC, FAN);
+    h.page.go(ACC, FAN);
+    h.frame();
+    expect(contracts(h).at(-1)).toMatchObject({ notYet: [] });
+    expect(contracts(h).at(-1)?.missing).not.toContain('composerTranslator');
+
+    // The person closes the chat: ChatSpace keeps the store until the page reloads.
+    first.tab.remove();
+    h.page.go(ACC);
+    h.frame();
+    expect(snapshotWire(h)).toMatchObject({ notYet: [] });
+    expect(snapshotWire(h).missing).not.toContain('composerTranslator');
+  });
+
+  it('[DB-031] [RB-008] a composer mounted and the store is still not there: missing, as before — and it stays missing after the chat closes', async () => {
+    const h = await start((page) => page.go(ACC));
+    expect(snapshotWire(h).notYet).toEqual(['composerTranslator']);
+    const composer = h.page.addComposer(ACC, FAN);
+    const before = h.events.length;
+    h.page.go(ACC, FAN);
+    h.frame();
+    // The search that found the first composer judges the contract again, without waiting for another change.
+    const after = h.events.slice(before).filter((event) => event.t === 'contract').map((event) => event.payload as unknown as Wire);
+    expect(after.at(-1)?.missing).toContain('composerTranslator');
+    expect(after.at(-1)?.notYet).toEqual([]);
+
+    composer.tab.remove();
+    h.page.go(ACC);
+    h.frame();
+    expect(snapshotWire(h).missing).toContain('composerTranslator');
+    expect(snapshotWire(h).notYet).toEqual([]);
+  });
+
+  it('[DB-031] a page loaded straight on a chat whose composer is there without the store: missing at once', async () => {
+    const h = await start((page) => {
+      page.addComposer(ACC, FAN);
+    });
+    expect(snapshotWire(h).missing).toContain('composerTranslator');
+    expect(snapshotWire(h).notYet).toEqual([]);
+  });
+});
+
 describe('MAIN runtime — guarded insert (§6.4)', () => {
   beforeEach(async () => {
     await start((page) => {
@@ -1047,7 +1102,7 @@ describe('MAIN runtime — requests', () => {
     expect(bare.handle('fan', { acc: ACC, fan: FAN })).toBe('not-ready');
     expect(bare.handle('listAccounts', {})).toEqual([]);
     // While #app is not there (still searching or given up), only `app` is reported, as missing.
-    expect((bare.handle('snapshot', {}) as { contract: unknown }).contract).toEqual({ build: null, missing: ['app'], shape: [], receiptModules: {} });
+    expect((bare.handle('snapshot', {}) as { contract: unknown }).contract).toEqual({ build: null, missing: ['app'], shape: [], notYet: [], receiptModules: {} });
     bare.dispose();
   });
 });

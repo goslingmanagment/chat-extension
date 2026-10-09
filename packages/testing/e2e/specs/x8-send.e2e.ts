@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { ADAPTER_VERSION, receiptModules } from '@cg/host-chatspace/isolated';
 import { browser, expect } from '@wdio/globals';
 
-import type { PageJournalEntry, SendOutcome, ServerJournalEntry } from '../../fixture-chatspace/src/protocol';
+import type { PageJournalEntry, SendOutcome, ServerJournalEntry, StandBreak } from '../../fixture-chatspace/src/protocol';
 import { FIXTURE_BUILD_DIR } from '../../src/stand/paths';
 import { harness, installHostHarness, waitForHarness, waitForHarnessState, type InstalledHarness } from '../support/host-harness';
 import { useNetworkTrap } from '../support/network-trap';
@@ -158,7 +158,7 @@ async function armed(acc: string = ACC, fan: string = a5): Promise<Checkpoint> {
   return point as Checkpoint;
 }
 
-async function open(path: string, config: Record<string, unknown> | null = liveConfig()): Promise<Report | null> {
+async function open(path: string, config: Record<string, unknown> | null = liveConfig(), breaks: readonly StandBreak[] = []): Promise<Report | null> {
   await browser.execute(() => {
     try {
       for (const key of Object.keys(localStorage)) if (key.startsWith('chat-space:')) localStorage.removeItem(key);
@@ -166,7 +166,7 @@ async function open(path: string, config: Record<string, unknown> | null = liveC
       // about:blank before the first stand page
     }
   });
-  await openStand(path);
+  await openStand(path, { breaks });
   await waitForHarness();
   await waitForHarnessState(
     () => harness<{ contract: { anchors: Record<string, string> } }>('state'),
@@ -928,6 +928,54 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       expect((await liveEvents('incoming')).length).toBe(facts);
       // ChatSpace's socket was never touched: it is still the same open, authenticated socket.
       expect(await callStand('wsStatus')).toMatchObject({ status: 'OPEN', authenticated: true });
+    });
+  });
+
+  describe('[DB-031] the composer translator store: ChatSpace creates it with the page’s first chat composer (§6.2)', () => {
+    const contractNow = async (): Promise<Report> => (await harness<{ contract: Report }>('state')).contract;
+    /** Anchors that are not `ok`, but for the ones the switches and the socket own. */
+    const others = (report: Report, but: string): string[] => Object.entries(report.anchors).filter(([id, value]) => value !== 'ok' && ![but, 'wsFrames', 'receiptProfile'].includes(id)).map(([id]) => id);
+
+    it('[DB-031] [X8-03] a page loaded with no chat open: the store is not there yet — no break, X8 off with CG-SEND-HOST; a chat opened and closed brings it, and X8 is on', async () => {
+      const report = (await open(chatPath(ACC))) as Report;
+      expect((await callStand('route')).chatId ?? null).toBeNull();
+      expect(await browser.execute(() => document.querySelector('[data-id="browser-composer-translator"]') === null)).toBe(true);
+      expect(report.anchors['composerTranslator']).toBe('notYet');
+      expect(others(report, 'composerTranslator')).toEqual([]);
+      expect(report.capabilities['previewSend']).toEqual({ state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' });
+      expect(report.capabilities['insert']).toEqual({ state: 'on' });
+      expect(await harness<boolean>('previewSendAvailable')).toBe(false);
+      expect(await send({ fan: a5 })).toMatchObject({ attemptId: null, reason: 'no-port' });
+
+      // The person opens a chat: its composer creates the store, and the adapter hears of it with no timer.
+      await callStand('openChat', ACC, a1);
+      await waitForChatReady(ACC, a1);
+      const opened = await waitForHarnessState(contractNow, (now) => now.anchors['composerTranslator'] === 'ok', 'the store came with the chat');
+      expect(opened.capabilities['previewSend']).toEqual({ state: 'on' });
+      // The person closes it: ChatSpace keeps the store until the page reloads, and X8 stays on.
+      await callStand('closeActiveChatTab');
+      await browser.waitUntil(async () => ((await callStand('route')).chatId ?? null) === null, { timeout: 5000, timeoutMsg: 'the chat did not close' });
+      await browser.pause(300);
+      const closed = await contractNow();
+      expect(closed.anchors['composerTranslator']).toBe('ok');
+      expect(closed.capabilities['previewSend']).toEqual({ state: 'on' });
+      expect(await harness<boolean>('previewSendAvailable')).toBe(true);
+      // As far as the page's other conditions go, a send to a fan whose chat is not open could go now.
+      await armed();
+      expect(await preflight({ fan: a5 })).toEqual({ ok: true });
+    });
+
+    it('[DB-031] [RB-008] a chat composer mounted and the store did not come (a new build renamed it): missing, X8 off with CG-SEND-HOST — and still after the chat closes', async () => {
+      await open(chatPath(ACC, a1), liveConfig(), ['store:composerTranslator']);
+      await waitForChatReady(ACC, a1);
+      const now = await waitForHarnessState(contractNow, (state) => state.anchors['composerTranslator'] === 'missing', 'the store is missing', 10_000);
+      expect(others(now, 'composerTranslator')).toEqual([]);
+      expect(now.capabilities['previewSend']).toEqual({ state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' });
+      await callStand('closeActiveChatTab');
+      await browser.waitUntil(async () => ((await callStand('route')).chatId ?? null) === null, { timeout: 5000, timeoutMsg: 'the chat did not close' });
+      await browser.pause(300);
+      expect((await contractNow()).anchors['composerTranslator']).toBe('missing');
+      expect(await harness<boolean>('previewSendAvailable')).toBe(false);
     });
   });
 
