@@ -1,13 +1,13 @@
 {
   "kernelSdk": {
-    "contractHash": "ebdd94e3974ab53680e6568b5945e1e1c253f86ab617c334c78d0d1d1d7bcaa4",
-    "sourceCommit": "5c4e6dd7e56d1bd86ed202107e428cdf7ea0c043",
-    "distSha256": "fbe3218ff3dbe3c9b82d008c0280257f798ae40d074441022d5edf2f3c161010",
-    "note": "Vendored on 2026-10-09 with the hub's scripts/vendor-sdk.mjs from hub main 5c4e6dd7 (#511) — the commit DEPLOYED to production that night (prod health: contractHash ebdd94e3…, compatibleClientSdks lists it), so this vendor satisfies the release rule: a release is vendored only from a deployed hub commit (the release gate refuses an SDK hash the prod health does not list in compatibleClientSdks). Against the vendor before (58f766cd, contract 38a87253…, which the hub no longer lists) the contract only ADDED: an optional `chatAccess` on conversations and an optional `chatsUnavailable` count (Fansly chats the platform stopped serving, hub #490–#511) and the agent route agentThreadAvailability; packages/contracts/src/routes-client.ts, every client route, operation, schema and scope this extension uses are unchanged. Re-vendor with the same script, then update this pin in the same commit."
+    "contractHash": "9d032a24430676571d2c8c1cd89637996b89e950283adabde5b707e3fc6d9659",
+    "sourceCommit": "4d75e2036f79637736c7816feda8fa7ecd5f5125",
+    "distSha256": "bfa5c9262e78bc85bdf6d3f794eb614806be7cbe7dae9a3cab9004484498a66a",
+    "note": "Vendored on 2026-10-10 with the hub's scripts/vendor-sdk.mjs from hub main 4d75e203 (#537) — the commit DEPLOYED to production that night (prod health: contractHash 9d032a24…, compatibleClientSdks lists it), so this vendor satisfies the release rule (a release is vendored only from a deployed hub commit). Against 5c4e6dd7 (ebdd94e3…, no longer listed): the persona routes with full prompt text and the raw AI gateway are owner-session only (#537; this extension never calls them, HUB_FORBIDDEN_OPERATIONS), the SDK reads a colon inside a path segment literally (spenders:batch, #517), an optional accountLookupMissAt and owner/agent OnlyFans link routes were added; every client route, operation, schema and scope this extension uses is unchanged. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
     "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
-    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to 5c4e6dd7, the commit the SDK is vendored from: only its README and the script's usage comment changed since)."
+    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to 4d75e203, the commit the SDK is vendored from: only its README and the script's usage comment changed since)."
   }
 }

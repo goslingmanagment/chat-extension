@@ -739,6 +739,18 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/notifications/test";
     };
+    readonly ofLinksChannelsGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/of-links/channels";
+    };
+    readonly ofLinksGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/of-links";
+    };
+    readonly ofLinksHistoryGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/of-links/history";
+    };
     readonly ofapiActionCancel: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/ofapi/actions/:id/cancel";

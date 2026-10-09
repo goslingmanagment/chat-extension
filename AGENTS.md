@@ -18,8 +18,8 @@ hotkeys, sound) and the extension pages (popup, settings, sign-in, debug
 pages) work together on the ChatSpace-like stand against the fake hub.
 Contracts are frozen at 1.11.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
-`docs/contracts-changelog.md`. The SDK is vendored from hub `main` `5c4e6dd7`
-(2026-10-09, contract `ebdd94e3…`), the commit deployed to production that
+`docs/contracts-changelog.md`. The SDK is vendored from hub `main` `4d75e203`
+(2026-10-10, contract `9d032a24…`), the commit deployed to production that
 night, so it meets the release rule (a release is vendored only from a deployed
 hub commit): every hub route written for this client is in it, and every hub
 call goes one way, through the SDK (the temporary RouteTransport is gone).

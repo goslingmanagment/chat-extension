@@ -9,6 +9,7 @@ import { ofapiVendorRouteSchemas } from "./routes-ofapi-vendor";
 import { ofapiReadCollectionsRouteSchemas } from "./routes-ofapi-read-collections";
 import { ofapiExportRouteSchemas } from "./routes-ofapi-exports";
 import { ofapiCollectionRouteSchemas } from "./routes-ofapi-collection";
+import { ofLinksRouteSchemas } from "./routes-of-links";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, FANSLY_CLIENT_CHECK_ROUTES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
@@ -1056,6 +1057,14 @@ const spenderLastTransactionSchema = z.object({
     creatorNetAmountMills: mills,
     occurredAt: isoTimestamp,
 }).nullable();
+// The page's own "can't see this fan" mark: when the latest Fansly account
+// answer through THIS page — an account lookup or the DM partner probe — did
+// not return the fan (page_fans.account_probe_resolved = false), the time of
+// that answer. The fan probably blocked the page or deleted the account; other
+// pages keep their own answer, so the fan shows normally there. Null when the
+// latest answer returned the fan, the page never asked, or the list spans more
+// than one page. Optional: a server before it omits the key.
+const accountLookupMissAtSchema = isoTimestamp.nullable().optional();
 const spenderListItemSchema = z.object({
     fan: spenderFanSchema,
     metrics: spenderMetricsSchema,
@@ -1064,6 +1073,7 @@ const spenderListItemSchema = z.object({
     conversation: spenderConversationSchema,
     lastTransaction: spenderLastTransactionSchema,
     retentionStatus: spenderRetentionStatusEnum.exclude(["all"]),
+    accountLookupMissAt: accountLookupMissAtSchema,
 });
 export const spenderListResponseSchema = z.object({
     scope: spenderScopeResponseSchema,
@@ -1103,6 +1113,7 @@ const pageSpenderAutoListFanSchema = z.object({
     lifetimeGrossAmountMills: mills,
     lifetimeCreatorNetAmountMills: mills,
     lastTransactionAt: isoTimestamp.nullable(),
+    accountLookupMissAt: accountLookupMissAtSchema,
 });
 export const pageSpenderAutoListDetailResponseSchema = z.object({
     page: pageRefSchema,
@@ -1213,11 +1224,10 @@ const pageConversationFanSchema = z.object({
     displayName: z.string().nullable(),
 });
 /** Why Fansly stopped serving a chat to its page, as far as Hub can tell
- * (arena "vanished chat", plan §8). `unchecked`: nobody has looked whether
- * the fan's account still exists — it was deleted or the fan blocked the
- * page. `probably_blocked`: the account is found without a session.
- * `probably_deleted`: it is not. Only `unchecked` is sent until Hub's
- * session-less account check ships. */
+ * (arena "vanished chat", plan §8 (а)): the partner's latest session-less
+ * public account check (Hub's public reader). `unchecked`: no check yet — it
+ * was deleted or the fan blocked the page. `probably_blocked`: the account is
+ * found without a session. `probably_deleted`: it is not. */
 const conversationChatAccessCauseSchema = z.enum(["unchecked", "probably_blocked", "probably_deleted"]);
 /** The chat's open unavailability episode (plan §2): Fansly refuses the
  * chat's history to this page since `openedAt`. `refusing`: the refusals
@@ -1800,8 +1810,8 @@ export const aiPersonaUpsertParamsSchema = z.object({
 export const aiPersonaUpsertBodySchema = z.object({
     displayName: z.string().min(1).max(120),
     systemBlock: z.string().min(1).max(50_000),
-    // Omitted keeps shipped clients on their transitional last-write-wins lane.
-    // null is create-only; a number is an optimistic active-revision update.
+    // Historical shape of the retired legacy write (aiPersonaUpsert answers 409
+    // whatever the body says). Owner writes use adminAiPersonaUpdateBodySchema.
     expectedVersion: z.number().int().positive().nullable().optional(),
 }).strict();
 export const aiPersonaArchiveQuerySchema = z.object({
@@ -5222,6 +5232,7 @@ const baseRouteSchemas = {
     ...ofapiMediaRouteSchemas,
     ...ofapiMediaImageRouteSchemas,
     ...ofapiCollectionRouteSchemas,
+    ...ofLinksRouteSchemas,
     health: {
         auth: { kind: "public" },
         tags: ["system"],
@@ -5311,12 +5322,16 @@ const baseRouteSchemas = {
         },
     },
     aiGatewayStream: {
-        auth: { kind: "apiKey" },
+        // A raw prompt sent on the agency's provider keys is owner content: no
+        // device token of any role reaches this route. Clients stream through
+        // aiFeatureStream, where the hub assembles the prompt itself.
+        auth: { kind: "owner-session" },
         tags: ["usage"],
-        summary: "Stream a chatter AI generation through the core gateway",
-        description: "Default-off ChatMuse gateway for desktop AI generations. The runtime route "
-            + "uses chatter device-token auth, validates the prompt-stream request contract, and must not "
-            + "reach provider network while the gateway flag is disabled.",
+        summary: "Stream a raw-prompt AI generation through the core gateway (owner session only)",
+        description: "Owner cookie session only. Client AI goes through "
+            + "`POST /api/v1/ai/features/:feature`, which builds the prompt in the hub; a device token "
+            + "of any role is refused here. The route validates the prompt-stream request contract and "
+            + "must not reach provider network while the gateway flag is disabled.",
         body: aiGatewayStreamBodySchema,
         response: {
             200: z.unknown(),
@@ -6652,13 +6667,18 @@ const baseRouteSchemas = {
             403: errorResponseSchema,
         },
     },
+    // Legacy full-text persona routes. Persona prompts are owner content: all
+    // three are owner-session only, and the two writes are retired in favour of
+    // the versioned, audited admin lane (adminAiPersona*). Clients read
+    // aiPersonaCatalog, which never carries prompt text.
     aiPersonasList: {
-        auth: { kind: "apiKey" },
+        auth: { kind: "owner-session" },
         tags: ["usage"],
-        summary: "List kernel AI personas (the desktop picker's source)",
+        summary: "List active AI personas with full prompt text (legacy; owner session only)",
         response: {
             200: aiPersonasResponseSchema,
             401: errorResponseSchema,
+            403: errorResponseSchema,
         },
     },
     aiPersonaCatalog: {
@@ -6685,27 +6705,29 @@ const baseRouteSchemas = {
         },
     },
     aiPersonaUpsert: {
-        auth: { kind: "apiKey" },
+        auth: { kind: "owner-session" },
         tags: ["usage"],
-        summary: "Create or update a kernel AI persona",
+        summary: "Retired legacy persona write (owner session only; answers 409, use the admin persona routes)",
         params: aiPersonaUpsertParamsSchema,
         body: aiPersonaUpsertBodySchema,
         response: {
             200: aiPersonaSchema,
             400: errorResponseSchema,
             401: errorResponseSchema,
+            403: errorResponseSchema,
             409: errorResponseSchema,
         },
     },
     aiPersonaArchive: {
-        auth: { kind: "apiKey" },
+        auth: { kind: "owner-session" },
         tags: ["usage"],
-        summary: "Archive a kernel AI persona (soft retire)",
+        summary: "Retired legacy persona archive (owner session only; answers 409, use the admin persona routes)",
         params: aiPersonaUpsertParamsSchema,
         querystring: aiPersonaArchiveQuerySchema,
         response: {
             200: z.object({ archived: z.boolean(), version: z.number().int().positive() }),
             401: errorResponseSchema,
+            403: errorResponseSchema,
             404: errorResponseSchema,
             409: errorResponseSchema,
         },
