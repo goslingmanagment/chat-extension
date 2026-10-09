@@ -519,6 +519,19 @@ const pinned = (host: HTMLElement): void => {
   expect(host.shadowRoot).toBeNull();
 };
 
+describe('[§11] the synchronous start', () => {
+  it('the dock host gets its inline style when it is placed the first time, not at the start (the first touch of `style` costs ~0.3 ms there)', async () => {
+    const mounts = setup();
+    expect(mounts.dock.host.hasAttribute('style')).toBe(false);
+    page.addComposer(ACC, '2002');
+    mounts.update(state('2002'));
+    await tick();
+    expect(mounts.points().dock.kind).toBe('in-flow');
+    expect(mounts.dock.host.style.getPropertyValue('contain')).toBe('layout style');
+    expect(mounts.dock.host.style.getPropertyValue('display')).toBe('block');
+  });
+});
+
 describe('[X22] our hosts as the page sees them', () => {
   it('the dock in every mode, every overlay layer, with our windows open and a key waiting: plain divs with neutral attributes only', async () => {
     const mounts = setup();

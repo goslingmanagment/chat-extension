@@ -111,7 +111,6 @@ export type SpikeReport = Record<string, unknown> & {
   dock?: DockReport;
   runtime?: string;
   runtimeError?: string;
-  ignoredInvalidations?: number;
   /** Writes that passed our own check of the chat and reached the point where their action token is spent (tab/probe.ts `holdWrite`). */
   writesReached?: number;
   startedAt?: number;

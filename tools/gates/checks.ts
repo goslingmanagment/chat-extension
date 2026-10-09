@@ -373,8 +373,38 @@ export function checkMainWorldBundles(files: readonly SourceFile[]): Violation[]
   return violations;
 }
 
+/** The isolated ChatSpace content script. */
+export const ISOLATED_BUNDLE = 'content-scripts/chatspace.js';
+
+/**
+ * 8b. The isolated ChatSpace content script starts without WXT's
+ * ContentScriptContext and entry wrapper (architecture.md §11,
+ * apps/extension/build/isolated-entry.ts): the context touches the extension
+ * API in the synchronous start at document_start and posts an event that
+ * names the extension to the page (decision X22). Its event name and the
+ * wrapper's log line are the markers: if a WXT upgrade renames its virtual
+ * entry module, the plugin stops matching and both come back.
+ */
+export function checkIsolatedStart(files: readonly SourceFile[]): Violation[] {
+  const markers: Array<[RegExp, string]> = [
+    [/content-script-started/, "WXT's ContentScriptContext"],
+    [/crashed on startup/, "WXT's entry wrapper"],
+  ];
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (file.path !== ISOLATED_BUNDLE) continue;
+    for (const [pattern, what] of markers) {
+      const match = pattern.exec(file.text);
+      if (!match) continue;
+      const line = file.text.slice(0, match.index).split('\n').length;
+      violations.push({ gate: 'isolated-start', path: file.path, line, message: `the isolated content script carries ${what} «${match[0]}» (§11, build/isolated-entry.ts).` });
+    }
+  }
+  return violations;
+}
+
 /** Bundles that run in a ChatSpace tab's isolated world: the content script and every lazy chunk it loads. */
-const isTabBundle = (path: string): boolean => path === 'content-scripts/chatspace.js' || path.startsWith('lazy/');
+const isTabBundle = (path: string): boolean => path === ISOLATED_BUNDLE || path.startsWith('lazy/');
 
 /**
  * 8a. A ChatSpace tab listens to no storage change (architecture.md §14: the

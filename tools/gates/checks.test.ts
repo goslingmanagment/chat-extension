@@ -7,6 +7,7 @@ import { REPO_ROOT } from '../lib/paths.ts';
 import {
   checkBrowserApiScope,
   checkHtmlSinks,
+  checkIsolatedStart,
   checkMainWorldBundles,
   checkMainWorldGuards,
   checkOnlyMonsterReferences,
@@ -246,6 +247,22 @@ describe('gate: no storage listener in a ChatSpace tab (§14)', () => {
     expect(violations.map((violation) => [violation.gate, violation.path])).toEqual([
       ['tab-storage-listener', 'content-scripts/chatspace.js'],
       ['tab-storage-listener', 'lazy/boards-preview.js'],
+    ]);
+  });
+});
+
+describe('gate: the isolated start (§11)', () => {
+  it("flags WXT's ContentScriptContext and entry wrapper in the isolated content script — not elsewhere", () => {
+    const violations = checkIsolatedStart([
+      file('content-scripts/chatspace.js', 'var o=class e{static SCRIPT_STARTED_MESSAGE_TYPE=r(`wxt:content-script-started`)}'),
+      file('content-scripts/chatspace.js', 'throw a.error(`The content script "chatspace" crashed on startup!`,e),e'),
+      file('content-scripts/chatspace.js', '(function(){var n={main(){c({win:window})}};n.main()})()'),
+      file('background.js', 'var o=`wxt:content-script-started`'),
+      file('lazy/dock.js', 'crashed on startup'),
+    ]);
+    expect(violations.map((violation) => [violation.gate, violation.path, violation.line])).toEqual([
+      ['isolated-start', 'content-scripts/chatspace.js', 1],
+      ['isolated-start', 'content-scripts/chatspace.js', 1],
     ]);
   });
 });

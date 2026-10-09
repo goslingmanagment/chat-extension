@@ -8,6 +8,7 @@ import { checkManifest } from '../../apps/extension/build/manifest.ts';
 import { readSources, readTree } from '../lib/files.ts';
 import { fail, RELEASE_DIR, REPO_ROOT, TEST_DIR } from '../lib/paths.ts';
 import {
+  checkIsolatedStart,
   checkMainWorldBundles,
   checkReleaseBundle,
   MAIN_WORLD_BUNDLES,
@@ -42,7 +43,7 @@ if (missingKinds.length > 0) {
   fail(`gates: no SDK markers of kind ${missingKinds.join(', ')} in vendor/kernel-sdk/dist — update deriveSdkMarkers (tools/gates/checks.ts).`);
 }
 const releaseFiles = readTree(RELEASE_DIR, (path) => /\.(js|json|html|css)$/.test(path));
-violations.push(...checkReleaseBundle(releaseFiles), ...checkSdkCustody(releaseFiles, sdkMarkers), ...checkMainWorldBundles(releaseFiles), ...checkTabStorageListeners(releaseFiles));
+violations.push(...checkReleaseBundle(releaseFiles), ...checkSdkCustody(releaseFiles, sdkMarkers), ...checkMainWorldBundles(releaseFiles), ...checkIsolatedStart(releaseFiles), ...checkTabStorageListeners(releaseFiles));
 
 if (existsSync(join(TEST_DIR, 'manifest.json'))) {
   const test = JSON.parse(readFileSync(join(TEST_DIR, 'manifest.json'), 'utf8')) as Record<string, unknown>;
@@ -56,5 +57,5 @@ for (const violation of violations) {
 }
 if (violations.length > 0) fail(`gates: ${violations.length} violation(s).`);
 console.log(
-  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), no storage listener in the tab — all clean.`,
+  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
 );
