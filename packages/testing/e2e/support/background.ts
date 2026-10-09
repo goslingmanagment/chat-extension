@@ -2,7 +2,8 @@
 // side of the browser is reached through WebDriver's chrome context
 // (geckodriver --allow-system-access, wdio.conf.ts): there the e2e reads the
 // state of the background page, suspends it the way an idle timeout does
-// (`runtime.onSuspend`, then the unload) and changes the idle timeout.
+// (`runtime.onSuspend`, then the unload) and changes the idle timeout
+// (`inChrome` serves focus.ts too).
 //
 // Firefox unloads an event page after `extensions.background.idle.timeout`
 // (30 s) without an event delivered to it; an open port does not hold it.
@@ -12,7 +13,7 @@ import { browser } from '@wdio/globals';
 import { TEST_GECKO_ID } from './constants';
 
 /** WebDriver Classic commands: wdio's `execute` goes through BiDi, which never runs in the chrome context. */
-interface ClassicDriver {
+export interface ClassicDriver {
   setMozContext(context: 'chrome' | 'content'): Promise<void>;
   executeScript(script: string, args: unknown[]): Promise<unknown>;
   executeAsyncScript(script: string, args: unknown[]): Promise<unknown>;
@@ -20,7 +21,8 @@ interface ClassicDriver {
 
 const IDLE_PREF = 'extensions.background.idle.timeout';
 
-async function inChrome<T>(run: (driver: ClassicDriver) => Promise<T>): Promise<T> {
+/** `run` in the chrome context of the current window; the content context is back after it, whatever happened. */
+export async function inChrome<T>(run: (driver: ClassicDriver) => Promise<T>): Promise<T> {
   const driver = browser as unknown as ClassicDriver;
   await driver.setMozContext('chrome');
   try {
