@@ -232,6 +232,10 @@ const api = {
   listChats(limit: number) {
     return need().listCachedChats(identity().hostAccountId, limit);
   },
+  /** The cached list of an account named outright: with no chat open there is no identity to take it from. */
+  listChatsOf(hostAccountId: string, limit: number) {
+    return need().listCachedChats(hostAccountId, limit);
+  },
   overlay(layer: OverlayLayer) {
     const overlay = started.mounts.overlay(layer);
     return { layer: overlay.host.getAttribute('data-layer'), z: overlay.host.style.zIndex, inHtml: overlay.host.parentElement === document.documentElement };

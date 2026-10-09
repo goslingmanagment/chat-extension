@@ -697,4 +697,72 @@ describe('the ChatSpace-like stand on its own', () => {
       await setViewport(null);
     }
   });
+
+  it('[CS-030] the presence poll, as ChatSpace times it: the fans on screen are asked, a row scrolled in is asked on its own 2 s later; the dot follows the answer and no cache entry moves', async () => {
+    const presenceCalls = (entries: readonly ServerJournalEntry[]): ServerJournalEntry[] => entries.filter((entry) => entry.kind === 'http' && String(entry.path).endsWith('/fans-online'));
+    const askedIn = (entry: ServerJournalEntry | undefined): string[] => [...((entry?.detail?.['asked'] as string[] | undefined) ?? [])].sort();
+    /** The rows inside the list's own box, and the rows with a green dot. */
+    const list = (): Promise<{ onScreen: string[]; dots: string[]; all: number }> =>
+      browser.execute(() => {
+        const box = document.querySelector('.chats-panel__list')?.getBoundingClientRect();
+        const rows = [...document.querySelectorAll<HTMLElement>('.chats-panel__list [data-chat-id]')];
+        // As an IntersectionObserver rooted at the list counts: a row that touches the box is on screen.
+        const inside = (row: HTMLElement): boolean => {
+          const rect = row.getBoundingClientRect();
+          return box !== undefined && rect.bottom >= box.top && rect.top <= box.bottom;
+        };
+        return {
+          onScreen: rows.filter(inside).map((row) => row.dataset['chatId'] ?? '').sort(),
+          dots: rows.filter((row) => row.querySelector('.avatar--online') !== null).map((row) => row.dataset['chatId'] ?? '').sort(),
+          all: rows.length,
+        };
+      });
+    const fans = [...createDataset().chats.values()].filter((chat) => chat.accountId === accountA).map((chat) => chat.fan.id);
+    await standServer.presence(accountA, fans);
+    // A short window: only the top of the account's list is on screen.
+    await setViewport({ width: 1200, height: 420 });
+    try {
+      const mark = await standServer.mark();
+      await openStand(chatPath(accountA), { waitForChat: false });
+      await waitForJournal((entries) => presenceCalls(entries).length > 0, mark, 'the first presence request', 10_000);
+      // The look 2 s after the rows showed asks for whoever came on screen meanwhile (a layout that settled late), nobody twice.
+      await browser.pause(2_500);
+      const shown = await list();
+      expect(shown.onScreen.length).toBeGreaterThan(0);
+      expect(shown.onScreen.length).toBeLessThan(shown.all);
+      // The page's own client asked for exactly the rows on screen.
+      const first = presenceCalls((await standServer.journal(mark)).entries);
+      expect(new Set(first.map((entry) => entry.origin))).toEqual(new Set(['native']));
+      const asked = first.flatMap((entry) => askedIn(entry));
+      expect([...asked].sort()).toEqual(shown.onScreen);
+      // Every fan is online on the server, but only the rows that were asked about have a dot.
+      await browser.waitUntil(async () => (await list()).dots.join() === shown.onScreen.join(), { timeout: 5_000, timeoutMsg: 'the dots of the rows on screen' });
+      // A row scrolled in is asked about on its own, 2 s after it showed; the rows asked a moment ago are not asked again.
+      const scrolled = await standServer.mark();
+      await browser.execute(() => {
+        const element = document.querySelector('.chats-panel__list');
+        if (element !== null) element.scrollTop = element.scrollHeight;
+      });
+      const second = presenceCalls(await waitForJournal((entries) => presenceCalls(entries).length > 0, scrolled, 'the request for the rows scrolled in', 10_000));
+      const below = (await list()).onScreen.filter((id) => !shown.onScreen.includes(id));
+      expect(below.length).toBeGreaterThan(0);
+      expect(askedIn(second[0])).toEqual(below);
+      // The next round (shortened here from 5 minutes): the answer changes the dots on screen — through the chats store;
+      // the list in the cache stays as it was. Rows off screen keep their last answer.
+      const cached = JSON.stringify(await callStand('queryData', ['chatList', accountA, 'all']));
+      const [gone, ...stay] = below;
+      await standServer.presence(accountA, stay);
+      await callStand('setFansOnlineTimings', { freshMs: 0, everyMs: 300 });
+      const dotsOnScreen = async (): Promise<string> => {
+        const now = await list();
+        return now.dots.filter((id) => now.onScreen.includes(id)).join();
+      };
+      await browser.waitUntil(async () => (await dotsOnScreen()) === [...stay].sort().join(), { timeout: 10_000, timeoutMsg: `the dot of ${String(gone)} goes` });
+      expect(JSON.stringify(await callStand('queryData', ['chatList', accountA, 'all']))).toBe(cached);
+    } finally {
+      await standServer.presence(accountA, []);
+      await setViewport(null);
+      await openStand(chatPath(accountA, a1));
+    }
+  });
 });

@@ -94,7 +94,7 @@ export function rawFan(fan: StandFan): Record<string, unknown> {
     avatar: null,
     avatarThumbs: null,
     header: null,
-    lastSeen: null,
+    lastSeen: fan.lastSeen,
     isRestricted: fan.isRestricted,
     isBlocked: fan.isBlocked,
     canReceiveChatMessage: fan.canReceiveChatMessage,

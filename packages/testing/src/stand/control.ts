@@ -139,6 +139,18 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ hidden: [...state.hiddenAccounts], delivered: hub.broadcast({ event: 'accounts_list_updated' }, null) });
     return;
   }
+  if (path === '/__stand/presence' && method === 'POST') {
+    // Who the presence endpoint answers as online for one account; pages learn it at their poll's next look.
+    const accountId = asString(body['accountId']);
+    if (accountId === null || state.account(accountId) === undefined) {
+      ok({ error: 'unknown account' }, 404);
+      return;
+    }
+    const online = Array.isArray(body['online']) ? body['online'].filter((item): item is string => typeof item === 'string' && item !== '') : [];
+    state.setOnline(accountId, online);
+    ok({ accountId, online });
+    return;
+  }
   if (path === '/__stand/ws/traffic' && method === 'POST') {
     state.traffic = { ...state.traffic, ...trafficPatch(body) };
     hub.restartTraffic();

@@ -8,7 +8,7 @@ import { socket } from '../../fixture-chatspace/src/net/socket';
 import { useQueryCache } from '../../fixture-chatspace/src/query/cache';
 import type { Chat, ChatList } from '../../fixture-chatspace/src/query/model';
 import { ALL_CHATS, chatListViewOf, isSearchOrOldFirst, keys } from '../../fixture-chatspace/src/query/queries';
-import { useChatListStore } from '../../fixture-chatspace/src/stores/chats';
+import { useChatListStore, useChatsStore } from '../../fixture-chatspace/src/stores/chats';
 
 const ACCOUNT = '910101';
 
@@ -75,5 +75,19 @@ describe('fixture chat-list socket updates', () => {
     expect((cache.getQueryData<ChatList>(search)?.pages[0]?.items[1] as Chat).unreadMessagesCount).toBe(1);
     expect(cache.getQueryData<ChatList>(oldIdle)?.pages[0]?.items.map((item) => item.unreadMessagesCount)).toEqual([0, 0, 0]);
     expect(idsOf(cache.getQueryData(oldActive))).toEqual(['9']);
+  });
+});
+
+describe('fixture presence (metadata.ts «fans-online»)', () => {
+  it('isFanOnline is ChatSpace\'s rule: the presence answer when there is one, else the platform saw the fan in the last 5 minutes', () => {
+    const chats = useChatsStore();
+    const ago = (ms: number): string => new Date(Date.now() - ms).toISOString();
+    // No answer yet: only a fan seen within 5 minutes is online.
+    expect([chats.isFanOnline('1'), chats.isFanOnline('1', ago(60_000)), chats.isFanOnline('1', ago(6 * 60_000)), chats.isFanOnline('1', 'not a date')]).toEqual([false, true, false, false]);
+    // The poll's answer wins over lastSeen, both ways; the time of the answer is kept per account.
+    chats.updateOnlineStatuses(ACCOUNT, { '1': false, '2': true });
+    expect([chats.isFanOnline('1', ago(60_000)), chats.isFanOnline('2', null), chats.isFanOnline('2', ago(60 * 60_000))]).toEqual([false, true, true]);
+    expect(typeof chats.getFanOnlineFetchedAt(ACCOUNT, '2')).toBe('number');
+    expect(chats.getFanOnlineFetchedAt('910202', '2')).toBeNull();
   });
 });

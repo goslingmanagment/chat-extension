@@ -267,7 +267,29 @@ describe('stand server: native API', () => {
     expect(list.items).toHaveLength(5);
     expect(list.next_offset).toBe(5);
     const fans = (await json(`/api/v0/accounts/${accountA}/platforms/onlyfans/fans?fan_ids=${STAND_IDS.fans.a3}`, { headers: native() })).body as { items: Array<Record<string, unknown>> };
-    expect(fans.items[0]).toMatchObject({ id: Number(STAND_IDS.fans.a3), isBlocked: true, canReceiveChatMessage: true });
+    expect(fans.items[0]).toMatchObject({ id: Number(STAND_IDS.fans.a3), isBlocked: true, canReceiveChatMessage: true, lastSeen: null });
+  });
+
+  it('presence: fans-online answers which of the asked fans the control set online, per account; a reset leaves nobody online', async () => {
+    const ask = async (account: string, fanIds: readonly number[]): Promise<unknown> =>
+      (await json(`/api/v0/accounts/${account}/platforms/onlyfans/fans-online`, { method: 'POST', headers: { ...native(), 'content-type': 'application/json' }, body: JSON.stringify({ fan_ids: fanIds }) })).body;
+    expect(await ask(accountA, [Number(a1), Number(a2)])).toEqual({ online: [], timed_out: false });
+    const set = await json('/__stand/presence', { method: 'POST', headers: control, body: JSON.stringify({ accountId: accountA, online: [a2, STAND_IDS.fans.a4] }) });
+    expect(set).toEqual({ status: 200, body: { accountId: accountA, online: [a2, STAND_IDS.fans.a4] } });
+    const since = stand.journal.read().next;
+    // Only the fans asked about are answered, in the form they were asked in.
+    expect(await ask(accountA, [Number(a1), Number(a2)])).toEqual({ online: [Number(a2)], timed_out: false });
+    expect(await ask(STAND_IDS.accounts.b, [Number(a2)])).toEqual({ online: [], timed_out: false });
+    expect(journalSince(since).filter((entry) => entry.kind === 'http').map((entry) => [entry.origin, entry.accountId, entry.detail])).toEqual([
+      ['native', accountA, { asked: [a1, a2], online: [a2] }],
+      ['native', STAND_IDS.accounts.b, { asked: [a2], online: [] }],
+    ]);
+    // A new set replaces the account's old one.
+    await json('/__stand/presence', { method: 'POST', headers: control, body: JSON.stringify({ accountId: accountA, online: [a1] }) });
+    expect(await ask(accountA, [Number(a1), Number(a2)])).toEqual({ online: [Number(a1)], timed_out: false });
+    expect((await json('/__stand/presence', { method: 'POST', headers: control, body: JSON.stringify({ accountId: '999', online: [] }) })).status).toBe(404);
+    stand.state.reset();
+    expect(await ask(accountA, [Number(a1)])).toEqual({ online: [], timed_out: false });
   });
 });
 

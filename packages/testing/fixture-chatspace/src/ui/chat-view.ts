@@ -1,7 +1,9 @@
 // The `chat` route: chat list, conversation (header, message list, composers).
 // - The chat list observes the key of the list the human picked in its toolbar:
 //   ["chatList", acc, all | filter:<f> | list:<id>, search:<q>?, order:old?].
-//   Rows are links with data-testid="chat-list-item" and data-chat-id.
+//   Rows are links with data-testid="chat-list-item" and data-chat-id; the
+//   fans on screen are polled for presence (fans-online.ts), and a row's
+//   green dot is `isFanOnline(chat.id, fan.lastSeen)`, as ChatSpace's is.
 // - The conversation observes the ROUTE chat's history whenever the account,
 //   the chat and the account's platform id are known — whatever the fan's
 //   state, as ChatSpace's conversation panel does: opening a blocked or unknown
@@ -41,6 +43,7 @@ import { useChatTabEntries, useTabEntries } from '../stores/accounts';
 import { useChatListStore, useChatMessagesStore, useChatsStore } from '../stores/chats';
 import { usePendingMessages, type PendingEntry } from '../stores/pending-messages';
 import { ConversationComposers, type ComposerSlot } from './composer';
+import { useFansOnline } from './fans-online';
 import { useNavigation } from './navigation';
 import { registerMessageList } from './registry';
 import { ChatDetailsPanel, SidePanelRail, sidePanel } from './side-panel';
@@ -81,6 +84,8 @@ const ChatsPanel = defineComponent({
     useQuery(() => ({ key: keys.fansMap(props.accountId), staleTime: Number.POSITIVE_INFINITY, query: () => Promise.resolve(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)) ?? {}) }));
     const rows = computed(() => list.data.value?.pages.flatMap((page) => page.items) ?? []);
     const fans = computed(() => cache.getQueryData<FansMap>(keys.fansMap(props.accountId)));
+    const listRoot = ref<HTMLElement | null>(null);
+    useFansOnline(() => props.accountId, listRoot);
     watch(
       rows,
       (items) => {
@@ -126,10 +131,10 @@ const ChatsPanel = defineComponent({
         toolbar(),
         h(
           'nav',
-          { class: 'chats-panel__list' },
+          { class: 'chats-panel__list', ref: listRoot },
           rows.value.map((chat) => {
             const href = `/accounts/${props.accountId}/chats/${chat.id}`;
-            const online = chats.isFanOnline(chat.id) === true;
+            const online = chats.isFanOnline(chat.id, fans.value?.[chat.id]?.lastSeen ?? null);
             const typing = chats.isFanTyping(props.accountId, chat.id);
             return h(
               'a',
@@ -296,7 +301,7 @@ const ConversationHeader = defineComponent({
     const chats = useChatsStore();
     const fan = computed(() => cache.getQueryData<FansMap>(keys.fansMap(props.accountId))?.[props.chatId] ?? null);
     return (): VNode => {
-      const online = chats.isFanOnline(props.chatId) === true;
+      const online = chats.isFanOnline(props.chatId, fan.value?.lastSeen ?? null);
       const typing = chats.isFanTyping(props.accountId, props.chatId);
       const name = fanName(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)), props.chatId);
       return h('header', { class: 'conversation-header', 'data-stand-conversation-header': '' }, [

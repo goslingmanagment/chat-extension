@@ -190,8 +190,16 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     expect(messages.map((entry) => [entry.origin, entry.chatId, entry.detail?.['plain']])).toEqual(sent.map((message) => ['native', message.chat, message.text]));
     // The AI mark is ChatSpace's own rule: ours on the queue's direct sends, never on what the composer sent.
     expect(messages.map((entry) => entry.detail?.['isAiGenerated'])).toEqual(sent.map((message) => message.by === 'x8-click'));
-    // Every other native call is reading — or the stand's own session token: nothing else was written.
-    const writes = native.filter((entry) => entry.kind === 'http' && !['GET', 'OPTIONS'].includes(entry.method ?? '') && !(entry.path ?? '').endsWith('/typing') && !(entry.path ?? '').endsWith('/messages'));
+    // Every other native call is reading — ChatSpace's presence poll asks by POST — or the stand's own session token:
+    // nothing else was written.
+    const writes = native.filter(
+      (entry) =>
+        entry.kind === 'http' &&
+        !['GET', 'OPTIONS'].includes(entry.method ?? '') &&
+        !(entry.path ?? '').endsWith('/typing') &&
+        !(entry.path ?? '').endsWith('/messages') &&
+        !(entry.path ?? '').endsWith('/platforms/onlyfans/fans-online'),
+    );
     expect(writes.map((entry) => `${String(entry.method)} ${String(entry.path)}`).filter((call) => call !== 'POST /__stand/auth/token')).toEqual([]);
 
     // 3. The hub: only routes of the client, each under the narrow token of this sign-in.

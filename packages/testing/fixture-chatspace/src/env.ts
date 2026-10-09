@@ -2,7 +2,7 @@
 // (?stand-break=…, §6.2 degradation tests), a slow start (?stand-slow-start=…)
 // and the few knobs tests may turn.
 
-import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, STAND_SENTRY_PARAM, STAND_SLOW_START_PARAM, type StandBreak } from './protocol';
+import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, STAND_SENTRY_PARAM, STAND_SLOW_START_PARAM, type FansOnlineTimings, type StandBreak } from './protocol';
 
 const KNOWN_BREAKS = /^(vue-app|router-name|composer-bridge|composer-slot|composer-frame|editor-handle|draft-key|store:[A-Za-z_]+|query-key:[A-Za-z]+)$/;
 
@@ -54,6 +54,12 @@ export const env = {
   routeDelayMs: 0,
   /** `account:chat` whose next bridge write is followed at once by the person's Send (`sendAfterNextWrite`); null — none. */
   sendAfterWrite: null as string | null,
+  /**
+   * The chat list's presence poll (ui/fans-online.ts) as ChatSpace times it: the rows on screen are asked for 2 s after
+   * they changed, a fan again only after a minute, and the next look comes in 5 minutes. Tests shorten them
+   * (`setFansOnlineTimings`) to reach a later round.
+   */
+  fansOnline: { settleMs: 2_000, freshMs: 60_000, everyMs: 300_000 } as FansOnlineTimings,
 };
 
 export function isBroken(item: StandBreak): boolean {

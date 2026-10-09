@@ -16,6 +16,7 @@ import { useChatsStore } from './stores/chats';
 import { useComposerTranslator } from './stores/composer';
 import { usePendingMessages } from './stores/pending-messages';
 import { draftKey } from './ui/bridge';
+import { FANS_ONLINE_TIMINGS_EVENT } from './ui/fans-online';
 import { remountComposers } from './ui/composer';
 import type { Navigation } from './ui/navigation';
 import { composerSnapshots, findComposer, messageListState } from './ui/registry';
@@ -119,11 +120,17 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
             ...(patch.isRestricted !== undefined ? { isRestricted: patch.isRestricted } : {}),
             ...(patch.canReceiveChatMessage !== undefined ? { canReceiveMessages: patch.canReceiveChatMessage } : {}),
             ...(patch.subscribedOn !== undefined ? { isSubscribed: patch.subscribedOn, isExpired: !patch.subscribedOn } : {}),
+            ...(patch.lastSeen !== undefined ? { lastSeen: patch.lastSeen } : {}),
           },
         };
       });
     },
     setFanOnline: (accountId, fanId, online) => useChatsStore().updateOnlineStatuses(accountId, { [fanId]: online }),
+    setFansOnlineTimings: (patch) => {
+      env.fansOnline = { ...env.fansOnline, ...patch };
+      record('stand-fans-online-timings', { ...env.fansOnline });
+      window.dispatchEvent(new Event(FANS_ONLINE_TIMINGS_EVENT));
+    },
     setTranslator: (accountId, settings) => {
       const current = useComposerTranslator().getAccountSettings(accountId);
       current.value = { ...current.value, ...settings };

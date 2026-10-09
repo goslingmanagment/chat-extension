@@ -1,5 +1,9 @@
 // Chat stores (metadata.ts «chats», «chat-list», «chat-messages»):
-// - chats: chatsById, online statuses (isFanOnline by fan id), typing;
+// - chats: chatsById, online statuses, typing. `isFanOnline(fanId, lastSeen)`
+//   is ChatSpace's rule: what the chat list's presence poll answered for the
+//   fan (ui/fans-online.ts → updateOnlineStatuses), else whether the platform
+//   saw the fan in the last 5 minutes. The statuses live in the store only —
+//   a presence answer moves no cache entry (metadata.ts «fans-online»);
 // - chatList: socket updates of every loaded ["chatList", acc, …] entry by
 //   kind: a plain list (all, a filter, a fan list) moves the chat to the top
 //   (unread +1 from the fan, 0 on outgoing), or is invalidated when it does not
@@ -21,6 +25,13 @@ import { isAllChatsScope, isSearchOrOldFirst, keys } from '../query/queries';
 import { usePendingMessages } from './pending-messages';
 
 const TYPING_MS = 5000;
+/** A fan the presence poll has not answered for is online this long after the platform last saw them. */
+const SEEN_RECENTLY_MS = 5 * 60_000;
+
+function seenRecently(lastSeen: string | null): boolean {
+  const at = lastSeen === null ? Number.NaN : Date.parse(lastSeen);
+  return Number.isFinite(at) && Date.now() - at <= SEEN_RECENTLY_MS;
+}
 
 interface NewMessageFrame {
   readonly account: Record<string, unknown> & { readonly account_id: string };
@@ -71,7 +82,7 @@ export const useChatsStore = defineStore(storeId('chats'), () => {
   });
 
   const getChat = (id: string): Chat | undefined => chatsById.value[id];
-  const isFanOnline = (fanId: string, fallback: boolean | null = null): boolean | null => onlineStatuses.value[fanId] ?? fallback;
+  const isFanOnline = (fanId: string, lastSeen: string | null = null): boolean => onlineStatuses.value[fanId] ?? seenRecently(lastSeen);
   const isFanTyping = (accountId: string, fanId: string): boolean => typing.value[`${accountId}:${fanId}`] ?? false;
   const getFanOnlineFetchedAt = (accountId: string, fanId: string): number | null => onlineFetchedAt.value[`${accountId}:${fanId}`] ?? null;
   const upsertChats = (chats: readonly Chat[]): void => {

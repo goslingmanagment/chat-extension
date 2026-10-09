@@ -169,6 +169,10 @@ export const standServer = {
   holdFans: async (hold: boolean): Promise<void> => {
     await control('/__stand/state', { body: { holdFans: hold } });
   },
+  /** Who of the account's fans the presence endpoint (`fans-online`) answers as online; a page sees it at its poll's next look. */
+  presence: async (accountId: string, online: readonly string[]): Promise<void> => {
+    await control('/__stand/presence', { body: { accountId, online } });
+  },
   state: async (): Promise<{ sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> }> =>
     (await control('/__stand/state')) as { sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> },
   /** Outside requests the browser tried (the egress sink), after the cursor `since`. */

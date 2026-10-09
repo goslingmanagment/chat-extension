@@ -1,7 +1,7 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 222,
+    "unit": 223,
     "e2e": 34
   },
   "totals": {
@@ -317,8 +317,8 @@
       "planned": "unit",
       "rows": 426,
       "inUnit": 426,
-      "inE2e": 91,
-      "unitOnly": 335,
+      "inE2e": 92,
+      "unitOnly": 334,
       "uncovered": 0
     },
     {
@@ -1104,7 +1104,7 @@
     {"id":"CS-027","function":"Message Guard в черновике","target":"убрано владельцем","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true},
     {"id":"CS-028","function":"Эмодзи, отложенная отправка, загрузка с диска","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"CS-029","function":"«Онлайн»","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
-    {"id":"CS-030","function":"Превью и Ping из «Онлайн»","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/navigation/navigation.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-navigation.test.ts"],"e2e":[],"covered":true},
+    {"id":"CS-030","function":"Превью и Ping из «Онлайн»","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/navigation/navigation.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-navigation.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/stand-fixture.e2e.ts"],"covered":true},
     {"id":"CS-031","function":"Панель фана `]`","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["apps/extension/src/composition/tab/panel-geometry.test.ts","apps/extension/src/composition/tab/recap-tab.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":["packages/testing/e2e/specs/boards-gallery.e2e.ts","packages/testing/e2e/specs/suite-panels-0195.e2e.ts","packages/testing/e2e/specs/suite-panels.e2e.ts"],"covered":true},
     {"id":"CS-032","function":"Info: кто это, «РИСК ОТТОКА»","target":"пилот + ChatSpace","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/contracts/test/vm.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
     {"id":"CS-033","function":"Info: траты по видам","target":"пилот","owner":"R12","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-boards.test.ts","packages/core/test/domain-fanpanel.test.ts","packages/hub/test/spenders.test.ts","packages/testing/src/boards/fanpanel.test.tsx"],"e2e":[],"covered":true},
