@@ -27,6 +27,8 @@ export interface Anchor {
   /** What breaks when it is missing. */
   readonly group: string;
   readonly pattern: RegExp;
+  /** A line the pattern matched counts only when this agrees (the file's lines, the line's index). */
+  readonly confirm?: (lines: readonly string[], index: number) => boolean;
 }
 
 export interface AnchorResult {
@@ -40,6 +42,8 @@ export interface AnchorResult {
 
 /** The send queue's action (the name lives in the send port's file only; pinned by check.test.ts). */
 export const QUEUE_ACTION = 'enqueue';
+/** The platform part of KEY_BUYING_POWERS: the argument ChatSpace's key factory gets for it (platformKeyAnchor). */
+export const BUYING_POWERS_PLATFORM = 'onlyfans';
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** A string literal in any quotes. */
@@ -47,6 +51,57 @@ const literal = (value: string): RegExp => new RegExp(`[\`'"]${escape(value)}[\`
 /** A member or identifier: not a part of a longer name. */
 const word = (value: string): RegExp => new RegExp(`(?<![\\w$])${escape(value)}(?![\\w$])`);
 const text = (value: string): RegExp => new RegExp(escape(value));
+
+/** How a minified build names a variable or a parameter. */
+const NAME = '[A-Za-z_$][\\w$]*';
+/** Lines above the key where its factory may begin (the prettified copy breaks after `{`). */
+const FACTORY_LINES = 2;
+
+/**
+ * A cache key ChatSpace builds per platform. Through 0.195.0 it wrote the key
+ * as a literal (`["onlyfansBuyingPowers"]`); since 0.200.0 a factory takes the
+ * platform and builds the key from it (`${platform}BuyingPowers`), and the
+ * module calls the factory once per platform. The key in the page is the same.
+ * Either form counts, the second only when all of it is there: the template
+ * is the platform part as the factory's one parameter followed by the rest of
+ * the key, it stands in that factory's body (the factory begins on its line or
+ * at most FACTORY_LINES above, with no other function between), and the same
+ * module calls the factory with this platform. A template of another suffix,
+ * one the factory is not called with for this platform, or one built from
+ * something other than the factory's parameter does not count.
+ */
+export function platformKeyAnchor(key: string, platform: string, group: string): Anchor {
+  if (!key.startsWith(platform) || key.length === platform.length) throw new Error(`host-contract-check: ${key} is not a ${platform} key`);
+  const suffix = escape(key.slice(platform.length));
+  const template = new RegExp(`\`\\$\\{(${NAME})\\}${suffix}\``);
+  const confirm = (lines: readonly string[], index: number): boolean => {
+    const line = lines[index] ?? '';
+    if (literal(key).test(line)) return true;
+    const found = template.exec(line);
+    const param = found?.[1];
+    if (found === null || param === undefined) return false;
+    // The text from FACTORY_LINES above up to the template: its last function head must be the factory, right before the key.
+    const before = [...lines.slice(Math.max(0, index - FACTORY_LINES), index), line.slice(0, found.index)].join('\n');
+    const heads = [...before.matchAll(new RegExp(`(?<![\\w$.])(${NAME})\\s*=\\s*(?:\\(\\s*(${NAME})\\s*\\)|(${NAME}))\\s*=>|function\\s+(${NAME})\\s*\\(\\s*(${NAME})\\s*\\)`, 'g'))];
+    const head = heads.at(-1);
+    if (head === undefined) return false;
+    const factory = head[1] ?? head[4];
+    if (factory === undefined || (head[2] ?? head[3] ?? head[5]) !== param) return false;
+    if (/=>|function\b/.test(before.slice(head.index + head[0].length))) return false;
+    const called = new RegExp(`(?<![\\w$.])${escape(factory)}\\(\\s*[\`'"]${escape(platform)}[\`'"]\\s*\\)`);
+    return lines.some((other) => called.test(other));
+  };
+  return { id: `cache key ${key}`, group, pattern: new RegExp(`${literal(key).source}|${template.source}`), confirm };
+}
+
+/** The anchor's places in one file: line indexes. */
+function placesIn(anchor: Anchor, lines: readonly string[]): number[] {
+  const places: number[] = [];
+  lines.forEach((line, index) => {
+    if (anchor.pattern.test(line) && (anchor.confirm === undefined || anchor.confirm(lines, index))) places.push(index);
+  });
+  return places;
+}
 
 /** Every string of the host contract, as it must appear in ChatSpace's bundles. */
 export function contractAnchors(): Anchor[] {
@@ -68,9 +123,10 @@ export function contractAnchors(): Anchor[] {
       contract.KEY_MIMIC_SETTINGS,
       contract.KEY_MIMIC_CHATS,
       contract.KEY_PERMISSIONS,
-      contract.KEY_BUYING_POWERS,
       contract.KEY_INSIGHTS,
     ].map((key) => ({ id: `cache key ${key}`, group: 'cache', pattern: literal(key) })),
+    // Since 0.200.0 ChatSpace builds this key per platform (`${platform}BuyingPowers`); the page's key is the same.
+    platformKeyAnchor(contract.KEY_BUYING_POWERS, BUYING_POWERS_PLATFORM, 'cache'),
     { id: `queue action ${QUEUE_ACTION}`, group: 'pendingMessages', pattern: word(QUEUE_ACTION) },
     { id: 'draft key prefix', group: 'draftKey', pattern: text(contract.DRAFT_KEY_PREFIX.split(':').slice(0, 2).join(':')) },
     { id: `socket path ${contract.WS_PATH}`, group: 'wsFrames', pattern: text(contract.WS_PATH) },
@@ -96,11 +152,10 @@ export function checkAnchors(files: readonly BundleFile[], anchors: readonly Anc
     const at: string[] = [];
     let count = 0;
     for (const file of lines) {
-      file.lines.forEach((line, index) => {
-        if (!anchor.pattern.test(line)) return;
+      for (const index of placesIn(anchor, file.lines)) {
         count += 1;
         if (at.length < limit) at.push(`${file.name}:${index + 1}`);
-      });
+      }
     }
     return { id: anchor.id, group: anchor.group, present: count > 0, at, count };
   });
@@ -225,11 +280,11 @@ function anchorShapes(files: readonly BundleFile[], anchors: readonly Anchor[]):
     for (const anchor of anchors) {
       const key = `${role}\n${anchor.id}`;
       const list = shapes.get(key) ?? [];
-      lines.forEach((line, index) => {
-        if (list.length >= MAX_PLACES || !anchor.pattern.test(line)) return;
+      for (const index of placesIn(anchor, lines)) {
+        if (list.length >= MAX_PLACES) break;
         const window = lines.slice(Math.max(0, index - WINDOW_LINES), index + WINDOW_LINES + 1).join('\n');
         list.push({ at: `${file.name}:${index + 1}`, hash: createHash('sha256').update(shapeOf(window)).digest('hex').slice(0, 12) });
-      });
+      }
       if (list.length > 0) shapes.set(key, list);
     }
   }
