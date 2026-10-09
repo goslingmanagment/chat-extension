@@ -15,6 +15,7 @@ import { defineConfig } from 'wxt';
 
 import { artifactNames, isFlavorArtifact } from './build/artifacts.ts';
 import { bundleTimingPlugin } from './build/bundle-timing.ts';
+import { isolatedEntryPlugin } from './build/isolated-entry.ts';
 import { mainWorldEntryPlugin } from './build/main-world-entry.ts';
 import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from './build/manifest.ts';
 import { PAGE_ENTRY_NAMES, splitPageChunks, type PageBuildConfig } from './build/page-chunks.ts';
@@ -71,6 +72,10 @@ export default defineConfig({
       const pathOf = (entry: { readonly inputPath: string }): string => entry.inputPath.replaceAll('\\', '/');
       const bridge = mainWorld.find((entry) => entry.name === 'chatspace-main');
       if (mainWorld.length > 0) config.plugins = [...(config.plugins ?? []), mainWorldEntryPlugin(mainWorld.map(pathOf), flavor === 'test' && bridge !== undefined ? { probe: pathOf(bridge) } : {})];
+      // The isolated ChatSpace script starts without WXT's wrapper and its ContentScriptContext, which touches the
+      // extension API in the synchronous start and posts an event naming us to the page (build/isolated-entry.ts).
+      const isolated = entrypoints.find((entry) => entry.name === 'chatspace');
+      if (isolated !== undefined) config.plugins = [...(config.plugins ?? []), isolatedEntryPlugin(pathOf(isolated))];
       if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace' || entry.name === 'chatspace-main')) return;
       config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },

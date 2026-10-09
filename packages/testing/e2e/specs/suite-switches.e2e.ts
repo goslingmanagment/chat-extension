@@ -16,6 +16,11 @@
 // - the extension's P1 counter of misplaced inserts stays at zero;
 // - inserts did happen (the race was real), and nothing of ours talked to
 //   the stand's server.
+// How many switches find a part to insert depends on the machine, not on the
+// extension (a generation takes about a second; on a slower or loaded runner
+// more switches pass while one is written): the person keeps switching past
+// the two hundred until «Вставить» was pressed often enough for a real race,
+// within a cap. The counters are printed on every run.
 //
 // WebDriver cannot click faster than our insert path runs, so in the two
 // hundred switches every press is answered before the chat changes. The
@@ -56,6 +61,10 @@ const ACC = STAND_IDS.accounts.a;
 const { a1, a2, a4 } = STAND_IDS.fans;
 const FANS = [a1, a2, a4] as const;
 const SWITCHES = 200;
+/** The race is real only with presses in it: «Вставить» pressed at least this often while the chats change. */
+const MIN_INSERT_PRESSES = 20;
+/** Past the two hundred the person switches on until that many presses — never more than this. */
+const MAX_SWITCHES = 3 * SWITCHES;
 /** Presses of «Вставить» a switch overtakes under the click. */
 const OVERTAKEN = 6;
 /** Chats nobody typed in, opened one after another in one ChatSpace tab: each press is held while the next one opens. */
@@ -150,7 +159,10 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
       } while (Date.now() < until);
       pressed.nothing += 1;
     };
-    for (let step = 0; step < SWITCHES; step += 1) {
+    let switches = 0;
+    while (switches < MAX_SWITCHES && (switches < SWITCHES || pressed.insert < MIN_INSERT_PRESSES)) {
+      const step = switches;
+      switches += 1;
       const next = FANS[(step * 2 + 1) % FANS.length] ?? a1;
       if (step % 2 === 0) {
         // The press, then the next chat at once: the insert it started is still on its way.
@@ -227,20 +239,13 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
     const diagnostics = await shift.rpc<{ counters: Record<string, number> }>('diagnostics.get');
     const counters = diagnostics.ok ? diagnostics.payload.counters : null;
 
-    const evidence = { switches: SWITCHES, pressed, overtaken, generations: generations.length, writes: writes.length, writesByChat: Object.fromEntries(FANS.map((fan) => [fan, writes.filter((write) => write.chatId === fan).length])), frames: watch.frames, seen: watch.seen, counters };
+    const evidence = { switches, pressed, overtaken, generations: generations.length, writes: writes.length, writesByChat: Object.fromEntries(FANS.map((fan) => [fan, writes.filter((write) => write.chatId === fan).length])), frames: watch.frames, seen: watch.seen, counters };
     mkdirSync(E2E_EVIDENCE_DIR, { recursive: true });
     writeFileSync(`${E2E_EVIDENCE_DIR}suite-switches.json`, `${JSON.stringify(evidence, null, 2)}\n`);
+    // The race as it happened, in the CI log of every run.
+    console.log(`suite-switches: ${JSON.stringify({ switches, pressed, overtaken, generations: evidence.generations, writes: evidence.writes, writesByChat: evidence.writesByChat, frames: watch.frames })}`);
 
-    // The race was real: the person pressed «Вставить» many times, parts were written — and some presses were
-    // overtaken by the switch and wrote nothing —, generations ended under other chats.
-    expect(pressed.insert).toBeGreaterThanOrEqual(20);
-    expect(writes.length).toBeGreaterThanOrEqual(10);
-    expect(writes.length).toBeLessThanOrEqual(pressed.insert + overtaken.pressed);
-    // The overtaken presses were real and the switch won every one of them: nothing was written, and our own side
-    // refused each before a write was even on its way to MAIN.
-    expect(overtaken).toEqual({ pressed: OVERTAKEN, writes: 0, reachedMain: 0 });
-    expect(generations.length).toBeGreaterThan(FANS.length);
-    expect(watch.frames).toBeGreaterThan(100);
+    // The P1 checks first: whatever the size of the race, they are never skipped.
     // Not one frame with a text signed for another chat in any message field.
     expect(watch.misplaced).toEqual([]);
     for (const fan of FANS) {
@@ -254,9 +259,21 @@ describe('§12 п. 4 on the wired extension — 200 fast chat switches while gen
     // Every write ChatSpace's bridge took went into a field of these three chats, and every generation was asked for one of them.
     expect(writes.filter((write) => !(FANS as readonly string[]).includes(write.chatId))).toEqual([]);
     expect(generations.map((call) => (call.request as { body?: { fanRef?: string } }).body?.fanRef).filter((fan) => !(FANS as readonly string[]).includes(fan ?? ''))).toEqual([]);
+    // No write without a press of the person's.
+    expect(writes.length).toBeLessThanOrEqual(pressed.insert + overtaken.pressed);
+    // The overtaken presses were real and the switch won every one of them: nothing was written, and our own side
+    // refused each before a write was even on its way to MAIN.
+    expect(overtaken).toEqual({ pressed: OVERTAKEN, writes: 0, reachedMain: 0 });
     // §0.4, §9.6: the P1 counters — the exact proof of an insert into another chat among them — are not there.
     expect(counters).not.toBeNull();
     expect(Object.entries(counters ?? {}).filter(([name, count]) => (name.startsWith('p1.') || name === 'CG-INSERT-MISPLACED') && count > 0)).toEqual([]);
+
+    // The race was real: the person pressed «Вставить» many times, parts were written — and some presses were
+    // overtaken by the switch and wrote nothing —, generations ended under other chats.
+    expect({ switches, ...pressed, enough: pressed.insert >= MIN_INSERT_PRESSES }).toMatchObject({ enough: true });
+    expect(writes.length).toBeGreaterThanOrEqual(10);
+    expect(generations.length).toBeGreaterThan(FANS.length);
+    expect(watch.frames).toBeGreaterThan(100);
   });
 
   it('[RB-014] [NEW-06] a write that is already on its way when the chat changes is stopped by MAIN’s own check of the chat — the two fields are both untouched, nothing else tells them apart', async function () {

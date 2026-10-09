@@ -4,6 +4,11 @@
 // One attribute observer on <html> (class and style only, no subtree) follows
 // changes; no timers. When the tokens are gone the anchor is `missing` and the
 // UI falls back to its own theme (§6.2 «своя тема»).
+//
+// The reader starts at document_start (§11) but reads the theme only when it
+// is first asked for: the first touch of an element's `style` in a page's
+// content-script global costs ~0.3 ms, and nothing needs the theme before the
+// UI does.
 
 import type { HostTheme } from '@cg/contracts/host';
 
@@ -49,10 +54,20 @@ export function readTheme(doc: Document): HostTheme {
 }
 
 export function createThemeReader(doc: Document): ThemeReader {
-  let theme = readTheme(doc);
-  let text = JSON.stringify(theme);
+  /** null — nothing asked for it yet. */
+  let theme: HostTheme | null = null;
+  let text = '';
+  const read = (): HostTheme => {
+    if (theme === null) {
+      theme = readTheme(doc);
+      text = JSON.stringify(theme);
+    }
+    return theme;
+  };
   const listeners = new Set<(theme: HostTheme) => void>();
   const refresh = (): void => {
+    // Not read yet: the first read is fresh, and nobody listens before it (onChange reads).
+    if (theme === null) return;
     const next = readTheme(doc);
     const nextText = JSON.stringify(next);
     if (nextText === text) return;
@@ -75,14 +90,15 @@ export function createThemeReader(doc: Document): ThemeReader {
     waiting.observe(doc, { childList: true });
   } else observe();
   return {
-    current: () => theme,
+    current: read,
     onChange(listener) {
+      read();
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
-    anchor: () => (Object.keys(theme.tokens).length > 0 ? 'ok' : 'missing'),
+    anchor: () => (Object.keys(read().tokens).length > 0 ? 'ok' : 'missing'),
     dispose() {
       observer.disconnect();
       waiting?.disconnect();

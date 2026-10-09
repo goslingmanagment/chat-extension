@@ -10,13 +10,16 @@
 //   no host (EX-011);
 // - the lazy chunks load by import() from the isolated script, and a strict
 //   page CSP blocks neither them nor our styles (EX-009, EX-012);
-// - a page cannot switch our content script off with WXT's event;
+// - a page cannot switch our content script off with WXT's event: the script
+//   starts without WXT's context, so that event reaches nothing of ours;
 // - an already open tab after the extension is removed and installed again
 //   behaves predictably (stale hosts go, the tab is told to reload).
 // The spike's own surfaces (the 1000-row list, the input in the dock) went
 // with the spike UI; the kit and the host adapter have their own specs
 // (kit-gallery, host-adapter), the signed-in path is integration-m1.
-// Measurements go to .cache/e2e/spike-m0.json.
+// Measurements go to .cache/e2e/spike-m0.json, and the §11 series are printed
+// on every run, a passing one too: a start that creeps towards its budget is
+// seen in the CI log before it fails.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -115,6 +118,12 @@ describe('spike M0 on the M1 build — the start of the content scripts', () => 
     }
     const timings = Object.fromEntries(Object.entries(series).map(([key, values]) => [key, summarize(values)]));
     evidence['timings'] = { loads: TIMING_LOADS, ...timings };
+    const line = (key: string): string => {
+      const { median, max } = summarize(series[key] ?? []);
+      return `${key} ${median.toFixed(2)}/${max.toFixed(2)}`;
+    };
+    // The measurement itself, in the CI log of every run.
+    console.log(`spike-m0 §11, ms, median/max of ${TIMING_LOADS} loads: MAIN ${line('mainBundleMs')} (median ≤ ${MAIN_MEDIAN_MS}); isolated ${line('bundleMs')} (median ≤ ${BOOTSTRAP_MEDIAN_MS}; of it ${line('evalMs')}, ${line('composeMs')}); any start ≤ ${START_MAX_MS}`);
     const main = summarize(series['mainBundleMs'] ?? []);
     expect(main.n).toBe(TIMING_LOADS);
     expect(main.median).toBeLessThanOrEqual(MAIN_MEDIAN_MS);
@@ -128,15 +137,21 @@ describe('spike M0 on the M1 build — the start of the content scripts', () => 
   it("a page cannot switch our content script off with WXT's «script started» event", async () => {
     await browser.url(standUrl());
     const before = await waitForReport((r) => r.rpc?.registered === true, 'the tab registered before the spoof');
-    // WXT invalidates its ContentScriptContext on this CustomEvent; the name is
-    // public (gecko id + entry name), so any page can send it.
+    // WXT's ContentScriptContext is invalidated by this event, as a CustomEvent on the document or a message to the
+    // window; the name is public (gecko id + entry name), so any page can send it. Our script starts without that
+    // context (apps/extension/build/isolated-entry.ts): the event reaches nothing of ours.
     await browser.execute((name) => {
       document.dispatchEvent(new CustomEvent(name, { detail: { contentScriptName: 'chatspace', messageId: 'spoof' } }));
+      window.postMessage({ type: name, contentScriptName: 'chatspace', messageId: 'spoof' }, '*');
     }, `${TEST_GECKO_ID}:chatspace:wxt:content-script-started`);
-    const report = await waitForReport((r) => (r.ignoredInvalidations ?? 0) >= 1, 'spoofed invalidation reached WXT and was ignored');
-    expect(report.runtime).toBeUndefined();
-    expect(report.rpc).toEqual(before.rpc);
-    evidence['spoofedInvalidation'] = { ignoredInvalidations: report.ignoredInvalidations, stillRegistered: report.rpc?.registered };
+    // Nothing to wait for when nothing listens: a pause, then the tab is as it was.
+    await browser.pause(500);
+    const report = await readReport();
+    expect(report?.runtime).toBeUndefined();
+    expect(report?.runtimeError).toBeUndefined();
+    expect(report?.rpc).toEqual(before.rpc);
+    expect(report?.startedAt).toBe(before.startedAt);
+    evidence['spoofedInvalidation'] = { reachedUs: false, stillRegistered: report?.rpc?.registered };
   });
 
   it('[EX-009] [EX-012] with a composer the lazy chunks load by import() from the isolated script; Preact renders the dock in a closed shadow root with adopted sheets', async () => {

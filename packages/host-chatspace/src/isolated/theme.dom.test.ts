@@ -58,4 +58,42 @@ describe('the host theme (§6.1: --color-om-*, .dark, fixed width)', () => {
     expect(reader.anchor()).toBe('ok');
     reader.dispose();
   });
+
+  it('[§11] starts without reading <html>: the first touch of `style` waits until the theme is asked for, and a change before that is no news', async () => {
+    const html = document.documentElement;
+    const style = html.style;
+    // Our own reads of `<html>.style` (happy-dom reads it itself when the attribute changes). The first touch of an
+    // element's `style` in a page's content-script global costs ~0.3 ms (spike-m0 e2e).
+    let reads = 0;
+    Object.defineProperty(html, 'style', { configurable: true, get: () => ((reads += /\/isolated\/theme\.ts\b/.test(new Error().stack ?? '') ? 1 : 0), style) });
+    try {
+      const reader = createThemeReader(document);
+      expect(reads).toBe(0);
+      style.setProperty('--color-om-neutral-0', '1 1 1');
+      html.classList.add('dark');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(reads).toBe(0);
+      expect(reader.current()).toMatchObject({ scheme: 'dark', tokens: { '--color-om-neutral-0': '1 1 1' } });
+      expect(reads).toBeGreaterThan(0);
+      // From the first read on, a change is news.
+      const seen: string[] = [];
+      reader.onChange((theme) => seen.push(theme.scheme));
+      html.classList.remove('dark');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(seen).toEqual(['light']);
+      reader.dispose();
+    } finally {
+      Reflect.deleteProperty(html, 'style');
+    }
+  });
+
+  it('[§11] a listener added before any read hears the changes after it', async () => {
+    const reader = createThemeReader(document);
+    const seen: string[] = [];
+    reader.onChange((theme) => seen.push(theme.scheme));
+    document.documentElement.classList.add('dark');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(seen).toEqual(['dark']);
+    reader.dispose();
+  });
 });

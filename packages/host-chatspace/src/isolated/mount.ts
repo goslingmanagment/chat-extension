@@ -223,8 +223,16 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   const registry = createShadowRootRegistry();
   const dockHost = doc.createElement('div');
   dockHost.setAttribute(HOST_ATTRIBUTE, 'dock');
-  dockHost.style.setProperty('contain', 'layout style');
-  dockHost.style.setProperty('display', 'block');
+  // Its inline style is set when it is placed the first time (`dress`), not here: this runs in the synchronous start
+  // at document_start (§11), and the first touch of an element's `style` in a page's content-script global costs
+  // ~0.3 ms there. Until then the host is in no document.
+  let dressed = false;
+  const dress = (): void => {
+    if (dressed) return;
+    dressed = true;
+    dockHost.style.setProperty('contain', 'layout style');
+    dockHost.style.setProperty('display', 'block');
+  };
   const dockRoot = dockHost.attachShadow({ mode: 'closed' });
   registry.register(dockHost, dockRoot);
   const dock: ClosedHost = { host: dockHost, root: dockRoot, remove: () => dockHost.remove() };
@@ -345,6 +353,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   };
 
   function place(): void {
+    dress();
     let next: DockKind = 'none';
     let parent: Element | null = null;
     let box: Element | null = null;

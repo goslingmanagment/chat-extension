@@ -5,24 +5,23 @@
 // (§11: ≤ 3 ms): stale hosts of a dead instance go, the ChatSpace host starts
 // — its mount manager and theme reader at once, the MAIN handshake behind
 // them — and the early key dispatcher takes `window` before ChatSpace's own
-// listeners exist (§9.1; tab/keys.ts). That is all. One task later the rest
+// listeners exist (§9.1; tab/keys.ts). That is all: neither the extension API
+// nor an element's `style` is touched there — the first touch of each in a
+// page's content-script global costs ~0.3 ms, and both wait until they are
+// needed (the port, a placed dock, a theme read). One task later the rest
 // of the early bundle wakes up (tab/runtime.ts): the port to the background,
 // the tab's registration and presence. The application itself — the protocol
 // registry, the controllers, the texts, the UI — is lazy chunks, loaded when
 // ChatSpace shows a composer or a key of ours waits for it (HK-024), and
 // never before either (EX-011).
 //
-// Lifecycle is OURS, not WXT's: WXT invalidates its ContentScriptContext when
-// a `<runtime id>:chatspace:wxt:content-script-started` CustomEvent reaches the
-// document — and the page can dispatch that event too (spike M0). Firefox
-// kills a removed or updated extension's content scripts outright, so a real
-// invalidation only ever reaches an instance whose runtime is gone; while our
-// runtime is alive, an invalidation is a spoof and is ignored.
+// Lifecycle is OURS, not WXT's: the script starts without WXT's
+// ContentScriptContext (build/isolated-entry.ts). Its invalidation was an
+// event the page could dispatch too (spike M0), and Firefox kills a removed or
+// updated extension's content scripts outright; the extension going away is
+// seen through the background port (tab/runtime.ts).
 
 import { removeStaleHosts, startChatSpaceHost, type HostDiagnostic, type MountDiagnostic, type Validation } from '@cg/host-chatspace/isolated';
-// The light entry of the platform: its index would evaluate the RPC client and the protocol schemas at document_start (§11).
-import { extensionUrl, isExtensionContextAlive } from '@cg/platform/runtime';
-import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 
 import { startTabKeys } from './tab/keys';
 import { importWithRetry, lazyPath } from './tab/lazy';
@@ -30,7 +29,6 @@ import { tabProbeFor, type TabProbe } from './tab/probe';
 import type { TabRuntime } from './tab/runtime';
 
 export interface TabEnv {
-  readonly ctx: ContentScriptContext;
   readonly win: Window;
 }
 
@@ -39,22 +37,13 @@ const DIAGNOSTICS_KEPT = 50;
 
 export function composeTab(env: TabEnv): void {
   const started = performance.now();
-  const { ctx, win } = env;
+  const { win } = env;
   const doc = win.document;
   // e2e diagnostics exist only in a CG_TEST_HOSTS build: the compile-time
   // constant lets the bundler drop the probe from release.
   const probe: TabProbe | null = __CG_TEST_HOSTS__ ? tabProbeFor(win) : null;
 
   const life = new AbortController();
-  let spoofedInvalidations = 0;
-  ctx.onInvalidated(() => {
-    if (!isExtensionContextAlive()) {
-      life.abort('extension-gone');
-      return;
-    }
-    spoofedInvalidations += 1;
-    probe?.set('ignoredInvalidations', spoofedInvalidations);
-  });
 
   // An already-open tab after an update/reinstall still shows the dead
   // instance's hosts; this instance owns the page now (§6.8 п. 8, UP-009).
@@ -71,8 +60,10 @@ export function composeTab(env: TabEnv): void {
 
   const host = startChatSpaceHost({
     win,
-    // The bridge's schemas are a lazy chunk (§11): this file is one classic script and would carry them whole.
-    validation: () => importWithRetry<Validation>(extensionUrl(lazyPath('bridge-validation')), (url) => import(/* @vite-ignore */ url)),
+    // The bridge's schemas are a lazy chunk (§11): this file is one classic script and would carry them whole. The
+    // light entry of the platform comes with them, not at document_start: it reads the extension API as it loads.
+    validation: () =>
+      import('@cg/platform/runtime').then(({ extensionUrl }) => importWithRetry<Validation>(extensionUrl(lazyPath('bridge-validation')), (url) => import(/* @vite-ignore */ url))),
     // A write spends the action token of its click before anything reaches MAIN (§14); no runtime — no write.
     redeem(request) {
       if (runtime === null) return Promise.resolve(false);
