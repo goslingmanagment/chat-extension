@@ -122,7 +122,7 @@ describe('the surfaces of a tab', () => {
     }
   });
 
-  it('the quick jump is the palette chunk’s second surface; a preview and a dialog mount nothing of their own', async () => {
+  it('the quick jump is the palette chunk’s second surface; a preview of a board and a dialog mount nothing of their own', async () => {
     const w = world();
     w.overlays.set('quick-jump', true);
     w.overlays.setPreview('spenders');
@@ -131,6 +131,39 @@ describe('the surfaces of a tab', () => {
     w.loaders.get('palette')?.resolve({ surface: { name: 'palette' }, quickJumpSurface: { name: 'quick-jump' } });
     await w.settle();
     expect(w.log.slice(2)).toEqual(['surface:quick-jump', `mount:quick-jump@${OVERLAY_Z.modal}`]);
+  });
+
+  it('[CS-030] a preview from the palette’s «Онлайн» is a window of its own on layer 950, from its own chunk; one from a board is not, and the window goes with the source', async () => {
+    const w = world();
+    // A preview of the Spenders board is a part of the board's window.
+    w.overlays.set('spenders', true);
+    w.overlays.setPreview('spenders');
+    expect(w.asked).toEqual(['spenders']);
+    w.loaders.get('spenders')?.resolve({ surface: { name: 'spenders' } });
+    await w.settle();
+    expect(w.surfaces.mounted()).toEqual(['dock', 'toasts', 'spenders']);
+    // The palette's preview: the board closes, the preview stays open — only its source moves — and its window comes.
+    w.overlays.set('spenders', false);
+    w.overlays.setPreview('palette');
+    expect(w.asked).toEqual(['spenders', 'preview']);
+    w.loaders.get('preview')?.resolve({ surface: { name: 'preview-window' } });
+    await w.settle();
+    expect(w.log.slice(-2)).toEqual(['surface:preview-window', `mount:preview@${OVERLAY_Z.modal}`]);
+    expect(w.surfaces.mounted()).toEqual(['dock', 'toasts', 'preview']);
+    // Back to a board's preview: the window goes, though the preview overlay never closed.
+    w.overlays.set('newcomers', true);
+    w.overlays.setPreview('newcomers');
+    expect(w.overlays.isOpen('preview')).toBe(true);
+    expect(w.log).toContain('unmount:preview');
+    expect(w.surfaces.mounted()).not.toContain('preview');
+    // Its own again, then closed.
+    w.overlays.set('newcomers', false);
+    w.overlays.setPreview('palette');
+    w.loaders.get('preview')?.resolve({ surface: { name: 'preview-window' } });
+    await w.settle();
+    expect(w.surfaces.mounted()).toContain('preview');
+    w.overlays.setPreview(null);
+    expect(w.surfaces.mounted()).toEqual(['dock', 'toasts']);
   });
 
   it('an overlay closed while its chunk was loading is not mounted; opened again, it is', async () => {
@@ -179,6 +212,6 @@ describe('the surfaces of a tab', () => {
   it('every overlay names a lazy entry of the build', () => {
     for (const spec of Object.values(OVERLAY_MOUNTS)) expect(Object.keys(LAZY_ENTRIES)).toContain(spec.entry);
     // Surfaces the contracts know and no overlay state opens here are mounted elsewhere: the dock, the toasts, the pages.
-    expect(Object.keys(OVERLAY_MOUNTS).sort()).toEqual(['cheatsheet', 'coach', 'fan-panel', 'newcomers', 'palette', 'quick-jump', 'result-expanded', 'spenders']);
+    expect(Object.keys(OVERLAY_MOUNTS).sort()).toEqual(['cheatsheet', 'coach', 'fan-panel', 'newcomers', 'palette', 'preview', 'quick-jump', 'result-expanded', 'spenders']);
   });
 });

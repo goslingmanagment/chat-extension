@@ -128,6 +128,28 @@ function hubertPreview(ctx: ScenarioCtx, states: readonly PreviewSendView[] | nu
   return states === null ? vm : withResult(vm, sendResult(ctx, OP.reply, 'reply', REPLY_PARTS, states, [meta.parts(REPLY_PARTS.length)]), patch);
 }
 
+/**
+ * The palette's «Онлайн» preview in its own window (CS-030, X24): the Spenders pane over the same fan, named by
+ * the palette's handle; its neighbours are the group the palette showed (here: Hubert first, then one more).
+ */
+function onlineState(ctx: ScenarioCtx, states: readonly PreviewSendView[] | null): ScenarioViewEntry[] {
+  const handle = `palette:${HUBERT.key}`;
+  const vm = hubertPreview(ctx, states);
+  return [
+    entry(
+      { of: 'preview', from: 'palette' },
+      {
+        ...vm,
+        from: 'palette',
+        handle,
+        archive: { ...vm.archive, refresh: button('common.refreshArchive', { type: 'RefreshArchive', targetHandle: handle }) },
+        openChat: button('common.openChat', { type: 'Navigate', to: { kind: 'chat', targetHandle: handle } }),
+        neighbors: { previous: null, next: { type: 'OpenPreview', targetHandle: 'palette:b003' } },
+      },
+    ),
+  ];
+}
+
 function spendersState(ctx: ScenarioCtx, states: readonly PreviewSendView[] | null, previewPatch: Partial<PreviewVM> = {}): ScenarioViewEntry[] {
   return [
     entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS, { selected: HUBERT.key })),
@@ -355,6 +377,8 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('15b', 'Palette: search', 'palette', (ctx) => paletteState(ctx, 'b')),
   // not drawn in the mockup (ui-design §10)
   state('quick-jump', 'Quick jump ⌘1–9', 'quick-jump', (ctx) => [entry({ of: 'quick-jump' }, quickJump(ctx, views.ready()))]),
+  state('online-a', '«Онлайн» of the palette: the preview in its own window (X24)', 'preview', (ctx) => onlineState(ctx, null)),
+  state('online-b', '«Онлайн» of the palette: Reply of three parts, «Отправить» on each (X24)', 'preview', (ctx) => onlineState(ctx, [AVAILABLE, AVAILABLE, AVAILABLE])),
   state('board-list', 'The board without a preview', 'spenders', (ctx) => [entry({ of: 'spenders.board' }, boardOf(ctx, BOARD_FANS)), entry({ of: 'spenders.stats' }, statsOf(ctx))]),
   state('board-1000', 'A thousand fans: the virtual list', 'spenders', (ctx) => {
     const fans = manyFans(1000);

@@ -38,8 +38,8 @@ import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } fro
 const ACC = STAND_IDS.accounts.a;
 const ACC_B = STAND_IDS.accounts.b;
 const { a1, a2, a3, a4, a5, a6, a7, a8, b1 } = STAND_IDS.fans;
-/** Fans Iris, Juniper and Kestrel of the stand's account a (the dataset names its fans beyond a8 by the same pattern). */
-const [a9, a10, a11] = ['74001009', '74001010', '74001011'] as const;
+/** Fans Iris, Juniper, Kestrel and Linden of the stand's account a (the dataset names its fans beyond a8 by the same pattern). */
+const [a9, a10, a11, a12] = ['74001009', '74001010', '74001011', '74001012'] as const;
 const VISUAL_DIR = `${E2E_EVIDENCE_DIR}visual/`;
 const WINDOW = { width: 1440, height: 900 } as const;
 
@@ -646,6 +646,54 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
       await waitOursText('modal', 'Клавиши ChatGoose', 'the cheatsheet');
       await look('modal-03-cheatsheet', { check: async () => void (await inWindow('modal', '.cg-cs')) });
       await closeAll();
+    });
+
+    it('the palette’s «Онлайн» and the preview window of an online fan (CS-030, X24)', async function () {
+      this.timeout(180_000);
+      // ChatSpace's own presence poll shows three fans online (rows near the top: it asks only about the rows on
+      // screen); its next look is brought near for the picture.
+      const dots = (): Promise<string[]> =>
+        browser.execute(() => [...document.querySelectorAll<HTMLElement>('.chats-panel__list [data-chat-id]')].filter((row) => row.querySelector('.avatar--online') !== null).map((row) => row.dataset['chatId'] ?? ''));
+      await standServer.presence(ACC, [a12, a11, a8]);
+      await callStand('setFansOnlineTimings', { freshMs: 0, everyMs: 300 });
+      await browser.waitUntil(
+        async () => {
+          const now = await dots();
+          return [a12, a11, a8].every((fan) => now.includes(fan));
+        },
+        { timeout: 15_000, timeoutMsg: 'ChatSpace did not show the fans online' },
+      );
+      await leaveField();
+      await browser.keys([MOD, 'k']);
+      await waitOursText('modal', 'Сейчас онлайн, по данным ChatSpace', 'the palette’s «Онлайн» group', { selector: '.cg-pal', timeout: 10_000 });
+      await waitOursText('modal', 'Fan Heath', 'Fan Heath in «Онлайн»', { selector: '.cg-pal' });
+      // «Онлайн» stands below the actions of the open chat and «Ждут ответа»: the list is scrolled to it, as a person would.
+      const toOnline = async (): Promise<void> => {
+        await readOurs('modal', '.cg-pal__list', (node) => {
+          node.scrollTop = node.scrollHeight;
+          return node.scrollTop;
+        });
+        await waitOursText('modal', 'Fan Kestrel', 'the «Онлайн» rows on screen', { selector: '.cg-pal' });
+      };
+      await look('modal-05-palette-online', { all: false, fresh: toOnline, check: async () => void (await inWindow('modal', '.cg-pal')) });
+      await pressOurs('modal', '.cg-pal__item', /^Fan Heath/, 'Fan Heath in «Онлайн»');
+      await waitOursText('modal', 'Чат не открыт, останется непрочитанным', 'the preview window', { selector: '.cg-pvw', timeout: 10_000 });
+      await waitOursText('modal', 'Fan Heath', 'the preview window of Fan Heath', { selector: '.cg-pvw .cg-pv__name' });
+      const windowBox = await inWindow('modal', '.cg-pvw');
+      facts['onlinePreviewWindow'] = windowBox;
+      await look('modal-06-online-preview', { check: async () => void (await inWindow('modal', '.cg-pvw')) });
+      await pressOurs('modal', '.cg-pvw .cg-pv button', /^Ping/);
+      await waitOursText('modal', 'still thinking about what you said yesterday', 'the Ping in the window', { selector: '.cg-pvw .cg-pvr', timeout: 20_000 });
+      await look('modal-07-online-preview-ping', { check: async () => void (await inWindow('modal', '.cg-pvw')) });
+      await closeAll();
+      expect(await oursExists('modal', '.cg-pvw')).toBe(false);
+      // Nobody online for the pictures after this one (ChatSpace's next look takes the dots away), then its own timings again.
+      await standServer.presence(ACC, []);
+      await browser.waitUntil(async () => (await dots()).length === 0, { timeout: 15_000, timeoutMsg: 'ChatSpace still shows fans online' });
+      await callStand('setFansOnlineTimings', { freshMs: 60_000, everyMs: 300_000 });
+      // The chat that was open stayed open all along.
+      expect((await callStand('route')).chatId).toBe(a1);
+      await ready(a1);
     });
 
     it('Coach: an answer with a draft', async function () {

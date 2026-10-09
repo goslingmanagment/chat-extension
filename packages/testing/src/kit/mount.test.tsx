@@ -319,6 +319,30 @@ describe('[CS-005] our windows are overlays outside #app, stacked as ui-design �
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it('[CS-030] a column window (the palette’s preview, X24) stands over the middle of ChatSpace’s container, its full height less 8 px at each end, over a scrim', async () => {
+    const close = vi.fn();
+    function Column() {
+      return (
+        <OverlayLayer>
+          <Dialog open label="Превью фана" size="column" onClose={close}>
+            <button class="cg-in">in</button>
+          </Dialog>
+        </OverlayLayer>
+      );
+    }
+    const kit = track(mountKit(Column, { kind: 'preview' }));
+    const dialog = kit.$('[role="dialog"]') as HTMLElement;
+    // No container known yet: under the top bar of 0.172.0, centred in the window.
+    expect([dialog.style.top, dialog.style.bottom, dialog.style.left]).toEqual(['52px', '8px', '50%']);
+    await flush(() => kit.deps.geometry.set({ width: null, feedHeight: null, viewportHeight: 900, container: { left: 64, top: 44, width: 1376, height: 856 } }));
+    expect(dialog.classList.contains('cg-dialog--column')).toBe(true);
+    expect([dialog.style.top, dialog.style.left, dialog.style.height]).toEqual(['52px', '752px', '840px']);
+    expect(kit.$('.cg-scrim')).not.toBeNull();
+    expect(kit.root.activeElement).toBe(kit.$('.cg-in'));
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it('a nested confirmation closing keeps the window’s data-dismissible-open; the last one to close drops it', async () => {
     let setInner: (open: boolean) => void = () => undefined;
     let setOuter: (open: boolean) => void = () => undefined;

@@ -1,6 +1,6 @@
 // Test harness for the board surfaces (architecture.md §10.2 п. 7–8): a
 // surface of @cg/ui — Spenders, «Новые», the fan panel, the palette, the
-// quick jump — mounted the way the extension mounts it (the kit's mount
+// quick jump, the palette's preview window — mounted the way the extension mounts it (the kit's mount
 // helper, a closed shadow root on the overlay host) over a FakeAppClient
 // state, with the shipped I18n. Tests read what is drawn and what was
 // dispatched; nothing here reaches past the surface's own root.
@@ -12,6 +12,7 @@ import { fanPanelSurface } from '@cg/ui/fanpanel';
 import { mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
 import { newcomersSurface } from '@cg/ui/newcomers';
 import { paletteSurface, quickJumpSurface } from '@cg/ui/palette';
+import { previewWindowSurface } from '@cg/ui/preview';
 import { spendersSurface } from '@cg/ui/spenders';
 
 import { type AppClientScenario } from '../scenarios/app-client';
@@ -23,6 +24,7 @@ export const BOARD_SURFACES = {
   'fan-panel': fanPanelSurface,
   palette: paletteSurface,
   'quick-jump': quickJumpSurface,
+  preview: previewWindowSurface,
 } as const satisfies Partial<Record<MountSurfaceKind, SurfaceDefinition>>;
 
 export type BoardSurfaceKind = keyof typeof BOARD_SURFACES;

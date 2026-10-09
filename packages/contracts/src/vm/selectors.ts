@@ -36,6 +36,9 @@ export type JournalKind = (typeof JOURNAL_KINDS)[number];
  * overlay host (one active window at layer 950, side panels at 900, toasts at
  * 960) and the extension pages. Recap and Review render inside the dock sheet
  * (ui-design §9.1 п. 3); `result-expanded` is the «Развернуть ↗» dialog.
+ * `preview` (1.9.0) is the preview's own window, for a fan the palette's
+ * «Онлайн» lists (CS-030); a preview from Spenders or «Новые» is a part of
+ * that window and mounts with it.
  */
 export const MOUNT_SURFACES = [
   'dock',
@@ -44,6 +47,7 @@ export const MOUNT_SURFACES = [
   'fan-panel',
   'spenders',
   'newcomers',
+  'preview',
   'palette',
   'quick-jump',
   'cheatsheet',

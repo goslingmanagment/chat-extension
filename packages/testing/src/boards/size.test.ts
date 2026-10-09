@@ -42,6 +42,7 @@ const SURFACES = {
   newcomers: `export { newcomersSurface } from ${JSON.stringify(`${UI}newcomers/index.ts`)};`,
   'fan-panel': `export { fanPanelSurface } from ${JSON.stringify(`${UI}fanpanel/index.ts`)};`,
   palette: `export { paletteSurface, quickJumpSurface } from ${JSON.stringify(`${UI}palette/index.ts`)};`,
+  preview: `export { previewWindowSurface } from ${JSON.stringify(`${UI}preview/index.ts`)};`,
 } as const;
 
 type Surface = keyof typeof SURFACES;
@@ -104,7 +105,7 @@ describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §1
     expect(size).toBeLessThanOrEqual(LAZY_CHUNK);
   });
 
-  it('the sizes are known: Spenders ≤ 27, «Новые» ≤ 22, the fan panel ≤ 10 and the palette ≤ 8 KiB', () => {
+  it('the sizes are known: Spenders ≤ 27, «Новые» ≤ 22, the palette’s preview window ≤ 16, the fan panel ≤ 10 and the palette ≤ 8 KiB', () => {
     const sizes = Object.fromEntries((Object.keys(SURFACES) as Surface[]).map((name) => [name, beyondDock(name)]));
     // gzip is not one number: the same bytes come out about 0.2 % larger from the zlib of an official Node build
     // (what CI installs) than from a Node linked against the system zlib (the owner's Mac). Spenders was 26 KiB
@@ -113,6 +114,8 @@ describe('[EX-009] the boards’ lazy chunks fit the budget (architecture.md §1
     expect(sizes['newcomers']).toBeLessThanOrEqual(22 * KIB);
     expect(sizes['fan-panel']).toBeLessThanOrEqual(10 * KIB);
     expect(sizes['palette']).toBeLessThanOrEqual(8 * KIB);
+    // The preview's own window (X24) is the Spenders pane without the board and the statistics.
+    expect(sizes['preview']).toBeLessThanOrEqual(16 * KIB);
   });
 
   it('«the dock» here is the dock of the kit’s own size guard: its list of imports, read and not copied', () => {

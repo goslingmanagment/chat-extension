@@ -1,6 +1,6 @@
 // The boards gallery page:
 //   ?state=11a&theme=light|dark&lang=ru|en        a gallery state (states.ts) or an AppClient scenario id
-//   &surface=spenders|newcomers|fan-panel|palette|quick-jump   (a scenario id needs it; a state knows its own)
+//   &surface=spenders|newcomers|fan-panel|palette|quick-jump|preview   (a scenario id needs it; a state knows its own)
 //   &rows=1000                                    the live board over that many fans (search, filters, sort)
 //   &step=N                                       apply the scenario's steps up to N
 // It plays the host side — a closed shadow root on the overlay host, outside
@@ -14,6 +14,7 @@ import { fanPanelSurface } from '@cg/ui/fanpanel';
 import { mountKitSurface, type KitFailure, type KitMount, type SurfaceDefinition } from '@cg/ui/kit';
 import { newcomersSurface } from '@cg/ui/newcomers';
 import { paletteSurface, quickJumpSurface } from '@cg/ui/palette';
+import { previewWindowSurface } from '@cg/ui/preview';
 import { spendersSurface } from '@cg/ui/spenders';
 
 import { manyFans } from '../data';
@@ -27,6 +28,7 @@ const SURFACES: Partial<Record<MountSurfaceKind, SurfaceDefinition>> = {
   'fan-panel': fanPanelSurface,
   palette: paletteSurface,
   'quick-jump': quickJumpSurface,
+  preview: previewWindowSurface,
 };
 
 export interface BoardsProbe {

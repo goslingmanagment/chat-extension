@@ -34,6 +34,8 @@ export const LAZY_ENTRIES = {
   newcomers: 'entries/newcomers.ts',
   'fan-panel': 'entries/fan-panel.ts',
   palette: 'entries/palette.ts',
+  // The preview's own window, for a fan of the palette's «Онлайн» (X24).
+  preview: 'entries/preview.ts',
 } as const;
 
 export type LazyEntryName = keyof typeof LAZY_ENTRIES;

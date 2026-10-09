@@ -1177,6 +1177,93 @@ describe('[SP-050] [SP-051] [SP-052] [SP-056] [DB-026] a preview shows the hub a
   });
 });
 
+describe('[CS-030] the palette’s «Онлайн»: OUR preview of the chosen fan in a window of its own (X24)', () => {
+  const row = (fanRef: string, position: number, name: string, isOnline: boolean | null) => ({ chat: { host: 'chatspace' as const, hostAccountId: HOST_IDS.acc, platformFanId: fanRef }, position, displayName: name, username: name.toLowerCase().replace(' ', '_'), unreadCount: 1, isOnline });
+  /** ChatSpace's list: three fans it shows online among others (the board knows 5000 and 5001). */
+  const online = { chatList: [...hostMemory.chatList, row('5000', 2, 'Fan Zero', true), row('5001', 3, 'Fan One', true), row('5002', 4, 'Fan Two-B', false), row('5003', 5, 'Fan Three-B', true)] };
+  const chatOf = (fanRef: string, hostAccountId: string = HOST_IDS.acc) => ({ host: 'chatspace' as const, hostAccountId, platformFanId: fanRef });
+  const palette = (fanRef: string): string => fanHandle('palette', PAGE.pageId, fanRef);
+
+  it('[CS-030] the choice opens the fan’s preview from the hub’s archive alone: the board closes, nothing of the chat is asked of ChatSpace, no chat opens', async () => {
+    const h = await harness({ memory: online });
+    await h.dispatch(open('spenders'));
+    expect(h.boards.surfaces.current().spenders).toBe(true);
+    const receipt = await h.boards.openOnline(chatOf('5001'), [chatOf('5000'), chatOf('5001'), chatOf('5003')]);
+    expect(receipt).toEqual({ ok: true, type: 'OpenPreview', outcome: 'opened' });
+    await h.flush();
+    // One window at a time: the board and its preview gave way to the palette's.
+    expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, newcomers: false, preview: { spenders: null, newcomers: null, palette: palette('5001') } });
+    const vm = h.boards.preview.getSnapshot(preview('palette'));
+    // The board's row names the fan (its money and dates too); ChatSpace's row only when the board has none.
+    expect(vm).toMatchObject({ from: 'palette', handle: palette('5001'), unread: 'kept', header: { name: 'Fan 1' } });
+    expect(vm.openChat.action).toEqual({ type: 'Navigate', to: { kind: 'chat', targetHandle: palette('5001') } });
+    expect(vm.bar.actions.ping).toMatchObject({ enabled: true });
+    expect(lastPayload(h, 'feed.read')).toMatchObject({ pageId: PAGE.pageId, fanRef: '5001', cursor: null });
+    // Nothing was done to ChatSpace: no navigation, no insert, no token for one.
+    expect(h.host.calls).toMatchObject({ navigations: [], inserts: [], redeemed: [] });
+    expect(h.bg.requests.filter((request) => request.type === 'token.issue')).toEqual([]);
+    // A list window opened later closes the palette's preview in turn.
+    await h.dispatch(open('newcomers'));
+    expect(h.boards.surfaces.current().preview.palette).toBeNull();
+    expect(h.boards.preview.getSnapshot(preview('palette')).handle).toBeNull();
+  });
+
+  it('[CS-030] previous and next walk the list the palette showed, in its order — a fan who went offline since stays on it, nobody else joins it', async () => {
+    const h = await harness({ memory: online });
+    // The palette showed two of the three (a search), in its own order.
+    await h.boards.openOnline(chatOf('5003'), [chatOf('5003'), chatOf('5000')]);
+    let vm = h.boards.preview.getSnapshot(preview('palette'));
+    expect(vm.neighbors).toEqual({ previous: null, next: { type: 'OpenPreview', targetHandle: palette('5000') } });
+    await h.dispatch(vm.neighbors.next!);
+    vm = h.boards.preview.getSnapshot(preview('palette'));
+    expect(vm.handle).toBe(palette('5000'));
+    expect(vm.neighbors).toEqual({ previous: { type: 'OpenPreview', targetHandle: palette('5003') }, next: null });
+    // ChatSpace stops showing 5003 online: the palette showed them, so the walk still reaches them.
+    const list = h.host.listCachedChats.bind(h.host);
+    h.host.listCachedChats = (account, limit) => list(account, limit).map((item) => (item.chat.platformFanId === '5003' ? { ...item, isOnline: false } : item));
+    expect((await h.dispatch(vm.neighbors.previous!)).ok).toBe(true);
+    expect(h.boards.preview.getSnapshot(preview('palette')).header?.name).toBe('Fan Three-B');
+    // A fan the palette did not show and ChatSpace does not show online has no preview from here.
+    expect(await h.dispatch({ type: 'OpenPreview', targetHandle: palette('5002') })).toMatchObject({ ok: false, code: 'CG-GATE-FAN-UNKNOWN' });
+    // The next choice is a new list.
+    await h.boards.openOnline(chatOf('5000'), [chatOf('5000'), chatOf('5001')]);
+    expect(h.boards.preview.getSnapshot(preview('palette')).neighbors).toEqual({ previous: null, next: { type: 'OpenPreview', targetHandle: palette('5001') } });
+    expect(h.host.calls.navigations).toEqual([]);
+  });
+
+  it('[CS-030] a fan ChatSpace no longer shows online, a chat of another account, or no binding: no preview, the reason in the receipt', async () => {
+    const h = await harness({ memory: online });
+    expect(await h.boards.openOnline(chatOf('5002'), [chatOf('5002')])).toMatchObject({ ok: false, type: 'OpenPreview', code: 'CG-GATE-FAN-UNKNOWN' });
+    expect(await h.boards.openOnline(chatOf('5001', '9999'), [])).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
+    expect(h.boards.surfaces.current().preview.palette).toBeNull();
+    const signedOut = await harness({ memory: online, session: null });
+    const refused = await signedOut.boards.openOnline(chatOf('5001'), [chatOf('5001')]);
+    expect(refused).toMatchObject({ ok: false, code: 'CG-AUTH-REQUIRED' });
+    expect(signedOut.boards.surfaces.current().preview.palette).toBeNull();
+  });
+
+  it('[CS-030] a result made on the board’s card stands in the palette’s window of the fan: «Ещё раз» works there, and the board’s card has it back', async () => {
+    const { h, opId, handle } = await withReply({ memory: online });
+    await h.boards.openOnline(chatOf('5000'), [chatOf('5000')]);
+    await h.flush();
+    let vm = h.boards.preview.getSnapshot(preview('palette'));
+    expect(vm.result?.opId).toBe(opId);
+    expect(vm.result?.parts?.map((part) => part.text)).toEqual(['Hey you', 'Missed me?']);
+    const again = h.script(1, 'fast-reply', 'Second\n[NEXT]\nTry');
+    expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: true, opId: again.opId });
+    await h.advance(200);
+    vm = h.boards.preview.getSnapshot(preview('palette'));
+    expect(vm.result?.opId).toBe(again.opId);
+    expect(vm.result?.parts?.map((part) => part.text)).toEqual(['Second', 'Try']);
+    // The board's card of the fan opens again with its own result.
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    expect(h.boards.preview.getSnapshot(preview('spenders')).result?.opId).toBe(opId);
+    expect(h.host.calls.navigations).toEqual([]);
+  });
+});
+
 describe('[NEW-10] [NF-012] the local draft of a preview', () => {
   it('[NEW-10] the draft stays in the preview and in local storage, never in ChatSpace; Fix needs it', async () => {
     const h = await harness();
@@ -1837,9 +1924,10 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
     expect(h.host.calls.navigations).toEqual([]);
 
-    // The same fan on another card (the palette's online fans): held there too.
+    // The same fan on another card (the palette's online fans, a window of its own — the board closes): held there too.
     const palette = fanHandle('palette', PAGE.pageId, '5000');
     expect((await h.dispatch({ type: 'OpenPreview', targetHandle: palette })).ok).toBe(true);
+    expect(h.boards.surfaces.current()).toMatchObject({ spenders: false, preview: { spenders: null, palette } });
     const other = h.boards.preview.getSnapshot(preview('palette'));
     expect(other.bar.actions.reply).toMatchObject({ enabled: false, reason: { id: 'part-uncertain' } });
     expect(other.stoppedNote).toEqual({ key: 'newcomers.stopped', params: { n: 1 } });
@@ -1848,9 +1936,15 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect(count(h, 'op.start')).toBe(1);
     expect(h.host.calls.commits).toHaveLength(1);
 
-    // The late linked pair is the only automatic way out: the part is sent, and the fan is free again.
+    // The late linked pair is the only automatic way out: the part is sent, and the fan is free again — on the
+    // palette's card, and on the board's card opened again (one window at a time).
     h.sendState({ attemptId, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', platformMessageId: '4100' });
     h.sendState({ attemptId, state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    expect(h.boards.preview.getSnapshot(preview('palette')).bar.actions.reply).toMatchObject({ enabled: true });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
     await h.flush();
     const free = h.boards.preview.getSnapshot(preview('spenders'));
     expect(free.result?.parts?.[0]?.send).toMatchObject({ s: 'sent' });
@@ -1858,7 +1952,6 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     expect(free.result?.canRegenerate).toBe(true);
     expect(strip(h).reply).toMatchObject({ enabled: true, reason: null });
     expect(free.result?.parts?.[1]?.openInsert).toEqual({ s: 'available' });
-    expect(h.boards.preview.getSnapshot(preview('palette')).bar.actions.reply).toMatchObject({ enabled: true });
   });
 
   it('an unknown outcome of ANOTHER result of the fan: the parts of the result on the card say «прошлая отправка не проверена» before any click', async () => {
@@ -1868,16 +1961,23 @@ describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of
     const palette = fanHandle('palette', PAGE.pageId, '5000');
     await h.dispatch({ type: 'OpenPreview', targetHandle: palette });
     expect(h.boards.preview.getSnapshot(preview('palette')).result?.opId).toBe(opId);
-    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'started' });
     h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
     h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    // The board's card again (the palette's window closes: one window at a time): the next reply's part ends unknown.
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
     await h.flush();
     const second = h.script(1, 'ping', 'Ping one\n[NEXT]\nPing two');
     expect(await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'ping', options: {} })).toMatchObject({ ok: true, opId: second.opId });
     await h.advance(200);
     await h.dispatch({ type: 'SendPart', operationId: second.opId, part: 0 });
     expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain', attemptId: uuid(0x501) });
-    // The first reply still stands on the palette's card: its unsent part is held by the other result's unknown outcome.
+    // The first reply still stands on the palette's card, opened again: its unsent part is held by the other result's unknown outcome.
+    await h.dispatch({ type: 'OpenPreview', targetHandle: palette });
+    await h.flush();
     const other = h.boards.preview.getSnapshot(preview('palette'));
     expect(other.result?.opId).toBe(opId);
     const [sent, unsent] = other.result?.parts ?? [];

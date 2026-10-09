@@ -8,7 +8,8 @@
 //   (`ownerSwitch(hostAccountId)` — the `navigation` feature of the page that account is bound to)
 //   palette = createPaletteController({ host, rpc, i18n, catalog, clock, overlays,
 //     dock: { get: () => client.getSnapshot({ of: 'dock' }), subscribe: (cb) => client.subscribe({ of: 'dock' }, cb) },
-//     preview: { open: (chat) => previewController.openFor(chat, 'palette') } });
+//     preview: { open: (chat, shown) => boards.openOnline(chat, shown) } });
+//   (`openOnline` — core/application/preview `openOnlinePreview`: OUR preview in its own window, X24)
 //   quickJump = createQuickJumpController({ host, i18n, overlays, clock });
 //   cheatsheet = createCheatsheetController({ catalog });
 //

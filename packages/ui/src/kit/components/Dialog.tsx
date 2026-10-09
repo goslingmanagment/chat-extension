@@ -18,13 +18,19 @@ import { Button } from './Button';
 /** Where a window stands when ChatSpace's container is unknown (0.172.0: top bar 44 px, account rail 64 px). */
 export const WINDOW_FALLBACK_INSETS = { top: 44, left: 64, right: 8, bottom: 8 } as const;
 
-export type DialogSize = 'center' | 'wide' | 'window';
+/** Between a column window and the top and bottom of ChatSpace's container. */
+export const COLUMN_GAP = 8;
+
+export type DialogSize = 'center' | 'wide' | 'window' | 'column';
 
 export interface DialogProps {
   readonly open: boolean;
   readonly label: string;
   readonly onClose: () => void;
-  /** `center` — the palette (620 px); `wide` — the cheatsheet, an expanded result (720 px); `window` — Spenders, «Новые». */
+  /**
+   * `center` — the palette (620 px); `wide` — the cheatsheet, an expanded result (720 px); `window` — Spenders,
+   * «Новые»; `column` — the preview's own window (420 px, the full height of ChatSpace's container, centred in it).
+   */
   readonly size?: DialogSize;
   /** The 940 scrim under centred dialogs; a press on it closes. */
   readonly scrim?: boolean;
@@ -80,6 +86,18 @@ export function Dialog(props: DialogProps): JSX.Element | null {
       style['left'] = `${box.left}px`;
       style['width'] = `${Math.max(0, box.width - WINDOW_FALLBACK_INSETS.right)}px`;
       style['height'] = `${Math.max(0, box.height - WINDOW_FALLBACK_INSETS.bottom)}px`;
+    }
+  } else if (size === 'column') {
+    // One column over the middle of ChatSpace's container (the CSS centres it on `left`), its full height.
+    const box = geometry.container;
+    if (box === null) {
+      style['top'] = `${WINDOW_FALLBACK_INSETS.top + COLUMN_GAP}px`;
+      style['bottom'] = `${COLUMN_GAP}px`;
+      style['left'] = '50%';
+    } else {
+      style['top'] = `${box.top + COLUMN_GAP}px`;
+      style['left'] = `${box.left + box.width / 2}px`;
+      style['height'] = `${Math.max(0, box.height - 2 * COLUMN_GAP)}px`;
     }
   }
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {

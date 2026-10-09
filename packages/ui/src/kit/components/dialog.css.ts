@@ -20,6 +20,7 @@ export const DIALOG_CSS = `
 .cg-dialog--center, .cg-dialog--wide { left: 50%; top: 96px; translate: -50% 0; max-height: calc(100vh - 140px); width: min(620px, calc(100vw - 32px)); }
 .cg-dialog--wide { width: min(720px, calc(100vw - 32px)); }
 .cg-dialog--window { border-color: var(--cg-rule); border-radius: var(--cg-r-md); box-shadow: var(--cg-shadow); animation-duration: 140ms; }
+.cg-dialog--column { translate: -50% 0; width: min(420px, calc(100vw - 32px)); max-width: calc(100vw - 32px); }
 .cg-side {
   position: fixed; z-index: ${LAYERS.panel}; top: 44px; right: 0; bottom: 0; width: 320px; max-width: 100vw;
   display: flex; flex-direction: column; background: var(--cg-surface); border-left: 1px solid var(--cg-rule);

@@ -5,7 +5,8 @@
 //
 // Every surface has its own subpath, and a bundle takes only the one it
 // mounts: `@cg/ui/dock`, `@cg/ui/overlays`, `@cg/ui/spenders`,
-// `@cg/ui/newcomers`, `@cg/ui/fanpanel`, `@cg/ui/palette`, `@cg/ui/pages`.
+// `@cg/ui/newcomers`, `@cg/ui/fanpanel`, `@cg/ui/palette`, `@cg/ui/preview`,
+// `@cg/ui/pages`.
 // The kit all of them use is `@cg/ui/kit`. This root entry exports nothing on
 // purpose: importing «the UI» as a whole would pull every surface into one
 // chunk.

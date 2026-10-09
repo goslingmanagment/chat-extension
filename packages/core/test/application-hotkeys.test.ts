@@ -888,6 +888,18 @@ describe('the early dispatcher', () => {
     overlays.setPreview(null);
     expect(state.overlays()).toEqual(['spenders']);
   });
+
+  it('[CS-030] the preview moving from a board to the palette is heard though the open overlays stay the same: the palette’s preview is a window of its own (X24)', () => {
+    const overlays = createOverlayState();
+    const heard: string[] = [];
+    overlays.subscribe(() => heard.push(`${overlays.list().join('+')}:${String(overlays.previewFrom())}`));
+    overlays.setPreview('spenders');
+    overlays.setPreview('palette');
+    // Nothing moved: nobody is told.
+    overlays.setPreview('palette');
+    overlays.setPreview(null);
+    expect(heard).toEqual(['preview:spenders', 'preview:palette', ':null']);
+  });
 });
 
 // ── the runner ──
@@ -1254,6 +1266,14 @@ describe('the hotkey runner', () => {
     broken.runner.run({ id: 'split', slot: null, target: 'dock' });
     await settle();
     expect(broken.toasts.shown.map((item) => item.toast.code)).toEqual(['CG-UI-FAILED']);
+  });
+
+  it('[CS-030] the palette’s preview window (X24): ⌘E generates for its fan, Esc closes it', async () => {
+    const r = runnerRig();
+    r.overlays.setPreview('palette');
+    r.client.set({ of: 'preview', from: 'palette' }, preview(CTX, 'palette', views.ready()));
+    expect(await r.run('reply', 'preview')).toEqual({ type: 'Generate', targetHandle: handles.palette(FANS.hubert), feature: 'reply', options: {} });
+    expect(await r.run('close', 'global')).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } });
   });
 
   it('[HK-029] Esc closes in turn: the newest window of ours first, the dock\'s sheet last', async () => {

@@ -41,7 +41,7 @@ import {
 } from '@cg/core/application/navigation';
 import { createActionCatalog } from '@cg/core/domain/hotkeys';
 import { createI18n } from '@cg/core/domain/i18n';
-import { FakeToasts, ctxOf, dock, reason } from '@cg/testing/app-client';
+import { FakeToasts, cgError, ctxOf, dock, reason } from '@cg/testing/app-client';
 import { FakeHostPort, contractReport, hostAccount, memory, openChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { describe, expect, it } from 'vitest';
 
@@ -616,11 +616,13 @@ const HUB: PaletteHubPort = {
     }),
 };
 
-function paletteWorld(options: WorldOptions & { hub?: PaletteHubPort; dock?: DockVM | null; preview?: boolean } = {}) {
+function paletteWorld(options: WorldOptions & { hub?: PaletteHubPort; dock?: DockVM | null; preview?: boolean; previewAnswer?: ActionReceipt } = {}) {
   const w = world(options);
   let dockView: DockVM | null = options.dock === undefined ? dock(CTX, 'ready') : options.dock;
   const dockListeners = new Set<() => void>();
   const previews: ChatRef[] = [];
+  /** The «Онлайн» group the palette showed at each choice, in its order. */
+  const walks: (readonly ChatRef[])[] = [];
   const controller = createPaletteController({
     host: w.host,
     rpc: w.rpc,
@@ -640,9 +642,10 @@ function paletteWorld(options: WorldOptions & { hub?: PaletteHubPort; dock?: Doc
       ? {}
       : {
           preview: {
-            open: (target: ChatRef) => {
+            open: (target: ChatRef, shown: readonly ChatRef[]) => {
               previews.push(target);
-              return Promise.resolve<ActionReceipt>({ ok: true, type: 'OpenPreview', outcome: 'opened' });
+              walks.push(shown);
+              return Promise.resolve<ActionReceipt>(options.previewAnswer ?? { ok: true, type: 'OpenPreview', outcome: 'opened' });
             },
           },
         }),
@@ -661,7 +664,7 @@ function paletteWorld(options: WorldOptions & { hub?: PaletteHubPort; dock?: Doc
     dockView = next;
     for (const listener of dockListeners) listener();
   };
-  return { ...w, controller, view, open, search, group, previews, setDock };
+  return { ...w, controller, view, open, search, group, previews, walks, setDock };
 }
 
 const labels = (items: readonly PaletteItemVM[]): (string | { key: string })[] => items.map((entry) => entry.label);
@@ -841,9 +844,22 @@ describe('the palette', () => {
     const receipt = await p.controller.dispatch({ type: 'OpenPreview', targetHandle: chatHandle(chat('2004')) });
     expect(receipt).toEqual({ ok: true, type: 'OpenPreview', outcome: 'opened' });
     expect(p.previews).toEqual([chat('2004')]);
+    // The group as the person saw it goes with the choice: the preview's previous and next walk exactly it (X24).
+    expect(p.walks).toEqual([[chat('2002'), chat('2004')]]);
     expect(p.overlays.isOpen('palette')).toBe(false);
     // No router push, no token: the fan's chat stays unread.
     expect([p.host.calls.navigations, p.rpc.of('token.issue')]).toEqual([[], []]);
+    // A search narrows the group, and the walk with it.
+    await p.open();
+    await p.search('marco');
+    expect(p.group('online').map((entry) => entry.label)).toEqual(['Marco Rinaldi']);
+    await p.controller.dispatch(p.group('online')[0]!.action);
+    expect(p.walks.at(-1)).toEqual([chat('2004')]);
+    // A refusal keeps the palette open: the person reads why (the tab says it) and picks another.
+    const refusing = paletteWorld({ previewAnswer: { ok: false, type: 'OpenPreview', code: 'CG-GATE-FAN-UNKNOWN', error: cgError(CTX, 'CG-GATE-FAN-UNKNOWN') } });
+    await refusing.open();
+    expect(await refusing.controller.dispatch(refusing.group('online')[0]!.action)).toMatchObject({ ok: false, code: 'CG-GATE-FAN-UNKNOWN' });
+    expect(refusing.overlays.isOpen('palette')).toBe(true);
     // A preview handle of another controller is not ours.
     expect(p.controller.dispatch({ type: 'OpenPreview', targetHandle: 'spenders:f2003' })).toBeNull();
     // Without the preview port there is no «Онлайн» group and OpenPreview is nobody's here.
