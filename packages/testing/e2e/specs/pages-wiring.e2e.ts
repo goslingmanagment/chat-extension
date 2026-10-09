@@ -308,7 +308,9 @@ describe('the extension pages wired: the popup and the settings of the installed
 
     await press('Spenders', '.pg-popup__btns');
     await browser.switchToWindow(standTab);
-    const report = await waitForReport((item) => item.dock?.overlays.includes('spenders') === true, 'the Spenders window is open in the ChatSpace tab', 20_000);
+    // The overlay opens at once, its surface mounts once the board's lazy chunk has loaded: wait for both, as
+    // tab-wiring and background-wiring do.
+    const report = await waitForReport((item) => item.dock?.overlays.includes('spenders') === true && item.dock.surfaces.includes('spenders'), 'the Spenders window is open in the ChatSpace tab', 20_000);
     expect(report.dock?.surfaces).toContain('spenders');
     expect((await readReport())?.appError).toBeUndefined();
   });
