@@ -909,7 +909,7 @@ describe('options: what the mockup does not draw (parity rows)', () => {
 
     const state = workingState();
     state.diagnostics = { ...state.diagnostics, tabs: [] };
-    state.accounts = state.accounts.map((entry) => ({ ...entry, openTabs: 0 }));
+    state.accounts = state.accounts.map((entry) => ({ ...entry, openTabs: 0, routeTabs: 0 }));
     const closed = await mount('options', { state, hash: '#accounts' });
     expect(closed.$$('.pg-group').map((node) => node.textContent)).toEqual(['Видели раньше']);
     expect(closed.$$('[data-pg-account]')).toHaveLength(4);

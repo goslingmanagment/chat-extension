@@ -261,6 +261,12 @@ export const TAB_REQUESTS = {
       focused: z.boolean(),
       /** The host accounts this tab's ChatSpace has loaded, when they changed: the `presence` store (§9.9). */
       accounts: z.optional(z.array(HostAccountSchema).check(z.maxLength(200))),
+      /**
+       * The account the tab's route is on (`/accounts/<id>/…`), chat open or not; null — the route names none.
+       * One of the loaded `accounts`, which may be several: «Статус» names this one (1.8.0). Absent — a tab
+       * from before 1.8.0: its route is not known.
+       */
+      routeAccount: z.optional(z.nullable(HostAccountSchema)),
     }),
     res: Ack,
     from: TAB,
@@ -283,12 +289,15 @@ export const TAB_REQUESTS = {
   'catalog.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: PersonaCatalogSchema, from: ANY },
   /** The quota of a page as last seen; null — no generation on it since the background started (unknown). */
   'quota.get': { req: z.strictObject({ pageId: HubIntIdSchema }), res: z.strictObject({ quota: z.nullable(AiQuotaSnapshotSchema) }), from: ANY },
-  /** Options «Аккаунты»: the host accounts this browser has seen, and how many tabs show each now. */
+  /**
+   * Options «Аккаунты»: the host accounts this browser has seen, and how many tabs show each now —
+   * `openTabs` have it loaded, `routeTabs` (1.8.0) are on it, its route (absent — not counted).
+   */
   'accounts.seen': {
     req: Empty,
     res: z.strictObject({
       accounts: z
-        .array(z.strictObject({ account: HostAccountSchema, lastSeenAt: IsoTimestampSchema, openTabs: CountSchema }))
+        .array(z.strictObject({ account: HostAccountSchema, lastSeenAt: IsoTimestampSchema, openTabs: CountSchema, routeTabs: z.optional(CountSchema) }))
         .check(z.maxLength(STORAGE_LIMITS.seenAccountsMax)),
     }),
     from: PAGE,

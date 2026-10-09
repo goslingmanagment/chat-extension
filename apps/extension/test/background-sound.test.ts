@@ -105,7 +105,7 @@ function world() {
     presence: {
       listeningTabs: () => state.tabs.length,
       isChatInFocus: () => false,
-      seenAccounts: () => [{ account: ACCOUNT, lastSeenAt: new Date(NOW).toISOString(), openTabs: state.tabs.length }],
+      seenAccounts: () => [{ account: ACCOUNT, lastSeenAt: new Date(NOW).toISOString(), openTabs: state.tabs.length, routeTabs: state.tabs.length }],
     },
     settings: () => state.sound,
     bootstrap: () => state.bootstrap,

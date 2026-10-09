@@ -138,6 +138,25 @@ describe('a background that was unloaded', () => {
     expect(callsTo(entries, 'clientBootstrap')).toHaveLength(1);
     expect(callsTo(entries, 'aiPersonaCatalog')).toHaveLength(1);
   });
+
+  it('[AU-034] a tab with two accounts loaded and no chat open says which one its route is on: «Аккаунты» counts it apart', async () => {
+    world = createWorld();
+    world.start();
+    await signIn(world);
+    // ChatSpace on /accounts/1002/chats: it loaded both of the person's accounts, the route is on the second one.
+    const second = { ...account, hostAccountId: '1002', platformAccountId: '3004', username: 'second', displayName: 'Second' };
+    world.tabRuntime({ accounts: [account, second], route: { chat: null, account: second } });
+    const page = world.page();
+    const counts = async () => {
+      const seen = await page.request('accounts.seen', {});
+      return seen.ok ? seen.payload.accounts.map((item) => [item.account.hostAccountId, item.openTabs, item.routeTabs]).sort() : [];
+    };
+    await until(async () => (await counts()).length === 2, 'the tab reported its accounts');
+    expect(await counts()).toEqual([
+      [account.hostAccountId, 1, 0],
+      ['1002', 1, 1],
+    ]);
+  });
 });
 
 describe('alarms', () => {

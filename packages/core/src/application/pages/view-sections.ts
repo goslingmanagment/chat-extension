@@ -121,7 +121,12 @@ function noTabReason(model: PagesModel): ReasonVM | null {
 }
 
 export function accountsBody(model: PagesModel): AccountsBodyVM {
-  const seen = [...(valueOf(model.accounts) ?? [])].sort((a, b) => Number(b.openTabs > 0) - Number(a.openTabs > 0) || (a.lastSeenAt < b.lastSeenAt ? 1 : -1));
+  // The account a tab's route is on comes first — the one «Статус» names (currentAccountOf) — then the rest at
+  // work in a tab (loaded there), then the newest seen.
+  const seen = [...(valueOf(model.accounts) ?? [])].sort(
+    (a, b) =>
+      Number((b.routeTabs ?? 0) > 0) - Number((a.routeTabs ?? 0) > 0) || Number(b.openTabs > 0) - Number(a.openTabs > 0) || (a.lastSeenAt < b.lastSeenAt ? 1 : -1),
+  );
   const reason = noTabReason(model);
   const boundPages = new Set<number>();
   const rows: AccountsBodyVM['rows'][number][] = seen.map((entry) => {

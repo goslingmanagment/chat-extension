@@ -42,7 +42,10 @@ import { applySettingsPatch } from '@cg/core/domain';
 export interface SeenAccountFixture {
   readonly account: HostAccount;
   readonly lastSeenAt: string;
+  /** Tabs that have it loaded. */
   readonly openTabs: number;
+  /** Tabs whose route is on it (1.8.0); absent — not counted, as a background before 1.8.0 answers. */
+  readonly routeTabs?: number;
 }
 
 export interface JournalFixture {

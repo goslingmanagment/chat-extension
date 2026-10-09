@@ -585,7 +585,7 @@ describe('late and repeated answers', () => {
     const state = workingState();
     const first = state.accounts[0];
     if (first === undefined) throw new Error('the working state has accounts');
-    state.accounts = Array.from({ length: 30 }, (_, index) => ({ ...first, openTabs: 0, account: { ...first.account, hostAccountId: String(5000 + index), platformAccountId: String(9000 + index), username: `account_${String(index)}`, displayName: null } }));
+    state.accounts = Array.from({ length: 30 }, (_, index) => ({ ...first, openTabs: 0, routeTabs: 0, account: { ...first.account, hostAccountId: String(5000 + index), platformAccountId: String(9000 + index), username: `account_${String(index)}`, displayName: null } }));
     const w = prepare({ state });
     const parked = w.background.park('binding.resolve');
     w.client.start();

@@ -8,7 +8,7 @@ import 'fake-indexeddb/auto';
 
 import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsV1 } from '@cg/contracts';
 import { account, chat } from '@cg/contracts/fixtures';
-import type { HostAccount } from '@cg/contracts/ids';
+import type { ChatRef, HostAccount } from '@cg/contracts/ids';
 import { parseTabPayload } from '@cg/contracts/tab-messages';
 import { createPageRpcClient, createTabRpcClient, type PageRpcClient, type TabRpcClient } from '@cg/platform';
 import { createFakeHub, type FakeHub } from '@cg/testing/fake-hub';
@@ -55,6 +55,8 @@ export interface World {
 export interface TabOptions {
   readonly tabId?: number;
   readonly accounts?: readonly HostAccount[];
+  /** Where ChatSpace's route is: the fixture chat of the fixture account unless said otherwise. */
+  readonly route?: { readonly chat: ChatRef | null; readonly account: HostAccount | null };
   readonly keepaliveMs?: number;
   readonly focused?: boolean;
 }
@@ -158,7 +160,7 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null; /*
           for (const listener of listeners.get(value ? 'focus' : 'blur') ?? []) listener();
         },
       };
-      const snapshot = { route: { chat, epoch: 1, account }, accounts: tab.accounts ?? [account], composer: null };
+      const snapshot = { route: { chat, epoch: 1, account, ...tab.route }, accounts: tab.accounts ?? [account], composer: null };
       const win = {
         document: { visibilityState: 'visible', hasFocus: () => running.focused, addEventListener: on, removeEventListener: off },
         addEventListener: on,

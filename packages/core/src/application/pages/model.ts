@@ -65,7 +65,10 @@ export function signedOutOf(model: Pick<PagesModel, 'session' | 'sessionKnown'>)
 export interface SeenAccount {
   readonly account: HostAccount;
   readonly lastSeenAt: string;
+  /** Tabs whose ChatSpace has it loaded (one tab loads every account of the person). */
   readonly openTabs: number;
+  /** Tabs whose route is on it now; absent — a background before contracts 1.8.0 did not count them. */
+  readonly routeTabs?: number | undefined;
 }
 
 export type BindingSlot = { readonly ok: true; readonly binding: HubBinding } | { readonly ok: false; readonly error: CgErrorWire };
@@ -188,7 +191,11 @@ export function openChatOf(model: PagesModel): OpenChat | null {
   return null;
 }
 
-/** The account the person works under now: the open chat's, else the first one open in a tab, else the last seen. */
+/**
+ * The account the person works under now: the open chat's; else the one a tab's route is on (`/accounts/<id>/…`
+ * with no chat open — ChatSpace loads every account of the person, so being loaded in a tab does not say which
+ * one is in front of them, AU-034); else the first one loaded in a tab; else the last seen.
+ */
 export function currentAccountOf(model: PagesModel): SeenAccount | null {
   const seen = valueOf(model.accounts) ?? [];
   const chat = openChatOf(model);
@@ -196,6 +203,8 @@ export function currentAccountOf(model: PagesModel): SeenAccount | null {
     const match = seen.find((entry) => entry.account.host === chat.host && entry.account.hostAccountId === chat.hostAccountId);
     if (match !== undefined) return match;
   }
+  const routed = seen.find((entry) => (entry.routeTabs ?? 0) > 0);
+  if (routed !== undefined) return routed;
   const open = seen.find((entry) => entry.openTabs > 0);
   if (open !== undefined) return open;
   return [...seen].sort((a, b) => (a.lastSeenAt < b.lastSeenAt ? 1 : -1))[0] ?? null;

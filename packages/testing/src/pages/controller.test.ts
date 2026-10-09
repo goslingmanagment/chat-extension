@@ -23,6 +23,20 @@ const options = <S extends SettingsSection>(w: PagesWorld, section: S): Readonly
 const row = (w: PagesWorld, id: StatusRowVM['id']): StatusRowVM | undefined => options(w, 'status').body?.rows.find((entry) => entry.id === id);
 const text = (w: PagesWorld, value: StatusRowVM['value'] | null | undefined): string => (value === null || value === undefined ? '' : typeof value === 'string' ? value : w.i18n.text(value));
 
+/**
+ * ChatSpace on `/accounts/<routeOn>/chats` with no chat open: one tab that has loaded both accounts 1001 and 1002
+ * (1001 seen most recently), its route on `routeOn` — the owner's live check of 2026-10-09 (36408 and 36409).
+ */
+function twoLoadedState({ routeOn }: { readonly routeOn: '1001' | '1002' }): ReturnType<typeof workingState> {
+  const state = workingState();
+  state.diagnostics = { ...state.diagnostics, tabs: state.diagnostics.tabs.map((tab) => ({ ...tab, chatKey: null })) };
+  state.accounts = state.accounts.map((entry) => {
+    const id = entry.account.hostAccountId;
+    return id === '1001' || id === '1002' ? { ...entry, openTabs: 1, routeTabs: id === routeOn ? 1 : 0 } : entry;
+  });
+  return state;
+}
+
 beforeEach(() => {
   clock = PAGES_NOW;
   vi.useFakeTimers({ now: PAGES_NOW });
@@ -46,6 +60,13 @@ describe('popup view model', () => {
     expect(vm.chat).toMatchObject({ hostAccountLabel: 'OnlyMonster 1001', copyIds: { hostAccountId: '1001', creatorId: '3003' } });
     expect(vm.quota).toEqual({ remaining: 12, resetsAt: '2026-10-04T00:00:00Z', low: true });
     expect(vm.newcomersCount).toBe(3);
+  });
+
+  it('[PU-004] [AU-034] no chat open, two accounts loaded: the persona and page are of the account the route is on', async () => {
+    const w = await open({ page: 'popup', state: twoLoadedState({ routeOn: '1002' }) });
+    const vm = w.client.getSnapshot({ of: 'popup' });
+    expect(vm.persona).toMatchObject({ s: 'set', label: 'Лора · Free', pageName: 'LoraVie Free' });
+    expect(vm.chat).toBeNull();
   });
 
   it('[PU-001] a background that does not answer is CG-RUNTIME-UNREACHABLE with a retry, never an endless loading', async () => {
@@ -415,6 +436,36 @@ describe('options: «Статус»', () => {
     expect(row(w, 'quota')?.level).toBe('warn');
     expect(text(w, row(w, 'running')?.value)).toBe('3 генерации');
     expect(text(w, row(w, 'last-error')?.value)).toBe('ChatGoose · CG-PROVIDER-RATE-LIMIT в 08:41');
+  });
+
+  it('[ST-023] [AU-034] no chat open and two accounts loaded: binding and persona are those of the account the route is on', async () => {
+    // ChatSpace on /accounts/1002/chats with no chat open; it has loaded both of the person's accounts, the newest seen first.
+    const state = twoLoadedState({ routeOn: '1002' });
+    const w = await open({ state });
+    expect(text(w, row(w, 'binding')?.value)).toBe('OnlyMonster 1002 → LoraVie Free');
+    expect(text(w, row(w, 'persona')?.value)).toBe('Лора · Free');
+    // «Аккаунты» agrees: the route's account first, the other loaded one still at work.
+    expect(options(w, 'accounts').body?.rows.slice(0, 2).map((entry) => [entry.title, entry.status])).toEqual([
+      ['LoraVie Free', 'working'],
+      ['LoraVie VIP', 'working'],
+    ]);
+    world?.client.dispose();
+    // The route on the first one names the first one.
+    const w2 = await open({ state: twoLoadedState({ routeOn: '1001' }) });
+    expect(text(w2, row(w2, 'binding')?.value)).toBe('OnlyMonster 1001 → LoraVie VIP');
+    expect(options(w2, 'accounts').body?.rows.slice(0, 2).map((entry) => entry.title)).toEqual(['LoraVie VIP', 'LoraVie Free']);
+  });
+
+  it('[AU-034] an open chat outranks the route; a background that counts no route falls back to the first loaded account', async () => {
+    const chatOnFirst = twoLoadedState({ routeOn: '1002' });
+    chatOnFirst.diagnostics = { ...chatOnFirst.diagnostics, tabs: chatOnFirst.diagnostics.tabs.map((tab) => ({ ...tab, chatKey: 'chatspace:1001:2002' })) };
+    const w = await open({ state: chatOnFirst });
+    expect(text(w, row(w, 'binding')?.value)).toBe('OnlyMonster 1001 → LoraVie VIP');
+    world?.client.dispose();
+    const older = twoLoadedState({ routeOn: '1002' });
+    older.accounts = older.accounts.map(({ routeTabs: _ignored, ...entry }) => entry);
+    const w2 = await open({ state: older });
+    expect(text(w2, row(w2, 'binding')?.value)).toBe('OnlyMonster 1001 → LoraVie VIP');
   });
 
   it('[ST-021] [ST-023] [ST-024] what is missing is counted: ChatSpace closed, no bound account, no persona', async () => {
@@ -1394,7 +1445,7 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     world?.client.dispose();
     const closed = workingState();
     closed.diagnostics = { ...closed.diagnostics, tabs: [] };
-    closed.accounts = closed.accounts.map((entry) => ({ ...entry, openTabs: 0 }));
+    closed.accounts = closed.accounts.map((entry) => ({ ...entry, openTabs: 0, routeTabs: 0 }));
     const w2 = await open({ state: closed });
     const rows = options(w2, 'accounts').body?.rows ?? [];
     expect(rows.map((entry) => entry.status)).toEqual(['seen', 'seen', 'seen', 'seen']);

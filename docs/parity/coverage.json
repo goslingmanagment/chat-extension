@@ -1,7 +1,7 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 222,
+    "unit": 223,
     "e2e": 34
   },
   "totals": {
@@ -840,7 +840,7 @@
     {"id":"AU-031","function":"Сессия хоста Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"AU-032","function":"Алиасы legacy ↔ canonical","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"AU-033","function":"Чат из URL","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
-    {"id":"AU-034","function":"Аккаунтов на вкладку","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/core/src/services/presence.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true},
+    {"id":"AU-034","function":"Аккаунтов на вкладку","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["apps/extension/test/wiring-lifecycle.test.ts","packages/core/src/services/presence.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/pages/controller.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true},
     {"id":"AU-035","function":"Известные аккаунты и присутствие","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/core/src/services/presence.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts"],"covered":true},
     {"id":"AU-036","function":"Идентичность вкладки для vault","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
     {"id":"AU-037","function":"Точка авторизации OF-аккаунта","target":"даёт ChatSpace","owner":"R02","milestones":[],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},

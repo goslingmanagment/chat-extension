@@ -35,6 +35,7 @@ export async function workingTab(w: World, tabId = 7, presence: { readonly focus
     visible: presence.visible ?? true,
     focused: presence.focused ?? true,
     accounts: [account],
+    routeAccount: account,
   });
   if (!reported.ok) throw new Error(`tab.presence: ${reported.error.code}`);
   return { client, tabSessionId: () => client.tabSessionId() ?? '' };
