@@ -9,6 +9,8 @@ export const OFAPI_SCHEDULED_READ_COLLECTION_CATEGORIES = [
     "posts_comments", "visitors", "tracking_links", "smart_links", "vault_catalog",
     "balances", "profile_notifications", "content_history", "account_settings",
 ];
+/** Filters of the collection screen's job list; `unfinished` = queued, running or paused. */
+export const OFAPI_COLLECTION_JOB_STATE_FILTERS = ["unfinished", "queued", "running", "paused", "completed", "failed"];
 export const OFAPI_COLLECTION_CAP_REASONS = ["daily_limit", "interval_limit"];
 export function ofapiCollectionRefusalDisposition(reason) {
     if (OFAPI_COLLECTION_CAP_REASONS.some(cap => cap === reason))

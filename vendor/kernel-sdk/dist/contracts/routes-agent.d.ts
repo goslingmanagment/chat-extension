@@ -92,6 +92,8 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
     revenue_mix_daily: "revenue_mix_daily";
     page_payout_requests: "page_payout_requests";
     ofapi_read_snapshots: "ofapi_read_snapshots";
+    page_link_fan_periods: "page_link_fan_periods";
+    page_link_fan_walks: "page_link_fan_walks";
     page_payout_methods: "page_payout_methods";
     page_fans: "page_fans";
     page_fan_aliases: "page_fan_aliases";
@@ -122,6 +124,10 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_likes: "post_likes";
     platform_notifications: "platform_notifications";
     capture_coverage: "capture_coverage";
+    page_link_stat_runs: "page_link_stat_runs";
+    page_link_stat_snapshots: "page_link_stat_snapshots";
+    traffic_link_bindings: "traffic_link_bindings";
+    traffic_channel_contractors: "traffic_channel_contractors";
 }>;
 export declare const agentClaimFieldEnum: z.ZodEnum<{
     username: "username";
@@ -129,6 +135,7 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     displayName: "displayName";
     currency: "currency";
     postRef: "postRef";
+    netMills: "netMills";
     textPlain: "textPlain";
     textHtml: "textHtml";
     priceMills: "priceMills";
@@ -150,7 +157,6 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     tipMessageText: "tipMessageText";
     messageMediaOffer: "messageMediaOffer";
     grossMills: "grossMills";
-    netMills: "netMills";
     feeMills: "feeMills";
     amountMills: "amountMills";
     transactionState: "transactionState";
@@ -162,6 +168,7 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     payoutRequest: "payoutRequest";
     ofapiFinancialMetric: "ofapiFinancialMetric";
     ofapiPayoutRequest: "ofapiPayoutRequest";
+    hubLinkMoney: "hubLinkMoney";
     payoutMethod: "payoutMethod";
     membershipState: "membershipState";
     pageAlias: "pageAlias";
@@ -216,6 +223,10 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     postLike: "postLike";
     platformNotification: "platformNotification";
     captureCoverageRow: "captureCoverageRow";
+    linkStatRun: "linkStatRun";
+    linkStatSnapshot: "linkStatSnapshot";
+    trafficLinkBinding: "trafficLinkBinding";
+    trafficChannelContractor: "trafficChannelContractor";
 }>;
 export declare const agentDatasetEnum: z.ZodEnum<{
     notifications: "notifications";
@@ -227,6 +238,11 @@ export declare const agentDatasetEnum: z.ZodEnum<{
     capture_coverage: "capture_coverage";
     ofapi_financial_snapshots: "ofapi_financial_snapshots";
     ofapi_payout_requests: "ofapi_payout_requests";
+    campaign_snapshots: "campaign_snapshots";
+    campaign_runs: "campaign_runs";
+    campaign_bindings: "campaign_bindings";
+    campaigns: "campaigns";
+    campaign_money_daily: "campaign_money_daily";
     fan_memberships: "fan_memberships";
     dm_threads: "dm_threads";
     subscriptions: "subscriptions";
@@ -257,7 +273,6 @@ export declare const agentPlannedDatasetEnum: z.ZodEnum<{
     fan_earnings: "fan_earnings";
     fan_lists: "fan_lists";
     livestreams: "livestreams";
-    campaigns: "campaigns";
     polls: "polls";
     chargebacks: "chargebacks";
     blocks: "blocks";
@@ -368,6 +383,8 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
+        page_link_fan_periods: "page_link_fan_periods";
+        page_link_fan_walks: "page_link_fan_walks";
         page_payout_methods: "page_payout_methods";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
@@ -398,6 +415,10 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         post_likes: "post_likes";
         platform_notifications: "platform_notifications";
         capture_coverage: "capture_coverage";
+        page_link_stat_runs: "page_link_stat_runs";
+        page_link_stat_snapshots: "page_link_stat_snapshots";
+        traffic_link_bindings: "traffic_link_bindings";
+        traffic_channel_contractors: "traffic_channel_contractors";
     }>;
     state: z.ZodLiteral<"read">;
     captureFloor: z.ZodObject<{
@@ -425,6 +446,8 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
+        page_link_fan_periods: "page_link_fan_periods";
+        page_link_fan_walks: "page_link_fan_walks";
         page_payout_methods: "page_payout_methods";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
@@ -455,6 +478,10 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         post_likes: "post_likes";
         platform_notifications: "platform_notifications";
         capture_coverage: "capture_coverage";
+        page_link_stat_runs: "page_link_stat_runs";
+        page_link_stat_snapshots: "page_link_stat_snapshots";
+        traffic_link_bindings: "traffic_link_bindings";
+        traffic_channel_contractors: "traffic_channel_contractors";
     }>;
     state: z.ZodEnum<{
         not_applicable: "not_applicable";
@@ -577,6 +604,8 @@ export declare const agentGapSchema: z.ZodObject<{
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
+        page_link_fan_periods: "page_link_fan_periods";
+        page_link_fan_walks: "page_link_fan_walks";
         page_payout_methods: "page_payout_methods";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
@@ -607,6 +636,10 @@ export declare const agentGapSchema: z.ZodObject<{
         post_likes: "post_likes";
         platform_notifications: "platform_notifications";
         capture_coverage: "capture_coverage";
+        page_link_stat_runs: "page_link_stat_runs";
+        page_link_stat_snapshots: "page_link_stat_snapshots";
+        traffic_link_bindings: "traffic_link_bindings";
+        traffic_channel_contractors: "traffic_channel_contractors";
     }>;
     remedy: z.ZodUnion<readonly [z.ZodObject<{
         kind: z.ZodLiteral<"none">;
@@ -689,6 +722,8 @@ export declare const agentSourceErrorSchema: z.ZodObject<{
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
+        page_link_fan_periods: "page_link_fan_periods";
+        page_link_fan_walks: "page_link_fan_walks";
         page_payout_methods: "page_payout_methods";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
@@ -719,6 +754,10 @@ export declare const agentSourceErrorSchema: z.ZodObject<{
         post_likes: "post_likes";
         platform_notifications: "platform_notifications";
         capture_coverage: "capture_coverage";
+        page_link_stat_runs: "page_link_stat_runs";
+        page_link_stat_snapshots: "page_link_stat_snapshots";
+        traffic_link_bindings: "traffic_link_bindings";
+        traffic_channel_contractors: "traffic_channel_contractors";
     }>, z.ZodEnum<{
         ofapi_certified_history: "ofapi_certified_history";
         ofapi_message_coverage: "ofapi_message_coverage";
@@ -864,6 +903,7 @@ export declare const agentClaimSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -885,7 +925,6 @@ export declare const agentClaimSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -897,6 +936,7 @@ export declare const agentClaimSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -951,6 +991,10 @@ export declare const agentClaimSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>;
     targets: z.ZodLiteral<"all_in_scope">;
 }, z.core.$strict>;
@@ -966,6 +1010,7 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -987,7 +1032,6 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -999,6 +1043,7 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -1053,6 +1098,10 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
 }, z.core.$strip>;
@@ -1075,6 +1124,8 @@ export declare const agentCaptureSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -1105,6 +1156,10 @@ export declare const agentCaptureSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         state: z.ZodLiteral<"read">;
         captureFloor: z.ZodObject<{
@@ -1132,6 +1187,8 @@ export declare const agentCaptureSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -1162,6 +1219,10 @@ export declare const agentCaptureSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         state: z.ZodEnum<{
             not_applicable: "not_applicable";
@@ -1213,6 +1274,8 @@ export declare const agentCaptureSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -1243,6 +1306,10 @@ export declare const agentCaptureSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         remedy: z.ZodUnion<readonly [z.ZodObject<{
             kind: z.ZodLiteral<"none">;
@@ -1325,6 +1392,8 @@ export declare const agentCaptureSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -1355,6 +1424,10 @@ export declare const agentCaptureSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>, z.ZodEnum<{
             ofapi_certified_history: "ofapi_certified_history";
             ofapi_message_coverage: "ofapi_message_coverage";
@@ -1379,6 +1452,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -1400,7 +1474,6 @@ export declare const agentCaptureSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -1412,6 +1485,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -1466,6 +1540,10 @@ export declare const agentCaptureSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -1911,6 +1989,11 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         capture_coverage: "capture_coverage";
         ofapi_financial_snapshots: "ofapi_financial_snapshots";
         ofapi_payout_requests: "ofapi_payout_requests";
+        campaign_snapshots: "campaign_snapshots";
+        campaign_runs: "campaign_runs";
+        campaign_bindings: "campaign_bindings";
+        campaigns: "campaigns";
+        campaign_money_daily: "campaign_money_daily";
         fan_memberships: "fan_memberships";
         dm_threads: "dm_threads";
         subscriptions: "subscriptions";
@@ -1940,7 +2023,6 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         fan_lists: "fan_lists";
         livestreams: "livestreams";
-        campaigns: "campaigns";
         polls: "polls";
         chargebacks: "chargebacks";
         blocks: "blocks";
@@ -2138,6 +2220,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -2168,6 +2252,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         enabled: z.ZodBoolean;
         textSearchIndexed: z.ZodBoolean;
@@ -2183,6 +2271,11 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             capture_coverage: "capture_coverage";
             ofapi_financial_snapshots: "ofapi_financial_snapshots";
             ofapi_payout_requests: "ofapi_payout_requests";
+            campaign_snapshots: "campaign_snapshots";
+            campaign_runs: "campaign_runs";
+            campaign_bindings: "campaign_bindings";
+            campaigns: "campaigns";
+            campaign_money_daily: "campaign_money_daily";
             fan_memberships: "fan_memberships";
             dm_threads: "dm_threads";
             subscriptions: "subscriptions";
@@ -2212,7 +2305,6 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             fan_lists: "fan_lists";
             livestreams: "livestreams";
-            campaigns: "campaigns";
             polls: "polls";
             chargebacks: "chargebacks";
             blocks: "blocks";
@@ -2269,6 +2361,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -2290,7 +2383,6 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -2302,6 +2394,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -2356,6 +2449,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>;
     delivery: z.ZodObject<{
         returned: z.ZodNumber;
@@ -2395,6 +2492,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -2425,6 +2524,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -2452,6 +2555,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -2482,6 +2587,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -2533,6 +2642,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -2563,6 +2674,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -2645,6 +2760,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -2675,6 +2792,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -2699,6 +2820,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -2720,7 +2842,6 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -2732,6 +2853,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -2786,6 +2908,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -2914,6 +3040,7 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -2935,7 +3062,6 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -2947,6 +3073,7 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -3001,6 +3128,10 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -3048,6 +3179,7 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -3069,7 +3201,6 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -3081,6 +3212,7 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -3135,6 +3267,10 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -3281,6 +3417,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 displayName: "displayName";
                 currency: "currency";
                 postRef: "postRef";
+                netMills: "netMills";
                 textPlain: "textPlain";
                 textHtml: "textHtml";
                 priceMills: "priceMills";
@@ -3302,7 +3439,6 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 tipMessageText: "tipMessageText";
                 messageMediaOffer: "messageMediaOffer";
                 grossMills: "grossMills";
-                netMills: "netMills";
                 feeMills: "feeMills";
                 amountMills: "amountMills";
                 transactionState: "transactionState";
@@ -3314,6 +3450,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
                 ofapiPayoutRequest: "ofapiPayoutRequest";
+                hubLinkMoney: "hubLinkMoney";
                 payoutMethod: "payoutMethod";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
@@ -3368,6 +3505,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 postLike: "postLike";
                 platformNotification: "platformNotification";
                 captureCoverageRow: "captureCoverageRow";
+                linkStatRun: "linkStatRun";
+                linkStatSnapshot: "linkStatSnapshot";
+                trafficLinkBinding: "trafficLinkBinding";
+                trafficChannelContractor: "trafficChannelContractor";
             }> & z.core.$partial, z.ZodObject<{
                 state: z.ZodEnum<{
                     unknown: "unknown";
@@ -3504,6 +3645,8 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -3534,6 +3677,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -3561,6 +3708,8 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -3591,6 +3740,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -3642,6 +3795,8 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -3672,6 +3827,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -3754,6 +3913,8 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -3784,6 +3945,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -3808,6 +3973,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -3829,7 +3995,6 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -3841,6 +4006,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -3895,6 +4061,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -3996,6 +4166,7 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -4017,7 +4188,6 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -4029,6 +4199,7 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -4083,6 +4254,10 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
 }, z.core.$strict>;
@@ -4210,6 +4385,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -4231,7 +4407,6 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -4243,6 +4418,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -4297,6 +4473,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -4486,6 +4666,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 displayName: "displayName";
                 currency: "currency";
                 postRef: "postRef";
+                netMills: "netMills";
                 textPlain: "textPlain";
                 textHtml: "textHtml";
                 priceMills: "priceMills";
@@ -4507,7 +4688,6 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 tipMessageText: "tipMessageText";
                 messageMediaOffer: "messageMediaOffer";
                 grossMills: "grossMills";
-                netMills: "netMills";
                 feeMills: "feeMills";
                 amountMills: "amountMills";
                 transactionState: "transactionState";
@@ -4519,6 +4699,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
                 ofapiPayoutRequest: "ofapiPayoutRequest";
+                hubLinkMoney: "hubLinkMoney";
                 payoutMethod: "payoutMethod";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
@@ -4573,6 +4754,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 postLike: "postLike";
                 platformNotification: "platformNotification";
                 captureCoverageRow: "captureCoverageRow";
+                linkStatRun: "linkStatRun";
+                linkStatSnapshot: "linkStatSnapshot";
+                trafficLinkBinding: "trafficLinkBinding";
+                trafficChannelContractor: "trafficChannelContractor";
             }> & z.core.$partial, z.ZodObject<{
                 state: z.ZodEnum<{
                     unknown: "unknown";
@@ -4691,6 +4876,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -4712,7 +4898,6 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -4724,6 +4909,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -4778,6 +4964,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -4911,6 +5101,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -4941,6 +5133,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -4968,6 +5164,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -4998,6 +5196,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -5049,6 +5251,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -5079,6 +5283,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -5161,6 +5369,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -5191,6 +5401,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -5215,6 +5429,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -5236,7 +5451,6 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -5248,6 +5462,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -5302,6 +5517,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -5428,6 +5647,7 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -5449,7 +5669,6 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -5461,6 +5680,7 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -5515,6 +5735,10 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
@@ -5616,6 +5840,7 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -5637,7 +5862,6 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -5649,6 +5873,7 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -5703,6 +5928,10 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -5901,6 +6130,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -5922,7 +6152,6 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -5934,6 +6163,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -5988,6 +6218,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -6135,6 +6369,8 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -6165,6 +6401,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -6192,6 +6432,8 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -6222,6 +6464,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -6273,6 +6519,8 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -6303,6 +6551,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -6385,6 +6637,8 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -6415,6 +6669,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -6439,6 +6697,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -6460,7 +6719,6 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -6472,6 +6730,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -6526,6 +6785,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -6632,6 +6895,7 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -6653,7 +6917,6 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -6665,6 +6928,7 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -6719,6 +6983,10 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     platform: z.ZodOptional<z.ZodEnum<{
@@ -6829,6 +7097,7 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -6850,7 +7119,6 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -6862,6 +7130,7 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -6916,6 +7185,10 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -7129,6 +7402,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -7150,7 +7424,6 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -7162,6 +7435,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -7216,6 +7490,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -7408,6 +7686,8 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -7438,6 +7718,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -7465,6 +7749,8 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -7495,6 +7781,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -7546,6 +7836,8 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -7576,6 +7868,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -7658,6 +7954,8 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -7688,6 +7986,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -7712,6 +8014,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -7733,7 +8036,6 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -7745,6 +8047,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -7799,6 +8102,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -7903,6 +8210,7 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -7924,7 +8232,6 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -7936,6 +8243,7 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -7990,6 +8298,10 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
@@ -8101,6 +8413,8 @@ export declare const agentMessageSchema: z.ZodObject<{
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
+        page_link_fan_periods: "page_link_fan_periods";
+        page_link_fan_walks: "page_link_fan_walks";
         page_payout_methods: "page_payout_methods";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
@@ -8131,6 +8445,10 @@ export declare const agentMessageSchema: z.ZodObject<{
         post_likes: "post_likes";
         platform_notifications: "platform_notifications";
         capture_coverage: "capture_coverage";
+        page_link_stat_runs: "page_link_stat_runs";
+        page_link_stat_snapshots: "page_link_stat_snapshots";
+        traffic_link_bindings: "traffic_link_bindings";
+        traffic_channel_contractors: "traffic_channel_contractors";
     }>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
@@ -8138,6 +8456,7 @@ export declare const agentMessageSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -8159,7 +8478,6 @@ export declare const agentMessageSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -8171,6 +8489,7 @@ export declare const agentMessageSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -8225,6 +8544,10 @@ export declare const agentMessageSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -8424,6 +8747,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -8454,6 +8779,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
@@ -8461,6 +8790,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -8482,7 +8812,6 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -8494,6 +8823,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -8548,6 +8878,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -8695,6 +9029,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -8725,6 +9061,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -8752,6 +9092,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -8782,6 +9124,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -8833,6 +9179,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -8863,6 +9211,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -8945,6 +9297,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -8975,6 +9329,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -8999,6 +9357,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -9020,7 +9379,6 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -9032,6 +9390,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -9086,6 +9445,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -9196,8 +9559,9 @@ export declare const agentThreadAvailabilityStateEnum: z.ZodEnum<{
  *     the account, so the fan probably blocked the page;
  *   - `probably_deleted` — that check did not find the account, so it was
  *     probably deleted.
- * The public check does not run yet (plan §7): until it does, every episode
- * is `unchecked`.
+ * The check is Hub's session-less public account reader (plan §7), which runs
+ * only while the owner keeps it on; a partner it has not checked reads
+ * `unchecked`.
  */
 export declare const agentThreadAvailabilityCauseEnum: z.ZodEnum<{
     unchecked: "unchecked";
@@ -9293,6 +9657,8 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -9323,6 +9689,10 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -9350,6 +9720,8 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -9380,6 +9752,10 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -9431,6 +9807,8 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -9461,6 +9839,10 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -9543,6 +9925,8 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -9573,6 +9957,10 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -9597,6 +9985,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -9618,7 +10007,6 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -9630,6 +10018,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -9684,6 +10073,10 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -9814,6 +10207,7 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -9835,7 +10229,6 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -9847,6 +10240,7 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -9901,6 +10295,10 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -9943,6 +10341,7 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -9964,7 +10363,6 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -9976,6 +10374,7 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -10030,6 +10429,10 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -10169,6 +10572,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -10190,7 +10594,6 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -10202,6 +10605,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -10256,6 +10660,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -10403,6 +10811,8 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -10433,6 +10843,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -10460,6 +10874,8 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -10490,6 +10906,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -10541,6 +10961,8 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -10571,6 +10993,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -10653,6 +11079,8 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -10683,6 +11111,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -10707,6 +11139,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -10728,7 +11161,6 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -10740,6 +11172,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -10794,6 +11227,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -10894,6 +11331,7 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -10915,7 +11353,6 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -10927,6 +11364,7 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -10981,6 +11419,10 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
@@ -11027,6 +11469,8 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -11057,6 +11501,10 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         state: z.ZodLiteral<"read">;
         captureFloor: z.ZodObject<{
@@ -11084,6 +11532,8 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -11114,6 +11564,10 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         state: z.ZodEnum<{
             not_applicable: "not_applicable";
@@ -11165,6 +11619,8 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
+            page_link_fan_periods: "page_link_fan_periods";
+            page_link_fan_walks: "page_link_fan_walks";
             page_payout_methods: "page_payout_methods";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
@@ -11195,6 +11651,10 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             post_likes: "post_likes";
             platform_notifications: "platform_notifications";
             capture_coverage: "capture_coverage";
+            page_link_stat_runs: "page_link_stat_runs";
+            page_link_stat_snapshots: "page_link_stat_snapshots";
+            traffic_link_bindings: "traffic_link_bindings";
+            traffic_channel_contractors: "traffic_channel_contractors";
         }>;
         remedy: z.ZodUnion<readonly [z.ZodObject<{
             kind: z.ZodLiteral<"none">;
@@ -11265,6 +11725,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -11286,7 +11747,6 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -11298,6 +11758,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -11352,6 +11813,10 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -11473,6 +11938,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -11503,6 +11970,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -11530,6 +12001,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -11560,6 +12033,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -11611,6 +12088,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -11641,6 +12120,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -11711,6 +12194,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -11732,7 +12216,6 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -11744,6 +12227,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -11798,6 +12282,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -11930,6 +12418,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -11960,6 +12450,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -11987,6 +12481,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -12017,6 +12513,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -12068,6 +12568,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -12098,6 +12600,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -12180,6 +12686,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -12210,6 +12718,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -12234,6 +12746,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -12255,7 +12768,6 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -12267,6 +12779,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -12321,6 +12834,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -12543,6 +13060,8 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -12573,6 +13092,10 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -12600,6 +13123,8 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -12630,6 +13155,10 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -12681,6 +13210,8 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -12711,6 +13242,10 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -12793,6 +13328,8 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -12823,6 +13360,10 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -12847,6 +13388,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -12868,7 +13410,6 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -12880,6 +13421,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -12934,6 +13476,10 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -13106,6 +13652,8 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -13136,6 +13684,10 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -13163,6 +13715,8 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -13193,6 +13747,10 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -13244,6 +13802,8 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -13274,6 +13834,10 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -13356,6 +13920,8 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -13386,6 +13952,10 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -13410,6 +13980,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -13431,7 +14002,6 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -13443,6 +14013,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -13497,6 +14068,10 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -13604,6 +14179,11 @@ export declare const agentPageDatasetParamsSchema: z.ZodObject<{
         capture_coverage: "capture_coverage";
         ofapi_financial_snapshots: "ofapi_financial_snapshots";
         ofapi_payout_requests: "ofapi_payout_requests";
+        campaign_snapshots: "campaign_snapshots";
+        campaign_runs: "campaign_runs";
+        campaign_bindings: "campaign_bindings";
+        campaigns: "campaigns";
+        campaign_money_daily: "campaign_money_daily";
         fan_memberships: "fan_memberships";
         dm_threads: "dm_threads";
         subscriptions: "subscriptions";
@@ -13679,6 +14259,7 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -13700,7 +14281,6 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -13712,6 +14292,7 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -13766,6 +14347,10 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -13781,6 +14366,11 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         capture_coverage: "capture_coverage";
         ofapi_financial_snapshots: "ofapi_financial_snapshots";
         ofapi_payout_requests: "ofapi_payout_requests";
+        campaign_snapshots: "campaign_snapshots";
+        campaign_runs: "campaign_runs";
+        campaign_bindings: "campaign_bindings";
+        campaigns: "campaigns";
+        campaign_money_daily: "campaign_money_daily";
         fan_memberships: "fan_memberships";
         dm_threads: "dm_threads";
         subscriptions: "subscriptions";
@@ -13816,6 +14406,7 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         displayName: "displayName";
         currency: "currency";
         postRef: "postRef";
+        netMills: "netMills";
         textPlain: "textPlain";
         textHtml: "textHtml";
         priceMills: "priceMills";
@@ -13837,7 +14428,6 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         tipMessageText: "tipMessageText";
         messageMediaOffer: "messageMediaOffer";
         grossMills: "grossMills";
-        netMills: "netMills";
         feeMills: "feeMills";
         amountMills: "amountMills";
         transactionState: "transactionState";
@@ -13849,6 +14439,7 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
         ofapiPayoutRequest: "ofapiPayoutRequest";
+        hubLinkMoney: "hubLinkMoney";
         payoutMethod: "payoutMethod";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
@@ -13903,6 +14494,10 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         postLike: "postLike";
         platformNotification: "platformNotification";
         captureCoverageRow: "captureCoverageRow";
+        linkStatRun: "linkStatRun";
+        linkStatSnapshot: "linkStatSnapshot";
+        trafficLinkBinding: "trafficLinkBinding";
+        trafficChannelContractor: "trafficChannelContractor";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -14028,6 +14623,11 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
         capture_coverage: "capture_coverage";
         ofapi_financial_snapshots: "ofapi_financial_snapshots";
         ofapi_payout_requests: "ofapi_payout_requests";
+        campaign_snapshots: "campaign_snapshots";
+        campaign_runs: "campaign_runs";
+        campaign_bindings: "campaign_bindings";
+        campaigns: "campaigns";
+        campaign_money_daily: "campaign_money_daily";
         fan_memberships: "fan_memberships";
         dm_threads: "dm_threads";
         subscriptions: "subscriptions";
@@ -14073,6 +14673,11 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             capture_coverage: "capture_coverage";
             ofapi_financial_snapshots: "ofapi_financial_snapshots";
             ofapi_payout_requests: "ofapi_payout_requests";
+            campaign_snapshots: "campaign_snapshots";
+            campaign_runs: "campaign_runs";
+            campaign_bindings: "campaign_bindings";
+            campaigns: "campaigns";
+            campaign_money_daily: "campaign_money_daily";
             fan_memberships: "fan_memberships";
             dm_threads: "dm_threads";
             subscriptions: "subscriptions";
@@ -14108,6 +14713,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -14129,7 +14735,6 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -14141,6 +14746,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -14195,6 +14801,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -14353,6 +14963,8 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -14383,6 +14995,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -14410,6 +15026,8 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -14440,6 +15058,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -14491,6 +15113,8 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -14521,6 +15145,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -14603,6 +15231,8 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -14633,6 +15263,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -14657,6 +15291,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -14678,7 +15313,6 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -14690,6 +15324,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -14744,6 +15379,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -14855,13 +15494,13 @@ export declare const agentHydrationLaneEnum: z.ZodEnum<{
  */
 export declare const agentHydrationStateEnum: z.ZodEnum<{
     failed: "failed";
+    completed: "completed";
     expired: "expired";
     rejected: "rejected";
     dispatching: "dispatching";
     requested: "requested";
     approved: "approved";
     partially_completed: "partially_completed";
-    completed: "completed";
 }>;
 /** Fansly has no direct payment for this (a session, not credits): the cost is
  *  egress quota and BAN RISK, which is not smaller than money. */
@@ -14898,6 +15537,7 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -14919,7 +15559,6 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -14931,6 +15570,7 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -14985,6 +15625,10 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -14993,13 +15637,13 @@ export declare const agentHydrationRequestSchema: z.ZodObject<{
     requestRef: z.ZodString;
     state: z.ZodEnum<{
         failed: "failed";
+        completed: "completed";
         expired: "expired";
         rejected: "rejected";
         dispatching: "dispatching";
         requested: "requested";
         approved: "approved";
         partially_completed: "partially_completed";
-        completed: "completed";
     }>;
     pageLabel: z.ZodString;
     platform: z.ZodEnum<{
@@ -15087,13 +15731,13 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
         requestRef: z.ZodString;
         state: z.ZodEnum<{
             failed: "failed";
+            completed: "completed";
             expired: "expired";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
             approved: "approved";
             partially_completed: "partially_completed";
-            completed: "completed";
         }>;
         pageLabel: z.ZodString;
         platform: z.ZodEnum<{
@@ -15218,6 +15862,8 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -15248,6 +15894,10 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -15275,6 +15925,8 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -15305,6 +15957,10 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -15356,6 +16012,8 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -15386,6 +16044,10 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -15468,6 +16130,8 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -15498,6 +16162,10 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -15522,6 +16190,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -15543,7 +16212,6 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -15555,6 +16223,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -15609,6 +16278,10 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -15707,13 +16380,13 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
         requestRef: z.ZodString;
         state: z.ZodEnum<{
             failed: "failed";
+            completed: "completed";
             expired: "expired";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
             approved: "approved";
             partially_completed: "partially_completed";
-            completed: "completed";
         }>;
         pageLabel: z.ZodString;
         platform: z.ZodEnum<{
@@ -15834,6 +16507,8 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -15864,6 +16539,10 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -15891,6 +16570,8 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -15921,6 +16602,10 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -15972,6 +16657,8 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -16002,6 +16689,10 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -16084,6 +16775,8 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -16114,6 +16807,10 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -16138,6 +16835,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -16159,7 +16857,6 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -16171,6 +16868,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -16225,6 +16923,10 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -16339,13 +17041,13 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
         requestRef: z.ZodString;
         state: z.ZodEnum<{
             failed: "failed";
+            completed: "completed";
             expired: "expired";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
             approved: "approved";
             partially_completed: "partially_completed";
-            completed: "completed";
         }>;
         pageLabel: z.ZodString;
         platform: z.ZodEnum<{
@@ -16471,6 +17173,8 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -16501,6 +17205,10 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -16528,6 +17236,8 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -16558,6 +17268,10 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -16609,6 +17323,8 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -16639,6 +17355,10 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -16721,6 +17441,8 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -16751,6 +17473,10 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -16775,6 +17501,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -16796,7 +17523,6 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -16808,6 +17534,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -16862,6 +17589,10 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -16967,13 +17698,13 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
 export declare const agentHydrationRequestListQuerySchema: z.ZodObject<{
     state: z.ZodOptional<z.ZodEnum<{
         failed: "failed";
+        completed: "completed";
         expired: "expired";
         rejected: "rejected";
         dispatching: "dispatching";
         requested: "requested";
         approved: "approved";
         partially_completed: "partially_completed";
-        completed: "completed";
     }>>;
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strict>;
@@ -16982,13 +17713,13 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
         requestRef: z.ZodString;
         state: z.ZodEnum<{
             failed: "failed";
+            completed: "completed";
             expired: "expired";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
             approved: "approved";
             partially_completed: "partially_completed";
-            completed: "completed";
         }>;
         pageLabel: z.ZodString;
         platform: z.ZodEnum<{
@@ -17109,6 +17840,8 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -17139,6 +17872,10 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -17166,6 +17903,8 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -17196,6 +17935,10 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -17247,6 +17990,8 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -17277,6 +18022,10 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -17359,6 +18108,8 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -17389,6 +18140,10 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -17413,6 +18168,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -17434,7 +18190,6 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -17446,6 +18201,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -17500,6 +18256,10 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -17604,8 +18364,8 @@ export declare const agentHistoryItemStateEnum: z.ZodEnum<{
     ready: "ready";
     blocked: "blocked";
     cancelled: "cancelled";
-    refused: "refused";
     queued: "queued";
+    refused: "refused";
     loading: "loading";
 }>;
 export declare const agentHistoryRefusalEnum: z.ZodEnum<{
@@ -17633,6 +18393,7 @@ export declare const agentHistorySatisfiedByEnum: z.ZodEnum<{
  *  `route_budget` (the route's own pace admits the next request later) and
  *  `route_hold` (a 429 holds the route) name what `pacer` covered for a route. */
 export declare const agentSyncWaitingReasonEnum: z.ZodEnum<{
+    running: "running";
     paused: "paused";
     quarantined: "quarantined";
     not_due: "not_due";
@@ -17646,7 +18407,6 @@ export declare const agentSyncWaitingReasonEnum: z.ZodEnum<{
     blocked_by_vendor: "blocked_by_vendor";
     dependency: "dependency";
     ownership_unconfirmed: "ownership_unconfirmed";
-    running: "running";
 }>;
 /** How a fan is named: a Fansly account id, a chat (group) id, or a chat link
  *  `https://fansly.com/messages/<id>`. */
@@ -17715,6 +18475,7 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -17736,7 +18497,6 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -17748,6 +18508,7 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -17802,6 +18563,10 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -17893,6 +18658,7 @@ export declare const agentHistoryRequestSchema: z.ZodObject<{
     }, z.core.$strict>;
     queuePosition: z.ZodNullable<z.ZodNumber>;
     waitingReason: z.ZodNullable<z.ZodEnum<{
+        running: "running";
         paused: "paused";
         quarantined: "quarantined";
         not_due: "not_due";
@@ -17906,7 +18672,6 @@ export declare const agentHistoryRequestSchema: z.ZodObject<{
         blocked_by_vendor: "blocked_by_vendor";
         dependency: "dependency";
         ownership_unconfirmed: "ownership_unconfirmed";
-        running: "running";
     }>>;
     waitingUntil: z.ZodNullable<z.ZodString>;
 }, z.core.$strict>;
@@ -17927,8 +18692,8 @@ export declare const agentHistoryItemSchema: z.ZodObject<{
         ready: "ready";
         blocked: "blocked";
         cancelled: "cancelled";
-        refused: "refused";
         queued: "queued";
+        refused: "refused";
         loading: "loading";
     }>;
     refusal: z.ZodNullable<z.ZodEnum<{
@@ -17940,6 +18705,7 @@ export declare const agentHistoryItemSchema: z.ZodObject<{
     excludedReason: z.ZodNullable<z.ZodString>;
     probeAt: z.ZodNullable<z.ZodString>;
     waitingReason: z.ZodNullable<z.ZodEnum<{
+        running: "running";
         paused: "paused";
         quarantined: "quarantined";
         not_due: "not_due";
@@ -17953,7 +18719,6 @@ export declare const agentHistoryItemSchema: z.ZodObject<{
         blocked_by_vendor: "blocked_by_vendor";
         dependency: "dependency";
         ownership_unconfirmed: "ownership_unconfirmed";
-        running: "running";
     }>>;
     waitingUntil: z.ZodNullable<z.ZodString>;
     loadedMessages: z.ZodNumber;
@@ -18054,6 +18819,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
+            running: "running";
             paused: "paused";
             quarantined: "quarantined";
             not_due: "not_due";
@@ -18067,7 +18833,6 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             blocked_by_vendor: "blocked_by_vendor";
             dependency: "dependency";
             ownership_unconfirmed: "ownership_unconfirmed";
-            running: "running";
         }>>;
         waitingUntil: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>;
@@ -18087,8 +18852,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             ready: "ready";
             blocked: "blocked";
             cancelled: "cancelled";
-            refused: "refused";
             queued: "queued";
+            refused: "refused";
             loading: "loading";
         }>;
         refusal: z.ZodNullable<z.ZodEnum<{
@@ -18100,6 +18865,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
         excludedReason: z.ZodNullable<z.ZodString>;
         probeAt: z.ZodNullable<z.ZodString>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
+            running: "running";
             paused: "paused";
             quarantined: "quarantined";
             not_due: "not_due";
@@ -18113,7 +18879,6 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             blocked_by_vendor: "blocked_by_vendor";
             dependency: "dependency";
             ownership_unconfirmed: "ownership_unconfirmed";
-            running: "running";
         }>>;
         waitingUntil: z.ZodNullable<z.ZodString>;
         loadedMessages: z.ZodNumber;
@@ -18179,6 +18944,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -18209,6 +18976,10 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -18236,6 +19007,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -18266,6 +19039,10 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -18317,6 +19094,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -18347,6 +19126,10 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -18429,6 +19212,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -18459,6 +19244,10 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -18483,6 +19272,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -18504,7 +19294,6 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -18516,6 +19305,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -18570,6 +19360,10 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -18668,8 +19462,8 @@ export declare const agentHistoryRequestGetQuerySchema: z.ZodObject<{
         ready: "ready";
         blocked: "blocked";
         cancelled: "cancelled";
-        refused: "refused";
         queued: "queued";
+        refused: "refused";
         loading: "loading";
     }>>;
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -18744,6 +19538,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
+            running: "running";
             paused: "paused";
             quarantined: "quarantined";
             not_due: "not_due";
@@ -18757,7 +19552,6 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             blocked_by_vendor: "blocked_by_vendor";
             dependency: "dependency";
             ownership_unconfirmed: "ownership_unconfirmed";
-            running: "running";
         }>>;
         waitingUntil: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>;
@@ -18777,8 +19571,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             ready: "ready";
             blocked: "blocked";
             cancelled: "cancelled";
-            refused: "refused";
             queued: "queued";
+            refused: "refused";
             loading: "loading";
         }>;
         refusal: z.ZodNullable<z.ZodEnum<{
@@ -18790,6 +19584,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
         excludedReason: z.ZodNullable<z.ZodString>;
         probeAt: z.ZodNullable<z.ZodString>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
+            running: "running";
             paused: "paused";
             quarantined: "quarantined";
             not_due: "not_due";
@@ -18803,7 +19598,6 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             blocked_by_vendor: "blocked_by_vendor";
             dependency: "dependency";
             ownership_unconfirmed: "ownership_unconfirmed";
-            running: "running";
         }>>;
         waitingUntil: z.ZodNullable<z.ZodString>;
         loadedMessages: z.ZodNumber;
@@ -18869,6 +19663,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -18899,6 +19695,10 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -18926,6 +19726,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -18956,6 +19758,10 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -19007,6 +19813,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -19037,6 +19845,10 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -19119,6 +19931,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -19149,6 +19963,10 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -19173,6 +19991,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -19194,7 +20013,6 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -19206,6 +20024,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -19260,6 +20079,10 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -19431,6 +20254,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
+            running: "running";
             paused: "paused";
             quarantined: "quarantined";
             not_due: "not_due";
@@ -19444,7 +20268,6 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             blocked_by_vendor: "blocked_by_vendor";
             dependency: "dependency";
             ownership_unconfirmed: "ownership_unconfirmed";
-            running: "running";
         }>>;
         waitingUntil: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>;
@@ -19486,6 +20309,8 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -19516,6 +20341,10 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -19543,6 +20372,8 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -19573,6 +20404,10 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -19624,6 +20459,8 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -19654,6 +20491,10 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -19736,6 +20577,8 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -19766,6 +20609,10 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -19790,6 +20637,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -19811,7 +20659,6 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -19823,6 +20670,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -19877,6 +20725,10 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -20049,6 +20901,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         queuePosition: z.ZodNullable<z.ZodNumber>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
+            running: "running";
             paused: "paused";
             quarantined: "quarantined";
             not_due: "not_due";
@@ -20062,7 +20915,6 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             blocked_by_vendor: "blocked_by_vendor";
             dependency: "dependency";
             ownership_unconfirmed: "ownership_unconfirmed";
-            running: "running";
         }>>;
         waitingUntil: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>>;
@@ -20104,6 +20956,8 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -20134,6 +20988,10 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -20161,6 +21019,8 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -20191,6 +21051,10 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -20242,6 +21106,8 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -20272,6 +21138,10 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -20354,6 +21224,8 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -20384,6 +21256,10 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -20408,6 +21284,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -20429,7 +21306,6 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -20441,6 +21317,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -20495,6 +21372,10 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -20607,10 +21488,10 @@ export declare const agentSyncWorkKindEnum: z.ZodEnum<{
 }>;
 export declare const agentSyncWorkStateEnum: z.ZodEnum<{
     cancelled: "cancelled";
+    running: "running";
     quarantined: "quarantined";
     open: "open";
     done: "done";
-    running: "running";
     superseded: "superseded";
 }>;
 export declare const agentSyncPageHoldKindEnum: z.ZodEnum<{
@@ -20713,6 +21594,7 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
         urgent: z.ZodObject<{
             runnable: z.ZodNumber;
             waitingByReason: z.ZodRecord<z.ZodEnum<{
+                running: "running";
                 paused: "paused";
                 quarantined: "quarantined";
                 not_due: "not_due";
@@ -20726,12 +21608,12 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
                 blocked_by_vendor: "blocked_by_vendor";
                 dependency: "dependency";
                 ownership_unconfirmed: "ownership_unconfirmed";
-                running: "running";
             }> & z.core.$partial, z.ZodNumber>;
         }, z.core.$strict>;
         requests: z.ZodObject<{
             runnable: z.ZodNumber;
             waitingByReason: z.ZodRecord<z.ZodEnum<{
+                running: "running";
                 paused: "paused";
                 quarantined: "quarantined";
                 not_due: "not_due";
@@ -20745,12 +21627,12 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
                 blocked_by_vendor: "blocked_by_vendor";
                 dependency: "dependency";
                 ownership_unconfirmed: "ownership_unconfirmed";
-                running: "running";
             }> & z.core.$partial, z.ZodNumber>;
         }, z.core.$strict>;
         planned: z.ZodObject<{
             runnable: z.ZodNumber;
             waitingByReason: z.ZodRecord<z.ZodEnum<{
+                running: "running";
                 paused: "paused";
                 quarantined: "quarantined";
                 not_due: "not_due";
@@ -20764,7 +21646,6 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
                 blocked_by_vendor: "blocked_by_vendor";
                 dependency: "dependency";
                 ownership_unconfirmed: "ownership_unconfirmed";
-                running: "running";
             }> & z.core.$partial, z.ZodNumber>;
         }, z.core.$strict>;
     }, z.core.$strict>;
@@ -20830,13 +21711,14 @@ export declare const agentSyncWorkSchema: z.ZodObject<{
     }>;
     state: z.ZodEnum<{
         cancelled: "cancelled";
+        running: "running";
         quarantined: "quarantined";
         open: "open";
         done: "done";
-        running: "running";
         superseded: "superseded";
     }>;
     waitingReason: z.ZodNullable<z.ZodEnum<{
+        running: "running";
         paused: "paused";
         quarantined: "quarantined";
         not_due: "not_due";
@@ -20850,7 +21732,6 @@ export declare const agentSyncWorkSchema: z.ZodObject<{
         blocked_by_vendor: "blocked_by_vendor";
         dependency: "dependency";
         ownership_unconfirmed: "ownership_unconfirmed";
-        running: "running";
     }>>;
     waitingUntil: z.ZodNullable<z.ZodString>;
     dueAt: z.ZodString;
@@ -20914,6 +21795,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             urgent: z.ZodObject<{
                 runnable: z.ZodNumber;
                 waitingByReason: z.ZodRecord<z.ZodEnum<{
+                    running: "running";
                     paused: "paused";
                     quarantined: "quarantined";
                     not_due: "not_due";
@@ -20927,12 +21809,12 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                     blocked_by_vendor: "blocked_by_vendor";
                     dependency: "dependency";
                     ownership_unconfirmed: "ownership_unconfirmed";
-                    running: "running";
                 }> & z.core.$partial, z.ZodNumber>;
             }, z.core.$strict>;
             requests: z.ZodObject<{
                 runnable: z.ZodNumber;
                 waitingByReason: z.ZodRecord<z.ZodEnum<{
+                    running: "running";
                     paused: "paused";
                     quarantined: "quarantined";
                     not_due: "not_due";
@@ -20946,12 +21828,12 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                     blocked_by_vendor: "blocked_by_vendor";
                     dependency: "dependency";
                     ownership_unconfirmed: "ownership_unconfirmed";
-                    running: "running";
                 }> & z.core.$partial, z.ZodNumber>;
             }, z.core.$strict>;
             planned: z.ZodObject<{
                 runnable: z.ZodNumber;
                 waitingByReason: z.ZodRecord<z.ZodEnum<{
+                    running: "running";
                     paused: "paused";
                     quarantined: "quarantined";
                     not_due: "not_due";
@@ -20965,7 +21847,6 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                     blocked_by_vendor: "blocked_by_vendor";
                     dependency: "dependency";
                     ownership_unconfirmed: "ownership_unconfirmed";
-                    running: "running";
                 }> & z.core.$partial, z.ZodNumber>;
             }, z.core.$strict>;
         }, z.core.$strict>;
@@ -21050,6 +21931,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21080,6 +21963,10 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -21107,6 +21994,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21137,6 +22026,10 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -21188,6 +22081,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21218,6 +22113,10 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -21300,6 +22199,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21330,6 +22231,10 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -21354,6 +22259,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -21375,7 +22281,6 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -21387,6 +22292,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -21441,6 +22347,10 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -21609,13 +22519,14 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
         }>;
         state: z.ZodEnum<{
             cancelled: "cancelled";
+            running: "running";
             quarantined: "quarantined";
             open: "open";
             done: "done";
-            running: "running";
             superseded: "superseded";
         }>;
         waitingReason: z.ZodNullable<z.ZodEnum<{
+            running: "running";
             paused: "paused";
             quarantined: "quarantined";
             not_due: "not_due";
@@ -21629,7 +22540,6 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             blocked_by_vendor: "blocked_by_vendor";
             dependency: "dependency";
             ownership_unconfirmed: "ownership_unconfirmed";
-            running: "running";
         }>>;
         waitingUntil: z.ZodNullable<z.ZodString>;
         dueAt: z.ZodString;
@@ -21694,6 +22604,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21724,6 +22636,10 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -21751,6 +22667,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21781,6 +22699,10 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -21832,6 +22754,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21862,6 +22786,10 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -21944,6 +22872,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
                 page_payout_methods: "page_payout_methods";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
@@ -21974,6 +22904,10 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 post_likes: "post_likes";
                 platform_notifications: "platform_notifications";
                 capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -21998,6 +22932,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             displayName: "displayName";
             currency: "currency";
             postRef: "postRef";
+            netMills: "netMills";
             textPlain: "textPlain";
             textHtml: "textHtml";
             priceMills: "priceMills";
@@ -22019,7 +22954,6 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             tipMessageText: "tipMessageText";
             messageMediaOffer: "messageMediaOffer";
             grossMills: "grossMills";
-            netMills: "netMills";
             feeMills: "feeMills";
             amountMills: "amountMills";
             transactionState: "transactionState";
@@ -22031,6 +22965,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
             ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
             payoutMethod: "payoutMethod";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
@@ -22085,6 +23020,10 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             postLike: "postLike";
             platformNotification: "platformNotification";
             captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -22351,6 +23290,8 @@ export declare const agentRouteSchemas: {
                         revenue_mix_daily: "revenue_mix_daily";
                         page_payout_requests: "page_payout_requests";
                         ofapi_read_snapshots: "ofapi_read_snapshots";
+                        page_link_fan_periods: "page_link_fan_periods";
+                        page_link_fan_walks: "page_link_fan_walks";
                         page_payout_methods: "page_payout_methods";
                         page_fans: "page_fans";
                         page_fan_aliases: "page_fan_aliases";
@@ -22381,6 +23322,10 @@ export declare const agentRouteSchemas: {
                         post_likes: "post_likes";
                         platform_notifications: "platform_notifications";
                         capture_coverage: "capture_coverage";
+                        page_link_stat_runs: "page_link_stat_runs";
+                        page_link_stat_snapshots: "page_link_stat_snapshots";
+                        traffic_link_bindings: "traffic_link_bindings";
+                        traffic_channel_contractors: "traffic_channel_contractors";
                     }>;
                     enabled: z.ZodBoolean;
                     textSearchIndexed: z.ZodBoolean;
@@ -22396,6 +23341,11 @@ export declare const agentRouteSchemas: {
                         capture_coverage: "capture_coverage";
                         ofapi_financial_snapshots: "ofapi_financial_snapshots";
                         ofapi_payout_requests: "ofapi_payout_requests";
+                        campaign_snapshots: "campaign_snapshots";
+                        campaign_runs: "campaign_runs";
+                        campaign_bindings: "campaign_bindings";
+                        campaigns: "campaigns";
+                        campaign_money_daily: "campaign_money_daily";
                         fan_memberships: "fan_memberships";
                         dm_threads: "dm_threads";
                         subscriptions: "subscriptions";
@@ -22425,7 +23375,6 @@ export declare const agentRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         fan_lists: "fan_lists";
                         livestreams: "livestreams";
-                        campaigns: "campaigns";
                         polls: "polls";
                         chargebacks: "chargebacks";
                         blocks: "blocks";
@@ -22482,6 +23431,7 @@ export declare const agentRouteSchemas: {
                     displayName: "displayName";
                     currency: "currency";
                     postRef: "postRef";
+                    netMills: "netMills";
                     textPlain: "textPlain";
                     textHtml: "textHtml";
                     priceMills: "priceMills";
@@ -22503,7 +23453,6 @@ export declare const agentRouteSchemas: {
                     tipMessageText: "tipMessageText";
                     messageMediaOffer: "messageMediaOffer";
                     grossMills: "grossMills";
-                    netMills: "netMills";
                     feeMills: "feeMills";
                     amountMills: "amountMills";
                     transactionState: "transactionState";
@@ -22515,6 +23464,7 @@ export declare const agentRouteSchemas: {
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
                     ofapiPayoutRequest: "ofapiPayoutRequest";
+                    hubLinkMoney: "hubLinkMoney";
                     payoutMethod: "payoutMethod";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
@@ -22569,6 +23519,10 @@ export declare const agentRouteSchemas: {
                     postLike: "postLike";
                     platformNotification: "platformNotification";
                     captureCoverageRow: "captureCoverageRow";
+                    linkStatRun: "linkStatRun";
+                    linkStatSnapshot: "linkStatSnapshot";
+                    trafficLinkBinding: "trafficLinkBinding";
+                    trafficChannelContractor: "trafficChannelContractor";
                 }>>;
                 delivery: z.ZodObject<{
                     returned: z.ZodNumber;
@@ -22608,6 +23562,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -22638,6 +23594,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -22665,6 +23625,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -22695,6 +23657,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -22746,6 +23712,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -22776,6 +23744,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -22858,6 +23830,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -22888,6 +23862,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -22912,6 +23890,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -22933,7 +23912,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -22945,6 +23923,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -22999,6 +23978,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -23153,6 +24136,7 @@ export declare const agentRouteSchemas: {
                     displayName: "displayName";
                     currency: "currency";
                     postRef: "postRef";
+                    netMills: "netMills";
                     textPlain: "textPlain";
                     textHtml: "textHtml";
                     priceMills: "priceMills";
@@ -23174,7 +24158,6 @@ export declare const agentRouteSchemas: {
                     tipMessageText: "tipMessageText";
                     messageMediaOffer: "messageMediaOffer";
                     grossMills: "grossMills";
-                    netMills: "netMills";
                     feeMills: "feeMills";
                     amountMills: "amountMills";
                     transactionState: "transactionState";
@@ -23186,6 +24169,7 @@ export declare const agentRouteSchemas: {
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
                     ofapiPayoutRequest: "ofapiPayoutRequest";
+                    hubLinkMoney: "hubLinkMoney";
                     payoutMethod: "payoutMethod";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
@@ -23240,6 +24224,10 @@ export declare const agentRouteSchemas: {
                     postLike: "postLike";
                     platformNotification: "platformNotification";
                     captureCoverageRow: "captureCoverageRow";
+                    linkStatRun: "linkStatRun";
+                    linkStatSnapshot: "linkStatSnapshot";
+                    trafficLinkBinding: "trafficLinkBinding";
+                    trafficChannelContractor: "trafficChannelContractor";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -23295,6 +24283,7 @@ export declare const agentRouteSchemas: {
                             displayName: "displayName";
                             currency: "currency";
                             postRef: "postRef";
+                            netMills: "netMills";
                             textPlain: "textPlain";
                             textHtml: "textHtml";
                             priceMills: "priceMills";
@@ -23316,7 +24305,6 @@ export declare const agentRouteSchemas: {
                             tipMessageText: "tipMessageText";
                             messageMediaOffer: "messageMediaOffer";
                             grossMills: "grossMills";
-                            netMills: "netMills";
                             feeMills: "feeMills";
                             amountMills: "amountMills";
                             transactionState: "transactionState";
@@ -23328,6 +24316,7 @@ export declare const agentRouteSchemas: {
                             payoutRequest: "payoutRequest";
                             ofapiFinancialMetric: "ofapiFinancialMetric";
                             ofapiPayoutRequest: "ofapiPayoutRequest";
+                            hubLinkMoney: "hubLinkMoney";
                             payoutMethod: "payoutMethod";
                             membershipState: "membershipState";
                             pageAlias: "pageAlias";
@@ -23382,6 +24371,10 @@ export declare const agentRouteSchemas: {
                             postLike: "postLike";
                             platformNotification: "platformNotification";
                             captureCoverageRow: "captureCoverageRow";
+                            linkStatRun: "linkStatRun";
+                            linkStatSnapshot: "linkStatSnapshot";
+                            trafficLinkBinding: "trafficLinkBinding";
+                            trafficChannelContractor: "trafficChannelContractor";
                         }> & z.core.$partial, z.ZodObject<{
                             state: z.ZodEnum<{
                                 unknown: "unknown";
@@ -23518,6 +24511,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -23548,6 +24543,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -23575,6 +24574,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -23605,6 +24606,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -23656,6 +24661,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -23686,6 +24693,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -23768,6 +24779,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -23798,6 +24811,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -23822,6 +24839,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -23843,7 +24861,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -23855,6 +24872,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -23909,6 +24927,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -24060,6 +25082,7 @@ export declare const agentRouteSchemas: {
                 displayName: "displayName";
                 currency: "currency";
                 postRef: "postRef";
+                netMills: "netMills";
                 textPlain: "textPlain";
                 textHtml: "textHtml";
                 priceMills: "priceMills";
@@ -24081,7 +25104,6 @@ export declare const agentRouteSchemas: {
                 tipMessageText: "tipMessageText";
                 messageMediaOffer: "messageMediaOffer";
                 grossMills: "grossMills";
-                netMills: "netMills";
                 feeMills: "feeMills";
                 amountMills: "amountMills";
                 transactionState: "transactionState";
@@ -24093,6 +25115,7 @@ export declare const agentRouteSchemas: {
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
                 ofapiPayoutRequest: "ofapiPayoutRequest";
+                hubLinkMoney: "hubLinkMoney";
                 payoutMethod: "payoutMethod";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
@@ -24147,6 +25170,10 @@ export declare const agentRouteSchemas: {
                 postLike: "postLike";
                 platformNotification: "platformNotification";
                 captureCoverageRow: "captureCoverageRow";
+                linkStatRun: "linkStatRun";
+                linkStatSnapshot: "linkStatSnapshot";
+                trafficLinkBinding: "trafficLinkBinding";
+                trafficChannelContractor: "trafficChannelContractor";
             }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
         }, z.core.$strict>;
@@ -24275,6 +25302,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -24296,7 +25324,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -24308,6 +25335,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -24362,6 +25390,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -24551,6 +25583,7 @@ export declare const agentRouteSchemas: {
                             displayName: "displayName";
                             currency: "currency";
                             postRef: "postRef";
+                            netMills: "netMills";
                             textPlain: "textPlain";
                             textHtml: "textHtml";
                             priceMills: "priceMills";
@@ -24572,7 +25605,6 @@ export declare const agentRouteSchemas: {
                             tipMessageText: "tipMessageText";
                             messageMediaOffer: "messageMediaOffer";
                             grossMills: "grossMills";
-                            netMills: "netMills";
                             feeMills: "feeMills";
                             amountMills: "amountMills";
                             transactionState: "transactionState";
@@ -24584,6 +25616,7 @@ export declare const agentRouteSchemas: {
                             payoutRequest: "payoutRequest";
                             ofapiFinancialMetric: "ofapiFinancialMetric";
                             ofapiPayoutRequest: "ofapiPayoutRequest";
+                            hubLinkMoney: "hubLinkMoney";
                             payoutMethod: "payoutMethod";
                             membershipState: "membershipState";
                             pageAlias: "pageAlias";
@@ -24638,6 +25671,10 @@ export declare const agentRouteSchemas: {
                             postLike: "postLike";
                             platformNotification: "platformNotification";
                             captureCoverageRow: "captureCoverageRow";
+                            linkStatRun: "linkStatRun";
+                            linkStatSnapshot: "linkStatSnapshot";
+                            trafficLinkBinding: "trafficLinkBinding";
+                            trafficChannelContractor: "trafficChannelContractor";
                         }> & z.core.$partial, z.ZodObject<{
                             state: z.ZodEnum<{
                                 unknown: "unknown";
@@ -24756,6 +25793,7 @@ export declare const agentRouteSchemas: {
                     displayName: "displayName";
                     currency: "currency";
                     postRef: "postRef";
+                    netMills: "netMills";
                     textPlain: "textPlain";
                     textHtml: "textHtml";
                     priceMills: "priceMills";
@@ -24777,7 +25815,6 @@ export declare const agentRouteSchemas: {
                     tipMessageText: "tipMessageText";
                     messageMediaOffer: "messageMediaOffer";
                     grossMills: "grossMills";
-                    netMills: "netMills";
                     feeMills: "feeMills";
                     amountMills: "amountMills";
                     transactionState: "transactionState";
@@ -24789,6 +25826,7 @@ export declare const agentRouteSchemas: {
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
                     ofapiPayoutRequest: "ofapiPayoutRequest";
+                    hubLinkMoney: "hubLinkMoney";
                     payoutMethod: "payoutMethod";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
@@ -24843,6 +25881,10 @@ export declare const agentRouteSchemas: {
                     postLike: "postLike";
                     platformNotification: "platformNotification";
                     captureCoverageRow: "captureCoverageRow";
+                    linkStatRun: "linkStatRun";
+                    linkStatSnapshot: "linkStatSnapshot";
+                    trafficLinkBinding: "trafficLinkBinding";
+                    trafficChannelContractor: "trafficChannelContractor";
                 }> & z.core.$partial, z.ZodObject<{
                     state: z.ZodEnum<{
                         unknown: "unknown";
@@ -24976,6 +26018,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -25006,6 +26050,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -25033,6 +26081,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -25063,6 +26113,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -25114,6 +26168,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -25144,6 +26200,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -25226,6 +26286,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -25256,6 +26318,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -25280,6 +26346,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -25301,7 +26368,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -25313,6 +26379,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -25367,6 +26434,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -25517,6 +26588,7 @@ export declare const agentRouteSchemas: {
                 displayName: "displayName";
                 currency: "currency";
                 postRef: "postRef";
+                netMills: "netMills";
                 textPlain: "textPlain";
                 textHtml: "textHtml";
                 priceMills: "priceMills";
@@ -25538,7 +26610,6 @@ export declare const agentRouteSchemas: {
                 tipMessageText: "tipMessageText";
                 messageMediaOffer: "messageMediaOffer";
                 grossMills: "grossMills";
-                netMills: "netMills";
                 feeMills: "feeMills";
                 amountMills: "amountMills";
                 transactionState: "transactionState";
@@ -25550,6 +26621,7 @@ export declare const agentRouteSchemas: {
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
                 ofapiPayoutRequest: "ofapiPayoutRequest";
+                hubLinkMoney: "hubLinkMoney";
                 payoutMethod: "payoutMethod";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
@@ -25604,6 +26676,10 @@ export declare const agentRouteSchemas: {
                 postLike: "postLike";
                 platformNotification: "platformNotification";
                 captureCoverageRow: "captureCoverageRow";
+                linkStatRun: "linkStatRun";
+                linkStatSnapshot: "linkStatSnapshot";
+                trafficLinkBinding: "trafficLinkBinding";
+                trafficChannelContractor: "trafficChannelContractor";
             }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
@@ -25727,6 +26803,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -25748,7 +26825,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -25760,6 +26836,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -25814,6 +26891,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -25961,6 +27042,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -25991,6 +27074,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -26018,6 +27105,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -26048,6 +27137,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -26099,6 +27192,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -26129,6 +27224,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -26211,6 +27310,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -26241,6 +27342,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -26265,6 +27370,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -26286,7 +27392,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -26298,6 +27403,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -26352,6 +27458,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -26495,6 +27605,7 @@ export declare const agentRouteSchemas: {
                 displayName: "displayName";
                 currency: "currency";
                 postRef: "postRef";
+                netMills: "netMills";
                 textPlain: "textPlain";
                 textHtml: "textHtml";
                 priceMills: "priceMills";
@@ -26516,7 +27627,6 @@ export declare const agentRouteSchemas: {
                 tipMessageText: "tipMessageText";
                 messageMediaOffer: "messageMediaOffer";
                 grossMills: "grossMills";
-                netMills: "netMills";
                 feeMills: "feeMills";
                 amountMills: "amountMills";
                 transactionState: "transactionState";
@@ -26528,6 +27638,7 @@ export declare const agentRouteSchemas: {
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
                 ofapiPayoutRequest: "ofapiPayoutRequest";
+                hubLinkMoney: "hubLinkMoney";
                 payoutMethod: "payoutMethod";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
@@ -26582,6 +27693,10 @@ export declare const agentRouteSchemas: {
                 postLike: "postLike";
                 platformNotification: "platformNotification";
                 captureCoverageRow: "captureCoverageRow";
+                linkStatRun: "linkStatRun";
+                linkStatSnapshot: "linkStatSnapshot";
+                trafficLinkBinding: "trafficLinkBinding";
+                trafficChannelContractor: "trafficChannelContractor";
             }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             platform: z.ZodOptional<z.ZodEnum<{
@@ -26687,6 +27802,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -26708,7 +27824,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -26720,6 +27835,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -26774,6 +27890,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -26966,6 +28086,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -26996,6 +28118,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -27023,6 +28149,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -27053,6 +28181,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -27104,6 +28236,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -27134,6 +28268,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -27216,6 +28354,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -27246,6 +28386,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -27270,6 +28414,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -27291,7 +28436,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -27303,6 +28447,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -27357,6 +28502,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -27505,6 +28654,7 @@ export declare const agentRouteSchemas: {
                 displayName: "displayName";
                 currency: "currency";
                 postRef: "postRef";
+                netMills: "netMills";
                 textPlain: "textPlain";
                 textHtml: "textHtml";
                 priceMills: "priceMills";
@@ -27526,7 +28676,6 @@ export declare const agentRouteSchemas: {
                 tipMessageText: "tipMessageText";
                 messageMediaOffer: "messageMediaOffer";
                 grossMills: "grossMills";
-                netMills: "netMills";
                 feeMills: "feeMills";
                 amountMills: "amountMills";
                 transactionState: "transactionState";
@@ -27538,6 +28687,7 @@ export declare const agentRouteSchemas: {
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
                 ofapiPayoutRequest: "ofapiPayoutRequest";
+                hubLinkMoney: "hubLinkMoney";
                 payoutMethod: "payoutMethod";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
@@ -27592,6 +28742,10 @@ export declare const agentRouteSchemas: {
                 postLike: "postLike";
                 platformNotification: "platformNotification";
                 captureCoverageRow: "captureCoverageRow";
+                linkStatRun: "linkStatRun";
+                linkStatSnapshot: "linkStatSnapshot";
+                trafficLinkBinding: "trafficLinkBinding";
+                trafficChannelContractor: "trafficChannelContractor";
             }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
@@ -27722,6 +28876,8 @@ export declare const agentRouteSchemas: {
                         revenue_mix_daily: "revenue_mix_daily";
                         page_payout_requests: "page_payout_requests";
                         ofapi_read_snapshots: "ofapi_read_snapshots";
+                        page_link_fan_periods: "page_link_fan_periods";
+                        page_link_fan_walks: "page_link_fan_walks";
                         page_payout_methods: "page_payout_methods";
                         page_fans: "page_fans";
                         page_fan_aliases: "page_fan_aliases";
@@ -27752,6 +28908,10 @@ export declare const agentRouteSchemas: {
                         post_likes: "post_likes";
                         platform_notifications: "platform_notifications";
                         capture_coverage: "capture_coverage";
+                        page_link_stat_runs: "page_link_stat_runs";
+                        page_link_stat_snapshots: "page_link_stat_snapshots";
+                        traffic_link_bindings: "traffic_link_bindings";
+                        traffic_channel_contractors: "traffic_channel_contractors";
                     }>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
@@ -27759,6 +28919,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -27780,7 +28941,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -27792,6 +28952,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -27846,6 +29007,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -27993,6 +29158,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28023,6 +29190,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -28050,6 +29221,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28080,6 +29253,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -28131,6 +29308,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28161,6 +29340,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -28243,6 +29426,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28273,6 +29458,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -28297,6 +29486,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -28318,7 +29508,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -28330,6 +29519,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -28384,6 +29574,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -28600,6 +29794,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28630,6 +29826,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -28657,6 +29857,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28687,6 +29889,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -28738,6 +29944,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28768,6 +29976,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -28850,6 +30062,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -28880,6 +30094,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -28904,6 +30122,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -28925,7 +30144,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -28937,6 +30155,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -28991,6 +30210,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -29171,6 +30394,7 @@ export declare const agentRouteSchemas: {
                     displayName: "displayName";
                     currency: "currency";
                     postRef: "postRef";
+                    netMills: "netMills";
                     textPlain: "textPlain";
                     textHtml: "textHtml";
                     priceMills: "priceMills";
@@ -29192,7 +30416,6 @@ export declare const agentRouteSchemas: {
                     tipMessageText: "tipMessageText";
                     messageMediaOffer: "messageMediaOffer";
                     grossMills: "grossMills";
-                    netMills: "netMills";
                     feeMills: "feeMills";
                     amountMills: "amountMills";
                     transactionState: "transactionState";
@@ -29204,6 +30427,7 @@ export declare const agentRouteSchemas: {
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
                     ofapiPayoutRequest: "ofapiPayoutRequest";
+                    hubLinkMoney: "hubLinkMoney";
                     payoutMethod: "payoutMethod";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
@@ -29258,6 +30482,10 @@ export declare const agentRouteSchemas: {
                     postLike: "postLike";
                     platformNotification: "platformNotification";
                     captureCoverageRow: "captureCoverageRow";
+                    linkStatRun: "linkStatRun";
+                    linkStatSnapshot: "linkStatSnapshot";
+                    trafficLinkBinding: "trafficLinkBinding";
+                    trafficChannelContractor: "trafficChannelContractor";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -29306,6 +30534,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -29327,7 +30556,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -29339,6 +30567,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -29393,6 +30622,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -29540,6 +30773,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -29570,6 +30805,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -29597,6 +30836,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -29627,6 +30868,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -29678,6 +30923,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -29708,6 +30955,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -29790,6 +31041,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -29820,6 +31073,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -29844,6 +31101,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -29865,7 +31123,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -29877,6 +31134,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -29931,6 +31189,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -30074,6 +31336,7 @@ export declare const agentRouteSchemas: {
                 displayName: "displayName";
                 currency: "currency";
                 postRef: "postRef";
+                netMills: "netMills";
                 textPlain: "textPlain";
                 textHtml: "textHtml";
                 priceMills: "priceMills";
@@ -30095,7 +31358,6 @@ export declare const agentRouteSchemas: {
                 tipMessageText: "tipMessageText";
                 messageMediaOffer: "messageMediaOffer";
                 grossMills: "grossMills";
-                netMills: "netMills";
                 feeMills: "feeMills";
                 amountMills: "amountMills";
                 transactionState: "transactionState";
@@ -30107,6 +31369,7 @@ export declare const agentRouteSchemas: {
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
                 ofapiPayoutRequest: "ofapiPayoutRequest";
+                hubLinkMoney: "hubLinkMoney";
                 payoutMethod: "payoutMethod";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
@@ -30161,6 +31424,10 @@ export declare const agentRouteSchemas: {
                 postLike: "postLike";
                 platformNotification: "platformNotification";
                 captureCoverageRow: "captureCoverageRow";
+                linkStatRun: "linkStatRun";
+                linkStatSnapshot: "linkStatSnapshot";
+                trafficLinkBinding: "trafficLinkBinding";
+                trafficChannelContractor: "trafficChannelContractor";
             }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
@@ -30211,6 +31478,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -30241,6 +31510,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -30268,6 +31541,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -30298,6 +31573,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -30349,6 +31628,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -30379,6 +31660,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -30449,6 +31734,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -30470,7 +31756,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -30482,6 +31767,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -30536,6 +31822,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -30668,6 +31958,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -30698,6 +31990,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -30725,6 +32021,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -30755,6 +32053,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -30806,6 +32108,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -30836,6 +32140,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -30918,6 +32226,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -30948,6 +32258,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -30972,6 +32286,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -30993,7 +32308,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -31005,6 +32319,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -31059,6 +32374,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -31295,6 +32614,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -31325,6 +32646,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -31352,6 +32677,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -31382,6 +32709,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -31433,6 +32764,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -31463,6 +32796,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -31545,6 +32882,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -31575,6 +32914,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -31599,6 +32942,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -31620,7 +32964,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -31632,6 +32975,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -31686,6 +33030,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -31896,6 +33244,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -31926,6 +33276,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -31953,6 +33307,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -31983,6 +33339,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -32034,6 +33394,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -32064,6 +33426,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -32146,6 +33512,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -32176,6 +33544,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -32200,6 +33572,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -32221,7 +33594,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -32233,6 +33605,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -32287,6 +33660,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -32442,6 +33819,11 @@ export declare const agentRouteSchemas: {
                 capture_coverage: "capture_coverage";
                 ofapi_financial_snapshots: "ofapi_financial_snapshots";
                 ofapi_payout_requests: "ofapi_payout_requests";
+                campaign_snapshots: "campaign_snapshots";
+                campaign_runs: "campaign_runs";
+                campaign_bindings: "campaign_bindings";
+                campaigns: "campaigns";
+                campaign_money_daily: "campaign_money_daily";
                 fan_memberships: "fan_memberships";
                 dm_threads: "dm_threads";
                 subscriptions: "subscriptions";
@@ -32504,6 +33886,7 @@ export declare const agentRouteSchemas: {
                     displayName: "displayName";
                     currency: "currency";
                     postRef: "postRef";
+                    netMills: "netMills";
                     textPlain: "textPlain";
                     textHtml: "textHtml";
                     priceMills: "priceMills";
@@ -32525,7 +33908,6 @@ export declare const agentRouteSchemas: {
                     tipMessageText: "tipMessageText";
                     messageMediaOffer: "messageMediaOffer";
                     grossMills: "grossMills";
-                    netMills: "netMills";
                     feeMills: "feeMills";
                     amountMills: "amountMills";
                     transactionState: "transactionState";
@@ -32537,6 +33919,7 @@ export declare const agentRouteSchemas: {
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
                     ofapiPayoutRequest: "ofapiPayoutRequest";
+                    hubLinkMoney: "hubLinkMoney";
                     payoutMethod: "payoutMethod";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
@@ -32591,6 +33974,10 @@ export declare const agentRouteSchemas: {
                     postLike: "postLike";
                     platformNotification: "platformNotification";
                     captureCoverageRow: "captureCoverageRow";
+                    linkStatRun: "linkStatRun";
+                    linkStatSnapshot: "linkStatSnapshot";
+                    trafficLinkBinding: "trafficLinkBinding";
+                    trafficChannelContractor: "trafficChannelContractor";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -32607,6 +33994,11 @@ export declare const agentRouteSchemas: {
                     capture_coverage: "capture_coverage";
                     ofapi_financial_snapshots: "ofapi_financial_snapshots";
                     ofapi_payout_requests: "ofapi_payout_requests";
+                    campaign_snapshots: "campaign_snapshots";
+                    campaign_runs: "campaign_runs";
+                    campaign_bindings: "campaign_bindings";
+                    campaigns: "campaigns";
+                    campaign_money_daily: "campaign_money_daily";
                     fan_memberships: "fan_memberships";
                     dm_threads: "dm_threads";
                     subscriptions: "subscriptions";
@@ -32652,6 +34044,11 @@ export declare const agentRouteSchemas: {
                         capture_coverage: "capture_coverage";
                         ofapi_financial_snapshots: "ofapi_financial_snapshots";
                         ofapi_payout_requests: "ofapi_payout_requests";
+                        campaign_snapshots: "campaign_snapshots";
+                        campaign_runs: "campaign_runs";
+                        campaign_bindings: "campaign_bindings";
+                        campaigns: "campaigns";
+                        campaign_money_daily: "campaign_money_daily";
                         fan_memberships: "fan_memberships";
                         dm_threads: "dm_threads";
                         subscriptions: "subscriptions";
@@ -32687,6 +34084,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -32708,7 +34106,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -32720,6 +34117,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -32774,6 +34172,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -32932,6 +34334,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -32962,6 +34366,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -32989,6 +34397,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -33019,6 +34429,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -33070,6 +34484,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -33100,6 +34516,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -33182,6 +34602,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -33212,6 +34634,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -33236,6 +34662,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -33257,7 +34684,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -33269,6 +34695,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -33323,6 +34750,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -33487,6 +34918,7 @@ export declare const agentRouteSchemas: {
                     displayName: "displayName";
                     currency: "currency";
                     postRef: "postRef";
+                    netMills: "netMills";
                     textPlain: "textPlain";
                     textHtml: "textHtml";
                     priceMills: "priceMills";
@@ -33508,7 +34940,6 @@ export declare const agentRouteSchemas: {
                     tipMessageText: "tipMessageText";
                     messageMediaOffer: "messageMediaOffer";
                     grossMills: "grossMills";
-                    netMills: "netMills";
                     feeMills: "feeMills";
                     amountMills: "amountMills";
                     transactionState: "transactionState";
@@ -33520,6 +34951,7 @@ export declare const agentRouteSchemas: {
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
                     ofapiPayoutRequest: "ofapiPayoutRequest";
+                    hubLinkMoney: "hubLinkMoney";
                     payoutMethod: "payoutMethod";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
@@ -33574,6 +35006,10 @@ export declare const agentRouteSchemas: {
                     postLike: "postLike";
                     platformNotification: "platformNotification";
                     captureCoverageRow: "captureCoverageRow";
+                    linkStatRun: "linkStatRun";
+                    linkStatSnapshot: "linkStatSnapshot";
+                    trafficLinkBinding: "trafficLinkBinding";
+                    trafficChannelContractor: "trafficChannelContractor";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -33584,13 +35020,13 @@ export declare const agentRouteSchemas: {
                     requestRef: z.ZodString;
                     state: z.ZodEnum<{
                         failed: "failed";
+                        completed: "completed";
                         expired: "expired";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
                         approved: "approved";
                         partially_completed: "partially_completed";
-                        completed: "completed";
                     }>;
                     pageLabel: z.ZodString;
                     platform: z.ZodEnum<{
@@ -33715,6 +35151,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -33745,6 +35183,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -33772,6 +35214,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -33802,6 +35246,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -33853,6 +35301,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -33883,6 +35333,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -33965,6 +35419,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -33995,6 +35451,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -34019,6 +35479,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -34040,7 +35501,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -34052,6 +35512,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -34106,6 +35567,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -34265,13 +35730,13 @@ export declare const agentRouteSchemas: {
                     requestRef: z.ZodString;
                     state: z.ZodEnum<{
                         failed: "failed";
+                        completed: "completed";
                         expired: "expired";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
                         approved: "approved";
                         partially_completed: "partially_completed";
-                        completed: "completed";
                     }>;
                     pageLabel: z.ZodString;
                     platform: z.ZodEnum<{
@@ -34392,6 +35857,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -34422,6 +35889,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -34449,6 +35920,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -34479,6 +35952,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -34530,6 +36007,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -34560,6 +36039,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -34642,6 +36125,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -34672,6 +36157,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -34696,6 +36185,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -34717,7 +36207,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -34729,6 +36218,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -34783,6 +36273,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -34951,13 +36445,13 @@ export declare const agentRouteSchemas: {
                     requestRef: z.ZodString;
                     state: z.ZodEnum<{
                         failed: "failed";
+                        completed: "completed";
                         expired: "expired";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
                         approved: "approved";
                         partially_completed: "partially_completed";
-                        completed: "completed";
                     }>;
                     pageLabel: z.ZodString;
                     platform: z.ZodEnum<{
@@ -35083,6 +36577,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -35113,6 +36609,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -35140,6 +36640,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -35170,6 +36672,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -35221,6 +36727,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -35251,6 +36759,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -35333,6 +36845,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -35363,6 +36877,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -35387,6 +36905,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -35408,7 +36927,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -35420,6 +36938,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -35474,6 +36993,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -35627,13 +37150,13 @@ export declare const agentRouteSchemas: {
         readonly querystring: z.ZodObject<{
             state: z.ZodOptional<z.ZodEnum<{
                 failed: "failed";
+                completed: "completed";
                 expired: "expired";
                 rejected: "rejected";
                 dispatching: "dispatching";
                 requested: "requested";
                 approved: "approved";
                 partially_completed: "partially_completed";
-                completed: "completed";
             }>>;
             limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
         }, z.core.$strict>;
@@ -35643,13 +37166,13 @@ export declare const agentRouteSchemas: {
                     requestRef: z.ZodString;
                     state: z.ZodEnum<{
                         failed: "failed";
+                        completed: "completed";
                         expired: "expired";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
                         approved: "approved";
                         partially_completed: "partially_completed";
-                        completed: "completed";
                     }>;
                     pageLabel: z.ZodString;
                     platform: z.ZodEnum<{
@@ -35770,6 +37293,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -35800,6 +37325,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -35827,6 +37356,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -35857,6 +37388,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -35908,6 +37443,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -35938,6 +37475,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -36020,6 +37561,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -36050,6 +37593,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -36074,6 +37621,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -36095,7 +37643,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -36107,6 +37654,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -36161,6 +37709,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -36309,6 +37861,7 @@ export declare const agentRouteSchemas: {
                     displayName: "displayName";
                     currency: "currency";
                     postRef: "postRef";
+                    netMills: "netMills";
                     textPlain: "textPlain";
                     textHtml: "textHtml";
                     priceMills: "priceMills";
@@ -36330,7 +37883,6 @@ export declare const agentRouteSchemas: {
                     tipMessageText: "tipMessageText";
                     messageMediaOffer: "messageMediaOffer";
                     grossMills: "grossMills";
-                    netMills: "netMills";
                     feeMills: "feeMills";
                     amountMills: "amountMills";
                     transactionState: "transactionState";
@@ -36342,6 +37894,7 @@ export declare const agentRouteSchemas: {
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
                     ofapiPayoutRequest: "ofapiPayoutRequest";
+                    hubLinkMoney: "hubLinkMoney";
                     payoutMethod: "payoutMethod";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
@@ -36396,6 +37949,10 @@ export declare const agentRouteSchemas: {
                     postLike: "postLike";
                     platformNotification: "platformNotification";
                     captureCoverageRow: "captureCoverageRow";
+                    linkStatRun: "linkStatRun";
+                    linkStatSnapshot: "linkStatSnapshot";
+                    trafficLinkBinding: "trafficLinkBinding";
+                    trafficChannelContractor: "trafficChannelContractor";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -36492,6 +38049,7 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
+                        running: "running";
                         paused: "paused";
                         quarantined: "quarantined";
                         not_due: "not_due";
@@ -36505,7 +38063,6 @@ export declare const agentRouteSchemas: {
                         blocked_by_vendor: "blocked_by_vendor";
                         dependency: "dependency";
                         ownership_unconfirmed: "ownership_unconfirmed";
-                        running: "running";
                     }>>;
                     waitingUntil: z.ZodNullable<z.ZodString>;
                 }, z.core.$strict>;
@@ -36525,8 +38082,8 @@ export declare const agentRouteSchemas: {
                         ready: "ready";
                         blocked: "blocked";
                         cancelled: "cancelled";
-                        refused: "refused";
                         queued: "queued";
+                        refused: "refused";
                         loading: "loading";
                     }>;
                     refusal: z.ZodNullable<z.ZodEnum<{
@@ -36538,6 +38095,7 @@ export declare const agentRouteSchemas: {
                     excludedReason: z.ZodNullable<z.ZodString>;
                     probeAt: z.ZodNullable<z.ZodString>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
+                        running: "running";
                         paused: "paused";
                         quarantined: "quarantined";
                         not_due: "not_due";
@@ -36551,7 +38109,6 @@ export declare const agentRouteSchemas: {
                         blocked_by_vendor: "blocked_by_vendor";
                         dependency: "dependency";
                         ownership_unconfirmed: "ownership_unconfirmed";
-                        running: "running";
                     }>>;
                     waitingUntil: z.ZodNullable<z.ZodString>;
                     loadedMessages: z.ZodNumber;
@@ -36617,6 +38174,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -36647,6 +38206,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -36674,6 +38237,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -36704,6 +38269,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -36755,6 +38324,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -36785,6 +38356,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -36867,6 +38442,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -36897,6 +38474,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -36921,6 +38502,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -36942,7 +38524,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -36954,6 +38535,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -37008,6 +38590,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -37166,8 +38752,8 @@ export declare const agentRouteSchemas: {
                 ready: "ready";
                 blocked: "blocked";
                 cancelled: "cancelled";
-                refused: "refused";
                 queued: "queued";
+                refused: "refused";
                 loading: "loading";
             }>>;
             limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -37243,6 +38829,7 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
+                        running: "running";
                         paused: "paused";
                         quarantined: "quarantined";
                         not_due: "not_due";
@@ -37256,7 +38843,6 @@ export declare const agentRouteSchemas: {
                         blocked_by_vendor: "blocked_by_vendor";
                         dependency: "dependency";
                         ownership_unconfirmed: "ownership_unconfirmed";
-                        running: "running";
                     }>>;
                     waitingUntil: z.ZodNullable<z.ZodString>;
                 }, z.core.$strict>;
@@ -37276,8 +38862,8 @@ export declare const agentRouteSchemas: {
                         ready: "ready";
                         blocked: "blocked";
                         cancelled: "cancelled";
-                        refused: "refused";
                         queued: "queued";
+                        refused: "refused";
                         loading: "loading";
                     }>;
                     refusal: z.ZodNullable<z.ZodEnum<{
@@ -37289,6 +38875,7 @@ export declare const agentRouteSchemas: {
                     excludedReason: z.ZodNullable<z.ZodString>;
                     probeAt: z.ZodNullable<z.ZodString>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
+                        running: "running";
                         paused: "paused";
                         quarantined: "quarantined";
                         not_due: "not_due";
@@ -37302,7 +38889,6 @@ export declare const agentRouteSchemas: {
                         blocked_by_vendor: "blocked_by_vendor";
                         dependency: "dependency";
                         ownership_unconfirmed: "ownership_unconfirmed";
-                        running: "running";
                     }>>;
                     waitingUntil: z.ZodNullable<z.ZodString>;
                     loadedMessages: z.ZodNumber;
@@ -37368,6 +38954,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -37398,6 +38986,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -37425,6 +39017,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -37455,6 +39049,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -37506,6 +39104,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -37536,6 +39136,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -37618,6 +39222,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -37648,6 +39254,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -37672,6 +39282,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -37693,7 +39304,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -37705,6 +39315,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -37759,6 +39370,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -37983,6 +39598,7 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
+                        running: "running";
                         paused: "paused";
                         quarantined: "quarantined";
                         not_due: "not_due";
@@ -37996,7 +39612,6 @@ export declare const agentRouteSchemas: {
                         blocked_by_vendor: "blocked_by_vendor";
                         dependency: "dependency";
                         ownership_unconfirmed: "ownership_unconfirmed";
-                        running: "running";
                     }>>;
                     waitingUntil: z.ZodNullable<z.ZodString>;
                 }, z.core.$strict>;
@@ -38038,6 +39653,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38068,6 +39685,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -38095,6 +39716,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38125,6 +39748,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -38176,6 +39803,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38206,6 +39835,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -38288,6 +39921,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38318,6 +39953,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -38342,6 +39981,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -38363,7 +40003,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -38375,6 +40014,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -38429,6 +40069,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -38652,6 +40296,7 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     queuePosition: z.ZodNullable<z.ZodNumber>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
+                        running: "running";
                         paused: "paused";
                         quarantined: "quarantined";
                         not_due: "not_due";
@@ -38665,7 +40310,6 @@ export declare const agentRouteSchemas: {
                         blocked_by_vendor: "blocked_by_vendor";
                         dependency: "dependency";
                         ownership_unconfirmed: "ownership_unconfirmed";
-                        running: "running";
                     }>>;
                     waitingUntil: z.ZodNullable<z.ZodString>;
                 }, z.core.$strict>>;
@@ -38707,6 +40351,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38737,6 +40383,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -38764,6 +40414,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38794,6 +40446,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -38845,6 +40501,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38875,6 +40533,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -38957,6 +40619,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -38987,6 +40651,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -39011,6 +40679,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -39032,7 +40701,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -39044,6 +40712,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -39098,6 +40767,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -39270,6 +40943,7 @@ export declare const agentRouteSchemas: {
                         urgent: z.ZodObject<{
                             runnable: z.ZodNumber;
                             waitingByReason: z.ZodRecord<z.ZodEnum<{
+                                running: "running";
                                 paused: "paused";
                                 quarantined: "quarantined";
                                 not_due: "not_due";
@@ -39283,12 +40957,12 @@ export declare const agentRouteSchemas: {
                                 blocked_by_vendor: "blocked_by_vendor";
                                 dependency: "dependency";
                                 ownership_unconfirmed: "ownership_unconfirmed";
-                                running: "running";
                             }> & z.core.$partial, z.ZodNumber>;
                         }, z.core.$strict>;
                         requests: z.ZodObject<{
                             runnable: z.ZodNumber;
                             waitingByReason: z.ZodRecord<z.ZodEnum<{
+                                running: "running";
                                 paused: "paused";
                                 quarantined: "quarantined";
                                 not_due: "not_due";
@@ -39302,12 +40976,12 @@ export declare const agentRouteSchemas: {
                                 blocked_by_vendor: "blocked_by_vendor";
                                 dependency: "dependency";
                                 ownership_unconfirmed: "ownership_unconfirmed";
-                                running: "running";
                             }> & z.core.$partial, z.ZodNumber>;
                         }, z.core.$strict>;
                         planned: z.ZodObject<{
                             runnable: z.ZodNumber;
                             waitingByReason: z.ZodRecord<z.ZodEnum<{
+                                running: "running";
                                 paused: "paused";
                                 quarantined: "quarantined";
                                 not_due: "not_due";
@@ -39321,7 +40995,6 @@ export declare const agentRouteSchemas: {
                                 blocked_by_vendor: "blocked_by_vendor";
                                 dependency: "dependency";
                                 ownership_unconfirmed: "ownership_unconfirmed";
-                                running: "running";
                             }> & z.core.$partial, z.ZodNumber>;
                         }, z.core.$strict>;
                     }, z.core.$strict>;
@@ -39406,6 +41079,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -39436,6 +41111,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -39463,6 +41142,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -39493,6 +41174,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -39544,6 +41229,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -39574,6 +41261,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -39656,6 +41347,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -39686,6 +41379,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -39710,6 +41407,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -39731,7 +41429,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -39743,6 +41440,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -39797,6 +41495,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -40010,13 +41712,14 @@ export declare const agentRouteSchemas: {
                     }>;
                     state: z.ZodEnum<{
                         cancelled: "cancelled";
+                        running: "running";
                         quarantined: "quarantined";
                         open: "open";
                         done: "done";
-                        running: "running";
                         superseded: "superseded";
                     }>;
                     waitingReason: z.ZodNullable<z.ZodEnum<{
+                        running: "running";
                         paused: "paused";
                         quarantined: "quarantined";
                         not_due: "not_due";
@@ -40030,7 +41733,6 @@ export declare const agentRouteSchemas: {
                         blocked_by_vendor: "blocked_by_vendor";
                         dependency: "dependency";
                         ownership_unconfirmed: "ownership_unconfirmed";
-                        running: "running";
                     }>>;
                     waitingUntil: z.ZodNullable<z.ZodString>;
                     dueAt: z.ZodString;
@@ -40095,6 +41797,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -40125,6 +41829,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -40152,6 +41860,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -40182,6 +41892,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -40233,6 +41947,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -40263,6 +41979,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -40345,6 +42065,8 @@ export declare const agentRouteSchemas: {
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
                             page_payout_methods: "page_payout_methods";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
@@ -40375,6 +42097,10 @@ export declare const agentRouteSchemas: {
                             post_likes: "post_likes";
                             platform_notifications: "platform_notifications";
                             capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -40399,6 +42125,7 @@ export declare const agentRouteSchemas: {
                         displayName: "displayName";
                         currency: "currency";
                         postRef: "postRef";
+                        netMills: "netMills";
                         textPlain: "textPlain";
                         textHtml: "textHtml";
                         priceMills: "priceMills";
@@ -40420,7 +42147,6 @@ export declare const agentRouteSchemas: {
                         tipMessageText: "tipMessageText";
                         messageMediaOffer: "messageMediaOffer";
                         grossMills: "grossMills";
-                        netMills: "netMills";
                         feeMills: "feeMills";
                         amountMills: "amountMills";
                         transactionState: "transactionState";
@@ -40432,6 +42158,7 @@ export declare const agentRouteSchemas: {
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
                         ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
                         payoutMethod: "payoutMethod";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
@@ -40486,6 +42213,10 @@ export declare const agentRouteSchemas: {
                         postLike: "postLike";
                         platformNotification: "platformNotification";
                         captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
