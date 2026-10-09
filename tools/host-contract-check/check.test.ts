@@ -7,7 +7,22 @@ import { describe, expect, it } from 'vitest';
 import * as contract from '../../packages/host-chatspace/src/isolated/host-contract.ts';
 import { receiptModules } from '../../packages/host-chatspace/src/isolated/receipt-profile.ts';
 import { QUEUE_SEND } from '../../packages/host-chatspace/src/main/send-port.ts';
-import { buildOf, checkAnchors, contractAnchors, diffCopies, importsOf, missingRoles, QUEUE_ACTION, receiptFingerprint, receiptProfile, sendPathOutsideRoles, shapeOf, type BundleFile } from './check.ts';
+import {
+  BUYING_POWERS_PLATFORM,
+  buildOf,
+  checkAnchors,
+  contractAnchors,
+  diffCopies,
+  importsOf,
+  missingRoles,
+  platformKeyAnchor,
+  QUEUE_ACTION,
+  receiptFingerprint,
+  receiptProfile,
+  sendPathOutsideRoles,
+  shapeOf,
+  type BundleFile,
+} from './check.ts';
 
 /** A copy that has every anchor: one line per string, written the way a minified build writes them. */
 function fullCopy(): BundleFile[] {
@@ -95,6 +110,82 @@ describe('host-contract-check (§6.2 «Сверка с новой сборкой
     const anchors = contractAnchors().filter((anchor) => ['member isActive', 'store chats'].includes(anchor.id));
     expect(checkAnchors([{ name: 'a.js', text: 'x.isActiveNow = 1; y = "chats are fun"; z = chats;' }], anchors).map((result) => result.present)).toEqual([false, false]);
     expect(checkAnchors([{ name: 'a.js', text: 'x.isActive ? 1 : 2; defineStore(`chats`)' }], anchors).map((result) => result.present)).toEqual([true, true]);
+  });
+
+  describe('a key ChatSpace builds per platform (since 0.200.0: `${platform}BuyingPowers`)', () => {
+    const ID = `cache key ${contract.KEY_BUYING_POWERS}`;
+    /** The literal key gone from the copy: `body` is what the accounts module has instead. */
+    const copyWith = (body: readonly string[]): BundleFile[] =>
+      fullCopy().map((file) =>
+        file.name === 'index-AAAAAAAA.js' ? { ...file, text: file.text.replace(`var k = [\`${contract.KEY_BUYING_POWERS}\`];`, 'var k = 0;') } : file.name === 'accounts-FFFFFFFF.js' ? { ...file, text: body.join('\n') } : file,
+      );
+    const result = (body: readonly string[]): { present: boolean; at: readonly string[] } => {
+      const found = checkAnchors(copyWith(body)).find((item) => item.id === ID);
+      return { present: found?.present ?? false, at: found?.at ?? [] };
+    };
+    /** Written the way the prettified 0.200.0 copy writes it: the factory, its key, its calls per platform. */
+    const factory = (options: { readonly suffix?: string; readonly from?: string; readonly platforms?: readonly string[]; readonly between?: string } = {}): string[] => [
+      'var x = 1,',
+      '  Mf = (e) => {',
+      ...(options.between === undefined ? [] : [options.between]),
+      `    let t = [\`\${${options.from ?? 'e'}}${options.suffix ?? 'BuyingPowers'}\`];`,
+      '    return use(() => ({ key: t }));',
+      '  },',
+      ...(options.platforms ?? ['fansly', 'onlyfans']).map((platform, index) => `  p${index} = Mf(\`${platform}\`),`),
+      '  y = 2;',
+    ];
+
+    it('the platform is the start of the key the adapter reads', () => {
+      expect(contract.KEY_BUYING_POWERS.startsWith(BUYING_POWERS_PLATFORM)).toBe(true);
+      expect(() => platformKeyAnchor('fansMap', BUYING_POWERS_PLATFORM, 'cache')).toThrow();
+    });
+
+    it('the literal key (through 0.195.0) counts, as before', () => {
+      expect(checkAnchors(fullCopy()).find((item) => item.id === ID)).toMatchObject({ present: true, at: [expect.stringMatching(/^index-AAAAAAAA\.js:\d+$/)] });
+    });
+
+    it('the templated key (0.200.0, 0.201.0) counts: the factory’s parameter and the suffix, the factory called with `onlyfans` in the same module', () => {
+      expect(result(factory())).toEqual({ present: true, at: ['accounts-FFFFFFFF.js:3'] });
+      // A minified copy on one line, `function` factories, a lone parameter without parentheses.
+      expect(result([factory().join(' ')]).present).toBe(true);
+      expect(result(['function Mf(e) { let t = [`${e}BuyingPowers`]; return t; } var p = Mf("onlyfans");']).present).toBe(true);
+      expect(result(['var Mf = e => [`${e}BuyingPowers`], p = Mf(\'onlyfans\');']).present).toBe(true);
+    });
+
+    it('neither form — the key truly missing — fails, and the check says so', () => {
+      expect(result(['var x = 1;']).present).toBe(false);
+      expect(checkAnchors(copyWith(['var x = 1;'])).filter((item) => !item.present).map((item) => item.id)).toEqual([ID]);
+      // A prefix or a suffix of the key alone is not the key.
+      expect(result(['var k = [`BuyingPowers`], j = [`onlyfansBuyingPower`];']).present).toBe(false);
+    });
+
+    it('a template of another key, of another platform, or not built from the factory’s parameter does not count', () => {
+      expect(result(factory({ suffix: 'BuyingPower' })).present).toBe(false);
+      expect(result(factory({ suffix: 'BuyingPowersV2' })).present).toBe(false);
+      expect(result(factory({ platforms: ['fansly'] })).present).toBe(false);
+      expect(result(factory({ platforms: ['onlyfansV2'] })).present).toBe(false);
+      expect(result(factory({ platforms: [] })).present).toBe(false);
+      expect(result(factory({ from: 'n' })).present).toBe(false);
+      // The template inside another function nested in the factory, or with no factory head near it.
+      expect(result(factory({ between: '    let g = (n) => n,' })).present).toBe(false);
+      expect(result(factory({ between: '    let g = () => [' })).present).toBe(false);
+      expect(result(factory({ between: '    let g = function () { return [' })).present).toBe(false);
+      expect(result(['  p = Mf(`onlyfans`),', '  q = 1,', '  r = 2,', '  s = 3,', '    let t = [`${e}BuyingPowers`];']).present).toBe(false);
+      // The call with the platform in another module does not count: the factory's name is that module's own.
+      const elsewhere = copyWith(factory({ platforms: ['fansly'] })).map((file) => (file.name === 'inbox-GGGGGGGG.js' ? { ...file, text: 'var p = Mf(`onlyfans`);' } : file));
+      expect(checkAnchors(elsewhere).find((item) => item.id === ID)?.present).toBe(false);
+    });
+
+    it('the other cache keys stay literal-only: a template does not stand in for them', () => {
+      const anchors = contractAnchors().filter((anchor) => anchor.id === `cache key ${contract.KEY_INSIGHTS}`);
+      expect(checkAnchors([{ name: 'accounts-FFFFFFFF.js', text: 'var Mf = (e) => [`${e}Insights`], p = Mf(`fan`);' }], anchors)[0]?.present).toBe(false);
+      expect(contractAnchors().filter((anchor) => anchor.confirm !== undefined).map((anchor) => anchor.id)).toEqual([ID]);
+    });
+
+    it('against 0.195.0, a copy with the templated key loses no anchor', () => {
+      expect(diffCopies(fullCopy(), copyWith(factory())).anchors).toEqual([]);
+      expect(diffCopies(fullCopy(), copyWith(['var x = 1;'])).anchors).toEqual([{ id: ID, from: true, to: false }]);
+    });
   });
 
   it('prints the build and the receipt profile the adapter itself would read from such a page', () => {
