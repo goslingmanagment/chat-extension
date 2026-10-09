@@ -60,7 +60,7 @@ import { digestHex } from '../../domain/ops/digest';
 import { applyOpDone, applyOpUpdate, mirrorFromView, newMirror, type OpMirror } from '../../domain/ops/mirror';
 import { messageWindowFor } from '../../domain/ops/request';
 import { isTerminalOpState } from '../../domain/ops/states';
-import { previewSendWaitsForChat } from '../../domain/host';
+import { previewSendFused, previewSendWaitsForChat } from '../../domain/host';
 import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
@@ -960,7 +960,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (identityChanged(track)) return refusal('CG-CONTEXT-CHANGED');
     if (!pageFlag(ctx, 'previewSend') || (track.source === 'newcomers' && !pageFlag(ctx, 'newcomers'))) return refusal('CG-SEND-OFF');
     if ((ctx.bootstrap?.limits.previewSendReceiptProfiles.length ?? 0) === 0) return refusal('CG-SEND-RECEIPT');
-    if (host.previewSend === null) return refusal('CG-SEND-HOST');
+    // The fuse of this browser (decision X25) says its own words; any other host refusal is the host's.
+    if (host.previewSend === null) return refusal(previewSendFused(host.current().contract) ? 'CG-SEND-FUSE' : 'CG-SEND-HOST');
     const route = host.current().route;
     if (route.chat !== null && chatKeyOf(route.chat) === chatKeyOf(track.target.chat)) return refusal('CG-SEND-ACTIVE-CHAT');
     if (!subscribed(track)) return refusal('CG-SEND-FAN');
@@ -1613,6 +1614,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       documentEpoch: checkpoint.documentEpoch,
       cause: issued.cause,
       ...(leaseToken === null ? {} : { leaseToken }),
+      // The build the fuse is held by (decision X25): the background holds the click while a tripped fuse names it.
+      hostBuild: host.current().contract.build,
       plainText: text,
       isAiGenerated: pageFlag(context.current(), 'previewSendMarkAiGenerated'),
     };

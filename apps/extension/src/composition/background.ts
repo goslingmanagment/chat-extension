@@ -70,6 +70,7 @@ import {
   OpScheduler,
   RecapProfileSaver,
   SendCoordinator,
+  SendFuseKeeper,
   WsTapSwitch,
   createConsentState,
   createPresence,
@@ -439,6 +440,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
 
   let instanceId = IDS.uuid();
+  // The X8 fuse of this browser (decision X25): kept in storage.local, it holds the preview send off on the
+  // ChatSpace build it tripped on until another build or the person's reset; every tab hears of it (`send.fuse`).
+  const sendFuse = new SendFuseKeeper({
+    clock: CLOCK,
+    store: throwingStoreOf(local),
+    events,
+    log: coreLog,
+    onTrip: () => telemetry.health.countCode('CG-SEND-FUSE'),
+  });
   const sends: SendCoordinator = new SendCoordinator({
     clock: CLOCK,
     hub: {
@@ -457,6 +467,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     log: coreLog,
     onSent: (fact) =>
       void telemetry.report('sent', scheduler.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId }),
+    fuse: sendFuse,
   });
 
   /** Who is signed in, as the things that belong to a person are marked. */
@@ -617,6 +628,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       sound: soundFacts(),
       ops: { active: active.length, snapshot: active.map((op) => ({ opId: op.opId, feature: op.feature, surface: op.surface, state: op.state, phase: op.phase.name, startedAt: op.startedAt })) },
       sends: { ...sends.counts(), journal: sendJournal.list() },
+      sendFuse: sendFuse.current(),
       debug: { enabled: current.debug.enabled, prompts: promptStats() },
       footprint: { cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round((logging.logs.stats().bytes + logging.countersBytes()) / 1024) },
     };
@@ -947,6 +959,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     return ok({ recorded: await sends.report(sender.tabSessionId, view, pendingId) });
   });
+  // The fuse (decision X25): a tab's MAIN saw, after a send, what trips it; «Статус» reads and resets it.
+  rpc.handle('send.fuse', async ({ fact, build }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    return ok(await sendFuse.trip({ reason: fact.reason, where: fact.where, attemptId: fact.attemptId, build }));
+  });
+  rpc.handle('send.fuseState', async () => {
+    await sendFuse.load();
+    return ok(sendFuse.current());
+  });
+  rpc.handle('send.fuseReset', async () => ok(await sendFuse.reset()));
 
   // hub data
   const data = hubDataHandlers({ hub, page: pageOf, errorOf: wireOf, debugEnabled });
@@ -1169,7 +1191,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     { name: 'results', run: () => results.start() },
     { name: 'ops', run: () => scheduler.restore() },
     { name: 'send-journal', run: () => sendJournal.start() },
-    { name: 'sends', run: () => sends.restore() },
+    // The fuse first: the coordinator's conditions read it from the first click on.
+    {
+      name: 'sends',
+      run: async () => {
+        await sendFuse.load();
+        return sends.restore();
+      },
+    },
     { name: 'native-sends', run: () => nativeSends.restore() },
     { name: 'presence', run: () => presence.start() },
     { name: 'leases', run: () => leases.restore() },

@@ -12,8 +12,10 @@
 //   `account_new_message` and the `authenticated` frame are parsed, any other
 //   frame only says which account it is for. Counters of fan messages per
 //   (account, fan), without duplicates by id, are updated before anything is
-//   forwarded; the text of a message never leaves this file. An outgoing
-//   message is forwarded as it comes (a redelivery is not told apart).
+//   forwarded; the text of a fan's message never leaves this file. An
+//   outgoing message is forwarded as it comes (a redelivery is not told
+//   apart), its text only to the receipt observer, for the X8 fuse's
+//   comparison (decision X25): it never leaves MAIN.
 // - A message frame of an account that is not in the set the runtime gives
 //   (the OnlyFans accounts ChatSpace subscribed; it subscribes other
 //   platforms on the same socket) is not ours: not counted, not forwarded,
@@ -196,7 +198,9 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       if (chat.ids.unshift(id) > MAX_IDS) chat.ids.pop();
     }
     const meta = isPlain(body['platformMetadata']) ? body['platformMetadata'] : {};
-    sink?.fact({ acc, fan, msgId: id, fromFan, automatic: meta['isFromQueue'] === true, tip: meta['isTip'] === true, sentAt: iso(body['sentAt']), socketEpoch: epoch, fanSequence: chat?.seq ?? 0 });
+    const fact = { acc, fan, msgId: id, fromFan, automatic: meta['isFromQueue'] === true, tip: meta['isTip'] === true, sentAt: iso(body['sentAt']), socketEpoch: epoch, fanSequence: chat?.seq ?? 0 };
+    if (fromFan) sink?.fact(fact);
+    else sink?.fact(fact, body['content']);
   };
 
   const parse = (data: string): unknown => {

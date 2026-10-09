@@ -14,6 +14,7 @@
 
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { isRedactedLogField, type LogRecord } from '@cg/contracts/logs';
+import { type SendFuseState } from '@cg/contracts/send';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { HEALTH_CODE_PATTERN } from '@cg/contracts/telemetry';
 import { type DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
@@ -66,6 +67,8 @@ export interface DiagnosticsFacts {
   readonly ops: { readonly active: number; readonly snapshot?: unknown };
   /** X8 attempts: open and uncertain counts, the journal without text. */
   readonly sends: { readonly open: number; readonly uncertain: number; readonly journal?: unknown };
+  /** The X8 fuse of the browser (decision X25): machine values only. */
+  readonly sendFuse?: SendFuseState;
   readonly debug: { readonly enabled: boolean; readonly prompts: PromptStoreStats };
   /** Sizes of our caches and logs (ST-110). */
   readonly footprint?: { readonly cachesKB: number; readonly logsKB: number };
@@ -107,6 +110,7 @@ export function diagnosticsSnapshot(facts: DiagnosticsFacts): DiagnosticsSnapsho
     sound: facts.sound,
     ops: { active: facts.ops.active },
     sends: { open: facts.sends.open, uncertain: facts.sends.uncertain },
+    ...(facts.sendFuse === undefined ? {} : { sendFuse: facts.sendFuse }),
     // ST-110: the sizes of our caches and logs for the options page, when the background measures them.
     ...(facts.footprint === undefined ? {} : { footprint: { cachesKB: countOf(Math.round(facts.footprint.cachesKB)) ?? 0, logsKB: countOf(Math.round(facts.footprint.logsKB)) ?? 0 } }),
   };
@@ -235,6 +239,8 @@ export interface ExportBundle {
   readonly sound: DiagnosticsFacts['sound'];
   readonly ops: { readonly active: number; readonly snapshot: unknown };
   readonly sends: { readonly open: number; readonly uncertain: number; readonly journal: unknown };
+  /** The X8 fuse (decision X25); null — not known. */
+  readonly sendFuse: SendFuseState | null;
   readonly debug: DiagnosticsFacts['debug'];
   readonly truncated: { readonly recent: number; readonly previous: number; readonly snapshots: boolean };
 }
@@ -275,6 +281,7 @@ function buildBundle(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<R
     sound: facts.sound,
     ops: { active: facts.ops.active, snapshot: shape.snapshots ? snapshot(facts.ops.snapshot) : '[cut]' },
     sends: { open: facts.sends.open, uncertain: facts.sends.uncertain, journal: shape.snapshots ? snapshot(facts.sends.journal) : '[cut]' },
+    sendFuse: facts.sendFuse ?? null,
     debug: { enabled: facts.debug.enabled, prompts: facts.debug.prompts },
     truncated: {
       recent: Math.max(0, logs.recent.length - recent.length),
@@ -321,8 +328,16 @@ export function summaryLines(facts: DiagnosticsFacts): string[] {
     const later = anchorsNotYet(host);
     const head = missing.length === 0 ? `${host.build ?? '?'} ok` : `${host.build ?? '?'} missing ${missing.join(',')}`;
     // Anchors ChatSpace creates with the page's first chat: not missing, but not there either.
-    return later.length === 0 ? head : `${head} notYet ${later.join(',')}`;
+    const anchors = later.length === 0 ? head : `${head} notYet ${later.join(',')}`;
+    // Decision X25: the receipt profile that let X8 in, and how — a reviewed build or the «any build» sentinel.
+    return host.receiptMatch === undefined ? anchors : `${anchors} receipt ${host.receiptMatch.profile}/${host.receiptMatch.kind}`;
   });
+  const fuse = facts.sendFuse?.fuse ?? null;
+  const resetAt = facts.sendFuse?.resetAt ?? null;
+  const fuseLine =
+    facts.sendFuse === undefined
+      ? 'unknown'
+      : `${fuse === null ? 'none' : `tripped ${fuse.reason}/${fuse.where} at ${new Date(fuse.trippedAt).toISOString()} on ${fuse.build ?? 'every build'}`}${resetAt === null ? '' : ` · last reset ${new Date(resetAt).toISOString()}`}`;
   const today = codeList(facts.counters.today).slice(0, 10).map(({ code, count }) => `${code} ×${count}`);
   const health = Object.entries(facts.healthCounters ?? {})
     .filter(([name, count]) => name.startsWith('p1.') && (countOf(count) ?? 0) > 0)
@@ -340,6 +355,7 @@ export function summaryLines(facts: DiagnosticsFacts): string[] {
     `telemetry: consent ${yesNo(facts.telemetry.consent)}, queued ${facts.telemetry.queued}, dropped ${facts.telemetry.droppedTotal}${facts.telemetry.paused === null ? '' : ', paused until sign-in'}`,
     `sound: listening tabs ${facts.sound.listeningTabs}, last incoming ${facts.sound.lastIncomingAt ?? 'never'}`,
     `operations: active ${facts.ops.active} · preview sends: open ${facts.sends.open}, uncertain ${facts.sends.uncertain}`,
+    `preview send fuse: ${fuseLine}`,
     `debug: ${facts.debug.enabled ? 'on' : 'off'}`,
   ];
 }

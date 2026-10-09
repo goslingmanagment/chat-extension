@@ -19,7 +19,7 @@ let redeemAllowed = true;
 const redeemed: string[] = [];
 const diagnostics: unknown[] = [];
 const events: Record<string, number> = {};
-/** Facts of the live side as they came: incoming messages, coverage, human sends (never a text). */
+/** Facts of the live side as they came: incoming messages, coverage, human sends, the X8 fuse (never a text). */
 const liveEvents: HostEvent[] = [];
 /** Every state MAIN reported per preview send attempt, in order. */
 const sendStates: Record<string, SendAttemptView[]> = {};
@@ -40,7 +40,7 @@ void started.host.then((port) => {
   host = port;
   port.subscribe((event) => {
     events[event.type] = (events[event.type] ?? 0) + 1;
-    if (event.type === 'incoming' || event.type === 'coverage' || event.type === 'humanSend') liveEvents.push(event);
+    if (event.type === 'incoming' || event.type === 'coverage' || event.type === 'humanSend' || event.type === 'sendFuse') liveEvents.push(event);
   });
 });
 
@@ -268,7 +268,16 @@ const api = {
   /** The bootstrap's flags and receipt profiles, as the composition root would pass them. */
   async configure(config: ChatSpaceLiveConfig) {
     const report = await need().configure(config);
-    return { capabilities: report.capabilities, anchors: report.anchors, adapterVersion: report.adapterVersion };
+    return { capabilities: report.capabilities, anchors: report.anchors, adapterVersion: report.adapterVersion, build: report.build, receiptMatch: report.receiptMatch ?? null };
+  },
+  /** The host contract as it stands now (the fuse may have turned X8 off since the last `configure`). */
+  report() {
+    const report = need().probe();
+    return { capabilities: report.capabilities, anchors: report.anchors, adapterVersion: report.adapterVersion, build: report.build, receiptMatch: report.receiptMatch ?? null };
+  },
+  /** What the adapter told the logs, by event name (never a text). */
+  diagnosticsOf(event: string) {
+    return diagnostics.filter((diagnostic) => (diagnostic as { event?: string }).event === event);
   },
   /** The fingerprints of the send-path modules this page has loaded: what a profile for this stand build must name. */
   receiptProfile() {

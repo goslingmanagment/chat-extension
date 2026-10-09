@@ -654,6 +654,96 @@ describe('options: «Статус»', () => {
     world?.client.dispose();
   });
 
+  describe('[X8-06] «Отправка из превью» — on which build, and the fuse (decision X25)', () => {
+    const SENTINEL = { id: 'any-build', adapterVersion: '1.0.0', modules: { '*': '*' } };
+    /** The owner switched X8 on for the pages; the tab in front of the person reports `host`; the browser's fuse is `fuse`. */
+    const x8 = (host: Partial<ReturnType<typeof hostReport>> = {}, fuse?: { fuse: unknown; resetAt: number | null }): ReturnType<typeof workingState> => {
+      const state = workingState();
+      state.bootstrap = {
+        ...state.bootstrap,
+        pages: state.bootstrap.pages.map((page) => ({ ...page, features: { ...page.features, previewSend: { available: true } } })),
+        limits: { ...state.bootstrap.limits, previewSendReceiptProfiles: [SENTINEL] },
+      };
+      const tab = state.diagnostics.tabs[0];
+      state.diagnostics = {
+        ...state.diagnostics,
+        tabs: tab === undefined ? [] : [{ ...tab, host: { ...hostReport(PAGES_NOW), ...host } }],
+        ...(fuse === undefined ? {} : { sendFuse: fuse as never }),
+      };
+      return state;
+    };
+    const tripped = (over: Record<string, unknown> = {}) => ({ trippedAt: PAGES_NOW - 30 * 60_000, reason: 'text', where: 'echo', build: 'index-0000test', attemptId: '00000000-0000-4000-8000-000000000070', ...over });
+    const fusedCapability = (base = hostReport(PAGES_NOW)) => ({ ...base.capabilities, previewSend: { state: 'off' as const, reason: 'fuse', code: 'CG-SEND-FUSE' as const } });
+
+    it('let in by the hub’s «any build» sentinel: «включена» with the build not reviewed — said in the row, in the debug contract row and in the report for the team lead', async () => {
+      const w = await open({ state: x8({ receiptMatch: { profile: 'any-build', kind: 'anyBuild' } }) });
+      expect(row(w, 'preview-send')).toMatchObject({ level: 'ok', action: null });
+      expect(text(w, row(w, 'preview-send')?.value)).toBe('включена · сборка ChatSpace не проверена');
+      expect(text(w, row(w, 'preview-send')?.note)).toBe(
+        'Хаб пропускает любую сборку ChatSpace (профиль «any-build»). Если после отправки что-то пойдёт не так, предохранитель выключит её сам. Открытых попыток: 0, с неизвестным исходом: 0.',
+      );
+      await w.client.dispatch({ type: 'SetPreference', key: 'debug.enabled', value: true });
+      expect(text(w, row(w, 'contract')?.note)).toBe(`Все якоря на месте: ${String(Object.keys(hostReport(PAGES_NOW).anchors).length)}. Профиль квитанции «any-build»: любая сборка, без проверки.`);
+      await w.client.dispatch({ type: 'CopyReport', scope: 'status' });
+      expect(w.browser.record.clipboard.at(-1)).toContain('Отправка из превью: включена · сборка ChatSpace не проверена');
+    });
+
+    it('a reviewed build (an exact profile) says which; with no tab to tell, «включена» as before', async () => {
+      let w = await open({ state: x8({ receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } }) });
+      expect(text(w, row(w, 'preview-send')?.value)).toBe('включена · проверенная сборка ChatSpace (chatspace-0.202.0)');
+      expect(text(w, row(w, 'preview-send')?.note)).toBe('Открытых попыток: 0, с неизвестным исходом: 0.');
+      world?.client.dispose();
+      w = await open({ state: x8() });
+      expect(text(w, row(w, 'preview-send')?.value)).toBe('включена');
+    });
+
+    it('tripped on the tab’s build: «выключена предохранителем» — why, when, on which build — a warning, and «Сбросить предохранитель», which clears it', async () => {
+      const w = await open({ state: x8({ receiptMatch: { profile: 'any-build', kind: 'anyBuild' }, capabilities: fusedCapability() }, { fuse: tripped(), resetAt: null }) });
+      const fused = row(w, 'preview-send');
+      expect(fused).toMatchObject({ level: 'warn', action: { action: { type: 'ResetSendFuse' } } });
+      expect(text(w, fused?.value)).toBe('выключена предохранителем');
+      expect(text(w, fused?.note)).toMatch(/^Текст отправленного сообщения не совпал с тем, что мы отправляли\. Когда: .+, сборка index-0000test\. Отправка из превью включится сама с новой сборкой ChatSpace или после сброса\.$/);
+      expect(text(w, fused?.action?.label)).toBe('Сбросить предохранитель');
+      expect(options(w, 'status').body?.readiness).toMatchObject({ warnings: expect.arrayContaining([{ key: 'settings.status.warning.sendFused' }]) as unknown });
+      expect(UiActionSchema.safeParse(fused?.action?.action).success).toBe(true);
+      // The person resets it: the background clears it, «Статус» reads it again.
+      w.state.diagnostics = { ...w.state.diagnostics, tabs: w.state.diagnostics.tabs.map((tab) => ({ ...tab, host: tab.host === null ? null : { ...tab.host, capabilities: { ...tab.host.capabilities, previewSend: { state: 'on' } } } })) };
+      expect(await w.client.dispatch({ type: 'ResetSendFuse' })).toMatchObject({ ok: true });
+      expect(w.state.diagnostics.sendFuse).toEqual({ fuse: null, resetAt: PAGES_NOW });
+      expect(row(w, 'preview-send')).toMatchObject({ level: 'ok', action: null });
+      expect(text(w, row(w, 'preview-send')?.value)).toBe('включена · сборка ChatSpace не проверена');
+    });
+
+    it('each reason in plain words; a fuse of every build says the reset is the only way back', async () => {
+      for (const [reason, words] of [
+        ['count', 'Одно нажатие дало больше одного сообщения.'],
+        ['target', 'Квитанция ChatSpace назвала другой чат или аккаунт.'],
+        ['uncertain', 'Несколько отправок подряд (3) закончились неизвестным исходом.'],
+      ] as const) {
+        const w = await open({ state: x8({ capabilities: fusedCapability() }, { fuse: tripped({ reason }), resetAt: null }) });
+        expect([reason, text(w, row(w, 'preview-send')?.note).startsWith(words)]).toEqual([reason, true]);
+        world?.client.dispose();
+      }
+      const every = await open({ state: x8({ capabilities: fusedCapability() }, { fuse: tripped({ build: null }), resetAt: null }) });
+      expect(text(every, row(every, 'preview-send')?.note)).toMatch(/держит любую сборку ChatSpace: отправка из превью включится только после сброса\.$/);
+    });
+
+    it('a fuse of another build does not hold the tab in front of the person; a trip the background has not heard of yet still shows', async () => {
+      let w = await open({ state: x8({ build: 'index-1111next', receiptMatch: { profile: 'any-build', kind: 'anyBuild' } }, { fuse: tripped(), resetAt: null }) });
+      expect(text(w, row(w, 'preview-send')?.value)).toBe('включена · сборка ChatSpace не проверена');
+      world?.client.dispose();
+      w = await open({ state: x8({ capabilities: fusedCapability() }, { fuse: null, resetAt: null }) });
+      expect(row(w, 'preview-send')).toMatchObject({ level: 'warn', note: null, action: { action: { type: 'ResetSendFuse' } } });
+      expect(text(w, row(w, 'preview-send')?.value)).toBe('выключена предохранителем');
+      world?.client.dispose();
+      // The owner's switch off: «выключена», whatever the fuse.
+      const off = x8({ capabilities: fusedCapability() }, { fuse: tripped(), resetAt: null });
+      off.bootstrap = { ...off.bootstrap, pages: off.bootstrap.pages.map((page) => ({ ...page, features: { ...page.features, previewSend: { available: false, reason: 'flag_off' } } })) };
+      w = await open({ state: off });
+      expect(text(w, row(w, 'preview-send')?.value)).toBe('выключена');
+    });
+  });
+
   it('[ST-026] the hub not answering is «нет связи» with the hub error, and the page is offline over what it knew', async () => {
     const w = await open();
     w.background.failNext('bootstrap.get', { code: 'CG-HUB-UNAVAILABLE' }, 3);

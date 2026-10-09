@@ -61,8 +61,8 @@ describe('[X8-06] a profile matches only the whole current set (§6.2)', () => {
   const loaded = receiptModules(BUILD.map(asset), ORIGIN);
 
   it('every essential role with exactly the loaded fingerprint, for this adapter version', () => {
-    expect(matchReceiptProfile(loaded, [profile()], ADAPTER_VERSION)).toBe('chatspace-test');
-    expect(matchReceiptProfile(loaded, [profile({ id: 'older', modules: { ...MODULES, onlyfans: 'ZZZZZZZZ' } }), profile()], ADAPTER_VERSION)).toBe('chatspace-test');
+    expect(matchReceiptProfile(loaded, [profile()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-test', kind: 'exact' });
+    expect(matchReceiptProfile(loaded, [profile({ id: 'older', modules: { ...MODULES, onlyfans: 'ZZZZZZZZ' } }), profile()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-test', kind: 'exact' });
     expect(matchReceiptProfile(loaded, [], ADAPTER_VERSION)).toBeNull();
   });
 
@@ -113,7 +113,7 @@ describe('[X8-06] ChatSpace 0.195.0: the `messages` module is gone, the send pat
   it('the reviewer’s hub value matches a 0.195.0 page under this adapter — never before the main layout loaded, never under 0.2.0', () => {
     const profiles = reviewed();
     expect(profiles.map((item) => item.adapterVersion)).toEqual([ADAPTER_VERSION]);
-    expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toBe('chatspace-0.195.0');
+    expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toEqual({ profile: 'chatspace-0.195.0', kind: 'exact' });
     // Only the modules of the page's first load: the composer's `onlyfans` and the queue are not there yet.
     expect(matchReceiptProfile(receiptModules(PAGE_0195_EARLY.map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toBeNull();
     expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), profiles, '0.2.0')).toBeNull();
@@ -130,5 +130,67 @@ describe('[X8-06] ChatSpace 0.195.0: the `messages` module is gone, the send pat
     const withoutOnlyfans = receiptModules(PAGE_0172.filter((name) => !name.startsWith('onlyfans-')).map(asset), ORIGIN);
     expect(Object.keys(withoutOnlyfans).sort()).toEqual(['accounts', 'composables', 'inbox', 'notificationEntry']);
     expect(matchReceiptProfile(withoutOnlyfans, [{ ...PROFILE_0172, adapterVersion: ADAPTER_VERSION }, ...reviewed()], ADAPTER_VERSION)).toBeNull();
+  });
+});
+
+// Decision X25 (2026-10-09): the owner relaxed X21 — X8 runs on any ChatSpace build «until something breaks». The hub
+// lists the sentinel instead of per-build profiles; the fuse (main/receipt.ts) watches what X8 does after that.
+/** The hub value of the sentinel, exactly as it goes into `limits.previewSendReceiptProfiles`. */
+const HUB_VALUE_ANY_BUILD = '[{"id":"any-build","adapterVersion":"0.3.0","modules":{"*":"*"}}]';
+const anyBuild = (): ReceiptProfile[] => (JSON.parse(HUB_VALUE_ANY_BUILD) as unknown[]).map((item) => ReceiptProfileSchema.parse(item));
+
+describe('[X8-06] the «any build» sentinel (decision X25)', () => {
+  it('is plain data the bootstrap takes, and it matches any build whose send-path roles are all loaded — whatever their fingerprints', () => {
+    const profiles = anyBuild();
+    expect(profiles).toEqual([{ id: 'any-build', adapterVersion: ADAPTER_VERSION, modules: { '*': '*' } }]);
+    const kind = { profile: 'any-build', kind: 'anyBuild' };
+    expect(matchReceiptProfile(receiptModules(BUILD.map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toEqual(kind);
+    expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toEqual(kind);
+    // Another build: every hash changed (0.200–0.202 did that to all five roles, the send path unchanged).
+    const next = BUILD.map((name) => name.replace(/-[\w-]{8}$/, '-ZZZZZZZZ')).map(asset);
+    expect(receiptModules(next, ORIGIN)).not.toEqual(MODULES);
+    expect(matchReceiptProfile(receiptModules(next, ORIGIN), profiles, ADAPTER_VERSION)).toEqual(kind);
+    // Even a role loaded in two versions passes: the sentinel does not compare fingerprints at all.
+    expect(matchReceiptProfile(receiptModules([...BUILD, 'onlyfans-NEWNEW00'].map(asset), ORIGIN), profiles, ADAPTER_VERSION)).toEqual(kind);
+    // Its id is free text: the hub's own word for it.
+    expect(matchReceiptProfile(receiptModules(BUILD.map(asset), ORIGIN), [{ id: 'всё что угодно', adapterVersion: ADAPTER_VERSION, modules: { '*': '*' } }], ADAPTER_VERSION)).toEqual({ profile: 'всё что угодно', kind: 'anyBuild' });
+  });
+
+  it('does not match while a send-path role has no module on the page: before the main layout loaded, or on a page without the queue', () => {
+    expect(matchReceiptProfile(receiptModules(PAGE_0195_EARLY.map(asset), ORIGIN), anyBuild(), ADAPTER_VERSION)).toBeNull();
+    expect(matchReceiptProfile(receiptModules(BUILD.filter((name) => !name.startsWith('notificationEntry-')).map(asset), ORIGIN), anyBuild(), ADAPTER_VERSION)).toBeNull();
+    expect(matchReceiptProfile({}, anyBuild(), ADAPTER_VERSION)).toBeNull();
+    // A role with an empty fingerprint is no loaded module.
+    expect(matchReceiptProfile({ ...MODULES, inbox: '' }, anyBuild(), ADAPTER_VERSION)).toBeNull();
+  });
+
+  it('does not match under another adapter version: a sentinel for 0.2.0 lets no 0.3.0 adapter in, nor the other way round', () => {
+    const loaded = receiptModules(BUILD.map(asset), ORIGIN);
+    expect(matchReceiptProfile(loaded, [{ id: 'any-build', adapterVersion: '0.2.0', modules: { '*': '*' } }], ADAPTER_VERSION)).toBeNull();
+    expect(matchReceiptProfile(loaded, anyBuild(), '0.2.0')).toBeNull();
+    expect(matchReceiptProfile(loaded, anyBuild(), '0.4.0')).toBeNull();
+  });
+
+  it('only `{"*":"*"}` is the sentinel: a star beside a real role, a star with a fingerprint, a star role elsewhere — none of them', () => {
+    const loaded = receiptModules(BUILD.map(asset), ORIGIN);
+    for (const modules of [{ '*': '*', inbox: 'GGGGGGGG' }, { '*': 'GGGGGGGG' }, { inbox: '*' }, { ...MODULES, '*': '*' }, {}]) {
+      expect([modules, matchReceiptProfile(loaded, [{ id: 'not-it', adapterVersion: ADAPTER_VERSION, modules }], ADAPTER_VERSION)]).toEqual([modules, null]);
+    }
+  });
+
+  it('exact profiles keep working beside it, and one that matches is named first — a reviewed build says so', () => {
+    const loaded = receiptModules(BUILD.map(asset), ORIGIN);
+    expect(matchReceiptProfile(loaded, [...anyBuild(), profile()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-test', kind: 'exact' });
+    expect(matchReceiptProfile(loaded, [profile(), ...anyBuild()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-test', kind: 'exact' });
+    // An exact profile of another build does not stand in the way: the sentinel lets this one in.
+    expect(matchReceiptProfile(loaded, [profile({ id: 'older', modules: { ...MODULES, onlyfans: 'ZZZZZZZZ' } }), ...anyBuild()], ADAPTER_VERSION)).toEqual({ profile: 'any-build', kind: 'anyBuild' });
+    // Both reviewed values and the sentinel, as the owner may list them while going back: the reviewed build is named.
+    expect(matchReceiptProfile(receiptModules(PAGE_0195.map(asset), ORIGIN), [...anyBuild(), ...reviewed()], ADAPTER_VERSION)).toEqual({ profile: 'chatspace-0.195.0', kind: 'exact' });
+  });
+
+  it('the residual risk, said as it is: a page whose bundler regrouped the send path (0.172.0 under this adapter) passes the sentinel — the runtime contract, the receipt observer and the fuse are what guard it then', () => {
+    const page = receiptModules(PAGE_0172.map(asset), ORIGIN);
+    expect(matchReceiptProfile(page, reviewed(), ADAPTER_VERSION)).toBeNull();
+    expect(matchReceiptProfile(page, anyBuild(), ADAPTER_VERSION)).toEqual({ profile: 'any-build', kind: 'anyBuild' });
   });
 });

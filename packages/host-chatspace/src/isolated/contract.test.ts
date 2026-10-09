@@ -86,6 +86,30 @@ describe('[DB-031] the host contract check (§6.2)', () => {
     expect(buildContractReport(input({ live, wire: { build: null, missing: ['composerTranslator'], shape: [] } })).anchors.composerTranslator).toBe('missing');
   });
 
+  it('[X8-06] decision X25: the fuse keeps X8 off right after the flag (CG-SEND-FUSE), before an anchor or the tap is named; the report names the profile that let X8 in, and how', () => {
+    const live = { tap: true, previewSend: true, receipt: true, receiptMatch: { profile: 'any-build', kind: 'anyBuild' as const } };
+    const of = (over: Partial<ContractInput>) => buildContractReport(input({ live, ...over }));
+    const on = HostContractReportSchema.parse(of({}));
+    expect(on.capabilities.previewSend).toEqual({ state: 'on' });
+    expect(on.receiptMatch).toEqual({ profile: 'any-build', kind: 'anyBuild' });
+    // Tripped: off with its own code; the rest of the live side is untouched.
+    const fused = of({ live: { ...live, fused: true } });
+    expect(fused.capabilities.previewSend).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
+    expect(fused.capabilities.receipt).toEqual({ state: 'on' });
+    expect(fused.capabilities.sendObserve).toEqual({ state: 'on' });
+    expect(fused.capabilities.insert).toEqual({ state: 'on' });
+    // The owner's switch speaks first; the fuse before a broken anchor, the tap or a missing profile.
+    expect(of({ live: { ...live, fused: true, previewSend: false } }).capabilities.previewSend).toEqual({ state: 'off', reason: 'flag', code: 'CG-SEND-OFF' });
+    expect(of({ live: { ...live, fused: true, tap: false } }).capabilities.previewSend).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
+    expect(of({ live: { ...live, fused: true, receipt: false }, wire: { build: null, missing: ['pendingMessages'], shape: [] } }).capabilities.previewSend).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
+    // No profile matched: no match is reported, whatever the input says.
+    expect(of({ live: { ...live, receipt: false } }).receiptMatch).toBeUndefined();
+    expect(of({ live: { ...live, receiptMatch: null } }).receiptMatch).toBeUndefined();
+    expect(of({ live: { ...live, receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } } }).receiptMatch).toEqual({ profile: 'chatspace-0.202.0', kind: 'exact' });
+    // Another match is another report (listeners hear of it).
+    expect(sameReport(of({}), of({ live: { ...live, receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } } }))).toBe(false);
+  });
+
   it('[ER-048] [ER-049] no MAIN or no #app: CG-HOST-NOT-READY; a broken router or accounts: CG-HOST-CONTRACT', () => {
     expect(buildContractReport(input({ wire: null })).capabilities.insert).toEqual({ state: 'off', reason: 'bridge', code: 'CG-HOST-NOT-READY' });
     expect(buildContractReport(input({ wire: { build: null, missing: ['app'], shape: [] } })).capabilities.identity).toEqual({ state: 'off', reason: 'app', code: 'CG-HOST-NOT-READY' });

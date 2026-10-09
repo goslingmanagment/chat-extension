@@ -128,5 +128,6 @@ export * from './scheduler';
 export * from './profile-saver';
 export * from './greeting-leases';
 export * from './send-coordinator';
+export * from './send-fuse';
 export * from './send-driver';
 export * from './native-send';

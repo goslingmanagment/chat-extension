@@ -8,9 +8,12 @@ import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
 import { type HostContractReport } from '@cg/contracts/host';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
+import { type SendFuse } from '@cg/contracts/send';
+import { SEND_FUSE_UNCERTAIN_RUN, sendFuseHolds, type SendFuseReason } from '@cg/contracts/send-rules';
+import { type I18nPlainParams, type I18nTextKey } from '@cg/contracts/i18n/catalog';
 import { type I18n, type Msg, type RunningOpVM, type StatusBodyVM, type StatusRowVM, type UiAction } from '@cg/contracts/vm';
 
-import { anchorGap, anchorsNotYet, previewSendWaitsForChat } from '../../domain/host';
+import { anchorGap, anchorsNotYet, previewSendFused, previewSendWaitsForChat, receiptMatchOf } from '../../domain/host';
 import { flagStateOf, somePageFlagState, type FlagState } from '../../domain/ops/flags';
 import { flagReasonVm } from '../flag-reason';
 
@@ -312,9 +315,49 @@ function contractRow(model: PagesModel): StatusRowVM | null {
   const gaps = hostGaps(report);
   const value = msg('settings.status.row.contractValue', { adapter: report.adapterVersion, build: report.build ?? '—' });
   const later = anchorsNotYet(report);
-  if (gaps.anchors.length === 0 && later.length > 0) return row('contract', 'ok', value, msg('settings.status.row.contractNotYet', { anchors: later.join(', ') }));
-  if (gaps.anchors.length === 0) return row('contract', 'ok', value, msg('settings.status.row.contractOk', { n: Object.keys(report.anchors).length }));
-  return row('contract', 'warn', value, msg('settings.status.row.contractMissing', { missing: gaps.anchors.join(', ') }));
+  // 1.11.0: the receipt profile that let X8 in, and how — a reviewed build or the hub's «any build» sentinel.
+  const match = receiptMatchOf(report);
+  const receipt: PlainNote | null = match === null ? null : { key: match.kind === 'anyBuild' ? 'settings.status.row.contractReceiptAnyBuild' : 'settings.status.row.contractReceiptExact', params: { profile: match.profile } };
+  const note = (base: PlainNote): string | Msg => notes(model, base, receipt) ?? msg(base.key, base.params);
+  if (gaps.anchors.length === 0 && later.length > 0) return row('contract', 'ok', value, note({ key: 'settings.status.row.contractNotYet', params: { anchors: later.join(', ') } }));
+  if (gaps.anchors.length === 0) return row('contract', 'ok', value, note({ key: 'settings.status.row.contractOk', params: { n: Object.keys(report.anchors).length } }));
+  return row('contract', 'warn', value, note({ key: 'settings.status.row.contractMissing', params: { missing: gaps.anchors.join(', ') } }));
+}
+
+/** A note with plain parameters only (no times, no money): it can be joined with another as text. */
+interface PlainNote {
+  readonly key: I18nTextKey;
+  readonly params?: I18nPlainParams;
+}
+
+/** Two notes of one row, the second when there is one; a single note stays a message (null — none). */
+function notes(model: PagesModel, first: PlainNote | null, second: PlainNote | null): string | Msg | null {
+  if (first === null || second === null) {
+    const one = first ?? second;
+    return one === null ? null : msg(one.key, one.params);
+  }
+  return `${model.t.text(first.key, first.params)} ${model.t.text(second.key, second.params)}`;
+}
+
+/** The reason of a tripped X8 fuse in plain words (decision X25). */
+const FUSE_REASON_KEYS = {
+  text: 'settings.status.fuse.reason.text',
+  count: 'settings.status.fuse.reason.count',
+  target: 'settings.status.fuse.reason.target',
+  uncertain: 'settings.status.fuse.reason.uncertain',
+} as const satisfies Record<SendFuseReason, string>;
+
+/**
+ * The X8 fuse that holds the preview send off for the person (decision X25): the browser's fuse, when it holds the
+ * build of the tab in front of them (no tab: whatever it holds), or a trip a tab's host reports before the
+ * background has heard of it. `fuse` — what the background keeps (null — it has not heard yet).
+ */
+export function fusedNow(model: PagesModel): { readonly fuse: SendFuse | null } | null {
+  const fuse = valueOf(model.diagnostics)?.sendFuse?.fuse ?? null;
+  const report = hostReportOf(model)?.report ?? null;
+  if (report !== null && previewSendFused(report)) return { fuse };
+  if (fuse !== null && (report === null || sendFuseHolds(fuse, report.build))) return { fuse };
+  return null;
 }
 
 /**
@@ -331,14 +374,42 @@ export function statusFlag(model: PagesModel, flag: ClientFeatureFlag): FlagStat
   return bound === null ? somePageFlagState(bootstrap, flag) : flagStateOf(bootstrap, bound.binding.pageId, flag);
 }
 
+/**
+ * «Отправка из превью» (X8): off; on — and on what (1.11.0, decision X25): a reviewed ChatSpace build (an exact
+ * receipt profile) or a build nobody reviewed (the hub's «any build» sentinel), as the tab in front of the person
+ * reports it; or off by the fuse, with why, when, on which build, and «Сбросить предохранитель».
+ */
 function previewSendRow(model: PagesModel): StatusRowVM | null {
   const bootstrap = valueOf(model.bootstrap);
   const flag = statusFlag(model, 'previewSend');
   if (bootstrap === null || flag === null) return null;
   const on = flag.usable && bootstrap.limits.previewSendReceiptProfiles.length > 0;
   const sends = valueOf(model.diagnostics)?.sends ?? null;
-  const note = sends === null ? null : msg('settings.status.row.previewSendNote', { open: sends.open, uncertain: sends.uncertain });
-  return row('preview-send', sends !== null && sends.uncertain > 0 ? 'warn' : 'ok', msg(on ? 'settings.status.row.previewSendOn' : 'settings.status.row.previewSendOff'), note);
+  const counts: PlainNote | null = sends === null ? null : { key: 'settings.status.row.previewSendNote', params: { open: sends.open, uncertain: sends.uncertain } };
+  const level = sends !== null && sends.uncertain > 0 ? 'warn' : 'ok';
+  if (!on) return row('preview-send', level, msg('settings.status.row.previewSendOff'), notes(model, counts, null));
+  const fused = fusedNow(model);
+  if (fused !== null) {
+    // Why, when and on which build it tripped; null — the tab tripped it and the background has not heard yet.
+    const fuse = fused.fuse;
+    const why =
+      fuse === null
+        ? null
+        : msg(fuse.build === null ? 'settings.status.row.previewSendFusedEveryNote' : 'settings.status.row.previewSendFusedNote', {
+            reason: model.t.text(FUSE_REASON_KEYS[fuse.reason], { n: SEND_FUSE_UNCERTAIN_RUN }),
+            time: { time: fuse.trippedAt, style: 'datetime' },
+            build: fuse.build ?? '—',
+          });
+    return row('preview-send', 'warn', msg('settings.status.row.previewSendFused'), why, button('settings.status.fuse.reset', { type: 'ResetSendFuse' }));
+  }
+  const report = hostReportOf(model)?.report ?? null;
+  const match = report === null ? null : receiptMatchOf(report);
+  if (match?.kind === 'anyBuild') {
+    // A person must see that X8 runs on a build nobody reviewed (decision X25).
+    return row('preview-send', level, msg('settings.status.row.previewSendAnyBuild'), notes(model, { key: 'settings.status.row.previewSendAnyBuildNote', params: { profile: match.profile } }, counts));
+  }
+  if (match?.kind === 'exact') return row('preview-send', level, msg('settings.status.row.previewSendExact', { profile: match.profile }), notes(model, counts, null));
+  return row('preview-send', level, msg('settings.status.row.previewSendOn'), notes(model, counts, null));
 }
 
 function spendersRow(model: PagesModel): StatusRowVM | null {
@@ -411,6 +482,8 @@ export function readinessOf(model: PagesModel, rows: readonly StatusRowVM[]): St
   if (quota?.level === 'warn') warnings.push(msg(pageQuotas(model).some((entry) => entry.remaining === 0) ? 'settings.status.warning.quotaZero' : 'settings.status.warning.quotaLow'));
   const sends = valueOf(model.diagnostics)?.sends ?? null;
   if (sends !== null && sends.uncertain > 0) warnings.push(msg('settings.status.warning.sendUncertain'));
+  // The preview send is switched on, but the fuse holds it off (decision X25).
+  if (rows.find((entry) => entry.id === 'preview-send')?.action?.action.type === 'ResetSendFuse') warnings.push(msg('settings.status.warning.sendFused'));
   const needed = required.filter((entry) => entry.level === 'error' || entry.level === 'warn');
   // A partly checked ChatSpace still works through «Копировать»: a warning, not a blocker.
   const chatspace = required.find((entry) => entry.id === 'chatspace');
