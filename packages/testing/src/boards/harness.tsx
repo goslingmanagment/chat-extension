@@ -52,7 +52,7 @@ export interface MountBoardOptions {
 export function mountBoard(kind: BoardSurfaceKind, scenario: string | AppClientScenario, options: MountBoardOptions = {}): MountedBoard {
   const world = boardWorld(scenario, options.language ?? 'ru');
   const host = document.createElement('div');
-  host.setAttribute('data-cg', 'overlay');
+  host.setAttribute('data-host', 'overlay');
   document.documentElement.append(host);
   const root = host.attachShadow({ mode: 'closed' });
   const failures: KitFailure[] = [];

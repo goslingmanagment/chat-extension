@@ -19,6 +19,7 @@ import {
 } from '../../fixture-chatspace/src/protocol';
 import { STAND_IDS } from '../../src/stand/dataset';
 import type { EgressPage } from '../../src/stand/egress-sink';
+import type { SentryPage } from '../../src/stand/sentry-inbox';
 
 export { STAND_IDS };
 
@@ -54,13 +55,15 @@ export async function waitForStandReady(timeout = 15_000): Promise<void> {
 }
 
 /** Opens a stand path (optionally as a «new build» without some anchors, or with a slow start) and waits for the app — and for the open chat, if any. */
-export async function openStand(path: string, options: { readonly breaks?: readonly StandBreak[]; readonly waitForChat?: boolean; readonly csp?: 'strict'; readonly slowStartMs?: number } = {}): Promise<void> {
+export async function openStand(path: string, options: { readonly breaks?: readonly StandBreak[]; readonly waitForChat?: boolean; readonly csp?: 'strict'; readonly slowStartMs?: number; readonly sentry?: boolean } = {}): Promise<void> {
   const url = new URL(path, standOrigin());
   if (options.breaks !== undefined && options.breaks.length > 0) url.searchParams.set('stand-break', options.breaks.join(','));
   // A slow start: the app is on the page this long before its app-wide data start to load.
   if (options.slowStartMs !== undefined) url.searchParams.set('stand-slow-start', String(options.slowStartMs));
   // The fixture's document comes with a strict CSP (src/stand-server.ts `strictFixtureCsp`).
   if (options.csp !== undefined) url.searchParams.set('csp', options.csp);
+  // Sentry on the page as on ChatSpace 0.195.0, reporting to the stand's collector (fixture-chatspace/src/sentry.ts).
+  if (options.sentry === true) url.searchParams.set('stand-sentry', '1');
   await browser.url(url.toString());
   await waitForStandReady();
   const chat = /^\/accounts\/([^/]+)\/chats\/([^/?#]+)/.exec(url.pathname);
@@ -170,6 +173,10 @@ export const standServer = {
     (await control('/__stand/state')) as { sockets: Array<{ id: number; label: string; authenticated: boolean; accounts: string[] }> },
   /** Outside requests the browser tried (the egress sink), after the cursor `since`. */
   egress: async (since = 0): Promise<EgressPage> => (await control(`/__stand/egress?since=${since}`)) as EgressPage,
+  /** What the page's Sentry sent to the stand's collector (?stand-sentry=1), after the cursor `since`. */
+  sentry: async (since = 0): Promise<SentryPage> => (await control(`/__stand/sentry?since=${since}`)) as SentryPage,
+  /** Forgets every envelope; returns the cursor to read from. */
+  sentryReset: async (): Promise<number> => ((await control('/__stand/sentry/reset', { body: {} })) as { next: number }).next,
 };
 
 export function byOrigin(entries: readonly ServerJournalEntry[], origin: CallOrigin): ServerJournalEntry[] {
@@ -222,7 +229,7 @@ export async function composerRoots(): Promise<{ readonly all: string[]; readonl
 /** Where the dock host sits: the stand composer key of its parent, and whether it is the first child. */
 export async function dockPlacement(): Promise<{ readonly hosts: number; readonly parentKey: string | null; readonly firstChild: boolean; readonly visible: boolean }> {
   return browser.execute(() => {
-    const hosts = document.querySelectorAll<HTMLElement>('[data-cg="dock"]');
+    const hosts = document.querySelectorAll<HTMLElement>('[data-host="dock"]');
     const host = hosts[0];
     const parent = host?.parentElement ?? null;
     return {

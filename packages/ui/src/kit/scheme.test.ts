@@ -80,7 +80,7 @@ describe('[I18-005] theme host / system / light / dark (ui-design §2.1)', () =>
     expect(query.listenerCount).toBe(0);
   });
 
-  it('mirrors the scheme on our host element as data-cg-scheme, now and on change, until released', () => {
+  it('mirrors the scheme on our host element as data-scheme, now and on change, until released', () => {
     const attributes = new Map<string, string>();
     const element = { setAttribute: (name: string, value: string) => attributes.set(name, value) } as unknown as Element;
     const scheme = new SettableSignal<ColorScheme>('light');

@@ -23,6 +23,8 @@
     "preact": "11.0.0"
   },
   "devDependencies": {
+    "@sentry/browser": "10.45.0",
+    "@sentry/vue": "10.45.0",
     "@tiptap/core": "3.31.4",
     "@tiptap/extensions": "3.31.4",
     "@tiptap/pm": "3.31.4",

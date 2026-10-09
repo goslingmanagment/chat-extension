@@ -10,6 +10,7 @@ import { fail, RELEASE_DIR, REPO_ROOT, TEST_DIR } from '../lib/paths.ts';
 import {
   checkMainWorldBundles,
   checkReleaseBundle,
+  MAIN_WORLD_BUNDLES,
   checkSdkCustody,
   checkTabStorageListeners,
   deriveSdkMarkers,
@@ -24,6 +25,13 @@ if (!existsSync(join(RELEASE_DIR, 'manifest.json'))) fail('gates: release build 
 const release = JSON.parse(readFileSync(join(RELEASE_DIR, 'manifest.json'), 'utf8')) as Record<string, unknown>;
 for (const problem of checkManifest(release, 'release')) {
   violations.push({ gate: 'release-manifest', path: 'apps/extension/.output/firefox-mv3/manifest.json', line: 1, message: problem });
+}
+// Every script the manifest runs in the page's world is one the MAIN-world bundle gate reads.
+for (const script of (release['content_scripts'] ?? []) as Array<{ world?: string; js?: string[] }>) {
+  if (script.world !== 'MAIN') continue;
+  for (const js of script.js ?? []) {
+    if (!MAIN_WORLD_BUNDLES.includes(js)) violations.push({ gate: 'main-world-bundle', path: 'apps/extension/.output/firefox-mv3/manifest.json', line: 1, message: `MAIN-world content script ${js} is not in MAIN_WORLD_BUNDLES (tools/gates/checks.ts).` });
+  }
 }
 // Markers of SDK code in a bundle come from the vendored dist itself (parsed:
 // its extensionless imports keep plain Node from importing it). A kind that
@@ -48,5 +56,5 @@ for (const violation of violations) {
 }
 if (violations.length > 0) fail(`gates: ${violations.length} violation(s).`);
 console.log(
-  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles, no storage listener in the tab — all clean.`,
+  `gates: onlymonster references, HTML sinks, browser.* scope, UI vocabulary, send-queue scope, stand-only hooks, MAIN-world guards, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), no storage listener in the tab — all clean.`,
 );

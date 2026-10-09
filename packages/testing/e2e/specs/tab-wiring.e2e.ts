@@ -165,13 +165,13 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     const open = await dockIs((d) => d.overlays.includes('palette') && d.surfaces.includes('palette'), 'the palette is open');
     expect(open.views).toContain('palette');
     // While our window is open, ChatSpace's Esc must not close the chat tab: the host says so.
-    const hosts = await browser.execute(() => [...document.querySelectorAll('[data-cg="overlay"]')].map((host) => host.hasAttribute('data-dismissible-open')));
+    const hosts = await browser.execute(() => [...document.querySelectorAll('[data-host="overlay"]')].map((host) => host.hasAttribute('data-dismissible-open')));
     expect(hosts.some(Boolean)).toBe(true);
     // The window's host is a child of <html>, outside the page's application root: it is given the font of the
     // place the dock sits in, so our window is drawn in the same font as our dock.
     const fonts = await browser.execute(() => {
-      const dock = document.querySelector('[data-cg="dock"]');
-      const modal = document.querySelector<HTMLElement>('[data-cg="overlay"][data-cg-layer="modal"]');
+      const dock = document.querySelector('[data-host="dock"]');
+      const modal = document.querySelector<HTMLElement>('[data-host="overlay"][data-layer="modal"]');
       return { beside: dock?.parentElement ? getComputedStyle(dock.parentElement).fontFamily : null, modal: modal ? getComputedStyle(modal).fontFamily : null, inline: modal?.style.fontFamily ?? '' };
     });
     expect(fonts.inline).not.toBe('');
@@ -180,7 +180,7 @@ describe('tab wiring — the real dock, its controllers and the keys on the stan
     const closed = await dockIs((d) => !d.overlays.includes('palette') && !d.surfaces.includes('palette'), 'the palette is closed');
     expect(closed.status).toBe('ready');
     expect((await callStand('route')).chatId).toBe(a1);
-    expect(await browser.execute(() => [...document.querySelectorAll('[data-cg="overlay"]')].some((host) => host.hasAttribute('data-dismissible-open')))).toBe(false);
+    expect(await browser.execute(() => [...document.querySelectorAll('[data-host="overlay"]')].some((host) => host.hasAttribute('data-dismissible-open')))).toBe(false);
   });
 
   it('[ST-122] [I18-001] the theme, the language and «Вид ответа» follow the settings at once, without a reload', async () => {

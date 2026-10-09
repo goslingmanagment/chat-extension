@@ -222,7 +222,7 @@ describe('the route by the address', () => {
 });
 
 describe('a key that waits', () => {
-  it('[HK-024] the dock host carries data-cg-key-pending and aria-busy from the keydown until the key runs or is dropped', () => {
+  it('[HK-024] the dock host carries data-pending and aria-busy from the keydown until the key runs or is dropped', () => {
     const mark = createKeyPendingMark(ours.host);
     expect(ours.host.hasAttribute(KEY_PENDING_ATTRIBUTE)).toBe(false);
     mark(true);
@@ -231,6 +231,6 @@ describe('a key that waits', () => {
     mark(false);
     expect([ours.host.hasAttribute(KEY_PENDING_ATTRIBUTE), ours.host.hasAttribute('aria-busy')]).toEqual([false, false]);
     // Nothing else on the host is touched.
-    expect(ours.host.getAttribute('data-cg')).toBe('dock');
+    expect(ours.host.getAttribute('data-host')).toBe('dock');
   });
 });

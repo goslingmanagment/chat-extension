@@ -54,9 +54,14 @@
 //   followed) for the end of the native chain: FAILED, or the entry gone —
 //   `cancel`, a reset, a sign-out, or a success whose receipt was not seen.
 //   None of the queue's actions is ever called from here (§6.10).
+// - What ChatSpace calls — the observer in place of fetch, the queue's
+//   `after`/`onError` and `$subscribe` — keeps every failure of ours inside
+//   (guard.ts; counted by the bridge). The previous fetch is called outside
+//   any of it: what it throws or returns — a rejection too — is ChatSpace's
+//   and reaches ChatSpace unchanged, the very same value.
 
 import { idOf, isPlain, type Plain } from './check';
-import { type Fact, type LiveHost, type QueueListener } from './live';
+import { type Fact, type LiveHost, type QueueListener, type Tap } from './live';
 import { CG_SEND_GUARD, CG_SEND_REJECTED, CG_SEND_UNCERTAIN, ENTRY_FAILED, ERROR_BLOCKED, GUARD_CODE, SEND_PATH } from './protocol';
 import { isRef, queueBusy, type SendObserver } from './send-port';
 
@@ -86,8 +91,10 @@ interface Followed {
   readonly decide: () => void;
 }
 
-export function createReceipts(win: Window & typeof globalThis, host: LiveHost): SendObserver & { readonly send: QueueListener; readonly echo: (fact: Fact) => void } {
+export function createReceipts(win: Window & typeof globalThis, host: LiveHost, { guard, fail }: Pick<Tap, 'guard' | 'fail'>): SendObserver & { readonly send: QueueListener; readonly echo: (fact: Fact) => void } {
   const open = new Set<Followed>();
+  /** «The queue changed» for each send followed; one that fails leaves the others theirs. */
+  const decideOne = guard('decide', (each: Followed) => each.decide());
   /** `acc:fan:id` of a receipt → what its outgoing echo completes. */
   const awaiting = new Map<string, () => void>();
   let broken = false;
@@ -116,7 +123,7 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost):
     let id: string | null = null;
     /** The server's error code and Message Guard topics of an intercepted refusal. */
     let code = '';
-    let guard: string[] | null = null;
+    let guardTopics: string[] | null = null;
     /** The kept copies are being read. */
     let reading = false;
     /** A second POST, another chat's, or a text that is not the one queued: nothing can be claimed. */
@@ -165,9 +172,9 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost):
       const upstream = status ? `HTTP ${status} ${code}`.trim() : 'no receipt';
       if (failed && !odd && (refused || blocked)) {
         say('rejected', {
-          code: blocked || guard ? CG_SEND_GUARD : CG_SEND_REJECTED,
+          code: blocked || guardTopics ? CG_SEND_GUARD : CG_SEND_REJECTED,
           ...(refused ? { httpStatus: status } : {}),
-          detail: { ...(blocked || guard ? { guardTopics: guard ?? topics(isPlain(error['guard']) ? error['guard']['topics'] : null) } : {}), upstream },
+          detail: { ...(blocked || guardTopics ? { guardTopics: guardTopics ?? topics(isPlain(error['guard']) ? error['guard']['topics'] : null) } : {}), upstream },
         });
       } else say('uncertain', { code: CG_SEND_UNCERTAIN, detail: { upstream } });
     };
@@ -196,7 +203,7 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost):
           if (status >= 200 && status < 300) id = idOf(json['id']);
           else {
             code = typeof json['code'] === 'string' ? json['code'].slice(0, 64) : '';
-            if (code === GUARD_CODE) guard = topics(json['topic_matches']);
+            if (code === GUARD_CODE) guardTopics = topics(json['topic_matches']);
           }
         }
       } catch {
@@ -226,15 +233,18 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost):
             }
           } catch {
             // No copy: nothing can be claimed.
+            fail('observe');
           }
+          // ChatSpace's own call: what the previous fetch throws, or the promise it returns, is ChatSpace's, as it is.
           const result: unknown = Reflect.apply(previous, this, args);
           if (hit) {
             odd ||= !copy;
             try {
-              if (copy) void read(copy, result as Promise<Response>);
+              if (copy) read(copy, result as Promise<Response>).catch(() => fail('read'));
               else decide();
             } catch {
               odd = true;
+              fail('observe');
             }
           }
           return result;
@@ -265,17 +275,10 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost):
           return false;
         }
         open.add(self);
+        // Inside ChatSpace's own state change: a failure of ours stays here.
         stop ??=
           host.queue()?.$subscribe?.(
-            () => {
-              for (const each of open) {
-                try {
-                  each.decide();
-                } catch {
-                  // Inside ChatSpace's own state change: a failure of ours stays here.
-                }
-              }
-            },
+            guard('queueState', () => open.forEach(decideOne)),
             { detached: true, flush: 'sync' },
           ) ?? null;
         decide();
@@ -307,19 +310,18 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost):
       // draft that is not from our insert, or a send that waits behind another (its request comes later), takes no
       // observer: its fact goes out without a receipt — attribution unknown.
       const release = from.draft.insertIntentId && !queueBusy(host, queue, acc) && !fixed() ? followed.capture() : null;
+      const restore = guard('release', () => release?.());
       // The observer never outlives this synchronous stack, even if the queue's action stopped being synchronous.
-      if (release) void Promise.resolve().then(release);
+      if (release) queueMicrotask(restore);
       // Both run inside ChatSpace's own action: the page's fetch goes back first, and nothing of ours may throw into it.
-      after((entry) => {
-        release?.();
-        try {
-          // No entry — the queue refused: nothing was sent.
+      after(
+        guard('after', (entry: unknown) => {
+          restore();
+          // No entry — the queue refused: nothing was sent. A failure here loses the send's fact; the send went on.
           if (isPlain(entry) && isRef(entry['id'])) followed.bind(entry['id']);
-        } catch {
-          // The send went on; its fact is lost.
-        }
-      });
-      onError(() => release?.());
+        }),
+      );
+      onError(restore);
     },
     echo(fact) {
       if (fact.fromFan) return;

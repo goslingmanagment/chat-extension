@@ -48,7 +48,7 @@ export interface BoardsProbe {
   box(selector: string): { readonly left: number; readonly top: number; readonly width: number; readonly height: number; readonly display: string } | null;
   /** A computed style property of the first element matching `selector` inside our root. */
   style(selector: string, property: string): string | null;
-  /** The scheme our host carries (`data-cg-scheme`). */
+  /** The scheme our host carries (`data-scheme`). */
   scheme(): string | null;
   /** Types into the board's search and resolves with the ms from the keystroke's dispatch to the paint of the answer. */
   search(query: string): Promise<{ readonly totalMs: number; readonly buildMs: number; readonly shown: number }>;
@@ -95,7 +95,7 @@ if (fans !== null) world.client.goTo(-1);
 const deps = live === null ? world.deps : { ...world.deps, client: live };
 
 const host = document.createElement('div');
-host.setAttribute('data-cg', 'overlay');
+host.setAttribute('data-host', 'overlay');
 document.documentElement.append(host);
 const root = host.attachShadow({ mode: 'closed' });
 const failures: KitFailure[] = [];
@@ -144,7 +144,7 @@ window.__boards = {
     const element = root.querySelector(selector);
     return element === null ? null : getComputedStyle(element).getPropertyValue(property);
   },
-  scheme: () => host.getAttribute('data-cg-scheme'),
+  scheme: () => host.getAttribute('data-scheme'),
   async search(query) {
     if (live === null) throw new Error('search needs ?rows=N');
     const input = root.querySelector<HTMLInputElement>('.cg-sp__search input');

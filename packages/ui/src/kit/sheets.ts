@@ -27,7 +27,7 @@ import { MARKDOWN_CSS } from './markdown/markdown.css';
 import { adoptSheets, dropSheets, type StyleMode, type StyleSource } from './styles';
 import { THEME_CSS } from './tokens';
 
-/** The token values: light on `:host` / `:root`, dark under `data-cg-scheme="dark"`. */
+/** The token values: light on `:host` / `:root`, dark under `data-scheme="dark"`. */
 export const TOKENS_SOURCE: StyleSource = { id: 'cg-kit-tokens', css: THEME_CSS };
 export const BASE_SOURCE: StyleSource = { id: 'cg-kit-base', css: BASE_CSS };
 /** Every kit component; order matters only where a later rule refines an earlier one (parts over buttons). */

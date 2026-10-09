@@ -210,11 +210,11 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
 
     it('[X8-04] [SN-001] the tap wraps only the constructor: ChatSpace’s socket works as before, and its frames arm the subscribed accounts', async () => {
       const page = await browser.execute(() => {
-        const handle = (window as unknown as Record<symbol, { version?: number; socketCount?: () => number } | undefined>)[Symbol.for('chatgoose.wsTap')];
+        const handle = (window as unknown as Record<symbol, { version?: number; socketCount?: () => number } | undefined>)[Symbol.for('wsTap')];
         return {
           version: handle?.version ?? null,
           sockets: handle?.socketCount?.() ?? -1,
-          enumerable: Object.keys(window).includes('chatgoose.wsTap'),
+          enumerable: Object.keys(window).includes('wsTap'),
           statics: [WebSocket.CONNECTING, WebSocket.OPEN, WebSocket.CLOSING, WebSocket.CLOSED],
           prototypeNative: String(Object.getOwnPropertyDescriptor(WebSocket.prototype, 'send')?.value).includes('[native code]'),
         };
@@ -756,7 +756,7 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
 
     it('[X8-04] the tap measures the time its listener takes per frame (§6.8 п. 3, §11 `handlerMs`)', async () => {
       const [frames, totalMs, maxMs] = await browser.execute(() => {
-        const handle = (window as unknown as Record<symbol, { frameTime?: () => [number, number, number] } | undefined>)[Symbol.for('chatgoose.wsTap')];
+        const handle = (window as unknown as Record<symbol, { frameTime?: () => [number, number, number] } | undefined>)[Symbol.for('wsTap')];
         return handle?.frameTime?.() ?? [0, 0, 0];
       });
       evidence['tapFrameTime'] = { frames, totalMs, maxMs, averageMs: frames > 0 ? totalMs / frames : null };
@@ -917,7 +917,7 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
       expect(off.capabilities['incoming']).toEqual({ state: 'off', reason: 'wsTap', code: 'CG-SEND-FRESHNESS' });
       expect(off.capabilities['insert']).toEqual({ state: 'on' });
       const page = await browser.execute(() => ({
-        handle: (window as unknown as Record<symbol, unknown>)[Symbol.for('chatgoose.wsTap')] === undefined,
+        handle: (window as unknown as Record<symbol, unknown>)[Symbol.for('wsTap')] === undefined,
         // A Proxy has no own `prototype` descriptor to compare; the native constructor names itself.
         native: WebSocket.name === 'WebSocket' && Object.prototype.hasOwnProperty.call(WebSocket, 'prototype') && WebSocket.prototype.constructor === WebSocket,
       }));

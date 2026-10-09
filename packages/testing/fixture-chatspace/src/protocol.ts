@@ -35,6 +35,11 @@ export const STAND_BREAK_PARAM = 'stand-break';
 /** Query flag that mounts the app this many ms before its app-wide data start to load (a ChatSpace whose stores fill late). */
 export const STAND_SLOW_START_PARAM = 'stand-slow-start';
 
+/** Query flag (`=1`) that starts Sentry on the page as ChatSpace 0.195.0 does (fixture-chatspace/src/sentry.ts). */
+export const STAND_SENTRY_PARAM = 'stand-sentry';
+/** Where the page's Sentry reports, on the page origin: the stand server's collector (`<prefix>api/<project>/envelope/`). */
+export const STAND_SENTRY_PREFIX = '/sentry/';
+
 /**
  * Who made a call, as the stand server labels it:
  * - `native` — the page's own client (the role ChatSpace plays);
@@ -278,6 +283,11 @@ export interface StandControl {
   journal(since?: number): readonly PageJournalEntry[];
   /** Reloads the page as a «new build» without the given anchors (§6.2). */
   simulateBuildChange(breaks: readonly StandBreak[]): void;
+  /**
+   * With Sentry on (?stand-sentry=1): an error of the page's own code that nobody catches — Sentry reports it with the
+   * breadcrumbs it holds — and then what the SDK holds is sent. false — Sentry is off on this page.
+   */
+  sentryProbe(message: string): Promise<boolean>;
 }
 
 declare global {

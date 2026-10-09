@@ -207,6 +207,7 @@ export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
     [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
     [/chat-extension-test@/, 'test gecko id'],
     [/__cgBundleMarks/, 'spike timing marks'],
+    [/cg-e2e-main-throw/, 'the sentry-gate e2e\'s throwing MAIN probe'],
   ];
   const violations: Violation[] = [];
   for (const file of files) {
@@ -331,19 +332,33 @@ export function checkSdkCustody(
   return violations;
 }
 
-/** Built MAIN-world bundles (bridge and WS tap). */
+/**
+ * Built MAIN-world bundles (bridge and WS tap). The manifest's MAIN content scripts must all be here (index.ts checks
+ * it); a script the background registers in the MAIN world is added by hand.
+ */
 export const MAIN_WORLD_BUNDLES: readonly string[] = ['content-scripts/chatspace-main.js', 'chatspace-ws.js'];
 
 /**
  * 8. The MAIN-world bundles stay self-contained (§4, D-06): no extension API
  * (it does not exist in the page world — a stray import of @cg/platform shows
- * up as `globalThis.browser` / `runtime.getURL`) and no zod (contracts).
+ * up as `globalThis.browser` / `runtime.getURL`) and no zod (contracts). And
+ * nothing that would speak to the page's telemetry (decision X22): no
+ * `console` at all (ChatSpace's Sentry keeps every console line as a breadcrumb
+ * and sends it with its next error), no `debugger`, and not WXT's entry
+ * wrapper, which rethrows a failed start into the page (its log line is the
+ * marker; apps/extension/build/main-world-entry.ts keeps it out). The source
+ * has the same `console` rule (ESLint); this catches what a dependency or the
+ * build brings in.
  */
 export function checkMainWorldBundles(files: readonly SourceFile[]): Violation[] {
   const markers: Array<[RegExp, string]> = [
     [/\b(?:browser|chrome)\s*(?:\?\.|\.|\[)|globalThis\.(?:browser|chrome)\b/, 'extension API access'],
     [/\bruntime\.(?:getURL|id|connect|sendMessage)\b/, 'extension runtime call'],
     [/\$Zod|\bZodError\b/, 'zod'],
+    // Any reference: an alias (`var c = console`) calls it just the same.
+    [/\bconsole\b/, 'a console reference'],
+    [/\bdebugger\b/, 'a debugger statement'],
+    [/crashed on startup/, 'WXT\'s entry wrapper (it rethrows into the page)'],
   ];
   const violations: Violation[] = [];
   for (const file of files) {
@@ -401,6 +416,77 @@ export function checkStandHooks(files: readonly SourceFile[]): Violation[] {
   return violations;
 }
 
+/** MAIN-world source: the bridge, its runtime and the tap script (packages/host-chatspace/src/main, §4, D-06). */
+export const MAIN_WORLD_SOURCE = /^packages\/host-chatspace\/src\/main\/[^/]+\.ts$/;
+
+/**
+ * Where the page or the browser takes a callback of ours, by the name of the call, and which argument the callback is.
+ * `listen`, `later` and `nextFrame` are the natives the boot captures at load (bridge.ts). The boot's `setTimer` and
+ * `frame` are not here: they guard what they are given themselves.
+ */
+export const MAIN_CALLBACK_SITES: Readonly<Record<string, number>> = {
+  addEventListener: 1,
+  listen: 1,
+  setTimeout: 0,
+  setInterval: 0,
+  later: 0,
+  requestAnimationFrame: 0,
+  nextFrame: 0,
+  queueMicrotask: 0,
+  $onAction: 0,
+  $subscribe: 0,
+  afterEach: 0,
+  use: 0,
+  on: 1,
+  after: 0,
+  onError: 0,
+};
+/** Constructors that take a callback the browser calls (`new MutationObserver(callback)`). */
+const MAIN_CALLBACK_CONSTRUCTORS = new Set(['MutationObserver', 'ResizeObserver', 'IntersectionObserver', 'PerformanceObserver']);
+
+const nameOf = (node: ts.Expression): string | null => {
+  const bare = ts.isParenthesizedExpression(node) ? node.expression : node;
+  return ts.isPropertyAccessExpression(bare) ? bare.name.text : ts.isIdentifier(bare) ? bare.text : null;
+};
+const isGuardCall = (node: ts.Node): boolean => ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'guard';
+
+/**
+ * 10. Every callback MAIN hands the page or the browser goes through `guard` (decision X22, guard.ts): the argument is
+ * a `guard(…)` call, or a `const` of the same file bound to one. A handler property (`port.onmessage = …`) too. An
+ * exception of ours that left such a callback would reach ChatSpace's own error handling (its Sentry) with our frames,
+ * and where ChatSpace calls us inside its own work it would stop that work.
+ */
+export function checkMainWorldGuards(files: readonly SourceFile[]): Violation[] {
+  const violations: Violation[] = [];
+  for (const file of files) {
+    if (!MAIN_WORLD_SOURCE.test(file.path) || file.path.endsWith('.test.ts')) continue;
+    const source = parse(file);
+    const guarded = new Set<string>();
+    walk(source, (node) => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && isGuardCall(node.initializer) && ts.isVariableDeclarationList(node.parent) && node.parent.flags & ts.NodeFlags.Const) {
+        guarded.add(node.name.text);
+      }
+    });
+    const ok = (node: ts.Expression | undefined): boolean => node === undefined || isGuardCall(node) || (ts.isIdentifier(node) && guarded.has(node.text));
+    const report = (node: ts.Node, what: string): void => {
+      violations.push({ gate: 'main-world-guard', path: file.path, line: lineOf(source, node), message: `${what} hands the page or the browser a callback that is not a guard(…) (decision X22, guard.ts).` });
+    };
+    walk(source, (node) => {
+      if (ts.isCallExpression(node)) {
+        const name = nameOf(node.expression);
+        const index = name === null ? undefined : MAIN_CALLBACK_SITES[name];
+        if (name !== null && index !== undefined && !ok(node.arguments[index])) report(node, `\`${name}(…)\``);
+      } else if (ts.isNewExpression(node)) {
+        const name = nameOf(node.expression);
+        if (name !== null && MAIN_CALLBACK_CONSTRUCTORS.has(name) && !ok(node.arguments?.[0])) report(node, `\`new ${name}(…)\``);
+      } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(node.left) && /^on[a-z]+$/.test(node.left.name.text)) {
+        if (node.right.kind !== ts.SyntaxKind.NullKeyword && !ok(node.right)) report(node, `\`.${node.left.name.text} =\``);
+      }
+    });
+  }
+  return violations;
+}
+
 export function runSourceGates(files: readonly SourceFile[]): Violation[] {
   return [
     ...checkOnlyMonsterReferences(files),
@@ -409,5 +495,6 @@ export function runSourceGates(files: readonly SourceFile[]): Violation[] {
     ...checkUiTexts(files),
     ...checkSendQueueReferences(files),
     ...checkStandHooks(files),
+    ...checkMainWorldGuards(files),
   ];
 }

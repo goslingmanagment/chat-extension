@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeSocket, fakeLive, fakeQueue, frames, scriptedFetch, type FakeQueue, type FetchCall } from '../testing/fake-live';
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from './bridge';
+import { faultCounter, guardWith } from './guard';
 import { createMainRuntime } from './runtime';
 import { installWsTap } from './ws-tap';
 
@@ -60,12 +61,16 @@ async function start(order: 'tap-first' | 'bridge-first' | 'no-tap' = 'tap-first
 
   const events: Harness['events'] = [];
   let frames_: Array<() => void> = [];
+  const fail = faultCounter((source, count) => events.push({ t: 'fault', payload: { source, count } }));
+  const guard = guardWith(fail);
   const context: MainContext = {
     win: window,
     documentEpoch: 'doc1',
     now: () => performance.now(),
     setTimer: (callback, ms) => setTimeout(callback, ms),
     frame: (callback) => frames_.push(callback),
+    guard,
+    fault: fail,
     emit: (t, build) => events.push({ t, payload: build() }),
     post: (t, payload) => events.push({ t, payload }),
   };
@@ -105,7 +110,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   for (const step of cleanup.splice(0)) step();
-  (Reflect.get(window, Symbol.for('chatgoose.wsTap')) as { dispose(): void } | undefined)?.dispose();
+  (Reflect.get(window, Symbol.for('wsTap')) as { dispose(): void } | undefined)?.dispose();
   window.WebSocket = nativeSocket;
   window.fetch = nativeFetch;
 });
@@ -232,7 +237,7 @@ describe('[X8-04] the runtime and the tap script find each other (§6.8)', () =>
     expect(h.call('previewSendPreflight', req)).toEqual({ ok: true });
     expect(h.call('flags', { wsTap: false, previewSend: true })).toEqual({ wsTap: false, previewSend: false });
     expect(window.WebSocket).toBe(FakeSocket);
-    expect(Reflect.get(window, Symbol.for('chatgoose.wsTap'))).toBeUndefined();
+    expect(Reflect.get(window, Symbol.for('wsTap'))).toBeUndefined();
     expect(h.call('checkpoint', { acc: ACC, fan: TARGET })).toBe('disabled');
     expect(h.call('previewSendCommit', req)).toEqual({ state: 'held', code: 'CG-SEND-OFF' });
     expect((h.call('snapshot', {}) as { contract: { missing: string[] } }).contract.missing).toEqual(['wsFrames']);
@@ -259,7 +264,7 @@ describe('[X8-06] our listeners inside ChatSpace’s own action and state change
       asked += 1;
       throw new Error('ours');
     };
-    const key = Symbol.for('chatgoose.wsTap');
+    const key = Symbol.for('wsTap');
     // A tap script whose live port fails on every call.
     Object.defineProperty(window, key, { configurable: true, value: { version: 1, socketCount: () => 0, dispose: () => Reflect.deleteProperty(window, key), attach: () => ({ handle: () => 'disabled', anchor: () => 'missing', sent: fail, sync: fail }) } });
     const h = await start('no-tap');

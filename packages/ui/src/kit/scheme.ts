@@ -2,7 +2,7 @@
 // `ui.theme` host | system | light | dark, resolved against ChatSpace's
 // class on <html> (inside ChatSpace) or the OS (on extension pages, where
 // `host` means `system`). The result is a value signal; the mount mirrors it
-// to `data-cg-scheme` on our host element, which the dark token values key on.
+// to `data-scheme` on our host element, which the dark token values key on.
 
 import { type UiTheme } from '@cg/contracts/settings';
 import { SCHEME_ATTRIBUTE, type ColorScheme, type ValueSignal } from '@cg/contracts/vm';
@@ -93,7 +93,7 @@ export function resolvedSchemeSignal(
   };
 }
 
-/** Mirrors the scheme on our host element (or <html> of a page) as `data-cg-scheme`, now and on every change. */
+/** Mirrors the scheme on our host element (or <html> of a page) as `data-scheme`, now and on every change. */
 export function bindScheme(target: Element, scheme: ValueSignal<ColorScheme>): () => void {
   target.setAttribute(SCHEME_ATTRIBUTE, scheme.value);
   return scheme.subscribe((value) => target.setAttribute(SCHEME_ATTRIBUTE, value));

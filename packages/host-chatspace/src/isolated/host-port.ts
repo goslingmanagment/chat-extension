@@ -126,6 +126,8 @@ const NAV_GRACE_MS = 1000;
 const COMMIT_MEMORY = 64;
 /** Sends on their way that are followed for a profile change (§6.2); the oldest goes first. */
 const FLYING_MAX = 64;
+/** Sites of MAIN's guarded failures logged per document (MAIN has about thirty). */
+const MAX_FAULT_SITES = 64;
 /** The deadline a preflight carries: it has no ticket, and MAIN's preflight does not look at it. */
 const PREFLIGHT_WINDOW_MS = 60_000;
 
@@ -174,6 +176,11 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
    * in the queue, followed; true — said `uncertain` here because the receipt profile stopped matching (§6.2).
    */
   const flying = new Map<string, boolean | null>();
+  /**
+   * MAIN's guarded failures (decision X22) as last logged, by site. MAIN sends a site's count at 1, 2, 4, 8…; one is
+   * logged when it at least doubled the last, so a page that forges the event adds at most a few records per site.
+   */
+  const faults = new Map<string, number>();
   let report: HostContractReport = compute();
   const windows = new Map<ChatKey, ChatWindow | null>();
   const fans = new Map<ChatKey, HostFan | null>();
@@ -454,6 +461,14 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         if (voided && view.state !== 'sentObserved') return;
         for (const listener of [...(sendListeners.get(view.attemptId) ?? [])]) listener(view);
         return;
+      }
+      // A failure of our own MAIN code that its guard kept from the page: only the logs hear of it.
+      case 'fault': {
+        const { source, count } = event.payload;
+        const last = faults.get(source);
+        if ((last === undefined && faults.size >= MAX_FAULT_SITES) || count < 2 * (last ?? 0.5)) return;
+        faults.set(source, count);
+        return diag({ event: 'main-fault', code: 'CG-UNKNOWN', detail: { source, count } });
       }
     }
   };

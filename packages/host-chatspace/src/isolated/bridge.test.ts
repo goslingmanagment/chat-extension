@@ -6,7 +6,7 @@
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { attachMainRuntime, installMainBridge, type MainContext, type MainRuntime } from '../main/bridge';
+import { attachMainRuntime, exposeMainRuntimeHook, installMainBridge, type MainContext, type MainRuntime } from '../main/bridge';
 import { BridgeCallError, connectMainBridge, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { loadValidation } from './validation';
 
@@ -97,7 +97,8 @@ describe('[EX-008] MAIN ↔ isolated handshake (§5.3)', () => {
 describe('[EX-008] the boot routes requests to the runtime', () => {
   it('without a runtime everything but probe is not ready; a later MAIN script attaches it through the one-shot hook', async () => {
     const win = fakeWindow();
-    const main = installMainBridge(win, { exposeRuntimeHook: true });
+    const main = installMainBridge(win);
+    exposeMainRuntimeHook(main, win);
     const client = await connectMainBridge(win, loadValidation, 1000);
     cleanups.push(() => client.close(), () => main.dispose());
     const refused = await client.request('listAccounts', {}).catch((error: unknown) => error);
@@ -152,7 +153,7 @@ describe('[EX-008] the boot routes requests to the runtime', () => {
     const channel = new MessageChannel();
     const answers: Array<Record<string, unknown>> = [];
     channel.port1.onmessage = (event: MessageEvent<Record<string, unknown>>) => answers.push(event.data);
-    win.postMessage({ cg: 'connect', v: 1, nonce: 'n1' }, '*', [channel.port2]);
+    win.postMessage({ tag: 'connect', v: 1, nonce: 'n1' }, '*', [channel.port2]);
     await new Promise((resolve) => setTimeout(resolve, 10));
     cleanups.push(() => channel.port1.close(), () => main.dispose());
     let seq = 0;
@@ -290,10 +291,10 @@ describe('events MAIN → isolated (§5.3 limits)', () => {
 describe('a page script pretending to be MAIN (§14)', () => {
   /** Answers every request with `answer(request)`. */
   function forgeMain(win: ReturnType<typeof fakeWindow>, answer: (request: { id: number; t: string; seq: number }) => unknown): void {
-    win.addEventListener('message', ((event: { data: { cg?: string }; ports: readonly MessagePort[] }) => {
-      if (event.data.cg === 'iso-hello') win.postMessage({ cg: 'main-ready', v: 1 }, '*');
+    win.addEventListener('message', ((event: { data: { tag?: string }; ports: readonly MessagePort[] }) => {
+      if (event.data.tag === 'iso-hello') win.postMessage({ tag: 'main-ready', v: 1 }, '*');
       const port = event.ports[0];
-      if (event.data.cg === 'connect' && port) {
+      if (event.data.tag === 'connect' && port) {
         port.onmessage = (message: MessageEvent<{ id: number; t: string; seq: number }>) => port.postMessage(answer(message.data));
       }
     }) as unknown as EventListener);
@@ -336,9 +337,9 @@ describe('a page script pretending to be MAIN (§14)', () => {
   it('[RB-008] an event of an unknown type or a broken envelope is dropped and counted by reason', async () => {
     const win = fakeWindow();
     let port: MessagePort | null = null;
-    win.addEventListener('message', ((event: { data: { cg?: string }; ports: readonly MessagePort[] }) => {
-      if (event.data.cg === 'iso-hello') win.postMessage({ cg: 'main-ready', v: 1 }, '*');
-      if (event.data.cg === 'connect') port = event.ports[0] ?? null;
+    win.addEventListener('message', ((event: { data: { tag?: string }; ports: readonly MessagePort[] }) => {
+      if (event.data.tag === 'iso-hello') win.postMessage({ tag: 'main-ready', v: 1 }, '*');
+      if (event.data.tag === 'connect') port = event.ports[0] ?? null;
     }) as unknown as EventListener);
     const client = await connectMainBridge(win, loadValidation, 100);
     cleanups.push(() => client.close());

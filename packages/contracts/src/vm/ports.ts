@@ -107,7 +107,7 @@ export interface MountDeps {
   readonly toasts: ToastPort;
   readonly clipboard: ClipboardPort;
   readonly dialogs: DialogPort;
-  /** Also mirrored as `data-cg-scheme` on the host element by the mount. */
+  /** Also mirrored as `data-scheme` (SCHEME_ATTRIBUTE) on the host element by the mount. */
   readonly scheme: SchemeSignal;
   readonly geometry: GeometrySignal;
   readonly focus: FocusReturn;

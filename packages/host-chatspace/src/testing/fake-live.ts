@@ -315,6 +315,8 @@ export interface FakeLive {
   subscribed: Set<string> | null;
   /** Times the contract was asked to be judged again. */
   changes: number;
+  /** Failures the tap script's guard handed over, by site, in order. */
+  readonly faults: string[];
   set(key: readonly string[], value: unknown): void;
 }
 
@@ -330,6 +332,7 @@ export function fakeLive(documentEpoch = 'doc1'): FakeLive {
     draft: null,
     subscribed: new Set(['1001']),
     changes: 0,
+    faults: [],
     set: (key, value) => void live.data.set(JSON.stringify(key), value),
   };
   (live as { host: LiveHost }).host = {
@@ -363,6 +366,7 @@ export function fakeLive(documentEpoch = 'doc1'): FakeLive {
     changed: () => {
       live.changes += 1;
     },
+    fault: (site) => void live.faults.push(site),
   };
   return live;
 }

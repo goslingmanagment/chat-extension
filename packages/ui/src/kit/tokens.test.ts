@@ -43,7 +43,7 @@ describe('[I18-006] theme on every surface: one token sheet for shadow roots and
     expect(lightBlock).toContain('color-scheme: light;');
   });
 
-  it('dark values key on data-cg-scheme of the host element or of <html>, never on the host page’s .dark class', () => {
+  it('dark values key on data-scheme of the host element or of <html>, never on the host page’s .dark class', () => {
     expect(darkBlock.startsWith(`${DARK_HOST}, ${DARK_PAGE} {`)).toBe(true);
     expect(DARK_HOST).toBe(`:host([${SCHEME_ATTRIBUTE}="dark"])`);
     expect(DARK_PAGE).toBe(`:root[${SCHEME_ATTRIBUTE}="dark"]`);

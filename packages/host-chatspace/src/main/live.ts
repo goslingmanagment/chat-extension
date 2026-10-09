@@ -8,7 +8,7 @@
 // needs the tap to mean anything — the freshness counters, the X8 send port,
 // the receipt observer, the observation of human sends — ships in the tap
 // script, so the document_start bundle stays within its budget (§11). The tap
-// leaves its handle under the non-enumerable `Symbol.for('chatgoose.wsTap')`;
+// leaves its handle under the non-enumerable `Symbol.for('wsTap')`;
 // the runtime takes it once and lends the tap script its page reads and its
 // event channel (`LiveHost`), and gets the live port back.
 //
@@ -16,6 +16,7 @@
 // the port first, and the bridge stays without one — the same as no tap.
 
 import { type Plain } from './check';
+import { type Guard } from './guard';
 
 // Page objects are described with function-valued properties: they are
 // ChatSpace's, and we only ever call them on their own object.
@@ -86,6 +87,8 @@ export interface LiveHost {
   readonly draft: (acc: string, fan: string) => { readonly draft: SentDraft; readonly digest: string } | null;
   /** The live port's anchor changed: the contract is judged again. */
   readonly changed: () => void;
+  /** A failure the tap script's guard caught: counted with the bridge's own (guard.ts, the `fault` event). */
+  readonly fault: (site: string) => void;
 }
 
 /** A message frame the tap read, without its text (contracts FROM_MAIN.incoming). */
@@ -125,10 +128,16 @@ export interface TapSink {
   readonly changed: () => void;
   /** LiveHost.members. */
   readonly members: () => { has(acc: string): boolean } | null;
+  /** A guarded failure of the tap script (LiveHost.fault). */
+  readonly fault: (site: string) => void;
 }
 
 /** The tap as the send port and the receipt observer see it (ws-tap.ts). */
 export interface Tap {
+  /** The tap script's guard (guard.ts): its failures go to the bridge's count. */
+  readonly guard: Guard;
+  /** A failure of ours caught by hand. */
+  readonly fail: (site: string) => void;
   /** False once switched off. */
   readonly on: () => boolean;
   /** `wsFrames` (LivePort.anchor). */
@@ -161,7 +170,7 @@ export interface LivePort {
   readonly anchor: () => string;
 }
 
-/** The tap's handle under `Symbol.for('chatgoose.wsTap')`. */
+/** The tap's handle under `Symbol.for('wsTap')`. */
 export interface WsTapHandle {
   readonly version: 1;
   /** Sockets constructed through the tap since install. */

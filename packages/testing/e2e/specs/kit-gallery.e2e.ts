@@ -45,7 +45,7 @@ async function probe(): Promise<Probe> {
   return browser.execute(() => {
     const gallery = window.__gallery;
     if (gallery === undefined) throw new Error('window.__gallery is missing');
-    const host = document.querySelector('[data-cg="gallery"]');
+    const host = document.querySelector('[data-host="gallery"]');
     return {
       failures: gallery.failures.map((failure) => ({ kind: failure.kind, code: failure.code, name: failure.name })),
       rows: gallery.listRows(),
@@ -54,7 +54,7 @@ async function probe(): Promise<Probe> {
       sheets: gallery.styles.sheets,
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
-      scheme: host?.getAttribute('data-cg-scheme') ?? null,
+      scheme: host?.getAttribute('data-scheme') ?? null,
     };
   });
 }

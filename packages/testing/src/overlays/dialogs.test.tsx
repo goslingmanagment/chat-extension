@@ -33,7 +33,7 @@ async function mount(): Promise<{ readonly host: DialogHost; readonly root: Shad
   const made = (host = createDialogHost());
   const world = kitWorld('gallery-ready', 'ru');
   const element = document.createElement('div');
-  element.setAttribute('data-cg', 'overlay');
+  element.setAttribute('data-host', 'overlay');
   document.body.append(element);
   const root = element.attachShadow({ mode: 'closed' });
   await act(() => {
@@ -78,7 +78,7 @@ describe('the dialogs view on the modal layer', () => {
     // On the windows' layer (950): above the panels, under the toasts and ChatSpace's own dialogs.
     expect(DIALOGS_CSS).toContain('z-index: 950;');
     // The scheme of the tab is on the host, as for any surface.
-    expect(element.hasAttribute('data-cg-scheme')).toBe(true);
+    expect(element.hasAttribute('data-scheme')).toBe(true);
 
     const answer = made.confirm(request());
     await flush();
@@ -106,6 +106,6 @@ describe('the dialogs view on the modal layer', () => {
     mounted?.unmount();
     mounted?.unmount();
     expect(root.querySelector(`[data-cg-surface="${DIALOGS_ROOT}"]`)).toBeNull();
-    expect(element.hasAttribute('data-cg-scheme')).toBe(false);
+    expect(element.hasAttribute('data-scheme')).toBe(false);
   });
 });

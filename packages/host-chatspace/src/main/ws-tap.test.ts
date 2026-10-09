@@ -25,6 +25,8 @@ interface Harness {
   readonly tap: Tap;
   readonly facts: Fact[];
   readonly coverage: Array<[string, string, string]>;
+  /** Failures the tap's guard handed to the bridge, by site. */
+  readonly faults: string[];
   subscribed: Set<string> | null;
   changes: number;
   /** A new ChatSpace socket (a reconnect creates a new one). */
@@ -43,6 +45,7 @@ function start(): Harness {
     tap,
     facts: [],
     coverage: [],
+    faults: [],
     subscribed: new Set([ACC]),
     changes: 0,
     connect: (url = URL_OK) => new win.WebSocket(url) as unknown as FakeSocket,
@@ -61,6 +64,7 @@ function start(): Harness {
       h.changes += 1;
     },
     members: () => h.subscribed,
+    fault: (site) => h.faults.push(site),
   });
   return h;
 }
@@ -119,14 +123,14 @@ describe('[X8-04] the WS tap wraps only the constructor (§6.8 п. 1–3, 11)', 
     const handle = installWsTap(win);
     expect(handle).not.toBeNull();
     expect(installWsTap(win)).toBeNull();
-    expect(Reflect.get(win, Symbol.for('chatgoose.wsTap'))).toBe(handle);
-    expect(Object.keys(win)).not.toContain('chatgoose.wsTap');
+    expect(Reflect.get(win, Symbol.for('wsTap'))).toBe(handle);
+    expect(Object.keys(win)).not.toContain('wsTap');
     expect(Object.getOwnPropertySymbols(win).map((key) => Object.getOwnPropertyDescriptor(win, key)?.enumerable)).toEqual([false]);
     new win.WebSocket(URL_OK);
     expect(handle?.socketCount()).toBe(1);
     handle?.dispose();
     expect(win.WebSocket).toBe(FakeSocket);
-    expect(Reflect.get(win, Symbol.for('chatgoose.wsTap'))).toBeUndefined();
+    expect(Reflect.get(win, Symbol.for('wsTap'))).toBeUndefined();
 
     // A later wrapper of someone else stays where it is.
     const second = installWsTap(win);
@@ -147,6 +151,7 @@ describe('[X8-04] the WS tap wraps only the constructor (§6.8 п. 1–3, 11)', 
       },
       changed: () => undefined,
       members: () => h.subscribed,
+      fault: (site) => h.faults.push(site),
     });
     const socket = h.connect();
     const seen: unknown[] = [];
@@ -156,6 +161,8 @@ describe('[X8-04] the WS tap wraps only the constructor (§6.8 п. 1–3, 11)', 
     expect(() => socket.close()).not.toThrow();
     expect(() => h.connect()).not.toThrow();
     expect(seen).toHaveLength(2);
+    // Handed to the bridge's count by site: the message listener (the fact), the close listener (the coverage).
+    expect(h.faults).toEqual(expect.arrayContaining(['message', 'close']));
     h.tap.off();
     expect(h.win.WebSocket).toBe(FakeSocket);
   });
@@ -291,7 +298,7 @@ describe('[X8-04] an account is armed only with proof (§6.7.5 «Готовно�
     socket.receive(frames.summary(ACC));
     socket.receive(frames.summary(OTHER_ACC));
     const coverage: Array<[string, string, string]> = [];
-    tap.connect({ fact: () => undefined, coverage: (acc, state, reason) => coverage.push([acc, state, reason]), changed: () => undefined, members: () => new Set([ACC]) });
+    tap.connect({ fact: () => undefined, coverage: (acc, state, reason) => coverage.push([acc, state, reason]), changed: () => undefined, members: () => new Set([ACC]), fault: () => undefined });
     expect(coverage).toEqual([[ACC, 'ok', 'sync']]);
     expect(tap.checkpoint(ACC, FAN).coverage).toBe('ok');
     // Not in ChatSpace's set: its frame proved nothing.
@@ -571,6 +578,7 @@ describe('[X8-04] the time a frame costs is measured (§6.8 п. 3, §11 `handler
       coverage: () => undefined,
       changed: () => undefined,
       members: () => h.subscribed,
+      fault: () => undefined,
     });
     expect(h.tap.frameTime()).toEqual([0, 0, 0]);
     const socket = h.armed();

@@ -216,6 +216,10 @@ export default defineConfig(
       ],
       'no-restricted-globals': ['error', ...hostBannedGlobals()],
       'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
+      // MAIN runs in the page's world: a promise of ours left to reject is the page's `unhandledrejection` (its Sentry
+      // reports it with our frames; decision X22). `void` does not count as handling one there: catch it, or hand it
+      // to a two-handler `then` whose handlers cannot throw. Callbacks the page calls go through `guard` (tools/gates).
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
     },
   },
   {

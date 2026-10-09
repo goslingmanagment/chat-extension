@@ -1,7 +1,7 @@
 // Theme tokens and the scheme signal (architecture.md §10.1 «Тема», §10.2 п. 4;
 // ui-design.md §2). The NAMES are frozen here; values are ui/kit's job: each
 // token is computed from ChatSpace's `--color-om-*` triples with a fallback,
-// and the dark values live under `:host([data-cg-scheme="dark"])` because a
+// and the dark values live under `:host([data-scheme="dark"])` because a
 // closed shadow root sees neither the host's `.dark` class nor
 // `:host-context()` in Firefox. No colour outside this list.
 
@@ -88,8 +88,8 @@ export const THEME_TOKEN_PATTERN = /^--cg-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const COLOR_SCHEMES = ['light', 'dark'] as const;
 export type ColorScheme = (typeof COLOR_SCHEMES)[number];
 
-/** Set by the mount on our host element; the stylesheets key the dark values on it. */
-export const SCHEME_ATTRIBUTE = 'data-cg-scheme';
+/** Set by the mount on our host element; the stylesheets key the dark values on it. The page sees it: a neutral name (X22). */
+export const SCHEME_ATTRIBUTE = 'data-scheme';
 
 /**
  * The resolved scheme as a signal: `host` follows ChatSpace's class on

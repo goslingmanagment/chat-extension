@@ -132,8 +132,8 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
   const measure = (): Promise<Measure> =>
     browser.execute(() => {
       const hosts: Record<string, number> = {};
-      for (const host of document.querySelectorAll('[data-cg]')) {
-        const kind = `${host.getAttribute('data-cg') ?? ''}${host.hasAttribute('data-cg-layer') ? `:${host.getAttribute('data-cg-layer') ?? ''}` : ''}`;
+      for (const host of document.querySelectorAll('[data-host]')) {
+        const kind = `${host.getAttribute('data-host') ?? ''}${host.hasAttribute('data-layer') ? `:${host.getAttribute('data-layer') ?? ''}` : ''}`;
         hosts[kind] = (hosts[kind] ?? 0) + 1;
       }
       return { pageOverflowsX: document.documentElement.scrollWidth > window.innerWidth + 1, hosts };

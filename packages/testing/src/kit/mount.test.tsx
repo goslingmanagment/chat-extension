@@ -66,7 +66,7 @@ describe('[EX-012] the kit mounts a surface into the closed shadow root the host
     expect(kit.root.querySelector(`.${ROOT_CLASS}`)).toBeNull();
   });
 
-  it('surfaces sharing one root (the overlay host): the sheets and data-cg-scheme go with the last of them', () => {
+  it('surfaces sharing one root (the overlay host): the sheets and data-scheme go with the last of them', () => {
     const world = kitWorld();
     const host = document.createElement('div');
     document.body.append(host);
@@ -131,7 +131,7 @@ describe('[EX-012] the kit mounts a surface into the closed shadow root the host
   });
 });
 
-describe('[I18-005] [I18-006] the scheme reaches every surface through data-cg-scheme, live', () => {
+describe('[I18-005] [I18-006] the scheme reaches every surface through data-scheme, live', () => {
   it('mirrors the resolved scheme on our host element and follows a switch without a remount', async () => {
     const kit = track(mountKit(() => <span>x</span>));
     expect(kit.host.getAttribute(SCHEME_ATTRIBUTE)).toBe('light');

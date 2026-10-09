@@ -484,6 +484,14 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
     ],
   },
   previewSendState: { valid: [{ view: sendView }], invalid: [{ view: { attemptId: uuid(5) } }] },
+  fault: {
+    valid: [
+      { source: 'route', count: 1 },
+      { source: 'cacheAfter', count: 64 },
+    ],
+    // Not a machine token (it would reach the logs as is), no failure at all, an extra key.
+    invalid: [{ source: 'route change', count: 1 }, { source: 'route', count: 0 }, { source: 'route', count: 2, stack: 'at x' }],
+  },
 };
 
 /** Valid contract samples other packages can reuse. */

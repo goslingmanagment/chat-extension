@@ -9,10 +9,19 @@ DOM, мост ChatSpace для вставки и — для отправки и�
 
 **`main/` — мир страницы (MAIN), без зависимостей.**
 
-- `installMainBridge(win, { runtime?, exposeRuntimeHook? })` — «загрузчик» на
+- `installMainBridge(win, { runtime? })` — «загрузчик» на
   `document_start`: запоминает нативные функции, рукопожатие, проверка конверта, повтор
   записи по id не исполняется, события не чаще 50 в секунду на тип. Сам отвечает на `probe`,
   остальное отдаёт «рантайму». 1,7 КиБ gzip, установка 0,02 мс.
+- `guard.ts` — правило мира страницы (решение X22): каждый колбэк, который зовёт ChatSpace
+  или браузер, обёрнут в `guard(site, fn)`. Сбой нашего кода не уходит в страницу и не
+  пишется в консоль; он считается по месту, а событие `fault` уходит при счёте 1, 2, 4, 8….
+  Изолированная сторона пишет его в лог вкладки (`main-fault`, `CG-UNKNOWN`). Загрузчик
+  одалживает рантайму `guard`, `fault` и уже защищённые `setTimer`, `frame`, `emit`.
+  Скрипт тапа отдаёт свои сбои в тот же счёт через `LiveHost.fault`. Чужие функции, через
+  которые идёт вызов (прежний `fetch`, конструктор `WebSocket`), под guard не попадают:
+  их ошибки доходят до ChatSpace как есть. Проверки: гейт `main-world-guard`, тесты
+  `main/faults.dom.test.ts` и `main/faults-tap.test.ts`, e2e `sentry-gate`.
 - `createMainRuntime` — «рантайм»: поиск `#app.__vue_app__` (100 мс до 15 с, потом 2 с до 60 с,
   потом `CG-HOST-NOT-READY`), маршрут и эпохи, сторы через `pinia.use()` (свои не создаёт),
   кэш Colada и `$onAction`, аккаунты, окно и хвост чата (только подтверждённые сообщения с
@@ -59,7 +68,7 @@ DOM, мост ChatSpace для вставки и — для отправки и�
   человека; на ней стоит метка `DELIVERED_KEY_MARK` (`Symbol.for('cg.key.delivered')`),
   по которой её узнаёт наш интерфейс (`ui-contract.md`, решение 12). `routeOfLocation` — маршрут по
   адресу, пока MAIN ещё не ответил. `createKeyPendingMark(host)` ставит на хост дока
-  `data-cg-key-pending` и `aria-busy`, пока нажатая клавиша ждёт ленивую часть или первое
+  `data-pending` и `aria-busy`, пока нажатая клавиша ждёт ленивую часть или первое
   состояние чата (HK-024, HK-025): до загрузки интерфейса это единственный знак ожидания.
 - `buildContractReport`, `createThemeReader`, `readStoredDraft`, `host-contract.ts` (все
   строки ChatSpace в одном месте; копия MAIN закреплена тестом).
@@ -72,7 +81,7 @@ DOM, мост ChatSpace для вставки и — для отправки и�
 человеком едут в **скрипте тапа** (`chatspace-ws`, `installWsTap`), а не в бандле
 `document_start`: без тапа ничего из этого не работает (нет свежести — нет отправки), а в
 10 КиБ основного бандла оно не помещается. В основном бандле — только связка: рантайм один
-раз берёт ручку тапа под `Symbol.for('chatgoose.wsTap')` (`handle.attach(liveHost)`),
+раз берёт ручку тапа под `Symbol.for('wsTap')` (`handle.attach(liveHost)`),
 отдаёт ему чтения страницы и канал событий (`main/live.ts`: `LiveHost`) и получает «живой
 порт» (`LivePort`). Порядок двух скриптов на `document_start` не важен (e2e гоняет оба):
 пока ручки нет, рантайм ищет её при каждой следующей надобности, так что запрос,
@@ -230,14 +239,17 @@ const started = startChatSpaceHost({
 
 **Как поставляется рантайм MAIN (решение X11, `docs/decisions.md`).** Один бандл на
 `document_start`: `installMainBridge(window, { runtime: createMainRuntime })`. Загрузчик —
-1,7 КиБ gzip, с рантаймом — 9,66 КиБ при бюджете MAIN 10 КиБ (`pnpm size` меряет
-собранный `content-scripts/chatspace-main.js`); скрипт тапа — 4,97 из 5 КиБ. Запаса почти
+1,7 КиБ gzip. С рантаймом и guard — 9,87 КиБ при бюджете MAIN 10 КиБ (`pnpm size` меряет
+собранный `content-scripts/chatspace-main.js`); скрипт тапа — 4,97 из 5 КиБ. Оба бандла
+собираются без обёртки входа WXT (`apps/extension/build/main-world-entry.ts`, решение
+X22): она пробрасывала сбой старта в страницу и стоила ~170 Б gzip на бандл. Запаса почти
 нет: новая логика MAIN — только вместо старой. Работа на `document_start` по-прежнему
 ≤ 1 мс: рантайм ничего не делает до `DOMContentLoaded`.
 
-Второй MAIN-скрипт (`attachMainRuntime(createMainRuntime)` с `exposeRuntimeHook: true`)
-отклонён: крючок лежит под `Symbol.for` на `window`, страница может забрать его первой —
-тогда хост навсегда «не готов». Сам API остаётся в пакете, расширение его не включает.
+Второй MAIN-скрипт (`attachMainRuntime(createMainRuntime)` после
+`exposeMainRuntimeHook(handle)`) отклонён: крючок лежит под `Symbol.for` на `window`,
+страница может забрать его первой — тогда хост навсегда «не готов». Сам API остаётся в
+пакете отдельной функцией, расширение его не вызывает, и в его бандл он не попадает.
 
 Время выполнения бандла на `document_start` e2e пишет в `.cache/e2e/host-adapter.json`
 (`mainEvalMs`, обвязка без расширения) и проверяет на собранном расширении

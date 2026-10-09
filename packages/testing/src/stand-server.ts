@@ -4,8 +4,9 @@
 // - the page origin: the ChatSpace-like fixture app (packages/testing/
 //   fixture-chatspace, built into .cache/fixture-chatspace) on `/`,
 //   `/accounts/...` and its assets, the session-token endpoint, control
-//   endpoints for tests (`/__stand/...`), the M0 spike page (`/spike.html`)
-//   and the UI galleries (`/kit-gallery/`, `/dock-gallery/`, `/boards-gallery/`, `/pages-gallery/`, built into .cache/*-gallery);
+//   endpoints for tests (`/__stand/...`), the M0 spike page (`/spike.html`),
+//   the UI galleries (`/kit-gallery/`, `/dock-gallery/`, `/boards-gallery/`, `/pages-gallery/`, built into .cache/*-gallery)
+//   and the collector of the page's Sentry (`/sentry/api/<project>/envelope/`, stand/sentry-inbox.ts);
 // - the API origin: the native API (`/api/...`, CORS for the page origin with
 //   preflights) and the socket (`/api/chat-space/ws`), with synthetic data.
 // A journal labels every call by who made it (protocol.ts CallOrigin).
@@ -21,6 +22,7 @@ import {
   STAND_API_ORIGIN_META,
   STAND_API_PREFIX,
   STAND_CONTROL_PREFIX,
+  STAND_SENTRY_PREFIX,
   STAND_TOKEN_PATH,
   STAND_WS_PATH,
   type CallOrigin,
@@ -29,6 +31,7 @@ import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
 import { FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
+import { SENTRY_ENVELOPE_PATH, SentryInbox } from './stand/sentry-inbox';
 import { SocketHub } from './stand/socket-hub';
 import { StandState } from './stand/state';
 
@@ -55,6 +58,8 @@ export interface StandServer {
   readonly state: StandState;
   readonly journal: ServerJournal;
   readonly hub: SocketHub;
+  /** What the page's Sentry sent (?stand-sentry=1). */
+  readonly sentry: SentryInbox;
   close(): Promise<void>;
 }
 
@@ -174,7 +179,8 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
   const hub = new SocketHub(state, journal, { graceMs: options.socketGraceMs ?? DEFAULT_SOCKET_GRACE_MS });
   const fixtureDir = options.fixtureDir ?? FIXTURE_BUILD_DIR;
   const nativeIds = new NativeIds();
-  const context: ApiContext & { egress: EgressLog | null } = { state, journal, hub, hanging: new Set(), egress: options.egress ?? null };
+  const sentry = new SentryInbox();
+  const context: ApiContext & { egress: EgressLog | null; sentry: SentryInbox } = { state, journal, hub, hanging: new Set(), egress: options.egress ?? null, sentry };
   let pageOrigin = '';
   let apiOrigin = '';
 
@@ -187,6 +193,20 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     const path = url.pathname;
     const method = request.method ?? 'GET';
     const classified = classify(request, response, nativeIds);
+
+    // The page's own Sentry, on its own origin (no CORS): kept as sent, never journaled.
+    if (path.startsWith(STAND_SENTRY_PREFIX)) {
+      const inside = path.slice(STAND_SENTRY_PREFIX.length);
+      if (method !== 'POST' || !SENTRY_ENVELOPE_PATH.test(inside)) {
+        response.writeHead(404).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(chunk as Buffer);
+      sentry.add(inside, Buffer.concat(chunks).toString('utf8'));
+      response.writeHead(200, { 'content-type': 'application/json' }).end('{}');
+      return;
+    }
 
     if (path.startsWith(STAND_CONTROL_PREFIX)) {
       if (classified.origin !== 'control' && path !== STAND_TOKEN_PATH) {
@@ -280,6 +300,7 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     state,
     journal,
     hub,
+    sentry,
     close: async () => {
       for (const response of context.hanging) response.destroy();
       await hub.close();

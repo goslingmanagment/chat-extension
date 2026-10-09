@@ -28,13 +28,22 @@
 // - The frame root is missing (a new build): a fixed overlay over the
 //   composer's box, which does not push the message list (§6.2 degradation).
 //
-// Overlays: `<div data-cg="overlay">` hosts in <html>, outside #app, each
+// Overlays: `<div data-host="overlay">` hosts in <html>, outside #app, each
 // with a closed shadow root, `position: fixed`, on its z-layer (900 panels,
 // 950 modal windows, 960 toasts; ChatSpace's PrimeVue dialogs from 1000 stay
 // above). While one of our windows is open its host carries
 // `data-dismissible-open`, so ChatSpace's Esc does not close the chat tab.
 //
 // Every host's closed root is registered for the hotkey dispatcher (§9.1).
+//
+// The page sees our hosts, and its telemetry may print them (Sentry in
+// ChatSpace 0.195.0 prints a clicked element's tag, id, classes, aria-label,
+// title, name, type and alt, or its `data-sentry-*`). So a host is a plain
+// `div` with none of those, never editable, and its attributes have neutral
+// names that never name the extension (decision X22): `data-host`,
+// `data-mode`, `data-layer`, `data-pending` (keyboard.ts), `data-scheme`
+// (the UI kit) and ChatSpace's own `data-dismissible-open`. mount.dom.test.ts
+// pins that list.
 
 import type { ComposerState, MountPoints } from '@cg/contracts/host';
 
@@ -43,6 +52,13 @@ import { createShadowRootRegistry, type ShadowRootRegistry } from './shadow-regi
 
 /** The translator bridge slot ChatSpace renders above its composer. */
 export const COMPOSER_SLOT_SELECTOR = SLOT_SELECTOR;
+
+/** What a host is: `dock` or `overlay`. */
+export const HOST_ATTRIBUTE = 'data-host';
+/** The dock's mode when it is not in the composer frame: `copy-only` (the row) or `overlay` (fixed over the composer). */
+export const MODE_ATTRIBUTE = 'data-mode';
+/** An overlay host's layer: `panel`, `modal`, `toast`. */
+export const LAYER_ATTRIBUTE = 'data-layer';
 
 export type OverlayLayer = 'panel' | 'modal' | 'toast';
 /** §6.3 «Слои». */
@@ -122,7 +138,7 @@ export function waitForComposerMount(doc: Document, options: WaitForComposerOpti
  */
 export function mountClosedHost(parent: Element, kind: 'dock' | 'overlay', position: 'first' | 'last' = 'first', registry?: ShadowRootRegistry): ClosedHost {
   const host = parent.ownerDocument.createElement('div');
-  host.setAttribute('data-cg', kind);
+  host.setAttribute(HOST_ATTRIBUTE, kind);
   host.style.setProperty('contain', 'layout style');
   const root = host.attachShadow({ mode: 'closed' });
   const unregister = registry?.register(host, root);
@@ -145,7 +161,11 @@ export function mountClosedHost(parent: Element, kind: 'dock' | 'overlay', posit
  * scripts into the already-open tab (spike M0). Returns how many it removed.
  */
 export function removeStaleHosts(doc: Document): number {
-  const stale = doc.querySelectorAll('[data-cg]');
+  // Only our host shape — a `div` with nothing in its light DOM: a neutral name could be some other element's too.
+  // `data-cg` — a host of a build from before X22.
+  const stale = [...doc.querySelectorAll(`div[${HOST_ATTRIBUTE}], div[data-cg]`)].filter(
+    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
+  );
   stale.forEach((node) => node.remove());
   return stale.length;
 }
@@ -202,7 +222,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   const win = doc.defaultView as Window;
   const registry = createShadowRootRegistry();
   const dockHost = doc.createElement('div');
-  dockHost.setAttribute('data-cg', 'dock');
+  dockHost.setAttribute(HOST_ATTRIBUTE, 'dock');
   dockHost.style.setProperty('contain', 'layout style');
   dockHost.style.setProperty('display', 'block');
   const dockRoot = dockHost.attachShadow({ mode: 'closed' });
@@ -319,9 +339,9 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   const setKind = (next: DockKind, nextInstance: string | null): void => {
     kind = next;
     instanceId = nextInstance;
-    if (next === 'copy-only-row') dockHost.setAttribute('data-cg-mode', 'copy-only');
-    else if (next === 'fixed-overlay') dockHost.setAttribute('data-cg-mode', 'overlay');
-    else dockHost.removeAttribute('data-cg-mode');
+    if (next === 'copy-only-row') dockHost.setAttribute(MODE_ATTRIBUTE, 'copy-only');
+    else if (next === 'fixed-overlay') dockHost.setAttribute(MODE_ATTRIBUTE, 'overlay');
+    else dockHost.removeAttribute(MODE_ATTRIBUTE);
   };
 
   function place(): void {
@@ -469,7 +489,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
       if ((doc.documentElement as HTMLElement | null) === null) throw new Error('overlay before <html> exists');
       found = mountClosedHost(doc.documentElement, 'overlay', 'last', registry);
       const style = found.host.style;
-      found.host.setAttribute('data-cg-layer', layer);
+      found.host.setAttribute(LAYER_ATTRIBUTE, layer);
       style.setProperty('position', 'fixed');
       style.setProperty('inset', '0');
       style.setProperty('pointer-events', 'none');

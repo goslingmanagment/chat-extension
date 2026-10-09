@@ -33,6 +33,9 @@ const ROLE_MODULES: ReadonlyArray<{ readonly name: string; readonly test: RegExp
   { name: 'accounts', test: /fixture-chatspace\/src\/stores\/(accounts|chats|stored)\.ts$/ },
   { name: 'inbox', test: /fixture-chatspace\/src\/query\/(queries|use-query)\.ts$/ },
   { name: 'composables', test: /fixture-chatspace\/src\/(net\/|query\/cache\.ts$|env\.ts$|journal\.ts$|protocol\.ts$)/ },
+  // Sentry (?stand-sentry=1, fixture-chatspace/src/sentry.ts) in a chunk of its own: loaded only when it is on, so a page
+  // without it runs exactly the code it ran before.
+  { name: 'sentry', test: /node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?@sentry(?:-internal)?\// },
   // Libraries go below all of them (as in ChatSpace's own build), so no module waits on the entry module that imports it.
   // The editor's own libraries stay with the editor: it loads later, like ChatSpace's.
   { name: 'vue.runtime', test: /node_modules\/(?!\.pnpm\/)(?!@tiptap\/|prosemirror-|orderedmap\/|rope-sequence\/|w3c-keyname\/|linkifyjs\/)/ },

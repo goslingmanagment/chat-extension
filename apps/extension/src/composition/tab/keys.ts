@@ -6,7 +6,7 @@
 //
 // Until the lazy part of the tab is loaded there is nobody to run a command:
 // the dispatcher keeps the newest key, the dock host carries
-// `data-cg-key-pending` (the only thing that can show a wait that early), and
+// `data-pending` (the only thing that can show a wait that early), and
 // `onWaiting` tells the runtime to load the application now — also outside a
 // chat, where no composer would ever ask for it (HK-024: ⌘K and ⌘⇧M work on
 // the whole of ChatSpace).

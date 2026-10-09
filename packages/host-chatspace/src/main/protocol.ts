@@ -3,17 +3,22 @@
 // repeated here and pinned to their sources by protocol.test.ts.
 
 export const PROTOCOL_VERSION = 1;
+/** contracts BRIDGE_TAG_KEY: the handshake message's key for its tag. */
+export const TAG_KEY = 'tag';
 export const TAG_MAIN_READY = 'main-ready';
 export const TAG_ISO_HELLO = 'iso-hello';
 export const TAG_CONNECT = 'connect';
-export const WS_TAP_KEY = 'chatgoose.wsTap';
+/** Page-visible names never name the extension (decision X22). */
+export const WS_TAP_KEY = 'wsTap';
 /** Symbol.for key of the boot's one-shot hook for a runtime from a later MAIN script (bridge.ts). */
-export const RUNTIME_KEY = 'chatgoose.mainRuntime';
+export const RUNTIME_KEY = 'mainRuntime';
 
 /** Envelope kinds (contracts BridgeRequestSchema / BridgeResponseSchema / BridgeEventSchema). */
 export const KIND_REQ = 'req';
 export const KIND_RES = 'res';
 export const KIND_EVT = 'evt';
+/** The event that carries a guarded failure's count (guard.ts; contracts FROM_MAIN.fault). */
+export const EVT_FAULT = 'fault';
 
 /** contracts BRIDGE_ERRORS. */
 export const ERR_UNKNOWN_REQUEST = 'unknown-request';

@@ -4,11 +4,13 @@
 // that builds the per-type payload schemas (those live in bridge-messages.ts,
 // which a bundle imports only when it handles that traffic).
 //
-// Handshake: MAIN posts {cg: 'main-ready', v} and listens for 'iso-hello';
+// Handshake: MAIN posts {tag: 'main-ready', v} and listens for 'iso-hello';
 // the isolated script posts 'iso-hello' and listens for 'main-ready';
 // whoever is second, the isolated side creates a MessageChannel and sends
-// port2 with {cg: 'connect', v, nonce}; MAIN accepts only the first valid
+// port2 with {tag: 'connect', v, nonce}; MAIN accepts only the first valid
 // 'connect' and drops its window listener. Everything after that rides the port.
+// The page can see these messages and the tap's global: their names are
+// neutral and never name the extension (decision X22).
 //
 // The port is a routing channel, not an identity: the page sees MAIN and can
 // post anything. The isolated side therefore checks every frame from MAIN —
@@ -26,6 +28,9 @@ import { CountSchema, EpochTokenSchema } from './primitives';
 
 export const BRIDGE_PROTOCOL_VERSION = 1;
 
+/** The key of a handshake message that carries its tag (`{[BRIDGE_TAG_KEY]: tag, v}`). */
+export const BRIDGE_TAG_KEY = 'tag';
+
 /** `window.postMessage` tags of the handshake; everything after it rides a MessagePort. */
 export const BRIDGE_TAGS = {
   mainReady: 'main-ready',
@@ -33,8 +38,8 @@ export const BRIDGE_TAGS = {
   connect: 'connect',
 } as const;
 
-/** Non-enumerable global through which the WS tap hands its subscription to the bridge (§6.8). */
-export const WS_TAP_SYMBOL_KEY = 'chatgoose.wsTap';
+/** Non-enumerable global through which the WS tap hands its subscription to the bridge (§6.8); a neutral name (X22). */
+export const WS_TAP_SYMBOL_KEY = 'wsTap';
 
 // ── Frame guard ────────────────────────────────────────────────────────────
 
@@ -179,11 +184,14 @@ export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendCommit'] as const satisfies readonly ToMainType[];
 
 /** Events MAIN → isolated (§5.3 `FromMain`), never with message text. */
-export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState'] as const;
+export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'fault'] as const;
 export type FromMainType = (typeof FROM_MAIN_TYPES)[number];
 
-/** Freshness and receipt events are never dropped or coalesced; their counters are updated before any thinning. */
-export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState'] as const satisfies readonly FromMainType[];
+/**
+ * Freshness and receipt events are never dropped or coalesced; their counters are updated before any thinning. Nor is
+ * a fault report (one per site and doubling, decision X22): coalesced, a site's report would hide another's.
+ */
+export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'fault'] as const satisfies readonly FromMainType[];
 
 // ── Probe ──────────────────────────────────────────────────────────────────
 
