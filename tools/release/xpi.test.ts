@@ -36,6 +36,18 @@ describe('a signed XPI', () => {
     ]);
   });
 
+  it('manifest.json as AMO writes it back (indented, non-ASCII as \\u escapes) is still the build; a changed value is not', () => {
+    const built = file('manifest.json', JSON.stringify({ manifest_version: 3, name: 'ChatGoose для ChatSpace', version: '0.1.0', browser_specific_settings: { gecko: { id: ID } } }));
+    const build = [built, file('background.js', 'console.log(1)')];
+    const amo = JSON.stringify({ name: 'ChatGoose для ChatSpace', manifest_version: 3, version: '0.1.0', browser_specific_settings: { gecko: { id: ID } } }, null, 2).replace(/[\u0080-\uffff]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`);
+    expect(amo).toContain('\\u0434');
+    expect(checkSignedXpi(signed([file('manifest.json', amo), file('background.js', 'console.log(1)')]), { version: '0.1.0', geckoId: ID }, build)).toEqual([]);
+    const changed = JSON.stringify({ manifest_version: 3, name: 'ChatGoose для ChatSpace', version: '0.1.0', browser_specific_settings: { gecko: { id: ID } }, permissions: ['tabs'] }, null, 2);
+    expect(checkSignedXpi(signed([file('manifest.json', changed), file('background.js', 'console.log(1)')]), { version: '0.1.0', geckoId: ID }, build)).toEqual(['manifest.json differs from the build']);
+    // Other files stay byte for byte: the same JS in another formatting is a different file.
+    expect(checkSignedXpi(signed([built, file('background.js', 'console.log( 1 )')]), { version: '0.1.0', geckoId: ID }, build)).toEqual(['background.js differs from the build']);
+  });
+
   it('sha256Hex is the hex digest the feed carries', () => {
     expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
   });
