@@ -1212,6 +1212,28 @@ const pageConversationFanSchema = z.object({
     username: z.string().nullable(),
     displayName: z.string().nullable(),
 });
+/** Why Fansly stopped serving a chat to its page, as far as Hub can tell
+ * (arena "vanished chat", plan §8). `unchecked`: nobody has looked whether
+ * the fan's account still exists — it was deleted or the fan blocked the
+ * page. `probably_blocked`: the account is found without a session.
+ * `probably_deleted`: it is not. Only `unchecked` is sent until Hub's
+ * session-less account check ships. */
+const conversationChatAccessCauseSchema = z.enum(["unchecked", "probably_blocked", "probably_deleted"]);
+/** The chat's open unavailability episode (plan §2): Fansly refuses the
+ * chat's history to this page since `openedAt`. `refusing`: the refusals
+ * so far (transient); `established`: at the episode's 5th refusal — the
+ * engine stopped reading the chat, and its socket messages stay unconfirmed
+ * until a read is served again. */
+const conversationChatAccessSchema = z.object({
+    state: z.enum(["refusing", "established"]),
+    openedAt: isoTimestamp,
+    establishedAt: isoTimestamp.nullable(),
+    lastRefusalAt: isoTimestamp,
+    refusals: z.number().int(),
+    /** The owner's own observation (`sync chats note`), verbatim. */
+    ownerNote: z.string().nullable(),
+    cause: conversationChatAccessCauseSchema,
+});
 const pageConversationStateSchema = z.object({
     platformConversationId: z.string(),
     storedMessageCount: z.number().int(),
@@ -1222,6 +1244,9 @@ const pageConversationStateSchema = z.object({
     lastMessageSyncAt: isoTimestamp.nullable(),
     unreadCount: z.number().int(),
     lastMessageAt: isoTimestamp.nullable(),
+    /** Additive: present only while the chat has an open unavailability
+     * episode (Fansly pages); absent otherwise and from older kernels. */
+    chatAccess: conversationChatAccessSchema.optional(),
 });
 /** Provenance of a conversation message (Fansly live overlay, plan §7.11).
  * Additive: present only on pages that read the live overlay
@@ -2562,8 +2587,13 @@ export const syncBlockStatusSchema = z.object({
         activeWork: z.number().int().nonnegative(),
         /** The keys' quarantined rows: what the block's reset requeues. */
         quarantined: syncEngineWorkCountSchema,
-        /** The keys' rows Fansly refuses. */
+        /** The keys' rows Fansly refuses; the rows of a chat Fansly does not serve
+         *  to the page are not among them (`chatsUnavailable`). */
         blockedByVendor: syncEngineWorkCountSchema,
+        /** The block that reads the chats' messages (`messages_history`) only:
+         *  how many chats Fansly does not serve to the page (established
+         *  unavailability episodes). Informational: never needs attention. */
+        chatsUnavailable: z.number().int().nonnegative().optional(),
     }).optional(),
     succeededAt: isoTimestamp.nullable(),
     progress: syncBlockProgressSchema.nullable(),

@@ -2683,6 +2683,22 @@ export declare const pageConversationPreviewResponseSchema: z.ZodObject<{
         lastMessageSyncAt: z.ZodNullable<z.ZodString>;
         unreadCount: z.ZodNumber;
         lastMessageAt: z.ZodNullable<z.ZodString>;
+        chatAccess: z.ZodOptional<z.ZodObject<{
+            state: z.ZodEnum<{
+                refusing: "refusing";
+                established: "established";
+            }>;
+            openedAt: z.ZodString;
+            establishedAt: z.ZodNullable<z.ZodString>;
+            lastRefusalAt: z.ZodString;
+            refusals: z.ZodNumber;
+            ownerNote: z.ZodNullable<z.ZodString>;
+            cause: z.ZodEnum<{
+                unchecked: "unchecked";
+                probably_blocked: "probably_blocked";
+                probably_deleted: "probably_deleted";
+            }>;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     messageSyncUx: z.ZodObject<{
         state: z.ZodEnum<{
@@ -2783,6 +2799,22 @@ export declare const pageConversationMessagesResponseSchema: z.ZodObject<{
         lastMessageSyncAt: z.ZodNullable<z.ZodString>;
         unreadCount: z.ZodNumber;
         lastMessageAt: z.ZodNullable<z.ZodString>;
+        chatAccess: z.ZodOptional<z.ZodObject<{
+            state: z.ZodEnum<{
+                refusing: "refusing";
+                established: "established";
+            }>;
+            openedAt: z.ZodString;
+            establishedAt: z.ZodNullable<z.ZodString>;
+            lastRefusalAt: z.ZodString;
+            refusals: z.ZodNumber;
+            ownerNote: z.ZodNullable<z.ZodString>;
+            cause: z.ZodEnum<{
+                unchecked: "unchecked";
+                probably_blocked: "probably_blocked";
+                probably_deleted: "probably_deleted";
+            }>;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     messages: z.ZodArray<z.ZodObject<{
         messageId: z.ZodString;
@@ -5566,6 +5598,7 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
             count: z.ZodNumber;
             resources: z.ZodArray<z.ZodString>;
         }, z.core.$strip>;
+        chatsUnavailable: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strip>>;
     succeededAt: z.ZodNullable<z.ZodString>;
     progress: z.ZodNullable<z.ZodObject<{
@@ -5812,6 +5845,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     count: z.ZodNumber;
                     resources: z.ZodArray<z.ZodString>;
                 }, z.core.$strip>;
+                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
@@ -6010,6 +6044,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     count: z.ZodNumber;
                     resources: z.ZodArray<z.ZodString>;
                 }, z.core.$strip>;
+                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
@@ -6208,6 +6243,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     count: z.ZodNumber;
                     resources: z.ZodArray<z.ZodString>;
                 }, z.core.$strip>;
+                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
@@ -6406,6 +6442,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     count: z.ZodNumber;
                     resources: z.ZodArray<z.ZodString>;
                 }, z.core.$strip>;
+                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
@@ -6604,6 +6641,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     count: z.ZodNumber;
                     resources: z.ZodArray<z.ZodString>;
                 }, z.core.$strip>;
+                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strip>>;
             succeededAt: z.ZodNullable<z.ZodString>;
             progress: z.ZodNullable<z.ZodObject<{
@@ -6854,6 +6892,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -7052,6 +7091,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -7250,6 +7290,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -7448,6 +7489,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -7646,6 +7688,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -7882,6 +7925,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -8080,6 +8124,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -8278,6 +8323,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -8476,6 +8522,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -8674,6 +8721,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         count: z.ZodNumber;
                         resources: z.ZodArray<z.ZodString>;
                     }, z.core.$strip>;
+                    chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strip>>;
                 succeededAt: z.ZodNullable<z.ZodString>;
                 progress: z.ZodNullable<z.ZodObject<{
@@ -8907,6 +8955,7 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
                 count: z.ZodNumber;
                 resources: z.ZodArray<z.ZodString>;
             }, z.core.$strip>;
+            chatsUnavailable: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strip>>;
         succeededAt: z.ZodNullable<z.ZodString>;
         progress: z.ZodNullable<z.ZodObject<{
@@ -19548,6 +19597,22 @@ declare const baseRouteSchemas: {
                     lastMessageSyncAt: z.ZodNullable<z.ZodString>;
                     unreadCount: z.ZodNumber;
                     lastMessageAt: z.ZodNullable<z.ZodString>;
+                    chatAccess: z.ZodOptional<z.ZodObject<{
+                        state: z.ZodEnum<{
+                            refusing: "refusing";
+                            established: "established";
+                        }>;
+                        openedAt: z.ZodString;
+                        establishedAt: z.ZodNullable<z.ZodString>;
+                        lastRefusalAt: z.ZodString;
+                        refusals: z.ZodNumber;
+                        ownerNote: z.ZodNullable<z.ZodString>;
+                        cause: z.ZodEnum<{
+                            unchecked: "unchecked";
+                            probably_blocked: "probably_blocked";
+                            probably_deleted: "probably_deleted";
+                        }>;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>;
                 messageSyncUx: z.ZodObject<{
                     state: z.ZodEnum<{
@@ -19676,6 +19741,22 @@ declare const baseRouteSchemas: {
                     lastMessageSyncAt: z.ZodNullable<z.ZodString>;
                     unreadCount: z.ZodNumber;
                     lastMessageAt: z.ZodNullable<z.ZodString>;
+                    chatAccess: z.ZodOptional<z.ZodObject<{
+                        state: z.ZodEnum<{
+                            refusing: "refusing";
+                            established: "established";
+                        }>;
+                        openedAt: z.ZodString;
+                        establishedAt: z.ZodNullable<z.ZodString>;
+                        lastRefusalAt: z.ZodString;
+                        refusals: z.ZodNumber;
+                        ownerNote: z.ZodNullable<z.ZodString>;
+                        cause: z.ZodEnum<{
+                            unchecked: "unchecked";
+                            probably_blocked: "probably_blocked";
+                            probably_deleted: "probably_deleted";
+                        }>;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>;
                 messages: z.ZodArray<z.ZodObject<{
                     messageId: z.ZodString;
@@ -20411,6 +20492,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -20609,6 +20691,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -20807,6 +20890,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -21005,6 +21089,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -21203,6 +21288,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -21463,6 +21549,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -21661,6 +21748,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -21859,6 +21947,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -22057,6 +22146,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -22255,6 +22345,7 @@ declare const baseRouteSchemas: {
                                     count: z.ZodNumber;
                                     resources: z.ZodArray<z.ZodString>;
                                 }, z.core.$strip>;
+                                chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                             }, z.core.$strip>>;
                             succeededAt: z.ZodNullable<z.ZodString>;
                             progress: z.ZodNullable<z.ZodObject<{
@@ -22522,6 +22613,7 @@ declare const baseRouteSchemas: {
                             count: z.ZodNumber;
                             resources: z.ZodArray<z.ZodString>;
                         }, z.core.$strip>;
+                        chatsUnavailable: z.ZodOptional<z.ZodNumber>;
                     }, z.core.$strip>>;
                     succeededAt: z.ZodNullable<z.ZodString>;
                     progress: z.ZodNullable<z.ZodObject<{

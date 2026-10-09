@@ -447,6 +447,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/pages/:pageLabel/sync/work";
     };
+    readonly agentThreadAvailability: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/pages/:pageLabel/threads/:conversationRef/availability";
+    };
     readonly agentThreadMessages: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/pages/:pageLabel/threads/:conversationRef/messages";
