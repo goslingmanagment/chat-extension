@@ -101,6 +101,20 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
     ],
     [{ of: 'preview' }, { of: 'dock', fan: '2002' }, { of: 'billing' }, { of: 'options', section: 'advanced' }, { of: 'debug-prompt', token: '' }],
   ),
+  // 1.9.0: the palette's preview window is a surface of its own, and «Перезагрузить панель» reaches it.
+  fixture(
+    'ReloadSurface',
+    C.UiActionSchema,
+    [
+      { type: 'ReloadSurface', surface: 'preview' },
+      { type: 'ReloadSurface', surface: 'palette' },
+    ],
+    [
+      { type: 'ReloadSurface', surface: 'online' },
+      { type: 'ReloadSurface', surface: 'preview-window' },
+      { type: 'ReloadSurface' },
+    ],
+  ),
   fixture('PreferenceKey', C.PreferenceKeySchema, ['ui.theme', 'onboarding.keysFooter.dismissed', 'sound.volume'], ['ui', 'auth.token', 'personas.byPageId']),
   fixture(
     'UserOptions',
