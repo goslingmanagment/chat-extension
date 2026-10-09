@@ -342,4 +342,10 @@ describe('the host contract in the tab’s log', () => {
     expect(contractFactsOf(report({ pendingMessages: 'missing' }))).toMatchObject({ ok: false, missing: ['pendingMessages'] });
     expect(contractFactsOf(report({ wsFrames: 'missing', composerBridge: 'changed' }))).toMatchObject({ ok: false, missing: ['wsFrames', 'composerBridge'] });
   });
+
+  it('[DB-031] a store ChatSpace has not created yet (no chat opened since the reload) is listed apart and is no error; the same store absent after a composer is', () => {
+    const waiting = contractFactsOf(report({ composerTranslator: 'notYet' }, { previewSend: { state: 'off' } }));
+    expect(waiting).toEqual({ build: 'index-abc', adapterVersion: '0.3.0', ok: true, missing: [], degraded: ['previewSend'], notYet: ['composerTranslator'] });
+    expect(contractFactsOf(report({ composerTranslator: 'missing' }))).toMatchObject({ ok: false, missing: ['composerTranslator'] });
+  });
 });

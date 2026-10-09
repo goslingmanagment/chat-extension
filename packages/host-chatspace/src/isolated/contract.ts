@@ -16,16 +16,22 @@
 //   tap, and the receipt profile. The socket being armed is not part of it:
 //   that is the preflight's answer (CG-SEND-FRESHNESS), the capability does
 //   not flap with reconnects.
+// An anchor ChatSpace creates later (`notYet`: the composer translator store
+// before the page's first chat composer) is no break of the contract, but X8
+// stays off until it comes (CG-SEND-HOST, the anchor as the reason). A real
+// break of another send anchor is named first: opening a chat would not lift it.
 
 import type { AnchorId, CapabilityState, HostCapability, HostContractReport } from '@cg/contracts/host';
 
-type AnchorState = 'ok' | 'missing' | 'shape';
+type AnchorState = 'ok' | 'missing' | 'shape' | 'notYet';
 
 /** The ContractWire payload (contracts ContractWireSchema). */
 export interface ContractWireInput {
   readonly build: string | null;
   readonly missing: readonly string[];
   readonly shape: readonly string[];
+  /** Not there yet, as expected before the first chat composer (1.10.0); absent — a MAIN before it. */
+  readonly notYet?: readonly string[] | undefined;
 }
 
 export interface ContractInput {
@@ -77,7 +83,7 @@ export function buildContractReport(input: ContractInput): HostContractReport {
     if (id === 'composerFrame' || id === 'draftKey' || id === 'theme') return dom[id];
     if (id === 'receiptProfile') return live.receipt ? 'ok' : 'missing';
     if (wire === null) return 'missing';
-    return wire.missing.includes(id) ? 'missing' : wire.shape.includes(id) ? 'shape' : 'ok';
+    return wire.missing.includes(id) ? 'missing' : wire.shape.includes(id) ? 'shape' : wire.notYet?.includes(id) === true ? 'notYet' : 'ok';
   };
   const anchors = Object.fromEntries(ANCHORS.map((id) => [id, anchor(id)])) as Record<AnchorId, AnchorState>;
 
@@ -106,7 +112,7 @@ export function buildContractReport(input: ContractInput): HostContractReport {
   const incoming = route.state !== 'on' ? route : !live.tap ? noTap : anchors.wsFrames === 'ok' ? on : coded('degraded', 'wsFrames', 'CG-SEND-FRESHNESS');
   const sendObserve = route.state !== 'on' ? route : anchors.pendingMessages !== 'ok' ? coded('off', 'pendingMessages', 'CG-SEND-HOST') : !live.tap ? noTap : on;
   const receipt = live.receipt ? on : coded('off', 'receiptProfile', 'CG-SEND-RECEIPT');
-  const brokenSendAnchor = SEND_ANCHORS.find((id) => anchors[id] !== 'ok');
+  const brokenSendAnchor = SEND_ANCHORS.find((id) => anchors[id] === 'missing' || anchors[id] === 'shape') ?? SEND_ANCHORS.find((id) => anchors[id] === 'notYet');
   const previewSend =
     route.state !== 'on'
       ? route

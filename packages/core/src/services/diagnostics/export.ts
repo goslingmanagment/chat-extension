@@ -18,6 +18,7 @@ import { type SettingsV1 } from '@cg/contracts/settings';
 import { HEALTH_CODE_PATTERN } from '@cg/contracts/telemetry';
 import { type DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
 
+import { anchorGap, anchorsNotYet } from '../../domain/host';
 import {
   REDACTED,
   formatRecordLine,
@@ -316,8 +317,11 @@ export function summaryLines(facts: DiagnosticsFacts): string[] {
   const contract = facts.tabs.map((tab) => {
     const host = tab.host;
     if (host === null) return 'no-report';
-    const missing = Object.entries(host.anchors).filter(([, state]) => state !== 'ok').map(([anchor]) => anchor);
-    return missing.length === 0 ? `${host.build ?? '?'} ok` : `${host.build ?? '?'} missing ${missing.join(',')}`;
+    const missing = Object.entries(host.anchors).filter(([, state]) => anchorGap(state)).map(([anchor]) => anchor);
+    const later = anchorsNotYet(host);
+    const head = missing.length === 0 ? `${host.build ?? '?'} ok` : `${host.build ?? '?'} missing ${missing.join(',')}`;
+    // Anchors ChatSpace creates with the page's first chat: not missing, but not there either.
+    return later.length === 0 ? head : `${head} notYet ${later.join(',')}`;
   });
   const today = codeList(facts.counters.today).slice(0, 10).map(({ code, count }) => `${code} ×${count}`);
   const health = Object.entries(facts.healthCounters ?? {})

@@ -11,7 +11,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { browser, $ } from '@wdio/globals';
 
 import { E2E_EVIDENCE_DIR } from '../../src/stand/paths';
-import { testBuildPage } from './fake-hub';
+import { QUIET_PAGE, testBuildPage } from './fake-hub';
 
 export interface StatusRow {
   readonly level: string;
@@ -297,6 +297,38 @@ export async function openPopup(): Promise<PopupState> {
   await browser.url('about:blank');
   await browser.url(testBuildPage('popup.html'));
   return waitForPopup(() => true, 'the popup');
+}
+
+/** The «ChatSpace» row of «Статус» and the popup, as the person sees them for the open ChatSpace tab. */
+export interface ChatSpaceStatus {
+  readonly chatspace: StatusRow;
+  readonly popupCodes: readonly string[];
+  readonly popupPills: readonly string[];
+}
+
+/**
+ * Reads «Статус» of the settings and the popup on the extension's pages tab, once both have read the ChatSpace tab's
+ * host contract (and the row is what `wanted` waits for); the ChatSpace tab is in front again after it.
+ */
+export async function readChatSpaceStatus(
+  tabs: { toPages(): Promise<void>; toStand(): Promise<void> },
+  wanted: (row: StatusRow) => boolean = () => true,
+): Promise<ChatSpaceStatus> {
+  await tabs.toPages();
+  try {
+    await browser.url(testBuildPage('options.html#status'));
+    const options = await waitForOptions((state) => {
+      const row = state.rows['chatspace'];
+      return row !== undefined && !['unknown', ''].includes(row.level) && !row.text.includes('проверяется') && wanted(row);
+    }, '«Статус» read the tab’s host contract');
+    await browser.url(testBuildPage('popup.html'));
+    const popup = await waitForPopup((state) => state.view === 'ready' && !state.pills.join(' ').includes('проверяется'), 'the popup read the tab’s host contract');
+    const row = options.rows['chatspace'];
+    return { chatspace: { level: row?.level ?? '', text: row?.text ?? '', action: row?.action ?? null }, popupCodes: popup.codes, popupPills: popup.pills };
+  } finally {
+    await browser.url(testBuildPage(QUIET_PAGE));
+    await tabs.toStand();
+  }
 }
 
 /**

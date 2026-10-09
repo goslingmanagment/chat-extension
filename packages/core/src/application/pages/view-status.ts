@@ -10,6 +10,7 @@ import { type HostContractReport } from '@cg/contracts/host';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
 import { type I18n, type Msg, type RunningOpVM, type StatusBodyVM, type StatusRowVM, type UiAction } from '@cg/contracts/vm';
 
+import { anchorGap, anchorsNotYet, previewSendWaitsForChat } from '../../domain/host';
 import { flagStateOf, somePageFlagState, type FlagState } from '../../domain/ops/flags';
 import { flagReasonVm } from '../flag-reason';
 
@@ -87,7 +88,9 @@ export const FEATURE_LABEL_KEYS = {
 const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
 
 /**
- * What a host report lacks: anchors that are not `ok` and capabilities the contract check closed.
+ * What a host report lacks: anchors that are gone or changed (`missing`, `shape`) and capabilities the contract
+ * check closed. An anchor ChatSpace has not created yet (`notYet`: the composer translator store before the page's
+ * first chat composer) is no gap — the ChatSpace row says what it waits for instead.
  *
  * `insert` — whether the dock writes a part into the field, by the dock's own rule (ai/workspace.ts): it is
  * copy-only without the `insert` capability and without the host's identity (the route and the account), and
@@ -96,7 +99,7 @@ const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
  */
 export function hostGaps(report: HostContractReport): { readonly anchors: string[]; readonly broken: string[]; readonly insert: boolean } {
   const anchors = Object.entries(report.anchors)
-    .filter(([anchor, state]) => state !== 'ok' && !SWITCHED_ANCHORS.includes(anchor))
+    .filter(([anchor, state]) => anchorGap(state) && !SWITCHED_ANCHORS.includes(anchor))
     .map(([anchor]) => anchor);
   const broken = Object.entries(report.capabilities)
     .filter(([, capability]) => capability.state === 'contractBroken' || capability.state === 'degraded')
@@ -137,7 +140,9 @@ function chatspaceRow(model: PagesModel): StatusRowVM {
   const gaps = hostGaps(host.report);
   const missing = [...gaps.anchors, ...gaps.broken];
   if (missing.length === 0) {
-    return row('chatspace', 'ok', msg('settings.status.row.chatspaceValue', { build }), msg('settings.status.row.chatspaceChecked', { time: { time: host.report.checkedAt } }));
+    // Connected. Before the page's first chat ChatSpace has not created what the preview send reads: said as a note.
+    const note = previewSendWaitsForChat(host.report) ? msg('settings.status.row.chatspaceNotYetNote') : msg('settings.status.row.chatspaceChecked', { time: { time: host.report.checkedAt } });
+    return row('chatspace', 'ok', msg('settings.status.row.chatspaceValue', { build }), note);
   }
   // 1.5.0: «Вставка работает через „Копировать“» only when the dock really is copy-only.
   return row('chatspace', 'warn', msg('settings.status.row.chatspacePartial', { build }), msg(gaps.insert ? 'settings.status.row.chatspacePartialNote' : 'settings.status.row.chatspaceCopyOnlyNote', { missing: missingAnchors(gaps) }));
@@ -306,6 +311,8 @@ function contractRow(model: PagesModel): StatusRowVM | null {
   if (report === null) return row('contract', 'unknown', msg('common.unknown'));
   const gaps = hostGaps(report);
   const value = msg('settings.status.row.contractValue', { adapter: report.adapterVersion, build: report.build ?? '—' });
+  const later = anchorsNotYet(report);
+  if (gaps.anchors.length === 0 && later.length > 0) return row('contract', 'ok', value, msg('settings.status.row.contractNotYet', { anchors: later.join(', ') }));
   if (gaps.anchors.length === 0) return row('contract', 'ok', value, msg('settings.status.row.contractOk', { n: Object.keys(report.anchors).length }));
   return row('contract', 'warn', value, msg('settings.status.row.contractMissing', { missing: gaps.anchors.join(', ') }));
 }

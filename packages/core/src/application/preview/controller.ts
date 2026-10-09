@@ -60,6 +60,7 @@ import { digestHex } from '../../domain/ops/digest';
 import { applyOpDone, applyOpUpdate, mirrorFromView, newMirror, type OpMirror } from '../../domain/ops/mirror';
 import { messageWindowFor } from '../../domain/ops/request';
 import { isTerminalOpState } from '../../domain/ops/states';
+import { previewSendWaitsForChat } from '../../domain/host';
 import { attemptReachable } from '../../domain/send/attempt';
 import { servedContextHold } from '../../domain/send/freshness';
 import { archiveLag, feedRows, firstFeedPage, keepFeed, olderFeedPage, type FeedState, type KeptFeed } from '../../domain/spenders/feed';
@@ -1088,7 +1089,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const group = groupOf(track, v);
     const attempts = group === null ? [] : fanAttempts(track.attempts, purposeOf(track.source), group, track.clicked);
     const sends = fanSends(track.pageId, track.fanRef, track.opId);
-    let row = sendRow({ attempt: track.attempts.get(key) ?? null, clicked: track.clicked.has(key), gate: gateOf(track, v), staleAt: track.fanWroteAt ?? track.mirror.done?.stale?.at ?? null, nowIso: nowIso() });
+    let row = sendRow({
+      attempt: track.attempts.get(key) ?? null,
+      clicked: track.clicked.has(key),
+      gate: gateOf(track, v),
+      staleAt: track.fanWroteAt ?? track.mirror.done?.stale?.at ?? null,
+      nowIso: nowIso(),
+      hostWaitsForChat: previewSendWaitsForChat(host.current().contract),
+    });
     // A send of ANOTHER result holds the fan: this result's unsent parts say so before any click (the background would refuse them).
     const unsent = row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'rejected';
     if (unsent && sends.uncertain !== null && sends.uncertain.opId !== track.opId) row = { s: 'unavailable', code: 'CG-SEND-UNCERTAIN', reason: msg(SEND_REASON_KEYS['CG-SEND-UNCERTAIN']) };
@@ -1959,6 +1967,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (event.type === 'coverage' || event.type === 'accounts') {
         for (const track of tracks.values()) if (track.mirror.done !== null && shownOn(track) !== null) void refreshPreflight(track);
       }
+    }),
+    // What the host can do changed (a store ChatSpace created with the first chat, a receipt profile that matched): the
+    // «Отправить» rows on screen are judged again — their reason, or a send that became possible.
+    host.onContract(() => {
+      for (const track of tracks.values()) if (track.mirror.done !== null && shownOn(track) !== null) void refreshPreflight(track);
+      changed();
     }),
   );
   if (deps.sender !== null) offs.push(deps.sender.onView(onAttemptView));

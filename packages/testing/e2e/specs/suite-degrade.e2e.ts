@@ -39,7 +39,7 @@ import { fillSessionStorage, freeSessionStorage, pageRpc, readReport, waitForRep
 import { QUIET_PAGE, testBuildPage, useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
 import { oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
-import { waitForOptions, waitForPopup } from '../support/pages';
+import { readChatSpaceStatus, type ChatSpaceStatus } from '../support/pages';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -56,20 +56,7 @@ describe('§12 п. 4 on the wired extension — degradation and restarts: what t
   let journalStart = 0;
 
   /** «Статус» of the settings, read on the extension page; the ChatSpace tab is in front again after it. */
-  const statusPage = async (): Promise<{ readonly chatspace: { readonly level: string; readonly text: string }; readonly popupCodes: readonly string[]; readonly popupPills: readonly string[] }> => {
-    await shift.toPages();
-    try {
-      await browser.url(testBuildPage('options.html#status'));
-      const options = await waitForOptions((state) => state.rows['chatspace'] !== undefined && !['unknown', ''].includes(state.rows['chatspace'].level) && !state.rows['chatspace'].text.includes('проверяется'), '«Статус» read the tab’s host contract');
-      await browser.url(testBuildPage('popup.html'));
-      const popup = await waitForPopup((state) => state.view === 'ready' && !state.pills.join(' ').includes('проверяется'), 'the popup read the tab’s host contract');
-      const row = options.rows['chatspace'];
-      return { chatspace: { level: row?.level ?? '', text: row?.text ?? '' }, popupCodes: popup.codes, popupPills: popup.pills };
-    } finally {
-      await browser.url(testBuildPage(QUIET_PAGE));
-      await shift.toStand();
-    }
-  };
+  const statusPage = (): Promise<ChatSpaceStatus> => readChatSpaceStatus(shift);
   const streams = async (mark: number): Promise<Array<string | null>> => callsTo((await hub().journal(mark)).entries, 'aiFeatureStream').map((call) => call.stream?.outcome ?? null);
 
   before(async () => {

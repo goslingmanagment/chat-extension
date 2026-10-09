@@ -321,8 +321,12 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
      * Store and cache anchors of §6.2 that MAIN sees (the DOM ones are the
      * isolated side's): `missing` — not there (yet), `shape` — not as
      * expected. Per-chat anchors only for the open account and chat.
+     * `composerTranslator` — ChatSpace creates that store in a chat composer's
+     * setup and keeps it until the page reloads: before the document's first
+     * composer it is `notYet` (`composerSeen` — one has been there), after it a
+     * store that is not there is `missing`.
      */
-    anchors(acc: string | null, fan: string | null): Record<string, string> {
+    anchors(acc: string | null, fan: string | null, composerSeen: () => boolean): Record<string, string> {
       const state = (value: unknown, ok: boolean): string => (value === undefined ? 'missing' : ok ? 'ok' : 'shape');
       const accounts = data(KEY_ACCOUNTS);
       const queue = store(STORE_QUEUE);
@@ -338,7 +342,7 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
             (onlyfans.length === 0 || onlyfans.some((item) => idOf(item['platformAccountId']) !== null)),
         ),
         pendingMessages: queue === undefined ? 'missing' : queueShape(queue),
-        composerTranslator: state(store(STORE_TRANSLATOR), true),
+        composerTranslator: store(STORE_TRANSLATOR) !== undefined ? 'ok' : composerSeen() ? 'missing' : 'notYet',
         mimic: state(data(KEY_MIMIC_SETTINGS) === undefined ? undefined : data(KEY_MIMIC_CHATS), true),
         userPermissions: state(permissions, Array.isArray(permissions)),
       };

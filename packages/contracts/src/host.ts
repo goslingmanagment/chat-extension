@@ -92,7 +92,12 @@ export const ANCHOR_IDS = [
 export const AnchorIdSchema = z.enum(ANCHOR_IDS);
 export type AnchorId = z.infer<typeof AnchorIdSchema>;
 
-export const ANCHOR_STATES = ['ok', 'missing', 'shape'] as const;
+/**
+ * `missing` — not there; `shape` — there, not as expected. `notYet` (1.10.0) — not there yet, and that is
+ * expected now: ChatSpace creates it later, with the first chat composer of the page (its composer translator
+ * store), and keeps it until the page reloads. What needs it stays off until then; it is no break of the contract.
+ */
+export const ANCHOR_STATES = ['ok', 'missing', 'shape', 'notYet'] as const;
 
 export const HostContractReportSchema = z.strictObject({
   /** Fingerprint of the host build (the hashed name of its entry module): a diagnostic signal, not the check itself. */

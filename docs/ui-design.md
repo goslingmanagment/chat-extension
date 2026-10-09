@@ -1728,6 +1728,7 @@ $1,110 / +4% к прошлым 7 дням ($1,068)», «30 дней $4,670 / 57 
 |---|---|---|
 | `send.reason.send-off` | CG-SEND-OFF | отправка из превью выключена для этой страницы. Вставьте часть в чат вручную. |
 | `send.reason.send-host` | CG-SEND-HOST | ChatSpace сейчас не принимает отправку из расширения. Вставьте часть в чат вручную. |
+| `send.reason.hostNotYet` | CG-SEND-HOST, пока после загрузки страницы не открыт ни один чат (контракты 1.10.0) | откройте любой чат, и она заработает. Пока вставьте часть в чат вручную. |
 | `send.reason.send-receipt` | CG-SEND-RECEIPT | эта версия ChatSpace ещё не проверена для отправки. Вставьте часть в чат вручную. |
 | `send.reason.send-active-chat` | CG-SEND-ACTIVE-CHAT | этот чат открыт — вставьте ответ в поле ввода. |
 | `send.reason.send-permission` | CG-SEND-PERMISSION | у этого аккаунта нет права отправлять или нужна смена. |
@@ -1918,6 +1919,7 @@ $1,110 / +4% к прошлым 7 дням ($1,068)», «30 дней $4,670 / 57 
 | `settings.status.row.chatspace.label` | ChatSpace |  |
 | `settings.status.row.chatspace.value` | Сборка {build}, подключён |  |
 | `settings.status.row.chatspace.note` | Поле ввода, вставка, отправка и чтение чата проверены в {time}. |  |
+| `settings.status.row.chatspaceNotYetNote` | Отправка из превью заработает, когда вы откроете любой чат. | вместо пояснения выше, пока после загрузки страницы не открыт ни один чат и отправка из превью включена (контракты 1.10.0) |
 | `settings.status.row.hub.label` | Хаб |  |
 | `settings.status.row.hub.value` | {host}, на связи |  |
 | `settings.status.row.hub.note` | Ответ за {ms} мс. Архив чатов догоняет ChatSpace за 1–2 минуты. |  |

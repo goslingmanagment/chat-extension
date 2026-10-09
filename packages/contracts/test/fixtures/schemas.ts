@@ -121,6 +121,8 @@ export const incomingFact = {
   source: 'ws-tap',
 } as const;
 export const contractWire = { build: 'index-0000test', missing: ['fansMap'], shape: [], receiptModules: { queue: 'mod-queue-0000' } } as const;
+/** 1.10.0: no chat composer yet in the page — the composer translator store is not there yet, and that is expected. */
+export const contractWireNotYet = { ...contractWire, missing: [], notYet: ['composerTranslator'] } as const;
 /** The draft at Send: our unchanged insert, and a draft nobody can attribute. */
 export const ourDraft = { revision: 5, provenance: 'our-insert', insertIntentId: uuid(1), editedSinceInsert: false } as const;
 export const humanDraft = { revision: 7, provenance: 'human-or-unknown', insertIntentId: null, editedSinceInsert: null } as const;
@@ -424,7 +426,13 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture('HostCapability', C.HostCapabilitySchema, ['previewSend'], ['send']),
   fixture('CapabilityState', C.CapabilityStateSchema, [{ state: 'on' }, { state: 'degraded', reason: 'composerFrame', code: 'CG-HOST-CONTRACT' }], [{ state: 'broken' }]),
   fixture('AnchorId', C.AnchorIdSchema, ['pendingMessages'], ['pinia']),
-  fixture('HostContractReport', C.HostContractReportSchema, [contractReport], [{ ...contractReport, anchors: { app: 'ok' } }]),
+  fixture(
+    'HostContractReport',
+    C.HostContractReportSchema,
+    // 1.10.0: an anchor ChatSpace creates later is `notYet`, not `missing`.
+    [contractReport, { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'notYet' } }],
+    [{ ...contractReport, anchors: { app: 'ok' } }, { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'later' } }],
+  ),
   fixture('RouteState', C.RouteStateSchema, [routeState, { epoch: 0, name: 'other', account: null, chat: null }], [{ epoch: 5, name: 'inbox', account: null, chat: null }]),
   fixture('ComposerState', C.ComposerStateSchema, [composerState], [{ ...composerState, draft: { revision: 4, provenance: 'x' } }]),
   fixture(
@@ -757,7 +765,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
 
   // ── bridge ──
   fixture('MainProbe', C.MainProbeSchema, [probe], [{ ...probe, evil: true }, { ...probe, readyStateAtStart: 'unloaded' }]),
-  fixture('ContractWire', C.ContractWireSchema, [contractWire], [{ ...contractWire, missing: ['pinia'] }]),
+  fixture('ContractWire', C.ContractWireSchema, [contractWire, contractWireNotYet], [{ ...contractWire, missing: ['pinia'] }, { ...contractWire, notYet: ['pinia'] }, { ...contractWire, notYet: 'composerTranslator' }]),
   fixture(
     'MainSnapshot',
     C.MainSnapshotSchema,

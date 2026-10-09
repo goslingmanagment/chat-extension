@@ -99,6 +99,8 @@ export interface HostContractFacts {
   readonly ok: boolean;
   readonly missing: readonly string[];
   readonly degraded: readonly string[];
+  /** Anchors ChatSpace has not created yet (the composer translator store before the page's first chat): no error. */
+  readonly notYet?: readonly string[];
 }
 
 /**
@@ -116,7 +118,7 @@ export function logHostContract(logger: Logger, facts: HostContractFacts, kind: 
   const starting = kind === 'starting';
   return logEvent(logger, kind === 'changed' ? 'hostContractChanged' : 'hostContract', {
     ...(facts.ok || starting ? {} : { code: 'CG-HOST-CONTRACT' as CgCode }),
-    fields: { ...facts, missing: [...facts.missing], degraded: [...facts.degraded], ...(starting ? { starting: true } : {}) },
+    fields: { ...facts, missing: [...facts.missing], degraded: [...facts.degraded], ...(facts.notYet === undefined ? {} : { notYet: [...facts.notYet] }), ...(starting ? { starting: true } : {}) },
   });
 }
 
