@@ -85,6 +85,7 @@ export const PREVIEW_SEND_CONDITION_CODES = [
   'CG-CONTEXT-CHANGED',
   'CG-SEND-OFF',
   'CG-SEND-RECEIPT',
+  'CG-SEND-FUSE',
   'CG-SEND-PERMISSION',
   'CG-SEND-ACTIVE-CHAT',
   'CG-SEND-HISTORY',
@@ -99,6 +100,66 @@ export const PREVIEW_SEND_CONDITION_CODES = [
   'CG-SEND-HOST',
 ] as const satisfies readonly CgCode[];
 export type PreviewSendConditionCode = (typeof PREVIEW_SEND_CONDITION_CODES)[number];
+
+/**
+ * How a receipt profile let X8 in (1.11.0, decision X25): `exact` — a profile
+ * names exactly the send-path modules the page loaded (a reviewed build);
+ * `anyBuild` — the hub lists the «any build» sentinel for this adapter
+ * (ReceiptProfile `modules` = `{"*":"*"}`): any ChatSpace build whose send-path
+ * modules are loaded passes, without a review. The fuse watches what follows.
+ */
+export const RECEIPT_MATCH_KINDS = ['exact', 'anyBuild'] as const;
+export type ReceiptMatchKind = (typeof RECEIPT_MATCH_KINDS)[number];
+
+/**
+ * Why the X8 fuse tripped (1.11.0, decision X25), after a send whose outcome
+ * is known:
+ * - `text` — the message ChatSpace sent or confirmed carries another text than
+ *   the part we queued (compared as ChatSpace shows it: tags, entities and
+ *   white space aside);
+ * - `count` — one click made more than one outgoing message in the chat (a
+ *   second POST through the receipt observer, a second queue entry, a second
+ *   outgoing echo with the same text);
+ * - `target` — the request, the queue entry or the echo of our receipt names
+ *   another chat or account;
+ * - `uncertain` — SEND_FUSE_UNCERTAIN_RUN sends in a row ended with an unknown
+ *   outcome.
+ * The fuse never sends and never retries: it only turns X8 off in this
+ * browser until the ChatSpace build changes or the person resets it.
+ */
+export const SEND_FUSE_REASONS = ['text', 'count', 'target', 'uncertain'] as const;
+export type SendFuseReason = (typeof SEND_FUSE_REASONS)[number];
+
+/** Where the evidence of a trip was seen: the intercepted request or response, the socket's echo, the queue's entries, the run of outcomes. */
+export const SEND_FUSE_EVIDENCE = ['request', 'response', 'echo', 'queue', 'outcomes'] as const;
+export type SendFuseEvidence = (typeof SEND_FUSE_EVIDENCE)[number];
+
+/** Sends in a row that end `uncertain` before the fuse trips with reason `uncertain`; a known outcome starts the run over. */
+export const SEND_FUSE_UNCERTAIN_RUN = 3;
+
+/**
+ * Whether a tripped fuse holds X8 on a tab of this ChatSpace build (`build` of its host report): the build the fuse
+ * names, or any when it names none; a tab whose build is not known (null, undefined) is held by any fuse. Plain data
+ * (no schema): the early isolated start reads it.
+ */
+export function sendFuseHolds(fuse: { readonly build: string | null } | null, build: string | null | undefined): boolean {
+  return fuse !== null && (fuse.build === null || build === undefined || build === null || fuse.build === build);
+}
+
+/**
+ * The «any build» sentinel of `limits.previewSendReceiptProfiles` (1.11.0, decision X25): a ReceiptProfile whose
+ * `modules` is exactly `{"*":"*"}` lets X8 in on any ChatSpace build for the adapter version it names, while the
+ * page has loaded a module of every send-path role; its id is free text. A sentinel of another adapter version
+ * matches nothing. Exact profiles keep working beside it, and one that matches is named first. Data only, as every
+ * profile: no code, no selectors.
+ */
+export const ANY_BUILD_MODULE = '*';
+
+/** The profile is the «any build» sentinel: one role `*` with the fingerprint `*`, nothing else. */
+export function isAnyBuildReceiptProfile(profile: { readonly modules: Readonly<Record<string, string>> }): boolean {
+  const entries = Object.entries(profile.modules);
+  return entries.length === 1 && entries[0]?.[0] === ANY_BUILD_MODULE && entries[0][1] === ANY_BUILD_MODULE;
+}
 
 /**
  * The served-context check of §6.7.5 («обслуженный контекст»): the hold for

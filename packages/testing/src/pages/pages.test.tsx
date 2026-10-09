@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS, SCHEME_ATTRIBUTE, SETTINGS_SECTIONS, type Unmount } f
 import { AUTOSAVE_DEBOUNCE_MS, SCHEME_ACTIONS } from '@cg/core/application/pages';
 import { JOURNAL_PAGE_SIZE, JOURNAL_REFRESH_MS, PAGES_CSS, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
 
-import { LONG_TITLE, PAGES_NOW, longTitleState, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
+import { LONG_TITLE, PAGES_NOW, hostReport, longTitleState, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
 
 interface Mounted {
   readonly world: PagesWorld;
@@ -226,6 +226,34 @@ describe('options: the shell (ui-design §4.24)', () => {
     expect(page.$('[data-pg-row="hub"] .cg-dot--ink')).not.toBeNull();
     // No red anywhere on a working shift.
     expect(page.$$('.cg-dot--danger')).toHaveLength(0);
+  });
+
+  it('[X8-06] the fuse tripped (decision X25): the X8 row says so in plain words with «Сбросить предохранитель»; the click clears it and the row is «включена» again — on a build nobody reviewed, and says so', async () => {
+    const state = workingState();
+    state.bootstrap = {
+      ...state.bootstrap,
+      pages: state.bootstrap.pages.map((page) => ({ ...page, features: { ...page.features, previewSend: { available: true } } })),
+      limits: { ...state.bootstrap.limits, previewSendReceiptProfiles: [{ id: 'any-build', adapterVersion: '1.0.0', modules: { '*': '*' } }] },
+    };
+    const report = { ...hostReport(PAGES_NOW), receiptMatch: { profile: 'any-build', kind: 'anyBuild' as const } };
+    state.diagnostics = {
+      ...state.diagnostics,
+      tabs: state.diagnostics.tabs.map((tab) => ({ ...tab, host: { ...report, capabilities: { ...report.capabilities, previewSend: { state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' } } } })),
+      sendFuse: { fuse: { trippedAt: PAGES_NOW - 30 * 60_000, reason: 'count', where: 'echo', build: 'index-0000test', attemptId: '00000000-0000-4000-8000-000000000070' }, resetAt: null },
+    };
+    const page = await mount('options', { state });
+    const row = (): string => (page.$('[data-pg-row="preview-send"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    expect(page.$('[data-pg-row="preview-send"]')?.getAttribute('data-pg-level')).toBe('warn');
+    expect(row()).toBe('Отправка из превьювыключена предохранителемОдно нажатие дало больше одного сообщения. Когда: 3 окт, 08:50, сборка index-0000test. Отправка из превью включится сама с новой сборкой ChatSpace или после сброса.Сбросить предохранитель');
+    expect(page.$('.pg-sum > span')?.textContent).toContain('предохранитель выключил отправку из превью');
+    // The person resets it: the background is asked, the tab's host turns X8 on again, «Статус» reads it anew.
+    page.world.state.diagnostics = { ...page.world.state.diagnostics, tabs: page.world.state.diagnostics.tabs.map((tab) => ({ ...tab, host: report })) };
+    await flush(() => button(page, 'Сбросить предохранитель').click());
+    expect(page.world.state.diagnostics.sendFuse).toEqual({ fuse: null, resetAt: PAGES_NOW });
+    expect(page.$('[data-pg-row="preview-send"]')?.getAttribute('data-pg-level')).toBe('ok');
+    expect(row()).toBe(
+      'Отправка из превьювключена · сборка ChatSpace не проверенаХаб пропускает любую сборку ChatSpace (профиль «any-build»). Если после отправки что-то пойдёт не так, предохранитель выключит её сам. Открытых попыток: 0, с неизвестным исходом: 0.',
+    );
   });
 
   it('[ST-008] [ST-009] [ST-010] a deep link: the plate «КОД · описание» and the target highlighted for two seconds', async () => {

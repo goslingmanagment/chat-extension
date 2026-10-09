@@ -28,13 +28,17 @@
 // - The queue's send action is also where a human send shows (§6.6): the
 //   runtime listens for it by the name exported here; what follows is the
 //   receipt observer's.
+// - The fuse (decision X25): right after the call, the account's entries are
+//   compared with those before it — one click makes one entry, of the chat we
+//   named. More than one is `count`, one of another chat `target` (receipt.ts
+//   tells the isolated side). Nothing is undone or sent because of it.
 //
 // The page reads come from the bridge's runtime (LiveHost); the conditions
 // that are not the page's — the person and the part, the hub identity, the
 // hub's `dispatch`, the lease, the subscription the hub confirms (1–3, 9, 15)
 // — are checked before MAIN is asked.
 
-import { isPlain, type Plain } from './check';
+import { idOf, isPlain, type Plain } from './check';
 import { type LiveHost, type PageStore, type Tap } from './live';
 import {
   CG_SEND_ACTIVE_CHAT,
@@ -87,6 +91,8 @@ export interface SendWatch {
    * nothing of it can be seen. Never called (the queue refused, or gave no entry we know) — nothing is followed or said.
    */
   readonly bind: (pendingId: string) => boolean;
+  /** The fuse (decision X25): what this send did is not what one click of ours does; once per attempt. */
+  readonly trip: (reason: 'count' | 'target', where: 'queue') => void;
 }
 export interface SendObserver {
   /** No send path that can be observed: one did not behave as its profile says (§6.7.6), or the page's fetch cannot be put aside. */
@@ -119,6 +125,19 @@ const held = (code: string): Plain => ({ state: 'held', code });
 const UNCERTAIN: Plain = { state: 'uncertain', code: CG_SEND_UNCERTAIN };
 
 export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver, enabled: () => boolean) {
+  /** The fuse (decision X25): one queue call of ours adds at most one entry, and only to the chat it names. */
+  const added = (req: SendRequest, entry: unknown, before: ReadonlySet<unknown>, watch: SendWatch): void => {
+    try {
+      const fresh = host.entries(req.acc).filter((item) => !before.has(item['id']));
+      // Only an id that reads, and reads as another: an entry the queue shapes otherwise is no evidence.
+      const other = (value: unknown, ours: string): boolean => idOf(value) !== null && idOf(value) !== ours;
+      if (fresh.some((item) => other(item['chatId'], req.fan) || other(item['accountId'], req.acc))) watch.trip('target', 'queue');
+      else if (fresh.length > (entry === null ? 0 : 1)) watch.trip('count', 'queue');
+    } catch {
+      tap.fail('fuseQueue');
+    }
+  };
+
   /** Attempts that reached `commit`, with their first answer. */
   const used = new Map<string, Plain>();
   /** The attempts answered `held`, oldest first: only these are ever forgotten. */
@@ -188,6 +207,13 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
       return held(CG_SEND_HOST);
     }
     let entry: unknown;
+    /** The account's entries before the call: what the call added is told by them (the fuse). */
+    let before: Set<unknown> | null = null;
+    try {
+      before = new Set(host.entries(req.acc).map((item) => item['id']));
+    } catch {
+      // Not readable: the fuse has nothing to compare.
+    }
     try {
       // The one write into ChatSpace's store (D-07, §6.7.1): still the synchronous step of the checks above.
       entry = (host.queue() as unknown as { enqueue(input: Plain): unknown }).enqueue({
@@ -206,6 +232,7 @@ export function createSendPort(host: LiveHost, tap: Tap, observer: SendObserver,
     } finally {
       watch.release();
     }
+    if (before !== null) added(req, entry, before, watch);
     if (entry === null) return { state: 'notEnqueued', code: CG_SEND_QUEUE };
     // §6.2: the queue threw, or gave what is not the entry we know — its chain cannot be read to its end.
     const pendingId = isPlain(entry) && ENTRY_KEYS.every((key) => key in entry) && isRef(entry['id']) ? entry['id'] : null;

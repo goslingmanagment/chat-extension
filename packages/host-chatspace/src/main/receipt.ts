@@ -59,11 +59,29 @@
 //   (guard.ts; counted by the bridge). The previous fetch is called outside
 //   any of it: what it throws or returns — a rejection too — is ChatSpace's
 //   and reaches ChatSpace unchanged, the very same value.
+// - The fuse (decision X25). Every ChatSpace build may now pass the receipt
+//   gate, so after an X8 send this observer checks the evidence it already
+//   holds and tells the isolated side (`previewSendFuse`, once per attempt)
+//   when it is not what we sent:
+//   - `text` — the request ChatSpace put on the wire, the message its
+//     response carries, or the outgoing echo of the receipt's id shows another
+//     text than the part we queued (compared as ChatSpace shows a text,
+//     shown.ts: a rewrite of the same text is no trip);
+//   - `count` — a second POST through the observer, or, from the queue call
+//     until shortly after the receipt, a second outgoing echo in that chat
+//     with our text (send-port.ts adds: a second queue entry);
+//   - `target` — a POST through the observer to another chat or account, or
+//     the echo of our receipt's id in another chat or account.
+//   The outcome of the attempt is what it is (a linked pair stays
+//   `sentObserved`); the fuse only turns X8 off. It never sends, never
+//   retries, never changes a request. The echo's text is read here only for
+//   such a comparison and is kept nowhere.
 
 import { idOf, isPlain, type Plain } from './check';
 import { type Fact, type LiveHost, type QueueListener, type Tap } from './live';
-import { CG_SEND_GUARD, CG_SEND_REJECTED, CG_SEND_UNCERTAIN, ENTRY_FAILED, ERROR_BLOCKED, GUARD_CODE, SEND_PATH } from './protocol';
+import { CG_SEND_GUARD, CG_SEND_REJECTED, CG_SEND_UNCERTAIN, ENTRY_FAILED, ERROR_BLOCKED, EVT_FUSE, GUARD_CODE, SEND_PATH } from './protocol';
 import { isRef, queueBusy, type SendObserver } from './send-port';
+import { sameShown, shownForms } from './shown';
 
 /** Characters of a kept copy that are parsed; a longer one is not ours to judge. */
 const MAX_BODY = 65_536;
@@ -71,6 +89,12 @@ const MAX_BODY = 65_536;
 const MAX_AWAITING = 32;
 /** Outgoing ids kept with one followed send (its chat's, from the queue call to the receipt). */
 const MAX_EARLY = 64;
+/** X8 sends whose chat is watched for a second message with their text (the fuse's `count`); the oldest goes first. */
+const MAX_WATCHED = 32;
+/** How long after its receipt a send's chat is still watched for a second outgoing echo with its text. */
+export const ECHO_TAIL_MS = 10_000;
+/** Receipts of X8 sends whose id is watched in other chats (the fuse's `target`); the oldest goes first. */
+const MAX_RECEIPTS = 64;
 
 /** Message Guard topics as the contract takes them: at most 16, 64 characters each. */
 const topics = (value: unknown): string[] => (Array.isArray(value) ? (value as unknown[]) : []).slice(0, 16).map((item) => String(item).slice(0, 64));
@@ -82,21 +106,49 @@ const sendTarget = (input: unknown, init: unknown): RegExpExecArray | null => {
   return /^post$/i.test(String(method)) ? SEND_PATH.exec(String(request?.url ?? input).split(/[?#]/)[0] as string) : null;
 };
 
+/** The fuse's word about one X8 send (decision X25): reason and where it was seen; `seenChars` — the length of another text. */
+type Trip = (reason: 'text' | 'count' | 'target', where: 'request' | 'response' | 'echo' | 'queue', seenChars?: number) => void;
+
+/** The length of a text as shown (shown.ts), for the logs: never the text. */
+const charsOf = (text: unknown): number => shownForms(text)?.[0]?.length ?? 0;
+
 /** A send whose native chain has not ended. */
 interface Followed {
   readonly chat: string;
+  /** Our part as ChatSpace would show it (X8 only; null — a human send, or not told). */
+  readonly forms: readonly string[] | null;
   /** Outgoing ids seen for its chat since its queue call. */
   readonly seen: string[];
+  /** Of those, the ones whose text is another than ours (X8 only), with its length. */
+  readonly others: Map<string, number>;
   /** «The queue changed». */
   readonly decide: () => void;
 }
 
-export function createReceipts(win: Window & typeof globalThis, host: LiveHost, { guard, fail }: Pick<Tap, 'guard' | 'fail'>): SendObserver & { readonly send: QueueListener; readonly echo: (fact: Fact) => void } {
+/** An X8 send's chat, watched for a second outgoing message with its text. */
+interface Watched {
+  readonly chat: string;
+  readonly forms: readonly string[];
+  readonly ids: Set<string>;
+  /** Until when (local clock); Infinity — its chain has not ended. */
+  until: number;
+  readonly trip: Trip;
+}
+
+export function createReceipts(
+  win: Window & typeof globalThis,
+  host: LiveHost,
+  { guard, fail }: Pick<Tap, 'guard' | 'fail'>,
+): SendObserver & { readonly send: QueueListener; readonly echo: (fact: Fact, content?: unknown) => void } {
   const open = new Set<Followed>();
   /** «The queue changed» for each send followed; one that fails leaves the others theirs. */
   const decideOne = guard('decide', (each: Followed) => each.decide());
-  /** `acc:fan:id` of a receipt → what its outgoing echo completes. */
-  const awaiting = new Map<string, () => void>();
+  /** `acc:fan:id` of a receipt → what its outgoing echo completes (with that echo's text). */
+  const awaiting = new Map<string, (content: unknown) => void>();
+  /** X8 sends whose chat is watched for a second message with their text. */
+  const watched: Watched[] = [];
+  /** The id of an X8 receipt → its chat and its fuse: the echo of that id must come in that chat. */
+  const receipts = new Map<string, { readonly chat: string; readonly trip: Trip }>();
   let broken = false;
   let stop: unknown = null;
 
@@ -113,6 +165,26 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
    */
   const follow = (acc: string, fan: string, text: unknown, attempt: string | null, fact: Plain | null) => {
     let pendingId: string | null = null;
+    /** Our part as ChatSpace would show it (X8 only): what the fuse compares. */
+    const forms = attempt ? shownForms(text) : null;
+    let tripped = false;
+    /** The fuse, once per attempt (decision X25); a human send is not ours to judge. */
+    const trip: Trip = (reason, where, seenChars) => {
+      if (!attempt || tripped) return;
+      tripped = true;
+      const lengths = reason === 'text' ? { sentChars: forms?.[0]?.length ?? 0, seenChars: seenChars ?? 0 } : {};
+      host.post(EVT_FUSE, { attemptId: attempt, reason, where, ...lengths });
+    };
+    /** The send's chat is watched for a second message with our text (`count`), from the queue call on. */
+    const watch: Watched | null = attempt && forms ? { chat: `${acc}:${fan}`, forms, ids: new Set(), until: Number.POSITIVE_INFINITY, trip } : null;
+    if (watch) {
+      watched.push(watch);
+      if (watched.length > MAX_WATCHED) watched.shift();
+    }
+    /** The echo of the receipt's id shows our text, or the fuse trips. */
+    const checkEcho = (content: unknown): void => {
+      if (sameShown(forms, content) === false) trip('text', 'echo', charsOf(content));
+    };
     /** The client took the observer for its request (`.bind`, the profile's capture), or called it. */
     let taken = false;
     /** POSTs to the send path that went through the observer. */
@@ -133,8 +205,10 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
 
     const say = (state: string, extra: Plain): void => host.post('previewSendState', { view: { attemptId: attempt, state, ...extra } });
     const human = (platformMessageId: string | null): void => host.post('humanSend', { ...fact, pendingId, platformMessageId });
-    const close = (): void => {
+    /** The chain ended: with a receipt the chat is watched a little longer (a second echo may follow the first), else no more. */
+    const close = (receipt = false): void => {
       done = true;
+      if (watch) watch.until = receipt ? Date.now() + ECHO_TAIL_MS : 0;
       open.delete(self);
       if (open.size === 0 && typeof stop === 'function') {
         (stop as () => void)();
@@ -144,11 +218,26 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
 
     /** The receipt of exactly this send; with its outgoing echo it is the linked pair (§6.6 п. 4, §6.7.6 п. 6). */
     const accept = (receipt: string): void => {
-      close();
+      close(true);
       const view = { platformMessageId: receipt };
-      const paired = attempt ? (): void => say('sentObserved', view) : (): void => human(receipt);
-      if (attempt) say('nativeAccepted', view);
-      if (self.seen.includes(receipt)) return paired();
+      const paired = attempt
+        ? (content: unknown): void => {
+            checkEcho(content);
+            say('sentObserved', view);
+          }
+        : (): void => human(receipt);
+      if (attempt) {
+        say('nativeAccepted', view);
+        // Its id must come back in this chat and no other (the fuse's `target`).
+        receipts.set(receipt, { chat: self.chat, trip });
+        if (receipts.size > MAX_RECEIPTS) receipts.delete(receipts.keys().next().value as string);
+      }
+      if (self.seen.includes(receipt)) {
+        // The echo came first: whether its text is ours was told when it came.
+        const other = self.others.get(receipt);
+        if (other !== undefined) trip('text', 'echo', other);
+        return attempt ? say('sentObserved', view) : human(receipt);
+      }
       awaiting.set(`${self.chat}:${receipt}`, paired);
       if (awaiting.size > MAX_AWAITING) awaiting.delete(awaiting.keys().next().value as string);
     };
@@ -192,7 +281,10 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
         .catch(() => '');
       try {
         const sent = await copy.text();
-        odd ||= sent.length > MAX_BODY || (JSON.parse(sent) as Plain)['text'] !== text;
+        const body = sent.length > MAX_BODY ? null : (JSON.parse(sent) as Plain);
+        odd ||= body === null || body['text'] !== text;
+        // The fuse: what went on the wire shows another text than the part we queued.
+        if (body !== null && sameShown(forms, body['text']) === false) trip('text', 'request', charsOf(body['text']));
       } catch {
         odd = true;
       }
@@ -200,8 +292,11 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
         const raw = await reply;
         const json: unknown = raw.length <= MAX_BODY ? JSON.parse(raw) : null;
         if (isPlain(json)) {
-          if (status >= 200 && status < 300) id = idOf(json['id']);
-          else {
+          if (status >= 200 && status < 300) {
+            id = idOf(json['id']);
+            // The fuse: the message the response carries shows another text (a response without one says nothing).
+            if (sameShown(forms, json['content']) === false) trip('text', 'response', charsOf(json['content']));
+          } else {
             code = typeof json['code'] === 'string' ? json['code'].slice(0, 64) : '';
             if (code === GUARD_CODE) guardTopics = topics(json['topic_matches']);
           }
@@ -213,8 +308,9 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
       decide();
     };
 
-    const self: Followed = { chat: `${acc}:${fan}`, seen: [], decide };
+    const self: Followed = { chat: `${acc}:${fan}`, forms, seen: [], others: new Map(), decide };
     return {
+      trip,
       /** Puts the observer in place of the page's fetch; the returned function puts the previous value back if the global is still ours. */
       capture(): () => void {
         // eslint-disable-next-line @typescript-eslint/unbound-method -- the page's function, only ever called with its caller's own `this`
@@ -230,6 +326,9 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
               calls += 1;
               // ChatSpace's client hands fetch a Request; its copy is taken before the previous function reads the body.
               if (calls === 1 && target[1] === acc && target[2] === fan) copy = (args[0] as Request).clone();
+              // The fuse: one click, one POST, to the chat we named.
+              else if (target[1] !== acc || target[2] !== fan) trip('target', 'request');
+              else trip('count', 'request');
             }
           } catch {
             // No copy: nothing can be claimed.
@@ -270,6 +369,7 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
         pendingId = entryId;
         if (!taken) {
           done = true;
+          if (watch) watch.until = 0;
           if (attempt) broken = true;
           else human(null);
           return false;
@@ -291,7 +391,7 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
     broken: () => broken || fixed(),
     open(attemptId, acc, fan, html) {
       const followed = follow(acc, fan, html, attemptId, null);
-      return { release: followed.capture(), bind: followed.bind };
+      return { release: followed.capture(), bind: followed.bind, trip: followed.trip };
     },
     /**
      * §6.6: a send that is not ours. Only the open chat's composer counts: it passes its content along, and its draft
@@ -301,6 +401,10 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
       const args = isPlain(input) ? input : {};
       const acc = idOf(args['accountId']);
       const fan = idOf(args['chatId']);
+      // Another send in a chat whose last X8 send is in its tail (the fuse's `count`): the messages from here on may be
+      // that send's — ours or the person's — and are not counted against the one before.
+      const now = Date.now();
+      for (const each of watched) if (each.chat === `${acc ?? ''}:${fan ?? ''}` && Number.isFinite(each.until) && each.until > now) each.until = 0;
       const queue = host.queue();
       // The draft is read here, before the send clears the field.
       const from = acc && fan && queue && isPlain(args['composerContent']) ? host.draft(acc, fan) : null;
@@ -323,13 +427,29 @@ export function createReceipts(win: Window & typeof globalThis, host: LiveHost, 
       );
       onError(restore);
     },
-    echo(fact) {
+    echo(fact, content) {
       if (fact.fromFan) return;
       const chat = `${fact.acc}:${fact.fan}`;
-      for (const each of open) if (each.chat === chat && each.seen.length < MAX_EARLY) each.seen.push(fact.msgId);
+      for (const each of open) {
+        if (each.chat !== chat || each.seen.length >= MAX_EARLY) continue;
+        each.seen.push(fact.msgId);
+        // An X8 send keeps only whether this echo shows its text — should it turn out to be its receipt's.
+        if (each.forms !== null && sameShown(each.forms, content) === false) each.others.set(fact.msgId, charsOf(content));
+      }
+      // The fuse (decision X25), X8 sends only: the echo of a receipt's id in another chat or account (`target`)…
+      const receipt = receipts.get(fact.msgId);
+      if (receipt && receipt.chat !== chat) receipt.trip('target', 'echo');
+      // …and a second outgoing message with the same text in a watched chat (`count`). A redelivery is the same id.
+      const now = Date.now();
+      for (let i = watched.length - 1; i >= 0; i -= 1) if ((watched[i] as Watched).until < now) watched.splice(i, 1);
+      for (const each of watched) {
+        if (each.chat !== chat || sameShown(each.forms, content) !== true) continue;
+        each.ids.add(fact.msgId);
+        if (each.ids.size > 1) each.trip('count', 'echo');
+      }
       const tag = `${chat}:${fact.msgId}`;
       const paired = awaiting.get(tag);
-      if (paired && awaiting.delete(tag)) paired();
+      if (paired && awaiting.delete(tag)) paired(content);
     },
   };
 }

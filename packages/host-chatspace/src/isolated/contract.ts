@@ -12,16 +12,22 @@
 //   read well, degraded until then (sound falls back to the stores);
 // - `sendObserve` — a human send with its receipt (§6.6);
 // - `receipt` — a bootstrap profile matches the loaded send-path modules (§6.2);
-// - `previewSend` — X8: its flag, every anchor a condition is read from, the
-//   tap, and the receipt profile. The socket being armed is not part of it:
-//   that is the preflight's answer (CG-SEND-FRESHNESS), the capability does
-//   not flap with reconnects.
+// - `previewSend` — X8: its flag, the fuse (decision X25: tripped in this
+//   browser on this build, CG-SEND-FUSE), every anchor a condition is read
+//   from, the tap, and the receipt profile. The socket being armed is not part
+//   of it: that is the preflight's answer (CG-SEND-FRESHNESS), the capability
+//   does not flap with reconnects.
+// The report names the profile that matched and how (`receiptMatch`: a
+// reviewed build or the hub's «any build» sentinel), so «Статус», the logs and
+// client_health can tell X8 runs on a build nobody reviewed.
 // An anchor ChatSpace creates later (`notYet`: the composer translator store
 // before the page's first chat composer) is no break of the contract, but X8
 // stays off until it comes (CG-SEND-HOST, the anchor as the reason). A real
 // break of another send anchor is named first: opening a chat would not lift it.
 
 import type { AnchorId, CapabilityState, HostCapability, HostContractReport } from '@cg/contracts/host';
+
+import type { ReceiptMatch } from './receipt-profile';
 
 type AnchorState = 'ok' | 'missing' | 'shape' | 'notYet';
 
@@ -51,6 +57,10 @@ export interface ContractInput {
     readonly previewSend: boolean;
     /** A bootstrap receipt profile matches the modules the page loaded. */
     readonly receipt: boolean;
+    /** Which one, and how (reported while `receipt`). */
+    readonly receiptMatch?: ReceiptMatch | null;
+    /** The X8 fuse holds in this browser for this build, or tripped in this document (decision X25). */
+    readonly fused?: boolean;
   };
 }
 
@@ -118,7 +128,9 @@ export function buildContractReport(input: ContractInput): HostContractReport {
       ? route
       : !live.previewSend
         ? coded('off', 'flag', 'CG-SEND-OFF')
-        : brokenSendAnchor
+        : live.fused === true
+          ? coded('off', 'fuse', 'CG-SEND-FUSE')
+          : brokenSendAnchor
           ? coded('off', brokenSendAnchor, 'CG-SEND-HOST')
           : !live.tap
             ? noTap
@@ -142,7 +154,15 @@ export function buildContractReport(input: ContractInput): HostContractReport {
     previewSend,
     receipt,
   };
-  return { build: wire?.build ?? null, adapterVersion: input.adapterVersion, checkedAt: input.checkedAt, anchors, capabilities };
+  const match = live.receipt ? live.receiptMatch : null;
+  return {
+    build: wire?.build ?? null,
+    adapterVersion: input.adapterVersion,
+    checkedAt: input.checkedAt,
+    anchors,
+    capabilities,
+    ...(match ? { receiptMatch: { profile: match.profile, kind: match.kind } } : {}),
+  };
 }
 
 /** The same report but for `checkedAt`: whether listeners must hear about it. */

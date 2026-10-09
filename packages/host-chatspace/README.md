@@ -73,7 +73,8 @@ DOM, мост ChatSpace для вставки и — для отправки и�
 - `buildContractReport`, `createThemeReader`, `readStoredDraft`, `host-contract.ts` (все
   строки ChatSpace в одном месте; копия MAIN закреплена тестом).
 - `receiptModules` / `matchReceiptProfile` / `loadedScriptUrls` — отпечаток модулей пути
-  отправки; `aiGeneratedMark` — правило ChatSpace для отметки «сгенерировано ИИ».
+  отправки и совпавший профиль с его видом (`exact` или `anyBuild`, решение X25);
+  `aiGeneratedMark` — правило ChatSpace для отметки «сгенерировано ИИ».
 
 ## Часть B: X8, квитанция, отправка человеком, тап (§6.6–§6.8)
 
@@ -133,6 +134,17 @@ DOM, мост ChatSpace для вставки и — для отправки и�
   с тем же id → `sentObserved`; доказанный отказ (перехваченный 4xx кроме 401 и запись
   `FAILED`, или Message Guard) → `rejected`; 5xx, сеть, тайм-аут 30 с, исчезнувшая запись,
   второй или чужой POST, не тот текст → `uncertain`. Повторной отправки нет нигде.
+  - **Предохранитель (решение X25).** После отправки X8 с известным исходом наблюдатель
+    сверяет то, что уже держит, и говорит изолированной стороне `previewSendFuse` (один раз
+    на попытку): `text` — тело запроса, сообщение в ответе или исходящее эхо id квитанции
+    показывают другой текст, чем наша часть (сравнение как у ChatSpace — `main/shown.ts`:
+    без тегов, с сущностями, без пробелов, NFC; безвредное переписывание не в счёт);
+    `count` — второй POST через наблюдатель, второй элемент очереди от одного вызова
+    (`main/send-port.ts`), второе исходящее сообщение с нашим текстом в этом чате до 10 с
+    после квитанции (новая отправка в этом чате окно обрывает); `target` — POST, элемент
+    очереди или эхо id квитанции другого чата или аккаунта. Исход попытки не меняется, ничего
+    не повторяется. Текст исходящего эха тап передаёт только сюда, для сравнения; из MAIN он
+    не уходит, в событии — только длины.
   - **Взял ли клиент наблюдателя.** Клиент ChatSpace берёт `fetch` для запроса через
     `fetch.bind(globalThis)` (§6.7.6 п. 2; модуль закреплён профилем квитанции).
     Наблюдатель слышит этот `bind` на самом себе. Запрос очереди наблюдателя не взял —
@@ -152,8 +164,9 @@ DOM, мост ChatSpace для вставки и — для отправки и�
     `platformMessageId: null` — атрибуция неизвестна, `sent` нет. Потребителю свой буфер
     эха не нужен: `op.reportSent` можно звать по факту с id.
 - `isolated/host-port.ts`:
-  - `host.configure({ wsTap, previewSend, markAiGenerated, receiptProfiles })` — флаги и
-    профили из bootstrap; зовётся при старте и при каждой их смене.
+  - `host.configure({ wsTap, previewSend, markAiGenerated, receiptProfiles, fuse })` — флаги
+    и профили из bootstrap и предохранитель фона (`SendFuseState`, решение X25); зовётся при
+    старте и при каждой их смене.
   - `host.checkpoint(chat)` — контрольная точка свежести или `null`.
   - `host.previewSend` — `PreviewSendPort` (`preflight`, `commit`, `onState`), не `null`
     только когда способность `previewSend` включена: флаг, якоря пути отправки, скрипт тапа
@@ -167,8 +180,15 @@ DOM, мост ChatSpace для вставки и — для отправки и�
     (`CG-SEND-UNCERTAIN`), следующие X8 закрыты способностью. Из того, что MAIN скажет об
     этих попытках потом, проходит только `sentObserved` — поздняя связанная пара (§6.7.7).
     Выключение флага несовпадением не считается: начатая отправка прослеживается до конца.
-  - события `HostEvents`: `incoming`, `coverage`, `humanSend`; способности `incoming`,
-    `sendObserve`, `receipt`, `previewSend`; якоря `wsFrames`, `receiptProfile`.
+  - Предохранитель (решение X25): на `previewSendFuse` MAIN способность `previewSend` сразу
+    `off` с причиной `fuse` и `CG-SEND-FUSE` (флаг владельца называется раньше), событие
+    `sendFuse` с фактом, запись `x8-fuse` в журнал. Это держится до сброса, сделанного после
+    срабатывания (`fuse.resetAt`). Предохранитель фона держит, пока сборка страницы (`build`
+    отчёта) та, на которой он сработал, или любую, если сборка в нём не названа. Отправки в
+    пути он не трогает.
+  - события `HostEvents`: `incoming`, `coverage`, `humanSend`, `sendFuse`; способности
+    `incoming`, `sendObserve`, `receipt`, `previewSend`; якоря `wsFrames`, `receiptProfile`;
+    поле отчёта `receiptMatch` — какой профиль пустил X8 и как.
 - Профиль квитанции: адаптер читает из DOM и `performance` адреса загруженных модулей
   (ничего не скачивает), берёт хеши из имён `/assets/<роль>-<хеш>.js` для ролей
   `notificationEntry, composables, onlyfans, accounts, inbox` и сверяет с
@@ -176,12 +196,21 @@ DOM, мост ChatSpace для вставки и — для отправки и�
   выключен с `CG-SEND-RECEIPT`, остальное работает. Роли — по раскладке ChatSpace
   0.195.0 (адаптер 0.3.0): модуля `messages` там нет, его содержимое во втором модуле
   `onlyfans` (`docs/architecture.md` §6.2).
+- **Профиль-метка «любая сборка»** (решение X25): профиль с `modules` ровно `{"*":"*"}`
+  совпадает с любой сборкой для своей `adapterVersion`, если загружены модули всех ролей.
+  Значение хаба — `[{"id":"any-build","adapterVersion":"0.3.0","modules":{"*":"*"}}]`.
+  Точный профиль, если совпал, называется первым (`receiptMatch.kind` — `exact`);
+  метка — `anyBuild`. Метка пускает и сборку с перегруппированным путём отправки: его тогда
+  сторожат контракт хоста, наблюдатель квитанции и предохранитель.
 
 **Подключить (интегратору).** В `chatspace-main.content.ts` —
 `installMainBridge(window, { runtime: createMainRuntime })`; `chatspace-ws.ts` уже зовёт
 `installWsTap()`. После bootstrap и при его обновлении —
 `host.configure({ wsTap: flags.wsTap, previewSend: flags.previewSend, markAiGenerated:
-flags.previewSendMarkAiGenerated, receiptProfiles: limits.previewSendReceiptProfiles })`.
+flags.previewSendMarkAiGenerated, receiptProfiles: limits.previewSendReceiptProfiles, fuse })`,
+где `fuse` — предохранитель фона (`send.fuseState` при старте, событие `send.fuse` потом;
+решение X25). Событие `sendFuse` порта вкладка отдаёт фону запросом `send.fuse` со сборкой
+страницы.
 Отметку ИИ для запроса считает вызывающий: `aiGeneratedMark(отправляемыйТекст,
 исходнаяЧасть)`; при выключенном флаге адаптер сам шлёт `false`. Порт верит булеву
 значению запроса (контракт несёт только его), поэтому правило ChatSpace против исходной

@@ -68,6 +68,9 @@ export function hostSummary(report: HostContractReport | null): HostSummary {
     const state = report.capabilities[capability];
     return state === undefined || state.state === 'on' ? [] : [`${capability}:${state.state}`];
   });
+  // Decision X25: X8 off by the fuse, and X8 let in on a build nobody reviewed (the hub's «any build» sentinel).
+  if (report.capabilities.previewSend?.code === 'CG-SEND-FUSE') degraded.push('previewSend:fuse');
+  if (report.receiptMatch?.kind === 'anyBuild') degraded.push('receipt:any-build');
   return { build: report.build, contractOk: missing.length === 0, missing, degraded };
 }
 

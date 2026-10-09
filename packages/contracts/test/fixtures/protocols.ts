@@ -65,6 +65,9 @@ const ack = { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] } as c
 const empty = { valid: [{}], invalid: [{ extra: 1 }] } as const;
 const pageFan = { pageId: 11, fanRef: IDS.fan } as const;
 const sendListItem = { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0 } as const;
+/** 1.11.0: what trips the X8 fuse, and the fuse the background keeps (decision X25). */
+const fuseFact = { attemptId: uuid(5), reason: 'text', where: 'echo', sentChars: 21, seenChars: 9 } as const;
+const fuseState = { fuse: { trippedAt: T0, reason: 'text', where: 'echo', build: 'index-p8xPkCj8', attemptId: uuid(5) }, resetAt: null } as const;
 /** A hub DTO answer: the sample and a broken copy of it. */
 const dto = (valid: object, invalid: object) => ({ valid: [valid], invalid: [invalid, { any: 'shape' }] }) as const;
 
@@ -175,7 +178,8 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: ack,
   },
   'send.begin': {
-    req: { valid: [sendBegin], invalid: [{ ...sendBegin, attemptId: 'a1' }] },
+    // 1.11.0: the tab's ChatSpace build rides along (the fuse holds a build), or null when the tab knows none.
+    req: { valid: [sendBegin, { ...sendBegin, hostBuild: 'index-p8xPkCj8' }, { ...sendBegin, hostBuild: null }], invalid: [{ ...sendBegin, attemptId: 'a1' }, { ...sendBegin, hostBuild: 7 }] },
     res: {
       valid: [{ ok: true, ticket: dispatchTicket }, { ok: false, view: { attemptId: uuid(5), state: 'held', code: 'CG-SEND-OFF' } }],
       invalid: [{ ok: true }, { ok: false, code: 'CG-SEND-OFF' }],
@@ -212,6 +216,31 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
       ],
     },
     res: ack,
+  },
+  'send.fuse': {
+    req: {
+      valid: [
+        { fact: fuseFact, build: 'index-p8xPkCj8' },
+        { fact: { attemptId: uuid(5), reason: 'count', where: 'request' }, build: null },
+      ],
+      // Never a text, a reason or a place outside the vocabulary, or a fact without its attempt.
+      invalid: [
+        { fact: { ...fuseFact, text: 'Hi there' }, build: 'index-p8xPkCj8' },
+        { fact: { ...fuseFact, reason: 'other' }, build: null },
+        { fact: { ...fuseFact, where: 'dom' }, build: null },
+        { fact: { reason: 'text', where: 'echo' }, build: null },
+        { fact: fuseFact },
+      ],
+    },
+    res: { valid: [fuseState, { fuse: null, resetAt: null }], invalid: [{ fuse: null }, { ...fuseState, fuse: { ...fuseState.fuse, reason: 'other' } }] },
+  },
+  'send.fuseState': {
+    req: empty,
+    res: { valid: [fuseState, { fuse: null, resetAt: T0 }], invalid: [{ fuse: { ...fuseState.fuse, trippedAt: -1 }, resetAt: null }] },
+  },
+  'send.fuseReset': {
+    req: empty,
+    res: { valid: [{ fuse: null, resetAt: T0 + 60_000 }], invalid: [{ fuse: null, resetAt: 'now' }] },
   },
   'recap.status': {
     req: { valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }], invalid: [pageFan] },
@@ -308,8 +337,12 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
         { ...diagnostics, footprint: { cachesKB: 412, logsKB: 1280 } },
         { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: null } } },
         { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2', staleTabs: 2 } } },
+        // 1.11.0: the X8 fuse of the browser, tripped or never.
+        { ...diagnostics, sendFuse: fuseState },
+        { ...diagnostics, sendFuse: { fuse: null, resetAt: null } },
       ],
       invalid: [
+        { ...diagnostics, sendFuse: { fuse: { ...fuseState.fuse, attemptId: 'a1' }, resetAt: null } },
         { ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } },
         { ...diagnostics, footprint: { cachesKB: -1, logsKB: 0 } },
         { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2' } } },
@@ -389,6 +422,7 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   },
   'op.done': { valid: [{ view: opView }], invalid: [{ view: { ...opView, opId: 'x' } }] },
   'send.state': { valid: [{ view: sendView }], invalid: [{ view: { ...sendView, state: 'done' } }] },
+  'send.fuse': { valid: [fuseState, { fuse: null, resetAt: T0 }], invalid: [{ fuse: { ...fuseState.fuse, build: 7 }, resetAt: null }, {}] },
   toast: { valid: [{ toast }], invalid: [{ toast: { ...toast, toastId: 'x' } }] },
   'settings.changed': { valid: [settingsState], invalid: [{ ...settingsState, revision: 'r3' }] },
   'session.changed': {
@@ -499,6 +533,11 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
     ],
   },
   previewSendState: { valid: [{ view: sendView }], invalid: [{ view: { attemptId: uuid(5) } }] },
+  previewSendFuse: {
+    valid: [fuseFact, { attemptId: uuid(5), reason: 'target', where: 'echo' }, { attemptId: uuid(5), reason: 'count', where: 'queue' }],
+    // Never a text; only the vocabulary's reasons and places; lengths are counts.
+    invalid: [{ ...fuseFact, seen: 'Hi there' }, { ...fuseFact, reason: 'texts' }, { ...fuseFact, sentChars: -1 }, { reason: 'text', where: 'echo' }],
+  },
   fault: {
     valid: [
       { source: 'route', count: 1 },

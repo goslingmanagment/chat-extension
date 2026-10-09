@@ -310,6 +310,21 @@ describe('[NEW-03] the client_health window', () => {
     expect(hostSummary(contract({ anchors: { composerTranslator: 'missing' } }))).toMatchObject({ contractOk: false, missing: ['composerTranslator'] });
   });
 
+  it('[NEW-03] decision X25: X8 off by the fuse, and X8 let in on a build nobody reviewed, are said in machine tokens; either changes the signature', () => {
+    const base = contract();
+    const fused = { ...base, capabilities: { ...base.capabilities, previewSend: { state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' } } } as HostContractReport;
+    expect(hostSummary(fused).degraded).toEqual(['previewSend:off', 'previewSend:fuse']);
+    const anyBuild = { ...base, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } } as HostContractReport;
+    expect(hostSummary(anyBuild).degraded).toEqual(['receipt:any-build']);
+    expect(hostSummary({ ...base, receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } }).degraded).toEqual([]);
+    expect(hostSignature(hostSummary(anyBuild))).not.toBe(hostSignature(hostSummary(base)));
+    expect(hostSignature(hostSummary(fused))).not.toBe(hostSignature(hostSummary({ ...base, capabilities: { ...base.capabilities, previewSend: { state: 'off', reason: 'flag', code: 'CG-SEND-OFF' } } })));
+    // The tokens fit the health vocabulary and reach `disabled` of client_health.
+    const window = new HealthWindow(T0);
+    window.setHost(anyBuild);
+    expect(window.build(T0 + 1, { version: '0.1.0', browserMajor: 157, os: 'macos' }, { cachesKB: 0, logsKB: 0 }).disabled).toContain('receipt:any-build');
+  });
+
   it('[NEW-03] handlers are sampled 1 in 20', () => {
     const sampler = new HandlerSampler();
     const taken = Array.from({ length: 100 }, () => sampler.sample()).filter(Boolean).length;

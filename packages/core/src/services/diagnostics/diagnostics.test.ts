@@ -246,6 +246,19 @@ describe('[LG-020] «Скопировать отчёт»', () => {
     const waiting = contract();
     const notYet = copyReport(facts({ tabs: [{ tabSessionId: TAB, host: { ...waiting, anchors: { ...waiting.anchors, composerTranslator: 'notYet' } }, chatKey: null }] }), [], redactor());
     expect(notYet).toContain('chatspace tabs: 1 · index-DEVowLko ok notYet composerTranslator');
+    // Decision X25: which receipt profile let X8 in, and how; the fuse of the browser — machine words only.
+    const anyBuild = copyReport(
+      facts({
+        tabs: [{ tabSessionId: TAB, host: { ...waiting, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } }, chatKey: null }],
+        sendFuse: { fuse: { trippedAt: T0 - 60_000, reason: 'text', where: 'echo', build: 'index-DEVowLko', attemptId: '00000000-0000-4000-8000-000000000070' }, resetAt: null },
+      }),
+      [],
+      redactor(),
+    );
+    expect(anyBuild).toContain('chatspace tabs: 1 · index-DEVowLko ok receipt any-build/anyBuild');
+    expect(anyBuild).toContain(`preview send fuse: tripped text/echo at ${new Date(T0 - 60_000).toISOString()} on index-DEVowLko`);
+    expect(copyReport(facts({ sendFuse: { fuse: null, resetAt: T0 } }), [], redactor())).toContain(`preview send fuse: none · last reset ${new Date(T0).toISOString()}`);
+    expect(copyReport(facts(), [], redactor())).toContain('preview send fuse: unknown');
     expect(text).toContain('error [tab.insert] CG-INSERT-FAILED insert failed [redacted]');
     expect(text).not.toContain(TOKEN);
     const quiet = copyReport(
@@ -365,6 +378,11 @@ describe('[DB-029] what crosses a runtime boundary passes its contract schema', 
     acceptUiRecords(fromTab === null ? [] : [fromTab], { tabSessionId: TAB }, { redactor: r, sinks: [(rec) => stored.push(rec)], debugEnabled: () => false });
     expect(stored.every((rec) => LogRecordSchema.safeParse(rec).success)).toBe(true);
     expect(DiagnosticsSnapshotSchema.safeParse(diagnosticsSnapshot(facts())).success).toBe(true);
+    // Decision X25: the fuse of the browser rides along, as the contract has it.
+    const sendFuse = { fuse: { trippedAt: T0, reason: 'count' as const, where: 'queue' as const, build: null, attemptId: null }, resetAt: T0 - 1 };
+    expect(diagnosticsSnapshot(facts({ sendFuse })).sendFuse).toEqual(sendFuse);
+    expect(DiagnosticsSnapshotSchema.safeParse(diagnosticsSnapshot(facts({ sendFuse }))).success).toBe(true);
+    expect(diagnosticsSnapshot(facts())).not.toHaveProperty('sendFuse');
     const echo: DebugInputFrame = { type: 'debug_input_v1', systemBlocks: [{ text: 'p', cache: 'none' }], userBlocks: [{ text: 'u', cache: 'none' }], contextManifest: null };
     const views = [promptView('ok', snapshotFromFrame(echo, { feature: 'reply', capturedAt: T0 })), promptView('expired', null), promptView('not-found', null), promptView('debug-off', null)];
     for (const view of views) expect(PromptSnapshotViewSchema.safeParse(view).success).toBe(true);

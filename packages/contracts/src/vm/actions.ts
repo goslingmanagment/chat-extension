@@ -251,6 +251,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('ExportDiagnostics', {}),
   /** The UI asks DialogPort first; `confirmed` records that it did. */
   act('ClearLocalData', { confirmed: z.literal(true) }),
+  /**
+   * 1.11.0 «Сбросить предохранитель» of the X8 row of «Статус» (decision X25): the fuse that turned the preview
+   * send off in this browser is cleared; X8 is on again on the same ChatSpace build until it trips again.
+   */
+  act('ResetSendFuse', {}),
   act('TestSound', { which: z.enum(['messages', 'subscribers']) }),
   /** `permissions.request` inside the click (ST-121, §9.6 consent). */
   act('RequestPermission', { kind: z.enum(['data-collection', 'hub-host', 'chatspace-host']) }),

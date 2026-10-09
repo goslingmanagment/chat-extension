@@ -31,7 +31,7 @@ import {
   boundedText,
   displayText,
 } from './primitives';
-import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup } from './send';
+import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendFuseFactSchema, SendFuseStateSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup } from './send';
 import { CONTRACT_HASH_PATTERN } from './hub/auth';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
@@ -167,6 +167,8 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
   }),
   ops: z.strictObject({ active: CountSchema }),
   sends: z.strictObject({ open: CountSchema, uncertain: CountSchema }),
+  /** 1.11.0 (decision X25): the X8 fuse of this browser — the X8 row of «Статус» and the diagnostics file. */
+  sendFuse: z.optional(SendFuseStateSchema),
   /**
    * Sizes of our own caches and logs, an estimate (ST-110, options
    * «Диагностика»); absent — the background does not measure them. 1.2.0.
@@ -226,6 +228,11 @@ export const SendBeginSchema = z
     cause: HumanCauseSchema,
     /** «Новые»: the lease this greeting is sent under. */
     leaseToken: z.optional(UuidSchema),
+    /**
+     * 1.11.0 (decision X25): the ChatSpace build of the tab (its host report's `build`): the background holds the
+     * send with CG-SEND-FUSE while a tripped fuse names this build. Absent — a tab before 1.11.0: a fuse holds it.
+     */
+    hostBuild: z.optional(z.nullable(displayText(80))),
   })
   .check(
     z.refine((b) => partInGroup(b.part, b.group), { message: 'the part belongs to the group: same variant (absent = 0), index below partCount' }),
@@ -379,6 +386,20 @@ export const TAB_REQUESTS = {
     res: Ack,
     from: TAB,
   },
+  /**
+   * 1.11.0 (decision X25): MAIN saw what trips the X8 fuse after a send of this tab (the host port's `sendFuse`
+   * event); `build` — the tab's ChatSpace build. The background keeps the fuse (the first trip stands until the
+   * build changes or the person resets it), logs and counts it, and tells every tab and page (`send.fuse`).
+   */
+  'send.fuse': {
+    req: z.strictObject({ fact: SendFuseFactSchema, build: z.nullable(displayText(80)) }),
+    res: SendFuseStateSchema,
+    from: TAB,
+  },
+  /** 1.11.0: the fuse as the background keeps it — a tab reads it at start and after a lost port. */
+  'send.fuseState': { req: Empty, res: SendFuseStateSchema, from: ANY },
+  /** 1.11.0 «Сбросить предохранитель» of «Статус»: the fuse is cleared; X8 is on again until it trips again. */
+  'send.fuseReset': { req: Empty, res: SendFuseStateSchema, from: PAGE, pages: ['options'] },
 
   // ── recaps ──
   'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: RecapStatusSchema, from: ANY },
@@ -618,6 +639,8 @@ export const TAB_EVENTS = {
   /** The terminal view of an operation. */
   'op.done': { payload: z.strictObject({ view: OpViewSchema }), to: ANY },
   'send.state': { payload: z.strictObject({ view: SendAttemptViewSchema }), to: ANY },
+  /** 1.11.0 (decision X25): the X8 fuse tripped or was reset; tabs reconfigure their host adapter by it. */
+  'send.fuse': { payload: SendFuseStateSchema, to: ANY },
   toast: { payload: z.strictObject({ toast: BackgroundToastSchema }), to: TAB },
   'settings.changed': { payload: SettingsStateSchema, to: ANY },
   'session.changed': {

@@ -99,6 +99,18 @@ describe('[SP-054] «Отправить»: the nine states, their words and thei
     expect(sends()).toEqual([]);
   });
 
+  it('[X8-06] unavailable by the fuse (decision X25): CG-SEND-FUSE in plain words — what happened, where to reset it, insert by hand; nothing is sent', async () => {
+    ui = await mountBoardSettled('spenders', previewOf([{ s: 'unavailable', code: 'CG-SEND-FUSE', reason: msg('send.reason.fuse') }]));
+    const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
+    expect(send.getAttribute('aria-disabled')).toBe('true');
+    expect(buttons(0)).toEqual(['Отправить', 'Открыть и вставить', 'Копировать часть 1']);
+    expect(codeLine(0)).toBe(
+      'ChatGoose · CG-SEND-FUSE: Отправка недоступна: предохранитель выключил отправку из превью: после прошлой отправки ChatSpace повёл себя не так, как мы ждём. Сбросить его можно в «Статусе». Пока вставьте часть в чат вручную.',
+    );
+    await flush(() => send.click());
+    expect(sends()).toEqual([]);
+  });
+
   it('queued: a ring and «В очереди ChatSpace»; nothing to press (we never cancel ChatSpace’s queue)', async () => {
     ui = await mountBoardSettled('spenders', previewOf([{ s: 'queued' }]));
     expect(stateWords(0)).toBe('В очереди ChatSpace');

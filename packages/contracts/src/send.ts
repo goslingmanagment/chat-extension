@@ -11,7 +11,7 @@ import * as z from 'zod/mini';
 import { CgCodeSchema, type CgCode } from './errors';
 import { HumanCauseSchema, PartRefSchema, PlatformSchema, TargetSchema, type HumanCause, type PartRef } from './ids';
 import { PART_LIMITS, SEND_LIMITS } from './limits';
-import { PREVIEW_SEND_CONDITION_CODES, SEND_ATTEMPT_STATES, isNativeRefusalStatus } from './send-rules';
+import { PREVIEW_SEND_CONDITION_CODES, SEND_ATTEMPT_STATES, SEND_FUSE_EVIDENCE, SEND_FUSE_REASONS, isNativeRefusalStatus } from './send-rules';
 import {
   CountSchema,
   EpochMsSchema,
@@ -249,6 +249,45 @@ export type SendLockKey = `${string}|${number}|${string}|${string}`;
 export function sendLockKey(entry: Pick<SendJournalEntry, 'hubOrigin' | 'pageId' | 'platform' | 'fanRef'>): SendLockKey {
   return `${entry.hubOrigin}|${entry.pageId}|${entry.platform}|${entry.fanRef}`;
 }
+
+/**
+ * 1.11.0 (decision X25): what MAIN saw after an X8 send that the fuse trips on
+ * (the bridge's `previewSendFuse`, the host port's `sendFuse` event). Never a
+ * text: the lengths of the two texts compared, as ChatSpace shows them, when
+ * the reason is `text`.
+ */
+export const SendFuseFactSchema = z.strictObject({
+  attemptId: UuidSchema,
+  reason: z.enum(SEND_FUSE_REASONS),
+  where: z.enum(SEND_FUSE_EVIDENCE),
+  /** Characters of the part we queued and of the text seen, white space aside (`text` only). */
+  sentChars: z.optional(CountSchema),
+  seenChars: z.optional(CountSchema),
+});
+export type SendFuseFact = z.infer<typeof SendFuseFactSchema>;
+
+/** The fuse as the background keeps it (storage.local `send.fuse`): what tripped it, when, on which ChatSpace build. No text. */
+export const SendFuseSchema = z.strictObject({
+  trippedAt: EpochMsSchema,
+  reason: z.enum(SEND_FUSE_REASONS),
+  where: z.enum(SEND_FUSE_EVIDENCE),
+  /**
+   * The ChatSpace build the trip was seen on (HostContractReport `build`, the hashed name of its entry module). The
+   * fuse holds while a tab runs this build; another build lifts it. null — every build: the build was not known, or
+   * the fuse tripped on two builds in a row; only the person's reset lifts it then.
+   */
+  build: z.nullable(displayText(80)),
+  /** The attempt whose outcome tripped it; null — a run of outcomes, no single attempt. */
+  attemptId: z.nullable(UuidSchema),
+});
+export type SendFuse = z.infer<typeof SendFuseSchema>;
+
+/** The fuse's state: the one that holds (null — none) and when the person last reset it (null — never). */
+export const SendFuseStateSchema = z.strictObject({
+  fuse: z.nullable(SendFuseSchema),
+  resetAt: z.nullable(EpochMsSchema),
+});
+export type SendFuseState = z.infer<typeof SendFuseStateSchema>;
 
 /**
  * X8 port of HostPort (§5.2): side-effect-free preflight, exactly one queue

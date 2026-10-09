@@ -120,8 +120,12 @@ export interface Checkpoint {
 
 /** Where the tap reports to, once the live port is attached. */
 export interface TapSink {
-  /** A message frame: a fan's message seen for the first time (the counters are already updated), or an outgoing one as it came. */
-  readonly fact: (fact: Fact) => void;
+  /**
+   * A message frame: a fan's message seen for the first time (the counters are already updated), or an outgoing one as
+   * it came — with its text (`content`, as the frame has it), which goes to the receipt observer only: the X8 fuse
+   * compares it with what a followed send queued (decision X25). It never leaves MAIN.
+   */
+  readonly fact: (fact: Fact, content?: unknown) => void;
   /** An account's coverage changed (contracts FROM_MAIN.coverage). */
   readonly coverage: (acc: string, state: 'ok' | 'unknown', reason: string) => void;
   /** The `wsFrames` anchor changed. */

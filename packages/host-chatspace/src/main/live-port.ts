@@ -20,10 +20,10 @@ export function createLivePort(win: Window & typeof globalThis, tap: Tap, host: 
   const receipts = createReceipts(win, host, tap);
   const port = createSendPort(host, tap, receipts, () => sendOn && tap.on());
   tap.connect({
-    fact(fact) {
-      // Metadata only: the text of a message never left the tap.
+    fact(fact, content) {
+      // Metadata only: the text of a message goes nowhere but to the receipt observer's comparison (the X8 fuse).
       host.post('incoming', { ...fact });
-      receipts.echo(fact);
+      receipts.echo(fact, content);
     },
     coverage: (acc, state, reason) => host.post('coverage', { acc, state, reason }),
     changed: host.changed,

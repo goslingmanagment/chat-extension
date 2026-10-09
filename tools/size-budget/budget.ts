@@ -1,8 +1,9 @@
 // Size budgets of architecture.md §11 (starting targets, re-approved after
 // the baseline): MAIN bridge ≤ 10 KiB gzip (decision X11: the boot and the
 // runtime ship as one document_start bundle; §11 started at 5 KiB for the
-// boot alone), isolated early bootstrap ≤ 30 KiB, first dock chunk with
-// Preact ≤ 45 KiB, every other lazy chunk ≤ 30 KiB.
+// boot alone), the WS tap script ≤ 6 KiB (decision X25: 5 until the X8
+// fuse), isolated early bootstrap ≤ 30 KiB, first dock chunk with Preact ≤
+// 45 KiB, every other lazy chunk ≤ 30 KiB.
 //
 // What «a lazy chunk» weighs is what loading it adds to the tab. The entries
 // every chat tab loads form layers (apps/extension/lazy/vite.config.ts,
@@ -38,7 +39,12 @@ export interface BudgetLine {
 export const BUDGETS = {
   /** Boot + runtime, one bundle (X11). Its work at document_start stays ≤ 1 ms (e2e). */
   mainBridge: 10 * KIB,
-  wsTap: 5 * KIB,
+  /**
+   * The tap script with the send port and the receipt observer (live.ts), registered only while `wsTap` is on.
+   * 5 KiB was met with 0.03 KiB to spare; the X8 fuse's checks live with the receipt observer and add about
+   * 0.9 KiB (decision X25). Nothing of them runs at document_start: the tap's own work there is the constructor wrap.
+   */
+  wsTap: 6 * KIB,
   isolatedBootstrap: 30 * KIB,
   firstDockChunk: 45 * KIB,
   lazyChunk: 30 * KIB,

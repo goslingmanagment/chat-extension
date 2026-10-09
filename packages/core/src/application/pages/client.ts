@@ -1056,6 +1056,13 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       await loadDiagnostics();
       return done('ClearLocalData');
     }
+    if (action.type === 'ResetSendFuse') {
+      // «Сбросить предохранитель» (decision X25): the background clears the fuse and tells the tabs; «Статус» reads it again.
+      const answer = await ask('send.fuseReset', {});
+      if (!answer.ok) return fail('ResetSendFuse', answer.error);
+      await loadDiagnostics();
+      return done('ResetSendFuse');
+    }
     if (action.type === 'TestSound') return testSound(action);
     if (action.type === 'RequestPermission') return requestPermission(action);
     if (action.type === 'SaveJournal') {

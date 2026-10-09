@@ -349,6 +349,15 @@ export class FakePageBackground implements PageRpc {
         return { ok: true, payload: { cleared: true } };
       case 'tab.command':
         return { ok: true, payload: { delivered: state.diagnostics.tabs.length > 0 } };
+      // 1.11.0: the X8 fuse as «Статус» shows it, and its reset (decision X25).
+      case 'send.fuseState':
+        return { ok: true, payload: state.diagnostics.sendFuse ?? { fuse: null, resetAt: null } };
+      case 'send.fuseReset': {
+        const reset = { fuse: null, resetAt: this.now() };
+        state.diagnostics = { ...state.diagnostics, sendFuse: reset };
+        this.emit('send.fuse', reset);
+        return { ok: true, payload: reset };
+      }
       case 'journal.read': {
         if (!state.settings.debug.enabled) return refuse('CG-FEATURE-DISABLED', 'debug_off');
         const journal = state.journals[(payload as TabRequestPayload<'journal.read'>).journal];
@@ -404,6 +413,7 @@ export class FakePageBackground implements PageRpc {
       case 'recap.save':
       case 'recap.status':
       case 'send.begin':
+      case 'send.fuse':
       case 'send.list':
       case 'send.report':
       case 'send.status':

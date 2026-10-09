@@ -33,3 +33,16 @@ export function previewSendWaitsForChat(report: HostContractReport): boolean {
   if (capability.state !== 'off' || capability.code !== 'CG-SEND-HOST' || anchor === undefined) return false;
   return (report.anchors as Readonly<Record<string, AnchorState | undefined>>)[anchor] === 'notYet';
 }
+
+/**
+ * The X8 fuse (decision X25) keeps the preview send off in this tab: its host says CG-SEND-FUSE — the browser's fuse
+ * holds this build, or MAIN tripped it in this document.
+ */
+export function previewSendFused(report: HostContractReport): boolean {
+  return report.capabilities.previewSend.code === 'CG-SEND-FUSE';
+}
+
+/** Which receipt profile let X8 in on this tab, and how (contracts 1.11.0); null — none, or an adapter that does not say. */
+export function receiptMatchOf(report: HostContractReport): NonNullable<HostContractReport['receiptMatch']> | null {
+  return report.receiptMatch ?? null;
+}

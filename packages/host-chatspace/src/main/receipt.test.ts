@@ -845,3 +845,241 @@ describe('[TL-004] a human send from the composer (§6.6)', () => {
     expect(states(live, 41)).toEqual(['nativeAccepted']);
   });
 });
+
+// Decision X25: X8 runs on any ChatSpace build; after a send whose outcome is known the observer checks what it already
+// holds, and tells the isolated side when it is not what we sent. It never sends, retries or changes an outcome.
+describe('[X8-06] the fuse after a send (decision X25)', () => {
+  /** The words MAIN said to the isolated side about the fuse, as the contract has them. */
+  const fuses = (live: LiveHarness): Array<Record<string, unknown>> => {
+    const posted = live.posted('previewSendFuse');
+    for (const fact of posted) expect([fact, FROM_MAIN.previewSendFuse.safeParse(fact).success]).toEqual([fact, true]);
+    return posted;
+  };
+  /** A send of `text` to FAN answered 200 with `id` (and the response's own content, if any). */
+  async function accepted(live: LiveHarness, n: number, id: string, over: Parameters<LiveHarness['request']>[1] = {}, content?: string) {
+    const out = await sent(live, n, over);
+    out.call.respond(200, content === undefined ? { id } : { id, content });
+    await live.settle();
+    return out;
+  }
+  const echo = (live: LiveHarness, id: string, content: string, fan = FAN, acc = ACC): void => live.socket.receive(frames.message(acc, fan, id, false, { content }));
+
+  it('[a] the echo of the receipt’s id shows another text: the attempt stays sent, the fuse trips once — lengths only, never the text — and nothing is sent again', async () => {
+    const live = start();
+    await accepted(live, 70, '8701', { plainText: 'Hello there, my friend' });
+    echo(live, '8701', '<p>Something else entirely</p>');
+    expect(states(live, 70)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(fuses(live)).toEqual([{ attemptId: uuid(70), reason: 'text', where: 'echo', sentChars: 'Hellothere,myfriend'.length, seenChars: 'Somethingelseentirely'.length }]);
+    expect(JSON.stringify(live.live.posted)).not.toContain('Something else');
+    // The same echo again, or another text: said once per attempt.
+    echo(live, '8701', '<p>Yet another</p>');
+    expect(fuses(live)).toHaveLength(1);
+    // One click, one queue call, one POST: the fuse neither repeats nor sends.
+    expect(live.queue.sends).toHaveLength(1);
+    expect(live.calls).toHaveLength(1);
+  });
+
+  it('[a] the echo may come first: its text is judged when the receipt names its id', async () => {
+    const live = start();
+    const { call } = await sent(live, 71, { plainText: 'hey you' });
+    echo(live, '8711', '<p>not what we sent</p>');
+    expect(fuses(live)).toEqual([]);
+    call.respond(200, { id: '8711' });
+    await live.settle();
+    expect(states(live, 71)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(fuses(live)).toEqual([{ attemptId: uuid(71), reason: 'text', where: 'echo', sentChars: 6, seenChars: 'notwhatwesent'.length }]);
+  });
+
+  it('[a] the message the response carries shows another text; a response without one says nothing', async () => {
+    const live = start();
+    await accepted(live, 72, '8721', {}, '<p>rewritten by someone</p>');
+    expect(fuses(live)).toMatchObject([{ attemptId: uuid(72), reason: 'text', where: 'response' }]);
+    expect(states(live, 72)).toEqual(['nativeAccepted']);
+    const quiet = start();
+    await accepted(quiet, 73, '8731');
+    echo(quiet, '8731', '<p>hey you</p>');
+    expect(states(quiet, 73)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(fuses(quiet)).toEqual([]);
+  });
+
+  it('[a] the request ChatSpace put on the wire carries another text: uncertain as before, and the fuse trips', async () => {
+    const quiet = start();
+    holdToken(quiet);
+    quiet.win.fetch = () => Promise.resolve(new Response('{"id":"8741"}', { status: 200 }));
+    let observer: ((...args: unknown[]) => unknown) | null = null;
+    quiet.queue.during = () => {
+      observer = quiet.win.fetch as unknown as (...args: unknown[]) => unknown;
+    };
+    expect(quiet.commit(quiet.request(74)).state).toBe('nativeEnqueued');
+    void (observer as unknown as (...args: unknown[]) => unknown)(new Request(`https://api.example.test${SEND_URL}`, { method: 'POST', body: JSON.stringify({ text: '<p>other</p>' }) }), {});
+    await quiet.settle();
+    expect(states(quiet, 74)).toEqual(['uncertain']);
+    expect(fuses(quiet)).toMatchObject([{ attemptId: uuid(74), reason: 'text', where: 'request' }]);
+  });
+
+  it.each([
+    ['the platform’s own HTML: `<br />`, entities for the quotes', '<p>Tom &amp; Jerry say &quot;hi&quot; &lt;3 &gt; 2<br />line two</p>'],
+    ['a paragraph per line', '<p>Tom &amp; Jerry say &#34;hi&#34; &lt;3 &gt; 2</p><p>line two</p>'],
+    ['plain text with an unescaped ampersand and quotes', 'Tom & Jerry say "hi" &lt;3 &gt; 2\nline two'],
+    ['numeric and hex entities, a non-breaking space', '<p>Tom&#160;&#x26; Jerry say &#x22;hi&#x22; &#60;3 &#62; 2<br>line two</p>'],
+    ['the angle brackets left unescaped by the platform', '<p>Tom &amp; Jerry say "hi" <3 > 2<br>line two</p>'],
+    ['white space trimmed and doubled', '  <p>Tom &amp;  Jerry say "hi" &lt;3 &gt; 2</p>\n\n<p> line two </p> '],
+    ['decoded twice (an escaped entity read once more)', '<p>Tom &amp;amp; Jerry say &amp;quot;hi&amp;quot; &amp;lt;3 &amp;gt; 2<br>line two</p>'],
+  ])('[a] a harmless rewrite of the same text is no trip: %s', async (_name, content) => {
+    const live = start();
+    await accepted(live, 75, '8751', { plainText: 'Tom & Jerry say "hi" <3 > 2\r\nline two' });
+    echo(live, '8751', content);
+    expect(states(live, 75)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(fuses(live)).toEqual([]);
+  });
+
+  it.each([
+    ['another word', '<p>Tom &amp; Jerry say &quot;bye&quot; &lt;3 &gt; 2<br>line two</p>'],
+    ['a line lost', '<p>Tom &amp; Jerry say &quot;hi&quot; &lt;3 &gt; 2</p>'],
+    ['curly quotes for straight ones', '<p>Tom &amp; Jerry say “hi” &lt;3 &gt; 2<br>line two</p>'],
+    ['an empty message', ''],
+  ])('[a] another text trips it: %s', async (_name, content) => {
+    const live = start();
+    await accepted(live, 76, '8761', { plainText: 'Tom & Jerry say "hi" <3 > 2\nline two' });
+    echo(live, '8761', content);
+    expect(fuses(live)).toMatchObject([{ attemptId: uuid(76), reason: 'text', where: 'echo' }]);
+  });
+
+  it('[a] an echo without a text (a media message, a frame of another shape) is not compared', async () => {
+    const live = start();
+    await accepted(live, 77, '8771');
+    live.socket.receive(frames.message(ACC, FAN, '8771', false, { content: null }));
+    expect(states(live, 77)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(fuses(live)).toEqual([]);
+  });
+
+  it('[b] one click, two POSTs through the observer: uncertain as before, and the fuse trips with `count`', async () => {
+    const live = start();
+    let observer: ((...args: unknown[]) => unknown) | null = null;
+    live.queue.during = () => {
+      observer = live.win.fetch as unknown as (...args: unknown[]) => unknown;
+    };
+    const first = await sent(live, 78);
+    void (observer as unknown as (...args: unknown[]) => unknown)(new Request(`https://api.example.test${SEND_URL}`, { method: 'POST', body: JSON.stringify({ text: toHtml(first.req.plainText) }) }), {});
+    live.calls.at(-1)?.respond(200, { id: '8782' });
+    first.call.respond(200, { id: '8781' });
+    await live.settle();
+    expect(states(live, 78)).toEqual(['uncertain']);
+    expect(fuses(live)).toEqual([{ attemptId: uuid(78), reason: 'count', where: 'request' }]);
+  });
+
+  it('[b] a second outgoing message with our text in that chat, around the receipt: `count`; a redelivered echo is the same message', async () => {
+    const live = start();
+    await accepted(live, 79, '8791');
+    echo(live, '8791', '<p>hey you</p>');
+    echo(live, '8791', '<p>hey you</p>');
+    expect(fuses(live)).toEqual([]);
+    // Another chat's message with the same text, or another text in this chat, is not ours.
+    echo(live, '8793', '<p>hey you</p>', '2004');
+    echo(live, '8794', '<p>something else</p>');
+    expect(fuses(live)).toEqual([]);
+    echo(live, '8792', '<p>hey you</p>');
+    expect(states(live, 79)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(fuses(live)).toEqual([{ attemptId: uuid(79), reason: 'count', where: 'echo' }]);
+  });
+
+  it('[b] the chat is watched until shortly after the receipt; after a chain that ended without one (the person may press Resend), not at all', async () => {
+    const live = start();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    await accepted(live, 80, '8801');
+    echo(live, '8801', '<p>hey you</p>');
+    clock.mockReturnValue(now + 11_000);
+    echo(live, '8802', '<p>hey you</p>');
+    expect(fuses(live)).toEqual([]);
+    clock.mockRestore();
+    // A refusal: the person's own Resend of the same text later is theirs.
+    const refused = await sent(live, 81, { fan: '2004' });
+    refused.call.respond(403, { code: 'FORBIDDEN' });
+    await live.settle();
+    expect(states(live, 81)).toEqual(['rejected']);
+    echo(live, '8811', '<p>hey you</p>', '2004');
+    echo(live, '8812', '<p>hey you</p>', '2004');
+    expect(fuses(live)).toEqual([]);
+  });
+
+  it('[b] a new send in that chat — ours or the person’s — ends the tail: its own message with the same words is not a second one of the first click', async () => {
+    const live = start();
+    await accepted(live, 88, '8881');
+    echo(live, '8881', '<p>hey you</p>');
+    // The next part of the group, the same words, a few seconds later: a click of its own.
+    await accepted(live, 89, '8891');
+    echo(live, '8891', '<p>hey you</p>');
+    expect(states(live, 89)).toEqual(['nativeAccepted', 'sentObserved']);
+    expect(fuses(live)).toEqual([]);
+    // The person's own send in that chat ends the tail too (its echo is theirs).
+    const human = start();
+    await accepted(human, 90, '8901');
+    echo(human, '8901', '<p>hey you</p>');
+    human.queue.send({ accountId: ACC, chatId: FAN, platform: 'onlyfans', text: '<p>hey you</p>', composerContent: { html: '<p>hey you</p>' } });
+    echo(human, '8902', '<p>hey you</p>');
+    expect(fuses(human)).toEqual([]);
+  });
+
+  it('[c] a POST through the observer for another chat: uncertain as before, and the fuse trips with `target`', async () => {
+    const quiet = start();
+    holdToken(quiet);
+    quiet.win.fetch = () => Promise.resolve(new Response('{"id":"8821"}', { status: 200 }));
+    let observer: ((...args: unknown[]) => unknown) | null = null;
+    quiet.queue.during = () => {
+      observer = quiet.win.fetch as unknown as (...args: unknown[]) => unknown;
+    };
+    const req = quiet.request(82);
+    expect(quiet.commit(req).state).toBe('nativeEnqueued');
+    void (observer as unknown as (...args: unknown[]) => unknown)(new Request(`https://api.example.test/api/v0/accounts/${ACC}/chats/2004/messages`, { method: 'POST', body: JSON.stringify({ text: toHtml(req.plainText) }) }), {});
+    await quiet.settle();
+    expect(states(quiet, 82)).toEqual(['uncertain']);
+    expect(fuses(quiet)).toEqual([{ attemptId: uuid(82), reason: 'target', where: 'request' }]);
+  });
+
+  it('[c] the echo of our receipt’s id comes in another chat: `target`, and the attempt is not completed by it (an account the page does not serve never reaches the tap)', async () => {
+    const live = start();
+    await accepted(live, 83, '8831');
+    echo(live, '8831', '<p>hey you</p>', '2004');
+    expect(states(live, 83)).toEqual(['nativeAccepted']);
+    expect(fuses(live)).toEqual([{ attemptId: uuid(83), reason: 'target', where: 'echo' }]);
+    // The right chat's echo still completes the pair (the fuse changes no outcome).
+    echo(live, '8831', '<p>hey you</p>');
+    expect(states(live, 83)).toEqual(['nativeAccepted', 'sentObserved']);
+  });
+
+  it('[b] [c] one click made more than one queue entry, or one of another chat: the fuse trips with `count` or `target` (the queue’s word)', () => {
+    const live = start();
+    live.queue.during = () => {
+      live.queue.during = null;
+      (live.queue.store['messagesByAccountId'] as Record<string, unknown[]>)[ACC]?.push({ id: `extra-${FAN}`, accountId: ACC, chatId: FAN, platform: 'onlyfans', status: 'failed', error: null, createdAt: new Date().toISOString(), payload: {} });
+    };
+    expect(live.commit(live.request(85)).state).toBe('nativeEnqueued');
+    expect(fuses(live)).toEqual([{ attemptId: uuid(85), reason: 'count', where: 'queue' }]);
+    const other = start();
+    other.queue.during = () => {
+      other.queue.during = null;
+      (other.queue.store['messagesByAccountId'] as Record<string, unknown[]>)[ACC]?.push({ id: 'extra-2004', accountId: ACC, chatId: '2004', platform: 'onlyfans', status: 'failed', error: null, createdAt: new Date().toISOString(), payload: {} });
+    };
+    expect(other.commit(other.request(86)).state).toBe('nativeEnqueued');
+    expect(fuses(other)).toEqual([{ attemptId: uuid(86), reason: 'target', where: 'queue' }]);
+    // A queue that adds the one entry it returns: nothing to say.
+    const plain = start();
+    expect(plain.commit(plain.request(87)).state).toBe('nativeEnqueued');
+    expect(fuses(plain)).toEqual([]);
+  });
+
+  it('a human send from the composer is never the fuse’s: another text in its echo trips nothing', async () => {
+    const live = start();
+    live.live.draft = { digest: 'feedbeef00000061', draft: { revision: 5, provenance: 'our-insert', insertIntentId: uuid(0x60), editedSinceInsert: false } };
+    live.queue.send({ accountId: ACC, chatId: OPEN_FAN, platform: 'onlyfans', text: '<p>mine</p>', composerContent: { html: '<p>mine</p>' } });
+    await live.settle();
+    live.calls.at(-1)?.respond(200, { id: '8881', content: '<p>changed</p>' });
+    await live.settle();
+    echo(live, '8881', '<p>changed again</p>', OPEN_FAN);
+    echo(live, '8882', '<p>mine</p>', OPEN_FAN);
+    echo(live, '8883', '<p>mine</p>', OPEN_FAN);
+    expect(live.posted('humanSend')).toHaveLength(1);
+    expect(fuses(live)).toEqual([]);
+  });
+});

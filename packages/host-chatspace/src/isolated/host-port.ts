@@ -27,13 +27,21 @@
 //   never sent again. A receipt profile that stops matching while a send is
 //   on its way makes that send `uncertain` here (§6.2): of what MAIN still
 //   says about it only the late linked pair (`sentObserved`) passes.
+// - The fuse (decision X25): MAIN tells, after an X8 send, that the text, the
+//   number of messages or the chat of its receipt are not what we sent
+//   (`previewSendFuse`). X8 is off in this document from that moment — the
+//   capability says CG-SEND-FUSE — and the tab tells the background
+//   (`sendFuse`), which keeps the fuse for the browser and hands it back to
+//   every tab through `configure`: it holds on the build it was seen on, until
+//   another build or the person's reset. Nothing is ever sent or repeated
+//   because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
-import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView } from '@cg/contracts/send';
-import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
+import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
+import { PREVIEW_SEND_CONDITION_CODES, sendFuseHolds, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
 import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
@@ -41,7 +49,7 @@ import { buildContractReport, sameReport, type ContractWireInput } from './contr
 import { readStoredDraft, storedDraftAgrees, type DraftStorage } from './draft-store';
 import { ADAPTER_VERSION } from './host-contract';
 import type { MountManager } from './mount';
-import { loadedScriptUrls, matchReceiptProfile, receiptModules } from './receipt-profile';
+import { loadedScriptUrls, matchReceiptProfile, receiptModules, type ReceiptMatch } from './receipt-profile';
 import type { ThemeReader } from './theme';
 import type { ValidationLoader } from './validation';
 import { WRITE_FAILURES } from './wire';
@@ -58,6 +66,12 @@ export interface ChatSpaceLiveConfig {
   readonly markAiGenerated: boolean;
   /** Bootstrap `limits.previewSendReceiptProfiles`; none — X8 is off. */
   readonly receiptProfiles: readonly ReceiptProfile[];
+  /**
+   * The X8 fuse as the background keeps it (decision X25); absent or null — not known yet: only a trip seen in this
+   * document holds. A fuse holds while this page runs the build it names; a reset after a trip of this document
+   * lifts that one too.
+   */
+  readonly fuse?: SendFuseState | null;
 }
 
 /** Spends one action token for one intent (`token.redeem`); false — not redeemed, nothing is written. */
@@ -159,10 +173,12 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   /** MAIN itself said whether the tap runs (`flags`): a probe that comes later does not overrule it. */
   let tapKnown = false;
   let live: ChatSpaceLiveConfig | null = null;
-  /** The bootstrap profile the loaded send-path modules match; null — none. */
-  let receiptProfile: string | null = null;
+  /** The bootstrap profile the loaded send-path modules match, and how; null — none. */
+  let receiptProfile: ReceiptMatch | null = null;
   /** The last judgement said in the diagnostics; undefined — not judged (the flag is off). */
-  let lastJudged: string | null | undefined;
+  let lastJudged: ReceiptMatch | null | undefined;
+  /** When MAIN tripped the fuse in this document (decision X25); null — it did not. A reset after it lifts it. */
+  let trippedAt: number | null = null;
   /** The last judgement found a profile (kept while the flag is off: a send started before goes on). */
   let matched = false;
   const adapterVersion = options.adapterVersion ?? ADAPTER_VERSION;
@@ -210,8 +226,21 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       accountBound: Boolean(route.account?.platformAccountId),
       adapterVersion,
       checkedAt: clock(),
-      live: { tap, previewSend: live?.previewSend === true, receipt: receiptProfile !== null },
+      live: { tap, previewSend: live?.previewSend === true, receipt: receiptProfile !== null, receiptMatch: receiptProfile, fused: fused() },
     });
+  }
+  /**
+   * The fuse holds X8 off (decision X25): the background's, while this page runs the build it was seen on; or a
+   * trip of this document, until the person resets the fuse after it.
+   */
+  function fused(): boolean {
+    const state = live?.fuse ?? null;
+    return (state !== null && sendFuseHolds(state.fuse, wire?.build ?? null)) || latched();
+  }
+  /** A trip of this document that no reset after it lifted. */
+  function latched(): boolean {
+    const resetAt = live?.fuse?.resetAt ?? null;
+    return trippedAt !== null && !(resetAt !== null && resetAt >= trippedAt);
   }
   const recompute = (): void => {
     const next = compute();
@@ -234,8 +263,10 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
    */
   const refreshReceipt = (): void => {
     const judged = live?.previewSend ? matchReceiptProfile(receiptModules(loadedScriptUrls(options.win), options.win.location.origin), live.receiptProfiles, adapterVersion) : undefined;
-    // Said once per change: which profile matched, or that none does while the flag is on.
-    if (judged !== lastJudged && judged !== undefined) diag({ event: 'receipt-profile', ...(judged === null ? { code: 'CG-SEND-RECEIPT' as const } : {}), detail: { profile: judged } });
+    // Said once per change: which profile matched and how (a reviewed build or the «any build» sentinel), or that none
+    // does while the flag is on.
+    const same = judged === lastJudged || (!!judged && !!lastJudged && judged.profile === lastJudged.profile && judged.kind === lastJudged.kind);
+    if (!same && judged !== undefined) diag({ event: 'receipt-profile', ...(judged === null ? { code: 'CG-SEND-RECEIPT' as const } : {}), detail: { profile: judged?.profile ?? null, kind: judged?.kind ?? null } });
     lastJudged = judged;
     receiptProfile = judged ?? null;
     if (judged === undefined) return;
@@ -461,6 +492,16 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         if (voided && view.state !== 'sentObserved') return;
         for (const listener of [...(sendListeners.get(view.attemptId) ?? [])]) listener(view);
         return;
+      }
+      // The fuse (decision X25): X8 is off in this document at once; the tab tells the background, the logs hear it.
+      case 'previewSendFuse': {
+        const fact = event.payload;
+        // A trip after a reset is a new one: it holds until a reset after it.
+        const first = !latched();
+        if (first) trippedAt = clock();
+        diag({ event: 'x8-fuse', code: 'CG-SEND-FUSE', detail: { reason: fact.reason, where: fact.where, first, sentChars: fact.sentChars ?? null, seenChars: fact.seenChars ?? null } });
+        recompute();
+        return emit({ type: 'sendFuse', fuse: fact });
       }
       // A failure of our own MAIN code that its guard kept from the page: only the logs hear of it.
       case 'fault': {

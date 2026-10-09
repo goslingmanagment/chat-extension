@@ -8,6 +8,7 @@ import {
   HostIdentitySchema,
   HostThemeSchema,
   HumanSendFactSchema,
+  SendFuseFactSchema,
   IncomingFactSchema,
   InsertReceiptSchema,
   MountPointsSchema,
@@ -50,6 +51,8 @@ function eventValid(event: HostEvent): boolean {
       return CoverageEventSchema.safeParse(event.coverage).success;
     case 'humanSend':
       return HumanSendFactSchema.safeParse(event.fact).success;
+    case 'sendFuse':
+      return SendFuseFactSchema.safeParse(event.fuse).success;
     case 'reloadNeeded':
       return true;
   }

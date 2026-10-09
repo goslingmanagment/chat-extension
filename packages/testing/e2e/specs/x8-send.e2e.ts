@@ -979,6 +979,95 @@ describe('R09 part B — X8, the receipt, human sends and the WS tap on the stan
     });
   });
 
+  describe('decision X25: X8 on any ChatSpace build by the hub’s sentinel, and the fuse after a send', () => {
+    /** The hub value the owner sets (docs/pilot-readiness.md §2): any build, for this adapter version. */
+    const SENTINEL = { id: 'any-build', adapterVersion: ADAPTER_VERSION, modules: { '*': '*' } };
+    const anyBuild = (over: Record<string, unknown> = {}) => liveConfig({ receiptProfiles: [SENTINEL], ...over });
+    type Fused = Report & { build: string | null; receiptMatch: { profile: string; kind: string } | null };
+    type FuseEvent = { type: 'sendFuse'; fuse: { attemptId: string; reason: string; where: string; sentChars?: number; seenChars?: number } };
+    const fuseEvents = (): Promise<FuseEvent[]> => harness<FuseEvent[]>('liveEvents', 'sendFuse');
+    let build: string | null = null;
+
+    before(async () => {
+      const report = (await open(chatPath(ACC, a1), anyBuild())) as Fused;
+      build = report.build;
+      await waitForChatReady(ACC, a1);
+      await armed();
+    });
+
+    it('[X8-06] the sentinel lets X8 in on the stand’s build, and the report says the build was not reviewed; another adapter version’s sentinel lets nothing in; an exact profile is named first', async () => {
+      const report = await harness<Fused>('configure', anyBuild());
+      expect(report.capabilities['previewSend']).toEqual({ state: 'on' });
+      expect(report.capabilities['receipt']).toEqual({ state: 'on' });
+      expect(report.receiptMatch).toEqual({ profile: 'any-build', kind: 'anyBuild' });
+      expect(await harness<boolean>('previewSendAvailable')).toBe(true);
+      expect(await harness('diagnosticsOf', 'receipt-profile')).toContainEqual({ event: 'receipt-profile', detail: { profile: 'any-build', kind: 'anyBuild' } });
+
+      const old = await harness<Fused>('configure', anyBuild({ receiptProfiles: [{ ...SENTINEL, adapterVersion: '0.2.0' }] }));
+      expect(old.capabilities['previewSend']).toEqual({ state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' });
+      expect(old.receiptMatch).toBeNull();
+      expect(old.capabilities['insert']).toEqual({ state: 'on' });
+
+      const both = await harness<Fused>('configure', anyBuild({ receiptProfiles: [SENTINEL, standProfile()] }));
+      expect(both.receiptMatch).toEqual({ profile: 'stand-build', kind: 'exact' });
+
+      // A send under the sentinel: one queue call, one POST, the linked pair — and the fuse has nothing to say.
+      await harness<Fused>('configure', anyBuild());
+      await standServer.script(ACC, a5, [{ kind: 'ok' }]);
+      const server = await standServer.mark();
+      const result = await send({ fan: a5, text: 'Hi & welcome — "quoted" <3\nsecond line' });
+      expect(result.commit?.state).toBe('nativeEnqueued');
+      expect((await settled(result.attemptId, 'sentObserved')).map((view) => view.state)).toEqual(['nativeAccepted', 'sentObserved']);
+      expect(sendsOf(await serverSince(server))).toHaveLength(1);
+      await browser.pause(300);
+      expect(await fuseEvents()).toEqual([]);
+    });
+
+    it('[X8-06] a text the platform did not keep trips the fuse: the send stays sent, nothing is sent again, X8 is off in this document until a reset after it', async () => {
+      // The stand's platform keeps and echoes another text than the one the preview sent.
+      await standServer.script(ACC, a6, [{ kind: 'ok', echoContent: '<p>Not what the preview sent</p>' }]);
+      const server = await standServer.mark();
+      const page = await pageMark();
+      const result = await send({ fan: a6, text: 'Synthetic preview reply' });
+      expect(result.commit?.state).toBe('nativeEnqueued');
+      // The outcome is known and stays what it is: the pair was made by id.
+      expect((await settled(result.attemptId, 'sentObserved')).map((view) => view.state)).toEqual(['nativeAccepted', 'sentObserved']);
+      const [fuse] = await waitForHarnessState(fuseEvents, (events) => events.length > 0, 'the fuse tripped');
+      // The stand's response carries the message as the platform kept it: the first word of it trips the fuse.
+      expect(fuse?.fuse).toEqual({ attemptId: result.attemptId, reason: 'text', where: 'response', sentChars: 'Syntheticpreviewreply'.length, seenChars: 'Notwhatthepreviewsent'.length });
+      evidence['fuseTrip'] = fuse;
+      // X8 is off at once; the rest of the adapter is not.
+      const report = await harness<Fused>('report');
+      expect(report.capabilities['previewSend']).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
+      expect(report.capabilities['insert']).toEqual({ state: 'on' });
+      expect(await harness<boolean>('previewSendAvailable')).toBe(false);
+      expect(await send({ fan: a7 })).toMatchObject({ attemptId: null, reason: 'no-port' });
+      // No retry, no second send: one queue call, one POST — the fuse only turned X8 off.
+      await browser.pause(500);
+      expect(sendsOf(await serverSince(server))).toHaveLength(1);
+      expect(queueAdds(await pageSince(page))).toHaveLength(1);
+      expect(await fuseEvents()).toHaveLength(1);
+      // The log heard it with its code and lengths, never a text.
+      const logged = await harness<Array<{ event: string; code?: string; detail?: Record<string, unknown> }>>('diagnosticsOf', 'x8-fuse');
+      expect(logged).toEqual([{ event: 'x8-fuse', code: 'CG-SEND-FUSE', detail: { reason: 'text', where: 'response', first: true, sentChars: 21, seenChars: 21 } }]);
+      expect(JSON.stringify(logged)).not.toContain('preview');
+
+      // The background keeps the trip for this build: still off. Another build is not held.
+      const tripped = { trippedAt: Date.now(), reason: 'text', where: 'echo', build, attemptId: result.attemptId };
+      expect((await harness<Fused>('configure', anyBuild({ fuse: { fuse: tripped, resetAt: null } }))).capabilities['previewSend']).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
+      // A reset from before the trip does not lift it…
+      expect((await harness<Fused>('configure', anyBuild({ fuse: { fuse: null, resetAt: Date.now() - 600_000 } }))).capabilities['previewSend']).toEqual({ state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' });
+      // …«Сбросить предохранитель» after it does: X8 is on again on the same build, and a send goes.
+      expect((await harness<Fused>('configure', anyBuild({ fuse: { fuse: null, resetAt: Date.now() } }))).capabilities['previewSend']).toEqual({ state: 'on' });
+      await standServer.script(ACC, a7, [{ kind: 'ok' }]);
+      const again = await send({ fan: a7 });
+      expect(again.commit?.state).toBe('nativeEnqueued');
+      expect((await settled(again.attemptId, 'sentObserved')).map((view) => view.state)).toEqual(['nativeAccepted', 'sentObserved']);
+      await browser.pause(300);
+      expect(await fuseEvents()).toHaveLength(1);
+    });
+  });
+
   describe('the two document_start scripts in the other order', () => {
     before(async () => {
       // The background's registered script may run before or after the manifest's: both orders must work.

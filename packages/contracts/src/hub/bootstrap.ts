@@ -32,6 +32,8 @@ export const ReceiptProfileSchema = z.object({
 });
 export type ReceiptProfile = z.infer<typeof ReceiptProfileSchema>;
 
+/** 1.11.0 (decision X25): the «any build» sentinel is a profile like any other — see `isAnyBuildReceiptProfile` (send-rules.ts). */
+
 export const BootstrapPageSchema = z.object({
   pageId: HubIntIdSchema,
   pageLabel: z.string(),

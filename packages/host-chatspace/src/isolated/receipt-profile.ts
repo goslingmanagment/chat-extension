@@ -15,8 +15,15 @@
 //
 // The profile comes from the hub as data only: no code, no selectors. The
 // roles that must be there are the adapter's own (host-contract.ts).
+//
+// The «any build» sentinel (decision X25, contracts 1.11.0): a profile whose
+// `modules` is exactly `{"*":"*"}` matches any build for the adapter version it
+// names — still only when the page has loaded a module of every role (the
+// main layout is up). Exact profiles are tried first: a reviewed build is named
+// as one. The fuse (main/receipt.ts) watches what X8 does after that.
 
 import type { ReceiptProfile } from '@cg/contracts/hub';
+import { isAnyBuildReceiptProfile, type ReceiptMatchKind } from '@cg/contracts/send-rules';
 
 import { MODULE_PATTERN, RECEIPT_MODULE_ROLES } from './host-contract';
 
@@ -65,16 +72,28 @@ export function receiptModules(urls: readonly string[], origin: string, roles: r
   return modules;
 }
 
+/** Which profile let X8 in, and how (contracts HostContractReport `receiptMatch`). */
+export interface ReceiptMatch {
+  readonly profile: string;
+  readonly kind: ReceiptMatchKind;
+}
+
 /**
- * The id of the first profile that names this adapter version and, for every
- * essential role, exactly the loaded fingerprint (and nothing the page did
- * not load); null — none.
+ * The profile the loaded modules match, for this adapter version; null — none.
+ * - `exact`: the first profile that names, for every essential role, exactly
+ *   the loaded fingerprint (and nothing the page did not load);
+ * - `anyBuild`: else the first «any build» sentinel, when a module of every
+ *   essential role is loaded — whatever its fingerprint. A page whose role
+ *   modules have not loaded (no main layout yet, no sign-in) matches nothing.
  */
-export function matchReceiptProfile(modules: Readonly<Record<string, string>>, profiles: readonly ReceiptProfile[], adapterVersion: string, roles: readonly string[] = RECEIPT_MODULE_ROLES): string | null {
-  for (const profile of profiles) {
-    if (profile.adapterVersion !== adapterVersion) continue;
+export function matchReceiptProfile(modules: Readonly<Record<string, string>>, profiles: readonly ReceiptProfile[], adapterVersion: string, roles: readonly string[] = RECEIPT_MODULE_ROLES): ReceiptMatch | null {
+  const ours = profiles.filter((profile) => profile.adapterVersion === adapterVersion);
+  for (const profile of ours) {
+    if (isAnyBuildReceiptProfile(profile)) continue;
     const named = Object.keys(profile.modules);
-    if (roles.every((role) => named.includes(role)) && named.every((role) => roles.includes(role) && modules[role] === profile.modules[role])) return profile.id;
+    if (roles.every((role) => named.includes(role)) && named.every((role) => roles.includes(role) && modules[role] === profile.modules[role])) return { profile: profile.id, kind: 'exact' };
   }
-  return null;
+  const loaded = roles.length > 0 && roles.every((role) => typeof modules[role] === 'string' && modules[role] !== '');
+  const sentinel = loaded ? ours.find((profile) => isAnyBuildReceiptProfile(profile)) : undefined;
+  return sentinel === undefined ? null : { profile: sentinel.id, kind: 'anyBuild' };
 }

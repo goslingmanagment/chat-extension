@@ -2,6 +2,7 @@
 
 import type { HostContractReport, HostEvent, InsertIntent, InsertReceipt, NavigationIntent, NavigationReceipt } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
+import type { SendFuseState } from '@cg/contracts/send';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { describe, expect, it } from 'vitest';
 
@@ -46,14 +47,22 @@ function world(state = 'ready') {
       configured.push(config);
       return config.wsTap ? Promise.resolve({}) : Promise.reject(new Error('bridge'));
     },
+    probe: () => ({ build: 'index-p8xPkCj8' }),
   } as unknown as ChatSpaceHostPort;
   const port = { state };
   /** Answers of the next requests, in order; an empty queue acknowledges. */
   const answers: unknown[] = [];
   const stateListeners = new Set<(state: string) => void>();
+  const eventListeners = new Map<string, (payload: unknown) => void>();
+  /** The X8 fuse the background keeps (decision X25): read apart from the other requests. */
+  const fuse = { state: { fuse: null, resetAt: null } as SendFuseState, reads: 0 };
   const rpc = {
     state: () => port.state,
     request(type: string, payload: unknown) {
+      if (type === 'send.fuseState') {
+        fuse.reads += 1;
+        return Promise.resolve({ ok: true, payload: fuse.state });
+      }
       sent.push([type, payload]);
       return Promise.resolve(answers.shift() ?? { ok: true, payload: { recorded: true } });
     },
@@ -61,13 +70,30 @@ function world(state = 'ready') {
       stateListeners.add(next);
       return () => stateListeners.delete(next);
     },
+    onEvent(type: string, next: (payload: unknown) => void) {
+      eventListeners.set(type, next);
+      return () => eventListeners.delete(type);
+    },
   } as unknown as ControllerRpc;
   const facts = forwardHostFacts({ host, rpc, setNavInsertTimeoutMs: (ms) => void timeouts.push(ms), onFailure: (what) => void failures.push(what) });
   const setState = (next: string): void => {
     port.state = next;
     for (const heard of [...stateListeners]) heard(next);
   };
-  return { facts, sent, configured, timeouts, failures, answers, setState, emit: (event: HostEvent) => listener(event), subscribed: () => subscribed, stateListeners: () => stateListeners.size };
+  return {
+    facts,
+    sent,
+    configured,
+    timeouts,
+    failures,
+    answers,
+    setState,
+    fuse,
+    event: (type: string, payload: unknown) => eventListeners.get(type)?.(payload),
+    emit: (event: HostEvent) => listener(event),
+    subscribed: () => subscribed,
+    stateListeners: () => stateListeners.size,
+  };
 }
 const turns = async (): Promise<void> => {
   for (let i = 0; i < 5; i += 1) await Promise.resolve();
@@ -300,6 +326,71 @@ describe('facts of the page → the background', () => {
     w.facts.dispose();
     expect(w.subscribed()).toBe(0);
     expect(w.stateListeners()).toBe(0);
+  });
+});
+
+describe('[X8-06] the X8 fuse (decision X25): the background keeps it, the adapter is told, a trip of this tab is reported', () => {
+  const fact = { attemptId: '00000000-0000-4000-8000-000000000070', reason: 'text', where: 'echo', sentChars: 21, seenChars: 9 } as const;
+  const tripped: SendFuseState = { fuse: { trippedAt: 1, reason: 'text', where: 'echo', build: 'index-p8xPkCj8', attemptId: fact.attemptId }, resetAt: null };
+
+  it('read when the port is ready; a fuse that never tripped changes nothing; one that did goes to the adapter with part B; `send.fuse` events follow', async () => {
+    const w = world();
+    w.facts.configure(bootstrap());
+    await turns();
+    expect(w.fuse.reads).toBe(1);
+    expect(w.configured).toHaveLength(1);
+    expect(w.configured[0]).not.toHaveProperty('fuse');
+    w.event('send.fuse', tripped);
+    await turns();
+    expect(w.configured.at(-1)).toMatchObject({ previewSend: true, fuse: tripped });
+    // The reset: the adapter hears it (a trip of its own document is lifted by it).
+    w.event('send.fuse', { fuse: null, resetAt: 5 });
+    await turns();
+    expect(w.configured.at(-1)?.fuse).toEqual({ fuse: null, resetAt: 5 });
+    // A new port may be a new event page: read again.
+    w.setState('reconnecting');
+    w.setState('ready');
+    await turns();
+    expect(w.fuse.reads).toBe(2);
+  });
+
+  it('a trip MAIN saw in this tab goes to the background with the tab’s build, and the background’s answer to the adapter', async () => {
+    const w = world();
+    w.facts.configure(bootstrap());
+    w.answers.push({ ok: true, payload: tripped });
+    w.emit({ type: 'sendFuse', fuse: fact });
+    await turns();
+    expect(w.sent).toEqual([['send.fuse', { fact, build: 'index-p8xPkCj8' }]]);
+    expect(w.configured.at(-1)?.fuse).toEqual(tripped);
+  });
+
+  it('a trip nobody acknowledged (the port was lost) is said again when the port is back, a bounded number of times; a refusal is not repeated', async () => {
+    const w = world();
+    const lost = { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'port lost' } };
+    for (let n = 0; n < SENT_REPORT_TRIES + 2; n += 1) w.answers.push(lost);
+    w.setState('reconnecting');
+    w.emit({ type: 'sendFuse', fuse: fact });
+    await turns();
+    for (let n = 0; n < SENT_REPORT_TRIES + 2; n += 1) {
+      w.setState('ready');
+      await turns();
+      w.setState('reconnecting');
+    }
+    expect(w.sent.filter(([type]) => type === 'send.fuse')).toHaveLength(SENT_REPORT_TRIES);
+    const other = world();
+    other.answers.push({ ok: false, error: { code: 'CG-UI-FAILED', detail: 'tab only' } });
+    other.emit({ type: 'sendFuse', fuse: fact });
+    await turns();
+    other.setState('ready');
+    await turns();
+    expect(other.sent.filter(([type]) => type === 'send.fuse')).toHaveLength(1);
+  });
+
+  it('dispose stops listening to the fuse events', () => {
+    const w = world();
+    w.facts.dispose();
+    w.facts.configure(bootstrap());
+    expect(() => w.event('send.fuse', tripped)).not.toThrow();
   });
 });
 

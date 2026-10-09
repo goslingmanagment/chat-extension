@@ -548,7 +548,8 @@ export const HUB_SCHEMA_FIXTURES = [
     { available: 'yes' },
     { available: false, reason: '' },
   ]),
-  fixture('ReceiptProfile', C.ReceiptProfileSchema, [receiptProfile], [{ ...receiptProfile, modules: { role: '' } }]),
+  // 1.11.0 (decision X25): the «any build» sentinel is an ordinary profile as data — `{"*":"*"}`, its id free text.
+  fixture('ReceiptProfile', C.ReceiptProfileSchema, [receiptProfile, { id: 'any-build', adapterVersion: '0.3.0', modules: { '*': '*' } }], [{ ...receiptProfile, modules: { role: '' } }]),
   fixture(
     'BootstrapPage',
     C.BootstrapPageSchema,

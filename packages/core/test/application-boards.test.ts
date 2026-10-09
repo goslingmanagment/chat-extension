@@ -1712,6 +1712,27 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(partsOf(broken.h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-HOST', reason: { key: 'send.reason.host' } });
   });
 
+  it('[X8-06] the fuse tripped (decision X25): «Отправить» is off with CG-SEND-FUSE and its own words, nothing is asked of MAIN or the hub; «Открыть и вставить» works; after the reset the part goes', async () => {
+    const fused = contractReport({ previewSend: { state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' } });
+    const { h, opId } = await withReply({ start: { contract: fused } });
+    expect(h.host.previewSend).toBeNull();
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-FUSE', reason: { key: 'send.reason.fuse' } });
+    expect(partsOf(h, 'spenders')[0]?.openInsert).toEqual({ s: 'available' });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-FUSE' });
+    expect(h.clicks).toEqual([]);
+    expect(h.host.calls.preflights).toEqual([]);
+    expect(h.host.calls.commits).toEqual([]);
+    // «Сбросить предохранитель»: the host's capability is on again, and so is the row.
+    h.hostContract(contractReport());
+    await h.flush();
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'available' });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
+    await h.flush();
+    expect(h.host.calls.commits).toHaveLength(1);
+    // The click tells the background the tab's ChatSpace build: the fuse holds a build, not a browser forever.
+    expect(h.clicks.at(-1)?.hostBuild).toBe(contractReport().build);
+  });
+
   it('unavailable by the page: MAIN’s own answer explains the button (Mimic), and the context the hub did not serve holds it', async () => {
     const mimic = await withReply({ answers: { preflight: [{ ok: false, code: 'CG-SEND-MIMIC' }] } });
     expect(partsOf(mimic.h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-MIMIC', reason: { key: 'send.reason.mimic' } });

@@ -510,6 +510,11 @@ describe('[SP-054] [NF-019] the background send conditions (§6.7.4: 1–4, 14)'
     expect(beginCondition(beginOf(), opOf(), { ...gate, previewSend: false })).toBe('CG-SEND-OFF');
     expect(beginCondition(beginOf({ purpose: 'greeting' }), opOf({ surface: 'newcomers' }), { ...gate, newcomers: false })).toBe('CG-SEND-OFF');
     expect(beginCondition(beginOf(), opOf(), { ...gate, receiptProfiles: 0 })).toBe('CG-SEND-RECEIPT');
+    // Decision X25: the browser's fuse holds the tab's build — after the switch and the profiles, before freshness.
+    expect(beginCondition(beginOf(), opOf(), { ...gate, fused: true })).toBe('CG-SEND-FUSE');
+    expect(beginCondition(beginOf(), opOf(), { ...gate, fused: true, previewSend: false })).toBe('CG-SEND-OFF');
+    expect(beginCondition(beginOf(), opOf({ stale: true }), { ...gate, fused: true })).toBe('CG-SEND-FUSE');
+    expect(beginCondition(beginOf(), opOf(), { ...gate, fused: false })).toBeNull();
     expect(beginCondition(beginOf(), opOf({ checkpoint: undefined }), gate)).toBe('CG-SEND-FRESHNESS');
     expect(beginCondition(beginOf({ checkpoint: { ...checkpoint, fanSequence: 3 } }), opOf(), gate)).toBe('CG-SEND-FRESHNESS');
     expect(beginCondition(beginOf({ checkpoint: { ...checkpoint, observedAt: NOW_MS + 5000 } }), opOf(), gate)).toBeNull();
