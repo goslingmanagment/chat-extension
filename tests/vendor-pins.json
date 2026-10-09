@@ -1,13 +1,13 @@
 {
   "kernelSdk": {
-    "contractHash": "38a87253174c65d4948b3970142e5c9877eb6ed3aad7c43f4f49e3ecab56d525",
-    "sourceCommit": "58f766cd0382b9f7741c4f14a06b6693694bb635",
-    "distSha256": "7e78bcd34ff00388a226636b037f3515cd8e101b0c46a1d004a421d748ec0e94",
-    "note": "Vendored on 2026-10-08 with the hub's scripts/vendor-sdk.mjs from hub main 58f766cd (#492) — the commit DEPLOYED to production that day (prod health: contractHash 38a87253…, compatibleClientSdks lists it), so this vendor satisfies the release rule: a release is vendored only from a deployed hub commit (the release gate refuses an SDK hash the prod health does not list in compatibleClientSdks). Against the vendor before (c8514c5c, same contract 38a87253…) only comments changed: #492 wrote down what the Spenders asOf stamp means in packages/contracts/src/routes.ts; no operation, schema or scope changed (hub #484–#491 did not touch the SDK). The prod bootstrap declares archive-feed-v1, spenders-stats-v1, awaiting-reply-v1, preview-send-custody-v1, audience-new-v1, live-text-v1 and split-all-v1. Re-vendor with the same script, then update this pin in the same commit."
+    "contractHash": "ebdd94e3974ab53680e6568b5945e1e1c253f86ab617c334c78d0d1d1d7bcaa4",
+    "sourceCommit": "5c4e6dd7e56d1bd86ed202107e428cdf7ea0c043",
+    "distSha256": "fbe3218ff3dbe3c9b82d008c0280257f798ae40d074441022d5edf2f3c161010",
+    "note": "Vendored on 2026-10-09 with the hub's scripts/vendor-sdk.mjs from hub main 5c4e6dd7 (#511) — the commit DEPLOYED to production that night (prod health: contractHash ebdd94e3…, compatibleClientSdks lists it), so this vendor satisfies the release rule: a release is vendored only from a deployed hub commit (the release gate refuses an SDK hash the prod health does not list in compatibleClientSdks). Against the vendor before (58f766cd, contract 38a87253…, which the hub no longer lists) the contract only ADDED: an optional `chatAccess` on conversations and an optional `chatsUnavailable` count (Fansly chats the platform stopped serving, hub #490–#511) and the agent route agentThreadAvailability; packages/contracts/src/routes-client.ts, every client route, operation, schema and scope this extension uses are unchanged. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
     "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
-    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to 58f766cd, the commit the SDK is vendored from: only its README and the script's usage comment changed since)."
+    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to 5c4e6dd7, the commit the SDK is vendored from: only its README and the script's usage comment changed since)."
   }
 }
