@@ -180,6 +180,23 @@ export async function oursFocus(where: Where): Promise<{ readonly tag: string; r
   );
 }
 
+/**
+ * The keyboard focus is on the element of ours that shows `text`, now — no waiting: what put it there (a question
+ * taking the focus as it appears) did so in the same step that put the element on the page. On a miss it says
+ * whose side the miss is: the element our root holds as its focus (`activeElement`, which a key reaching the page
+ * lands on) and whether the page has the focus at all — `:focus` matches nothing in a page without it, and keys
+ * never reach it (support/focus.ts).
+ */
+export async function expectOursFocus(where: Where, text: RegExp, message: string): Promise<void> {
+  const focus = await oursFocus(where);
+  if (focus !== null && text.test(focus.text)) return;
+  const state = await readOurs(where, '*', (node) => {
+    const active = (node.getRootNode() as ShadowRoot).activeElement;
+    return { pageHasFocus: node.ownerDocument.hasFocus(), rootFocus: active === null ? null : (active.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 80) };
+  });
+  throw new Error(`${message}: the focus is on ${focus === null ? 'nothing of ours' : `«${focus.text}»`}, expected ${String(text)}; the page ${state?.pageHasFocus === true ? 'has' : 'has not'} the keyboard focus, our root holds ${state?.rootFocus === null || state === null ? 'none' : `«${state.rootFocus}»`}`);
+}
+
 /** WebDriver's own commands, one round trip each; wdio's element wrappers wait and retry around them. */
 interface Classic {
   findElement(using: string, value: string): Promise<Record<string, string>>;

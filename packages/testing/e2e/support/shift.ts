@@ -12,6 +12,7 @@ import type { FakeHubControlClient } from '../../src/fake-hub/control-client';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
 import { assignPersona, installTestBuild, pageRpc, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from './extension';
 import { fakeHubOrigin, QUIET_PAGE, testBuildPage } from './fake-hub';
+import { focusTab } from './focus';
 import { chatPath, openStand, STAND_IDS, waitForChatReady } from './stand';
 import { standWorld, type WorldOptions } from './world';
 
@@ -87,9 +88,14 @@ export async function startShift(hub: FakeHubControlClient, options: ShiftOption
   await browser.url(testBuildPage(QUIET_PAGE));
   const pagesTab = await browser.getWindowHandle();
   const standTab = (await browser.createWindow('tab')).handle;
-  const toStand = (): Promise<void> => browser.switchToWindow(standTab);
+  // In front means with the keyboard focus, as the tab a person types in (support/focus.ts).
+  const toStand = async (): Promise<void> => {
+    await browser.switchToWindow(standTab);
+    await focusTab();
+  };
   const toPages = (): Promise<void> => browser.switchToWindow(pagesTab);
-  await toStand();
+  // The focus is made sure of once the stand is in the tab, not on its blank page.
+  await browser.switchToWindow(standTab);
   if (options.viewport !== undefined) {
     await browser.browsingContextSetViewport({ context: standTab, viewport: { width: options.viewport.width, height: options.viewport.height } });
   }
@@ -100,6 +106,8 @@ export async function startShift(hub: FakeHubControlClient, options: ShiftOption
     await openStand(chatPath(chat[0], chat[1]), sentry);
     await waitForChatReady(chat[0], chat[1]);
   }
+  // The address bar of the new tab may have taken the focus while the stand loaded.
+  await focusTab();
   const rpc: Shift['rpc'] = async (type, payload = {}) => {
     await toPages();
     try {

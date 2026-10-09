@@ -29,7 +29,7 @@ import { Key } from 'webdriverio';
 import { bridgeWrites, clearDraft, composerText, EDITOR, listAnchor, MOD, pageJournal, pageJournalMark, pressSend, scrollList, twoFrames, typeDraft, waitForComposerText } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { oursExists, oursFocus, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
+import { expectOursFocus, oursExists, oursText, pressOurs, waitOursByText, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, composerRoots, dockPlacement, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 import { setViewport } from '../support/visual';
@@ -70,6 +70,14 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
     journalStart = await standServer.mark();
     await hub().command({ op: 'config', patch: { aiNameFan: true } });
     shift = await startShift(hub(), { settings: { generation: { split: true } }, viewport: { width: 1280, height: 800 } });
+  });
+
+  // A test that failed with the Б2 question still standing does not fail the next ones as well: the question hides
+  // «Вставить» of its part. Its «Отмена» writes nothing; the failure itself stays reported.
+  afterEach(async function (this: Mocha.Context) {
+    if (this.currentTest?.state !== 'failed' || !(await oursExists('dock', '.cg-confirm'))) return;
+    await pressOurs('dock', '.cg-confirm button', /^Отмена/, 'after a failed test: «Отмена» of the question left standing');
+    await browser.waitUntil(async () => !(await oursExists('dock', '.cg-confirm')), { timeout: 5000, timeoutMsg: 'after a failed test: the question left standing did not close' });
   });
 
   after(async () => {
@@ -197,7 +205,7 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       for (const [name, key] of [['Enter', Key.Enter], ['Space', Key.Space]] as const) {
         await pressOurs('dock', '[data-cg-part="0"] button', /^Вставить/, `${name}: «Вставить»`);
         await waitOursText('dock', HUMAN_DRAFT, `${name}: the question about the person’s own text`);
-        expect((await oursFocus('dock'))?.text).toMatch(/^Отмена/);
+        await expectOursFocus('dock', /^Отмена/, `${name}: the question took the focus`);
         await browser.keys(key);
         await waitOursText('dock', HUMAN_DRAFT, `${name}: the question is gone`, { gone: true });
         expect(await composerText(ACC, a2)).toBe('my own words');
