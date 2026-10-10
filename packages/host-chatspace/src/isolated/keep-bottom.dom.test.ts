@@ -89,10 +89,17 @@ afterEach(() => {
 });
 
 describe('the message list keeps its bottom when our dock grows (UI-016)', () => {
-  it('[UI-016] finds ChatSpace’s list from the dock: the scroll box right above it, not a strip of chips and not a box below', () => {
+  it('[UI-016] finds ChatSpace’s list from the dock: the tall scroll box above it — not a strip of chips, not a tray of attachments next to the composer, not a box below', () => {
     const page = chat(500, 2_000, 1_500);
     keeper = page.keeper;
     expect(findListAbove(window, page.dock)).toBe(page.scroller);
+    // A tray that scrolls sideways stands between the list and the dock, nearer than the list: the list is the tall one.
+    const tray = document.createElement('div');
+    tray.setAttribute('style', 'overflow-x: auto; overflow-y: auto');
+    (page.dock.parentElement as HTMLElement).before(tray);
+    sized(tray, { top: 440, height: 96 });
+    expect(findListAbove(window, page.dock)).toBe(page.scroller);
+    tray.remove();
     // A scroll box that does not end above the dock (a side panel next to the composer) is not the list.
     sized(page.scroller, { top: 600, height: 500 });
     expect(findListAbove(window, page.dock)).toBeNull();

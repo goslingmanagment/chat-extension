@@ -19,7 +19,7 @@
 // request of ChatSpace's follows that a scroll by hand would not.
 //
 // The list is found from the dock, not by a class of a ChatSpace build: the
-// nearest scroll box that ends right above the dock, among the siblings that
+// tallest scroll box that ends above the dock, among the siblings that
 // precede the dock's ancestors. The size observer is made anew each time the
 // dock is placed, after ChatSpace has rendered the chat: observers are told in
 // the order they were made, so ChatSpace's own answer to the resize (it may
@@ -73,19 +73,25 @@ function scrollBoxIn(win: Window, root: Element): HTMLElement | null {
   return null;
 }
 
-/** ChatSpace's message list as the dock sees it: the nearest scroll box that ends right above the dock, over the composer's width. */
+/**
+ * ChatSpace's message list as the dock sees it: a scroll box that ends above the dock, over the composer's width —
+ * the tallest of them. A tray of attachments or a row of chips between the list and the composer scrolls too, and
+ * stands nearer; the list is the one that takes the room.
+ */
 export function findListAbove(win: Window, dock: HTMLElement): HTMLElement | null {
   const box = dock.getBoundingClientRect();
+  let best: HTMLElement | null = null;
   let node: Element | null = dock.parentElement;
   for (let depth = 0; node !== null && depth < ANCESTOR_DEPTH && node !== win.document.body; depth += 1, node = node.parentElement) {
     for (let sibling = node.previousElementSibling; sibling !== null; sibling = sibling.previousElementSibling) {
       const found = scrollBoxIn(win, sibling);
       if (found === null) continue;
       const rect = found.getBoundingClientRect();
-      if (rect.bottom <= box.top + 2 && rect.right > box.left && rect.left < box.right) return found;
+      if (rect.bottom > box.top + 2 || rect.right <= box.left || rect.left >= box.right) continue;
+      if (best === null || found.clientHeight > best.clientHeight) best = found;
     }
   }
-  return null;
+  return best;
 }
 
 export function createBottomKeeper(win: Window, dock: HTMLElement, options: BottomKeeperOptions = {}): BottomKeeper {
