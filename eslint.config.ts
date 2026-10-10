@@ -131,6 +131,10 @@ export default defineConfig(
       '.dev-profile/**',
       '.cache/**',
       'tests/fixtures/**',
+      // Agent sessions keep whole copies of the repository under .claude/worktrees/.
+      // Linted from here, each one is a second set of type-aware programs: the
+      // heap runs out, and the root-relative patterns above do not reach into a copy.
+      '.claude/**',
     ],
   },
   js.configs.recommended,

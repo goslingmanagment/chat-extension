@@ -1,5 +1,6 @@
 // Proves the package graph of architecture.md §4 is enforced: a deliberate
 // violation turns ESLint and dependency-cruiser red, a clean file stays green.
+// And that `eslint .` stays inside this checkout: not into the agents' copies of it.
 
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +88,14 @@ describe('ESLint package graph (§4)', () => {
     ],
   ])('%s → green', async (_label, filePath, code) => {
     expect(await ruleIds(filePath, code)).toEqual([]);
+  });
+});
+
+describe('ESLint file set', () => {
+  it('leaves out .claude/: an agent worktree there is a whole copy of the repository, and one more set of type-aware programs runs the heap out', async () => {
+    // A folder that does not exist: a real worktree has an eslint.config.ts of its own, and a path inside it is judged by that one.
+    expect(await eslint.isPathIgnored(`${repoRoot}.claude/worktrees/no-such-session/packages/core/src/domain/index.ts`)).toBe(true);
+    expect(await eslint.isPathIgnored(`${repoRoot}packages/core/src/domain/index.ts`)).toBe(false);
   });
 });
 

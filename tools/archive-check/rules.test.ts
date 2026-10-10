@@ -52,6 +52,14 @@ describe('archive check', () => {
     );
   });
 
+  it('keeps .claude/ out of both archives: an agent worktree under it is a whole copy of the repository', () => {
+    const copy = [entry('.claude/worktrees/some-session/package.json', '{}'), entry('.claude/worktrees/some-session/packages/core/src/index.ts', 'export {};')];
+    for (const kind of ['xpi', 'sources'] as const) {
+      expect(checkArchive('x.zip', copy, kind).map((problem) => `${problem.rule}:${problem.file}`)).toEqual(copy.map((file) => `forbidden-file:${file.name}`));
+    }
+    expect(checkArchive('x.zip', [entry('packages/core/src/claude.ts', 'export {};')], 'sources')).toEqual([]);
+  });
+
   it('keeps the stand and its e2e harness out of the sources archive; only the testing manifest and the lockfile may name Vue/TipTap there', () => {
     const tiptap = "import { Editor } from '@tiptap/core';";
     const rules = (name: string, kind: 'xpi' | 'sources', text = tiptap): string[] => checkArchive('a.zip', [entry(name, text)], kind).map((problem) => problem.rule);
