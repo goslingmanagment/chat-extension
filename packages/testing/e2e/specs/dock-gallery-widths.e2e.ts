@@ -62,9 +62,9 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
   });
 
-  it('[UI-006] long key labels («Ctrl+Alt+B», Windows and Linux): the wide strip starts at 860 px, and the labels stay off the buttons until 1320 px — in the tooltips and the cheatsheet they always are', async () => {
-    await open('theme=dark&lang=ru&w=860&os=win');
-    await captureWindow('dock-wide-dark-ru-win-w860');
+  it('[UI-006] long key labels («Ctrl+Alt+B», Windows and Linux): the wide strip starts at 840 px — a 1440 px window (a composer of 853 px) has it — and the labels stay off the buttons until 1320 px — in the tooltips and the cheatsheet they always are', async () => {
+    await open('theme=dark&lang=ru&w=840&os=win');
+    await captureWindow('dock-wide-dark-ru-win-w840');
     expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...TONES, 'Split', ...WINDOWS]);
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect((await health()).problems).toEqual([]);
@@ -76,8 +76,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), ...TONES, 'Split', ...WINDOWS]);
     expect(await shown('1a', '.cg-strip__acts kbd')).toEqual(['Ctrl+E', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C']);
     expect((await health()).problems).toEqual([]);
-    // Below 860 px: the «Тон» menu, and still no long labels on the buttons — they would not fit there either.
-    await open('theme=dark&lang=ru&w=859&os=win');
+    // Below 840 px: the «Тон» menu, and still no long labels on the buttons — they would not fit there either.
+    await open('theme=dark&lang=ru&w=839&os=win');
     expect((await measure('1a'))?.buttons).toEqual([...SEVEN, 'Тон', 'Split']);
     expect((await health()).problems).toEqual([]);
   });

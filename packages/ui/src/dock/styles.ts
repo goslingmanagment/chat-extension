@@ -5,7 +5,7 @@
 // way: what hides at a width stays hidden below it.
 //
 //   wide   the tones as four buttons, Spenders and «Новые» (from 1000 px; from
-//          860 px where key labels are long and so stay off the buttons)
+//          840 px where key labels are long and so stay off the buttons)
 //   ≥ 900  everything of the narrow strip; the quota in full
 //   < 900  the quota short; a crowded strip gives the persona's place away
 //   < 790  no persona, no ⌘K; tighter buttons
@@ -24,17 +24,18 @@ const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1
 
 /**
  * The wide composer (ui-design §3.3, decision X26): the tones as four buttons, Spenders and «Новые» one click away.
- * It starts where the strip has room for them: at 1000 px with short key labels («⌘E»), at 860 px with long ones
+ * It starts where the strip has room for them: at 1000 px with short key labels («⌘E»), at 840 px with long ones
  * («Ctrl+Alt+B»), which then stay off the buttons until 1320 px. The persona, ⌘K, the long quota and the long status
  * words come back once they fit next to the new buttons. Measured in the dock gallery over every strip state, both
- * languages, both kinds of key labels (dock-gallery-widths.e2e.ts).
+ * languages, both kinds of key labels (dock-gallery-widths.e2e.ts). 840 px, not more: a 1440 px window gives the
+ * composer 853 px (ui-design §3.2), and that is where most chatters on Windows sit.
  */
 const WIDE_CSS = `
 @container cg (min-width: 1000px) {
   .cg-strip:not(.is-longkeys) .cg-slot--tones, .cg-strip:not(.is-longkeys):not(.has-status) .cg-slot--boards { display: inline-flex; }
   .cg-strip:not(.is-longkeys) .cg-slot--tone { display: none; }
 }
-@container cg (min-width: 860px) {
+@container cg (min-width: 840px) {
   .cg-strip.is-longkeys .cg-slot--tones, .cg-strip.is-longkeys:not(.has-status) .cg-slot--boards { display: inline-flex; }
   .cg-strip.is-longkeys .cg-slot--tone { display: none; }
 }
@@ -44,14 +45,14 @@ const WIDE_CSS = `
 @container cg (min-width: 1000px) and (max-width: 1119px) {
   .cg-strip:not(.is-longkeys) :is(.cg-slot--persona, .cg-hint) { display: none; }
 }
-@container cg (min-width: 860px) and (max-width: 979px) {
+@container cg (min-width: 840px) and (max-width: 979px) {
   .cg-strip.is-longkeys :is(.cg-slot--persona, .cg-hint) { display: none; }
 }
 @container cg (min-width: 1000px) and (max-width: 1399px) {
   .cg-strip:not(.is-longkeys) :is(.cg-quota, .cg-status-word) .cg-long { display: none; }
   .cg-strip:not(.is-longkeys) :is(.cg-quota, .cg-status-word) .cg-short { display: inline; }
 }
-@container cg (min-width: 860px) and (max-width: 1399px) {
+@container cg (min-width: 840px) and (max-width: 1399px) {
   .cg-strip.is-longkeys :is(.cg-quota, .cg-status-word) .cg-long { display: none; }
   .cg-strip.is-longkeys :is(.cg-quota, .cg-status-word) .cg-short { display: inline; }
 }
