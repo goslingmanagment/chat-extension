@@ -160,15 +160,47 @@ describe('the message list keeps its bottom when our dock grows (UI-016)', () =>
     page.scrollTo(1_460);
     page.frame();
     expect(page.distance()).toBe(0);
-    // The result grows on (a stream): the list is still held.
+    // The result grows on (a stream), and ChatSpace answers each step the same way — in either order: the list is still held.
     page.grow(60);
+    page.scrollTo(1_460);
+    page.frame();
     expect(page.distance()).toBe(0);
-    // Once things settled, a scroll by hand counts again.
+    page.scrollTo(1_460);
+    page.grow(30);
+    expect(page.distance()).toBe(0);
+    page.frame();
+    // Long after the growth the same place is a place like any other: the person scrolled there themselves.
     page.wait(SETTLE_MS + 1);
-    page.scrollTo(600);
+    page.scrollTo(1_460);
     page.grow(40);
     page.frame();
-    expect(page.list.scroll.top).toBe(600);
+    expect(page.list.scroll.top).toBe(1_460);
+  });
+
+  it('[UI-016] a person who scrolls up while a result streams is left where they went: only ChatSpace’s own answer to the resize is not taken for their scroll', () => {
+    const page = chat(500, 2_000, 1_500);
+    keeper = page.keeper;
+    page.keeper.placed(true);
+    // The stream begins: the result opens and grows step by step, the list follows its bottom.
+    page.grow(80);
+    page.frame();
+    page.grow(40);
+    page.frame();
+    expect(page.distance()).toBe(0);
+    // Mid-stream, the person scrolls up to read — no waiting for the growth to settle.
+    page.scrollTo(700);
+    page.grow(40);
+    page.frame();
+    page.grow(40);
+    page.frame();
+    expect(page.list.scroll.top).toBe(700);
+    // A check «a frame later» that comes late (the tab was in the background) decides nothing.
+    page.scrollTo(2_000);
+    page.grow(20);
+    page.scrollTo(700);
+    page.wait(SETTLE_MS);
+    page.frame();
+    expect(page.list.scroll.top).toBe(700);
   });
 
   it('[UI-016] a list ChatSpace rendered after the dock was placed is judged by where it stood before the dock grew', () => {

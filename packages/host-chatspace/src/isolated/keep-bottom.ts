@@ -26,6 +26,13 @@
 // put the list back at its top anchor) comes first and ours has the last word
 // in the frame. A frame later the bottom is checked once more, for an order
 // we did not foresee.
+//
+// Whose scroll it is. A result that streams grows for seconds, and a person
+// may scroll up to read while it does: that scroll is theirs, and the list is
+// left where they put it. The one scroll that is not theirs is ChatSpace's own
+// answer to the resize — it puts the list back exactly where it stood before
+// we moved it. So a scroll that lands on that very place, right after the dock
+// grew, does not say the person left the bottom; any other scroll does.
 
 /** ChatSpace's «at the latest messages» (MessagesList: `bottomDistance <= 100`). */
 export const NEAR_BOTTOM_PX = 100;
@@ -36,8 +43,15 @@ const SIBLING_DEPTH = 5;
 const SIBLING_BUDGET = 60;
 /** A scroll box lower than this is not a message list (a strip of tabs, a row of chips). */
 const MIN_LIST_HEIGHT_PX = 60;
-/** After the dock grew, scrolls of the list are ChatSpace's and ours for this long: they do not say the person left the bottom. */
+/**
+ * How long after the dock grew a scroll back to where the list stood before is taken for ChatSpace's answer to the
+ * resize, not for the person's own (ChatSpace's guard against its own scrolls lasts 250 ms after a resize).
+ */
 export const SETTLE_MS = 300;
+/** «The same place»: a restored anchor lands within a pixel or two of where the list stood. */
+const SAME_PLACE_PX = 2;
+/** The check «a frame later» is only that when the frame came this soon. */
+const LATE_FRAME_MS = 100;
 
 export interface BottomKeeper {
   /** The dock was placed anew (`inFlow` — above a composer, where it pushes the list) or left. */
@@ -105,16 +119,22 @@ export function createBottomKeeper(win: Window, dock: HTMLElement, options: Bott
     });
   let unobserve: (() => void) | null = null;
   let list: HTMLElement | null = null;
-  /** The list's last scroll ended near its bottom. */
+  /** The list's last scroll of the person's own ended near its bottom. */
   let near = false;
   let height = 0;
+  /** Until then a scroll back to `stoodAt` is ChatSpace's answer to the dock's growth. */
   let settleUntil = 0;
+  /** Where the list stood when the dock began to grow: the place ChatSpace puts it back to. */
+  let stoodAt: number | null = null;
   let disposed = false;
 
   const onScroll = (): void => {
     try {
-      if (list === null || now() < settleUntil) return;
-      near = distance(list) <= NEAR_BOTTOM_PX;
+      if (list === null) return;
+      const away = distance(list);
+      // ChatSpace put the list back where it stood before the dock grew: not the person's scroll.
+      if (away > NEAR_BOTTOM_PX && stoodAt !== null && now() < settleUntil && Math.abs(list.scrollTop - stoodAt) <= SAME_PLACE_PX) return;
+      near = away <= NEAR_BOTTOM_PX;
     } catch {
       // The list went away with its chat.
     }
@@ -123,6 +143,8 @@ export function createBottomKeeper(win: Window, dock: HTMLElement, options: Bott
     list?.removeEventListener('scroll', onScroll);
     list = null;
     near = false;
+    stoodAt = null;
+    settleUntil = 0;
   };
   /** The list above the dock as it is now; `grown` — by how much the dock has just grown (the list has not been looked at yet). */
   const look = (grown: number): HTMLElement | null => {
@@ -136,9 +158,6 @@ export function createBottomKeeper(win: Window, dock: HTMLElement, options: Bott
     near = distance(found) - grown <= NEAR_BOTTOM_PX;
     return found;
   };
-  const toBottom = (): void => {
-    if (list !== null && near && distance(list) > 1) list.scrollTop = list.scrollHeight;
-  };
   const onResize = (): void => {
     if (disposed) return;
     try {
@@ -146,14 +165,23 @@ export function createBottomKeeper(win: Window, dock: HTMLElement, options: Bott
       const grown = next - height;
       height = next;
       if (grown <= 0.5) return;
-      if (look(grown) === null || !near) return;
-      settleUntil = now() + SETTLE_MS;
-      toBottom();
-      // Once more a frame later: whatever answered the resize after us has spoken by then.
+      const found = look(grown);
+      if (found === null || !near) return;
+      const moment = now();
+      // The first step of a growth: where the list stands now is where ChatSpace will put it back.
+      if (moment >= settleUntil) stoodAt = found.scrollTop;
+      settleUntil = moment + SETTLE_MS;
+      if (distance(found) > 1) found.scrollTop = found.scrollHeight;
+      // Once more a frame later: whatever answered the resize after us has spoken by then. The list was near its
+      // bottom when the dock grew, so a place it was moved to since is ChatSpace's anchor — and the bottom is ours.
       win.requestAnimationFrame(() => {
-        if (disposed) return;
+        // A frame that came late (a tab in the background) proves nothing about who moved the list since.
+        if (disposed || list !== found || now() - moment > LATE_FRAME_MS) return;
         try {
-          toBottom();
+          if (distance(found) <= 1) return;
+          stoodAt = found.scrollTop;
+          near = true;
+          found.scrollTop = found.scrollHeight;
         } catch {
           // The list went away with its chat.
         }
