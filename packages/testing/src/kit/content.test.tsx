@@ -219,7 +219,7 @@ function partVM(patch: Partial<PartVM> = {}): PartVM {
 }
 
 describe('the part row (ui-design §4.3)', () => {
-  it('number, text, quiet Copy always, «Вставить ↵» on the next part; clicking the text inserts nothing', async () => {
+  it('number, text, quiet Copy always, «Вставить ↵» on the next part; the row\'s own controls answer their own clicks', async () => {
     const onInsert = vi.fn();
     const onCopy = vi.fn();
     kit = await mountKitSettled(() => (
@@ -240,12 +240,77 @@ describe('the part row (ui-design §4.3)', () => {
     expect(second?.querySelector('.cg-ins')?.classList.contains('cg-btn--plain')).toBe(true);
     expect(second?.querySelector('.cg-ins kbd')).toBeNull();
     expect(first?.querySelector('.cg-part__copy')?.getAttribute('aria-label')).toBe('Копировать часть 1');
-    await flush(() => (first?.querySelector('.cg-part__t') as HTMLElement).click());
-    expect(onInsert).not.toHaveBeenCalled();
+    // A click on a button is the button's alone: the row under it does not insert a second time.
     await flush(() => (first?.querySelector('.cg-ins') as HTMLElement).click());
     await flush(() => (first?.querySelector('.cg-part__copy') as HTMLElement).click());
     expect(onInsert).toHaveBeenCalledTimes(1);
     expect(onCopy).toHaveBeenCalledTimes(1);
+  });
+
+  it('[UI-018] the whole row is the target: a click on the text, the number or the empty space inserts THAT part', async () => {
+    const onInsert = vi.fn();
+    const onCopy = vi.fn();
+    const again = vi.fn();
+    kit = await mountKitSettled(() => (
+      <div class="cg-body">
+        <PartRow part={partVM()} mode="insert" onInsert={onInsert} onCopy={onCopy} tabIndex={0} />
+        <PartRow part={part(1, 'Second', { opId: OP })} mode="insert" onInsert={onInsert} onCopy={onCopy} />
+        <PartRow part={part(2, 'Inserted', { opId: OP, insert: 'done', collapsed: true })} mode="insert" onInsert={onInsert} onCopy={onCopy} onInsertAgain={again} />
+        <PartRow part={part(3, 'Sent', { opId: OP, collapsed: true, send: { s: 'sent', at: '2026-10-03T06:21:00.000Z' } })} mode="insert" onInsert={onInsert} onCopy={onCopy} onInsertAgain={again} />
+        <PartRow part={part(4, 'Copy only', { opId: OP })} mode="copy-only" onInsert={onInsert} onCopy={onCopy} />
+        <PartRow part={part(5, 'Busy', { opId: OP, insert: 'pending' })} mode="insert" onInsert={onInsert} onCopy={onCopy} />
+        <PartRow part={part(6, 'Asked', { opId: OP })} mode="insert" onInsert={onInsert} onCopy={onCopy} confirming>
+          <button type="button">Отмена</button>
+        </PartRow>
+      </div>
+    ));
+    const rows = kit.$$('.cg-part');
+    expect(rows.map((row) => row.classList.contains('is-click'))).toEqual([true, true, true, false, true, true, false]);
+    // Not the next part only: the part under the pointer.
+    await flush(() => (rows[1]?.querySelector('.cg-part__t') as HTMLElement).click());
+    expect(onInsert.mock.calls.map((call) => (call[0] as PartVM).index)).toEqual([1]);
+    await flush(() => (rows[0]?.querySelector('.cg-part__n') as HTMLElement).click());
+    await flush(() => rows[0]?.click());
+    expect(onInsert.mock.calls.map((call) => (call[0] as PartVM).index)).toEqual([1, 0, 0]);
+    // An inserted part: the row is «Вставить ещё раз»; a sent one has nothing to click.
+    await flush(() => (rows[2]?.querySelector('.cg-part__t') as HTMLElement).click());
+    await flush(() => (rows[3]?.querySelector('.cg-part__t') as HTMLElement).click());
+    expect(again.mock.calls.map((call) => (call[0] as PartVM).index)).toEqual([2]);
+    // Nothing can be inserted: the row copies.
+    await flush(() => (rows[4]?.querySelector('.cg-part__t') as HTMLElement).click());
+    expect(onCopy.mock.calls.map((call) => (call[0] as PartVM).index)).toEqual([4]);
+    // An insert on its way is not started twice; with the Б2 question open only its buttons answer.
+    await flush(() => (rows[5]?.querySelector('.cg-part__t') as HTMLElement).click());
+    await flush(() => (rows[6]?.querySelector('.cg-part__t') as HTMLElement).click());
+    await flush(() => (rows[6]?.querySelector('.cg-part__extra button') as HTMLElement).click());
+    expect(onInsert).toHaveBeenCalledTimes(3);
+    expect(again).toHaveBeenCalledTimes(1);
+  });
+
+  it('[UI-018] a click that ends a text selection inside the part inserts nothing; an unavailable «Вставить» says why', async () => {
+    const onInsert = vi.fn();
+    const blocked = part(1, 'Blocked', { opId: OP, next: true, insertBlocked: { id: 'language', code: 'CG-GATE-LANGUAGE', text: { key: 'dock.reason.language' } } });
+    kit = await mountKitSettled(() => (
+      <div class="cg-body">
+        <PartRow part={partVM()} mode="insert" onInsert={onInsert} onCopy={() => undefined} />
+        <PartRow part={blocked} mode="insert" onInsert={onInsert} onCopy={() => undefined} />
+      </div>
+    ));
+    const [first, second] = kit.$$('.cg-part');
+    const words = first?.querySelector('.cg-part__t') as HTMLElement;
+    const selection = (kit.root as unknown as { getSelection?: () => Selection | null }).getSelection?.() ?? document.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(words);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    await flush(() => words.click());
+    expect(onInsert).not.toHaveBeenCalled();
+    selection?.removeAllRanges();
+    await flush(() => words.click());
+    expect(onInsert).toHaveBeenCalledTimes(1);
+    await flush(() => (second?.querySelector('.cg-part__t') as HTMLElement).click());
+    expect(onInsert).toHaveBeenCalledTimes(1);
+    expect(kit.$('[data-cg-live]')?.textContent).toBe(kit.deps.i18n.t('dock.reason.language'));
   });
 
   it('[UI-023] Enter on a focused part inserts THIS part; ⌘C copies it unless text inside is selected', async () => {

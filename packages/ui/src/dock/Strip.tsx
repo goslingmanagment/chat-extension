@@ -1,11 +1,18 @@
 // The strip (ui-design §3.1, §3.3, §4.1; UI-002…UI-010, UI-031, AI-002…
 // AI-010): one 34 px line above the composer — the goose mark, the seven AI
-// actions, «Ещё» on a narrow composer, then status words, quota, Tone, Split,
-// the persona and the palette hint. `role="toolbar"`: one tab stop, arrows
-// inside. What hides at which width is CSS (container queries, styles.ts);
-// the markup is the same at every width.
+// actions, «Ещё» on a narrow composer, then status words, quota, the tones,
+// Split, the two windows (Spenders, «Новые»), the persona and the palette
+// hint. `role="toolbar"`: one tab stop, arrows inside. What hides at which
+// width is CSS (container queries, styles.ts); the markup is the same at
+// every width.
+//
+// The tones stand twice (decision X26): on a wide composer as one outlined
+// segment of four right after Reply — they are Reply's own: one click runs
+// Reply in that tone, no menu to open — and on a narrow one as the «Тон» menu
+// with the same choices, among the options on the right. CSS shows one of the
+// two.
 
-import { type JSX, type TargetedKeyboardEvent } from 'preact';
+import { Fragment, type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { type Tone } from '@cg/contracts/features';
@@ -39,10 +46,13 @@ const TIER_TWO: readonly DockActionId[] = ['review', 'recap', 'coach'];
 const MENU_MIN_WIDTH_PX = 200;
 /** The menu's id of «Без тона». */
 const NO_TONE = 'none';
+/** A key label longer than this is a spelled-out one («Ctrl+E», «Ctrl+Alt+B»), not a symbol one («⌘E», «⌘⇧B»). */
+const LONG_KEY_LABEL = 4;
 
-type StopId = DockActionId | 'more' | 'tone' | 'split';
-/** The strip's buttons in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
-const STOPS: readonly StopId[] = [...DOCK_ACTION_IDS, 'more', 'tone', 'split'];
+type BoardId = 'spenders' | 'newcomers';
+/** The windows that open from the strip: the boards a chatter works from between chats. */
+const BOARDS: readonly BoardId[] = ['spenders', 'newcomers'];
+type StopId = DockActionId | 'more' | `tone:${Tone}` | 'tone' | 'split' | BoardId;
 
 function visible(element: HTMLElement): boolean {
   return element.getClientRects().length > 0;
@@ -102,6 +112,8 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   const [moreAlign, setMoreAlign] = useState<'start' | 'end'>('start');
   const [stop, setStop] = useState<StopId>('reply');
   const t = i18n.t.bind(i18n);
+  /** The strip's buttons in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
+  const STOPS: readonly StopId[] = DOCK_ACTION_IDS.flatMap((id): StopId[] => (id === 'reply' ? [id, ...vm.options.tones.map((tone): StopId => `tone:${tone}`)] : [id])).concat('more', 'tone', 'split', ...BOARDS);
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
   const stopOf = (target: EventTarget | null): StopId | null => {
@@ -210,6 +222,31 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     else run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: id as Tone });
   };
 
+  /** A tone as a button of its own: what a click on it does, in the words of the menu's choice. */
+  const toneButton = (id: Tone): JSX.Element => {
+    const name = t(`dock.tone.${id}`);
+    const value = t('dock.option.toneValue', { tone: name });
+    // Chosen: a click takes the tone off. Otherwise it runs Reply in it at once (AI-005); with Reply off it is only remembered.
+    const tooltip = tone === id ? `${value} → ${t('dock.option.toneNone')}` : vm.actions.reply.enabled ? `${nameOf('reply')} · ${value}` : value;
+    return <StripButton key={id} label={name} class="cg-opt cg-tone" pressed={tone === id} reason={toneOff} tooltip={tooltip} onClick={() => chooseTone(id)} {...stopProps(`tone:${id}`)} />;
+  };
+
+  // ── the windows ──
+  const boardButton = (id: BoardId): JSX.Element => {
+    const name = t(id === 'spenders' ? 'spenders.title' : 'newcomers.title');
+    const keys = id === 'spenders' ? hotkeyText(deps.catalog.entry('spenders').hotkey) : null;
+    return (
+      <StripButton
+        key={id}
+        label={name}
+        class="cg-opt cg-board"
+        tooltip={keys === null ? name : t('dock.action.tooltip', { action: name, hotkey: keys.display })}
+        onClick={() => run({ type: 'Navigate', to: { kind: 'surface', surface: id, open: true } })}
+        {...stopProps(id)}
+      />
+    );
+  };
+
   // ── Split ──
   const splitOff =
     locked
@@ -240,7 +277,13 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     focusQuietly(list[next]);
   };
 
-  const classes = ['cg-strip', isCrowded(vm) ? 'is-crowded' : '', vm.statusWords ? 'has-status' : ''].filter((name) => name !== '').join(' ');
+  // «Ctrl+Alt+B» is four times as wide as «⌘⇧B»: where key labels are long, the widths of §3.3 are other ones.
+  // Read from the labels that are always there (the palette's, Tone's, Split's) as well as the actions': an action
+  // that is off carries no key, and the strip must not change its layout each time a chat loads.
+  const longKeys = [vm.paletteHotkey, vm.options.toneHotkey, vm.options.splitHotkey, ...DOCK_ACTION_IDS.map((id) => vm.actions[id].hotkey)].some(
+    (label) => (hotkeyText(label)?.display.length ?? 0) > LONG_KEY_LABEL,
+  );
+  const classes = ['cg-strip', isCrowded(vm) ? 'is-crowded' : '', vm.statusWords ? 'has-status' : '', longKeys ? 'is-longkeys' : ''].filter((name) => name !== '').join(' ');
   return (
     <div
       ref={bar}
@@ -257,10 +300,21 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
       <Mark vm={vm} />
       <div class="cg-strip__acts">
         {DOCK_ACTION_IDS.map((id, index) => (
-          <span key={id} class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : 'cg-slot'}>
-            {index === 0 ? null : <Divider />}
-            {actionButton(id)}
-          </span>
+          <Fragment key={id}>
+            <span class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : 'cg-slot'}>
+              {index === 0 ? null : <Divider />}
+              {actionButton(id)}
+            </span>
+            {id !== 'reply' ? null : (
+              // The tones are Reply's own: one outlined segment right after it, a click on a tone is Reply in that tone.
+              <span class="cg-slot cg-slot--tones" role="group" aria-label={toneWord}>
+                <span class="cg-tones">
+                  {tones.map(toneButton)}
+                  {lock}
+                </span>
+              </span>
+            )}
+          </Fragment>
         ))}
         <span class="cg-slot cg-slot--more">
           <Divider />
@@ -370,6 +424,10 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
             onClick={() => run({ type: 'SetPreference', key: 'generation.split', value: !split })}
             {...stopProps('split')}
           />
+        </span>
+        <span class="cg-slot cg-slot--boards">
+          <Divider />
+          {BOARDS.map(boardButton)}
         </span>
         {vm.status === 'not-signed-in' ? (
           <span class="cg-slot cg-slot--persona">

@@ -5,7 +5,9 @@
 // - the dock stands above the composer of the open chat and moves with the
 //   chat; ChatSpace's own message list keeps its bottom while our result
 //   opens under it, keeps the message under the eyes in the middle of the
-//   history, and keeps its bottom on a resize of the window;
+//   history, and keeps its bottom on a resize of the window; near its bottom,
+//   where ChatSpace holds the top message instead, the dock itself keeps the
+//   last messages in view (UI-016, keep-bottom.ts);
 // - Б2: a part is never written over the person's own draft without their
 //   answer — «Отмена» writes nothing, «Добавить в конец» keeps their words,
 //   «Заменить» replaces them only by its own click; the question takes the
@@ -139,6 +141,20 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 34, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its strip' });
       await twoFrames();
       await same('the message at the top moved when the result was hidden');
+    });
+
+    it('[UI-016] a few lines above its bottom ChatSpace’s list holds its top message by itself — the dock puts it at its bottom, so the last messages do not go under the result', async () => {
+      await scrollList('near-bottom');
+      expect((await callStand('messageList'))?.atBottom).toBe(false);
+      await generate();
+      await twoFrames();
+      const open = await dockIs((d) => d.result?.state === 'done', 'the result is on screen');
+      expect(open.height).toBeGreaterThan(34 + 60);
+      await atBottom('the last messages went under the result: the list was near its bottom and was not put there');
+      await pressOurs('dock', '.cg-dock button', /^Скрыть/);
+      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 34, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its strip' });
+      await twoFrames();
+      await atBottom('the list lost its bottom when the result was hidden');
     });
 
     it('[UI-016] a resize of the window with a result on screen keeps the list at its bottom and the dock in its place', async () => {

@@ -16,7 +16,7 @@ Waves 1 and 2 (R00–R02, R07–R18) are merged
 and connected: the background, the ChatSpace tab (dock, overlays, boards,
 hotkeys, sound) and the extension pages (popup, settings, sign-in, debug
 pages) work together on the ChatSpace-like stand against the fake hub.
-Contracts are frozen at 1.11.0 (`docs/protocols/README.md`); a change is
+Contracts are frozen at 1.12.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
 `docs/contracts-changelog.md`. The SDK is vendored from hub `main` `4d75e203`
 (2026-10-10, contract `9d032a24…`), the commit deployed to production that

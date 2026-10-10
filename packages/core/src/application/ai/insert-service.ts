@@ -8,6 +8,13 @@
 // and its 30-second «Вернуть мой текст», the receipt, and the telemetry
 // report (`inserted` only for an applied write).
 //
+// Fix never asks Б2 (decision X26): the person asked for their draft to be
+// rewritten, so the click on the result is the consent to replace it —
+// «Заменить мой черновик» replaces what the field holds at the click, and
+// «Вставить» of a part of a Split Fix replaces the draft the Fix was made
+// from. Either way the write is a CAS on the draft read at the click, and
+// the field's own undo (and «Вернуть мой текст») brings the text back.
+//
 // One write of an operation at a time: the mark is taken synchronously when
 // the click arrives, before anything is awaited, so a double click or a key
 // repeat is one write and one report — the second call answers `busy`.
@@ -113,6 +120,8 @@ interface PendingWrite {
 }
 
 const keyOf = (opId: string, part: PartRef): string => `${opId}:${part.variant ?? '-'}:${part.index}`;
+/** Two drafts as a person reads them: the same words, whatever the spaces around and between them. */
+const sameWords = (a: string, b: string): boolean => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
 const failed = (code: CgCode): WriteOutcome => ({ kind: 'failed', error: { code } });
 
 /** The text of one part of a finished result; null — no such part. */
@@ -231,8 +240,24 @@ export class InsertService {
     const ready = await this.prepare(record, part);
     if (!ready.ok) return ready.outcome;
     const decision = decideDraft(ready.draft, { editorObserved: this.deps.context(record).editorObserved });
-    if (decision.kind === 'confirm') return this.ask(record, part, text, 'insert', decision.reason, ready.draft, decision.formatLoss);
+    if (decision.kind === 'confirm') {
+      // A part of a Split Fix over the very draft the Fix rewrote: the click is the consent, as «Заменить мой черновик» is.
+      if (this.holdsFixSource(record, ready.draft)) return this.write(record, part, text, 'replace', ready.draft, this.deps.ports.ids.uuid(), cause, 'insert');
+      return this.ask(record, part, text, 'insert', decision.reason, ready.draft, decision.formatLoss);
+    }
     return this.write(record, part, text, 'replace', ready.draft, null, cause, 'insert');
+  }
+
+  /**
+   * The field holds the draft this Fix was made from — by its revision, or word for word (the revision also moves
+   * for what a person does not see as a change). Only with an observed editor: without one there is no CAS, and the
+   * common question says what the write would lose.
+   */
+  private holdsFixSource(record: OpRecord, draft: DraftSnapshot): boolean {
+    if (record.view.feature !== 'fix' || !this.deps.context(record).editorObserved) return false;
+    const source = this.restoredSources.get(record.view.opId) ?? record.memo.fixSource;
+    if (source === null) return false;
+    return (draft.revision === source.revision && draft.digest === source.digest) || sameWords(draft.plainText, source.text);
   }
 
   /** `recheck` of the deps: what holds the part by a look taken at this very click; the views hear what it found. */
@@ -275,7 +300,7 @@ export class InsertService {
     });
   }
 
-  /** Fix «Заменить мой черновик»: the click is the consent for the revision the Fix was made from. */
+  /** Fix «Заменить мой черновик»: the click is the consent to replace the draft the field holds at the click (X26). */
   replaceMyDraft(opId: string, index: number, cause: HumanCause['kind']): Promise<WriteOutcome> {
     return this.exclusive(opId, () => this.runReplaceMyDraft(opId, index, cause));
   }
@@ -295,17 +320,20 @@ export class InsertService {
     if (this.fixes.get(opId)?.session.wasReplaced === true) return failed('CG-INSERT-FAILED');
     const ready = await this.prepare(record, part);
     if (!ready.ok) return ready.outcome;
-    // The draft changed during the generation: the consent is void, the person is asked again.
-    if (ready.draft.revision !== source.revision || ready.draft.digest !== source.digest) return this.ask(record, part, text, 'fix-replace', 'draft-changed', ready.draft, false);
-    const session = new FixSession(opId, part, record.view.target.chat, source, ctx.editorObserved);
+    // What the click replaces is the draft as it is now — the one the Fix was made from, or what the person made
+    // of it since: no second question either way (X26). «Вернуть мой текст» brings back exactly that text; over a
+    // field the person emptied meanwhile it brings back the text the Fix was made from.
+    const replacedText = ready.draft.plainText.trim() === '' ? source.text : ready.draft.plainText;
+    const session = new FixSession(opId, part, record.view.target.chat, { text: replacedText, revision: ready.draft.revision, digest: ready.draft.digest }, ctx.editorObserved);
     const token = await this.deps.token('insert', cause);
     if (!token.ok) return this.fail(record, part, token.error.code);
     const { ids, clock } = this.deps.ports;
     const step = session.replace(ready.draft, text, { intentId: ids.uuid(), confirmationId: ids.uuid() }, token.payload, clock.now());
     if (step.kind === 'unavailable') return this.fail(record, part, step.code);
+    // Not reached: the session was made for this very draft.
     if (step.kind === 'confirm') return this.ask(record, part, text, 'fix-replace', 'draft-changed', ready.draft, false);
     const receipt = await this.send(record, part, step.intent);
-    this.replaced(session, source.text, receipt);
+    this.replaced(session, replacedText, receipt);
     return this.settle(record, part, receipt, { text, purpose: 'fix-replace' });
   }
 

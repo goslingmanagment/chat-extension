@@ -1,7 +1,7 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json и метки [ID] в названиях тестов",
   "testFiles": {
-    "unit": 226,
+    "unit": 227,
     "e2e": 36
   },
   "totals": {
@@ -317,14 +317,14 @@
       "planned": "unit",
       "rows": 426,
       "inUnit": 426,
-      "inE2e": 94,
-      "unitOnly": 332,
+      "inE2e": 95,
+      "unitOnly": 331,
       "uncovered": 0
     },
     {
       "planned": "e2e",
       "rows": 35,
-      "inUnit": 34,
+      "inUnit": 35,
       "inE2e": 34,
       "unitOnly": 1,
       "uncovered": 0
@@ -350,7 +350,7 @@
   "skippedOnly": [],
   "rows": [
     {"id":"AI-001","function":"Reply","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":["packages/testing/e2e/specs/tab-wiring.e2e.ts"],"covered":true},
-    {"id":"AI-002","function":"Тоны","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":[],"covered":true},
+    {"id":"AI-002","function":"Тоны","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":["packages/testing/e2e/specs/dock-gallery-widths.e2e.ts"],"covered":true},
     {"id":"AI-003","function":"Сколько живёт выбранный тон","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts"],"e2e":[],"covered":true},
     {"id":"AI-004","function":"Тон по умолчанию","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts"],"e2e":[],"covered":true},
     {"id":"AI-005","function":"Выбор тона в меню Reply ▾","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/core/test/domain-features.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":["packages/testing/e2e/specs/suite-panels.e2e.ts"],"covered":true},
@@ -468,9 +468,9 @@
     {"id":"UI-013","function":"Баннер «нет персоны»","target":"пилот","owner":"R11","milestones":["M1"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/testing/src/dock/status.test.tsx"],"e2e":[],"covered":true},
     {"id":"UI-014","function":"Развернуть ↗","target":"пилот","owner":"R14","milestones":["M2"],"planned":"stand-visual","pilot":true,"unit":["packages/core/test/application-recap-review.test.ts","packages/testing/src/overlays/expanded.test.tsx"],"e2e":["packages/testing/e2e/specs/dock-gallery-overlays.e2e.ts","packages/testing/e2e/specs/tab-wiring.e2e.ts"],"covered":true},
     {"id":"UI-015","function":"Приоритет поверхностей","target":"пилот","owner":"R14","milestones":["M2"],"planned":"stand-visual","pilot":true,"unit":["packages/contracts/test/vm.test.ts","packages/testing/src/dock/result.test.tsx","packages/testing/src/dock/status.test.tsx","packages/testing/src/overlays/expanded.test.tsx"],"e2e":[],"covered":true},
-    {"id":"UI-016","function":"Компенсация прокрутки","target":"даёт ChatSpace","owner":"R02","milestones":["M1"],"planned":"e2e","pilot":false,"unit":[],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-dock.e2e.ts"],"covered":true},
+    {"id":"UI-016","function":"Компенсация прокрутки","target":"даёт ChatSpace","owner":"R02","milestones":["M1"],"planned":"e2e","pilot":false,"unit":["packages/host-chatspace/src/isolated/keep-bottom.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-dock.e2e.ts"],"covered":true},
     {"id":"UI-017","function":"Оверлей поверх страницы","target":"пилот","owner":"R14","milestones":["M2"],"planned":"stand-visual","pilot":true,"unit":["packages/testing/src/overlays/dialogs.test.tsx","packages/testing/src/overlays/expanded.test.tsx"],"e2e":["packages/testing/e2e/specs/dock-gallery-overlays.e2e.ts"],"covered":true},
-    {"id":"UI-018","function":"Карточки частей","target":"пилот","owner":"R14","milestones":["M2"],"planned":"stand-visual","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/testing/src/dock/result.test.tsx"],"e2e":["packages/testing/e2e/specs/dock-gallery-widths.e2e.ts"],"covered":true},
+    {"id":"UI-018","function":"Карточки частей","target":"пилот","owner":"R14","milestones":["M2"],"planned":"stand-visual","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/testing/src/dock/result.test.tsx","packages/testing/src/kit/content.test.tsx"],"e2e":["packages/testing/e2e/specs/dock-gallery-widths.e2e.ts"],"covered":true},
     {"id":"UI-019","function":"Вставка и фокус","target":"пилот","owner":"R09","milestones":["M2"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/keys.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/isolated/stack.dom.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/dock/result.test.tsx"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-degrade.e2e.ts"],"covered":true},
     {"id":"UI-020","function":"Вставка в непустой черновик","target":"пилот","owner":"R09","milestones":["M2"],"planned":"e2e","pilot":true,"unit":["packages/core/test/application-dock.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/dock/result.test.tsx"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-dock.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts"],"covered":true},
     {"id":"UI-021","function":"Вставка в textarea Fansly","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false},
@@ -1136,7 +1136,7 @@
     {"id":"RU-002","function":"`htmlToPlainText`","target":"пилот","owner":"R11","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/text/text.test.ts"],"e2e":[],"covered":true},
     {"id":"RU-003","function":"Нормализация транскрипта, блоки трат и подписки","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/hub-boundary.test.ts"],"e2e":[],"covered":true},
     {"id":"RU-004","function":"Цены PPV","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":[],"e2e":[],"covered":false},
-    {"id":"NEW-01","function":"«Открыть и вставить» — отложенная вставка со сроком и отменой (А7)","target":"пилот","owner":"R09","milestones":["M4"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/client.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-dock.test.ts","packages/core/test/domain-insert.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/main/protocol.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts","packages/testing/e2e/specs/visual-wired.e2e.ts"],"covered":true},
+    {"id":"NEW-01","function":"«Открыть и вставить» — отложенная вставка со сроком и отменой (А7)","target":"пилот","owner":"R09","milestones":["M4"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/client.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-dock.test.ts","packages/core/test/domain-insert.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/main/protocol.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/dock/strip.test.tsx"],"e2e":["packages/testing/e2e/specs/dock-gallery-widths.e2e.ts","packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts","packages/testing/e2e/specs/visual-wired.e2e.ts"],"covered":true},
     {"id":"NEW-02","function":"индикатор «архив хаба отстаёт от страницы на K сообщений» для Coach, Recap и Review (Б6, AI-070)","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-coach-recap.test.ts","packages/hub/test/client-routes.test.ts"],"e2e":[],"covered":true},
     {"id":"NEW-03","function":"полевые замеры в `client_health` (А6) — гистограммы, процентили на сервере","target":"пилот","owner":"R18","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts"],"e2e":[],"covered":true},
     {"id":"NEW-04","function":"Split во всех фичах с текстом фану (Б7); Recap и Review — без Split","target":"пилот","owner":"R11","milestones":["M2","M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-ai-scenarios.test.ts","packages/core/test/domain-features.test.ts","packages/core/test/domain-output.test.ts"],"e2e":[],"covered":true},

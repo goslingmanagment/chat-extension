@@ -8,7 +8,7 @@ import type { TabRpcClient } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import type { TokenAnswer } from './action-gate';
-import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, type LooseController } from './client';
+import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast, type LooseController } from './client';
 
 const errorOf = (code: string) => ({ code, title: code, body: code }) as never;
 const done = (type: UiAction['type']): ActionReceipt => ({ ok: true, type, outcome: 'done' });
@@ -230,5 +230,18 @@ describe('the palette is a launcher', () => {
     expect(closesPalette(open('palette', false), ok('Navigate'))).toBe(false);
     expect(closesPalette(open('palette'), ok('Navigate'))).toBe(false);
     expect(closesPalette(open('spenders'), { ok: false, type: 'Navigate', code: 'CG-FEATURE-DISABLED', error: errorOf('CG-FEATURE-DISABLED') })).toBe(false);
+  });
+
+  it('[HK-036] a row that was refused says why: a fan’s chat on a page whose owner left `navigation` off is not a click into nothing', () => {
+    const refused = (type: UiAction['type'], code: string): ActionReceipt => ({ ok: false, type, code, error: errorOf(code) }) as ActionReceipt;
+    const chat: UiAction = { type: 'Navigate', to: { kind: 'chat', targetHandle: 'chat:36408:518588958' } };
+    expect(paletteReceiptToast(chat, refused('Navigate', 'CG-FEATURE-DISABLED'))).toEqual({ code: 'CG-FEATURE-DISABLED', scope: 'palette.row', title: null });
+    expect(paletteReceiptToast(open('spenders'), refused('Navigate', 'CG-HOST-CONTRACT'))).toEqual({ code: 'CG-HOST-CONTRACT', scope: 'palette.row', title: null });
+    expect(paletteReceiptToast({ type: 'SetPreference', key: 'generation.split', value: true }, refused('SetPreference', 'CG-UI-FAILED'))?.code).toBe('CG-UI-FAILED');
+    // A row that ran says nothing; a refused generation is the dock's card, «Онлайн» says its own, typing is not a row.
+    expect(paletteReceiptToast(chat, { ok: true, type: 'Navigate', outcome: 'opened' })).toBeNull();
+    expect(paletteReceiptToast({ type: 'Generate', targetHandle: 'dock:chatspace:1:2', feature: 'reply', options: {} }, refused('Generate', 'CG-OP-CHAT-BUSY'))).toBeNull();
+    expect(paletteReceiptToast({ type: 'OpenPreview', targetHandle: 'chat:1:2' }, refused('OpenPreview', 'CG-FEATURE-DISABLED'))).toBeNull();
+    expect(paletteReceiptToast({ type: 'Search', list: 'palette', query: 'x' }, refused('Search', 'CG-UI-FAILED'))).toBeNull();
   });
 });

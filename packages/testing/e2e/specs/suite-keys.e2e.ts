@@ -31,7 +31,7 @@ import { composerText, historyLoads, MOD, pageJournal, pageJournalMark, PANEL, s
 import { pageRpc } from '../support/extension';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursExists, oursFocus, oursText, waitOursText } from '../support/ours';
+import { ours, oursExists, oursFocus, oursText, readOurs, waitOursText } from '../support/ours';
 import { inBrowser, startSecondBrowser } from '../support/second';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, foreignCalls, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
@@ -67,8 +67,13 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
   /** The chats of ChatSpace's own list, top to bottom, as the page shows them. */
   const chatList = (): Promise<string[]> => browser.execute(() => [...document.querySelectorAll<HTMLElement>('[data-stand-chat-scope] [data-chat-id], [data-chat-id]')].map((node) => node.dataset['chatId'] ?? '').filter((id, index, all) => id !== '' && all.indexOf(id) === index));
   const pageEvents = async (mark: number, type: string): Promise<number> => (await pageJournal(mark)).filter((entry) => entry.type === type).length;
+  /** The focus on a part of ours, as Tab and the arrows put it there. Not a click: a click on a part inserts it (UI-018, X26). */
   const focusPart = async (index: number): Promise<void> => {
-    await ours('dock', `[data-cg-part="${index}"] .cg-part__t`).click();
+    const focused = await readOurs('dock', `[data-cg-part="${index}"]`, (node) => {
+      node.focus();
+      return true;
+    });
+    expect(focused).toBe(true);
     expect((await oursFocus('dock'))?.label).toBe(`Часть ${index + 1}`);
   };
 

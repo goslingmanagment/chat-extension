@@ -144,8 +144,11 @@ export const SettingsSchema = SettingsV1Schema;
 export const DEFAULT_HUB_ORIGIN = 'https://gosling-agency.ru';
 
 /**
- * Defaults. Sound tones follow the Fansly extension (X5: the pilot is parity
- * with it): chime for messages, double for subscribers (ST-127, ST-129).
+ * Defaults. Sound tones are the OnlyFans desktop app's own — blip for
+ * messages, arpeggio for subscribers (ST-127, ST-129; 1.12.0, decision X26):
+ * a chatter who works OnlyFans here and Fansly in the Fansly extension (chime,
+ * double) hears which of the two rings. Until 1.12.0 they were the Fansly
+ * extension's; a stored chime or double is a choice and stays.
  */
 export const DEFAULT_SETTINGS: SettingsV1 = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
@@ -157,8 +160,8 @@ export const DEFAULT_SETTINGS: SettingsV1 = {
     coach: { historyLimit: 10, autoRecap: 'off' },
   },
   sound: {
-    messages: { on: true, tone: 'chime' },
-    subscribers: { on: true, tone: 'double' },
+    messages: { on: true, tone: 'blip' },
+    subscribers: { on: true, tone: 'arpeggio' },
     volume: 50,
     mutedAccounts: [],
   },

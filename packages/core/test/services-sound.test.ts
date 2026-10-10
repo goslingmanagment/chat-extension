@@ -99,7 +99,7 @@ describe('the sound arbiter: messages', () => {
   it('[SN-001] [SN-014] a fan\'s message rings through the one player: the chosen tone at the chosen volume', async () => {
     const w = world();
     expect(await w.arbiter.handleIncoming('tab-1', fact())).toBe('played');
-    expect(w.played).toEqual([{ tone: TONES.chime, level: volumeToGain(50), at: NOW }]);
+    expect(w.played).toEqual([{ tone: TONES.blip, level: volumeToGain(50), at: NOW }]);
     w.page.sound = sound({ messages: { on: true, tone: 'bell' }, volume: 100 });
     await w.clock.advance(MESSAGE_THROTTLE_MS);
     expect(await w.arbiter.handleIncoming('tab-1', fact({}, w))).toBe('played');
@@ -306,7 +306,7 @@ describe('the sound arbiter: subscribers', () => {
     expect(await w.arbiter.handleSubscribers(batch([sub('e1'), sub('e2')]))).toEqual(['first-snapshot', 'first-snapshot']);
     expect(w.played).toEqual([]);
     expect(await w.arbiter.handleSubscribers(batch([sub('e3'), sub('e1'), sub('e2')]))).toEqual(['played']);
-    expect(w.played).toEqual([{ tone: TONES.double, level: volumeToGain(50), at: NOW }]);
+    expect(w.played).toEqual([{ tone: TONES.arpeggio, level: volumeToGain(50), at: NOW }]);
     // The same list again, hours later (the window is 48 h): nothing is new.
     await w.clock.advance(3 * 60 * 60_000);
     expect(await w.arbiter.handleSubscribers(batch([sub('e3'), sub('e1'), sub('e2')]))).toEqual([]);
@@ -330,7 +330,7 @@ describe('the sound arbiter: subscribers', () => {
     expect(await w.arbiter.handleSubscribers(batch([sub('e5', 20_000, w)]))).toEqual(['throttled']);
     await w.clock.advance(MESSAGE_THROTTLE_MS);
     expect(await w.arbiter.handleSubscribers(batch([sub('e6', 20_000, w)]))).toEqual(['played']);
-    expect(w.played.map((entry) => entry.tone)).toEqual([TONES.double, TONES.chime, TONES.chime, TONES.double]);
+    expect(w.played.map((entry) => entry.tone)).toEqual([TONES.arpeggio, TONES.blip, TONES.blip, TONES.arpeggio]);
   });
 
   it('[SN-012] the subscriber sound needs the hub, a working tab and a known creator; an old subscription is history', async () => {

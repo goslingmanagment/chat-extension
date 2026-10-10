@@ -5,10 +5,11 @@
 // текст уже нельзя». Without a verified editor «Заменить» is off with its
 // reason and «Копировать ↵» becomes the line button.
 //
-// The consent holds for the draft Fix was made from. If the draft changed
-// meanwhile — or the person wrote on after the replacement and asks for
-// their text back — the controller asks again (architecture.md §6.4), and the
-// Б2 question of §4.6 opens under the text in place of the button that asked.
+// The consent is for the draft the field holds at the click, whatever
+// happened to it since the Fix was made (decision X26): the replacement never
+// asks. Only «Вернуть мой текст» may — the person wrote on after the
+// replacement (architecture.md §6.4) — and then the Б2 question of §4.6
+// opens under the text in place of the button that asked.
 
 import { type ComponentChildren, type JSX } from 'preact';
 

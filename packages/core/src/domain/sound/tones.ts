@@ -95,15 +95,17 @@ export type SoundKind = 'message' | 'subscriber';
 /**
  * Default tones per platform (§9.8: «У OnlyFans и Fansly разные тона по
  * умолчанию»). OnlyFans is the pilot's host and its row IS the settings
- * default (chime, double — contracts DEFAULT_SETTINGS, ST-127, ST-129), so
- * what the settings page shows is what rings. Fansly (phase 2, R20) gets the
- * other pair of the two old clients, so a chatter working both hosts in one
- * browser hears which one rings. Which pair goes to which platform is the
- * owner's call (ui-design §9.4 п. 4); it is one table.
+ * default (blip, arpeggio — contracts DEFAULT_SETTINGS, ST-127, ST-129), so
+ * what the settings page shows is what rings. Each platform keeps the pair
+ * its own old client rang — OnlyFans the desktop app's, Fansly the Fansly
+ * extension's (chime, double) — so a chatter working both hears which one
+ * rings, here and next to the Fansly extension (decision X26, the first
+ * chatter's word: «не как на Fansly»; it closes ui-design §9.4 п. 4). It is
+ * one table.
  */
 export const PLATFORM_DEFAULT_TONES: Readonly<Record<Platform, Readonly<Record<SoundKind, ToneId>>>> = {
-  onlyfans: { message: 'chime', subscriber: 'double' },
-  fansly: { message: 'blip', subscriber: 'arpeggio' },
+  onlyfans: { message: 'blip', subscriber: 'arpeggio' },
+  fansly: { message: 'chime', subscriber: 'double' },
 };
 
 /**

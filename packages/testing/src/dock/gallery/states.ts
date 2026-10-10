@@ -742,8 +742,8 @@ export function galleryState(id: string): GalleryState | null {
 }
 
 /** The scenario of one gallery state in a language. */
-export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme']): AppClientScenario {
-  const ctx = ctxOf({ lang, platform: 'mac', debug: item.debug === true });
+export function scenarioOfState(item: GalleryState, lang: Locale, scheme: AppClientScenario['scheme'], platform: 'mac' | 'win' = 'mac'): AppClientScenario {
+  const ctx = ctxOf({ lang, platform, debug: item.debug === true });
   return {
     id: `gallery-${item.id}`,
     title: item.title,

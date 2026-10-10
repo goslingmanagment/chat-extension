@@ -4,7 +4,9 @@
 // kit's `cg` container (the dock's own width, not the window's) and go one
 // way: what hides at a width stays hidden below it.
 //
-//   ≥ 900  everything; the quota in full
+//   wide   the tones as four buttons, Spenders and «Новые» (from 1000 px; from
+//          840 px where key labels are long and so stay off the buttons)
+//   ≥ 900  everything of the narrow strip; the quota in full
 //   < 900  the quota short; a crowded strip gives the persona's place away
 //   < 790  no persona, no ⌘K; tighter buttons
 //   < 690  no key labels on the buttons (tooltips and the cheatsheet keep them)
@@ -20,11 +22,65 @@ import { dark, type StyleSource } from '../kit';
 /** Text kept for screen readers while its button shows an icon only. */
 const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;';
 
+/**
+ * The wide composer (ui-design §3.3, decision X26): the tones as four buttons, Spenders and «Новые» one click away.
+ * It starts where the strip has room for them: at 1000 px with short key labels («⌘E»), at 840 px with long ones
+ * («Ctrl+Alt+B»), which then stay off the buttons until 1320 px. The persona, ⌘K, the long quota and the long status
+ * words come back once they fit next to the new buttons. Measured in the dock gallery over every strip state, both
+ * languages, both kinds of key labels (dock-gallery-widths.e2e.ts). 840 px, not more: a 1440 px window gives the
+ * composer 853 px (ui-design §3.2), and that is where most chatters on Windows sit.
+ */
+const WIDE_CSS = `
+@container cg (min-width: 1000px) {
+  .cg-strip:not(.is-longkeys) .cg-slot--tones, .cg-strip:not(.is-longkeys):not(.has-status) .cg-slot--boards { display: inline-flex; }
+  .cg-strip:not(.is-longkeys) .cg-slot--tone { display: none; }
+}
+@container cg (min-width: 840px) {
+  .cg-strip.is-longkeys .cg-slot--tones, .cg-strip.is-longkeys:not(.has-status) .cg-slot--boards { display: inline-flex; }
+  .cg-strip.is-longkeys .cg-slot--tone { display: none; }
+}
+@container cg (max-width: 1319px) {
+  .cg-strip.is-longkeys .cg-act kbd { display: none; }
+}
+@container cg (min-width: 1000px) and (max-width: 1119px) {
+  .cg-strip:not(.is-longkeys) :is(.cg-slot--persona, .cg-hint) { display: none; }
+}
+@container cg (min-width: 840px) and (max-width: 979px) {
+  .cg-strip.is-longkeys :is(.cg-slot--persona, .cg-hint) { display: none; }
+}
+@container cg (min-width: 1000px) and (max-width: 1399px) {
+  .cg-strip:not(.is-longkeys) :is(.cg-quota, .cg-status-word) .cg-long { display: none; }
+  .cg-strip:not(.is-longkeys) :is(.cg-quota, .cg-status-word) .cg-short { display: inline; }
+}
+@container cg (min-width: 840px) and (max-width: 1399px) {
+  .cg-strip.is-longkeys :is(.cg-quota, .cg-status-word) .cg-long { display: none; }
+  .cg-strip.is-longkeys :is(.cg-quota, .cg-status-word) .cg-short { display: inline; }
+}
+`;
+
+/**
+ * The tones on a wide composer: one hairline-outlined segment right after Reply (the kit's `cg-seg` look), smaller
+ * and quieter than the action they belong to. The chosen tone is the filled one, and stays readable while a
+ * generation locks the four. Explained here, not in the sheet: a comment in the sheet ships with it.
+ */
+const TONES_CSS = `.cg-tones { display: inline-flex; align-items: center; height: 24px; margin: 0 6px 0 2px; padding: 0 2px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-strip .cg-tone { height: 20px; border-radius: 5px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-strip .cg-tone:hover { color: var(--cg-ink-strong); }
+.cg-strip .cg-tone[aria-disabled="true"] { color: var(--cg-ink-faint); }
+.cg-strip .cg-tone[aria-pressed="true"] { background: var(--cg-seg-on); color: var(--cg-ink-strong); }
+.cg-strip .cg-tone[aria-disabled="true"][aria-pressed="true"] { color: var(--cg-ink-2); }
+.cg-tones > .cg-lock { margin: 0 5px 0 2px; color: var(--cg-ink-faint); }`;
+
+/**
+ * The sheet ships in the dock's first chunk, whose budget is 45 KiB gzip (architecture.md §11), and a CSS comment
+ * in it would ship too: 1.2 KB of prose for nobody. So a note here is a JS comment in an empty `${…}`, which the
+ * minifier drops; it stands where a CSS comment would.
+ */
 export const DOCK_CSS = `
-/* The strip is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. */
+${/* The strip is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. */ ''}
 .cg-dock { position: relative; display: flex; flex-direction: column-reverse; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
 
-/* ── the strip: one line of words ── */
+${/* ── the strip: one line of words ── */ ''}
 .cg-strip { display: flex; align-items: center; height: 34px; min-width: 0; }
 .cg-mark { width: var(--cg-gutter); height: 34px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cg-ink-2); }
 .cg-mark.is-off { color: var(--cg-ink-faint); }
@@ -33,9 +89,10 @@ export const DOCK_CSS = `
 .cg-strip__opts { display: flex; align-items: center; min-width: 0; margin-left: auto; padding: 0 2px 0 8px; }
 .cg-strip__opts > * { flex: none; }
 .cg-strip__opts > .cg-slot--persona, .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
-.cg-slot--more { display: none; }
+.cg-slot--more, .cg-slot--tones, .cg-slot--boards { display: none; }
 .cg-opt kbd { display: none; }
-/* «Тон: Flirt» reads as one phrase: the value closes the button's gap. */
+${TONES_CSS}
+${/* «Тон: Flirt» reads as one phrase: the value closes the button's gap. */ ''}
 .cg-tone-val { margin-left: -5px; }
 .cg-lock { margin-left: 1px; }
 .cg-hint { font-size: var(--cg-text-xs); letter-spacing: 0.02em; color: var(--cg-ink-muted); padding: 0 6px 0 4px; white-space: nowrap; }
@@ -46,7 +103,7 @@ export const DOCK_CSS = `
 .cg-quota .cg-short, .cg-status-word .cg-short { display: none; }
 .cg-status-word { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-2); white-space: nowrap; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; }
 
-/* ── the sheet: what opens above the line ── */
+${/* ── the sheet: what opens above the line ── */ ''}
 .cg-sheet {
   display: flex; flex-direction: column; max-height: var(--cg-cap); margin-bottom: 2px; overflow: hidden;
   background: var(--cg-surface); border: 1px solid var(--cg-rule); border-radius: var(--cg-r-xl); box-shadow: var(--cg-shadow);
@@ -67,12 +124,12 @@ export const DOCK_CSS = `
 .cg-head__acts { display: flex; align-items: center; gap: 2px; flex: none; order: 3; }
 .cg-again .cg-ico, .cg-hide .cg-ico { display: none; }
 
-/* ── streaming: preliminary text, no buttons ── */
-/* A stage that does not fit ends in «…» instead of a cut letter. */
+${/* ── streaming: preliminary text, no buttons ── */ ''}
+${/* A stage that does not fit ends in «…» instead of a cut letter. */ ''}
 .cg-head .cg-stage.is-now { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cg-stream { display: grid; grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr); padding: 9px 10px 11px 0; }
 
-/* ── parts: Hi variants, the Б2 question ── */
+${/* ── parts: Hi variants, the Б2 question ── */ ''}
 .cg-part.is-confirm .cg-ins { display: none; }
 .cg-vhead { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px 0 var(--cg-gutter); border-top: 1px solid var(--cg-rule); color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
 .cg-vhead:first-child { border-top: 0; }
@@ -99,7 +156,7 @@ ${dark('.cg-confirm')} { border-top-color: var(--cg-rule-2); }
 .cg-confirm__loss { color: var(--cg-ink-2); font-weight: 400; }
 .cg-confirm.is-long .cg-confirm__q { flex-basis: 100%; margin-bottom: 2px; }
 
-/* ── Fix ── */
+${/* ── Fix ── */ ''}
 .cg-fixbox:focus-visible { outline: none; border-radius: 0; box-shadow: inset 2px 0 0 var(--cg-focus); background: var(--cg-sunk); }
 .cg-fixbox.is-confirm { background: var(--cg-sunk); }
 .cg-fixbox.is-confirm .cg-fix:last-child { padding-bottom: 10px; }
@@ -114,12 +171,12 @@ ${dark('.cg-confirm')} { border-top-color: var(--cg-rule-2); }
 .cg-fix__card { padding: 0 10px 10px var(--cg-gutter); }
 .cg-done { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-2); padding: 0 6px 0 8px; white-space: nowrap; }
 
-/* ── «Фан написал новое» ── */
+${/* ── «Фан написал новое» ── */ ''}
 .cg-stale { display: grid; grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) auto; align-items: center; min-height: 34px; padding: 2px 4px 2px 0; border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm2); }
 .cg-stale__t { color: var(--cg-ink-2); }
 .cg-stale__t b { color: var(--cg-ink-strong); font-weight: 600; }
 
-/* ── the refusal of a fourth generation: what runs now ── */
+${/* ── the refusal of a fourth generation: what runs now ── */ ''}
 .cg-card + .cg-ops { border-top: 1px solid var(--cg-rule); }
 .cg-ops { padding: 4px 0 6px; }
 .cg-op { display: grid; grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) 64px 48px auto; align-items: center; min-height: 32px; padding: 0 4px 0 0; }
@@ -128,20 +185,21 @@ ${dark('.cg-confirm')} { border-top-color: var(--cg-rule-2); }
 .cg-op__t { color: var(--cg-ink-muted); text-align: right; padding-right: 8px; white-space: nowrap; }
 .cg-op__a { display: flex; gap: 2px; }
 
-/* A countdown that leads the card's actions starts at the text column, as a button's label does. */
+${/* A countdown that leads the card's actions starts at the text column, as a button's label does. */ ''}
 .cg-card__acts > .cg-count:first-child { padding-left: 8px; }
 
-/* ── the status banner: the sheet's last row ── */
+${/* ── the status banner: the sheet's last row ── */ ''}
 .cg-sheet > * + .cg-banner { border-top: 1px solid var(--cg-rule); }
 .cg-banner > .cg-btn--quiet { box-shadow: inset 0 0 0 1px var(--cg-rule-3); color: var(--cg-ink-strong); font-weight: 500; }
 ${dark('.cg-banner > .cg-btn--quiet')} { box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
 
-/* ── «Вид ответа: без подложки» (the default): inked onto the feed between two hairlines ── */
+${/* ── «Вид ответа: без подложки» (the default): inked onto the feed between two hairlines ── */ ''}
 .cg-bare .cg-sheet { background: transparent; border: 0; border-top: 1px solid var(--cg-rule-3); border-bottom: 1px solid var(--cg-bare-edge); border-radius: 0; box-shadow: none; margin-bottom: 0; }
 .cg-bare :is(.cg-head, .cg-vhead, .cg-hi__col, .cg-stale, .cg-fix + .cg-fix, .cg-card + .cg-ops, .cg-sheet > * + .cg-banner) { border-color: var(--cg-bare-rule); }
 .cg-bare :is(.cg-fixbox:focus-visible, .cg-fixbox.is-confirm) { background: var(--cg-bare-hover); }
 
-/* ── narrow composer (ui-design §3.3) ── */
+${WIDE_CSS}
+${/* ── narrow composer (ui-design §3.3) ── */ ''}
 @container cg (max-width: 899px) {
   .cg-quota .cg-long { display: none; }
   .cg-quota .cg-short { display: inline; }
@@ -181,11 +239,11 @@ ${dark('.cg-banner > .cg-btn--quiet')} { box-shadow: inset 0 0 0 1px var(--cg-ru
   .cg-again { width: 26px; padding: 0; justify-content: center; }
   .cg-again .cg-ico { display: block; }
   .cg-again .cg-btn__t { ${VISUALLY_HIDDEN} }
-  /* The strip in a 320 px column (ui-design §6.5): its buttons stand closer, so that Split stays inside the dock in both languages. */
+  ${/* The strip in a 320 px column (ui-design §6.5): its buttons stand closer, so that Split stays inside the dock in both languages. */ ''}
   .cg-strip .cg-act { padding: 0 4px; }
   .cg-strip__acts { margin-left: -4px; }
   .cg-strip__opts { padding-left: 4px; }
-  /* Recap and Review: a segment or a score and up to four buttons. They do not fit one line here, and nothing may run out of the dock. */
+  ${/* Recap and Review: a segment or a score and up to four buttons. They do not fit one line here, and nothing may run out of the dock. */ ''}
   .cg-head--tools { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 3px; }
   .cg-head--tools > .cg-head__sp { display: none; }
   .cg-head--tools > .cg-head__acts { margin-left: auto; }

@@ -55,6 +55,8 @@ const style: UiResultStyle = params.get('style') === 'sheet' ? 'sheet' : 'bare';
 let width = Math.max(240, Number(params.get('w') ?? '853') || 853);
 const feedHeight = Number(params.get('feed') ?? '574') || 574;
 const viewportHeight = Number(params.get('vh') ?? '900') || 900;
+/** `os=win`: the key labels of Windows and Linux («Ctrl+Alt+B»), four times as wide as the Mac's. */
+const keys: 'mac' | 'win' = params.get('os') === 'win' ? 'win' : 'mac';
 const stateParam = params.get('state');
 const groupParam = params.get('group');
 const single = stateParam === null ? null : galleryState(stateParam);
@@ -95,7 +97,7 @@ const geometryOf = (item: GalleryState): SurfaceGeometry =>
     : { width: null, feedHeight: null, viewportHeight: window.innerHeight, container: { left: 64, top: 44, width: window.innerWidth - 64, height: window.innerHeight - 44 } };
 
 function worldOf(item: GalleryState): KitWorld {
-  const scenario = scenarioOfState(item, language, scheme);
+  const scenario = scenarioOfState(item, language, scheme, keys);
   // «Вид ответа» comes from the URL, as the setting would.
   const views = scenario.views.map((view) => (view.selector.of === 'dock' ? entry({ of: 'dock' }, { ...(view.vm as Parameters<typeof entry<{ of: 'dock' }>>[1]), resultStyle: style }) : view));
   const world = kitWorld({ ...scenario, views }, language);

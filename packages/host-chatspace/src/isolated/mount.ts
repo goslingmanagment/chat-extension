@@ -27,6 +27,9 @@
 //   at the end of the composers container (CG-GATE-FAN-BLOCKED).
 // - The frame root is missing (a new build): a fixed overlay over the
 //   composer's box, which does not push the message list (§6.2 degradation).
+// - In flow the dock takes its height from ChatSpace's message list: while
+//   the list stands near its bottom it is kept there as a result opens
+//   (keep-bottom.ts, UI-016).
 //
 // Overlays: `<div data-host="overlay">` hosts in <html>, outside #app, each
 // with a closed shadow root, `position: fixed`, on its z-layer (900 panels,
@@ -48,6 +51,7 @@
 import type { ComposerState, MountPoints } from '@cg/contracts/host';
 
 import { DISMISSIBLE_ATTRIBUTE, FIXED_WIDTH_VARIABLE, FRAME_SELECTOR, SLOT_SELECTOR } from './host-contract';
+import { createBottomKeeper } from './keep-bottom';
 import { createShadowRootRegistry, type ShadowRootRegistry } from './shadow-registry';
 
 /** The translator bridge slot ChatSpace renders above its composer. */
@@ -236,6 +240,8 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
   const dockRoot = dockHost.attachShadow({ mode: 'closed' });
   registry.register(dockHost, dockRoot);
   const dock: ClosedHost = { host: dockHost, root: dockRoot, remove: () => dockHost.remove() };
+  /** The message list above an in-flow dock keeps its bottom as the dock grows (UI-016). */
+  const bottom = createBottomKeeper(win, dockHost);
 
   const overlays = new Map<OverlayLayer, ClosedHost>();
   const dismissible = new Map<'dock' | OverlayLayer, Set<string>>();
@@ -406,6 +412,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
     if (next !== 'fixed-overlay') fixedBox = null;
     if (next !== 'none') stopFirstSearch();
     setKind(next, next === 'in-flow' || next === 'fixed-overlay' ? (composer?.instanceId ?? null) : null);
+    bottom.placed(next === 'in-flow');
     observeSizes();
     notify();
     renewal(next === 'in-flow' || next === 'fixed-overlay' ? over : null);
@@ -559,6 +566,7 @@ export function createMountManager(doc: Document, options: MountManagerOptions =
       disposed = true;
       stopFirstSearch();
       unwatch();
+      bottom.dispose();
       resize.disconnect();
       win.removeEventListener('resize', onWindowResize);
       dockHost.remove();

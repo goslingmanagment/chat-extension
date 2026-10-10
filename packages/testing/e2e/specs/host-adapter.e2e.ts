@@ -25,6 +25,8 @@ import { callStand, chatPath, composerRoots, dockPlacement, foreignCalls, openSt
 
 const ACC = STAND_IDS.accounts.a;
 const { a1, a2, a3, a4, a5, a6, a7, a8 } = STAND_IDS.fans;
+/** «The middle of history» stands at least this far above the list's bottom: well outside the 100 px where the dock keeps the bottom itself (UI-016). */
+const MIDDLE_AWAY_PX = 220;
 
 type Receipt = { state: string; code?: string; needs?: string; draftRevision?: number };
 interface HarnessState {
@@ -210,26 +212,52 @@ describe('R09 part A — the ChatSpace adapter on the stand', () => {
         await browser.waitUntil(async () => (await callStand('messageList'))?.atBottom === true, { timeout: 2000, timeoutMsg: 'the list lost its bottom when the dock grew' });
         await harness('growDock', 0);
         await twoFrames();
-        // In the middle of history: the message at the top stays where it was.
-        const anchor = (): Promise<{ id: string | null; offset: number }> =>
+        // In the middle of history: the message at the top stays where it was. «The middle» is farther from the
+        // bottom than ChatSpace's own «at the latest messages» (100 px): nearer than that the dock itself puts the
+        // list at its bottom (keep-bottom.ts, X26 — the next test). And off the very top, where the stand loads
+        // older history.
+        const anchor = (): Promise<{ id: string | null; offset: number; top: number; height: number; box: number }> =>
           browser.execute(() => {
             const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
             const first = [...document.querySelectorAll<HTMLElement>('[data-stand-message-id]')].find((node) => scroller !== null && node.offsetTop + node.offsetHeight > scroller.scrollTop + 1);
-            return { id: first?.dataset['standMessageId'] ?? null, offset: first === undefined || scroller === null ? 0 : first.offsetTop - scroller.scrollTop };
+            return {
+              id: first?.dataset['standMessageId'] ?? null,
+              offset: first === undefined || scroller === null ? 0 : first.offsetTop - scroller.scrollTop,
+              top: scroller?.scrollTop ?? 0,
+              height: scroller?.scrollHeight ?? 0,
+              box: scroller?.clientHeight ?? 0,
+            };
           });
+        // The first page of this history scrolls less than 100 px in this window — all of it is «at the latest
+        // messages». At its top the stand loads the older pages, as ChatSpace does: with them the list has a middle.
+        await browser.waitUntil(
+          () =>
+            browser.execute((need: number) => {
+              const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
+              if (scroller === null) return false;
+              if (scroller.scrollHeight - scroller.clientHeight >= need) return true;
+              scroller.scrollTop = 0;
+              return false;
+            }, MIDDLE_AWAY_PX + 120),
+          { timeout: 8000, interval: 150, timeoutMsg: 'the history did not grow long enough to have a middle' },
+        );
+        await twoFrames();
         expect(
-          await browser.execute(async () => {
+          await browser.execute(async (awayPx: number) => {
             const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
             if (scroller === null) return 'no list';
+            const bottom = scroller.scrollHeight - scroller.clientHeight;
+            if (bottom < awayPx + 60) return `the history is too short for a middle: it scrolls ${bottom} px`;
             const scrolled = new Promise<string>((resolve) => {
               scroller.addEventListener('scroll', () => requestAnimationFrame(() => requestAnimationFrame(() => resolve('scrolled'))), { once: true });
               setTimeout(() => resolve('no scroll event in 2 s'), 2000);
             });
-            scroller.scrollTop = Math.round((scroller.scrollHeight - scroller.clientHeight) / 2);
+            scroller.scrollTop = Math.max(60, Math.min(Math.round(bottom / 2), bottom - awayPx));
             return scrolled;
-          }),
+          }, MIDDLE_AWAY_PX),
         ).toBe('scrolled');
         const before = await anchor();
+        expect(before.height - before.top - before.box).toBeGreaterThan(100);
         await harness('growDock', 120);
         await twoFrames();
         let after = await anchor();

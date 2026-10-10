@@ -112,12 +112,24 @@ export function chatOnScreen(route: { readonly chat: { readonly hostAccountId: s
 /**
  * The palette is a launcher («↵ выполнить», ui-design §4.20): what a row ran closes it — a window opened from
  * it must not stand under it, a generation it started is watched in the dock. Its own typing, its own closing
- * and a row that was refused (the person reads why and picks another) leave it open. While the palette is
+ * and a row that was refused (the person reads why — paletteReceiptToast — and picks another) leave it open. While the palette is
  * open every dispatched action is one of its rows: our keys are not dispatched under a window of ours.
  */
 export function closesPalette(action: UiAction, receipt: ActionReceipt): boolean {
   if (!receipt.ok || action.type === 'Search') return false;
   return !(action.type === 'Navigate' && action.to.kind === 'surface' && action.to.surface === 'palette');
+}
+
+/**
+ * A row of the palette that was refused. The palette stays open (closesPalette) and has no place of its own to
+ * say why (ui-design §4.20), so the reason is a toast with the refusal's code — what the same action gets from a
+ * key (the hotkey runner). Before this a click on a fan's row on a page whose owner left `navigation` off did
+ * nothing a person could see (X26). Not said here: a generation (its refusal is the dock's own card), «Онлайн»
+ * (the composition says it where it opens the preview) and the palette's own typing.
+ */
+export function paletteReceiptToast(action: UiAction, receipt: ActionReceipt): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey | null } | null {
+  if (receipt.ok || action.type === 'Search' || action.type === 'Generate' || action.type === 'OpenPreview') return null;
+  return { code: receipt.code, scope: 'palette.row', title: null };
 }
 
 /** Holds that pass by themselves, so the part's row keeps nothing of them: the fan or the account is busy with another send. */

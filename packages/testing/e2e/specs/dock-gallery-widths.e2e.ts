@@ -1,6 +1,7 @@
 // The dock in headless Firefox: what hides on which composer width (ui-design
-// §3.3), the 900 → 320 px sweep in 1 px steps, both «Вид ответа», the height
-// limit (§3.2) and the order of Tab (§6.3). Every state in every theme,
+// §3.3), the wide strip with the tones as buttons (both kinds of key labels),
+// the 900 → 320 px sweep in 1 px steps, both «Вид ответа», the height limit
+// (§3.2) and the order of Tab (§6.3). Every state in every theme,
 // language and zoom is dock-gallery-states-*.e2e.ts; the overlays are
 // dock-gallery-overlays.e2e.ts.
 
@@ -33,6 +34,85 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('3a', '.cg-keys')).toHaveLength(1);
     expect((await shown('2a', '.cg-stage')).length).toBeGreaterThan(1);
   });
+
+  const TONES = ['Casual', 'Flirt', 'Sell', 'Spice'];
+  const WINDOWS = ['Spenders', 'Новые'];
+  /** The tones stand right after Reply: they are its own. */
+  const withTones = (actions: readonly string[]): string[] => [...actions.slice(0, 1), ...TONES, ...actions.slice(1)];
+
+  it('[AI-002] [NEW-01] a wide composer (from 1000 px with short key labels): the tones are four buttons instead of the «Тон» menu, Spenders and «Новые» stand in the strip; the persona and ⌘K come back at 1120 px', async () => {
+    await open('theme=light&lang=ru&w=1000');
+    await captureWindow('dock-wide-light-ru-w1000');
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
+    expect(await shown('1a', '.cg-persona')).toEqual([]);
+    expect(await shown('1a', '.cg-hint')).toEqual([]);
+    // A crowded strip («AI: 12», a generation with its two locks) still fits, the quota short.
+    expect(await shown('1b', '.cg-quota .cg-short')).toEqual(['AI: 12']);
+    expect((await measure('2a'))?.buttons).toEqual(['Reply+key', ...TONES, 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Split', ...WINDOWS]);
+    expect(await shown('2a', '.cg-tones > .cg-lock')).toHaveLength(1);
+    // While the chat loads nothing can be opened from the strip: the two windows give their place to the status words.
+    expect((await measure('9d'))?.buttons).toEqual([...withTones(SEVEN), 'Split']);
+    expect((await health()).problems).toEqual([]);
+    await open('theme=light&lang=ru&w=1120');
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
+    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
+    expect(await shown('1a', '.cg-hint')).toHaveLength(1);
+    expect((await health()).problems).toEqual([]);
+    // One pixel narrower than wide: the strip of the reference widths, as it was.
+    await open('theme=light&lang=ru&w=999');
+    expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), 'Тон', 'Split']);
+    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
+  });
+
+  it('[UI-006] long key labels («Ctrl+Alt+B», Windows and Linux): the wide strip starts at 840 px — a 1440 px window (a composer of 853 px) has it — and the labels stay off the buttons until 1320 px — in the tooltips and the cheatsheet they always are', async () => {
+    await open('theme=dark&lang=ru&w=840&os=win');
+    await captureWindow('dock-wide-dark-ru-win-w840');
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(SEVEN), 'Split', ...WINDOWS]);
+    expect(await shown('1a', '.cg-persona')).toEqual([]);
+    expect((await health()).problems).toEqual([]);
+    await open('theme=dark&lang=ru&w=980&os=win');
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(SEVEN), 'Split', ...WINDOWS]);
+    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
+    await open('theme=dark&lang=ru&w=1320&os=win');
+    await captureWindow('dock-wide-dark-ru-win-w1320');
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
+    expect(await shown('1a', '.cg-strip__acts kbd')).toEqual(['Ctrl+E', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C']);
+    expect((await health()).problems).toEqual([]);
+    // Below 840 px: the «Тон» menu, and still no long labels on the buttons — they would not fit there either.
+    await open('theme=dark&lang=ru&w=839&os=win');
+    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, 'Тон', 'Split']);
+    expect((await health()).problems).toEqual([]);
+  });
+
+  for (const os of ['mac', 'win'] as const) {
+    it(`[UI-004] 1400 → 700 px · ${os} key labels: every dock state fits the wide strip and the step down to the narrow one — no overflow, no overlap, the strip stays 34 px`, async () => {
+      await open(`theme=light&lang=en&w=1400${os === 'win' ? '&os=win' : ''}`);
+      const problems: string[] = [];
+      for (let from = 1400; from > 700; from -= 100) {
+        problems.push(
+          ...(await browser.execute(
+            async (start, end) => {
+              const dock = window.__dock;
+              if (dock === undefined) throw new Error('window.__dock is missing');
+              const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+              const out: string[] = [];
+              for (let px = start; px > end; px -= 2) {
+                dock.setWidth(px);
+                await frame();
+                out.push(...dock.check());
+                if (out.length > 12) break;
+              }
+              return out;
+            },
+            from,
+            from - 100,
+          )),
+        );
+        if (problems.length > 0) break;
+      }
+      expect(problems).toEqual([]);
+    });
+  }
 
   it('[UI-002] [UI-006] 693 px: seven buttons with their keys; no persona, no ⌘K; Hi still in three columns', async () => {
     await open('theme=light&lang=ru&w=693');

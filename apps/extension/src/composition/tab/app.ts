@@ -50,7 +50,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
-import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently } from './client';
+import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { createContractLog } from './contract-log';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
@@ -310,7 +310,12 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
     onAction: (action) => health?.action(action.type, action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open ? action.to.surface : undefined),
     onReceipt(action, receipt) {
       // A row of the palette ran: the palette goes (R17's controller closes it only for a preview it opened itself).
-      if (keys.overlays.isOpen('palette') && closesPalette(action, receipt)) keys.overlays.set('palette', false);
+      // A row that was refused leaves it open, and the reason is said: the palette has no place for it.
+      if (keys.overlays.isOpen('palette')) {
+        if (closesPalette(action, receipt)) keys.overlays.set('palette', false);
+        const refused = paletteReceiptToast(action, receipt);
+        if (refused !== null) return say(refused.code, refused.scope, refused.title);
+      }
       // A click on a board's part that came to nothing the board itself shows: the reason, as a toast.
       const said = boardReceiptToast(action, receipt);
       if (said !== null) return say(said.code, said.scope, said.title);
@@ -722,7 +727,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
           const rect = element?.getBoundingClientRect();
           if (rect !== undefined && rect.width > 0 && rect.height > 0) hits[name] = { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
         };
-        const slots = [...root.querySelectorAll('.cg-strip__acts > .cg-slot:not(.cg-slot--more)')];
+        // The tone buttons stand in a slot of their own right after Reply: it is not an action's slot.
+        const slots = [...root.querySelectorAll('.cg-strip__acts > .cg-slot:not(.cg-slot--more):not(.cg-slot--tones)')];
         Object.keys(dock.actions).forEach((id, index) => hit(`action:${id}`, slots[index]?.querySelector('button')));
         for (const row of root.querySelectorAll('[data-cg-part]')) hit(`insert:${row.getAttribute('data-cg-part') ?? ''}`, row.querySelector('.cg-ins'));
         // The one button of the status banner («Войти», «Назначить персону», «Повторить», «Подробнее»).
