@@ -24,17 +24,18 @@ const described = (element: HTMLElement): string => kit?.root.getElementById(ele
 const HANDLE = handles.dock(FANS.hubert);
 
 describe('the strip', () => {
-  it('[UI-002] is a toolbar with the seven actions in order, then «Ещё», the tones (four buttons and the «Тон» menu: a width shows one of the two), Split and the two windows', () => {
+  it('[UI-002] is a toolbar: Reply with its four tones right after it, the other six actions, «Ещё», then the «Тон» menu (a width shows the menu or the four), Split and the two windows', () => {
     kit = mountDock(dockScenario(dockVm()));
     const strip = kit.$('.cg-strip') as HTMLElement;
     expect(strip.getAttribute('role')).toBe('toolbar');
     expect(strip.getAttribute('aria-label')).toBe('ChatGoose');
     expect(DOCK_ACTION_IDS).toEqual(['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach']);
     expect(buttons().map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual([
-      ...['Reply', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Ещё'],
-      ...['Casual', 'Flirt', 'Sell', 'Spice', 'Тон', 'Split', 'Spenders', 'Новые'],
+      ...['Reply', 'Casual', 'Flirt', 'Sell', 'Spice', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Ещё'],
+      ...['Тон', 'Split', 'Spenders', 'Новые'],
     ]);
-    // The four tone buttons are one named group; the menu with the same choices stands next to it for a narrow composer.
+    // The four tone buttons are one named group, one outlined segment; the menu with the same choices is for a narrow composer.
+    expect(kit.$$('.cg-slot--tones > .cg-tones')).toHaveLength(1);
     expect(kit.$('.cg-slot--tones')?.getAttribute('role')).toBe('group');
     expect(kit.$('.cg-slot--tones')?.getAttribute('aria-label')).toBe('Тон');
     expect(kit.$$('.cg-slot--tones .cg-act').map(text)).toEqual(['Casual', 'Flirt', 'Sell', 'Spice']);
@@ -306,7 +307,7 @@ describe('what the strip asks for', () => {
       expect(described(button(label)), label).toBe('Тон нельзя менять, пока идёт генерация');
       await flush(() => button(label).click());
     }
-    expect(kit.$$('.cg-slot--tones > .cg-lock')).toHaveLength(1);
+    expect(kit.$$('.cg-tones > .cg-lock')).toHaveLength(1);
     expect(kit.client.dispatched).toEqual([]);
   });
 
@@ -378,7 +379,11 @@ describe('what the strip asks for', () => {
     kit = mountDock(dockScenario(dockVm()));
     expect(buttons().map((element) => element.tabIndex)).toEqual([0, ...Array.from({ length: 15 }, () => -1)]);
     button('Reply').focus();
+    // Right of Reply stand its tones, then the next action.
     await flush(() => button('Reply').dispatchEvent(keydown('ArrowRight')));
+    expect(kit.root.activeElement).toBe(button('Casual'));
+    button('Spice').focus();
+    await flush(() => button('Spice').dispatchEvent(keydown('ArrowRight')));
     expect(kit.root.activeElement).toBe(button('Fix'));
     // The tab stop follows focus.
     expect(button('Fix').tabIndex).toBe(0);

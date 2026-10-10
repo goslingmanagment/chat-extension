@@ -6,11 +6,13 @@
 // width is CSS (container queries, styles.ts); the markup is the same at
 // every width.
 //
-// The tones stand twice (decision X26): on a wide composer as four buttons —
-// one click runs Reply in that tone, no menu to open — and on a narrow one as
-// the «Тон» menu with the same choices. CSS shows one of the two.
+// The tones stand twice (decision X26): on a wide composer as one outlined
+// segment of four right after Reply — they are Reply's own: one click runs
+// Reply in that tone, no menu to open — and on a narrow one as the «Тон» menu
+// with the same choices, among the options on the right. CSS shows one of the
+// two.
 
-import { type JSX, type TargetedKeyboardEvent } from 'preact';
+import { Fragment, type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { type Tone } from '@cg/contracts/features';
@@ -111,7 +113,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   const [stop, setStop] = useState<StopId>('reply');
   const t = i18n.t.bind(i18n);
   /** The strip's buttons in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
-  const STOPS: readonly StopId[] = [...DOCK_ACTION_IDS, 'more', ...vm.options.tones.map((id): StopId => `tone:${id}`), 'tone', 'split', ...BOARDS];
+  const STOPS: readonly StopId[] = DOCK_ACTION_IDS.flatMap((id): StopId[] => (id === 'reply' ? [id, ...vm.options.tones.map((tone): StopId => `tone:${tone}`)] : [id])).concat('more', 'tone', 'split', ...BOARDS);
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
   const stopOf = (target: EventTarget | null): StopId | null => {
@@ -298,10 +300,21 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
       <Mark vm={vm} />
       <div class="cg-strip__acts">
         {DOCK_ACTION_IDS.map((id, index) => (
-          <span key={id} class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : 'cg-slot'}>
-            {index === 0 ? null : <Divider />}
-            {actionButton(id)}
-          </span>
+          <Fragment key={id}>
+            <span class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : 'cg-slot'}>
+              {index === 0 ? null : <Divider />}
+              {actionButton(id)}
+            </span>
+            {id !== 'reply' ? null : (
+              // The tones are Reply's own: one outlined segment right after it, a click on a tone is Reply in that tone.
+              <span class="cg-slot cg-slot--tones" role="group" aria-label={toneWord}>
+                <span class="cg-tones">
+                  {tones.map(toneButton)}
+                  {lock}
+                </span>
+              </span>
+            )}
+          </Fragment>
         ))}
         <span class="cg-slot cg-slot--more">
           <Divider />
@@ -361,11 +374,6 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
             <Divider />
           </span>
         )}
-        <span class="cg-slot cg-slot--tones" role="group" aria-label={toneWord}>
-          {tones.map(toneButton)}
-          {lock}
-          <Divider />
-        </span>
         <span class="cg-slot cg-slot--tone">
           <MenuAnchor>
             <StripButton

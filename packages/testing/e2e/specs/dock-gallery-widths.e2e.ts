@@ -37,22 +37,24 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
 
   const TONES = ['Casual', 'Flirt', 'Sell', 'Spice'];
   const WINDOWS = ['Spenders', 'Новые'];
+  /** The tones stand right after Reply: they are its own. */
+  const withTones = (actions: readonly string[]): string[] => [...actions.slice(0, 1), ...TONES, ...actions.slice(1)];
 
   it('[AI-002] [NEW-01] a wide composer (from 1000 px with short key labels): the tones are four buttons instead of the «Тон» menu, Spenders and «Новые» stand in the strip; the persona and ⌘K come back at 1120 px', async () => {
     await open('theme=light&lang=ru&w=1000');
     await captureWindow('dock-wide-light-ru-w1000');
-    expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), ...TONES, 'Split', ...WINDOWS]);
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect(await shown('1a', '.cg-hint')).toEqual([]);
     // A crowded strip («AI: 12», a generation with its two locks) still fits, the quota short.
     expect(await shown('1b', '.cg-quota .cg-short')).toEqual(['AI: 12']);
-    expect((await measure('2a'))?.buttons).toEqual(['Reply+key', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', ...TONES, 'Split', ...WINDOWS]);
-    expect(await shown('2a', '.cg-slot--tones > .cg-lock')).toHaveLength(1);
+    expect((await measure('2a'))?.buttons).toEqual(['Reply+key', ...TONES, 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Split', ...WINDOWS]);
+    expect(await shown('2a', '.cg-tones > .cg-lock')).toHaveLength(1);
     // While the chat loads nothing can be opened from the strip: the two windows give their place to the status words.
-    expect((await measure('9d'))?.buttons).toEqual([...SEVEN, ...TONES, 'Split']);
+    expect((await measure('9d'))?.buttons).toEqual([...withTones(SEVEN), 'Split']);
     expect((await health()).problems).toEqual([]);
     await open('theme=light&lang=ru&w=1120');
-    expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), ...TONES, 'Split', ...WINDOWS]);
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
     expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
     expect(await shown('1a', '.cg-hint')).toHaveLength(1);
     expect((await health()).problems).toEqual([]);
@@ -65,15 +67,15 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
   it('[UI-006] long key labels («Ctrl+Alt+B», Windows and Linux): the wide strip starts at 840 px — a 1440 px window (a composer of 853 px) has it — and the labels stay off the buttons until 1320 px — in the tooltips and the cheatsheet they always are', async () => {
     await open('theme=dark&lang=ru&w=840&os=win');
     await captureWindow('dock-wide-dark-ru-win-w840');
-    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...TONES, 'Split', ...WINDOWS]);
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(SEVEN), 'Split', ...WINDOWS]);
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect((await health()).problems).toEqual([]);
     await open('theme=dark&lang=ru&w=980&os=win');
-    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...TONES, 'Split', ...WINDOWS]);
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(SEVEN), 'Split', ...WINDOWS]);
     expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
     await open('theme=dark&lang=ru&w=1320&os=win');
     await captureWindow('dock-wide-dark-ru-win-w1320');
-    expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), ...TONES, 'Split', ...WINDOWS]);
+    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
     expect(await shown('1a', '.cg-strip__acts kbd')).toEqual(['Ctrl+E', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C']);
     expect((await health()).problems).toEqual([]);
     // Below 840 px: the «Тон» menu, and still no long labels on the buttons — they would not fit there either.

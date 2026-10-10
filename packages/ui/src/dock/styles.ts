@@ -58,6 +58,19 @@ const WIDE_CSS = `
 }
 `;
 
+/**
+ * The tones on a wide composer: one hairline-outlined segment right after Reply (the kit's `cg-seg` look), smaller
+ * and quieter than the action they belong to. The chosen tone is the filled one, and stays readable while a
+ * generation locks the four. Explained here, not in the sheet: a comment in the sheet ships with it.
+ */
+const TONES_CSS = `.cg-tones { display: inline-flex; align-items: center; height: 24px; margin: 0 6px 0 2px; padding: 0 2px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-strip .cg-tone { height: 20px; border-radius: 5px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-strip .cg-tone:hover { color: var(--cg-ink-strong); }
+.cg-strip .cg-tone[aria-disabled="true"] { color: var(--cg-ink-faint); }
+.cg-strip .cg-tone[aria-pressed="true"] { background: var(--cg-seg-on); color: var(--cg-ink-strong); }
+.cg-strip .cg-tone[aria-disabled="true"][aria-pressed="true"] { color: var(--cg-ink-2); }
+.cg-tones > .cg-lock { margin: 0 5px 0 2px; color: var(--cg-ink-faint); }`;
+
 export const DOCK_CSS = `
 /* The strip is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. */
 .cg-dock { position: relative; display: flex; flex-direction: column-reverse; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
@@ -73,8 +86,7 @@ export const DOCK_CSS = `
 .cg-strip__opts > .cg-slot--persona, .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
 .cg-slot--more, .cg-slot--tones, .cg-slot--boards { display: none; }
 .cg-opt kbd { display: none; }
-.cg-tone[aria-pressed="true"] { background: var(--cg-hover); }
-.cg-slot--tones > .cg-lock { margin: 0 4px 0 2px; color: var(--cg-ink-faint); }
+${TONES_CSS}
 /* «Тон: Flirt» reads as one phrase: the value closes the button's gap. */
 .cg-tone-val { margin-left: -5px; }
 .cg-lock { margin-left: 1px; }
