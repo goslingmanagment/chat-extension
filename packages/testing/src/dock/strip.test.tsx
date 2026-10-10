@@ -329,6 +329,11 @@ describe('what the strip asks for', () => {
     const win = ctxOf({ lang: 'ru', platform: 'win' });
     kit = mountDock(dockScenario(dock(win, 'ready'), { lang: 'ru', platform: 'win' }));
     expect(kit.$('.cg-strip')?.classList.contains('is-longkeys')).toBe(true);
+    // With every action off (a chat that loads) no button carries a key, and the strip still knows: its layout does not jump.
+    kit.unmount();
+    kit = mountDock(dockScenario(dock(win, 'loading-chat'), { lang: 'ru', platform: 'win' }));
+    expect(kit.$$('.cg-strip__acts kbd')).toEqual([]);
+    expect(kit.$('.cg-strip')?.classList.contains('is-longkeys')).toBe(true);
   });
 
   it('[AI-009] Тон and Split are locked while a generation runs: a lock, the reason, no menu', async () => {

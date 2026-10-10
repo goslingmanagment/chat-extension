@@ -276,7 +276,11 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   };
 
   // «Ctrl+Alt+B» is four times as wide as «⌘⇧B»: where key labels are long, the widths of §3.3 are other ones.
-  const longKeys = DOCK_ACTION_IDS.some((id) => (hotkeyText(vm.actions[id].hotkey)?.display.length ?? 0) > LONG_KEY_LABEL);
+  // Read from the labels that are always there (the palette's, Tone's, Split's) as well as the actions': an action
+  // that is off carries no key, and the strip must not change its layout each time a chat loads.
+  const longKeys = [vm.paletteHotkey, vm.options.toneHotkey, vm.options.splitHotkey, ...DOCK_ACTION_IDS.map((id) => vm.actions[id].hotkey)].some(
+    (label) => (hotkeyText(label)?.display.length ?? 0) > LONG_KEY_LABEL,
+  );
   const classes = ['cg-strip', isCrowded(vm) ? 'is-crowded' : '', vm.statusWords ? 'has-status' : '', longKeys ? 'is-longkeys' : ''].filter((name) => name !== '').join(' ');
   return (
     <div
