@@ -4,7 +4,9 @@
 // kit's `cg` container (the dock's own width, not the window's) and go one
 // way: what hides at a width stays hidden below it.
 //
-//   ≥ 900  everything; the quota in full
+//   wide   the tones as four buttons, Spenders and «Новые» (from 1000 px; from
+//          860 px where key labels are long and so stay off the buttons)
+//   ≥ 900  everything of the narrow strip; the quota in full
 //   < 900  the quota short; a crowded strip gives the persona's place away
 //   < 790  no persona, no ⌘K; tighter buttons
 //   < 690  no key labels on the buttons (tooltips and the cheatsheet keep them)
@@ -20,6 +22,41 @@ import { dark, type StyleSource } from '../kit';
 /** Text kept for screen readers while its button shows an icon only. */
 const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;';
 
+/**
+ * The wide composer (ui-design §3.3, decision X26): the tones as four buttons, Spenders and «Новые» one click away.
+ * It starts where the strip has room for them: at 1000 px with short key labels («⌘E»), at 860 px with long ones
+ * («Ctrl+Alt+B»), which then stay off the buttons until 1320 px. The persona, ⌘K, the long quota and the long status
+ * words come back once they fit next to the new buttons. Measured in the dock gallery over every strip state, both
+ * languages, both kinds of key labels (dock-gallery-widths.e2e.ts).
+ */
+const WIDE_CSS = `
+@container cg (min-width: 1000px) {
+  .cg-strip:not(.is-longkeys) .cg-slot--tones, .cg-strip:not(.is-longkeys):not(.has-status) .cg-slot--boards { display: inline-flex; }
+  .cg-strip:not(.is-longkeys) .cg-slot--tone { display: none; }
+}
+@container cg (min-width: 860px) {
+  .cg-strip.is-longkeys .cg-slot--tones, .cg-strip.is-longkeys:not(.has-status) .cg-slot--boards { display: inline-flex; }
+  .cg-strip.is-longkeys .cg-slot--tone { display: none; }
+}
+@container cg (max-width: 1319px) {
+  .cg-strip.is-longkeys .cg-act kbd { display: none; }
+}
+@container cg (min-width: 1000px) and (max-width: 1119px) {
+  .cg-strip:not(.is-longkeys) :is(.cg-slot--persona, .cg-hint) { display: none; }
+}
+@container cg (min-width: 860px) and (max-width: 979px) {
+  .cg-strip.is-longkeys :is(.cg-slot--persona, .cg-hint) { display: none; }
+}
+@container cg (min-width: 1000px) and (max-width: 1399px) {
+  .cg-strip:not(.is-longkeys) :is(.cg-quota, .cg-status-word) .cg-long { display: none; }
+  .cg-strip:not(.is-longkeys) :is(.cg-quota, .cg-status-word) .cg-short { display: inline; }
+}
+@container cg (min-width: 860px) and (max-width: 1399px) {
+  .cg-strip.is-longkeys :is(.cg-quota, .cg-status-word) .cg-long { display: none; }
+  .cg-strip.is-longkeys :is(.cg-quota, .cg-status-word) .cg-short { display: inline; }
+}
+`;
+
 export const DOCK_CSS = `
 /* The strip is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. */
 .cg-dock { position: relative; display: flex; flex-direction: column-reverse; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
@@ -33,8 +70,10 @@ export const DOCK_CSS = `
 .cg-strip__opts { display: flex; align-items: center; min-width: 0; margin-left: auto; padding: 0 2px 0 8px; }
 .cg-strip__opts > * { flex: none; }
 .cg-strip__opts > .cg-slot--persona, .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
-.cg-slot--more { display: none; }
+.cg-slot--more, .cg-slot--tones, .cg-slot--boards { display: none; }
 .cg-opt kbd { display: none; }
+.cg-tone[aria-pressed="true"] { background: var(--cg-hover); }
+.cg-slot--tones > .cg-lock { margin: 0 4px 0 2px; color: var(--cg-ink-faint); }
 /* «Тон: Flirt» reads as one phrase: the value closes the button's gap. */
 .cg-tone-val { margin-left: -5px; }
 .cg-lock { margin-left: 1px; }
@@ -141,6 +180,7 @@ ${dark('.cg-banner > .cg-btn--quiet')} { box-shadow: inset 0 0 0 1px var(--cg-ru
 .cg-bare :is(.cg-head, .cg-vhead, .cg-hi__col, .cg-stale, .cg-fix + .cg-fix, .cg-card + .cg-ops, .cg-sheet > * + .cg-banner) { border-color: var(--cg-bare-rule); }
 .cg-bare :is(.cg-fixbox:focus-visible, .cg-fixbox.is-confirm) { background: var(--cg-bare-hover); }
 
+${WIDE_CSS}
 /* ── narrow composer (ui-design §3.3) ── */
 @container cg (max-width: 899px) {
   .cg-quota .cg-long { display: none; }

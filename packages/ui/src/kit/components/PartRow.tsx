@@ -3,17 +3,20 @@
 // there, «Вставить ↵» on the next part (on the others it shows on hover and
 // focus), a spinner while inserting, an inline error card when inserting or
 // copying failed, and one collapsed line once a part is inserted or sent.
-// Clicking the text inserts nothing; Enter on the focused part inserts THIS
-// part (never a collapsed one: «Вставить ещё раз» is a click of its own, and
-// a sent part has none; with «Вставить» unavailable Enter says why; a held
-// Enter counts once);
+// The whole row is the target (UI-018, X26): a click anywhere on it but its
+// own controls does what the row's main button does — «Вставить» THIS part,
+// «Вставить ещё раз» on an inserted one, «Копировать» where nothing can be
+// inserted; a click that ends a text selection is the selection's, and a sent
+// part has nothing to click. Enter on the focused part inserts THIS part
+// (never a collapsed one: «Вставить ещё раз» is a click of its own; with
+// «Вставить» unavailable Enter says why; a held Enter counts once);
 // ⌘C / Ctrl+C — the physical C key, so the Russian layout works too —
 // copies it when nothing inside is selected. Surfaces put
 // their rows (the X8 send row, the Б2 question) in `children`. An ancestor
 // with the class `cg-bare` («Вид ответа: без подложки», §3.2) switches the
 // rules and the hover to the bare tokens.
 
-import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent } from 'preact';
+import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent, type TargetedMouseEvent } from 'preact';
 
 import { type PartVM } from '@cg/contracts/vm';
 
@@ -46,6 +49,9 @@ export interface PartRowProps {
   readonly children?: ComponentChildren;
 }
 
+/** What a click inside the row belongs to instead of the row: a control, the error card, the surface's own rows. */
+const ROW_OWN = 'button, a, input, textarea, select, [role="button"], .cg-part__card, .cg-part__extra';
+
 function hasSelectionInside(root: ShadowRoot | Document, element: HTMLElement): boolean {
   const selection = 'getSelection' in root && typeof root.getSelection === 'function' ? root.getSelection() : element.ownerDocument.getSelection();
   if (selection === null || selection.isCollapsed || selection.rangeCount === 0) return false;
@@ -67,6 +73,14 @@ export function PartRow(props: PartRowProps): JSX.Element {
   const copyLabel = part.copy === 'done' ? i18n.t('common.copied') : i18n.t('part.copyN', { n });
   const insertKey = props.insertKey ?? '↵';
 
+  const canAgain = collapsed && props.onInsertAgain !== undefined && sentAt === null && mode === 'insert';
+  /** The main action of an open part: «Вставить», or «Копировать» where nothing can be inserted; unavailable — it says why. */
+  const act = (): void => {
+    if (mode === 'copy-only') props.onCopy(part);
+    else if (part.insertBlocked !== null) announce(i18n.text(part.insertBlocked.text));
+    else if (part.insert !== 'pending') props.onInsert(part);
+  };
+
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
     props.onKeyDown?.(event);
     if (event.defaultPrevented || event.target !== event.currentTarget || isComposing(event)) return;
@@ -76,9 +90,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
       if (isHeldKey(event)) return;
       // Inserted or sent: inserting again is only ever the explicit «Вставить ещё раз» (UI-022).
       if (collapsed) return;
-      if (mode === 'copy-only') props.onCopy(part);
-      else if (part.insertBlocked !== null) announce(i18n.text(part.insertBlocked.text));
-      else if (part.insert !== 'pending') props.onInsert(part);
+      act();
       return;
     }
     // The physical key (architecture.md §9.1): Ctrl+С on ЙЦУКЕН is `с`, still KeyC.
@@ -87,6 +99,17 @@ export function PartRow(props: PartRowProps): JSX.Element {
       event.preventDefault();
       props.onCopy(part);
     }
+  };
+
+  const onClick = (event: TargetedMouseEvent<HTMLDivElement>): void => {
+    // While the Б2 question stands in the part, only its three buttons answer.
+    if (event.defaultPrevented || event.button !== 0 || props.confirming === true) return;
+    // A control of the row, its error card and the surface's rows (the Б2 question) answer their own clicks.
+    if (event.target instanceof Element && event.target.closest(ROW_OWN) !== null) return;
+    // The click that ends a drag over the text selected it; it asks for nothing more.
+    if (hasSelectionInside(root, event.currentTarget)) return;
+    if (!collapsed) act();
+    else if (canAgain && part.insert !== 'pending') props.onInsertAgain?.(part);
   };
 
   const copyIcon = (
@@ -124,12 +147,12 @@ export function PartRow(props: PartRowProps): JSX.Element {
     }
   }
 
-  const canAgain = collapsed && props.onInsertAgain !== undefined && sentAt === null && mode === 'insert';
   const classes = [
     'cg-part',
     part.next && !collapsed ? 'is-next' : '',
     collapsed ? 'is-done' : '',
     canAgain ? 'can-again' : '',
+    (!collapsed || canAgain) && props.confirming !== true ? 'is-click' : '',
     props.confirming === true ? 'is-confirm' : '',
   ]
     .filter((name) => name !== '')
@@ -146,6 +169,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
       data-cg-part={part.index}
       {...(part.variant === null ? {} : { 'data-cg-variant': part.variant })}
       onKeyDown={onKeyDown}
+      onClick={onClick}
     >
       <span class="cg-part__n" aria-hidden="true">
         {part.numbered ? n : ''}
@@ -194,6 +218,8 @@ export const PART_CSS = `
   padding: 9px 6px 9px 0; border-top: 1px solid var(--cg-rule); transition: background-color 120ms var(--cg-ease);
 }
 .cg-part:first-child { border-top: 0; }
+.cg-part.is-click { cursor: pointer; }
+.cg-part__card, .cg-part__extra { cursor: auto; }
 .cg-part:hover, .cg-part:focus-within, .cg-part.is-confirm { background: var(--cg-sunk); }
 .cg-part:focus-visible { outline: none; border-radius: 0; box-shadow: inset 2px 0 0 var(--cg-focus); background: var(--cg-sunk); }
 .cg-part__n { text-align: center; font-size: var(--cg-text-sm); line-height: 20px; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }

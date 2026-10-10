@@ -1,13 +1,15 @@
 // Fix «Заменить мой черновик» and «Вернуть мой текст» (architecture.md §6.4
 // «Fix», Б2, AI-022). The result waits for the explicit replace click: that
-// click is the consent for the revision the Fix was made from, so it travels
-// as a one-time confirmation on exactly that revision — no second dialog. A
-// draft that changed during the generation voids it: ask again («Заменить /
-// Добавить / Отмена»). After the replacement, for 30 s, «Вернуть мой текст»
-// writes the person's text back with a CAS on the revision the replacement
-// produced; a person who typed after the Fix gets a question, never a silent
-// overwrite. The source text stays in the tab's memory only. Both writes go
-// only into the operation's own chat.
+// click is the consent for the draft this session was made for, so it travels
+// as a one-time confirmation on exactly that revision — no second dialog.
+// Since decision X26 the insert service makes the session for the draft the
+// field holds AT THE CLICK (the one the Fix was made from, or what the person
+// made of it since), so the replacement never asks; a session made for an
+// older revision still answers `confirm` here. After the replacement, for
+// 30 s, «Вернуть мой текст» writes the replaced text back with a CAS on the
+// revision the replacement produced; a person who typed after the Fix gets a
+// question, never a silent overwrite. The source text stays in the tab's
+// memory only. Both writes go only into the operation's own chat.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type InsertIntent, type InsertReceipt } from '@cg/contracts/host';
@@ -20,7 +22,7 @@ export const FIX_RESTORE_WINDOW_MS = 30_000;
 export interface FixSource {
   readonly revision: number;
   readonly digest: string;
-  /** The person's text the Fix was made from (StartOp.draft.text); never leaves the tab. */
+  /** The person's text the replacement replaces and «Вернуть мой текст» writes back; never leaves the tab. */
   readonly text: string;
 }
 
@@ -51,7 +53,7 @@ export class FixSession {
     private readonly editorObserved: boolean,
   ) {}
 
-  /** «Заменить мой черновик»: the click is the consent for the source revision. */
+  /** «Заменить мой черновик»: the click is the consent for the revision the session was made for. */
   replace(current: DraftSnapshot, fixedText: string, ids: FixIds, cause: HumanCause, now: number): FixStep {
     if (!this.editorObserved) return { kind: 'unavailable', code: 'CG-HOST-NOT-READY' };
     if (this.replaced !== null) return { kind: 'unavailable', code: 'CG-INSERT-FAILED' };

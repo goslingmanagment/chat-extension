@@ -129,13 +129,17 @@ describe('parts', () => {
     expect(rows.map((row) => row.tabIndex)).toEqual([0, -1, -1]);
   });
 
-  it('[UI-018] a click on the text inserts nothing; the button inserts that part, one at a time', async () => {
+  it('[UI-018] a click anywhere on a part inserts that part, as its button does — one part, one at a time', async () => {
     kit = mountDock(withResult(reply()));
     await flush(() => (partRows()[1]?.querySelector('.cg-part__t') as HTMLElement).click());
-    await flush(() => partRows()[1]?.click());
-    expect(kit.client.dispatched).toEqual([]);
-    await flush(() => byLabel('Вставить', partRows()[1]).click());
     expect(kit.client.dispatched).toEqual([{ type: 'InsertPart', operationId: OP, part: 1 }]);
+    await flush(() => partRows()[2]?.click());
+    await flush(() => byLabel('Вставить', partRows()[0]).click());
+    expect(kit.client.dispatched).toEqual([
+      { type: 'InsertPart', operationId: OP, part: 1 },
+      { type: 'InsertPart', operationId: OP, part: 2 },
+      { type: 'InsertPart', operationId: OP, part: 0 },
+    ]);
     // No action sends, and none inserts «all» or «the next one by itself».
     expect(kit.client.dispatched.some((action) => action.type === 'SendPart')).toBe(false);
   });

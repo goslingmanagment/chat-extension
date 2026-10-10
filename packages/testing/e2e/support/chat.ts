@@ -73,20 +73,28 @@ export async function listAnchor(): Promise<{ readonly id: string | null; readon
   });
 }
 
-/** The person scrolls ChatSpace's list: to the middle of the history, or back to its bottom. */
-export async function scrollList(to: 'middle' | 'bottom'): Promise<void> {
-  const moved = await browser.execute(async (where: string) => {
-    const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
-    if (scroller === null) return 'no list';
-    const target = where === 'middle' ? Math.round((scroller.scrollHeight - scroller.clientHeight) / 2) : scroller.scrollHeight - scroller.clientHeight;
-    if (Math.abs(scroller.scrollTop - target) <= 1) return 'there';
-    const scrolled = new Promise<string>((resolve) => {
-      scroller.addEventListener('scroll', () => requestAnimationFrame(() => requestAnimationFrame(() => resolve('scrolled'))), { once: true });
-      setTimeout(() => resolve('no scroll event in 2 s'), 2000);
-    });
-    scroller.scrollTop = target;
-    return scrolled;
-  }, to);
+/** How far above its bottom `scrollList('near-bottom')` leaves the list: no longer «at the bottom» for ChatSpace's list, still at the latest messages for a person. */
+export const NEAR_BOTTOM_OFFSET_PX = 40;
+
+/** The person scrolls ChatSpace's list: to the middle of the history, a few lines above its bottom, or back to its bottom. */
+export async function scrollList(to: 'middle' | 'near-bottom' | 'bottom'): Promise<void> {
+  const moved = await browser.execute(
+    async (where: string, near: number) => {
+      const scroller = document.querySelector<HTMLElement>('[data-stand-message-list]');
+      if (scroller === null) return 'no list';
+      const bottom = scroller.scrollHeight - scroller.clientHeight;
+      const target = where === 'middle' ? Math.round(bottom / 2) : where === 'near-bottom' ? bottom - near : bottom;
+      if (Math.abs(scroller.scrollTop - target) <= 1) return 'there';
+      const scrolled = new Promise<string>((resolve) => {
+        scroller.addEventListener('scroll', () => requestAnimationFrame(() => requestAnimationFrame(() => resolve('scrolled'))), { once: true });
+        setTimeout(() => resolve('no scroll event in 2 s'), 2000);
+      });
+      scroller.scrollTop = target;
+      return scrolled;
+    },
+    to,
+    NEAR_BOTTOM_OFFSET_PX,
+  );
   if (moved !== 'scrolled' && moved !== 'there') throw new Error(`the list did not scroll to the ${to}: ${moved}`);
 }
 

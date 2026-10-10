@@ -1235,7 +1235,7 @@ describe('dock: Fix', () => {
     expect(vm.draftNotSent).toBe(true);
   });
 
-  it('[AI-022] «Заменить мой черновик» is the consent for the source revision: one CAS, no second question', async () => {
+  it('[AI-022] «Заменить мой черновик» is the consent for the draft in the field: one CAS, no second question', async () => {
     const h = await withDraft();
     h.script(h.streamOf('improve-draft', ['I miss you so much']));
     const receipt = await h.generate('fix');
@@ -1284,12 +1284,14 @@ describe('dock: Fix', () => {
     expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you so much');
     expect(await h.dispatch({ type: 'RestoreMyDraft', operationId: opId })).toMatchObject({ ok: true, outcome: 'done' });
     expect(h.host.draftOf(openChat)?.plainText).toBe('i mis you so much');
-    // The person wrote on after the restore: the consent is for the draft the restore left, so this one asks.
+    // The person wrote on after the restore: the click replaces the draft as it is now, and still asks nothing (X26).
     h.host.type('i mis you so much!!');
     await h.settle();
-    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
-    expect(h.fake.calls.inserts).toHaveLength(4);
-    expect(result(h).confirm).toMatchObject({ kind: 'draft-changed' });
+    const typed = h.host.draftOf(openChat);
+    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts).toHaveLength(5);
+    expect(h.fake.calls.inserts[4]).toMatchObject({ mode: 'replace', text: 'I miss you so much', expected: { draftRevision: typed?.revision, draftDigest: typed?.digest } });
+    expect(result(h).confirm).toBeNull();
   });
 
   it('after 30 seconds the text cannot be brought back, and the view says so by itself', async () => {
@@ -1308,7 +1310,7 @@ describe('dock: Fix', () => {
     expect(h.fake.calls.inserts).toHaveLength(1);
   });
 
-  it('the draft changed while Fix was generating: the consent is void, the person is asked', async () => {
+  it('[AI-022] the draft changed while Fix was generating: «Заменить мой черновик» still asks nothing — it replaces the draft as it is at the click, by one CAS', async () => {
     const h = await withDraft();
     h.script(h.streamOf('improve-draft', ['I miss you so much']));
     const receipt = await h.generate('fix');
@@ -1316,13 +1318,26 @@ describe('dock: Fix', () => {
     h.host.type('i mis you so much!!');
     await h.settle();
     const opId = (receipt as { opId: string }).opId;
-    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
-    expect(h.fake.calls.inserts).toHaveLength(0);
-    const confirm = result(h).confirm;
-    expect(confirm).toMatchObject({ kind: 'draft-changed' });
-    await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'replace' });
+    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(result(h).confirm).toBeNull();
+    expect(h.fake.calls.inserts).toHaveLength(1);
     expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'replace', text: 'I miss you so much', expected: { draftRevision: 6 } });
+    expect(h.fake.calls.inserts[0]?.confirmationId).toMatch(/^[0-9a-f-]{36}$/);
     expect(result(h).fix).toMatchObject({ replaced: true });
+  });
+
+  it('[AI-022] the field was emptied while Fix was generating: «Заменить мой черновик» puts the Fix text in, and «Вернуть мой текст» brings back the text the Fix was made from', async () => {
+    const h = await withDraft();
+    h.script(h.streamOf('improve-draft', ['I miss you so much']));
+    const receipt = await h.generate('fix');
+    await h.finish();
+    h.host.type('');
+    await h.settle();
+    const opId = (receipt as { opId: string }).opId;
+    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you so much');
+    expect(await h.dispatch({ type: 'RestoreMyDraft', operationId: opId })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.host.draftOf(openChat)?.plainText).toBe('i mis you so much');
   });
 
   it('a replacement of a draft that changed meanwhile: «Вернуть мой текст» brings back the text that was replaced, not the older source', async () => {
@@ -1333,8 +1348,7 @@ describe('dock: Fix', () => {
     const opId = (receipt as { opId: string }).opId;
     h.host.type('i mis you so much — and I added a whole new thought here');
     await h.settle();
-    await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 });
-    await h.dispatch({ type: 'AnswerConfirm', confirmationId: result(h).confirm?.confirmationId as string, choice: 'replace' });
+    expect(await h.dispatch({ type: 'ReplaceMyDraft', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
     expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you so much');
     expect(result(h).fix).toMatchObject({ replaced: true, sourceDraft: 'i mis you so much' });
     expect(result(h).fix?.restoreUntil).not.toBeNull();
@@ -1373,6 +1387,51 @@ describe('dock: Fix', () => {
     expect(await h.dispatch({ type: 'RestoreMyDraft', operationId: opId })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
     expect(h.fake.calls.inserts).toHaveLength(1);
     expect(result(h).confirm).toMatchObject({ kind: 'draft-changed' });
+  });
+
+  it('[AI-023] a Split Fix: «Вставить» of a part over the very draft the Fix rewrote asks nothing — the click is the consent, one CAS', async () => {
+    const h = await withDraft();
+    h.script(h.streamOf('improve-draft', ['I miss you [NEXT] so much']));
+    const receipt = await h.generate('fix', { split: true });
+    await h.finish();
+    const opId = (receipt as { opId: string }).opId;
+    expect(partsOf(h).map((part) => part.text)).toEqual(['I miss you', 'so much']);
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(result(h).confirm).toBeNull();
+    expect(h.fake.calls.inserts).toHaveLength(1);
+    expect(h.fake.calls.inserts[0]).toMatchObject({ mode: 'replace', text: 'I miss you', expected: { draftRevision: 5, draftDigest: 'feedbeef00000005' } });
+    // A one-time consent travels with the write: MAIN replaces a person's draft only with one.
+    expect(h.fake.calls.inserts[0]?.confirmationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(h.host.draftOf(openChat)?.plainText).toBe('I miss you');
+    // The next part replaces our own unchanged insert, as everywhere.
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(h.fake.calls.inserts[1]).toMatchObject({ mode: 'replace', text: 'so much', confirmationId: null });
+  });
+
+  it('[AI-023] a Split Fix over the same words at another revision asks nothing; over a draft the person rewrote since it asks, as any insert does', async () => {
+    const h = await withDraft();
+    h.script(h.streamOf('improve-draft', ['I miss you [NEXT] so much']));
+    const receipt = await h.generate('fix', { split: true });
+    await h.finish();
+    const opId = (receipt as { opId: string }).opId;
+    // The same words typed again: another revision, the same draft to the person.
+    h.host.type(' i mis  you so much ');
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(result(h).confirm).toBeNull();
+    // Other words: the field holds the person's own text, which no Fix was asked for.
+    h.host.type('something else entirely');
+    await h.settle();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(result(h).confirm).toMatchObject({ kind: 'human-draft', part: { index: 1 } });
+    expect(h.fake.calls.inserts).toHaveLength(1);
+  });
+
+  it('[UI-020] a Reply over the person\'s own text still asks: only Fix was asked to rewrite it', async () => {
+    const h = await withDraft();
+    const opId = await reply(h, 'the answer');
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(h.fake.calls.inserts).toHaveLength(0);
   });
 
   it('without an observed editor «Заменить мой черновик» is off with its reason; copy is the way', async () => {
