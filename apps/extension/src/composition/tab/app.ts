@@ -727,7 +727,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
           const rect = element?.getBoundingClientRect();
           if (rect !== undefined && rect.width > 0 && rect.height > 0) hits[name] = { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
         };
-        const slots = [...root.querySelectorAll('.cg-strip__acts > .cg-slot:not(.cg-slot--more)')];
+        // The tone buttons stand in a slot of their own right after Reply: it is not an action's slot.
+        const slots = [...root.querySelectorAll('.cg-strip__acts > .cg-slot:not(.cg-slot--more):not(.cg-slot--tones)')];
         Object.keys(dock.actions).forEach((id, index) => hit(`action:${id}`, slots[index]?.querySelector('button')));
         for (const row of root.querySelectorAll('[data-cg-part]')) hit(`insert:${row.getAttribute('data-cg-part') ?? ''}`, row.querySelector('.cg-ins'));
         // The one button of the status banner («Войти», «Назначить персону», «Повторить», «Подробнее»).
