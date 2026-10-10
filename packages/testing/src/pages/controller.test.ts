@@ -1123,7 +1123,7 @@ describe('options: generation, hotkeys, appearance, diagnostics', () => {
   it('[ST-131] [ST-133] the sound test plays the chosen tone at the chosen volume; a blocked sound is said with its code', async () => {
     const w = await open();
     expect(await w.client.dispatch({ type: 'TestSound', which: 'subscribers' })).toMatchObject({ ok: true });
-    expect(w.background.requests('sound.preview')).toEqual([{ tone: 'double', volume: 50 }]);
+    expect(w.background.requests('sound.preview')).toEqual([{ tone: 'arpeggio', volume: 50 }]);
     w.state.sound = { played: false, code: 'CG-AUDIO-BLOCKED' };
     expect(await w.client.dispatch({ type: 'TestSound', which: 'messages' })).toMatchObject({ ok: false, code: 'CG-AUDIO-BLOCKED' });
     expect(options(w, 'appearance').body?.sound.status).toMatchObject({ listeningTabs: 1, error: { code: 'CG-AUDIO-BLOCKED' } });

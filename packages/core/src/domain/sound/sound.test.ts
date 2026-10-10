@@ -383,10 +383,15 @@ describe('[SN-013] the eight tones', () => {
     // The pilot host rings exactly what the settings page shows by default.
     expect(PLATFORM_DEFAULT_TONES.onlyfans).toEqual({ message: SOUND.messages.tone, subscriber: SOUND.subscribers.tone });
     expect(PLATFORM_DEFAULT_TONES.fansly).not.toEqual(PLATFORM_DEFAULT_TONES.onlyfans);
-    expect(resolveTone('message', 'onlyfans', SOUND, SOUND)).toBe('chime');
-    expect(resolveTone('subscriber', 'onlyfans', SOUND, SOUND)).toBe('double');
-    expect(resolveTone('message', 'fansly', SOUND, SOUND)).toBe('blip');
-    expect(resolveTone('subscriber', 'fansly', SOUND, SOUND)).toBe('arpeggio');
+    // Each platform rings what its own old client rang: the desktop app's pair on OnlyFans, the Fansly extension's on Fansly (X26).
+    expect(resolveTone('message', 'onlyfans', SOUND, SOUND)).toBe('blip');
+    expect(resolveTone('subscriber', 'onlyfans', SOUND, SOUND)).toBe('arpeggio');
+    expect(resolveTone('message', 'fansly', SOUND, SOUND)).toBe('chime');
+    expect(resolveTone('subscriber', 'fansly', SOUND, SOUND)).toBe('double');
+    // A tone stored before 1.12.0 (the old default) is a choice of its own: it rings on.
+    const before = withSound({ messages: { on: true, tone: 'chime' }, subscribers: { on: true, tone: 'double' } });
+    expect(resolveTone('message', 'onlyfans', before, SOUND)).toBe('chime');
+    expect(resolveTone('subscriber', 'onlyfans', before, SOUND)).toBe('double');
     const chosen = withSound({ messages: { on: true, tone: 'bell' }, subscribers: { on: true, tone: 'knock' } });
     for (const platform of ['onlyfans', 'fansly'] as const) {
       expect(resolveTone('message', platform, chosen, SOUND)).toBe('bell');

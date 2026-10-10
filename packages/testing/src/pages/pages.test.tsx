@@ -670,7 +670,8 @@ describe('options: the sections', () => {
     await flush(() => cards[1]?.click());
     expect(page.world.state.settings.ui.resultStyle).toBe('sheet');
 
-    await flush(() => button(page, 'Chime').click());
+    // A fresh install rings the OnlyFans desktop app's own tones (contracts 1.12.0, X26): the list opens from «Blip».
+    await flush(() => button(page, 'Blip').click());
     expect(page.$$('[role="menuitemradio"]').map((item) => item.textContent)).toEqual(['Chime', 'Drop', 'Bell', 'Arpeggio', 'Knock', 'Double', 'Soft', 'Blip']);
     await flush(() => page.$$('[role="menuitemradio"]')[2]?.click());
     expect(page.world.state.settings.sound.messages.tone).toBe('bell');
