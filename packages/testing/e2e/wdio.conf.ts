@@ -10,16 +10,27 @@
 //
 // FIREFOX_BIN overrides the browser binary (default: the macOS app path, or
 // whatever geckodriver finds on PATH elsewhere).
+//
+// A run that could not be prepared does not start: whatever onPrepare fails
+// on ends it there with one message — first of all a Firefox this process
+// cannot start at all (src/stand/firefox-access.ts: the stock Firefox of a Mac
+// from the Claude desktop agent shell; the run for that shell is
+// tools/ci/e2e-docker-local.sh). And a worker whose session could not be
+// created does not leave its geckodriver behind
+// (src/stand/leftover-drivers.ts).
 
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { routeSchemas } from '@kernel/sdk';
+import { SevereServiceError } from 'webdriverio';
 
 import { startFakeHub, type FakeHubServer } from '../src/fake-hub/server';
 import { startStandServer, type StandServer } from '../src/stand-server';
 import { egressProxyPrefs, startEgressSink, type EgressSink } from '../src/stand/egress-sink';
+import { firefoxStartRefusal, MAC_FIREFOX_BINARY } from '../src/stand/firefox-access';
+import { endLeftoverDrivers } from '../src/stand/leftover-drivers';
 import { FIXTURE_BUILD_DIR } from '../src/stand/paths';
 import { E2E_ADDON_UUID, E2E_RELEASE_ADDON_UUID, RELEASE_GECKO_ID, TEST_GECKO_ID } from './support/constants';
 
@@ -27,8 +38,7 @@ const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const logsDir = `${repoRoot}.cache/wdio`;
 mkdirSync(logsDir, { recursive: true });
 
-const macFirefox = '/Applications/Firefox.app/Contents/MacOS/firefox';
-const firefoxBinary = process.env['FIREFOX_BIN'] ?? (existsSync(macFirefox) ? macFirefox : undefined);
+const firefoxBinary = process.env['FIREFOX_BIN'] ?? (existsSync(MAC_FIREFOX_BINARY) ? MAC_FIREFOX_BINARY : undefined);
 
 // A release Firefox honours `services.settings.server` (egress prefs) only
 // with this in its environment, else remote settings keep calling Mozilla.
@@ -38,6 +48,33 @@ process.env['MOZ_REMOTE_SETTINGS_DEVTOOLS'] = '1';
 let stand: StandServer | null = null;
 let egress: EgressSink | null = null;
 let hub: FakeHubServer | null = null;
+
+/**
+ * What a run needs before its first worker starts: a Firefox that can start at all, the built fixture, and the
+ * stand, the fake hub and the egress sink listening — the sink in the prefs of every session.
+ */
+async function prepare(capabilities: WebdriverIO.Capabilities[]): Promise<void> {
+  const refusal = firefoxStartRefusal(firefoxBinary);
+  if (refusal !== null) throw new SevereServiceError(refusal);
+  if (!existsSync(join(FIXTURE_BUILD_DIR, 'index.html'))) {
+    throw new SevereServiceError('the ChatSpace fixture is not built: run `pnpm --filter @cg/testing build:stand` (pnpm e2e does it)');
+  }
+  egress = await startEgressSink();
+  stand = await startStandServer({ egress });
+  process.env['CG_STAND_ORIGIN'] = stand.origin;
+  process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
+  // The fake hub: system clock, the pilot preset (switched on page by page, the owner's `"*"` row empty); specs
+  // reset and script it through its control API. Every AI body is checked by the hub's own body schema, every
+  // client/* request and model answer by the hub's own route schemas (the vendored SDK's): a request the real
+  // hub would answer 400 to fails here, not on the first live check.
+  hub = await startFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas });
+  process.env['CG_FAKE_HUB_ORIGIN'] = hub.origin;
+  // The sink's port is known only now; workers start with these capabilities.
+  for (const capability of capabilities) {
+    const firefox = capability['moz:firefoxOptions'];
+    if (firefox !== undefined) firefox.prefs = { ...firefox.prefs, ...egressProxyPrefs(egress.port) };
+  }
+}
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -79,29 +116,24 @@ export const config: WebdriverIO.Config = {
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: { ui: 'bdd', timeout: 120_000 },
+  // WebdriverIO only logs what this hook throws and starts the workers all the same: every spec would then fail for
+  // itself — without the stand, the fake hub and the egress proxy. Only a SevereServiceError ends the run here.
   onPrepare: async (_config, capabilities) => {
-    if (!existsSync(join(FIXTURE_BUILD_DIR, 'index.html'))) {
-      throw new Error('the ChatSpace fixture is not built: run `pnpm --filter @cg/testing build:stand` (pnpm e2e does it)');
-    }
-    egress = await startEgressSink();
-    stand = await startStandServer({ egress });
-    process.env['CG_STAND_ORIGIN'] = stand.origin;
-    process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
-    // The fake hub: system clock, the pilot preset (switched on page by page, the owner's `"*"` row empty); specs
-    // reset and script it through its control API. Every AI body is checked by the hub's own body schema, every
-    // client/* request and model answer by the hub's own route schemas (the vendored SDK's): a request the real
-    // hub would answer 400 to fails here, not on the first live check.
-    hub = await startFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas });
-    process.env['CG_FAKE_HUB_ORIGIN'] = hub.origin;
-    // The sink's port is known only now; workers start with these capabilities.
-    for (const capability of capabilities as WebdriverIO.Capabilities[]) {
-      const firefox = capability['moz:firefoxOptions'];
-      if (firefox !== undefined) firefox.prefs = { ...firefox.prefs, ...egressProxyPrefs(egress.port) };
+    try {
+      await prepare(capabilities as WebdriverIO.Capabilities[]);
+    } catch (error) {
+      throw error instanceof SevereServiceError ? error : new SevereServiceError(error instanceof Error ? (error.stack ?? error.message) : String(error));
     }
   },
   onComplete: async () => {
     await hub?.close();
     await stand?.close();
     await egress?.close();
+  },
+  // In the worker of a spec, before its session: a geckodriver the worker still has when it exits ends with it.
+  beforeSession: () => {
+    process.once('exit', () => {
+      endLeftoverDrivers();
+    });
   },
 };
