@@ -6,8 +6,9 @@
 #
 #   tools/ci/e2e-docker-local.sh            the whole `pnpm e2e`
 #   tools/ci/e2e-docker-local.sh <pnpm …>   something else, for example one spec:
-#     --filter @cg/testing exec wdio run e2e/wdio.conf.ts --spec e2e/specs/stand-smoke.e2e.ts
-#     (after a full run: a spec needs both builds and the built stand)
+#     e2e --spec e2e/specs/stand-smoke.e2e.ts
+#     (`e2e`, not a bare `wdio run`: a spec needs both builds and the built
+#     stand, and nothing an earlier run built is still there — see step 1)
 #
 # The Mac's own node_modules are built for macOS, so the run gets a Linux
 # install of its own. It lives in the Docker volume CG_E2E_VOLUME (default
@@ -16,6 +17,12 @@
 # files and new ones that are not ignored. Step 1 (with network) fills it,
 # step 2 (no network) runs the tests. `docker volume rm cg-e2e-local` starts
 # from scratch.
+#
+# Step 1 replaces that copy whole on every start: only node_modules stay, the
+# builds and the stand of the run before go with the rest. So one volume is one
+# run at a time — a second start would take the tree from under a run that is
+# still going. A session that may not be alone gives itself a volume of its
+# own: CG_E2E_VOLUME=<name>.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)

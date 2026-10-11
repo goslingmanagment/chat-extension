@@ -71,9 +71,14 @@ a boundary you need to cross is a design question, not a lint exception.
   parity, archive-check. Green before every commit.
 - `pnpm e2e` — both builds, the stand, the fake hub, headless Firefox
   (about 18 minutes). Green before Ready. No network beyond loopback.
+  From the Claude desktop agent shell the native run cannot start Firefox and
+  ends at once saying so: run `tools/ci/e2e-docker-local.sh` there, with
+  `CG_E2E_VOLUME=<own name>` when another session may be using the default
+  volume `cg-e2e-local` (step 1 of the script replaces its working tree).
 - `pnpm vitest run <path>` and, from `packages/testing`,
   `npx wdio run e2e/wdio.conf.ts --spec e2e/specs/<name>.e2e.ts` — one test
-  file or one spec (the spec needs `pnpm build && pnpm build:test` first).
+  file or one spec (the spec needs `pnpm build && pnpm build:test` and the
+  built stand first; `pnpm e2e --spec e2e/specs/<name>.e2e.ts` makes all three).
 - `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev
   --debugger-port 6111` — the test build in the owner's persistent Firefox dev
   profile on its fixed debugger port, rebuilt on change (README «Живые
@@ -102,6 +107,8 @@ a boundary you need to cross is a design question, not a lint exception.
   run against loopback and a scripted world (`cli-world.ts`).
 - `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
   `pnpm e2e` inside the pinned Firefox image with no network (needs Docker).
+  One spec: `tools/ci/e2e-docker-local.sh e2e --spec e2e/specs/<name>.e2e.ts`
+  (it builds first: step 1 keeps nothing of an earlier run but `node_modules`).
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
   rows a test names. Name the row in the test title: `it('[ST-042] …')`.
 
