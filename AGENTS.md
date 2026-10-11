@@ -127,6 +127,9 @@ a boundary you need to cross is a design question, not a lint exception.
   extension and the desktop, pilot evidence, what is not verified yet.
   `CHANGELOG.md` is the chatter-facing text of each version (the site and the
   announcement are made from it); `BUILD.md` is for Mozilla's reviewers.
+- `docs/backlog.md` — what is still to do or to check and is in no work
+  package yet; first of all, the functional parity with the Fansly extension
+  (where the data come from, how fresh, how many steps), not just the rows.
 - `docs/decisions.md` — decision log (quick-ref table + entries). The hub keeps
   no decision log; a cross-repo ruling is recorded here and in the sibling
   clients' logs, pointing at the hub doc or package that carries it.
