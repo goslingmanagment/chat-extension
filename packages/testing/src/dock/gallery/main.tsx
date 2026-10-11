@@ -27,6 +27,8 @@ export interface DockProbe {
   /** Sets the composer width of every stage (the 360…900 px sweep). */
   setWidth(px: number): void;
   measure(id: string): { readonly strip: number; readonly sheet: number; readonly cap: number; readonly draftVisible: boolean | null; readonly buttons: readonly string[] } | null;
+  /** The key caps of the chips a width left on screen, in order: a cap shows on hover and on keyboard focus (UI-006). */
+  caps(id: string): readonly string[];
   /** Texts of the visible elements matching `selector` in the surfaces of a state (a closed root hides them from the page). */
   shown(id: string, selector: string): readonly string[];
   /** The box of the first visible match, in viewport pixels. */
@@ -165,7 +167,7 @@ async function show(): Promise<void> {
       const entryOf = stage(item, gallery, world);
       if (item.open !== undefined) {
         // Opened as a person would: a click on the strip button.
-        const trigger = entryOf.root.querySelector<HTMLElement>(item.open === 'tone' ? '.cg-slot--tone .cg-act' : '.cg-slot--more .cg-act');
+        const trigger = entryOf.root.querySelector<HTMLElement>('.cg-slot--more .cg-act');
         requestAnimationFrame(() => trigger?.click());
       }
       continue;
@@ -213,9 +215,11 @@ window.__dock = {
         }
       }
       const strip = rect(root.querySelector('.cg-strip'));
-      if (strip !== null && Math.abs(strip.height - 34) > 0.01) say(`strip is ${strip.height} px, not 34`);
+      if (strip !== null && Math.abs(strip.height - 40) > 0.01) say(`strip is ${strip.height} px, not 40`);
       const acts = rect(root.querySelector('.cg-strip__acts'));
-      const opts = rect(root.querySelector('.cg-strip__opts'));
+      // Below 820 px the right block has nothing left to show and is not laid out: only one that is on screen can overlap.
+      const right = root.querySelector('.cg-strip__opts');
+      const opts = right !== null && right.getClientRects().length > 0 ? rect(right) : null;
       if (acts !== null && opts !== null && acts.right > opts.left + 0.5) say(`the right block overlaps the buttons by ${Math.round(acts.right - opts.left)} px`);
       const draft = root.querySelector<HTMLElement>('.cg-head__draft');
       const headActs = rect(root.querySelector('.cg-head__acts'));
@@ -246,9 +250,14 @@ window.__dock = {
       sheet: rect(root.querySelector('.cg-sheet'))?.height ?? 0,
       cap: Number.parseFloat(getComputedStyle(root.querySelector('.cg-dock') ?? item.host).getPropertyValue('--cg-cap')),
       draftVisible: draft === null ? null : shown(draft) && draft.scrollWidth <= draft.clientWidth + 0.5,
+      // A key is a cap at the chip's corner, shown on hover and on keyboard focus (UI-006): «+key» says the chip carries one.
       buttons: [...root.querySelectorAll<HTMLElement>('.cg-strip .cg-act')].filter(shown).map((button) => `${button.querySelector('.cg-act__t')?.textContent ?? ''}${button.querySelector('kbd') !== null && shown(button.querySelector('kbd') as HTMLElement) ? '+key' : ''}`),
     };
   },
+  caps: (id) =>
+    [...(docks().find((candidate) => candidate.state.id === id)?.root.querySelectorAll<HTMLElement>('.cg-strip .cg-act kbd') ?? [])]
+      .filter((cap) => cap.getClientRects().length > 0)
+      .map((cap) => cap.textContent ?? ''),
   shown: (id, selector) => matches(id, selector).map((element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim()),
   box: (id, selector) => {
     const own = rect(matches(id, selector)[0] ?? null);

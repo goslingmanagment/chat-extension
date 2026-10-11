@@ -4,7 +4,7 @@
 // 100/125/150/200 % zoom, at the composer widths 853, 693, 489 and 360 px and
 // in the 320 px column. Container queries, real fonts and real layout exist
 // only here: each case checks what unit tests cannot (no overflow out of the
-// composer, no overlap in the strip, the 34 px strip, the height limit) and
+// composer, no overlap in the bar, the 40 px bar, the height limit) and
 // saves pictures into .cache/e2e/ to compare by eye with `final-<state>-*.png`
 // of the mockup. The dark theme is dock-gallery-states-dark.e2e.ts: a spec
 // file is one browser session.

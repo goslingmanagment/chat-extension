@@ -74,7 +74,7 @@ export interface GalleryState {
   /** No ChatSpace composer under the dock (a blocked fan). */
   readonly noComposer?: boolean;
   /** Opened after the mount, as a person would. */
-  readonly open?: 'tone' | 'more';
+  readonly open?: 'more';
   readonly debug?: boolean;
   /** The surface cannot draw this view model: the state shows the «Сбой интерфейса» card of its error boundary (ER-020). */
   readonly broken?: boolean;
@@ -287,8 +287,8 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   // ── 1. the collapsed dock ──
   state('1a', 'strip', 'Свёрнутый док: готов', (ctx) => one(ctx, dock(ctx, 'ready', { options: withSplit(ctx) }))),
   state('1b', 'strip', 'Мало квоты, Recap готов', (ctx) => one(ctx, dock(ctx, 'ready', { options: withSplit(ctx), quota: quotaLow(ctx), actionsOptions: { recapReady: true } }))),
-  state('1c', 'strip', 'Меню «Тон»', (ctx) => one(ctx, dock(ctx, 'ready', { options: withSplit(ctx) })), { open: 'tone' }),
-  state('1d', 'strip', 'Меню «Ещё» (поле ≤ 600 px)', (ctx) => one(ctx, dock(ctx, 'ready', { options: withSplit(ctx) })), { open: 'more' }),
+  state('1c', 'strip', 'Тон выбран: Flirt в капсуле', (ctx) => one(ctx, dock(ctx, 'ready', { options: { ...withSplit(ctx), tone: 'flirty' } }))),
+  state('1d', 'strip', 'Меню «Ещё» (поле уже 820 px)', (ctx) => one(ctx, dock(ctx, 'ready', { options: withSplit(ctx) })), { open: 'more' }),
   // ── 2. streaming ──
   state('2a', 'results', 'Поток: этапы и таймер', (ctx) => one(ctx, stream(ctx, false))),
   state('2b', 'results', 'Прозрачный повтор при 503', (ctx) => one(ctx, stream(ctx, true))),

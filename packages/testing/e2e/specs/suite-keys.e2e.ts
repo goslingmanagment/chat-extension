@@ -199,7 +199,7 @@ describe('§12 п. 4 on the wired extension — the keys: ours before ChatSpace�
       await waitOverlays([], 'the second Esc closes the fan panel');
       // The third Esc hides our result sheet; the chat is still open.
       await browser.keys(Key.Escape);
-      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 34, { timeout: 5000, timeoutMsg: 'Esc did not hide the result sheet' });
+      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 40, { timeout: 5000, timeoutMsg: 'Esc did not hide the result sheet' });
       expect(await route()).toBe(a1);
       expect(await pageEvents(page, 'chat-tab-closed')).toBe(0);
       expect(await browser.execute(() => document.querySelectorAll('[data-dismissible-open]').length)).toBe(0);

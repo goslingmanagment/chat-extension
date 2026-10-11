@@ -185,7 +185,6 @@ describe('menus (ui-design §4.1 «Тон», «Ещё»; §6.4)', () => {
           open={open}
           kind="radio"
           label="Тон"
-          caption={{ text: 'Тон на один ответ', hint: '⌘⇧O' }}
           align="end"
           items={[
             { id: 'casual', label: 'Casual', checked: tone === 'casual' },
@@ -207,7 +206,6 @@ describe('menus (ui-design §4.1 «Тон», «Ещё»; §6.4)', () => {
     const menu = kit.$('[role="menu"]') as HTMLElement;
     const items = kit.$$('[role="menuitemradio"]');
     expect(menu.classList.contains('cg-menu--end')).toBe(true);
-    expect(kit.$('.cg-menu__cap')?.textContent).toBe('Тон на один ответ⌘⇧O');
     expect(items.map((item) => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false', 'false']);
     expect(kit.root.activeElement).toBe(items[1]);
     await flush(() => items[1]?.dispatchEvent(key('ArrowDown')));

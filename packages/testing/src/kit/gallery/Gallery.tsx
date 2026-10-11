@@ -115,66 +115,73 @@ function Buttons({ ctx }: { readonly ctx: ScenarioCtx }): JSX.Element {
   );
 }
 
+/** The tones of the capsule, as the dock draws them. */
+const TONE_CELLS = [
+  ['casual', '😌'],
+  ['flirty', '😏'],
+  ['upsell', '💰'],
+  ['spicy', '🔥'],
+] as const;
+
 function Strip({ ctx }: { readonly ctx: ScenarioCtx }): JSX.Element {
   const t = useT();
-  const [toneOpen, setToneOpen] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(true);
   // The narrow rules of ui-design §3.3 belong to the dock (R14); the gallery mirrors the few it needs to fit a 320 px column.
   return (
-    <Section id="strip" title="Полоса дока · §4.1" wide>
+    <Section id="strip" title="Панель дока · §4.1" wide>
       <div class="gal-strip gal-strip--menu" role="toolbar" aria-label={t('dock.label')}>
         <span class="gal-mark">
           <GooseMark />
         </span>
         <div class="gal-acts">
-          <StripButton label={t('dock.action.reply')} hotkey={hotkey(ctx, 'reply')} active />
+          <StripButton label={t('dock.action.reply')} class="cg-act--main" hotkey={hotkey(ctx, 'reply')} active />
+          <span class="cg-tones">
+            <span class="cg-tones__track" role="group" aria-label={t('dock.option.tone')}>
+              {TONE_CELLS.map(([tone, emoji]) => (
+                <StripButton
+                  key={tone}
+                  label={t(`dock.tone.${tone}` as I18nKey)}
+                  class="cg-opt cg-tone"
+                  pressed={tone === 'flirty'}
+                  leading={
+                    <span class="cg-tone__e" aria-hidden="true">
+                      {emoji}
+                    </span>
+                  }
+                />
+              ))}
+            </span>
+            <span class="cg-tones__seam" aria-hidden="true" />
+            <StripButton label={t('dock.option.split')} class="cg-opt cg-split" pressed leading={<CheckGlyph on />} />
+          </span>
           <Divider />
           <StripButton label={t('dock.action.fix')} hotkey={hotkey(ctx, 'fix')} busy />
           <Divider />
           <StripButton label={t('dock.action.hi')} hotkey={hotkey(ctx, 'hi')} reason={t('dock.reason.chatBusy')} />
-          <Divider />
-          <StripButton label={t('dock.action.ping')} hotkey={hotkey(ctx, 'ping')} />
           <span class="gal-flex gal-wide">
-            <Divider />
+            <StripButton label={t('dock.action.ping')} hotkey={hotkey(ctx, 'ping')} />
             <StripButton label={t('dock.action.recap')} hotkey={hotkey(ctx, 'recap')} ready />
           </span>
-          <span class="gal-flex gal-narrow">
-            <Divider />
-            <StripButton label={t('dock.action.more')} haspopup="menu" ready />
-          </span>
-        </div>
-        <div class="gal-opts">
-          <span class="gal-flex gal-wide">
-            <span class="gal-quota">{t('dock.quota.low', { n: 12 })}</span>
-            <Divider />
-          </span>
           <MenuAnchor>
-            <StripButton class="gal-wide-420" label={t('dock.option.toneValue', { tone: t('dock.tone.flirty') })} expanded={toneOpen} haspopup="menu" onClick={() => setToneOpen(!toneOpen)} />
-            <StripButton class="gal-narrow-420" label={t('dock.option.tone')} expanded={toneOpen} haspopup="menu" onClick={() => setToneOpen(!toneOpen)} />
+            <StripButton label={t('dock.action.more')} class="cg-more" expanded={moreOpen} haspopup="menu" ready onClick={() => setMoreOpen(!moreOpen)} />
             <Menu
-              open={toneOpen}
-              kind="radio"
-              label={t('dock.option.toneMenuTitle')}
-              caption={{ text: t('dock.option.toneMenuTitle'), hint: hotkey(ctx, 'tone').display }}
+              open={moreOpen}
+              kind="action"
+              label={t('dock.action.more')}
               align="end"
               items={[
-                { id: 'casual', label: t('dock.tone.casual') },
-                { id: 'flirty', label: t('dock.tone.flirty'), checked: true },
-                { id: 'upsell', label: t('dock.tone.upsell') },
-                { id: 'spicy', label: t('dock.tone.spicy') },
-                { id: 'none', label: t('dock.option.toneNone') },
+                { id: 'review', label: t('dock.action.review'), hint: hotkey(ctx, 'review').display },
+                { id: 'recap', label: t('dock.action.recap'), hint: hotkey(ctx, 'recap').display },
+                { id: 'coach', label: t('dock.action.coach'), reason: t('dock.reason.chatBusy') },
+                { id: 'spenders', label: t('spenders.title') },
+                { id: 'newcomers', label: t('newcomers.title') },
               ]}
               onSelect={() => undefined}
-              onClose={() => setToneOpen(false)}
+              onClose={() => setMoreOpen(false)}
               returnFocusTo={() => null}
               autoFocus={false}
             />
           </MenuAnchor>
-          <Divider />
-          <StripButton label={t('dock.option.split')} pressed leading={<CheckGlyph on />} />
-          <span class="gal-flex gal-wide">
-            <Divider />
-            <StripButton label={t('dock.option.split')} leading={<CheckGlyph on={false} />} reason={t('dock.option.splitLocked')} trailing={<Icon name="lock" size={12} />} />
-          </span>
         </div>
       </div>
       <div class="gal-strip">
@@ -182,18 +189,34 @@ function Strip({ ctx }: { readonly ctx: ScenarioCtx }): JSX.Element {
           <GooseMark />
         </span>
         <div class="gal-acts">
-          {(['reply', 'fix', 'hi', 'ping'] as const).map((id, index) => (
-            <span key={id} class="gal-flex">
-              {index === 0 ? null : <Divider />}
-              <StripButton label={t(`dock.action.${id}` as I18nKey)} reason={t('dock.reason.notSignedIn')} />
-            </span>
+          {(['reply', 'fix', 'hi', 'ping'] as const).map((id) => (
+            <StripButton key={id} label={t(`dock.action.${id}` as I18nKey)} reason={t('dock.reason.notSignedIn')} />
           ))}
+          <span class="cg-tones gal-wide-420">
+            <span class="cg-tones__track">
+              {TONE_CELLS.map(([tone, emoji]) => (
+                <StripButton
+                  key={tone}
+                  label={t(`dock.tone.${tone}` as I18nKey)}
+                  class="cg-opt cg-tone"
+                  reason={t('dock.option.toneLocked')}
+                  leading={
+                    <span class="cg-tone__e" aria-hidden="true">
+                      {emoji}
+                    </span>
+                  }
+                />
+              ))}
+            </span>
+            <span class="cg-tones__seam" aria-hidden="true" />
+            <StripButton label={t('dock.option.split')} class="cg-opt cg-split" leading={<CheckGlyph on={false} />} reason={t('dock.option.splitLocked')} />
+            <Icon name="lock" size={12} class="cg-lock" />
+          </span>
         </div>
         <div class="gal-opts">
           <span class="gal-status">
             <Spinner />
-            <span class="gal-wide-420">{t('dock.status.chatLoading')}</span>
-            <span class="gal-narrow-420">{t('common.loading')}</span>
+            <span class="gal-wide">{t('dock.status.chatLoading')}</span>
           </span>
         </div>
       </div>
@@ -653,28 +676,31 @@ export const GALLERY_CSS = `
 .gal-l { font-size: var(--cg-text-xs); color: var(--cg-ink-muted); }
 .gal-v { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
 .gal-sheet { background: var(--cg-surface); border: 1px solid var(--cg-rule); border-radius: var(--cg-r-xl); box-shadow: var(--cg-shadow); overflow: hidden; }
-.gal-bare { border-top: 1px solid var(--cg-rule-3); border-bottom: 1px solid var(--cg-bare-edge); }
+.gal-bare { background: var(--cg-raised); border: 1px solid var(--cg-rule-2); border-radius: var(--cg-r-lg); overflow: hidden; }
 .gal-pad { padding: 12px 14px 14px var(--cg-gutter); }
-.gal-strip { display: flex; align-items: center; height: 34px; min-width: 0; overflow: visible; }
+.gal-strip { display: flex; align-items: center; gap: 4px; height: 40px; min-width: 0; margin-top: 8px; padding: 0 5px 0 1px; overflow: visible; background: var(--cg-raised); border: 1px solid var(--cg-rule-2); border-radius: var(--cg-r-lg); box-shadow: var(--cg-shadow); }
 .gal-strip--menu { margin-top: 196px; }
-.gal-flex { display: inline-flex; align-items: center; }
-.gal-narrow, .gal-narrow-420 { display: none; }
-@container cg (max-width: 789px) {
-  .gal-strip .cg-act { padding: 0 5px; gap: 4px; }
-  .gal-strip .cg-act.is-active::after, .gal-strip .cg-act.is-busy::after { left: 5px; right: 5px; }
-  .gal-acts { margin-left: -5px; }
+.gal-flex { display: inline-flex; align-items: center; gap: 4px; }
+.gal-strip .cg-split .cg-act__t { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gal-strip .cg-split { width: 26px; padding: 0; }
+@container cg (max-width: 600px) { .gal-wide { display: none; } }
+@container cg (max-width: 420px) {
+  .gal-wide-420, .gal-mark { display: none; }
+  .gal-strip { gap: 2px; padding: 0 3px; }
+  .gal-acts { gap: 2px; }
+  .gal-strip .cg-act:not(.cg-opt) { padding: 0 5px; }
+  .gal-strip .cg-tones .cg-opt { width: 22px; }
+  .gal-strip .cg-tones__track { gap: 2px; }
+  .gal-strip .cg-more .cg-act__t { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .gal-strip .cg-more::before { content: "⋯"; }
+  .gal-strip .cg-div { display: none; }
 }
-@container cg (max-width: 689px) { .gal-strip .cg-act kbd { display: none; } }
-@container cg (max-width: 600px) { .gal-wide { display: none; } .gal-narrow { display: inline-flex; } }
-@container cg (max-width: 420px) { .gal-wide-420 { display: none; } .gal-narrow-420 { display: inline-flex; } }
-@container cg (max-width: 359px) { .gal-strip .cg-act { padding: 0 4px; } .gal-strip .cg-act.is-active::after, .gal-strip .cg-act.is-busy::after { left: 4px; right: 4px; } }
-.gal-mark { width: var(--cg-gutter); height: 34px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cg-ink-2); }
+.gal-mark { width: 30px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cg-clay); }
 .gal-mark--off, .gal-faint { color: var(--cg-ink-faint); }
 .gal-ink2 { color: var(--cg-ink-2); display: inline-flex; }
-.gal-acts { display: flex; align-items: center; flex: none; margin-left: -6px; }
-.gal-opts { display: flex; align-items: center; margin-left: auto; padding-left: 8px; padding-right: 2px; min-width: 0; }
-.gal-quota { color: var(--cg-ink-2); white-space: nowrap; padding: 0 6px; }
-.gal-status { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-2); white-space: nowrap; padding: 0 6px; }
+.gal-acts { display: flex; align-items: center; gap: 4px; flex: none; }
+.gal-opts { display: flex; align-items: center; margin-left: auto; padding-left: 8px; min-width: 0; }
+.gal-status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; padding: 0 4px; }
 .gal-tips { display: flex; flex-wrap: wrap; gap: 10px; }
 .gal-static { position: static !important; display: inline-block; }
 .gal-menu-host { min-height: 150px; }

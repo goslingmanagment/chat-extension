@@ -372,21 +372,23 @@ ${overlayRootCss('coach', 'panel')}
 .cg-co__turn { padding: 10px 16px 4px; }
 .cg-co__who { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-bottom: 2px; }
 .cg-co__turn p, .cg-co__md { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }
-.cg-co__turn.is-you p { color: var(--cg-ink-2); white-space: pre-wrap; }
+.cg-co__md, .cg-co__md p { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; }
+.cg-co__turn.is-you { display: grid; justify-items: end; }
+.cg-co__turn.is-you p { max-width: 92%; padding: 6px 10px; border-radius: 10px 10px 3px 10px; background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-ink); white-space: pre-wrap; }
 .cg-co__sent { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-co__stages { display: flex; align-items: center; min-width: 0; }
 .cg-co__stream { margin-top: 4px; white-space: pre-wrap; }
 .cg-co__block { margin-top: 8px; }
-.cg-co__drafts { margin: 8px -16px 0; border-top: 1px solid var(--cg-rule); }
-.cg-co__draft-cap { padding: 6px 16px 0 32px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-/* Drafts in the 320 px panel: the number in a 32 px gutter, Copy and «Вставить» under the text (ui-design §4.19). */
-.cg-co__drafts .cg-part { grid-template-columns: 32px minmax(0, 1fr); padding-right: 8px; }
-.cg-co__drafts .cg-part__t { font-size: var(--cg-text-md); }
-.cg-co__drafts .cg-part__a { grid-column: 2; justify-self: start; margin: 6px 0 0 -8px; }
-.cg-co__drafts .cg-part.is-done .cg-part__a { margin: 2px 0 0 -8px; }
+.cg-co__drafts { display: grid; gap: 6px; margin: 8px -6px 0; }
+.cg-co__drafts .cg-parts { padding: 0; }
+.cg-co__draft-cap { padding: 2px 4px 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+${/* Drafts in the 320 px panel: the number in a 26 px gutter, Copy and «Вставить» under the text (ui-design §4.19). */ ''}
+.cg-co__drafts .cg-part { grid-template-columns: 26px minmax(0, 1fr); padding-right: 8px; }
+.cg-co__drafts .cg-part__a { grid-column: 2; justify-self: start; margin: 6px 0 0; }
+.cg-co__drafts .cg-part.is-done .cg-part__a { margin: 2px 0 0; }
 .cg-co__drafts .cg-part__card, .cg-co__drafts .cg-part__extra { grid-column: 2; }
 .cg-co__turn .cg-card { margin-top: 8px; }
-/* The debug footer of a turn: the panel's width, the label column of the drafts. */
+${/* The debug footer of a turn: the panel's width, the label column of the drafts. */ ''}
 .cg-co__debug { margin: 8px -16px 0; }
 .cg-co__debug .cg-debug { grid-template-columns: 32px minmax(0, 1fr); padding-right: 8px; }
 .cg-co__memory { margin: 10px 16px 0; padding-top: 8px; border-top: 1px dashed var(--cg-rule-3); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }

@@ -127,7 +127,7 @@ export const TOAST_CSS = `
   position: fixed; z-index: ${LAYERS.toast}; top: 56px; right: 84px; width: min(360px, calc(100vw - 32px));
   display: flex; flex-direction: column; gap: 8px; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink);
   pointer-events: none;
-  /* To an open side panel and back (ui-design §3.9): one slide, as long as a toast's own appearance (§2.9). */
+  ${/* To an open side panel and back (ui-design §3.9): one slide, as long as a toast's own appearance (§2.9). */ ''}
   transition: right 140ms var(--cg-ease), width 140ms var(--cg-ease);
 }
 .cg-toasts > * { pointer-events: auto; }
@@ -135,17 +135,17 @@ export const TOAST_CSS = `
 @media (prefers-reduced-motion: reduce) { .cg-toasts { transition: none; } }
 .cg-toast {
   display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: start; padding: 10px 6px 10px 0;
-  background: var(--cg-surface); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg);
+  background: var(--cg-raised); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg);
   box-shadow: var(--cg-shadow-float); animation: cg-open 140ms var(--cg-ease);
 }
 .cg-toast > .cg-gut { width: 32px; height: 18px; }
 .cg-toast__main { min-width: 0; }
 .cg-toast__code { display: flex; font-size: var(--cg-text-sm); font-weight: 500; color: var(--cg-ink-muted); }
-.cg-toast__t { color: var(--cg-ink); overflow-wrap: anywhere; }
+.cg-toast__t { color: var(--cg-ink-strong); font-weight: 600; overflow-wrap: anywhere; }
 .cg-toast__sub { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); margin-top: 2px; overflow-wrap: anywhere; }
 .cg-toast__tech { margin-top: 4px; font-family: var(--cg-mono); font-size: var(--cg-text-xs); line-height: 16px; color: var(--cg-ink-muted); overflow-wrap: anywhere; }
 .cg-toast__count { font-size: var(--cg-text-sm); }
-.cg-toast__acts { display: flex; flex-wrap: wrap; gap: 2px; margin: 6px 0 -2px -8px; grid-column: 2 / 4; }
+.cg-toast__acts { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; grid-column: 2 / 4; }
 .cg-btn.cg-toast__x { width: 24px; height: 24px; margin: -4px 0 0 4px; color: var(--cg-ink-muted); }
 .cg-btn.cg-toast__x:hover { color: var(--cg-ink); }
 .cg-toast__ok { color: var(--cg-ink-2); }

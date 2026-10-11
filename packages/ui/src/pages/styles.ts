@@ -142,17 +142,21 @@ ${dark('.pg-nav__a[aria-current="page"]')} { box-shadow: none; }
 /* «Вид ответа»: two choice cards with a miniature of the chat (§4.24) */
 .pg-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .pg-choice { display: block; width: 100%; padding: 10px; border-radius: var(--cg-r-lg); box-shadow: inset 0 0 0 1px var(--cg-rule-2); text-align: left; }
-.pg-choice[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--cg-ink-strong); }
+.pg-choice[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--cg-clay); }
 .pg-choice[aria-disabled="true"] { cursor: default; }
 .pg-choice__t { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-weight: 500; color: var(--cg-ink-strong); }
 .pg-radio { flex: none; width: 14px; height: 14px; border-radius: var(--cg-r-pill); box-shadow: inset 0 0 0 1.5px var(--cg-ink-muted); }
-.pg-choice[aria-checked="true"] .pg-radio { box-shadow: inset 0 0 0 4px var(--cg-ink-strong); }
+.pg-choice[aria-checked="true"] .pg-radio { box-shadow: inset 0 0 0 4px var(--cg-clay); }
 .pg-mini { height: 96px; padding: 8px; border-radius: var(--cg-r-sm); background: var(--cg-feed-bg); display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; overflow: hidden; }
 .pg-mini i { display: block; height: 6px; border-radius: 3px; background: var(--cg-rule-3); }
-.pg-mini__res { display: flex; flex-direction: column; gap: 5px; padding: 6px 6px 4px; border-top: 1px solid var(--cg-rule-3); border-bottom: 1px solid var(--cg-rule-2); }
-.pg-mini__res.is-sheet { background: var(--cg-surface); border: 1px solid var(--cg-rule-2); border-radius: var(--cg-r-sm); }
-.pg-mini__strip { display: flex; gap: 4px; height: 8px; }
-.pg-mini__strip i { width: 18px; height: 5px; background: var(--cg-ink-muted); }
+/* «без подложки»: the result and the bar are one card; «на подложке»: the result is a card of its own above the bar */
+.pg-mini__res { display: flex; flex-direction: column; gap: 3px; margin-bottom: -4px; padding: 4px; background: var(--cg-raised); border: 1px solid var(--cg-rule-2); border-bottom-color: var(--cg-rule); border-radius: 5px 5px 0 0; }
+.pg-mini__res i { height: 7px; border-radius: 3px; background: var(--cg-draft); box-shadow: inset 0 0 0 1px var(--cg-clay-line); }
+.pg-mini__res.is-sheet { margin-bottom: -2px; border-bottom-color: var(--cg-rule-2); border-radius: 5px; }
+.pg-mini__strip { display: flex; align-items: center; gap: 3px; height: 13px; padding: 0 4px; background: var(--cg-raised); border: 1px solid var(--cg-rule-2); border-top: 0; border-radius: 0 0 5px 5px; }
+.pg-mini__res.is-sheet + .pg-mini__strip { border-top: 1px solid var(--cg-rule-2); border-radius: 5px; }
+.pg-mini__strip i { width: 16px; height: 5px; background: var(--cg-rule-3); }
+.pg-mini__strip i:first-child { background: var(--cg-clay); }
 .pg-mini__comp { height: 18px; border-radius: 5px; background: var(--cg-surface); box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
 
 /* the volume slider: a 4 px track, a 14 px knob with an ink ring (§4.24) */

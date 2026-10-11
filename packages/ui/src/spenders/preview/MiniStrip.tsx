@@ -1,17 +1,19 @@
 // The mini strip of a preview (ui-design §4.16, §4.1; SP-055, AI-038): the
-// goose, Reply · Fix · Hi · Ping (only Hi in «Новые») without key labels and
-// without the persona, Tone and Split on the right. A click starts a
-// generation from the hub's context of that fan; nothing here sends. The Ping
-// button says which segment the hub put the fan in. The pane is 392–420 px
-// wide, so the buttons are the dock's narrow ones (ui-design §3.3: 0 5, gap 4).
+// goose, Reply · Fix · Hi · Ping (only Hi in «Новые») as the dock's chips,
+// without key labels and without the persona, and the capsule of options —
+// the four tones and Split — right after Reply (on the right where a preview
+// has no Reply). A click starts a generation from the hub's context of that
+// fan; nothing here sends. The Ping chip says which segment the hub put the
+// fan in. The pane is 392–420 px wide, so the chips are the dock's narrow
+// ones.
 
-import { type JSX, type TargetedKeyboardEvent } from 'preact';
-import { useCallback, useRef, useState } from 'preact/hooks';
+import { Fragment, type JSX, type TargetedKeyboardEvent } from 'preact';
+import { useRef } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type DockActionVM, type I18n, type PingSegmentVM, type PreviewActionId, type PreviewVM, type UiAction } from '@cg/contracts/vm';
 
-import { CheckGlyph, Divider, GooseMark, Icon, Menu, MenuAnchor, StripButton, focusQuietly, menuTriggerKeys, rovingIndex, useDispatch, useHints, useI18n, type MenuItem } from '../../kit';
+import { CheckGlyph, GooseMark, Icon, StripButton, focusQuietly, rovingIndex, useDispatch, useHints, useI18n } from '../../kit';
 
 /** UI-002 order; the model says which of them this preview has. */
 const ORDER: readonly PreviewActionId[] = ['reply', 'fix', 'hi', 'ping'];
@@ -32,7 +34,8 @@ const TONE_KEYS: Readonly<Record<Tone, I18nKey>> = {
   spicy: 'dock.tone.spicy',
 };
 
-const NO_TONE = 'none';
+/** The tones in the chatters' own language, as in the dock's capsule. */
+const TONE_EMOJI: Readonly<Record<Tone, string>> = { casual: '😌', flirty: '😏', upsell: '💰', spicy: '🔥' };
 const SEGMENT_LETTERS: Readonly<Partial<Record<PingSegmentVM['segment'], string>>> = { 'segment-a': 'A', 'segment-b': 'B' };
 
 /** «Фан молчит 19 д, сегмент B»: what the hub computed with the generation's own window rules; unknown stays unknown. */
@@ -67,8 +70,6 @@ export function MiniStrip({ vm, hiHint = null }: MiniStripProps): JSX.Element {
   const hints = useHints();
   const dispatch = useDispatch();
   const barRef = useRef<HTMLDivElement>(null);
-  const toneRef = useRef<HTMLButtonElement>(null);
-  const [toneOpen, setToneOpen] = useState(false);
   const { bar } = vm;
   const ids = ORDER.filter((id) => bar.actions[id] !== undefined);
   const first = ids[0];
@@ -85,11 +86,6 @@ export function MiniStrip({ vm, hiHint = null }: MiniStripProps): JSX.Element {
       ? null
       : i18n.t('dock.option.splitUnavailable', { reason: i18n.text(bar.splitReason.text) });
 
-  const toneItems: MenuItem[] = [
-    ...bar.tones.map((tone) => ({ id: tone, label: i18n.t(TONE_KEYS[tone]), checked: bar.tone === tone })),
-    { id: NO_TONE, label: i18n.t('dock.option.toneNone'), checked: bar.tone === null },
-  ];
-
   // One tab stop for the strip, arrows inside (ui-design §6.4).
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
     const buttons = [...(barRef.current?.querySelectorAll<HTMLElement>('[data-cg-strip] > button') ?? [])];
@@ -101,8 +97,53 @@ export function MiniStrip({ vm, hiHint = null }: MiniStripProps): JSX.Element {
     focusQuietly(buttons[next]);
   };
 
-  const closeTone = useCallback(() => setToneOpen(false), []);
-  const returnToTone = useCallback(() => toneRef.current, []);
+  const chooseTone = (tone: Tone): void => {
+    if (vm.handle === null) return;
+    const reply = bar.actions.reply;
+    // A second click on the chosen tone only takes it off (AI-006); another tone starts Reply in it (AI-005).
+    const start = tone !== bar.tone && reply !== undefined && reply.enabled ? generateAction(vm, 'reply', tone) : null;
+    void dispatch(start ?? { type: 'SetTone', targetHandle: vm.handle, tone: tone === bar.tone ? null : tone });
+  };
+  const capsule = (
+    <span class="cg-tones">
+      <span class="cg-tones__track" role="group" aria-label={i18n.t('dock.option.tone')} data-cg-strip="tone">
+        {bar.tones.map((tone) => {
+          const name = i18n.t(TONE_KEYS[tone]);
+          return (
+            <StripButton
+              key={tone}
+              label={name}
+              class="cg-opt cg-tone"
+              pressed={bar.tone === tone}
+              reason={toneReason}
+              tooltip={hints ? `${TONE_EMOJI[tone]} ${i18n.t('dock.option.toneValue', { tone: name })}\n${i18n.t(`dock.hint.tone.${tone}`)}` : null}
+              tabIndex={-1}
+              leading={
+                <span class="cg-tone__e" aria-hidden="true">
+                  {TONE_EMOJI[tone]}
+                </span>
+              }
+              onClick={() => chooseTone(tone)}
+            />
+          );
+        })}
+      </span>
+      <span class="cg-tones__seam" aria-hidden="true" />
+      <span data-cg-strip="split" class="cg-pvb__slot">
+        <StripButton
+          label={i18n.t('dock.option.split')}
+          class="cg-opt cg-split"
+          pressed={bar.split}
+          reason={splitReason}
+          tooltip={hints ? `${i18n.t('dock.option.splitTooltip', { hotkey: '' }).trim()}\n${i18n.t('dock.hint.split')}` : null}
+          tabIndex={-1}
+          leading={<CheckGlyph on={bar.split} />}
+          onClick={() => void dispatch({ type: 'SetPreference', key: 'generation.split', value: !bar.split })}
+        />
+      </span>
+      {locked ? <Icon name="lock" size={12} class="cg-lock" /> : null}
+    </span>
+  );
 
   return (
     <div ref={barRef} class="cg-pvb" role="toolbar" aria-label={i18n.t('dock.label')} onKeyDown={onKeyDown}>
@@ -110,17 +151,17 @@ export function MiniStrip({ vm, hiHint = null }: MiniStripProps): JSX.Element {
         <GooseMark />
       </span>
       <div class="cg-pvb__acts">
-        {ids.flatMap((id, index) => {
+        {ids.flatMap((id) => {
           const action = bar.actions[id];
           if (action === undefined) return [];
           const label = i18n.t(ACTION_KEYS[id]);
           const letter = id === 'ping' && vm.ping !== null ? SEGMENT_LETTERS[vm.ping.segment] : undefined;
           const start = generateAction(vm, id);
           return [
-            index === 0 ? null : <Divider key={`d:${id}`} />,
             <span key={id} data-cg-strip={id} class="cg-pvb__slot">
               <StripButton
                 label={label}
+                {...(id === first ? { class: 'cg-act--main' } : {})}
                 active={action.active}
                 busy={action.busy}
                 reason={reasonText(i18n, label, action)}
@@ -132,72 +173,25 @@ export function MiniStrip({ vm, hiHint = null }: MiniStripProps): JSX.Element {
                 }}
               />
             </span>,
+            // The capsule is Reply's own: right after it, as in the dock.
+            id === 'reply' ? <Fragment key="capsule">{capsule}</Fragment> : null,
           ];
         })}
       </div>
-      <div class="cg-pvb__opts">
-        <MenuAnchor>
-          <span data-cg-strip="tone" class="cg-pvb__slot">
-            <StripButton
-              label={bar.tone === null ? i18n.t('dock.option.tone') : i18n.t('dock.option.toneValue', { tone: i18n.t(TONE_KEYS[bar.tone]) })}
-              reason={toneReason}
-              tooltip={hints ? i18n.t('dock.option.toneMenuTitle') : null}
-              haspopup="menu"
-              expanded={toneOpen}
-              tabIndex={-1}
-              buttonRef={toneRef}
-              trailing={locked ? <Icon name="lock" size={12} /> : null}
-              onClick={() => setToneOpen((open) => !open)}
-              onKeyDown={(event) => {
-                if (toneReason === null && !toneOpen) menuTriggerKeys(event, () => setToneOpen(true));
-              }}
-            />
-          </span>
-          <Menu
-            open={toneOpen}
-            kind="radio"
-            label={i18n.t('dock.option.toneMenuTitle')}
-            caption={{ text: i18n.t('dock.option.toneMenuTitle') }}
-            items={toneItems}
-            align="end"
-            placement="top"
-            onClose={closeTone}
-            returnFocusTo={returnToTone}
-            onSelect={(id) => {
-              if (vm.handle === null) return;
-              const tone = bar.tones.find((value) => value === id) ?? null;
-              const reply = bar.actions.reply;
-              // Choosing a tone starts Reply in it (AI-005); «Без тона» only clears the one-off tone.
-              const start = tone !== null && reply !== undefined && reply.enabled ? generateAction(vm, 'reply', tone) : null;
-              void dispatch(start ?? { type: 'SetTone', targetHandle: vm.handle, tone });
-            }}
-          />
-        </MenuAnchor>
-        <Divider />
-        <span data-cg-strip="split" class="cg-pvb__slot">
-          <StripButton
-            label={i18n.t('dock.option.split')}
-            pressed={bar.split}
-            reason={splitReason}
-            tooltip={hints ? i18n.t('dock.option.splitTooltip', { hotkey: '' }).trim() : null}
-            tabIndex={-1}
-            leading={<CheckGlyph on={bar.split} />}
-            trailing={locked ? <Icon name="lock" size={12} /> : null}
-            onClick={() => void dispatch({ type: 'SetPreference', key: 'generation.split', value: !bar.split })}
-          />
-        </span>
-      </div>
+      {bar.actions.reply === undefined ? <div class="cg-pvb__opts">{capsule}</div> : null}
     </div>
   );
 }
 
 export const MINI_STRIP_CSS = `
-.cg-pvb { display: flex; align-items: center; height: 36px; min-width: 0; }
-.cg-pvb__mark { width: var(--cg-gutter); height: 36px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cg-ink-2); }
-.cg-pvb__acts { flex: none; display: flex; align-items: center; margin-left: -5px; }
-.cg-pvb .cg-act { padding: 0 5px; gap: 4px; }
+.cg-pvb { display: flex; align-items: center; gap: 3px; height: 38px; min-width: 0; padding: 0 5px 0 0; }
+.cg-pvb__mark { width: 30px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cg-clay); }
+.cg-pvb__acts { flex: none; display: flex; align-items: center; gap: 3px; }
+.cg-pvb .cg-act:not(.cg-opt) { padding: 0 7px; gap: 4px; }
+.cg-pvb .cg-opt { width: 24px; }
+.cg-pvb .cg-split .cg-act__t { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cg-pvb .cg-split { padding: 0; }
 .cg-pvb__slot { display: inline-flex; flex: none; }
-.cg-pvb__opts { display: flex; align-items: center; min-width: 0; margin-left: auto; padding-left: 8px; padding-right: 2px; }
-.cg-pvb__opts > * { flex: none; }
-.cg-pvb__seg { font-size: var(--cg-text-2xs); font-weight: 400; color: var(--cg-ink-muted); }
+.cg-pvb__opts { display: flex; align-items: center; min-width: 0; margin-left: auto; }
+.cg-pvb__seg { font-size: var(--cg-text-2xs); font-weight: 500; color: var(--cg-ink-muted); }
 `;
