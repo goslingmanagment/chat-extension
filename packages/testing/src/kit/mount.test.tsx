@@ -155,6 +155,19 @@ describe('[I18-005] [I18-006] the scheme reaches every surface through data-sche
     expect(document.documentElement.hasAttribute(SCHEME_ATTRIBUTE)).toBe(false);
     expect(document.adoptedStyleSheets).toHaveLength(0);
   });
+
+  it('a page’s root names its surface as a shadow root’s does, and stops with Unmount; a page without one names none', () => {
+    const world = kitWorld();
+    const container = document.createElement('main');
+    document.body.append(container);
+    const popup = mountKitPage(container, world.deps, { view: () => <h1>page</h1> }, { surface: 'popup' });
+    expect(container.getAttribute('data-cg-surface')).toBe('popup');
+    popup.unmount();
+    expect(container.hasAttribute('data-cg-surface')).toBe(false);
+    const plain = mountKitPage(container, world.deps, { view: () => <h1>page</h1> });
+    expect(container.hasAttribute('data-cg-surface')).toBe(false);
+    plain.unmount();
+  });
 });
 
 describe('useView: AppClient subscriptions become signals inside ui/ only', () => {

@@ -96,7 +96,9 @@ export function createMountPort(surfaces: Readonly<Partial<Record<MountSurfaceKi
 /**
  * An extension page (popup, options, debug): the sheets go to the document,
  * the scheme to <html> (`host` resolves as `system` there, §2.1), the page
- * font (locally installed only, I18-007) to the container.
+ * font (locally installed only, I18-007) to the container. The container
+ * names its surface as a shadow root's `.cg-root` does (`data-cg-surface`):
+ * a page's sheet sizes its own root by it (the popup's panel, pages/styles).
  */
 export function mountKitPage(
   container: HTMLElement,
@@ -108,11 +110,13 @@ export function mountKitPage(
   const styles = retainKitStyles(document, definition.styles ?? []);
   const releaseScheme = holdAttribute(document.documentElement, SCHEME_ATTRIBUTE, deps.scheme.value);
   const offScheme = bindScheme(document.documentElement, deps.scheme);
+  const surface = options.surface ?? null;
   container.classList.add(ROOT_CLASS, 'cg-root--page');
-  const env = createKitEnv({ deps, root: document, host: null, surface: options.surface ?? null, ...envOptions(options) });
+  if (surface !== null) container.setAttribute('data-cg-surface', surface);
+  const env = createKitEnv({ deps, root: document, host: null, surface, ...envOptions(options) });
   const View = definition.view;
   render(
-    <KitRoot env={env} surface={options.surface ?? null}>
+    <KitRoot env={env} surface={surface}>
       <View />
     </KitRoot>,
     container,
@@ -123,6 +127,7 @@ export function mountKitPage(
     released = true;
     render(null, container);
     container.classList.remove(ROOT_CLASS, 'cg-root--page');
+    container.removeAttribute('data-cg-surface');
     env.dispose();
     offScheme();
     releaseScheme();
