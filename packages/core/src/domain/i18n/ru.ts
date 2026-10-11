@@ -1038,7 +1038,7 @@ export const RU: I18nCatalog<'ru'> = {
   'settings.personas.syncedAt': 'Каталог обновлён в {time}',
   'settings.personas.syncNever': 'Каталог ещё не загружался',
   'settings.personas.syncNow': 'Проверить связь и обновить',
-  'settings.personas.toAccounts': 'К аккаунтам →',
+  'settings.personas.toAccounts': 'К аккаунтам',
   'settings.personas.onIt': 'на ней: {pages}',
   'settings.personas.unused': 'страниц нет',
   'settings.personas.archivedTag': 'в архиве',

@@ -56,8 +56,9 @@ pnpm monorepo, TypeScript strict, Firefox MV3 (WXT), Preact.
 - `packages/ui` — Preact surfaces; data only through `AppClient`.
 - `packages/testing` — the stand, the fake hub, e2e. Never ships.
 - `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`. `tools/` — size budgets,
-  gates, parity, archive check, dev runner, the release tool (`release`) and
-  the CI e2e job (`ci`).
+  gates, parity, archive check, dev runner, the release tool (`release`),
+  the CI e2e job (`ci`) and the brand sync (`brand`: the agency's typefaces and
+  goose drawings for the extension pages, generated from agency-site; X32).
 - `site/` — the release site (install, «Как начать», the guide, «Что нового»,
   the history, «О данных»). The version, the XPI link and the changelog parts
   in it are written by `pnpm release site`, never by hand.
@@ -158,8 +159,10 @@ a boundary you need to cross is a design question, not a lint exception.
   chips, the sunken capsule of Reply's options, draft cards, the terracotta
   accent, serif AI text — as in the Fansly extension — in a layout of its own:
   one card docked to the top of ChatSpace's message input (the composer). The
-  host's blue is only for what reaches the fan («Отправить»). `docs/ui-design.md`
-  is binding.
+  host's blue is only for what reaches the fan («Отправить»). The extension
+  pages (popup, settings, sign-in, debug) wear the agency identity instead
+  (decision X32): paper, ink, Literata and Golos Text, the gosling logo — its
+  palette lives in the pages' sheet only. `docs/ui-design.md` is binding.
 - **Parity bar.** Every feature of the Fansly extension and the desktop carries
   over, including logging, the front-end debug mode, settings, popup and error
   toasts. Dropping one needs the owner's explicit OK. Execution must be

@@ -1,14 +1,17 @@
-// «Статус» (ui-design §4.24, final-21a; ST-020…ST-038): the readiness line,
-// «Проверить всё» and the report for the team lead, then one row per thing a
-// shift depends on — a dot, the name, the value with its note, and the one
-// button that leads to where it is fixed.
+// «Статус» (ui-design §4.24; ST-020…ST-038): the verdict first, on the
+// brand's stage (X32) — the pond and its goslings when the shift can start,
+// the gosling's yellow and the goose looking back when something waits —
+// with «Проверить всё» and the report for the team lead; then, on one card,
+// a row per thing a shift depends on: a dot, the name, the value with its
+// note, and the one button that leads to where it is fixed.
 
-import { type JSX } from 'preact';
+import { type ComponentChildren, type JSX } from 'preact';
 
-import { type StatusBodyVM, type StatusRowVM } from '@cg/contracts/vm';
+import { type StatusBodyVM, type StatusRowId, type StatusRowVM } from '@cg/contracts/vm';
 
 import { Button, useI18n } from '../../kit';
-import { LevelDot, useAct, useText } from '../shared';
+import { LostArt, TrioArt } from '../brand/art';
+import { Card, Columns, LevelDot, useAct, useText } from '../shared';
 
 function Row({ row }: { readonly row: StatusRowVM }): JSX.Element {
   const i18n = useI18n();
@@ -38,7 +41,12 @@ function Row({ row }: { readonly row: StatusRowVM }): JSX.Element {
   );
 }
 
-export function StatusSection({ body }: { readonly body: StatusBodyVM }): JSX.Element {
+/** What a shift stands on: the main column. */
+const SHIFT_ROWS: ReadonlySet<StatusRowId> = new Set(['chatspace', 'hub', 'account', 'binding', 'persona', 'quota']);
+/** What the team lead asks for: the quiet column's first card. */
+const SUPPORT_ROWS: ReadonlySet<StatusRowId> = new Set(['extension', 'last-error', 'support']);
+
+export function StatusSection({ body, checklist }: { readonly body: StatusBodyVM; readonly checklist?: ComponentChildren }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
   const { readiness } = body;
@@ -48,6 +56,10 @@ export function StatusSection({ body }: { readonly body: StatusBodyVM }): JSX.El
   const warningsText = warnings.map((warning) => i18n.text(warning)).join(', ');
   const warningsLine = warnings.length === 1 ? i18n.t('settings.status.warningOne', { text: warningsText }) : i18n.plural('settings.status.warnings', warnings.length, { text: warningsText });
   const recheck = body.recheck;
+  // A service row that needs the person joins the main column: what is wrong is never in the quiet one.
+  const shift = body.rows.filter((row) => SHIFT_ROWS.has(row.id) || (!SUPPORT_ROWS.has(row.id) && (row.level === 'warn' || row.level === 'error')));
+  const support = body.rows.filter((row) => SUPPORT_ROWS.has(row.id));
+  const service = body.rows.filter((row) => !shift.includes(row) && !support.includes(row));
   const waiting = !recheck.enabled;
   return (
     <>
@@ -58,6 +70,7 @@ export function StatusSection({ body }: { readonly body: StatusBodyVM }): JSX.El
           <Button
             label={i18n.text(recheck.label)}
             variant="line"
+            class="pg-primary"
             icon="refresh"
             tooltip={i18n.t('settings.status.checkAllTooltip')}
             reason={waiting ? i18n.t('settings.status.checkAllTooltip') : null}
@@ -65,11 +78,35 @@ export function StatusSection({ body }: { readonly body: StatusBodyVM }): JSX.El
           />
           <Button label={i18n.text(body.copyReport.label)} variant="line" icon="copy" onClick={() => void act(body.copyReport.action, { success: i18n.t('common.copied') })} />
         </span>
+        {readiness.s === 'ready' ? <TrioArt class="pg-art" /> : readiness.s === 'actions-needed' ? <LostArt class="pg-art pg-art--lost" /> : null}
       </div>
-      {body.rows.map((row) => (
-        <Row key={row.id} row={row} />
-      ))}
-      <p class="pg-note">{i18n.text(body.note)}</p>
+      {checklist}
+      <Columns
+        main={
+          <section class="pg-card" aria-label={i18n.t('settings.section.status')}>
+            {shift.map((row) => (
+              <Row key={row.id} row={row} />
+            ))}
+          </section>
+        }
+        aside={
+          <>
+            <Card>
+              {support.map((row) => (
+                <Row key={row.id} row={row} />
+              ))}
+              <p class="pg-note">{i18n.text(body.note)}</p>
+            </Card>
+            {service.length === 0 ? null : (
+              <section class="pg-card pg-card--rows">
+                {service.map((row) => (
+                  <Row key={row.id} row={row} />
+                ))}
+              </section>
+            )}
+          </>
+        }
+      />
     </>
   );
 }

@@ -6,7 +6,7 @@
 import { type JSX, type TargetedFocusEvent, type TargetedInputEvent, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
-import { type UiResultStyle } from '@cg/contracts/settings';
+import { type UiResultStyle, type UiTheme } from '@cg/contracts/settings';
 
 import { Button, Icon, Menu, MenuAnchor, menuTriggerKeys, useI18n, useTooltip, type MenuItem } from '../../kit';
 
@@ -219,6 +219,79 @@ function Miniature({ sheet }: { readonly sheet: boolean }): JSX.Element {
         <i />
       </div>
       <div class="pg-mini__comp" />
+    </div>
+  );
+}
+
+/** A page in miniature in the colours of a theme: the light, the dark, or both halves when the theme follows the system or ChatSpace. */
+function ThemeMiniature({ theme }: { readonly theme: UiTheme }): JSX.Element {
+  const sketch = (scheme: 'light' | 'dark'): JSX.Element => (
+    <span class={`pg-tmini__s pg-tmini__s--${scheme}`}>
+      <i />
+      <b>
+        <i />
+        <i />
+        <i />
+      </b>
+    </span>
+  );
+  return (
+    <span class="pg-tmini" data-pg-tmini={theme} aria-hidden="true">
+      {theme === 'dark' ? null : sketch('light')}
+      {theme === 'light' ? null : sketch('dark')}
+    </span>
+  );
+}
+
+export interface ThemeChoiceProps {
+  readonly label: string;
+  readonly value: UiTheme;
+  readonly options: readonly { readonly value: UiTheme; readonly label: string }[];
+  readonly reason?: string | null;
+  readonly onChange: (value: UiTheme) => void;
+}
+
+/**
+ * The theme as cards with a miniature (X32, after the Fansly extension's «Вид»): a radio group, ← → move and
+ * choose; each card's text is its name alone.
+ */
+export function ThemeChoice(props: ThemeChoiceProps): JSX.Element {
+  const unavailable = props.reason !== null && props.reason !== undefined && props.reason !== '';
+  const refs = useRef<Partial<Record<UiTheme, HTMLButtonElement | null>>>({});
+  return (
+    <div class="pg-choices pg-choices--themes" role="radiogroup" aria-label={props.label}>
+      {props.options.map((option, index) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          class="pg-choice"
+          ref={(node) => {
+            refs.current[option.value] = node;
+          }}
+          aria-checked={props.value === option.value ? 'true' : 'false'}
+          tabIndex={props.value === option.value ? 0 : -1}
+          {...(unavailable ? { 'aria-disabled': 'true' } : {})}
+          onClick={() => {
+            if (!unavailable && props.value !== option.value) props.onChange(option.value);
+          }}
+          onKeyDown={(event) => {
+            const step = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : 0;
+            if (step === 0) return;
+            event.preventDefault();
+            const next = props.options[(index + step + props.options.length) % props.options.length];
+            if (next === undefined) return;
+            refs.current[next.value]?.focus();
+            if (!unavailable) props.onChange(next.value);
+          }}
+        >
+          <ThemeMiniature theme={option.value} />
+          <span class="pg-choice__t">
+            <i class="pg-radio" />
+            {option.label}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }

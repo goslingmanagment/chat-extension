@@ -15,7 +15,8 @@ Popup, страница настроек с восемью разделами и
 | Слой | Путь | Что там |
 |---|---|---|
 | контроллеры | `packages/core/src/application/pages` (`@cg/core/application/pages`) | `createPagesClient(env, ports)` — `AppClient` страницы: модели `PopupVM`, `OptionsVM`, `DebugPromptVM`, `JournalVM` и исполнение `UiAction` |
-| вид | `packages/ui/src/pages` (`@cg/ui/pages`) | `mountPopup`, `mountOptions`, `mountDebugPrompt`, `mountDebugJournal`; стили `pg-*` поверх `ui/kit` |
+| вид | `packages/ui/src/pages` (`@cg/ui/pages`) | `mountPopup`, `mountOptions`, `mountDebugPrompt`, `mountDebugJournal`; стили `pg-*` поверх `ui/kit` в айдентике агентства (решение X32): палитра бренда `--pg-*` и токены кита, перенаправленные на неё, — только здесь, панель в ChatSpace их не видит |
+| бренд | `packages/ui/src/pages/brand` | `fonts.ts` — Literata 800 и Golos Text данными листа стилей, `art.tsx` — логотип с гусёнком и две сцены гуся; оба файла пишет `node tools/brand/sync.ts` из `~/code/1-platform/agency-site` (руками не править). В сборке — свой чанк `page-brand` |
 | сборка | `apps/extension/src/composition/pages.ts` | корень композиции: контроллер, порты браузера из `@cg/platform`, функция монтирования; точки входа — `src/entrypoints/{popup,options,debug-prompt,debug-journal}` |
 | стенд | `packages/testing/src/pages` | сценарный фон `FakePageBackground`, мир `pagesWorld`, тесты контроллеров и вёрстки, галерея страниц |
 | e2e | `packages/testing/e2e/specs/pages-gallery.e2e.ts` | страницы на сценарном фоне в headless Firefox, снимки в `.cache/e2e/pages-*.png` |
@@ -110,7 +111,9 @@ mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, syst
 
 - **язык документа:** `<html lang>` и заголовок вкладки следуют за языком настроек и
   меняются на лету; пока настройки не прочитаны, страница говорит на языке умолчания —
-  по-русски (решение X29), а не на языке браузера;
+  по-русски (решение X29), а не на языке браузера. У установок до 0.2.1 сохранённое
+  «Как в системе» фон один раз меняет на «Русский» при обновлении (решение X32,
+  `packages/core/src/domain/settings/locale-on-update.ts`);
 - **страница журналов следует за своим адресом:** «Журналы» в настройках открывают
   нужный журнал в уже открытой вкладке журналов (`hashchange` перемонтирует вид);
 - **страница промпта берёт токен из своего адреса** (`?t=…`) и отдаёт его только

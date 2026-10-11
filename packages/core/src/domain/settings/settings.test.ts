@@ -3,7 +3,19 @@ import { DEFAULT_SETTINGS, SettingsSchema, STORAGE_KEYS, type SettingsMigrations
 import { describe, expect, it } from 'vitest';
 
 import { RESULT_MAX_BYTES, SESSION_KEYS, STORAGE_KEY_BUDGETS, isPlainRecord, jsonUtf8Bytes, stableJson, storageBudgetOf } from '../storage';
-import { SETTINGS_MIGRATIONS, applySettingsPatch, loadStoredSettings, migrationChainProblems, oldestSupportedVersion, repairSettings, touchesRestricted, withPersonaScope } from './index';
+import {
+  SETTINGS_MIGRATIONS,
+  SYSTEM_LOCALE_LAST_VERSION,
+  SYSTEM_LOCALE_REWRITE,
+  applySettingsPatch,
+  loadStoredSettings,
+  migrationChainProblems,
+  oldestSupportedVersion,
+  repairSettings,
+  rewritesSystemLocale,
+  touchesRestricted,
+  withPersonaScope,
+} from './index';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
@@ -189,6 +201,33 @@ describe('[ST-013] applying a settings change', () => {
     expect(withPersonaScope(base, null).personas).toEqual({ scope: null, byPageId: {} });
     const empty = clone(DEFAULT_SETTINGS);
     expect(withPersonaScope(empty, null)).toBe(empty);
+  });
+});
+
+describe('[ST-135] «Как в системе» of an install made before Russian became the default', () => {
+  it('[ST-135] an update from 0.2.1 or older rewrites a stored «Как в системе», once, to Russian', () => {
+    expect(SYSTEM_LOCALE_LAST_VERSION).toBe('0.2.1');
+    for (const previous of ['0.1.0', '0.1.1', '0.2.0', '0.2.1', '0.2', '0.2.1.0', ' 0.2.0 ']) expect([previous, rewritesSystemLocale(previous, 'system')]).toEqual([previous, true]);
+    // What it writes: the language alone, Russian, through the ordinary patch.
+    const stored = { ...clone(DEFAULT_SETTINGS), ui: { ...clone(DEFAULT_SETTINGS.ui), locale: 'system' as const } };
+    const outcome = applySettingsPatch(stored, SYSTEM_LOCALE_REWRITE, { restricted: false });
+    expect(outcome).toMatchObject({ ok: true, changed: true, hubChanged: false });
+    expect(outcome.ok && outcome.settings).toEqual({ ...stored, ui: { ...stored.ui, locale: 'ru' } });
+  });
+
+  it('[ST-135] an update from a later build leaves it: what is stored then was chosen after the rewrite had its one chance', () => {
+    for (const previous of ['0.2.2', '0.2.1.1', '0.3.0', '1.0', '10.0.0']) expect([previous, rewritesSystemLocale(previous, 'system')]).toEqual([previous, false]);
+  });
+
+  it('[ST-135] a version that is not one, or none, rewrites nothing', () => {
+    for (const previous of ['', 'x', '0.2.1-beta', 'v0.2.1', '0.2.1.0.0', '0..1', '0.2.1b1', null, undefined]) expect([previous, rewritesSystemLocale(previous, 'system')]).toEqual([previous, false]);
+  });
+
+  it('[ST-135] Russian or English chosen by the person is never touched, whatever the version', () => {
+    for (const previous of ['0.1.0', '0.2.1', '0.3.0']) {
+      expect(rewritesSystemLocale(previous, 'ru')).toBe(false);
+      expect(rewritesSystemLocale(previous, 'en')).toBe(false);
+    }
   });
 });
 

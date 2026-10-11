@@ -6,6 +6,8 @@
 //   `interrupted`, an open send `uncertain`, the telemetry queue's state;
 // - alarms are armed while a ChatSpace tab is registered;
 // - `settings.changed` reaches tabs and pages;
+// - an update from 0.2.1 or older sets a stored «Как в системе» to Russian,
+//   once (ST-135);
 // - a tab registers again with a restarted background and says where it is;
 // - an open tab keeps the event page from idling (BG-003);
 // - the start record says why the page started (LG-016, LG-018).
@@ -430,6 +432,83 @@ describe('settings', () => {
     expect(own).toMatchObject({ ok: true, payload: { settings: { personas: { byPageId: { [String(WORLD.pages.one.pageId)]: persona } } } } });
     // The rest of a tab's patch is as open as before.
     expect(await tab.client.request('settings.patch', { patch: { ui: { locale: 'ru' } }, baseRevision: null })).toMatchObject({ ok: true });
+  });
+
+  it('[ST-135] the update from 0.2.1 or older, as it comes right after the start: «Как в системе» stored by the old default is Russian before the first page asks, on disk and in the log', async () => {
+    const system = settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale: 'system' } });
+    world = createWorld({ settings: system });
+    world.start();
+    world.fake.fireInstalled({ reason: 'update', previousVersion: '0.2.1' });
+    expect(await world.page().request('settings.get', {})).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'ru' } } } });
+    // The language alone changed.
+    expect(world.fake.areas.local.get(STORAGE_KEYS.settings)).toEqual({ ...system, ui: { ...system.ui, locale: 'ru' } });
+    const logged = (await exportedLogs(world)).filter((record) => record.scope === 'bg.settings' && record.msg === 'language set to Russian after the update');
+    expect(logged.map((record) => [record.level, record.fields?.['previousVersion']])).toEqual([['info', '0.2.1']]);
+  });
+
+  it('[ST-135] [BG-005] open pages switch at once (a confirmed change with its revision); a choice made after it survives the next update', async () => {
+    const system = settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale: 'system' } });
+    world = createWorld({ settings: system });
+    world.start();
+    const options = world.page('options');
+    const popup = world.page('popup');
+    const heard: Array<[SettingsState['settings']['ui']['locale'], number]> = [];
+    popup.onEvent('settings.changed', (state) => heard.push([state.settings.ui.locale, state.revision]));
+    const before = await popup.request('settings.get', {});
+    expect(before).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'system' } } } });
+    const revision = before.ok ? before.payload.revision : -1;
+    world.fake.fireInstalled({ reason: 'update', previousVersion: '0.2.0' });
+    await until(() => heard.length === 1, 'the open popup heard the change');
+    expect(heard).toEqual([['ru', revision + 1]]);
+
+    // The person chooses «Как в системе» on purpose; the next update comes from a build after 0.2.1.
+    expect(await options.request('settings.patch', { patch: { ui: { locale: 'system' } }, baseRevision: null })).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'system' } } } });
+    world.fake.fireInstalled({ reason: 'update', previousVersion: '0.2.2' });
+    await sleep(30);
+    expect(await options.request('settings.get', {})).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'system' } }, revision: revision + 2 } });
+    expect(heard.map(([locale]) => locale)).toEqual(['ru', 'system']);
+  });
+
+  it('[ST-135] a later update, a version that is not one, a temporary install, a fresh install and a chosen English leave the language as stored', async () => {
+    for (const [locale, details] of [
+      ['system', { reason: 'update', previousVersion: '0.2.2' }],
+      ['system', { reason: 'update', previousVersion: '0.3.0' }],
+      ['system', { reason: 'update', previousVersion: '0.2.1-beta' }],
+      ['system', { reason: 'update' }],
+      // `pnpm dev` and the e2e reload the build as a temporary install: a developer's reload, not a chatter's update.
+      ['system', { reason: 'update', previousVersion: '0.2.0', temporary: true }],
+      ['system', { reason: 'install' }],
+      ['en', { reason: 'update', previousVersion: '0.2.0' }],
+    ] as const) {
+      const stored = settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale } });
+      const w = createWorld({ settings: stored });
+      world = w;
+      w.start();
+      w.fake.fireInstalled(details);
+      expect(await w.page().request('settings.get', {})).toMatchObject({ ok: true, payload: { settings: { ui: { locale } }, revision: 0 } });
+      await sleep(30);
+      expect([details, w.fake.areas.local.get(STORAGE_KEYS.settings)]).toEqual([details, stored]);
+      w.dispose();
+    }
+  });
+
+  it('[ST-135] a rewrite that cannot be saved stops nothing: the language stays, the background answers and writes as before, the log has the code and no text', async () => {
+    const system = settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale: 'system' } });
+    world = createWorld({ settings: system });
+    world.start();
+    const options = world.page();
+    expect(await options.request('settings.get', {})).toMatchObject({ ok: true });
+    // The update's own record is written first, then the settings: both writes fail.
+    world.fake.failNext('local', 'set');
+    world.fake.failNext('local', 'set');
+    world.fake.fireInstalled({ reason: 'update', previousVersion: '0.2.0' });
+    const failure = async (): Promise<LogRecord | undefined> => (await exportedLogs(world)).find((record) => record.msg === 'language not set to Russian after the update');
+    await until(async () => (await failure()) !== undefined, 'the failure is logged');
+    expect(await failure()).toMatchObject({ level: 'warn', scope: 'bg.settings', code: 'CG-STORAGE-WRITE' });
+    expect(world.fake.areas.local.get(STORAGE_KEYS.settings)).toEqual(system);
+    expect(await options.request('settings.get', {})).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'system' } }, readOnly: false } });
+    expect(await options.request('session.get', {})).toMatchObject({ ok: true });
+    expect(await options.request('settings.patch', { patch: { ui: { locale: 'en' } }, baseRevision: null })).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'en' } } } });
   });
 
   it('[ST-006] [ST-007] «Настройки» from a ChatSpace tab: the background opens the settings tab at the section and its code', async () => {

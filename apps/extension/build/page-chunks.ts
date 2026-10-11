@@ -8,7 +8,9 @@
 // - the texts: both catalogs, ru and en (a page switches its language on the
 //   fly, I18-001, so it carries both);
 // - the contracts and zod: the schemas every answer of the background is
-//   checked with.
+//   checked with;
+// - the brand: the two typefaces embedded as data and the drawings of the
+//   logo and the goose (ui/pages/brand, generated from agency-site; X32).
 //
 // What is left — Preact, the kit, the pages and their controller — is the
 // pages' own chunk. A page still loads all three; nothing is lazy here.
@@ -30,6 +32,7 @@ const normalized = (id: string): string => id.replace(/\\/g, '/');
 export const PAGE_CHUNK_GROUPS: readonly PageChunkGroup[] = [
   { name: 'page-texts', test: (id) => /\/packages\/core\/src\/domain\/i18n\/(?:ru|en)\.ts$/.test(normalized(id)), includeDependenciesRecursively: false },
   { name: 'page-contracts', test: (id) => /\/packages\/contracts\/src\/|\/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?zod\//.test(normalized(id)), includeDependenciesRecursively: false },
+  { name: 'page-brand', test: (id) => /\/packages\/ui\/src\/pages\/brand\//.test(normalized(id)), includeDependenciesRecursively: false },
 ];
 
 /** The output options of one build: only the key this file sets. */

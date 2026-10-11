@@ -57,7 +57,7 @@ import {
 import { narrowPlatform } from '@cg/contracts/ids';
 import { sendLockKey } from '@cg/contracts/send';
 import { hashOfRoute } from '@cg/core/application/pages';
-import { resolveHubError, storageBudgetOf } from '@cg/core/domain';
+import { SYSTEM_LOCALE_REWRITE, resolveHubError, rewritesSystemLocale, storageBudgetOf } from '@cg/core/domain';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
@@ -728,8 +728,27 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         updated = { at: new Date().toISOString(), from: details.previousVersion.slice(0, 32) };
         void local.set({ [UPDATED_KEY]: updated });
       }
+      // A temporary install is a developer's reload (`pnpm dev`, the e2e), not a chatter's update.
+      if (!details.temporary) void russianAfterUpdate(details.previousVersion);
     }
   });
+  /**
+   * ST-135: every build up to 0.2.1 stored «Как в системе» at its first run, chosen or not, and an English browser
+   * showed English. The first update from one of them sets Russian, once, through the settings owner's ordinary
+   * patch: its revision and `settings.changed`, so open pages and tabs switch at once. A later update, a fresh
+   * install and a language the person chose leave it. A failure is logged by its code and class and stops nothing.
+   */
+  async function russianAfterUpdate(previousVersion: string | null): Promise<void> {
+    try {
+      await settings.start();
+      if (settings.mode() !== 'ok' || !rewritesSystemLocale(previousVersion, settings.current().ui.locale)) return;
+      const saved = await settings.patch(SYSTEM_LOCALE_REWRITE, { baseRevision: null, restricted: false });
+      if (saved.ok) logger.info('bg.settings', 'language set to Russian after the update', { fields: { previousVersion, revision: saved.state.revision } });
+      else logger.warn('bg.settings', 'language not set to Russian after the update', { code: saved.error.code });
+    } catch (error) {
+      logger.warn('bg.settings', 'language not set to Russian after the update', { code: 'CG-UNKNOWN', fields: { error: error instanceof Error ? error.name : typeof error } });
+    }
+  }
   lifecycle.onStartup(() => {
     browserStarted = true;
     lifecycleSeen();

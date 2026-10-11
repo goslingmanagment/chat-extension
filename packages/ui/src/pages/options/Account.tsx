@@ -10,8 +10,9 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { type CgErrorView, type I18nKey } from '@cg/contracts/errors';
 import { type AccountBodyVM, type AppearanceBodyVM, type SignInVM } from '@cg/contracts/vm';
 
-import { Button, Checkbox, CodeLine, Dot, GooseMark, useI18n } from '../../kit';
-import { Opt, useAct, usePageServices } from '../shared';
+import { Button, Checkbox, CodeLine, Dot, useI18n } from '../../kit';
+import { ChatGooseLogo, TrioArt } from '../brand/art';
+import { Card, Columns, Opt, useAct, usePageServices } from '../shared';
 import { Field } from './controls';
 import { SignInForm } from './SignIn';
 
@@ -81,106 +82,114 @@ export function AccountSection({ body, signIn, anchor }: { readonly body: Accoun
   const account = httpsUrl(body.hub.origin, '/account');
   const signOut = body.signOut;
   return (
-    <>
-      {user === null ? null : (
+    <Columns
+      even
+      main={
         <>
-          <h2 class="pg-h2">{i18n.t('settings.account.zone.account')}</h2>
-          <Opt label={i18n.t('settings.account.signedInAs')}>
-            <span class="pg-line">
-              <span class="pg-value">
-                {user.login} · {i18n.t(ROLE_KEYS[user.role] ?? 'settings.role.unknown')}
-              </span>
-              {signOut === null ? null : (
-                <Button
-                  label={i18n.text(signOut.label)}
-                  variant="line"
-                  onClick={() => {
-                    void services
-                      .confirm({
-                        title: { key: 'settings.account.signOutTitle' },
-                        body: { key: 'settings.account.signOutBody' },
-                        confirm: { key: 'common.signOut' },
-                        cancel: { key: 'common.cancel' },
-                        tone: 'destructive',
-                      })
-                      .then((answer) => (answer === 'confirm' ? act(signOut.action) : null));
-                  }}
-                />
+          {user === null ? null : (
+            <Card title={i18n.t('settings.account.zone.account')}>
+              <Opt label={i18n.t('settings.account.signedInAs')}>
+                <span class="pg-line">
+                  <span class="pg-value">
+                    {user.login} · {i18n.t(ROLE_KEYS[user.role] ?? 'settings.role.unknown')}
+                  </span>
+                  {signOut === null ? null : (
+                    <Button
+                      label={i18n.text(signOut.label)}
+                      variant="line"
+                      onClick={() => {
+                        void services
+                          .confirm({
+                            title: { key: 'settings.account.signOutTitle' },
+                            body: { key: 'settings.account.signOutBody' },
+                            confirm: { key: 'common.signOut' },
+                            cancel: { key: 'common.cancel' },
+                            tone: 'destructive',
+                          })
+                          .then((answer) => (answer === 'confirm' ? act(signOut.action) : null));
+                      }}
+                    />
+                  )}
+                </span>
+              </Opt>
+              <Opt label={i18n.t('settings.account.thisDevice')} anchor="sign-in">
+                <span class="pg-line">
+                  <span class="pg-value">{user.deviceSince === null ? i18n.t('settings.account.deviceSignedIn') : i18n.t('settings.account.deviceSince', { date: { time: user.deviceSince, style: 'date' } })}</span>
+                  {body.signInAgain === null ? null : <Button label={i18n.text(body.signInAgain.label)} variant="plain" expanded={again} onClick={() => setAgain((before) => !before)} />}
+                </span>
+                {again && signIn !== null ? (
+                  <>
+                    <div class="pg-sub">{i18n.t('signIn.againLead')}</div>
+                    <SignInForm vm={signIn} onDone={() => setAgain(false)} />
+                  </>
+                ) : null}
+              </Opt>
+              {account === null ? null : (
+                <Opt label={i18n.t('settings.account.hubAccount')} hint={i18n.t('settings.account.hubAccountHint')}>
+                  <a class="pg-link" href={account} target="_blank" rel="noopener noreferrer">
+                    {account.replace(/^https:\/\//, '')}
+                  </a>
+                </Opt>
               )}
-            </span>
-          </Opt>
-          <Opt label={i18n.t('settings.account.thisDevice')} anchor="sign-in">
-            <span class="pg-line">
-              <span class="pg-value">{user.deviceSince === null ? i18n.t('settings.account.deviceSignedIn') : i18n.t('settings.account.deviceSince', { date: { time: user.deviceSince, style: 'date' } })}</span>
-              {body.signInAgain === null ? null : <Button label={i18n.text(body.signInAgain.label)} variant="plain" expanded={again} onClick={() => setAgain((before) => !before)} />}
-            </span>
-            {again && signIn !== null ? (
-              <>
-                <div class="pg-sub">{i18n.t('signIn.againLead')}</div>
-                <SignInForm vm={signIn} onDone={() => setAgain(false)} />
-              </>
-            ) : null}
-          </Opt>
-          {account === null ? null : (
-            <Opt label={i18n.t('settings.account.hubAccount')} hint={i18n.t('settings.account.hubAccountHint')}>
-              <a class="pg-link" href={account} target="_blank" rel="noopener noreferrer">
-                {account.replace(/^https:\/\//, '')}
-              </a>
-            </Opt>
+            </Card>
           )}
+          <Card title={i18n.t('settings.account.zone.connection')}>
+            <Opt label={i18n.t('settings.account.hubAddress')} hint={i18n.t('settings.account.hubAddressHint')} anchor="hub-address">
+              <span class="pg-value">{body.hub.origin}</span>
+              {user === null ? null : <div class="pg-sub">{i18n.t('settings.account.hubAddressLocked')}</div>}
+            </Opt>
+            <HubAccess hub={body.hub} />
+            <Connection body={body} />
+          </Card>
         </>
-      )}
-
-      <h2 class="pg-h2">{i18n.t('settings.account.zone.connection')}</h2>
-      <Opt label={i18n.t('settings.account.hubAddress')} hint={i18n.t('settings.account.hubAddressHint')} anchor="hub-address">
-        <span class="pg-value">{body.hub.origin}</span>
-        {user === null ? null : <div class="pg-sub">{i18n.t('settings.account.hubAddressLocked')}</div>}
-      </Opt>
-      <HubAccess hub={body.hub} />
-      <Connection body={body} />
-
-      <h2 class="pg-h2">{i18n.t('settings.account.pages')}</h2>
-      {body.pages.length === 0 ? (
-        <p class="pg-note">{i18n.t('settings.account.noPages')}</p>
-      ) : (
-        <ul class="pg-list pg-zone" data-pg-anchor="pages">
-          {body.pages.map((page, index) => (
-            <li key={index}>
-              <b>{page.pageName}</b>
-              <span data-pg-page-label={page.pageLabel}>
-                {page.platform}
-                {page.pageLabel === undefined ? '' : ` · ${page.pageLabel}`} · {page.persona ?? i18n.t('settings.account.noPersona')}
+      }
+      aside={
+        <>
+          <Card title={i18n.t('settings.account.pages')}>
+            {body.pages.length === 0 ? (
+              <p class="pg-note">{i18n.t('settings.account.noPages')}</p>
+            ) : (
+              <ul class="pg-list pg-zone" data-pg-anchor="pages">
+                {body.pages.map((page, index) => (
+                  <li key={index}>
+                    <b>{page.pageName}</b>
+                    <span data-pg-page-label={page.pageLabel}>
+                      {page.platform}
+                      {page.pageLabel === undefined ? '' : ` · ${page.pageLabel}`} · {page.persona ?? i18n.t('settings.account.noPersona')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+          <Card title={i18n.t('settings.account.zone.diagnostics')}>
+            <Opt label={i18n.t('settings.account.compatibility')}>
+              <span class="pg-line">
+                {body.sdk.compatible === false ? <Dot kind="danger" /> : null}
+                <span class="pg-value">{i18n.t(body.sdk.compatible === null ? 'settings.account.sdk.unknown' : body.sdk.compatible ? 'settings.account.sdk.compatible' : 'settings.account.sdk.incompatible')}</span>
               </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <h2 class="pg-h2">{i18n.t('settings.account.zone.diagnostics')}</h2>
-      <Opt label={i18n.t('settings.account.compatibility')}>
-        <span class="pg-line">
-          {body.sdk.compatible === false ? <Dot kind="danger" /> : null}
-          <span class="pg-value">{i18n.t(body.sdk.compatible === null ? 'settings.account.sdk.unknown' : body.sdk.compatible ? 'settings.account.sdk.compatible' : 'settings.account.sdk.incompatible')}</span>
-        </span>
-        {body.sdk.contractHash === null ? null : <div class="pg-sub pg-mono">{i18n.t('settings.account.sdkHash', { hash: body.sdk.contractHash.slice(0, 12) })}</div>}
-      </Opt>
-      <Opt label={i18n.t('settings.account.hubErrorsToday')}>
-        {body.hubErrorsToday.length === 0 ? (
-          <span class="pg-muted">{i18n.t('settings.account.hubErrorsNone')}</span>
-        ) : (
-          <span class="pg-line">
-            {body.hubErrorsToday.map((entry) => (
-              <span key={entry.code} class="pg-chip">
-                {entry.code} ×{entry.count}
-              </span>
-            ))}
-          </span>
-        )}
-      </Opt>
-      <Opt label={i18n.t('settings.account.lastDossierSave')}>
-        <span class={body.lastDossierSave === null ? 'pg-muted' : 'pg-value'}>{body.lastDossierSave === null ? i18n.t('common.unknown') : i18n.formatTime(body.lastDossierSave, 'datetime')}</span>
-      </Opt>
-    </>
+              {body.sdk.contractHash === null ? null : <div class="pg-sub pg-mono">{i18n.t('settings.account.sdkHash', { hash: body.sdk.contractHash.slice(0, 12) })}</div>}
+            </Opt>
+            <Opt label={i18n.t('settings.account.hubErrorsToday')}>
+              {body.hubErrorsToday.length === 0 ? (
+                <span class="pg-muted">{i18n.t('settings.account.hubErrorsNone')}</span>
+              ) : (
+                <span class="pg-line">
+                  {body.hubErrorsToday.map((entry) => (
+                    <span key={entry.code} class="pg-chip">
+                      {entry.code} ×{entry.count}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </Opt>
+            <Opt label={i18n.t('settings.account.lastDossierSave')}>
+              <span class={body.lastDossierSave === null ? 'pg-muted' : 'pg-value'}>{body.lastDossierSave === null ? i18n.t('common.unknown') : i18n.formatTime(body.lastDossierSave, 'datetime')}</span>
+            </Opt>
+          </Card>
+        </>
+      }
+    />
   );
 }
 
@@ -220,13 +229,15 @@ export function SignInScreen(props: SignInScreenProps): JSX.Element {
   };
   return (
     <div class="pg-signin">
-      <div class="pg-brand" style={{ padding: '0 0 14px' }}>
-        <GooseMark size={24} />
-        <b>{i18n.t('dock.label')}</b>
+      <div class="pg-brand">
+        <ChatGooseLogo class="pg-logo" />
         <span>{props.version}</span>
       </div>
-      <h1 class="pg-h1">{i18n.t('signIn.title')}</h1>
-      <p class="pg-lead">{i18n.t('signIn.lead')}</p>
+      <div class="pg-signin__stage">
+        <h1 class="pg-h1">{i18n.t('signIn.title')}</h1>
+        <p class="pg-lead">{i18n.t('signIn.lead')}</p>
+        <TrioArt class="pg-art" />
+      </div>
       {ended || unconfirmed ? (
         <div class="pg-plate" role="status" data-cg-code={reason.code}>
           <Dot kind="ring" />
@@ -237,17 +248,19 @@ export function SignInScreen(props: SignInScreenProps): JSX.Element {
           </div>
         </div>
       ) : null}
-      <div class="pg-zone" data-pg-anchor="sign-in">
-        <SignInForm vm={props.signIn} />
+      <div class="pg-signin__card">
+        <div class="pg-zone" data-pg-anchor="sign-in">
+          <SignInForm vm={props.signIn} />
+        </div>
+        <p class="pg-note">{i18n.t('signIn.accessNote')}</p>
+        {props.helpUrl === null ? null : (
+          <p class="pg-note">
+            <a class="pg-link" href={props.helpUrl} target="_blank" rel="noopener noreferrer">
+              {i18n.t('signIn.help')}
+            </a>
+          </p>
+        )}
       </div>
-      <p class="pg-note">{i18n.t('signIn.accessNote')}</p>
-      {props.helpUrl === null ? null : (
-        <p class="pg-note">
-          <a class="pg-link" href={props.helpUrl} target="_blank" rel="noopener noreferrer">
-            {i18n.t('signIn.help')}
-          </a>
-        </p>
-      )}
       {props.checklist}
 
       <details class="pg-details" data-pg-anchor="hub-address">

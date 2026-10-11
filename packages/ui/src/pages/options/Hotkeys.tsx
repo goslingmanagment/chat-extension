@@ -11,6 +11,7 @@ import { type I18nKey } from '@cg/contracts/errors';
 import { type CatalogActionId, type HotkeyLabel, type HotkeysBodyVM } from '@cg/contracts/vm';
 
 import { Kbd, useI18n } from '../../kit';
+import { Card } from '../shared';
 
 type Row = HotkeysBodyVM['rows'][number];
 
@@ -59,8 +60,9 @@ interface RowGroup {
 /** One table, so the columns of every group line up; each group is a `tbody` under its own heading row. */
 function Table({ groups, caption }: { readonly groups: readonly RowGroup[]; readonly caption: string }): JSX.Element {
   const i18n = useI18n();
+  // Groups side by side, each row «action … keys» (X32, after the Fansly extension's reference); one group of many rows flows into columns.
   return (
-    <table class="pg-table" aria-label={caption}>
+    <table class={groups.length === 1 ? 'pg-table pg-keys pg-keys--flow' : 'pg-table pg-keys'} aria-label={caption}>
       <thead>
         <tr>
           <th scope="col">{i18n.t('settings.hotkeys.col.action')}</th>
@@ -83,7 +85,8 @@ function Table({ groups, caption }: { readonly groups: readonly RowGroup[]; read
               <td>
                 <Keys hotkey={row.hotkey} />
               </td>
-              <td>
+              {/* «работает» is the norm and is not drawn (§1 п. 7): the cell speaks only when the combination does not. */}
+              <td data-pg-delivery={row.id === 'help' ? 'removed' : (row.hotkey?.delivery ?? 'none')}>
                 <Delivery row={row} />
               </td>
             </tr>
@@ -108,16 +111,17 @@ export function HotkeysSection({ body }: { readonly body: HotkeysBodyVM }): JSX.
   const outside = body.rows.filter((row) => row.outsideScheme && row.hotkey !== null);
   return (
     <>
-      <p class="pg-note" style={{ margin: '0 0 4px' }}>
+      <p class="pg-note pg-intro">
         {i18n.t('settings.hotkeys.platform', { platform })}
       </p>
-      <h2 class="pg-h2">{i18n.t('settings.hotkeys.reference')}</h2>
-      <Table groups={groups} caption={i18n.t('settings.hotkeys.reference')} />
-      <h2 class="pg-h2">{i18n.t('settings.hotkeys.outsideScheme')}</h2>
-      <Table groups={[{ id: 'outside', title: null, rows: outside }]} caption={i18n.t('settings.hotkeys.outsideScheme')} />
-      <h2 class="pg-h2">{i18n.t('settings.hotkeys.delivery')}</h2>
-      <p class="pg-note" style={{ margin: 0 }}>
-        {i18n.t('settings.hotkeys.deliveryNote')}
+      <Card title={i18n.t('settings.hotkeys.reference')}>
+        <Table groups={groups} caption={i18n.t('settings.hotkeys.reference')} />
+      </Card>
+      <Card title={i18n.t('settings.hotkeys.outsideScheme')}>
+        <Table groups={[{ id: 'outside', title: null, rows: outside }]} caption={i18n.t('settings.hotkeys.outsideScheme')} />
+      </Card>
+      <p class="pg-note">
+        <b>{i18n.t('settings.hotkeys.delivery')}.</b> {i18n.t('settings.hotkeys.deliveryNote')}
       </p>
     </>
   );
