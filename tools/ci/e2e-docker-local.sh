@@ -46,7 +46,11 @@ busy=$(docker ps --filter "volume=$volume" --format '{{.Names}}')
 echo "e2e-docker-local: step 1 — Linux install in the volume $volume ($node_image, $pinned)"
 # COPYFILE_DISABLE: macOS tar would otherwise add a `._name` twin for every file
 # with extended attributes, and the test runners would take those for tests.
-(cd "$root" && git ls-files -co --exclude-standard -z | COPYFILE_DISABLE=1 tar --null -T - -cf -) | docker run --rm -i \
+# --no-xattrs: it would still write the attributes themselves, as pax headers,
+# and GNU tar in the container prints «Ignoring unknown extended header keyword
+# 'LIBARCHIVE.xattr.<name>'» for each — at least one line per file, as every
+# file an agent checked out or wrote carries com.apple.provenance.
+(cd "$root" && git ls-files -co --exclude-standard -z | COPYFILE_DISABLE=1 tar --no-xattrs --null -T - -cf -) | docker run --rm -i \
   --mount "type=volume,source=$volume,target=/sim" \
   --env "PINNED=$pinned" --env CI=true "$node_image" bash -euo pipefail -c '
     mkdir -p /sim/work /sim/node /sim/node-libs /sim/pnpm /sim/store

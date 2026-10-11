@@ -60,6 +60,18 @@ describe('the strip', () => {
     expect(kit.$('.cg-slot--more .cg-act')?.getAttribute('aria-haspopup')).toBe('menu');
     // There is no menu to open for a tone.
     expect(buttons().filter((element) => element.getAttribute('aria-haspopup') === 'menu')).toHaveLength(1);
+    // No goose: the bar starts with Reply (decision X31).
+    expect(kit.$('.cg-strip .cg-goose')).toBeNull();
+    expect(kit.$('.cg-strip > *')?.classList.contains('cg-strip__acts')).toBe(true);
+  });
+
+  it('[UI-002] a narrow bar shows Review, Recap, Coach and the two windows as their icons: each chip carries its icon, the word stays its name', () => {
+    kit = mountDock(dockScenario(dockVm()));
+    const icons = kit.$$('.cg-act--ico');
+    expect(icons.map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Review', 'Recap', 'Coach', 'Spenders', 'Новые']);
+    for (const chip of icons) expect(chip.querySelector(':scope > svg.cg-ico'), chip.textContent ?? '').not.toBeNull();
+    // Nothing else in the bar turns into an icon.
+    expect(kit.$$('.cg-act--ico').filter((element) => !element.closest('.cg-slot--two, .cg-slot--boards'))).toEqual([]);
   });
 
   it('[UI-012] outside an open chat there is no dock at all', () => {
@@ -89,7 +101,6 @@ describe('the strip', () => {
     expect(described(button('Reply'))).toBe(`Reply  ⌘E\n${HINT.reply}`);
     expect(described(button('Split'))).toBe(`Split: ответ частями  ⌘⇧L\n${HINT.split}`);
     expect(described(button('Ещё'))).toBe('Review, Recap, Coach');
-    expect(kit.$('.cg-mark')?.getAttribute('aria-label')).toBe(`ChatGoose — персона ${PERSONA.label}`);
     // No `title` attribute anywhere: hints are ours.
     expect(kit.$$('[title]')).toEqual([]);
   });
@@ -137,7 +148,6 @@ describe('the strip', () => {
     for (const [status, why] of cases) {
       kit = mountDock(dockScenario(dockVm(status)));
       for (const label of ['Reply', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']) expect(described(button(label)).split('\n')[0], `${status} ${label}`).toBe(`${label} недоступен: ${why}`);
-      expect(kit.$('.cg-mark')?.classList.contains('is-off'), status).toBe(true);
       kit.unmount();
       kit = null;
     }
@@ -163,7 +173,7 @@ describe('the strip', () => {
     expect(described(button('Recap'))).toBe(`Recap  ⌘⇧S\n${HINT.recap}\nRecap готов`);
   });
 
-  it('[UI-031] the quota shows only when little is left or nothing is: a count at the goose\'s corner, its words in the goose\'s hint', () => {
+  it('[UI-031] the quota shows only when little is left or nothing is: a count on the bar\'s frame over Reply\'s corner, its words in its own hint', () => {
     kit = mountDock(dockScenario(dockVm()));
     expect(kit.$('.cg-quota')).toBeNull();
     kit.unmount();
@@ -171,21 +181,27 @@ describe('the strip', () => {
     expect(kit.$('.cg-quota')).toBeNull();
     kit.unmount();
     kit = mountDock('quota-low');
-    const low = kit.$('.cg-mark > .cg-quota') as HTMLElement;
+    const low = kit.$('.cg-slot--reply > .cg-quota') as HTMLElement;
     expect(text(low)).toBe('12');
     expect(low.classList.contains('is-zero')).toBe(false);
-    expect(described(kit.$('.cg-mark') as HTMLElement)).toMatch(new RegExp(`^ChatGoose — персона ${PERSONA.label}\\nОсталось 12 генераций AI на сегодня\\. Обновится в \\d\\d:\\d\\d$`));
+    expect(described(low)).toMatch(/^Осталось 12 генераций AI на сегодня\. Обновится в \d\d:\d\d$/);
+    // Reply keeps its own hint.
+    expect(described(button('Reply'))).toBe(`Reply  ⌘E\n${HINT.reply}`);
     kit.unmount();
     // No reset time known: the words without it.
     kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt: null } })));
-    expect(kit.$('.cg-mark')?.getAttribute('aria-label')).toBe(`ChatGoose — персона ${PERSONA.label}\nAI: осталось 12`);
+    expect(kit.$('.cg-quota')?.getAttribute('aria-label')).toBe('AI: осталось 12');
     kit.unmount();
     kit = mountDock('quota-zero');
-    const zero = kit.$('.cg-mark > .cg-quota') as HTMLElement;
+    const zero = kit.$('.cg-slot--reply > .cg-quota') as HTMLElement;
     expect(text(zero)).toBe('0');
     expect(zero.classList.contains('is-zero')).toBe(true);
-    expect(described(kit.$('.cg-mark') as HTMLElement)).toContain('Квота AI: 0');
+    expect(described(zero)).toContain('Квота AI: 0');
     expect(described(button('Reply')).split('\n')[0]).toMatch(/^Reply недоступен: дневная квота AI исчерпана, обновится в \d\d:\d\d$/);
+    kit.unmount();
+    // The count speaks whatever the hints setting is, as the goose's hint did.
+    kit = mountDock(dockScenario(dockVm('ready', { hints: false, quota: { remaining: 12, low: true, resetsAt: null } })));
+    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('AI: осталось 12');
   });
 
   it('shows the persona once, «вход не выполнен» without sign-in, the status words while the chat loads', () => {
@@ -380,6 +396,9 @@ describe('what the strip asks for', () => {
     expect(button('Reply').hasAttribute('aria-describedby')).toBe(false);
     expect(button('Flirt').hasAttribute('aria-describedby')).toBe(false);
     expect(described(button('Fix'))).toBe('Fix недоступен: сначала напишите черновик в поле ввода');
+    // A chip a narrow bar shows as its icon alone keeps its name in the hint.
+    expect(described(button('Recap'))).toBe('Recap');
+    expect(described(button('Spenders'))).toBe('Spenders');
   });
 
   it('builds every action from the view model: with no target nothing is asked', async () => {
@@ -393,10 +412,10 @@ describe('what the strip asks for', () => {
     // The stand's port prints in UTC — a chatter who is not in Moscow.
     const resetsAt = iso(Date.UTC(2026, 9, 4, 0, 0, 0));
     kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 0, low: true, resetsAt } })));
-    expect(described(kit.$('.cg-mark') as HTMLElement)).toBe(`ChatGoose — персона ${PERSONA.label}\nКвота AI: 0\nДневная квота AI исчерпана. Обновится в 03:00 по Москве`);
+    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Квота AI: 0\nДневная квота AI исчерпана. Обновится в 03:00 по Москве');
     kit.unmount();
     // The low-quota words name no zone: it is the chatter's own time.
     kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt } })));
-    expect(described(kit.$('.cg-mark') as HTMLElement)).toBe(`ChatGoose — персона ${PERSONA.label}\nОсталось 12 генераций AI на сегодня. Обновится в 00:00`);
+    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Осталось 12 генераций AI на сегодня. Обновится в 00:00');
   });
 });

@@ -1,8 +1,9 @@
 // The bar (ui-design §3.1, §3.3, §4.1; UI-002…UI-010, UI-031, AI-002…
-// AI-010): one 40 px card above the composer — the goose mark, Reply with the
-// capsule of its options, the other AI actions as raised chips in groups,
-// «Ещё» where a narrow composer hid some, then the status words, the two
-// windows (Spenders, «Новые»), the persona and the palette key.
+// AI-010): one 40 px card above the composer — Reply with the capsule of its
+// options, the other AI actions as raised chips in groups, «Ещё» where a
+// narrow composer hid some, then the status words, the two windows (Spenders,
+// «Новые»), the persona and the palette key. No goose: its cell is the room
+// that keeps every chip on a ~540 px composer (decision X31).
 // `role="toolbar"`: one tab stop, arrows inside. What hides at which width is
 // CSS (container queries, styles.ts); the markup is the same at every width.
 //
@@ -23,7 +24,6 @@ import { DOCK_ACTION_IDS, type DockActionId, type DockVM, type UiAction } from '
 import {
   CheckGlyph,
   Divider,
-  GooseMark,
   Icon,
   Menu,
   MenuAnchor,
@@ -39,12 +39,15 @@ import {
   useI18n,
   useKit,
   useTooltip,
+  type IconName,
   type MenuItem,
 } from '../kit';
 import { QUOTA_RESET_TIME_ZONE, quotaSlot, stripAction } from './model';
 
-/** Review, Recap and Coach move into «Ещё» on a composer narrower than 680 px (ui-design §3.3). */
+/** Review, Recap and Coach: icons on a composer narrower than 610 px, in «Ещё» with the windows below 500 (ui-design §3.3). */
 const TIER_TWO: readonly DockActionId[] = ['review', 'recap', 'coach'];
+/** On a narrow composer these chips are their icons alone, the word in the hint and in the name (ui-design §3.3). */
+const ICONS: Readonly<Record<'review' | 'recap' | 'coach' | BoardId, IconName>> = { review: 'gauge', recap: 'dossier', coach: 'bulb', spenders: 'bill', newcomers: 'userPlus' };
 /** A hairline seam stands before the first chip of a group: Reply and its options │ Fix │ Hi · Ping │ Review · Recap · Coach. */
 const GROUP_START: readonly DockActionId[] = ['fix', 'hi', 'review'];
 /** The tones in the chatters' own language (the Fansly extension's capsule); the word is the cell's name and its hint. */
@@ -65,25 +68,15 @@ function visible(element: HTMLElement): boolean {
 const isBoard = (id: string): id is BoardId => BOARDS.some((board) => board === id);
 
 /**
- * The goose: a mark, not a button; its hint carries the persona. What is left of a low quota is a small count at
- * its corner (UI-031) — it costs the bar no width, so it is there on every composer — and the hint says it in words.
- * While the chat loads, a composer with no room for the status words shows their spinner in the goose's place.
+ * What is left of a low quota (UI-031): a small count at Reply's corner. It costs the bar no width, so it is there on
+ * every composer, and its hint says it in words whatever the hints setting is, as the goose's hint did.
  */
-function Mark({ vm, quota }: { readonly vm: DockVM; readonly quota: { readonly count: number; readonly text: string } | null }): JSX.Element {
-  const i18n = useI18n();
-  const name = vm.persona === null ? i18n.t('dock.label') : i18n.t('dock.mark.tooltip', { persona: vm.persona.label });
-  const text = quota === null ? name : `${name}\n${quota.text}`;
+function Quota({ count, text }: { readonly count: number; readonly text: string }): JSX.Element {
   const tip = useTooltip(text);
   return (
     <>
-      <span class={`cg-mark${vm.mark === 'faint' ? ' is-off' : ''}`} role="img" aria-label={text} {...tip.props}>
-        <GooseMark />
-        {vm.statusWords ? <Spinner /> : null}
-        {quota === null ? null : (
-          <span class={`cg-quota cg-num${quota.count === 0 ? ' is-zero' : ''}`} aria-hidden="true">
-            {quota.count}
-          </span>
-        )}
+      <span class={`cg-quota cg-num${count === 0 ? ' is-zero' : ''}`} role="img" aria-label={text} {...tip.props}>
+        {count}
       </span>
       {tip.description}
     </>
@@ -194,10 +187,12 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     const off = whyOff(id);
     let tooltip = action.busy ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(action.hotkey)), `dock.hint.${id}`);
     if (action.badge !== null) tooltip = `${tooltip}\n${t('dock.badge.recapReady')}`;
+    const icon = id === 'review' || id === 'recap' || id === 'coach' ? ICONS[id] : null;
     return (
       <StripButton
         label={name}
         {...(id === 'reply' ? { class: 'cg-act--main' } : {})}
+        {...(icon === null ? {} : { class: 'cg-act--ico', iconable: true, leading: <Icon name={icon} size={14} /> })}
         hotkey={action.enabled ? action.hotkey : null}
         active={action.active}
         busy={action.busy}
@@ -317,13 +312,13 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         if (id !== null && id !== stop) setStop(id);
       }}
     >
-      <Mark vm={vm} quota={quotaText === null ? null : { count: quota === 'zero' ? 0 : remaining, text: quotaText }} />
       <div class="cg-strip__acts">
         {DOCK_ACTION_IDS.map((id) => (
           <Fragment key={id}>
-            <span class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : 'cg-slot'}>
+            <span class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : id === 'reply' ? 'cg-slot cg-slot--reply' : 'cg-slot'}>
               {GROUP_START.includes(id) ? <Divider /> : null}
               {actionButton(id)}
+              {id === 'reply' && quotaText !== null ? <Quota count={quota === 'zero' ? 0 : remaining} text={quotaText} /> : null}
             </span>
             {id !== 'reply' ? null : (
               // The capsule of Reply's options: a click on a tone is Reply in that tone; behind the seam — Split.
@@ -393,6 +388,9 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
             <StripButton
               key={id}
               label={boardName(id)}
+              class="cg-act--ico"
+              iconable
+              leading={<Icon name={ICONS[id]} size={14} />}
               hotkey={id === 'spenders' ? deps.catalog.entry('spenders').hotkey : null}
               tooltip={hinted(keyed(boardName(id), boardKey(id)), `dock.hint.${id}`)}
               onClick={() => openBoard(id)}

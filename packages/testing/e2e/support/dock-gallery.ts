@@ -24,8 +24,8 @@ export interface Size {
 export const WINDOW: Size = { width: 1440, height: 900 };
 export const SMALL: Size = { width: 1280, height: 800 };
 export const ZOOMS = [1, 1.25, 1.5, 2] as const;
-/** The reference composer widths (ui-design §3.3). */
-export const WIDTHS = [853, 693, 489, 360] as const;
+/** The reference composer widths (ui-design §3.3); 548 is a 1512 px window with ChatSpace's side panel open (a MacBook 14). */
+export const WIDTHS = [853, 693, 548, 489, 360] as const;
 /** The column every surface must fit without horizontal scroll (ui-design §6.5). */
 export const COLUMN = 320;
 export const THEMES = ['light', 'dark'] as const;

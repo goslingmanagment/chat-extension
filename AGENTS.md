@@ -18,10 +18,10 @@ hotkeys, sound) and the extension pages (popup, settings, sign-in, debug
 pages) work together on the ChatSpace-like stand against the fake hub.
 Contracts are frozen at 1.14.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
-`docs/contracts-changelog.md`. The SDK is vendored from hub `main` `2260ef73`
-(2026-10-10, contract `b9d4dd07…`), the commit production runs since the hub
-moved to its new server on 2026-10-11, so it meets the release rule (a release
-is vendored only from a deployed hub commit): every hub route written for this
+`docs/contracts-changelog.md`. The SDK is vendored from hub `main` `6ee3d627`
+(2026-10-11, contract `03012453…`), the commit production runs since
+2026-10-11 22:28 UTC, so it meets the release rule (a release is vendored only
+from a deployed hub commit): every hub route written for this
 client is in it, and every hub call goes one way, through the SDK (the
 temporary RouteTransport is gone).
 The prod hub runs that contract and declares every capability this client
@@ -128,6 +128,9 @@ a boundary you need to cross is a design question, not a lint exception.
   extension and the desktop, pilot evidence, what is not verified yet.
   `CHANGELOG.md` is the chatter-facing text of each version (the site and the
   announcement are made from it); `BUILD.md` is for Mozilla's reviewers.
+- `docs/backlog.md` — what is still to do or to check and is in no work
+  package yet; first of all, the functional parity with the Fansly extension
+  (where the data come from, how fresh, how many steps), not just the rows.
 - `docs/decisions.md` — decision log (quick-ref table + entries). The hub keeps
   no decision log; a cross-repo ruling is recorded here and in the sibling
   clients' logs, pointing at the hub doc or package that carries it.

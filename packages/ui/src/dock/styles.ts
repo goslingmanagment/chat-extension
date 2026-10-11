@@ -6,21 +6,29 @@
 // `cg` container (the dock's own width, not the window's) and go one way: what
 // hides at a width stays hidden below it.
 //
-//   widest  everything: the capsule with the word «Split», Spenders and
-//           «Новые», the status in words, the persona, the palette key
+//   widest  everything in words: the capsule with the word «Split», Spenders
+//           and «Новые», the status in words, the persona, the palette key
 //   < 1000  no persona, no palette key; the status words short
 //   < 900   Split in the capsule is its glyph alone
-//   < 820   Spenders and «Новые» move into «Ещё»; the status is a spinner in the
-//           goose's place; no lock in the capsule while a generation runs; the
-//           chips stand closer
-//   < 680   Review, Recap, Coach in «Ещё» too; Hi variants in a column
+//   < 820   no lock in the capsule while a generation runs; chips 0 8 px
+//   < 720   the chips closer: gaps 3 px, chips 0 7 px
+//   < 690   Spenders and «Новые» are their icons; the status in their place
+//           while the chat loads is its spinner alone; Hi variants in a column
+//           below 680
+//   < 610   Review, Recap, Coach are their icons too
 //   ≤ 600   head without meta and key labels
-//   < 480   the capsule's cells narrower, 24 px from one to the next; no seams
-//   < 440   no goose (while the chat loads its spinner stays, in the place of «Ещё»)
+//   < 530   the capsule's cells narrower, 24 px from one to the next; chips 0 6
+//   < 500   the five icons in «Ещё» at once
+//   < 480   no seams
+//   < 440   while the chat loads, the status spinner in the place of «Ещё»
 //   ≤ 420   «Скрыть» is ×; Insert under the text
 //   < 360   «Ещё раз» is ↻, so «черновик · не отправлено» fits whole; the
 //           buttons of a Recap or Review head take a second line; «Ещё» is ⋯
 //           and the chips closer still (a 320 px column, §6.5)
+//
+// No goose in the bar (decision X31): its cell is the room that keeps every
+// chip on a ~540 px composer, as on a 1512 px window with ChatSpace's side
+// panel open.
 
 import { type StyleSource } from '../kit';
 
@@ -38,23 +46,24 @@ ${/* The bar is first in the document (Tab reaches it first, ui-design §6.3) an
 
 ${/* ── the bar: a card of raised chips ── */ ''}
 .cg-strip {
-  display: flex; align-items: center; gap: 4px; height: 40px; min-width: 0; padding: 0 5px 0 1px;
+  display: flex; align-items: center; gap: 4px; height: 40px; min-width: 0; padding: 0 5px;
   background: var(--cg-raised); border: 1px solid var(--cg-rule-2); border-radius: var(--cg-r-lg); box-shadow: var(--cg-shadow);
 }
-.cg-mark { position: relative; width: 30px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--cg-clay); }
-.cg-mark.is-off { color: var(--cg-ink-faint); }
-.cg-mark > .cg-spin { display: none; }
+${/* What is left of a low quota: a count on the bar's frame over Reply's corner, clear of its word. */ ''}
+.cg-slot--reply { position: relative; }
 .cg-quota {
-  position: absolute; top: -3px; right: -4px; min-width: 15px; height: 14px; padding: 0 3px; border-radius: var(--cg-r-pill);
-  background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink);
-  font-family: var(--cg-mono); font-size: 9.5px; line-height: 14px; font-weight: 600; text-align: center;
+  position: absolute; top: -7px; left: -4px; z-index: 2; min-width: 15px; height: 13px; padding: 0 3px; border-radius: var(--cg-r-pill);
+  background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line), 0 0 0 2px var(--cg-raised); color: var(--cg-clay-ink);
+  font-family: var(--cg-mono); font-size: 9.5px; line-height: 13px; font-weight: 600; text-align: center; cursor: default;
 }
-.cg-quota.is-zero { background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-danger); color: var(--cg-danger); }
+.cg-quota.is-zero { background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-danger), 0 0 0 2px var(--cg-raised); color: var(--cg-danger); }
 .cg-slot { display: inline-flex; align-items: center; gap: 4px; flex: none; min-width: 0; }
 .cg-strip__acts { flex: none; display: flex; align-items: center; gap: 4px; }
 .cg-strip__opts { display: flex; align-items: center; gap: 4px; min-width: 0; margin-left: auto; padding-left: 8px; }
 .cg-strip__opts > * { flex: none; }
 .cg-strip__opts > .cg-slot--persona, .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
+.cg-act--ico > .cg-ico { display: none; width: 14px; height: 14px; }
+.cg-act.is-busy > .cg-ico { opacity: 0.35; }
 .cg-slot--more, .cg-strip.has-status .cg-slot--boards { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
 .cg-strip .cg-menu--top { bottom: calc(100% + 9px); }
@@ -169,18 +178,37 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
   .cg-tones .cg-split { width: 26px; padding: 0; }
 }
 @container cg (max-width: 819px) {
-  ${/* Nothing of the right block is left here (the windows are in «Ещё», the status is the goose's spinner): it gives its gap back. */ ''}
-  .cg-strip__opts, .cg-strip.has-status .cg-slot--more, .cg-lock, .cg-strip.has-status .cg-goose { display: none; }
-  .cg-slot--more { display: inline-flex; }
-  .cg-mark > .cg-spin { display: block; }
+  .cg-lock { display: none; }
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 8px; }
 }
-@container cg (max-width: 679px) {
-  .cg-slot--two { display: none; }
-  .cg-strip.has-status .cg-slot--more { display: inline-flex; }
-  .cg-strip, .cg-strip__acts, .cg-slot { gap: 3px; }
+@container cg (max-width: 719px) {
+  .cg-strip, .cg-strip__acts, .cg-strip__opts, .cg-slot { gap: 3px; }
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 7px; }
-  .cg-mark { width: 26px; }
+}
+@container cg (max-width: 689px) {
+  ${/* The windows are their icons alone; the word is in the hint and in the name. While the chat loads the status in their place is its spinner alone. */ ''}
+  .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
+  .cg-strip .cg-slot--boards .cg-act--ico { width: 28px; padding: 0; }
+  .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
+  .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
+}
+@container cg (max-width: 609px) {
+  ${/* Review, Recap, Coach too. */ ''}
+  .cg-strip .cg-slot--two .cg-act--ico { width: 28px; padding: 0; }
+  .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
+  .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
+}
+@container cg (max-width: 529px) {
+  .cg-strip .cg-act:not(.cg-opt):not(.cg-act--ico) { padding: 0 6px; }
+  .cg-strip__opts { padding-left: 4px; }
+  ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
+  .cg-tones .cg-opt { width: 22px; }
+  .cg-tones__track { gap: 2px; }
+}
+@container cg (max-width: 499px) {
+  ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. */ ''}
+  .cg-slot--two, .cg-slot--boards { display: none; }
+  .cg-slot--more { display: inline-flex; }
 }
 @container cg (max-width: 600px) {
   .cg-head__meta, .cg-head__acts kbd { display: none; }
@@ -190,16 +218,11 @@ ${/* ── narrow composer (ui-design §3.3) ── */ ''}
 }
 @container cg (max-width: 479px) {
   .cg-strip .cg-div { display: none; }
-  .cg-strip .cg-act:not(.cg-opt) { padding: 0 6px; }
-  ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
-  .cg-tones .cg-opt { width: 22px; }
-  .cg-tones__track { gap: 2px; }
 }
 @container cg (max-width: 439px) {
-  ${/* No room for the goose. While the chat loads its spinner stands in for «Ещё», which would open nothing then. */ ''}
-  .cg-strip:not(.has-status) .cg-mark, .cg-strip.has-status .cg-slot--more { display: none; }
   .cg-strip { padding: 0 3px; }
-  .cg-mark { width: 22px; }
+  ${/* While the chat loads «Ещё» would open nothing: its place is the status spinner's. */ ''}
+  .cg-strip.has-status .cg-slot--more { display: none; }
 }
 @container cg (max-width: 420px) {
   .cg-head { gap: 6px; padding-left: 10px; }
