@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { OFAPI_COLLECTION_CATEGORIES, OFAPI_COLLECTION_JOB_STATE_FILTERS } from "../shared/index";
-import { errorResponseSchema } from "./primitives";
+import { errorResponseSchema, isoDateTime } from "./primitives";
 export const ofapiCollectionCategorySchema = z.enum(OFAPI_COLLECTION_CATEGORIES);
 export const ofapiCollectionSettingsSchema = z.object({
     pageId: z.number().int().positive().nullable(), category: ofapiCollectionCategorySchema,
@@ -17,7 +17,7 @@ export const ofapiCollectionJobSchema = z.object({
     expectedRevision: z.number().int().nonnegative(),
     maxCredits: z.number().int().min(1).max(100000), maxCalls: z.number().int().min(1).max(1000),
     maxBytes: z.number().int().min(1).max(10737418240),
-    from: z.iso.datetime().nullable(), to: z.iso.datetime().nullable(),
+    from: isoDateTime().nullable(), to: isoDateTime().nullable(),
     selection: z.array(z.string().min(1).max(200)).max(100),
 }).strict();
 /** Which of a run's own ceilings ended it (admission says only `job_limit`). */
