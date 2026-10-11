@@ -168,8 +168,10 @@ export interface StripButtonProps {
   readonly onKeyDown?: (event: TargetedKeyboardEvent<HTMLButtonElement>) => void;
   readonly tabIndex?: number;
   readonly buttonRef?: Ref<HTMLButtonElement>;
-  /** Before the text: the Split check glyph. */
+  /** Before the text: the Split check glyph, the icon a narrow bar shows instead of the word. */
   readonly leading?: ComponentChildren;
+  /** A narrow bar may show the chip as its icon alone: then its hint keeps the name even with the hints off. */
+  readonly iconable?: boolean;
   /** After the text: a lock, a value. */
   readonly trailing?: ComponentChildren;
   readonly class?: string;
@@ -180,7 +182,7 @@ export function StripButton(props: StripButtonProps): JSX.Element {
   const hints = useHints();
   const unavailable = props.reason !== null && props.reason !== undefined && props.reason !== '';
   const keys = hotkeyText(props.hotkey);
-  const tip = useTooltip(unavailable ? (props.reason ?? null) : hints ? (props.tooltip ?? null) : null);
+  const tip = useTooltip(unavailable ? (props.reason ?? null) : hints ? (props.tooltip ?? null) : props.iconable === true ? props.label : null);
   const classes = ['cg-act', props.active === true ? 'is-active' : '', props.busy === true ? 'is-busy' : '', props.class ?? '']
     .filter((name) => name !== '')
     .join(' ');
