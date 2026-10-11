@@ -16,7 +16,7 @@ Waves 1 and 2 (R00–R02, R07–R18) are merged
 and connected: the background, the ChatSpace tab (dock, overlays, boards,
 hotkeys, sound) and the extension pages (popup, settings, sign-in, debug
 pages) work together on the ChatSpace-like stand against the fake hub.
-Contracts are frozen at 1.12.0 (`docs/protocols/README.md`); a change is
+Contracts are frozen at 1.13.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
 `docs/contracts-changelog.md`. The SDK is vendored from hub `main` `4d75e203`
 (2026-10-10, contract `9d032a24…`), the commit deployed to production that
@@ -149,9 +149,12 @@ a boundary you need to cross is a design question, not a lint exception.
 - **Fresh page text goes to the hub only for draft features** (Reply, Fix, Hi,
   Ping), never for Recap/Review/Coach, and never into the hub archive, money or
   dossiers. Skip queued (`isFromQueue`) and unsent messages.
-- **UI is designed from scratch** and docks to the top of ChatSpace's message
-  input (the composer); see decision X7. Do not copy the old Fansly or desktop
-  look.
+- **UI speaks the family language** (decision X28, which revises X7): raised
+  chips, the sunken capsule of Reply's options, draft cards, the terracotta
+  accent, serif AI text — as in the Fansly extension — in a layout of its own:
+  one card docked to the top of ChatSpace's message input (the composer). The
+  host's blue is only for what reaches the fan («Отправить»). `docs/ui-design.md`
+  is binding.
 - **Parity bar.** Every feature of the Fansly extension and the desktop carries
   over, including logging, the front-end debug mode, settings, popup and error
   toasts. Dropping one needs the owner's explicit OK. Execution must be
