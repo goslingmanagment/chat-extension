@@ -16,6 +16,17 @@
 # files and new ones that are not ignored. Step 1 (with network) fills it,
 # step 2 (no network) runs the tests. `docker volume rm cg-e2e-local` starts
 # from scratch.
+#
+# A volume that a run is using is left alone: step 1 would replace the tree
+# under that run. While a running container has the volume mounted — the step
+# 1 of another start counts — the script ends at once with one line and
+# touches nothing. Wait for that run, or give this one a volume of its own:
+# CG_E2E_VOLUME=<name>.
+#
+# The check is a look at what runs at that moment, not a lock. It does not
+# see a start whose step 1 container is not up yet, nor a run between its two
+# steps: a fraction of a second each, longer when Docker has to pull an image
+# first.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
@@ -26,6 +37,11 @@ volume=${CG_E2E_VOLUME:-cg-e2e-local}
 node_image=${CG_E2E_NODE_IMAGE:-node:$(tr -d '[:space:]' < "$root/.nvmrc")-bookworm-slim}
 pinned=$(sed -n 's/.*"packageManager": *"\(pnpm@[0-9.]*\).*/\1/p' "$root/package.json")
 [ -n "$pinned" ] || { echo "e2e-docker-local: no pnpm version in package.json packageManager" >&2; exit 1; }
+
+# One run at a time on a volume (see the header): any running container that
+# has it mounted counts, whichever step of a run it is.
+busy=$(docker ps --filter "volume=$volume" --format '{{.Names}}')
+[ -z "$busy" ] || { echo "e2e-docker-local: the volume $volume is in use (running with it mounted: ${busy//$'\n'/, }) — a start now would replace the working tree under that run. Wait for it to end, or give this run a volume of its own: CG_E2E_VOLUME=<own name>" >&2; exit 1; }
 
 echo "e2e-docker-local: step 1 — Linux install in the volume $volume ($node_image, $pinned)"
 # COPYFILE_DISABLE: macOS tar would otherwise add a `._name` twin for every file

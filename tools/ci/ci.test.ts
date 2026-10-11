@@ -1,13 +1,16 @@
 // The CI job «e2e» around its container (.github/workflows/ci.yml,
-// tools/ci/e2e-docker.sh, tools/ci/e2e-needed.sh) — what can be checked without
-// Docker and without GitHub:
+// tools/ci/e2e-docker.sh, tools/ci/e2e-needed.sh) and its local variant
+// (tools/ci/e2e-docker-local.sh) — what can be checked without Docker and
+// without GitHub:
 //   - a cancelled job does not leave its container: the workflow's own `run:`
 //     line is started the way the runner starts a step, signalled the way the
 //     runner cancels one, against a stand-in `docker` that keeps "containers"
 //     in a file;
-//   - which changes skip the suite, on a throwaway git repository.
-// The real thing — the same line, the real Docker, a real cancel sequence — was
-// run by hand; docs/release.md, «Что проверено».
+//   - which changes skip the suite, on a throwaway git repository;
+//   - a local run does not start on a volume that a running container has
+//     mounted, against the same stand-in.
+// The real thing — the same line, the real Docker, a real cancel sequence; two
+// real starts on one volume — was run by hand; docs/release.md, «Что проверено».
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
@@ -44,7 +47,7 @@ function temp(prefix: string): string {
 
 // ── a runner without Docker ────────────────────────────────────────────────
 
-/** A stand-in for the docker client: logs every call; containers and image tags are lines of files. */
+/** A stand-in for the docker client: logs every call; containers and image tags are lines of files, and so are the containers running with a volume mounted (`on-<volume>`). */
 const FAKE_DOCKER = `#!/bin/bash
 S=$CG_FAKE_DOCKER
 printf '%s\\n' "$*" >> "$S/calls"
@@ -52,13 +55,17 @@ case "$1" in
   info) echo '["name=seccomp","name=rootless"]' ;;
   image | pull | tag | rmi) exit 0 ;;
   images) cat "$S/images" 2> /dev/null; exit 0 ;;
-  ps) cat "$S/containers" 2> /dev/null; exit 0 ;;
+  ps)
+    for arg in "$@"; do case "$arg" in volume=*) cat "$S/on-\${arg#volume=}" 2> /dev/null; exit 0 ;; esac; done
+    cat "$S/containers" 2> /dev/null; exit 0 ;;
   rm)
     shift; [ "$1" = -f ] && shift
     for name in "$@"; do grep -v -x -- "$name" "$S/containers" > "$S/containers.new" 2> /dev/null; mv "$S/containers.new" "$S/containers"; done ;;
   run)
     name=''; prev=''
     for arg in "$@"; do [ "$prev" = --name ] && name=$arg; prev=$arg; done
+    # -i: what is piped in is read to its end, as the process in the container reads it.
+    for arg in "$@"; do [ "$arg" = -i ] && cat > /dev/null; done
     mode=$(cat "$S/run-mode" 2> /dev/null)
     case "$mode" in exit:*) exit "\${mode#exit:}" ;; esac
     echo "$name" >> "$S/containers"
@@ -385,5 +392,48 @@ describe('which changes run the e2e suite', () => {
     for (const step of steps.slice(0, 5)) expect(step, step.split('\n')[0]).toMatch(/\n {8}if: (always\(\) && )?steps\.scope\.outputs\.e2e != 'false'\n/);
     // No workflow-level path filter: a required check of a workflow that never starts would wait for ever.
     expect(WORKFLOW).not.toMatch(/^\s+paths(-ignore)?:/m);
+  });
+});
+
+// ── the same job on a machine of one's own ─────────────────────────────────
+
+/** tools/ci/e2e-docker-local.sh in a throwaway checkout of its own, with what it reads: step 1 archives the tree the script stands in. */
+function localScript(): { path: string; dir: string } {
+  const checkout = repository();
+  for (const file of ['tools/ci/e2e-docker-local.sh', 'tools/ci/e2e-image.sh', '.nvmrc', 'package.json']) checkout.write(file, readFileSync(join(REPO_ROOT, file), 'utf8'));
+  return { path: join(checkout.dir, 'tools/ci/e2e-docker-local.sh'), dir: checkout.dir };
+}
+
+describe('a local run of the e2e job in a Docker volume', () => {
+  const refusal = (volume: string, containers: string): string =>
+    `e2e-docker-local: the volume ${volume} is in use (running with it mounted: ${containers}) — a start now would replace the working tree under that run. Wait for it to end, or give this run a volume of its own: CG_E2E_VOLUME=<own name>\n`;
+
+  it('does not start while a running container has its volume mounted — one line, and nothing is run; on a volume of its own it goes through both steps', () => {
+    const r = runner();
+    const script = localScript();
+    const start = (volume?: string): { status: number | null; stdout: string; stderr: string } => {
+      const { status, stdout, stderr } = spawnSync('bash', [script.path], { cwd: script.dir, env: { ...r.env, ...(volume === undefined ? {} : { CG_E2E_VOLUME: volume }) }, encoding: 'utf8' });
+      return { status, stdout, stderr };
+    };
+    writeFileSync(join(r.state, 'run-mode'), 'exit:0');
+    // Another session named no volume either and its run is going: in its step 1 or in its step 2, its container has the default volume mounted.
+    writeFileSync(join(r.state, 'on-cg-e2e-local'), 'quirky_hopper\n');
+
+    expect(start()).toEqual({ status: 1, stdout: '', stderr: refusal('cg-e2e-local', 'quirky_hopper') });
+    // Docker was asked about that volume and nothing else was done: the tree in it is as the other run has it.
+    expect(r.calls()).toEqual(['ps --filter volume=cg-e2e-local --format {{.Names}}']);
+
+    // Two of them (runs that did collide, a shell somebody left in the volume): still one line.
+    writeFileSync(join(r.state, 'on-cg-e2e-local'), 'quirky_hopper\nnifty_noether\n');
+    expect(start()).toEqual({ status: 1, stdout: '', stderr: refusal('cg-e2e-local', 'quirky_hopper, nifty_noether') });
+
+    // The same start on a volume of its own, while those containers run.
+    const own = start('cg-e2e-own');
+    expect(own.status, own.stderr).toBe(0);
+    const calls = r.calls().filter((call) => /^(ps|run|image) /.test(call));
+    expect(calls.map((call) => call.slice(0, call.indexOf(' ')))).toEqual(['ps', 'ps', 'ps', 'run', 'image', 'run']);
+    expect(calls[2]).toBe('ps --filter volume=cg-e2e-own --format {{.Names}}');
+    // Both steps mount the volume the question was about, so a start during another start’s step 1 gets the same answer.
+    for (const step of [calls[3], calls[5]]) expect(step).toContain(' --mount type=volume,source=cg-e2e-own,target=/sim ');
   });
 });
