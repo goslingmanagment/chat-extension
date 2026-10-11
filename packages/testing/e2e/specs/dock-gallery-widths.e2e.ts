@@ -1,8 +1,8 @@
 // The dock in headless Firefox: what hides on which composer width (ui-design
-// §3.3), the wide strip with the tones as buttons (both kinds of key labels),
-// the 900 → 320 px sweep in 1 px steps, both «Вид ответа», the height limit
-// (§3.2) and the order of Tab (§6.3). Every state in every theme,
-// language and zoom is dock-gallery-states-*.e2e.ts; the overlays are
+// §3.3), the capsule of Reply's options at every width, the key caps of both
+// kinds of labels, the 900 → 320 px sweep in 1 px steps, both «Вид ответа»,
+// the height limit (§3.2) and the order of Tab (§6.3). Every state in every
+// theme, language and zoom is dock-gallery-states-*.e2e.ts; the overlays are
 // dock-gallery-overlays.e2e.ts.
 
 import { browser, expect } from '@wdio/globals';
@@ -14,18 +14,31 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
   useNetworkTrap();
   after(resetWindow);
 
-  const SEVEN = ['Reply', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach'];
-  const withKeys = (labels: readonly string[]): string[] => labels.map((label) => `${label}+key`);
+  /** «+key»: the chip carries its key — a cap at its corner, shown on hover and on keyboard focus (UI-006). */
+  const keyed = (labels: readonly string[]): string[] => labels.map((label) => `${label}+key`);
+  const TONES = ['Casual', 'Flirt', 'Sell', 'Spice'];
+  /** Reply and the capsule of its options: the four tones and Split. */
+  const REPLY = ['Reply+key', ...TONES, 'Split+key'];
+  const FOUR = [...REPLY, ...keyed(['Fix', 'Hi', 'Ping'])];
+  const SEVEN = [...FOUR, ...keyed(['Review', 'Recap', 'Coach'])];
+  const WINDOWS = ['Spenders+key', 'Новые'];
+  const caps = (id: string): Promise<readonly string[]> => browser.execute((state) => [...(window.__dock?.caps(state) ?? [])], id);
 
-  it('[UI-002] [UI-006] [UI-009] 853 px: seven buttons with their keys, Тон, Split, the persona and ⌘K; a crowded strip drops the persona', async () => {
+  it('[UI-002] [UI-006] [UI-009] [AI-002] [NEW-01] 853 px: Reply with its capsule, the six other actions, Spenders and «Новые» — every tone and both windows one click away; the quota is a count at the goose', async () => {
     await open('theme=light&lang=ru&w=853');
-    expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), 'Тон', 'Split']);
-    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
-    expect(await shown('1a', '.cg-hint')).toHaveLength(1);
-    // «AI: 12» is on the strip: the persona gives way, the quota stays.
-    expect(await shown('1b', '.cg-persona')).toEqual([]);
-    expect(await shown('1b', '.cg-quota .cg-short')).toEqual(['AI: 12']);
-    expect(await shown('1b', '.cg-quota .cg-long')).toEqual([]);
+    await captureWindow('dock-bar-light-ru-w853');
+    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
+    expect(await caps('1a')).toEqual(['⌘E', '⌘⇧L', '⌘I', '⌘G', '⌘P', '⌘⇧B', '⌘⇧S', '⌘⇧C', '⌘⇧M']);
+    // The capsule is a groove: the tones are emoji cells, Split is its glyph alone below 900 px.
+    expect(await shown('1a', '.cg-tones .cg-tone__e')).toEqual(['😌', '😏', '💰', '🔥']);
+    expect((await box('1a', '.cg-split'))?.width).toBe(26);
+    expect(await shown('1a', '.cg-persona')).toEqual([]);
+    expect(await shown('1a', '.cg-hint')).toEqual([]);
+    // «AI: 12» costs the bar no width: a count at the goose's corner.
+    expect(await shown('1b', '.cg-mark .cg-quota')).toEqual(['12']);
+    expect((await measure('1b'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
+    // A chosen tone is the raised cell; nothing in the bar moves.
+    expect((await box('1c', '.cg-tones'))?.width).toBe((await box('1a', '.cg-tones'))?.width);
     // Hi: three variants side by side; the whole meta line in the head.
     const columns = await browser.execute(() => [1, 2, 3].map((index) => window.__dock?.box('4', `.cg-hi__col:nth-child(${index})`)?.left ?? null));
     expect(new Set(columns).size).toBe(3);
@@ -33,59 +46,51 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('3a', '.cg-head__draft')).toEqual(['черновик · не отправлено']);
     expect(await shown('3a', '.cg-keys')).toHaveLength(1);
     expect((await shown('2a', '.cg-stage')).length).toBeGreaterThan(1);
+    // While a generation runs the options are locked with one lock; the chips that are off carry no key.
+    expect((await measure('2a'))?.buttons).toEqual(['Reply+key', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', ...WINDOWS]);
+    expect(await shown('2a', '.cg-tones > .cg-lock')).toHaveLength(1);
+    // While the chat loads nothing can be opened from the bar: the two windows give their place to the status.
+    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
+    expect(await shown('9d', '.cg-status-word .cg-short')).toEqual(['Загрузка…']);
+    expect(await shown('9d', '.cg-mark > .cg-spin')).toEqual([]);
+    expect((await health()).problems).toEqual([]);
   });
 
-  const TONES = ['Casual', 'Flirt', 'Sell', 'Spice'];
-  const WINDOWS = ['Spenders', 'Новые'];
-  /** The tones stand right after Reply: they are its own. */
-  const withTones = (actions: readonly string[]): string[] => [...actions.slice(0, 1), ...TONES, ...actions.slice(1)];
-
-  it('[AI-002] [NEW-01] a wide composer (from 1000 px with short key labels): the tones are four buttons instead of the «Тон» menu, Spenders and «Новые» stand in the strip; the persona and ⌘K come back at 1120 px', async () => {
+  it('[UI-002] from 900 px Split has its word; from 1000 px the persona and the palette key stand on the right — whatever the bar shows: a tone, a quota, a generation take no width', async () => {
+    await open('theme=light&lang=ru&w=900');
+    expect((await box('1a', '.cg-split'))?.width ?? 0).toBeGreaterThan(40);
+    expect(await shown('1a', '.cg-persona')).toEqual([]);
+    expect((await health()).problems).toEqual([]);
     await open('theme=light&lang=ru&w=1000');
-    await captureWindow('dock-wide-light-ru-w1000');
-    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
+    await captureWindow('dock-bar-light-ru-w1000');
+    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
+    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
+    expect(await shown('1a', '.cg-hint')).toEqual(['⌘K']);
+    for (const state of ['1b', '1c', '2a']) expect([state, await shown(state, '.cg-persona')]).toEqual([state, ['Лора · VIP']]);
+    expect(await shown('9d', '.cg-status-word .cg-long')).toEqual(['Чат загружается…']);
+    expect((await health()).problems).toEqual([]);
+    // One pixel narrower than 1000: no persona, no palette key.
+    await open('theme=light&lang=ru&w=999');
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect(await shown('1a', '.cg-hint')).toEqual([]);
-    // A crowded strip («AI: 12», a generation with its two locks) still fits, the quota short.
-    expect(await shown('1b', '.cg-quota .cg-short')).toEqual(['AI: 12']);
-    expect((await measure('2a'))?.buttons).toEqual(['Reply+key', ...TONES, 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Split', ...WINDOWS]);
-    expect(await shown('2a', '.cg-tones > .cg-lock')).toHaveLength(1);
-    // While the chat loads nothing can be opened from the strip: the two windows give their place to the status words.
-    expect((await measure('9d'))?.buttons).toEqual([...withTones(SEVEN), 'Split']);
-    expect((await health()).problems).toEqual([]);
-    await open('theme=light&lang=ru&w=1120');
-    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
-    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
-    expect(await shown('1a', '.cg-hint')).toHaveLength(1);
-    expect((await health()).problems).toEqual([]);
-    // One pixel narrower than wide: the strip of the reference widths, as it was.
-    await open('theme=light&lang=ru&w=999');
-    expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), 'Тон', 'Split']);
-    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
   });
 
-  it('[UI-006] long key labels («Ctrl+Alt+B», Windows and Linux): the wide strip starts at 840 px — a 1440 px window (a composer of 853 px) has it — and the labels stay off the buttons until 1320 px — in the tooltips and the cheatsheet they always are', async () => {
-    await open('theme=dark&lang=ru&w=840&os=win');
-    await captureWindow('dock-wide-dark-ru-win-w840');
-    expect((await measure('1a'))?.buttons).toEqual([...withTones(SEVEN), 'Split', ...WINDOWS]);
-    expect(await shown('1a', '.cg-persona')).toEqual([]);
+  it('[UI-006] long key labels («Ctrl+Alt+B», Windows and Linux) change nothing in the bar: a key is a cap at its chip\'s corner, so the widths are the same ones', async () => {
+    await open('theme=dark&lang=ru&w=853&os=win');
+    await captureWindow('dock-bar-dark-ru-win-w853');
+    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
+    expect(await caps('1a')).toEqual(['Ctrl+E', 'Ctrl+Alt+L', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C', 'Ctrl+Alt+M']);
     expect((await health()).problems).toEqual([]);
-    await open('theme=dark&lang=ru&w=980&os=win');
-    expect((await measure('1a'))?.buttons).toEqual([...withTones(SEVEN), 'Split', ...WINDOWS]);
-    expect(await shown('1a', '.cg-persona')).toEqual(['Лора · VIP']);
-    await open('theme=dark&lang=ru&w=1320&os=win');
-    await captureWindow('dock-wide-dark-ru-win-w1320');
-    expect((await measure('1a'))?.buttons).toEqual([...withTones(withKeys(SEVEN)), 'Split', ...WINDOWS]);
-    expect(await shown('1a', '.cg-strip__acts kbd')).toEqual(['Ctrl+E', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C']);
-    expect((await health()).problems).toEqual([]);
-    // Below 840 px: the «Тон» menu, and still no long labels on the buttons — they would not fit there either.
-    await open('theme=dark&lang=ru&w=839&os=win');
-    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, 'Тон', 'Split']);
-    expect((await health()).problems).toEqual([]);
+    for (const width of [1000, 693, 489, 360, COLUMN]) {
+      await open(`theme=dark&lang=ru&w=${width}&os=win`);
+      expect([width, (await health()).problems]).toEqual([width, []]);
+    }
+    await open('theme=dark&lang=ru&w=1000&os=win');
+    expect(await shown('1a', '.cg-hint')).toEqual(['Ctrl+K']);
   });
 
   for (const os of ['mac', 'win'] as const) {
-    it(`[UI-004] 1400 → 700 px · ${os} key labels: every dock state fits the wide strip and the step down to the narrow one — no overflow, no overlap, the strip stays 34 px`, async () => {
+    it(`[UI-004] 1400 → 700 px · ${os} key labels: every dock state fits the bar at every width — no overflow, no overlap, the bar stays 40 px`, async () => {
       await open(`theme=light&lang=en&w=1400${os === 'win' ? '&os=win' : ''}`);
       const problems: string[] = [];
       for (let from = 1400; from > 700; from -= 100) {
@@ -114,20 +119,32 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     });
   }
 
-  it('[UI-002] [UI-006] 693 px: seven buttons with their keys; no persona, no ⌘K; Hi still in three columns', async () => {
+  it('[UI-002] [UI-003] 693 px: all seven actions and the capsule; Spenders and «Новые» live in «Ещё»; no persona, no palette key; Hi still in three columns', async () => {
     await open('theme=light&lang=ru&w=693');
-    expect((await measure('1a'))?.buttons).toEqual([...withKeys(SEVEN), 'Тон', 'Split']);
+    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, 'Ещё']);
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect(await shown('1a', '.cg-hint')).toEqual([]);
+    // «Ещё» stands for the windows only: a ready Recap is the point on Recap itself.
+    expect(await shown('1b', '.cg-slot--more .cg-badge')).toEqual([]);
+    expect(await shown('1b', '.cg-slot--two .cg-badge')).toHaveLength(1);
     const columns = await browser.execute(() => [1, 2, 3].map((index) => window.__dock?.box('4', `.cg-hi__col:nth-child(${index})`)?.left ?? null));
     expect(new Set(columns).size).toBe(3);
+    // While the chat loads «Ещё» would open nothing: it goes with the windows, and the status is a spinner in the goose's place.
+    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
+    expect(await shown('9d', '.cg-mark > .cg-spin')).toHaveLength(1);
+    expect(await shown('9d', '.cg-mark .cg-goose')).toEqual([]);
+    expect(await shown('9d', '.cg-status-word')).toEqual([]);
+    expect(await shown('1a', '.cg-mark .cg-goose')).toHaveLength(1);
   });
 
-  it('[UI-003] [UI-006] 489 px: Reply · Fix · Hi · Ping · Ещё without keys; Review, Recap and Coach live in «Ещё»; Hi in a column; the head keeps «черновик · не отправлено» and drops the meta; one stage', async () => {
+  it('[UI-003] [UI-006] 489 px: Reply with its capsule · Fix · Hi · Ping · Ещё; Review, Recap, Coach and the two windows live in «Ещё»; Hi in a column; the head keeps «черновик · не отправлено» and drops the meta; one stage', async () => {
     await open('theme=light&lang=ru&w=489');
-    expect((await measure('1a'))?.buttons).toEqual(['Reply', 'Fix', 'Hi', 'Ping', 'Ещё', 'Тон', 'Split']);
-    // 1d is the same strip with «Ещё» pressed: the three live in its menu, with their keys.
-    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C']);
+    expect((await measure('1a'))?.buttons).toEqual([...FOUR, 'Ещё']);
+    // 1d is the same bar with «Ещё» pressed: the five live in its menu, with their keys.
+    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', 'Новые']);
+    // «Ещё» stands for Recap here: its point is on «Ещё».
+    expect(await shown('1b', '.cg-slot--more .cg-badge')).toHaveLength(1);
+    expect(await shown('1b', '.cg-mark .cg-quota')).toEqual(['12']);
     const columns = await browser.execute(() => [1, 2, 3].map((index) => window.__dock?.box('4', `.cg-hi__col:nth-child(${index})`)?.left ?? null));
     expect(new Set(columns).size).toBe(1);
     expect(await shown('3a', '.cg-head__meta')).toEqual([]);
@@ -135,11 +152,20 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('3a', '.cg-hide .cg-ico')).toEqual([]);
     expect((await box('3a', '.cg-hide'))?.width ?? 0).toBeGreaterThan(26);
     expect(await shown('2a', '.cg-stage')).toHaveLength(1);
+    // «Вставить» stands on every part: a mouse needs no hover to find it.
+    expect(await shown('3a', '.cg-part .cg-ins')).toHaveLength(3);
   });
 
-  it('[UI-018] 360 px: «Вставить» under the text, × for «Скрыть», no keys footer, no quota; «черновик · не отправлено» stays whole', async () => {
+  it('[UI-018] 360 px: the capsule still stands — narrower cells, no seams, no goose; «Вставить» under the text, × for «Скрыть», no keys footer; «черновик · не отправлено» stays whole', async () => {
     await open('theme=light&lang=ru&w=360');
-    expect((await measure('1a'))?.buttons).toEqual(['Reply', 'Fix', 'Hi', 'Ping', 'Ещё', 'Тон', 'Split']);
+    expect((await measure('1a'))?.buttons).toEqual([...FOUR, 'Ещё']);
+    expect(await shown('1a', '.cg-mark')).toEqual([]);
+    expect(await shown('1a', '.cg-strip .cg-div')).toEqual([]);
+    // Four 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8).
+    expect((await box('1a', '.cg-tones__track'))?.width).toBe(4 * 22 + 3 * 2);
+    // While the chat loads the status keeps its spinner: it stands in for «Ещё», which would open nothing then.
+    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping']);
+    expect(await shown('9d', '.cg-mark > .cg-spin')).toHaveLength(1);
     expect(await shown('1b', '.cg-quota')).toEqual([]);
     expect(await shown('3a', '.cg-keys')).toEqual([]);
     expect(await shown('3a', '.cg-hide .cg-ico')).toHaveLength(1);
@@ -150,26 +176,26 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(insert?.top).toBeGreaterThanOrEqual((text?.bottom ?? Number.POSITIVE_INFINITY) - 1);
   });
 
-  it('[UI-005] the «Тон» menu and «Ещё» open above the strip and inside the dock at every reference width', async () => {
+  it('[UI-005] «Ещё» opens above the bar and inside the dock at every width that has it', async () => {
     // One menu at a time holds focus, so each is pictured on a page of its own.
     for (const width of WIDTHS) {
-      await open(`state=1c&theme=light&lang=ru&w=${width}`);
-      await captureWindow(`dock-menu-tone-light-ru-w${width}`);
-      expect(await shown('1c', '.cg-menu [role^="menuitem"]')).toHaveLength(5);
+      await open(`state=1d&theme=${width > 600 ? 'light' : 'dark'}&lang=${width > 600 ? 'ru' : 'en'}&w=${width}`);
+      await captureWindow(`dock-menu-more-w${width}`);
+      const items = await shown('1d', '.cg-menu [role^="menuitem"]');
+      // 853 px: the windows are chips of the bar, there is no «Ещё» to open.
+      if (width >= 820) expect(items).toEqual([]);
+      else if (width >= 680) expect(items).toEqual(['Spenders⌘⇧M', width > 600 ? 'Новые' : 'New']);
+      else expect(items).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', width > 600 ? 'Новые' : 'New']);
       expect((await health()).problems).toEqual([]);
-      const menu = await box('1c', '.cg-menu');
-      const strip = await box('1c', '.cg-strip');
+      if (items.length === 0) continue;
+      const menu = await box('1d', '.cg-menu');
+      const strip = await box('1d', '.cg-strip');
       expect(menu?.bottom ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(strip?.top ?? 0);
-      if (width > 600) continue;
-      await open(`state=1d&theme=dark&lang=en&w=${width}`);
-      await captureWindow(`dock-menu-more-dark-en-w${width}`);
-      expect(await shown('1d', '.cg-menu [role^="menuitem"]')).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C']);
-      expect((await health()).problems).toEqual([]);
     }
   });
 
   for (const language of LANGUAGES) {
-    it(`[UI-004] 900 → ${COLUMN} px in 1 px steps · ${language}: no overflow, no overlap, the strip stays 34 px, and what a narrower composer hid never comes back`, async () => {
+    it(`[UI-004] 900 → ${COLUMN} px in 1 px steps · ${language}: no overflow, no overlap, the bar stays 40 px, and what a narrower composer hid never comes back`, async () => {
       await open(`theme=light&lang=${language}&w=900`);
       const problems: string[] = [];
       // In chunks: one script call may not run for half a minute.
@@ -183,12 +209,12 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
               const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
               // Counts that may only fall as the composer narrows (ui-design §3.3 «правила идут в одну сторону»).
               const ONE_WAY: readonly (readonly [string, string])[] = [
-                ['1a', '.cg-strip__acts kbd'],
+                ['1a', '.cg-slot--boards .cg-act'],
                 ['1a', '.cg-slot--two'],
-                ['1a', '.cg-persona'],
-                ['1a', '.cg-hint'],
+                ['1a', '.cg-strip .cg-div'],
+                ['1a', '.cg-mark'],
                 ['1b', '.cg-quota'],
-                ['1b', '.cg-long'],
+                ['9d', '.cg-status-word'],
                 ['3a', '.cg-head__meta'],
                 ['3a', '.cg-keys'],
                 ['2a', '.cg-stage'],
@@ -219,13 +245,14 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
         if (problems.length > 0) break;
       }
       expect(problems).toEqual([]);
-      // The sweep ended on the column (ui-design §6.5).
-      expect((await measure('1a'))?.strip).toBe(34);
+      // The sweep ended on the column (ui-design §6.5): the capsule is still there.
+      expect((await measure('1a'))?.strip).toBe(40);
       expect((await box('1a', '.cg-dock'))?.width).toBe(COLUMN);
+      expect((await measure('1a'))?.buttons).toEqual([...FOUR, language === 'ru' ? 'Ещё' : 'More']);
     });
   }
 
-  it(`below 360 px the buttons of a Recap head take a second line inside the dock; a draft head stays one line with «черновик · не отправлено» whole (${COLUMN} px)`, async () => {
+  it(`in a ${COLUMN} px column the buttons of a Recap head stay inside the dock — on a second line where one is not enough; a draft head stays one line with «черновик · не отправлено» whole`, async () => {
     await open(`theme=light&lang=ru&w=${COLUMN}`);
     await captureWindow(`dock-column-${COLUMN}-light-ru`);
     expect((await health()).problems).toEqual([]);
@@ -235,18 +262,19 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
       const title = await box(id, '.cg-head__title');
       const acts = await box(id, '.cg-head__acts');
       const close = await box(id, '.cg-hide');
-      // Two lines: the buttons stand under the title and the segment, at the right edge, whole.
-      expect(head?.height ?? 0).toBeGreaterThan(50);
-      expect(acts?.top ?? 0).toBeGreaterThanOrEqual((title?.bottom ?? Number.POSITIVE_INFINITY) - 1);
+      // One line where the segment and the four buttons fit it; otherwise the buttons stand under the title, at the right edge, whole.
+      const lines = (head?.height ?? 0) > 50 ? 2 : 1;
+      if (lines === 2) expect(acts?.top ?? 0).toBeGreaterThanOrEqual((title?.bottom ?? Number.POSITIVE_INFINITY) - 1);
+      else expect(head?.height).toBe(36);
       expect(acts?.left ?? -1).toBeGreaterThanOrEqual(dock?.left ?? 0);
       expect(close?.right ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(dock?.right ?? 0);
       expect(close?.width).toBe(26);
     }
-    expect((await box('3a', '.cg-head'))?.height).toBe(34);
+    expect((await box('3a', '.cg-head'))?.height).toBe(36);
     expect((await measure('3a'))?.draftVisible).toBe(true);
-    // At 360 px, the narrowest reference width, the same head is one line, as in the mockup.
+    // At 360 px, the narrowest reference width, the same head is one line.
     await open('theme=light&lang=ru&w=360');
-    expect((await box('18b', '.cg-head'))?.height).toBe(34);
+    expect((await box('18b', '.cg-head'))?.height).toBe(36);
   });
 
   it('Tab goes strip → head buttons → the next part → its buttons → … → the footer (ui-design §6.3), though the sheet stands above the strip on screen', async () => {
@@ -266,7 +294,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
 
   it('[UI-003] «Ещё» stays inside the dock while the composer narrows under the open menu (600 → 320 px), and goes away with its button on a wide one', async () => {
     await open('state=1d&theme=light&lang=ru&w=600');
-    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toHaveLength(3);
+    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toHaveLength(5);
     const problems = await browser.execute(async () => {
       const dock = window.__dock;
       if (dock === undefined) throw new Error('window.__dock is missing');
@@ -277,18 +305,25 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
         await frame();
         await frame();
         out.push(...dock.check());
-        if (dock.shown('1d', '.cg-menu [role="menuitem"]').length !== 3) out.push(`the menu closed at ${px} px`);
+        if (dock.shown('1d', '.cg-menu [role="menuitem"]').length !== 5) out.push(`the menu closed at ${px} px`);
         if (out.length > 12) break;
       }
       return out;
     });
     expect(problems).toEqual([]);
-    await browser.execute(async () => {
-      window.__dock?.setWidth(700);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-    });
+    const widen = async (px: number): Promise<void> => {
+      await browser.execute(async (width) => {
+        window.__dock?.setWidth(width);
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      }, px);
+    };
+    // 700 px: Review, Recap and Coach are chips again; the open menu keeps what is still hidden — the two windows.
+    await widen(700);
+    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toEqual(['Spenders⌘⇧M', 'Новые']);
+    // 900 px: nothing is hidden, «Ещё» is gone and its menu with it.
+    await widen(900);
     expect(await shown('1d', '.cg-menu')).toEqual([]);
-    expect((await measure('1d'))?.buttons).toHaveLength(9);
+    expect((await measure('1d'))?.buttons).toHaveLength(14);
   });
 });
 
@@ -298,14 +333,16 @@ describe('dock gallery: both «Вид ответа» and the height limit (ui-de
 
   for (const state of ['3a', '4'] as const) {
     for (const theme of THEMES) {
-      it(`«без подложки» and «на подложке» on ${state} · ${theme}: the sheet meets the strip, or stands 2 px above it`, async () => {
+      it(`«без подложки» and «на подложке» on ${state} · ${theme}: the sheet and the bar are one card, or the sheet is a card of its own 2 px above the bar`, async () => {
         for (const style of ['bare', 'sheet'] as const) {
           await open(`state=${state}&theme=${theme}&lang=ru&w=853&style=${style}`);
           await captureWindow(`dock-view-${state}-${style}-${theme}`);
           const sheet = await box(state, '.cg-sheet');
           const strip = await box(state, '.cg-strip');
-          expect(strip?.height).toBe(34);
+          expect(strip?.height).toBe(40);
           expect((strip?.top ?? 0) - (sheet?.bottom ?? 0)).toBeCloseTo(style === 'sheet' ? 2 : 0, 1);
+          // Both are as wide as the composer: one card, or two of one width.
+          expect(sheet?.width).toBe(strip?.width);
           const result = await health();
           expect(result.problems).toEqual([]);
           expect(result.failures).toEqual([]);
@@ -314,9 +351,9 @@ describe('dock gallery: both «Вид ответа» and the height limit (ui-de
     }
   }
 
-  it('the collapsed dock is exactly 34 px tall and nothing else', async () => {
+  it('the collapsed dock is exactly 40 px tall and nothing else (architecture.md §10.1: not above 40)', async () => {
     await open('state=1a&theme=light&lang=ru&w=853');
-    expect((await box('1a', '.cg-dock'))?.height).toBe(34);
+    expect((await box('1a', '.cg-dock'))?.height).toBe(40);
     expect((await measure('1a'))?.sheet).toBe(0);
   });
 
@@ -335,7 +372,7 @@ describe('dock gallery: both «Вид ответа» and the height limit (ui-de
       const measured = await measure('4');
       expect(measured?.cap).toBe(item.cap);
       expect(measured?.sheet).toBe(item.cap);
-      expect(measured?.strip).toBe(34);
+      expect(measured?.strip).toBe(40);
       if (item.cap > 112) expect(item.feed - item.cap - item.gap).toBeGreaterThanOrEqual(160);
       // The head stays; only the body scrolls.
       const body = await browser.execute(() => {

@@ -1,8 +1,7 @@
 // Pure rules of the dock (ui-design §3.3, §4.1, §4.2, §4.8, §4.10): no DOM,
-// no Preact. What the strip and the sheet decide from a DockVM: whether the
-// strip is crowded, which dot an error carries, how header meta reads, what a
-// strip button dispatches, and when two view models differ only by streamed
-// text.
+// no Preact. What the strip and the sheet decide from a DockVM: which dot an
+// error carries, how header meta reads, what a strip button dispatches, and
+// when two view models differ only by streamed text.
 
 import { type CgErrorTone, type CgErrorView, type I18nKey } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
@@ -25,14 +24,6 @@ export function deepEqual(a: unknown, b: unknown, skip?: string): boolean {
 
 /** The key whose changes repaint one text node and nothing else (architecture.md §10.1 «Поток текста»). */
 export const STREAM_KEY = 'streamText';
-
-/**
- * «Полоса занята» (ui-design §3.3): a tone is chosen, a generation runs, the
- * quota or the status words show. Below 900 px the persona gives its place away.
- */
-export function isCrowded(vm: DockVM): boolean {
-  return vm.options.tone !== null || vm.options.locked || quotaSlot(vm) !== null || vm.statusWords;
-}
 
 /**
  * The zone the zero-quota tooltip names: «Обновится в 03:00 по Москве»

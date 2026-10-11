@@ -255,20 +255,19 @@ describe('§12 п. 4 on the wired extension — the side panels, the debug block
     expect(await oursFocus('modal')).not.toBeNull();
     expect(await oursExists('modal', '.cg-sp')).toBe(true);
 
-    // AI-005: the tone menu of the preview's own strip.
+    // AI-005: the capsule of the preview's own strip — a tone is one click, there is no menu to open.
     await pressOurs('modal', '[data-cg-key^="fan:"]', /^Fan Kestrel/);
     await waitOursText('modal', 'Чат не открыт, останется непрочитанным', 'the preview says the chat stays unread', { selector: '.cg-pv' });
-    await ours('modal', '.cg-pv [data-cg-strip="tone"] button').click();
-    await browser.waitUntil(() => oursExists('modal', '.cg-pv [role="menu"]'), { timeout: 5000, timeoutMsg: 'the tone menu did not open' });
     await twoFrames();
-    expect(await reach('modal', '.cg-pv [role="menu"]')).toMatchObject({ clippedPx: 0 });
-    const items = await ours('modal', '.cg-pv [role="menu"]').$$('[role="menuitemradio"]').getElements();
-    expect(items.length).toBeGreaterThanOrEqual(4);
-    for (let index = 0; index < items.length; index += 1) {
-      expect([index, await reach('modal', `.cg-pv [role="menu"] [role="menuitemradio"]:nth-of-type(${index + 1})`)]).toEqual([index, { clippedPx: 0, onTop: true }]);
+    const cells = await ours('modal', '.cg-pv [data-cg-strip="tone"]').$$('button').getElements();
+    expect(cells.length).toBe(4);
+    for (let index = 0; index < cells.length; index += 1) {
+      expect([index, await reach('modal', `.cg-pv [data-cg-strip="tone"] button:nth-of-type(${index + 1})`)]).toEqual([index, { clippedPx: 0, onTop: true }]);
     }
+    expect(await reach('modal', '.cg-pv [data-cg-strip="split"] button')).toEqual({ clippedPx: 0, onTop: true });
     const tone = await hub().mark();
-    await pressOurs('modal', '.cg-pv [role="menuitemradio"]', /^Flirt/);
+    await pressOurs('modal', '.cg-pv [data-cg-strip="tone"] button', /Flirt$/);
+    expect(await oursExists('modal', '.cg-pv [role="menu"]')).toBe(false);
     // A tone starts Reply in it.
     await browser.waitUntil(async () => callsTo((await hub().journal(tone)).entries, 'aiFeatureStream').length === 1, { timeout: 10_000, timeoutMsg: 'the tone did not start a Reply' });
     const [started] = callsTo((await hub().journal(tone)).entries, 'aiFeatureStream');

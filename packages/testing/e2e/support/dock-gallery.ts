@@ -141,7 +141,7 @@ export async function captureWindow(name: string): Promise<void> {
 }
 
 export function expectHealthy(result: Health, width: number): void {
-  // Nothing sticks out of the composer, the strip is 34 px, its right block never
+  // Nothing sticks out of the composer, the bar is 40 px, its right block never
   // overlaps the buttons, «черновик · не отправлено» is whole, the sheet is within its limit.
   expect(result.problems).toEqual([]);
   expect(result.failures).toEqual([]);

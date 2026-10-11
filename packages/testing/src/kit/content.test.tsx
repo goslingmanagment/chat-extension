@@ -236,8 +236,10 @@ describe('the part row (ui-design §4.3)', () => {
     expect(first?.classList.contains('is-next')).toBe(true);
     expect(first?.querySelector('.cg-part__n')?.textContent).toBe('1');
     expect(first?.querySelector('.cg-ins kbd')?.textContent).toBe('↵');
+    // «Вставить» is a chip on every part (a mouse needs no hover to find it); only the next part's carries ↵.
     expect(first?.querySelector('.cg-ins')?.classList.contains('cg-btn--line')).toBe(true);
-    expect(second?.querySelector('.cg-ins')?.classList.contains('cg-btn--plain')).toBe(true);
+    expect(second?.querySelector('.cg-ins')?.classList.contains('cg-btn--line')).toBe(true);
+    expect(second?.classList.contains('is-next')).toBe(false);
     expect(second?.querySelector('.cg-ins kbd')).toBeNull();
     expect(first?.querySelector('.cg-part__copy')?.getAttribute('aria-label')).toBe('Копировать часть 1');
     // A click on a button is the button's alone: the row under it does not insert a second time.

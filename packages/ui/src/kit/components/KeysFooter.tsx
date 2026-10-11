@@ -41,11 +41,13 @@ export function KeysFooter({ hints, hide, label }: KeysFooterProps): JSX.Element
 
 export const KEYS_FOOTER_CSS = `
 .cg-keys {
-  flex: none; display: flex; align-items: center; gap: 4px 16px; min-height: 28px; padding: 0 4px 0 var(--cg-gutter);
+  flex: none; display: flex; align-items: center; gap: 4px 14px; min-height: 30px; padding: 0 4px 0 12px;
   border-top: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden;
 }
-.cg-bare .cg-keys { border-top-color: var(--cg-bare-rule); }
-.cg-keys kbd { color: var(--cg-ink-2); font-size: var(--cg-text-sm); letter-spacing: 0; margin-right: 4px; }
+.cg-keys kbd {
+  display: inline-block; margin-right: 5px; padding: 0 4px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cg-rule-3), 0 1px 0 var(--cg-rule-3);
+  font-family: var(--cg-mono); font-size: var(--cg-text-2xs); line-height: 16px; letter-spacing: 0; color: var(--cg-ink-2);
+}
 .cg-keys__hide { margin-left: auto; }
 @container cg (max-width: 600px) { .cg-key--x { display: none; } }
 @container cg (max-width: 430px) { .cg-keys { display: none; } }

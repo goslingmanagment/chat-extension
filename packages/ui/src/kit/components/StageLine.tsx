@@ -56,6 +56,6 @@ export const STAGE_CSS = `
 .cg-stages { display: flex; align-items: center; gap: 12px; min-width: 0; overflow: hidden; font-size: var(--cg-text-sm); line-height: 18px; white-space: nowrap; }
 .cg-stage { display: inline-flex; align-items: center; gap: 4px; color: var(--cg-ink-muted); }
 .cg-stage.is-now { color: var(--cg-ink-strong); font-weight: 500; }
-.cg-timer { font-size: var(--cg-text-sm); color: var(--cg-ink-2); font-variant-numeric: tabular-nums; padding: 0 6px; white-space: nowrap; }
+.cg-timer { font-family: var(--cg-mono); font-size: var(--cg-text-xs); color: var(--cg-ink-2); font-variant-numeric: tabular-nums; padding: 0 6px; white-space: nowrap; }
 @container cg (max-width: 600px) { .cg-stage:not(.is-now) { display: none; } }
 `;

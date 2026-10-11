@@ -144,7 +144,7 @@ describe('«Новые»: the window and the list', () => {
       ui = await mountBoardSettled('newcomers', state);
       const handle = state === '13c' ? 'newcomers:n003' : 'newcomers:n001';
       // The strip has only Hi: the field does not hang on a Fix button.
-      expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Тон', 'Split']);
+      expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Casual', 'Flirt', 'Sell', 'Spice', 'Split']);
       const field = ui.$('.cg-pv__draft textarea') as HTMLTextAreaElement;
       expect(field.getAttribute('aria-label'), state).toBe('Черновик приветствия');
       expect(field.getAttribute('placeholder'), state).toBe('Черновик приветствия. Остаётся здесь, в чат не уходит');
@@ -315,7 +315,7 @@ describe('«Новые»: the card', () => {
     // The card has no × of its own and no Fix: only Hi, Tone and Split — and the greeting draft above them (NF-012).
     expect(ui.$$('.cg-pv__head .cg-btn').map(textOf)).toEqual(['Открыть чат']);
     expect(ui.$$('.cg-pv__draft textarea')).toHaveLength(1);
-    expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Тон', 'Split']);
+    expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Casual', 'Flirt', 'Sell', 'Spice', 'Split']);
   });
 
   it('Hi greets with one variant split into parts; each part is sent by its own click', async () => {

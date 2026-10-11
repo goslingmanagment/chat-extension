@@ -24,10 +24,10 @@ export const DIALOG_CSS = `
 .cg-side {
   position: fixed; z-index: ${LAYERS.panel}; top: 44px; right: 0; bottom: 0; width: 320px; max-width: 100vw;
   display: flex; flex-direction: column; background: var(--cg-surface); border-left: 1px solid var(--cg-rule);
-  /* A panel that ends above the dock (the composer stays free) closes with the same hairline. */
+  ${/* A panel that ends above the dock (the composer stays free) closes with the same hairline. */ ''}
   border-bottom: 1px solid var(--cg-rule);
-  /* A panel shorter than its fixed rows (a big zoom above an open result) scrolls as a whole: nothing of it is cut
-     off out of reach, and the panel keeps the wheel from the page under it. */
+  ${/* A panel shorter than its fixed rows (a big zoom above an open result) scrolls as a whole: nothing of it is cut
+     off out of reach, and the panel keeps the wheel from the page under it. */ ''}
   overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
 }
 .cg-confirm-dlg { padding: 16px 18px 14px; }
