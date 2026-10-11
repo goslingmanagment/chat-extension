@@ -7,7 +7,7 @@ import { STRICT_MIN_VERSION } from '../../apps/extension/build/manifest.ts';
 import { SITE_BASE, SITE_PAGES as EXTENSION_LINKS } from '../../apps/extension/src/site.ts';
 import { parseChangelog } from './changelog.ts';
 import { CHANGELOG_FILE, releaseTarget, REPO_ROOT, SITE_DIR, VERSION_FILE } from './config.ts';
-import { renderPage, renderSite, siteProblems, SITE_FILES, SITE_PAGES, VERSIONLESS_PAGES, xpiHref, type SiteContext } from './site.ts';
+import { HOME_HREF, renderPage, renderSite, siteProblems, SITE_FILES, SITE_PAGES, VERSIONLESS_PAGES, xpiHref, type SiteContext } from './site.ts';
 import { readPackageVersion } from './version.ts';
 
 const siteDir = join(REPO_ROOT, SITE_DIR);
@@ -51,6 +51,14 @@ describe('the site in the repository', () => {
       expect(links.map(([href]) => href), page).toEqual([...SITE_PAGES]);
       expect(links.filter(([, current]) => current).map(([href]) => href), page).toEqual([page]);
       expect(html, page).toMatch(/[а-яё]{4,}/i);
+    }
+  });
+
+  it('the logo of every page leads to the common home of the ChatGoose clients, one level above the site', () => {
+    expect(HOME_HREF).toBe('../');
+    for (const page of SITE_PAGES) {
+      const html = committed.get(page) ?? '';
+      expect([...html.matchAll(/<a class="nav__brand" href="([^"]*)">/g)].map((match) => match[1]), page).toEqual([HOME_HREF]);
     }
   });
 
@@ -130,6 +138,9 @@ describe('what stops the site from being published', () => {
     expect(problems(withPage('guide.html', body('<a href="https://example.test/">a</a>')))).toEqual(['guide.html: the outside link https://example.test/ needs rel="noopener"']);
     expect(problems(withPage('guide.html', body('<a href="https://example.test/" rel="noopener">a</a>')))).toEqual([]);
     expect(problems(withPage('guide.html', body('<a href="faq.html">a</a>')))).toEqual(['guide.html: the link faq.html leads nowhere']);
+    // The common home, one level up, is the only address outside the folder a page links to without a host.
+    expect(problems(withPage('guide.html', body('<a href="../">a</a>')))).toEqual([]);
+    expect(problems(withPage('guide.html', body('<a href="../desktop/">a</a>')))).toEqual(['guide.html: the link ../desktop/ leads nowhere']);
     expect(problems(withPage('guide.html', (html) => html.replace('<html lang="ru">', '<html>')))).toEqual(['guide.html: must start with <!doctype html> and <html lang="ru">']);
   });
 

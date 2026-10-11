@@ -30,6 +30,13 @@ export const SITE_FILES: readonly string[] = [...SITE_PAGES, SITE_STYLESHEET];
  * the server has none at all.
  */
 export const VERSIONLESS_PAGES: readonly string[] = ['start.html', 'guide.html', 'privacy.html'];
+/**
+ * The one address outside the folder that a page links to without naming a
+ * host: the common home of the ChatGoose clients, one level above the site
+ * (`/` over `/chatspace/`). The logo of every page leads there. Relative, so
+ * the pages work under whichever address the folder is served.
+ */
+export const HOME_HREF = '../';
 
 export interface SiteContext {
   readonly version: string;
@@ -123,6 +130,7 @@ export function siteProblems(files: ReadonlyMap<string, string>, context: SiteCo
         else if (!/\brel="noopener"/.test(match[0])) say(`the outside link ${href} needs rel="noopener"`);
         continue;
       }
+      if (href === HOME_HREF) continue;
       const file = href.replace(/#.*$/, '');
       if (!files.has(file)) say(`the link ${href} leads nowhere`);
     }
