@@ -106,7 +106,13 @@ a boundary you need to cross is a design question, not a lint exception.
   One volume is one run at a time (a start replaces the working tree in it):
   while a running container has the volume mounted, the script refuses to
   start and names that container. Wait, or give the run a volume of its own:
-  `CG_E2E_VOLUME=<own name>` (the default is `cg-e2e-local`).
+  `CG_E2E_VOLUME=<own name>` (the default is `cg-e2e-local`). The one
+  container a start removes is what a killed run of the SAME checkout left on
+  that volume. To stop a run, signal the script (Ctrl-C, the agent shell's
+  stop) or run `tools/ci/e2e-docker-local.sh --remove-container`: both remove
+  that checkout's container and nothing else. Docker on this machine is shared
+  between sessions — never stop a run with `docker rm -f` or `docker stop`
+  over everything `docker ps` lists.
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
   rows a test names. Name the row in the test title: `it('[ST-042] …')`.
 
