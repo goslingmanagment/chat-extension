@@ -205,9 +205,9 @@ describe('[ST-013] applying a settings change', () => {
 });
 
 describe('[ST-135] «Как в системе» of an install made before Russian became the default', () => {
-  it('[ST-135] an update from 0.2.1 or older rewrites a stored «Как в системе», once, to Russian', () => {
-    expect(SYSTEM_LOCALE_LAST_VERSION).toBe('0.2.1');
-    for (const previous of ['0.1.0', '0.1.1', '0.2.0', '0.2.1', '0.2', '0.2.1.0', ' 0.2.0 ']) expect([previous, rewritesSystemLocale(previous, 'system')]).toEqual([previous, true]);
+  it('[ST-135] an update from 0.2.2 or older rewrites a stored «Как в системе», once, to Russian', () => {
+    expect(SYSTEM_LOCALE_LAST_VERSION).toBe('0.2.2');
+    for (const previous of ['0.1.0', '0.1.1', '0.2.0', '0.2.1', '0.2.2', '0.2', '0.2.2.0', ' 0.2.0 ']) expect([previous, rewritesSystemLocale(previous, 'system')]).toEqual([previous, true]);
     // What it writes: the language alone, Russian, through the ordinary patch.
     const stored = { ...clone(DEFAULT_SETTINGS), ui: { ...clone(DEFAULT_SETTINGS.ui), locale: 'system' as const } };
     const outcome = applySettingsPatch(stored, SYSTEM_LOCALE_REWRITE, { restricted: false });
@@ -216,7 +216,7 @@ describe('[ST-135] «Как в системе» of an install made before Russia
   });
 
   it('[ST-135] an update from a later build leaves it: what is stored then was chosen after the rewrite had its one chance', () => {
-    for (const previous of ['0.2.2', '0.2.1.1', '0.3.0', '1.0', '10.0.0']) expect([previous, rewritesSystemLocale(previous, 'system')]).toEqual([previous, false]);
+    for (const previous of ['0.2.3', '0.2.2.1', '0.3.0', '1.0', '10.0.0']) expect([previous, rewritesSystemLocale(previous, 'system')]).toEqual([previous, false]);
   });
 
   it('[ST-135] a version that is not one, or none, rewrites nothing', () => {

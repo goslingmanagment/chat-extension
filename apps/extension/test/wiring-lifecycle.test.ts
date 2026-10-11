@@ -6,7 +6,7 @@
 //   `interrupted`, an open send `uncertain`, the telemetry queue's state;
 // - alarms are armed while a ChatSpace tab is registered;
 // - `settings.changed` reaches tabs and pages;
-// - an update from 0.2.1 or older sets a stored «Как в системе» to Russian,
+// - an update from 0.2.2 or older sets a stored «Как в системе» to Russian,
 //   once (ST-135);
 // - a tab registers again with a restarted background and says where it is;
 // - an open tab keeps the event page from idling (BG-003);
@@ -434,7 +434,7 @@ describe('settings', () => {
     expect(await tab.client.request('settings.patch', { patch: { ui: { locale: 'ru' } }, baseRevision: null })).toMatchObject({ ok: true });
   });
 
-  it('[ST-135] the update from 0.2.1 or older, as it comes right after the start: «Как в системе» stored by the old default is Russian before the first page asks, on disk and in the log', async () => {
+  it('[ST-135] the update from 0.2.2 or older, as it comes right after the start: «Как в системе» stored by the old default is Russian before the first page asks, on disk and in the log', async () => {
     const system = settingsFor(undefined, { ui: { ...DEFAULT_SETTINGS.ui, locale: 'system' } });
     world = createWorld({ settings: system });
     world.start();
@@ -461,9 +461,9 @@ describe('settings', () => {
     await until(() => heard.length === 1, 'the open popup heard the change');
     expect(heard).toEqual([['ru', revision + 1]]);
 
-    // The person chooses «Как в системе» on purpose; the next update comes from a build after 0.2.1.
+    // The person chooses «Как в системе» on purpose; the next update comes from a build after 0.2.2.
     expect(await options.request('settings.patch', { patch: { ui: { locale: 'system' } }, baseRevision: null })).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'system' } } } });
-    world.fake.fireInstalled({ reason: 'update', previousVersion: '0.2.2' });
+    world.fake.fireInstalled({ reason: 'update', previousVersion: '0.2.3' });
     await sleep(30);
     expect(await options.request('settings.get', {})).toMatchObject({ ok: true, payload: { settings: { ui: { locale: 'system' } }, revision: revision + 2 } });
     expect(heard.map(([locale]) => locale)).toEqual(['ru', 'system']);
@@ -471,7 +471,7 @@ describe('settings', () => {
 
   it('[ST-135] a later update, a version that is not one, a temporary install, a fresh install and a chosen English leave the language as stored', async () => {
     for (const [locale, details] of [
-      ['system', { reason: 'update', previousVersion: '0.2.2' }],
+      ['system', { reason: 'update', previousVersion: '0.2.3' }],
       ['system', { reason: 'update', previousVersion: '0.3.0' }],
       ['system', { reason: 'update', previousVersion: '0.2.1-beta' }],
       ['system', { reason: 'update' }],

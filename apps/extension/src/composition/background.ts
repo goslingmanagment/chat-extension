@@ -733,8 +733,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     }
   });
   /**
-   * ST-135: every build up to 0.2.1 stored «Как в системе» at its first run, chosen or not, and an English browser
-   * showed English. The first update from one of them sets Russian, once, through the settings owner's ordinary
+   * ST-135: every build up to 0.2.0 stored «Как в системе» at its first run, chosen or not, 0.2.1 and 0.2.2 kept it,
+   * and an English browser showed English. The first update from one of them sets Russian, once, through the settings owner's ordinary
    * patch: its revision and `settings.changed`, so open pages and tabs switch at once. A later update, a fresh
    * install and a language the person chose leave it. A failure is logged by its code and class and stops nothing.
    */
