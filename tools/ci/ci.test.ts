@@ -8,7 +8,9 @@
 //     in a file;
 //   - which changes skip the suite, on a throwaway git repository;
 //   - a local run does not start on a volume that a running container has
-//     mounted, against the same stand-in.
+//     mounted, against the same stand-in;
+//   - the tree a local run copies into its volume is archived without its
+//     extended attributes: the stand-in keeps what that step is fed.
 // The real thing — the same line, the real Docker, a real cancel sequence; two
 // real starts on one volume — was run by hand; docs/release.md, «Что проверено».
 
@@ -64,8 +66,8 @@ case "$1" in
   run)
     name=''; prev=''
     for arg in "$@"; do [ "$prev" = --name ] && name=$arg; prev=$arg; done
-    # -i: what is piped in is read to its end, as the process in the container reads it.
-    for arg in "$@"; do [ "$arg" = -i ] && cat > /dev/null; done
+    # -i: what is piped in is read to its end, as the process in the container reads it, and kept (\`stdin\`).
+    for arg in "$@"; do [ "$arg" = -i ] && cat > "$S/stdin"; done
     mode=$(cat "$S/run-mode" 2> /dev/null)
     case "$mode" in exit:*) exit "\${mode#exit:}" ;; esac
     echo "$name" >> "$S/containers"
@@ -435,5 +437,22 @@ describe('a local run of the e2e job in a Docker volume', () => {
     expect(calls[2]).toBe('ps --filter volume=cg-e2e-own --format {{.Names}}');
     // Both steps mount the volume the question was about, so a start during another start’s step 1 gets the same answer.
     for (const step of [calls[3], calls[5]]) expect(step).toContain(' --mount type=volume,source=cg-e2e-own,target=/sim ');
+  });
+});
+
+describe('the tree a local run copies into its volume', () => {
+  it('is archived without its extended attributes — a Mac’s tar writes them unasked, and GNU tar in the container answers each with a line', () => {
+    const r = runner();
+    const script = localScript();
+    writeFileSync(join(r.state, 'run-mode'), 'exit:0');
+    // A Mac puts one on every file an agent wrote; here it is one of the test’s own. Elsewhere tar archives none unasked, and there is nothing to leave out.
+    if (process.platform === 'darwin') expect(spawnSync('xattr', ['-w', 'cg.ci.test', '1', script.path]).status).toBe(0);
+
+    const { status, stderr } = spawnSync('bash', [script.path], { cwd: script.dir, env: r.env, encoding: 'utf8' });
+    expect(status, stderr).toBe(0);
+    // What step 1 fed its container: the tree is in it, by the name of a file; the attribute is not, by its own — tar writes one as LIBARCHIVE.xattr.<name> and SCHILY.xattr.<name>.
+    const archive = readFileSync(join(r.state, 'stdin'), 'latin1');
+    expect(archive).toContain('packages/core/src/a.ts');
+    expect(archive).not.toContain('cg.ci.test');
   });
 });
