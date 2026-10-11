@@ -1,9 +1,12 @@
 // `--cg-*` theme tokens (architecture.md §10.1 «Тема», ui-design §2.1–§2.9).
 // The NAMES are frozen in @cg/contracts/vm (THEME_TOKENS); the values live
-// here. Every colour is computed from ChatSpace's `--color-om-<scale>-<step>`
-// "R G B" triplets (identical in both host themes; the dark theme takes other
-// steps) with the ChatSpace 0.172.0 value as the fallback, so the same rules
-// work on our extension pages where no host variables exist (I18-006).
+// here. Inks, rules and surfaces are computed from ChatSpace's
+// `--color-om-<scale>-<step>` "R G B" triplets (identical in both host themes;
+// the dark theme takes other steps) with the ChatSpace 0.172.0 value as the
+// fallback, so the same rules work on our extension pages where no host
+// variables exist (I18-006). The family's own voice is fixed and the same in
+// every host (decision X28): the terracotta accent and the warm fill of an AI
+// draft are the ChatGoose desktop's and the Fansly extension's values.
 //
 // A closed shadow root sees neither the host's `.dark` class nor
 // `:host-context()` (Firefox has none), so the mount writes the resolved
@@ -97,6 +100,13 @@ export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
     `rgb(var(--chat-outgoing, var(--color-om-brand-75, ${HOST_FALLBACK_TRIPLETS['brand-75']})))`,
     `rgb(var(--chat-outgoing, var(--color-om-brand-800, ${HOST_FALLBACK_TRIPLETS['brand-800']})))`,
   ),
+  // ── our own cards: the bar and a result, a raised chip, the sunken groove of a button's options, an AI draft ──
+  '--cg-raised': both(om('neutral-0'), om('neutral-900')),
+  '--cg-chip': both(om('neutral-50'), om('neutral-850')),
+  '--cg-groove': both(om('neutral-100'), om('neutral-950')),
+  // The light fill is a shade lighter than the family's #f7f1e8: muted ink (a part's number, «После Fix») reads on it at 4.5 : 1.
+  '--cg-draft': both('#f9f4eb', '#2e2a21'),
+  '--cg-draft-hover': both('#fbf7f1', '#363126'),
   // ── colours with a fixed meaning (ui-design §1 п. 4, closed list) ──
   '--cg-accent': both(om('brand-500'), om('brand-300')),
   '--cg-focus': both(om('brand-400'), om('brand-300')),
@@ -109,6 +119,11 @@ export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
   '--cg-danger': both(om('error-500'), om('error-400')),
   '--cg-bar': both(om('neutral-300'), om('neutral-700')),
   '--cg-bar-strong': both(om('neutral-600'), om('neutral-300')),
+  // The family accent: the same terracotta in both schemes; its ink on a tint is deeper in light, brighter in dark.
+  '--cg-clay': '#d97757',
+  '--cg-clay-ink': both('#a84d2b', '#e08566'),
+  '--cg-clay-bg': both('#f7e8e1', '#3f2b21'),
+  '--cg-clay-line': both('#e8c3b3', '#61412f'),
   // ── elevation: page flow (none), windows, floating ──
   '--cg-shadow': both(`0 1px 4px -1px ${om('neutral-900', 0.1)}`, '0 1px 4px -1px rgb(0 0 0 / 0.6)'),
   '--cg-shadow-float': both(
@@ -119,6 +134,8 @@ export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
   '--cg-font': 'inherit',
   '--cg-font-page': 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   '--cg-mono': 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
+  // AI-authored text is serif: a draft never reads as interface, nor as a sent bubble. Local faces only.
+  '--cg-serif': '"Source Serif 4", Georgia, "Times New Roman", serif',
   // ── type scale (size; the line height goes with the .cg-t-* classes) ──
   '--cg-text-2xs': '10.5px',
   '--cg-text-xs': '11px',
