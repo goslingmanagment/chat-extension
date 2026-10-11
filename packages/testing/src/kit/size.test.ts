@@ -18,10 +18,12 @@ const KIT_INDEX = fileURLToPath(new URL('../../../ui/src/kit/index.ts', import.m
 const KIB = 1024;
 /**
  * The whole kit with Preact, hooks and signals, nothing tree-shaken (33.6 KiB
- * at R13's review): a ceiling against growth. The first dock chunk holds
- * only what the dock imports, guarded by DOCK_KIT_BUDGET below.
+ * at R13's review; 35.2 KiB with the five chip icons of decision X31 — on
+ * CI's Linux build a few hundred bytes more): a ceiling against growth. The
+ * first dock chunk holds only what the dock imports, guarded by
+ * DOCK_KIT_BUDGET below and by the 45 KiB of testing/src/dock/size.test.ts.
  */
-const WHOLE_KIT_BUDGET = 35 * KIB;
+const WHOLE_KIT_BUDGET = 36 * KIB;
 /** architecture.md §11: the first dock chunk with Preact, gzip. */
 const FIRST_DOCK_CHUNK = 45 * KIB;
 /**
