@@ -51,7 +51,20 @@ export const config: WebdriverIO.Config = {
       // -remote-allow-system-access): without it the remote agent refuses to
       // open moz-extension:// pages, which release-xpi.e2e.ts needs.
       // Throwaway headless profile only.
-      'wdio:geckodriverOptions': { allowSystemAccess: true } as WebdriverIO.GeckodriverOptions,
+      //
+      // geckodriver --host=127.0.0.1: the driver's own default, but the
+      // `geckodriver` package starts it with 0.0.0.0 unless a host is given,
+      // and the WebDriver endpoint of every spec then listens on every
+      // interface of the machine for the length of a native run. The driver's
+      // Host and Origin checks keep web pages out (DNS rebinding); they are
+      // not authentication: any machine on the network can create a session
+      // there, and the request names the binary to start
+      // (moz:firefoxOptions.binary). WebdriverIO reaches the driver all the
+      // same: it waits for the port and sends its requests to `localhost`,
+      // IPv4 first even where the system resolves that name to ::1 first, and
+      // the driver has never listened on IPv6. The second browser of a spec
+      // (support/second.ts) starts its driver from these same capabilities.
+      'wdio:geckodriverOptions': { allowSystemAccess: true, host: '127.0.0.1' } as WebdriverIO.GeckodriverOptions,
       'moz:firefoxOptions': {
         ...(firefoxBinary ? { binary: firefoxBinary } : {}),
         args: ['-headless'],
