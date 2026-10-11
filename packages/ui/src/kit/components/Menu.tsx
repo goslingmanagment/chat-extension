@@ -1,4 +1,4 @@
-// Menus (ui-design §4.1 «Тон», «Ещё»; §6.1, §6.3, §6.4): a button with
+// Menus (ui-design §4.1 «Ещё»; §6.1, §6.3, §6.4): a button with
 // `aria-haspopup="menu"` and `aria-expanded`, a `role="menu"` list of
 // `menuitem` / `menuitemradio` items. Opening focuses the checked item (or
 // the first); ↑ ↓ Home End move, Enter and Space choose, Esc and choosing
@@ -25,11 +25,9 @@ export interface MenuItem {
 
 export interface MenuProps {
   readonly open: boolean;
-  /** `menuitemradio` items (tone) or plain `menuitem` (Ещё). */
+  /** `menuitemradio` items (the window of «Новые», a select of the settings) or plain `menuitem` (Ещё). */
   readonly kind: 'radio' | 'action';
   readonly label: string;
-  /** Optional heading row: «Тон на один ответ  ⌘⇧O». */
-  readonly caption?: { readonly text: string; readonly hint?: string };
   readonly items: readonly MenuItem[];
   readonly align?: 'start' | 'end';
   readonly placement?: 'top' | 'bottom';
@@ -134,12 +132,6 @@ export function Menu(props: MenuProps): JSX.Element | null {
       onKeyDown={onKeyDown}
       onFocusOut={onFocusOut}
     >
-      {props.caption === undefined ? null : (
-        <div class="cg-menu__cap" aria-hidden="true">
-          <span>{props.caption.text}</span>
-          {props.caption.hint === undefined ? null : <kbd>{props.caption.hint}</kbd>}
-        </div>
-      )}
       {props.items.map((item) => (
         <MenuEntry key={item.id} item={item} kind={props.kind} onChoose={() => choose(item)} />
       ))}
@@ -196,7 +188,7 @@ export const MENU_CSS = `
 .cg-menu-anchor { position: relative; display: inline-flex; flex: none; }
 .cg-menu {
   position: absolute; z-index: 5; min-width: 200px; padding: 4px;
-  background: var(--cg-surface); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg);
+  background: var(--cg-raised); border: 1px solid var(--cg-rule-float); border-radius: var(--cg-r-lg);
   box-shadow: var(--cg-shadow-float); animation: cg-open 120ms var(--cg-ease);
   font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink);
 }
@@ -204,13 +196,13 @@ export const MENU_CSS = `
 .cg-menu--bottom { top: calc(100% + 4px); }
 .cg-menu--start { left: 0; }
 .cg-menu--end { right: 0; }
-.cg-menu__cap { display: flex; justify-content: space-between; gap: 16px; padding: 6px 8px 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; }
 .cg-menu__item {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; height: 30px; padding: 0 8px;
   border-radius: var(--cg-r-sm); color: var(--cg-ink); text-align: left; white-space: nowrap;
 }
-.cg-menu__item:hover, .cg-menu__item:focus-visible, .cg-menu__item.is-on { background: var(--cg-hover); }
-.cg-menu__item.is-on::after { content: "✓"; color: var(--cg-ink-2); font-size: var(--cg-text-sm); }
+.cg-menu__item:hover, .cg-menu__item:focus-visible { background: var(--cg-hover); }
+.cg-menu__item.is-on { background: var(--cg-clay-bg); color: var(--cg-clay-ink); font-weight: 600; }
+.cg-menu__item.is-on::after { content: "✓"; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); }
 .cg-menu__item[aria-disabled="true"] { color: var(--cg-ink-faint); cursor: default; }
 @media (prefers-reduced-motion: reduce) { .cg-menu { animation: none; } }
 `;

@@ -1,13 +1,13 @@
 {
   "kernelSdk": {
-    "contractHash": "9d032a24430676571d2c8c1cd89637996b89e950283adabde5b707e3fc6d9659",
-    "sourceCommit": "4d75e2036f79637736c7816feda8fa7ecd5f5125",
-    "distSha256": "bfa5c9262e78bc85bdf6d3f794eb614806be7cbe7dae9a3cab9004484498a66a",
-    "note": "Vendored on 2026-10-10 with the hub's scripts/vendor-sdk.mjs from hub main 4d75e203 (#537) — the commit DEPLOYED to production that night (prod health: contractHash 9d032a24…, compatibleClientSdks lists it), so this vendor satisfies the release rule (a release is vendored only from a deployed hub commit). Against 5c4e6dd7 (ebdd94e3…, no longer listed): the persona routes with full prompt text and the raw AI gateway are owner-session only (#537; this extension never calls them, HUB_FORBIDDEN_OPERATIONS), the SDK reads a colon inside a path segment literally (spenders:batch, #517), an optional accountLookupMissAt and owner/agent OnlyFans link routes were added; every client route, operation, schema and scope this extension uses is unchanged. Re-vendor with the same script, then update this pin in the same commit."
+    "contractHash": "b9d4dd07b4d56e64a2912f86ff3730f05669b7a0aceb86ec98a2873ed42e9541",
+    "sourceCommit": "2260ef739aa0d64d03313b624318d52a45460739",
+    "distSha256": "2e922a898fadee3a62b64b30385423cbd904541e6fae12979882b230136ed14c",
+    "note": "Vendored on 2026-10-11 with the hub's scripts/vendor-sdk.mjs from hub main 2260ef73 (#552) — the commit that runs in production since the hub moved to its new server that night (the image's source revision 2260ef739aa0; prod health: contractHash b9d4dd07…, compatibleClientSdks lists it and b95b765c…, no longer 9d032a24…), so this vendor satisfies the release rule (a release is vendored only from a deployed hub commit). Against 4d75e203 (9d032a24…): the hub moved to zod 4.6.5 and its date-time fields — of the OFAPI, agent and marketing routes and revenueInstantSchema — are now the house isoDateTime(), which keeps the seconds optional as zod 4.3 did; the declarations name zod's new types (ZodPreprocess, ZodISODateTime). No route was added, removed or reshaped: every client route, operation, schema and scope this extension uses is unchanged. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
     "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
     "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
-    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys/src is unchanged up to 4d75e203, the commit the SDK is vendored from: only its README and the script's usage comment changed since)."
+    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys is unchanged between 4d75e203 and 2260ef73, the commit the SDK is vendored from; before that only its README and the script's usage comment changed)."
   }
 }

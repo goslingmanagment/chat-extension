@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SCHEME_ATTRIBUTE, THEME_TOKEN_NAMES, THEME_TOKENS } from '@cg/contracts/vm';
+import { SCHEME_ATTRIBUTE, THEME_TOKEN_NAMES, THEME_TOKENS, type ColorScheme, type ThemeTokenName } from '@cg/contracts/vm';
 
 import { BASE_CSS } from './base';
 import { KIT_STYLE_SOURCES } from './sheets';
@@ -30,6 +30,31 @@ function splitSelectors(list: string): string[] {
   }
   out.push(current.trim());
   return out.filter((part) => part !== '');
+}
+
+/** An opaque token's colour in a scheme, with ChatSpace's 0.172.0 values where it reads the host's palette. */
+function rgbOf(name: ThemeTokenName, scheme: ColorScheme): readonly number[] {
+  const value = tokenValue(name, scheme);
+  const alias = /^var\((--cg-[a-z0-9-]+)\)$/.exec(value);
+  if (alias !== null) return rgbOf(alias[1] as ThemeTokenName, scheme);
+  const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value);
+  if (hex !== null) return hex.slice(1).map((byte) => Number.parseInt(byte, 16));
+  const triplet = /^rgb\(var\(--color-om-[a-z0-9-]+, (\d+) (\d+) (\d+)\)\)$/.exec(value);
+  if (triplet === null) throw new Error(`${name} is not an opaque colour: ${value}`);
+  return triplet.slice(1).map(Number);
+}
+
+/** WCAG 2 contrast ratio of two opaque tokens. */
+function contrast(ink: ThemeTokenName, fill: ThemeTokenName, scheme: ColorScheme): number {
+  const luminance = (name: ThemeTokenName): number => {
+    const [r = 0, g = 0, b = 0] = rgbOf(name, scheme).map((byte) => {
+      const channel = byte / 255;
+      return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [low = 0, high = 0] = [luminance(ink), luminance(fill)].sort((a, b) => a - b);
+  return (high + 0.05) / (low + 0.05);
 }
 
 describe('[I18-006] theme on every surface: one token sheet for shadow roots and extension pages', () => {
@@ -74,8 +99,11 @@ describe('[I18-005] colours come from ChatSpace’s palette, with its 0.172.0 va
     expect(tokenValue('--cg-ink-muted', 'light')).toBe(om('neutral-500'));
     expect(tokenValue('--cg-ink-muted', 'dark')).toBe(om('neutral-400'));
     expect(tokenValue('--cg-surface', 'dark')).toBe(om('neutral-950'));
-    expect(tokenValue('--cg-sel', 'dark')).toBe(om('brand-800', 0.45));
-    expect(tokenValue('--cg-tip-bg', 'light')).toBe('var(--cg-ink-strong)');
+    expect(tokenValue('--cg-raised', 'light')).toBe(om('neutral-0'));
+    expect(tokenValue('--cg-raised', 'dark')).toBe(om('neutral-900'));
+    expect(tokenValue('--cg-chip', 'dark')).toBe(om('neutral-850'));
+    expect(tokenValue('--cg-groove', 'light')).toBe(om('neutral-100'));
+    expect(tokenValue('--cg-tip-bg', 'light')).toBe('var(--cg-raised)');
   });
 
   it('every fallback triplet is three bytes', () => {
@@ -86,13 +114,42 @@ describe('[I18-005] colours come from ChatSpace’s palette, with its 0.172.0 va
     }
   });
 
-  it('the host’s blue feeds only the closed list of meaning tokens (ui-design §1 п. 4, §11 п. 5)', () => {
+  it('the host’s blue is only what reaches the fan: «Отправить» and the outgoing bubble (ui-design §1 п. 4, §11 п. 5)', () => {
     const blue = THEME_TOKEN_NAMES.filter((name) => {
       const value = TOKEN_VALUES[name];
       const text = typeof value === 'string' ? value : `${value.light} ${value.dark}`;
       return text.includes('brand-');
     });
-    expect(blue.sort()).toEqual(['--cg-accent', '--cg-chat-out', '--cg-focus', '--cg-focus-soft', '--cg-sel', '--cg-send', '--cg-send-hover'].sort());
+    expect(blue.sort()).toEqual(['--cg-chat-out', '--cg-send', '--cg-send-hover'].sort());
+  });
+
+  it('the accent is the family’s terracotta, the same in both schemes and in every host: the main action, focus, a state of our result (decision X28)', () => {
+    expect(TOKEN_VALUES['--cg-clay']).toBe('#d97757');
+    // Its ink is deeper in light and brighter in dark; a state dot and the focus ring are that ink.
+    expect(tokenValue('--cg-clay-ink', 'light')).toBe('#a84d2b');
+    expect(tokenValue('--cg-clay-ink', 'dark')).toBe('#e08566');
+    expect(TOKEN_VALUES['--cg-accent']).toBe('var(--cg-clay-ink)');
+    expect(TOKEN_VALUES['--cg-focus']).toBe('var(--cg-clay-ink)');
+    for (const name of ['--cg-clay', '--cg-clay-ink', '--cg-clay-bg', '--cg-clay-line', '--cg-draft', '--cg-draft-hover', '--cg-sel'] as const) {
+      expect(JSON.stringify(TOKEN_VALUES[name]), name).not.toMatch(/color-om|brand-/);
+    }
+  });
+
+  it('the accent reads where it stands (WCAG 2): its ink as a word on a chip, a tint and a draft — 4.5 : 1; the focus ring and a state dot on every fill they meet — 3 : 1; muted ink on a draft and Split’s word in the groove — 4.5 : 1', () => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const fill of ['--cg-raised', '--cg-chip', '--cg-clay-bg', '--cg-draft', '--cg-draft-hover'] as const) {
+        expect(contrast('--cg-clay-ink', fill, scheme), `${scheme}: clay-ink on ${fill}`).toBeGreaterThanOrEqual(4.5);
+      }
+      for (const fill of ['--cg-surface', '--cg-raised', '--cg-chip', '--cg-groove', '--cg-sunk', '--cg-draft', '--cg-clay-bg'] as const) {
+        expect(contrast('--cg-focus', fill, scheme), `${scheme}: the focus ring on ${fill}`).toBeGreaterThanOrEqual(3);
+        expect(contrast('--cg-accent', fill, scheme), `${scheme}: a state dot on ${fill}`).toBeGreaterThanOrEqual(3);
+      }
+      for (const fill of ['--cg-raised', '--cg-draft', '--cg-draft-hover'] as const) {
+        expect(contrast('--cg-ink-muted', fill, scheme), `${scheme}: muted ink on ${fill}`).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(contrast('--cg-ink-2', '--cg-groove', scheme), `${scheme}: Split in the groove`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast('--cg-ink', '--cg-chip', scheme), `${scheme}: a chip's word`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('green is only the money token', () => {
@@ -105,6 +162,8 @@ describe('[I18-007] fonts: the host’s own, locally installed only on our pages
   it('surfaces inherit the host font; pages name local families; nothing is downloaded', () => {
     expect(TOKEN_VALUES['--cg-font']).toBe('inherit');
     expect(TOKEN_VALUES['--cg-font-page']).toMatch(/^Inter, -apple-system/);
+    // AI-authored text is serif; the faces are the machine's own.
+    expect(TOKEN_VALUES['--cg-serif']).toMatch(/Georgia, "Times New Roman", serif$/);
     expect(BASE_CSS).toMatch(/:host \{[^}]*font-family: inherit/);
     const css = KIT_STYLE_SOURCES.map((source) => source.css).join('\n');
     expect(css).not.toMatch(/@font-face|@import|url\(/);

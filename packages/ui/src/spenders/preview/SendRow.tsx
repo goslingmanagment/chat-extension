@@ -351,7 +351,8 @@ export function SentLine({ part, at }: { readonly part: PartVM; readonly at: str
 }
 
 export const SEND_ROW_CSS = `
-.cg-pvs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0 0 -8px; min-height: 26px; }
+.cg-pvs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0 0; min-height: 26px; }
+.cg-pvs > .cg-pvs__st:first-child { padding-left: 0; }
 .cg-pvs__st {
   display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; min-height: 26px; min-width: 0;
   font-size: var(--cg-text-sm2); line-height: 17px; color: var(--cg-ink-muted);

@@ -47,6 +47,10 @@ export const UI_TEXT_KEYS = [
   'dock.option.splitTooltip', 'dock.option.splitLocked', 'dock.option.splitUnavailable', 'dock.option.splitNotMessage', 'dock.persona.tooltip',
   'dock.persona.notSignedIn', 'dock.paletteHint.tooltip', 'dock.quota.low', 'dock.quota.lowShort', 'dock.quota.zero', 'dock.quota.zeroTooltip',
   'dock.status.chatLoading', 'dock.status.pageOff', 'dock.helpRemoved',
+  // 1.13.0 (decision X28): one sentence under a control's name in its hover hint — what the button does, in the chatter's own language.
+  'dock.hint.reply', 'dock.hint.fix', 'dock.hint.hi', 'dock.hint.ping', 'dock.hint.review', 'dock.hint.recap', 'dock.hint.coach',
+  'dock.hint.tone.casual', 'dock.hint.tone.flirty', 'dock.hint.tone.upsell', 'dock.hint.tone.spicy', 'dock.hint.toneOff', 'dock.hint.split',
+  'dock.hint.spenders', 'dock.hint.newcomers',
   'result.label', 'result.draft', 'result.draftTooltip', 'result.meta.tone', 'result.meta.inserted', 'result.meta.single', 'result.meta.onePart',
   'result.meta.forFan', 'result.meta.byYourDraft', 'result.meta.failed', 'result.meta.notStarted', 'result.meta.unparsed',
   'result.meta.sentProgress', 'result.againTooltip', 'result.againBlocked', 'result.againBlockedUncertain', 'result.hideTooltip',

@@ -13,8 +13,9 @@ export const KIT_CONTAINER = 'cg';
 export const ROOT_CLASS = 'cg-root';
 
 export const BASE_CSS = `
-/* ChatSpace's inherited styles stop at our host, except its font (§2.3: the host's font) and the
-   way the host smooths it: with another smoothing the same face reads half a weight heavier. */
+${/* ChatSpace's inherited styles stop at our host, except its font (§2.3: the host's font) and the way the host
+   smooths it: with another smoothing the same face reads half a weight heavier. A note in this sheet is a JS
+   comment: a CSS one would ship in the first dock chunk, prose for nobody (architecture.md §11). */ ''}
 :host { all: initial; display: block; font-family: inherit; -webkit-font-smoothing: inherit; -moz-osx-font-smoothing: inherit; }
 .cg-root {
   container: ${KIT_CONTAINER} / inline-size;

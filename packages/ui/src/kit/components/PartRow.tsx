@@ -1,8 +1,9 @@
-// The base of a result part (ui-design §3.2, §4.3, §6.4; UI-019…UI-027):
-// the number in the gutter, the text, a quiet Copy icon that is always
-// there, «Вставить ↵» on the next part (on the others it shows on hover and
-// focus), a spinner while inserting, an inline error card when inserting or
-// copying failed, and one collapsed line once a part is inserted or sent.
+// The base of a result part (ui-design §3.2, §4.3, §6.4; UI-019…UI-027): a
+// draft card — a dashed frame, a warm fill, the text in the serif AI-authored
+// text is set in — with its number, a quiet Copy icon and «Вставить» on every
+// part (the next part's is the main one and carries ↵), a spinner while
+// inserting, an inline error card when inserting or copying failed, and one
+// collapsed line once a part is inserted or sent.
 // The whole row is the target (UI-018, X26): a click anywhere on it but its
 // own controls does what the row's main button does — «Вставить» THIS part,
 // «Вставить ещё раз» on an inserted one, «Копировать» where nothing can be
@@ -12,9 +13,7 @@
 // «Вставить» unavailable Enter says why; a held Enter counts once);
 // ⌘C / Ctrl+C — the physical C key, so the Russian layout works too —
 // copies it when nothing inside is selected. Surfaces put
-// their rows (the X8 send row, the Б2 question) in `children`. An ancestor
-// with the class `cg-bare` («Вид ответа: без подложки», §3.2) switches the
-// rules and the hover to the bare tokens.
+// their rows (the X8 send row, the Б2 question) in `children`.
 
 import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent, type TargetedMouseEvent } from 'preact';
 
@@ -22,7 +21,6 @@ import { type PartVM } from '@cg/contracts/vm';
 
 import { useAnnounce, useHints, useI18n, useKit } from '../context';
 import { isComposing, isHeldKey } from '../focus';
-import { dark } from '../tokens';
 import { Button } from './Button';
 import { ErrorCard } from './ErrorCard';
 import { Icon } from './Icon';
@@ -135,7 +133,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
       main = (
         <Button
           label={i18n.t('part.insert')}
-          variant={part.next ? 'line' : 'plain'}
+          variant="line"
           class="cg-ins"
           hotkey={part.next ? insertKey : null}
           busy={part.insert === 'pending'}
@@ -150,6 +148,7 @@ export function PartRow(props: PartRowProps): JSX.Element {
   const classes = [
     'cg-part',
     part.next && !collapsed ? 'is-next' : '',
+    part.numbered ? '' : 'is-solo',
     collapsed ? 'is-done' : '',
     canAgain ? 'can-again' : '',
     (!collapsed || canAgain) && props.confirming !== true ? 'is-click' : '',
@@ -213,25 +212,29 @@ export function PartRow(props: PartRowProps): JSX.Element {
 }
 
 export const PART_CSS = `
+.cg-parts { display: grid; gap: 6px; padding: 8px; }
 .cg-part {
   display: grid; grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) auto; align-items: start;
-  padding: 9px 6px 9px 0; border-top: 1px solid var(--cg-rule); transition: background-color 120ms var(--cg-ease);
+  padding: 7px 7px 7px 0; border: 1px dashed var(--cg-clay-line); border-radius: 9px; background: var(--cg-draft);
+  transition: background-color 120ms var(--cg-ease), border-color 120ms var(--cg-ease);
 }
-.cg-part:first-child { border-top: 0; }
+.cg-part.is-solo { grid-template-columns: 11px minmax(0, 1fr) auto; }
 .cg-part.is-click { cursor: pointer; }
 .cg-part__card, .cg-part__extra { cursor: auto; }
-.cg-part:hover, .cg-part:focus-within, .cg-part.is-confirm { background: var(--cg-sunk); }
-.cg-part:focus-visible { outline: none; border-radius: 0; box-shadow: inset 2px 0 0 var(--cg-focus); background: var(--cg-sunk); }
-.cg-part__n { text-align: center; font-size: var(--cg-text-sm); line-height: 20px; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
-.cg-part__t { font-size: var(--cg-text-lg); line-height: 20px; color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
-.cg-part__a { display: flex; align-items: center; gap: 2px; margin: -3px 0 -3px 12px; }
-.cg-part .cg-ins { visibility: hidden; }
-.cg-part.is-next .cg-ins, .cg-part:hover .cg-ins, .cg-part:focus-within .cg-ins { visibility: visible; }
-.cg-part:not(.is-next) .cg-ins { box-shadow: none; color: var(--cg-ink-2); }
-.cg-part:not(.is-next) .cg-ins[aria-disabled="true"] { color: var(--cg-ink-faint); }
-.cg-part.is-done { padding-top: 5px; padding-bottom: 5px; align-items: center; }
-.cg-part.is-done .cg-part__t { color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--cg-text-base); }
-.cg-part.is-done .cg-part__a { margin-top: -4px; margin-bottom: -4px; }
+.cg-part.is-click:hover, .cg-part:focus-within, .cg-part.is-confirm { background: var(--cg-draft-hover); border-color: var(--cg-clay-ink); }
+.cg-part:focus-visible { border-radius: 9px; }
+.cg-part__n { text-align: center; font-family: var(--cg-mono); font-size: var(--cg-text-xs); line-height: 21px; font-weight: 600; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
+.cg-part.is-next .cg-part__n { color: var(--cg-clay-ink); }
+.cg-part__t { font-family: var(--cg-serif); font-size: 14.5px; line-height: 21px; color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.cg-part__a { display: flex; align-items: center; gap: 4px; margin: -3px 0 -3px 10px; }
+.cg-part .cg-ins, .cg-part .cg-copy-main { background: var(--cg-raised); }
+.cg-part.is-next .cg-ins:not([aria-disabled="true"]), .cg-part.is-next .cg-copy-main { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }
+.cg-part.is-next .cg-ins:not([aria-disabled="true"]):hover, .cg-part.is-next .cg-copy-main:hover { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
+.cg-part .cg-ins[aria-disabled="true"] { background: none; }
+.cg-part.is-done { padding-top: 3px; padding-bottom: 3px; align-items: center; border-style: solid; border-color: var(--cg-rule); background: none; }
+.cg-part.is-done.is-click:hover, .cg-part.is-done:focus-within { background: var(--cg-sunk); border-color: var(--cg-rule-3); }
+.cg-part.is-done .cg-part__t { color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--cg-text-md); }
+.cg-part.is-done .cg-part__a { margin-top: -1px; margin-bottom: -1px; }
 .cg-part__state { display: inline-flex; align-items: center; gap: 5px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); padding: 0 6px; white-space: nowrap; }
 .cg-part__again { display: none; }
 .cg-part.is-done:hover .cg-part__again, .cg-part.is-done:focus-within .cg-part__again { display: inline-flex; }
@@ -239,18 +242,12 @@ export const PART_CSS = `
 .cg-part__card { grid-column: 2 / 4; margin-top: 8px; min-width: 0; }
 .cg-part__card .cg-card__text { font-size: var(--cg-text-base); }
 .cg-part__extra { grid-column: 2 / 4; min-width: 0; }
-.cg-bare .cg-part { border-color: var(--cg-bare-rule); }
-.cg-bare .cg-part:hover, .cg-bare .cg-part:focus-within, .cg-bare .cg-part.is-confirm, .cg-bare .cg-part:focus-visible { background: var(--cg-bare-hover); }
-.cg-bare .cg-btn--line { background: var(--cg-surface); }
-.cg-bare .cg-btn--line[aria-disabled="true"], .cg-bare .cg-part:not(.is-next) .cg-ins { background: none; }
-${dark('.cg-bare .cg-btn--line[aria-disabled="true"]')} { background: none; }
 @container cg (max-width: 420px) {
-  .cg-part { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .cg-part { grid-template-columns: 26px minmax(0, 1fr) auto; }
   .cg-part__a { display: contents; }
   .cg-part__a > .cg-part__copy { grid-column: 3; grid-row: 1; margin: -3px 0 -3px 4px; }
-  .cg-part__a > .cg-ins, .cg-part__a > .cg-copy-main { grid-column: 2; grid-row: 2; justify-self: start; margin: 6px 0 0 -8px; }
-  .cg-part:not(.is-next):not(:hover):not(:focus-within):not(.is-done):not(.is-confirm) .cg-ins { display: none; }
-  .cg-part.is-done .cg-part__a { display: flex; grid-column: 3; margin: -4px 0 -4px 6px; }
+  .cg-part__a > .cg-ins, .cg-part__a > .cg-copy-main { grid-column: 2; grid-row: 2; justify-self: start; margin: 6px 0 0; }
+  .cg-part.is-done .cg-part__a { display: flex; grid-column: 3; margin: -1px 0 -1px 6px; }
 }
 @media (prefers-reduced-motion: reduce) { .cg-part { transition: none; } }
 `;

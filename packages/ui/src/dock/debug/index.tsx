@@ -118,7 +118,6 @@ export const DEBUG_CSS = `
 .cg-prof__legend--hub span { white-space: normal; overflow-wrap: anywhere; }
 .cg-prof__legend b { font-weight: 500; color: var(--cg-ink-2); }
 .cg-debug__why { margin-top: 6px; max-height: 96px; overflow-y: auto; font-family: var(--cg-mono); color: var(--cg-ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; }
-.cg-bare .cg-debug { background: transparent; border-top-color: var(--cg-bare-rule); }
 `;
 
 export const DEBUG_STYLE: StyleSource = { id: 'cg-dock-debug', css: DEBUG_CSS };

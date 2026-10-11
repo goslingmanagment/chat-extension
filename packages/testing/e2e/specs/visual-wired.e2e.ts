@@ -251,36 +251,24 @@ describe('the real UI on the stand, photographed: light and dark, RU and EN, 144
   });
 
   describe('the dock', () => {
-    it('ready; the tones — the «Тон» menu, or four buttons where this composer is a wide one', async () => {
+    it('ready; the capsule of Reply\'s options — the four tones and Split — and the two windows in the bar', async () => {
       await look('dock-01-ready', {
         check: async () => {
           await inWindow('dock', '.cg-strip');
-          expect((await dockIs(() => true, 'the dock')).height).toBe(34);
+          expect((await dockIs(() => true, 'the dock')).height).toBe(40);
         },
       });
-      // The composer of this window is 853 px. With short key labels (a Mac) that is the narrow strip and its «Тон»
-      // menu; with long ones (Linux, Windows) it is already wide (ui-design §3.3, X26): the tones are four buttons
-      // and there is no menu to open.
-      if (await ours('dock', '.cg-slot--tone button').isDisplayed()) {
-        await look('dock-02-tone-menu', {
-          all: false,
-          fresh: async () => {
-            if (!(await oursExists('dock', '[role="menu"]'))) await ours('dock', '.cg-slot--tone button').click();
-            await browser.waitUntil(() => oursExists('dock', '[role="menu"]'), { timeout: 5000, timeoutMsg: 'the tone menu did not open' });
-          },
-          check: async () => void (await inWindow('dock', '[role="menu"]')),
-        });
-        await browser.keys(Key.Escape);
-      } else {
-        await look('dock-02-tone-buttons', {
-          all: false,
-          check: async () => {
-            await inWindow('dock', '.cg-slot--tones');
-            await inWindow('dock', '.cg-slot--boards');
-            expect(await readOurs('dock', '.cg-slot--tones', (node) => [...node.querySelectorAll('button')].map((button) => button.textContent))).toEqual(['Casual', 'Flirt', 'Sell', 'Spice']);
-          },
-        });
-      }
+      // The composer of this window is 853 px: every tone is one click (there is no menu to open), Split stands behind
+      // the seam of the same capsule, and Spenders and «Новые» are chips of the bar (ui-design §3.3, X28).
+      await look('dock-02-capsule', {
+        all: false,
+        check: async () => {
+          await inWindow('dock', '.cg-tones');
+          await inWindow('dock', '.cg-slot--boards');
+          expect(await readOurs('dock', '.cg-tones__track', (node) => [...node.querySelectorAll('button .cg-act__t')].map((label) => label.textContent))).toEqual(['Casual', 'Flirt', 'Sell', 'Spice']);
+          expect(await oursExists('dock', '.cg-tones .cg-split')).toBe(true);
+        },
+      });
     });
 
     it('a stream; a Split result; a part inserted; the question about the person’s own text', async function () {

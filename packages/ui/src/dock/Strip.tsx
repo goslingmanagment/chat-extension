@@ -1,20 +1,22 @@
-// The strip (ui-design §3.1, §3.3, §4.1; UI-002…UI-010, UI-031, AI-002…
-// AI-010): one 34 px line above the composer — the goose mark, the seven AI
-// actions, «Ещё» on a narrow composer, then status words, quota, the tones,
-// Split, the two windows (Spenders, «Новые»), the persona and the palette
-// hint. `role="toolbar"`: one tab stop, arrows inside. What hides at which
-// width is CSS (container queries, styles.ts); the markup is the same at
-// every width.
+// The bar (ui-design §3.1, §3.3, §4.1; UI-002…UI-010, UI-031, AI-002…
+// AI-010): one 40 px card above the composer — the goose mark, Reply with the
+// capsule of its options, the other AI actions as raised chips in groups,
+// «Ещё» where a narrow composer hid some, then the status words, the two
+// windows (Spenders, «Новые»), the persona and the palette key.
+// `role="toolbar"`: one tab stop, arrows inside. What hides at which width is
+// CSS (container queries, styles.ts); the markup is the same at every width.
 //
-// The tones stand twice (decision X26): on a wide composer as one outlined
-// segment of four right after Reply — they are Reply's own: one click runs
-// Reply in that tone, no menu to open — and on a narrow one as the «Тон» menu
-// with the same choices, among the options on the right. CSS shows one of the
-// two.
+// Actions are raised chips; options lie in a sunken capsule pressed against
+// Reply (decision X28, the Fansly extension's bar): the four tones as emoji —
+// one click runs Reply in that tone (AI-005), a click on the chosen one takes
+// it off (AI-006), and it rises as a thumb — and, behind a seam, Split,
+// pressed in while on. The capsule stands at every width: there is no menu to
+// open for a tone.
 
 import { Fragment, type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
+import { type I18nKey } from '@cg/contracts/errors';
 import { type Tone } from '@cg/contracts/features';
 import { DOCK_ACTION_IDS, type DockActionId, type DockVM, type UiAction } from '@cg/contracts/vm';
 
@@ -32,61 +34,69 @@ import {
   menuTriggerKeys,
   rovingIndex,
   useDispatch,
+  useGeometry,
   useHints,
   useI18n,
   useKit,
   useTooltip,
   type MenuItem,
 } from '../kit';
-import { QUOTA_RESET_TIME_ZONE, isCrowded, quotaSlot, stripAction } from './model';
+import { QUOTA_RESET_TIME_ZONE, quotaSlot, stripAction } from './model';
 
-/** Review, Recap and Coach move into «Ещё» on a composer of 600 px and narrower (ui-design §3.3). */
+/** Review, Recap and Coach move into «Ещё» on a composer narrower than 680 px (ui-design §3.3). */
 const TIER_TWO: readonly DockActionId[] = ['review', 'recap', 'coach'];
+/** A hairline seam stands before the first chip of a group: Reply and its options │ Fix │ Hi · Ping │ Review · Recap · Coach. */
+const GROUP_START: readonly DockActionId[] = ['fix', 'hi', 'review'];
+/** The tones in the chatters' own language (the Fansly extension's capsule); the word is the cell's name and its hint. */
+const TONE_EMOJI: Readonly<Record<Tone, string>> = { casual: '😌', flirty: '😏', upsell: '💰', spicy: '🔥' };
 /** The kit's menus are at least this wide (ui-design §4.1). */
 const MENU_MIN_WIDTH_PX = 200;
-/** The menu's id of «Без тона». */
-const NO_TONE = 'none';
-/** A key label longer than this is a spelled-out one («Ctrl+E», «Ctrl+Alt+B»), not a symbol one («⌘E», «⌘⇧B»). */
-const LONG_KEY_LABEL = 4;
 
 type BoardId = 'spenders' | 'newcomers';
-/** The windows that open from the strip: the boards a chatter works from between chats. */
+/** The windows that open from the bar: the boards a chatter works from between chats. */
 const BOARDS: readonly BoardId[] = ['spenders', 'newcomers'];
-type StopId = DockActionId | 'more' | `tone:${Tone}` | 'tone' | 'split' | BoardId;
+type MoreId = DockActionId | BoardId;
+type StopId = DockActionId | 'more' | `tone:${Tone}` | 'split' | BoardId;
 
 function visible(element: HTMLElement): boolean {
   return element.getClientRects().length > 0;
 }
 
-/** The goose: a mark, not a button; its tooltip carries the persona on a narrow strip too. */
-function Mark({ vm }: { readonly vm: DockVM }): JSX.Element {
+const isBoard = (id: string): id is BoardId => BOARDS.some((board) => board === id);
+
+/**
+ * The goose: a mark, not a button; its hint carries the persona. What is left of a low quota is a small count at
+ * its corner (UI-031) — it costs the bar no width, so it is there on every composer — and the hint says it in words.
+ * While the chat loads, a composer with no room for the status words shows their spinner in the goose's place.
+ */
+function Mark({ vm, quota }: { readonly vm: DockVM; readonly quota: { readonly count: number; readonly text: string } | null }): JSX.Element {
   const i18n = useI18n();
-  const text = vm.persona === null ? i18n.t('dock.label') : i18n.t('dock.mark.tooltip', { persona: vm.persona.label });
+  const name = vm.persona === null ? i18n.t('dock.label') : i18n.t('dock.mark.tooltip', { persona: vm.persona.label });
+  const text = quota === null ? name : `${name}\n${quota.text}`;
   const tip = useTooltip(text);
   return (
     <>
       <span class={`cg-mark${vm.mark === 'faint' ? ' is-off' : ''}`} role="img" aria-label={text} {...tip.props}>
         <GooseMark />
+        {vm.statusWords ? <Spinner /> : null}
+        {quota === null ? null : (
+          <span class={`cg-quota cg-num${quota.count === 0 ? ' is-zero' : ''}`} aria-hidden="true">
+            {quota.count}
+          </span>
+        )}
       </span>
       {tip.description}
     </>
   );
 }
 
-/** A quiet word of the right block with its own tooltip (quota, persona, the palette hint). */
-function Word({ class: name, text, tooltip, short }: { readonly class: string; readonly text: string; readonly tooltip: string | null; readonly short?: string }): JSX.Element {
+/** A quiet word of the right block with its own hint (the persona, the palette key). */
+function Word({ class: name, text, tooltip }: { readonly class: string; readonly text: string; readonly tooltip: string | null }): JSX.Element {
   const tip = useTooltip(tooltip);
   return (
     <>
       <span class={name} {...tip.props}>
-        {short === undefined ? (
-          text
-        ) : (
-          <>
-            <span class="cg-long">{text}</span>
-            <span class="cg-short">{short}</span>
-          </>
-        )}
+        {text}
       </span>
       {tip.description}
     </>
@@ -106,33 +116,57 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   const dispatch = useDispatch();
   const bar = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
-  const toneRef = useRef<HTMLButtonElement>(null);
-  const [menu, setMenu] = useState<'tone' | 'more' | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** What «Ещё» stands for: the chips a narrow composer hid (the three functions where nothing is laid out). */
+  const [moreIds, setMoreIds] = useState<readonly MoreId[]>(TIER_TWO);
   /** «Ещё» opens from its left edge; on a composer too narrow for that — from its right edge, inside the dock. */
   const [moreAlign, setMoreAlign] = useState<'start' | 'end'>('start');
   const [stop, setStop] = useState<StopId>('reply');
+  // The composer's width decides what is hidden: a new width is a new look at it.
+  void useGeometry().value;
   const t = i18n.t.bind(i18n);
-  /** The strip's buttons in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
-  const STOPS: readonly StopId[] = DOCK_ACTION_IDS.flatMap((id): StopId[] => (id === 'reply' ? [id, ...vm.options.tones.map((tone): StopId => `tone:${tone}`)] : [id])).concat('more', 'tone', 'split', ...BOARDS);
+  const { tone, tones, locked, toneReason, splitReason, split } = vm.options;
+  /** The bar's chips in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
+  const STOPS: readonly StopId[] = DOCK_ACTION_IDS.flatMap((id): StopId[] => (id === 'reply' ? [id, ...tones.map((item): StopId => `tone:${item}`), 'split'] : [id])).concat('more', ...BOARDS);
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
   const stopOf = (target: EventTarget | null): StopId | null => {
     const button = target instanceof HTMLElement ? target.closest<HTMLElement>('.cg-act') : null;
     return button === null ? null : (STOPS[buttons().indexOf(button)] ?? null);
   };
-  /** The buttons a width left on screen (all of them where nothing is laid out). */
+  /** The chips a width left on screen (all of them where nothing is laid out). */
   const shown = (): HTMLElement[] => {
     const all = buttons();
     const laidOut = all.filter(visible);
     return laidOut.length > 0 ? laidOut : all;
   };
-  // One tab stop for the whole strip (ui-design §6.3); it never sits on a button a narrower composer hid.
+  /** The chips of «Ещё» that are not on screen now; the three functions where no width hid anything (then «Ещё» itself is not on screen). */
+  const hiddenNow = (): readonly MoreId[] => {
+    const off = (selector: string): boolean => ![...(bar.current?.querySelectorAll<HTMLElement>(selector) ?? [])].some(visible);
+    const ids = [...(off('.cg-slot--two') ? TIER_TWO : []), ...(off('.cg-slot--boards') ? BOARDS : [])];
+    return ids.length > 0 && buttons().some(visible) ? ids : TIER_TWO;
+  };
+  const alignMore = (): void => {
+    const button = moreRef.current?.getBoundingClientRect();
+    const strip = bar.current?.getBoundingClientRect();
+    setMoreAlign(button !== undefined && strip !== undefined && button.left + MENU_MIN_WIDTH_PX > strip.right ? 'end' : 'start');
+  };
   useLayoutEffect(() => {
+    // One tab stop for the whole bar (ui-design §6.3); it never sits on a chip a narrower composer hid.
     const all = buttons();
     const list = shown();
     const current = all[STOPS.indexOf(stop)];
     const first = list[0];
     if (first !== undefined && (current === undefined || !list.includes(current))) setStop(STOPS[all.indexOf(first)] ?? 'reply');
+    // «Ещё» is active, busy or ready for the chips it stands for, and lists them.
+    const next = hiddenNow();
+    if (next.length !== moreIds.length || next.some((id, index) => id !== moreIds[index])) setMoreIds(next);
+    // The composer may change its width under an open «Ещё» (a ChatSpace panel opens, the window
+    // shrinks): the menu stays inside the dock, and goes away with its button on a wide composer.
+    if (!menuOpen) return;
+    const laidOut = all.filter(visible);
+    if (laidOut.length > 0 && moreRef.current !== null && !laidOut.includes(moreRef.current)) setMenuOpen(false);
+    else alignMore();
   });
 
   const run = (action: UiAction | null): void => {
@@ -149,22 +183,26 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     return action.reason === null ? t('common.unknown') : i18n.text(action.reason.text);
   };
   const stopProps = (id: StopId): { readonly tabIndex: 0 | -1 } => ({ tabIndex: stop === id ? 0 : -1 });
+  /** A hint is the control's name (and its key) with one sentence under it: what the chip does (UI-004). */
+  const hinted = (title: string, hint: I18nKey): string => `${title}\n${t(hint)}`;
+  const keyed = (name: string, keys: ReturnType<typeof hotkeyText>): string => (keys === null ? name : t('dock.action.tooltip', { action: name, hotkey: keys.display }));
+  const offText = (id: DockActionId, why: string): string => t('dock.action.unavailable', { action: nameOf(id), reason: why });
 
   const actionButton = (id: DockActionId): JSX.Element => {
     const action = vm.actions[id];
     const name = nameOf(id);
     const off = whyOff(id);
-    const keys = hotkeyText(action.hotkey);
-    let tooltip = action.busy ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : keys === null ? name : t('dock.action.tooltip', { action: name, hotkey: keys.display });
+    let tooltip = action.busy ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(action.hotkey)), `dock.hint.${id}`);
     if (action.badge !== null) tooltip = `${tooltip}\n${t('dock.badge.recapReady')}`;
     return (
       <StripButton
         label={name}
+        {...(id === 'reply' ? { class: 'cg-act--main' } : {})}
         hotkey={action.enabled ? action.hotkey : null}
         active={action.active}
         busy={action.busy}
         ready={action.badge !== null}
-        reason={off === null ? null : t('dock.action.unavailable', { action: name, reason: off })}
+        reason={off === null ? null : hints ? hinted(offText(id, off), `dock.hint.${id}`) : offText(id, off)}
         tooltip={tooltip}
         onClick={() => run(stripAction(id, vm))}
         {...stopProps(id)}
@@ -172,82 +210,41 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     );
   };
 
-  // ── «Ещё» ──
-  const tierTwo = TIER_TWO.map((id) => vm.actions[id]);
-  const firstOff = TIER_TWO.find((id) => !vm.actions[id].enabled) ?? null;
-  const moreOff = tierTwo.every((action) => !action.enabled) && firstOff !== null ? t('dock.action.moreUnavailable', { reason: whyOff(firstOff) ?? '' }) : null;
-  const moreItems: MenuItem[] = TIER_TWO.map((id) => {
-    const keys = hotkeyText(vm.actions[id].hotkey);
-    const off = whyOff(id);
-    return { id, label: nameOf(id), ...(keys === null ? {} : { hint: keys.display }), reason: off === null ? null : t('dock.action.unavailable', { action: nameOf(id), reason: off }) };
-  });
-
-  const alignMore = (): void => {
-    const button = moreRef.current?.getBoundingClientRect();
-    const strip = bar.current?.getBoundingClientRect();
-    setMoreAlign(button !== undefined && strip !== undefined && button.left + MENU_MIN_WIDTH_PX > strip.right ? 'end' : 'start');
-  };
-  const openMore = (): void => {
-    alignMore();
-    setMenu('more');
-  };
-  // The composer may change its width under an open «Ещё» (a ChatSpace panel opens, the window
-  // shrinks): the menu stays inside the dock, and goes away with its button on a wide composer.
-  useLayoutEffect(() => {
-    if (menu !== 'more') return;
-    const laidOut = buttons().filter(visible);
-    if (laidOut.length > 0 && moreRef.current !== null && !laidOut.includes(moreRef.current)) setMenu(null);
-    else alignMore();
-  });
-
-  // ── Тон ──
-  const { tone, tones, locked, toneReason, splitReason, split } = vm.options;
-  const toneKeys = hotkeyText(vm.options.toneHotkey);
-  const splitKeys = hotkeyText(vm.options.splitHotkey);
-  const toneWord = t('dock.option.tone');
-  const toneFull = tone === null ? toneWord : t('dock.option.toneValue', { tone: t(`dock.tone.${tone}`) });
-  // «Тон: Flirt» keeps «Тон» at 420 px and narrower; a catalog that words it otherwise shows the whole phrase.
-  const toneSplit = toneFull.startsWith(toneWord) && toneFull.length > toneWord.length;
+  // ── the capsule: tones and Split ──
   const toneOff = locked ? t('dock.option.toneLocked') : toneReason === null ? null : t('dock.option.toneUnavailable', { reason: i18n.text(toneReason.text) });
-  const toneItems: MenuItem[] = [
-    ...tones.map((id) => ({ id, label: t(`dock.tone.${id}`), checked: tone === id })),
-    { id: NO_TONE, label: t('dock.option.toneNone'), checked: tone === null },
-  ];
-  const chooseTone = (id: string): void => {
+  const chooseTone = (id: Tone): void => {
     if (vm.targetHandle === null) return;
-    // «Без тона», and a second click on the tone that is already chosen (AI-006), only take the tone off.
-    if (id === NO_TONE || id === tone) run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: null });
-    // A tone chosen in the menu runs Reply in it at once (AI-005); with Reply off it is only remembered.
-    else if (vm.actions.reply.enabled) run({ type: 'Generate', targetHandle: vm.targetHandle, feature: 'reply', options: { tone: id as Tone } });
-    else run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: id as Tone });
+    // A second click on the tone that is already chosen only takes the tone off (AI-006).
+    if (id === tone) run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: null });
+    // A tone runs Reply in it at once (AI-005); with Reply off it is only remembered.
+    else if (vm.actions.reply.enabled) run({ type: 'Generate', targetHandle: vm.targetHandle, feature: 'reply', options: { tone: id } });
+    else run({ type: 'SetTone', targetHandle: vm.targetHandle, tone: id });
   };
-
-  /** A tone as a button of its own: what a click on it does, in the words of the menu's choice. */
+  const toneKeys = hotkeyText(vm.options.toneHotkey);
   const toneButton = (id: Tone): JSX.Element => {
     const name = t(`dock.tone.${id}`);
     const value = t('dock.option.toneValue', { tone: name });
-    // Chosen: a click takes the tone off. Otherwise it runs Reply in it at once (AI-005); with Reply off it is only remembered.
-    const tooltip = tone === id ? `${value} → ${t('dock.option.toneNone')}` : vm.actions.reply.enabled ? `${nameOf('reply')} · ${value}` : value;
-    return <StripButton key={id} label={name} class="cg-opt cg-tone" pressed={tone === id} reason={toneOff} tooltip={tooltip} onClick={() => chooseTone(id)} {...stopProps(`tone:${id}`)} />;
-  };
-
-  // ── the windows ──
-  const boardButton = (id: BoardId): JSX.Element => {
-    const name = t(id === 'spenders' ? 'spenders.title' : 'newcomers.title');
-    const keys = id === 'spenders' ? hotkeyText(deps.catalog.entry('spenders').hotkey) : null;
+    const title = hinted(`${TONE_EMOJI[id]} ${tone === id || !vm.actions.reply.enabled ? value : `${nameOf('reply')} · ${value}`}`, `dock.hint.tone.${id}`);
+    // The last line of a hint: how to take the chosen tone off, or the key that walks the tones without running Reply (AI-008).
+    const last = tone === id ? t('dock.hint.toneOff') : toneKeys === null ? null : t('dock.option.toneTooltip', { hotkey: toneKeys.display });
     return (
       <StripButton
         key={id}
         label={name}
-        class="cg-opt cg-board"
-        tooltip={keys === null ? name : t('dock.action.tooltip', { action: name, hotkey: keys.display })}
-        onClick={() => run({ type: 'Navigate', to: { kind: 'surface', surface: id, open: true } })}
-        {...stopProps(id)}
+        class="cg-opt cg-tone"
+        pressed={tone === id}
+        reason={toneOff}
+        tooltip={last === null ? title : `${title}\n${last}`}
+        leading={
+          <span class="cg-tone__e" aria-hidden="true">
+            {TONE_EMOJI[id]}
+          </span>
+        }
+        onClick={() => chooseTone(id)}
+        {...stopProps(`tone:${id}`)}
       />
     );
   };
-
-  // ── Split ──
   const splitOff =
     locked
       ? t('dock.option.splitLocked')
@@ -256,18 +253,48 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         : splitReason.id === 'not-a-message'
           ? i18n.text(splitReason.text)
           : t('dock.option.splitUnavailable', { reason: i18n.text(splitReason.text) });
-  const lock = locked ? <Icon name="lock" size={12} class="cg-lock" /> : null;
+  const splitKeys = hotkeyText(vm.options.splitHotkey);
 
-  // ── quota, persona ──
+  // ── the windows ──
+  const boardName = (id: BoardId): string => t(id === 'spenders' ? 'spenders.title' : 'newcomers.title');
+  const boardKey = (id: BoardId): ReturnType<typeof hotkeyText> => (id === 'spenders' ? hotkeyText(deps.catalog.entry('spenders').hotkey) : null);
+  const openBoard = (id: BoardId): void => run({ type: 'Navigate', to: { kind: 'surface', surface: id, open: true } });
+
+  // ── «Ещё»: whatever a narrow composer hid — Review, Recap, Coach, the two windows ──
+  const listed = moreIds.filter((id) => !isBoard(id) || !vm.statusWords);
+  const hidden = TIER_TWO.filter((id) => moreIds.includes(id));
+  const firstOff = hidden.find((id) => !vm.actions[id].enabled) ?? null;
+  // The windows open whatever the chat's state is: «Ещё» is off only while all it holds is functions that are off.
+  const moreOff = firstOff !== null && !listed.some(isBoard) && hidden.every((id) => !vm.actions[id].enabled) ? t('dock.action.moreUnavailable', { reason: whyOff(firstOff) ?? '' }) : null;
+  const moreItems: MenuItem[] = listed.map((id) => {
+    const keys = isBoard(id) ? boardKey(id) : hotkeyText(vm.actions[id].hotkey);
+    const off = isBoard(id) ? null : whyOff(id);
+    return { id, label: isBoard(id) ? boardName(id) : nameOf(id), ...(keys === null ? {} : { hint: keys.display }), reason: off === null || isBoard(id) ? null : offText(id, off) };
+  });
+  const openMore = (): void => {
+    alignMore();
+    setMenuOpen(true);
+  };
+
+  // ── the quota: a count at the goose's corner, its words in the hint ──
   const quota = quotaSlot(vm);
+  const remaining = vm.quota?.remaining ?? 0;
   const resets = vm.quota?.resetsAt ?? null;
-  const resetsAt = resets === null ? null : i18n.formatTime(resets);
   // «Обновится в 03:00 по Москве» names its zone, so that time is Moscow's wherever the chatter sits.
   const resetsMoscow = resets === null ? null : (i18n.formatTimeIn?.(resets, QUOTA_RESET_TIME_ZONE) ?? null);
-  const remaining = vm.quota?.remaining ?? 0;
+  const quotaText =
+    quota === null
+      ? null
+      : quota === 'zero'
+        ? resetsMoscow === null
+          ? t('dock.quota.zero')
+          : `${t('dock.quota.zero')}\n${t('dock.quota.zeroTooltip', { time: resetsMoscow })}`
+        : resets === null
+          ? t('dock.quota.low', { n: remaining })
+          : t('dock.quota.lowTooltip', { n: remaining, time: i18n.formatTime(resets) });
 
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
-    if (menu !== null || event.defaultPrevented) return;
+    if (menuOpen || event.defaultPrevented) return;
     const target = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('.cg-act') : null;
     if (target === null) return;
     const list = shown();
@@ -277,17 +304,10 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     focusQuietly(list[next]);
   };
 
-  // «Ctrl+Alt+B» is four times as wide as «⌘⇧B»: where key labels are long, the widths of §3.3 are other ones.
-  // Read from the labels that are always there (the palette's, Tone's, Split's) as well as the actions': an action
-  // that is off carries no key, and the strip must not change its layout each time a chat loads.
-  const longKeys = [vm.paletteHotkey, vm.options.toneHotkey, vm.options.splitHotkey, ...DOCK_ACTION_IDS.map((id) => vm.actions[id].hotkey)].some(
-    (label) => (hotkeyText(label)?.display.length ?? 0) > LONG_KEY_LABEL,
-  );
-  const classes = ['cg-strip', isCrowded(vm) ? 'is-crowded' : '', vm.statusWords ? 'has-status' : '', longKeys ? 'is-longkeys' : ''].filter((name) => name !== '').join(' ');
   return (
     <div
       ref={bar}
-      class={classes}
+      class={vm.statusWords ? 'cg-strip has-status' : 'cg-strip'}
       role="toolbar"
       aria-label={t('dock.label')}
       aria-orientation="horizontal"
@@ -297,52 +317,64 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         if (id !== null && id !== stop) setStop(id);
       }}
     >
-      <Mark vm={vm} />
+      <Mark vm={vm} quota={quotaText === null ? null : { count: quota === 'zero' ? 0 : remaining, text: quotaText }} />
       <div class="cg-strip__acts">
-        {DOCK_ACTION_IDS.map((id, index) => (
+        {DOCK_ACTION_IDS.map((id) => (
           <Fragment key={id}>
             <span class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : 'cg-slot'}>
-              {index === 0 ? null : <Divider />}
+              {GROUP_START.includes(id) ? <Divider /> : null}
               {actionButton(id)}
             </span>
             {id !== 'reply' ? null : (
-              // The tones are Reply's own: one outlined segment right after it, a click on a tone is Reply in that tone.
-              <span class="cg-slot cg-slot--tones" role="group" aria-label={toneWord}>
-                <span class="cg-tones">
+              // The capsule of Reply's options: a click on a tone is Reply in that tone; behind the seam — Split.
+              <span class="cg-tones">
+                <span class="cg-tones__track" role="group" aria-label={t('dock.option.tone')}>
                   {tones.map(toneButton)}
-                  {lock}
                 </span>
+                <span class="cg-tones__seam" aria-hidden="true" />
+                <StripButton
+                  label={t('dock.option.split')}
+                  class="cg-opt cg-split"
+                  hotkey={vm.options.splitHotkey}
+                  pressed={split}
+                  reason={splitOff}
+                  tooltip={hinted(splitKeys === null ? t('dock.option.split') : t('dock.option.splitTooltip', { hotkey: splitKeys.display }), 'dock.hint.split')}
+                  leading={<CheckGlyph on={split} />}
+                  onClick={() => run({ type: 'SetPreference', key: 'generation.split', value: !split })}
+                  {...stopProps('split')}
+                />
+                {locked ? <Icon name="lock" size={12} class="cg-lock" /> : null}
               </span>
             )}
           </Fragment>
         ))}
         <span class="cg-slot cg-slot--more">
-          <Divider />
           <MenuAnchor>
             <StripButton
               label={t('dock.action.more')}
-              active={tierTwo.some((action) => action.active)}
-              busy={tierTwo.some((action) => action.busy)}
-              ready={tierTwo.some((action) => action.badge !== null)}
+              class="cg-more"
+              active={hidden.some((id) => vm.actions[id].active)}
+              busy={hidden.some((id) => vm.actions[id].busy)}
+              ready={hidden.some((id) => vm.actions[id].badge !== null)}
               reason={moreOff}
-              tooltip={t('dock.action.moreTooltip')}
+              tooltip={listed.map((id) => (isBoard(id) ? boardName(id) : nameOf(id))).join(', ')}
               haspopup="menu"
-              expanded={menu === 'more'}
+              expanded={menuOpen}
               buttonRef={moreRef}
-              onClick={() => (menu === 'more' ? setMenu(null) : openMore())}
+              onClick={() => (menuOpen ? setMenuOpen(false) : openMore())}
               onKeyDown={(event) => {
                 if (moreOff === null) menuTriggerKeys(event, openMore);
               }}
               {...stopProps('more')}
             />
             <Menu
-              open={menu === 'more'}
+              open={menuOpen}
               kind="action"
               label={t('dock.action.more')}
               items={moreItems}
               align={moreAlign}
-              onSelect={(id) => run(stripAction(id as DockActionId, vm))}
-              onClose={() => setMenu(null)}
+              onSelect={(id) => (isBoard(id) ? openBoard(id) : run(stripAction(id as DockActionId, vm)))}
+              onClose={() => setMenuOpen(false)}
               returnFocusTo={() => moreRef.current}
             />
           </MenuAnchor>
@@ -350,96 +382,32 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
       </div>
       <div class="cg-strip__opts">
         {vm.statusWords ? (
-          <>
-            <span class="cg-status-word" role="status">
-              <Spinner />
-              <span class="cg-long">{t('dock.status.chatLoading')}</span>
-              <span class="cg-short">{t('common.loading')}</span>
-            </span>
-            <Divider />
-          </>
+          <span class="cg-status-word" role="status">
+            <Spinner />
+            <span class="cg-long">{t('dock.status.chatLoading')}</span>
+            <span class="cg-short">{t('common.loading')}</span>
+          </span>
         ) : null}
-        {quota === null ? null : (
-          <span class="cg-slot cg-slot--quota">
-            {quota === 'zero' ? (
-              <Word class="cg-quota is-zero cg-num" text={t('dock.quota.zero')} tooltip={resetsMoscow === null ? null : t('dock.quota.zeroTooltip', { time: resetsMoscow })} />
-            ) : (
-              <Word
-                class="cg-quota cg-num"
-                text={t('dock.quota.low', { n: remaining })}
-                short={t('dock.quota.lowShort', { n: remaining })}
-                tooltip={resetsAt === null ? null : t('dock.quota.lowTooltip', { n: remaining, time: resetsAt })}
-              />
-            )}
-            <Divider />
-          </span>
-        )}
-        <span class="cg-slot cg-slot--tone">
-          <MenuAnchor>
-            <StripButton
-              label={toneSplit ? toneWord : toneFull}
-              class="cg-opt"
-              hotkey={vm.options.toneHotkey}
-              reason={toneOff}
-              tooltip={toneKeys === null ? t('dock.option.toneMenuTitle') : t('dock.option.toneTooltip', { hotkey: toneKeys.display })}
-              haspopup="menu"
-              expanded={menu === 'tone'}
-              buttonRef={toneRef}
-              trailing={
-                <>
-                  {toneSplit ? <span class="cg-tone-val">{toneFull.slice(toneWord.length)}</span> : null}
-                  {lock}
-                </>
-              }
-              onClick={() => setMenu(menu === 'tone' ? null : 'tone')}
-              onKeyDown={(event) => {
-                if (toneOff === null) menuTriggerKeys(event, () => setMenu('tone'));
-              }}
-              {...stopProps('tone')}
-            />
-            <Menu
-              open={menu === 'tone'}
-              kind="radio"
-              label={toneWord}
-              caption={{ text: t('dock.option.toneMenuTitle'), ...(toneKeys === null ? {} : { hint: toneKeys.display }) }}
-              items={toneItems}
-              align="end"
-              onSelect={chooseTone}
-              onClose={() => setMenu(null)}
-              returnFocusTo={() => toneRef.current}
-            />
-          </MenuAnchor>
-          <Divider />
-        </span>
-        <span class="cg-slot cg-slot--split">
-          <StripButton
-            label={t('dock.option.split')}
-            class="cg-opt"
-            hotkey={vm.options.splitHotkey}
-            pressed={split}
-            reason={splitOff}
-            tooltip={splitKeys === null ? t('dock.option.split') : t('dock.option.splitTooltip', { hotkey: splitKeys.display })}
-            leading={<CheckGlyph on={split} />}
-            trailing={lock}
-            onClick={() => run({ type: 'SetPreference', key: 'generation.split', value: !split })}
-            {...stopProps('split')}
-          />
-        </span>
         <span class="cg-slot cg-slot--boards">
-          <Divider />
-          {BOARDS.map(boardButton)}
+          {BOARDS.map((id) => (
+            <StripButton
+              key={id}
+              label={boardName(id)}
+              hotkey={id === 'spenders' ? deps.catalog.entry('spenders').hotkey : null}
+              tooltip={hinted(keyed(boardName(id), boardKey(id)), `dock.hint.${id}`)}
+              onClick={() => openBoard(id)}
+              {...stopProps(id)}
+            />
+          ))}
         </span>
-        {vm.status === 'not-signed-in' ? (
-          <span class="cg-slot cg-slot--persona">
-            <Divider />
+        <span class="cg-slot cg-slot--persona">
+          <Divider />
+          {vm.status === 'not-signed-in' ? (
             <span class="cg-persona is-missing">{t('dock.persona.notSignedIn')}</span>
-          </span>
-        ) : (
-          <span class="cg-slot cg-slot--persona">
-            <Divider />
-            {vm.persona === null ? null : <Word class="cg-persona" text={vm.persona.label} tooltip={hints ? t('dock.persona.tooltip', { page: vm.persona.pageName }) : null} />}
-          </span>
-        )}
+          ) : vm.persona === null ? null : (
+            <Word class="cg-persona" text={vm.persona.label} tooltip={hints ? t('dock.persona.tooltip', { page: vm.persona.pageName }) : null} />
+          )}
+        </span>
         {vm.paletteHotkey === null ? null : <Word class="cg-hint" text={hotkeyText(vm.paletteHotkey)?.display ?? ''} tooltip={hints ? t('dock.paletteHint.tooltip') : null} />}
       </div>
     </div>

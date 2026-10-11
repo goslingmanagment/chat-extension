@@ -27,7 +27,7 @@ import { syncRouteSchemas } from "./routes-sync";
 // The chat extension's routes (client bootstrap and what follows); same spread.
 import { clientNumericIdSchema, clientOpenToken, clientRouteSchemas } from "./routes-client";
 // House primitives shared with the sibling route modules (see primitives.ts).
-import { businessDate, errorResponseSchema, fanLookupParamsSchema, fanSearchMatchKindEnum, intId, isoTimestamp, mills, pageParamsSchema, paginationQuerySchema, platformEnum, queryBooleanSchema, sortDirEnum, transactionStateEnum, transactionTypeEnum, } from "./primitives";
+import { businessDate, errorResponseSchema, fanLookupParamsSchema, fanSearchMatchKindEnum, intId, isoDateTime, isoTimestamp, mills, pageParamsSchema, paginationQuerySchema, platformEnum, queryBooleanSchema, sortDirEnum, transactionStateEnum, transactionTypeEnum, } from "./primitives";
 const periodEnum = z.enum(PERIOD_OPTIONS);
 const spenderPeriodEnum = z.enum(SPENDER_PERIOD_OPTIONS);
 const spenderSeriesGranularityEnum = z.enum(SPENDER_SERIES_GRANULARITIES);
@@ -418,7 +418,7 @@ export const pageConversationProfileParamsSchema = pageParamsSchema.extend({
 });
 // Request instants must include a timezone; the legacy isoTimestamp response
 // primitive is intentionally permissive and must not validate query bounds.
-export const revenueInstantSchema = z.iso.datetime({ offset: true })
+export const revenueInstantSchema = isoDateTime({ offset: true })
     .refine((value) => Number.isFinite(Date.parse(value)), "Invalid timestamp");
 const standardRevenueQuerySchema = z.object({
     period: nonCustomPeriodEnum,

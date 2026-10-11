@@ -1,5 +1,7 @@
 // The tooltip bubble and the trigger hook (ui-design §4.1 «Подсказка», §3.4
-// layer 970, §6.1 `aria-describedby`). The bubble is a manual popover: the
+// layer 970, §6.1 `aria-describedby`). A text of several lines is a hint: its
+// first line is the control's name, in bold, the rest explain it (UI-004).
+// The bubble is a manual popover: the
 // top layer escapes the dock's `contain: layout` and ChatSpace's clipping
 // containers; without popover support it falls back to `position: fixed`.
 
@@ -111,7 +113,7 @@ export function TooltipLayer() {
 
   if (state === null) return null;
   return (
-    <div ref={ref} class="cg-tip" role="tooltip" popover="manual" aria-hidden="true" style={{ visibility: 'hidden' }}>
+    <div ref={ref} class={state.text.includes('\n') ? 'cg-tip cg-tip--hint' : 'cg-tip'} role="tooltip" popover="manual" aria-hidden="true" style={{ visibility: 'hidden' }}>
       {state.text}
     </div>
   );
@@ -120,9 +122,11 @@ export function TooltipLayer() {
 export const TOOLTIP_CSS = `
 .cg-tip {
   position: fixed; z-index: 970; inset: auto; top: 0; left: 0; margin: 0; border: 0;
-  max-width: 320px; padding: 4px 8px; border-radius: var(--cg-r-sm);
-  background: var(--cg-tip-bg); color: var(--cg-tip-ink);
-  font-family: inherit; font-size: var(--cg-text-sm); line-height: 16px; font-weight: 400;
+  max-width: 280px; padding: 6px 9px; border-radius: var(--cg-r-md);
+  background: var(--cg-tip-bg); color: var(--cg-tip-ink); box-shadow: inset 0 0 0 1px var(--cg-rule-float), var(--cg-shadow-float);
+  font-family: inherit; font-size: var(--cg-text-sm); line-height: 17px; font-weight: 500;
   white-space: pre-line; overflow-wrap: anywhere; pointer-events: none; overflow: visible;
 }
+.cg-tip--hint { color: var(--cg-ink-2); }
+.cg-tip--hint::first-line { font-weight: 700; color: var(--cg-ink-strong); }
 `;

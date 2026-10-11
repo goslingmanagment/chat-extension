@@ -332,12 +332,16 @@ describe('fan preview: the work zone', () => {
     expect(ui.actionsOf('SetPreviewDraft').map((action) => action.text)).toEqual(['hey', 'hey there', 'saved yesterday, and more']);
   });
 
-  it('[SP-055] the mini strip: Reply · Fix · Hi · Ping without key labels, Tone and Split; a click generates for this fan', async () => {
+  it('[SP-055] the mini strip: Reply with the capsule of its options — the four tones and Split — then Fix · Hi · Ping, without key labels; a click generates for this fan', async () => {
     ui = await mountBoardSettled('spenders', '11a');
     const strip = ui.$('.cg-pvb') as HTMLElement;
     expect(strip.getAttribute('role')).toBe('toolbar');
     expect(strip.getAttribute('aria-label')).toBe('ChatGoose');
-    expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Reply', 'Fix', 'Hi', 'Ping', 'Тон', 'Split']);
+    expect(ui.$$('.cg-pvb .cg-act').map((button) => button.querySelector('.cg-act__t')?.textContent)).toEqual(['Reply', 'Casual', 'Flirt', 'Sell', 'Spice', 'Split', 'Fix', 'Hi', 'Ping']);
+    // The capsule is Reply's own: right after it, as in the dock; Reply is the main chip.
+    expect(ui.$('.cg-pvb [data-cg-strip="reply"] + .cg-tones')).not.toBeNull();
+    expect(ui.$('.cg-pvb [data-cg-strip="reply"] .cg-act')?.classList.contains('cg-act--main')).toBe(true);
+    expect(ui.$$('.cg-pvb .cg-tone__e').map((cell) => cell.textContent)).toEqual(['😌', '😏', '💰', '🔥']);
     expect(ui.$$('.cg-pvb kbd')).toEqual([]);
     // Its result is open: Reply is the active one.
     expect(ui.$('.cg-pvb [data-cg-strip="reply"] .cg-act')?.classList.contains('is-active')).toBe(true);
@@ -359,17 +363,23 @@ describe('fan preview: the work zone', () => {
     expect(ui.actionsOf('Generate')).toEqual([]);
   });
 
-  it('the tone menu: choosing a tone starts Reply in it; «Без тона» only clears it; Split is a setting', async () => {
+  it('the capsule: a click on a tone starts Reply in it, with no menu to open; a click on the chosen tone only takes it off; Split is a setting', async () => {
     ui = await mountBoardSettled('spenders', '11a');
-    const tone = ui.$('.cg-pvb [data-cg-strip="tone"] .cg-act') as HTMLElement;
-    await flush(() => tone.click());
-    expect(tone.getAttribute('aria-expanded')).toBe('true');
-    const items = ui.$$('.cg-pvb [role="menuitemradio"]');
-    expect(items.map((item) => item.querySelector('.cg-menu__t')?.textContent)).toEqual(['Casual', 'Flirt', 'Sell', 'Spice', 'Без тона']);
-    await flush(() => (items[1] as HTMLElement).click());
+    const tones = ui.$$('.cg-pvb [data-cg-strip="tone"] .cg-act');
+    expect(ui.$('.cg-pvb [data-cg-strip="tone"]')?.getAttribute('role')).toBe('group');
+    expect(tones.map((tone) => tone.querySelector('.cg-act__t')?.textContent)).toEqual(['Casual', 'Flirt', 'Sell', 'Spice']);
+    expect(tones.map((tone) => tone.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false', 'false']);
+    await flush(() => (tones[1] as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'Generate', targetHandle: 'spenders:b002', feature: 'reply', options: { tone: 'flirty' } });
-    await flush(() => tone.click());
-    await flush(() => (ui?.$$('.cg-pvb [role="menuitemradio"]')[4] as HTMLElement).click());
+    expect(ui.$('.cg-pvb [role="menu"]')).toBeNull();
+    ui.unmount();
+    ui = await mountBoardSettled(
+      'spenders',
+      withPreview((vm) => ({ ...vm, bar: { ...vm.bar, tone: 'flirty' } })),
+    );
+    const chosen = ui.$$('.cg-pvb [data-cg-strip="tone"] .cg-act')[1] as HTMLElement;
+    expect(chosen.getAttribute('aria-pressed')).toBe('true');
+    await flush(() => chosen.click());
     expect(ui.actions().at(-1)).toEqual({ type: 'SetTone', targetHandle: 'spenders:b002', tone: null });
     const split = ui.$('.cg-pvb [data-cg-strip="split"] .cg-act') as HTMLElement;
     expect(split.getAttribute('aria-pressed')).toBe('true');

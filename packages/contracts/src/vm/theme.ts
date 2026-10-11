@@ -3,7 +3,10 @@
 // token is computed from ChatSpace's `--color-om-*` triples with a fallback,
 // and the dark values live under `:host([data-scheme="dark"])` because a
 // closed shadow root sees neither the host's `.dark` class nor
-// `:host-context()` in Firefox. No colour outside this list.
+// `:host-context()` in Firefox. No colour outside this list. 1.13.0 (decision
+// X28) adds the family's own voice: the terracotta accent (`--cg-clay-*`), the
+// raised chip and the sunken groove of a bar, the warm fill of an AI draft,
+// and the serif AI-authored text is set in.
 
 import { type ValueSignal } from './signal';
 
@@ -30,8 +33,17 @@ export const THEME_TOKENS = {
     '--cg-tip-ink',
     '--cg-chat-in',
     '--cg-chat-out',
+    /** 1.13.0: a card of ours (the bar, a result), a raised chip, the sunken groove of a button's options, an AI draft. */
+    '--cg-raised',
+    '--cg-chip',
+    '--cg-groove',
+    '--cg-draft',
+    '--cg-draft-hover',
   ],
-  /** Colours with a fixed meaning: blue = will reach the fan / new event / focus, green = money in, red = our failure. */
+  /**
+   * Colours with a fixed meaning: blue = will reach the fan (the host's own Send), terracotta = ChatGoose itself
+   * (the main action, what is armed, focus, a state of our result; 1.13.0), green = money in, red = our failure.
+   */
   meaning: [
     '--cg-accent',
     '--cg-focus',
@@ -44,9 +56,13 @@ export const THEME_TOKENS = {
     '--cg-danger',
     '--cg-bar',
     '--cg-bar-strong',
+    '--cg-clay',
+    '--cg-clay-ink',
+    '--cg-clay-bg',
+    '--cg-clay-line',
   ],
   elevation: ['--cg-shadow', '--cg-shadow-float'],
-  font: ['--cg-font', '--cg-font-page', '--cg-mono'],
+  font: ['--cg-font', '--cg-font-page', '--cg-mono', '--cg-serif'],
   text: [
     '--cg-text-2xs',
     '--cg-text-xs',

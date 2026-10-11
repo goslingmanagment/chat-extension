@@ -1,11 +1,21 @@
-// The strip of the dock (ui-design §3.1, §4.1; UI-002…UI-010, UI-012, UI-031,
-// AI-001…AI-010): what it shows for a DockVM and what each button asks for.
+// The bar of the dock (ui-design §3.1, §4.1; UI-002…UI-010, UI-012, UI-031,
+// AI-001…AI-010): what it shows for a DockVM and what each chip asks for.
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DOCK_ACTION_IDS, TONES } from '@cg/contracts';
 
 import { FANS, PERSONA, ctxOf, dock, dockActions, handles, iso, reason, scenarioById } from '../scenarios/app-client';
+
+/** One sentence under a control's name in its hint (UI-004). */
+const HINT = {
+  reply: 'Ответ на переписку — от имени персоны, в выбранном тоне',
+  fix: 'Переписывает ваш черновик из поля ввода. Нового не сочиняет',
+  recap: 'Досье по фану: кто он, на что тратил, о чём уже говорили',
+  split: 'Ответ придёт серией из 2–3 сообщений. Вставлять и отправлять — по одному',
+  flirt: 'Флирт — тепло, игра, притяжение',
+  casual: 'Спокойный дружеский тон — без флирта и продаж',
+} as const;
 import { type MountedKit, ctx, dockScenario, dockVm, flush, keydown, mountDock, settle, text } from './harness';
 
 let kit: MountedKit | null = null;
@@ -24,25 +34,32 @@ const described = (element: HTMLElement): string => kit?.root.getElementById(ele
 const HANDLE = handles.dock(FANS.hubert);
 
 describe('the strip', () => {
-  it('[UI-002] is a toolbar: Reply with its four tones right after it, the other six actions, «Ещё», then the «Тон» menu (a width shows the menu or the four), Split and the two windows', () => {
+  it('[UI-002] is a toolbar: Reply with the capsule of its options — the four tones and, behind a seam, Split — then the other six actions in groups, «Ещё» and the two windows', () => {
     kit = mountDock(dockScenario(dockVm()));
     const strip = kit.$('.cg-strip') as HTMLElement;
     expect(strip.getAttribute('role')).toBe('toolbar');
     expect(strip.getAttribute('aria-label')).toBe('ChatGoose');
     expect(DOCK_ACTION_IDS).toEqual(['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach']);
     expect(buttons().map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual([
-      ...['Reply', 'Casual', 'Flirt', 'Sell', 'Spice', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Ещё'],
-      ...['Тон', 'Split', 'Spenders', 'Новые'],
+      ...['Reply', 'Casual', 'Flirt', 'Sell', 'Spice', 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Ещё'],
+      ...['Spenders', 'Новые'],
     ]);
-    // The four tone buttons are one named group, one outlined segment; the menu with the same choices is for a narrow composer.
-    expect(kit.$$('.cg-slot--tones > .cg-tones')).toHaveLength(1);
-    expect(kit.$('.cg-slot--tones')?.getAttribute('role')).toBe('group');
-    expect(kit.$('.cg-slot--tones')?.getAttribute('aria-label')).toBe('Тон');
-    expect(kit.$$('.cg-slot--tones .cg-act').map(text)).toEqual(['Casual', 'Flirt', 'Sell', 'Spice']);
-    expect(kit.$$('.cg-slot--boards .cg-act').map(text)).toEqual(['Spenders', 'Новые']);
-    // Review, Recap and Coach are the ones «Ещё» replaces on a narrow composer.
+    // Reply is the main action; the capsule stands right after it: the four tones are one named group, Split is behind the seam.
+    expect(button('Reply').classList.contains('cg-act--main')).toBe(true);
+    expect(kit.$('.cg-slot + .cg-tones')).not.toBeNull();
+    expect(kit.$('.cg-tones__track')?.getAttribute('role')).toBe('group');
+    expect(kit.$('.cg-tones__track')?.getAttribute('aria-label')).toBe('Тон');
+    expect(kit.$$('.cg-tones__track .cg-act').map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Casual', 'Flirt', 'Sell', 'Spice']);
+    expect(kit.$$('.cg-tones__track .cg-tone__e').map(text)).toEqual(['😌', '😏', '💰', '🔥']);
+    expect(kit.$$('.cg-tones > .cg-tones__seam + .cg-split')).toHaveLength(1);
+    expect(kit.$$('.cg-slot--boards .cg-act').map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Spenders', 'Новые']);
+    // A seam opens every group after the first: Fix │ Hi · Ping │ Review · Recap · Coach.
+    expect(kit.$$('.cg-strip__acts .cg-div + .cg-act').map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Fix', 'Hi', 'Review']);
+    // Review, Recap and Coach are the ones «Ещё» stands for on a narrow composer.
     expect(kit.$$('.cg-slot--two .cg-act').map(text)).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C']);
     expect(kit.$('.cg-slot--more .cg-act')?.getAttribute('aria-haspopup')).toBe('menu');
+    // There is no menu to open for a tone.
+    expect(buttons().filter((element) => element.getAttribute('aria-haspopup') === 'menu')).toHaveLength(1);
   });
 
   it('[UI-012] outside an open chat there is no dock at all', () => {
@@ -51,7 +68,7 @@ describe('the strip', () => {
     expect(kit.$('.cg-strip')).toBeNull();
   });
 
-  it('[UI-006] prints the key on an enabled button and sets aria-keyshortcuts; labels follow the OS', () => {
+  it('[UI-006] an enabled chip carries its key — a cap at its corner — and sets aria-keyshortcuts; labels follow the OS', () => {
     kit = mountDock(dockScenario(dockVm()));
     expect(button('Reply').querySelector('kbd')?.textContent).toBe('⌘E');
     expect(button('Reply').getAttribute('aria-keyshortcuts')).toBe('Meta+E');
@@ -64,16 +81,16 @@ describe('the strip', () => {
     expect(button('Recap').querySelector('kbd')?.textContent).toBe('Ctrl+Alt+S');
   });
 
-  it('[UI-005] [UI-004] the tooltip names the action and its key; a busy button says how to cancel', () => {
+  it('[UI-005] [UI-004] the hint names the action and its key and says in one sentence what it does; a busy chip says how to cancel', () => {
     kit = mountDock('streaming');
     expect(described(button('Reply'))).toBe('Reply — идёт генерация. Отмена ⌘.');
     kit.unmount();
     kit = mountDock(dockScenario(dockVm()));
-    expect(described(button('Reply'))).toBe('Reply  ⌘E');
-    expect(described(button('Тон'))).toBe('Тон на один ответ  ⌘⇧O');
-    expect(described(button('Split'))).toBe('Split: ответ частями  ⌘⇧L');
+    expect(described(button('Reply'))).toBe(`Reply  ⌘E\n${HINT.reply}`);
+    expect(described(button('Split'))).toBe(`Split: ответ частями  ⌘⇧L\n${HINT.split}`);
+    expect(described(button('Ещё'))).toBe('Review, Recap, Coach');
     expect(kit.$('.cg-mark')?.getAttribute('aria-label')).toBe(`ChatGoose — персона ${PERSONA.label}`);
-    // No `title` attribute anywhere: tooltips are ours.
+    // No `title` attribute anywhere: hints are ours.
     expect(kit.$$('[title]')).toEqual([]);
   });
 
@@ -84,7 +101,7 @@ describe('the strip', () => {
     expect(fix.getAttribute('aria-disabled')).toBe('true');
     expect(fix.querySelector('kbd')).toBeNull();
     expect(fix.hasAttribute('aria-keyshortcuts')).toBe(false);
-    expect(described(fix)).toBe('Fix недоступен: сначала напишите черновик в поле ввода');
+    expect(described(fix)).toBe(`Fix недоступен: сначала напишите черновик в поле ввода\n${HINT.fix}`);
     await flush(() => fix.click());
     expect(kit.client.dispatched).toEqual([]);
   });
@@ -98,7 +115,7 @@ describe('the strip', () => {
     for (const label of ['Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']) {
       const other = button(label);
       expect(other.getAttribute('aria-disabled'), label).toBe('true');
-      expect(described(other), label).toBe(`${label} недоступен: в этом чате уже идёт генерация`);
+      expect(described(other).split('\n')[0], label).toBe(`${label} недоступен: в этом чате уже идёт генерация`);
       expect(other.querySelector('kbd'), label).toBeNull();
       await flush(() => other.click());
     }
@@ -119,17 +136,20 @@ describe('the strip', () => {
     ] as const;
     for (const [status, why] of cases) {
       kit = mountDock(dockScenario(dockVm(status)));
-      for (const label of ['Reply', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']) expect(described(button(label)), `${status} ${label}`).toBe(`${label} недоступен: ${why}`);
+      for (const label of ['Reply', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']) expect(described(button(label)).split('\n')[0], `${status} ${label}`).toBe(`${label} недоступен: ${why}`);
       expect(kit.$('.cg-mark')?.classList.contains('is-off'), status).toBe(true);
       kit.unmount();
       kit = null;
     }
   });
 
-  it('[UI-009] Тон and Split stay in the strip when everything is off, unavailable with the same reason', () => {
+  it('[UI-009] the capsule stays in the bar when everything is off: the tones and Split are unavailable with the same reason', () => {
     kit = mountDock(dockScenario(dockVm('no-binding')));
-    expect(button('Тон').getAttribute('aria-disabled')).toBe('true');
-    expect(described(button('Тон'))).toBe('Тон недоступен: аккаунт не привязан к странице в хабе');
+    for (const label of ['Casual', 'Flirt', 'Sell', 'Spice']) {
+      expect(button(label).getAttribute('aria-disabled'), label).toBe('true');
+      expect(described(button(label)), label).toBe('Тон недоступен: аккаунт не привязан к странице в хабе');
+    }
+    expect(button('Split').getAttribute('aria-disabled')).toBe('true');
     expect(described(button('Split'))).toBe('Split недоступен: аккаунт не привязан к странице в хабе');
     // No lock: nothing is generating.
     expect(kit.$('.cg-lock')).toBeNull();
@@ -140,10 +160,10 @@ describe('the strip', () => {
     expect(button('Recap').querySelector('.cg-badge')?.getAttribute('data-accent-use')).toBe('recap-ready');
     expect(button('Ещё').querySelector('.cg-badge')).not.toBeNull();
     expect(button('Reply').querySelector('.cg-badge')).toBeNull();
-    expect(described(button('Recap'))).toBe('Recap  ⌘⇧S\nRecap готов');
+    expect(described(button('Recap'))).toBe(`Recap  ⌘⇧S\n${HINT.recap}\nRecap готов`);
   });
 
-  it('[UI-031] the quota shows only when little is left or nothing is', () => {
+  it('[UI-031] the quota shows only when little is left or nothing is: a count at the goose\'s corner, its words in the goose\'s hint', () => {
     kit = mountDock(dockScenario(dockVm()));
     expect(kit.$('.cg-quota')).toBeNull();
     kit.unmount();
@@ -151,16 +171,21 @@ describe('the strip', () => {
     expect(kit.$('.cg-quota')).toBeNull();
     kit.unmount();
     kit = mountDock('quota-low');
-    const low = kit.$('.cg-quota') as HTMLElement;
-    expect(text(low.querySelector('.cg-long'))).toBe('AI: осталось 12');
-    expect(text(low.querySelector('.cg-short'))).toBe('AI: 12');
-    expect(described(low)).toMatch(/^Осталось 12 генераций AI на сегодня\. Обновится в \d\d:\d\d$/);
+    const low = kit.$('.cg-mark > .cg-quota') as HTMLElement;
+    expect(text(low)).toBe('12');
+    expect(low.classList.contains('is-zero')).toBe(false);
+    expect(described(kit.$('.cg-mark') as HTMLElement)).toMatch(new RegExp(`^ChatGoose — персона ${PERSONA.label}\\nОсталось 12 генераций AI на сегодня\\. Обновится в \\d\\d:\\d\\d$`));
+    kit.unmount();
+    // No reset time known: the words without it.
+    kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt: null } })));
+    expect(kit.$('.cg-mark')?.getAttribute('aria-label')).toBe(`ChatGoose — персона ${PERSONA.label}\nAI: осталось 12`);
     kit.unmount();
     kit = mountDock('quota-zero');
-    const zero = kit.$('.cg-quota') as HTMLElement;
-    expect(text(zero)).toBe('Квота AI: 0');
+    const zero = kit.$('.cg-mark > .cg-quota') as HTMLElement;
+    expect(text(zero)).toBe('0');
     expect(zero.classList.contains('is-zero')).toBe(true);
-    expect(described(button('Reply'))).toMatch(/^Reply недоступен: дневная квота AI исчерпана, обновится в \d\d:\d\d$/);
+    expect(described(kit.$('.cg-mark') as HTMLElement)).toContain('Квота AI: 0');
+    expect(described(button('Reply')).split('\n')[0]).toMatch(/^Reply недоступен: дневная квота AI исчерпана, обновится в \d\d:\d\d$/);
   });
 
   it('shows the persona once, «вход не выполнен» without sign-in, the status words while the chat loads', () => {
@@ -182,17 +207,18 @@ describe('the strip', () => {
     expect(kit.$('.cg-strip')?.classList.contains('has-status')).toBe(true);
   });
 
-  it('is «crowded» with a tone, a generation, the quota or the status words (the persona gives its place below 900 px)', () => {
-    const crowded = (vm: Parameters<typeof dockScenario>[0]): boolean => {
+  it('a chosen tone, a running generation and a low quota take no width: the persona keeps its place, the bar carries no state class but the status', () => {
+    const classOf = (vm: Parameters<typeof dockScenario>[0]): string => {
       kit?.unmount();
       kit = mountDock(dockScenario(vm));
-      return kit.$('.cg-strip')?.classList.contains('is-crowded') === true;
+      expect(text(kit.$('.cg-persona'))).toBe('Лора · VIP');
+      return kit.$('.cg-strip')?.className ?? '';
     };
-    expect(crowded(dockVm())).toBe(false);
-    expect(crowded(dockVm('ready', { options: { ...dockVm().options, tone: 'flirty' } }))).toBe(true);
-    expect(crowded(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt: null } }))).toBe(true);
-    expect(crowded(dockVm('loading-chat'))).toBe(true);
-    expect(crowded(scenarioById('streaming').views[0]?.vm as ReturnType<typeof dockVm>)).toBe(true);
+    expect(classOf(dockVm())).toBe('cg-strip');
+    expect(classOf(dockVm('ready', { options: { ...dockVm().options, tone: 'flirty' } }))).toBe('cg-strip');
+    expect(classOf(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt: null } }))).toBe('cg-strip');
+    expect(classOf(scenarioById('streaming').views[0]?.vm as ReturnType<typeof dockVm>)).toBe('cg-strip');
+    expect(classOf(dockVm('loading-chat'))).toBe('cg-strip has-status');
   });
 });
 
@@ -221,83 +247,37 @@ describe('what the strip asks for', () => {
     expect(kit.client.dispatched).toEqual([{ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: false } }]);
   });
 
-  it('[AI-002] the tone menu lists Casual, Flirt, Sell, Spice and «Без тона» as radio items', async () => {
-    kit = mountDock(dockScenario(dockVm('ready', { options: { ...dockVm().options, tone: 'flirty' } })));
-    expect(text(button('Тон'))).toBe('Тон: Flirt⌘⇧O');
-    expect(text(kit.$('.cg-tone-val'))).toBe(': Flirt');
-    await flush(() => button('Тон').click());
-    const menu = kit.$('[role="menu"]') as HTMLElement;
-    expect(menu.getAttribute('aria-label')).toBe('Тон');
-    const items = [...menu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+  it('[AI-002] [AI-005] a tone is a cell of the capsule at every width: one click runs Reply in that tone, with no menu to open', async () => {
+    kit = mountDock(dockScenario(dockVm()));
     expect(TONES).toEqual(['casual', 'flirty', 'upsell', 'spicy']);
-    expect(items.map((item) => item.querySelector('.cg-menu__t')?.textContent)).toEqual(['Casual', 'Flirt', 'Sell', 'Spice', 'Без тона']);
-    expect(items.map((item) => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false', 'false', 'false']);
-    expect(text(menu.querySelector('.cg-menu__cap'))).toBe('Тон на один ответ⌘⇧O');
-    expect(button('Тон').getAttribute('aria-expanded')).toBe('true');
-    // Opening focuses the chosen item; Esc closes and returns focus to the button.
-    expect(kit.root.activeElement).toBe(items[1]);
-    await flush(() => items[1]?.dispatchEvent(keydown('Escape')));
-    expect(kit.$('[role="menu"]')).toBeNull();
-    expect(kit.root.activeElement).toBe(button('Тон'));
-  });
-
-  it('[AI-005] choosing a tone runs Reply in it at once; «Без тона» only clears the tone', async () => {
-    kit = mountDock(dockScenario(dockVm()));
-    await flush(() => button('Тон').click());
-    await flush(() => (kit?.$$('[role="menuitemradio"]')[2] as HTMLElement).click());
-    await flush(() => button('Тон').click());
-    await flush(() => (kit?.$$('[role="menuitemradio"]')[4] as HTMLElement).click());
-    expect(kit.client.dispatched).toEqual([
-      { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'upsell' } },
-      { type: 'SetTone', targetHandle: HANDLE, tone: null },
-    ]);
-  });
-
-  it('[AI-006] a second click on the tone that is already chosen takes it off and runs nothing', async () => {
-    kit = mountDock(dockScenario(dockVm('ready', { options: { ...dockVm().options, tone: 'flirty' } })));
-    await flush(() => button('Тон').click());
-    const items = kit.$$('[role="menuitemradio"]');
-    expect(items[1]?.getAttribute('aria-checked')).toBe('true');
-    await flush(() => items[1]?.click());
-    expect(kit.client.dispatched).toEqual([{ type: 'SetTone', targetHandle: HANDLE, tone: null }]);
-    expect(kit.$('[role="menu"]')).toBeNull();
-    // Another tone still runs Reply in it at once (AI-005).
-    await flush(() => button('Тон').click());
-    await flush(() => (kit?.$$('[role="menuitemradio"]')[0] as HTMLElement).click());
-    expect(kit.client.dispatched[1]).toEqual({ type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'casual' } });
-  });
-
-  it('[AI-005] with Reply unavailable a chosen tone is only remembered', async () => {
-    kit = mountDock(dockScenario(dockVm('ready', { actionsOptions: { gates: { reply: reason('no-history') } } })));
-    await flush(() => button('Тон').click());
-    await flush(() => (kit?.$$('[role="menuitemradio"]')[0] as HTMLElement).click());
-    expect(kit.client.dispatched).toEqual([{ type: 'SetTone', targetHandle: HANDLE, tone: 'casual' }]);
-  });
-
-  it('[AI-002] [AI-005] a tone is a button of its own on a wide composer: one click runs Reply in that tone, with no menu to open', async () => {
-    kit = mountDock(dockScenario(dockVm()));
     expect(button('Flirt').getAttribute('aria-pressed')).toBe('false');
-    expect(described(button('Flirt'))).toBe('Reply · Тон: Flirt');
+    expect(described(button('Flirt'))).toBe(`😏 Reply · Тон: Flirt\n${HINT.flirt}\nТон на один ответ  ⌘⇧O`);
     await flush(() => button('Flirt').click());
     await flush(() => button('Spice').click());
+    await flush(() => button('Sell').click());
     expect(kit.client.dispatched).toEqual([
       { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'flirty' } },
       { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'spicy' } },
+      { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'upsell' } },
     ]);
     expect(kit.$('[role="menu"]')).toBeNull();
   });
 
-  it('[AI-006] the chosen tone is the pressed button; a click on it takes the tone off and runs nothing', async () => {
+  it('[AI-006] the chosen tone is the pressed cell; a click on it takes the tone off and runs nothing, another tone still runs Reply in it', async () => {
     kit = mountDock(dockScenario(dockVm('ready', { options: { ...dockVm().options, tone: 'flirty' } })));
     expect(['Casual', 'Flirt', 'Sell', 'Spice'].map((label) => button(label).getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false', 'false']);
-    expect(described(button('Flirt'))).toBe('Тон: Flirt → Без тона');
+    expect(described(button('Flirt'))).toBe(`😏 Тон: Flirt\n${HINT.flirt}\nВыбран. Клик снимает тон`);
     await flush(() => button('Flirt').click());
-    expect(kit.client.dispatched).toEqual([{ type: 'SetTone', targetHandle: HANDLE, tone: null }]);
+    await flush(() => button('Casual').click());
+    expect(kit.client.dispatched).toEqual([
+      { type: 'SetTone', targetHandle: HANDLE, tone: null },
+      { type: 'Generate', targetHandle: HANDLE, feature: 'reply', options: { tone: 'casual' } },
+    ]);
   });
 
-  it('[AI-005] [AI-009] a tone button with Reply unavailable only remembers the tone; while a generation runs it is off with the reason, and one lock stands after the four', async () => {
+  it('[AI-005] [AI-009] a tone with Reply unavailable is only remembered; while a generation runs the four are off with the reason, and one lock stands in the capsule', async () => {
     kit = mountDock(dockScenario(dockVm('ready', { actionsOptions: { gates: { reply: reason('no-history') } } })));
-    expect(described(button('Casual'))).toBe('Тон: Casual');
+    expect(described(button('Casual'))).toBe(`😌 Тон: Casual\n${HINT.casual}\nТон на один ответ  ⌘⇧O`);
     await flush(() => button('Casual').click());
     expect(kit.client.dispatched).toEqual([{ type: 'SetTone', targetHandle: HANDLE, tone: 'casual' }]);
     kit.unmount();
@@ -313,8 +293,8 @@ describe('what the strip asks for', () => {
 
   it('[NEW-01] Spenders and «Новые» open from the strip by one click: what their rows of the palette ask for', async () => {
     kit = mountDock(dockScenario(dockVm()));
-    expect(described(button('Spenders'))).toContain('Spenders');
-    expect(described(button('Новые'))).toBe('Новые');
+    expect(described(button('Spenders'))).toMatch(/^Spenders {2}\S+\nКто сколько потратил: полки, превью переписки, статистика$/);
+    expect(described(button('Новые'))).toBe('Новые\nНовые подписчики: с кем ещё не поздоровались');
     await flush(() => button('Новые').click());
     await flush(() => button('Spenders').click());
     expect(kit.client.dispatched).toEqual([
@@ -323,36 +303,20 @@ describe('what the strip asks for', () => {
     ]);
   });
 
-  it('[UI-006] where key labels are spelled out («Ctrl+Alt+B») the strip says so: its widths are other ones (ui-design §3.3)', () => {
-    kit = mountDock(dockScenario(dockVm()));
-    expect(kit.$('.cg-strip')?.classList.contains('is-longkeys')).toBe(false);
-    kit.unmount();
-    const win = ctxOf({ lang: 'ru', platform: 'win' });
-    kit = mountDock(dockScenario(dock(win, 'ready'), { lang: 'ru', platform: 'win' }));
-    expect(kit.$('.cg-strip')?.classList.contains('is-longkeys')).toBe(true);
-    // With every action off (a chat that loads) no button carries a key, and the strip still knows: its layout does not jump.
-    kit.unmount();
-    kit = mountDock(dockScenario(dock(win, 'loading-chat'), { lang: 'ru', platform: 'win' }));
-    expect(kit.$$('.cg-strip__acts kbd')).toEqual([]);
-    expect(kit.$('.cg-strip')?.classList.contains('is-longkeys')).toBe(true);
-  });
-
-  it('[AI-009] Тон and Split are locked while a generation runs: a lock, the reason, no menu', async () => {
+  it('[AI-009] Split is locked while a generation runs: the reason, nothing asked', async () => {
     kit = mountDock('streaming');
-    for (const label of ['Тон', 'Split']) {
-      const option = button(label);
-      expect(option.getAttribute('aria-disabled'), label).toBe('true');
-      expect(option.querySelector('.cg-lock'), label).not.toBeNull();
-      expect(described(option), label).toBe(`${label} нельзя менять, пока идёт генерация`);
-      await flush(() => option.click());
-      await flush(() => option.dispatchEvent(keydown('Enter')));
-    }
+    const option = button('Split');
+    expect(option.getAttribute('aria-disabled')).toBe('true');
+    expect(described(option)).toBe('Split нельзя менять, пока идёт генерация');
+    await flush(() => option.click());
+    await flush(() => option.dispatchEvent(keydown('Enter')));
     expect(kit.$('[role="menu"]')).toBeNull();
     expect(kit.client.dispatched).toEqual([]);
   });
 
-  it('[AI-010] Split is a pressed-state toggle that writes the setting; for Recap and Review it is off: «это не сообщение фану»', async () => {
+  it('[AI-010] Split is a pressed-state cell of the capsule that writes the setting; for Recap and Review it is off: «это не сообщение фану»', async () => {
     kit = mountDock(dockScenario(dockVm()));
+    expect(button('Split').classList.contains('cg-split')).toBe(true);
     expect(button('Split').getAttribute('aria-pressed')).toBe('false');
     await flush(() => button('Split').click());
     expect(kit.client.dispatched).toEqual([{ type: 'SetPreference', key: 'generation.split', value: true }]);
@@ -363,7 +327,7 @@ describe('what the strip asks for', () => {
     expect(described(button('Split'))).toBe('Split: это не сообщение фану');
   });
 
-  it('[UI-003] Review, Recap and Coach live in our strip — in «Ещё» on a narrow composer, a menu with their keys; an item does what its button does', async () => {
+  it('[UI-003] Review, Recap and Coach live in our bar — in «Ещё» on a narrow composer, a menu with their keys; an item does what its chip does', async () => {
     kit = mountDock(dockScenario(dockVm('ready', { actionsOptions: { gates: { review: reason('no-history') } } })));
     await flush(() => button('Ещё').click());
     const items = kit.$$('[role="menu"] [role="menuitem"]');
@@ -375,15 +339,17 @@ describe('what the strip asks for', () => {
     expect(kit.$('[role="menu"]')).toBeNull();
   });
 
-  it('is one tab stop: arrows, Home and End move between its buttons (ui-design §6.3, §6.4)', async () => {
+  it('is one tab stop: arrows, Home and End move between its chips (ui-design §6.3, §6.4)', async () => {
     kit = mountDock(dockScenario(dockVm()));
-    expect(buttons().map((element) => element.tabIndex)).toEqual([0, ...Array.from({ length: 15 }, () => -1)]);
+    expect(buttons().map((element) => element.tabIndex)).toEqual([0, ...Array.from({ length: 14 }, () => -1)]);
     button('Reply').focus();
-    // Right of Reply stand its tones, then the next action.
+    // Right of Reply stands its capsule — the tones, then Split — then the next action.
     await flush(() => button('Reply').dispatchEvent(keydown('ArrowRight')));
     expect(kit.root.activeElement).toBe(button('Casual'));
     button('Spice').focus();
     await flush(() => button('Spice').dispatchEvent(keydown('ArrowRight')));
+    expect(kit.root.activeElement).toBe(button('Split'));
+    await flush(() => button('Split').dispatchEvent(keydown('ArrowRight')));
     expect(kit.root.activeElement).toBe(button('Fix'));
     // The tab stop follows focus.
     expect(button('Fix').tabIndex).toBe(0);
@@ -394,43 +360,43 @@ describe('what the strip asks for', () => {
     expect(kit.root.activeElement).toBe(button('Reply'));
     await flush(() => button('Reply').dispatchEvent(keydown('ArrowLeft')));
     expect(kit.root.activeElement).toBe(button('Новые'));
-    // The tones are stops of the same toolbar, and the tab stop follows focus onto them.
     await flush(() => button('Новые').dispatchEvent(keydown('ArrowLeft')));
     await flush(() => button('Spenders').dispatchEvent(keydown('ArrowLeft')));
-    expect(kit.root.activeElement).toBe(button('Split'));
+    expect(kit.root.activeElement).toBe(button('Ещё'));
+    // The cells of the capsule are stops of the same toolbar, and the tab stop follows focus onto them.
     button('Sell').focus();
     await flush(() => undefined);
     expect(button('Sell').tabIndex).toBe(0);
     await flush(() => button('Sell').dispatchEvent(keydown('Home')));
     expect(kit.root.activeElement).toBe(button('Reply'));
-    // ↓ on «Тон» opens its menu.
-    button('Тон').focus();
-    await flush(() => button('Тон').dispatchEvent(keydown('ArrowDown')));
+    // ↓ on «Ещё» opens its menu.
+    button('Ещё').focus();
+    await flush(() => button('Ещё').dispatchEvent(keydown('ArrowDown')));
     expect(kit.$('[role="menu"]')).not.toBeNull();
   });
 
-  it('[UI-004] with hints off descriptions are gone, reasons stay', () => {
+  it('[UI-004] with hints off descriptions are gone, reasons stay — bare, without the sentence of the hint', () => {
     kit = mountDock(dockScenario(dockVm('ready', { hints: false, actionsOptions: { gates: { fix: reason('needs-draft') } } })));
     expect(button('Reply').hasAttribute('aria-describedby')).toBe(false);
+    expect(button('Flirt').hasAttribute('aria-describedby')).toBe(false);
     expect(described(button('Fix'))).toBe('Fix недоступен: сначала напишите черновик в поле ввода');
   });
 
   it('builds every action from the view model: with no target nothing is asked', async () => {
     kit = mountDock(dockScenario({ ...dockVm(), targetHandle: null, actions: dockActions(ctx) }));
     await flush(() => button('Reply').click());
-    await flush(() => button('Тон').click());
-    await flush(() => (kit?.$$('[role="menuitemradio"]')[0] as HTMLElement).click());
+    await flush(() => button('Casual').click());
     expect(kit.client.dispatched).toEqual([]);
   });
 
-  it('[UI-031] «по Москве» is Moscow\'s clock: the quota resets at 00:00 UTC, the zero tooltip says 03:00 whatever zone the port prints in', () => {
+  it('[UI-031] «по Москве» is Moscow\'s clock: the quota resets at 00:00 UTC, the hint of a zero quota says 03:00 whatever zone the port prints in', () => {
     // The stand's port prints in UTC — a chatter who is not in Moscow.
     const resetsAt = iso(Date.UTC(2026, 9, 4, 0, 0, 0));
     kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 0, low: true, resetsAt } })));
-    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Дневная квота AI исчерпана. Обновится в 03:00 по Москве');
+    expect(described(kit.$('.cg-mark') as HTMLElement)).toBe(`ChatGoose — персона ${PERSONA.label}\nКвота AI: 0\nДневная квота AI исчерпана. Обновится в 03:00 по Москве`);
     kit.unmount();
-    // The low-quota tooltip names no zone: it is the chatter's own time.
+    // The low-quota words name no zone: it is the chatter's own time.
     kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt } })));
-    expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Осталось 12 генераций AI на сегодня. Обновится в 00:00');
+    expect(described(kit.$('.cg-mark') as HTMLElement)).toBe(`ChatGoose — персона ${PERSONA.label}\nОсталось 12 генераций AI на сегодня. Обновится в 00:00`);
   });
 });

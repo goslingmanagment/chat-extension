@@ -133,13 +133,13 @@ export function ErrorCard(props: ErrorCardProps): JSX.Element {
   const role = props.alert === false ? {} : { role: 'alert' as const };
   if (props.inline === true) {
     return (
-      <div class="cg-card cg-card--inline" {...role} data-cg-code={error.code}>
+      <div class={`cg-card cg-card--inline cg-card--${props.tone}`} {...role} data-cg-code={error.code}>
         {body}
       </div>
     );
   }
   return (
-    <div class="cg-card" {...role} data-cg-code={error.code}>
+    <div class={`cg-card cg-card--${props.tone}`} {...role} data-cg-code={error.code}>
       <span class="cg-gut">
         <Dot kind={dot} />
       </span>
@@ -177,13 +177,15 @@ export const ERROR_CSS = `
 .cg-gut { width: calc(var(--cg-gutter) - 1px); flex: none; display: inline-flex; justify-content: center; align-items: center; color: var(--cg-ink-muted); }
 .cg-codeline { display: inline-flex; align-items: center; gap: 6px; }
 .cg-card { display: grid; grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr); padding: 10px 10px 10px 0; font-size: var(--cg-text-base); line-height: 18px; }
+.cg-body > .cg-card { margin: 8px; padding: 8px 8px 8px 0; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-body > .cg-card--failure { background: color-mix(in srgb, var(--cg-danger) 8%, transparent); }
 .cg-card > .cg-gut { height: 18px; }
 .cg-card__main { min-width: 0; }
 .cg-card__code { display: flex; font-size: var(--cg-text-sm); line-height: 18px; font-weight: 500; color: var(--cg-ink-muted); letter-spacing: 0.01em; }
 .cg-card__title { font-weight: 600; color: var(--cg-ink-strong); line-height: 20px; }
 .cg-card__text { color: var(--cg-ink-2); margin-top: 1px; }
 .cg-card__tech { margin-top: 6px; font-family: var(--cg-mono); font-size: var(--cg-text-xs); line-height: 16px; color: var(--cg-ink-muted); overflow-wrap: anywhere; }
-.cg-card__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 0 -8px; }
+.cg-card__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 0; }
 .cg-card__acts:empty { display: none; }
 .cg-card--inline { display: block; padding: 0; min-width: 0; }
 .cg-count { color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; padding: 0 6px; white-space: nowrap; }
@@ -197,7 +199,7 @@ export const ERROR_CSS = `
 .cg-banner__text .cg-code { margin-right: 6px; font-weight: 500; color: var(--cg-ink-muted); letter-spacing: 0.01em; white-space: nowrap; }
 @container cg (max-width: 420px) {
   .cg-banner { grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr); row-gap: 6px; }
-  .cg-banner > .cg-btn { grid-column: 2; justify-self: start; margin-left: -8px; }
+  .cg-banner > .cg-btn { grid-column: 2; justify-self: start; }
   .cg-banner__text .cg-code { display: flex; white-space: normal; }
 }
 `;

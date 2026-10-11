@@ -97,7 +97,7 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       const roots = await composerRoots();
       expect(roots.active).toHaveLength(1);
       expect(await dockPlacement()).toEqual({ hosts: 1, parentKey: roots.active[0], firstChild: true, visible: true });
-      expect(ready).toMatchObject({ kind: 'in-flow', inFlowFirstChild: true, height: 34, result: null });
+      expect(ready).toMatchObject({ kind: 'in-flow', inFlowFirstChild: true, height: 40, result: null });
       await atBottom('the list is at its bottom before anything of ours opens');
       // A healthy shift with the preview send off (the pilot's default) has no error of the day: X8's anchors are switched off, not broken.
       const healthy = await shift.rpc<{ counters: Record<string, number> }>('diagnostics.get');
@@ -107,12 +107,12 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       await twoFrames();
       const open = await dockIs((d) => d.result?.state === 'done', 'the result is on screen');
       // The sheet took its place from ChatSpace's list, not from the page.
-      expect(open.height).toBeGreaterThan(34 + 60);
+      expect(open.height).toBeGreaterThan(40 + 60);
       await atBottom('the list lost its bottom when the result opened');
       expect(await browser.execute(() => document.documentElement.scrollHeight <= window.innerHeight && document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
       await pressOurs('dock', '.cg-dock button', /^Скрыть/);
-      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 34, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its strip' });
+      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 40, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its bar' });
       await twoFrames();
       await atBottom('the list lost its bottom when the result was hidden');
     });
@@ -138,7 +138,7 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       await same('the message at the top moved when the result opened');
       expect((await callStand('messageList'))?.atBottom).toBe(false);
       await pressOurs('dock', '.cg-dock button', /^Скрыть/);
-      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 34, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its strip' });
+      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 40, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its bar' });
       await twoFrames();
       await same('the message at the top moved when the result was hidden');
     });
@@ -149,10 +149,10 @@ describe('§12 п. 4 on the wired extension — the dock over the open chat: its
       await generate();
       await twoFrames();
       const open = await dockIs((d) => d.result?.state === 'done', 'the result is on screen');
-      expect(open.height).toBeGreaterThan(34 + 60);
+      expect(open.height).toBeGreaterThan(40 + 60);
       await atBottom('the last messages went under the result: the list was near its bottom and was not put there');
       await pressOurs('dock', '.cg-dock button', /^Скрыть/);
-      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 34, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its strip' });
+      await browser.waitUntil(async () => (await dockIs(() => true, 'the dock')).height === 40, { timeout: 5000, timeoutMsg: 'the dock did not collapse to its bar' });
       await twoFrames();
       await atBottom('the list lost its bottom when the result was hidden');
     });
