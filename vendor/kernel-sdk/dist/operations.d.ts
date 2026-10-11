@@ -939,6 +939,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/openapi.json";
     };
+    readonly opsLive: {
+        readonly method: "GET";
+        readonly path: "/api/v1/ops/live";
+    };
     readonly opsMetrics: {
         readonly method: "GET";
         readonly path: "/api/v1/ops/metrics";
