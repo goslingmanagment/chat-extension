@@ -24,7 +24,7 @@ import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { HostContractReport } from '@cg/contracts/host';
 import type { ChatRef } from '@cg/contracts/ids';
-import type { Locale } from '@cg/contracts/i18n/keys';
+import { DEFAULT_LOCALE, type Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import type { UiLocale, UiTheme } from '@cg/contracts/settings';
 import type { PageCommand } from '@cg/contracts/tab-messages';
@@ -106,7 +106,8 @@ interface UiSettings {
   readonly theme: UiTheme;
   readonly debug: boolean;
 }
-const UNKNOWN_SETTINGS: UiSettings = { locale: 'system', theme: 'host', debug: false };
+/** Settings that could not be read: what a fresh install has (DEFAULT_SETTINGS.ui; the tab does not carry the settings schemas). */
+const UNKNOWN_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE, theme: 'host', debug: false };
 
 /** Rows of ChatSpace's cached chat list read for the name of a toast's fan. */
 const TOAST_NAME_ROWS = 200;

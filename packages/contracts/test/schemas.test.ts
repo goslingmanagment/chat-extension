@@ -63,6 +63,12 @@ describe('settings', () => {
     expect(C.SettingsSchema).toBe(C.SettingsV1Schema);
   });
 
+  it('[ST-135] [I18-001] a fresh install is Russian, whatever the browser says (1.14.0, X29); «Как в системе» and English stay values of the setting', () => {
+    expect(C.DEFAULT_SETTINGS.ui.locale).toBe('ru');
+    expect(C.DEFAULT_SETTINGS.ui.locale).toBe(C.DEFAULT_LOCALE);
+    expect(C.UI_LOCALES).toEqual(['system', 'ru', 'en']);
+  });
+
   it('a forward migration chain is typed from one version to the next', () => {
     const toV1: C.SettingsMigrationStep = {
       from: 0,

@@ -13,6 +13,13 @@ describe('[RB-012] settings load: numbered forward-only migrations', () => {
     expect(loadStoredSettings(clone(customSettings))).toEqual({ kind: 'current', settings: customSettings, repaired: [] });
   });
 
+  it('[ST-135] «Как в системе» stored before 1.14.0 (the old default) is a value like any other: kept, not repaired, no migration', () => {
+    const stored = { ...clone(DEFAULT_SETTINGS), ui: { ...clone(DEFAULT_SETTINGS.ui), locale: 'system' } };
+    const outcome = loadStoredSettings(clone(stored));
+    expect(outcome).toEqual({ kind: 'current', settings: stored, repaired: [] });
+    expect(loadStoredSettings(undefined)).toMatchObject({ kind: 'fresh', settings: { ui: { locale: 'ru' } } });
+  });
+
   it('the build chain is sound: v1 is the first schema, nothing older to migrate yet', () => {
     expect(SETTINGS_MIGRATIONS).toEqual([]);
     expect(migrationChainProblems(SETTINGS_MIGRATIONS)).toEqual([]);

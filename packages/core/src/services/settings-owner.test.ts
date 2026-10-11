@@ -115,7 +115,7 @@ describe('[RB-011] the settings owner is the single writer', () => {
     await owner.start();
     local.failNext('set');
     expect(await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-WRITE' } });
-    expect(owner.current().ui.locale).toBe('system');
+    expect(owner.current().ui.locale).toBe(DEFAULT_SETTINGS.ui.locale);
     expect(local.read(KEY)).toBeUndefined();
     expect(changes).toEqual([]);
     const retry = await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false });
@@ -131,7 +131,7 @@ describe('[RB-011] the settings owner is the single writer', () => {
     local.failNext('get');
     expect(await owner.patch({ ui: { locale: 'en' } }, { baseRevision: 0, restricted: false })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-WRITE' } });
     // Unknown whether it landed (it did): memory keeps the old value until a read succeeds.
-    expect(owner.current().ui.locale).toBe('system');
+    expect(owner.current().ui.locale).toBe(DEFAULT_SETTINGS.ui.locale);
     const next = await owner.patch({ ui: { hints: false } }, { baseRevision: 0, restricted: false });
     expect(next.ok && next.state.settings.ui).toMatchObject({ locale: 'en', hints: false });
     expect(local.read<typeof DEFAULT_SETTINGS>(KEY)?.ui).toMatchObject({ locale: 'en', hints: false });
