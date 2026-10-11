@@ -103,6 +103,10 @@ a boundary you need to cross is a design question, not a lint exception.
   run against loopback and a scripted world (`cli-world.ts`).
 - `tools/ci/e2e-docker-local.sh` — the CI e2e job on this machine: the whole
   `pnpm e2e` inside the pinned Firefox image with no network (needs Docker).
+  One volume is one run at a time (a start replaces the working tree in it):
+  while a running container has the volume mounted, the script refuses to
+  start and names that container. Wait, or give the run a volume of its own:
+  `CG_E2E_VOLUME=<own name>` (the default is `cg-e2e-local`).
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
   rows a test names. Name the row in the test title: `it('[ST-042] …')`.
 
