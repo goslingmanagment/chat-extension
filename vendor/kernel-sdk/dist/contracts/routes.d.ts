@@ -5492,9 +5492,9 @@ export declare const syncBlockSubstreamSchema: z.ZodObject<{
         failed: "failed";
         scheduled: "scheduled";
         paused: "paused";
+        engine: "engine";
         syncing: "syncing";
         retrying: "retrying";
-        engine: "engine";
         not_started: "not_started";
         backfilling: "backfilling";
         up_to_date: "up_to_date";
@@ -5551,9 +5551,9 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
         failed: "failed";
         scheduled: "scheduled";
         paused: "paused";
+        engine: "engine";
         syncing: "syncing";
         retrying: "retrying";
-        engine: "engine";
         not_started: "not_started";
         backfilling: "backfilling";
         up_to_date: "up_to_date";
@@ -5690,9 +5690,9 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
             failed: "failed";
             scheduled: "scheduled";
             paused: "paused";
+            engine: "engine";
             syncing: "syncing";
             retrying: "retrying";
-            engine: "engine";
             not_started: "not_started";
             backfilling: "backfilling";
             up_to_date: "up_to_date";
@@ -5798,9 +5798,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 failed: "failed";
                 scheduled: "scheduled";
                 paused: "paused";
+                engine: "engine";
                 syncing: "syncing";
                 retrying: "retrying";
-                engine: "engine";
                 not_started: "not_started";
                 backfilling: "backfilling";
                 up_to_date: "up_to_date";
@@ -5937,9 +5937,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -5997,9 +5997,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 failed: "failed";
                 scheduled: "scheduled";
                 paused: "paused";
+                engine: "engine";
                 syncing: "syncing";
                 retrying: "retrying";
-                engine: "engine";
                 not_started: "not_started";
                 backfilling: "backfilling";
                 up_to_date: "up_to_date";
@@ -6136,9 +6136,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -6196,9 +6196,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 failed: "failed";
                 scheduled: "scheduled";
                 paused: "paused";
+                engine: "engine";
                 syncing: "syncing";
                 retrying: "retrying";
-                engine: "engine";
                 not_started: "not_started";
                 backfilling: "backfilling";
                 up_to_date: "up_to_date";
@@ -6335,9 +6335,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -6395,9 +6395,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 failed: "failed";
                 scheduled: "scheduled";
                 paused: "paused";
+                engine: "engine";
                 syncing: "syncing";
                 retrying: "retrying";
-                engine: "engine";
                 not_started: "not_started";
                 backfilling: "backfilling";
                 up_to_date: "up_to_date";
@@ -6534,9 +6534,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -6594,9 +6594,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                 failed: "failed";
                 scheduled: "scheduled";
                 paused: "paused";
+                engine: "engine";
                 syncing: "syncing";
                 retrying: "retrying";
-                engine: "engine";
                 not_started: "not_started";
                 backfilling: "backfilling";
                 up_to_date: "up_to_date";
@@ -6733,9 +6733,9 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -6845,9 +6845,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -6984,9 +6984,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -7044,9 +7044,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -7183,9 +7183,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -7243,9 +7243,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -7382,9 +7382,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -7442,9 +7442,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -7581,9 +7581,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -7641,9 +7641,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -7780,9 +7780,9 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -7878,9 +7878,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -8017,9 +8017,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -8077,9 +8077,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -8216,9 +8216,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -8276,9 +8276,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -8415,9 +8415,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -8475,9 +8475,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -8614,9 +8614,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -8674,9 +8674,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                     failed: "failed";
                     scheduled: "scheduled";
                     paused: "paused";
+                    engine: "engine";
                     syncing: "syncing";
                     retrying: "retrying";
-                    engine: "engine";
                     not_started: "not_started";
                     backfilling: "backfilling";
                     up_to_date: "up_to_date";
@@ -8813,9 +8813,9 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -8908,9 +8908,9 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
             failed: "failed";
             scheduled: "scheduled";
             paused: "paused";
+            engine: "engine";
             syncing: "syncing";
             retrying: "retrying";
-            engine: "engine";
             not_started: "not_started";
             backfilling: "backfilling";
             up_to_date: "up_to_date";
@@ -9047,9 +9047,9 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
                 failed: "failed";
                 scheduled: "scheduled";
                 paused: "paused";
+                engine: "engine";
                 syncing: "syncing";
                 retrying: "retrying";
-                engine: "engine";
                 not_started: "not_started";
                 backfilling: "backfilling";
                 up_to_date: "up_to_date";
@@ -11781,9 +11781,9 @@ export declare const routeAuthPolicySchema: z.ZodObject<{
         session: "session";
         apiKey: "apiKey";
         agentKey: "agentKey";
+        monitoring: "monitoring";
         public: "public";
         hmac: "hmac";
-        monitoring: "monitoring";
         "any-session": "any-session";
         "device-token": "device-token";
         "pending-device-token": "pending-device-token";
@@ -12674,99 +12674,6 @@ export declare const moneyPayoutsResponseSchema: z.ZodObject<{
     nextCursor: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
 declare const baseRouteSchemas: {
-    readonly health: {
-        readonly auth: {
-            readonly kind: "public";
-        };
-        readonly tags: readonly ["system"];
-        readonly summary: "Health check";
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                status: z.ZodEnum<{
-                    degraded: "degraded";
-                    ok: "ok";
-                }>;
-                timestamp: z.ZodString;
-                contractHash: z.ZodString;
-                capabilities: z.ZodArray<z.ZodLiteral<"desktop-lifecycle-v2">>;
-                compatibleClientSdks: z.ZodOptional<z.ZodArray<z.ZodString>>;
-                checks: z.ZodObject<{
-                    api: z.ZodObject<{
-                        status: z.ZodLiteral<"ok">;
-                    }, z.core.$strip>;
-                    database: z.ZodObject<{
-                        status: z.ZodEnum<{
-                            error: "error";
-                            ok: "ok";
-                        }>;
-                        latencyMs: z.ZodNullable<z.ZodNumber>;
-                        error: z.ZodNullable<z.ZodString>;
-                    }, z.core.$strip>;
-                }, z.core.$strip>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
-                status: z.ZodEnum<{
-                    degraded: "degraded";
-                    ok: "ok";
-                }>;
-                timestamp: z.ZodString;
-                contractHash: z.ZodString;
-                capabilities: z.ZodArray<z.ZodLiteral<"desktop-lifecycle-v2">>;
-                compatibleClientSdks: z.ZodOptional<z.ZodArray<z.ZodString>>;
-                checks: z.ZodObject<{
-                    api: z.ZodObject<{
-                        status: z.ZodLiteral<"ok">;
-                    }, z.core.$strip>;
-                    database: z.ZodObject<{
-                        status: z.ZodEnum<{
-                            error: "error";
-                            ok: "ok";
-                        }>;
-                        latencyMs: z.ZodNullable<z.ZodNumber>;
-                        error: z.ZodNullable<z.ZodString>;
-                    }, z.core.$strip>;
-                }, z.core.$strip>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly opsMetrics: {
-        readonly auth: {
-            readonly kind: "monitoring";
-        };
-        readonly tags: readonly ["system"];
-        readonly summary: "Golden-signal lag samples (Stage 25 acceptance instrument)";
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                samples: z.ZodArray<z.ZodObject<{
-                    metric: z.ZodString;
-                    quantile: z.ZodString;
-                    valueMs: z.ZodNumber;
-                    sampledAt: z.ZodString;
-                }, z.core.$strip>>;
-                thresholdsMs: z.ZodRecord<z.ZodString, z.ZodNumber>;
-                smoke: z.ZodNullable<z.ZodObject<{
-                    framesSeen: z.ZodNumber;
-                    gapCount: z.ZodNumber;
-                    duplicateCount: z.ZodNumber;
-                    updatedAt: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly healthSync: {
         readonly auth: {
             readonly kind: "monitoring";
@@ -20447,9 +20354,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -20586,9 +20493,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -20646,9 +20553,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -20785,9 +20692,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -20845,9 +20752,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -20984,9 +20891,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -21044,9 +20951,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -21183,9 +21090,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -21243,9 +21150,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -21382,9 +21289,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -21504,9 +21411,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -21643,9 +21550,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -21703,9 +21610,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -21842,9 +21749,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -21902,9 +21809,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -22041,9 +21948,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -22101,9 +22008,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -22240,9 +22147,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -22300,9 +22207,9 @@ declare const baseRouteSchemas: {
                                 failed: "failed";
                                 scheduled: "scheduled";
                                 paused: "paused";
+                                engine: "engine";
                                 syncing: "syncing";
                                 retrying: "retrying";
-                                engine: "engine";
                                 not_started: "not_started";
                                 backfilling: "backfilling";
                                 up_to_date: "up_to_date";
@@ -22439,9 +22346,9 @@ declare const baseRouteSchemas: {
                                     failed: "failed";
                                     scheduled: "scheduled";
                                     paused: "paused";
+                                    engine: "engine";
                                     syncing: "syncing";
                                     retrying: "retrying";
-                                    engine: "engine";
                                     not_started: "not_started";
                                     backfilling: "backfilling";
                                     up_to_date: "up_to_date";
@@ -22568,9 +22475,9 @@ declare const baseRouteSchemas: {
                         failed: "failed";
                         scheduled: "scheduled";
                         paused: "paused";
+                        engine: "engine";
                         syncing: "syncing";
                         retrying: "retrying";
-                        engine: "engine";
                         not_started: "not_started";
                         backfilling: "backfilling";
                         up_to_date: "up_to_date";
@@ -22707,9 +22614,9 @@ declare const baseRouteSchemas: {
                             failed: "failed";
                             scheduled: "scheduled";
                             paused: "paused";
+                            engine: "engine";
                             syncing: "syncing";
                             retrying: "retrying";
-                            engine: "engine";
                             not_started: "not_started";
                             backfilling: "backfilling";
                             up_to_date: "up_to_date";
@@ -29146,6 +29053,211 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly opsLive: {
+        readonly auth: {
+            readonly kind: "monitoring";
+            readonly roles: readonly ["owner"];
+        };
+        readonly tags: readonly ["system"];
+        readonly summary: string;
+        readonly querystring: z.ZodObject<{
+            cursor: z.ZodCatch<z.ZodOptional<z.ZodString>>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                generatedAt: z.ZodString;
+                revision: z.ZodNullable<z.ZodString>;
+                processes: z.ZodArray<z.ZodObject<{
+                    role: z.ZodString;
+                    state: z.ZodEnum<{
+                        active: "active";
+                        missing: "missing";
+                        stale: "stale";
+                    }>;
+                    startedAt: z.ZodNullable<z.ZodString>;
+                    lastSeenAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>>;
+                pages: z.ZodArray<z.ZodObject<{
+                    label: z.ZodString;
+                    platform: z.ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                    }>;
+                    engine: z.ZodBoolean;
+                    pausedAll: z.ZodBoolean;
+                    pausedRequests: z.ZodBoolean;
+                    pausedResources: z.ZodArray<z.ZodString>;
+                    holds: z.ZodArray<z.ZodObject<{
+                        scope: z.ZodString;
+                        kind: z.ZodString;
+                        until: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strict>>;
+                    openWork: z.ZodNumber;
+                    dueNow: z.ZodNumber;
+                    nextDueAt: z.ZodNullable<z.ZodString>;
+                    waiting: z.ZodArray<z.ZodObject<{
+                        reason: z.ZodEnum<{
+                            running: "running";
+                            paused: "paused";
+                            quarantined: "quarantined";
+                            not_due: "not_due";
+                            pacer: "pacer";
+                            class_share: "class_share";
+                            page_hold: "page_hold";
+                            route_budget: "route_budget";
+                            route_hold: "route_hold";
+                            resource_hold: "resource_hold";
+                            subject_breaker: "subject_breaker";
+                            blocked_by_vendor: "blocked_by_vendor";
+                            dependency: "dependency";
+                            ownership_unconfirmed: "ownership_unconfirmed";
+                        }>;
+                        count: z.ZodNumber;
+                    }, z.core.$strict>>;
+                    lastSentAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>>;
+                attempts: z.ZodArray<z.ZodObject<{
+                    id: z.ZodString;
+                    page: z.ZodString;
+                    resource: z.ZodString;
+                    operation: z.ZodString;
+                    class: z.ZodNullable<z.ZodEnum<{
+                        requests: "requests";
+                        planned: "planned";
+                        urgent: "urgent";
+                    }>>;
+                    sentAt: z.ZodString;
+                    completedAt: z.ZodNullable<z.ZodString>;
+                    failed: z.ZodBoolean;
+                    httpStatus: z.ZodNullable<z.ZodNumber>;
+                    durationMs: z.ZodNullable<z.ZodNumber>;
+                    responseBytes: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strict>>;
+                queue: z.ZodObject<{
+                    waiting: z.ZodNumber;
+                    active: z.ZodNullable<z.ZodNumber>;
+                    failedLastHour: z.ZodNumber;
+                    deadLetters: z.ZodNumber;
+                    oldestWaitingAgeMs: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strict>;
+                incidents: z.ZodArray<z.ZodObject<{
+                    id: z.ZodString;
+                    kind: z.ZodString;
+                    stream: z.ZodNullable<z.ZodString>;
+                    openedAt: z.ZodString;
+                    summary: z.ZodString;
+                }, z.core.$strict>>;
+                nextCursor: z.ZodString;
+            }, z.core.$strict>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly health: {
+        readonly auth: {
+            readonly kind: "public";
+        };
+        readonly tags: readonly ["system"];
+        readonly summary: "Health check";
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                status: z.ZodEnum<{
+                    degraded: "degraded";
+                    ok: "ok";
+                }>;
+                timestamp: z.ZodString;
+                contractHash: z.ZodString;
+                capabilities: z.ZodArray<z.ZodLiteral<"desktop-lifecycle-v2">>;
+                compatibleClientSdks: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                checks: z.ZodObject<{
+                    api: z.ZodObject<{
+                        status: z.ZodLiteral<"ok">;
+                    }, z.core.$strip>;
+                    database: z.ZodObject<{
+                        status: z.ZodEnum<{
+                            error: "error";
+                            ok: "ok";
+                        }>;
+                        latencyMs: z.ZodNullable<z.ZodNumber>;
+                        error: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                status: z.ZodEnum<{
+                    degraded: "degraded";
+                    ok: "ok";
+                }>;
+                timestamp: z.ZodString;
+                contractHash: z.ZodString;
+                capabilities: z.ZodArray<z.ZodLiteral<"desktop-lifecycle-v2">>;
+                compatibleClientSdks: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                checks: z.ZodObject<{
+                    api: z.ZodObject<{
+                        status: z.ZodLiteral<"ok">;
+                    }, z.core.$strip>;
+                    database: z.ZodObject<{
+                        status: z.ZodEnum<{
+                            error: "error";
+                            ok: "ok";
+                        }>;
+                        latencyMs: z.ZodNullable<z.ZodNumber>;
+                        error: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly opsMetrics: {
+        readonly auth: {
+            readonly kind: "monitoring";
+        };
+        readonly tags: readonly ["system"];
+        readonly summary: "Golden-signal lag samples (Stage 25 acceptance instrument)";
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                samples: z.ZodArray<z.ZodObject<{
+                    metric: z.ZodString;
+                    quantile: z.ZodString;
+                    valueMs: z.ZodNumber;
+                    sampledAt: z.ZodString;
+                }, z.core.$strip>>;
+                thresholdsMs: z.ZodRecord<z.ZodString, z.ZodNumber>;
+                smoke: z.ZodNullable<z.ZodObject<{
+                    framesSeen: z.ZodNumber;
+                    gapCount: z.ZodNumber;
+                    duplicateCount: z.ZodNumber;
+                    updatedAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
