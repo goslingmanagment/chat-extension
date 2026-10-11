@@ -149,11 +149,19 @@ export const DEFAULT_HUB_ORIGIN = 'https://gosling-agency.ru';
  * a chatter who works OnlyFans here and Fansly in the Fansly extension (chime,
  * double) hears which of the two rings. Until 1.12.0 they were the Fansly
  * extension's; a stored chime or double is a choice and stays.
+ *
+ * The language is Russian (ST-135, I18-001; 1.14.0, decision X29): the
+ * chatters, the guide and the site are Russian, and a browser set to English
+ * — a stock Firefox, an antidetect profile — says nothing about its person.
+ * «Как в системе» and English stay a choice in the settings. Until 1.14.0 the
+ * default was `system`, and the first start writes the defaults down: an
+ * install made before 1.14.0 has `system` stored and keeps it (no migration;
+ * the person switches in «Вид и звук»).
  */
 export const DEFAULT_SETTINGS: SettingsV1 = {
   schemaVersion: SETTINGS_SCHEMA_VERSION,
   hub: { baseUrl: DEFAULT_HUB_ORIGIN },
-  ui: { theme: 'host', locale: 'system', hints: true, resultStyle: 'bare' },
+  ui: { theme: 'host', locale: 'ru', hints: true, resultStyle: 'bare' },
   generation: {
     split: false,
     windows: { quick: 100, ping: 100, improve: 25, deep: 3000 },

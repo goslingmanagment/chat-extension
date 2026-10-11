@@ -1108,7 +1108,7 @@ describe('options: generation, hotkeys, appearance, diagnostics', () => {
 
   it('[ST-122] [ST-123] [ST-135] theme, what the system is now, and the language switch on the fly', async () => {
     const w = await open({ scheme: 'dark' });
-    expect(options(w, 'appearance').body).toMatchObject({ theme: 'host', systemScheme: 'dark', locale: 'system' });
+    expect(options(w, 'appearance').body).toMatchObject({ theme: 'host', systemScheme: 'dark', locale: 'ru' });
     w.systemScheme.set('light');
     expect(options(w, 'appearance').body?.systemScheme).toBe('light');
     await w.client.dispatch({ type: 'SetPreference', key: 'ui.locale', value: 'en' });
@@ -1118,6 +1118,31 @@ describe('options: generation, hotkeys, appearance, diagnostics', () => {
     w.browser.go('#status:CG-HUB-UNAVAILABLE');
     expect(options(w, 'status').highlight?.title).toBe(w.i18n.t('cg.hubUnavailable.title'));
     expect(w.i18n.t('cg.hubUnavailable.title')).not.toBe('Хаб недоступен');
+  });
+
+  it('[ST-135] [I18-001] a fresh install speaks Russian in a browser set to English (contracts 1.14.0, X29); «Как в системе» is a choice and follows the browser', async () => {
+    const w = await open({ systemLanguages: ['en-US', 'en'] });
+    expect(options(w, 'appearance').body?.locale).toBe('ru');
+    expect(w.i18n.language).toBe('ru');
+    await w.client.dispatch({ type: 'SetPreference', key: 'ui.locale', value: 'system' });
+    expect(w.i18n.language).toBe('en');
+    w.client.dispose();
+    // «Как в системе» stored before 1.14.0 (the old default) is kept as it is: the page follows the browser.
+    const state = workingState();
+    state.settings = { ...state.settings, ui: { ...state.settings.ui, locale: 'system' } };
+    const stored = await open({ state, systemLanguages: ['en-US', 'en'] });
+    expect(options(stored, 'appearance').body?.locale).toBe('system');
+    expect(stored.i18n.language).toBe('en');
+  });
+
+  it('[ST-135] [PU-001] a background that never answered: the error is said in the default’s language, not the browser’s', async () => {
+    world = pagesWorld({ page: 'popup', systemLanguages: ['en-US', 'en'], now: () => clock });
+    world.background.unreachable = true;
+    world.client.start();
+    await settle();
+    // No settings were read, so nothing chose a language: the card speaks as a fresh install does.
+    const vm = world.client.getSnapshot({ of: 'popup' });
+    expect(vm.view.s === 'error' ? vm.view.error.title : null).toBe('Расширение не отвечает');
   });
 
   it('[ST-131] [ST-133] the sound test plays the chosen tone at the chosen volume; a blocked sound is said with its code', async () => {

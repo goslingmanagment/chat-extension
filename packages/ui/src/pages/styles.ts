@@ -14,6 +14,10 @@ html, body { margin: 0; padding: 0; background: var(--cg-surface); }
 .pg-mono { font-family: var(--cg-mono); font-size: var(--cg-text-sm); line-height: 18px; }
 
 /* ── popup (§4.23) ── */
+/* Firefox makes the panel under the button as wide as the document itself asks for, and the root is a size container
+   (.cg-root): by itself it asks for nothing, and the panel opens as a line 0 px wide. So the popup's root says its
+   width; where the browser gives the width (the overflow menu of a narrow window) the root just fills it. */
+.cg-root--page[data-cg-surface="popup"] { contain-intrinsic-inline-size: 360px; }
 .pg-popup { width: 360px; max-width: 100%; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); background: var(--cg-surface); overflow: hidden; }
 .pg-popup__head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 10px 14px; }
 .pg-popup__head .cg-goose { color: var(--cg-ink-2); }

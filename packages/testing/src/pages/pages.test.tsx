@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS, SCHEME_ATTRIBUTE, SETTINGS_SECTIONS, type Unmount } from '@cg/contracts';
 import { AUTOSAVE_DEBOUNCE_MS, SCHEME_ACTIONS } from '@cg/core/application/pages';
+import { BASE_CSS } from '@cg/ui/kit';
 import { JOURNAL_PAGE_SIZE, JOURNAL_REFRESH_MS, PAGES_CSS, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup } from '@cg/ui/pages';
 
 import { LONG_TITLE, PAGES_NOW, hostReport, longTitleState, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
@@ -166,6 +167,16 @@ describe('popup (ui-design §4.23)', () => {
     expect(page.$('.cg-toast')?.textContent).toContain('Номер скопирован');
   });
 
+
+  it('[PU-002] the popup’s root asks the browser for its 360 px: Firefox sizes the panel by what the document asks for, and a size container asks for nothing', async () => {
+    const page = await mount('popup', { state: signedOutState() });
+    // The root is the kit's size container (`container: cg / inline-size`): its own preferred width is 0.
+    expect(BASE_CSS).toMatch(/\.cg-root \{\s*container: cg \/ inline-size;/);
+    expect(page.root.classList.contains('cg-root--page')).toBe(true);
+    expect(page.root.getAttribute('data-cg-surface')).toBe('popup');
+    expect(PAGES_CSS).toMatch(/\.cg-root--page\[data-cg-surface="popup"\] \{ contain-intrinsic-inline-size: 360px; \}/);
+    expect(PAGES_CSS).toMatch(/\.pg-popup \{ width: 360px; max-width: 100%;/);
+  });
 
   it('[PU-012] the popup takes its theme from the settings', async () => {
     const state = workingState();

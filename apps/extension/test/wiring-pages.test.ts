@@ -84,6 +84,22 @@ describe('the settings page before a sign-in', () => {
     expect(w.hub.read().entries).toEqual([]);
   });
 
+  it('[ST-135] [I18-001] a fresh install in a browser set to English is Russian from its first frame: the document, its title, the sign-in screen (1.14.0, X29)', async () => {
+    // The browser of this test speaks English, as a stock Firefox or an antidetect profile does.
+    expect(window.navigator.languages[0]).toMatch(/^en/);
+    const w = start();
+    const { root } = open(w, 'options');
+    // Before the background answered anything: the default's language, not the browser's.
+    expect(document.documentElement.lang).toBe('ru');
+    expect(document.title).toBe('Настройки ChatGoose');
+    await until(() => root.querySelector('.pg-signin') !== null, 'the sign-in screen');
+    expect(document.documentElement.lang).toBe('ru');
+    // The first start writes the defaults down: from then on the language is a stored value, not a default.
+    expect(storedSettings(w).ui.locale).toBe('ru');
+    expect(text(root)).toContain('Войти');
+    expect(text(root)).not.toContain('Sign in');
+  });
+
   it('[ST-043] [ST-046] a custom hub address asks the browser for its host inside the action; a refusal keeps the address and says «не разрешён», and the sign-in is refused with CG-HUB-HOST-PERMISSION', async () => {
     const w = start();
     const { page, root } = open(w, 'options');

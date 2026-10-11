@@ -21,6 +21,7 @@
 
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
 import { LOG_LIMITS } from '@cg/contracts/limits';
+import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { parseTabPayload } from '@cg/contracts/tab-messages';
 import type { I18nKey } from '@cg/contracts/errors';
 import type { JournalKind, Unmount } from '@cg/contracts/vm';
@@ -105,7 +106,8 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   };
 
   // ── texts and the scheme ───────────────────────────────────────────────────
-  const i18n = createI18n({ language: resolveLocale('system', win.navigator.languages), now: () => Date.now() });
+  // Until the settings are read the page speaks the default's language (Russian), not the browser's.
+  const i18n = createI18n({ language: resolveLocale(DEFAULT_SETTINGS.ui.locale, win.navigator.languages), now: () => Date.now() });
   const systemScheme = mediaSchemeSignal(win.matchMedia('(prefers-color-scheme: dark)'));
   offs.push(() => systemScheme.dispose());
   const catalog = createActionCatalog(hotkeyPlatformOf(win.navigator.platform));

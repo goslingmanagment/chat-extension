@@ -29,7 +29,7 @@ import { type Locale } from '@cg/contracts/i18n/keys';
 import { type SessionIdentity } from '@cg/contracts/ids';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { HUB_ORIGIN_PATTERN } from '@cg/contracts/primitives';
-import { DEFAULT_HUB_ORIGIN, HOST_ACCOUNT_KEY_PATTERN, SETTINGS_RANGES, type HostAccountKey, type SettingsPatch, type SettingsState, type UiTheme } from '@cg/contracts/settings';
+import { DEFAULT_HUB_ORIGIN, DEFAULT_SETTINGS, HOST_ACCOUNT_KEY_PATTERN, SETTINGS_RANGES, type HostAccountKey, type SettingsPatch, type SettingsState, type UiTheme } from '@cg/contracts/settings';
 import { type TabRequestPayload, type TabResponsePayload } from '@cg/contracts/tab-messages';
 import {
   UiActionSchema,
@@ -193,7 +193,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   const theme = new Signal<UiTheme>('system');
   const hints = new Signal<boolean>(true);
 
-  let locale: Locale = resolveLocale('system', env.systemLanguages());
+  // Until the settings are read: the default's language, as a fresh install has it.
+  let locale: Locale = resolveLocale(DEFAULT_SETTINGS.ui.locale, env.systemLanguages());
   let translator: Translator = createTranslator(locale);
   const i18n: LiveI18n = createI18n({ language: locale, now: () => clock.now(), ...(env.timeZone === undefined ? {} : { timeZone: env.timeZone }) });
 
