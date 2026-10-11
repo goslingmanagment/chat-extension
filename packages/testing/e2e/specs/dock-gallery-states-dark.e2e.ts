@@ -5,7 +5,7 @@
 import { describeEveryState, resetWindow } from '../support/dock-gallery';
 import { useNetworkTrap } from '../support/network-trap';
 
-describe('dock gallery · dark: every dock state in both languages, 100–200 % zoom, composer 853/693/489/360/320 px', () => {
+describe('dock gallery · dark: every dock state in both languages, 100–200 % zoom, composer 853/693/548/489/360/320 px', () => {
   useNetworkTrap();
   after(resetWindow);
   describeEveryState('dark');

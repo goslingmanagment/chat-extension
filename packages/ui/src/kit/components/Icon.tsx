@@ -47,6 +47,43 @@ const PATHS = {
     </>
   ),
   chevronDown: <path d="M4.5 6.5L8 10l3.5-3.5" />,
+  /** Review — the conversation's score: a gauge. */
+  gauge: (
+    <>
+      <path d="M2.4 10.8a5.6 5.6 0 0 1 11.2 0" />
+      <path d="M8 10.8l2.7-3.4M4.4 12.6h7.2" />
+    </>
+  ),
+  /** Recap — the fan's dossier: a card with a face and lines. */
+  dossier: (
+    <>
+      <rect x="2.2" y="3.4" width="11.6" height="9.2" rx="1.6" />
+      <circle cx="5.9" cy="7.1" r="1.3" />
+      <path d="M4 10.4c.4-.9 1-1.3 1.9-1.3s1.5.4 1.9 1.3M9.6 6.6h2.4M9.6 9.2h2.4" />
+    </>
+  ),
+  /** Coach — advice about the fan: a light bulb. */
+  bulb: (
+    <>
+      <path d="M8 2.2a4 4 0 0 0-2.5 7.1c.5.4.8 1 .8 1.6v.4h3.4v-.4c0-.6.3-1.2.8-1.6A4 4 0 0 0 8 2.2z" />
+      <path d="M6.4 13.8h3.2" />
+    </>
+  ),
+  /** Spenders: a banknote. */
+  bill: (
+    <>
+      <rect x="1.8" y="4.2" width="12.4" height="7.6" rx="1.4" />
+      <circle cx="8" cy="8" r="1.7" />
+      <path d="M4.3 6.5v.01M11.7 9.5v.01" />
+    </>
+  ),
+  /** «Новые»: a fan with a plus. */
+  userPlus: (
+    <>
+      <circle cx="6.4" cy="5.6" r="2.6" />
+      <path d="M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8M12.6 4.8v4.4M10.4 7h4.4" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

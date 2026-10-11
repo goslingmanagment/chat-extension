@@ -24,7 +24,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
   const WINDOWS = ['Spenders+key', 'Новые'];
   const caps = (id: string): Promise<readonly string[]> => browser.execute((state) => [...(window.__dock?.caps(state) ?? [])], id);
 
-  it('[UI-002] [UI-006] [UI-009] [AI-002] [NEW-01] 853 px: Reply with its capsule, the six other actions, Spenders and «Новые» — every tone and both windows one click away; the quota is a count at the goose', async () => {
+  it('[UI-002] [UI-006] [UI-009] [AI-002] [NEW-01] 853 px: Reply with its capsule, the six other actions, Spenders and «Новые» — every tone and both windows one click away; the quota is a count over Reply\'s corner', async () => {
     await open('theme=light&lang=ru&w=853');
     await captureWindow('dock-bar-light-ru-w853');
     expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
@@ -34,8 +34,9 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect((await box('1a', '.cg-split'))?.width).toBe(26);
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect(await shown('1a', '.cg-hint')).toEqual([]);
-    // «AI: 12» costs the bar no width: a count at the goose's corner.
-    expect(await shown('1b', '.cg-mark .cg-quota')).toEqual(['12']);
+    // «AI: 12» costs the bar no width: a count on the bar's frame over Reply's corner. No goose (decision X31).
+    expect(await shown('1b', '.cg-slot--reply .cg-quota')).toEqual(['12']);
+    expect(await shown('1a', '.cg-strip .cg-goose')).toEqual([]);
     expect((await measure('1b'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
     // A chosen tone is the raised cell; nothing in the bar moves.
     expect((await box('1c', '.cg-tones'))?.width).toBe((await box('1a', '.cg-tones'))?.width);
@@ -52,7 +53,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     // While the chat loads nothing can be opened from the bar: the two windows give their place to the status.
     expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
     expect(await shown('9d', '.cg-status-word .cg-short')).toEqual(['Загрузка…']);
-    expect(await shown('9d', '.cg-mark > .cg-spin')).toEqual([]);
+    // Words while the windows are words: no icon in the bar.
+    expect(await shown('1a', '.cg-act--ico > .cg-ico')).toEqual([]);
     expect((await health()).problems).toEqual([]);
   });
 
@@ -81,7 +83,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
     expect(await caps('1a')).toEqual(['Ctrl+E', 'Ctrl+Alt+L', 'Ctrl+I', 'Ctrl+G', 'Ctrl+P', 'Ctrl+Alt+B', 'Ctrl+Alt+S', 'Ctrl+Alt+C', 'Ctrl+Alt+M']);
     expect((await health()).problems).toEqual([]);
-    for (const width of [1000, 693, 489, 360, COLUMN]) {
+    for (const width of [1000, 693, 548, 489, 360, COLUMN]) {
       await open(`theme=dark&lang=ru&w=${width}&os=win`);
       expect([width, (await health()).problems]).toEqual([width, []]);
     }
@@ -119,22 +121,44 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     });
   }
 
-  it('[UI-002] [UI-003] 693 px: all seven actions and the capsule; Spenders and «Новые» live in «Ещё»; no persona, no palette key; Hi still in three columns', async () => {
+  it('[UI-002] [UI-003] 693 px: all seven actions, the capsule and both windows in words — no «Ещё»; no persona, no palette key; Hi still in three columns', async () => {
     await open('theme=light&lang=ru&w=693');
-    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, 'Ещё']);
+    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
+    expect(await shown('1a', '.cg-act--ico > .cg-ico')).toEqual([]);
     expect(await shown('1a', '.cg-persona')).toEqual([]);
     expect(await shown('1a', '.cg-hint')).toEqual([]);
-    // «Ещё» stands for the windows only: a ready Recap is the point on Recap itself.
-    expect(await shown('1b', '.cg-slot--more .cg-badge')).toEqual([]);
+    // Nothing is hidden: a ready Recap is the point on Recap itself.
     expect(await shown('1b', '.cg-slot--two .cg-badge')).toHaveLength(1);
     const columns = await browser.execute(() => [1, 2, 3].map((index) => window.__dock?.box('4', `.cg-hi__col:nth-child(${index})`)?.left ?? null));
     expect(new Set(columns).size).toBe(3);
-    // While the chat loads «Ещё» would open nothing: it goes with the windows, and the status is a spinner in the goose's place.
+    // While the chat loads the windows give their place to the status words.
     expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
-    expect(await shown('9d', '.cg-mark > .cg-spin')).toHaveLength(1);
-    expect(await shown('9d', '.cg-mark .cg-goose')).toEqual([]);
-    expect(await shown('9d', '.cg-status-word')).toEqual([]);
-    expect(await shown('1a', '.cg-mark .cg-goose')).toHaveLength(1);
+    expect(await shown('9d', '.cg-status-word .cg-short')).toEqual(['Загрузка…']);
+  });
+
+  it('[UI-002] [UI-003] [UI-010] [UI-031] 548 px (a 1512 px window with ChatSpace\'s side panel open): every chip is on the bar — Review, Recap, Coach, Spenders and «Новые» as their icons; no «Ещё»', async () => {
+    await open('theme=dark&lang=ru&w=548');
+    await captureWindow('dock-bar-dark-ru-w548');
+    // The words stay the chips' names: a narrow bar hides them from the eye only.
+    expect((await measure('1a'))?.buttons).toEqual([...SEVEN, ...WINDOWS]);
+    expect(await shown('1a', '.cg-act--ico > .cg-ico')).toHaveLength(5);
+    expect((await box('1a', '.cg-slot--two .cg-act'))?.width).toBe(28);
+    expect((await box('1a', '.cg-slot--boards .cg-act'))?.width).toBe(28);
+    // The capsule keeps its 26 px cells.
+    expect((await box('1a', '.cg-tones__track'))?.width).toBe(4 * 26 + 3 * 1);
+    // The «Recap готов» point is on the Recap icon; the quota count over Reply's corner.
+    expect(await shown('1b', '.cg-slot--two .cg-badge')).toHaveLength(1);
+    expect(await shown('1b', '.cg-slot--more .cg-badge')).toEqual([]);
+    expect(await shown('1b', '.cg-slot--reply .cg-quota')).toEqual(['12']);
+    // While the chat loads the status is a spinner in the windows' place.
+    expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach']);
+    expect(await shown('9d', '.cg-status-word .cg-spin')).toHaveLength(1);
+    expect((await health()).problems).toEqual([]);
+    // At 640 px Review, Recap and Coach are still words; only the windows are icons.
+    await open('theme=light&lang=ru&w=640');
+    expect(await shown('1a', '.cg-slot--two .cg-ico')).toEqual([]);
+    expect(await shown('1a', '.cg-slot--boards .cg-ico')).toHaveLength(2);
+    expect((await health()).problems).toEqual([]);
   });
 
   it('[UI-003] [UI-006] 489 px: Reply with its capsule · Fix · Hi · Ping · Ещё; Review, Recap, Coach and the two windows live in «Ещё»; Hi in a column; the head keeps «черновик · не отправлено» and drops the meta; one stage', async () => {
@@ -144,7 +168,7 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('1d', '.cg-menu [role="menuitem"]')).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', 'Новые']);
     // «Ещё» stands for Recap here: its point is on «Ещё».
     expect(await shown('1b', '.cg-slot--more .cg-badge')).toHaveLength(1);
-    expect(await shown('1b', '.cg-mark .cg-quota')).toEqual(['12']);
+    expect(await shown('1b', '.cg-slot--reply .cg-quota')).toEqual(['12']);
     const columns = await browser.execute(() => [1, 2, 3].map((index) => window.__dock?.box('4', `.cg-hi__col:nth-child(${index})`)?.left ?? null));
     expect(new Set(columns).size).toBe(1);
     expect(await shown('3a', '.cg-head__meta')).toEqual([]);
@@ -156,17 +180,17 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(await shown('3a', '.cg-part .cg-ins')).toHaveLength(3);
   });
 
-  it('[UI-018] 360 px: the capsule still stands — narrower cells, no seams, no goose; «Вставить» under the text, × for «Скрыть», no keys footer; «черновик · не отправлено» stays whole', async () => {
+  it('[UI-018] 360 px: the capsule still stands — narrower cells, no seams; «Вставить» under the text, × for «Скрыть», no keys footer; «черновик · не отправлено» stays whole', async () => {
     await open('theme=light&lang=ru&w=360');
     expect((await measure('1a'))?.buttons).toEqual([...FOUR, 'Ещё']);
-    expect(await shown('1a', '.cg-mark')).toEqual([]);
     expect(await shown('1a', '.cg-strip .cg-div')).toEqual([]);
     // Four 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8).
     expect((await box('1a', '.cg-tones__track'))?.width).toBe(4 * 22 + 3 * 2);
     // While the chat loads the status keeps its spinner: it stands in for «Ещё», which would open nothing then.
     expect((await measure('9d'))?.buttons).toEqual(['Reply', ...TONES, 'Split', 'Fix', 'Hi', 'Ping']);
-    expect(await shown('9d', '.cg-mark > .cg-spin')).toHaveLength(1);
-    expect(await shown('1b', '.cg-quota')).toEqual([]);
+    expect(await shown('9d', '.cg-status-word .cg-spin')).toHaveLength(1);
+    // The quota count costs no width: it is there on every composer.
+    expect(await shown('1b', '.cg-quota')).toEqual(['12']);
     expect(await shown('3a', '.cg-keys')).toEqual([]);
     expect(await shown('3a', '.cg-hide .cg-ico')).toHaveLength(1);
     expect((await box('3a', '.cg-hide'))?.width).toBe(26);
@@ -182,9 +206,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
       await open(`state=1d&theme=${width > 600 ? 'light' : 'dark'}&lang=${width > 600 ? 'ru' : 'en'}&w=${width}`);
       await captureWindow(`dock-menu-more-w${width}`);
       const items = await shown('1d', '.cg-menu [role^="menuitem"]');
-      // 853 px: the windows are chips of the bar, there is no «Ещё» to open.
-      if (width >= 820) expect(items).toEqual([]);
-      else if (width >= 680) expect(items).toEqual(['Spenders⌘⇧M', width > 600 ? 'Новые' : 'New']);
+      // From 500 px every chip is on the bar (words or icons): there is no «Ещё» to open.
+      if (width >= 500) expect(items).toEqual([]);
       else expect(items).toEqual(['Review⌘⇧B', 'Recap⌘⇧S', 'Coach⌘⇧C', 'Spenders⌘⇧M', width > 600 ? 'Новые' : 'New']);
       expect((await health()).problems).toEqual([]);
       if (items.length === 0) continue;
@@ -212,7 +235,6 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
                 ['1a', '.cg-slot--boards .cg-act'],
                 ['1a', '.cg-slot--two'],
                 ['1a', '.cg-strip .cg-div'],
-                ['1a', '.cg-mark'],
                 ['1b', '.cg-quota'],
                 ['9d', '.cg-status-word'],
                 ['3a', '.cg-head__meta'],
@@ -292,15 +314,15 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
     expect(stops).toEqual(['strip', 'again', 'hide', 'part', 'copy', 'insert', 'copy', 'insert', 'copy', 'insert', 'footer']);
   });
 
-  it('[UI-003] «Ещё» stays inside the dock while the composer narrows under the open menu (600 → 320 px), and goes away with its button on a wide one', async () => {
-    await open('state=1d&theme=light&lang=ru&w=600');
+  it('[UI-003] «Ещё» stays inside the dock while the composer narrows under the open menu (499 → 320 px), and goes away with its button on a wider one', async () => {
+    await open('state=1d&theme=light&lang=ru&w=499');
     expect(await shown('1d', '.cg-menu [role="menuitem"]')).toHaveLength(5);
     const problems = await browser.execute(async () => {
       const dock = window.__dock;
       if (dock === undefined) throw new Error('window.__dock is missing');
       const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
       const out: string[] = [];
-      for (let px = 600; px >= 320; px -= 1) {
+      for (let px = 499; px >= 320; px -= 1) {
         dock.setWidth(px);
         await frame();
         await frame();
@@ -317,11 +339,8 @@ describe('dock gallery: what hides on which width (ui-design §3.3)', () => {
         await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       }, px);
     };
-    // 700 px: Review, Recap and Coach are chips again; the open menu keeps what is still hidden — the two windows.
-    await widen(700);
-    expect(await shown('1d', '.cg-menu [role="menuitem"]')).toEqual(['Spenders⌘⇧M', 'Новые']);
-    // 900 px: nothing is hidden, «Ещё» is gone and its menu with it.
-    await widen(900);
+    // 548 px: every chip is on the bar again, «Ещё» is gone and its menu with it.
+    await widen(548);
     expect(await shown('1d', '.cg-menu')).toEqual([]);
     expect((await measure('1d'))?.buttons).toHaveLength(14);
   });
