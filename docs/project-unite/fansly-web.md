@@ -45,8 +45,8 @@
 
 - `/messages` — `app-messages-route`: инбокс слева, справа пусто или разговор.
 - `/messages/:groupId` — `app-messages-conversation-route` внутри того же `app-messages-route`.
-  `groupId` — id разговора Fansly; хаб ключует разговоры Fansly по нему же (хаб `6ee3d627`:
-  `apps/runtime/src/modules/ai/features/index.ts:321`, `sync/fansly/resources/dm-conversations.ts:368`).
+  `groupId` — id разговора Fansly; хаб ключует разговоры Fansly по нему же (хаб `a3449f77`:
+  `apps/runtime/src/modules/ai/features/index.ts:347`, `sync/fansly/resources/dm-conversations.ts:368`).
 - `/creator/vault` — медиатека (vault).
 - Всего 136 записей маршрутов (`index/routes.md`).
 
@@ -88,7 +88,12 @@ div.content-wrapper
   флаг компонента, без проверки `shiftKey` и IME; `main:56025-56035`). Отправляется **модель**, а не текст поля;
   без медиа `POST /message` создаётся и уходит синхронно в том же `keydown` или `click` (`main:56169-56199`,
   `:29012-29023`). Ширину composer меряет своим `ResizeObserver` (`main:55794-55800`). Условные ветки шаблона:
-  поле, запись голоса, «no-dm-allowed» (`main:55759-55790`, `:56270-56272`).
+  поле, запись голоса, «no-dm-allowed» (`main:55759-55790`, `:56262-56275`): поле пересоздаётся внутри того же
+  `app-group-message-input` **без смены адреса**, когда меняются правила ЛС или начинается запись голоса.
+- **Блок контакта шапки без смены адреса.** Шапка маршрута — `div.message-content-header > .flex-col > .flex-row`
+  (с `.back-button`); аватар и `.message-content-header-contact` стоят в этой строке под `ngIf` числа участников
+  (`getGroupPartners()…length === 1`, `main:74512`; шаблон `:74723`) и пересоздаются, когда оно меняется, без смены
+  адреса. Наблюдатель маршрута этого не видит; нужен узкий наблюдатель строки (`architecture.md` §7.3).
 - **Файл в поле** (`input[type=file]` в `.collapsable-actions`): `change` открывает модалку загрузки Fansly;
   вложение появляется только после клика человека «Upload» — новый `app-account-media-create-template` в
   `div.message-attachments` (`main:55951-55975`, `:42635-42646`, `:55186-55203`). Селектора `waveform`, на
