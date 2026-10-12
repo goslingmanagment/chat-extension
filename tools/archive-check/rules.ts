@@ -87,6 +87,8 @@ const FORBIDDEN_FILES: ReadonlyArray<[RegExp, string]> = [
   [/\.(?:har|sqlite|db|pem|p12|key|log)$/i, 'data/secret file'],
   [/(^|\/)\.env(\.|$)/, 'env file'],
   [/(^|\/)(?:node_modules|\.dev-profile|\.output|docs\/research)\//, 'build/profile/research folder'],
+  // Agent sessions keep whole copies of the repository under .claude/worktrees/ of a checkout.
+  [/(^|\/)\.claude\//, 'agent session folder'],
 ];
 
 const TEXT_FILE = /\.(?:js|mjs|cjs|ts|tsx|json|html|css|md|txt|yaml|yml|svg)$/i;
