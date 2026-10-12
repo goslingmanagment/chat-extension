@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-12T23:00:46.783Z",
+  "origin": "https://fansly.com",
+  "route": "/messages/:id",
+  "browser": "Chrome/154.0.0.0",
+  "readyState": "complete",
+  "angularVersion": "19.1.2",
+  "brightTheme": true,
+  "viewport": {
+    "width": 1728,
+    "height": 936,
+    "devicePixelRatio": 2
+  },
+  "domElements": 3532,
+  "bundleFilesDeclaredInDOM": [
+    "styles.64c4f4d153577daa.css",
+    "runtime.f973459b9af62fd8.js",
+    "polyfills.dfb9993ca3a1ba5d.js",
+    "scripts.32f933722bcf11de.js",
+    "main.2e6b96097a4bb73b.js"
+  ],
+  "anchors": {
+    "app-messages-route": {
+      "count": 1,
+      "first": {
+        "tag": "app-messages-route",
+        "hasOwnVisibleBox": true,
+        "width": 1120,
+        "height": 868,
+        "display": "flex",
+        "position": "relative",
+        "overflowY": "visible"
+      }
+    },
+    ".messages-list-wrapper": {
+      "count": 1,
+      "first": {
+        "tag": "div",
+        "hasOwnVisibleBox": true,
+        "width": 498,
+        "height": 868,
+        "display": "flex",
+        "position": "static",
+        "overflowY": "hidden"
+      }
+    },
+    ".messages-content-wrapper": {
+      "count": 1,
+      "first": {
+        "tag": "div",
+        "hasOwnVisibleBox": true,
+        "width": 622,
+        "height": 868,
+        "display": "flex",
+        "position": "relative",
+        "overflowY": "hidden"
+      }
+    },
+    "app-messages-conversation-route": {
+      "count": 1,
+      "first": {
+        "tag": "app-messages-conversation-route",
+        "hasOwnVisibleBox": true,
+        "width": 622,
+        "height": 868,
+        "display": "flex",
+        "position": "relative",
+        "overflowY": "hidden"
+      }
+    },
+    ".message-content-header": {
+      "count": 1,
+      "first": {
+        "tag": "div",
+        "hasOwnVisibleBox": true,
+        "width": 622,
+        "height": 56,
+        "display": "flex",
+        "position": "static",
+        "overflowY": "visible"
+      }
+    },
+    ".message-content-header-contact .content-header-sub-row": {
+      "count": 1,
+      "first": {
+        "tag": "div",
+        "hasOwnVisibleBox": true,
+        "width": 148,
+        "height": 14,
+        "display": "flex",
+        "position": "static",
+        "overflowY": "visible"
+      }
+    },
+    "app-group-message-container": {
+      "count": 1,
+      "first": {
+        "tag": "app-group-message-container",
+        "hasOwnVisibleBox": true,
+        "width": 622,
+        "height": 812,
+        "display": "flex",
+        "position": "static",
+        "overflowY": "hidden"
+      }
+    },
+    ".message-content-list": {
+      "count": 1,
+      "first": {
+        "tag": "div",
+        "hasOwnVisibleBox": true,
+        "width": 622,
+        "height": 743,
+        "display": "flex",
+        "position": "relative",
+        "overflowY": "auto"
+      }
+    },
+    "app-group-message-input": {
+      "count": 1,
+      "first": {
+        "tag": "app-group-message-input",
+        "hasOwnVisibleBox": true,
+        "width": 622,
+        "height": 69,
+        "display": "flex",
+        "position": "relative",
+        "overflowY": "visible"
+      }
+    },
+    "textarea.message-input": {
+      "count": 1,
+      "first": {
+        "tag": "textarea",
+        "hasOwnVisibleBox": true,
+        "width": 285,
+        "height": 22,
+        "display": "inline-block",
+        "position": "static",
+        "overflowY": "auto"
+      }
+    },
+    ".send-button": {
+      "count": 1,
+      "first": {
+        "tag": "button",
+        "hasOwnVisibleBox": true,
+        "width": 44,
+        "height": 44,
+        "display": "flex",
+        "position": "static",
+        "overflowY": "visible"
+      }
+    },
+    "app-group-message": {
+      "count": 27,
+      "first": {
+        "tag": "app-group-message",
+        "hasOwnVisibleBox": true,
+        "width": 452,
+        "height": 137,
+        "display": "flex",
+        "position": "relative",
+        "overflowY": "visible"
+      }
+    },
+    "app-group-message.my-message": {
+      "count": 15,
+      "first": {
+        "tag": "app-group-message",
+        "hasOwnVisibleBox": true,
+        "width": 452,
+        "height": 137,
+        "display": "flex",
+        "position": "relative",
+        "overflowY": "visible"
+      }
+    },
+    "app-messaging-overlay-group": {
+      "count": 0,
+      "first": null
+    },
+    ".modal-wrapper": {
+      "count": 1,
+      "first": {
+        "tag": "div",
+        "hasOwnVisibleBox": true,
+        "width": 1718,
+        "height": 936,
+        "display": "flex",
+        "position": "fixed",
+        "overflowY": "visible"
+      }
+    },
+    "app-group-message-input input[type=\"file\"]": {
+      "count": 1,
+      "first": {
+        "tag": "input",
+        "hasOwnVisibleBox": false,
+        "width": 0,
+        "height": 0,
+        "display": "none",
+        "position": "static",
+        "overflowY": "clip"
+      }
+    },
+    "app-group-message-input .message-attachments": {
+      "count": 1,
+      "first": {
+        "tag": "div",
+        "hasOwnVisibleBox": false,
+        "width": 614,
+        "height": 0,
+        "display": "flex",
+        "position": "static",
+        "overflowY": "auto"
+      }
+    },
+    "#chatgoose-root": {
+      "count": 0,
+      "first": null
+    },
+    "#chatgoose-followers-launcher": {
+      "count": 0,
+      "first": null
+    },
+    "style#chatgoose-bootstrap-style": {
+      "count": 0,
+      "first": null
+    },
+    "style#chatgoose-style": {
+      "count": 0,
+      "first": null
+    }
+  },
+  "limits": [
+    "One already-open chat; no clicks, navigation, input, scrolling or reload.",
+    "No message text, values, identities, cookies, storage, media or API response bodies collected.",
+    "Selector counts can include nested quoted messages; they do not establish transcript completeness.",
+    "One viewport and one state; dimensions are observations, not requirements.",
+    "hasOwnVisibleBox checks only the element box and its own computed visibility/display; it does not test hidden ancestors, occlusion or interactivity.",
+    "Bundle file names are DOM declarations; equality of file bytes was not checked."
+  ]
+}
