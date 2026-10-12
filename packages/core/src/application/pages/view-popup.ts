@@ -24,8 +24,19 @@ function hostPill(model: PagesModel): PopupVM['pills']['host'] {
   return gaps.insert ? 'partial' : 'copy-only';
 }
 
+/** ChatSpace tabs still running the build this one replaced: their old script talks to nobody until they are reloaded. */
+function staleTabsOf(model: PagesModel): number {
+  return valueOf(model.diagnostics)?.extension.updated?.staleTabs ?? 0;
+}
+
 function problemsOf(model: PagesModel, host: PopupVM['pills']['host']): CgErrorView[] {
   const problems: CgErrorView[] = [];
+  // After an update a tab opened before it is still there and looks fine, but nothing of ours runs in it: say so first.
+  // The popup draws a problem as its code and one line: the title goes into that line, so it reads «Расширение обновилось. …».
+  if (staleTabsOf(model) > 0) {
+    const reloaded = codeError(model, 'CG-RUNTIME-RELOADED');
+    problems.push({ ...reloaded, body: `${reloaded.title}. ${reloaded.body}` });
+  }
   if (model.hubAccess === false) problems.push(codeError(model, 'CG-HUB-HOST-PERMISSION'));
   if (model.bootstrap.s === 'error') problems.push(errorOf(model, model.bootstrap.error));
   else if (hubState(model) === 'down') problems.push(errorOf(model, valueOf(model.diagnostics)?.hub.lastError ?? { code: 'CG-HUB-UNAVAILABLE' }));
@@ -74,8 +85,15 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
   const quota = bound === null ? null : (model.quotas.get(bound.binding.pageId) ?? null);
   const debug = model.effective?.debug.enabled === true;
   const platform = ports.catalog?.platform ?? model.env.hotkeyPlatform;
-  // Spenders, «Новые» and the cheatsheet open inside ChatSpace: without a tab there is nowhere to open them.
-  const noTab: ReasonVM | null = host === 'closed' || host === 'unknown' ? { id: 'host-degraded', code: 'CG-HOST-NOT-READY', text: msg('popup.needsChatSpace') } : null;
+  // Spenders, «Новые» and the cheatsheet open inside ChatSpace: without a connected tab there is nowhere to open them.
+  // A tab left from the build before the update is there but not connected: its reason is the reload, not «open ChatSpace».
+  const stale = host === 'closed' && staleTabsOf(model) > 0;
+  const noTab: ReasonVM | null =
+    host === 'closed' || host === 'unknown'
+      ? stale
+        ? { id: 'host-degraded', code: 'CG-RUNTIME-RELOADED', text: msg('dock.reason.reloadNeeded') }
+        : { id: 'host-degraded', code: 'CG-HOST-NOT-READY', text: msg('popup.needsChatSpace') }
+      : null;
   const surface = (name: 'spenders' | 'newcomers' | 'cheatsheet'): UiAction => ({ type: 'Navigate', to: { kind: 'surface', surface: name, open: true } });
   return {
     view,

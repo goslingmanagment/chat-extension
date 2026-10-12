@@ -6,7 +6,7 @@
 // has no ChatSpace variables, so the tokens' fallback values are what shows.
 //
 //   ?page=popup|options|debug-prompt|debug-journal
-//   &state=working|troubled|unreachable|signed-out|first-run|read-only|debug|no-chatspace|same-title|long-title
+//   &state=working|troubled|unreachable|signed-out|first-run|read-only|debug|no-chatspace|stale-tabs|same-title|long-title
 //   &theme=light|dark|system  &lang=ru|en  &platform=mac|win  &token=…
 // The hash is the page's own: `#appearance`, `#status:CG-QUOTA-DAILY`,
 // `#hub-calls` (the journal). `window.__pages` gives the e2e what it checks.
@@ -59,9 +59,14 @@ function stateOf(name: string): BackgroundState {
   if (name === 'first-run') state.settings = { ...state.settings, onboarding: { ...state.settings.onboarding, checklistDismissed: false, lastSeenVersion: '0.4.2' } };
   if (name === 'read-only') state.readOnly = true;
   if (name === 'debug') state.settings = { ...state.settings, debug: { enabled: true, renderTrace: false } };
-  if (name === 'no-chatspace') {
+  if (name === 'no-chatspace' || name === 'stale-tabs') {
     state.diagnostics = { ...state.diagnostics, tabs: [], sound: { ...state.diagnostics.sound, listeningTabs: 0 } };
     state.accounts = state.accounts.map((entry) => ({ ...entry, openTabs: 0, routeTabs: 0 }));
+  }
+  // A ChatSpace tab opened before the update: still there, but its old script talks to nobody until it is reloaded.
+  if (name === 'stale-tabs') {
+    const updated = state.diagnostics.extension.updated;
+    if (updated !== undefined) state.diagnostics = { ...state.diagnostics, extension: { ...state.diagnostics.extension, updated: { ...updated, staleTabs: 1 } } };
   }
   state.settings = { ...state.settings, ui: { ...state.settings.ui, theme, locale: language } };
   return state;

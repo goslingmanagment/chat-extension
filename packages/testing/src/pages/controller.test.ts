@@ -179,6 +179,19 @@ describe('popup view model', () => {
     expect(vm.pills.host).toBe('closed');
     expect(vm.buttons.slice(0, 3).every((button) => !button.enabled && button.reason?.text.key === 'popup.needsChatSpace')).toBe(true);
     expect(vm.buttons[3]?.enabled).toBe(true);
+    expect(vm.problems.map((problem) => problem.code)).not.toContain('CG-RUNTIME-RELOADED');
+  });
+
+  it('[PU-017] a ChatSpace tab left from the build before the update is not «no tab»: the reason is the reload, and the popup says so', async () => {
+    const stale = workingState();
+    const updated = { at: '2026-10-03T06:02:00.000Z', from: '0.4.2', staleTabs: 1 };
+    stale.diagnostics = { ...stale.diagnostics, tabs: [], extension: { ...stale.diagnostics.extension, updated } };
+    const w = await open({ page: 'popup', state: stale });
+    const vm = w.client.getSnapshot({ of: 'popup' });
+    expect(vm.pills.host).toBe('closed');
+    expect(vm.problems.map((problem) => problem.code)).toContain('CG-RUNTIME-RELOADED');
+    expect(vm.buttons.slice(0, 3).map((button) => [button.enabled, button.reason?.code, button.reason?.text.key])).toEqual(Array(3).fill([false, 'CG-RUNTIME-RELOADED', 'dock.reason.reloadNeeded']));
+    expect(vm.buttons[3]?.enabled).toBe(true);
   });
 
   it('[PU-011] «Что нового» and «История версий» open the site pages over https', async () => {
