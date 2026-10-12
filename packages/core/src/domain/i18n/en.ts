@@ -983,7 +983,7 @@ export const EN: I18nCatalog<'en'> = {
   'settings.personas.syncedAt': 'The catalog was refreshed at {time}',
   'settings.personas.syncNever': 'The catalog has not been loaded yet',
   'settings.personas.syncNow': 'Check the connection and refresh',
-  'settings.personas.toAccounts': 'To accounts →',
+  'settings.personas.toAccounts': 'To accounts',
   'settings.personas.onIt': 'used by: {pages}',
   'settings.personas.unused': 'no pages',
   'settings.personas.archivedTag': 'archived',

@@ -9,7 +9,7 @@ import { PAGE_CHUNK_GROUPS, PAGE_ENTRY_NAMES, splitPageChunks, type PageBuildCon
 const groupOf = (id: string): string | null => PAGE_CHUNK_GROUPS.find((group) => group.test(id))?.name ?? null;
 
 describe('the chunks of the extension pages', () => {
-  it('the catalogs go to the texts, contracts and zod to the contracts, everything else stays with the pages', () => {
+  it('the catalogs go to the texts, contracts and zod to the contracts, the typefaces and drawings to the brand, everything else stays with the pages', () => {
     expect(groupOf('/repo/packages/core/src/domain/i18n/ru.ts')).toBe('page-texts');
     expect(groupOf('/repo/packages/core/src/domain/i18n/en.ts')).toBe('page-texts');
     expect(groupOf('C:\\repo\\packages\\core\\src\\domain\\i18n\\ru.ts')).toBe('page-texts');
@@ -18,6 +18,9 @@ describe('the chunks of the extension pages', () => {
     expect(groupOf('/repo/packages/contracts/src/tab-messages.ts')).toBe('page-contracts');
     expect(groupOf('/repo/node_modules/.pnpm/zod@4.6.5/node_modules/zod/v4/mini/schemas.js')).toBe('page-contracts');
     expect(groupOf('/repo/node_modules/zod/v4/core/core.js')).toBe('page-contracts');
+    expect(groupOf('/repo/packages/ui/src/pages/brand/fonts.ts')).toBe('page-brand');
+    expect(groupOf('/repo/packages/ui/src/pages/brand/art.tsx')).toBe('page-brand');
+    expect(groupOf('C:\\repo\\packages\\ui\\src\\pages\\brand\\fonts.ts')).toBe('page-brand');
     expect(groupOf('/repo/packages/ui/src/pages/Popup.tsx')).toBeNull();
     expect(groupOf('/repo/packages/core/src/application/pages/client.ts')).toBeNull();
     expect(groupOf('/repo/node_modules/.pnpm/preact@11.0.0/node_modules/preact/dist/preact.mjs')).toBeNull();

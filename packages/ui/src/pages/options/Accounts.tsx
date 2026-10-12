@@ -36,42 +36,47 @@ function AccountRow({ row, readOnly }: { readonly row: Row; readonly readOnly: b
           <ActionButton vm={row.goTo} variant="line" />
         </span>
       </div>
+      {/* The facts in one line, each its name over its value; the person's own label last, where it is typed (X32). */}
       <dl class="pg-acc__grid">
+        <div class="pg-acc__fact">
+          <dt>{i18n.t('settings.accounts.hubPage')}</dt>
+          <dd class={row.pageName === null ? 'pg-muted' : 'pg-value'}>
+            {row.pageName ?? i18n.t('settings.accounts.pageNone')}
+            {row.pageName === null ? null : <PageTag tag={row.page} />}
+          </dd>
+        </div>
+        <div class="pg-acc__fact">
+          <dt>{i18n.t('settings.accounts.persona')}</dt>
+          <dd class={row.persona === null ? 'pg-muted' : 'pg-value'}>{row.persona ?? i18n.t('settings.personas.none')}</dd>
+        </div>
         {hosted ? (
           <>
-            <dt>{i18n.t('settings.accounts.label')}</dt>
-            <dd>
-              <Field
-                label={i18n.t('settings.accounts.label')}
-                value={row.localLabel ?? ''}
-                placeholder={i18n.t('settings.accounts.labelPlaceholder')}
-                maxLength={60}
-                reason={locked}
-                onInput={(value) => void act({ type: 'SetAccountLabel', accountHandle: row.accountHandle, label: value.trim() === '' ? null : value.trim().slice(0, 60) }, { quiet: true })}
-              />
-            </dd>
-          </>
-        ) : null}
-        <dt>{i18n.t('settings.accounts.hubPage')}</dt>
-        <dd class={row.pageName === null ? 'pg-muted' : 'pg-value'}>
-          {row.pageName ?? i18n.t('settings.accounts.pageNone')}
-          {row.pageName === null ? null : <PageTag tag={row.page} />}
-        </dd>
-        <dt>{i18n.t('settings.accounts.persona')}</dt>
-        <dd class={row.persona === null ? 'pg-muted' : 'pg-value'}>{row.persona ?? i18n.t('settings.personas.none')}</dd>
-        {hosted ? (
-          <>
-            <dt>{i18n.t('settings.accounts.sound')}</dt>
-            <dd>
-              <Checkbox
-                label={i18n.t('settings.accounts.sound')}
-                stateWord={i18n.t('settings.accounts.soundOn')}
-                checked={!row.muted}
-                size={14}
-                reason={locked}
-                onChange={(on) => void act({ type: 'SetAccountMuted', accountHandle: row.accountHandle, muted: !on }, { quiet: true })}
-              />
-            </dd>
+            <div class="pg-acc__fact">
+              <dt>{i18n.t('settings.accounts.sound')}</dt>
+              <dd>
+                <Checkbox
+                  label={i18n.t('settings.accounts.sound')}
+                  stateWord={i18n.t('settings.accounts.soundOn')}
+                  checked={!row.muted}
+                  size={14}
+                  reason={locked}
+                  onChange={(on) => void act({ type: 'SetAccountMuted', accountHandle: row.accountHandle, muted: !on }, { quiet: true })}
+                />
+              </dd>
+            </div>
+            <div class="pg-acc__fact pg-acc__fact--label">
+              <dt>{i18n.t('settings.accounts.label')}</dt>
+              <dd>
+                <Field
+                  label={i18n.t('settings.accounts.label')}
+                  value={row.localLabel ?? ''}
+                  placeholder={i18n.t('settings.accounts.labelPlaceholder')}
+                  maxLength={60}
+                  reason={locked}
+                  onInput={(value) => void act({ type: 'SetAccountLabel', accountHandle: row.accountHandle, label: value.trim() === '' ? null : value.trim().slice(0, 60) }, { quiet: true })}
+                />
+              </dd>
+            </div>
           </>
         ) : null}
       </dl>
@@ -86,14 +91,14 @@ export function AccountsSection({ body, readOnly }: { readonly body: AccountsBod
   if (body.rows.length === 0) return <p class="pg-note">{i18n.t('settings.accounts.empty')}</p>;
   return (
     <>
-      <p class="pg-note" style={{ margin: 0 }}>
+      <p class="pg-note pg-intro">
         {i18n.t('settings.accounts.count', { live, total: hosted.length })} · {i18n.t('settings.accounts.workingHint')} {i18n.t('settings.accounts.labelHint')}.
       </p>
       {GROUPS.map(([status, key]) => {
         const rows = body.rows.filter((row) => row.status === status);
         if (rows.length === 0) return null;
         return (
-          <section key={status} aria-label={i18n.t(key)}>
+          <section key={status} class="pg-card" aria-label={i18n.t(key)}>
             <h2 class="pg-group">{i18n.t(key)}</h2>
             {rows.map((row) => (
               <AccountRow key={row.accountHandle} row={row} readOnly={readOnly} />

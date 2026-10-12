@@ -9,3 +9,4 @@ export { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mount
 export { type OptionsRoute } from './options/Options';
 export { JOURNAL_PAGE_SIZE, JOURNAL_REFRESH_MS } from './debug/Journal';
 export { PAGES_CSS, PAGES_SOURCE } from './styles';
+export { FONTS_SOURCE } from './brand/fonts';

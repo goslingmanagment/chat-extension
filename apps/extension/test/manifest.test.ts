@@ -128,7 +128,7 @@ describe('release manifest (§3)', () => {
     expect(release.manifest['content_security_policy']).toBeUndefined();
   });
 
-  it('[EX-016] the build ships the four pages, each loading the pages’ three chunks — the texts, the contracts, the pages — none over the size of a foreign bundle', () => {
+  it('[EX-016] the build ships the four pages, each loading the pages’ four chunks — the texts, the contracts, the brand, the pages — none over the size of a foreign bundle', () => {
     const chunks = readdirSync(join(release.dir, 'chunks'));
     for (const group of PAGE_CHUNK_GROUPS) expect(chunks.filter((file) => file.startsWith(`${group.name}-`)), group.name).toHaveLength(1);
     for (const file of chunks) expect(statSync(join(release.dir, 'chunks', file)).size, file).toBeLessThanOrEqual(MAX_PAGE_JS_BYTES);

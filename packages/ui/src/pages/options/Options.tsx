@@ -5,13 +5,14 @@
 // two seconds. «Сохранено ✓» appears only when the background confirmed the
 // write. While nobody is signed in the sign-in screen stands here instead.
 
-import { type JSX } from 'preact';
+import { type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { type CgCode, type I18nKey, type SettingsRoute, type SettingsSection } from '@cg/contracts/errors';
 import { type OptionsVM, type SaveStateVM, type ValueSignal } from '@cg/contracts/vm';
 
-import { ActionButton, Button, CodeLine, Dot, ErrorCard, GooseMark, Icon, Spinner, useI18n, useReducedMotion, useValueSignal, useView } from '../../kit';
+import { ActionButton, Button, CodeLine, Dot, ErrorCard, Icon, Spinner, useI18n, useReducedMotion, useValueSignal, useView } from '../../kit';
+import { ChatGooseLogo } from '../brand/art';
 import { PageLayers, useAct } from '../shared';
 import { AccountSection, SignInScreen } from './Account';
 import { AccountsSection } from './Accounts';
@@ -147,9 +148,7 @@ function Nav({ vm, onGo }: { readonly vm: OptionsVM; readonly onGo: (section: Se
   return (
     <nav class="pg-nav" aria-label={i18n.t('settings.nav.label')}>
       <div class="pg-brand">
-        <GooseMark size={24} />
-        <b>{i18n.t('dock.label')}</b>
-        <span>{vm.version}</span>
+        <ChatGooseLogo class="pg-logo" />
       </div>
       {vm.nav.map((item) => (
         <a
@@ -191,12 +190,13 @@ function Nav({ vm, onGo }: { readonly vm: OptionsVM; readonly onGo: (section: Se
   );
 }
 
-function Section({ vm, anchor }: { readonly vm: OptionsVM; readonly anchor: string | null }): JSX.Element | null {
+function Section({ vm, anchor, checklist }: { readonly vm: OptionsVM; readonly anchor: string | null; readonly checklist: ComponentChildren }): JSX.Element | null {
   // `section` and `body` come as a pair (OptionsVM is correlated by section).
   if (vm.body === null) return null;
   switch (vm.section) {
     case 'status':
-      return <StatusSection body={vm.body} />;
+      // The verdict first, the first-run steps under it (X32).
+      return <StatusSection body={vm.body} checklist={checklist} />;
     case 'account':
       return <AccountSection body={vm.body} signIn={vm.signIn} anchor={anchor} />;
     case 'personas':
@@ -287,7 +287,7 @@ export function Options({ location, helpUrl = null }: OptionsProps): JSX.Element
     <div class="pg-page" data-pg-section={vm.section}>
       <Nav vm={vm} onGo={go} />
       <main ref={main} class="pg-main" aria-label={i18n.t('settings.label')}>
-        {/* A window of 860 px or less has no section column: the sections are a list above the title (ui-design §10). */}
+        {/* A window of 640 px or less has no section column: the sections are a list above the title (ui-design §10). */}
         <div class="pg-select">
           <Picker
             label={i18n.t('settings.nav.label')}
@@ -330,7 +330,8 @@ export function Options({ location, helpUrl = null }: OptionsProps): JSX.Element
             <Button label={i18n.t('common.close')} variant="quiet" icon="x" iconOnly onClick={() => go(vm.section)} />
           </div>
         )}
-        {vm.checklist !== null && vm.section === 'status' ? <Checklist checklist={vm.checklist} /> : null}
+        {/* Before «Статус» has its body (loading, a failure) the first-run steps stand on their own. */}
+        {vm.checklist !== null && vm.section === 'status' && vm.body === null ? <Checklist checklist={vm.checklist} /> : null}
         {view.s === 'loading' ? (
           <div class="cg-state cg-state--loading" role="status" aria-busy="true" style={{ paddingLeft: 0 }}>
             <Spinner />
@@ -348,7 +349,7 @@ export function Options({ location, helpUrl = null }: OptionsProps): JSX.Element
             {view.retry === null ? null : <Button label={i18n.t('common.retry')} variant="line" onClick={() => void act(view.retry ?? { type: 'RecheckStatus' }, { quiet: true })} />}
           </ErrorCard>
         ) : null}
-        <Section vm={vm} anchor={anchor} />
+        <Section vm={vm} anchor={anchor} checklist={vm.checklist === null ? null : <Checklist checklist={vm.checklist} />} />
       </main>
       <PageLayers />
     </div>

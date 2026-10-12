@@ -10,8 +10,8 @@ import { SETTINGS_RANGES, UI_LOCALES, UI_THEMES, type ToneId, type UiLocale, typ
 import { type AppearanceBodyVM } from '@cg/contracts/vm';
 
 import { Button, Checkbox, Dot, Segmented, useI18n } from '../../kit';
-import { Opt, useAct, withLink } from '../shared';
-import { Picker, Slider, StyleChoice } from './controls';
+import { Card, Opt, useAct, withLink } from '../shared';
+import { Picker, Slider, StyleChoice, ThemeChoice } from './controls';
 
 const THEME_KEYS: Readonly<Record<UiTheme, I18nKey>> = {
   host: 'settings.appearance.theme.host',
@@ -120,62 +120,65 @@ export function AppearanceSection({ body, readOnly }: { readonly body: Appearanc
   const scheme = i18n.t(body.systemScheme === 'dark' ? 'settings.appearance.scheme.dark' : 'settings.appearance.scheme.light');
   return (
     <>
-      <Opt label={i18n.t('settings.appearance.resultStyle')} hint={i18n.t('settings.appearance.resultStyleHint')}>
-        <StyleChoice
-          label={i18n.t('settings.appearance.resultStyle')}
-          value={body.resultStyle}
-          labels={{ bare: i18n.t('settings.appearance.resultStyle.bare'), sheet: i18n.t('settings.appearance.resultStyle.sheet') }}
-          reason={locked}
-          onChange={(value) => void act({ type: 'SetPreference', key: 'ui.resultStyle', value }, { quiet: true })}
-        />
-      </Opt>
-      <Opt label={i18n.t('settings.appearance.theme')} hint={i18n.t('settings.appearance.themeHint')}>
-        <Segmented
-          label={i18n.t('settings.appearance.theme')}
-          size="md"
-          value={body.theme}
-          options={UI_THEMES.map((value) => ({ value, label: i18n.t(THEME_KEYS[value]), reason: locked }))}
-          onChange={(value) => void act({ type: 'SetPreference', key: 'ui.theme', value }, { quiet: true })}
-        />
-        <div class="pg-sub">{i18n.t('settings.appearance.theme.systemNow', { scheme })}</div>
-      </Opt>
-      <Opt label={i18n.t('settings.appearance.locale')} hint={i18n.t('settings.appearance.localeHint')}>
-        <Segmented
-          label={i18n.t('settings.appearance.locale')}
-          size="md"
-          value={body.locale}
-          options={UI_LOCALES.map((value) => ({ value, label: i18n.t(LOCALE_KEYS[value]), reason: locked }))}
-          onChange={(value) => void act({ type: 'SetPreference', key: 'ui.locale', value }, { quiet: true })}
-        />
-      </Opt>
-      <Opt label={i18n.t('settings.appearance.hints')} hint={i18n.t('settings.appearance.hintsHint')}>
-        <Checkbox
-          label={i18n.t('settings.appearance.hints')}
-          stateWord={i18n.t('settings.appearance.hintsOn')}
-          checked={body.hints}
-          size={14}
-          reason={locked}
-          onChange={(value) => void act({ type: 'SetPreference', key: 'ui.hints', value }, { quiet: true })}
-        />
-        <div class="pg-sub">{i18n.t('settings.appearance.hintsNote')}</div>
-      </Opt>
+      <Card>
+        <Opt label={i18n.t('settings.appearance.resultStyle')} hint={i18n.t('settings.appearance.resultStyleHint')}>
+          <StyleChoice
+            label={i18n.t('settings.appearance.resultStyle')}
+            value={body.resultStyle}
+            labels={{ bare: i18n.t('settings.appearance.resultStyle.bare'), sheet: i18n.t('settings.appearance.resultStyle.sheet') }}
+            reason={locked}
+            onChange={(value) => void act({ type: 'SetPreference', key: 'ui.resultStyle', value }, { quiet: true })}
+          />
+        </Opt>
+        <Opt label={i18n.t('settings.appearance.theme')} hint={i18n.t('settings.appearance.themeHint')}>
+          <ThemeChoice
+            label={i18n.t('settings.appearance.theme')}
+            value={body.theme}
+            options={UI_THEMES.map((value) => ({ value, label: i18n.t(THEME_KEYS[value]) }))}
+            reason={locked}
+            onChange={(value) => void act({ type: 'SetPreference', key: 'ui.theme', value }, { quiet: true })}
+          />
+          <div class="pg-sub">{i18n.t('settings.appearance.theme.systemNow', { scheme })}</div>
+        </Opt>
+        <Opt label={i18n.t('settings.appearance.locale')} hint={i18n.t('settings.appearance.localeHint')}>
+          <Segmented
+            label={i18n.t('settings.appearance.locale')}
+            size="md"
+            value={body.locale}
+            options={UI_LOCALES.map((value) => ({ value, label: i18n.t(LOCALE_KEYS[value]), reason: locked }))}
+            onChange={(value) => void act({ type: 'SetPreference', key: 'ui.locale', value }, { quiet: true })}
+          />
+        </Opt>
+        <Opt label={i18n.t('settings.appearance.hints')} hint={i18n.t('settings.appearance.hintsHint')}>
+          <Checkbox
+            label={i18n.t('settings.appearance.hints')}
+            stateWord={i18n.t('settings.appearance.hintsOn')}
+            checked={body.hints}
+            size={14}
+            reason={locked}
+            onChange={(value) => void act({ type: 'SetPreference', key: 'ui.hints', value }, { quiet: true })}
+          />
+          <div class="pg-sub">{i18n.t('settings.appearance.hintsNote')}</div>
+        </Opt>
+      </Card>
 
-      <h2 class="pg-h2">{i18n.t('settings.appearance.sounds')}</h2>
-      <SoundRow which="messages" label={i18n.t('settings.appearance.soundMessage')} hint={i18n.t('settings.appearance.soundMessageHint')} body={body} locked={locked} />
-      <SoundRow which="subscribers" label={i18n.t('settings.appearance.soundSubscriber')} hint={i18n.t('settings.appearance.soundSubscriberHint')} body={body} locked={locked} />
-      <Opt label={i18n.t('settings.appearance.volume')} hint={i18n.t('settings.appearance.volumeHint')} center>
-        <Slider
-          label={i18n.t('settings.appearance.volume')}
-          value={body.sound.volume}
-          {...SETTINGS_RANGES.volume}
-          reason={locked}
-          onChange={(value) => void act({ type: 'SetPreference', key: 'sound.volume', value }, { quiet: true })}
-        />
-      </Opt>
-      <SoundState body={body} />
-      <Opt label={i18n.t('settings.appearance.notifications')} hint={i18n.t('settings.appearance.notificationsHint')}>
-        {i18n.t('settings.appearance.notificationsText')}
-      </Opt>
+      <Card title={i18n.t('settings.appearance.sounds')}>
+        <SoundRow which="messages" label={i18n.t('settings.appearance.soundMessage')} hint={i18n.t('settings.appearance.soundMessageHint')} body={body} locked={locked} />
+        <SoundRow which="subscribers" label={i18n.t('settings.appearance.soundSubscriber')} hint={i18n.t('settings.appearance.soundSubscriberHint')} body={body} locked={locked} />
+        <Opt label={i18n.t('settings.appearance.volume')} hint={i18n.t('settings.appearance.volumeHint')} center>
+          <Slider
+            label={i18n.t('settings.appearance.volume')}
+            value={body.sound.volume}
+            {...SETTINGS_RANGES.volume}
+            reason={locked}
+            onChange={(value) => void act({ type: 'SetPreference', key: 'sound.volume', value }, { quiet: true })}
+          />
+        </Opt>
+        <SoundState body={body} />
+        <Opt label={i18n.t('settings.appearance.notifications')} hint={i18n.t('settings.appearance.notificationsHint')}>
+          {i18n.t('settings.appearance.notificationsText')}
+        </Opt>
+      </Card>
     </>
   );
 }

@@ -665,8 +665,18 @@ describe('options: the sections', () => {
     const page = await mount('options', { hash: '#appearance', scheme: 'dark' });
     expect(page.text()).toContain('Система сейчас — тёмная');
     expect(document.documentElement.getAttribute(SCHEME_ATTRIBUTE)).toBe('dark');
+    // The theme is four cards with a miniature (X32), a radio group whose cards carry their names alone.
+    const themes = page.$('[role="radiogroup"][aria-label="Тема"]');
+    expect([...(themes?.querySelectorAll('[role="radio"]') ?? [])].map((card) => [card.textContent, card.getAttribute('aria-checked')])).toEqual([
+      ['Как в ChatSpace', 'true'],
+      ['Как в системе', 'false'],
+      ['Светлая', 'false'],
+      ['Тёмная', 'false'],
+    ]);
+    expect(themes?.querySelectorAll('.pg-tmini')).toHaveLength(4);
     await flush(() => button(page, 'Светлая').click());
     expect(document.documentElement.getAttribute(SCHEME_ATTRIBUTE)).toBe('light');
+    expect(page.$('[role="radiogroup"][aria-label="Тема"] [aria-checked="true"]')?.textContent).toBe('Светлая');
     await flush(() => button(page, 'English').click());
     expect(page.world.i18n.language).toBe('en');
     expect(page.$('main h1')?.textContent).toBe(page.world.i18n.t('settings.section.appearance'));
@@ -676,7 +686,7 @@ describe('options: the sections', () => {
 
   it('[ST-124] [ST-126] [ST-127] [ST-130] «Вид ответа» cards, the sounds with their tones, the volume', async () => {
     const page = await mount('options', { hash: '#appearance' });
-    const cards = page.$$('[role="radio"]');
+    const cards = page.$$('[role="radiogroup"][aria-label="Вид ответа"] [role="radio"]');
     expect(cards.map((card) => card.getAttribute('aria-checked'))).toEqual(['true', 'false']);
     await flush(() => cards[1]?.click());
     expect(page.world.state.settings.ui.resultStyle).toBe('sheet');
@@ -913,7 +923,7 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     expect(page.text()).not.toContain('hub.example.test/account');
   });
 
-  it('[ST-063] [ST-064] [ST-065] «Персоны»: when the catalog was read, «Проверить связь и обновить», «К аккаунтам →», and an honest empty catalog', async () => {
+  it('[ST-063] [ST-064] [ST-065] «Персоны»: when the catalog was read, «Проверить связь и обновить», «К аккаунтам», and an honest empty catalog', async () => {
     const page = await mount('options', { hash: '#personas' });
     expect(page.text()).toContain('Каталог обновлён в 09:20');
     await flush(() => button(page, 'К аккаунтам').click());
@@ -1174,5 +1184,41 @@ describe('debug pages (§9.3)', () => {
     expect(page.text()).toContain('Запуски проверки');
     expect(page.text()).toContain('событий: 214');
     expect(page.text()).toContain('Записей пока нет.');
+  });
+});
+
+describe('the pages in the agency identity (X32)', () => {
+  it('the popup: the logo, the persona’s name first, the facts on one card, «Настройки» the only primary', async () => {
+    const page = await mount('popup');
+    expect(page.$('.pg-popup__head svg.pg-logo')?.getAttribute('aria-label')).toBe('ChatGoose');
+    expect(page.$('.pg-popup__hero .pg-popup__line > b')?.textContent).toBe('Лора · VIP');
+    expect(page.$$('.pg-popup__card > .pg-popup__sec')).toHaveLength(3);
+    expect(page.$$('.pg-popup__btns .pg-primary').map((node) => (node.textContent ?? '').trim())).toEqual(['Настройки']);
+    // The odd one out among the rest is short: «Spenders» and «Новые» share a row, «Клавиши» stands beside «Настройки».
+    expect(page.$$('.pg-popup__btns .pg-popup__short').map((node) => (node.textContent ?? '').trim())).toEqual(['Клавиши?']);
+  });
+
+  it('[ST-020] «Статус»: the verdict on the stage with the goslings, the steps under it, the rows in two columns', async () => {
+    const page = await mount('options', { before: (world) => (world.state.settings = { ...world.state.settings, onboarding: { ...world.state.settings.onboarding, checklistDismissed: false } }) });
+    expect(page.$('.pg-nav svg.pg-logo')).not.toBeNull();
+    const main = page.$('main');
+    const order = [...(main?.querySelectorAll('.pg-sum, .pg-check, .pg-grid') ?? [])].map((node) => node.className.split(' ')[0]);
+    expect(order).toEqual(['pg-sum', 'pg-check', 'pg-grid']);
+    expect(page.$('.pg-sum[data-pg-readiness="ready"] svg.pg-art')).not.toBeNull();
+    const column = (index: number): string[] => [...(page.$$('.pg-grid > .pg-col')[index]?.querySelectorAll('[data-pg-row]') ?? [])].map((row) => row.getAttribute('data-pg-row') ?? '');
+    expect(column(0)).toEqual(['chatspace', 'hub', 'account', 'binding', 'persona', 'quota']);
+    expect(column(1)).toEqual(expect.arrayContaining(['extension', 'last-error', 'support', 'running', 'spenders', 'sound', 'preview-send']));
+  });
+
+  it('[ST-020] a service row that needs the person joins the main column', async () => {
+    const page = await mount('options', { state: troubledState() });
+    expect(page.$('.pg-sum')?.getAttribute('data-pg-readiness')).toBe('actions-needed');
+    expect(page.$('.pg-sum svg.pg-art--lost')).not.toBeNull();
+    const main = [...(page.$$('.pg-grid > .pg-col')[0]?.querySelectorAll('[data-pg-row]') ?? [])];
+    // Whatever is in the main column, every warning and every failure is there.
+    for (const row of page.$$('[data-pg-row]')) {
+      const level = row.getAttribute('data-pg-level');
+      if ((level === 'warn' || level === 'error') && row.getAttribute('data-pg-row') !== 'last-error') expect(main, row.getAttribute('data-pg-row') ?? '').toContain(row);
+    }
   });
 });

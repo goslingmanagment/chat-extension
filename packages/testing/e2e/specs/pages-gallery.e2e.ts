@@ -112,15 +112,35 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       await open(`page=options&state=working&theme=${theme}`, DESKTOP, 1, '#status');
       await capture(`pages-options-21a-${theme}`, 'viewport');
       expectHealthy(await probe(), theme);
-      // The shell of ui-design §3.10: a 248 px section column, the content no wider than 760 px.
-      const shell = await browser.execute(() => ({
-        nav: document.querySelector('.pg-nav')?.getBoundingClientRect().width ?? 0,
-        title: document.querySelector('.pg-h1')?.getBoundingClientRect().left ?? 0,
-        rows: Math.max(...[...document.querySelectorAll('.pg-row')].map((row) => row.getBoundingClientRect().width)),
-      }));
-      expect(shell.nav).toBe(248);
-      expect(shell.title).toBe(248 + 40);
-      expect(shell.rows).toBeLessThanOrEqual(760);
+      // The shell of ui-design §3.10 (X32): a 264 px section column, the section 48 px from it and no wider than 1040 px.
+      const shell = await browser.execute(async () => {
+        await document.fonts.ready;
+        // The brand's typefaces travel inside the package (an adopted sheet of data): a word set in the face is as wide as
+        // the face draws it, not as the fallback would — so Firefox has the face, and nothing was fetched for it.
+        const width = (font: string): number => {
+          const probe = document.createElement('span');
+          probe.style.cssText = 'position: absolute; visibility: hidden; white-space: nowrap;';
+          probe.style.font = font;
+          probe.textContent = 'Готово к смене';
+          document.body.append(probe);
+          const result = probe.getBoundingClientRect().width;
+          probe.remove();
+          return result;
+        };
+        const drawn = (size: string, family: string): boolean => Math.abs(width(`${size} ${family}, monospace`) - width(`${size} monospace`)) > 1;
+        return {
+          nav: document.querySelector('.pg-nav')?.getBoundingClientRect().width ?? 0,
+          title: document.querySelector('.pg-h1')?.getBoundingClientRect().left ?? 0,
+          rows: Math.max(...[...document.querySelectorAll('.pg-row')].map((row) => row.getBoundingClientRect().width)),
+          display: drawn('800 40px', 'Literata') && getComputedStyle(document.querySelector('.pg-h1') ?? document.body).fontFamily.replace(/"/g, '').startsWith('Literata'),
+          text: drawn('400 15px', '"Golos Text"') && getComputedStyle(document.querySelector('.pg-row__v') ?? document.body).fontFamily.replace(/"/g, '').startsWith('Golos Text'),
+        };
+      });
+      expect(shell.nav).toBe(264);
+      expect(shell.title).toBe(264 + 48);
+      expect(shell.rows).toBeLessThanOrEqual(1040);
+      expect(shell.display).toBe(true);
+      expect(shell.text).toBe(true);
     });
 
     it(`[ST-122] settings, «Вид и звук» (final-21b) · ${theme}`, async () => {
@@ -128,7 +148,9 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       await capture(`pages-options-21b-${theme}`, 'viewport');
       await capture(`pages-options-21b-${theme}-full`);
       expectHealthy(await probe(), theme);
-      expect(await count('[role="radiogroup"] [role="radio"]')).toBe(2);
+      // «Вид ответа» — two cards; «Тема» — four, each with its miniature (X32).
+      expect(await count('[role="radiogroup"][aria-label="Вид ответа"] [role="radio"]')).toBe(2);
+      expect(await count('[role="radiogroup"][aria-label="Тема"] [role="radio"] .pg-tmini')).toBe(4);
     });
   }
 
@@ -138,11 +160,11 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
       await capture(`pages-popup-long-title-${theme}`);
       expectHealthy(await probe(), theme);
       const boxes = await browser.execute(() => {
-        const box = (selector: string): { left: number; right: number; width: number; scrollWidth: number; clientWidth: number } | null => {
+        const box = (selector: string): { left: number; right: number; top: number; bottom: number; width: number; scrollWidth: number; clientWidth: number } | null => {
           const node = document.querySelector<HTMLElement>(selector);
           if (node === null) return null;
           const rect = node.getBoundingClientRect();
-          return { left: rect.left, right: rect.right, width: rect.width, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth };
+          return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth };
         };
         return {
           popup: box('.pg-popup'),
@@ -161,12 +183,13 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
         expect(piece.right).toBeLessThanOrEqual(line.right + 0.5);
       }
       expect(line.right).toBeLessThanOrEqual(360);
-      // The name keeps most of its row; the title keeps its share; each of the three is cut with «…», not dropped.
+      // The name in the display face has a line of its own (X32), the title the next one: each keeps the row's width
+      // and is cut with «…», not dropped.
       expect(name.width).toBeGreaterThan(line.width * 0.5);
       expect(aside.width).toBeGreaterThanOrEqual(line.width * 0.3 - 1);
       for (const piece of [name, aside, under]) expect(piece.scrollWidth).toBeGreaterThan(piece.clientWidth);
-      // The name and the title do not overlap.
-      expect(name.right).toBeLessThanOrEqual(aside.left + 0.5);
+      // The name and the title do not overlap: the title is under the name.
+      expect(name.bottom).toBeLessThanOrEqual(aside.top + 0.5);
       // What «…» hides is said in full on hover.
       expect(await browser.execute(() => document.querySelector('.pg-popup__under')?.getAttribute('title'))).toMatch(/^OnlyFans · lora-vie-official-and-only-page-with-a-very-long-hub-label-2026$/);
     });
@@ -219,16 +242,19 @@ describe('extension pages: the popup, the settings, the debug pages (ui-design �
     });
   }
 
-  it('[ST-001] settings at 820 px, 320 px and 200 % zoom: one column, the sections in a list, nothing sticks out', async () => {
+  it('[ST-001] settings at 820 px, 320 px and 200 % zoom: half a screen keeps a narrower column of sections, a phone gets the list; nothing sticks out', async () => {
     for (const section of SECTIONS) {
       await open('page=options&state=first-run&theme=light', NARROW, 1, `#${section}`);
       if (section === 'status' || section === 'appearance') await capture(`pages-options-${section}-w820`);
       expectHealthy(await probe(), 'light');
-      expect(await browser.execute(() => getComputedStyle(document.querySelector('.pg-nav') as Element).display)).toBe('none');
-      expect(await browser.execute(() => getComputedStyle(document.querySelector('.pg-select') as Element).display)).toBe('block');
+      // X32: a window of half a screen keeps the column of sections, 212 px; only 640 px or less turns it into the list.
+      expect(await browser.execute(() => document.querySelector('.pg-nav')?.getBoundingClientRect().width)).toBe(212);
+      expect(await browser.execute(() => getComputedStyle(document.querySelector('.pg-select') as Element).display)).toBe('none');
       await open('page=options&state=first-run&theme=dark', PHONE, 1, `#${section}`);
       if (section === 'status' || section === 'appearance' || section === 'accounts') await capture(`pages-options-${section}-w320`);
       expectHealthy(await probe(), 'dark');
+      expect(await browser.execute(() => getComputedStyle(document.querySelector('.pg-nav') as Element).display)).toBe('none');
+      expect(await browser.execute(() => getComputedStyle(document.querySelector('.pg-select') as Element).display)).toBe('block');
       await open('page=options&state=working&theme=light', DESKTOP, 2, `#${section}`);
       if (section === 'status' || section === 'appearance') await capture(`pages-options-${section}-z200`);
       expectHealthy(await probe(), 'light');

@@ -226,6 +226,43 @@ export function Opt({
   );
 }
 
+/**
+ * A card of a settings section (X32, after the Fansly extension's settings): paper-white on the page's paper, the
+ * title in the display face, the rows inside. A wide section sets its cards in `Columns`.
+ */
+export function Card({
+  title,
+  lead,
+  anchor,
+  class: extra,
+  children,
+}: {
+  readonly title?: string | null;
+  readonly lead?: ComponentChildren;
+  /** The name a deep link's code points at (ST-010). */
+  readonly anchor?: string;
+  readonly class?: string;
+  readonly children?: ComponentChildren;
+}): JSX.Element {
+  return (
+    <section class={extra === undefined ? 'pg-card' : `pg-card ${extra}`} {...(anchor === undefined ? {} : { 'data-pg-anchor': anchor })}>
+      {title === undefined || title === null ? null : <h2 class="pg-h2">{title}</h2>}
+      {lead === undefined || lead === null ? null : <p class="pg-card__lead">{lead}</p>}
+      {children}
+    </section>
+  );
+}
+
+/** The main column and a quieter one beside it (one column in a window narrower than 1180 px). */
+export function Columns({ main, aside, even }: { readonly main: ComponentChildren; readonly aside: ComponentChildren; readonly even?: boolean }): JSX.Element {
+  return (
+    <div class={even === true ? 'pg-grid pg-grid--even' : 'pg-grid'}>
+      <div class="pg-col">{main}</div>
+      <div class="pg-col">{aside}</div>
+    </div>
+  );
+}
+
 /** The platforms this build has a word for; a token it does not know is printed as it is (an open token of the hub). */
 const PLATFORM_WORDS: Readonly<Record<string, string>> = { onlyfans: 'OnlyFans', fansly: 'Fansly' };
 

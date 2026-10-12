@@ -29,6 +29,7 @@ import { DebugJournal } from './debug/Journal';
 import { DebugPrompt } from './debug/DebugPrompt';
 import { Options, type OptionsRoute } from './options/Options';
 import { Popup } from './Popup';
+import { FONTS_SOURCE } from './brand/fonts';
 import { PageServices, PageServicesProvider } from './shared';
 import { PAGES_SOURCE } from './styles';
 
@@ -92,7 +93,7 @@ function mountPage(container: HTMLElement, deps: PageDeps, surface: MountSurface
     );
   };
   const report = deps.report;
-  const mount = mountKitPage(container, mountDeps, { view: Root, styles: [PAGES_SOURCE] }, { surface, ...(deps.now === undefined ? {} : { now: deps.now }), ...(report === undefined ? {} : { report }) });
+  const mount = mountKitPage(container, mountDeps, { view: Root, styles: [FONTS_SOURCE, PAGES_SOURCE] }, { surface, ...(deps.now === undefined ? {} : { now: deps.now }), ...(report === undefined ? {} : { report }) });
   // ER-021: an uncaught error of our own page is reported by its class, never its message.
   const stopCapture = view0 === null || report === undefined ? () => undefined : capturePageErrors(view0, report, surface);
   return () => {

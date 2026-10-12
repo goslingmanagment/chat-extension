@@ -1,7 +1,9 @@
-// The toolbar popup (ui-design §4.23, final-20a / 20b; architecture.md §9.9;
-// PU-001…PU-022): 360 px, the frame and shadow are the browser's. Pills say
-// what is connected, rows say who, where and how much quota, four buttons
-// open what lives inside ChatSpace. A background that does not answer is a
+// The toolbar popup (ui-design §4.23; architecture.md §9.9; PU-001…PU-022):
+// 360 px, the frame and shadow are the browser's. In the agency identity
+// (X32): the logo, the persona's name in the display face — whose voice this
+// shift writes in — two words on what is connected, one paper-white card with
+// who, where and how much quota, the buttons that open what lives inside
+// ChatSpace and «Настройки» in ink. A background that does not answer is a
 // card with its code, never an endless spinner (PU-001); without a sign-in
 // the popup leads to «Аккаунт» (PU-002).
 
@@ -9,7 +11,8 @@ import { type JSX } from 'preact';
 
 import { type PopupVM } from '@cg/contracts/vm';
 
-import { ActionButton, Button, CodeLine, Dot, ErrorCard, GooseMark, Icon, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
+import { ActionButton, Button, CodeLine, Dot, ErrorCard, Icon, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
+import { ChatGooseLogo } from './brand/art';
 import { PageLayers, PageTag, pageTagText, useAct, usePageServices } from './shared';
 
 function Pill({ label, mark }: { readonly label: string; readonly mark: 'ok' | 'ring' | 'danger' }): JSX.Element {
@@ -83,20 +86,17 @@ function CopyValue({ text, value, tooltip }: { readonly text: string; readonly v
   );
 }
 
-function Rows({ vm }: { readonly vm: PopupVM }): JSX.Element {
+/** Whose voice: the persona, the page it writes for and the page's platform and label. */
+function Persona({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
-  const services = usePageServices();
-  const act = useAct();
   const persona = vm.persona;
-  const quota = vm.quota;
-  const signOut = vm.account?.signOut ?? null;
   return (
     <>
-      <div class="pg-popup__sec">
+      <div class="pg-popup__sec pg-popup__hero">
         <div class="pg-popup__cap">{i18n.t('popup.persona')}</div>
-        {/* The persona's name is what the row is for: a long page title is cut with «…» and never squeezes it out. */}
+        {/* The persona's name is what the popup is for: it stands alone in the display face, the page under it; each ends in «…» on its own. */}
         <div class="pg-popup__line pg-popup__line--fit">
-          <b>{persona.s === 'set' ? persona.label : persona.s === 'no-persona' ? i18n.t('popup.personaNone') : i18n.t('popup.notConnected')}</b>
+          <b class={persona.s === 'set' ? undefined : 'pg-popup__none'}>{persona.s === 'set' ? persona.label : persona.s === 'no-persona' ? i18n.t('popup.personaNone') : i18n.t('popup.notConnected')}</b>
           {persona.s === 'not-connected' ? null : (
             <span class="pg-popup__aside" title={i18n.t('popup.personaFor', { page: persona.pageName })}>
               {i18n.t('popup.personaFor', { page: persona.pageName })}
@@ -110,6 +110,19 @@ function Rows({ vm }: { readonly vm: PopupVM }): JSX.Element {
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+/** Who is signed in, which dialog is open, how much quota is left: the facts of the shift on one card. */
+function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
+  const i18n = useI18n();
+  const services = usePageServices();
+  const act = useAct();
+  const quota = vm.quota;
+  const signOut = vm.account?.signOut ?? null;
+  return (
+    <div class="pg-popup__card">
       {vm.account === null || signOut === null ? null : (
         <div class="pg-popup__sec">
           <div class="pg-popup__cap">{i18n.t('popup.account')}</div>
@@ -185,16 +198,23 @@ function Rows({ vm }: { readonly vm: PopupVM }): JSX.Element {
         </div>
         {vm.aiTodayLine === null ? null : <div class="pg-sub">{vm.aiTodayLine}</div>}
       </div>
-    </>
+    </div>
   );
 }
 
 function Buttons({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
+  // One primary — «Настройки»; an odd one out among the rest is short and leaves the primary the wider part of its row.
+  const secondary = vm.buttons.filter((button) => button.action.type !== 'OpenSettings');
+  const shape = (button: PopupVM['buttons'][number]): string | null => {
+    if (button.action.type === 'OpenSettings') return secondary.length % 2 === 0 ? 'pg-primary pg-popup__wide' : 'pg-primary';
+    return secondary.length % 2 === 1 && button === secondary[secondary.length - 1] ? 'pg-popup__short' : null;
+  };
   return (
     <div class="pg-popup__btns">
       {vm.buttons.map((button, index) => {
+        const extra = shape(button);
         const keys = hotkeyText(button.hotkey);
         const newcomers = button.action.type === 'Navigate' && button.action.to.kind === 'surface' && button.action.to.surface === 'newcomers';
         const reason = button.enabled ? null : button.reason === null ? i18n.t('common.unknown') : i18n.text(button.reason.text);
@@ -204,6 +224,7 @@ function Buttons({ vm }: { readonly vm: PopupVM }): JSX.Element {
             key={index}
             label={i18n.text(button.label)}
             variant="line"
+            {...(extra === null ? {} : { class: extra })}
             reason={reason}
             tooltip={count === null ? null : i18n.t('popup.newcomersTooltip', { hours: 48, n: count })}
             onClick={() => void act(button.action)}
@@ -247,8 +268,7 @@ export function Popup(): JSX.Element {
   return (
     <div class="pg-popup" role="main" aria-label="ChatGoose">
       <div class="pg-popup__head">
-        <GooseMark size={22} />
-        <span class="pg-popup__brand">ChatGoose</span>
+        <ChatGooseLogo class="pg-logo" />
         <span class="pg-popup__ver">{vm.version}</span>
       </div>
       {view.s === 'loading' ? (
@@ -259,7 +279,7 @@ export function Popup(): JSX.Element {
         // PU-001: the background did not answer — say so, offer the retry and the settings.
         <div class="pg-popup__state">
           <ErrorCard tone="failure" error={view.error} inline>
-            {view.retry === null ? null : <Button label={i18n.t('common.retry')} variant="line" onClick={() => void dispatch(view.retry ?? { type: 'ReloadView', selector: { of: 'popup' } })} />}
+            {view.retry === null ? null : <Button label={i18n.t('common.retry')} variant="line" class="pg-primary" onClick={() => void dispatch(view.retry ?? { type: 'ReloadView', selector: { of: 'popup' } })} />}
             {settings === null ? null : <ActionButton vm={settings} />}
           </ErrorCard>
         </div>
@@ -270,15 +290,16 @@ export function Popup(): JSX.Element {
               popup. Here the card says the popup's own: where to sign in. Any other reason (revoked, expired)
               keeps its own words, and the lead follows it. */}
           <ErrorCard tone="state" error={plainSignIn ? { ...view.error, body: i18n.t('popup.signInLead') } : view.error} copyCode={false} alert={false} inline>
-            {view.remedy === null ? null : <Button label={i18n.t('common.signIn')} variant="line" onClick={() => void dispatch(view.remedy ?? { type: 'OpenSettings', route: { section: 'account' } })} />}
+            {view.remedy === null ? null : <Button label={i18n.t('common.signIn')} variant="line" class="pg-primary" onClick={() => void dispatch(view.remedy ?? { type: 'OpenSettings', route: { section: 'account' } })} />}
           </ErrorCard>
           {plainSignIn ? null : <p class="pg-popup__lead pg-sub">{i18n.t('popup.signInLead')}</p>}
         </div>
       ) : (
         <>
+          <Persona vm={vm} />
           <Pills vm={vm} />
           {vm.problems.length === 0 ? null : (
-            <div class="pg-popup__sec" role="status" aria-label={i18n.t('popup.problems')}>
+            <div class="pg-popup__problems" role="status" aria-label={i18n.t('popup.problems')}>
               {vm.problems.map((problem) => (
                 <div key={problem.code} class="pg-popup__err" data-cg-code={problem.code}>
                   <CodeLine code={problem.code} class="pg-code" />
@@ -287,7 +308,7 @@ export function Popup(): JSX.Element {
               ))}
             </div>
           )}
-          <Rows vm={vm} />
+          <Facts vm={vm} />
           <Buttons vm={vm} />
         </>
       )}

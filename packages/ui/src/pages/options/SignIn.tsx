@@ -47,7 +47,7 @@ export function SignInForm({ vm, onDone }: { readonly vm: SignInVM; readonly onD
         <Field key={attempt} label={i18n.t('signIn.password')} type="password" value="" autocomplete="current-password" maxLength={1024} onInput={setPassword} onEnter={submit} />
       </label>
       <div class="pg-form__acts">
-        <Button label={vm.busy ? i18n.t('signIn.pending') : i18n.t('signIn.submit')} variant="line" busy={vm.busy} onClick={submit} />
+        <Button label={vm.busy ? i18n.t('signIn.pending') : i18n.t('signIn.submit')} variant="line" class="pg-primary" busy={vm.busy} onClick={submit} />
       </div>
       {vm.error === null ? null : <ErrorCard tone={vm.error.code === 'CG-LOGIN-RATE-LIMIT' || vm.error.code === 'CG-LOGIN-PENDING' ? 'state' : 'failure'} error={vm.error} inline copyCode />}
     </form>
