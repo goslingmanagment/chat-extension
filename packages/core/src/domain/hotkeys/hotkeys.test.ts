@@ -64,14 +64,19 @@ function press(platform: HotkeyPlatform, code: string, mods: Mods = {}): KeyVerd
 const command = (verdict: KeyVerdict | null): string | null => (verdict !== null && verdict.kind === 'command' ? verdict.command : null);
 
 describe('the vendored scheme through the tab resolver', () => {
-  it('[HK-001] one scheme, version 1: text keys on ⌘/Ctrl, panels on ⌘⇧/Ctrl+Alt, and this client has all twelve', () => {
-    expect(HOTKEY_SCHEME_VERSION).toBe(1);
+  it('[HK-001] one scheme, version 2: text keys on ⌘/Ctrl, panels on ⌘⇧/Ctrl+Alt, and this client has all twelve', () => {
+    expect(HOTKEY_SCHEME_VERSION).toBe(2);
     expect(hotkeysForClient('extension').map((def) => def.action)).toEqual(['reply', 'fix', 'hi', 'ping', 'cancel', 'help', 'recap', 'tone', 'review', 'split', 'spenders', 'coach']);
-    for (const def of HOTKEYS) {
+    for (const def of hotkeysForClient('extension')) {
       const mac = press('mac', def.code, def.level === 'panel' ? { shiftKey: true } : {});
       const win = press('win', def.code, def.level === 'panel' ? { altKey: true } : {});
       expect([def.action, command(mac), command(win)]).toEqual([def.action, def.action, def.action]);
     }
+  });
+
+  it('⌘⇧K / Ctrl+Alt+K is the Fansly extension\'s Notes: reserved here, swallowed, no command', () => {
+    expect(press('mac', 'KeyK', { shiftKey: true })).toEqual({ kind: 'swallow', reason: 'reserved' });
+    expect(press('win', 'KeyK', { altKey: true })).toEqual({ kind: 'swallow', reason: 'reserved' });
   });
 
   it.each([

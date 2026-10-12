@@ -6,8 +6,8 @@
     "note": "Vendored on 2026-10-12 with the hub's scripts/vendor-sdk.mjs from hub main 6ee3d627 (#567) — the commit that runs in production since 2026-10-11 22:28 UTC (the image's source revision 6ee3d627e204; prod health: contractHash 03012453…, compatibleClientSdks lists it and b95b765c…, no longer b9d4dd07…), so this vendor satisfies the release rule (a release is vendored only from a deployed hub commit). Against 2260ef73 (b9d4dd07…): one contract change, hub #563 — a new route GET /api/v1/ops/live (routes-ops-live) for the server monitor, which this extension does not call. No other route was added, removed or reshaped: every client route, operation, schema and scope this extension uses is unchanged. Re-vendor with the same script, then update this pin in the same commit."
   },
   "chatgooseHotkeys": {
-    "sha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9",
-    "sourceCommit": "a667c62b1ce17fc1fc4bc230575c44bb1a0f1e6f",
-    "note": "Same sha256 and source commit as fansly-chat and onlyfans-chat (all three vendored from hub a667c62b with scripts/vendor-hotkeys.mjs; packages/chatgoose-hotkeys is unchanged between 4d75e203 and 6ee3d627, the commit the SDK is vendored from; before that only its README and the script's usage comment changed)."
+    "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
+    "sourceCommit": "0a96105d691f74473b372249fa29d998590702b5",
+    "note": "Scheme 2, vendored from hub main 0a96105d (#569) with scripts/vendor-hotkeys.mjs: adds Notes on ⌘⇧K / Ctrl+Alt+K for the Fansly extension only (hotkey client `fansly`). In this client the key is reserved (swallowed, no command) and `hotkeysForClient('extension')` is unchanged. Same sha256 and source commit as fansly-chat and onlyfans-chat."
   }
 }
