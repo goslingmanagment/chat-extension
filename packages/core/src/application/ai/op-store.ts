@@ -46,8 +46,6 @@ export interface StartMemo {
   readonly split: boolean;
   /** Fix: the person's draft the request was made from (text, revision, fingerprint). */
   readonly fixSource: { readonly text: string; readonly revision: number; readonly digest: string } | null;
-  /** The start itself without its spent token, for «Ещё раз». */
-  readonly start: Omit<StartOp, 'cause'> | null;
   /**
    * The persona definition the operation was made under; null — not known to
    * this tab. Known for an operation this tab started or reopened (the
@@ -83,7 +81,7 @@ export type OpStoreEvent =
   /** The terminal view arrived (once per operation; the stale mark comes as `changed`). */
   | { readonly kind: 'done'; readonly record: OpRecord };
 
-const NO_MEMO: StartMemo = { split: false, fixSource: null, start: null, personaDefinitionId: null };
+const NO_MEMO: StartMemo = { split: false, fixSource: null, personaDefinitionId: null };
 const EARLY_OPS_MAX = 16;
 const EARLY_EVENTS_MAX = 400;
 /** Dropped operations remembered so that a later read of the background does not bring them back. */
@@ -97,17 +95,14 @@ interface Entry {
   mirror: OpMirror;
   view: OpView;
   memo: StartMemo;
+  /** A start of this tab made the record: the memo is that start's, and a later start of the same request keeps it. */
+  readonly made?: true;
   own: boolean;
   reopenedAt: number | null;
   desynced: boolean;
 }
 
 type EarlyEvent = { readonly kind: 'update'; readonly update: OpUpdate } | { readonly kind: 'done'; readonly view: OpView };
-
-function withoutCause(start: StartOp): Omit<StartOp, 'cause'> {
-  const { cause: _cause, ...rest } = start;
-  return rest;
-}
 
 /** An operation as it is the moment it was admitted, before any event of it. */
 function admittedView(opId: string, start: Pick<StartOp, 'feature' | 'surface' | 'target' | 'tone'>, now: number): OpView {
@@ -220,7 +215,7 @@ export class OpStore {
 
   // ── commands ─────────────────────────────────────────────────────────────
 
-  async start(start: StartOp, memo: Omit<StartMemo, 'start' | 'split'>): Promise<StartOutcome> {
+  async start(start: StartOp, memo: Omit<StartMemo, 'split'>): Promise<StartOutcome> {
     const chatKey = chatKeyOf(start.target.chat);
     this.watch(chatKey);
     this.inFlight.set(chatKey, (this.inFlight.get(chatKey) ?? 0) + 1);
@@ -240,7 +235,7 @@ export class OpStore {
     }
   }
 
-  private async runStart(start: StartOp, memo: Omit<StartMemo, 'start' | 'split'>, chatKey: ChatKey, earlier: Promise<void> | null): Promise<StartOutcome> {
+  private async runStart(start: StartOp, memo: Omit<StartMemo, 'split'>, chatKey: ChatKey, earlier: Promise<void> | null): Promise<StartOutcome> {
     let answer: RpcAnswer<Admission>;
     try {
       answer = await this.rpc.request('op.start', start);
@@ -259,7 +254,8 @@ export class OpStore {
       return { kind: 'refused', admission };
     }
     const opId = admission.opId;
-    const fullMemo: StartMemo = { ...memo, split: start.split, start: withoutCause(start) };
+    // Only what «Ещё раз» and Fix read of the start: the request itself (its fresh page text above all) is not kept.
+    const fullMemo: StartMemo = { ...memo, split: start.split };
     // The admission is for this very request — its persona included: whatever dropped the operation before, it is valid again.
     this.tombstones.delete(opId);
     // Nothing announced this operation yet and an earlier start of this chat is still being handled (a double
@@ -277,7 +273,7 @@ export class OpStore {
         // A fresh operation: its first events came before this answer.
         reopened = false;
         const view = admittedView(opId, first, now);
-        this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo: fullMemo, own: true, reopenedAt: null, desynced: false });
+        this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo: fullMemo, made: true, own: true, reopenedAt: null, desynced: false });
         this.replay(events);
       } else {
         // Not announced to this tab session: an operation it did not start (a cached result, a run that outlived a reload).
@@ -285,16 +281,16 @@ export class OpStore {
         const found = this.entries.get(opId);
         if (found === undefined) {
           const view = admittedView(opId, first, now);
-          this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo: fullMemo, own: true, reopenedAt: null, desynced: false });
+          this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo: fullMemo, made: true, own: true, reopenedAt: null, desynced: false });
           reopened = false;
         } else {
           found.own = true;
-          if (found.memo.start === null) found.memo = { ...fullMemo, start: null };
+          if (!found.made) found.memo = fullMemo;
         }
       }
     } else {
       // An operation this tab adopted and now asked for by the same request: what the request says holds for it.
-      if (known.memo.start === null) known.memo = { ...fullMemo, start: null };
+      if (!known.made) known.memo = fullMemo;
       if (!known.own && !isTerminalOpState(known.view.state)) {
         // The background attached this tab to the run: the batches restart, the text so far is read again.
         await this.syncChat(chatKey, opId);
@@ -483,7 +479,7 @@ export class OpStore {
   private follow(opId: string, recap: Entry): void {
     if (this.entries.has(opId) || this.tombstones.has(opId)) return;
     const view = admittedView(opId, { feature: 'coach', surface: recap.view.surface, target: recap.view.target, tone: null }, this.clock.now());
-    const memo: StartMemo = { split: recap.memo.start?.split ?? false, fixSource: null, start: null, personaDefinitionId: recap.memo.personaDefinitionId };
+    const memo: StartMemo = { split: recap.memo.split, fixSource: null, personaDefinitionId: recap.memo.personaDefinitionId };
     this.entries.set(opId, { mirror: newMirror(opId, view.phase), view, memo, own: true, reopenedAt: null, desynced: false });
     const events = this.early.get(opId) ?? [];
     this.early.delete(opId);
