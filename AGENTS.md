@@ -37,6 +37,27 @@ taken without the owner: `docs/decisions.md` X12; what is proven end to end on
 the stand, what waits for the hub and the owner's smoke checklist:
 `docs/pilot-readiness.md`.
 
+## Fansly browser and research
+
+For Fansly development, use **Chrome DevTools MCP** (`chrome-devtools`,
+`mcp__chrome-devtools__*`) automatically; do not choose Claude in Chrome for
+this site or wait for the owner to remind you. Start with `list_pages` and
+inspect the intended already-open Fansly tab. Read-only DOM, styles, console
+and network inspection is allowed; do not reload or switch conversations for
+a simple inspection. Opening another conversation can mark messages read;
+typing can send typing events. Sending, uploads and account changes need the
+owner's task to authorize them.
+
+Read [the Fansly development guide](docs/research/fansly.md) before changing
+Fansly integration. It indexes the downloaded bundle, chat DOM/lifecycle,
+API/WebSocket research, existing client code, FBuddy and the latest sanitized
+live evidence. If MCP is missing or disconnected, follow its connection
+section and state the exact blocker; continue with the local bundle. Never
+route around a tool denial through another browser/transport. Chrome page
+inspection does not verify our Firefox MV3 extension. This read-only workflow
+updates the old R20 live-site restriction (X38); stand tests and pilot gates
+remain required.
+
 ## Layout
 
 pnpm monorepo, TypeScript strict, Firefox MV3 (WXT), Preact.
@@ -202,9 +223,9 @@ a boundary you need to cross is a design question, not a lint exception.
 - **Live tests** only on the owner's test chat (OnlyMonster account 36408 →
   chat 518588958). Never press ⌘1–9, J, K or ⌘U on the live ChatSpace tab:
   our navigation opens other fans' chats; `navigation` stays off on live
-  pages while checking. **No live Fansly** (X34): an agent never works on
-  fansly.com and the owner runs no repeated checks there; the Fansly host is
-  proven on the stand and then by watching the pilot.
+  pages while checking. **Fansly read-only inspection uses Chrome DevTools
+  MCP** (X38, guide above). The owner runs no repeated smoke checks (X34);
+  the Firefox host is proven on the stand and then by watching the pilot.
 - Secrets via `op` (1Password); none in the repo. Owner-facing docs in Russian.
 - The owner's global rules apply (`~/.agents/AGENTS.md`): code changes in a
   separate worktree, Draft PRs, paid CI.

@@ -1,0 +1,54 @@
+() => {
+  if (location.origin !== 'https://fansly.com' || !/^\/messages\/\d+\/?$/.test(location.pathname)) {
+    throw new Error('Select an already-open Fansly conversation before this metadata probe.');
+  }
+  const selectors = [
+    'app-messages-route', '.messages-list-wrapper', '.messages-content-wrapper',
+    'app-messages-conversation-route', '.message-content-header',
+    '.message-content-header-contact .content-header-sub-row',
+    'app-group-message-container', '.message-content-list',
+    'app-group-message-input', 'textarea.message-input', '.send-button',
+    'app-group-message', 'app-group-message.my-message',
+    'app-messaging-overlay-group', '.modal-wrapper',
+    'app-group-message-input input[type="file"]',
+    'app-group-message-input .message-attachments',
+    '#chatgoose-root', '#chatgoose-followers-launcher',
+    'style#chatgoose-bootstrap-style', 'style#chatgoose-style'
+  ];
+  const anchors = Object.fromEntries(selectors.map(selector => {
+    const elements = [...document.querySelectorAll(selector)];
+    const first = elements[0];
+    const rect = first?.getBoundingClientRect();
+    const css = first && getComputedStyle(first);
+    return [selector, {
+      count: elements.length,
+      first: first ? {
+        tag: first.tagName.toLowerCase(),
+        hasOwnVisibleBox: rect.width > 0 && rect.height > 0 && css.visibility !== 'hidden' && css.display !== 'none',
+        width: Math.round(rect.width), height: Math.round(rect.height),
+        display: css.display, position: css.position, overflowY: css.overflowY
+      } : null
+    }];
+  }));
+  const bundleFiles = [...document.querySelectorAll('script[src],link[rel="stylesheet"][href]')]
+    .map(el => new URL(el.src || el.href, location.href))
+    .filter(url => url.origin === 'https://fansly.com' && /^\/(main|runtime|polyfills|scripts|styles)\.[a-f0-9]+\.(js|css)$/.test(url.pathname))
+    .map(url => url.pathname.slice(1));
+  return {
+    schemaVersion: 1, observedAt: new Date().toISOString(),
+    origin: location.origin, route: '/messages/:id',
+    browser: navigator.userAgent.match(/Chrome\/[\d.]+/)?.[0] || 'unknown',
+    readyState: document.readyState,
+    angularVersion: document.querySelector('[ng-version]')?.getAttribute('ng-version') || null,
+    brightTheme: document.documentElement.classList.contains('bright-theme'),
+    viewport: {width: innerWidth, height: innerHeight, devicePixelRatio},
+    domElements: document.querySelectorAll('*').length,
+    bundleFilesDeclaredInDOM: bundleFiles, anchors,
+    limits: ['One already-open chat; no clicks, navigation, input, scrolling or reload.',
+      'No message text, values, identities, cookies, storage, media or API response bodies collected.',
+      'Selector counts can include nested quoted messages; they do not establish transcript completeness.',
+      'One viewport and one state; dimensions are observations, not requirements.',
+      'hasOwnVisibleBox checks only the element box and its own computed visibility/display; it does not test hidden ancestors, occlusion or interactivity.',
+      'Bundle file names are DOM declarations; equality of file bytes was not checked.']
+  };
+}
