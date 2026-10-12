@@ -199,10 +199,12 @@ describe('the extension pages wired: the popup and the settings of the installed
     await assignPersona(PAGE);
     await toPopup();
     const popup = await waitForPopup((state) => state.view === 'ready' && state.login === WORLD.user.username && state.pills.some((pill) => pill.includes('на связи')), 'the popup after the sign-in');
-    expect(popup.pills).toEqual(['ChatSpace: не открыт', 'Хаб: на связи']);
+    expect(popup.pills).toEqual(['ChatSpace: не подключён', 'Хаб: на связи']);
     expect(popup.codes).toEqual([]);
-    // Spenders, «Новые» and the cheatsheet live inside ChatSpace: without a tab there is nowhere to open them.
+    // Spenders, «Новые» and the cheatsheet live inside ChatSpace: without a tab there is nowhere to open them — and the
+    // popup says so under them, not only in their tooltips (0.2.4).
     expect(popup.buttons).toEqual({ Spenders: false, Новые: false, Клавиши: false, Настройки: true });
+    expect(popup.text).toContain('Откройте вкладку ChatSpace: эти окна открываются в ней');
     expect(popup.persona).toContain('Не подключено');
     await capturePage('ext-popup-no-chatspace');
   });
