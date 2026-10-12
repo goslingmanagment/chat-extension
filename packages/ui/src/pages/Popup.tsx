@@ -211,34 +211,46 @@ function Buttons({ vm }: { readonly vm: PopupVM }): JSX.Element {
     if (button.action.type === 'OpenSettings') return secondary.length % 2 === 0 ? 'pg-primary pg-popup__wide' : 'pg-primary';
     return secondary.length % 2 === 1 && button === secondary[secondary.length - 1] ? 'pg-popup__short' : null;
   };
+  // Why a button does not work is said on the popup, not only in its tooltip: once per reason, and not again when the
+  // problems above already name the same code («Расширение обновилось»).
+  const shown = new Set(vm.problems.map((problem) => problem.code));
+  const why = [...new Set(vm.buttons.flatMap((button) => (button.enabled || button.reason === null || (button.reason.code !== null && shown.has(button.reason.code)) ? [] : [i18n.text(button.reason.text)])))];
   return (
-    <div class="pg-popup__btns">
-      {vm.buttons.map((button, index) => {
-        const extra = shape(button);
-        const keys = hotkeyText(button.hotkey);
-        const newcomers = button.action.type === 'Navigate' && button.action.to.kind === 'surface' && button.action.to.surface === 'newcomers';
-        const reason = button.enabled ? null : button.reason === null ? i18n.t('common.unknown') : i18n.text(button.reason.text);
-        const count = newcomers ? vm.newcomersCount : null;
-        return (
-          <Button
-            key={index}
-            label={i18n.text(button.label)}
-            variant="line"
-            {...(extra === null ? {} : { class: extra })}
-            reason={reason}
-            tooltip={count === null ? null : i18n.t('popup.newcomersTooltip', { hours: 48, n: count })}
-            onClick={() => void act(button.action)}
-            trailing={
-              <>
-                {/* The count of «Новые» is not a shortcut: it stands right after the word (§4.23). */}
-                {count === null ? null : <span class="pg-popup__count">{count}</span>}
-                <span class="pg-popup__key">{keys === null || reason !== null ? null : <Kbd>{keys.display}</Kbd>}</span>
-              </>
-            }
-          />
-        );
-      })}
-    </div>
+    <>
+      <div class="pg-popup__btns">
+        {vm.buttons.map((button, index) => {
+          const extra = shape(button);
+          const keys = hotkeyText(button.hotkey);
+          const newcomers = button.action.type === 'Navigate' && button.action.to.kind === 'surface' && button.action.to.surface === 'newcomers';
+          const reason = button.enabled ? null : button.reason === null ? i18n.t('common.unknown') : i18n.text(button.reason.text);
+          const count = newcomers ? vm.newcomersCount : null;
+          return (
+            <Button
+              key={index}
+              label={i18n.text(button.label)}
+              variant="line"
+              {...(extra === null ? {} : { class: extra })}
+              reason={reason}
+              tooltip={count === null ? null : i18n.t('popup.newcomersTooltip', { hours: 48, n: count })}
+              onClick={() => void act(button.action)}
+              trailing={
+                <>
+                  {/* The count of «Новые» is not a shortcut: it stands right after the word (§4.23). */}
+                  {count === null ? null : <span class="pg-popup__count">{count}</span>}
+                  <span class="pg-popup__key">{keys === null || reason !== null ? null : <Kbd>{keys.display}</Kbd>}</span>
+                </>
+              }
+            />
+          );
+        })}
+      </div>
+      {why.map((text) => (
+        <p key={text} class="pg-popup__why" role="note">
+          <Dot kind="ring" />
+          {text.charAt(0).toLocaleUpperCase() + text.slice(1)}
+        </p>
+      ))}
+    </>
   );
 }
 

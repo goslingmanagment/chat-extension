@@ -1222,3 +1222,24 @@ describe('the pages in the agency identity (X32)', () => {
     }
   });
 });
+
+describe('popup: why Spenders, «Новые» and «Клавиши» do not work', () => {
+  it('[PU-017] no ChatSpace tab: the buttons are off and the popup says why under them, not only in their tooltips', async () => {
+    const state = workingState();
+    state.diagnostics = { ...state.diagnostics, tabs: [] };
+    const page = await mount('popup', { state });
+    expect(page.$$('.pg-pill').map((pill) => pill.textContent)).toContain('ChatSpace: не подключён');
+    expect(page.$$('.pg-popup__btns .cg-btn[aria-disabled="true"]')).toHaveLength(3);
+    expect(page.$$('.pg-popup__why').map((note) => note.textContent)).toEqual(['Откройте вкладку ChatSpace: эти окна открываются в ней']);
+  });
+
+  it('[PU-017] a tab left from the build before the update: «Расширение обновилось» once, with what to do', async () => {
+    const state = workingState();
+    state.diagnostics = { ...state.diagnostics, tabs: [], extension: { ...state.diagnostics.extension, updated: { at: new Date(PAGES_NOW).toISOString(), from: '0.4.2', staleTabs: 1 } } };
+    const page = await mount('popup', { state });
+    expect(page.$('.pg-popup__problems [data-cg-code="CG-RUNTIME-RELOADED"]')?.textContent).toContain('Расширение обновилось. Перезагрузите вкладку');
+    // The problems above name it already: no second line under the buttons.
+    expect(page.$$('.pg-popup__why')).toHaveLength(0);
+    expect(page.$$('.pg-popup__btns .cg-btn[aria-disabled="true"]')).toHaveLength(3);
+  });
+});

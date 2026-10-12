@@ -195,6 +195,9 @@ ${/* What opens inside ChatSpace in a row, «Настройки» in ink beside 
 .pg-popup__btns .cg-btn.pg-primary .pg-popup__key { display: none; }
 .pg-popup__btns .cg-btn.pg-primary.pg-popup__wide { grid-column: 1 / -1; }
 .pg-popup__count { font-weight: 500; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
+${/* Why the buttons above do not work, said on the popup and not only in their tooltips. */ ''}
+.pg-popup__why { display: flex; align-items: flex-start; gap: 8px; margin: -4px 16px 14px; font-size: 13px; line-height: 18px; color: var(--cg-ink-2); }
+.pg-popup__why .cg-dot { margin-top: 5px; }
 .pg-popup__key { margin-left: auto; display: inline-flex; }
 .pg-popup__foot { display: flex; align-items: center; gap: 12px; padding: 11px 16px 13px; border-top: 1px solid var(--pg-line); font-size: 13px; color: var(--cg-ink-muted); white-space: nowrap; }
 .pg-popup__foot .pg-link { color: var(--cg-ink-2); }
