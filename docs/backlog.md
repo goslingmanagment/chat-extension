@@ -56,5 +56,5 @@ ChatSpace-версия не делает к OnlyMonster ни одного сво
 
 - [x] **Свежесть архива Fansly в хабе.** Измерено 2026-10-12: сокетный оверлей Fansly включён
   на всех страницах с 2026-10-01, сообщение фана видно хабу через p50 1,6 с, p99 3,0 с
-  (`docs/research/fansly-web.md` §9). Последние секунды закрывает хвост со страницы (X33,
-  `docs/fansly/spec.md` §3, HF-8). Дальше — в `docs/fansly/plan.md`.
+  (`docs/project-unite/fansly-web.md` §9). Последние секунды закрывает хвост со страницы (X33,
+  `docs/project-unite/spec.md` §3, HF-8). Дальше — в `docs/project-unite/plan.md`.

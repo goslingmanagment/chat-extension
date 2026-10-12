@@ -3002,8 +3002,8 @@ type PreviewSendView =
 
 ## 15. Фаза Fansly (R20)
 
-> **Уточнено 2026-10-12 (X33):** требования R20 — `docs/fansly/spec.md`, работы — `docs/fansly/plan.md`,
-> факты о странице — `docs/research/fansly-web.md`; где они расходятся с этим разделом, действуют они.
+> **Уточнено 2026-10-12 (X33):** требования R20 — `docs/project-unite/spec.md`, работы — `docs/project-unite/plan.md`,
+> факты о странице — `docs/project-unite/fansly-web.md`; где они расходятся с этим разделом, действуют они.
 > Главное: Fansly ходит в API через XHR, поэтому `response.clone()` ниже к нему не подходит; хук
 > `history` — открытый вопрос спайка (FS-RTE-3); хвосты не теряются (FS-TAIL-*).
 
