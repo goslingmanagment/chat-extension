@@ -1155,10 +1155,10 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 
 | Где | Что |
 |---|---|
-| `hosts.ts` (новый) | `HOST_PLATFORM`, `HOST_KINDS`, рантайм-таблица сайтов |
+| `hosts.ts` (новый) | `HOST_PLATFORM`, `HOST_KINDS` — рантайм-таблица сайтов (вид → платформа), лёгкая, без zod; адреса и поля сборки — в реестре хостов приложения (§1.2, F2), не в контрактах |
 | `ids.ts` | пара хост↔платформа — из `HOST_PLATFORM`, а не `chatspace ⇔ onlyfans` в refine |
 | `features/{types,common,chatspace,fansly}.ts` (новые) | манифест фич (§1.4): общее и по файлу на сайт, требования по действиям; срез — графом модулей при сборке; `HotkeyActionId` — строковое объединение |
-| `host.ts` | `RouteState.conversationRef?`, `conversationKind?: 'direct' \| 'group'`; `NavigationIntent.target.conversationRef?`; `HostContractReport` — разбор по `host`: нет `host` или `'chatspace'` → прежняя полная схема `anchors`; `'fansly-web'` → обязательный блок `extensions['fansly-web']` с полным набором якорей и возможностей Fansly; `HostPort.freshness?`, `HostPort.fansly?`; `ChatWindow.fanScript?`, `newestAt?` |
+| `host.ts` | `RouteState.conversationRef?`, `conversationKind?: 'direct' \| 'group'` (проверка `conversationFits`: только маршрут чата, вид — с разговором, у группы `chat` = null, на OnlyFans разговор = фан); `NavigationIntent.target.conversationRef?` (только у цели-чата); `HostContractReport` — разбор по `host`: нет `host` или `'chatspace'` → прежняя полная схема `anchors`; `'fansly-web'` → обязательный блок `extensions['fansly-web']` с полным набором якорей и возможностей Fansly; `HostPort.freshness?`, `HostPort.fansly?`; `ChatWindow.fanScript?`, `newestAt?` |
 | `fansly.ts` (новый) | `FanslySnapshot`, `StartProofV1`, `FanslyPagePort`, `FanslyAnchorId`, `FanslyCapability` |
 | `bridge-fansly.ts`, `bridge-messages-fansly.ts` (новые) | реестр моста Fansly (§6), конверт `fx.batch`, `fx.gap` |
 | `ops.ts` | `StartOp.proof?: CoverageProof` (снимок вкладки или доказательство прохода; хвост внутри); `checkpoint` не трогаем; `ServedContext.coverageCheck?`; новые причины `stale`; операции сайта — объединение на уровне типов |
