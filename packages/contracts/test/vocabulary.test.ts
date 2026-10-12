@@ -44,6 +44,53 @@ describe('light copies', () => {
   });
 });
 
+describe('sites (1.15.0, R20)', () => {
+  it('every host kind serves one known platform, and the table names no other host', () => {
+    expect(C.HOST_PLATFORM).toEqual({ chatspace: 'onlyfans', 'fansly-web': 'fansly' });
+    expect(Object.keys(C.HOST_PLATFORM)).toEqual([...C.HOST_KINDS]);
+    for (const host of C.HOST_KINDS) expect(C.narrowPlatform(C.HOST_PLATFORM[host]), host).toBe(C.HOST_PLATFORM[host]);
+  });
+
+  it('Target binds a chat to a page of exactly the platform of its host', () => {
+    for (const host of C.HOST_KINDS)
+      for (const platform of C.KNOWN_PLATFORMS) {
+        const chat = { host, hostAccountId: '1001', platformFanId: '2002' };
+        const binding = { hubOrigin: 'https://hub.example.test', principalId: 7, loginEpoch: 3, host, hostAccountId: '1001', platform, platformAccountId: '3003', pageId: 11, pageLabel: 'page', bindingRevision: 1 };
+        const verdict = C.TargetSchema.safeParse({ binding, chat, fanRef: '2002', conversationRef: '2002' }).success;
+        expect(verdict, `${host} → ${platform}`).toBe(C.HOST_PLATFORM[host] === platform);
+      }
+  });
+
+  it('a route names its conversation only where it fits (conversationFits)', () => {
+    const fansly = { host: 'fansly-web', hostAccountId: '700000000000000001', platformFanId: '700000000000000002' } as const;
+    const chatspace = { host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } as const;
+    const group = '700000000000000003';
+    // No conversation: what every route before 1.15.0 is.
+    expect(C.conversationFits({ name: 'chat', chat: chatspace })).toBe(true);
+    expect(C.conversationFits({ name: 'other', chat: null })).toBe(true);
+    // Fansly: the group from the address, before and after the fan is known; a group chat has no fan of its own.
+    expect(C.conversationFits({ name: 'chat', chat: null, conversationRef: group })).toBe(true);
+    expect(C.conversationFits({ name: 'chat', chat: fansly, conversationRef: group, conversationKind: 'direct' })).toBe(true);
+    expect(C.conversationFits({ name: 'chat', chat: null, conversationRef: group, conversationKind: 'group' })).toBe(true);
+    expect(C.conversationFits({ name: 'chat', chat: fansly, conversationRef: group, conversationKind: 'group' })).toBe(false);
+    // Only a chat route names a conversation, and a kind comes only with it.
+    expect(C.conversationFits({ name: 'other', chat: null, conversationRef: group })).toBe(false);
+    expect(C.conversationFits({ name: 'chat', chat: fansly, conversationKind: 'direct' })).toBe(false);
+    // On OnlyFans the conversation is the fan (HOST_PLATFORM), as in Target.
+    expect(C.conversationFits({ name: 'chat', chat: chatspace, conversationRef: '2002' })).toBe(true);
+    expect(C.conversationFits({ name: 'chat', chat: chatspace, conversationRef: '2003' })).toBe(false);
+  });
+
+  it('hosts.ts stays light (no imports), and ids.ts still exports its host kinds', async () => {
+    const source = readFileSync(new URL('../src/hosts.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/^\s*(import|export \* from|export \{[^}]*\} from)/m);
+    const ids = await import('../src/ids');
+    const hosts = await import('../src/hosts');
+    expect(ids.HOST_KINDS).toBe(hosts.HOST_KINDS);
+    expect(C.HostKindSchema.options).toEqual([...hosts.HOST_KINDS]);
+  });
+});
+
 describe('bridge writes that may have run', () => {
   it('fix an outcome each receipt schema accepts, and only for the three writes', () => {
     expect(Object.keys(C.BRIDGE_WRITE_FAILURES).sort()).toEqual([...C.BRIDGE_WRITE_REQUESTS].sort());

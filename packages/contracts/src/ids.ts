@@ -2,10 +2,13 @@
 // (OnlyMonster account), the platform's (OnlyFans creator, fan, message) and
 // the hub's (pageId, userId). In ChatSpace the route's chatId IS the OnlyFans
 // fan id IS the hub fanRef and conversationRef — Target pins that equality.
+// On Fansly (R20, 1.15.0) the conversation is the group, not the fan:
+// conversationRef = groupId, fanRef = the fan id.
 
 import * as z from 'zod/mini';
 
 import { FeatureIdSchema } from './features';
+import { HOST_KINDS, HOST_PLATFORM, type HostKind } from './hosts';
 import { PART_LIMITS } from './limits';
 import {
   ActionTokenSchema,
@@ -23,9 +26,9 @@ import {
   displayText,
 } from './primitives';
 
-export const HOST_KINDS = ['chatspace', 'fansly-web'] as const;
+/** The host kinds live in hosts.ts (1.15.0); `@cg/contracts/ids` still exports them. */
+export { HOST_KINDS, type HostKind };
 export const HostKindSchema = z.enum(HOST_KINDS);
-export type HostKind = z.infer<typeof HostKindSchema>;
 
 /**
  * Platforms this client knows. On the hub wire a platform is an open token
@@ -39,6 +42,9 @@ export type Platform = z.infer<typeof PlatformSchema>;
 export function narrowPlatform(token: string): Platform | null {
   return (KNOWN_PLATFORMS as readonly string[]).includes(token) ? (token as Platform) : null;
 }
+
+/** HOST_PLATFORM of hosts.ts, typed: every host serves a platform this client knows. */
+const PLATFORM_OF_HOST: Readonly<Record<HostKind, Platform>> = HOST_PLATFORM;
 
 /**
  * Hub roles. The hub sends an open token; anything outside the known list is
@@ -125,7 +131,7 @@ export const TargetSchema = z
     chat: ChatRefSchema,
     /** Hub fan ref = the platform fan id. */
     fanRef: NativeIdSchema,
-    /** Hub conversation ref; on OnlyFans equal to the fan id. */
+    /** Hub conversation ref; on OnlyFans equal to the fan id, on Fansly the group id. */
     conversationRef: NativeIdSchema,
   })
   .check(
@@ -133,8 +139,9 @@ export const TargetSchema = z
     z.refine((t) => t.binding.platform !== 'onlyfans' || t.conversationRef === t.fanRef, {
       message: 'on OnlyFans conversationRef must equal fanRef',
     }),
-    z.refine((t) => (t.chat.host === 'chatspace') === (t.binding.platform === 'onlyfans'), {
-      message: 'ChatSpace chats bind to OnlyFans pages only',
+    // 1.15.0: the pair comes from HOST_PLATFORM (ChatSpace — OnlyFans, fansly.com — Fansly), not from a ChatSpace literal.
+    z.refine((t) => PLATFORM_OF_HOST[t.chat.host] === t.binding.platform, {
+      message: "a chat binds to its host's platform only",
     }),
     z.refine((t) => t.binding.host === t.chat.host && t.binding.hostAccountId === t.chat.hostAccountId, {
       message: "the binding was resolved for the chat's own host account",

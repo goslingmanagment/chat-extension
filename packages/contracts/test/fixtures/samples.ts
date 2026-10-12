@@ -76,6 +76,36 @@ export const binding: HubBinding = {
   bindingRevision: 2,
 };
 export const target: Target = { binding, chat, fanRef: IDS.fan, conversationRef: IDS.fan };
+
+/**
+ * Fansly (R20, 1.15.0): 18-digit synthetic ids; the creator is the host account, and the conversation is the group,
+ * never the fan (FS-IDN-2, FS-IDN-6).
+ */
+export const FANSLY_IDS = {
+  creator: '700000000000000001',
+  fan: '700000000000000002',
+  group: '700000000000000003',
+  otherGroup: '700000000000000004',
+} as const;
+export const fanslyChat: ChatRef = { host: 'fansly-web', hostAccountId: FANSLY_IDS.creator, platformFanId: FANSLY_IDS.fan };
+export const fanslyAccount: HostAccount = {
+  host: 'fansly-web',
+  hostAccountId: FANSLY_IDS.creator,
+  platform: 'fansly',
+  platformAccountId: FANSLY_IDS.creator,
+  username: 'model_two',
+  displayName: 'Model Two',
+};
+export const fanslyBinding: HubBinding = {
+  ...binding,
+  host: 'fansly-web',
+  hostAccountId: FANSLY_IDS.creator,
+  platform: 'fansly',
+  platformAccountId: FANSLY_IDS.creator,
+  pageId: 12,
+  pageLabel: 'model-two',
+};
+export const fanslyTarget: Target = { binding: fanslyBinding, chat: fanslyChat, fanRef: FANSLY_IDS.fan, conversationRef: FANSLY_IDS.group };
 export const hostIdentity: HostIdentity = {
   host: 'chatspace',
   documentEpoch: 'doc1',
