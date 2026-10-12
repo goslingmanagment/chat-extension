@@ -91,54 +91,70 @@ interface HostAdapter {
 
 ### 1.4 Манифест фич и допуск
 
-**Один авторский манифест** — `contracts/src/features/manifest.ts`; корень композиции собирает из него **срез сайта**, и в
-рантайм каждого сайта попадает только его срез. Строки паритета живут в `tools/parity` по ключу фичи и в рантайм не
-попадают.
+Манифест — данные в трёх файлах контрактов: `contracts/src/features/common.ts` (вид фичи, чип, клавиша — для фич
+обоих сайтов, без сведений о сайте), `features/chatspace.ts` и `features/fansly.ts` (ветки своего сайта и фичи только
+этого сайта). Корень композиции сайта импортирует `common` и **свой** файл: срез делает граф модулей при сборке.
+Фильтр в рантайме оставил бы записи другого сайта в бандле — так сегодня `FEATURE_POLICIES` целиком лежит в
+`background.js`. Инструменты (паритет, гейт полноты) читают все три файла; строки паритета живут в `tools/parity` по
+ключу фичи.
 ```ts
-interface FeatureSpec {
+// contracts/src/features/types.ts — контрактам доступен только zod (.dependency-cruiser.cjs:63)
+interface FeatureCommon {
   kind: 'ai' | 'board' | 'panel' | 'host-action' | 'service';
-  chip?: { group: DockChipGroup; priority: number; icon: IconName };   // группы и иконки — из ui/kit
-  hotkey?: HotkeyAction;                                                // действие схемы @chatgoose/hotkeys
-  byHost: Partial<Record<HostKind, {
-    flags: { generate?: ClientFeatureFlag; insert?: ClientFeatureFlag; send?: ClientFeatureFlag };
-    hostCapabilities: readonly HostCapability[];     // возможности отчёта сайта
-    surfaces: readonly MountSurfaceKind[];
-    source?: 'hub' | 'host-pass' | 'page';
-  }>>;
+  chip?: { group: DockChipGroup; priority: number; icon: DockIconId };  // строковые объединения в contracts/src/vm/dock.ts
+  hotkey?: HotkeyActionId;                                               // строковое объединение в контрактах
+}
+interface Requirement {                           // всё внутри — AND
+  flags: readonly ClientFeatureFlag[];            // флаги страницы из bootstrap
+  hostCapabilities: readonly HostCapability[];    // возможности отчёта сайта
+  clientNeeds?: readonly ClientHubCapability[];   // что нужно собственным вызовам клиента сверх решения хаба
+}
+interface FeatureOnHost {
+  base: Requirement;                                                     // общее для всех действий
+  actions: Partial<Record<'generate' | 'insert' | 'send', Requirement>>; // своё у действия, вдобавок к base
+  surfaces: readonly MountSurfaceKind[];
+  source?: 'hub' | 'host-pass' | 'page';
 }
 ```
-Чистая функция `core/src/domain/features/admission.ts`:
-`admission(id, action, {host, page, hostReport, permissions, settings})`, где `action ∈ generate | insert | send`, →
-- `{state: 'absent'}` — на этом сайте фичи нет: не рисуется, клавиша зарезервирована;
-- `{state: 'off', reason}` — есть, но выключена флагом, правами, настройкой или контрактом;
+Иконки и группы чипов отображает `ui/kit` — его тест проверяет, что каждое значение объединения нарисовано; действия
+клавиш проверяет тест `core/src/domain/hotkeys` против вендоренной схемы.
+
+Чистая функция `core/src/domain/features/admission.ts`: `admission(id, action, {slice, page, hostReport, permissions,
+settings})` →
+- `{state: 'absent'}` — фичи нет в срезе сайта: не рисуется, клавиша зарезервирована;
+- `{state: 'off', reason}` — не выполнено что-то из `base` или требования действия: флаг страницы
+  (`pages[].features[flag]`), возможность сайта, `clientNeeds`, права, настройка;
 - `{state: 'on'}`.
 
 Правила:
-- Готовность хаба клиент **не повторяет**: единственный источник — `pages[].features[flag]` из bootstrap, где хаб уже учёл
-  свои требования по платформе и `hub_not_ready` (`docs/protocols/hub.md` «Флаги: решает страница»). Вторая клиентская
-  таблица требований хаба не заводится; `CLIENT_FLAG_REQUIREMENTS` (`hub/src/routes.ts:111`) остаётся только картой
-  «маршрут → флаг».
-- Генерация, вставка и отправка допускаются раздельно. «Только копировать» (FS-DOCK-3) — состояние чата, которое уже
-  вычисляет `core/src/application/ai/workspace.ts:488-503` (заблокированный фан, нет поля, `insertion` выключен).
-- Её читают все: док (чипы), доски, popup и «Статус», справочник клавиш, токены действий, фоновые службы.
+- Решение хаба о странице клиент не повторяет: платформу и готовность хаба (`hub_not_ready`) хаб уже учёл в
+  `pages[].features[flag]` по своей таблице `CLIENT_FEATURE_REQUIREMENTS`. Клиентская `CLIENT_FLAG_REQUIREMENTS`
+  (`contracts/src/hub/routes.ts:94-111`, её читает `core/src/domain/ops/flags.ts:49-56`) сейчас эту таблицу дублирует
+  и для `newcomers` требует `audience-new-v1` — на Fansly неверно. F4 оставляет только нужды транспорта самого клиента
+  (сейчас одна: `context-v1` у `freshText`) и переносит их в `clientNeeds` срезов.
+- Генерация, вставка и отправка допускаются раздельно. «Только копировать» (FS-DOCK-3) — состояние чата, его уже
+  вычисляет `core/src/application/ai/workspace.ts:488-503`.
+- `admission` читают все: док (чипы), доски, popup и «Статус», справочник клавиш, токены действий, фоновые службы.
   `FEATURE_FLAGS` (дубль `FEATURE_POLICIES.flag`) уходит.
-- Вне манифеста и корней композиции нет второй таблицы платформенных условий (гейт §1.8).
+- Вне манифеста и корней композиции нет второй таблицы платформенных условий (гейт §1.8). Отрицательные фикстуры F4:
+  выключенный `insertion` не закрывает генерацию; отправка из превью ChatSpace требует и `previewSend`, и `newcomers`.
 
 | Фича | ChatSpace | Fansly |
 |---|---|---|
-| `reply`, `fix`, `hi`, `ping` | генерация — мастер-выключатель и версия (как сейчас); вставка — `insertion` | генерация — `drafts` (новый флаг, только Fansly, HF-12); вставка — `insertion` |
+| `reply`, `fix`, `hi`, `ping` | `base` — без флагов (мастер-выключатель и версию проверяет хаб); `insert` — `insertion` | `base` — `drafts` (новый флаг, только Fansly, HF-12); `insert` — `insertion` |
+| свежий текст для них | `freshText`, `clientNeeds: context-v1` | то же |
 | `recap`, `review`, `coach` | `recap`, `review`, `coach` | те же |
 | `spenders`, `fan-panel`, `sound` | `spenders`, `fanPanel`, `sound` | те же; `groupId` фана в Spenders — §8.11 |
-| `newcomers` | `newcomers`, источник — хаб (`audience-new`); отправка из превью — `previewSend` + `newcomers` | `newcomers`, источник — проход (Б17); отправка приветствия — `newcomers` (HF-3), без `previewSend` |
-| `preview-send` | `previewSend`; возможности `previewSend`, `receipt` | `absent` |
+| `newcomers` | `base` — `newcomers`, источник — хаб (`audience-new`); `send` — `newcomers` + `previewSend` | `base` — `newcomers`, источник — проход (Б17); `send` — `newcomers` (HF-3), без `previewSend` |
+| `preview-send` | `previewSend`; возможности сайта `previewSend`, `receipt` | `absent` |
 | `voice` | `absent` | `voice` (скрипт и озвучка) |
 | `notes`, `notes-fill` | `absent` | `notes`; заполнение — `notesFill` |
 | `registration`, `vault` | `absent` | `registration`, `vault` |
 | `via-tab` | `absent` | настройка, без флага |
 | `navigation`, `palette` | `navigation` | `absent` до P17 |
 
-`wsTap` — только ChatSpace: он регистрирует отдельный тап `chatspace-ws.js`. У Fansly наблюдение сети — часть единственного
-MAIN, его регистрируют «Fansly включён» и права (§4).
+`wsTap` — только ChatSpace: он регистрирует отдельный тап `chatspace-ws.js`. У Fansly наблюдение сети — часть
+единственного MAIN, его регистрируют «Fansly включён» и права (§4).
 
 ### 1.5 Профиль сайта для интерфейса
 
@@ -171,6 +187,7 @@ interface HostUiProfile {
 
 | Что | ChatSpace (как есть) | Fansly (новое) |
 |---|---|---|
+| манифест фич | `contracts/src/features/chatspace.ts` | `contracts/src/features/fansly.ts` |
 | ленивые чанки | своя сборка `lazy/chatspace/*` со своим планом слоёв (сегодняшняя цепочка `LAZY_LAYERS`) | своя сборка `lazy/fansly/*` со своим планом; общий исходник в XPI дублируется, вкладка сайта чужих файлов не грузит |
 | мост MAIN ↔ изолированный мир | `bridge.ts`, `bridge-messages.ts` | `bridge-fansly.ts` (лёгкие списки), `bridge-messages-fansly.ts` (схемы), конверт пачки `fx.batch`; чанк `bridge-validation` своей сборки |
 | протокол вкладки | `tab-messages.ts` | `tab-messages-fansly.ts`, `RequestSpec.hosts`; ядро фона проверяет отправителя, вкладку, хост, права, размер и базовый конверт, а тело разбирает чанк `bg/fansly` |
@@ -185,10 +202,11 @@ interface HostUiProfile {
 
 ### 1.7 Как добавить фичу (рецепты для агентов)
 
-1. **Общая, на обоих сайтах.** Запись в манифесте с ветками `byHost` обоих сайтов → логика в `core` без имени сайта →
+1. **Общая, на обоих сайтах.** Запись в `features/common.ts` и ветки в `features/chatspace.ts` и `features/fansly.ts` →
+   логика в `core` без имени сайта →
    поверхность в `ui` → строки паритета и e2e на стенде каждого сайта. Если сайты дают разные данные — порт в контрактах и
    его реализация в каждом хосте. В PR — дельта по реестру байтов ChatSpace (§3.2).
-2. **Только Fansly.** Запись с веткой `fansly-web` → домен и службы в `core/src/*/hosts/fansly/` → поверхность в
+2. **Только Fansly.** Запись в `features/fansly.ts` → домен и службы в `core/src/*/hosts/fansly/` → поверхность в
    `ui/src/hosts/fansly/` → свои сообщения в `tab-messages-fansly.ts` → тексты в пакете Fansly → e2e только на стенде
    Fansly. Файлы ChatSpace и набор файлов, которые грузят его вкладка и фон, не меняются — это проверяет гейт (§1.8).
 3. **Только ChatSpace.** Зеркально (так уже устроена X8: `preview-send`).
@@ -197,10 +215,15 @@ interface HostUiProfile {
 
 ### 1.8 Гейты, которые держат разнос
 
-- **Байты по сайтам.** Если дифф трогает только `packages/host-fansly/**`, `packages/fansly-api/**`, `**/hosts/fansly/**`,
-  `apps/extension/src/hosts/fansly.ts`, то `content-scripts/chatspace*`, `chatspace-ws.js`, `lazy/chatspace/**`, ядро фона и
-  `bg/chatspace.js` остаются побайтно теми же, а набор файлов, которые грузит вкладка ChatSpace (транзитивно), не меняется.
-  Общий PR сверяется с реестром байтов (§3.2).
+- **Байты по сайтам.** Сравнение артефактов ChatSpace (`content-scripts/chatspace*`, `chatspace-ws.js`,
+  `lazy/chatspace/**`, ядро фона, `bg/chatspace.js` и набор файлов, которые грузит вкладка ChatSpace, транзитивно) с
+  `main` идёт в **каждом** PR. Если дифф трогает только файлы Fansly, разница — ноль. Файлы Fansly — по принадлежности,
+  а не по одной папке: `packages/host-fansly/**`, `packages/fansly-api/**`, `**/hosts/fansly/**`,
+  `apps/extension/src/hosts/fansly.ts`, `apps/extension/src/entrypoints/fansly*`, `apps/extension/lazy/fansly/**`,
+  `apps/extension/bg/fansly.ts`, `packages/contracts/src/**/*fansly*.ts` (в том числе `features/fansly.ts`,
+  `errors-fansly.ts`, `bridge-*-fansly.ts`, `tab-messages-fansly.ts`, `send-fansly.ts`, `fansly.ts`), пакеты текстов Fansly.
+  Остальные PR называют дельту по реестру байтов (§3.2). В бандлах ChatSpace нет данных `fansly-web` (маркерные строки).
+  У гейта — отрицательные фикстуры на каждый вид пути.
 - **Литералы сайтов** — по AST и по смыслу: строковые литералы, равные значениям `HostKind` и `Platform`, и сравнения с
   ними запрещены в `core/src/**`, `ui/src/**`, `hub/src/**`, кроме `**/hosts/<host>/**`, `contracts/src/{ids,hosts}.ts`,
   манифеста фич и `admission.ts`. Законные `platform === 'mac'` (ОС), `host === null` и состояния UI гейт не трогает.
@@ -221,17 +244,19 @@ interface HostUiProfile {
 | `core/src/application/newcomers/controller.ts:205, 664`; `spenders/controller.ts:571`; `preview/controller.ts:809, 1495, 1770` | `host: 'chatspace'` | `binding.host` |
 | `core/src/application/ai/workspace.ts:482`; `preview/controller.ts:1496` | `conversationRef = fanRef` | из маршрута или разрешения группы |
 | тост фона, `ChatNavigator.open`, `NavigationIntent.target`, `RequestIdentity` | без `conversationRef` | с ним |
-| чтения хаба по разговору (`apps/extension/src/composition/background/hub-data.ts:55-57`, `hub/src/facade.ts:664`, лента) | по `fanRef` | по таблице «маршрут → ключ» (§11.1, HF-10) |
+| чтения хаба по разговору (`apps/extension/src/composition/background/hub-data.ts:55-57`, `hub/src/facade.ts:664`, лента) | по `fanRef` | по таблице «маршрут → ключ» (§11.1, HF-10; F6b) |
 | `core/src/domain/telemetry/health.ts:242`; `core/src/services/telemetry/health.ts:33, 193` | один хост `chatspace`, `chatSpaceOpen` | окно на (хост, сборка) |
 | `core/src/application/pages/view-status.ts:139-151, 474, 489`; `contracts/src/vm/pages.ts:86-102`; `ui/src/pages/options/Status.tsx:45`; `Options.tsx:59` | строка «ChatSpace» обязательна | строка на каждый сайт с привязками |
 | `core/src/application/pages/model.ts:181`; `client.ts:910` | перечисление двух видов хоста | `HOST_KINDS` |
-| `core/src/domain/hotkeys/resolver.ts:50` | клиент схемы `'extension'` | `profile.hotkeyClient` |
+| `core/src/domain/hotkeys/resolver.ts:50` | клиент схемы `'extension'` | `profile.hotkeyClient` (F5) |
 | `ui/src/kit/tokens.ts:18-55` | палитра только из `<html>` ChatSpace | `profile.palette` |
 | `ui/src/dock/Strip.tsx:47-60`; `dock/styles.ts:112-235`; `contracts/src/vm/dock.ts:15-16` | семь чипов и пороги под них | чипы данными, лист варианта |
 | `hub/src/facade.ts:343` | «… · ChatSpace» в имени устройства | нейтрально |
 | `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` | мёртвый сборщик (`conversationRef = fanRef`), вызывают только тесты, но он в `background.js`; рабочий — `core/src/domain/ops/request.ts:105` | удалить (освобождает байты фона) |
 | `host-chatspace/src/main/requests.ts:9, 23` | MAIN ChatSpace принимает оба вида хоста | только `'chatspace'` (освобождает байты MAIN) |
 | ≈ 47 текстов с именами сайтов на общих путях | захардкожены | фразы профиля |
+
+Гейт F9b проверяет литералы, тексты и граф; смысл чтений по разговору (F6b) он не проверяет — его держат тесты F6b.
 
 ## 2. Карта
 
@@ -251,8 +276,9 @@ fansly.com (вкладка модели; права выданы «Включи�
  │        ⇅ runtime.Port 'cg-tab' / 'cg-relay'
 background (event page)
    ядро: вход и хаб, bootstrap, операции AI, настройки, логи, телеметрия, звук, синхронизация прав и регистраций,
-         слушатели webRequest (onBeforeSendHeaders, onCompleted), приём tab.register, проверка конвертов сайтов
-   лениво bg/chatspace: службы только ChatSpace (опека и журнал X8, «Новые» ChatSpace, регистрация ручных отправок)
+         слушатели webRequest (onBeforeSendHeaders, onCompleted), приём tab.register, проверка конвертов сайтов,
+         регистрация ручных отправок (общая для сайтов)
+   лениво bg/chatspace: службы только ChatSpace (опека и журнал X8, «Новые» ChatSpace)
    лениво bg/fansly: fansly-api, пейсер, транспорт и relay, «Новые» (Б17), отправка с опекой, войсы, заметки,
          «Регистрация», Spenders Fansly
    → хаб https://gosling-agency.ru;  → https://apiv3.fansly.com/api/v1/ только по списку FS-NET-1
@@ -308,7 +334,8 @@ XHR Angular, а второй MAIN-скрипт — лишняя точка, ко
 | `background.js`, raw (сигнальный порог `archive-check`) | 811 700 / 819 200 | 7 500 Б |
 
   Известные источники байтов: мёртвый `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` (F6a), `StartMemo.start`
-  (F8), `FEATURE_FLAGS` (F4), второй вид хоста в `host-chatspace/src/main/requests.ts:9, 23` (F6a). Общие изменения могут
+  (F8), `FEATURE_FLAGS` и дубли `CLIENT_FLAG_REQUIREMENTS` (F4), второй вид хоста в
+  `host-chatspace/src/main/requests.ts:9, 23` (F6a). Общие изменения могут
   менять байты, но не превышать согласованные пределы.
 - **Код только Fansly — в сборке Fansly.** Свежесть, снимок, вердикт, доказательство Hi — в слое `ai-fansly` через порты
   `AiHostPolicy`; общий контроллер AI зовёт порты, общий `Result` получает готовую модель пометки (F10). Доменную политику
@@ -318,16 +345,19 @@ XHR Angular, а второй MAIN-скрипт — лишняя точка, ко
 
 - Вторая сборка Vite для фона: `bg/<name>.js`, загрузка `import(runtime.getURL(…))` из event page. Если классический event
   page Firefox такой `import()` не принимает — `background.type: "module"` (спайк P3a).
-- **Ядро измеримо освобождается до Fansly (F1):** службы только ChatSpace (опека и журнал X8, «Новые» ChatSpace,
-  регистрация ручных отправок) уходят в `bg/chatspace.js`, мёртвые зависимости удаляются; учитывается рост SDK от
-  перевендорингов P2v. Сигнальный порог 800 КиБ заранее не поднимается. Если замер F1 не даёт запаса на ядро Fansly и рост
-  SDK, F1 не готов; поднять порог можно только отдельным решением с обоснованием.
+- **Ядро измеримо освобождается до Fansly (F1):** службы только ChatSpace (опека и журнал X8, «Новые» ChatSpace) уходят
+  в `bg/chatspace.js`, мёртвые зависимости удаляются. Регистрация ручных отправок (`core/src/services/native-send.ts`, «a
+  part of a preview or of a «Новые» card») и её журнал долгов остаются в ядре — она нужна обоим сайтам, а второй
+  владелец журнала запрещён; чанкам она доступна портом `BackgroundKit.nativeSends`. F1 записывает запас ядра до
+  сигнального порога **числом** в реестр байтов; каждый P2v и P9a сверяется с ним; исчерпан — следующая служба
+  выносится в чанк. Порог 800 КиБ заранее не поднимается; поднять его можно только отдельным решением с обоснованием.
 - **Контракт чанка сайта:**
 ```ts
 interface BackgroundHostModule { start(kit: BackgroundKit): Promise<BackgroundHostHandle> }   // идемпотентно
 interface BackgroundKit {        // порты ядра, только type-импорты контрактов
   hub: HubFacadePort; settings: SettingsPort; storage: StoragePort; clock: Clock; log: LogSink;
   telemetry: TelemetryPort; router: TabRouterPort; permissions: PermissionsPort; tabs: TabsPort;
+  nativeSends: NativeSendPort;   // регистрация ручных отправок и её журнал — у ядра
 }
 interface BackgroundHostHandle {
   onTabMessage(msg: VerifiedTabMessage): Promise<unknown>;     // ядро уже проверило отправителя и конверт
@@ -374,8 +404,7 @@ interface BackgroundHostHandle {
   `tabs.query({url: 'https://fansly.com/*'})` (с правом на адрес права `tabs` не нужно) и `scripting.executeScript`
   маленького изолированного `fansly-notice.js`: баннер «перезагрузите вкладку» и уборка **наших** осиротевших хостов по
   `data-host` (чужие и неопознанные узлы не трогаем). В popup и «Статусе» — «N вкладок Fansly ждут перезагрузки» и кнопка
-  `tabs.reload`. Старая MAIN-копия остаётся в такой вкладке до перезагрузки, без партнёра; рукопожатие несёт версию сборки,
-  и чужую версию изолированный мир не принимает.
+  `tabs.reload`. Старая MAIN-копия остаётся в такой вкладке до перезагрузки, без партнёра.
 - **Переход чаттера** (FS-CO-2): выключить старое → «Включить Fansly» → дождаться выдачи прав и регистрации → перезагрузить
   все вкладки Fansly.
 - **Отзыв прав.** Регистрации снимаются; уже внедрённые копии живут до перезагрузки, новые документы скриптов не получают
@@ -538,10 +567,12 @@ interface FanslySnapshot {
 }
 interface StartProofV1 {
   v: 1; source: 'tab-short-page' | 'pass-empty-page'; groupId: NativeId;
-  startWitnessId: NativeId | null;   // самое старое сообщение доказывающего ответа; null — пустой чат
+  startWitnessId: NativeId | null;   // вкладка: самое старое сообщение короткого сертификата;
+                                     // проход: самое раннее сообщение всей пройденной истории (из последней непустой
+                                     // страницы перед подтверждённым концом); null — только если вся история пуста
   coveredCount: number;              // сообщений с начала, которые видела вкладка или проход
   personalCount: number;             // по всей доказанной истории, а не по последним 25
-  automatedIds: NativeId[];
+  automatedIds: NativeId[];          // ≤ 120 последних (ёмкость кольца); предел — в схеме и тесте предела тела
 }
 ```
 - Кадр ≤ 128 КиБ UTF-8; при переполнении первыми отбрасываются старые тексты, `truncated: true`.
@@ -600,9 +631,12 @@ interface StartProofV1 {
 
 **Fansly пакует сам.** Эмиттер `host-fansly` копит события одного вызова слушателя и шлёт их одной отправкой `post` в своём
 конверте `fx.batch`. Состояния `fx.identity`, `fx.chat` (только последняя активная группа, с эпохой маршрута) и
-`fx.contract` склеиваются по типу; поток событий идёт по порядку. У очереди эмиттера предел (стартово 256 событий /
-256 КиБ, калибруется в P7a): переполнение → `fx.gap`, все чаты `unknown`, изолированный мир перезапрашивает `fx.state`;
-потеря события не создаёт ложного `sent`.
+`fx.contract` склеиваются по типу; поток событий идёт по порядку. **Поток ограничен кредитами:** изолированный мир
+подтверждает каждую пачку после разбора (одно короткое сообщение `fx.ack`), а MAIN держит не больше 8 неподтверждённых
+пачек и 256 КиБ в пути; ждущие события остаются в его очереди. Очередь и неподтверждённые пачки входят в общий учёт
+памяти (§5.5); стартовые пределы калибруются в P7a. Исчерпан бюджет — MAIN перестаёт передавать данные и отправляет
+одно уведомление `fx.gap` (все чаты `unknown`), изолированный мир перезапрашивает `fx.state`; потеря события не создаёт
+ложного `sent`.
 
 **Запросы в MAIN (`ToMainFansly`):**
 
@@ -626,7 +660,7 @@ interface StartProofV1 {
 | `fx.coverage` | `{groupIds \| 'all', state, reason}` | поток |
 | `fx.deleted` | `{groupId, ids}` (открытая группа) | поток |
 | `fx.vaultAdded` | `{albumId, mediaIds}` | поток |
-| `fx.gap` | причина | всегда доставляется |
+| `fx.gap` | причина | одно уведомление, вне кредитов |
 | `fx.contract` | сетевые якоря: `accountMe`, `socket`, `frames`, `xhr`; сигнал несовместимости тапа | состояние |
 | `fault` | место, счёт (X22) | — |
 
@@ -798,9 +832,13 @@ FS-INS-1 на этом механизме:
   фона, если права выданы:
   - `onBeforeSendHeaders` (`['requestHeaders']`; `extraHeaders` в Firefox — ошибка схемы, S6 Q3) — шаблон заголовков;
   - `onCompleted` — только статус и `requestId`, без тела: факты 429 для пейсера (§8.4).
-- **Только запросы страницы:** `tabId ≥ 0`, документ — `https://fansly.com/…`, не наш relay и не скрипт другого расширения.
-  FBuddy шлёт свои запросы из той же вкладки с повторёнными, возможно устаревшими заголовками (S5 §3.9); как они выглядят в
-  `webRequest` — спайк P3a и P3b. Неизвестный источник не выдаётся за FBuddy, запросы соседа шаблон не обновляют.
+- **Два предиката.**
+  - Шаблон заголовков обновляет только достоверный запрос страницы: `tabId ≥ 0`, документ — `https://fansly.com/…`, не
+    наш relay и не скрипт другого расширения. FBuddy шлёт свои запросы из той же вкладки с повторёнными, возможно
+    устаревшими заголовками (S5 §3.9); как они выглядят в `webRequest` — спайк P3a и P3b. Неизвестное происхождение
+    шаблон не обновляет.
+  - Статус 429 принимается от любого запроса вкладки Fansly — страницы, соседа, нашего relay — и привязывается к
+    креатору вкладки (§8.4).
 - **Шаблон** — на аккаунт (legacy id из `authorization` → canonical из `/account/me`, алиасы AU-031…033):
   `authorization`, `fansly-client-id`, `fansly-session-id`, последний `fansly-client-check` по семейству маршрутов. Хранится
   в памяти и `storage.session` (переживает сон фона, теряется при перезапуске браузера и обновлении); в логи не попадает
@@ -831,10 +869,11 @@ FS-INS-1 на этом механизме:
 | `POST /message` (приветствие), записи заметок | без ожидания после опеки; во время охлаждения — отказ до опеки |
 
 Охлаждение — общее на креатора, его вызывает **любой** 429: наш (`fansly-api`, relay) или со страницы модели — FBuddy
-опрашивает `/message/unread` раз в 10 с из каждой вкладки (S5 §3.10). Источник чужого 429 — факт `onCompleted`, привязка к
-креатору — тем же реестром запросов, что захват сессии. Один ответ дедуплицируется между клиентом и слушателем. Охлаждение
-хранится в памяти и `storage.session`; после пробуждения фона исходящий вызов ждёт загрузки этого состояния. Источник 429
-считается в `client_health` (наш / страница / неизвестный).
+опрашивает `/message/unread` раз в 10 с из каждой вкладки (S5 §3.10). Чужой 429 — факт `onCompleted`; креатор — по
+регистрации вкладки (`tabId`). Вкладка без регистрации (открыта до выдачи прав) — охлаждение на всех креаторов профиля:
+лишняя пауза безопаснее лишнего запроса. Один ответ дедуплицируется между клиентом и слушателем. Охлаждение хранится в
+памяти и `storage.session`; после пробуждения фона исходящий вызов ждёт загрузки этого состояния. Источник 429 считается в
+`client_health` (наш / страница / неизвестный).
 
 ### 8.5 Транспорт и relay
 
@@ -851,17 +890,22 @@ FS-INS-1 на этом механизме:
 Своя машина состояний и журнал `fansly.send.journal` (только id, без текста); X8 и `send.journal` не меняются.
 ```
 ready → claimed (бронь фана, продление раз в 40 с) → routed (слот пейсера и кадр relay готовы)
-      → dispatched (опека хаба HF-3: группа AI или ручная; билет до expiresAt) ⟶ последняя сверка ⟶ надёжная запись
-      → requestStarted (fetch начат) → receipted (ответ с id, groupId, senderId) → sent (эхо 5/1 с тем же id)
+      → dispatched (опека хаба HF-3: группа AI или ручная; билет до expiresAt) ⟶ надёжная запись намерения
+      ⟶ последняя сверка (синхронно) → requestStarted (fetch начат) → receipted (ответ с id, groupId, senderId)
+      → sent (эхо 5/1 с тем же id)
 отказы: refused — доказанный отказ до отправки или 4xx, кроме 401; uncertain — всё остальное после надёжной записи
 ```
-- Всё, что может ждать (пейсер, relay), идёт **до** `dispatch`. После ответа опеки — **последняя сверка** кортежа (креатор,
-  группа, фан, документ, транспорт, `historyRevision`, ревизия черновика) и остатка билета по его `expiresAt`, затем
-  **надёжная запись** «отправка началась» и сразу `POST /message`, без `await` между сверкой и передачей запроса.
-- **Окна сбоя:** до записи — ничего не ушло, опеку можно отпустить (`failed` с причиной); после записи до `fetch` и после
-  `fetch` до квитанции — `uncertain`, автоповтора нет, освобождать фана под новую отправку нельзя; после квитанции до
-  подтверждения хабу — повтор идемпотентного `sent` с сохранённым id. Завершение и сверка начатой попытки работают и после
-  выключения флага (HF-3).
+- Всё, что может ждать (пейсер, relay), идёт **до** `dispatch`. После ответа опеки порядок такой:
+  1. **надёжная запись намерения** «отправка может начаться» (`await` записи в хранилище — единственная пауза);
+  2. **последняя сверка — синхронно, по памяти:** кортеж (креатор, группа, фан, документ, транспорт, `historyRevision`,
+     ревизия черновика) и остаток билета по его `expiresAt`;
+  3. сразу `fetch` — без единого `await` между сверкой и передачей запроса. При «Fansly через вкладку» кадр relay
+     повторяет свою часть сверки (документ, аккаунт, вкладка) синхронно у себя, прямо перед своим `fetch`.
+  Сверка не прошла — `refused`: в этом же процессе доказано, что `fetch` не вызывался.
+- **Окна сбоя:** до записи — ничего не ушло, опеку можно отпустить (`failed` с причиной); после записи — восстановление не
+  знает, был ли `fetch`, поэтому `uncertain`: автоповтора нет, освобождать фана под новую отправку нельзя, пока отсутствие
+  отправки не доказано; после квитанции до подтверждения хабу — повтор идемпотентного `sent` с сохранённым id. Завершение и
+  сверка начатой попытки работают и после выключения флага (HF-3).
 - Ручная группа: `{kind: 'manual', textFingerprint: sha256(точный текст)}`; неизменённый AI-текст идёт группой генерации
   (FS-NEW-6).
 - `200 {success:false}` — `uncertain`, пока не доказано, какие коды значат «не доставлено» (S4 HF-3 #5); такие ответы
@@ -902,7 +946,8 @@ ready → claimed (бронь фана, продление раз в 40 с) → 
 - Чтения и записи — по FS-NOTE-*. Заметку FBuddy «FBuddy Notes» (12000, может нести `[FBUDDY_SYNC]`) показываем как чужую:
   только чтение с предупреждением, никогда не правим и не «чистим» (S5 §3.11).
 - «✨ Заполнить из чата» (старое 2.10.x, E159–E161) — операция `notes-fill` (функция хаба `fan-notes-fill`). В хаб уходят
-  только названия полей анкеты; глубина — по допуску HF-6 для этой функции (§11.2); `conversationRef = groupId`, `fanRef`.
+  только названия полей анкеты; глубина — по допуску HF-6 для этой функции, не меньше 3000, как у старого (§11.2);
+  `conversationRef = groupId`, `fanRef`.
   Ответ сливается в пустые поля, заполненные показываются как «было → станет».
 
 ### 8.10 «Регистрация»
@@ -1055,8 +1100,8 @@ ready → claimed (бронь фана, продление раз в 40 с) → 
 | Fansly | `notes`, `vault`, `registration` | одноимённые флаги | — |
 
 Строку `"*"` Fansly не наследует. Клиент читает флаги страницы (`docs/protocols/hub.md`); новые имена флагов и возможностей
-— в `contracts/src/hub/wire.ts` (`CLIENT_FEATURE_FLAG_NAMES`, `CLIENT_HUB_CAPABILITY_NAMES`, `AI_STREAM_CAPABILITIES`) и
-`hub/src/routes.ts`.
+— в `contracts/src/hub/wire.ts` (`CLIENT_FEATURE_FLAG_NAMES`, `CLIENT_HUB_CAPABILITY_NAMES`, `AI_STREAM_CAPABILITIES`);
+`CLIENT_FLAG_REQUIREMENTS` (`contracts/src/hub/routes.ts:94-111`) — только нужды транспорта клиента (§1.4).
 
 **Ключи чтений по разговору** (F6b, HF-10):
 
@@ -1084,14 +1129,14 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 | HF-8б | свежий текст Fansly; ветка `dm_live_messages` в поиске свежего текста (удаления и чужие группы, которые знает только сокет) | Fansly, флаг `freshText` |
 | HF-5 | Hi: `startProof` v1 и `personalMessageCount` верхнего уровня; проверка id окна, начала (противоречие со свидетелем начала и известной историей; удалённая историческая строка противоречием не считается) и порога; отказ `history_unproven` / `too_many_personal` | возможность `hi-start-proof-v1`, ядро без `clientContext` |
 | HF-4а | личность войса: `conversationRef = groupId`, `fanRef`, проверка пары; старый формат работает (проверено на старой форме) | новое поле `fanRef` в создании озвучки |
-| HF-3 | ручная группа (`manual:<sha256>` без миграции); допуски §11.1 — матрица `(платформа, purpose, действие)`; лимит приветствий по назначению (`greeting` ≥ 30 в минуту; у старого пик 29); доказательство отказа HTTP | Fansly, `manual-greeting-v1` |
-| HF-6 | глубина 5000 одной настройкой на обе платформы: значение `5000` в перечне `aiTranscriptDeepMaxRows` (сейчас `1500`, `3000`; `config-registry.ts:307`), Fansly в `mayReadDeepTranscript`, путь `live_union` передаёт `maxRows`, тело `messageCount ≤ 5000`, глубина `fan-notes-fill` — явным правилом (сейчас глубоко читает только полный `fan-summary`, `ai-transcript-depth.ts:75`). X34: 5000 сообщений помещаются в окно модели Recap (подсчёт токенов на фикстуре из 5000 сообщений с системной частью и запасом на ответ) и цена названа | настройка (на проде действует 1500: ни переменной окружения, ни строки настройки — проверено) и `context-v1` |
+| HF-3 | ручная группа (`manual:<sha256>` без миграции); допуски §11.1 — матрица `(платформа, purpose, действие)`; лимит приветствий по назначению (`greeting` ≥ 30 в минуту; у старого пик 29); доказательство отказа HTTP. Пока Fansly отказан проверкой платформы, HF-3 проверяет схемы и переходы; полный сценарий на Fansly — в HF-2 | Fansly, `manual-greeting-v1` |
+| HF-6 | глубина 5000 одной настройкой на обе платформы: значение `5000` в перечне `aiTranscriptDeepMaxRows` (сейчас `1500`, `3000`; `config-registry.ts:307`), Fansly в `mayReadDeepTranscript`, путь `live_union` передаёт `maxRows`, тело `messageCount ≤ 5000`, глубина `fan-notes-fill` — явным правилом, не меньше 3000 (сейчас глубоко читает только полный `fan-summary`, `ai-transcript-depth.ts:75`); старый путь `clientContext` (старое шлёт свою историю до 3000) не меняется. Паритет в день перехода: до пилота владелец ставит настройку не ниже 3000 — иначе Recap на Fansly мельче старого. X34: 5000 сообщений помещаются в окно модели Recap (подсчёт токенов на фикстуре из 5000 сообщений с системной частью и запасом на ответ) и цена названа | настройка (на проде действует 1500: ни переменной окружения, ни строки настройки — проверено) и `context-v1` |
 | HF-7д0 | признаки автоматики в архиве: `type`, `correlationId` с признаком присутствия в материальной голове (`sync-pull.ts:906-936` их не сохраняет), протянуть до `ArchiveMessageRow` (`message-archive.ts:1455-1488`); миграция вперёд, если нужна; старые строки — «неизвестно» или ограниченный replay сохранённых наблюдений. Живой слой их уже хранит (`schema.ts:2051-2052`) | только данные |
 | HF-7а…д | паритет контекста: подписи медиа из `media_metadata`, профиль (имя по правилу старого, сохранённое имя из `page_alias`, username, био при гидрации; аватар — §15.1), PPV из `media_orders`, траты и подписка, пометки автоматики по карте происхождения (архив и `live_union`), `transcriptCoverage` из цепочки; эталон — через настоящий canonicalizer и чтение из БД | Fansly, ядро без `clientContext` |
 | HF-4б | войсы в узком токене, флаг `voice`, возможность `voice-notes-v1`, доступность в bootstrap | флаг выключен |
 | HF-10 | рекап и лента — `conversationRef` + `fanRef` (§11.1); сохранение досье из генерации проверяет принадлежность паре | возможность `conversation-recaps-v1` |
 | HF-12 | узкий токен: Reply, Fix, Hi, Ping на Fansly — под флагом `drafts`; `voice-script` → `voice`; `fan-notes-fill` → `notesFill`; OnlyFans без изменений | Fansly, узкий токен |
-| HF-2 | Fansly в требованиях по платформам; флаги Fansly (`drafts`, `voice`, `notes`, `notesFill`, `vault`, `registration`) | Fansly читает `flag_off`, пока владелец не поставит строки |
+| HF-2 | Fansly в требованиях по платформам; флаги Fansly (`drafts`, `voice`, `notes`, `notesFill`, `vault`, `registration`); полный сценарий опеки приветствия на Fansly (claim → dispatch → sent при `previewSend = false`) через штатный допуск | Fansly читает `flag_off`, пока владелец не поставит строки |
 | HF-13 | метрики Fansly в реестре `client_health`: имена и границы корзин (только дополнение) | новые имена |
 
 Затем: выкладка; «SDK для тестов» после каждой схемы; «SDK для выпуска» — из выложенного коммита; регистрация SDK
@@ -1109,7 +1154,7 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 |---|---|
 | `hosts.ts` (новый) | `HOST_PLATFORM`, `HOST_KINDS`, рантайм-таблица сайтов |
 | `ids.ts` | пара хост↔платформа — из `HOST_PLATFORM`, а не `chatspace ⇔ onlyfans` в refine |
-| `features/manifest.ts` (новый) | `FeatureSpec` с `byHost`; срезы собираются в корне композиции |
+| `features/{types,common,chatspace,fansly}.ts` (новые) | манифест фич (§1.4): общее и по файлу на сайт, требования по действиям; срез — графом модулей при сборке; `HotkeyActionId` — строковое объединение |
 | `host.ts` | `RouteState.conversationRef?`, `conversationKind?: 'direct' \| 'group'`; `NavigationIntent.target.conversationRef?`; `HostContractReport` — разбор по `host`: нет `host` или `'chatspace'` → прежняя полная схема `anchors`; `'fansly-web'` → обязательный блок `extensions['fansly-web']` с полным набором якорей и возможностей Fansly; `HostPort.freshness?`, `HostPort.fansly?`; `ChatWindow.fanScript?`, `newestAt?` |
 | `fansly.ts` (новый) | `FanslySnapshot`, `StartProofV1`, `FanslyPagePort`, `FanslyAnchorId`, `FanslyCapability` |
 | `bridge-fansly.ts`, `bridge-messages-fansly.ts` (новые) | реестр моста Fansly (§6), конверт `fx.batch`, `fx.gap` |
@@ -1119,10 +1164,10 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 | `tab-messages-fansly.ts` (новый) | `fansly.followers.*`, `fansly.voice.*`, `fansly.vault.*`, `fansly.notes.*`, `fansly.relay.*` — разбираются в чанке `bg/fansly` |
 | `settings.ts` | v1 **не меняется** (`deep` ≤ 3000, фикстура `deep: 3001` по-прежнему недопустима, `contracts/test/fixtures/schemas.ts:315`). Новый ключ `STORAGE_KEYS.settingsExt = 'settings.ext'` со своей версией — всё, чего v1 выразить не может: `{v: 1, hosts: {'fansly-web'?: {enabled, viaTab, notesView, sound: {messagesTone, subscribersTone}}}, windows: {deep?: 3001…5000}}`; глубина берётся `windows.deep` из него, если есть, иначе из v1, и не выше `limits.deepMax`. У каждого поля один владелец; импорт идемпотентный, значение по умолчанию не затирает сохранённое. Старые сборки ключ не знают и не трогают: их ремонт v1 выбрасывает неизвестные поля только внутри `settings` (`core/src/domain/settings/repair.ts`) |
 | `limits.ts` | три предела: на проводе — `window` в `StartOp` и `messageCount` в теле хаба ≤ 5000 (недопустимые фикстуры — 5001 вместо нынешних 3001, `schemas.ts:648`, `hub.ts:594`); настройка — v1 ≤ 3000 и `windows.deep` ≤ 5000 в `settings.ext`; допуск — по `limits.deepMax` из bootstrap. Тест: 3001 не уходит, пока `deepMax < 5000` |
-| `hub/ai.ts`, `hub/wire.ts` | `HUB_AI_FEATURES` += `voice-script`, `fan-notes-fill`; новые флаги и возможности (§11); новые поля тела — под возможностями |
+| `hub/ai.ts`, `hub/wire.ts`, `hub/routes.ts` | `HUB_AI_FEATURES` += `voice-script`, `fan-notes-fill`; новые флаги и возможности (§11); новые поля тела — под возможностями; в `CLIENT_FLAG_REQUIREMENTS` — только нужды транспорта клиента (§1.4) |
 | `telemetry.ts` | окно на (хост, сборка), хост в id отчёта; метрики HF-13 |
 | `errors-fansly.ts` (новый) + приложение А `docs/architecture.md` | `CG-FAN-*`, `CG-NOTE-*`, `CG-VOICE-*`, `CG-VAULT-*`, `CG-FNEW-*` |
-| `vm/dock.ts` | `DockVM.chips` |
+| `vm/dock.ts` | `DockVM.chips`; строковые объединения `DockChipGroup`, `DockIconId` (их отображение и полноту держит `ui/kit`) |
 | `vm/selectors.ts` | поверхность `header-slot`, панели Fansly |
 
 Схемы ChatSpace и их фикстуры не меняются, кроме решённого выше: нынешние недопустимые фикстуры 3001 на проводе становятся
@@ -1190,7 +1235,11 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 | 5 | Есть ли у агентства организация FBuddy (фильтр слов, журнал сообщений) | наши фоновые приветствия идут мимо фильтра и журнала FBuddy — принять или учесть |
 | 6 | Согласие на телеметрию у пилотных чаттеров | включить на их профилях, иначе наблюдение пилота слепо |
 
-Решено без владельца (технически, X35): флаг черновиков `drafts` — только для Fansly, OnlyFans не меняется; имя расширения
+**До пилота — действие владельца, а не вопрос:** глубина Recap в настройке хаба — не ниже 3000 (HF-6). Иначе Recap и
+«Заполнить из чата» на Fansly будут мельче, чем у старого: оно шлёт свою историю до 3000 сообщений
+(`fansly-chat/src/shared/constants.ts:176-178`), а архивный путь хаба на проде читает 1500.
+
+Решено без владельца (технически, X36): флаг черновиков `drafts` — только для Fansly, OnlyFans не меняется; имя расширения
 в манифесте — «ChatGoose» с описанием «для ChatSpace и Fansly» (выпускной PR P16g; после обновления Firefox покажет новое
 имя).
 

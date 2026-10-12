@@ -135,7 +135,7 @@ a boundary you need to cross is a design question, not a lint exception.
   sites in one extension: host registry, host adapter, feature manifest with
   per-site admission, host UI profile, per-site lazy builds, the byte registry
   and the gates that keep shared code host-free; binding for implementation),
-  `plan.md` (stages and PRs, the PR graph in waves), `fansly-web.md` (facts
+  `plan.md` (stages and PRs, the PR graph in groups), `fansly-web.md` (facts
   about fansly.com with references); the owner's rulings — decisions X33 and
   X34 (fast cutover, pilot on `lora-1` and `ari-1`, FBuddy on every chatter's
   page); the architecture's own decisions — X35, revised by its arena review
