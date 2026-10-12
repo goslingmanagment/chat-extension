@@ -92,7 +92,7 @@ PR, который надо разделить, план получает вер
 | HF-8д | уровень покрытия Fansly в кадре — из цепочки движка (`page_dm_threads.history_state`) | `services/client-coverage.ts`, `sync/thread-chain.ts` | доказанное начало → `complete`; без доказательства — `unknown` |
 | HF-2 | Fansly в `CLIENT_FEATURE_REQUIREMENTS` — по флагу, когда путь готов | `services/client-features.ts` | страница Fansly получает флаги; без флага — `platform_unsupported` |
 | HF-5 | Hi на Fansly: личные с классификацией автоматики, доказанное начало по цепочке Fansly, иначе отказ | `features/index.ts`, `prompts/feature-policies.ts` | допуск: доказанное начало, 40 автоматических, 0 личных; допуск: 1 личное и 40 автоматических; отказ без доказательства; отказ при 11 личных |
-| HF-6 | полный Recap на Fansly — глубокий, как на OnlyFans; потолок до 5000 настройкой владельца (X34) после проверки окна модели и цены | `services/ai-transcript-depth.ts`, `packages/db/src/repositories/ai-transcript-depth.ts` | глубокое окно на Fansly с `context-v1`; 5000 при поднятой настройке; без настройки — как сейчас |
+| HF-6 | полный Recap на Fansly — глубокий, как на OnlyFans; потолок 5000 — одной настройкой владельца для обеих платформ (X34) после проверки окна модели и цены | `services/ai-transcript-depth.ts`, `packages/db/src/repositories/ai-transcript-depth.ts` | глубокое окно на Fansly с `context-v1`; 5000 при поднятой настройке; без настройки — как сейчас |
 | HF-7а | медиа в транскрипте Fansly (сейчас без метаданных, `context/index.ts:96-109`) | загрузчик транскрипта Fansly | эталон AI-147 |
 | HF-7б | профиль фана для Hi и Ping: имя, username, аватар, био — с сервера (сейчас username и аватар из `clientContext`, `features/index.ts:892, 1061`) | `features/index.ts`, загрузчики профиля Fansly | эталон AI-034, AI-146 |
 | HF-7в | сохранённое имя фана (сейчас `fanCustomName: undefined`, `features/index.ts:688-689`): найти источник на сервере или исключение владельца | `features/index.ts` | эталон SP-040 или утверждённое исключение |
@@ -308,6 +308,5 @@ PR, который надо разделить, план получает вер
 | Когда | Что |
 |---|---|
 | P3b | подпись тестовых сборок |
-| HF-6 | одна ли настройка глубины Recap для OnlyFans и Fansly |
 | P16c | флаги на `lora-1` и `ari-1`, выдать расширение чаттерам этих страниц |
 | выпуски | подпись выпусков нового |
