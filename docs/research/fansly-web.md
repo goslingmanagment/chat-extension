@@ -32,7 +32,7 @@
 | **Без zone.js** — `provideZonelessChangeDetection` | `main:104880` → `e.al` → `CT` = `"NgZoneless"` (`main:107656`, `:112899`); `polyfills` пустой; живой замер: `zone: false` |
 | HTTP-клиент — **XHR**, без `withFetch` | `provideHttpClient(withInterceptorsFromDi())` (`main:104880`, `:107131`), бэкенд `xhrFactory` (`main:107553-107560`); живой замер: все API-запросы с загрузки — `xmlhttprequest` |
 | Service worker `ngsw-worker.js`, `registerWhenStable:30000` | `main:104880`; живой замер: страница под его управлением, `activated` |
-| CSP и Trusted Types нет; `x-frame-options: SAMEORIGIN` | `shell-headers.txt`; живой замер: `cspMeta: 0`, `trustedTypes: false` |
+| У оболочки без входа нет заголовков CSP и Trusted Types, есть `x-frame-options: SAMEORIGIN`; в живом документе нет meta-CSP и политики Trusted Types | `shell-headers.txt` (один GET без cookies — заголовки документа с входом не проверены); живой замер: `cspMeta: 0`, `trustedTypes: false` |
 | Сторонний код в мире страницы: AWS WAF `challenge.js`, телеметрия Fansly с отпечатком устройства, Intercom | `main:26155-26164`, `main:31747-32063`, `metrics.fansly.com`; в замере `AwsWafIntegration` не было, iframe Intercom — один |
 
 Вывод: наши таймеры, промисы, наблюдатели и вставки узлов сами проходов отрисовки Angular не планируют;
@@ -101,7 +101,7 @@ div.content-wrapper
 | `GET /api/v1/group/<id>/` | при каждом заходе в чат | участники группы, правила ЛС | `main:74565` → `:28372-28379` |
 | `GET /api/v1/message?groupId=…` | первый заход в чат за жизнь документа | страница истории (25) | `main:28989-28991` |
 | `POST /api/v1/message` | отправка | `id`, `groupId` нового сообщения | `main:28422-28428` |
-| `POST /api/v1/message/ack` | отметка прочтения — отдельный запрос | — | `main:28316-28323` |
+| `POST /api/v1/message/ack` | отметка прочтения — отдельный запрос; страница делает его сама при открытии чата (`markGroupAsRead`) | — | `main:28316-28323`, `:29138-29144` |
 
 Живой замер с загрузки вкладки (138 с): `/messaging/groups` — 4 ответа, до 115 КБ; `/message` — 2, до
 26 КБ; `/group/<id>/` — 2, до 1,6 КБ; `/account/me` — 1, 22 КБ. **За 60 с простоя — ни одного запроса к
@@ -154,14 +154,53 @@ API**, только одна телеметрия `metrics.fansly.com`. Форм
 - Сокетный оверлей Fansly включён для всех страниц: `fanslyLiveOverlayReadPages = "all"` с 2026-10-01;
   `aiLiveTextContextMode = "serve"`. Код — `apps/runtime/src/modules/ai/context/index.ts` (`live_union`),
   `packages/shared/src/fansly-live-overlay-read.ts`.
-- Задержка за сутки по 1 304 сообщениям фанов (`dm_live_messages`, `first_visible_at − created_at`):
-  p50 1,61 с, p95 2,59 с, p99 3,02 с. Подтверждение по REST (`confirmed_at − created_at`) — p50 7,3 с.
+- Задержка (`dm_live_messages`, сообщения фанов, `first_visible_at − created_at`) за сутки 2026-10-11 UTC по
+  1 330 сообщениям: p50 1,61 с, p95 2,57 с, p99 3,01 с, максимум 3,5 с. Подтверждение по REST
+  (`confirmed_at − created_at`) — p50 7,3 с. Запросы — §10.
 - Шесть страниц Fansly; у всех `external_page_id` — 18-значный числовой id (проходит `NATIVE_ID_PATTERN`).
 - Точность id. Хаб ключует сообщения переписки числом: `Number(ref)` (`context/index.ts:71`) и отбрасывает
-  повторы (`prompts/transcript/normalize.ts:150-154`); у 18–19-значных id `Number()` теряет точность
-  (шаг 128). В архиве 782 898 сообщений Fansly: в одной переписке пар с разницей id меньше 128 — 27, и все
-  27 — один и тот же id дважды; настоящих склеек при `Number()` — 0.
+  повторы (`prompts/transcript/normalize.ts:150-154`). Шаг округления `Number()` зависит от величины: для
+  нынешних id Fansly (~9·10¹⁷, между 2⁵⁹ и 2⁶⁰) — 128, для 19-значных — до 2048; разные id могут совпасть
+  (`Number('900000000000000001') === Number('900000000000000002')`). В архиве 782 898 сообщений Fansly: в одной
+  переписке пар с разницей id меньше 128 — 27, и все 27 — один и тот же id дважды; настоящих склеек при
+  `Number()` — 0. Это не гарантия на будущее: HF-8 требует точных строковых id.
 - Свежий текст для Fansly хаб отвергает (`context/live-text.ts:81-85`; `routes.ts:2330-2337`), а id
   больше 2^53 — как `unusable` (`live-text.ts:319-322`). `knownFanMessageIds` принимает на любой функции и
   отвечает по каждому id: `included`, `deleted`, `absent` (нет в окне: не дошло, старше окна или срезано
   бюджетом промпта), `unknown` (`routes.ts:2005-2043`; `context/context-frame.ts:137-165`).
+
+## 10. Как получены числа хаба (прод `agency-de`, только чтение)
+
+Все запросы — `psql` в базе `agency_hub_core` с `PGOPTIONS='-c default_transaction_read_only=on'`.
+
+```sql
+-- настройки оверлея и свежего текста (2026-10-12 02:31 UTC)
+select key, value, updated_at from config_settings
+ where key in ('fanslyLiveOverlayReadPages', 'aiLiveTextContextMode');
+-- → aiLiveTextContextMode "serve" 2026-10-08 20:31:17 UTC; fanslyLiveOverlayReadPages "all" 2026-10-01 23:08:24 UTC
+
+-- задержка оверлея за сутки 2026-10-11 UTC
+select count(*),
+       percentile_cont(0.5)  within group (order by extract(epoch from first_visible_at - created_at)),
+       percentile_cont(0.95) within group (order by extract(epoch from first_visible_at - created_at)),
+       percentile_cont(0.99) within group (order by extract(epoch from first_visible_at - created_at)),
+       max(extract(epoch from first_visible_at - created_at)),
+       percentile_cont(0.5)  within group (order by extract(epoch from confirmed_at - created_at))
+  from dm_live_messages
+ where is_sent_by_page = false and first_visible_at is not null
+   and created_at >= '2026-10-11 00:00:00+00' and created_at < '2026-10-12 00:00:00+00';
+-- → 1330 | 1.61 | 2.57 | 3.01 | 3.5 | 7.3
+
+-- соседние id в одной переписке Fansly (2026-10-12)
+with f as (select conversation_ref, message_ref, message_ref::numeric as r from message_archive
+            where platform = 'fansly' and message_ref ~ '^[0-9]+$'),
+     d as (select conversation_ref, message_ref, lag(message_ref) over w as prev_ref,
+                  r - lag(r) over w as gap
+             from f window w as (partition by conversation_ref order by r))
+select message_ref, prev_ref, gap from d where gap < 128;
+-- → 27 строк из 782 898; во всех message_ref = prev_ref (один id дважды); Number(a) === Number(b) для разных id — 0
+
+-- id страниц Fansly
+select label, length(external_page_id), external_page_id ~ '^[1-9][0-9]{0,29}$' from pages where platform::text = 'fansly';
+-- → 6 страниц, у всех 18 цифр, true
+```
