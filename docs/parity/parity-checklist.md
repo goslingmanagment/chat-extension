@@ -10,6 +10,9 @@
 Источники и версии:
 - Fansly-расширение: `~/code/1-platform/fansly-chat`, HEAD `a534d72`, версия 2.7.1.
   Пути в колонке «Fansly» — от корня этого репозитория.
+  Раздел 23 добавлен матрицей паритета R20 (P1a, 2026-10-13): функции 2.7.2–2.10.1
+  (`ff30d00`) и аватар фана для Hi; итог каждой строки, касающейся Fansly, — в
+  `docs/project-unite/parity-matrix.md`.
 - Десктоп: `onlyfans-chat`, worktree `chatspace-integration`, HEAD `357b14e`
   (main + коммиты с документами), версия 0.1.64. Пути в колонке «Десктоп»
   сокращены: `r/` = `apps/desktop/src/renderer/src/`, `f/` =
@@ -1012,6 +1015,33 @@ Dnn — журнал решений десктопа, Ennn — журнал Fans
 | RU-003 | Нормализация транскрипта, блоки трат и подписки | Десктоп их не вызывает | — | s/transcript/normalize.ts; s/transcript/format.ts; s/context/spending.ts; s/context/subscription.ts | not-applicable | Контекст собирает хаб |
 | RU-004 | Цены PPV | В центах, $3–200 | — | s/composer.ts:64-79; m/send/engine.ts:52-54 | not-applicable | PPV делает ChatSpace |
 
+## 23. Fansly после 2.7.1 (2.7.2–2.10.1) и аватар Hi
+
+Строки добавлены матрицей паритета R20 (P1a, 2026-10-13, `docs/project-unite/parity-matrix.md`): функции старого
+расширения, выпущенные после 2.7.1, с которой снят этот чек-лист (`fansly-chat` `ff30d00`, 2.10.1), и аватар фана для Hi
+(решение X37), который не нёс ни один PR. Пути — от корня `fansly-chat` на `ff30d00`.
+
+| ID | Функция | Что делает | Fansly | Десктоп | Цель | Почему |
+|---|---|---|---|---|---|---|
+| FX-001 | «Fansly через вкладку» | Опционально, выключено по умолчанию: свои запросы к Fansly идут через скрытый кадр расширения во вкладке этой модели — через прокси её контейнера; маршрут на модель; захват сессии кадр пропускает; маршрут выбирается до опеки | src/fansly-relay/index.ts:1-109; src/background/fansly-transport.ts:64-280; src/shared/fansly-relay-protocol.ts:9-57; src/background/session-capture.ts:93-101 | — | fansly-phase | E149, 2.7.2; X33 п. 4 — выключено по умолчанию |
+| FX-002 | «Регистрация» в шапке чата | Кнопка в строке под именем фана после Gallery: по клику — дата регистрации и возраст аккаунта из snowflake id фана; id — после генерации или одна попытка `GET /group/<id>`, без повторов, во время cooldown — ничего; только один на один; ответ держится до перезагрузки | src/content/fan-registration.ts:1-211; src/content/header-row-slot.ts:1-185; src/shared/fansly-id-time.ts:7-15; src/background/runtime-api.ts:1541-1610 | — | fansly-phase | E152, 2.8.0 |
+| FX-003 | «Нельзя написать» и «Исключить из очереди» | «Новые»: фан с платной или закрытой личкой (правила `dmPermissionFlags`, `verifyNew` Fansly) — «Нельзя написать» с причиной; ничего не генерируется, не бронируется и не отправляется; «Исключить из очереди» / «Вернуть в очередь», исключение помнится в браузере и снимается, когда личка открылась | src/shared/fansly-dm-permissions.ts:46-89; src/background/followers-service.ts:621-632,856-873 | — | fansly-phase | E155, 2.8.1 |
+| FX-004 | «Заметки»: кнопка в шапке | Кнопка со счётчиком заметок фана в строке шапки после «Регистрации»; только чат один на один | src/content/fan-notes/notes-trigger.ts:1-87; src/content/header-row-slot.ts:1-185 | — | fansly-phase | E157, 2.9.0 |
+| FX-005 | ⌘⇧K / Ctrl+Alt+K — панель заметок | Открывает и закрывает панель заметок; схема клавиш 2, клиент `fansly` | src/content/fan-notes/notes-controller.ts:151-157 | — | fansly-phase | E157; в этом расширении действие `notes` зарезервировано (#61) |
+| FX-006 | Имя для себя | Заметка 12002 «Custom Username»: правится в поле панели, Enter или уход из поля сохраняет, пустое — удаляет | src/shared/fan-notes.ts:16-19,102-117; src/content/fan-notes/notes-controller.ts:521-687 | — | fansly-phase | E157 |
+| FX-007 | Заметки фана: создать, изменить, удалить | Заметки 12000 (заголовок и текст): добавить, изменить, удалить после подтверждения в карточке | src/content/fan-notes/notes-panel.ts:1-485; src/background/fansly-client.ts:743-768 | — | fansly-phase | E157 |
+| FX-008 | «+ По шаблону» | Анкета агентства: «Имя, Локация, Возраст, Работа, Хобби, Фетиши, Характеристика, Медиа» | src/shared/fan-notes.ts:29-40 | — | fansly-phase | E157 |
+| FX-009 | Вид панели заметок | «Всегда справа», «Справа по кнопке» (по умолчанию), «Окно по центру»; выбор — внизу панели, запоминается | src/shared/fan-notes.ts:42-61; src/content/fan-notes/placement.ts:27-70 | — | fansly-phase | E157; настройка `fanNotesView` |
+| FX-010 | Чтения заметок | Группа раз на чат и `GET /account?ids=` → notes; через пейсер, одна попытка, во время cooldown — ничего; ответ держится до перезагрузки вкладки, «Обновить» перечитывает; «Всегда справа» читает каждый открытый чат после 0,7 с, два других вида — при открытии | src/background/runtime-api.ts:418-506; src/content/fan-notes/notes-controller.ts:298-443 | — | fansly-phase | E157 |
+| FX-011 | Записи заметок | `POST /notes`, `/notes/edit`, `/notes/delete` — только по действию человека, одной попыткой; неудачное создание не повторяется до перечитывания; перед записью — та же сессия и аккаунт; длиннее пределов (1000 / 50 000) — отказ, не обрезка | src/background/fansly-client.ts:743-768; src/shared/fan-notes.ts:21-27; src/background/runtime-api.ts:501-534 | — | fansly-phase | E157 |
+| FX-012 | Черновики заметок по фану | Правка держится по фану: смена чата посреди правки ничего не теряет | src/content/fan-notes/notes-controller.ts:51-80 | — | fansly-phase | E157 |
+| FX-013 | Заметки не уходят в AI и логи | Тексты заметок не попадают ни в промпт, ни в хаб, ни в логи | src/shared/fan-notes.ts:1-27 | — | fansly-phase | E157 («Never in a prompt») |
+| FX-014 | «✨ Заполнить из чата» | В редакторе анкеты (заметка из ≥ 2 строк `Метка: значение`, ≤ 30 меток) AI-функция хаба `fan-notes-fill` заполняет анкету по всей переписке | src/content/fan-notes/notes-controller.ts:19-110; src/shared/fan-notes.ts:126-171 | — | fansly-phase | E159–E161, 2.10.1 |
+| FX-015 | В хаб — только названия полей | В хаб уходят только метки анкеты (`noteFields`), не значения; контекст — как у полного Recap: глубокое окно, траты, подписка, био, без минимума 30 сообщений; `conversationRef = groupId`, `fanRef` | src/background/kernel-feature-gateway.ts:93-95,483-484; src/background/operations.ts:2368,2890,2933 | — | fansly-phase | E159; хаб `fan-notes-fill` (Core #572, `a3449f77`) |
+| FX-016 | «было → станет» | Ответ ложится в пустые поля; заполненное не перезаписывается — другой ответ предлагается как «было → станет» с «Заменить / Заменить все / Скрыть»; «Остановить»; в Fansly ничего не пишется до «Создать» или «Сохранить» | src/content/fan-notes/notes-controller.ts:19-23,80-83; src/shared/fan-notes.ts:164-171 | — | fansly-phase | E159 |
+| FX-017 | «Новые»: сбой списка ≠ пусто | Если Fansly не ответил, окно пишет «Список не загружен», а не «Новых фоловеров нет», и подсказывает режим «Fansly через вкладку» | src/content/followers/index.ts:270,306 | — | fansly-phase | E149, 2.7.2 |
+| FX-018 | Аватар фана для Hi | Hi в чате и в «Новых» передаёт хабу URL аватара фана; хаб даёт его модели картинкой и сам его не скачивает | src/shared/greeting-context.ts:43,91; src/background/kernel-feature-gateway.ts:497 | — | fansly-phase | X37 (архитектура R20 §15.1 п. 4): аватар — из данных, которые страница уже загрузила |
+
 ---
 
 ## Итоги
@@ -1021,11 +1051,11 @@ Dnn — журнал решений десктопа, Ennn — журнал Fans
 | Цель | Строк |
 |---|---:|
 | `pilot-chatspace` | 552 |
-| `fansly-phase` | 65 |
+| `fansly-phase` | 83 |
 | `provided-by-chatspace` | 30 |
 | `not-applicable` | 78 |
 | `needs-owner-decision` | 62 |
-| **Всего** | **787** |
+| **Всего** | **805** |
 
 По разделам (pilot / fansly / chatspace / n/a / владелец):
 
@@ -1053,6 +1083,7 @@ Dnn — журнал решений десктопа, Ennn — журнал Fans
 | 20. Поверхности десктопа, которые даёт ChatSpace | 39 | 1 | 0 | 15 | 11 | 12 |
 | 21. Оболочка расширения | 18 | 16 | 2 | 0 | 0 | 0 |
 | 22. Прочие правила | 4 | 2 | 0 | 0 | 2 | 0 |
+| 23. Fansly после 2.7.1 (P1a) | 18 | 0 | 18 | 0 | 0 | 0 |
 
 Как читать: в сырых инвентаризациях было около 1 230 строк (Fansly 650, десктоп 327 +
 256); пересекающиеся функции сведены в одну строку, повторяющиеся механики Fansly и

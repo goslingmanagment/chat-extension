@@ -16,7 +16,7 @@ const byId = new Map(derived.rows.map((row) => [row.id, row]));
 describe('parity map', () => {
   it('reads every checklist row and every new row', () => {
     const checklist = checklistIds(read('docs/parity/parity-checklist.md'));
-    expect(checklist).toHaveLength(787);
+    expect(checklist).toHaveLength(805);
     expect(mapRows.filter((row) => row.origin === 'checklist').map((row) => row.id)).toEqual(checklist);
     const added = mapRows.filter((row) => row.origin === 'new').map((row) => row.id);
     expect(added).toHaveLength(23);
@@ -27,10 +27,10 @@ describe('parity map', () => {
     const counts = new Map<string, number>();
     for (const row of mapRows.filter((item) => item.origin === 'checklist')) counts.set(row.target, (counts.get(row.target) ?? 0) + 1);
     expect(Object.fromEntries(counts)).toEqual({
-      пилот: 595,
+      пилот: 596,
       'пилот + ChatSpace': 4,
-      'пилот + Fansly': 6,
-      Fansly: 67,
+      'пилот + Fansly': 5,
+      Fansly: 85,
       'даёт ChatSpace': 28,
       'не нужно': 73,
       'убрано владельцем': 13,

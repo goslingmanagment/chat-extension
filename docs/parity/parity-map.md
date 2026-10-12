@@ -2,7 +2,7 @@
 
 Дата: 2026-10-03. Приложение к `architecture.md` (сводный документ раунда 4, правки раунда 6).
 
-Источник строк — `parity-checklist.md` (787 строк, цели координатора). Основа разнесения — приложение А плана A, сверенное по строкам с таблицей плана B (§18 B). Сверху применены ответы владельца (А1–А9, Б1–Б17), решение X8, решения раундов 3–4 и сверка 22 строк, где планы расходились.
+Источник строк — `parity-checklist.md` (805 строк: 787 исходных и 18 строк FX раздела 23, добавленных матрицей паритета R20, P1a; цели координатора). Основа разнесения — приложение А плана A, сверенное по строкам с таблицей плана B (§18 B). Сверху применены ответы владельца (А1–А9, Б1–Б17), решение X8, решения раундов 3–4 и сверка 22 строк, где планы расходились.
 
 **Колонки:**
 - «Было» — цель в чек-листе: пилот / Fansly / ChatSpace / не нужно / решение владельца.
@@ -29,18 +29,20 @@
 
 | Итог | Строк |
 |---|---:|
-| пилот | 595 |
+| пилот | 596 |
 | пилот + ChatSpace | 4 |
-| пилот + Fansly | 6 |
-| Fansly | 67 |
+| пилот + Fansly | 5 |
+| Fansly | 85 |
 | даёт ChatSpace | 28 |
 | не нужно | 73 |
 | убрано владельцем | 13 |
 | ждёт владельца | 1 |
-| **всего** | **787** |
+| **всего** | **805** |
 
 В чек-листе было: пилот — 552, решение владельца — 62, Fansly — 65, не нужно — 78, ChatSpace — 30.
 Переклассифицировано строк: 21; решено из «ждёт владельца»: 61; ещё ждёт владельца: 1; уточнено без смены цели: 10.
+
+Правки R20 (P1a, 2026-10-13): SP-054 — `пилот` вместо `пилот + Fansly` (отправки из превью на Fansly в пилоте нет, spec §1.2); раздел 23 — 18 строк `Fansly` (FX-001…FX-018). Чей PR закрывает каждую строку на Fansly — `docs/project-unite/parity-matrix.md`.
 
 ## Переклассифицированные строки
 
@@ -356,7 +358,7 @@
 | SP-051 | Шапка превью | пилот | пилот | core/spenders/preview · ui/spenders · hub (H-9) | R12 · R15 · R04 | M4 |  |
 | SP-052 | «Мы писали / Фан писал» в превью | пилот | пилот | core/spenders/preview · ui/spenders · hub (H-9) | R12 · R15 · R04 | M4 |  |
 | SP-053 | Догрузка переписки в превью | не нужно | пилот | core/spenders/preview · hub/feed (H-9) | R12 · R04 · R15 | M4 | **перекласс.** догрузка — страницами ленты архива хаба по курсору; живая и платная загрузка запрещены (B) |
-| SP-054 | Отправка из превью | решение владельца | пилот + Fansly | core/send · host-chatspace/main/send-port · ui/spenders · hub/claim (H-7) | R10 · R09 · R05 · R15 · R20 | M4 | **решено** X8: текст выбранной части по клику через очередь ChatSpace; vault, PPV и массовая отправка — нет; Fansly — Б17 (X8) |
+| SP-054 | Отправка из превью | решение владельца | пилот | core/send · host-chatspace/main/send-port · ui/spenders · hub/claim (H-7) | R10 · R09 · R05 · R15 | M4 | **решено** X8: текст выбранной части по клику через очередь ChatSpace; vault, PPV и массовая отправка — нет; на Fansly — не в пилоте: у старого Fansly-расширения отправки из превью нет (R20 spec §1.2, P1a); приветствие из «Новых» Fansly — NF-020 (Б17) (X8) |
 | SP-055 | AI в превью | решение владельца | пилот | core/spenders/preview · ui/spenders · hub (H-9) | R12 · R15 · R04 | M4 | **решено** А7: AI в превью по контексту хаба; «Открыть и вставить»; X8 — отправка (А7 · X8) |
 | SP-056 | Соседний фан в превью | пилот | пилот | core/spenders/preview · ui/spenders · hub (H-9) | R12 · R15 · R04 | M4 |  |
 | SP-057 | Цена платного обновления | не нужно | не нужно | — | — | — |  |
@@ -1084,3 +1086,25 @@
 | RU-003 | Нормализация транскрипта, блоки трат и подписки | не нужно | не нужно | — | — | — |  |
 | RU-004 | Цены PPV | не нужно | не нужно | — | — | — |  |
 
+### 23. Fansly после 2.7.1 (2.7.2–2.10.1) и аватар Hi
+
+| ID | Функция | Было | Итог | Модуль | Пакет | Этап | Пометка |
+|---|---|---|---|---|---|---|---|
+| FX-001 | «Fansly через вкладку» | Fansly | Fansly | fansly-api (relay) · platform/rpc-relay | R20 | F |  |
+| FX-002 | «Регистрация» в шапке чата | Fansly | Fansly | host-fansly/header-slot · core/hosts/fansly | R20 | F |  |
+| FX-003 | «Нельзя написать» и «Исключить из очереди» | Fansly | Fansly | core/hosts/fansly/newcomers | R20 | F |  |
+| FX-004 | «Заметки»: кнопка в шапке | Fansly | Fansly | host-fansly/header-slot · ui/hosts/fansly/notes | R20 | F |  |
+| FX-005 | ⌘⇧K / Ctrl+Alt+K — панель заметок | Fansly | Fansly | core/hotkeys · ui/hosts/fansly/notes | R20 | F |  |
+| FX-006 | Имя для себя | Fansly | Fansly | core/hosts/fansly/notes · fansly-api/notes | R20 | F |  |
+| FX-007 | Заметки фана: создать, изменить, удалить | Fansly | Fansly | core/hosts/fansly/notes · fansly-api/notes | R20 | F |  |
+| FX-008 | «+ По шаблону» | Fansly | Fansly | core/hosts/fansly/notes | R20 | F |  |
+| FX-009 | Вид панели заметок | Fansly | Fansly | ui/hosts/fansly/notes | R20 | F |  |
+| FX-010 | Чтения заметок | Fansly | Fansly | fansly-api/notes · core/hosts/fansly/notes | R20 | F |  |
+| FX-011 | Записи заметок | Fansly | Fansly | fansly-api/notes · core/hosts/fansly/notes | R20 | F |  |
+| FX-012 | Черновики заметок по фану | Fansly | Fansly | core/hosts/fansly/notes | R20 | F |  |
+| FX-013 | Заметки не уходят в AI и логи | Fansly | Fansly | core/hosts/fansly/notes | R20 | F |  |
+| FX-014 | «✨ Заполнить из чата» | Fansly | Fansly | core/hosts/fansly/notes · ui/hosts/fansly/notes | R20 | F |  |
+| FX-015 | В хаб — только названия полей | Fansly | Fansly | core/hosts/fansly/notes · hub | R20 | F |  |
+| FX-016 | «было → станет» | Fansly | Fansly | ui/hosts/fansly/notes | R20 | F |  |
+| FX-017 | «Новые»: сбой списка ≠ пусто | Fansly | Fansly | core/hosts/fansly/newcomers · ui/hosts/fansly/newcomers | R20 | F |  |
+| FX-018 | Аватар фана для Hi | Fansly | Fansly | host-fansly/main/identity · core/hosts/fansly/ai | R20 | F |  |
