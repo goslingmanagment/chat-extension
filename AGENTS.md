@@ -128,6 +128,10 @@ a boundary you need to cross is a design question, not a lint exception.
   extension and the desktop, pilot evidence, what is not verified yet.
   `CHANGELOG.md` is the chatter-facing text of each version (the site and the
   announcement are made from it); `BUILD.md` is for Mozilla's reviewers.
+- `docs/fansly/` — R20, the Fansly host: `spec.md` (binding requirements `FS-*`;
+  it overrides `docs/architecture.md` §15) and `plan.md` (stages and PRs); facts
+  about fansly.com with references — `docs/research/fansly-web.md`; the owner's
+  rulings — decision X33.
 - `docs/backlog.md` — what is still to do or to check and is in no work
   package yet; first of all, the functional parity with the Fansly extension
   (where the data come from, how fresh, how many steps), not just the rows.
