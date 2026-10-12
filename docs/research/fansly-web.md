@@ -161,9 +161,12 @@ API**, только одна телеметрия `metrics.fansly.com`. Форм
 - Точность id. Хаб ключует сообщения переписки числом: `Number(ref)` (`context/index.ts:71`) и отбрасывает
   повторы (`prompts/transcript/normalize.ts:150-154`). Шаг округления `Number()` зависит от величины: для
   нынешних id Fansly (~9·10¹⁷, между 2⁵⁹ и 2⁶⁰) — 128, для 19-значных — до 2048; разные id могут совпасть
-  (`Number('900000000000000001') === Number('900000000000000002')`). В архиве 782 898 сообщений Fansly: в одной
-  переписке пар с разницей id меньше 128 — 27, и все 27 — один и тот же id дважды; настоящих склеек при
-  `Number()` — 0. Это не гарантия на будущее: HF-8 требует точных строковых id.
+  (`Number('900000000000000001') === Number('900000000000000002')`; при округлении к чётному склеиться могут и id
+  с разницей ровно 128: `Number('899999999999999936') === Number('900000000000000064')`). Проверка на проде
+  (2026-10-12 02:59 UTC): в архиве 782 992 сообщения Fansly, все уникальны в своей паре (аккаунт, переписка);
+  групп разных id с одним значением `double precision` в одной переписке — 0; в сокетном оверлее
+  (`dm_live_messages`) 24 468 сообщений, таких групп — 0. Это не гарантия на будущее: HF-8 требует точных
+  строковых id.
 - Свежий текст для Fansly хаб отвергает (`context/live-text.ts:81-85`; `routes.ts:2330-2337`), а id
   больше 2^53 — как `unusable` (`live-text.ts:319-322`). `knownFanMessageIds` принимает на любой функции и
   отвечает по каждому id: `included`, `deleted`, `absent` (нет в окне: не дошло, старше окна или срезано
@@ -191,14 +194,21 @@ select count(*),
    and created_at >= '2026-10-11 00:00:00+00' and created_at < '2026-10-12 00:00:00+00';
 -- → 1330 | 1.61 | 2.57 | 3.01 | 3.5 | 7.3
 
--- соседние id в одной переписке Fansly (2026-10-12)
-with f as (select conversation_ref, message_ref, message_ref::numeric as r from message_archive
-            where platform = 'fansly' and message_ref ~ '^[0-9]+$'),
-     d as (select conversation_ref, message_ref, lag(message_ref) over w as prev_ref,
-                  r - lag(r) over w as gap
-             from f window w as (partition by conversation_ref order by r))
-select message_ref, prev_ref, gap from d where gap < 128;
--- → 27 строк из 782 898; во всех message_ref = prev_ref (один id дважды); Number(a) === Number(b) для разных id — 0
+-- разные id одной переписки с одинаковым double (2026-10-12 02:59 UTC); double в Postgres и Number() в JS
+-- округляют одинаково (IEEE 754, к ближайшему чётному)
+select count(*), count(distinct (account_id, conversation_ref, message_ref))
+  from message_archive where platform = 'fansly' and message_ref ~ '^[0-9]+$';
+-- → 782992 | 782992
+select count(*) from (
+  select account_id, conversation_ref, message_ref::double precision
+    from message_archive where platform = 'fansly' and message_ref ~ '^[0-9]+$'
+   group by 1, 2, 3 having count(distinct message_ref) > 1) x;
+-- → 0
+select count(*) from (
+  select page_id, platform_conversation_id, platform_message_id::double precision
+    from dm_live_messages where platform_message_id ~ '^[0-9]+$'
+   group by 1, 2, 3 having count(distinct platform_message_id) > 1) y;
+-- → 0 (из 24468)
 
 -- id страниц Fansly
 select label, length(external_page_id), external_page_id ~ '^[1-9][0-9]{0,29}$' from pages where platform::text = 'fansly';
