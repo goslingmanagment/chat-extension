@@ -131,8 +131,16 @@ a boundary you need to cross is a design question, not a lint exception.
 - `docs/project-unite/` — Project Unite, the clients joined into this extension;
   first R20, the Fansly host: `README.md` (status, history, open owner
   questions), `spec.md` (binding requirements `FS-*`; it overrides
-  `docs/architecture.md` §15), `plan.md` (stages and PRs), `fansly-web.md`
-  (facts about fansly.com with references); the owner's rulings — decision X33.
+  `docs/architecture.md` §15), `architecture.md` (how R20 is built — two
+  sites in one extension: host registry, host adapter, feature manifest with
+  per-site admission, host UI profile, per-site lazy builds, the byte registry
+  and the gates that keep shared code host-free; binding for implementation),
+  `plan.md` (stages and PRs, the PR graph in groups), `fansly-web.md` (facts
+  about fansly.com with references); the owner's rulings — decisions X33,
+  X34 (fast cutover, FBuddy on every chatter's page) and X37 (after the arena
+  review: the pilot is all six Fansly pages at once, Recap depth 3000 on the
+  hub); the architecture's own decisions — X35, revised by its arena review
+  in X36.
 - `docs/backlog.md` — what is still to do or to check and is in no work
   package yet; first of all, the functional parity with the Fansly extension
   (where the data come from, how fresh, how many steps), not just the rows.
@@ -194,7 +202,9 @@ a boundary you need to cross is a design question, not a lint exception.
 - **Live tests** only on the owner's test chat (OnlyMonster account 36408 →
   chat 518588958). Never press ⌘1–9, J, K or ⌘U on the live ChatSpace tab:
   our navigation opens other fans' chats; `navigation` stays off on live
-  pages while checking.
+  pages while checking. **No live Fansly** (X34): an agent never works on
+  fansly.com and the owner runs no repeated checks there; the Fansly host is
+  proven on the stand and then by watching the pilot.
 - Secrets via `op` (1Password); none in the repo. Owner-facing docs in Russian.
 - The owner's global rules apply (`~/.agents/AGENTS.md`): code changes in a
   separate worktree, Draft PRs, paid CI.
