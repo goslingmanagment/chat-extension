@@ -11,16 +11,20 @@ import { CATALOG_ACTION_IDS, UNAVAILABLE_REASONS, type ActionCatalog, type Actio
 import { deliveryOf, type DeliveryKey, type DeliveryOverrides } from './delivery';
 import { EXTRA_KEYS, printExtraKey, printSchemeKey, type DispatcherCommandId, type ExtraKeyDef, type HotkeyAction, type KeyPrint } from './keymap';
 
+/** A scheme action this client runs: the scheme also carries rows of other
+ * clients (the Fansly extension's Notes), never a row of this catalog. */
+type SchemeCommand = Extract<HotkeyAction, DispatcherCommandId>;
+
 interface Row {
   readonly label: I18nKey;
   readonly tooltip: I18nKey | null;
   readonly scope: HotkeyScope;
   readonly status: 'active' | 'removed';
   /** The scheme action or the row outside the scheme that carries the key; a local key printed as is; null — no key. */
-  readonly key: { readonly scheme: HotkeyAction } | { readonly extra: DispatcherCommandId } | { readonly local: Readonly<Record<HotkeyPlatform, KeyPrint>> } | null;
+  readonly key: { readonly scheme: SchemeCommand } | { readonly extra: DispatcherCommandId } | { readonly local: Readonly<Record<HotkeyPlatform, KeyPrint>> } | null;
 }
 
-const scheme = (action: HotkeyAction): Row['key'] => ({ scheme: action });
+const scheme = (action: SchemeCommand): Row['key'] => ({ scheme: action });
 const extra = (command: DispatcherCommandId): Row['key'] => ({ extra: command });
 const local = (display: string, aria: string): Row['key'] => ({ local: { mac: { display, aria }, win: { display, aria } } });
 /** «Копировать часть» is the system copy on the focused part. */

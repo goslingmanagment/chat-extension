@@ -8,7 +8,10 @@
 
 import { createHotkeyEngine, type HotkeyEngine } from '@chatgoose/hotkeys';
 
-import { isModifierKey, isPrimaryModifierKey, matchExtraKey, type DispatcherCommandId, type HotkeyKeyEvent, type HotkeyPlatform } from './keymap';
+import { DISPATCHER_COMMAND_IDS, isModifierKey, isPrimaryModifierKey, matchExtraKey, type DispatcherCommandId, type HotkeyKeyEvent, type HotkeyPlatform } from './keymap';
+
+const isDispatcherCommand = (action: string): action is DispatcherCommandId =>
+  (DISPATCHER_COMMAND_IDS as readonly string[]).includes(action);
 
 export type KeyVerdict =
   | {
@@ -74,6 +77,10 @@ export function createKeyResolver(platform: HotkeyPlatform, engine: HotkeyEngine
       if (isImeKey(event) || isModifierKey(event)) return null;
       if (decision !== null) {
         if (decision.kind === 'swallow') return decision;
+        // The engine hands this client only the rows it serves; a row of
+        // another client (the Fansly extension's Notes) arrives as `reserved`.
+        // Typed as any scheme action, so it is checked here all the same.
+        if (!isDispatcherCommand(decision.action)) return { kind: 'swallow', reason: 'reserved' };
         return { kind: 'command', command: decision.action, slot: null, repeat: decision.repeat, scheme: true, plain: false, fallback: false };
       }
       const extra = matchExtraKey(event, platform);
