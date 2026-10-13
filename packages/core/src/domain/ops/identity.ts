@@ -1,6 +1,7 @@
 // The full identity of a generation request (architecture.md §5.1
 // GenerationIdentity.requestDigest, §7 «Кэш результата», AI-128): hub origin,
-// user and sign-in epoch, page and binding revision, fan, persona
+// user and sign-in epoch, page and binding revision, fan and its
+// conversation (when it is not the fan: on Fansly the group), persona
 // definition, feature and recap mode, window, tone, Split, the Fix draft
 // digest, the archive head and every other request parameter. Two clicks
 // with equal identities are the same request: the second reopens the first
@@ -12,6 +13,7 @@ import { chatKeyOf, type SessionIdentity } from '@cg/contracts/ids';
 import { type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint } from '@cg/contracts/send';
 
+import { conversationOf } from '../navigation/conversation';
 import { canonicalJson, digestHex, stableDigest } from './digest';
 
 /** The checkpoint as freshness sees it: everything but the moment it was taken. */
@@ -36,6 +38,11 @@ export interface RequestIdentity {
   readonly host: string;
   readonly hostAccountId: string;
   readonly fanRef: string;
+  /**
+   * The conversation when it is not the fan (1.15.0: on Fansly the group id — the same fan in another conversation is
+   * another request). Absent on OnlyFans, so a ChatSpace key is the one it was before.
+   */
+  readonly conversationRef?: string;
   readonly personaKey: string;
   readonly personaDefinitionId: string;
   readonly feature: FeatureId;
@@ -76,6 +83,7 @@ export function requestIdentityOf({ session, start, persona, archiveHead }: Iden
     host: start.target.chat.host,
     hostAccountId: start.target.chat.hostAccountId,
     fanRef: start.target.fanRef,
+    ...conversationOf(start.target.fanRef, start.target.conversationRef),
     personaKey: persona.key,
     personaDefinitionId: persona.definitionId,
     feature: start.feature,

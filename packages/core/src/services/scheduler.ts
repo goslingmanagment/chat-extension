@@ -77,6 +77,7 @@ import {
 } from '../domain/ops';
 import { coachTurnSteps, recapStepVerdict } from '../domain/coach';
 import { freshTextAdmitted } from '../domain/features/admission';
+import { conversationOf } from '../domain/navigation/conversation';
 import { type ActionTokens } from './tokens';
 import { type TabPresence } from './presence';
 import { AbortSwitch, NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink, type TabEventSink, type TimerHandle } from './ports';
@@ -1166,13 +1167,16 @@ export class OpScheduler {
     if (presence === null) return;
     const here = presence.chat !== null && chatKeyOf(presence.chat) === run.chatKey && presence.visible;
     if (here || (settled.state !== 'done' && settled.state !== 'failed')) return;
+    const target = run.view.target;
     const toast: BackgroundToast = {
       toastId: this.deps.ids.uuid(),
       kind: settled.state === 'done' ? 'success' : 'error',
       scope: settled.state === 'done' ? 'op.ready' : 'op.failed',
       opId: run.view.opId,
       feature: run.view.feature,
-      chat: run.view.target.chat,
+      chat: target.chat,
+      // «Открыть чат» opens the operation's own conversation (on Fansly the group); on ChatSpace it is the fan, and absent.
+      ...conversationOf(target.fanRef, target.conversationRef),
       fanLabel: run.fanLabel,
       ...(run.view.error === undefined ? {} : { error: run.view.error, code: run.view.error.code }),
     };

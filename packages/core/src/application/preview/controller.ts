@@ -806,7 +806,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state || currentOp.has(state.handle) || !known) return;
     const binding = context.current().binding;
     if (binding === null) return;
-    const chatKey = chatKeyOf({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: state.fanRef });
+    const chatKey = chatKeyOf({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef });
     const answer = await rpc.request('op.list', { scope: 'tab', chatKey });
     if (disposed || atEpoch !== epoch || !answer.ok || currentOp.has(state.handle) || targets.get(state.handle) !== state) return;
     const view = answer.payload.ops.find((op) => op.surface === surfaceOf(state.source));
@@ -1492,8 +1492,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const bootstrap = ctx.bootstrap;
     if (binding === null || settings === null || bootstrap === null) return refused(type, localError('CG-HUB-UNAVAILABLE', i18n));
 
-    const chat = { host: 'chatspace' as const, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef };
-    const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef: state.fanRef };
+    const chat = { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef };
+    // The fan's conversation as its list resolved it (on Fansly the group id), never the route of the chat on screen.
+    const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef: state.info.conversationRef ?? state.fanRef };
     const atEpoch = epoch;
     // The click is the person working with the fan. «Something is in flight» is said only once an operation
     // really started: a refused Generate must not keep the greeting lease renewing with nobody at the card (NF-021).
@@ -1711,7 +1712,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const part = partRef(track, variant, index);
     const insert = buildDeferredInsert({ intentId: ids.uuid(), operationId: track.opId, part, target: chat, text, documentEpoch: identity.documentEpoch, now, timeoutMs });
     if (!insert.ok) return refused(type, localError(insert.code, i18n));
-    const navigation = buildOpenAndInsert({ intentId: ids.uuid(), cause: issued.cause, insert: insert.intent });
+    const navigation = buildOpenAndInsert({ intentId: ids.uuid(), cause: issued.cause, insert: insert.intent, conversationRef: track.target.conversationRef });
     if (!navigation.ok) return refused(type, localError(navigation.code, i18n));
 
     // A newer «Открыть и вставить» replaces the one still waiting.
@@ -1764,10 +1765,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   /** The switches a click in a preview answers to on its page: the preview's own, and the list's for a card of «Новые». */
   const boardsOf = (source: PreviewSource): readonly BoardSwitch[] => (source === 'newcomers' ? ['preview', 'newcomers'] : ['preview']);
 
-  async function openChat(type: UiActionType, fanRef: string, surface: Surface, source: PreviewSource): Promise<ActionReceipt> {
+  async function openChat(type: UiActionType, fanRef: string, surface: Surface, source: PreviewSource, conversationRef: string | undefined): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
-    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface, boardsOf(source));
+    const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface, boardsOf(source), conversationRef);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
     return done(type, 'opened');
@@ -1811,7 +1812,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (to.kind === 'chat') {
         const parsed = parseFanHandle(to.targetHandle);
         // A list answers for its own handles; the palette's fans have no list.
-        return parsed !== null && parsed.source === 'palette' && parsed.pageId === context.current().binding?.pageId ? openChat(type, parsed.fanRef, 'preview', 'palette') : null;
+        return parsed !== null && parsed.source === 'palette' && parsed.pageId === context.current().binding?.pageId
+          ? openChat(type, parsed.fanRef, 'preview', 'palette', deps.directories.palette?.resolve(to.targetHandle)?.conversationRef)
+          : null;
       }
       return null;
     }
@@ -1844,7 +1847,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const owner = attemptOwner.get(action.attemptId);
       const track = owner === undefined ? undefined : tracks.get(owner.opId);
       // §6.7.8: the only way on from an unknown outcome — look at the chat. Nothing is sent or inserted.
-      return track === undefined ? null : openChat(type, track.fanRef, track.surface, track.source);
+      return track === undefined ? null : openChat(type, track.fanRef, track.surface, track.source, track.target.conversationRef);
     }
     if (action.type === 'Regenerate' || action.type === 'CancelGeneration' || action.type === 'HideResult' || action.type === 'ExpandResult' || action.type === 'SendPart' || action.type === 'OpenAndInsertPart') {
       const track = tracks.get(action.operationId);

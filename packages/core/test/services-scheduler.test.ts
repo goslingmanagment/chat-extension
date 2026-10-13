@@ -15,7 +15,7 @@ import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
 import { featuresOf } from './support/features';
-import { NOW_MS, WORLD, chatOf, checkpointFor, persona, session, startOf, targetOf, uuid } from './support/world';
+import { FANSLY, NOW_MS, WORLD, chatOf, checkpointFor, fanslyChat, fanslyTarget, persona, session, startOf, targetOf, uuid, withFanslyPage } from './support/world';
 
 /** What the scheduler reads of a tab's presence, as a tab reports it. */
 type ShownTab = Pick<TabPresence, 'chat' | 'routeEpoch' | 'visible' | 'focused'>;
@@ -1073,5 +1073,20 @@ describe('[host:chatspace] R20 F6a: the background toast on ChatSpace is as befo
     await h.clock.advance(1000);
     const toast = JSON.stringify(h.events.of('toast'));
     expect(toast).toBe(CHATSPACE_RECORDED.toast);
+  });
+});
+
+describe('[host:fansly] R20 F6a: the background toast names the operation\'s own conversation', () => {
+  it('«AI готово» of a Fansly operation carries its chat and its group: «Открыть чат» opens the group, not a guess from the fan', async () => {
+    const h = harness({ env: { bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES) } });
+    const op = h.nextOp();
+    h.hub.streamScript.push(...forOp(scenario('reply-normal'), op));
+    h.presence.set(TAB, { chat: chatOf(WORLD.otherFan), routeEpoch: 3, visible: true, focused: true });
+    opIdOf(await h.start(TAB, startOf({ target: fanslyTarget }), { fanLabel: 'Fan of Fansly' }));
+    await h.clock.advance(1000);
+    const toasts = h.events.of('toast');
+    expect(toasts.map((event) => event.payload.toast)).toMatchObject([{ kind: 'success', scope: 'op.ready', opId: op, chat: fanslyChat, conversationRef: FANSLY.group }]);
+    expect(TAB_EVENTS.toast.payload.safeParse(toasts[0]?.payload).success).toBe(true);
+    expect(h.hub.streams.map((request) => request.body)).toMatchObject([{ platform: 'fansly', conversationRef: FANSLY.group, fanRef: FANSLY.fan }]);
   });
 });

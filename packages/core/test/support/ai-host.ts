@@ -72,14 +72,17 @@ export class MutableHost implements HostPort {
     for (const listener of [...this.listeners]) listener(event);
   }
 
-  /** The person opens another chat (or leaves chats): a new route epoch, a new composer. */
-  openChat(chat: ChatRef | null, account: HostAccount | null = this.snapshot.route.account): void {
+  /**
+   * The person opens another chat (or leaves chats): a new route epoch, a new composer. `conversationRef` — the
+   * conversation the address names when it is not the fan (fansly.com: the group of `/messages/<groupId>`).
+   */
+  openChat(chat: ChatRef | null, account: HostAccount | null = this.snapshot.route.account, conversationRef?: string): void {
     const epoch = this.snapshot.route.epoch + 1;
     const identity = this.snapshot.identity;
     const instance = `composer-${epoch}`;
     this.snapshot = {
       ...this.snapshot,
-      route: { epoch, name: chat === null ? 'accounts-overview' : 'chat', account, chat },
+      route: { epoch, name: chat === null ? 'accounts-overview' : 'chat', account, chat, ...(conversationRef === undefined ? {} : { conversationRef, conversationKind: 'direct' as const }) },
       identity: identity === null ? null : { ...identity, chat, routeEpoch: epoch, composerInstanceId: chat === null ? null : instance },
       composer: chat === null ? null : { chat, instanceId: instance, ready: true, hidden: false, draft: { revision: 0, provenance: 'empty' } },
       mounts: { ...this.snapshot.mounts, dock: { ...this.snapshot.mounts.dock, kind: chat === null ? 'none' : 'in-flow', composerInstanceId: chat === null ? null : instance } },

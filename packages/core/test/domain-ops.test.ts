@@ -58,7 +58,7 @@ import {
 import { BOOTSTRAP_PILOT_PAGES, NOW_MS as HUB_NOW_MS, SSE_SCENARIOS, WORLD as HUB_WORLD, contextFrame, hubServing, meta, readStreamScenario, uuid as hubUuid, pageFeaturesOff } from '@cg/testing/hub';
 
 import { featuresOf, freshTextOn } from './support/features';
-import { NOW_MS, WORLD, binding, checkpointFor, persona, session, startOf, target, targetOf, uuid, withX8 } from './support/world';
+import { FANSLY, NOW_MS, WORLD, binding, checkpointFor, fanslyTarget, persona, session, startOf, target, targetOf, uuid, withX8 } from './support/world';
 import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { seeded } from './support/random';
 
@@ -220,6 +220,14 @@ describe('[AI-133] [RB-001] the single automatic retry', () => {
 describe('[AI-128] request identity and the result cache', () => {
   const identity = (over: Parameters<typeof startOf>[0] = {}, archiveHead: string | null = null) =>
     requestIdentityOf({ session, start: startOf(over), persona, archiveHead });
+
+  it('[host:fansly] R20 F6a: the conversation is part of the key when it is not the fan — the same fan in another group is another request', () => {
+    const inGroup = identity({ target: fanslyTarget });
+    expect(inGroup).toMatchObject({ host: 'fansly-web', fanRef: FANSLY.fan, conversationRef: FANSLY.group });
+    expect(requestKeyOf(inGroup)).not.toBe(requestKeyOf(identity({ target: { ...fanslyTarget, conversationRef: FANSLY.otherGroup } })));
+    // A ChatSpace identity names no conversation: on OnlyFans it is the fan.
+    expect(identity()).not.toHaveProperty('conversationRef');
+  });
 
   it('[host:chatspace] R20 F6a: the key of a ChatSpace request is byte for byte the one recorded on main (the conversation is the fan)', () => {
     const key = requestKeyOf(identity({ checkpoint: checkpointFor(WORLD.fan) }, '4006'));

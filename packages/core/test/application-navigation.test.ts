@@ -400,7 +400,9 @@ describe('chat navigation', () => {
     expect(w.navigation.dispatch({ type: 'OpenSettings', route: { section: 'status' } })).toBeNull();
     expect(parseChatHandle(chatHandle(chat('2004')))).toEqual({ hostAccountId: ACC, platformFanId: '2004' });
     expect(parseAccountHandle(accountHandle('1002'))).toBe('1002');
-    for (const bad of ['nav.chat.1001', 'nav.chat.1001.2004.9', 'nav.chat.0.2004', 'nav.chat.abc.2004', 'x']) expect(parseChatHandle(bad)).toBeNull();
+    // R20 F6a: a third id is the chat's conversation when it is not the fan (a toast's on Fansly); never the fan itself, never a fourth.
+    expect(parseChatHandle('nav.chat.1001.2004.9')).toEqual({ hostAccountId: ACC, platformFanId: '2004', conversationRef: '9' });
+    for (const bad of ['nav.chat.1001', 'nav.chat.1001.2004.9.1', 'nav.chat.1001.2004.2004', 'nav.chat.1001.2004.x', 'nav.chat.0.2004', 'nav.chat.abc.2004', 'x']) expect(parseChatHandle(bad)).toBeNull();
     expect(parseAccountHandle('nav.acc.0')).toBeNull();
     // Our handles are valid handles of the UiAction contract.
     expect(UiActionSchema.safeParse({ type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(chat('2004')) } }).success).toBe(true);

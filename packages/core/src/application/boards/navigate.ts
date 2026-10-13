@@ -17,6 +17,7 @@ import { type Surface } from '@cg/contracts/features';
 import { type HostPort, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
 import { type ChatRef, type HumanCause } from '@cg/contracts/ids';
 
+import { conversationOf } from '../../domain/navigation/conversation';
 import { flagRefusal } from '../../domain/ops/flags';
 import { pageFlagOf, type PageContextPort, type PageContextState } from './context';
 import { type IdSource, type TabRpc } from './ports';
@@ -53,14 +54,16 @@ export function boardOpenRefusal(state: PageContextState, boards: readonly Board
 export interface ChatNavigator {
   /**
    * Opens the chat of a fan the person clicked in a board. `boards` — the switches of the board the click was
-   * made in; the chat must be one of the account the boards show.
+   * made in; the chat must be one of the account the boards show. `conversationRef` — the fan's conversation as the
+   * board knows it (on Fansly the group id of this fan, never the route of the chat on screen); absent or the fan
+   * itself — the conversation is the fan, and the navigation names none.
    */
-  open(chat: ChatRef, surface: Surface, boards: readonly BoardSwitch[]): Promise<NavigationReceipt>;
+  open(chat: ChatRef, surface: Surface, boards: readonly BoardSwitch[], conversationRef?: string): Promise<NavigationReceipt>;
 }
 
 export function createChatNavigator(deps: { readonly rpc: TabRpc; readonly host: HostPort; readonly ids: IdSource; readonly context: PageContextPort }): ChatNavigator {
   return {
-    async open(chat, surface, boards) {
+    async open(chat, surface, boards, conversationRef) {
       const state = deps.context.current();
       const refusal = boardOpenRefusal(state, boards);
       if (refusal !== null) return { state: 'failed', code: refusal.code, insert: null };
@@ -72,7 +75,7 @@ export function createChatNavigator(deps: { readonly rpc: TabRpc; readonly host:
       const intent: NavigationIntent = {
         intentId: deps.ids.uuid(),
         cause: issued.cause,
-        target: { hostAccountId: chat.hostAccountId, platformFanId: chat.platformFanId },
+        target: { hostAccountId: chat.hostAccountId, platformFanId: chat.platformFanId, ...conversationOf(chat.platformFanId, conversationRef) },
       };
       try {
         return await deps.host.navigate(intent);

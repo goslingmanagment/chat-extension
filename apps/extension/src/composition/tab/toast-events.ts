@@ -43,7 +43,7 @@ export function toastOfTab(toast: BackgroundToast, facts: ToastFacts): Backgroun
   const showing = facts.showing();
   if (showing !== null && chatKeyOf(showing) === chatKeyOf(chat) && facts.visible()) {
     if (OP_SCOPES.has(toast.scope)) return null;
-    const { chat: _open, ...rest } = toast;
+    const { chat: _open, conversationRef: _conversation, ...rest } = toast;
     return rest;
   }
   return toast.fanLabel === null ? { ...toast, fanLabel: facts.fanName(chat) } : toast;

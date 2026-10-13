@@ -69,6 +69,11 @@ interface ChatUi {
 
 export interface OpenChat {
   readonly chat: ChatRef;
+  /**
+   * The host's conversation of the chat, from the route (1.15.0): on Fansly the group id of the address; absent on
+   * the route — the conversation is the fan (ChatSpace). Never another chat's.
+   */
+  readonly conversationRef: string;
   readonly key: ChatKey;
   readonly handle: TargetHandle;
   readonly account: HostAccount | null;
@@ -417,7 +422,17 @@ export class AiWorkspace {
     const route = snapshot.route;
     const chatRef = route.name === 'chat' ? route.chat : null;
     const chat: OpenChat | null =
-      chatRef === null ? null : { chat: chatRef, key: chatKeyOf(chatRef), handle: targetHandle('dock', chatRef), account: route.account, identity: snapshot.identity, routeEpoch: route.epoch };
+      chatRef === null
+        ? null
+        : {
+            chat: chatRef,
+            conversationRef: route.conversationRef ?? chatRef.platformFanId,
+            key: chatKeyOf(chatRef),
+            handle: targetHandle('dock', chatRef),
+            account: route.account,
+            identity: snapshot.identity,
+            routeEpoch: route.epoch,
+          };
     const base = { host: snapshot, chat, window: null, fanName: null, quota: null, quotaZero: false, persona: null, pageName: null, ready: null, copyOnly: null, pageOff: null } as const;
     const off = (status: DockStatus, reason: UnavailableReasonId, error: CgErrorWire | null): Situation => ({ ...base, status, statusError: error, off: reason });
 
@@ -480,7 +495,7 @@ export class AiWorkspace {
     const window = host.chatWindow(chat.chat, 200);
     const fan = host.fan(chat.chat);
     const fanName = fan?.displayName ?? fan?.username ?? null;
-    const target: Target = { binding: binding.value, chat: chat.chat, fanRef: chat.chat.platformFanId, conversationRef: chat.chat.platformFanId };
+    const target: Target = { binding: binding.value, chat: chat.chat, fanRef: chat.chat.platformFanId, conversationRef: chat.conversationRef };
     const ready: ReadyTarget = { target, page, bootstrap: bootstrap.value, settings: settings.settings, persona: { ...persona, key: persona.key, definitionId: persona.definitionId } };
     const known = { ...named, window, fanName, quota, quotaZero, ready };
 

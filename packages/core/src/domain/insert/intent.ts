@@ -23,6 +23,8 @@ import {
 import { chatKeyOf, type ChatRef, type DraftSnapshot, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 
+import { conversationOf } from '../navigation/conversation';
+
 /** How long an open insert stays valid after it was built (one bridge round trip and some). */
 export const OPEN_INSERT_TTL_MS = 10_000;
 
@@ -152,12 +154,16 @@ export function buildDeferredInsert(input: DeferredInsertInput): IntentResult<In
   return InsertWireSchema.safeParse(wire).success ? { ok: true, intent: wire } : { ok: false, code: 'CG-INSERT-FAILED' };
 }
 
-/** «Открыть и вставить»: one human navigation to the exact chat with its deferred insert. */
-export function buildOpenAndInsert(input: { readonly intentId: string; readonly cause: HumanCause; readonly insert: InsertWire }): IntentResult<NavigationIntent> {
+/**
+ * «Открыть и вставить»: one human navigation to the exact chat with its deferred insert. `conversationRef` — the
+ * conversation of the operation's target (on Fansly the group id); the navigation names it only when it is not the fan.
+ */
+export function buildOpenAndInsert(input: { readonly intentId: string; readonly cause: HumanCause; readonly insert: InsertWire; readonly conversationRef?: string }): IntentResult<NavigationIntent> {
+  const { hostAccountId, platformFanId } = input.insert.target;
   const intent: NavigationIntent = {
     intentId: input.intentId,
     cause: input.cause,
-    target: { hostAccountId: input.insert.target.hostAccountId, platformFanId: input.insert.target.platformFanId },
+    target: { hostAccountId, platformFanId, ...conversationOf(platformFanId, input.conversationRef) },
     thenInsert: input.insert,
   };
   return NavigationIntentSchema.safeParse(intent).success ? { ok: true, intent } : { ok: false, code: 'CG-NAV-FAILED' };

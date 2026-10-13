@@ -52,8 +52,11 @@ export interface ShellPorts {
   readonly i18n: I18n;
   readonly clock: ShellClock;
   readonly tab: ShellTab;
-  /** A chat as the navigation controller names it (`Navigate` → `kind: 'chat'`); absent — toasts carry no «Открыть чат». */
-  readonly chatHandle?: (chat: ChatRef) => string;
+  /**
+   * A chat as the navigation controller names it (`Navigate` → `kind: 'chat'`), with the toast's conversation when it is
+   * not the fan (1.15.0, on Fansly); absent — toasts carry no «Открыть чат».
+   */
+  readonly chatHandle?: (chat: ChatRef, conversationRef?: string) => string;
 }
 
 export interface ShellController {
@@ -97,7 +100,7 @@ export function createShellController(ports: ShellPorts): ShellController {
     const fan = toast.fanLabel;
     const actions: ActionButtonVM[] = [];
     // §9.5: a background toast leads to its chat — by the person's click only.
-    if (toast.chat !== undefined && ports.chatHandle !== undefined) actions.push(button('common.openChat', { type: 'Navigate', to: { kind: 'chat', targetHandle: ports.chatHandle(toast.chat) } }));
+    if (toast.chat !== undefined && ports.chatHandle !== undefined) actions.push(button('common.openChat', { type: 'Navigate', to: { kind: 'chat', targetHandle: ports.chatHandle(toast.chat, toast.conversationRef) } }));
     const route = code === null ? null : settingsRouteOf(code);
     if (route !== null && tab.openSettings !== undefined) actions.push(button('common.settings', { type: 'OpenSettings', route }));
     let title: string;

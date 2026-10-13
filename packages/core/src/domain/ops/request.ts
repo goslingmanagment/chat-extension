@@ -1,6 +1,7 @@
 // The AI stream request of an operation (architecture.md §8.4, D-14, D-15,
 // Б5, AI-134): our feature → the hub feature and its fields, the common
-// fields (clientRequestId = opId, pageLabel, conversationRef = fanRef,
+// fields (clientRequestId = opId, pageLabel, conversationRef — the fan on
+// OnlyFans, the group on Fansly — and fanRef,
 // persona key + expected definition, messageCount, isRegeneration), fresh
 // text only for draft features in the open chat under the freshText switch,
 // the known fan ids of a preview checkpoint, and the capability header. The

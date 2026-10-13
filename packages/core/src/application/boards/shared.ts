@@ -98,6 +98,11 @@ export interface PreviewTargetInfo {
   readonly source: PreviewSource;
   readonly pageId: number;
   readonly fanRef: string;
+  /**
+   * The fan's conversation when the list knows it and it is not the fan — on Fansly the group id the list resolved
+   * for this fan (FS-SPD-2), never the route of the chat on screen. Absent — the conversation is the fan (ChatSpace).
+   */
+  readonly conversationRef?: string;
   readonly name: string;
   readonly username: string | null;
   readonly lifetime: MoneyMills | null;

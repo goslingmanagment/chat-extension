@@ -293,7 +293,8 @@ export class FakeBackground {
     const bootstrap = isError(this.bootstrap) ? null : this.bootstrap;
     const session = this.session;
     if (bootstrap === null || session === null) return { ok: false, error: { code: 'CG-AUTH-REQUIRED' } };
-    const page = bootstrap.pages.find((candidate) => candidate.platform === 'onlyfans' && candidate.platformAccountId !== null && candidate.platformAccountId === account.platformAccountId);
+    // A page of the account's own platform (OnlyFans for ChatSpace, Fansly for fansly.com), as the hub layer binds.
+    const page = bootstrap.pages.find((candidate) => candidate.platform === account.platform && candidate.platformAccountId !== null && candidate.platformAccountId === account.platformAccountId);
     if (page === undefined || page.platformAccountId === null) return { ok: false, error: { code: 'CG-BINDING-MISSING' } };
     return {
       ok: true,
@@ -304,7 +305,7 @@ export class FakeBackground {
           loginEpoch: session.epoch,
           host: account.host,
           hostAccountId: account.hostAccountId,
-          platform: 'onlyfans',
+          platform: account.platform,
           platformAccountId: page.platformAccountId,
           pageId: page.pageId,
           pageLabel: page.pageLabel,
