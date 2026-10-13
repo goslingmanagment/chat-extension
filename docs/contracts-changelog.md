@@ -69,6 +69,58 @@
   `ConversationKind`, `NavigationIntent` (разговор у цели-аккаунта). Тесты: `packages/contracts/test/vocabulary.test.ts`
   («sites (1.15.0, R20)»), `packages/contracts/test/schemas.test.ts`.
 
+### P4a2 — мост Fansly
+
+Три новых модуля сайта: `bridge-fansly`, `bridge-messages-fansly`, `fansly` (`docs/project-unite/architecture.md`
+§5.5–§5.8, §6, §7.7, §7.12). Только подпути `@cg/contracts/<модуль>`: корень `@cg/contracts` их **не** реэкспортирует
+(тест держит), поэтому ни бандл ChatSpace, ни ядро фона их не несут (§1.8, §3.2). Файлы ChatSpace не тронуты, байты
+ChatSpace не меняются.
+
+- **`bridge-fansly`** (лёгкая половина, как `bridge` у ChatSpace): запросы в MAIN `TO_MAIN_FANSLY_TYPES` — `probe`,
+  `fx.state`, `fx.focus`, `fx.generationSnapshot`, `fx.windowMeta`, `fx.ack`; события внутри пачки
+  `FROM_MAIN_FANSLY_TYPES` — `fx.identity`, `fx.chat`, `fx.contract`, `fx.incoming`, `fx.follow`, `fx.sent`,
+  `fx.coverage`, `fx.deleted`, `fx.vaultAdded`; события на порту `FANSLY_WIRE_EVENT_TYPES` — `fx.batch`, `fx.gap`,
+  `fault`. Состояния (`FANSLY_BRIDGE_STATE_EVENTS`: личность, чат, контракт) склеиваются — в пачке не больше одного
+  каждого; поток (`FANSLY_BRIDGE_UNDROPPABLE_EVENTS`: остальные шесть) идёт по порядку и по одному не теряется: при
+  исчерпании бюджета уходит вся очередь сразу, и об этом говорит одно `fx.gap`. `FANSLY_BRIDGE_WRITE_REQUESTS` пуст:
+  MAIN на Fansly ничего не пишет (§5, А4). Кредиты `FANSLY_BRIDGE_LIMITS`: ≤ 8 неподтверждённых пачек и ≤ 256 КиБ в
+  пути; пачка ≤ 64 КиБ и ≤ 512 событий; ответ на снимок ≤ 128 КиБ. `fanslyFrameByteLimit(kind, t)` — предел байтов
+  кадра по его типу: изолированный мир сравнивает с ним байты, которые насчитал `checkBridgeFrame`. Конверты
+  `FanslyBridgeResponseSchema` и `FanslyBridgeEventEnvelopeSchema` — тот же конверт и те же транспортные ошибки, что у
+  ChatSpace, со своими списками типов: запрос или событие ChatSpace не проходит как Fansly, и наоборот.
+- **`bridge-messages-fansly`** (схемы, чанк `bridge-validation` сборки Fansly): `TO_MAIN_FANSLY` — схемы запросов и
+  ответов (у `probe` — общий `MainProbe`: на него отвечает загрузчик host-kit; у `fx.focus` — эпоха маршрута
+  изолированного мира, MAIN возвращает её в `fx.chat`; `fx.ack {n}` — накопительное подтверждение пачек до `n`
+  включительно, принятых или отвергнутых), `FROM_MAIN_FANSLY` — схемы событий пачки, `FANSLY_WIRE_EVENTS` —
+  `fx.batch {n, events: [{t, p}]}`, `fx.gap {reason: 'overflow' | 'memory'}` и `fault`; полные кадры
+  `FanslyBridgeRequestSchema`, `FanslyBridgeEventSchema`, `FromMainFanslyFrameSchema`; разбор третьей ступени
+  `parseFanslyBridgeData` (`{ok, data}`: `null` — законный ответ нескольких запросов) и `parseFanslyWireEvent`. Пачка
+  проверяется целиком: одно плохое событие — пачка потеряна вся, как при `fx.gap`. Через мост — только метаданные;
+  текст переходит один раз — хвостом снимка для функции черновика по клику человека.
+- **`fansly`**: `FanslySnapshot` (ответ `fx.generationSnapshot`: функция, личность, эпохи, полнота и её причина,
+  окно проверки ≤ 60, `knownFanMessageIds` ≤ 10, удалённые ≤ 120, хвост ≤ 60 в форме `LiveTextMessage`, `truncated`;
+  проверки: все id проверки — из окна и в порядке snowflake, хвост — только у Reply, Fix, Hi, Ping, доказательство и
+  аватар — только у Hi этого же чата, причина есть ровно при `unknown`); `StartProofV1` (`v`, `source:
+  'tab-short-page' | 'pass-empty-page'`, `groupId`, `startWitnessId` — по источнику, `null` только при пустой
+  истории, `coveredCount`, `personalCount` — у прохода среди последних 30, `automatedIds` ≤ 120 по возрастанию и не
+  старше свидетеля); `FANSLY_ANCHOR_IDS` (17 якорей §7.12, из них сетевые `FANSLY_NETWORK_ANCHORS` сообщает MAIN);
+  `FANSLY_CAPABILITIES` (`freshness`, `follows`, `headerSlot`, `fileAttach`, `vault`, `relay` — сверх общих
+  `HOST_CAPABILITIES`); `FanslyPagePort` — только тип: слот шапки, файл в поле, файл в vault, кадр relay;
+  `FANSLY_LIMITS`, `FANSLY_COVERAGE_REASONS`, `compareFanslyIds`; `FanslyAvatarUrlSchema` — правило хаба для
+  `fanAvatarUrl` (FX-018).
+- **Аватар Hi (FX-018).** Снимок для Hi несёт `fanAvatarUrl?` — строку адреса из ответов страницы (P7b): иначе URL
+  нечем передать из MAIN в изолированный мир. Схема та же, что у хаба (`^https://[a-z0-9-]+\.fansly\.com/`, ≤ 4096),
+  в тело хаба поле добавит P4b4. Архитектура §5.8 дополнена.
+- **Id Fansly — строки, никогда не числа.** Snowflake от эпохи Fansly 2019-06-25: сейчас 18 цифр, с января 2027 —
+  19, у созданного до апреля 2020 (старые аккаунты фанов) — 17 и меньше. Поэтому шаблон — общий `NATIVE_ID_PATTERN`, а
+  не «ровно 18–19 цифр»: узкий шаблон отверг бы старых фанов. Порядок — `compareFanslyIds`: сначала длина, затем строка
+  (19-значный новее 18-значного, хотя строкой меньше).
+- Фикстуры (`packages/contracts/test/fixtures/fansly.ts`, в `@cg/contracts/fixtures`): верные и неверные на каждый
+  запрос (данные и ответ), каждое событие пачки, каждое событие порта, снимок и доказательство; пределы:
+  `automatedIds` 121, окно 61, известных сообщений фана 11, групп в `fx.coverage` 301, удалённых 121, 513 событий
+  пачки, пачка больше 64 КиБ (`oversizeFanslyBatch`), ответ на снимок больше 128 КиБ (`oversizeFanslySnapshot`);
+  id числом — отказ. Тесты: `packages/contracts/test/fansly.test.ts`.
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно
