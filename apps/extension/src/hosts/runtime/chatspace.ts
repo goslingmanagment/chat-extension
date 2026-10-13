@@ -14,3 +14,10 @@ export const CHATSPACE_MATCHES: readonly string[] = ['https://chat.onlymonster.a
  * background's `fetch` refuses it whatever the settings say.
  */
 export const CHATSPACE_QUIET_DOMAINS: readonly string[] = ['onlymonster.ai'];
+
+/**
+ * Where ChatSpace's own build of the lazy chunks lies in the extension (docs/project-unite/architecture.md §3.2):
+ * `<root>/<entry>.js`, its shared chunks in `<root>/chunks/`. The tab asks for its chunks here; the registry entry
+ * (../chatspace.ts) has its build write them here. Not a row of the table: only the site's tab needs it.
+ */
+export const CHATSPACE_LAZY_ROOT = 'lazy/chatspace';

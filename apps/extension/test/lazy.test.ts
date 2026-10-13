@@ -12,6 +12,7 @@ import { LAZY_DIR } from '../lazy/vite.config.ts';
 import { importWithRetry, lazyPath, LAZY_RETRY_DELAY_MS } from '../src/composition/tab/lazy.ts';
 import { LAZY, NEWCOMER_DRAFTS_KEY } from '../src/composition/tab/runtime.ts';
 import { CHATSPACE_ADAPTER } from '../src/entrypoints/chatspace.content.ts';
+import { CHATSPACE } from '../src/hosts/chatspace.ts';
 
 const URL_OF_CHUNK = 'moz-extension://00000000-0000-4000-8000-000000000001/lazy/dock.js';
 
@@ -77,9 +78,10 @@ describe('the lazy entries of the tab', () => {
       expect(source).toBe(`entries/${name}.ts`);
       expect(existsSync(fileURLToPath(new URL(`../lazy/${source}`, import.meta.url)))).toBe(true);
     }
-    expect(lazyPath(CHATSPACE_ADAPTER.lazy.root, 'dock')).toBe('lazy/dock.js');
-    // ChatSpace's adapter names its build: the folder the lazy build writes.
-    expect(CHATSPACE_ADAPTER.lazy.root).toBe(LAZY_DIR);
+    expect(lazyPath(CHATSPACE_ADAPTER.lazy.root, 'dock')).toBe('lazy/chatspace/dock.js');
+    // ChatSpace's adapter names its build: the folder its lazy build writes (the registry's lazy.root, R20 F2b).
+    expect(CHATSPACE_ADAPTER.lazy.root).toBe(CHATSPACE.lazy.root);
+    expect(CHATSPACE_ADAPTER.lazy.root.startsWith(`${LAZY_DIR}/`)).toBe(true);
     // The two chunks the early bundle loads itself are entries of the build.
     expect(Object.values(LAZY)).toEqual(['tab-protocol', 'tab-app']);
     for (const entry of Object.values(LAZY)) expect(Object.keys(LAZY_ENTRIES)).toContain(entry);

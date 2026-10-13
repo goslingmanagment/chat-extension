@@ -2,10 +2,11 @@
 // Usage: node tools/size-budget/index.ts [--dir <extension output dir>]
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { fail, OUTPUT_ROOT, RELEASE_DIR } from '../lib/paths.ts';
+import { HOSTS, lazySitesOf } from '../../apps/extension/src/hosts/index.ts';
+import { fail, OUTPUT_ROOT, RELEASE_DIR, TEST_DIR } from '../lib/paths.ts';
 import { computeBudgets, KIB, type LazyChunk } from './budget.ts';
 import { probeContracts } from './contracts-probes.ts';
 
@@ -19,12 +20,14 @@ try {
   fail(`size-budget: ${dir}.lazy-chunks.json not found — run the build first (pnpm build).`);
 }
 
-const lines = [...computeBudgets((file) => readFileSync(join(dir, file)), chunks), ...(await probeContracts())];
+// Each lazy build of that flavor is measured by itself: the test build has the empty second one too.
+const sites = lazySitesOf(resolve(dir) === resolve(TEST_DIR));
+const lines = [...computeBudgets((file) => readFileSync(join(dir, file)), chunks, HOSTS, sites), ...(await probeContracts())];
 const kib = (bytes: number): string => `${(bytes / KIB).toFixed(2)} KiB`;
 for (const line of lines) {
   // A raw line says its headroom in bytes: the core's is the byte registry's number (architecture.md §3.2).
   const headroom = line.unit === 'raw' ? `  (${line.limitBytes - line.bytes} B to spare)` : '';
-  console.log(`${line.ok ? 'ok  ' : 'OVER'}  ${line.label.padEnd(66)} ${kib(line.bytes).padStart(11)} / ${kib(line.limitBytes)}${headroom}`);
+  console.log(`${line.ok ? 'ok  ' : 'OVER'}  ${line.label.padEnd(78)} ${kib(line.bytes).padStart(11)} / ${kib(line.limitBytes)}${headroom}`);
 }
 writeFileSync(`${OUTPUT_ROOT}size-report.json`, `${JSON.stringify(lines, null, 2)}\n`);
 const over = lines.filter((line) => !line.ok);

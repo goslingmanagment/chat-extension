@@ -2,18 +2,20 @@
 // the baseline). Each site's scripts come with their own lines from the host
 // registry (apps/extension/src/hosts: ChatSpace's MAIN bridge ≤ 10 KiB gzip,
 // decision X11; its WS tap ≤ 6 KiB, X25; its isolated early bootstrap
-// ≤ 30 KiB); the lazy chunks: the first dock chunk with Preact ≤ 45 KiB,
-// every other lazy chunk ≤ 30 KiB.
+// ≤ 30 KiB); the lazy chunks, in every site's own build: the first dock chunk
+// with Preact ≤ 45 KiB, every other lazy chunk ≤ 30 KiB.
 //
-// What «a lazy chunk» weighs is what loading it adds to the tab. The entries
-// every chat tab loads form layers (apps/extension/lazy/vite.config.ts,
-// LAZY_LAYERS: the dock, the protocol registry, the application, the AI and
-// the navigation controllers): the first dock chunk is the dock's whole
-// static closure, and each next layer is measured on top of the layers before
-// it. Every other entry is loaded later, on demand, and is measured on top of
-// all the layers — code it shares with them is already in memory. Entries
-// loaded on demand share nothing for free: what two of them have in common is
-// counted in both.
+// What «a lazy chunk» weighs is what loading it adds to the tab, and a tab
+// loads its own site's build alone (docs/project-unite/architecture.md §3.2),
+// so each build is measured by itself, its lines named by its site. The
+// entries every tab of the site loads form layers (the registry's
+// `lazy.layers`; ChatSpace's: the dock, the protocol registry, the
+// application, the AI and the navigation controllers): the first dock chunk
+// is the dock's whole static closure, and each next layer is measured on top
+// of the layers before it. Every other entry is loaded later, on demand, and
+// is measured on top of all the layers — code it shares with them is already
+// in memory. Entries loaded on demand share nothing for free: what two of them
+// have in common is counted in both.
 //
 // The background is measured raw, as archive-check's tripwire is: the core
 // (`background.js`, the vendored SDK's route contract and the services both
@@ -26,7 +28,7 @@
 
 import { gzipSync } from 'node:zlib';
 
-import { HOSTS, scriptsOf, type HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
+import { HOSTS, lazySitesOf, scriptsOf, type HostDescriptor, type LazySite } from '../../apps/extension/src/hosts/index.ts';
 import { MAX_BACKGROUND_JS_BYTES } from '../archive-check/rules.ts';
 
 export const KIB = 1024;
@@ -36,8 +38,10 @@ export interface LazyChunk {
   readonly kind: 'entry' | 'chunk' | 'asset';
   readonly name: string | null;
   readonly imports: readonly string[];
-  /** An entry every chat tab loads: its place among the layers (0 — the dock). Absent — loaded on demand. */
+  /** An entry every tab of its site loads: its place among the layers (0 — the dock). Absent — loaded on demand. */
   readonly layer?: number;
+  /** Its site's lazy build (LazySite.site). */
+  readonly site: string;
 }
 
 export interface BudgetLine {
@@ -56,8 +60,6 @@ export const BUDGETS = {
   firstDockChunk: 45 * KIB,
   lazyChunk: 30 * KIB,
 } as const;
-
-export const DOCK_ENTRY = 'lazy/dock.js';
 
 /** The background core: the event page itself. */
 export const BACKGROUND_CORE = 'background.js';
@@ -106,7 +108,7 @@ export function staticClosure(entry: string, chunks: readonly LazyChunk[]): stri
   return [...seen].sort();
 }
 
-export function computeBudgets(read: (file: string) => Uint8Array, chunks: readonly LazyChunk[], hosts: readonly HostDescriptor[] = HOSTS): BudgetLine[] {
+export function computeBudgets(read: (file: string) => Uint8Array, chunks: readonly LazyChunk[], hosts: readonly HostDescriptor[] = HOSTS, sites: readonly LazySite[] = lazySitesOf(false, hosts)): BudgetLine[] {
   const sizes = new Map<string, number>();
   const size = (file: string): number => {
     let value = sizes.get(file);
@@ -122,28 +124,41 @@ export function computeBudgets(read: (file: string) => Uint8Array, chunks: reado
   };
 
   const lines = scriptBudgets(hosts).map((budget) => line(budget.label, [budget.file], budget.limitBytes));
-  if (!chunks.some((chunk) => chunk.file === DOCK_ENTRY)) {
-    throw new Error(`lazy chunk list has no ${DOCK_ENTRY}`);
+  const stray = chunks.filter((chunk) => !sites.some((site) => site.site === chunk.site));
+  if (stray.length > 0) throw new Error(`size-budget: lazy files of no measured build: ${stray.map((chunk) => `${chunk.file} (${chunk.site})`).join(', ')}`);
+  for (const site of sites) lines.push(...lazyBudgets(site, chunks.filter((chunk) => chunk.site === site.site), line));
+  for (const budget of backgroundBudgets(hosts)) {
+    const bytes = read(budget.file).byteLength;
+    lines.push({ label: budget.label, files: [budget.file], bytes, unit: 'raw', limitBytes: budget.limitBytes, ok: bytes <= budget.limitBytes });
   }
-  const dockClosure = staticClosure(DOCK_ENTRY, chunks);
-  lines.push(line('first dock chunk with Preact (lazy/dock + shared)', dockClosure, BUDGETS.firstDockChunk));
+  return lines;
+}
+
+/** One site's lazy build, measured by itself: a tab loads its own site's files only. */
+function lazyBudgets(site: LazySite, chunks: readonly LazyChunk[], line: (label: string, files: readonly string[], limitBytes: number) => BudgetLine): BudgetLine[] {
+  const lines: BudgetLine[] = [];
+  const name = (chunk: LazyChunk): string => chunk.name ?? chunk.file;
+  const loaded = new Set<string>();
+  const [dockLayer] = site.build.layers;
+  const dock = dockLayer === undefined ? undefined : `${site.build.root}/${dockLayer}.js`;
+  if (dock !== undefined) {
+    if (!chunks.some((chunk) => chunk.file === dock)) throw new Error(`lazy chunk list has no ${dock}`);
+    const dockClosure = staticClosure(dock, chunks);
+    lines.push(line(`${site.site}: first dock chunk with Preact (${site.build.root}/${dockLayer} + shared)`, dockClosure, BUDGETS.firstDockChunk));
+    for (const file of dockClosure) loaded.add(file);
+  }
   // The layers after the dock, each on top of the ones before it.
-  const loaded = new Set(dockClosure);
-  const entries = chunks.filter((chunk) => chunk.kind === 'entry' && chunk.file !== DOCK_ENTRY);
+  const entries = chunks.filter((chunk) => chunk.kind === 'entry' && chunk.file !== dock);
   const layers = entries.filter((chunk) => chunk.layer !== undefined).sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
   for (const chunk of layers) {
     const closure = staticClosure(chunk.file, chunks);
-    lines.push(line(`lazy layer ${chunk.name ?? chunk.file} (beyond the layers before it)`, closure.filter((file) => !loaded.has(file)), BUDGETS.lazyChunk));
+    lines.push(line(`${site.site}: lazy layer ${name(chunk)} (beyond the layers before it)`, closure.filter((file) => !loaded.has(file)), BUDGETS.lazyChunk));
     for (const file of closure) loaded.add(file);
   }
   // Everything else comes on demand, after all the layers.
   for (const chunk of entries.filter((item) => item.layer === undefined)) {
     const extra = staticClosure(chunk.file, chunks).filter((file) => !loaded.has(file));
-    lines.push(line(`lazy chunk ${chunk.name ?? chunk.file} (beyond the layers)`, extra, BUDGETS.lazyChunk));
-  }
-  for (const budget of backgroundBudgets(hosts)) {
-    const bytes = read(budget.file).byteLength;
-    lines.push({ label: budget.label, files: [budget.file], bytes, unit: 'raw', limitBytes: budget.limitBytes, ok: bytes <= budget.limitBytes });
+    lines.push(line(`${site.site}: lazy chunk ${name(chunk)} (beyond the layers)`, extra, BUDGETS.lazyChunk));
   }
   return lines;
 }

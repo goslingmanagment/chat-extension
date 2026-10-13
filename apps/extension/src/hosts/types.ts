@@ -43,6 +43,35 @@ export interface HostPermissions {
   readonly api?: readonly OptionalApi[];
 }
 
+/**
+ * A site's own build of the lazy chunks (docs/project-unite/architecture.md §3.2): its entries, cut by its own plan of
+ * layers, written under its own folder and exposed to its own pages only (a `web_accessible_resources` entry per
+ * site). The sites share source, never a build: another site's entries never enter this one, so they never move a
+ * byte of it; the price is the shared source twice in the XPI (apps/extension/lazy/vite.config.ts).
+ */
+export interface HostLazyBuild {
+  /** The folder inside the extension: `<root>/<entry>.js`, the shared chunks in `<root>/chunks/`. The site's tab loads from it. */
+  readonly root: string;
+  /** Entry name → its source, relative to apps/extension/lazy. In the build's input order. */
+  readonly entries: Readonly<Record<string, string>>;
+  /**
+   * The entries every tab of the site loads, in the order their budgets stack (tools/size-budget): each one layer of
+   * code, the first one the dock. [] — no layers: the bundler cuts the build by itself.
+   */
+  readonly layers: readonly string[];
+  /** The layers that load before the dock or without it: what the dock shares with one of them is the kernel chunk. */
+  readonly beforeTheDock: readonly string[];
+}
+
+/** A lazy build as the extension build makes it: a site's of the registry, or the test build's second one (./index.ts). */
+export interface LazySite {
+  /** The site's kind (the second build's own name): the chunk list and the size report name the build by it. */
+  readonly site: string;
+  readonly build: HostLazyBuild;
+  /** The pages that may load its files (its `web_accessible_resources` entry): the site's pages, its stand in a test build. */
+  readonly matches: readonly string[];
+}
+
 /** One line of `pnpm size`: a script of the site and its gzip -9 ceiling. */
 export interface ScriptBudget {
   /** The script (ScriptSpec.entry). */
@@ -51,9 +80,22 @@ export interface ScriptBudget {
   readonly gzipBytes: number;
 }
 
+/**
+ * A `pnpm size` line of what one slice of @cg/contracts costs the site's bundles, measured the way the budgets are
+ * (minified, gzip -9; tools/size-budget/contracts-probes.ts): the site's own registries and envelopes.
+ */
+export interface ContractsProbeBudget {
+  readonly label: string;
+  /** The probe's module source; its paths are relative to the repo root. */
+  readonly entry: string;
+  readonly gzipBytes: number;
+}
+
 export interface HostBudgets {
   /** In the order of the size report. */
   readonly scripts: readonly ScriptBudget[];
+  /** The site's contract probes, after the common ones. */
+  readonly contracts: readonly ContractsProbeBudget[];
 }
 
 /** `node tools/host-contract-check/index.ts --host <kind>`: the site's contract against a local copy of its bundles. */
@@ -98,6 +140,8 @@ export interface HostDescriptor extends RuntimeHostRow {
   readonly kind: HostKind;
   readonly platform: Platform;
   readonly scripts: HostScripts;
+  /** The site's own build of the lazy chunks. */
+  readonly lazy: HostLazyBuild;
   readonly permissions: HostPermissions;
   /** The site's background chunk; absent — everything the site needs in the background is the core's. */
   readonly background?: HostBackground;

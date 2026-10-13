@@ -1,8 +1,8 @@
 // The extension manifest policy (architecture.md §3 «Манифест», D-01, D-32).
 // Pure functions: wxt.config.ts applies them, the manifest test and
 // tools/gates check the built manifest with checkManifest(). Every site's part
-// — its hosts, content scripts, origins and test stand — comes from the host
-// registry (src/hosts, docs/project-unite/architecture.md §1.2).
+// — its hosts, content scripts, origins, lazy chunks and test stand — comes
+// from the host registry (src/hosts, docs/project-unite/architecture.md §1.2).
 //
 // Relative imports carry `.ts`: this file also runs under plain Node 26
 // (tools/gates), which strips types but does not guess extensions.
@@ -14,9 +14,11 @@ import {
   HOSTS,
   HUB_HOST_PERMISSION,
   TEST_HUB_MATCHES,
+  lazySitesOf,
   pageMatchesOf,
   scriptsOf,
   type HostDescriptor,
+  type LazySite,
   type OptionalApi,
   type ScriptSpec,
 } from '../src/hosts/index.ts';
@@ -61,10 +63,13 @@ export function optionalPermissions(hosts: readonly HostDescriptor[] = HOSTS): O
   return [...new Set(hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.api ?? []))];
 }
 
-/** Where the lazy chunks may be loaded from: every site's pages (and stands, in a test build). */
-export function lazyChunkMatches(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
-  return unique(hosts.flatMap((host) => pageMatchesOf(host, flavor === 'test')));
+/** The lazy builds of a flavor that ship files, each with the pages that may load them (its web resource entry). */
+export function lazyBuildsWithFiles(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): LazySite[] {
+  return lazySitesOf(flavor === 'test', hosts).filter((site) => Object.keys(site.build.entries).length > 0);
 }
+
+/** true — `file` (a path inside the extension) is a file of that lazy build. */
+const inBuild = (file: unknown, site: LazySite): boolean => typeof file === 'string' && file.startsWith(`${site.build.root}/`);
 
 /** The site a built script belongs to, by its file; undefined — no site declares it. */
 export function hostOfFile(file: string, hosts: readonly HostDescriptor[] = HOSTS): { readonly host: HostDescriptor; readonly script: ScriptSpec } | undefined {
@@ -111,11 +116,16 @@ export interface ManifestLike {
 
 /**
  * Applied in WXT's build:manifestGenerated hook: web_accessible_resources =
- * exactly the lazy chunks (+ their CSS) for the sites' pages; in a test build
- * every content script also matches its site's loopback stand. A content
- * script no site of the registry declares fails the build.
+ * exactly the lazy chunks (+ their CSS), one entry per site's lazy build, for
+ * that site's pages alone (docs/project-unite/architecture.md §3.2: a site's
+ * tab may load its own build, never another's); in a test build every content
+ * script also matches its site's loopback stand. A content script no site of
+ * the registry declares, or a lazy file of no build, fails the build.
  */
-export function finalizeManifest(manifest: ManifestLike, options: { flavor: BuildFlavor; lazyFiles: readonly string[]; hosts?: readonly HostDescriptor[] }): void {
+export function finalizeManifest(
+  manifest: ManifestLike,
+  options: { flavor: BuildFlavor; lazyChunks: readonly { readonly file: string; readonly site: string }[]; hosts?: readonly HostDescriptor[] },
+): void {
   const test = options.flavor === 'test';
   const hosts = options.hosts ?? HOSTS;
   for (const script of manifest.content_scripts ?? []) {
@@ -127,9 +137,16 @@ export function finalizeManifest(manifest: ManifestLike, options: { flavor: Buil
   if (manifest.web_accessible_resources !== undefined) {
     throw new Error('finalizeManifest: unexpected web_accessible_resources from WXT; only lazy chunks may be exposed');
   }
-  if (options.lazyFiles.length > 0) {
-    manifest.web_accessible_resources = [{ resources: [...options.lazyFiles].sort(), matches: lazyChunkMatches(options.flavor, hosts) }];
+  const sites = lazySitesOf(test, hosts);
+  for (const chunk of options.lazyChunks) {
+    const site = sites.find((candidate) => candidate.site === chunk.site);
+    if (site === undefined || !inBuild(chunk.file, site)) throw new Error(`finalizeManifest: lazy file ${chunk.file} is of no lazy build of this flavor (${sites.map((candidate) => candidate.build.root).join(', ')})`);
   }
+  const resources = sites
+    .map((site) => ({ site, files: options.lazyChunks.filter((chunk) => chunk.site === site.site).map((chunk) => chunk.file) }))
+    .filter(({ files }) => files.length > 0)
+    .map(({ site, files }) => ({ resources: files.sort(), matches: [...site.matches] }));
+  if (resources.length > 0) manifest.web_accessible_resources = resources;
 }
 
 const LOOPBACK_RE = /(127\.0\.0\.1|localhost)/;
@@ -213,19 +230,29 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
     if (JSON.stringify(scripts).includes(spec.file)) fail(`${spec.file} must not be a manifest content script (registration: ${spec.registration})`);
   }
 
+  // One entry per lazy build, for that site's pages alone (architecture.md §3.2).
   const war = asArray(manifest['web_accessible_resources']) as Array<Record<string, unknown>>;
-  const warMatches = lazyChunkMatches(flavor, hosts);
-  if (war.length !== 1) fail('web_accessible_resources must be one entry with the lazy chunks');
+  const builds = lazyBuildsWithFiles(flavor, hosts);
+  if (war.length !== builds.length) fail(`web_accessible_resources must be one entry per lazy build (${builds.map((site) => site.build.root).join(', ')}), got ${war.length}`);
   for (const entry of war) {
     const resources = asArray(entry['resources']);
-    if (resources.length === 0) fail('web_accessible_resources lists no lazy chunks');
+    if (resources.length === 0) fail('a web_accessible_resources entry lists no lazy chunks');
     for (const resource of resources) {
       if (typeof resource !== 'string' || !/^lazy\/.+\.(js|css)$/.test(resource)) {
         fail(`web_accessible_resources may list only lazy chunks and their CSS, got ${String(resource)}`);
       }
     }
-    if (!sameSet(entry['matches'], warMatches)) fail(`web_accessible_resources matches must be exactly ${warMatches.join(', ')}`);
     if ('use_dynamic_url' in entry) fail('use_dynamic_url is Chrome-only');
+    const site = builds.find((candidate) => resources.length > 0 && resources.every((resource) => inBuild(resource, candidate)));
+    if (site === undefined) {
+      fail(`a web_accessible_resources entry must list the files of exactly one lazy build (${builds.map((candidate) => candidate.build.root).join(', ')}), got ${resources.slice(0, 3).map(String).join(', ')}${resources.length > 3 ? ', …' : ''}`);
+      continue;
+    }
+    if (!sameSet(entry['matches'], site.matches)) fail(`web_accessible_resources of ${site.build.root} must match exactly ${site.matches.join(', ')}`);
+  }
+  for (const site of builds) {
+    const entries = war.filter((entry) => asArray(entry['resources']).some((resource) => inBuild(resource, site)));
+    if (entries.length !== 1) fail(`the lazy build ${site.build.root} must be exactly one web_accessible_resources entry, got ${entries.length}`);
   }
 
   const action = manifest['action'] as Record<string, unknown> | undefined;
