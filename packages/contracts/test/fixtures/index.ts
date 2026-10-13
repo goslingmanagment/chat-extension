@@ -10,3 +10,4 @@ export * from './protocols';
 export * from './hub';
 export * from './vm';
 export * from './coach';
+export * from './fansly';
