@@ -889,6 +889,19 @@ describe('coach: the recap it stands on', () => {
     expect(h.bg.hub.streams.map((stream) => stream.feature)).toEqual(['fan-summary', 'coach-chat', 'coach-chat']);
   });
 
+  it('[AI-096] the answer step of a turn is remembered with the turn\'s Split snapshot and persona — nothing was started for it', async () => {
+    const base = withCoach({ autoRecap: 'full' });
+    const h = await start({ settings: { ...base, generation: { ...base.generation, split: true } } });
+    h.bg.hub.profileScript.push(savedOutcome);
+    h.script(h.streamOf('fan-summary', [FULL]), coachStream(ANSWER));
+    const recapOp = ((await ask(h, 'How do I reply?')) as { opId: string }).opId;
+    expect((h.bg.callsOf('op.start')[0] as { split: boolean }).split).toBe(true);
+    await h.finish();
+    const answerOp = h.ai.workspace.ops.get(recapOp)?.view.continuedBy as string;
+    expect(h.bg.callsOf('op.start')).toHaveLength(1);
+    expect(h.ai.workspace.ops.get(answerOp)).toMatchObject({ own: true, memo: { split: true, fixSource: null, personaDefinitionId: WORLD.persona.definitionId } });
+  });
+
   it('[AI-096] [UI-008] while the turn builds its recap the strip\'s busy button is Coach — it still opens the panel; Recap waits like the rest', async () => {
     const h = await start({ settings: withCoach({ autoRecap: 'full' }) });
     h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fan-summary') }, { kind: 'stall' }] });

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
+import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
 import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
@@ -810,6 +810,18 @@ describe('dock: tones and Split', () => {
     expect(partsOf(h).map((part) => part.text)).toEqual(['two']);
   });
 
+  it('[AI-010] «Ещё раз» keeps the Split snapshot of the original, whatever the setting says now', async () => {
+    const h = await start();
+    const first = await reply(h, 'a [NEXT] b', { split: true });
+    expect(h.dock().options.split).toBe(false);
+    h.script(h.streamOf('fast-reply', ['c [NEXT] d']));
+    expect(await h.dispatch({ type: 'Regenerate', operationId: first })).toMatchObject({ ok: true, type: 'Regenerate', outcome: 'started' });
+    await h.finish();
+    expect((h.bg.callsOf('op.start')[1] as { split: boolean; regenerateOf: string }).split).toBe(true);
+    expect(result(h)).toMatchObject({ splitRequested: true });
+    expect(partsOf(h).map((part) => part.text)).toEqual(['c', 'd']);
+  });
+
   it('[AI-010] Split is the saved setting, snapshotted at the start; the write is confirmed with its revision', async () => {
     const h = await start();
     const receipt = await h.dispatch({ type: 'SetPreference', key: 'generation.split', value: true });
@@ -932,6 +944,68 @@ describe('dock: fresh page text', () => {
     await reply(h);
     expect((h.bg.callsOf('op.start')[0] as { fresh?: unknown }).fresh).toBeUndefined();
     expect(partsOf(h)).toHaveLength(1);
+  });
+
+  /**
+   * Every string the tab's AI state holds: what is reachable from its surfaces through fields, arrays, maps and
+   * sets. The page (the host) and the background are not the tab's state and are not entered; what a closure
+   * holds is out of reach of any walk.
+   */
+  const heldStrings = (h: Harness): string[] => {
+    const seen = new Set<unknown>([h.host, h.bg, h.clock]);
+    const found: string[] = [];
+    const stack: unknown[] = [h.ai];
+    while (stack.length > 0) {
+      const value = stack.pop();
+      if (typeof value === 'string') found.push(value);
+      if (value === null || typeof value !== 'object' || seen.has(value)) continue;
+      seen.add(value);
+      if (value instanceof Map) for (const [key, item] of value) stack.push(key, item);
+      else if (value instanceof Set) stack.push(...value);
+      else for (const key of Reflect.ownKeys(value)) stack.push(Object.getOwnPropertyDescriptor(value, key)?.value);
+    }
+    return found;
+  };
+
+  it('the tab keeps no copy of the tail: not while the result is written, not after it ends, not after «Вставить» or «Ещё раз»', async () => {
+    const h = await start();
+    const words = ['the tail: are you still up?', 'the tail: only for you'];
+    h.host.setTail(openChat, {
+      capturedAt: '2026-10-03T10:00:00.000Z',
+      messages: [
+        { platformMessageId: '4004', direction: 'fan', sentAt: '2026-10-03T09:58:00.000Z', text: words[0] as string },
+        { platformMessageId: '4005', direction: 'model', sentAt: '2026-10-03T09:59:00.000Z', text: words[1] as string },
+      ],
+    });
+    const leftovers = (): string[] => heldStrings(h).filter((text) => words.some((word) => text.includes(word)));
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply') }, delta('one ', 100), delta('two ', 100), delta('three', 100), doneStep] });
+    const receipt = await h.generate('reply');
+    const opId = (receipt as { opId: string }).opId;
+    // The tail went with the request.
+    expect((h.bg.callsOf('op.start')[0] as { fresh: LiveTextTail }).fresh.messages.map((message) => message.text)).toEqual(words);
+
+    await h.clock.advance(200 + OP_LIMITS.updateBatchMs);
+    // The result is being written: the walk reaches the operation (its stream text is there), the tail is not.
+    expect(h.dock().result).toMatchObject({ state: 'streaming', streamText: 'one two' });
+    expect(heldStrings(h).some((text) => text.startsWith('one two'))).toBe(true);
+    expect(leftovers()).toEqual([]);
+
+    await h.finish();
+    // What the tab remembers of the start is what «Ещё раз» and Fix read, and nothing of the request.
+    expect(h.ai.workspace.ops.get(opId)?.memo).toEqual({ split: false, fixSource: null, personaDefinitionId: WORLD.persona.definitionId });
+    expect(leftovers()).toEqual([]);
+
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'done' });
+    expect(leftovers()).toEqual([]);
+
+    // «Ещё раз» reads the page again: the tail it sends is the one of that moment, and it is not kept either.
+    h.script(h.streamOf('fast-reply', ['again']));
+    expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(h.host.reads.tail).toBe(2);
+    expect((h.bg.callsOf('op.start')[1] as { fresh: LiveTextTail; regenerateOf: string }).regenerateOf).toBe(opId);
+    expect(partsOf(h).map((part) => part.text)).toEqual(['again']);
+    expect(leftovers()).toEqual([]);
   });
 });
 
