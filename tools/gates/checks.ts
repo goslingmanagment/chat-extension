@@ -2,6 +2,9 @@
 // безопасности»). Pure functions over {path, text}; index.ts feeds them the
 // repo and the release build. Code is parsed with the TypeScript compiler, so
 // comments and prose never trip a gate — only real code does.
+//
+// The gates that keep the two sites apart (R20 F9a: site literals, bytes per
+// site, marker strings, build fields) are in sites.ts.
 
 import ts from 'typescript';
 
@@ -45,7 +48,7 @@ export const UI_FORBIDDEN_WORDS = /\b(?:api|tokens?|bearer|keys?|apikey|api-key)
 const HTML_SINKS = new Set(['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'createContextualFragment', 'dangerouslySetInnerHTML']);
 const UI_TEXT_ATTRIBUTES = new Set(['title', 'placeholder', 'aria-label', 'alt', 'label', 'aria-description']);
 
-function parse(file: SourceFile): ts.SourceFile {
+export function parse(file: SourceFile): ts.SourceFile {
   const kind = file.path.endsWith('.tsx') ? ts.ScriptKind.TSX : /\.[cm]?js$/.test(file.path) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
   return ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true, kind);
 }
@@ -55,11 +58,11 @@ function isTextNode(node: ts.Node): node is ts.StringLiteralLike | ts.TemplateHe
   return ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node);
 }
 
-function lineOf(source: ts.SourceFile, node: ts.Node): number {
+export function lineOf(source: ts.SourceFile, node: ts.Node): number {
   return source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
 }
 
-function walk(source: ts.SourceFile, visit: (node: ts.Node) => void): void {
+export function walk(source: ts.SourceFile, visit: (node: ts.Node) => void): void {
   const step = (node: ts.Node): void => {
     visit(node);
     ts.forEachChild(node, step);

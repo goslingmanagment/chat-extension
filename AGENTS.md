@@ -138,6 +138,10 @@ a boundary you need to cross is a design question, not a lint exception.
   in a title of shared code) and at its level; `pnpm parity` fails on an open
   row of an R20 PR marked `✓` in `docs/project-unite/plan.md` — mark your own
   PR there (`docs/project-unite/parity-matrix.md` §1).
+- `pnpm gates:bytes` — rewrites `tools/gates/chatspace-bytes.json`, the size
+  and sha256 of every file a ChatSpace tab and its background load (after
+  `pnpm build`). Only for a change of shared code that means to move those
+  bytes; see «ChatSpace's bytes are pinned» below.
 
 ## Where the truth is
 
@@ -223,6 +227,17 @@ a boundary you need to cross is a design question, not a lint exception.
   feature of every page reads `disabled`. Never gate on `bootstrap.flags`: use `packages/core/src/domain/ops/flags.ts`
   (`docs/protocols/hub.md` «Флаги: решает страница»). The fake hub's default
   preset is that pilot, so e2e fails on a client that reads the top-level flags.
+- **ChatSpace's bytes are pinned, and shared code names no site**
+  (`docs/project-unite/architecture.md` §1.8). `pnpm gates` compares the
+  release build with `tools/gates/chatspace-bytes.json`: that is the comparison
+  with `main`, in every PR. A change of shared code that moves them runs
+  `pnpm gates:bytes`, commits the file and names the byte-registry deltas in
+  the PR; after another such PR merges — rebase, build, run it again. A change
+  of Fansly's own files alone (any path named by Fansly) never rewrites the
+  pins and the gate refuses it: find the import that leaked. In `core`, `ui`
+  and `hub` a string, comparison or table key equal to a `HostKind` or
+  `Platform` value fails the gate outside its debt list
+  (`tools/gates/sites.ts`); the PR that removes one shrinks the list.
 - **A request the hub would refuse must fail in CI.** The hub's own rules for
   an AI body live partly in its handler, not in its schema; the fake hub
   repeats them (`fake-hub/ai-rules.ts`) and checks bodies by the vendored

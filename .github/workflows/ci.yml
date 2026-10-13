@@ -66,8 +66,14 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
+      # Two commits deep: on a PR this is GitHub's merge commit, and `pnpm
+      # gates` reads what the PR changes against its first parent, the base
+      # branch (tools/gates/change.ts: Fansly's files alone never rewrite
+      # ChatSpace's byte pins).
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
 
       # Node 26 (.nvmrc). The PC image has no Node on PATH: every job brings
       # its own.

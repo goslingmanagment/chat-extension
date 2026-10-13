@@ -87,8 +87,8 @@ type ScriptSpec = { entry: string; file: string; world: 'MAIN' | 'ISOLATED'; reg
 он нужен только вкладке сайта (вход отдаёт его адаптеру, `HostAdapter.lazy.root`, §1.3), фону и страницам — нет.
 Входы сайта читают только свою строку (`runtime/<сайт>.ts`), фон и страницы — всю таблицу; запись реестра берёт адреса из
 строки, а не наоборот. Поля сборки в бандлы не попадают: реестр не импортирует никто из того, что уходит в XPI, и сама
-таблица его не читает (правило `host-registry-build-only` в `.dependency-cruiser.cjs`); тест манифеста ищет поля сборки в
-собранных файлах. Разводка сайтов в корне композиции (хосты RPC, источники звука) пишется `satisfies PerHost<…>`: новая
+таблица его не читает (правило `host-registry-build-only` в `.dependency-cruiser.cjs`); тест манифеста и гейт `build-data`
+(`pnpm gates`, §1.8) ищут поля сборки в собранных файлах. Разводка сайтов в корне композиции (хосты RPC, источники звука) пишется `satisfies PerHost<…>`: новая
 строка таблицы не проходит typecheck, пока корень её не учёл; байты ChatSpace при этом не меняются (выведение карт в рантайме
 стоило бы ≈ 240 Б фона).
 
@@ -265,47 +265,125 @@ interface HostUiProfile {
 
 ### 1.8 Гейты, которые держат разнос
 
-- **Байты по сайтам.** Сравнение артефактов ChatSpace (`content-scripts/chatspace*`, `chatspace-ws.js`,
-  `lazy/chatspace/**`, ядро фона, `bg/chatspace.js` и набор файлов, которые грузит вкладка ChatSpace, транзитивно) с
-  `main` идёт в **каждом** PR. Если дифф трогает только файлы Fansly, разница — ноль. Файлы Fansly — по принадлежности,
-  а не по одной папке: `packages/host-fansly/**`, `packages/fansly-api/**`, `**/hosts/fansly/**`,
-  `apps/extension/src/hosts/fansly.ts`, `apps/extension/src/hosts/runtime/fansly.ts`, `apps/extension/src/entrypoints/fansly*`,
-  `apps/extension/lazy/fansly/**`,
-  `apps/extension/bg/fansly.ts`, `packages/contracts/src/**/*fansly*.ts` (в том числе `features/fansly.ts`,
-  `errors-fansly.ts`, `bridge-*-fansly.ts`, `tab-messages-fansly.ts`, `send-fansly.ts`, `fansly.ts`), пакеты текстов Fansly.
-  Остальные PR называют дельту по реестру байтов (§3.2). В бандлах ChatSpace нет данных `fansly-web` (маркерные строки).
-  У гейта — отрицательные фикстуры на каждый вид пути.
-- **Литералы сайтов** — по AST и по смыслу: строковые литералы, равные значениям `HostKind` и `Platform`, и сравнения с
-  ними запрещены в `core/src/**`, `ui/src/**`, `hub/src/**`, кроме `**/hosts/<host>/**`, `contracts/src/{ids,hosts}.ts`,
-  манифеста фич и `admission.ts`. Законные `platform === 'mac'` (ОС), `host === null` и состояния UI гейт не трогает.
-  Ранний гейт (F9a) стоит со списком долга §1.9, финальный (F9b) — без него.
-- **Имена сайтов в общих текстах** («ChatSpace», «OnlyMonster», «OnlyFans», «Fansly») запрещены: только фразы профиля.
+Ранние гейты построены в F9a. Граф — `.dependency-cruiser.cjs` (`pnpm lint`); литералы, байты, маркерные строки и поля
+сборки — `tools/gates/sites.ts` (`pnpm gates`); чей файл чей — одна таблица `tools/gates/site-paths.cjs`, её читают и
+граф, и гейты. У каждого правила — отрицательные фикстуры (`tests/lint-boundaries.test.ts`, `tools/gates/sites.test.ts`).
+
+- **Чей файл.** Файл сайта — файл, **названный сайтом**: путь, в котором имя сайта стоит целым словом имени папки или
+  файла. Это и есть «по принадлежности, а не по одной папке»: у Fansly — `packages/host-fansly/**`,
+  `packages/fansly-api/**`, `**/hosts/fansly/**`, `apps/extension/src/hosts/fansly.ts`,
+  `apps/extension/src/entrypoints/fansly*`, `apps/extension/lazy/fansly/**`, `apps/extension/bg/fansly.ts`,
+  `packages/contracts/src/**/*fansly*.ts` (в том числе `features/fansly.ts`, `errors-fansly.ts`, `bridge-*-fansly.ts`,
+  `tab-messages-fansly.ts`, `send-fansly.ts`, `fansly.ts`), пакеты текстов Fansly — и всё, что позже назовут так же.
+  Имени не верят на слово: правила графа `chatspace-graph-without-fansly` и `background-core-graph` падают, если бандл
+  ChatSpace или ядро фона достигают такого файла. Одно исключение: строка рантайм-таблицы
+  `apps/extension/src/hosts/runtime/<сайт>.ts` файлом сайта **не считается** — таблицу целиком читают ядро фона и
+  страницы расширения (§1.2), её правка двигает байты, которые грузят оба сайта, это общий код.
+- **Байты по сайтам.** Сравнение файлов ChatSpace с `main` идёт в **каждом** PR — как именно, ниже («Как сравниваются
+  байты»). Файлы ChatSpace: его скрипты из реестра хостов (`content-scripts/chatspace-main.js`,
+  `content-scripts/chatspace.js`, `chatspace-ws.js`), вся его ленивая сборка `lazy/chatspace/**`, его чанк фона
+  `bg/chatspace.js` и ядро фона `background.js` — всё, что грузят вкладка ChatSpace и её фон. Если дифф трогает только
+  файлы Fansly, разница — ноль; остальные PR называют дельту по реестру байтов (§3.2).
+- **В бандлах ChatSpace нет данных `fansly-web`.** Маркерные строки выводятся при запуске гейта из исходников: имена,
+  которые несут только файлы Fansly, — типы моста (`fx.batch`), запросы вкладки (`fansly.voice.*`), коды `CG-FAN-*`,
+  ключи текстов, адрес API. Маркер — имя из реестра (имя через точку, код CG, абсолютный адрес), а не слово и не
+  токен веб-платформы; то, что называет и общий код или вендоренный пакет (вид хоста, платформа, адрес из схемы хаба),
+  маркером не становится — бандл ChatSpace несёт это по праву. Ни одного маркера — ошибка: гейт, который ничего не
+  ищет, не проходит.
+- **Литералы сайтов** — по AST и по смыслу. Общий код (`core/src/**`, `ui/src/**`, `hub/src/**`) не называет сайт:
+  нет строки, равной значению `HostKind` или `Platform`, сравнения с ней, таблицы с таким ключом и чтения такого
+  ключа. Значение считается, где бы оно ни стояло, — в сравнении, `case`, литеральном типе, ключе без кавычек, — и
+  считается только значение: `platform === 'mac'` (ОС), `host === null`, комментарий, более длинный текст, ключ текста
+  и имя переменной гейт не трогает. Свой код сайта (`**/hosts/<host>/**`, пакет `host-*`, любой файл, названный сайтом)
+  может называть свой сайт, но не чужой. Не проверяются: `admission.ts`, контракты (`ids.ts`, `hosts.ts`, манифест
+  фич), `platform`, корни композиции, реестр хостов, тесты. Ранний гейт (F9a) стоит со списком долга §1.9, финальный
+  (F9b) — без него. Запись списка — файл, значение и число вхождений, а не строка: строки едут от любой правки файла,
+  число меняется только когда литерал появился или ушёл. Гейт падает на литерале вне списка, на записи, которую код
+  уже перерос (число надо снизить или запись убрать), и на записи PR, отмеченного в плане сделанным, — список может
+  только сокращаться.
+- **Имена сайтов в общих текстах** («ChatSpace», «OnlyMonster», «OnlyFans», «Fansly») запрещены: только фразы профиля
+  (F9b).
 - **Полнота манифеста:** каждая `FeatureId`, операция сайта, поверхность, действие справочника, флаг хаба и ленивый вход
-  упомянуты записью; у записи есть строки паритета и e2e на стенде каждого её сайта (связка с P1b).
-- **Граф пакетов:** реализации хостов (`hosts/<host>/`, пакеты `host-*`, `fansly-api`) импортируются только корнями
-  композиции и индексами реестров; общий код их не импортирует. Граф ядра фона не содержит `hosts/fansly`, `fansly-api`,
-  `tab-messages-fansly` и схем Fansly. Разрешённый граф `host-kit`, `host-fansly`, `fansly-api`, relay и `bg/*` записан в
-  `.dependency-cruiser.cjs`, у правил — отрицательные фикстуры.
-- **Поля сборки** реестра хостов и строки паритета в рантайм-бандлы не попадают.
+  упомянуты записью; у записи есть строки паритета и e2e на стенде каждого её сайта (связка с P1b; F9b).
+- **Граф пакетов** (`.dependency-cruiser.cjs`):
+  - код Fansly импортирует только код Fansly, индекс реестра хостов и корень композиции страниц расширения — страницы
+    несут оба сайта (`fansly-code-only-from-fansly`); из того, из чего собраны бандлы ChatSpace, файл Fansly не
+    достижим (`chatspace-graph-without-fansly`), из ядра фона — тоже, вместе с чанками сайтов и опекой ChatSpace
+    (`background-core-graph`);
+  - реализацию ChatSpace (пакет `host-chatspace`, папки `hosts/chatspace/`) импортирует только свой код: входы
+    ChatSpace, его половины адаптера и два ленивых входа, которые их несут (`chatspace-code-only-from-chatspace`);
+  - `host-kit`: то, что несёт MAIN (`main`, `common`), ничего не импортирует; `isolated` — контракты,
+    `core/domain/text`, zod; пакет не знает ни одного сайта (`host-kit-*`). `host-chatspace` и `host-fansly`: MAIN —
+    свой код и MAIN-часть `host-kit`; изолированный — `host-kit`, контракты, `core/domain/text`, zod
+    (`host-main-self-contained`, `host-isolated`, `host-fansly-*`); вход MAIN Fansly — только `host-fansly/main`,
+    помощники WXT и своя строка рантайм-таблицы (`fansly-main-entry-self-contained`);
+  - `fansly-api`: контракты, `core/domain`, zod — без хаба, SDK и `platform` (`fansly-api-graph`); импортирует его
+    только чанк `bg/fansly` (`fansly-api-only-in-its-chunk`);
+  - кадр relay — контракты и порт `platform`, без ядра, интерфейса и `fansly-api` (`relay-entry-graph`);
+  - чанки `bg/*` — контракты, `core` (домен и службы), `fansly-api` (его берёт только `bg/fansly`), zod, типы кита;
+    хаб, SDK и `platform` — только через кит (`background-chunk-boundaries`, `background-chunk-through-the-kit`);
+    чанк одного сайта не импортирует чанк другого (`background-chunks-apart`).
+  Пакеты, которых ещё нет (`host-kit` — P5, `host-fansly` — P7a0, `fansly-api` — P9b, relay — P9c), получили граф
+  заранее: PR, который приносит пакет, меняет правило в том же диффе, если ему нужно иное, и объясняет зачем.
+- **Поля сборки** реестра хостов и строки паритета в рантайм-бандлы не попадают: граф — `host-registry-build-only`,
+  собранные файлы — гейт `build-data` (метки бюджетов, исходники ленивых входов, модуль и переменная проверки
+  контракта, папки MAIN, маркеры архива; номера отрицательных проверок реестра исключений).
+
+**Как сравниваются байты ChatSpace (решение F9a).** Сравнение с `main` в каждом PR — без второй сборки:
+
+- В репозитории лежат **закрепы** `tools/gates/chatspace-bytes.json`: размер и sha256 каждого файла ChatSpace в
+  выпускной сборке, по строке на файл (сейчас 47 файлов). `pnpm gates` — шаг `pnpm check` после `pnpm build` — считает
+  то же по только что собранному и падает на любом расхождении, называя файл и сколько байт ушло или пришло. На `main`
+  закрепы равны сборке `main` (иначе `main` красный), поэтому сверка с ними и есть сравнение с `main`.
+- PR, который двигает байты ChatSpace, **переписывает закрепы сам**: `pnpm gates:bytes`. Дифф файла в PR — список
+  сдвинувшихся файлов с размерами до и после; дельту по строкам реестра байтов (gzip, `pnpm size`) PR по-прежнему
+  называет в «готово» (§3.2).
+- PR только с файлами Fansly закрепы не трогает — «разница ноль» доказана той же сверкой. Переписать их он не может:
+  гейт `site-bytes-diff` читает дифф PR (в CI — против первого родителя merge-коммита, `fetch-depth: 2` у джобы
+  `check`; локально — от точки ответвления от `origin/main`, вместе с незакоммиченным) и падает, если закрепы изменены,
+  среди остального есть файлы Fansly и нет ни одного общего. Документы, тесты и инструменты в счёт не идут (из них
+  ничего не собирается). Правка одних закрепов разрешена — так чинят закрепы, отставшие от `main`.
+- **Почему не сборка базы и головы в CI.** Ей нужны второй checkout, вторая установка и вторая сборка в каждом
+  `pnpm check` — на раннерах на ПК владельца и на Mac, где тяжёлые прогоны идут по одному; в PR она не оставляет
+  следа: сдвиг байт виден только в логе. Закрепам нужна воспроизводимая сборка — она такая: выпускная сборка на macOS
+  (arm64, Node 26.7) и в Linux-контейнерах `node:26-bookworm-slim` arm64 и amd64 (Node 26.10, как у раннеров CI; другой
+  путь checkout, без `.git`) совпала байт в байт по всем 63 файлам, `pnpm gates` там зелёный (замер F9a). Цена сверки —
+  sha256 двух мегабайт.
+- **Цена решения.** Два PR, которые оба двигают один файл ChatSpace (обычно `background.js`), конфликтуют в строке
+  закрепов: второй после слияния первого делает rebase, сборку и `pnpm gates:bytes` заново — в этот же момент устарели
+  и его числа по реестру байтов. Обновление зависимостей или сборщика, которое меняет вывод, тоже переписывает закрепы.
+- Не закреплены `manifest.json`, чанки страниц расширения и иконки: их грузят оба сайта, страницы несут оба.
 
 ### 1.9 Что общий код перестаёт знать (долг ChatSpace, закрывается до кода Fansly)
 
-| Место | Сейчас | Станет |
-|---|---|---|
-| `core/src/application/newcomers/controller.ts:205, 664`; `spenders/controller.ts:571`; `preview/controller.ts:809, 1495, 1770` | `host: 'chatspace'` | `binding.host` |
-| `core/src/application/ai/workspace.ts:482`; `preview/controller.ts:1496` | `conversationRef = fanRef` | из маршрута или разрешения группы |
-| тост фона, `ChatNavigator.open`, `NavigationIntent.target`, `RequestIdentity` | без `conversationRef` | с ним |
-| чтения хаба по разговору (`apps/extension/src/composition/background/hub-data.ts:55-57`, `hub/src/facade.ts:664`, лента) | по `fanRef` | по таблице «маршрут → ключ» (§11.1, HF-10; F6b) |
-| `core/src/domain/telemetry/health.ts:242`; `core/src/services/telemetry/health.ts:33, 193` | один хост `chatspace`, `chatSpaceOpen` | окно на (хост, сборка) |
-| `core/src/application/pages/view-status.ts:139-151, 474, 489`; `contracts/src/vm/pages.ts:86-102`; `ui/src/pages/options/Status.tsx:45`; `Options.tsx:59` | строка «ChatSpace» обязательна | строка на каждый сайт с привязками |
-| `core/src/application/pages/model.ts:181`; `client.ts:910` | перечисление двух видов хоста | `HOST_KINDS` |
-| `core/src/domain/hotkeys/resolver.ts:50` | клиент схемы `'extension'` | `profile.hotkeyClient` (F5) |
-| `ui/src/kit/tokens.ts:18-55` | палитра только из `<html>` ChatSpace | `profile.palette` |
-| `ui/src/dock/Strip.tsx:47-60`; `dock/styles.ts:112-235`; `contracts/src/vm/dock.ts:15-16` | семь чипов и пороги под них | чипы данными, лист варианта |
-| `hub/src/facade.ts:343` | «… · ChatSpace» в имени устройства | нейтрально |
-| `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` | мёртвый сборщик (`conversationRef = fanRef`), вызывают только тесты, но он в `background.js`; рабочий — `core/src/domain/ops/request.ts:105` | удалить (освобождает байты фона) |
-| `host-chatspace/src/main/requests.ts:9, 23` | MAIN ChatSpace принимает оба вида хоста | только `'chatspace'` (освобождает байты MAIN) |
-| ≈ 47 текстов с именами сайтов на общих путях | захардкожены | фразы профиля |
+| Место | Сейчас | Станет | Кто закрывает |
+|---|---|---|---|
+| `core/src/application/newcomers/controller.ts:205, 664`; `spenders/controller.ts:571`; `preview/controller.ts:809, 1495, 1770` | `host: 'chatspace'` | `binding.host` | F6a · гейт |
+| `core/src/application/ai/workspace.ts:482`; `preview/controller.ts:1496` | `conversationRef = fanRef` | из маршрута или разрешения группы | F6a |
+| тост фона, `ChatNavigator.open`, `NavigationIntent.target`, `RequestIdentity` | без `conversationRef` | с ним | F6a |
+| чтения хаба по разговору (`apps/extension/src/composition/background/hub-data.ts:55-57`, `hub/src/facade.ts:664`, лента) | по `fanRef` | по таблице «маршрут → ключ» (§11.1, HF-10; F6b) | F6b |
+| `core/src/domain/telemetry/health.ts:242`; `core/src/services/telemetry/health.ts:33, 193` | один хост `chatspace`, `chatSpaceOpen` | окно на (хост, сборка) | F7 · гейт (литерал `health.ts:242`) |
+| `core/src/application/pages/view-status.ts:139-151, 474, 489`; `contracts/src/vm/pages.ts:86-102`; `ui/src/pages/options/Status.tsx:45`; `Options.tsx:59` | строка «ChatSpace» обязательна | строка на каждый сайт с привязками | F7 · гейт |
+| `core/src/application/pages/model.ts:181`; `client.ts:910` | перечисление двух видов хоста | `HOST_KINDS` | F6a · гейт |
+| `core/src/domain/hotkeys/resolver.ts:50` | клиент схемы `'extension'` | `profile.hotkeyClient` (F5) | F5 |
+| `ui/src/kit/tokens.ts:18-55` | палитра только из `<html>` ChatSpace | `profile.palette` | F5 |
+| `ui/src/dock/Strip.tsx:47-60`; `dock/styles.ts:112-235`; `contracts/src/vm/dock.ts:15-16` | семь чипов и пороги под них | чипы данными, лист варианта | F4, F5 |
+| `hub/src/facade.ts:343` | «… · ChatSpace» в имени устройства | нейтрально | F9b (тексты) |
+| `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` | мёртвый сборщик (`conversationRef = fanRef`), вызывают только тесты, но он в `background.js`; рабочий — `core/src/domain/ops/request.ts:105` | удалить (освобождает байты фона) | F6a |
+| `host-chatspace/src/main/requests.ts:9, 23` | MAIN ChatSpace принимает оба вида хоста | только `'chatspace'` (освобождает байты MAIN) | F6a · гейт |
+| ≈ 47 текстов с именами сайтов на общих путях | захардкожены | фразы профиля | F9b |
+| `core/src/domain/sound/policy.ts:72` (нашёл гейт F9a) | своя копия таблицы «хост → платформа» | `HOST_PLATFORM` контрактов | F6a · гейт |
+| `core/src/domain/features/gates.ts:47` (нашёл гейт F9a) | `platform === 'fansly'` в `pingGate` | порт предпроверки `AiHostPolicy` | F10 · гейт |
+| `core/src/application/pages/view-status.ts:62` (`PLATFORM_NAMES`); `ui/src/pages/shared.tsx:267` (`PLATFORM_WORDS`) (нашёл гейт F9a) | имена платформ таблицей по ключу платформы | фразы профиля | F9b · гейт |
+| `core/src/domain/sound/tones.ts:107-108` (`PLATFORM_DEFAULT_TONES`) (нашёл гейт F9a) | тоны по умолчанию таблицей по платформе | умолчание сайта | F9b · гейт |
+| `core/src/domain/settings/ext.ts:31` (нашёл гейт F9a; появилось с P4a3) | раздел Fansly ключа `settings.ext` читается по имени `'fansly-web'` | по разделам, которые называет схема ключа | F9b · гейт |
+| `hub/src/bootstrap-rules.ts:173` (нашёл гейт F9a) | `platform !== 'onlyfans'` в bootstrap, собранном для старого хаба | решение хаба по странице | F9b · гейт |
+
+«Гейт» в последнем столбце — запись списка долга `SITE_LITERAL_DEBT` в `tools/gates/sites.ts` (файл, значение, число
+вхождений, PR): PR-владелец убирает литерал и запись в одном диффе; с отметкой `✓` в плане при живой записи `pnpm gates`
+падает. Шесть строк «нашёл гейт F9a» в версии 7 не значились; те, у которых в плане нет владельца раньше, записаны на
+F9b — финальный гейт их убирает или передаёт дальше. Строки без «гейт» литералом сайта не являются: их держат строка
+плана своего PR и его тесты.
 
 Гейт F9b проверяет литералы, тексты и граф; смысл чтений по разговору (F6b) он не проверяет — его держат тесты F6b.
 

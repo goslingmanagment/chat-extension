@@ -1,11 +1,11 @@
 {
   "generated": "node tools/parity/coverage.ts (pnpm parity:coverage) — руками не править; источник: docs/parity/parity-manifest.json, docs/project-unite/plan.md, §10 docs/project-unite/parity-matrix.md, метки [ID] и [host:…] в названиях тестов",
   "testFiles": {
-    "unit": 239,
+    "unit": 241,
     "e2e": 40,
-    "chatspace": 60,
-    "fansly": 5,
-    "free": 214
+    "chatspace": 61,
+    "fansly": 6,
+    "free": 215
   },
   "totals": {
     "name": "всего",
@@ -353,8 +353,8 @@
     "rows": 718,
     "notConcerned": 110,
     "required": 712,
-    "closed": 463,
-    "open": 249,
+    "closed": 464,
+    "open": 248,
     "afterPilot": 6,
     "byKind": [
       {
@@ -372,8 +372,8 @@
       {
         "name": "unit",
         "rows": 128,
-        "closed": 2,
-        "open": 126
+        "closed": 3,
+        "open": 125
       },
       {
         "name": "hub",
@@ -467,9 +467,9 @@
       {
         "name": "F9a",
         "rows": 1,
-        "closed": 0,
-        "open": 1,
-        "done": false
+        "closed": 1,
+        "open": 0,
+        "done": true
       },
       {
         "name": "F9b",
@@ -1571,7 +1571,7 @@
     {"id":"EX-011","function":"Ноль работы вне маршрута","target":"пилот","owner":"R00","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["packages/testing/src/kit/mount.test.tsx","packages/ui/src/kit/clock.test.ts"],"e2e":["packages/testing/e2e/specs/integration-m1.e2e.ts","packages/testing/e2e/specs/spike-m0.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P16a","planned":"e2e","closed":false,"by":[]}},
     {"id":"EX-012","function":"Стили и корни UI","target":"пилот","owner":"R00","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/surfaces.test.ts","packages/testing/src/kit/mount.test.tsx","packages/ui/src/kit/styles.dom.test.ts"],"e2e":["packages/testing/e2e/specs/integration-m1.e2e.ts","packages/testing/e2e/specs/spike-m0.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7d","planned":"e2e","closed":false,"by":[]}},
     {"id":"EX-013","function":"Якорь панели","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P7d","planned":"e2e","closed":false,"by":[]}},
-    {"id":"EX-014","function":"Разделение слоёв и DI","target":"пилот","owner":"R01","milestones":["M0"],"planned":"unit","pilot":true,"unit":["packages/platform/src/services.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F9a","planned":"unit","closed":false,"by":[]}},
+    {"id":"EX-014","function":"Разделение слоёв и DI","target":"пилот","owner":"R01","milestones":["M0"],"planned":"unit","pilot":true,"unit":["packages/platform/src/services.test.ts","tests/lint-boundaries.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F9a","planned":"unit","closed":true,"by":["tests/lint-boundaries.test.ts"]}},
     {"id":"EX-015","function":"Каналы сообщений","target":"пилот","owner":"R01","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/platform/src/rpc.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P4a3","planned":"unit","closed":true,"by":["packages/contracts/test/fansly-protocol.test.ts"]}},
     {"id":"EX-016","function":"Сборка","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["apps/extension/test/manifest.test.ts"]}},
     {"id":"EX-017","function":"Popup, options во вкладке, иконки","target":"пилот","owner":"R00","milestones":["M0"],"planned":"unit","pilot":true,"unit":["apps/extension/test/manifest.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P16g","planned":"shared","closed":true,"by":["apps/extension/test/manifest.test.ts"]}},
