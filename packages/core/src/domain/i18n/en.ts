@@ -875,6 +875,7 @@ export const EN: I18nCatalog<'en'> = {
   'settings.status.warning.sendUncertain': 'some sends have an unknown outcome',
   'settings.status.warning.sendFused': 'the safety fuse turned sending from the preview off',
   'settings.status.warning.hostPartial': 'ChatSpace is only partly checked',
+  'settings.status.warning.hostModule': 'the site’s background services did not start — reload its tab',
   'settings.status.go.account': 'Account',
   'settings.status.go.accounts': 'Accounts',
   'settings.status.go.personas': 'Personas',

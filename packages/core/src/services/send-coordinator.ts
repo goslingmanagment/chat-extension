@@ -49,6 +49,7 @@ import {
   NATIVE_SEND_DOCUMENT,
   PURPOSE_SURFACE,
   REPORT_GRACE_MS,
+  REPORT_RETRY_DELAYS_MS,
   SendLockTable,
   applyAttemptInput,
   applyReportedView,
@@ -78,8 +79,8 @@ import {
 import { type ActionTokens } from './tokens';
 import { NO_LOG, WriteQueue, type Clock, type KeyValueStore, type LogSink, type TabEventSink, type TimerHandle } from './ports';
 
-/** Pauses between repeats of one custody report the hub did not answer (the same attemptId, never a dispatch); the last one repeats. */
-export const REPORT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000] as const;
+/** Pauses between repeats of one custody report the hub did not answer (core/domain/send, shared with native-send). */
+export { REPORT_RETRY_DELAYS_MS };
 
 /** The ticket lifetime assumed while no bootstrap is cached. */
 export const FALLBACK_TICKET_SEC = 10;

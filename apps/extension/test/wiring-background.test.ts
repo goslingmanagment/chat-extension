@@ -14,7 +14,8 @@
 
 import { CONTRACTS_VERSION, DEFAULT_SETTINGS, STORAGE_KEYS, TAB_REQUESTS, TAB_REQUEST_TYPES, parseTabPayload, type IncomingFact, type SendJournalEntry, type TabRequestType } from '@cg/contracts';
 import { TAB_REQUEST_FIXTURES, account, chat, journalEntry } from '@cg/contracts/fixtures';
-import { GREETING_LEASES_KEY, NATIVE_SENDS_KEY, createSendJournal } from '@cg/core/services';
+import { NATIVE_SENDS_KEY } from '@cg/core/services';
+import { GREETING_LEASES_KEY, createSendJournal } from '@cg/core/services/custody';
 import { createKeyValueStore, createTabRpcClient } from '@cg/platform';
 import { PILOT_CAPABILITIES, callsTo, hubErrorBody, pilotPageFlags } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';

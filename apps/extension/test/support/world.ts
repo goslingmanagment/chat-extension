@@ -16,6 +16,7 @@ import { WORLD } from '@cg/testing/hub';
 import { routeSchemas } from '@kernel/sdk';
 
 import { createFakeBrowser, pageSender, tabSender, type FakeBrowser, type FakeContext } from '../../../../packages/platform/src/test-support/fake-browser.ts';
+import { chatSpaceModule } from '../../bg/chatspace.ts';
 import { composeBackground } from '../../src/composition/background.ts';
 import { startTabRuntime, type TabRuntimeEnv } from '../../src/composition/tab/runtime.ts';
 import { CHATSPACE_MATCHES } from '../../src/hosts/runtime/index.ts';
@@ -38,6 +39,8 @@ export interface World {
   readonly played: PlayedTone[];
   /** The browser's network to the hub: `down` — every request of the background fails like an offline one. */
   readonly net: { down: boolean };
+  /** Every address a site's background chunk was loaded from (bg/<site>.js, `?attempt=N`), in order. */
+  readonly chunkLoads: string[];
   /** How many times the event page started. */
   starts(): number;
   /** Starts the event page now (it also starts by itself when a port, a message or an alarm needs it). */
@@ -73,7 +76,24 @@ export function settingsFor(hubOrigin: string = HUB_ORIGIN, over: Partial<Settin
   return { ...DEFAULT_SETTINGS, ...over, hub: { baseUrl: hubOrigin } };
 }
 
-export function createWorld(options: { readonly settings?: SettingsV1 | null; /** Another browser's hub: two installs, one hub. */ readonly hub?: FakeHub } = {}): World {
+/**
+ * The site's chunk as an event page loads it: a module of its own for every load (each instance of the event page is
+ * a realm of its own, and so is each new address in one).
+ */
+export const loadChunkModule = (url: string): Promise<unknown> => {
+  if (!url.includes('/bg/chatspace.js')) return Promise.reject(new TypeError('error loading dynamically imported module'));
+  return Promise.resolve({ default: chatSpaceModule() });
+};
+
+export function createWorld(
+  options: {
+    readonly settings?: SettingsV1 | null;
+    /** Another browser's hub: two installs, one hub. */
+    readonly hub?: FakeHub;
+    /** How a site's chunk loads (loadChunkModule otherwise): a probe fails it or wraps the module. */
+    readonly loadHostModule?: (url: string) => Promise<unknown>;
+  } = {},
+): World {
   const fake = createFakeBrowser();
   // Every AI body, client/* request and client/* model answer is checked by the hub's own schemas (the vendored SDK's), as on the real hub.
   const hub = options.hub ?? createFakeHub({ clock: 'system', streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas });
@@ -83,6 +103,7 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null; /*
   for (const pattern of CHATSPACE_MATCHES) fake.permissions.origins.add(pattern);
   const played: PlayedTone[] = [];
   const net = { down: false };
+  const chunkLoads: string[] = [];
   const settings = options.settings === undefined ? settingsFor() : options.settings;
   if (settings !== null) fake.areas.local.set(STORAGE_KEYS.settings, settings);
   let starts = 0;
@@ -109,6 +130,10 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null; /*
         },
         stats: () => ({ played: played.length, blocked, contextState: 'running' }),
       },
+      loadHostModule(url) {
+        chunkLoads.push(url);
+        return (options.loadHostModule ?? loadChunkModule)(url);
+      },
     });
   };
   fake.onWake(compose);
@@ -123,6 +148,7 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null; /*
     hub,
     played,
     net,
+    chunkLoads,
     starts: () => starts,
     start() {
       const context = fake.startBackground();

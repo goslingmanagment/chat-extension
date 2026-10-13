@@ -121,6 +121,25 @@ describe('release manifest (§3)', () => {
     expect(war[0]?.resources).not.toContain('lazy/spike.js');
   });
 
+  it('[R20-F1] builds each site’s background chunk as one ES module next to the core; none is a web resource; the core loads it itself', () => {
+    for (const built of [release, test]) {
+      const war = (built.manifest['web_accessible_resources'] as Array<{ resources: string[] }>).flatMap((entry) => entry.resources);
+      const chunks = HOSTS.flatMap((host) => (host.background === undefined ? [] : [host.background.file]));
+      expect(chunks).toEqual(['bg/chatspace.js']);
+      expect(readdirSync(join(built.dir, 'bg')).map((name) => `bg/${name}`).sort()).toEqual([...chunks].sort());
+      for (const chunk of chunks) {
+        expect(readFileSync(join(built.dir, chunk), 'utf8')).toMatch(/\bas default\b/);
+        expect(war).not.toContain(chunk);
+      }
+      // The classic event page keeps its dynamic import (spike P3a): no module background, no chunk of the pages.
+      expect(built.manifest['background']).toEqual({ scripts: ['background.js'] });
+      expect(readFileSync(join(built.dir, 'background.js'), 'utf8')).toMatch(/\bimport\(/);
+    }
+    // The test build's fault switch of the loader (the e2e's failed import) never ships.
+    expect(readFileSync(join(release.dir, 'background.js'), 'utf8')).not.toContain('dev.hostModuleFault');
+    expect(readFileSync(join(test.dir, 'background.js'), 'utf8')).toContain('dev.hostModuleFault');
+  });
+
   it('[EX-017] has the popup, the options page in a tab, icons, and the default CSP', () => {
     expect((release.manifest['action'] as Record<string, unknown>)['default_popup']).toBe('popup.html');
     expect(release.manifest['options_ui']).toEqual({ open_in_tab: true, page: 'options.html' });

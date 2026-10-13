@@ -6,14 +6,15 @@ import 'fake-indexeddb/auto';
 
 import { journalEntry, opView } from '@cg/contracts/fixtures';
 import type { LogRecord, OpView, SendJournalEntry } from '@cg/contracts';
-import { OPS_STORE_KEY, createResultsStore, createSendJournal } from '@cg/core/services';
+import { OPS_STORE_KEY, createResultsStore } from '@cg/core/services';
+import { createSendJournal } from '@cg/core/services/custody';
 import { LogService } from '@cg/core/services/logs';
 import { openBoundedStore } from '@cg/platform';
 import { describe, expect, it } from 'vitest';
 
 import { LOG_STORE_BOUNDS, logStoreOver } from '../src/composition/background/log-store.ts';
 import { OPS_META_KEY, opsStoreOver } from '../src/composition/background/ops-store.ts';
-import { sendJournalStoreOver } from '../src/composition/background/send-journal-store.ts';
+import { sendJournalStoreOver } from '../bg/chatspace/send-journal-store.ts';
 import { memoryStore } from './support/memory-store.ts';
 
 const uuid = (n: number): string => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;

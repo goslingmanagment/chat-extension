@@ -53,6 +53,10 @@ describe('ESLint package graph (§4)', () => {
     ['the MAIN entry imports the whole runtime table of the hosts', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import { CHATSPACE_MATCHES } from '../hosts/runtime';\nexport const x = CHATSPACE_MATCHES;", ['no-restricted-imports']],
     ['the MAIN entry imports the host registry', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import { HOSTS } from '../hosts';\nexport const x = HOSTS;", ['no-restricted-imports']],
     ['the MAIN entry imports zod', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import * as z from 'zod/mini';\nexport const x = z;", ['no-restricted-imports']],
+    // a site's background chunk reaches the core's owners only through the kit (R20 F1, architecture §3.3)
+    ['a site’s background chunk imports hub', 'apps/extension/bg/chatspace.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;", ['no-restricted-imports']],
+    ['a site’s background chunk imports platform', 'apps/extension/bg/chatspace.ts', "import { createKeyValueStore } from '@cg/platform';\nexport const x = createKeyValueStore;", ['no-restricted-imports']],
+    ['a site’s background chunk imports the background root', 'apps/extension/bg/chatspace.ts', "import { composeBackground } from '../src/composition/background';\nexport const x = composeBackground;", ['no-restricted-imports']],
     // browser.* only through @cg/platform (D-01)
     ['an entry point imports wxt/browser', 'apps/extension/src/entrypoints/background.ts', "import { browser } from 'wxt/browser';\nexport const x = browser;", ['no-restricted-imports']],
     // host-chatspace never goes to the network (§4, X3)
@@ -76,6 +80,7 @@ describe('ESLint package graph (§4)', () => {
     ['platform imports the browser API', 'packages/platform/src/ok.ts', "import { browser } from '@wxt-dev/browser';\nexport const x = browser;"],
     ['the background composition root imports hub', 'apps/extension/src/composition/background.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;"],
     ['the background entry imports the background root', 'apps/extension/src/entrypoints/background.ts', "import { composeBackground } from '../composition/background';\nexport const x = composeBackground;"],
+    ['a site’s background chunk imports the fan custody and the kit’s types', 'apps/extension/bg/chatspace.ts', "import { SendCoordinator } from '@cg/core/services/custody';\nimport type { BackgroundKit } from '../src/composition/background/host-module';\nexport const x = (kit: BackgroundKit) => [SendCoordinator, kit];"],
     [
       'the MAIN entry imports the bridge, a WXT define helper and ChatSpace’s row of the hosts’ runtime table',
       'apps/extension/src/entrypoints/chatspace-main.content.ts',
@@ -101,6 +106,14 @@ describe('dependency-cruiser package graph (§4)', () => {
     const output = result.output as ICruiseResult;
     const violations = output.summary.violations.map((violation) => `${violation.rule.name}: ${violation.from} → ${violation.to}`).sort();
     expect(violations).toEqual([
+      // R20 F1: a site's chunk reaches the core's owners only through the kit; the core never reaches a chunk or a
+      // service only one site needs.
+      'background-chunk-boundaries: apps/extension/bg/chatspace.ts → packages/hub/src/index.ts',
+      'background-chunk-boundaries: apps/extension/bg/chatspace.ts → packages/platform/src/index.ts',
+      'background-chunk-through-the-kit: apps/extension/bg/chatspace.ts → packages/hub/src/index.ts',
+      'background-chunk-through-the-kit: apps/extension/bg/chatspace.ts → packages/platform/src/index.ts',
+      'background-core-graph: apps/extension/src/composition/background/sites.ts → apps/extension/bg/chatspace.ts',
+      'background-core-graph: apps/extension/src/composition/background/sites.ts → packages/core/src/services/custody.ts',
       'background-root-only-from-background-entry: apps/extension/lazy/entries/dock.ts → apps/extension/src/composition/background.ts',
       'background-root-only-from-background-entry: apps/extension/src/composition/pages.ts → apps/extension/src/composition/background.ts',
       'core-domain-pure: packages/core/src/domain/index.ts → packages/platform/src/index.ts',
@@ -108,13 +121,18 @@ describe('dependency-cruiser package graph (§4)', () => {
       // The host registry is build data: neither a bundle root nor the runtime table reads it.
       'host-registry-build-only: apps/extension/src/entrypoints/chatspace.content.ts → apps/extension/src/hosts/chatspace.ts',
       'host-registry-build-only: apps/extension/src/hosts/runtime/index.ts → apps/extension/src/hosts/chatspace.ts',
+      'hub-only-in-background: apps/extension/bg/chatspace.ts → packages/hub/src/index.ts',
       'hub-only-in-background: apps/extension/src/composition/tab.ts → packages/hub/src/index.ts',
       // Transitive: no single edge is wrong from these bundle roots, the graph below them is.
+      'hub-unreachable-outside-background: apps/extension/bg/chatspace.ts → packages/hub/src/index.ts',
       'hub-unreachable-outside-background: apps/extension/lazy/entries/dock.ts → packages/hub/src/index.ts',
       'hub-unreachable-outside-background: apps/extension/src/entrypoints/popup/main.ts → packages/hub/src/index.ts',
       'main-world-entries-self-contained: apps/extension/src/entrypoints/chatspace-main.content.ts → packages/platform/src/index.ts',
       'no-circular: packages/core/src/domain/cycle-a.ts → packages/core/src/domain/cycle-b.ts',
+      'no-relative-cross-package: apps/extension/bg/chatspace.ts → packages/hub/src/index.ts',
+      'no-relative-cross-package: apps/extension/bg/chatspace.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: apps/extension/src/composition/background.ts → packages/hub/src/index.ts',
+      'no-relative-cross-package: apps/extension/src/composition/background/sites.ts → packages/core/src/services/custody.ts',
       'no-relative-cross-package: apps/extension/src/composition/tab.ts → packages/hub/src/index.ts',
       'no-relative-cross-package: apps/extension/src/entrypoints/chatspace-main.content.ts → packages/platform/src/index.ts',
       'no-relative-cross-package: packages/core/src/domain/index.ts → packages/platform/src/index.ts',

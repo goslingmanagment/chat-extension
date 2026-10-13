@@ -14,10 +14,20 @@
 // all the layers — code it shares with them is already in memory. Entries
 // loaded on demand share nothing for free: what two of them have in common is
 // counted in both.
+//
+// The background is measured raw, as archive-check's tripwire is: the core
+// (`background.js`, the vendored SDK's route contract and the services both
+// sites need) under its signal threshold of 800 KiB, and each site's
+// background chunk (`bg/<site>.js`, docs/project-unite/architecture.md §3.3)
+// under its own ceiling from the host registry. The core's headroom to the
+// threshold is the number every later PR that grows the core is checked
+// against (the byte registry, architecture.md §3.2); it is printed with the
+// line.
 
 import { gzipSync } from 'node:zlib';
 
 import { HOSTS, scriptsOf, type HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
+import { MAX_BACKGROUND_JS_BYTES } from '../archive-check/rules.ts';
 
 export const KIB = 1024;
 
@@ -33,7 +43,10 @@ export interface LazyChunk {
 export interface BudgetLine {
   readonly label: string;
   readonly files: readonly string[];
-  readonly gzipBytes: number;
+  /** What the files weigh in the line's unit. */
+  readonly bytes: number;
+  /** `gzip` — gzip -9 (scripts, lazy chunks, contract probes); `raw` — the file as it ships (the background). */
+  readonly unit: 'gzip' | 'raw';
   readonly limitBytes: number;
   readonly ok: boolean;
 }
@@ -45,6 +58,17 @@ export const BUDGETS = {
 } as const;
 
 export const DOCK_ENTRY = 'lazy/dock.js';
+
+/** The background core: the event page itself. */
+export const BACKGROUND_CORE = 'background.js';
+
+/** The background lines, raw: the core under its signal threshold, then each site's chunk under its registry ceiling. */
+export function backgroundBudgets(hosts: readonly HostDescriptor[] = HOSTS): Array<{ readonly label: string; readonly file: string; readonly limitBytes: number }> {
+  return [
+    { label: `background core (${BACKGROUND_CORE}), raw`, file: BACKGROUND_CORE, limitBytes: MAX_BACKGROUND_JS_BYTES },
+    ...hosts.flatMap((host) => (host.background === undefined ? [] : [{ label: `background chunk of ${host.kind} (${host.background.file}), raw`, file: host.background.file, limitBytes: host.background.rawBytes }])),
+  ];
+}
 
 /**
  * The budget lines of the sites' scripts, in the registry's order, each by its built file. Every script a site
@@ -93,8 +117,8 @@ export function computeBudgets(read: (file: string) => Uint8Array, chunks: reado
     return value;
   };
   const line = (label: string, files: readonly string[], limitBytes: number): BudgetLine => {
-    const gzipBytes = files.reduce((sum, file) => sum + size(file), 0);
-    return { label, files, gzipBytes, limitBytes, ok: gzipBytes <= limitBytes };
+    const bytes = files.reduce((sum, file) => sum + size(file), 0);
+    return { label, files, bytes, unit: 'gzip', limitBytes, ok: bytes <= limitBytes };
   };
 
   const lines = scriptBudgets(hosts).map((budget) => line(budget.label, [budget.file], budget.limitBytes));
@@ -116,6 +140,10 @@ export function computeBudgets(read: (file: string) => Uint8Array, chunks: reado
   for (const chunk of entries.filter((item) => item.layer === undefined)) {
     const extra = staticClosure(chunk.file, chunks).filter((file) => !loaded.has(file));
     lines.push(line(`lazy chunk ${chunk.name ?? chunk.file} (beyond the layers)`, extra, BUDGETS.lazyChunk));
+  }
+  for (const budget of backgroundBudgets(hosts)) {
+    const bytes = read(budget.file).byteLength;
+    lines.push({ label: budget.label, files: [budget.file], bytes, unit: 'raw', limitBytes: budget.limitBytes, ok: bytes <= budget.limitBytes });
   }
   return lines;
 }

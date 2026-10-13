@@ -1,8 +1,14 @@
 // Composition root of the background event page (architecture.md §2, §4, §7
 // «Фон и выгрузка»): only dependency wiring. Everything the extension owns
 // lives here — storage, sign-in and the hub (the ONLY module that imports
-// `@cg/hub`), operations, the X8 send coordinator, logs, telemetry — and
-// reaches tabs and pages through the typed protocol of §5.4.
+// `@cg/hub`), operations, logs, telemetry — and reaches tabs and pages
+// through the typed protocol of §5.4. This is the background CORE: what only
+// one site needs lives in that site's chunk `bg/<site>.js`, loaded when the
+// site needs it (docs/project-unite/architecture.md §3.3;
+// background/host-modules.ts) and started with the core's ports (the kit,
+// background/host-module.ts) — ChatSpace's X8 custody and the greeting leases
+// of «Новые» are `bg/chatspace.js`. The core's import graph never reaches a
+// chunk (.dependency-cruiser.cjs `background-core-graph`).
 //
 // Order (an event page is woken by a listener, so the listeners come first):
 // 1. synchronously: the RPC (`runtime.onConnect` / `onMessage`), the alarm
@@ -10,9 +16,10 @@
 //    the consent and storage listeners, every request handler;
 // 2. the readiness barrier runs the start steps in order — logs, settings,
 //    the hub (it needs the hub address of the settings), results and
-//    operations, the send journal and coordinator, presence, the greeting
-//    leases, the sound, consent, telemetry, the WS tap switch; every request
-//    waits for it (10 s at most);
+//    operations, the sites' modules with unfinished work stored (the X8
+//    journal and coordinator, the greeting leases), the registrations of
+//    human sends, presence, the sound, consent, telemetry, the WS tap
+//    switch; every request waits for it (10 s at most);
 // 3. nothing here talks to the hub by itself after an install or an update:
 //    the facade refreshes a bootstrap only for an existing sign-in, and a
 //    status surface reads the hub's health only for one. A real install
@@ -23,7 +30,7 @@
 //   tab sessions;
 // - operation results and the send journal: R07's stores are the single
 //   writers, R10's scheduler and coordinator write through adapters
-//   (background/ops-store.ts, background/send-journal-store.ts);
+//   (background/ops-store.ts; the journal's, bg/chatspace/send-journal-store.ts);
 // - the 503 retry of the AI stream: the facade's (the scheduler reads the
 //   facade's own resolution, which says the retry is spent, and shows the
 //   facade's notice as its `retry-wait` phase);
@@ -54,10 +61,9 @@ import {
   type ResolveHubError,
   type SettingsV1,
 } from '@cg/contracts';
-import { narrowPlatform } from '@cg/contracts/ids';
-import { sendLockKey } from '@cg/contracts/send';
+import { type HostKind } from '@cg/contracts/hosts';
 import { hashOfRoute } from '@cg/core/application/pages';
-import { SYSTEM_LOCALE_REWRITE, resolveHubError, rewritesSystemLocale, storageBudgetOf } from '@cg/core/domain';
+import { LOCAL_KEYS, SESSION_KEYS, SYSTEM_LOCALE_REWRITE, resolveHubError, rewritesSystemLocale, storageBudgetOf } from '@cg/core/domain';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
@@ -65,18 +71,14 @@ import { flagsOnSomePage, type OpsEnvironment } from '@cg/core/domain/ops';
 import { profileRequestOf, recapSaveAnswer } from '@cg/core/domain/recap';
 import {
   ActionTokens,
-  GreetingLeases,
   NativeSendRegistrar,
   OpScheduler,
   RecapProfileSaver,
-  SendCoordinator,
-  SendFuseKeeper,
   WsTapSwitch,
   createConsentState,
   createPresence,
   createReadinessBarrier,
   createResultsStore,
-  createSendJournal,
   createSettingsOwner,
   onInstalledPlan,
   settingsChangePlan,
@@ -107,18 +109,18 @@ import {
   type InstalledDetails,
   type KeyValueStore,
   type RpcResult,
-  type RpcSenderContext,
 } from '@cg/platform';
 
 import { CHATSPACE_MATCHES, LOOPBACK_MATCHES, type PerHost } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
+import { type BackgroundKit, type HostRequestType, type KitSender, type VerifiedTabMessage } from './background/host-module';
+import { createHostModules, type HostModuleSpec } from './background/host-modules';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
 import { createBackgroundLogging } from './background/logging';
 import { opsStoreOver } from './background/ops-store';
 import { CLOCK, IDS, TIMERS, eventSinkOf, hubLogOf, keyOf, logSinkOf, serviceLogOf, throwingStoreOf } from './background/ports';
-import { sendJournalStoreOver } from './background/send-journal-store';
 import { personaPatchRefusal } from './background/settings-guard';
 import { createBackgroundSound } from './background/sound';
 import { createTabAccountsGate } from './background/tab-accounts';
@@ -138,6 +140,27 @@ export function wsTapSpec(): DynamicMainScriptSpec {
   // release bundle. The file is ChatSpace's dynamic MAIN script of the host registry (test/hosts.test.ts pins it).
   return { id: WS_TAP_SCRIPT_ID, js: ['chatspace-ws.js'], matches: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES };
 }
+
+/**
+ * The sites' background chunks (docs/project-unite/architecture.md §3.3): the file of each — the host registry's
+ * `background.file` (test/hosts.test.ts pins it) — and the storage keys whose presence means the site has unfinished
+ * work, so its module starts with the event page. ChatSpace: an X8 journal (open attempts hold their fans and owe the
+ * hub their reports), a tripped fuse («Статус» shows it), greeting leases.
+ */
+export const HOST_MODULE_SPECS = {
+  chatspace: { chunk: 'bg/chatspace.js', pending: { local: [STORAGE_KEYS.sendJournal, LOCAL_KEYS.sendFuse], session: [SESSION_KEYS.greetingLeases] } },
+} as const satisfies PerHost<HostModuleSpec>;
+
+/** The requests each site's module answers: the core checked the sender, its session and the payload, and routes them. */
+export const HOST_REQUESTS = {
+  chatspace: ['send.begin', 'send.status', 'send.list', 'send.report', 'send.fuse', 'send.fuseState', 'send.fuseReset', 'newcomers.claim'],
+} as const satisfies PerHost<readonly HostRequestType[]>;
+
+/**
+ * storage.local, test builds only: a site's kind — the next load of that site's chunk asks for a file that is not
+ * there (bg/<site>.missing.js), as a broken install would. The e2e's probe of a failed import (background-chunks).
+ */
+export const HOST_MODULE_FAULT_KEY = 'dev.hostModuleFault';
 
 /** Alarms survive the event page unloading; they are armed only while a ChatSpace tab is registered. */
 const ALARMS = {
@@ -233,6 +256,8 @@ export interface BackgroundDeps {
   readonly fetch?: (input: string, init?: RequestInit) => Promise<Response>;
   /** The sound player (the event page's AudioContext otherwise): a test hears what would have rung. */
   readonly audio?: Pick<AudioPlayer, 'prepare' | 'play' | 'stats'>;
+  /** Loads a site's background chunk by its address (`import(url)` otherwise): a test hands in the module source. */
+  readonly loadHostModule?: (url: string) => Promise<unknown>;
 }
 
 export function composeBackground(deps: BackgroundDeps = {}): void {
@@ -289,6 +314,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       presence.tabRegistered(info.tabSessionId);
       armAlarms();
       sound.sync();
+      // The site's own services come up with its first tab (its requests wait for them).
+      void hostModules.ensure(info.request.host);
       logger.info('bg.tabs', 'tab registered', { fields: { late: info.request.lateInjection, contractsVersion: info.request.contractsVersion }, ctx: { tabSessionId: info.tabSessionId } });
     },
     onTabGone(info) {
@@ -345,12 +372,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // ── R07 stores ─────────────────────────────────────────────────────────────
   const results = createResultsStore({ session, log: serviceLog });
-  const sendJournal = createSendJournal({ local, log: serviceLog });
   const presence = createPresence({ local, log: serviceLog });
   const consentPort = createConsent(api);
   const consent = createConsentState({ port: consentPort, log: serviceLog });
 
-  // ── R10: tokens, operations, preview sends ─────────────────────────────────
+  // ── R10: tokens, operations ────────────────────────────────────────────────
   const tokens = new ActionTokens(CLOCK, IDS);
 
   /** What the facade read from a failure, kept for the R10 services (they resolve a failure by its object). */
@@ -440,35 +466,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
 
   let instanceId = IDS.uuid();
-  // The X8 fuse of this browser (decision X25): kept in storage.local, it holds the preview send off on the
-  // ChatSpace build it tripped on until another build or the person's reset; every tab hears of it (`send.fuse`).
-  const sendFuse = new SendFuseKeeper({
-    clock: CLOCK,
-    store: throwingStoreOf(local),
-    events,
-    log: coreLog,
-    onTrip: () => telemetry.health.countCode('CG-SEND-FUSE'),
-  });
-  const sends: SendCoordinator = new SendCoordinator({
-    clock: CLOCK,
-    hub: {
-      claim: (op) => forCore('clientFanClaim', () => hub().claim(op)),
-      claimStatus: (pageLabel, fanRef) => forCore('clientFanClaimStatus', () => hub().claimStatus(pageLabel, fanRef)),
-    },
-    resolve,
-    tokens,
-    events,
-    store: sendJournalStoreOver(sendJournal),
-    ops: scheduler,
-    environment,
-    get instanceId() {
-      return instanceId;
-    },
-    log: coreLog,
-    onSent: (fact) =>
-      void telemetry.report('sent', scheduler.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId }),
-    fuse: sendFuse,
-  });
 
   /** Who is signed in, as the things that belong to a person are marked. */
   const ownerOf = (signedIn: { readonly hubOrigin: string; readonly userId: number } | null): string | null => (signedIn === null ? null : `${signedIn.hubOrigin}|${signedIn.userId}`);
@@ -484,21 +481,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     instanceId: () => instanceId,
     owner: () => ownerOf(hubInstance?.session() ?? null),
     store: throwingStoreOf(local),
-    log: coreLog,
-  });
-
-  // ── «Новые»: the greeting leases of this install (H-7) ─────────────────────
-  const leases = new GreetingLeases({
-    clock: CLOCK,
-    ids: IDS,
-    // The facade's own errors as they are: the handler reads their wire form (the claim action is among its facts).
-    hub: { claim: (op) => hub().claim(op), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
-    instanceId: () => instanceId,
-    owner: () => ownerOf(hubInstance?.session() ?? null),
-    limits: () => hubInstance?.cachedBootstrap()?.bootstrap.limits ?? null,
-    events,
-    tabs: () => rpc.tabs().map((tab) => tab.tabSessionId),
-    store: throwingStoreOf(session),
     log: coreLog,
   });
 
@@ -566,6 +548,58 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   const spend = new SpendService(keyOf(local, SPEND_KEY));
 
+  // ── the sites' background modules (docs/project-unite/architecture.md §3.3) ──
+  // The ports of the core a site's chunk is started with: one owner of each thing stays here.
+  const kit: BackgroundKit = {
+    hub: {
+      // The facade is read at each call: it exists once the settings are read.
+      facade: { claim: (op) => hub().claim(op), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
+      call: forCore,
+      resolve,
+      errorWire: wireOf,
+      session: () => hubInstance?.session() ?? null,
+      bootstrap: () => hubInstance?.cachedBootstrap()?.bootstrap ?? null,
+      page: (pageId, sender) => pageOf(pageId, sender),
+    },
+    storage: { local, session, localKeys: throwingStoreOf(local), sessionKeys: throwingStoreOf(session) },
+    clock: CLOCK,
+    ids: IDS,
+    log: { sink: coreLog, service: serviceLog },
+    telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(code) },
+    router: { events, tabs: () => rpc.tabs().map((tab) => tab.tabSessionId) },
+    ops: { forSend: (opId) => scheduler.forSend(opId), view: (opId) => scheduler.view(opId), environment },
+    tokens,
+    install: { instanceId: () => instanceId, owner: () => ownerOf(hubInstance?.session() ?? null) },
+    nativeSends: { register: (view, part, platformMessageId) => nativeSends.register(view, part, platformMessageId) },
+  };
+  const hostModules = createHostModules({
+    specs: HOST_MODULE_SPECS,
+    kit,
+    url: (path) => api.runtime.getURL(path),
+    async load(url) {
+      let address = url;
+      if (__CG_TEST_HOSTS__) {
+        // The e2e's probe of a failed import: the site's file is asked for under a name that is not in the build.
+        const stored = await local.get([HOST_MODULE_FAULT_KEY]);
+        const fault = stored.ok ? stored.value[HOST_MODULE_FAULT_KEY] : undefined;
+        if (typeof fault === 'string' && /^[a-z-]+$/.test(fault)) address = address.replace(`/bg/${fault}.js`, `/bg/${fault}.missing.js`);
+      }
+      if (deps.loadHostModule !== undefined) return deps.loadHostModule(address);
+      const loaded: unknown = await import(/* @vite-ignore */ address);
+      return loaded;
+    },
+    now: () => Date.now(),
+    log: coreLog,
+  });
+  /** Where the storage keys of a site's unfinished work hold anything (a store that cannot be read may: the module reads it itself). */
+  async function workPending(spec: HostModuleSpec): Promise<boolean> {
+    const [stored, held] = await Promise.all([local.get(spec.pending.local), session.get(spec.pending.session)]);
+    if (!stored.ok || !held.ok) return true;
+    return spec.pending.local.some((key) => stored.value[key] !== undefined) || spec.pending.session.some((key) => held.value[key] !== undefined);
+  }
+  /** The site of a registered tab session; null — not a registered tab. */
+  const hostOfTab = (tabSessionId: string): HostKind | null => rpc.tabs().find((tab) => tab.tabSessionId === tabSessionId)?.request.host ?? null;
+
   /** §9.3 «Выключение отладки или выход очищают всё»: journals and the local spend; the facade drops its prompt echoes itself. */
   const clearDebug = (): void => clearDebugData({ journals: logging.journals, spend });
 
@@ -596,6 +630,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const current = settings.current();
     const shown = new Map(presence.tabs().map((tab) => [tab.tabSessionId, tab.chatKey]));
     const active = scheduler.active();
+    const modules = hostModules.facts();
     return {
       now,
       extension: {
@@ -627,8 +662,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       acceptance: telemetry.acceptance.stats(),
       sound: soundFacts(),
       ops: { active: active.length, snapshot: active.map((op) => ({ opId: op.opId, feature: op.feature, surface: op.surface, state: op.state, phase: op.phase.name, startedAt: op.startedAt })) },
-      sends: { ...sends.counts(), journal: sendJournal.list() },
-      sendFuse: sendFuse.current(),
+      // X8 (bg/chatspace): what its module knows while it runs; a module that never started has no records.
+      sends: modules.sends ?? { open: 0, uncertain: 0, journal: [] },
+      ...(modules.sendFuse === undefined ? {} : { sendFuse: modules.sendFuse }),
+      hostModules: [...hostModules.states()],
       debug: { enabled: current.debug.enabled, prompts: promptStats() },
       footprint: { cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round((logging.logs.stats().bytes + logging.countersBytes()) / 1024) },
     };
@@ -758,7 +795,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // The last word of this instance: what was logged goes to the store now. The write is handed to Firefox, which
     // unloads the page only once it is done (at most 5 s): started here and not handed over, it was cut by the unload
     // whenever the store was slower than the unload, and the record of this very suspend was lost (LG-018).
-    logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.active().length, sends: sends.counts().open, uptimeMs: Date.now() - started } });
+    logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.active().length, sends: hostModules.facts().sends?.open ?? 0, uptimeMs: Date.now() - started } });
     return logging.logs.flush();
   });
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
@@ -778,22 +815,23 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       const owner = ownerOf(change.session);
       const previous = lastOwner;
       lastOwner = owner;
-      if (previous !== null && owner !== previous) {
+      const ownerChanged = previous !== null && owner !== previous;
+      if (ownerChanged) {
         // Another person, or nobody (§9.4 «При выходе всё, что связано с пользователем, очищается»): the lease
-        // tokens, the subscriber baselines and the preview drafts were the previous person's. A tab that is
-        // open erases its own copy of the drafts; without one the key would stay on disk.
-        leases.forgetAll();
+        // tokens (bg/chatspace), the subscriber baselines and the preview drafts were the previous person's. A tab
+        // that is open erases its own copy of the drafts; without one the key would stay on disk.
         sound.forget();
         void local.remove([STORAGE_KEYS.newcomersDrafts]);
       }
+      // §9.4: at sign-out what is finished of the X8 journal goes; open records stay until resolved.
+      if (ownerChanged || change.session === null) void hostModules.notify({ kind: 'session', ownerChanged, signedOut: change.session === null }).catch(() => undefined);
       sound.sync();
       if (change.session !== null) {
         void settings.setPersonaScope({ hubOrigin: change.session.hubOrigin, userId: change.session.userId });
         return;
       }
-      // §9.4: at sign-out everything that belongs to the person goes; open X8 records stay until resolved.
+      // §9.4: at sign-out everything that belongs to the person goes (the sites' modules heard it above).
       clearDebug();
-      void sendJournal.removeFinished();
       void wsTap.fromBootstrap(null);
     });
     instance.onBootstrapChange((entry) => {
@@ -806,7 +844,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       // reads the bootstrap again and tells its own tap to stand down (tab/host-facts.ts).
       void wsTap.fromBootstrap(entry.bootstrap);
       telemetry.onCapabilitiesChanged();
-      void sends.bootstrapChanged();
+      void hostModules.notify({ kind: 'bootstrap' }).catch(() => undefined);
       // The hub answered: what it was not told while it was silent (or before this person signed in again) goes now.
       nativeSends.resume();
       sound.sync();
@@ -840,7 +878,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
    * A tab that has not said yet which accounts it shows is waited for (background/tab-accounts.ts): its
    * request is answered by its report, never by the report's absence.
    */
-  const pageOf = async (pageId: number, sender: RpcSenderContext): Promise<PageLookup> => {
+  const pageOf = async (pageId: number, sender: KitSender): Promise<PageLookup> => {
     const cached = hubInstance?.cachedBootstrap() ?? null;
     if (hubInstance === null || hubInstance.session() === null) return { ok: false, code: 'CG-AUTH-REQUIRED' };
     if (cached === null) return { ok: false, code: 'CG-HUB-UNAVAILABLE' };
@@ -937,7 +975,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (view !== null) spend.recordInsert(view.feature, Date.now());
     return ok({ recorded: telemetry.report('inserted', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }) });
   });
-  rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }) => {
+  rpc.handle('op.reportSent', ({ opId, part, platformMessageId, edited }, sender) => {
     const view = scheduler.view(opId);
     // A human send is told by ChatSpace's socket, and whose socket may be listened to is the PAGE's own `wsTap`
     // (the tab keeps one tap while any page has it). With the switch off on the operation's page the send is not
@@ -950,44 +988,20 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // hub registers it (the greeting is confirmed, the part is spent); the answer does not wait for the hub —
     // the registration is journaled and stays owed until the hub answers.
     void nativeSends.register(view, part, platformMessageId);
-    // The same fact for this install's own tabs: the part is journaled as delivered, so the preview that made it
-    // shows it «Отправлено» and offers the group's next part (`send.list`, `send.state`). Never a send of ours.
-    if (view !== null) sends.nativeSent({ attemptId: IDS.uuid(), view, part, platformMessageId });
+    // The same fact for this install's own tabs: the site's module journals the part as delivered, so the preview
+    // that made it shows it «Отправлено» and offers the group's next part (`send.list`, `send.state`). Never a send
+    // of ours.
+    const host = sender.kind === 'tab' ? hostOfTab(sender.tabSessionId) : null;
+    if (view !== null && host !== null) void hostModules.notify({ kind: 'native-sent', attemptId: IDS.uuid(), view, part, platformMessageId }, host).catch(() => undefined);
     return ok({
       recorded: telemetry.report('sent', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
     });
   });
 
-  // X8 preview send
-  rpc.handle('send.begin', async (begin, sender) => {
-    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
-    return ok(await sends.begin(sender.tabSessionId, begin));
-  });
-  rpc.handle('send.status', ({ attemptId }) => ok({ view: sends.status(attemptId) }));
-  rpc.handle('send.list', async ({ pageId, fanRef }, sender) => {
-    // What a tab that lost its own tracking (a reload) holds the fan by (§6.7.8): the journal of this install.
-    const page = await pageOf(pageId, sender);
-    if (!page.ok) return fail(page.code);
-    const platform = narrowPlatform(page.page.platform);
-    const signedIn = hub().session();
-    if (platform === null || signedIn === null) return fail('CG-BINDING-NOT-GRANTED');
-    const known = sends.attemptsOf(sendLockKey({ hubOrigin: signedIn.hubOrigin, pageId, platform, fanRef }));
-    return ok({ attempts: [...known.attempts], truncated: known.truncated });
-  });
-  rpc.handle('send.report', async ({ view, pendingId }, sender) => {
-    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
-    return ok({ recorded: await sends.report(sender.tabSessionId, view, pendingId) });
-  });
-  // The fuse (decision X25): a tab's MAIN saw, after a send, what trips it; «Статус» reads and resets it.
-  rpc.handle('send.fuse', async ({ fact, build }, sender) => {
-    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
-    return ok(await sendFuse.trip({ reason: fact.reason, where: fact.where, attemptId: fact.attemptId, build }));
-  });
-  rpc.handle('send.fuseState', async () => {
-    await sendFuse.load();
-    return ok(sendFuse.current());
-  });
-  rpc.handle('send.fuseReset', async () => ok(await sendFuse.reset()));
+  // a site's own requests: its module answers them (X8 and the greeting leases of «Новые» — bg/chatspace)
+  for (const [host, types] of Object.entries(HOST_REQUESTS) as Array<[HostKind, readonly HostRequestType[]]>) {
+    for (const type of types) rpc.handle(type, (payload, sender) => hostModules.request(host, { type, payload, sender } as VerifiedTabMessage) as Promise<RpcResult<never>>);
+  }
 
   // hub data
   const data = hubDataHandlers({ hub, page: pageOf, errorOf: wireOf, debugEnabled });
@@ -1016,17 +1030,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return answer;
   });
   rpc.handle('usage.get', data['usage.get']);
-  rpc.handle('newcomers.claim', async ({ pageId, fanRef, action }, sender) => {
-    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
-    const page = await pageOf(pageId, sender);
-    if (!page.ok) return fail(page.code);
-    try {
-      const answer = await leases.act(sender.tabSessionId, page.page, fanRef, action);
-      return answer.ok ? ok(answer.state) : fail(answer.code);
-    } catch (error) {
-      return { ok: false, error: wireOf(error) };
-    }
-  });
 
   // settings (ST-042: the hub address changes only while signed out, never to the host platform; a release build takes an https hub only)
   const settingsHandlers = settingsRequestHandlers(settings);
@@ -1050,6 +1053,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('diagnostics.get', async () => {
     // A status surface is open (the popup, «Статус»): the hub's health is read again, at most every 10 s.
     await refreshHealth();
+    // A site's module that is starting adds its records in a moment (its X8 journal, its fuse).
+    await hostModules.settled(HEALTH_WAIT_MS);
     return ok(await diagnostics.snapshot());
   });
   rpc.handle('diagnostics.export', async ({ format }) => ok(await diagnostics.exportFile(format)));
@@ -1100,7 +1105,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('data.clear', async () => {
     const results = scheduler.clearFinished();
     clearDebug();
-    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), logging.clearCounters(), sendJournal.removeFinished(), scheduler.idle()]);
+    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), logging.clearCounters(), hostModules.notify({ kind: 'clear-finished' }), scheduler.idle()]);
     const cleared = done.every((step) => step.status === 'fulfilled');
     logger.info('bg.data', 'local data cleared', { fields: { results, cleared } });
     return ok({ cleared });
@@ -1209,18 +1214,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     },
     { name: 'results', run: () => results.start() },
     { name: 'ops', run: () => scheduler.restore() },
-    { name: 'send-journal', run: () => sendJournal.start() },
-    // The fuse first: the coordinator's conditions read it from the first click on.
-    {
-      name: 'sends',
-      run: async () => {
-        await sendFuse.load();
-        return sends.restore();
-      },
-    },
+    // A site with unfinished work stored starts its module now (bg/chatspace: the X8 journal is restored, its open
+    // attempts hold their fans and owe the hub their reports); the others start with their first tab or request.
+    { name: 'hosts', run: () => hostModules.resume(workPending) },
     { name: 'native-sends', run: () => nativeSends.restore() },
     { name: 'presence', run: () => presence.start() },
-    { name: 'leases', run: () => leases.restore() },
     { name: 'sound', run: () => sound.start() },
     { name: 'consent', run: () => consent.start() },
     { name: 'telemetry', run: () => Promise.all([telemetry.start(), spend.start()]) },

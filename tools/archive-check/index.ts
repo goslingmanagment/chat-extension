@@ -10,7 +10,7 @@ import { listTree } from '../lib/files.ts';
 import { fail } from '../lib/paths.ts';
 import { readZip } from '../lib/zip.ts';
 import { STAND_SOURCE_KEPT } from '../../apps/extension/build/sources-archive.ts';
-import { checkArchive, compareWithBuild, type ArchiveProblem } from './rules.ts';
+import { checkArchive, compareWithBuild, missingBackgroundChunks, type ArchiveProblem } from './rules.ts';
 
 function pickArtifacts(): BuiltArtifacts & { readonly sources: string } {
   try {
@@ -29,7 +29,7 @@ const sources = basename(built.sources);
 const problems: ArchiveProblem[] = [];
 const xpiEntries = readZip(readFileSync(built.xpi));
 const buildFiles = listTree(built.dir).map((name) => ({ name, data: readFileSync(join(built.dir, name)) }));
-problems.push(...checkArchive(xpi, xpiEntries, 'xpi'), ...compareWithBuild(xpi, xpiEntries, buildFiles));
+problems.push(...checkArchive(xpi, xpiEntries, 'xpi'), ...compareWithBuild(xpi, xpiEntries, buildFiles), ...missingBackgroundChunks(xpi, xpiEntries));
 const sourceEntries = readZip(readFileSync(built.sources));
 problems.push(...checkArchive(sources, sourceEntries, 'sources'));
 if (!sourceEntries.some((entry) => entry.name === 'pnpm-lock.yaml')) {

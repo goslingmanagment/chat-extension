@@ -8,6 +8,6 @@
     "outDir": ".tsbuild/node",
     "tsBuildInfoFile": ".tsbuild/node.tsbuildinfo"
   },
-  "include": ["wxt.config.ts", "build", "lazy/vite.config.ts", "test"],
+  "include": ["wxt.config.ts", "build", "lazy/vite.config.ts", "bg/vite.config.ts", "test"],
   "references": [{ "path": "./tsconfig.json" }, { "path": "../../packages/contracts/test" }, { "path": "../../packages/platform" }, { "path": "../../packages/testing" }]
 }

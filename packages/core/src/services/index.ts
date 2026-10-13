@@ -1,13 +1,19 @@
 // core/services — background services over ports (architecture.md §4, §7,
-// §6.7, §14): the operation scheduler, the send coordinator and its tab-side
-// driver, the registration of a proven human send, one-time action tokens,
-// the readiness barrier, tab presence and the accounts this browser saw, the
-// recap dossier save, the greeting leases of «Новые», the WS tap switch, the settings owner, the results store, the X8
-// send journal and the consent state. They import only @cg/contracts and
+// §6.7, §14): the operation scheduler, the tab-side driver of a preview send,
+// the registration of a proven human send, one-time action tokens, the
+// readiness barrier, tab presence and the accounts this browser saw, the
+// recap dossier save, the WS tap switch, the settings owner, the results
+// store and the consent state. They import only @cg/contracts and
 // core/domain; the composition roots give them the clock, storage, the hub
 // facade, the tab event sink and ids. R17's sound and R18's logs, telemetry
 // and diagnostics have their own entries (`@cg/core/services/sound`,
 // `/logs`, `/telemetry`, `/diagnostics`).
+//
+// The fan custody of ChatSpace's own sends — the X8 send coordinator, its
+// journal and fuse, the greeting leases of «Новые» — is `@cg/core/services/custody`:
+// it runs in the background chunk `bg/chatspace.js`, never in the background
+// core (docs/project-unite/architecture.md §3.3; the core's import graph is
+// held to that by .dependency-cruiser.cjs `background-core-graph`).
 //
 // One implementation of each thing. Wave 1 brought two readiness barriers,
 // two tab-presence services and two styles of ports; the background's
@@ -19,8 +25,9 @@
 // store (./ports), R18's `Scheduler` and one-key port (./ports, re-exported
 // by `@cg/core/services/logs`).
 //
-// R07: the settings owner, the readiness barrier, the results store, the X8
-// send journal, tab presence and seen accounts, the consent state — all over
+// R07: the settings owner, the readiness barrier, the results store, tab
+// presence and seen accounts, the consent state (and, in ./custody, the X8
+// send journal) — all over
 // the ports in ./storage/ports (the composition root passes @cg/platform's
 // adapters, which have exactly those shapes).
 //
@@ -90,23 +97,6 @@ export {
   type ResultsStoreDeps,
 } from './results-store';
 export {
-  SEND_JOURNAL_LIMITS,
-  SEND_JOURNAL_OPEN_STATES,
-  createSendJournal,
-  isOpenSendState,
-  type SendJournal,
-  type SendJournalAdvance,
-  type SendJournalBegin,
-  type SendJournalDeps,
-  type SendJournalLimits,
-  type SendJournalMode,
-  type SendJournalRecovery,
-  type SendJournalRefusal,
-  type SendJournalRelease,
-  type SendJournalStats,
-  type SendJournalUpdate,
-} from './send-journal';
-export {
   PRESENCE_REFRESH_MS,
   createPresence,
   type PresenceDeps,
@@ -126,8 +116,5 @@ export * from './change-policy';
 export * from './lazy-status';
 export * from './scheduler';
 export * from './profile-saver';
-export * from './greeting-leases';
-export * from './send-coordinator';
-export * from './send-fuse';
 export * from './send-driver';
 export * from './native-send';

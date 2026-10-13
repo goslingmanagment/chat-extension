@@ -23,7 +23,8 @@ import {
   type ServedContext,
 } from '@cg/contracts';
 import { type OpsEnvironment } from '@cg/core/domain/ops';
-import { ActionTokens, LATE_PAIR_LISTEN_MS, PreviewSendDriver, SendCoordinator, SendFuseKeeper, sendPageGate, type BackgroundSendPort, type SendClick } from '@cg/core/services';
+import { ActionTokens, LATE_PAIR_LISTEN_MS, PreviewSendDriver, type BackgroundSendPort, type SendClick } from '@cg/core/services';
+import { SendCoordinator, SendFuseKeeper, sendPageGate } from '@cg/core/services/custody';
 import { FakeHostPort, memory, startSnapshot } from '@cg/testing/host';
 import { BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, resolveHubErrorReference } from '@cg/testing/hub';
 

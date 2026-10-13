@@ -22,6 +22,11 @@ export const CHATSPACE: HostDescriptor = {
     extra: [{ entry: 'chatspace-ws', file: 'chatspace-ws.js', world: 'MAIN', registration: 'dynamic' }],
   },
   permissions: { origins: RUNTIME_HOSTS.chatspace.matches, optional: false },
+  // Its services in the background (R20 F1): the X8 custody with its journal and fuse, the greeting leases of «Новые».
+  // The core loads the chunk with the first ChatSpace tab, or at its start while that work is unfinished
+  // (composition/background.ts HOST_MODULE_SPECS names the same file). The ceiling: the measured file with room for
+  // X8's own changes; past it, the chunk is looked at before the number moves.
+  background: { source: 'bg/chatspace.ts', file: 'bg/chatspace.js', rawBytes: 96 * KIB },
   // The bridge, its runtime and the tap script (§4, D-06).
   mainWorldSources: ['packages/host-chatspace/src/main/'],
   // Size budgets of architecture.md §11 (starting targets, re-approved after the baseline), gzip -9.

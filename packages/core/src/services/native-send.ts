@@ -27,10 +27,9 @@ import { type ClaimOp, type HubFacade, type HubFailure } from '@cg/contracts/hub
 import { type PartRef } from '@cg/contracts/ids';
 import { type OpView } from '@cg/contracts/ops';
 
-import { nativePartOf, reportRetryable } from '../domain/send';
+import { REPORT_RETRY_DELAYS_MS, nativePartOf, reportRetryable } from '../domain/send';
 import { LOCAL_KEYS } from '../domain/storage';
 import { NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink } from './ports';
-import { REPORT_RETRY_DELAYS_MS } from './send-coordinator';
 
 /** storage.local: the registrations of human sends the hub has not answered yet (ids only, never a text). */
 export const NATIVE_SENDS_KEY = LOCAL_KEYS.nativeSends;

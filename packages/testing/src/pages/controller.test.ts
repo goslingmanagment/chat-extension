@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, UiActionSchema, type OptionsVM, type SettingsSection, type StatusRowVM, type UiAction } from '@cg/contracts';
+import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, UiActionSchema, type DiagnosticsSnapshot, type OptionsVM, type SettingsSection, type StatusRowVM, type UiAction } from '@cg/contracts';
 import { AUTOSAVE_DEBOUNCE_MS, RECHECK_MIN_INTERVAL_MS, routeOfHash } from '@cg/core/application/pages';
 
 import { PAGES_HOST_ORIGIN, PAGES_NOW, PAGES_VERSION, hostReport, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
@@ -1489,6 +1489,26 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     // A fresh install, or a background that does not know: the version alone.
     const w5 = await open({ state: withUpdate(undefined) });
     expect(row(w5, 'extension')).toMatchObject({ level: 'ok', note: null });
+  });
+
+  it('[R20-F1] a site’s background services that did not start: «Статус» warns and asks for its tab to be reloaded; started, idle or unknown — nothing to say', async () => {
+    const withModules = (hostModules: DiagnosticsSnapshot['hostModules']) => {
+      const state = workingState();
+      const { hostModules: _dropped, ...rest } = state.diagnostics;
+      state.diagnostics = hostModules === undefined ? rest : { ...rest, hostModules };
+      return state;
+    };
+    const warned = (w: Awaited<ReturnType<typeof open>>): boolean =>
+      JSON.stringify(options(w, 'status').body?.readiness ?? null).includes('settings.status.warning.hostModule');
+    const failed = await open({ state: withModules([{ host: 'chatspace', state: 'failed' }]) });
+    expect(options(failed, 'status').body?.readiness).toMatchObject({ s: 'ready', warnings: expect.arrayContaining([{ key: 'settings.status.warning.hostModule' }]) as unknown });
+    expect(failed.i18n.t('settings.status.warning.hostModule')).toBe('фоновые службы сайта не запустились — перезагрузите его вкладку');
+    world?.client.dispose();
+    for (const hostModules of [[{ host: 'chatspace', state: 'started' }], [{ host: 'chatspace', state: 'idle' }], undefined] as const) {
+      const w = await open({ state: withModules(hostModules === undefined ? undefined : [...hostModules]) });
+      expect(warned(w)).toBe(false);
+      world?.client.dispose();
+    }
   });
 
   it('[ST-030] the Spenders row says what the hub allows', async () => {

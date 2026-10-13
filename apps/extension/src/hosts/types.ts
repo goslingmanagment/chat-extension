@@ -81,11 +81,26 @@ export interface TestHostConfig {
   readonly pageMatches: readonly string[];
 }
 
+/**
+ * The site's background chunk (docs/project-unite/architecture.md §3.3): its services in the background, out of the
+ * core — its own Vite build (apps/extension/bg/vite.config.ts), loaded by the core when the site needs it.
+ */
+export interface HostBackground {
+  /** The chunk's module, relative to apps/extension (`bg/<site>.ts`); its default export is the site's module. */
+  readonly source: string;
+  /** The built file inside the extension (`bg/<site>.js`): the core loads it with `import(runtime.getURL(file))`. */
+  readonly file: string;
+  /** Its raw ceiling in bytes: the `pnpm size` line of the chunk and archive-check's tripwire for the file. */
+  readonly rawBytes: number;
+}
+
 export interface HostDescriptor extends RuntimeHostRow {
   readonly kind: HostKind;
   readonly platform: Platform;
   readonly scripts: HostScripts;
   readonly permissions: HostPermissions;
+  /** The site's background chunk; absent — everything the site needs in the background is the core's. */
+  readonly background?: HostBackground;
   /** Folders whose modules run in the page's own world: every callback they hand the page goes through `guard` (tools/gates). */
   readonly mainWorldSources: readonly string[];
   readonly budgets: HostBudgets;

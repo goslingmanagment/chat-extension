@@ -69,6 +69,8 @@ export interface DiagnosticsFacts {
   readonly sends: { readonly open: number; readonly uncertain: number; readonly journal?: unknown };
   /** The X8 fuse of the browser (decision X25): machine values only. */
   readonly sendFuse?: SendFuseState;
+  /** The sites' background modules and where each stands (R20 F1). */
+  readonly hostModules?: DiagnosticsSnapshot['hostModules'];
   readonly debug: { readonly enabled: boolean; readonly prompts: PromptStoreStats };
   /** Sizes of our caches and logs (ST-110). */
   readonly footprint?: { readonly cachesKB: number; readonly logsKB: number };
@@ -111,6 +113,7 @@ export function diagnosticsSnapshot(facts: DiagnosticsFacts): DiagnosticsSnapsho
     ops: { active: facts.ops.active },
     sends: { open: facts.sends.open, uncertain: facts.sends.uncertain },
     ...(facts.sendFuse === undefined ? {} : { sendFuse: facts.sendFuse }),
+    ...(facts.hostModules === undefined ? {} : { hostModules: facts.hostModules.slice(0, 8) }),
     // ST-110: the sizes of our caches and logs for the options page, when the background measures them.
     ...(facts.footprint === undefined ? {} : { footprint: { cachesKB: countOf(Math.round(facts.footprint.cachesKB)) ?? 0, logsKB: countOf(Math.round(facts.footprint.logsKB)) ?? 0 } }),
   };
@@ -241,6 +244,8 @@ export interface ExportBundle {
   readonly sends: { readonly open: number; readonly uncertain: number; readonly journal: unknown };
   /** The X8 fuse (decision X25); null — not known. */
   readonly sendFuse: SendFuseState | null;
+  /** The sites' background modules (R20 F1); null — not known. */
+  readonly hostModules: DiagnosticsFacts['hostModules'] | null;
   readonly debug: DiagnosticsFacts['debug'];
   readonly truncated: { readonly recent: number; readonly previous: number; readonly snapshots: boolean };
 }
@@ -282,6 +287,7 @@ function buildBundle(facts: DiagnosticsFacts, logs: ExportLogs, redactor: Pick<R
     ops: { active: facts.ops.active, snapshot: shape.snapshots ? snapshot(facts.ops.snapshot) : '[cut]' },
     sends: { open: facts.sends.open, uncertain: facts.sends.uncertain, journal: shape.snapshots ? snapshot(facts.sends.journal) : '[cut]' },
     sendFuse: facts.sendFuse ?? null,
+    hostModules: facts.hostModules ?? null,
     debug: { enabled: facts.debug.enabled, prompts: facts.debug.prompts },
     truncated: {
       recent: Math.max(0, logs.recent.length - recent.length),

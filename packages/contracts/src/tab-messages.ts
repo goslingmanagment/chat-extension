@@ -117,6 +117,12 @@ export type AiQuotaSnapshot = z.infer<typeof AiQuotaSnapshotSchema>;
 
 const ContractHashSchema = z.string().check(z.regex(CONTRACT_HASH_PATTERN));
 
+/**
+ * Where a site's background module (`bg/<site>.js`, docs/project-unite/architecture.md §3.3) stands: `idle` — not
+ * needed yet, `starting`, `started`, `failed` — its services did not start (1.15.0, R20 F1).
+ */
+export const HOST_MODULE_STATES = ['idle', 'starting', 'started', 'failed'] as const;
+
 /** `diagnostics.get`: versions, flags and states without secrets or texts (LG-020…LG-025, SN-015). */
 export const DiagnosticsSnapshotSchema = z.strictObject({
   generatedAt: IsoTimestampSchema,
@@ -169,6 +175,12 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
   sends: z.strictObject({ open: CountSchema, uncertain: CountSchema }),
   /** 1.11.0 (decision X25): the X8 fuse of this browser — the X8 row of «Статус» and the diagnostics file. */
   sendFuse: z.optional(SendFuseStateSchema),
+  /**
+   * 1.15.0 (R20 F1): the sites' background modules and where each stands. `failed` — the site's services in the
+   * background did not start: «Статус» warns, the site's own requests answer CG-RUNTIME-UNREACHABLE, nothing is
+   * sent. Absent — a background before 1.15.0.
+   */
+  hostModules: z.optional(z.array(z.strictObject({ host: HostKindSchema, state: z.enum(HOST_MODULE_STATES) })).check(z.maxLength(8))),
   /**
    * Sizes of our own caches and logs, an estimate (ST-110, options
    * «Диагностика»); absent — the background does not measure them. 1.2.0.
