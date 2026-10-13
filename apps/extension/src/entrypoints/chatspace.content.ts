@@ -12,7 +12,7 @@ import { defineContentScript } from 'wxt/utils/define-content-script';
 import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startChatSpaceTab, type ChatSpaceHostPort, type Validation } from '@cg/host-chatspace/isolated';
 
 import { composeTab, type HostAdapter } from '../composition/tab';
-import { CHATSPACE_MATCHES } from '../hosts/runtime/chatspace';
+import { CHATSPACE_LAZY_ROOT, CHATSPACE_MATCHES } from '../hosts/runtime/chatspace';
 
 /** The early half of the ChatSpace adapter; the application's half is in ChatSpace's `tab-app` chunk. */
 export const CHATSPACE_ADAPTER: HostAdapter<ChatSpaceHostPort> = {
@@ -28,8 +28,8 @@ export const CHATSPACE_ADAPTER: HostAdapter<ChatSpaceHostPort> = {
   keyProbe: createKeyboardProbe,
   keyPending: createKeyPendingMark,
   routeOfLocation,
-  // ChatSpace's lazy build.
-  lazy: { root: 'lazy' },
+  // ChatSpace's own lazy build (lazy/chatspace/, R20 F2b).
+  lazy: { root: CHATSPACE_LAZY_ROOT },
 };
 
 const definition: ContentScriptDefinition = defineContentScript({

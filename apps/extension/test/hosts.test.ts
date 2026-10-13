@@ -10,10 +10,12 @@ import { fileURLToPath } from 'node:url';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { describe, expect, it } from 'vitest';
 
-import { baseManifest, checkManifest, finalizeManifest, hostPermissions, lazyChunkMatches, optionalHostPermissions, optionalPermissions, type BuildFlavor, type ManifestLike } from '../build/manifest.ts';
+import { baseManifest, checkManifest, finalizeManifest, hostPermissions, lazyBuildsWithFiles, optionalHostPermissions, optionalPermissions, type BuildFlavor, type ManifestLike } from '../build/manifest.ts';
+import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
 import { HOST_MODULE_SPECS, HOST_REQUESTS, wsTapSpec } from '../src/composition/background.ts';
 import { CHATSPACE } from '../src/hosts/chatspace.ts';
-import { HOSTS, hostOf, pageMatchesOf, scriptsOf, type HostDescriptor } from '../src/hosts/index.ts';
+import { HOSTS, SECOND_LAZY_BUILD, hostOf, lazySitesOf, pageMatchesOf, scriptsOf, type HostDescriptor } from '../src/hosts/index.ts';
+import { CHATSPACE_LAZY_ROOT } from '../src/hosts/runtime/chatspace.ts';
 import { RUNTIME_HOSTS, isQuietHost } from '../src/hosts/runtime/index.ts';
 
 const entrypoints = fileURLToPath(new URL('../src/entrypoints/', import.meta.url));
@@ -29,6 +31,7 @@ const SECOND: HostDescriptor = {
     isolated: { entry: 'site', file: 'content-scripts/site.js', world: 'ISOLATED', registration: 'dynamic' },
     notice: { entry: 'site-notice', file: 'site-notice.js', world: 'ISOLATED', registration: 'execute' },
   },
+  lazy: { root: 'lazy/site', entries: { dock: 'site/dock.ts', notes: 'site/notes.ts' }, layers: ['dock'], beforeTheDock: [] },
   permissions: { origins: ['https://site.example.test/*', 'https://api.site.example.test/*'], optional: true, api: ['webRequest'] },
   mainWorldSources: ['packages/host-site/src/main/'],
   budgets: {
@@ -37,11 +40,16 @@ const SECOND: HostDescriptor = {
       { entry: 'site', label: 'isolated (site)', gzipBytes: 30 * 1024 },
       { entry: 'site-notice', label: 'notice (site-notice)', gzipBytes: 2 * 1024 },
     ],
+    contracts: [],
   },
   contractCheck: { module: 'packages/host-site/src/isolated/host-contract.ts', bundlesRootEnv: 'CG_SITE_BUNDLES' },
   archiveMarkers: { code: [], libraries: [] },
   test: { pageMatches: ['http://localhost/*'] },
 };
+
+/** A built file of every entry of every lazy build of the flavor, as the build's chunk list names them. */
+const lazyChunksOf = (flavor: BuildFlavor, hosts: readonly HostDescriptor[]): Array<{ file: string; site: string }> =>
+  lazySitesOf(flavor === 'test', hosts).flatMap((site) => Object.keys(site.build.entries).map((entry) => ({ file: `${site.build.root}/${entry}.js`, site: site.site })));
 
 /** What WXT generates from the registry's manifest scripts, then finalized as the build does. */
 function generated(flavor: BuildFlavor, hosts: readonly HostDescriptor[]): Record<string, unknown> {
@@ -57,7 +65,7 @@ function generated(flavor: BuildFlavor, hosts: readonly HostDescriptor[]): Recor
         .map((script) => ({ matches: [...host.matches], all_frames: false, run_at: 'document_start', js: [script.file], ...(script.world === 'MAIN' ? { world: 'MAIN' } : {}) })),
     ),
   };
-  finalizeManifest(manifest, { flavor, lazyFiles: ['lazy/dock.js'], hosts });
+  finalizeManifest(manifest, { flavor, lazyChunks: lazyChunksOf(flavor, hosts), hosts });
   return manifest;
 }
 
@@ -96,6 +104,29 @@ describe('the host registry', () => {
       expect(isQuietHost(`https://api.${domain}/x`)).toBe(true);
     }
     for (const pattern of SECOND.matches) expect(isQuietHost(pattern.replace('*', 'api/v1'))).toBe(false);
+  });
+
+  it('ChatSpace’s lazy build is today’s plan under its own folder, the one its tab loads from (R20 F2b; the adapter: test/lazy.test.ts)', () => {
+    expect(CHATSPACE.lazy).toEqual({ root: 'lazy/chatspace', entries: LAZY_ENTRIES, layers: LAZY_LAYERS, beforeTheDock: BEFORE_THE_DOCK });
+    expect(CHATSPACE.lazy.root).toBe(CHATSPACE_LAZY_ROOT);
+    for (const layer of CHATSPACE.lazy.layers) expect(Object.keys(CHATSPACE.lazy.entries)).toContain(layer);
+    for (const layer of CHATSPACE.lazy.beforeTheDock) expect(CHATSPACE.lazy.layers).toContain(layer);
+  });
+
+  it('a release build has every site’s lazy build; a test build of one site also the empty second, for a second site’s stand only', () => {
+    expect(lazySitesOf(false).map((site) => site.site)).toEqual(HOSTS.map((host) => host.kind));
+    const test = lazySitesOf(true);
+    expect(test.map((site) => [site.site, site.build.root])).toEqual([
+      ['chatspace', 'lazy/chatspace'],
+      ['second-site', 'lazy/second-site'],
+    ]);
+    expect(SECOND_LAZY_BUILD.build.layers).toEqual([]);
+    expect(Object.keys(SECOND_LAZY_BUILD.build.entries)).toEqual(['empty']);
+    expect(existsSync(fileURLToPath(new URL(`../lazy/${SECOND_LAZY_BUILD.build.entries['empty'] ?? ''}`, import.meta.url)))).toBe(true);
+    // ChatSpace's stand is 127.0.0.1: it cannot load the second build's file.
+    expect(SECOND_LAZY_BUILD.matches).toEqual(['http://localhost/*']);
+    // A registry with its own second site needs no stand-in.
+    expect(lazySitesOf(true, [CHATSPACE, SECOND]).map((site) => site.site)).toEqual(['chatspace', 'fansly-web']);
   });
 
   it('the background registers ChatSpace’s dynamic MAIN script of the registry (the WS tap) on its pages', () => {
@@ -137,7 +168,15 @@ describe('a second site is an entry of the registry', () => {
     expect(optionalPermissions([CHATSPACE])).toEqual([]);
     expect(optionalPermissions(both)).toEqual(['webRequest']);
     expect(baseManifest('release', [CHATSPACE])).not.toHaveProperty('optional_permissions');
-    expect(lazyChunkMatches('release', both)).toEqual(['https://chat.onlymonster.ai/*', 'https://site.example.test/*']);
+    // Each site's lazy build is exposed to its own pages alone.
+    expect(generated('release', both)['web_accessible_resources']).toEqual([
+      { resources: Object.keys(LAZY_ENTRIES).map((entry) => `lazy/chatspace/${entry}.js`).sort(), matches: ['https://chat.onlymonster.ai/*'] },
+      { resources: ['lazy/site/dock.js', 'lazy/site/notes.js'], matches: ['https://site.example.test/*'] },
+    ]);
+    expect(lazyBuildsWithFiles('test', both).map((site) => [site.site, site.matches])).toEqual([
+      ['chatspace', ['https://chat.onlymonster.ai/*', 'http://127.0.0.1/*', 'http://localhost/*']],
+      ['fansly-web', ['https://site.example.test/*', 'http://localhost/*']],
+    ]);
     // ChatSpace's content scripts are the same in both registries.
     expect(generated('release', both)['content_scripts']).toEqual(generated('release', [CHATSPACE])['content_scripts']);
     expect(generated('test', both)['content_scripts']).toEqual(generated('test', [CHATSPACE])['content_scripts']);
@@ -152,7 +191,28 @@ describe('a second site is an entry of the registry', () => {
     const manifest = generated('release', [CHATSPACE]);
     (manifest['content_scripts'] as Array<Record<string, unknown>>).push({ matches: ['https://chat.onlymonster.ai/*'], all_frames: false, run_at: 'document_start', js: ['chatspace-ws.js'], world: 'MAIN' });
     expect(checkManifest(manifest, 'release')).toEqual(expect.arrayContaining([expect.stringMatching(/^exactly 2 manifest content scripts/), 'chatspace-ws.js must not be a manifest content script (registration: dynamic)']));
-    expect(() => finalizeManifest({ content_scripts: [{ matches: [], js: ['content-scripts/unknown.js'] }] }, { flavor: 'release', lazyFiles: [] })).toThrow(/declared by no site of the host registry/);
+    expect(() => finalizeManifest({ content_scripts: [{ matches: [], js: ['content-scripts/unknown.js'] }] }, { flavor: 'release', lazyChunks: [] })).toThrow(/declared by no site of the host registry/);
+  });
+
+  it('a site’s lazy files are its own web resource entry, for its own pages: mixed, shared or another site’s pages are refused', () => {
+    const war = (manifest: Record<string, unknown>): Array<{ resources: string[]; matches: string[] }> => manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
+    const merged = generated('release', both);
+    merged['web_accessible_resources'] = [{ resources: war(merged).flatMap((entry) => entry.resources), matches: war(merged).flatMap((entry) => entry.matches) }];
+    expect(checkManifest(merged, 'release', both)).toEqual(expect.arrayContaining([expect.stringMatching(/^web_accessible_resources must be one entry per lazy build/), expect.stringMatching(/^a web_accessible_resources entry must list the files of exactly one lazy build/)]));
+    const swapped = generated('release', both);
+    const [first, second] = war(swapped);
+    if (first === undefined || second === undefined) throw new Error('two entries');
+    [first.matches, second.matches] = [second.matches, first.matches];
+    expect(checkManifest(swapped, 'release', both)).toEqual([
+      'web_accessible_resources of lazy/chatspace must match exactly https://chat.onlymonster.ai/*',
+      'web_accessible_resources of lazy/site must match exactly https://site.example.test/*',
+    ]);
+    const missing = generated('release', both);
+    missing['web_accessible_resources'] = war(missing).slice(0, 1);
+    expect(checkManifest(missing, 'release', both)).toEqual(expect.arrayContaining(['the lazy build lazy/site must be exactly one web_accessible_resources entry, got 0']));
+    // A lazy file of no build of this flavor fails the build.
+    expect(() => finalizeManifest({}, { flavor: 'release', lazyChunks: [{ file: 'lazy/second-site/empty.js', site: 'second-site' }] })).toThrow(/lazy file lazy\/second-site\/empty\.js is of no lazy build/);
+    expect(() => finalizeManifest({}, { flavor: 'release', lazyChunks: [{ file: 'lazy/dock.js', site: 'chatspace' }] })).toThrow(/lazy file lazy\/dock\.js is of no lazy build/);
   });
 
   it('a release manifest carrying a site’s test stand is refused', () => {

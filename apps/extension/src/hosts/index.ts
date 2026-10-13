@@ -1,7 +1,8 @@
 // The host registry (docs/project-unite/architecture.md §1.2): every site the
 // extension runs on, one entry each (./<host>.ts). Build data, read at build
 // time: the manifest and its check (build/manifest.ts), the WXT entries
-// (wxt.config.ts), the gates, the budget lines, archive-check and
+// (wxt.config.ts), the sites' lazy builds and their web resources
+// (lazy/vite.config.ts), the gates, the budget lines, archive-check and
 // host-contract-check (tools/). Code that ships reads the runtime table
 // (./runtime/index.ts) instead, so no build field reaches a bundle
 // (.dependency-cruiser.cjs `host-registry-build-only`). A new site is an entry
@@ -12,7 +13,7 @@
 
 import { CHATSPACE } from './chatspace.ts';
 import { LOOPBACK_MATCHES } from './runtime/index.ts';
-import type { HostDescriptor, ScriptSpec } from './types.ts';
+import type { HostDescriptor, LazySite, ScriptSpec } from './types.ts';
 
 export type * from './types.ts';
 export { LOOPBACK_MATCHES };
@@ -32,6 +33,25 @@ export function scriptsOf(host: HostDescriptor): ScriptSpec[] {
 /** Where a site's scripts run: its pages, and in a test build its loopback stand too. */
 export function pageMatchesOf(host: HostDescriptor, test: boolean): string[] {
   return [...host.matches, ...(test ? host.test.pageMatches : [])];
+}
+
+/**
+ * The test build's second lazy build (R20 F2b): an empty build of a second site, in place of the one the registry does
+ * not have yet. It keeps the per-site path — two builds side by side, a web resource entry each — running in the test
+ * build and its e2e; a release build never carries it, and the registry's own second site (Fansly, P7a0) takes its
+ * place. Its pages are a second site's stand: `localhost`, where ChatSpace's stand is `127.0.0.1` (architecture.md
+ * §13), so ChatSpace's stand cannot load its file.
+ */
+export const SECOND_LAZY_BUILD: LazySite = {
+  site: 'second-site',
+  build: { root: 'lazy/second-site', entries: { empty: 'second-site/empty.js' }, layers: [], beforeTheDock: [] },
+  matches: ['http://localhost/*'],
+};
+
+/** The lazy builds of an extension build: every site's of the registry, in its order; a test build of one site gets the second. */
+export function lazySitesOf(test: boolean, hosts: readonly HostDescriptor[] = HOSTS): LazySite[] {
+  const sites = hosts.map((host): LazySite => ({ site: host.kind, build: host.lazy, matches: pageMatchesOf(host, test) }));
+  return test && sites.length === 1 ? [...sites, SECOND_LAZY_BUILD] : sites;
 }
 
 /** The hub (D-13). */

@@ -23,7 +23,7 @@ import { PAGE_ENTRY_NAMES, splitPageChunks, type PageBuildConfig } from './build
 import { SOURCE_DOTFILES, STAND_SOURCE_GLOBS } from './build/sources-archive.ts';
 import { buildBackgroundChunks } from './bg/vite.config.ts';
 import { buildLazyChunks, type LazyChunkInfo } from './lazy/vite.config.ts';
-import { HOSTS, scriptsOf } from './src/hosts/index.ts';
+import { HOSTS, lazySitesOf, scriptsOf } from './src/hosts/index.ts';
 
 const flavor: BuildFlavor = process.env['CG_TEST_HOSTS'] === '1' ? 'test' : 'release';
 const suffix = flavor === 'test' ? '-test' : '';
@@ -63,12 +63,13 @@ export default defineConfig({
   hooks: {
     // After WXT cleaned the output dir, before entry points are built.
     'entrypoints:grouped': async (wxt) => {
-      lazyChunks = await buildLazyChunks(wxt.config.outDir, flavor === 'test');
+      // Each site's own lazy build (lazy/<site>/), and in a test build of one site the empty second one.
+      lazyChunks = await buildLazyChunks(wxt.config.outDir, lazySitesOf(flavor === 'test'));
       // The sites' background chunks (bg/<site>.js): only the event page loads them, so they are no web resource.
       await buildBackgroundChunks(wxt.config.outDir, flavor === 'test');
     },
     'build:manifestGenerated': (_wxt, manifest) => {
-      finalizeManifest(manifest as ManifestLike, { flavor, lazyFiles: lazyChunks.map((chunk) => chunk.file) });
+      finalizeManifest(manifest as ManifestLike, { flavor, lazyChunks });
     },
     // Timing marks around both content scripts (test builds only): the e2e
     // reads the whole synchronous start of the isolated bundle (§11: ≤ 3 ms)

@@ -52,13 +52,22 @@ interface HostDescriptor extends RuntimeHostRow {             // адреса �
   kind: HostKind; platform: Platform;
   scripts: { main: ScriptSpec; isolated: ScriptSpec; notice?: ScriptSpec; extra?: readonly ScriptSpec[] };
   permissions: { origins: readonly string[]; optional: boolean; api?: readonly OptionalApi[] };
-  lazy: { root: string; layers: readonly string[]; entries: readonly string[] };  // своя сборка ленивых чанков (§3.2), F2b
+  lazy: HostLazyBuild;                                          // своя сборка ленивых чанков (§3.2), F2b
   background?: { chunk: string };                               // фоновый модуль сайта (§3.3), F1
   mainWorldSources: readonly string[];                          // папки кода мира страницы: гейт `guard`
-  budgets: { scripts: readonly { entry: string; label: string; gzipBytes: number }[] };   // строки `pnpm size`, по порядку
+  budgets: {                                                    // строки `pnpm size`, по порядку
+    scripts: readonly { entry: string; label: string; gzipBytes: number }[];
+    contracts: readonly { label: string; entry: string; gzipBytes: number }[];  // пробы контрактов сайта (F2b)
+  };
   contractCheck: { module: string; bundlesRootEnv: string };   // модуль контракта; переменная с корнем копий бандлов
   archiveMarkers: { code: readonly RegExp[]; libraries: readonly RegExp[] };  // чужой код, который не уходит никогда
   test: TestHostConfig;                                         // подмены тестовой сборки (§13); пока `pageMatches` стенда
+}
+interface HostLazyBuild {
+  root: string;                                   // папка в XPI: `<root>/<вход>.js`, общие чанки — `<root>/chunks/`
+  entries: Readonly<Record<string, string>>;      // имя входа → исходник (от `apps/extension/lazy`), в порядке входов сборки
+  layers: readonly string[];                      // слои по порядку бюджетов, первый — док; [] — режет сам сборщик
+  beforeTheDock: readonly string[];               // слои до дока: общее с ними у дока — чанк `kernel`
 }
 interface RuntimeHostRow { matches: readonly string[]; quietDomains: readonly string[] }  // [] — сайт не «тихий» (X4)
 type ScriptSpec = { entry: string; file: string; world: 'MAIN' | 'ISOLATED'; registration: 'manifest' | 'dynamic' | 'execute' };
@@ -66,9 +75,16 @@ type ScriptSpec = { entry: string; file: string; world: 'MAIN' | 'ISOLATED'; reg
 Из реестра выводятся: манифест и его проверка (`build/manifest.ts`), входы WXT, **сборки ленивых чанков по сайтам**, WAR по
 сайту, хосты RPC фона и звука, регистрация скриптов, онбординг страниц, гейты (`MAIN_WORLD_*`, `ISOLATED_BUNDLES`), строки
 бюджетов, `archive-check`, `host-contract-check --host`. Код одного сайта никогда не импортирует запись другого.
+Сборки ленивых чанков (как построено в F2b): `lazySitesOf(test)` даёт сборки сайтов реестра по порядку, `buildLazyChunks`
+собирает их одну за другой, каждую в свою папку, `finalizeManifest` пишет по записи WAR на сборку — для страниц её сайта.
+У тестовой сборки с одним сайтом есть ещё пустая вторая (`SECOND_LAZY_BUILD`: `lazy/second-site/empty.js`, страницы —
+`http://localhost/*`, стенд второго сайта, §13): путь «две сборки рядом» работает в тестовой сборке и её e2e; выпуск её не
+несёт, а собственный второй сайт реестра (P7a0) занимает её место сам.
 
 Рантайму достаётся отдельная лёгкая таблица — `apps/extension/src/hosts/runtime/{index,<сайт>}.ts`: адреса сайта (`matches`,
 `quietDomains`), `isQuietHost`, loopback тестовой сборки; вид и платформа — из контрактов (`HostKind`, `Platform`, P4a1).
+Корень ленивой сборки сайта (`CHATSPACE_LAZY_ROOT` в `runtime/chatspace.ts`) — константа рядом со строкой, не поле таблицы:
+он нужен только вкладке сайта (вход отдаёт его адаптеру, `HostAdapter.lazy.root`, §1.3), фону и страницам — нет.
 Входы сайта читают только свою строку (`runtime/<сайт>.ts`), фон и страницы — всю таблицу; запись реестра берёт адреса из
 строки, а не наоборот. Поля сборки в бандлы не попадают: реестр не импортирует никто из того, что уходит в XPI, и сама
 таблица его не читает (правило `host-registry-build-only` в `.dependency-cruiser.cjs`); тест манифеста ищет поля сборки в
@@ -355,10 +371,17 @@ XHR Angular, а второй MAIN-скрипт — лишняя точка, ко
 
 ### 3.2 ChatSpace не платит за Fansly
 
-- **Раздельные сборки ленивых чанков** (F2). У каждого сайта своя сборка со своим планом слоёв из реестра хостов; общая
+- **Раздельные сборки ленивых чанков** (F2b). У каждого сайта своя сборка со своим планом слоёв из реестра хостов; общая
   цепочка `LAZY_LAYERS` (`apps/extension/lazy/entries/names.ts:49`) и распределение по первому слою
-  (`lazy/vite.config.ts:97-135`) становятся планом ChatSpace. Входы Fansly в общей сборке сдвигали бы нарезку общих модулей
-  и байты чанков ChatSpace; раздельные сборки этого не допускают. Цена — дубли общего исходника в XPI; её меряет F2.
+  (`layerPlan` в `lazy/vite.config.ts`) стали планом ChatSpace, его чанки — `lazy/chatspace/**`, байт в байт прежние.
+  Входы Fansly в общей сборке сдвигали бы нарезку общих модулей и байты чанков ChatSpace (тест
+  `apps/extension/test/lazy-sites.test.ts` это показывает: фиктивный вход второго сайта со своей ошибкой и схемой рядом с
+  ChatSpace не меняет ни байта, внутри его сборки — меняет); раздельные сборки этого не допускают. Цена — дубли общего
+  исходника в XPI, замер F2b на 0.2.4: вся сборка ChatSpace — 42 файла, 929 189 Б, в XPI (deflate -9) 288 583 Б; вторая
+  сборка общих входов (без только-ChatSpace `bridge-validation`, `navigation`, `palette`, `preview`, `newcomers`) — 32
+  файла, 858 771 Б, в XPI 262 791 Б ≈ 257 КиБ, +31 % к XPI 852 577 Б. Это только размер установки и скачивания: вкладка
+  грузит файлы своей сборки, память и время вкладки дубли не трогают. Свои чанки Fansly (схемы, `ai-fansly`, панели,
+  тексты) — сверх этого, это не дубли.
 - **Срезы общих таблиц** (§1.4, §1.6): записи Fansly не лежат в общих статических таблицах, которые попадают в бандлы
   ChatSpace (манифест фич, ошибки, схемы, тексты).
 - **Реестр байтов** (`plan.md` §4): каждый PR с общим кодом называет дельту по каждой строке ChatSpace и откуда взяты байты.

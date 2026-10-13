@@ -227,7 +227,7 @@ chat-extension/
       chatspace-ws.ts             тап WebSocket, регистрируется фоном динамически
       popup/ · options/ · debug-prompt/ · debug-journal/
     src/composition/              background.ts · tab.ts · pages.ts — только сборка зависимостей
-    lazy/vite.config.ts           вторая сборка: ленивые ESM-чанки content script
+    lazy/vite.config.ts           вторая сборка: ленивые ESM-чанки content script, своя у каждого сайта (lazy/<сайт>/)
   packages/
     contracts/                    типы, схемы, реестр CG, ключи i18n, модели видов UI; без логики
     core/                         логика без DOM, browser.*, fetch, Preact и SDK
@@ -335,7 +335,8 @@ E2e — отдельная команда `pnpm e2e` (в CI — отдельна
     жесту при сохранении адреса.
 - **`content_scripts`:** два скрипта на `https://chat.onlymonster.ai/*`, `all_frames: false`.
   Третий — тап WS — фон регистрирует динамически (§6.8).
-- **`web_accessible_resources`:** только ленивые чанки и их CSS, тот же адрес.
+- **`web_accessible_resources`:** только ленивые чанки и их CSS, тот же адрес. С R20 F2b у каждого сайта своя
+  сборка (`lazy/chatspace/…`) и своя запись — для страниц этого сайта.
 - **Страницы:** `action` → popup, `options_ui` с `open_in_tab`. CSP по умолчанию, без
   `eval` и удалённого кода.
 

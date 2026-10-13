@@ -1,12 +1,17 @@
 // ChatSpace's entry in the host registry (docs/project-unite/architecture.md
 // §1.2): its addresses come from its runtime row (./runtime/chatspace.ts); the
-// rest is build data — its scripts, permissions, budgets, contract check,
-// archive markers and test config — read by build/manifest.ts, wxt.config.ts
-// and tools/{gates,size-budget,archive-check,host-contract-check}. Nothing
-// that ships imports this file.
+// rest is build data — its scripts, lazy build, permissions, budgets, contract
+// check, archive markers and test config — read by build/manifest.ts,
+// wxt.config.ts, lazy/vite.config.ts and
+// tools/{gates,size-budget,archive-check,host-contract-check}. Nothing that
+// ships imports this file.
 
+import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../../lazy/entries/names.ts';
+import { CHATSPACE_LAZY_ROOT } from './runtime/chatspace.ts';
 import { LOOPBACK_MATCHES, RUNTIME_HOSTS } from './runtime/index.ts';
 import type { HostDescriptor } from './types.ts';
+
+const CONTRACTS = './packages/contracts/src';
 
 const KIB = 1024;
 
@@ -21,6 +26,9 @@ export const CHATSPACE: HostDescriptor = {
     // The WS tap (§6.8): the background registers it only while the bootstrap flag `wsTap` is on.
     extra: [{ entry: 'chatspace-ws', file: 'chatspace-ws.js', world: 'MAIN', registration: 'dynamic' }],
   },
+  // Its own build of the lazy chunks (architecture.md §11; R20 F2b): today's entries and plan of layers, written to
+  // lazy/chatspace/ and exposed to ChatSpace's pages only.
+  lazy: { root: CHATSPACE_LAZY_ROOT, entries: LAZY_ENTRIES, layers: LAZY_LAYERS, beforeTheDock: BEFORE_THE_DOCK },
   permissions: { origins: RUNTIME_HOSTS.chatspace.matches, optional: false },
   // Its services in the background (R20 F1): the X8 custody with its journal and fuse, the greeting leases of «Новые».
   // The core loads the chunk with the first ChatSpace tab, or at its start while that work is unfinished
@@ -41,6 +49,20 @@ export const CHATSPACE: HostDescriptor = {
       // wrap.
       { entry: 'chatspace-ws', label: 'MAIN WS tap (chatspace-ws)', gzipBytes: 6 * KIB },
       { entry: 'chatspace', label: 'isolated early bootstrap (chatspace)', gzipBytes: 30 * KIB },
+    ],
+    // What ChatSpace's bundles pay for its slices of the contracts (docs/protocols/README.md, the light/heavy split):
+    // the early isolated start loads only the light modules, and the two big registries stay in their lazy chunks.
+    contracts: [
+      {
+        label: 'contracts: early isolated (bridge guard, envelopes, tab.register)',
+        entry: [
+          `export { checkBridgeFrame, BridgeEventEnvelopeSchema, BridgeResponseSchema } from '${CONTRACTS}/bridge.ts';`,
+          `export { TabEnvelopeSchema, TabRegisterRequestSchema, TabRegisterResponseSchema } from '${CONTRACTS}/tab-protocol.ts';`,
+        ].join('\n'),
+        gzipBytes: 12 * KIB,
+      },
+      { label: 'contracts: UiAction schema', entry: `export { UiActionSchema } from '${CONTRACTS}/vm/actions.ts';`, gzipBytes: 16 * KIB },
+      { label: 'contracts: tab request registry (parseTabPayload)', entry: `export { parseTabPayload } from '${CONTRACTS}/tab-messages.ts';`, gzipBytes: 28 * KIB },
     ],
   },
   // Local only, never in CI: the bundles are OnlyMonster's code and stay outside the repository
