@@ -14,7 +14,7 @@ import { type ChatRef } from '@cg/contracts/ids';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import { type ActionReceipt, type I18n, type NavigationTarget, type ToastPort, type UiAction } from '@cg/contracts/vm';
 
-import { chatAtSlot, conversationOf, nextUnreadChat, stepChat } from '../../domain/navigation';
+import { chatAtSlot, nextUnreadChat, stepChat } from '../../domain/navigation';
 import { type OverlayState } from './overlays';
 import { failedReceipt, type IdPort, type SurfaceController, type TabClock, type TabRpc } from './ports';
 
@@ -42,8 +42,8 @@ const ACCOUNT_HANDLE = 'nav.acc.';
  * whose conversation is not its fan (on Fansly the group id of an operation's target) is `nav.chat.<account>.<fan>.<conversation>`.
  */
 export function chatHandle(chat: Pick<ChatRef, 'hostAccountId' | 'platformFanId'>, conversationRef?: string): string {
-  const conversation = conversationOf(chat.platformFanId, conversationRef).conversationRef;
-  return `${CHAT_HANDLE}${chat.hostAccountId}.${chat.platformFanId}${conversation === undefined ? '' : `.${conversation}`}`;
+  const conversation = conversationRef === undefined || conversationRef === chat.platformFanId ? '' : `.${conversationRef}`;
+  return `${CHAT_HANDLE}${chat.hostAccountId}.${chat.platformFanId}${conversation}`;
 }
 
 export function accountHandle(hostAccountId: string): string {
@@ -158,10 +158,12 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     try {
       const issued = await deps.rpc.request('token.issue', { kind: 'navigate', surface: NAVIGATION_SURFACE });
       if (!issued.ok) return fail(issued.error.code);
+      const conversation = target.conversationRef;
       const receipt = await host.navigate({
         intentId: deps.ids.uuid(),
         cause: { kind: cause, actionToken: issued.payload.actionToken },
-        target: { hostAccountId: target.hostAccountId, platformFanId: target.platformFanId, ...(target.platformFanId === null ? {} : conversationOf(target.platformFanId, target.conversationRef)) },
+        // The conversation only of a chat, and only when it is not the fan (on Fansly a toast's group).
+        target: { hostAccountId: target.hostAccountId, platformFanId: target.platformFanId, ...(conversation === undefined || conversation === target.platformFanId || target.platformFanId === null ? {} : { conversationRef: conversation }) },
       });
       if (receipt.state !== 'navigated') return fail(receipt.code);
       // The chat is on screen now: the windows that led to it close.

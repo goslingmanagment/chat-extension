@@ -23,8 +23,6 @@ import {
 import { chatKeyOf, type ChatRef, type DraftSnapshot, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 
-import { conversationOf } from '../navigation/conversation';
-
 /** How long an open insert stays valid after it was built (one bridge round trip and some). */
 export const OPEN_INSERT_TTL_MS = 10_000;
 
@@ -160,10 +158,11 @@ export function buildDeferredInsert(input: DeferredInsertInput): IntentResult<In
  */
 export function buildOpenAndInsert(input: { readonly intentId: string; readonly cause: HumanCause; readonly insert: InsertWire; readonly conversationRef?: string }): IntentResult<NavigationIntent> {
   const { hostAccountId, platformFanId } = input.insert.target;
+  const conversationRef = input.conversationRef;
   const intent: NavigationIntent = {
     intentId: input.intentId,
     cause: input.cause,
-    target: { hostAccountId, platformFanId, ...conversationOf(platformFanId, input.conversationRef) },
+    target: { hostAccountId, platformFanId, ...(conversationRef === undefined || conversationRef === platformFanId ? {} : { conversationRef }) },
     thenInsert: input.insert,
   };
   return NavigationIntentSchema.safeParse(intent).success ? { ok: true, intent } : { ok: false, code: 'CG-NAV-FAILED' };

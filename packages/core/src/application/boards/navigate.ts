@@ -17,7 +17,6 @@ import { type Surface } from '@cg/contracts/features';
 import { type HostPort, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
 import { type ChatRef, type HumanCause } from '@cg/contracts/ids';
 
-import { conversationOf } from '../../domain/navigation/conversation';
 import { flagRefusal } from '../../domain/ops/flags';
 import { pageFlagOf, type PageContextPort, type PageContextState } from './context';
 import { type IdSource, type TabRpc } from './ports';
@@ -75,7 +74,7 @@ export function createChatNavigator(deps: { readonly rpc: TabRpc; readonly host:
       const intent: NavigationIntent = {
         intentId: deps.ids.uuid(),
         cause: issued.cause,
-        target: { hostAccountId: chat.hostAccountId, platformFanId: chat.platformFanId, ...conversationOf(chat.platformFanId, conversationRef) },
+        target: { hostAccountId: chat.hostAccountId, platformFanId: chat.platformFanId, ...(conversationRef === undefined || conversationRef === chat.platformFanId ? {} : { conversationRef }) },
       };
       try {
         return await deps.host.navigate(intent);

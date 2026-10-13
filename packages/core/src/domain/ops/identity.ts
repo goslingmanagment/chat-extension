@@ -13,7 +13,7 @@ import { chatKeyOf, type SessionIdentity } from '@cg/contracts/ids';
 import { type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint } from '@cg/contracts/send';
 
-import { conversationOf } from '../navigation/conversation';
+import { conversationOf } from './conversation';
 import { canonicalJson, digestHex, stableDigest } from './digest';
 
 /** The checkpoint as freshness sees it: everything but the moment it was taken. */

@@ -77,7 +77,7 @@ import {
 } from '../domain/ops';
 import { coachTurnSteps, recapStepVerdict } from '../domain/coach';
 import { freshTextAdmitted } from '../domain/features/admission';
-import { conversationOf } from '../domain/navigation/conversation';
+import { conversationOf } from '../domain/ops/conversation';
 import { type ActionTokens } from './tokens';
 import { type TabPresence } from './presence';
 import { AbortSwitch, NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink, type TabEventSink, type TimerHandle } from './ports';
