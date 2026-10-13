@@ -295,8 +295,8 @@ export default defineConfig(
   {
     files: MAIN_WORLD_ENTRIES,
     rules: restrict({
-      regex: '^(?!@cg/host-chatspace/main$|wxt$|wxt/utils/define-[a-z-]+$|\\.\\./hosts$)',
-      message: 'MAIN-world entry points bundle only @cg/host-chatspace/main, the WXT define helpers and ../hosts (§4, D-06).',
+      regex: '^(?!@cg/host-chatspace/main$|wxt$|wxt/utils/define-[a-z-]+$|\\.\\./hosts/runtime/chatspace$)',
+      message: 'MAIN-world entry points bundle only @cg/host-chatspace/main, the WXT define helpers and ../hosts/runtime/chatspace (§4, D-06).',
     }),
   },
   {

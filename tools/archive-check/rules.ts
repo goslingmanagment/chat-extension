@@ -12,6 +12,7 @@ import { posix } from 'node:path';
 import ts from 'typescript';
 
 import { isStandSource } from '../../apps/extension/build/sources-archive.ts';
+import { HOSTS, type HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
 import type { ZipEntry } from '../lib/zip.ts';
 
 export interface ArchiveProblem {
@@ -21,19 +22,13 @@ export interface ArchiveProblem {
   readonly detail: string;
 }
 
-/** ChatSpace bundle chunk names from the research copy (0.172.0) and that copy's folder. */
-export const ONLYMONSTER_BUNDLE_MARKERS: readonly RegExp[] = [
-  /\b(?:messages-DlBZ5e81|composables-BUNn3xEu|notificationEntry-DgqI6Vgc|accounts-BWN_jVY3|ChatView-DOQWEL72|inbox-SRJHz93Z|onlyfans-CaxZc4_R|MainLayout-DBvnSRX2|index-DEVowLko)\b/,
-  /chatspace-bundles/,
-  // Vue scoped-style attributes: the fingerprint of a saved prod page or CSS.
-  /\bdata-v-[0-9a-f]{8}\b/,
-];
-
-/** Library code that only their app carries (we ship Preact, never Vue/PrimeVue/TipTap). */
-export const HOST_LIBRARY_MARKERS: readonly RegExp[] = [
-  /__VUE_PROD_DEVTOOLS__|__VUE_OPTIONS_API__|__VUE_PROD_HYDRATION_MISMATCH_DETAILS__/,
-  /@tiptap\/|prosemirror-(?:model|view|state)/i,
-];
+/**
+ * Each site's own code (its bundles' chunk names, a research copy's folder, its framework's fingerprints) and the
+ * libraries only its app carries: the `archiveMarkers` of its entry in the host registry (apps/extension/src/hosts).
+ */
+export function hostCodeMarkers(hosts: readonly HostDescriptor[] = HOSTS): { readonly code: readonly RegExp[]; readonly libraries: readonly RegExp[] } {
+  return { code: hosts.flatMap((host) => host.archiveMarkers.code), libraries: hosts.flatMap((host) => host.archiveMarkers.libraries) };
+}
 
 /**
  * The test stand (packages/testing/fixture-chatspace, R02) is our own small
@@ -93,8 +88,11 @@ const TEXT_FILE = /\.(?:js|mjs|cjs|ts|tsx|json|html|css|md|txt|yaml|yml|svg)$/i;
 const IMAGE_FILE = /\.(?:png|jpe?g|gif|webp|svg|ico|avif)$/i;
 /** Our own images (icons) only; anything else is suspect until allow-listed. */
 const ALLOWED_IMAGES = /^(?:icons?\/|apps\/extension\/public\/icons?\/)/;
-/** The checker's own rule file names the OnlyMonster markers it looks for (only those). */
-const SELF = /^tools\/archive-check\//;
+/**
+ * The checker's own files, and the host registry's entries, which name the markers they ask for (only those): a
+ * marker matches its own source text.
+ */
+const SELF = /^(?:tools\/archive-check\/|apps\/extension\/src\/hosts\/[^/]+\.ts$)/;
 /** A single minified file this large means someone bundled something foreign. */
 export const MAX_JS_BYTES = 400 * 1024;
 /**
@@ -110,6 +108,8 @@ const jsCeiling = (name: string): number => (name === 'background.js' ? MAX_BACK
 export interface ArchiveCheckOptions {
   /** Defaults to REAL_ID_SHA256 (tests pass synthetic ids). */
   readonly realIdHashes?: ReadonlySet<string>;
+  /** Defaults to the host registry's sites (tests pass synthetic ones). */
+  readonly hosts?: readonly HostDescriptor[];
 }
 
 export function checkArchive(
@@ -119,6 +119,7 @@ export function checkArchive(
   options: ArchiveCheckOptions = {},
 ): ArchiveProblem[] {
   const realIdHashes = options.realIdHashes ?? REAL_ID_SHA256;
+  const markers = hostCodeMarkers(options.hosts);
   const problems: ArchiveProblem[] = [];
   const add = (file: string, rule: string, detail: string): void => {
     problems.push({ archive, file, rule, detail });
@@ -138,7 +139,7 @@ export function checkArchive(
     const text = entry.data.toString('utf8');
     if (!SELF.test(entry.name)) {
       const libraryAllowed = kind === 'sources' && STAND_LIBRARY_ALLOWED.some((pattern) => pattern.test(entry.name));
-      for (const pattern of [...ONLYMONSTER_BUNDLE_MARKERS, ...(libraryAllowed ? [] : HOST_LIBRARY_MARKERS)]) {
+      for (const pattern of [...markers.code, ...(libraryAllowed ? [] : markers.libraries)]) {
         const match = pattern.exec(text);
         if (match) add(entry.name, 'onlymonster-code', `marker «${match[0]}»`);
       }

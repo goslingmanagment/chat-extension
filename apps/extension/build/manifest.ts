@@ -1,13 +1,25 @@
 // The extension manifest policy (architecture.md §3 «Манифест», D-01, D-32).
 // Pure functions: wxt.config.ts applies them, the manifest test and
-// tools/gates check the built manifest with checkManifest().
+// tools/gates check the built manifest with checkManifest(). Every site's part
+// — its hosts, content scripts, origins and test stand — comes from the host
+// registry (src/hosts, docs/project-unite/architecture.md §1.2).
 //
 // Relative imports carry `.ts`: this file also runs under plain Node 26
 // (tools/gates), which strips types but does not guess extensions.
 
 import type { UserManifest } from 'wxt';
 
-import { CHATSPACE_MATCHES, CUSTOM_HUB_OPTIONAL_PERMISSION, HUB_HOST_PERMISSION, LOOPBACK_MATCHES } from '../src/hosts.ts';
+import {
+  CUSTOM_HUB_OPTIONAL_PERMISSION,
+  HOSTS,
+  HUB_HOST_PERMISSION,
+  TEST_HUB_MATCHES,
+  pageMatchesOf,
+  scriptsOf,
+  type HostDescriptor,
+  type OptionalApi,
+  type ScriptSpec,
+} from '../src/hosts/index.ts';
 
 export const EXTENSION_NAME = 'ChatGoose для ChatSpace';
 export const EXTENSION_DESCRIPTION = 'AI-помощник ChatGoose для чаттеров агентства поверх OnlyMonster ChatSpace.';
@@ -30,15 +42,50 @@ export const DATA_COLLECTION = {
 
 export type BuildFlavor = 'release' | 'test';
 
+const unique = (items: readonly string[]): string[] => [...new Set(items)];
+
+/** Granted at install: every site that is not optional, then the hub; a test build adds the fake hub and the sites' stands. */
+export function hostPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
+  const required = hosts.filter((host) => !host.permissions.optional).flatMap((host) => host.permissions.origins);
+  const test = flavor === 'test' ? unique([...TEST_HUB_MATCHES, ...hosts.flatMap((host) => host.test.pageMatches)]) : [];
+  return [...required, HUB_HOST_PERMISSION, ...test];
+}
+
+/** Asked for on a gesture: a custom hub address, then the optional sites' origins. */
+export function optionalHostPermissions(hosts: readonly HostDescriptor[] = HOSTS): string[] {
+  return [CUSTOM_HUB_OPTIONAL_PERMISSION, ...hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.origins)];
+}
+
+/** The optional API permissions the optional sites ask for with their origins; [] — the manifest has none. */
+export function optionalPermissions(hosts: readonly HostDescriptor[] = HOSTS): OptionalApi[] {
+  return [...new Set(hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.api ?? []))];
+}
+
+/** Where the lazy chunks may be loaded from: every site's pages (and stands, in a test build). */
+export function lazyChunkMatches(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
+  return unique(hosts.flatMap((host) => pageMatchesOf(host, flavor === 'test')));
+}
+
+/** The site a built script belongs to, by its file; undefined — no site declares it. */
+export function hostOfFile(file: string, hosts: readonly HostDescriptor[] = HOSTS): { readonly host: HostDescriptor; readonly script: ScriptSpec } | undefined {
+  for (const host of hosts) {
+    const script = scriptsOf(host).find((spec) => spec.file === file);
+    if (script !== undefined) return { host, script };
+  }
+  return undefined;
+}
+
 /** The static part handed to WXT; entry points add background, content scripts and pages. */
-export function baseManifest(flavor: BuildFlavor): UserManifest {
+export function baseManifest(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): UserManifest {
   const test = flavor === 'test';
+  const optionalApi = optionalPermissions(hosts);
   return {
     name: test ? `${EXTENSION_NAME} (тест)` : EXTENSION_NAME,
     description: EXTENSION_DESCRIPTION,
     permissions: [...PERMISSIONS],
-    host_permissions: [...CHATSPACE_MATCHES, HUB_HOST_PERMISSION, ...(test ? LOOPBACK_MATCHES : [])],
-    optional_host_permissions: [CUSTOM_HUB_OPTIONAL_PERMISSION],
+    host_permissions: hostPermissions(flavor, hosts),
+    optional_host_permissions: optionalHostPermissions(hosts),
+    ...(optionalApi.length > 0 ? { optional_permissions: optionalApi } : {}),
     browser_specific_settings: {
       gecko: {
         // A test build is a different add-on: it never auto-updates from the
@@ -58,26 +105,30 @@ export function baseManifest(flavor: BuildFlavor): UserManifest {
 /** Minimal structural view of the generated manifest we post-process. */
 export interface ManifestLike {
   [key: string]: unknown;
-  content_scripts?: Array<{ matches?: string[]; [key: string]: unknown }>;
+  content_scripts?: Array<{ matches?: string[]; js?: string[]; [key: string]: unknown }>;
   web_accessible_resources?: unknown;
 }
 
 /**
  * Applied in WXT's build:manifestGenerated hook: web_accessible_resources =
- * exactly the lazy chunks (+ their CSS) for the content-script origins; in a
- * test build the content scripts also match the loopback stand.
+ * exactly the lazy chunks (+ their CSS) for the sites' pages; in a test build
+ * every content script also matches its site's loopback stand. A content
+ * script no site of the registry declares fails the build.
  */
-export function finalizeManifest(manifest: ManifestLike, options: { flavor: BuildFlavor; lazyFiles: readonly string[] }): void {
+export function finalizeManifest(manifest: ManifestLike, options: { flavor: BuildFlavor; lazyFiles: readonly string[]; hosts?: readonly HostDescriptor[] }): void {
   const test = options.flavor === 'test';
-  const origins = [...CHATSPACE_MATCHES, ...(test ? LOOPBACK_MATCHES : [])];
+  const hosts = options.hosts ?? HOSTS;
   for (const script of manifest.content_scripts ?? []) {
-    script.matches = [...new Set([...(script.matches ?? []), ...origins])];
+    const files = script.js ?? [];
+    const owner = files.map((file) => hostOfFile(file, hosts)).find((found) => found !== undefined);
+    if (owner === undefined) throw new Error(`finalizeManifest: content script ${files.join(', ')} is declared by no site of the host registry (src/hosts)`);
+    script.matches = unique([...(script.matches ?? []), ...pageMatchesOf(owner.host, test)]);
   }
   if (manifest.web_accessible_resources !== undefined) {
     throw new Error('finalizeManifest: unexpected web_accessible_resources from WXT; only lazy chunks may be exposed');
   }
   if (options.lazyFiles.length > 0) {
-    manifest.web_accessible_resources = [{ resources: [...options.lazyFiles].sort(), matches: origins }];
+    manifest.web_accessible_resources = [{ resources: [...options.lazyFiles].sort(), matches: lazyChunkMatches(options.flavor, hosts) }];
   }
 }
 
@@ -92,14 +143,15 @@ function sameSet(actual: unknown, expected: readonly string[]): boolean {
   return list.length === expected.length && expected.every((item) => list.includes(item));
 }
 
-/** Every rule of §3 «Манифест». Returns human-readable problems; [] means OK. */
-export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFlavor): string[] {
+const worldOf = (script: Record<string, unknown>): unknown => (script['world'] === undefined ? 'ISOLATED' : script['world']);
+
+/** Every rule of §3 «Манифест», each site's part from the host registry. Returns human-readable problems; [] means OK. */
+export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
   const problems: string[] = [];
   const fail = (message: string): void => {
     problems.push(message);
   };
   const test = flavor === 'test';
-  const origins = [...CHATSPACE_MATCHES, ...(test ? LOOPBACK_MATCHES : [])];
 
   if (manifest['manifest_version'] !== 3) fail('manifest_version must be 3');
   const expectedName = test ? `${EXTENSION_NAME} (тест)` : EXTENSION_NAME;
@@ -118,10 +170,15 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
   }
 
   if (!sameSet(manifest['permissions'], PERMISSIONS)) fail(`permissions must be exactly ${PERMISSIONS.join(', ')}`);
-  const hostPermissions = [...CHATSPACE_MATCHES, HUB_HOST_PERMISSION, ...(test ? LOOPBACK_MATCHES : [])];
-  if (!sameSet(manifest['host_permissions'], hostPermissions)) fail(`host_permissions must be exactly ${hostPermissions.join(', ')}`);
-  if (!sameSet(manifest['optional_host_permissions'], [CUSTOM_HUB_OPTIONAL_PERMISSION])) {
-    fail(`optional_host_permissions must be exactly ${CUSTOM_HUB_OPTIONAL_PERMISSION}`);
+  const expectedHosts = hostPermissions(flavor, hosts);
+  if (!sameSet(manifest['host_permissions'], expectedHosts)) fail(`host_permissions must be exactly ${expectedHosts.join(', ')}`);
+  const expectedOptionalHosts = optionalHostPermissions(hosts);
+  if (!sameSet(manifest['optional_host_permissions'], expectedOptionalHosts)) {
+    fail(`optional_host_permissions must be exactly ${expectedOptionalHosts.join(', ')}`);
+  }
+  const expectedOptionalApi = optionalPermissions(hosts);
+  if (expectedOptionalApi.length === 0 ? manifest['optional_permissions'] !== undefined : !sameSet(manifest['optional_permissions'], expectedOptionalApi)) {
+    fail(expectedOptionalApi.length === 0 ? 'no optional_permissions: no site asks for an optional API' : `optional_permissions must be exactly ${expectedOptionalApi.join(', ')}`);
   }
 
   const background = manifest['background'] as Record<string, unknown> | undefined;
@@ -132,26 +189,32 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
   if (background && background['persistent'] === true) fail('background must not be persistent');
 
   const scripts = asArray(manifest['content_scripts']) as Array<Record<string, unknown>>;
-  if (scripts.length !== 2) fail('exactly two manifest content scripts (MAIN bridge + isolated); the WS tap is dynamic');
-  const mainScript = scripts.find((script) => script['world'] === 'MAIN');
-  const isolatedScript = scripts.find((script) => script['world'] === undefined || script['world'] === 'ISOLATED');
-  for (const [label, script, file] of [
-    ['MAIN', mainScript, 'content-scripts/chatspace-main.js'],
-    ['isolated', isolatedScript, 'content-scripts/chatspace.js'],
-  ] as const) {
+  const declared = hosts.flatMap((host) => scriptsOf(host).map((script) => ({ host, script })));
+  const inManifest = declared.filter(({ script }) => script.registration === 'manifest');
+  const byBackground = declared.filter(({ script }) => script.registration !== 'manifest');
+  if (scripts.length !== inManifest.length) {
+    fail(`exactly ${inManifest.length} manifest content scripts (${inManifest.map(({ script }) => script.file).join(', ')}); the background registers or injects the others (${byBackground.map(({ script }) => script.file).join(', ')})`);
+  }
+  for (const { host, script: spec } of inManifest) {
+    const label = `${spec.world === 'MAIN' ? 'MAIN' : 'isolated'} content script ${spec.entry}`;
+    const script = scripts.find((candidate) => worldOf(candidate) === spec.world && asArray(candidate['js']).includes(spec.file));
     if (!script) {
-      fail(`${label} content script missing`);
+      fail(`${label} missing (${spec.world}, ${spec.file})`);
       continue;
     }
-    if (!sameSet(script['js'], [file])) fail(`${label} content script must load only ${file}`);
-    if (script['run_at'] !== 'document_start') fail(`${label} content script must run at document_start`);
-    if (script['all_frames'] !== false) fail(`${label} content script must set all_frames: false`);
-    if (!sameSet(script['matches'], origins)) fail(`${label} content script matches must be exactly ${origins.join(', ')}`);
-    if (script['css'] !== undefined) fail(`${label} content script must not inject CSS (styles live in our shadow roots)`);
+    const origins = pageMatchesOf(host, test);
+    if (!sameSet(script['js'], [spec.file])) fail(`${label} must load only ${spec.file}`);
+    if (script['run_at'] !== 'document_start') fail(`${label} must run at document_start`);
+    if (script['all_frames'] !== false) fail(`${label} must set all_frames: false`);
+    if (!sameSet(script['matches'], origins)) fail(`${label} matches must be exactly ${origins.join(', ')}`);
+    if (script['css'] !== undefined) fail(`${label} must not inject CSS (styles live in our shadow roots)`);
   }
-  if (JSON.stringify(scripts).includes('chatspace-ws')) fail('the WS tap must not be a manifest content script');
+  for (const { script: spec } of byBackground) {
+    if (JSON.stringify(scripts).includes(spec.file)) fail(`${spec.file} must not be a manifest content script (registration: ${spec.registration})`);
+  }
 
   const war = asArray(manifest['web_accessible_resources']) as Array<Record<string, unknown>>;
+  const warMatches = lazyChunkMatches(flavor, hosts);
   if (war.length !== 1) fail('web_accessible_resources must be one entry with the lazy chunks');
   for (const entry of war) {
     const resources = asArray(entry['resources']);
@@ -161,7 +224,7 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
         fail(`web_accessible_resources may list only lazy chunks and their CSS, got ${String(resource)}`);
       }
     }
-    if (!sameSet(entry['matches'], origins)) fail(`web_accessible_resources matches must be exactly ${origins.join(', ')}`);
+    if (!sameSet(entry['matches'], warMatches)) fail(`web_accessible_resources matches must be exactly ${warMatches.join(', ')}`);
     if ('use_dynamic_url' in entry) fail('use_dynamic_url is Chrome-only');
   }
 
@@ -172,7 +235,13 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
   if (manifest['content_security_policy'] !== undefined) fail('content_security_policy must stay the MV3 default');
   if (manifest['commands'] !== undefined) fail('no manifest commands (hotkeys live in the early dispatcher, §9.1)');
 
-  if (!test && LOOPBACK_RE.test(JSON.stringify(manifest))) fail('release manifest must not mention loopback stand/fake hub hosts');
-  if (!test && JSON.stringify(manifest).includes(TEST_GECKO_ID)) fail('release manifest must not carry the test gecko id');
+  if (!test) {
+    const text = JSON.stringify(manifest);
+    if (LOOPBACK_RE.test(text)) fail('release manifest must not mention loopback stand/fake hub hosts');
+    for (const host of hosts) {
+      for (const pattern of host.test.pageMatches) if (text.includes(pattern.replace(/\/\*$/, ''))) fail(`release manifest must not carry the ${host.kind} test stand ${pattern}`);
+    }
+    if (text.includes(TEST_GECKO_ID)) fail('release manifest must not carry the test gecko id');
+  }
   return problems;
 }

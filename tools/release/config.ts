@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ARTIFACT_PREFIX } from '../../apps/extension/build/artifacts.ts';
 import { GECKO_ID, STRICT_MIN_VERSION, UPDATE_URL } from '../../apps/extension/build/manifest.ts';
-import { HUB_HOST_PERMISSION } from '../../apps/extension/src/hosts.ts';
+import { HUB_HOST_PERMISSION } from '../../apps/extension/src/hosts/index.ts';
 import { SITE_BASE } from '../../apps/extension/src/site.ts';
 
 export const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));

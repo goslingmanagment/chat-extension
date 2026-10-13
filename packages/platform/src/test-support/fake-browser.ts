@@ -483,7 +483,7 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
   return fake;
 }
 
-/** A ChatSpace-like tab sender (synthetic origin; the real one is named only in hosts.ts). */
+/** A ChatSpace-like tab sender (synthetic origin; the real one is named only in the host registry, apps/extension/src/hosts). */
 export const TAB_ORIGIN = 'https://chat.example.test';
 export const TAB_MATCHES = [`${TAB_ORIGIN}/*`] as const;
 /** A Fansly-like origin (synthetic). */

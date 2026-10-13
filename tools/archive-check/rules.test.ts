@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { ZipEntry } from '../lib/zip.ts';
 import { isStandSource, STAND_SOURCE_GLOBS, STAND_SOURCE_KEPT } from '../../apps/extension/build/sources-archive.ts';
+import { CHATSPACE } from '../../apps/extension/src/hosts/chatspace.ts';
+import type { HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
 import { checkArchive, compareWithBuild, danglingReferences, MAX_BACKGROUND_JS_BYTES, MAX_JS_BYTES, REAL_ID_SHA256, sha256 } from './rules.ts';
 
 const entry = (name: string, text = ''): ZipEntry => ({ name, data: Buffer.from(text) });
@@ -147,6 +149,26 @@ describe('archive check', () => {
       { realIdHashes: syntheticHashes },
     );
     expect(problems.map((problem) => problem.rule)).toEqual(['real-data']);
+  });
+
+  it('the markers are each site’s in the host registry; its entry names them and is exempt, its runtime row is not', () => {
+    const rules = (name: string, text: string, kind: 'xpi' | 'sources' = 'sources', hosts?: readonly HostDescriptor[]): string[] =>
+      checkArchive('s.zip', [entry(name, text)], kind, { realIdHashes: syntheticHashes, ...(hosts === undefined ? {} : { hosts }) })
+        .map((problem) => problem.rule)
+        // One file alone: its imports are not in this archive.
+        .filter((rule) => rule !== 'dangling-import');
+    // The real entry, as it travels in the sources archive.
+    const registryEntry = fileURLToPath(new URL('../../apps/extension/src/hosts/chatspace.ts', import.meta.url));
+    expect(rules('apps/extension/src/hosts/chatspace.ts', readFileSync(registryEntry, 'utf8'))).toEqual([]);
+    // Exempt from the markers only: real data is still found there.
+    expect(rules('apps/extension/src/hosts/chatspace.ts', `const m = /chatspace-bundles/; const id = ${SYNTHETIC_ID};`)).toEqual(['real-data']);
+    expect(rules('apps/extension/src/hosts/runtime/chatspace.ts', 'const m = "chatspace-bundles";')).toEqual(['onlymonster-code']);
+    // A second site's markers count the same; without sites there is nothing to look for.
+    const second: HostDescriptor = { ...CHATSPACE, kind: 'fansly-web', archiveMarkers: { code: [/\bmain\.0123456789abcdef\b/], libraries: [/@angular\/core/] } };
+    expect(rules('lazy/x.js', 'import "./main.0123456789abcdef.js"', 'xpi', [CHATSPACE, second])).toEqual(['onlymonster-code']);
+    expect(rules('lazy/x.js', 'import "@angular/core"', 'xpi', [CHATSPACE, second])).toEqual(['onlymonster-code']);
+    expect(rules('lazy/x.js', 'import "./main.0123456789abcdef.js"', 'xpi', [CHATSPACE])).toEqual([]);
+    expect(rules('lazy/x.js', 'import "./messages-DlBZ5e81.js"', 'xpi', [])).toEqual([]);
   });
 
   it('the shipped hashes are the X9 test account and chat (recomputed from the decision log)', () => {
