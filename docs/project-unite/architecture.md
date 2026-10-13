@@ -122,10 +122,11 @@ interface StartedHost<P> { staleHosts; mounts: HostMounts; theme: HostThemeSourc
 interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
   liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | null): C;  // у ChatSpace — часть B (тап, X8, пометка AI)
   configure(host: P, config: C): Promise<unknown>;                         // вкладка применяет только новое значение
+  readonly features: FeatureSlice;                                         // срез манифеста фич сайта (§1.4, F4)
 }
 ```
-- **Что впереди.** F4 добавляет в половину приложения срез манифеста фич (`features`, §1.4), F10 — порты политики AI
-  (`ai`, §1.6, §9.1). Профиль сайта (§1.5, F5) раскладывается по тому же правилу: клиент схемы клавиш (`hotkeyClient`)
+- **Что впереди.** Срез манифеста фич в половине приложения — `HostAppAdapter.features` (§1.4, сделано в F4); F10
+  добавляет порты политики AI (`ai`, §1.6, §9.1). Профиль сайта (§1.5, F5) раскладывается по тому же правилу: клиент схемы клавиш (`hotkeyClient`)
   читает ранний диспетчер — он в ранней половине; палитра, лист варианта и фразы — с приложением.
 - **План ленивых чанков** — данные: каждый чанк — `<root>/<вход>.js` своей сборки. Хост с первым кадром MAIN грузит
   `bridge-validation`; ранний бандл с первым местом для дока, первой нашей клавишей или первой командой страницы —
@@ -144,48 +145,76 @@ interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
 Манифест — данные в трёх файлах контрактов: `contracts/src/features/common.ts` (вид фичи, чип, клавиша — для фич
 обоих сайтов, без сведений о сайте), `features/chatspace.ts` и `features/fansly.ts` (ветки своего сайта и фичи только
 этого сайта). Корень композиции сайта импортирует `common` и **свой** файл: срез делает граф модулей при сборке.
-Фильтр в рантайме оставил бы записи другого сайта в бандле — так сегодня `FEATURE_POLICIES` целиком лежит в
+Фильтр в рантайме оставил бы записи другого сайта в бандле — так до F4 `FEATURE_POLICIES` целиком лежал в
 `background.js`. Инструменты (паритет, гейт полноты) читают все три файла; строки паритета живут в `tools/parity` по
 ключу фичи.
 ```ts
 // contracts/src/features/types.ts — контрактам доступен только zod (.dependency-cruiser.cjs:63)
 interface FeatureCommon {
   kind: 'ai' | 'board' | 'panel' | 'host-action' | 'service';
-  chip?: { group: DockChipGroup; priority: number; icon: DockIconId };  // строковые объединения в contracts/src/vm/dock.ts
-  hotkey?: HotkeyActionId;                                               // строковое объединение в контрактах
+  chip?: { group: DockChipGroup; priority: number; icon: DockIconId | null };  // объединения в contracts/src/vm/dock.ts; null — слово на любой ширине
+  hotkey?: HotkeyActionId;                                                      // строковое объединение в контрактах
 }
-interface Requirement {                           // всё внутри — AND
-  flags: readonly ClientFeatureFlag[];            // флаги страницы из bootstrap
-  hostCapabilities: readonly HostCapability[];    // возможности отчёта сайта
+interface Requirement<F = ClientFeatureFlag, C = HostCapability> {  // всё внутри — AND
+  flags: readonly F[];                            // флаги страницы из bootstrap
+  hostCapabilities: readonly C[];                 // возможности отчёта сайта
   clientNeeds?: readonly ClientHubCapability[];   // что нужно собственным вызовам клиента сверх решения хаба
 }
-interface FeatureOnHost {
-  base: Requirement;                                                     // общее для всех действий
-  actions: Partial<Record<'generate' | 'insert' | 'send', Requirement>>; // своё у действия, вдобавок к base
-  surfaces: readonly MountSurfaceKind[];
+interface FeatureOnHost<F, C, S = MountSurfaceKind> {
+  base: Requirement<F, C>;                                                     // общее для всех действий
+  actions: Partial<Record<'generate' | 'insert' | 'send', Requirement<F, C>>>; // своё у действия, вдобавок к base; нет ключа — у фичи на сайте нет такого действия
+  surfaces: readonly S[];
   source?: 'hub' | 'host-pass' | 'page';
 }
 ```
-Иконки и группы чипов отображает `ui/kit` — его тест проверяет, что каждое значение объединения нарисовано; действия
-клавиш проверяет тест `core/src/domain/hotkeys` против вендоренной схемы.
+Иконки и группы чипов отображает `ui/kit` (`kit/chips.ts`) — его тест проверяет, что у каждой группы есть слот, а
+каждая иконка нарисована; действия клавиш проверяет тест `core/src/domain/hotkeys` против вендоренной схемы.
 
-Чистая функция `core/src/domain/features/admission.ts`: `admission(id, action, {slice, page, hostReport, permissions,
-settings})` →
-- `{state: 'absent'}` — фичи нет в срезе сайта: не рисуется, клавиша зарезервирована;
-- `{state: 'off', reason}` — не выполнено что-то из `base` или требования действия: флаг страницы
-  (`pages[].features[flag]`), возможность сайта, `clientNeeds`, права, настройка;
+**Как построено в F4.** Файлы манифеста — только подпути (`@cg/contracts/features/{types,common,chatspace,fansly}`):
+корень `@cg/contracts` импортирует ранний изолированный бандл, и всякий модуль, который корень реэкспортирует, стоил бы
+ему байтов. Файл сайта может называть флаги, возможности и поверхности, которых в общих словарях ещё нет (параметры
+`Requirement`): у Fansly это `FANSLY_FLAGS_AHEAD` (`drafts`, `voice`, `notes`, `notesFill`, `vault`, `registration` —
+в `CLIENT_FEATURE_FLAG_NAMES` их переносит P4b3), `FanslyCapability` и `FANSLY_SURFACES_AHEAD` (`header-slot` и панели);
+флаг, которого страница не перечисляет, читается `flag_off`. Срез сайта собирает корень его композиции:
+`apps/extension/src/composition/features/chatspace.ts` (`featureSlice(FEATURES_COMMON, CHATSPACE_FEATURES)`), фон и
+страницы берут срезы по сайту из `composition/features/index.ts` (`satisfies PerHost<FeatureSlice>`), вкладка — из
+половины приложения своего адаптера (`HostAppAdapter.features`, §1.3). Срез Fansly ядро фона импортировать не может:
+`features/fansly.ts` — файл Fansly, и граф ядра его не содержит (§1.8, правило `background-core-graph`). Ядру его
+отдаст чанк `bg/fansly` при старте — порт кита рядом с прочими портами Fansly (§3.3; решает P9a); до того
+`featuresOf('fansly-web')` в фоне — `null`, и фон ничего Fansly не допускает. Тест сборки
+`apps/extension/test/feature-slices.test.ts` дописывает в `features/fansly.ts` новую запись и собирает ленивые чанки
+ChatSpace: ни байта разницы, и сборка этот файл не загружает.
+
+Чистая функция `core/src/domain/features/admission.ts`: `admission(slice, id, action, facts)`, где `action` —
+`generate` / `insert` / `send` или `null` (сама фича: `base`), `facts` — как читает спрашивающий: `flag(name)` (флаг
+страницы; у шлюза токенов в фоне — свежий bootstrap слоя хаба), `serves(capability)` (что объявил bootstrap — для
+`clientNeeds`), `host?(capability)` (отчёт сайта; во вкладке есть, в фоне нет — возможности сайта проверяет вкладка).
+`onPage(bootstrap, page, host?)` даёт факты одной страницы. Ответ:
+- `{state: 'absent'}` — фичи нет в срезе сайта (или у неё нет такого действия): не рисуется, клавиша зарезервирована;
+- `{state: 'off', reason}` — не выполнено что-то из `base` или требования действия, первое по порядку: флаг страницы
+  (причина хаба: `flag_off`, `disabled`, `hub_not_ready`…), `clientNeeds` (`hub_not_ready`), возможность сайта
+  (`host_degraded` → CG-HOST-CONTRACT);
 - `{state: 'on'}`.
+Права и настройки сайта (`via-tab`, «Включить Fansly») добавляют в факты PR Fansly, которые их вводят (P9a, P14b1).
+`admissionState` читает ответ как флаг (`FlagState`), чтобы слова и коды отказа были прежние (`flagReasonVm`,
+`flagRefusal`); `absent` — как `platform_unsupported`.
 
 Правила:
 - Решение хаба о странице клиент не повторяет: платформу и готовность хаба (`hub_not_ready`) хаб уже учёл в
-  `pages[].features[flag]` по своей таблице `CLIENT_FEATURE_REQUIREMENTS`. Клиентская `CLIENT_FLAG_REQUIREMENTS`
-  (`contracts/src/hub/routes.ts:94-111`, её читает `core/src/domain/ops/flags.ts:49-56`) сейчас эту таблицу дублирует
-  и для `newcomers` требует `audience-new-v1` — на Fansly неверно. F4 оставляет только нужды транспорта самого клиента
-  (сейчас одна: `context-v1` у `freshText`) и переносит их в `clientNeeds` срезов.
-- Генерация, вставка и отправка допускаются раздельно. «Только копировать» (FS-DOCK-3) — состояние чата, его уже
-  вычисляет `core/src/application/ai/workspace.ts:488-503`.
-- `admission` читают все: док (чипы), доски, popup и «Статус», справочник клавиш, токены действий, фоновые службы.
-  `FEATURE_FLAGS` (дубль `FEATURE_POLICIES.flag`) уходит.
+  `pages[].features[flag]` по своей таблице `CLIENT_FEATURE_REQUIREMENTS`. До F4 клиентская `CLIENT_FLAG_REQUIREMENTS`
+  эту таблицу дублировала (и для `newcomers` требовала `audience-new-v1` — на Fansly неверно). С F4 в ней только нужда
+  транспорта самого клиента — `{freshText: ['context-v1']}`, она же `clientNeeds` у `fresh-text` в обоих срезах;
+  `pageFlagState` (`core/src/domain/ops/flags.ts`) читает одну функцию страницы. Таблица хаба повторена только в
+  поддельном хабе (`HUB_FEATURE_CAPABILITIES` в `packages/testing/src/scenarios/hub/http.ts`, по `6ee3d627`).
+  Что таблица флагов ChatSpace на нынешнем хабе та же, держит `packages/testing/src/fake-hub/flag-table.test.ts`:
+  прежнее правило, замороженное по `main`, против нового на каждом пресете поддельного хаба и на каждом отставании хаба.
+- Генерация, вставка и отправка допускаются раздельно. «Только копировать» (FS-DOCK-3) — состояние чата, его
+  вычисляет `core/src/application/ai/workspace.ts` (`readSituation`) — по допуску `insert` у `reply`.
+- `admission` читают: док (действия, чипы, «только копировать»), старт генерации во вкладке и в планировщике фона
+  (`startPrecondition`, свежий текст), справочник клавиш (строки фич, которых у сайта нет, не рисуются), popup (счёт
+  «Новых» — только где они из хаба), токен `insert` (`background/token-gate.ts`: допуск вставки хоть одной фичи
+  сайта). `FEATURE_FLAGS` и `FEATURE_POLICIES.flag` удалены. Доски, «Статус» и фоновые службы читают флаги своей
+  страницы, как прежде: им допуск понадобится с первой фичей Fansly, которая там отличается (P9*, P10*).
 - Вне манифеста и корней композиции нет второй таблицы платформенных условий (гейт §1.8). Отрицательные фикстуры F4:
   выключенный `insertion` не закрывает генерацию; отправка из превью ChatSpace требует и `previewSend`, и `newcomers`.
 
@@ -195,13 +224,13 @@ settings})` →
 | свежий текст для них | `freshText`, `clientNeeds: context-v1` | то же |
 | `recap`, `review`, `coach` | `recap`, `review`, `coach` | те же |
 | `spenders`, `fan-panel`, `sound` | `spenders`, `fanPanel`, `sound` | те же; `groupId` фана в Spenders — §8.11 |
-| `newcomers` | `base` — `newcomers`, источник — хаб (`audience-new`); `send` — `newcomers` + `previewSend` | `base` — `newcomers`, источник — проход (Б17); `send` — `newcomers` (HF-3), без `previewSend` |
-| `preview-send` | `previewSend`; возможности сайта `previewSend`, `receipt` | `absent` |
+| `newcomers` | `base` — `newcomers`, источник — хаб (`audience-new`); `send` — вдобавок `previewSend` и возможности сайта `previewSend`, `receipt` | `base` — `newcomers`, источник — проход (Б17); `send` — `newcomers` (HF-3), без `previewSend` |
+| `preview-send` | `previewSend`; возможности сайта `previewSend`, `receipt` (`newcomers` не нужен: его просит только приветствие) | `absent` |
 | `voice` | `absent` | `voice` (скрипт и озвучка) |
 | `notes`, `notes-fill` | `absent` | `notes`; заполнение — `notesFill` |
 | `registration`, `vault` | `absent` | `registration`, `vault` |
 | `via-tab` | `absent` | настройка, без флага |
-| `navigation`, `palette` | `navigation` | `absent` до P17 |
+| `navigation`, `palette` | `navigation`; окно палитры — без флага, её переходы в чаты — `navigation` | `absent` до P17 |
 
 `wsTap` — только ChatSpace: он регистрирует отдельный тап `chatspace-ws.js`. У Fansly наблюдение сети — часть
 единственного MAIN, его регистрируют «Fansly включён» и права (§4).
@@ -367,7 +396,7 @@ interface HostUiProfile {
 | `core/src/application/pages/model.ts:181`; `client.ts:910` | перечисление двух видов хоста | `HOST_KINDS` | F6a · гейт |
 | `core/src/domain/hotkeys/resolver.ts:50` | клиент схемы `'extension'` | `profile.hotkeyClient` (F5) | F5 |
 | `ui/src/kit/tokens.ts:18-55` | палитра только из `<html>` ChatSpace | `profile.palette` | F5 |
-| `ui/src/dock/Strip.tsx:47-60`; `dock/styles.ts:112-235`; `contracts/src/vm/dock.ts:15-16` | семь чипов и пороги под них | чипы данными, лист варианта | F4, F5 |
+| `ui/src/dock/Strip.tsx:47-60`; `dock/styles.ts:112-235`; `contracts/src/vm/dock.ts:15-16` | семь чипов и пороги под них | чипы данными (сделано в F4: `DockVM.chips`, `Strip` по группам и порядку данных, слоты групп — `ui/kit/chips.ts`); лист варианта — F5 | F4 ✓, F5 |
 | `hub/src/facade.ts:343` | «… · ChatSpace» в имени устройства | нейтрально | F9b (тексты) |
 | `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` | мёртвый сборщик (`conversationRef = fanRef`), вызывают только тесты, но он в `background.js`; рабочий — `core/src/domain/ops/request.ts:105` | удалить (освобождает байты фона) | F6a |
 | `host-chatspace/src/main/requests.ts:9, 23` | MAIN ChatSpace принимает оба вида хоста | только `'chatspace'` (освобождает байты MAIN) | F6a · гейт |
@@ -469,19 +498,19 @@ XHR Angular, а второй MAIN-скрипт — лишняя точка, ко
 |---|---|---|
 | MAIN `chatspace-main.js` | 10 169 / 10 240 Б gzip | 71 Б |
 | тап `chatspace-ws.js` | 6 107 / 6 144 | 37 Б |
-| ранний изолированный `chatspace.js` | 30 276 / 30 720 (замер F3: `main` `d159743` — 30 154, F3 — +122) | 444 Б |
-| слой `ai` | 29 957 / 30 720 | 763 Б |
+| ранний изолированный `chatspace.js` | 30 272 / 30 720 (замер F3: `main` `d159743` — 30 154, F3 — +122; перед F4 — 30 285, F4 — −13: те же модули в другом порядке) | 448 Б |
+| слой `ai` | 29 837 / 30 720 (перед F4 — 29 887; F4 — −50: таблица флагов и `FEATURE_FLAGS` ушли, чипы — в `tab-app`) | 883 Б |
 | проба реестра запросов вкладки | 27 526 / 28 672 (F1: +39 Б — `hostModules` диагностики) | 1 146 Б |
 | проба раннего контракта (конверты, `tab.register`) | 10 812 / 12 288 | 1 476 Б |
 | проба `UiAction` | 14 323 / 16 384 | 2 061 Б |
-| слой `tab-app` | 25 443 / 30 720 | 5 277 Б |
-| первый чанк дока | 42 417 / 46 080 | 3 663 Б |
+| слой `tab-app` | 26 479 / 30 720 (перед F4 — 25 407; F4 — +1 072: срез манифеста ChatSpace, `admission`, чипы данными) | 4 241 Б |
+| первый чанк дока | 42 109 / 46 080 (F4 — −308: таблицы чипов ушли из `Strip`) | 3 971 Б |
 | каталог `ru` | 23,39 / 30 КиБ (F1: +40 Б gzip — предупреждение «Статуса») | — (тексты Fansly в него не идут) |
-| **ядро фона** `background.js`, raw (сигнальный порог `archive-check`) | 767 944 / 819 200 (F1; до F1 — 811 317) | **51 256 Б** |
-| чанк фона `bg/chatspace.js`, raw (F1; потолок — реестр хостов) | 91 633 / 98 304 | 6 671 Б |
+| **ядро фона** `background.js`, raw (сигнальный порог `archive-check`) | 774 325 / 819 200 (F1; до F1 — 811 317; перед F4 — 771 369; F4 — +2 956: срезы манифеста, `admission`, токен `insert` по допуску) | **44 875 Б** |
+| чанк фона `bg/chatspace.js`, raw (F1; потолок — реестр хостов) | 90 691 / 98 304 (перед F4 — 91 722; F4 — −1 031: таблица `CLIENT_FLAG_REQUIREMENTS` ушла) | 7 613 Б |
 
   Известные источники байтов: мёртвый `hub/src/ai-request.ts` с `HubFacade.buildStreamRequest` (F6a), `StartMemo.start`
-  (F8), `FEATURE_FLAGS` и дубли `CLIENT_FLAG_REQUIREMENTS` (F4), второй вид хоста в
+  (F8), `FEATURE_FLAGS` и дубли `CLIENT_FLAG_REQUIREMENTS` (F4, освобождены), второй вид хоста в
   `host-chatspace/src/main/requests.ts:9, 23` (F6a). Общие изменения могут
   менять байты, но не превышать согласованные пределы.
 - **Код только Fansly — в сборке Fansly.** Свежесть, снимок, вердикт, доказательство Hi — в слое `ai-fansly` через порты
@@ -1321,7 +1350,7 @@ ready → claimed (бронь фана, продление раз в 40 с) → 
 
 Строку `"*"` Fansly не наследует. Клиент читает флаги страницы (`docs/protocols/hub.md`); новые имена флагов и возможностей
 — в `contracts/src/hub/wire.ts` (`CLIENT_FEATURE_FLAG_NAMES`, `CLIENT_HUB_CAPABILITY_NAMES`, `AI_STREAM_CAPABILITIES`);
-`CLIENT_FLAG_REQUIREMENTS` (`contracts/src/hub/routes.ts:94-111`) — только нужды транспорта клиента (§1.4).
+`CLIENT_FLAG_REQUIREMENTS` (`contracts/src/hub/routes.ts`) — только нужды транспорта клиента (§1.4; с F4 — `{freshText: ['context-v1']}`).
 
 **Ключи чтений по разговору** (F6b, HF-10):
 
