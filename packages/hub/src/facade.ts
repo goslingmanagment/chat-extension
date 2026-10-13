@@ -73,13 +73,11 @@ import {
   type SpendersPage,
   type SpendersQuery,
   type SpendersStats,
-  type StartOp,
   type StatsQuery,
 } from '@cg/contracts';
 import { hubErrorWire } from '@cg/core/domain';
 import { KERNEL_CONTRACT_HASH } from '@kernel/sdk';
 
-import { buildStreamRequest, type StreamRequestResult } from './ai-request';
 import { sdkStreamTransport, type AiStreamTransport } from './ai-stream-transport';
 import { AuthCustody, AuthWriteError, type AuthState, type LastEnd, type SessionChange, type TokenMeta, type Unsubscribe } from './auth';
 import { BootstrapService, type BootstrapEntry, type BootstrapSource } from './bootstrap';
@@ -614,13 +612,6 @@ export class ChatExtensionHub implements HubFacade {
   /** Capabilities a request may ask for now (declared by the hub ∩ carried by the transport). */
   streamCapabilities(): readonly AiStreamCapability[] {
     return this.streams.available();
-  }
-
-  /** AI-142: the request body of an operation over the current bootstrap; refuses without one. */
-  buildStreamRequest(op: StartOp, input: { readonly opId: string; readonly persona: { readonly key: string; readonly definitionId: string } }): StreamRequestResult {
-    const entry = this.bootstrapService.cached();
-    if (entry === null) return { ok: false, problem: 'no bootstrap' };
-    return buildStreamRequest(op, { ...input, bootstrap: entry.bootstrap, capabilities: this.streams.available(), debug: this.options.env.debugEnabled() });
   }
 
   quotaOf(pageId: number): AiQuotaSnapshot | null {

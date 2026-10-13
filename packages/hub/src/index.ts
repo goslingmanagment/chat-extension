@@ -77,7 +77,6 @@ export {
   type FlagState,
 } from './bootstrap-rules';
 export { CATALOG_TTL_MS, type PersonaVerdict } from './catalog';
-export { buildStreamRequest, type StreamRequestContext, type StreamRequestResult } from './ai-request';
 export { SDK_STREAM_CAPABILITIES, sdkStreamTransport, type AiStreamOpen, type AiStreamTransport } from './ai-stream-transport';
 export { STREAM_RETRY_DELAY_MS, type StreamNotice } from './stream';
 export { featureOfHub, type EchoTicket } from './debug-echo';
