@@ -20,6 +20,12 @@ export const FANSLY_STAND_PARAMS = {
   latency: 'stand-latency',
   /** A group id: the mini-chat is open on it from the start. */
   miniChat: 'stand-mini',
+  /** `local`: the page answers itself from its in-page world even when the stand server names a fake Fansly. */
+  backend: 'stand-backend',
+  /** Milliseconds between the page's socket pings (the site: one value of 20 000–25 000 for the page's life). */
+  ping: 'stand-ping',
+  /** Milliseconds the page collects its delivery and read marks before `POST /message/ack` (the site: 1000–3000 at random). */
+  ackDelay: 'stand-ack-delay',
 } as const;
 
 export const FANSLY_STAND_DEFAULT_LATENCY_MS = 30;
@@ -145,6 +151,25 @@ export interface RouteView {
 
 export type FanslyStandTheme = 'bright' | 'dark';
 
+/**
+ * Who answers the page: `local` — itself, from its in-page world (no network: DOM tests, a page served by hand);
+ * `server` — the fake Fansly (R20 P6b), by real XHR requests and a real socket, as fansly.com asks apiv3 and wsv3.
+ */
+export type FanslyStandBackend = 'local' | 'server';
+
+/** The page's socket to the fake Fansly. */
+export interface SocketView {
+  /** Sockets the page created so far — `new WebSocket` calls: each one is a new instance (the tap's epoch). */
+  readonly created: number;
+  readonly state: 'connecting' | 'authorizing' | 'connected' | 'disconnected';
+  /** `t: 1` frames read: sessions verified. */
+  readonly verified: number;
+  /** Text frames read (a batch's inner frames each count). */
+  readonly frames: number;
+  /** Frames the page could not parse (it drops them). */
+  readonly damaged: number;
+}
+
 export type OpenVia =
   /** `router.navigateByUrl`, as the page's own code does. */
   | 'router'
@@ -158,16 +183,23 @@ export interface FanslyStandControl {
   readonly version: 1;
   readonly ready: boolean;
   readonly ids: FanslyStandIds;
+  readonly backend: FanslyStandBackend;
+  /** The session is dead (`GET /account/me` answered 401, or the socket said so): the page shows no chat. */
+  readonly loggedOut: boolean;
   route(): RouteView;
   groups(): GroupView[];
   /** Resolves once the navigation ran (the container may still wait for its group). */
   open(groupId: string, via?: OpenVia): Promise<void>;
   openInbox(): Promise<void>;
-  /** Every answer of the page's backend takes this long from now on. */
+  /** Every answer of the page's own backend takes this long from now on (`local` only; the fake Fansly's delays are scripted on the server). */
   setLatency(ms: number): void;
   /** Drops the group from the page's cache: the next open waits for `GET /group/<id>/`. */
   forget(groupId: string): void;
-  /** The group's participants other than the creator (the header's contact block stands only at 1). */
+  /**
+   * The group's participants other than the creator (the header's contact block stands only at 1). With the fake
+   * Fansly this and the four controls below ask the SERVER, and the page hears of it the way Fansly's page would
+   * (`4/6` and `4/7` frames, `5/22`, `5/1`): the effect lands a moment after the call.
+   */
   setPartners(groupId: string, count: number): void;
   setDmRulesUnmet(groupId: string, unmet: boolean): void;
   /** The partner's online status (1 online, 2 away, 3 offline, 4 hidden): the sub-row's status line. */
@@ -194,6 +226,15 @@ export interface FanslyStandControl {
    * template. Beyond what the stand's DM-rule and voice controls do, which follow the bundle (see main.ts).
    */
   recreateField(): void;
+  /** The page's socket; null with the `local` backend. */
+  socket(): SocketView | null;
+  /** A message-like notification names these messages: the page asks for them by id (`GET /messages?ids=`). `server` only. */
+  notify(messageIds: string[]): void;
+  /**
+   * The tab was hidden for `hiddenMs` and is visible again: past 30 s the page reads its unread messages and asks for
+   * the open chat's fresh end again; past 1 s it looks at its socket. `server` only.
+   */
+  cameBack(hiddenMs: number): void;
   composers(): ComposerView[];
   list(): ListView | null;
   inbox(): InboxView;

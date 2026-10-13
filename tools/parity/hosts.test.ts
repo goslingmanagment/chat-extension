@@ -17,6 +17,25 @@ describe('the host of a test (plan.md §0)', () => {
     ]) {
       expect(place(path).place, path).toMatchObject({ hosts: ['fansly'], by: 'path' });
     }
+  });
+
+  it('the Fansly stand is Fansly’s, as the ChatSpace stand fixture is ChatSpace’s: its page, its DOM tests, the fake Fansly and its neighbour', () => {
+    for (const path of [
+      'packages/testing/fixture-fansly/src/composer.test.ts',
+      'packages/testing/src/fixture-fansly/composer.dom.test.ts',
+      'packages/testing/src/fixture-fansly/server.dom.test.ts',
+      'packages/testing/src/fake-fansly/journal.test.ts',
+      'packages/testing/src/fake-fansly/neighbor/modes.test.ts',
+    ]) {
+      expect(place(path).place, path).toEqual({ hosts: ['fansly'], level: 'unit', by: 'path' });
+    }
+    // A mark of ChatSpace there is a problem, as on any Fansly path.
+    expect(place('packages/testing/src/fake-fansly/api.test.ts', ['chatspace']).problems).toEqual(['packages/testing/src/fake-fansly/api.test.ts: a test of fansly code cannot carry [host:chatspace]']);
+    // Neighbours by name only stay as they were: the ChatSpace stand's own fixture, the shared stand server, the fake hub.
+    expect(place('packages/testing/src/fixture/chat-list.dom.test.ts').place.hosts).toEqual(['chatspace']);
+    expect(place('packages/testing/src/stand/fansly-stand.test.ts').place.hosts).toEqual([]);
+    expect(place('packages/testing/src/fake-hub/ai.test.ts').place.hosts).toEqual([]);
+    expect(place('packages/testing/src/fake-fanslyish/x.test.ts').place.hosts).toEqual([]);
     for (const path of [
       'packages/host-chatspace/src/isolated/bridge.test.ts',
       'apps/extension/src/composition/tab/hosts/chatspace/adapter.test.ts',

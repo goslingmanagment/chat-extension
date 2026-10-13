@@ -1,11 +1,12 @@
 // What the page asks of Fansly's API, as one interface. The stand's own
 // backend answers in the page (synthetic world, data.ts) after a set latency
 // and journals each request under the path Fansly's client would ask for
-// (fansly-web.md §4), with the handler it was made in. The fake Fansly API
-// (R20 P6b) plugs an XHR backend in here: Fansly's HttpClient creates its
-// `XMLHttpRequest` at request time (main:107553-107560), so a backend MUST
-// create and send each request synchronously inside the call — that is how a
-// send stays inside the Enter keydown or the Send click (main:29012-29023).
+// (fansly-web.md §4), with the handler it was made in. Over the fake Fansly
+// (R20 P6b) the same interface is answered by real XHR requests
+// (xhr-backend.ts, http.ts): Fansly's HttpClient creates its `XMLHttpRequest`
+// at request time (main:107553-107560), so a backend MUST create and send each
+// request synchronously inside the call — that is how a send stays inside the
+// Enter keydown or the Send click (main:29012-29023).
 
 import { newMediaId, newMessageId, type Account, type Message, type MessageAttachment, type ServerGroup, type World } from './data';
 import { inHandler } from './events';

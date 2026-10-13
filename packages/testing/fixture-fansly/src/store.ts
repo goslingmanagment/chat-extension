@@ -5,6 +5,7 @@
 
 import type { GroupDetail, OutgoingMessage, StandBackend, UploadFile } from './backend';
 import type { Account, Message, MessageAttachment } from './data';
+import { compareIds } from './wire';
 
 export interface PageMessage extends Message {
   /** Optimistic: shown before `POST /message` answered (main:29012-29023). */
@@ -27,10 +28,18 @@ export interface Group {
   loadingOlder: boolean;
 }
 
-type GroupEvent = 'collection' | 'change';
+/** `collection` — messages came; `removed` — some were deleted (the list is rendered anew); `change` — the group's own facts. */
+type GroupEvent = 'collection' | 'removed' | 'change';
 type MessageListener = (message: PageMessage) => void;
 
 let queuedSeq = 0;
+
+/** Loaded messages with more of them: none twice, in id order (the snowflake's), the queued ones — not sent yet — last. */
+function merged(known: readonly PageMessage[], more: readonly PageMessage[]): PageMessage[] {
+  const byId = new Map<string, PageMessage>();
+  for (const message of [...known, ...more]) if (!message.queued) byId.set(message.id, message);
+  return [...[...byId.values()].sort((a, b) => compareIds(a.id, b.id)), ...known.filter((message) => message.queued)];
+}
 
 export class GroupService {
   private readonly cache = new Map<string, Group>();
@@ -45,7 +54,8 @@ export class GroupService {
   activeGroupId: string | null = null;
 
   constructor(
-    readonly creator: Account,
+    /** The session's own account: the stand's seed until `GET /account/me` names it (the fake Fansly, R20 P6b). */
+    public creator: Account,
     private readonly backend: StandBackend,
   ) {}
 
@@ -165,14 +175,11 @@ export class GroupService {
     else group.latestLoaded = true;
     this.backend.history(groupId, before, (page) => {
       const loaded = page.messages.map((message): PageMessage => ({ ...message, queued: false }));
-      if (older) {
-        group.loadingOlder = false;
-        group.messages = [...loaded, ...group.messages];
-      } else {
-        const known = new Set(group.messages.map((message) => message.id));
-        group.messages = [...loaded.filter((message) => !known.has(message.id)), ...group.messages];
-      }
-      group.complete = page.complete;
+      if (older) group.loadingOlder = false;
+      // A fresh end asked again (after the socket's `t: 1`) brings what the page missed: merged in, nothing twice.
+      group.messages = merged(group.messages, loaded);
+      // A fresh end asked again says nothing about the older pages already loaded.
+      if (older || !group.complete) group.complete = page.complete;
       this.emit(groupId, 'collection');
       done?.();
     });
@@ -204,9 +211,13 @@ export class GroupService {
     this.markGroupAsRead(group);
     this.emit(group.id, 'collection');
     this.backend.send(message, (sent) => {
-      group.messages = group.messages.flatMap((item) => (item !== queued ? [item] : sent === null ? [] : [{ ...sent, queued: false }]));
+      // The socket's echo of the same message may have come first: it is in the list already.
+      const rest = group.messages.filter((item) => item !== queued);
+      const echoed = sent !== null && rest.some((item) => item.id === sent.id);
+      group.messages = sent === null ? rest : merged(rest, [{ ...sent, queued: false }]);
       if (sent !== null) group.lastMessage = sent;
-      this.emit(group.id, 'collection');
+      // The echo took the message's place already: one bubble fewer — the list is rendered anew.
+      this.emit(group.id, echoed || sent === null ? 'removed' : 'collection');
       this.emitGroupsChange();
     });
   }
@@ -225,15 +236,66 @@ export class GroupService {
     this.backend.createMedia(files, done);
   }
 
-  /** A message the socket brings (5/1): into the loaded list, then to the group's listeners. */
+  /** A message the socket brings (5/1): into the loaded list, then to the group's listeners. One the page has already is not taken twice. */
   receive(message: Message): void {
     const group = this.cache.get(message.groupId);
     if (group === undefined) return;
+    if (group.messages.some((known) => known.id === message.id)) return;
     const item: PageMessage = { ...message, queued: false };
-    if (group.latestLoaded) group.messages = [...group.messages, item];
+    if (group.latestLoaded) group.messages = merged(group.messages, [item]);
     group.lastMessage = message;
-    if (group.id !== this.activeGroupId) group.unread += 1;
+    if (group.id !== this.activeGroupId && message.senderId !== this.creator.id) group.unread += 1;
     for (const listener of [...(this.messageListeners.get(group.id) ?? [])]) listener(item);
+    this.emitGroupsChange();
+  }
+
+  /**
+   * The socket verified a session (`t: 1`) or the tab came back after 30 s: every group's «latest page is in» mark
+   * is dropped and the open chat's fresh end is asked again; the others ask when they are opened next
+   * (main:28595-28603, :28684-28687).
+   */
+  resetFetched(): void {
+    for (const group of this.cache.values()) group.latestLoaded = false;
+    if (this.activeGroupId !== null) this.fetchGroupMessages(this.activeGroupId);
+  }
+
+  /** A deleted message (5/10) leaves the list it is in. */
+  remove(messageId: string): void {
+    this.removeWhere((message) => message.id === messageId);
+  }
+
+  /**
+   * The copies of a deleted mass send: in EVERY group, queued ones too, each message whose `correlationId` is the
+   * deleted parent's id (main:28943-28950).
+   */
+  removeCorrelated(parentId: string): void {
+    this.removeWhere((message) => message.correlationId === parentId);
+  }
+
+  private removeWhere(gone: (message: PageMessage) => boolean): void {
+    let any = false;
+    for (const group of this.cache.values()) {
+      const kept = group.messages.filter((message) => !gone(message));
+      if (kept.length === group.messages.length) continue;
+      group.messages = kept;
+      any = true;
+      this.emit(group.id, 'removed');
+    }
+    if (any) this.emitGroupsChange();
+  }
+
+  /** The loaded message with this id, in whatever group. */
+  messageById(messageId: string): PageMessage | null {
+    for (const group of this.cache.values()) {
+      const found = group.messages.find((message) => message.id === messageId);
+      if (found !== undefined) return found;
+    }
+    return null;
+  }
+
+  /** The unread counts were read anew (the unread messages, a receipt of the account's own). */
+  refreshUnread(countOf: (groupId: string) => number): void {
+    for (const group of this.cache.values()) if (group.id !== this.activeGroupId) group.unread = countOf(group.id);
     this.emitGroupsChange();
   }
 

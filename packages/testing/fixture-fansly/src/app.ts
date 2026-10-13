@@ -13,6 +13,7 @@ import { createLocalBackend, type StandBackend } from './backend';
 import type { MessageContainer } from './container';
 import { createWorld, type World } from './data';
 import { record } from './journal';
+import { LiveSession, type LiveOptions, type ServerConfig } from './live';
 import { MessagesRoute } from './messages-route';
 import { MiniChat } from './mini-chat';
 import { ModalService } from './modal';
@@ -33,7 +34,14 @@ export interface StandApp {
   readonly miniChat: MiniChat;
   readonly oldMarks: OldExtensionMarks;
   readonly root: HTMLElement;
+  /** The page over the fake Fansly (R20 P6b): its XHR backend and its socket; null — the page answers itself. */
+  readonly live: LiveSession | null;
   latency: number;
+  /**
+   * Boots the page: with the fake Fansly — `GET /account/me`, the socket, then the router's first navigation;
+   * without — the first navigation at once. `ready` runs after it.
+   */
+  start(ready?: () => void): void;
   messages(): MessagesRoute | null;
   /** The main chat's container (under `app-messages-conversation-route`), if one stands. */
   mainContainer(): MessageContainer | null;
@@ -43,15 +51,20 @@ export interface StandApp {
 
 export interface StandAppOptions {
   readonly latency?: number;
-  /** Replaces the stand's own backend (the fake Fansly API, R20 P6b). */
+  /** Replaces the stand's own in-page backend. */
   readonly backend?: (world: World, latency: () => number) => StandBackend;
+  /** The fake Fansly (R20 P6b): the page asks it by XHR and a socket instead of answering itself. */
+  readonly server?: ServerConfig;
+  readonly live?: LiveOptions;
 }
 
 export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}): StandApp {
   const world = createWorld();
   const app = { latency: options.latency ?? FANSLY_STAND_DEFAULT_LATENCY_MS };
-  const backend = (options.backend ?? createLocalBackend)(world, () => app.latency);
+  const live = options.server === undefined ? null : new LiveSession(options.server, options.live);
+  const backend = live?.backend ?? (options.backend ?? createLocalBackend)(world, () => app.latency);
   const store = new GroupService(world.creator, backend);
+  live?.attach(store);
   const modals = new ModalService();
   const miniChat = new MiniChat(store, modals);
   const oldMarks = new OldExtensionMarks();
@@ -118,6 +131,19 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
     miniChat,
     oldMarks,
     root,
+    live,
+    start: (ready = () => undefined) => {
+      if (live === null) {
+        router.start();
+        ready();
+        return;
+      }
+      live.start(() => {
+        // A dead session: no chat, the page stays as it is.
+        if (!live.loggedOut) router.start();
+        ready();
+      });
+    },
     get latency() {
       return app.latency;
     },
@@ -127,6 +153,7 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
     messages: () => messages,
     mainContainer: () => messages?.conversation?.container ?? null,
     destroy: () => {
+      live?.destroy();
       router.destroy();
       messages?.destroy();
       messages = null;

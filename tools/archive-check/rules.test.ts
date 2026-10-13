@@ -102,6 +102,9 @@ describe('archive check', () => {
       'packages/testing/fixture-fansly/index.html',
       'packages/testing/fixture-fansly/src/composer.ts',
       'packages/testing/src/fixture-fansly/composer.dom.test.ts',
+      // The fake Fansly (R20 P6b): it imports the stand page's wire, which the archive leaves out.
+      'packages/testing/src/fake-fansly/api.ts',
+      'packages/testing/src/fake-fansly/journal.test.ts',
     ]) {
       expect(rules(stand, 'sources', 'export {};'), stand).toEqual(['stand-in-sources']);
     }
@@ -132,6 +135,8 @@ describe('archive check', () => {
     expect(provenance('packages/testing/fixture-fansly/live-page.json')).toEqual(['fixture-provenance']);
     expect(provenance('packages/testing/stand/stand.js', '(function () {})();')).toEqual([]);
     expect(provenance('packages/testing/src/stand/api.ts', 'export {};')).toEqual([]);
+    expect(provenance('packages/testing/src/fake-fansly/api.ts', 'export {};')).toEqual([]);
+    expect(provenance('packages/testing/src/fake-fansly/messaging-groups.json')).toEqual(['fixture-provenance']);
     for (const saved of [
       'packages/testing/fixture-chatspace/assets/index-abc.js',
       'packages/testing/fixture-chatspace/src/chats.json',

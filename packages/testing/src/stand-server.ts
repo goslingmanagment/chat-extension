@@ -13,14 +13,19 @@
 //   fixture-fansly, built into .cache/fixture-fansly) on a loopback NAME of its
 //   own, `http://localhost:<port>` — ChatSpace's stand is `127.0.0.1`, and an
 //   address that two sites claim is refused by the background (architecture.md
-//   §13, S1b G-10); a request under any other name is refused here (421).
+//   §13, S1b G-10); a request under any other name is refused here (421). The
+//   page is told where the fake Fansly is (R20 P6b, src/fake-fansly: its API,
+//   its socket and its session token, in `<meta>` tags of the served page) and
+//   asks it by XHR and a socket of its own, as fansly.com asks apiv3 and wsv3.
 // A journal labels every call by who made it (protocol.ts CallOrigin); the
-// Fansly stand keeps its own.
+// Fansly stand's page origin keeps its own, and the fake Fansly its own.
 
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize } from 'node:path';
+
+import { FANSLY_SERVER_META } from '../fixture-fansly/src/server-protocol';
 
 import {
   CONTROL_REQUEST_HEADER,
@@ -33,9 +38,11 @@ import {
   STAND_WS_PATH,
   type CallOrigin,
 } from '../fixture-chatspace/src/protocol';
+import { startFakeFansly, type FakeFansly } from './fake-fansly';
 import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
+import { LOOPBACK_NAME, closeServers, listen, listenLocalhost } from './stand/listen';
 import { FANSLY_FIXTURE_BUILD_DIR, FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
 import { SENTRY_ENVELOPE_PATH, SentryInbox } from './stand/sentry-inbox';
 import { SocketHub } from './stand/socket-hub';
@@ -56,15 +63,21 @@ export interface StandServerOptions {
   readonly fanslyPort?: number;
   /** Built Fansly stand; defaults to .cache/fixture-fansly. */
   readonly fanslyDir?: string;
+  /** The fake Fansly's API, socket and proxy ports; 0 = pick a free port. */
+  readonly fanslyApiPort?: number;
+  readonly fanslySocketPort?: number;
+  readonly fanslyProxyPort?: number;
 }
 
-/** The Fansly stand: its page, under its own loopback name. */
+/** The Fansly stand: its page, under its own loopback name, and the fake Fansly the page asks. */
 export interface FanslyStandServer {
   /** `http://localhost:<port>`. */
   readonly origin: string;
   readonly port: number;
-  /** Every call to the Fansly stand's origin, labelled like the ChatSpace stand's (assets, foreign). */
+  /** Every call to the Fansly stand's PAGE origin, labelled like the ChatSpace stand's (assets, foreign). */
   readonly journal: ServerJournal;
+  /** The fake Fansly (R20 P6b): its API origin, socket address, proxy, world, scripts and its own journal by caller. */
+  readonly fake: FakeFansly;
 }
 
 export interface StandServer {
@@ -88,7 +101,7 @@ export interface StandServer {
  * The Fansly stand's loopback name (docs/project-unite/architecture.md §13): the test build's Fansly stand
  * permission (apps/extension/src/hosts/fansly.ts, `http://localhost/*`) names it, ChatSpace's (`127.0.0.1`) does not.
  */
-export const FANSLY_STAND_HOSTNAME = 'localhost';
+export const FANSLY_STAND_HOSTNAME = LOOPBACK_NAME;
 
 /** The Fansly stand's journal for the test process (GET with the control header, `?since=`). */
 export const FANSLY_STAND_JOURNAL_PATH = '/__stand/journal';
@@ -189,33 +202,17 @@ async function serveFile(response: ServerResponse, file: string, csp: string | n
   }
 }
 
-const META_PATTERN = new RegExp(`(<meta name="${STAND_API_ORIGIN_META}" content=")[^"]*(")`);
+const metaPattern = (name: string): RegExp => new RegExp(`(<meta name="${name}" content=")[^"]*(")`);
+const META_PATTERN = metaPattern(STAND_API_ORIGIN_META);
 
-async function listen(server: Server, port: number, host = '127.0.0.1'): Promise<number> {
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, () => {
-      server.off('error', reject);
-      resolve();
-    });
-  });
-  const address = server.address();
-  if (address === null || typeof address === 'string') throw new Error('stand server has no TCP address');
-  return address.port;
-}
-
-/**
- * The page under the name `localhost`: on 127.0.0.1, and on the same port of ::1 where the machine has IPv6 loopback
- * (a browser may try `localhost` there first). Loopback only, never every interface.
- */
-async function listenLocalhost(primary: Server, secondary: Server, port: number): Promise<number> {
-  const actual = await listen(primary, port);
-  try {
-    await listen(secondary, actual, '::1');
-  } catch {
-    // No IPv6 loopback (or the port is taken there): 127.0.0.1 alone serves the name.
-  }
-  return actual;
+/** Tells the served Fansly stand page where the fake Fansly is and which session it has (server-protocol.ts). */
+function withFanslyServer(html: string, fake: FakeFansly): string {
+  const values: ReadonlyArray<readonly [string, string]> = [
+    [FANSLY_SERVER_META.api, fake.apiOrigin],
+    [FANSLY_SERVER_META.socket, fake.socketUrl],
+    [FANSLY_SERVER_META.token, fake.token],
+  ];
+  return values.reduce((text, [name, value]) => text.replace(metaPattern(name), `$1${value}$2`), html);
 }
 
 /** The gallery a normalized relative path belongs to (`kit-gallery/x.js` → `/kit-gallery/`), or null. */
@@ -328,6 +325,7 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
   const fanslyDir = options.fanslyDir ?? FANSLY_FIXTURE_BUILD_DIR;
   const fanslyJournal = new ServerJournal();
   let fanslyHost = '';
+  let fake: FakeFansly | null = null;
   const handleFansly = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     const path = url.pathname;
@@ -355,8 +353,8 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     } else if (path.startsWith('/assets/')) {
       status = await serveFile(response, join(fanslyDir, relative), null);
     } else if (existsSync(join(fanslyDir, 'index.html'))) {
-      // History-mode app: every other path is its index.
-      status = await serveFile(response, join(fanslyDir, 'index.html'), null);
+      // History-mode app: every other path is its index, told where the fake Fansly is.
+      status = await serveFile(response, join(fanslyDir, 'index.html'), null, (text) => (fake === null ? text : withFanslyServer(text, fake)));
     } else {
       response.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }).end('The Fansly stand is not built: run `pnpm --filter @cg/testing build:stand`.');
       status = 503;
@@ -385,6 +383,16 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
   pageOrigin = `http://127.0.0.1:${port}`;
   apiOrigin = `http://127.0.0.1:${apiPort}`;
   fanslyHost = `${FANSLY_STAND_HOSTNAME}:${fanslyPort}`;
+  const fanslyOrigin = `http://${fanslyHost}`;
+  const fakeFansly = await startFakeFansly({
+    pageOrigin: fanslyOrigin,
+    apiPort: options.fanslyApiPort ?? 0,
+    socketPort: options.fanslySocketPort ?? 0,
+    proxyPort: options.fanslyProxyPort ?? 0,
+    // A tab behind the proxy loads its page through it too.
+    proxyRoutes: new Map([[fanslyHost, fanslyPort]]),
+  });
+  fake = fakeFansly;
   return {
     origin: pageOrigin,
     apiOrigin,
@@ -394,13 +402,12 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     journal,
     hub,
     sentry,
-    fansly: { origin: `http://${fanslyHost}`, port: fanslyPort, journal: fanslyJournal },
+    fansly: { origin: fanslyOrigin, port: fanslyPort, journal: fanslyJournal, fake: fakeFansly },
     close: async () => {
       for (const response of context.hanging) response.destroy();
       await hub.close();
-      const listening = [pageServer, apiServer, ...fanslyServers].filter((server) => server.listening);
-      for (const server of listening) server.closeAllConnections();
-      await Promise.all(listening.map((server) => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))));
+      await fakeFansly.close();
+      await closeServers([pageServer, apiServer, ...fanslyServers]);
     },
   };
 }

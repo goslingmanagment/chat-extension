@@ -5,14 +5,16 @@
 // trusted Enter/Shift and Send paths with the request inside the gesture, the
 // list's bottom rules and its older pages, the virtual inbox, the upload
 // modal, the mini-chat, the theme and the old extension's marks. The DOM-only
-// rules are in src/fixture-fansly/*.dom.test.ts.
+// rules are in src/fixture-fansly/*.dom.test.ts. The page's data come from the
+// fake Fansly (R20 P6b) by real XHR requests and a real socket: the last test
+// here checks that road in Firefox.
 
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
 import type { FanslyPageJournalEntry, ListView } from '../../fixture-fansly/src/protocol';
 import { useNetworkTrap } from '../support/network-trap';
-import { FANSLY_MAIN, callFansly, fanslyIds, fanslyStandServer, openFanslyStand } from '../support/fansly-stand';
+import { FANSLY_MAIN, callFansly, fakeFansly, fanslyIds, fanslyStandServer, openFanslyStand } from '../support/fansly-stand';
 
 const mark = async (): Promise<number> => (await callFansly('journal')).at(-1)?.seq ?? 0;
 const apiSince = async (since: number, method: string, path: RegExp): Promise<FanslyPageJournalEntry[]> =>
@@ -54,9 +56,11 @@ describe('the Fansly-like stand on its own', () => {
   useNetworkTrap();
   let ids: Awaited<ReturnType<typeof fanslyIds>>;
   let journalStart = 0;
+  let fakeStart = 0;
 
   before(async () => {
     journalStart = await fanslyStandServer.mark();
+    fakeStart = await fakeFansly().mark();
     await browser.setWindowSize(1440, 900);
     await openFanslyStand('/messages');
     ids = await fanslyIds();
@@ -66,6 +70,10 @@ describe('the Fansly-like stand on its own', () => {
     // Nothing but the page's own loads reached the Fansly stand.
     const entries = await fanslyStandServer.journal(journalStart);
     expect(entries.filter((entry) => entry.origin !== 'asset')).toEqual([]);
+    // The fake Fansly heard the page only: nobody else, and no call of ours broke a rule.
+    const journal = await fakeFansly().journal(fakeStart);
+    expect(journal.entries.filter((entry) => entry.kind === 'http' && entry.caller !== 'page')).toEqual([]);
+    expect(journal.violations).toEqual([]);
   });
 
   it('has the anchors of the live chat, with their styles, in the light theme', async () => {
@@ -306,6 +314,29 @@ describe('the Fansly-like stand on its own', () => {
     }), FANSLY_MAIN.composer);
     expect(marks).toEqual({ styles: ['chatgoose-bootstrap-style', 'chatgoose-style'], launcher: true, rootBeforeComposer: true });
     await callFansly('setOldExtension', false);
+  });
+
+  it('asks the fake Fansly by XHR and a socket of its own: every request the page’s, with `ngsw-bypass` and the session headers; the socket’s `5/1` lands in the chat', async () => {
+    const fake = fakeFansly();
+    const since = await fake.mark();
+    const [, , , , group] = ids.groups as [string, string, string, string, string];
+    await openFanslyStand(`/messages/${group}`);
+    expect(await browser.execute(() => (window as unknown as Record<string, { backend: string }>)['__fanslyStand']?.backend)).toBe('server');
+    await browser.waitUntil(async () => (await callFansly('socket'))?.state === 'connected', { timeout: 5000, timeoutMsg: 'the page’s socket did not verify' });
+    await browser.waitUntil(async () => ((await callFansly('list'))?.messages ?? 0) > 0, { timeout: 5000, timeoutMsg: 'no messages' });
+    const calls = await fake.calls('page', since);
+    expect(calls.map((entry) => entry.route)).toEqual(expect.arrayContaining(['account.me', 'messaging.groups', 'group.detail', 'message.history', 'message.unread', 'message.automated']));
+    for (const entry of calls) {
+      expect(entry.path).toContain('ngsw-bypass=true');
+      expect(entry.detail?.['headers']).toEqual(expect.arrayContaining(['authorization', 'fansly-client-id', 'fansly-session-id']));
+    }
+    // A cross-origin XHR with credentials: Firefox asked first.
+    expect((await fake.journal(since)).entries.some((entry) => entry.kind === 'preflight' && entry.caller === 'page')).toBe(true);
+    const before = (await callFansly('list'))?.messages ?? 0;
+    await fake.command({ op: 'message', groupId: group, text: 'stand: by the socket' });
+    await browser.waitUntil(async () => ((await callFansly('list'))?.messages ?? 0) === before + 1, { timeout: 3000, timeoutMsg: 'the socket’s message did not land' });
+    expect((await callFansly('socket'))?.damaged).toBe(0);
+    await fake.assertOursClean(since, 'the stand page alone');
   });
 
   it('`pushState` + a `popstate` with `state: null` (what an extension can do) opens the chat', async () => {

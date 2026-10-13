@@ -30,30 +30,54 @@
 // - the mini-chat with its own container and composer outside the route (mini-chat.ts; main:59914, :61744-61745);
 // - `bright-theme` / `dark-theme` on `<html>` (theme.ts; main:52583-52597, styles:2, :257);
 // - the old extension's four marks (old-extension.ts; fansly-chat 2.10.x).
-// Not here yet: the page's XHR and socket (the fake Fansly, P6b — its backend plugs into backend.ts), FBuddy (P6d),
-// the vault route.
+// Its data come from the fake Fansly (R20 P6b, packages/testing/src/fake-fansly) when the stand server names one in
+// the page's `<meta>` tags: real XHR requests (http.ts, xhr-backend.ts) and a real socket (socket.ts), wired by
+// live.ts. Without it — a DOM test, `?stand-backend=local` — the page answers itself from its in-page world
+// (backend.ts). Not here yet: FBuddy (P6d), the vault route.
 
 import './styles.css';
 
 import { createStandApp } from './app';
 import { installControl } from './control';
 import { record } from './journal';
+import type { ServerConfig } from './live';
 import { FANSLY_STAND_PARAMS, FANSLY_STAND_READY_ATTRIBUTE } from './protocol';
+import { FANSLY_SERVER_META } from './server-protocol';
 import { setTheme } from './theme';
+
+/** Where the stand server says the fake Fansly is; undefined — nowhere (the page answers itself). */
+function serverConfig(params: URLSearchParams): ServerConfig | undefined {
+  if (params.get(FANSLY_STAND_PARAMS.backend) === 'local') return undefined;
+  const meta = (name: string): string => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? '';
+  const config: ServerConfig = { apiOrigin: meta(FANSLY_SERVER_META.api), socketUrl: meta(FANSLY_SERVER_META.socket), token: meta(FANSLY_SERVER_META.token) };
+  return config.apiOrigin === '' || config.socketUrl === '' || config.token === '' ? undefined : config;
+}
+
+const positive = (value: string | null): number | undefined => {
+  const parsed = Number(value);
+  return value !== null && Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+};
 
 function boot(): void {
   const params = new URLSearchParams(location.search);
   setTheme(params.get(FANSLY_STAND_PARAMS.theme) === 'dark' ? 'dark' : 'bright');
   const mount = document.querySelector<HTMLElement>('app-root') ?? document.body.appendChild(document.createElement('app-root'));
   const latency = Number(params.get(FANSLY_STAND_PARAMS.latency));
-  const app = createStandApp(mount, Number.isFinite(latency) && latency > 0 ? { latency } : {});
+  const server = serverConfig(params);
+  const pingInterval = positive(params.get(FANSLY_STAND_PARAMS.ping));
+  const ackDelay = positive(params.get(FANSLY_STAND_PARAMS.ackDelay));
+  const app = createStandApp(mount, {
+    ...(Number.isFinite(latency) && latency > 0 ? { latency } : {}),
+    ...(server !== undefined ? { server, live: { ...(pingInterval !== undefined && pingInterval > 0 ? { pingInterval } : {}), ...(ackDelay !== undefined ? { ackDelay } : {}) } } : {}),
+  });
   const control = installControl(app);
-  app.router.start();
-  if (params.get(FANSLY_STAND_PARAMS.oldExtension) === '1') app.oldMarks.set(true);
-  const mini = params.get(FANSLY_STAND_PARAMS.miniChat);
-  if (mini !== null && mini !== '') app.miniChat.open(mini);
-  control.markReady();
-  document.documentElement.setAttribute(FANSLY_STAND_READY_ATTRIBUTE, '1');
+  app.start(() => {
+    if (params.get(FANSLY_STAND_PARAMS.oldExtension) === '1') app.oldMarks.set(true);
+    const mini = params.get(FANSLY_STAND_PARAMS.miniChat);
+    if (mini !== null && mini !== '') app.miniChat.open(mini);
+    control.markReady();
+    document.documentElement.setAttribute(FANSLY_STAND_READY_ATTRIBUTE, '1');
+  });
 }
 
 try {
