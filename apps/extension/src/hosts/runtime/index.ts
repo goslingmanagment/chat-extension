@@ -33,11 +33,20 @@ export function isQuietHost(url: string): boolean {
 }
 
 /**
- * Loopback: the stand and the fake hub. Code that ships reads it ONLY under
- * `__CG_TEST_HOSTS__`, so a release bundle never carries it; the release
- * manifest test and tools/gates fail if any of these leak into one.
+ * Loopback: the stands and the fake hub, every address a test build serves them on. Code that ships reads these ONLY
+ * under `__CG_TEST_HOSTS__`, so a release bundle never carries them; the release manifest test and tools/gates fail
+ * if any of these leak into one. (Literal arrays each: a spread at the top level would stay in a bundle.)
  */
 export const LOOPBACK_MATCHES: readonly string[] = ['http://127.0.0.1/*', 'http://localhost/*'];
+
+/**
+ * One loopback NAME per stand (docs/project-unite/architecture.md §13): the background refuses a tab that two sites
+ * claim (S1b G-10), so no stand address may match two sites. ChatSpace's stand (and the fake hub) is `127.0.0.1`…
+ */
+export const CHATSPACE_STAND_MATCHES: readonly string[] = ['http://127.0.0.1/*'];
+
+/** …and the Fansly stand is `localhost` (packages/testing/src/stand-server.ts `FANSLY_STAND_HOSTNAME`). */
+export const FANSLY_STAND_MATCHES: readonly string[] = ['http://localhost/*'];
 
 /** A site's row: its addresses. Its kind and platform are the contracts' (`HostKind`, `Platform`). */
 export interface RuntimeHostRow {

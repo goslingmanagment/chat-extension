@@ -408,13 +408,14 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(diagnostics.ok && diagnostics.payload.hub.flags['wsTap']).toBe(true);
     expect(await registeredScripts()).toEqual(['cg-ws-tap']);
     // A TEST build taps wherever its content scripts run — the real ChatSpace (the owner's dev profile, X9) and
-    // the loopback stand: the same match patterns as the manifest's own content scripts. The release build's
-    // tap is ChatSpace alone (the manifest test and `pnpm gates`).
+    // its loopback stand (`127.0.0.1`; the Fansly stand's `localhost` is never ChatSpace's): the same match patterns
+    // as the manifest's own content scripts. The release build's tap is ChatSpace alone (the manifest test and
+    // `pnpm gates`).
     const manifestMatches = await browser.execute(() => {
       const api = (globalThis as unknown as { browser: { runtime: { getManifest(): { content_scripts?: Array<{ matches?: string[] }> } } } }).browser;
       return [...(api.runtime.getManifest().content_scripts?.[0]?.matches ?? [])].sort();
     });
-    expect(manifestMatches.filter((pattern) => pattern.startsWith('http://'))).toEqual(['http://127.0.0.1/*', 'http://localhost/*']);
+    expect(manifestMatches.filter((pattern) => pattern.startsWith('http://'))).toEqual(['http://127.0.0.1/*']);
     expect(manifestMatches.filter((pattern) => pattern.startsWith('https://'))).toHaveLength(1);
     expect(await registeredScript('cg-ws-tap')).toEqual({ matches: manifestMatches, world: 'MAIN', runAt: 'document_start' });
     await toStand();

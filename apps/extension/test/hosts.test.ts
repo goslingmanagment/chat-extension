@@ -14,7 +14,8 @@ import { baseManifest, checkManifest, finalizeManifest, hostPermissions, lazyBui
 import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
 import { HOST_MODULE_SPECS, HOST_REQUESTS, wsTapSpec } from '../src/composition/background.ts';
 import { CHATSPACE } from '../src/hosts/chatspace.ts';
-import { HOSTS, SECOND_LAZY_BUILD, hostOf, lazySitesOf, pageMatchesOf, scriptsOf, type HostDescriptor } from '../src/hosts/index.ts';
+import { FANSLY_STAND_PERMISSIONS, FANSLY_TEST } from '../src/hosts/fansly.ts';
+import { HOSTS, SECOND_LAZY_BUILD, hostOf, lazySitesOf, pageMatchesOf, pendingStandsOf, scriptsOf, type HostDescriptor } from '../src/hosts/index.ts';
 import { CHATSPACE_LAZY_ROOT } from '../src/hosts/runtime/chatspace.ts';
 import { RUNTIME_HOSTS, isQuietHost } from '../src/hosts/runtime/index.ts';
 
@@ -164,9 +165,12 @@ describe('a second site is an entry of the registry', () => {
       expect(hostPermissions(flavor, both)).toEqual(hostPermissions(flavor, [CHATSPACE]));
       expect(checkManifest(generated(flavor, both), flavor, both)).toEqual([]);
     }
-    expect(optionalHostPermissions(both)).toEqual([...optionalHostPermissions([CHATSPACE]), 'https://site.example.test/*', 'https://api.site.example.test/*']);
-    expect(optionalPermissions([CHATSPACE])).toEqual([]);
-    expect(optionalPermissions(both)).toEqual(['webRequest']);
+    expect(optionalHostPermissions('release', both)).toEqual([...optionalHostPermissions('release', [CHATSPACE]), 'https://site.example.test/*', 'https://api.site.example.test/*']);
+    expect(optionalPermissions('release', [CHATSPACE])).toEqual([]);
+    expect(optionalPermissions('release', both)).toEqual(['webRequest']);
+    // In a test build its stand is optional too, as its pages are: nothing of it granted at install.
+    expect(optionalHostPermissions('test', both)).toEqual(['https://*/*', 'https://site.example.test/*', 'https://api.site.example.test/*', 'http://localhost/*']);
+    expect(hostPermissions('test', both)).not.toContain('http://localhost/*');
     expect(baseManifest('release', [CHATSPACE])).not.toHaveProperty('optional_permissions');
     // Each site's lazy build is exposed to its own pages alone.
     expect(generated('release', both)['web_accessible_resources']).toEqual([
@@ -174,7 +178,8 @@ describe('a second site is an entry of the registry', () => {
       { resources: ['lazy/site/dock.js', 'lazy/site/notes.js'], matches: ['https://site.example.test/*'] },
     ]);
     expect(lazyBuildsWithFiles('test', both).map((site) => [site.site, site.matches])).toEqual([
-      ['chatspace', ['https://chat.onlymonster.ai/*', 'http://127.0.0.1/*', 'http://localhost/*']],
+      // In a test build each site's stand too — a loopback name of its own each (R20 P6a).
+      ['chatspace', ['https://chat.onlymonster.ai/*', 'http://127.0.0.1/*']],
       ['fansly-web', ['https://site.example.test/*', 'http://localhost/*']],
     ]);
     // ChatSpace's content scripts are the same in both registries.
@@ -219,5 +224,46 @@ describe('a second site is an entry of the registry', () => {
     const manifest = generated('release', both);
     manifest['host_permissions'] = [...(manifest['host_permissions'] as string[]), 'http://localhost/*'];
     expect(checkManifest(manifest, 'release', both)).toEqual(expect.arrayContaining(['release manifest must not carry the fansly-web test stand http://localhost/*']));
+  });
+});
+
+describe('the Fansly stand before Fansly’s entry (R20 P6a, architecture.md §13)', () => {
+  const both = [CHATSPACE, SECOND];
+  const test = generated('test', [CHATSPACE]);
+
+  it('has a loopback name of its own: no stand address matches two sites', () => {
+    expect(FANSLY_TEST.pageMatches).toEqual(['http://localhost/*']);
+    expect(CHATSPACE.test.pageMatches).toEqual(['http://127.0.0.1/*']);
+    const hostname = (pattern: string): string => new URL(pattern.replace('*', '')).hostname;
+    expect(CHATSPACE.test.pageMatches.map(hostname)).not.toEqual(expect.arrayContaining(FANSLY_TEST.pageMatches.map(hostname)));
+  });
+
+  it('a test build lets the extension ask for its origins and webRequest — optional, nothing granted at install', () => {
+    expect(pendingStandsOf([CHATSPACE])).toEqual([FANSLY_STAND_PERMISSIONS]);
+    expect(FANSLY_STAND_PERMISSIONS).toEqual({ origins: ['http://localhost/*'], optional: true, api: ['webRequest'] });
+    expect(test['optional_host_permissions']).toEqual(['https://*/*', 'http://localhost/*']);
+    expect(test['optional_permissions']).toEqual(['webRequest']);
+    expect(test['host_permissions']).toEqual(['https://chat.onlymonster.ai/*', 'https://gosling-agency.ru/*', 'http://127.0.0.1/*']);
+    // ChatSpace's scripts run on ChatSpace's stand only, never on the Fansly stand.
+    for (const script of test['content_scripts'] as Array<{ matches: string[] }>) expect(script.matches).toEqual(['https://chat.onlymonster.ai/*', 'http://127.0.0.1/*']);
+    expect(checkManifest(test, 'test', [CHATSPACE])).toEqual([]);
+  });
+
+  it('a release build carries none of it', () => {
+    const release = generated('release', [CHATSPACE]);
+    expect(release['optional_host_permissions']).toEqual(['https://*/*']);
+    expect(release).not.toHaveProperty('optional_permissions');
+    expect(JSON.stringify(release)).not.toMatch(/localhost|127\.0\.0\.1/);
+  });
+
+  it('goes once Fansly has its entry: the entry’s own stand takes its place', () => {
+    expect(pendingStandsOf(both)).toEqual([]);
+    expect(optionalPermissions('test', both)).toEqual(['webRequest']);
+  });
+
+  it('the policy refuses an origin granted at install and optional at once', () => {
+    const manifest = structuredClone(test);
+    manifest['host_permissions'] = [...(manifest['host_permissions'] as string[]), 'http://localhost/*'];
+    expect(checkManifest(manifest, 'test', [CHATSPACE])).toEqual(expect.arrayContaining(['http://localhost/* is both granted at install and optional']));
   });
 });

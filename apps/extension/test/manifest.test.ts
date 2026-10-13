@@ -21,7 +21,7 @@ import {
   type BuildFlavor,
 } from '../build/manifest.ts';
 import { PAGE_CHUNK_GROUPS, PAGE_ENTRY_NAMES } from '../build/page-chunks.ts';
-import { HOSTS, LOOPBACK_MATCHES, SECOND_LAZY_BUILD, scriptsOf } from '../src/hosts/index.ts';
+import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, HOSTS, LOOPBACK_MATCHES, SECOND_LAZY_BUILD, scriptsOf } from '../src/hosts/index.ts';
 import { CHATSPACE_LAZY_ROOT } from '../src/hosts/runtime/chatspace.ts';
 import { SITE_BASE, SITE_PAGES } from '../src/site.ts';
 
@@ -212,15 +212,22 @@ describe('test manifest (CG_TEST_HOSTS=1)', () => {
     expect(checkManifest(test.manifest, 'test')).toEqual([]);
   });
 
-  it('adds the loopback stand to content scripts, hosts and lazy chunks, under its own id and without the feed', () => {
+  it('adds ChatSpace’s loopback stand to content scripts, hosts and lazy chunks, under its own id and without the feed', () => {
     const scripts = test.manifest['content_scripts'] as Script[];
-    for (const script of scripts) expect(script.matches).toEqual(['https://chat.onlymonster.ai/*', ...LOOPBACK_MATCHES]);
+    for (const script of scripts) expect(script.matches).toEqual(['https://chat.onlymonster.ai/*', ...CHATSPACE_STAND_MATCHES]);
     const war = test.manifest['web_accessible_resources'] as Array<{ resources: string[]; matches: string[] }>;
-    expect(war[0]?.matches).toEqual(['https://chat.onlymonster.ai/*', ...LOOPBACK_MATCHES]);
-    expect(test.manifest['host_permissions']).toEqual(['https://chat.onlymonster.ai/*', 'https://gosling-agency.ru/*', ...LOOPBACK_MATCHES]);
+    expect(war[0]?.matches).toEqual(['https://chat.onlymonster.ai/*', ...CHATSPACE_STAND_MATCHES]);
+    expect(test.manifest['host_permissions']).toEqual(['https://chat.onlymonster.ai/*', 'https://gosling-agency.ru/*', ...CHATSPACE_STAND_MATCHES]);
     const gecko = (test.manifest['browser_specific_settings'] as { gecko: Record<string, unknown> }).gecko;
     expect(gecko['id']).toBe(TEST_GECKO_ID);
     expect(gecko['update_url']).toBeUndefined();
+  });
+
+  it('lets the extension ask for the Fansly stand on its own loopback name — optional, with webRequest, never granted at install (R20 P6a)', () => {
+    expect(test.manifest['optional_host_permissions']).toEqual(['https://*/*', ...FANSLY_STAND_MATCHES]);
+    expect(test.manifest['optional_permissions']).toEqual(['webRequest']);
+    const granted = JSON.stringify([test.manifest['host_permissions'], test.manifest['content_scripts']]);
+    for (const pattern of FANSLY_STAND_MATCHES) expect(granted).not.toContain(pattern.replace('/*', ''));
   });
 });
 

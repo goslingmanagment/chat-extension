@@ -8,7 +8,7 @@
 
 import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../../lazy/entries/names.ts';
 import { CHATSPACE_LAZY_ROOT } from './runtime/chatspace.ts';
-import { LOOPBACK_MATCHES, RUNTIME_HOSTS } from './runtime/index.ts';
+import { CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS } from './runtime/index.ts';
 import type { HostDescriptor } from './types.ts';
 
 const CONTRACTS = './packages/contracts/src';
@@ -80,6 +80,6 @@ export const CHATSPACE: HostDescriptor = {
     // (packages/testing/fixture-chatspace) is our own small Vue + TipTap app.
     libraries: [/__VUE_PROD_DEVTOOLS__|__VUE_OPTIONS_API__|__VUE_PROD_HYDRATION_MISMATCH_DETAILS__/, /@tiptap\/|prosemirror-(?:model|view|state)/i],
   },
-  // The ChatSpace-like stand and the fake hub are on loopback (packages/testing).
-  test: { pageMatches: LOOPBACK_MATCHES },
+  // The ChatSpace-like stand is on loopback, `127.0.0.1` (packages/testing): never the Fansly stand's `localhost`.
+  test: { pageMatches: CHATSPACE_STAND_MATCHES },
 };

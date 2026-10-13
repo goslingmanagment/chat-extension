@@ -41,7 +41,7 @@
 //    REQUIRED ({ set: setTimeout, clear: clearTimeout }): it bounds each
 //    step (5 s) and the whole barrier (10 s).
 // 3. rpc = platform createBackgroundRpc({ ready: barrier.ready, tabHosts:
-//    { chatspace: CHATSPACE_MATCHES (+ LOOPBACK_MATCHES in test builds) },
+//    { chatspace: CHATSPACE_MATCHES (+ CHATSPACE_STAND_MATCHES in test builds) },
 //    onTabRegistered: (i) => presence.tabRegistered(i.tabSessionId),
 //    onTabGone: (i) => { presence.tabGone(i.tabSessionId); the scheduler
 //    detaches the tab's operations (BG-006) } , … }).
