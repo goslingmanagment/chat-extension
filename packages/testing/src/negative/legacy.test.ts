@@ -62,7 +62,8 @@ describe('[HB-010] [RB-027] NEG-NO-LOCAL-ARCHIVE', () => {
   });
 
   it('the extension stores only the STORAGE_KEYS and the log database; none of them holds conversations', () => {
-    expect(STORAGE_VALUES).toEqual(['settings', 'auth.token', 'auth.meta', 'cache.bootstrap', 'cache.catalog', 'presence', 'telemetry.queue', 'send.journal', 'newcomers.drafts']);
+    // 1.15.0: `settings.ext` — a site's switches and a depth (R20 FS-SET-1), no text of any conversation.
+    expect(STORAGE_VALUES).toEqual(['settings', 'auth.token', 'auth.meta', 'cache.bootstrap', 'cache.catalog', 'presence', 'telemetry.queue', 'send.journal', 'newcomers.drafts', 'settings.ext']);
     expect(STORAGE_VALUES.filter((key) => /message|chat|conversation|archive|transcript|history|thread|offline|feed/i.test(key))).toEqual([]);
     expect(LOG_DB_NAME).toBe('cg-logs');
   });

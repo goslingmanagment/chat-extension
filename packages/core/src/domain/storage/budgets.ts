@@ -20,6 +20,8 @@ export const SESSION_KEYS = {
   settingsRevision: 'settings.revision',
   /** The greeting leases of «Новые» this install holds (H-7): tokens and deadlines, no text. */
   greetingLeases: 'newcomers.leases',
+  /** 1.15.0: revision of `settings.ext`, its own counter. */
+  settingsExtRevision: 'settings.ext.revision',
 } as const;
 
 /** storage.local keys of the background that are not part of the frozen `STORAGE_KEYS`. */
@@ -37,6 +39,8 @@ export const RESULT_MAX_BYTES = 512 * KiB;
 
 export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [STORAGE_KEYS.settings]: 256 * KiB,
+  /** 1.15.0: a site's few switches and a depth (`settings.ext`); room for later sites and fields. */
+  [STORAGE_KEYS.settingsExt]: 16 * KiB,
   [STORAGE_KEYS.authToken]: 16 * KiB,
   [STORAGE_KEYS.authMeta]: 16 * KiB,
   [STORAGE_KEYS.cacheBootstrap]: 1 * MiB,
@@ -56,6 +60,7 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [LOCAL_KEYS.sendFuse]: 4 * KiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
+  [SESSION_KEYS.settingsExtRevision]: 64,
 };
 
 /** The budget of a key: its own, the per-result budget for `result.*`, or none. */

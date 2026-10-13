@@ -1,10 +1,11 @@
 import { customSettings, HUB, IDS } from '@cg/contracts/fixtures';
 import { DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsState } from '@cg/contracts/settings';
+import { DEFAULT_SETTINGS_EXT, type SettingsExtState } from '@cg/contracts/settings-ext';
 import { describe, expect, it } from 'vitest';
 
-import { SESSION_KEYS } from '../domain/storage';
-import { createSettingsOwner, settingsRequestHandlers, type SettingsOwnerDeps } from './settings-owner';
-import type { ServiceLogEntry } from './storage/ports';
+import { SESSION_KEYS, stableJson } from '../domain/storage';
+import { createSettingsExtOwner, createSettingsOwner, settingsRequestHandlers, type SettingsOwnerDeps } from './settings-owner';
+import type { KeyValuePort, ServiceLogEntry } from './storage/ports';
 import { createMemoryKv, settle, type MemoryKv } from './test-support/memory-kv';
 
 const KEY = STORAGE_KEYS.settings;
@@ -392,5 +393,199 @@ describe('[BG-004] background unload and restart', () => {
     session.failNext('set');
     expect((await owner.patch({ ui: { hints: false } }, { baseRevision: 0, restricted: false })).ok).toBe(true);
     expect(logs.some((entry) => entry.msg === 'revision not kept')).toBe(true);
+  });
+});
+
+// ── settings.ext (1.15.0, R20 FS-SET-1; host: fansly-web) ──────────────────
+
+const EXT_KEY = STORAGE_KEYS.settingsExt;
+const FANSLY = 'fansly-web';
+
+/** A port that records the keys every write touches (`-key` — removed). */
+function recorded(port: KeyValuePort & { detach(): void }): { readonly port: KeyValuePort & { detach(): void }; readonly writes: string[] } {
+  const writes: string[] = [];
+  return {
+    writes,
+    port: {
+      ...port,
+      set: (items) => {
+        writes.push(...Object.keys(items));
+        return port.set(items);
+      },
+      remove: (keys) => {
+        writes.push(...keys.map((key) => `-${key}`));
+        return port.remove(keys);
+      },
+    },
+  };
+}
+
+function setupExt(options: { local?: MemoryKv; session?: MemoryKv } = {}) {
+  const local = options.local ?? createMemoryKv();
+  const session = options.session ?? createMemoryKv();
+  const localPort = recorded(local.open());
+  const sessionPort = session.open();
+  const logs: ServiceLogEntry[] = [];
+  const changes: SettingsExtState[] = [];
+  const owner = createSettingsExtOwner({ local: localPort.port, session: sessionPort, log: (entry) => logs.push(entry), onChange: (state) => changes.push(state) });
+  const unload = (): void => {
+    owner.dispose();
+    localPort.port.detach();
+    sessionPort.detach();
+  };
+  return { local, session, owner, logs, changes, writes: localPort.writes, unload };
+}
+
+describe('[RB-011] the settings.ext owner (fansly-web): its own key, on the v1 owner’s rules', () => {
+  it('one change at a time, each ONE set of `settings.ext` only; «Сохранено» carries its own revision', async () => {
+    const { owner, local, writes, changes, session } = setupExt();
+    await owner.start();
+    const results = await Promise.all([
+      owner.patch({ hosts: { [FANSLY]: { enabled: true } } }),
+      owner.patch({ hosts: { [FANSLY]: { viaTab: true } } }),
+      owner.patch({ windows: { deep: 4000 } }),
+    ]);
+    expect(results.map((result) => (result.ok ? result.state.revision : -1))).toEqual([1, 2, 3]);
+    expect(writes).toEqual([EXT_KEY, EXT_KEY, EXT_KEY]);
+    expect(local.read(EXT_KEY)).toEqual({ v: 1, hosts: { [FANSLY]: { enabled: true, viaTab: true } }, windows: { deep: 4000 } });
+    expect(local.read(STORAGE_KEYS.settings)).toBeUndefined();
+    expect(changes.map((state) => state.revision)).toEqual([1, 2, 3]);
+    expect(session.read(SESSION_KEYS.settingsExtRevision)).toBe(3);
+    expect(session.read(SESSION_KEYS.settingsRevision)).toBeUndefined();
+    // The same value again: confirmed without a write.
+    expect(await owner.patch({ hosts: { [FANSLY]: { enabled: true } } })).toMatchObject({ ok: true, state: { revision: 3 } });
+    expect(writes).toHaveLength(3);
+  });
+
+  it('[ST-013] a lost confirmation is read back; [ST-014] a write that did not land changes nothing', async () => {
+    const { owner, local, logs } = setupExt();
+    await owner.start();
+    local.failNext('set', 'lost');
+    expect(await owner.patch({ hosts: { [FANSLY]: { notesView: 'center' } } })).toMatchObject({ ok: true, state: { ext: { hosts: { [FANSLY]: { notesView: 'center' } } } } });
+    expect(logs.some((entry) => entry.msg === 'settings.ext write confirmed by reading it back')).toBe(true);
+    local.failNext('set');
+    expect(await owner.patch({ hosts: { [FANSLY]: { viaTab: true } } })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-WRITE' } });
+    expect(owner.current().hosts[FANSLY].viaTab).toBe(false);
+    expect(local.read(EXT_KEY)).toEqual({ v: 1, hosts: { [FANSLY]: { notesView: 'center' } } });
+  });
+
+  it('[ST-016] a newer build’s key is read-only (CG-STORAGE-VERSION) and kept whole; settings v1 stay writable', async () => {
+    const local = createMemoryKv();
+    const newer = { v: 2, hosts: { [FANSLY]: { enabled: true, laterField: 1 } }, later: true };
+    local.data.set(EXT_KEY, newer);
+    const ext = setupExt({ local });
+    expect(await ext.owner.state()).toMatchObject({ ok: true, state: { readOnly: true, ext: { hosts: { [FANSLY]: { enabled: true } } } } });
+    expect(await ext.owner.patch({ hosts: { [FANSLY]: { enabled: false } } })).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-VERSION' } });
+    expect(ext.writes).toEqual([]);
+    const v1 = setup({ local });
+    expect((await v1.owner.patch({ ui: { theme: 'dark' } }, { baseRevision: null, restricted: false })).ok).toBe(true);
+    expect(local.read(EXT_KEY)).toEqual(newer);
+  });
+
+  it('[ST-017] a failed read never erases: nothing is written until a read succeeds', async () => {
+    const local = createMemoryKv();
+    local.data.set(EXT_KEY, { v: 1, hosts: { [FANSLY]: { enabled: true } } });
+    local.failNext('get');
+    const { owner, writes, changes } = setupExt({ local });
+    expect(await owner.start()).toEqual({ kind: 'unreadable', code: 'CG-STORAGE-READ' });
+    expect(changes).toEqual([]);
+    // The next request reads again, finds the stored value and keeps it.
+    expect(await owner.patch({ hosts: { [FANSLY]: { viaTab: true } } })).toMatchObject({ ok: true, state: { ext: { hosts: { [FANSLY]: { enabled: true, viaTab: true } } } } });
+    expect(writes).toEqual([EXT_KEY]);
+  });
+
+  it('[ST-018] another writer’s change is read again and broadcast; the owner’s own late echo is not', async () => {
+    const { owner, local, changes } = setupExt();
+    await owner.patch({ windows: { deep: 3500 } });
+    local.external(EXT_KEY, { v: 1, hosts: { [FANSLY]: { enabled: true } }, windows: { deep: 3500 } });
+    await settle(20);
+    expect(owner.current().hosts[FANSLY].enabled).toBe(true);
+    expect(changes.map((state) => state.ext.hosts[FANSLY].enabled)).toEqual([false, true]);
+  });
+
+  it('[BG-004] a new event page continues the revision kept in storage.session', async () => {
+    const first = setupExt();
+    await first.owner.patch({ hosts: { [FANSLY]: { enabled: true } } });
+    first.unload();
+    const second = setupExt({ local: first.local, session: first.session });
+    expect(await second.owner.state()).toMatchObject({ ok: true, state: { revision: 1, ext: { hosts: { [FANSLY]: { enabled: true } } } } });
+    expect(await second.owner.patch({ hosts: { [FANSLY]: { viaTab: true } } })).toMatchObject({ ok: true, state: { revision: 2 } });
+  });
+});
+
+describe('[RB-012] rollback acceptance (FS-SET-1, fansly-web): new build → old build → theme change → new build', () => {
+  /**
+   * A build of 1.15.0 or later: the v1 owner and the settings.ext owner. A build before 1.15.0: the v1 owner alone
+   * — `createSettingsOwner` is that build's owner as it was (1.15.0 adds a second owner beside it and changes
+   * nothing of it), so it runs here as «the old build», on the same storage, writes recorded.
+   */
+  function build(local: MemoryKv, session: MemoryKv, withExt: boolean) {
+    const v1Port = recorded(local.open());
+    const extPort = recorded(local.open());
+    const sessionPort = session.open();
+    const v1 = createSettingsOwner({ local: v1Port.port, session: sessionPort });
+    const ext = withExt ? createSettingsExtOwner({ local: extPort.port, session: sessionPort }) : null;
+    return {
+      v1,
+      ext,
+      writes: (): string[] => [...v1Port.writes, ...extPort.writes],
+      unload: (): void => {
+        v1.dispose();
+        ext?.dispose();
+        v1Port.port.detach();
+        extPort.port.detach();
+        sessionPort.detach();
+      },
+    };
+  }
+
+  it('the Fansly settings, the depth and «Fansly включён» (the script registration) are there again; the old build’s theme stays', async () => {
+    const local = createMemoryKv();
+    const session = createMemoryKv();
+
+    // 1. The new build: the person switches Fansly on, picks its settings and a depth above 3000.
+    const first = build(local, session, true);
+    await first.v1.start();
+    await first.ext?.start();
+    expect((await first.v1.patch({ sound: { volume: 70 } }, { baseRevision: null, restricted: false })).ok).toBe(true);
+    const fansly = { enabled: true, viaTab: true, notesView: 'docked', sound: { messagesTone: 'drop', subscribersTone: 'bell' } } as const;
+    expect((await first.ext?.patch({ hosts: { [FANSLY]: fansly }, windows: { deep: 4500 } }))?.ok).toBe(true);
+    const storedExt = stableJson(local.read(EXT_KEY));
+    first.unload();
+
+    // 2. Rollback: the old build starts on the same storage; the person changes the theme and signs in again.
+    const old = build(local, session, false);
+    expect(await old.v1.start()).toMatchObject({ kind: 'current', repaired: [] });
+    expect((await old.v1.patch({ ui: { theme: 'dark' } }, { baseRevision: null, restricted: false })).ok).toBe(true);
+    expect((await old.v1.setPersonaScope({ hubOrigin: HUB, userId: 7 })).ok).toBe(true);
+    await settle(20);
+    expect(old.writes()).toEqual([STORAGE_KEYS.settings, STORAGE_KEYS.settings]);
+    expect(stableJson(local.read(EXT_KEY))).toBe(storedExt);
+    old.unload();
+
+    // 3. Back on the new build: nothing of `settings.ext` is lost, the old build's change stays.
+    const back = build(local, session, true);
+    expect(await back.ext?.start()).toMatchObject({ kind: 'current', repaired: [] });
+    expect(await back.ext?.state()).toMatchObject({ ok: true, state: { readOnly: false, ext: { hosts: { [FANSLY]: fansly }, windows: { deep: 4500 } } } });
+    // The registration of the Fansly scripts follows «Fansly включён» at every background start (R20 §4).
+    expect(back.ext?.current().hosts[FANSLY].enabled).toBe(true);
+    expect(await back.v1.state()).toMatchObject({ ok: true, state: { settings: { ui: { theme: 'dark' }, sound: { volume: 70 }, personas: { scope: { hubOrigin: HUB, userId: 7 } } } } });
+    expect(back.writes()).toEqual([]);
+    back.unload();
+  });
+
+  it('the v1 owner never reads or writes the key, even when it repairs v1; the ext owner never touches `settings`', async () => {
+    const local = createMemoryKv();
+    const session = createMemoryKv();
+    local.data.set(STORAGE_KEYS.settings, { ...clone(DEFAULT_SETTINGS), ui: { ...DEFAULT_SETTINGS.ui, theme: 'neon' }, later: 1 });
+    local.data.set(EXT_KEY, { v: 1, hosts: { [FANSLY]: { enabled: true } } });
+    const world = build(local, session, true);
+    expect(await world.v1.start()).toMatchObject({ kind: 'current', repaired: ['ui.theme'] });
+    await world.v1.patch({ ui: { hints: false } }, { baseRevision: null, restricted: false });
+    await world.ext?.patch({ hosts: { [FANSLY]: { viaTab: true } } });
+    expect(world.writes().sort()).toEqual([EXT_KEY, STORAGE_KEYS.settings].sort());
+    expect(local.read(EXT_KEY)).toEqual({ v: 1, hosts: { [FANSLY]: { enabled: true, viaTab: true } } });
+    expect(world.ext?.current()).toEqual({ ...DEFAULT_SETTINGS_EXT, hosts: { [FANSLY]: { ...DEFAULT_SETTINGS_EXT.hosts[FANSLY], enabled: true, viaTab: true } } });
+    world.unload();
   });
 });

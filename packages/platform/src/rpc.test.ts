@@ -3,8 +3,11 @@ import { TAB_EVENT_FIXTURES, TAB_REQUEST_FIXTURES } from '@cg/contracts/fixtures
 import { TAB_REQUEST_TYPES, TAB_REQUESTS, parseTabPayload } from '@cg/contracts/tab-messages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createBackgroundRpc, type BackgroundRpc } from './rpc-background';
-import { requestEnvelope, verifyPageSender, verifyTabSender, urlMatchesPattern } from './rpc-common';
+import { FANSLY_TAB_REQUEST_FIXTURES } from '@cg/contracts/fixtures';
+import { fanslyEventTargets, isFanslyTabEventType, isFanslyTabRequestType, mayRequestFansly, parseFanslyTabPayload, FANSLY_TAB_TYPE_PREFIX } from '@cg/contracts/tab-messages-fansly';
+
+import { createBackgroundRpc, type BackgroundRpc, type SiteRpc, type SiteSenderContext } from './rpc-background';
+import { eventEnvelope, requestEnvelope, verifyPageSender, verifyRelaySender, verifyTabSender, urlMatchesPattern } from './rpc-common';
 import { createPageRpcClient } from './rpc-page';
 import { createTabRpcClient, type TabRpcClient } from './rpc-tab';
 import { FANSLY_ORIGIN, TAB_HOSTS, TAB_ORIGIN, createFakeBrowser, flush, pageSender, tabSender, type FakeBrowser, type FakeContext } from './test-support/fake-browser';
@@ -680,5 +683,241 @@ describe('page client', () => {
     });
     const page = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'popup')).api, validate: parseTabPayload });
     expect(await page.request('settings.get', {})).toEqual({ ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE', detail: 'settings.get unanswered' } });
+  });
+});
+
+// ── 1.15.0 (R20): a site's own registry, the host rules and the relay frame (fansly-web) ──
+
+const RELAY_PAGES = { 'fansly-web': 'fansly-relay.html' } as const;
+const fanslyRegister = { ...register, host: 'fansly-web' } as const;
+
+function fanslySender(fake: FakeBrowser, overrides: Partial<Parameters<FakeBrowser['context']>[0]> = {}) {
+  return tabSender(fake, { url: `${FANSLY_ORIGIN}/messages/700000000000000003`, origin: FANSLY_ORIGIN, tab: { id: 12 }, ...overrides });
+}
+
+function relaySender(fake: FakeBrowser, overrides: Partial<Parameters<FakeBrowser['context']>[0]> = {}) {
+  return { id: fake.runtimeId, url: `${fake.base}fansly-relay.html`, frameId: 4, tab: { id: 12 }, ...overrides };
+}
+
+/** The Fansly registry as its background chunk plugs it; the handler answers each type's first valid fixture. */
+function fanslySite(handled: { type: string; sender: SiteSenderContext }[], answer?: (type: string) => unknown): SiteRpc {
+  return {
+    host: 'fansly-web',
+    prefix: FANSLY_TAB_TYPE_PREFIX,
+    isRequestType: isFanslyTabRequestType,
+    mayRequest: (type, sender, page, host) => isFanslyTabRequestType(type) && mayRequestFansly(type, sender, page, host),
+    parse: parseFanslyTabPayload,
+    eventTargets: (type) => (isFanslyTabEventType(type) ? fanslyEventTargets(type) : null),
+    handle: (type, _payload, sender) => {
+      handled.push({ type, sender });
+      return { ok: true, payload: answer?.(type) ?? (FANSLY_TAB_REQUEST_FIXTURES as Record<string, { res: { valid: readonly unknown[] } }>)[type]?.res.valid[0] };
+    },
+  };
+}
+
+interface SiteWorld {
+  readonly fake: FakeBrowser;
+  readonly rpc: BackgroundRpc;
+  readonly rejects: string[];
+}
+
+function siteWorld(): SiteWorld {
+  const fake = createFakeBrowser();
+  const rejects: string[] = [];
+  let sessions = 0;
+  const rpc = createBackgroundRpc({
+    api: fake.startBackground().api,
+    tabHosts: TAB_HOSTS,
+    relayPages: RELAY_PAGES,
+    siteWaitMs: 40,
+    ready: Promise.resolve(),
+    contractsVersion: CONTRACTS_VERSION,
+    testBuild: true,
+    mintSessionId: () => uuidOf(200 + ++sessions),
+    onReject: (reason, facts) => rejects.push(`${reason}:${facts.type ?? '-'}:${facts.sender}`),
+  });
+  rpc.handle('settings.get', () => ({ ok: true, payload: TAB_REQUEST_FIXTURES['settings.get'].res.valid[0] }) as never);
+  rpc.handle('send.status', () => ({ ok: true, payload: TAB_REQUEST_FIXTURES['send.status'].res.valid[0] }) as never);
+  return { fake, rpc, rejects };
+}
+
+/** A port driven by hand: the raw answers it gets. */
+async function rawPort(fake: FakeBrowser, sender: Parameters<FakeBrowser['context']>[0], name: string) {
+  const port = fake.context(sender).api.runtime.connect({ name });
+  const answers: Record<string, unknown>[] = [];
+  let closed = false;
+  port.onMessage.addListener((message) => answers.push(message as Record<string, unknown>));
+  port.onDisconnect.addListener(() => {
+    closed = true;
+  });
+  await flush(10);
+  return { port, answers, closed: () => closed };
+}
+
+/** A registered tab port of a site: its session. */
+async function registeredTab(fake: FakeBrowser, sender: Parameters<FakeBrowser['context']>[0], request: typeof register | typeof fanslyRegister) {
+  const tab = await rawPort(fake, sender, 'cg-tab');
+  tab.port.postMessage(requestEnvelope(1, 'tab.register', request));
+  await flush(30);
+  const session = (tab.answers[0]?.['payload'] as { tabSessionId?: string } | undefined)?.tabSessionId ?? '';
+  tab.answers.length = 0;
+  return { ...tab, session };
+}
+
+const notesRead = FANSLY_TAB_REQUEST_FIXTURES['fansly.notes.read'].req.valid[0];
+const relayHead = FANSLY_TAB_REQUEST_FIXTURES['fansly.relay.head'].req.valid[0];
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+describe('[EX-015] [NF-027] a site’s own registry and the host rules (fansly-web, 1.15.0)', () => {
+  it('a fansly.com tab is refused ChatSpace’s X8 and «Новые» requests; a ChatSpace tab and a page are not', async () => {
+    const w = siteWorld();
+    const fansly = createTabRpcClient({ api: w.fake.context(fanslySender(w.fake)).api, validate: parseTabPayload, register: fanslyRegister });
+    expect((await fansly.request('settings.get', {})).ok).toBe(true);
+    const status = TAB_REQUEST_FIXTURES['send.status'].req.valid[0] as never;
+    expect((await fansly.request('send.status', status, { timeoutMs: 50 })).ok).toBe(false);
+    expect(w.rejects).toContain('sender-kind:send.status:tab');
+    const chatspace = createTabRpcClient({ api: w.fake.context(tabSender(w.fake)).api, validate: parseTabPayload, register });
+    expect((await chatspace.request('send.status', status)).ok).toBe(true);
+    const options = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate: parseTabPayload, requestTimeoutMs: 50 });
+    expect((await options.request('send.status', status)).ok).toBe(true);
+  });
+
+  it('routes a site type of a registered tab to its site: parsed, handled, answered, with the tab’s site as the sender', async () => {
+    const w = siteWorld();
+    const handled: { type: string; sender: SiteSenderContext }[] = [];
+    w.rpc.site(fanslySite(handled));
+    const tab = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
+    tab.port.postMessage(requestEnvelope(2, 'fansly.notes.read', notesRead, tab.session));
+    await flush(30);
+    expect(tab.answers).toEqual([{ v: 1, kind: 'res', id: 2, type: 'fansly.notes.read', ok: true, payload: FANSLY_TAB_REQUEST_FIXTURES['fansly.notes.read'].res.valid[0] }]);
+    expect(handled).toEqual([{ type: 'fansly.notes.read', sender: { kind: 'tab', host: 'fansly-web', tabSessionId: tab.session, tabId: 12, url: `${FANSLY_ORIGIN}/messages/700000000000000003` } }]);
+    tab.answers.length = 0;
+    // Without its session, or with a bad payload: as for the shared registry.
+    tab.port.postMessage(requestEnvelope(3, 'fansly.notes.read', notesRead));
+    tab.port.postMessage(requestEnvelope(4, 'fansly.notes.read', { ...(notesRead as object), fanRef: 'x' }, tab.session));
+    await flush(30);
+    expect(tab.answers).toMatchObject([{ id: 4, ok: false, error: { code: 'CG-UNKNOWN', detail: 'invalid fansly.notes.read request' } }]);
+    expect(w.rejects).toEqual(['session:fansly.notes.read:tab', 'payload:fansly.notes.read:tab']);
+  });
+
+  it('a ChatSpace tab never reaches the Fansly registry; neither does a page, nor a relay type from a tab', async () => {
+    const w = siteWorld();
+    const handled: { type: string; sender: SiteSenderContext }[] = [];
+    w.rpc.site(fanslySite(handled));
+    const chatspace = await registeredTab(w.fake, tabSender(w.fake), register);
+    chatspace.port.postMessage(requestEnvelope(2, 'fansly.notes.read', notesRead, chatspace.session));
+    const fansly = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
+    fansly.port.postMessage(requestEnvelope(2, 'fansly.relay.head', relayHead, fansly.session));
+    fansly.port.postMessage(requestEnvelope(3, 'fansly.nope.nope', {}, fansly.session));
+    // A page sends by runtime.sendMessage; no site registry takes a page's request (none of its types is a page's).
+    const options = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate: parseFanslyTabPayload, requestTimeoutMs: 50 });
+    expect((await options.request('fansly.notes.read' as never, notesRead as never)).ok).toBe(false);
+    await wait(60);
+    await flush(30);
+    expect(chatspace.answers).toEqual([]);
+    expect(fansly.answers).toEqual([]);
+    expect(handled).toEqual([]);
+    expect(w.rejects.sort()).toEqual(['sender-kind:fansly.relay.head:tab', 'unknown-type:fansly.nope.nope:tab', 'unknown-type:fansly.notes.read:page', 'unknown-type:fansly.notes.read:tab'].sort());
+  });
+
+  it('a request that comes before the site’s chunk plugs its registry waits for it; none comes — no answer', async () => {
+    const w = siteWorld();
+    const handled: { type: string; sender: SiteSenderContext }[] = [];
+    const tab = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
+    tab.port.postMessage(requestEnvelope(2, 'fansly.notes.read', notesRead, tab.session));
+    await flush(30);
+    expect(tab.answers).toEqual([]);
+    const unplug = w.rpc.site(fanslySite(handled));
+    await flush(30);
+    expect(tab.answers).toMatchObject([{ id: 2, ok: true }]);
+    unplug();
+    tab.port.postMessage(requestEnvelope(3, 'fansly.notes.read', notesRead, tab.session));
+    await wait(60);
+    await flush(30);
+    expect(tab.answers).toHaveLength(1);
+    expect(w.rejects).toEqual(['unknown-type:fansly.notes.read:tab']);
+  });
+
+  it('a site’s answer is checked against its schema, and a throwing handler is an error answer', async () => {
+    const w = siteWorld();
+    const site = fanslySite([], (type) => (type === 'fansly.notes.read' ? { ok: true } : undefined));
+    w.rpc.site({ ...site, handle: (type, payload, sender) => (type === 'fansly.notes.delete' ? Promise.reject(new Error('bug')) : site.handle(type, payload, sender)) });
+    const tab = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
+    tab.port.postMessage(requestEnvelope(2, 'fansly.notes.read', notesRead, tab.session));
+    tab.port.postMessage(requestEnvelope(3, 'fansly.notes.delete', FANSLY_TAB_REQUEST_FIXTURES['fansly.notes.delete'].req.valid[0], tab.session));
+    await flush(40);
+    expect(tab.answers).toMatchObject([
+      { id: 2, ok: false, error: { code: 'CG-UNKNOWN', detail: 'invalid fansly.notes.read response' } },
+      { id: 3, ok: false, error: { code: 'CG-UNKNOWN', detail: 'fansly.notes.delete handler failed' } },
+    ]);
+  });
+});
+
+describe('[NF-027] the relay frame (`cg-relay`, fansly-web, 1.15.0)', () => {
+  it('sender: this extension, a subframe of a tab, the relay page of exactly one site', () => {
+    const fake = createFakeBrowser();
+    const id = fake.runtimeId;
+    expect(verifyRelaySender(relaySender(fake), id, fake.base, RELAY_PAGES)).toEqual({ ok: true, kind: 'relay', host: 'fansly-web', tabId: 12, frameId: 4, url: `${fake.base}fansly-relay.html` });
+    expect(verifyRelaySender(relaySender(fake, { url: `${fake.base}fansly-relay.html?tab=12` }), id, fake.base, RELAY_PAGES)).toMatchObject({ ok: true, host: 'fansly-web' });
+    expect(verifyRelaySender(relaySender(fake, { id: 'other@example' }), id, fake.base, RELAY_PAGES)).toEqual({ ok: false, reason: 'foreign-extension' });
+    // The top frame is a tab's, never a relay's; a frame outside a tab; another page of ours; another base; no relay configured.
+    const { tab: _tab, ...outsideTab } = relaySender(fake);
+    for (const sender of [relaySender(fake, { frameId: 0 }), outsideTab, relaySender(fake, { url: `${fake.base}popup.html` }), relaySender(fake, { url: 'moz-extension://another-uuid/fansly-relay.html' }), relaySender(fake, { url: `${FANSLY_ORIGIN}/fansly-relay.html` })]) {
+      expect(verifyRelaySender(sender, id, fake.base, RELAY_PAGES), JSON.stringify(sender)).toEqual({ ok: false, reason: 'not-a-relay' });
+    }
+    expect(verifyRelaySender(relaySender(fake), id, fake.base, {})).toEqual({ ok: false, reason: 'not-a-relay' });
+    // Two sites naming one page: none of them.
+    expect(verifyRelaySender(relaySender(fake), id, fake.base, { chatspace: 'fansly-relay.html', 'fansly-web': 'fansly-relay.html' })).toEqual({ ok: false, reason: 'not-a-relay' });
+  });
+
+  it('is accepted only inside a tab holding a registered session of its site, and speaks for that session only', async () => {
+    const w = siteWorld();
+    const handled: { type: string; sender: SiteSenderContext }[] = [];
+    w.rpc.site(fanslySite(handled));
+    // No registered Fansly tab 12 yet: refused, disconnected.
+    const early = await rawPort(w.fake, relaySender(w.fake), 'cg-relay');
+    expect(early.closed()).toBe(true);
+    // A ChatSpace tab with the same id does not count either.
+    await registeredTab(w.fake, tabSender(w.fake, { tab: { id: 12 } }), register);
+    expect((await rawPort(w.fake, relaySender(w.fake), 'cg-relay')).closed()).toBe(true);
+    expect(w.rejects).toEqual(['not-a-relay:-:relay', 'not-a-relay:-:relay']);
+    w.rejects.length = 0;
+
+    const tab = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
+    const relay = await rawPort(w.fake, relaySender(w.fake), 'cg-relay');
+    expect(relay.closed()).toBe(false);
+    relay.port.postMessage(requestEnvelope(1, 'fansly.relay.head', relayHead));
+    // A session of its own, a shared type, a tab type of the site: none of these.
+    relay.port.postMessage(requestEnvelope(2, 'fansly.relay.head', relayHead, tab.session));
+    relay.port.postMessage(requestEnvelope(3, 'settings.get', {}));
+    relay.port.postMessage(requestEnvelope(4, 'fansly.notes.read', notesRead));
+    await flush(40);
+    expect(relay.answers).toEqual([{ v: 1, kind: 'res', id: 1, type: 'fansly.relay.head', ok: true, payload: { recorded: true } }]);
+    expect(handled).toEqual([{ type: 'fansly.relay.head', sender: { kind: 'relay', host: 'fansly-web', tabSessionId: tab.session, tabId: 12, frameId: 4, url: `${w.fake.base}fansly-relay.html` } }]);
+    expect(w.rejects).toEqual(['envelope:-:relay', 'sender-kind:settings.get:relay', 'sender-kind:fansly.notes.read:relay']);
+  });
+
+  it('gets the site’s relay events, its own tab’s only; goes when its tab’s document goes', async () => {
+    const w = siteWorld();
+    w.rpc.site(fanslySite([]));
+    const tab = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
+    const other = await registeredTab(w.fake, fanslySender(w.fake, { tab: { id: 13 } }), fanslyRegister);
+    const relay = await rawPort(w.fake, relaySender(w.fake), 'cg-relay');
+    const otherRelay = await rawPort(w.fake, relaySender(w.fake, { tab: { id: 13 } }), 'cg-relay');
+    const fetch = { requestId: uuidOf(330), method: 'GET', url: 'https://apiv3.fansly.com/api/v1/account/me', headers: [], expect: { hostAccountId: '700000000000000001' } };
+    expect(w.rpc.emitSite('fansly-web', 'fansly.relay.fetch', fetch, { tabSessionId: tab.session })).toBe(1);
+    expect(w.rpc.emitSite('fansly-web', 'fansly.relay.fetch', { ...fetch, url: 'https://evil.example.test/' })).toBe(0);
+    expect(w.rpc.emitSite('chatspace', 'fansly.relay.fetch', fetch)).toBe(0);
+    await flush(20);
+    expect(relay.answers).toEqual([eventEnvelope('fansly.relay.fetch', fetch)]);
+    expect(otherRelay.answers).toEqual([]);
+    // Not to the tabs: the event is the relay's.
+    expect([...tab.answers, ...other.answers]).toEqual([]);
+    tab.port.disconnect();
+    await flush(20);
+    expect(relay.closed()).toBe(true);
+    expect(otherRelay.closed()).toBe(false);
+    // The other tab's relay still gets its tab's events.
+    expect(w.rpc.emitSite('fansly-web', 'fansly.relay.abort', { requestId: uuidOf(331) })).toBe(1);
   });
 });

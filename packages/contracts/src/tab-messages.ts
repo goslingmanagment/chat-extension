@@ -1,14 +1,15 @@
 // Tab and extension pages ↔ background protocol (architecture.md §5.4), the
-// per-type half: the request registry (payload, response, allowed senders),
-// the event registry and their payload schemas. Transport, sender rules and
-// the envelope are in tab-protocol.ts.
+// per-type half: the shared request registry (payload, response, allowed
+// senders), the event registry and their payload schemas. Transport, sender
+// rules and the envelope are in tab-protocol.ts; a site's own registry is its
+// own module (1.15.0: tab-messages-fansly.ts), never imported here.
 
 import * as z from 'zod/mini';
 
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema } from './host';
-import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema } from './ids';
+import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, type HostKind } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
 import { AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
@@ -42,7 +43,7 @@ import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
 import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
-import { TabRegisterRequestSchema, TabRegisterResponseSchema, type ExtensionPage, type TabSender } from './tab-protocol';
+import { TabRegisterRequestSchema, TabRegisterResponseSchema, senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { JOURNAL_KINDS } from './vm/selectors';
 import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
 
@@ -255,17 +256,15 @@ export type SendBegin = z.infer<typeof SendBeginSchema>;
 
 // ── Requests ───────────────────────────────────────────────────────────────
 
-interface RequestSpec {
-  readonly req: z.ZodMiniType;
-  readonly res: z.ZodMiniType;
-  readonly from: readonly TabSender[];
-  /** Only these pages may send it (when the sender is a page). */
-  readonly pages?: readonly ExtensionPage[];
-}
-
 const TAB = ['tab'] as const satisfies readonly TabSender[];
 const PAGE = ['page'] as const satisfies readonly TabSender[];
 const ANY = ['tab', 'page'] as const satisfies readonly TabSender[];
+/**
+ * 1.15.0: requests only a ChatSpace tab sends (a page is not affected): X8 — the send from a preview through
+ * ChatSpace's own queue — and the hub's «Новые» with its lease. Fansly sends its greeting over HTTP from the
+ * background (its own machine and journal) and finds «Новые» by its own pass; a fansly.com tab never sends these.
+ */
+const CHATSPACE = ['chatspace'] as const satisfies readonly HostKind[];
 
 export const TAB_REQUESTS = {
   // ── tab lifecycle ──
@@ -369,8 +368,9 @@ export const TAB_REQUESTS = {
       z.strictObject({ ok: z.literal(false), view: SendAttemptViewSchema }),
     ]),
     from: TAB,
+    hosts: CHATSPACE,
   },
-  'send.status': { req: z.strictObject({ attemptId: UuidSchema }), res: z.strictObject({ view: z.nullable(SendAttemptViewSchema) }), from: ANY },
+  'send.status': { req: z.strictObject({ attemptId: UuidSchema }), res: z.strictObject({ view: z.nullable(SendAttemptViewSchema) }), from: ANY, hosts: CHATSPACE },
   /**
    * 1.2.0. The attempts the background knows for one fan of the page: open
    * ones, uncertain ones until resolved, ended and resolved ones while it
@@ -387,6 +387,7 @@ export const TAB_REQUESTS = {
       truncated: z.boolean(),
     }),
     from: TAB,
+    hosts: CHATSPACE,
   },
   /**
    * A state MAIN observed; the background journals it and reports to the hub
@@ -397,6 +398,7 @@ export const TAB_REQUESTS = {
     req: z.strictObject({ view: SendAttemptViewSchema, pendingId: z.optional(PendingIdSchema) }),
     res: Ack,
     from: TAB,
+    hosts: CHATSPACE,
   },
   /**
    * 1.11.0 (decision X25): MAIN saw what trips the X8 fuse after a send of this tab (the host port's `sendFuse`
@@ -407,9 +409,10 @@ export const TAB_REQUESTS = {
     req: z.strictObject({ fact: SendFuseFactSchema, build: z.nullable(displayText(80)) }),
     res: SendFuseStateSchema,
     from: TAB,
+    hosts: CHATSPACE,
   },
   /** 1.11.0: the fuse as the background keeps it — a tab reads it at start and after a lost port. */
-  'send.fuseState': { req: Empty, res: SendFuseStateSchema, from: ANY },
+  'send.fuseState': { req: Empty, res: SendFuseStateSchema, from: ANY, hosts: CHATSPACE },
   /** 1.11.0 «Сбросить предохранитель» of «Статус»: the fuse is cleared; X8 is on again until it trips again. */
   'send.fuseReset': { req: Empty, res: SendFuseStateSchema, from: PAGE, pages: ['options'] },
 
@@ -469,11 +472,13 @@ export const TAB_REQUESTS = {
     res: AudienceNewPageSchema,
     from: ANY,
     pages: ['popup'],
+    hosts: CHATSPACE,
   },
   'newcomers.claim': {
     req: z.strictObject({ ...PageFan, action: z.enum(['claim', 'renew', 'release']) }),
     res: ClaimStateSchema,
     from: TAB,
+    hosts: CHATSPACE,
   },
 
   // ── service ──
@@ -621,7 +626,7 @@ export const TAB_REQUESTS = {
     res: z.strictObject({ redeemed: z.boolean() }),
     from: TAB,
   },
-} as const satisfies Record<string, RequestSpec>;
+} as const satisfies Record<string, TabRequestSpec>;
 
 export type TabRequestType = keyof typeof TAB_REQUESTS;
 export const TAB_REQUEST_TYPES = Object.keys(TAB_REQUESTS) as TabRequestType[];
@@ -629,11 +634,6 @@ export type TabRequestPayload<T extends TabRequestType> = z.infer<(typeof TAB_RE
 export type TabResponsePayload<T extends TabRequestType> = z.infer<(typeof TAB_REQUESTS)[T]['res']>;
 
 // ── Events ─────────────────────────────────────────────────────────────────
-
-interface EventSpec {
-  readonly payload: z.ZodMiniType;
-  readonly to: readonly TabSender[];
-}
 
 export const TAB_EVENTS = {
   /** Stream text in 50 ms batches (`append` since the previous `seq`), plus phase/state changes. */
@@ -679,7 +679,7 @@ export const TAB_EVENTS = {
    * human action — a navigation, never an insert, a send or a generation.
    */
   'tab.command': { payload: z.strictObject({ command: PageCommandSchema }), to: TAB },
-} as const satisfies Record<string, EventSpec>;
+} as const satisfies Record<string, TabEventSpec>;
 
 export type TabEventType = keyof typeof TAB_EVENTS;
 export const TAB_EVENT_TYPES = Object.keys(TAB_EVENTS) as TabEventType[];
@@ -709,10 +709,10 @@ export function parseTabPayload(kind: 'req' | 'res' | 'evt', type: string, paylo
   return parsed.success ? { ok: true, payload: parsed.data } : { ok: false };
 }
 
-/** Whether a sender kind (and page) may send this request type. */
-export function mayRequest(type: TabRequestType, sender: TabSender, page: ExtensionPage | null): boolean {
-  const spec: RequestSpec = TAB_REQUESTS[type];
-  if (!spec.from.includes(sender)) return false;
-  if (sender === 'page' && spec.pages !== undefined) return page !== null && spec.pages.includes(page);
-  return true;
+/**
+ * Whether a sender kind (and page, or site) may send this request type (`senderAllowed`). `host` — 1.15.0: the site
+ * of a tab or of a relay's tab; null for a page. A tab of an unnamed site is refused a request whose spec names `hosts`.
+ */
+export function mayRequest(type: TabRequestType, sender: TabSender, page: ExtensionPage | null, host: HostKind | null = null): boolean {
+  return senderAllowed(TAB_REQUESTS[type], sender, page, host);
 }

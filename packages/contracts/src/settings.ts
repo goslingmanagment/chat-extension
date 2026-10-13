@@ -2,11 +2,17 @@
 // D-23). The background owns them: writes go one at a time, migrations run
 // only forward at background start, a store newer than the build is read-only
 // (CG-STORAGE-VERSION). Identity and sign-in are never stored here.
+//
+// v1 does not change for a second site (R20, FS-SET-1): what it cannot say —
+// a site's own settings, a Recap depth above 3000 — lives in the separate,
+// separately versioned key `settings.ext` (STORAGE_KEYS.settingsExt; its
+// schema is settings-ext.ts). A build before 1.15.0 neither knows nor touches
+// that key, so a rollback and a return lose nothing.
 
 import * as z from 'zod/mini';
 
 import { LOCALES } from './i18n/keys';
-import { type HostKind } from './ids';
+import { HOST_KINDS, type HostKind } from './hosts';
 import { CountSchema, HubIntIdSchema, HubOriginSchema, PersonaDefinitionIdSchema, PersonaKeySchema, boundedText, displayText } from './primitives';
 
 export const SETTINGS_SCHEMA_VERSION = 1;
@@ -57,16 +63,13 @@ export const PersonaAssignmentSchema = z.strictObject({
   definitionId: PersonaDefinitionIdSchema,
 });
 
-/** HOST_KINDS of ids.ts, repeated so the settings module stays light (a test pins them equal). */
-const SETTINGS_HOST_KINDS = ['chatspace', 'fansly-web'] as const satisfies readonly HostKind[];
-
 /**
  * A host account across hosts, `${host}:${hostAccountId}` (ChatKey without
  * the fan): the key of the per-account settings, so the fansly-web accounts
  * of R20 never land on an OnlyMonster account with the same number.
  */
 export type HostAccountKey = `${HostKind}:${string}`;
-export const HOST_ACCOUNT_KEY_PATTERN = new RegExp(`^(?:${SETTINGS_HOST_KINDS.join('|')}):[1-9]\\d{0,29}$`);
+export const HOST_ACCOUNT_KEY_PATTERN = new RegExp(`^(?:${HOST_KINDS.join('|')}):[1-9]\\d{0,29}$`);
 export const HostAccountKeySchema = z.custom<HostAccountKey>((value) => typeof value === 'string' && HOST_ACCOUNT_KEY_PATTERN.test(value));
 
 export function hostAccountKeyOf(host: HostKind, hostAccountId: string): HostAccountKey {
@@ -266,6 +269,12 @@ export const STORAGE_KEYS = {
   /** X8 attempt journal, no text (§6.7.7). */
   sendJournal: 'send.journal',
   newcomersDrafts: 'newcomers.drafts',
+  /**
+   * 1.15.0 (R20, FS-SET-1): what settings v1 cannot say, its own schema version (settings-ext.ts). The v1 owner
+   * never writes it, and builds before 1.15.0 do not know it: their v1 repair drops unknown fields only inside
+   * `settings`, so a rollback keeps it for the return.
+   */
+  settingsExt: 'settings.ext',
 } as const;
 
 /** IndexedDB database of the logs (§9.2). */

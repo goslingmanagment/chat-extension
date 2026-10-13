@@ -36,8 +36,8 @@ describe('CG codes (Appendix A)', () => {
   });
 });
 
-describe('light copies', () => {
-  it('tab.register takes exactly the host kinds of ids.ts', () => {
+describe('host kinds in the light modules', () => {
+  it('tab.register takes exactly the host kinds of hosts.ts (1.15.0: imported, no copy left to pin)', () => {
     for (const host of C.HOST_KINDS) expect(C.TabRegisterRequestSchema.safeParse({ host, lateInjection: false, contractsVersion: '1.0.0' }).success).toBe(true);
     expect(C.TabRegisterRequestSchema.shape.host.options).toEqual([...C.HOST_KINDS]);
     expect(C.TAB_REQUESTS['tab.register'].req).toBe(C.TabRegisterRequestSchema);

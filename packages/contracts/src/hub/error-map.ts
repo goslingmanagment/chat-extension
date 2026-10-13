@@ -60,6 +60,8 @@ export const HUB_ERROR_STATUSES = {
   gate_hi_greeting_limit: 400,
   gate_ping_active: 400,
   context_conflict: 400,
+  /** 1.15.0: R20 HF-9 — a Fansly AI request whose group the page's capture holds as another fan's chat. */
+  conversation_fan_mismatch: 409,
   client_feature_disabled: 409,
   generation_not_ready: 409,
   generation_not_eligible: 409,
@@ -178,6 +180,12 @@ export const HUB_HTTP_ERROR_RULES: readonly HubHttpErrorRule[] = [
   show('gate_hi_greeting_limit', 'CG-GATE-HI'),
   show('gate_ping_active', 'CG-GATE-PING'),
   show('context_conflict', 'CG-CONTEXT-CONFLICT'),
+  /**
+   * 1.15.0 (R20 HF-9): the group and the fan of a Fansly request are not a pair the hub knows — the target's data
+   * changed under the chat. A shared code: the AI stream and its op view are shared paths. Not repeated as is; the
+   * tab resolves the chat's fan again (its 409 on the AI route tells it apart from other context changes).
+   */
+  show('conversation_fan_mismatch', 'CG-CONTEXT-CHANGED'),
 
   // ── client routes (hub-pr-plan §4.11) ──
   { error: 'client_feature_disabled', reason: 'binding_missing', cg: 'CG-BINDING-MISSING', disposition: 'refresh-bootstrap' },
