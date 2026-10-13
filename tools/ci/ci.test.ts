@@ -387,6 +387,9 @@ describe('which changes run the e2e suite', () => {
     expect(check).toContain('name: pnpm check');
     expect(e2e).toContain('name: pnpm e2e');
     expect(check).not.toContain('steps.scope');
+    // Both jobs read the PR against its base, the first parent of GitHub's merge commit: `e2e` to know whether it is
+    // needed, `check` for the gate on ChatSpace's byte pins (tools/gates/change.ts).
+    expect(check).toMatch(/- name: Checkout\n {8}uses: actions\/checkout@v6\n {8}with:\n {10}fetch-depth: 2\n/);
     expect(e2e).toMatch(/- name: Checkout\n {8}uses: actions\/checkout@v6\n {8}with:\n {10}fetch-depth: 2\n/);
     expect(runLine('Does this change need e2e\\?')).toBe('tools/ci/e2e-needed.sh >> "$GITHUB_OUTPUT"');
     const steps = e2e.slice(e2e.indexOf('- name: Does this change need e2e?')).split(/\n {6}- name: /).slice(1);

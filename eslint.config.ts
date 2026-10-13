@@ -17,7 +17,11 @@ const CG = {
   core: ['@cg/core', '@cg/core/*'],
   platform: ['@cg/platform', '@cg/platform/*'],
   hub: '@cg/hub',
-  host: ['@cg/host-chatspace', '@cg/host-chatspace/*'],
+  /**
+   * The packages of the page — the shared mechanics (host-kit) and each site's adapter — and Fansly's API package:
+   * only the app wires them, a shared package never imports one (docs/project-unite/architecture.md §1.8).
+   */
+  host: ['@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-kit', '@cg/host-kit/*', '@cg/host-fansly', '@cg/host-fansly/*', '@cg/fansly-api', '@cg/fansly-api/*'],
   ui: ['@cg/ui', '@cg/ui/*'],
   testing: '@cg/testing',
   extension: '@cg/extension',
@@ -160,7 +164,7 @@ export default defineConfig(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    files: ['.dependency-cruiser.cjs'],
+    files: ['.dependency-cruiser.cjs', 'tools/gates/site-paths.cjs'],
     languageOptions: { sourceType: 'commonjs', globals: globals.node },
   },
   {

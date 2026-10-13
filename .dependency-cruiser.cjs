@@ -3,6 +3,15 @@
 // cross-package relative imports and what each bundle root can reach (`hub`
 // and the SDK only from the background). ESLint checks single import
 // specifiers; tests/lint-boundaries.test.ts proves both go red.
+//
+// The two sites (docs/project-unite/architecture.md §1.8, R20 F9a): whose file
+// is whose comes from tools/gates/site-paths.cjs, the table the gates read too.
+// Shared code never imports a site's own code, a ChatSpace bundle and the
+// background core never reach Fansly's, and the packages of the page
+// (host-kit, host-chatspace, host-fansly), fansly-api, the relay frame and the
+// sites' background chunks each have their allowed graph written here.
+
+const { FANSLY_OWNED } = require('./tools/gates/site-paths.cjs');
 
 /** A path inside a workspace package / app / vendored package. */
 const pkg = (name) => `^packages/${name}/`;
@@ -17,6 +26,27 @@ const WXT_BROWSER = npm('@wxt-dev/browser');
 
 /** The host registry's entries and index: build data (docs/project-unite/architecture.md §1.2). Its runtime table is hosts/runtime/. */
 const HOST_REGISTRY = '^apps/extension/src/hosts/[^/]+\\.ts$';
+/** The registry's index: the one module that reads every site's entry. */
+const HOST_REGISTRY_INDEX = '^apps/extension/src/hosts/index\\.ts$';
+/** The extension pages' composition root and its own modules: the pages carry the texts and the errors of both sites (architecture.md §3.4, §1.6). */
+const PAGES_ROOT = '^apps/extension/src/composition/pages(\\.ts$|/)';
+/** ChatSpace's implementation: its page package and its folders in the shared packages and the composition. */
+const CHATSPACE_HOST_CODE = [pkg('host-chatspace'), '(^|/)hosts/chatspace/'];
+/** host-kit as a MAIN bundle may carry it: the MAIN boot and what both worlds share — dependency-free (`host-kit-*` rules). */
+const HOST_KIT_MAIN = pkg('host-kit/src/(main|common)');
+/** host-kit as an isolated adapter uses it. */
+const HOST_KIT_ISOLATED = pkg('host-kit/src/(isolated|common)');
+/** What never ships: the test harness and the packages' own test folders (fixtures, test worlds). They may import any site. */
+const TEST_CODE = [pkg('testing'), '^packages/[^/]+/test/'];
+/** Fansly's background chunk: `bg/fansly.ts` and its own folder. */
+const FANSLY_CHUNK = '^apps/extension/bg/fansly(/|\\.ts$)';
+/** The relay frame (architecture.md §8.5): an extension page inside a Fansly tab, up only for «Fansly через вкладку». */
+const RELAY_ENTRY = '^apps/extension/src/entrypoints/fansly-relay/';
+/**
+ * What ChatSpace's bundles are built from: its entry points, the lazy entries of its build and its background chunk.
+ * (The background core has its own rule, `background-core-graph`.)
+ */
+const CHATSPACE_BUNDLE_ROOTS = ['^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/', '^apps/extension/bg/chatspace(/|\\.ts$)'];
 
 /** The background entry point and its composition root: the only modules that may import `hub` (§4, D-13). */
 const BACKGROUND_ENTRY = '^apps/extension/src/entrypoints/background\\.ts$';
@@ -30,14 +60,13 @@ const BACKGROUND_KIT = '^apps/extension/src/composition/background/host-module\\
 /**
  * What only one site's background needs: never in the core's graph. Any site's chunk; ChatSpace's fan custody (the X8
  * coordinator, its journal and fuse, the greeting leases — core/services/custody); Fansly's own code (its host
- * folders, its API package, its tab protocol and schemas).
+ * folders, its API package, its tab protocol and schemas, its slice of the feature manifest — every file named by
+ * Fansly, tools/gates/site-paths.cjs).
  */
 const SITE_ONLY_BACKGROUND = [
   '^apps/extension/bg/',
   '^packages/core/src/services/(custody|send-coordinator|send-journal|send-fuse|greeting-leases)\\.ts$',
-  '(^|/)hosts/fansly(/|\\.ts$)',
-  '^packages/fansly-api/',
-  '^packages/contracts/src/.*fansly[^/]*\\.ts$',
+  FANSLY_OWNED,
 ];
 /**
  * Every other bundle root: the content scripts, the WS tap, the extension pages
@@ -110,14 +139,58 @@ module.exports = {
     only(
       'host-main-self-contained',
       pkg('host-chatspace/src/main'),
-      [],
-      'The MAIN bridge is a self-contained, dependency-free bundle (§4).',
+      [HOST_KIT_MAIN],
+      'The MAIN bridge is a self-contained bundle: its own folder and the shared page mechanics of host-kit (the boot, `guard`), which are dependency-free themselves (§4; docs/project-unite/architecture.md §1.1).',
     ),
     only(
       'host-isolated',
       pkg('host-chatspace/src/isolated'),
-      [pkg('contracts'), pkg('core/src/domain/text'), ZOD],
-      '`host-chatspace/isolated`: contracts and core/domain/text only (§4).',
+      [HOST_KIT_ISOLATED, pkg('contracts'), pkg('core/src/domain/text'), ZOD],
+      '`host-chatspace/isolated`: host-kit, contracts and core/domain/text only (§4).',
+    ),
+    // ── The packages of the page for two sites (docs/project-unite/architecture.md §1.1, §1.8) ──
+    only(
+      'host-kit-common-dependency-free',
+      pkg('host-kit/src/common'),
+      [],
+      '`host-kit/common` is what both worlds of the page share: the MAIN bundles carry it, so it imports nothing (architecture.md §1.1).',
+    ),
+    only(
+      'host-kit-main-self-contained',
+      pkg('host-kit/src/main'),
+      [pkg('host-kit/src/common')],
+      '`host-kit/main` — the MAIN boot, the bridge and `guard` of every site — is self-contained: no contracts, no zod, no extension API, no site (architecture.md §1.1, §5.1).',
+    ),
+    only(
+      'host-kit-isolated',
+      pkg('host-kit/src/isolated'),
+      [pkg('host-kit/src/common'), pkg('contracts'), pkg('core/src/domain/text'), ZOD],
+      '`host-kit/isolated`: contracts and core/domain/text only, as the ChatSpace adapter it was moved out of; it knows no site (architecture.md §1.1).',
+    ),
+    {
+      name: 'host-kit-knows-no-site',
+      comment: 'host-kit is the shared mechanics of the page: it never imports a site\'s package, a site\'s folder or a site\'s contract modules, and nothing but contracts, core/domain/text and zod (docs/project-unite/architecture.md §1.1, §1.8).',
+      severity: 'error',
+      from: { path: pkg('host-kit') },
+      to: { pathNot: [pkg('host-kit'), pkg('contracts'), pkg('core/src/domain/text'), ZOD] },
+    },
+    only(
+      'host-fansly-main-self-contained',
+      pkg('host-fansly/src/main'),
+      [HOST_KIT_MAIN],
+      'Fansly\'s MAIN script is one self-contained bundle: its own folder and host-kit\'s MAIN boot — no contracts, no zod, no extension API (docs/project-unite/architecture.md §5, §3.1).',
+    ),
+    only(
+      'host-fansly-isolated',
+      pkg('host-fansly/src/isolated'),
+      [HOST_KIT_ISOLATED, pkg('contracts'), pkg('core/src/domain/text'), ZOD],
+      '`host-fansly/isolated`: host-kit, contracts and core/domain/text only — no token, no network, no MAIN code (docs/project-unite/architecture.md §7).',
+    ),
+    only(
+      'fansly-api-graph',
+      pkg('fansly-api'),
+      [pkg('contracts'), pkg('core/src/domain'), ZOD],
+      '`fansly-api` — the only code that requests Fansly — imports contracts, core/domain and zod: no hub, no SDK, no browser API (it runs in Fansly\'s background chunk, behind the core\'s kit), no UI (docs/project-unite/architecture.md §8.1, §8.3).',
     ),
     only('ui-views-only', pkg('ui'), [pkg('contracts'), ZOD, ...PREACT], '`ui`: contracts, ui/kit and Preact only (§4).'),
     {
@@ -157,7 +230,23 @@ module.exports = {
         'A site\'s background chunk imports contracts, core (domain and services), zod, the hotkey engine and the kit\'s types — the core\'s ports come through the kit, so the chunk makes no second owner of the hub, the settings, telemetry or the journals (docs/project-unite/architecture.md §3.3).',
       severity: 'error',
       from: BACKGROUND_CHUNKS,
-      to: { pathNot: ['^apps/extension/bg/', pkg('contracts'), pkg('core/src/domain'), pkg('core/src/services'), ZOD, HOTKEYS, BACKGROUND_KIT] },
+      to: { pathNot: ['^apps/extension/bg/', pkg('contracts'), pkg('core/src/domain'), pkg('core/src/services'), pkg('fansly-api'), ZOD, HOTKEYS, BACKGROUND_KIT] },
+    },
+    {
+      name: 'background-chunks-apart',
+      comment:
+        'A site\'s background chunk never imports another site\'s: `bg/<site>.ts` and its folder `bg/<site>/` are one chunk, built and loaded by itself (docs/project-unite/architecture.md §3.3, §1.8).',
+      severity: 'error',
+      from: { path: '^apps/extension/bg/([^/.]+)(/|\\.ts$)' },
+      to: { path: '^apps/extension/bg/', pathNot: '^apps/extension/bg/$1(/|\\.ts$)' },
+    },
+    {
+      name: 'fansly-api-only-in-its-chunk',
+      comment:
+        '`fansly-api` runs in the background and for Fansly alone: only Fansly\'s background chunk imports it — not the core, not ChatSpace\'s chunk, not a tab, a page or the relay frame (docs/project-unite/architecture.md §8.1, А9).',
+      severity: 'error',
+      from: { pathNot: [pkg('fansly-api'), FANSLY_CHUNK, ...TEST_CODE] },
+      to: { path: pkg('fansly-api') },
     },
     {
       name: 'background-chunk-through-the-kit',
@@ -172,6 +261,46 @@ module.exports = {
       severity: 'error',
       from: { path: '^apps/extension/src/entrypoints/chatspace-(main\\.content|ws)\\.ts$' },
       to: { pathNot: [pkg('host-chatspace/src/main'), '^apps/extension/src/hosts/runtime/chatspace\\.ts$', npm('wxt')] },
+    },
+    {
+      name: 'fansly-main-entry-self-contained',
+      comment: 'Fansly\'s MAIN-world entry point bundles only host-fansly/main, the WXT define helpers and Fansly\'s row of the hosts\' runtime table (docs/project-unite/architecture.md §5, §3.1).',
+      severity: 'error',
+      from: { path: '^apps/extension/src/entrypoints/fansly-main(\\.content)?\\.ts$' },
+      to: { pathNot: [pkg('host-fansly/src/main'), '^apps/extension/src/hosts/runtime/fansly\\.ts$', npm('wxt')] },
+    },
+    {
+      name: 'relay-entry-graph',
+      comment:
+        'The relay frame is a page of the extension inside a Fansly tab that passes the background\'s requests on (docs/project-unite/architecture.md §8.5): contracts and the platform port only — no core, no UI, no fansly-api (the background\'s), no hub.',
+      severity: 'error',
+      from: { path: RELAY_ENTRY },
+      to: { pathNot: [RELAY_ENTRY, pkg('contracts'), pkg('platform'), ZOD, npm('wxt')] },
+    },
+    // ── The two sites kept apart (docs/project-unite/architecture.md §1.8) ──
+    {
+      name: 'fansly-code-only-from-fansly',
+      comment:
+        'Fansly\'s own code — every file named by Fansly (tools/gates/site-paths.cjs): its packages, its hosts/fansly folders, its entry points, lazy entries and background chunk, its contract modules and its slice of the feature manifest — is imported only by Fansly\'s own code, by the host registry\'s index and by the extension pages\' composition root (the pages carry both sites). Shared code and ChatSpace never import it: a change of Fansly\'s files alone then moves no byte of ChatSpace (docs/project-unite/architecture.md §1.8).',
+      severity: 'error',
+      from: { pathNot: [FANSLY_OWNED, HOST_REGISTRY_INDEX, PAGES_ROOT, ...TEST_CODE] },
+      to: { path: FANSLY_OWNED },
+    },
+    {
+      name: 'chatspace-graph-without-fansly',
+      comment:
+        'Nothing a ChatSpace bundle is built from — its entry points, the lazy entries of its build, its background chunk — reaches a file of Fansly\'s, however indirectly. This is what makes «only Fansly\'s files changed» mean «ChatSpace is byte-identical» (docs/project-unite/architecture.md §1.8; the background core: `background-core-graph`).',
+      severity: 'error',
+      from: { path: CHATSPACE_BUNDLE_ROOTS },
+      to: { path: FANSLY_OWNED, reachable: true },
+    },
+    {
+      name: 'chatspace-code-only-from-chatspace',
+      comment:
+        'ChatSpace\'s implementation — its page package and its hosts/chatspace folders — is imported only by ChatSpace\'s own code: its entry points, its halves of the adapter and the two lazy entries that carry them. The shared tab composition works with the common HostPort and the adapter (docs/project-unite/architecture.md §1.3, §1.8).',
+      severity: 'error',
+      from: { pathNot: [...CHATSPACE_HOST_CODE, '^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/(tab-app|bridge-validation)\\.ts$', ...TEST_CODE] },
+      to: { path: CHATSPACE_HOST_CODE },
     },
     {
       name: 'host-registry-build-only',
@@ -215,8 +344,9 @@ module.exports = {
     // Our own .d.ts files are not code. The vendored packages resolve to theirs
     // (`types` comes first in their `exports`): excluding those would hide every
     // SDK and hotkey-engine edge from the rules above.
-    // The sites' background chunks build config is build code (it reads the host registry), like wxt.config.ts.
-    exclude: { path: ['\\.test\\.tsx?$', '^(?!vendor/).*\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand|spike)/', '^apps/extension/bg/vite\\.config\\.ts$'] },
+    // The build configs of the sites' background chunks and lazy chunks are build code (they read the host registry),
+    // like wxt.config.ts.
+    exclude: { path: ['\\.test\\.tsx?$', '^(?!vendor/).*\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand|spike)/', '^apps/extension/(bg|lazy)/vite\\.config\\.ts$'] },
     tsPreCompilationDeps: true,
     combinedDependencies: false,
     enhancedResolveOptions: {
