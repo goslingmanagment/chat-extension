@@ -930,6 +930,7 @@ export const RU: I18nCatalog<'ru'> = {
   'settings.status.warning.sendUncertain': 'есть отправки с неизвестным исходом',
   'settings.status.warning.sendFused': 'предохранитель выключил отправку из превью',
   'settings.status.warning.hostPartial': 'ChatSpace проверен частично',
+  'settings.status.warning.hostModule': 'фоновые службы сайта не запустились — перезагрузите его вкладку',
   'settings.status.go.account': 'Аккаунт',
   'settings.status.go.accounts': 'Аккаунты',
   'settings.status.go.personas': 'Персоны',

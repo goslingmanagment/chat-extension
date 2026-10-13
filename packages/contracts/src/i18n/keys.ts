@@ -191,7 +191,7 @@ export const UI_TEXT_KEYS = [
   'settings.status.warningOne', 'settings.status.warning.staleTabs', 'settings.status.row.extensionUpdatedToday',
   'settings.status.row.extensionUpdatedOn', 'settings.status.row.extensionStaleTabs', 'settings.status.leadPending', 'settings.status.checking',
   'settings.status.checkAllTooltip', 'settings.status.warning.quotaLow', 'settings.status.warning.quotaZero', 'settings.status.warning.sendUncertain', 'settings.status.warning.sendFused',
-  'settings.status.warning.hostPartial', 'settings.status.go.account', 'settings.status.go.accounts', 'settings.status.go.personas',
+  'settings.status.warning.hostPartial', 'settings.status.warning.hostModule', 'settings.status.go.account', 'settings.status.go.accounts', 'settings.status.go.personas',
   'settings.status.fanId', 'settings.status.consentOn', 'settings.status.consentNote', 'settings.status.row.chatspaceClosed',
   'settings.status.row.chatspaceClosedNote', 'settings.status.row.chatspaceChecking', 'settings.status.row.chatspacePartial',
   'settings.status.row.chatspacePartialNote', 'settings.status.row.chatspaceCopyOnlyNote', 'settings.status.row.chatspaceNotYetNote', 'settings.status.row.hubNoAccess', 'settings.status.row.hubDown', 'settings.status.row.hubUnknown',
