@@ -11,6 +11,7 @@ import { applyOpDone, applyOpUpdate, mirrorFromView, type OpsEnvironment } from 
 import { ActionTokens, OPS_STORE_KEY, OpScheduler, RecapProfileSaver, SAVE_OUTCOMES_KEPT, deadlineStage, profileSaveDelay, type OpSchedulerDeps, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
 import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
 import { featuresOf } from './support/features';
@@ -1059,5 +1060,18 @@ describe('[RB-018] the dossier save of a full recap (H-5)', () => {
     expect(saver.outcome(uuid(0x1000 + 5))).toBeNull();
     expect(saver.outcome(uuid(0x1000 + 6))).toBe('saved');
     expect(saver.outcome(uuid(0x1000 + SAVE_OUTCOMES_KEPT + 5))).toBe('saved');
+  });
+});
+
+describe('[host:chatspace] R20 F6a: the background toast on ChatSpace is as before F6a', () => {
+  it('«AI готово · {фан}» when the owning tab shows another chat: byte for byte as recorded on main', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    h.hub.streamScript.push(...forOp(scenario('reply-normal'), op));
+    h.presence.set(TAB, { chat: chatOf(WORLD.otherFan), routeEpoch: 3, visible: true, focused: true });
+    opIdOf(await h.start(TAB, startOf(), { fanLabel: 'Fan Two' }));
+    await h.clock.advance(1000);
+    const toast = JSON.stringify(h.events.of('toast'));
+    expect(toast).toBe(CHATSPACE_RECORDED.toast);
   });
 });

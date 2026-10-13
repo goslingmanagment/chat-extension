@@ -59,6 +59,7 @@ import { BOOTSTRAP_PILOT_PAGES, NOW_MS as HUB_NOW_MS, SSE_SCENARIOS, WORLD as HU
 
 import { featuresOf, freshTextOn } from './support/features';
 import { NOW_MS, WORLD, binding, checkpointFor, persona, session, startOf, target, targetOf, uuid, withX8 } from './support/world';
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { seeded } from './support/random';
 
 const OP = uuid(0x100);
@@ -219,6 +220,11 @@ describe('[AI-133] [RB-001] the single automatic retry', () => {
 describe('[AI-128] request identity and the result cache', () => {
   const identity = (over: Parameters<typeof startOf>[0] = {}, archiveHead: string | null = null) =>
     requestIdentityOf({ session, start: startOf(over), persona, archiveHead });
+
+  it('[host:chatspace] R20 F6a: the key of a ChatSpace request is byte for byte the one recorded on main (the conversation is the fan)', () => {
+    const key = requestKeyOf(identity({ checkpoint: checkpointFor(WORLD.fan) }, '4006'));
+    expect(key).toBe(CHATSPACE_RECORDED.requestKey);
+  });
 
   it('[AI-128] the same parameters give the same key; the cause (a new click) does not matter', () => {
     expect(requestKeyOf(identity({ token: 'tok_aaaaaaaaaaaaaaaa' }))).toBe(requestKeyOf(identity({ token: 'tok_bbbbbbbbbbbbbbbb' })));

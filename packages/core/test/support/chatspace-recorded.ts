@@ -1,0 +1,33 @@
+// What leaves the tab and the background on ChatSpace where R20 F6a moved
+// the site and the conversation into shared code (docs/project-unite/plan.md
+// F6a): the start and the hub body of a generation in the dock and in a
+// preview, the reads of a preview by chat, the navigations of «Открыть и
+// вставить», a Spenders row and a card of «Новые», the background's toast,
+// the chat handle and navigation of its «Открыть чат», and the request key of
+// the result cache. Recorded as JSON on `main` 668cd69, before F6a: on
+// ChatSpace the conversation of a chat is its fan, so F6a leaves every byte of
+// these as it was, and the tests compare them byte for byte. Synthetic ids
+// only (the fake worlds of @cg/testing).
+
+export const CHATSPACE_RECORDED = {
+  dockStart:
+    '[{"feature":"reply","surface":"dock","target":{"binding":{"hubOrigin":"https://hub.example.test","principalId":7,"loginEpoch":3,"host":"chatspace","hostAccountId":"1001","platform":"onlyfans","platformAccountId":"3003","pageId":11,"pageLabel":"model-one","bindingRevision":2},"chat":{"host":"chatspace","hostAccountId":"1001","platformFanId":"2002"},"fanRef":"2002","conversationRef":"2002"},"cause":{"kind":"click","actionToken":"tok_00000000000000000000"},"tone":null,"split":false,"window":100,"fresh":{"capturedAt":"2026-10-03T10:00:00.000Z","messages":[{"platformMessageId":"4004","direction":"fan","sentAt":"2026-10-03T09:59:00.000Z","text":"hey"}]}}]',
+  dockStreams:
+    '[{"feature":"fast-reply","body":{"clientRequestId":"00000000-0000-4000-8000-000000000100","pageLabel":"model-one","platform":"onlyfans","conversationRef":"2002","fanRef":"2002","personaKey":"default","expectedPersonaDefinitionId":"pdef_0123456789abcdef","replyTone":"none","replyMode":"default","messageCount":100,"isRegeneration":false,"liveTextContext":{"capturedAt":"2026-10-03T10:00:00.000Z","items":[{"platformMessageId":"4004","direction":"fan","occurredAt":"2026-10-03T09:59:00.000Z","text":"hey"}]}},"capabilities":["context-v1"]}]',
+  previewStart:
+    '[{"type":"op.start","payload":{"feature":"reply","surface":"preview","target":{"binding":{"hubOrigin":"https://hub.example.test","principalId":7,"loginEpoch":3,"host":"chatspace","hostAccountId":"1001","platform":"onlyfans","platformAccountId":"3003","pageId":11,"pageLabel":"model-one","bindingRevision":2},"chat":{"host":"chatspace","hostAccountId":"1001","platformFanId":"5000"},"fanRef":"5000","conversationRef":"5000"},"cause":{"kind":"click","actionToken":"tok_00000000000000000000"},"tone":null,"split":true,"window":100,"checkpoint":{"documentEpoch":"doc-host-1","socketEpoch":1,"subscriptionEpoch":1,"hostAccountId":"1001","platformFanId":"5000","fanSequence":2,"lastFanMessageId":"4004","knownFanMessageIds":["4004","4003"],"observedAt":1791021600000,"coverage":"ok"}}}]',
+  previewStreams:
+    '[{"feature":"fast-reply","body":{"clientRequestId":"00000000-0000-4000-8000-000000000100","pageLabel":"model-one","platform":"onlyfans","conversationRef":"5000","fanRef":"5000","personaKey":"default","expectedPersonaDefinitionId":"pdef_0123456789abcdef","replyTone":"none","replyMode":"preferSplit","messageCount":100,"isRegeneration":false,"knownFanMessageIds":["4004","4003"]},"capabilities":["context-v1"]}]',
+  previewOpLists:
+    '[{"type":"op.list","payload":{"scope":"tab","chatKey":"chatspace:1001:5000"}},{"type":"op.list","payload":{"scope":"tab","chatKey":"chatspace:1001:5000"}},{"type":"op.list","payload":{"scope":"tab","chatKey":"chatspace:1001:5000"}}]',
+  boardNavigations:
+    '[{"intentId":"00000000-0000-4000-8000-000000009002","cause":{"kind":"click","actionToken":"tok_00000000000000000001"},"target":{"hostAccountId":"1001","platformFanId":"5000"},"thenInsert":{"intentId":"00000000-0000-4000-8000-000000009001","operationId":"00000000-0000-4000-8000-000000000100","part":{"index":0},"target":{"host":"chatspace","hostAccountId":"1001","platformFanId":"5000"},"expected":{"kind":"deferred","documentEpoch":"doc-host-1"},"mode":"replace","text":"Hey you","confirmationId":null,"createdAt":1791021600200,"expiresAt":1791021620200}},{"intentId":"00000000-0000-4000-8000-000000009003","cause":{"kind":"click","actionToken":"tok_00000000000000000002"},"target":{"hostAccountId":"1001","platformFanId":"5001"}},{"intentId":"00000000-0000-4000-8000-000000009004","cause":{"kind":"click","actionToken":"tok_00000000000000000003"},"target":{"hostAccountId":"1001","platformFanId":"2010"}}]',
+  toast:
+    '[{"to":"00000000-0000-4000-8000-0000000000a1","payload":{"toast":{"toastId":"00000000-0000-4000-8000-000000000101","kind":"success","scope":"op.ready","opId":"00000000-0000-4000-8000-000000000100","feature":"reply","chat":{"host":"chatspace","hostAccountId":"1001","platformFanId":"2002"},"fanLabel":"Fan Two"}}}]',
+  toastHandle:
+    'nav.chat.1001.2004',
+  toastNavigation:
+    '[{"intentId":"00000000-0000-4000-8000-000000000700","cause":{"kind":"click","actionToken":"tok_nav_0000000000000001"},"target":{"hostAccountId":"1001","platformFanId":"2004"}}]',
+  requestKey:
+    '{"archiveHead":"4006","bindingRevision":2,"checkpoint":{"coverage":"ok","documentEpoch":"doc-1","fanSequence":2,"hostAccountId":"1001","knownFanMessageIds":["4006","4004"],"lastFanMessageId":"4006","platformFanId":"2002","socketEpoch":1,"subscriptionEpoch":1},"coachDigest":null,"fanRef":"2002","feature":"reply","fixDraftDigest":null,"freshDigest":null,"freshHead":null,"host":"chatspace","hostAccountId":"1001","hubOrigin":"https://hub.example.test","pageId":11,"personaDefinitionId":"pdef_0123456789abcdef","personaKey":"default","recapMode":null,"signInEpoch":3,"split":false,"surface":"dock","tone":null,"userId":7,"variantCount":null,"window":100}',
+} as const;
