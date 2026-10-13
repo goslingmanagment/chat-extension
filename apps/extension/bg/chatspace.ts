@@ -91,9 +91,9 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
     let timer: number | null = null;
     try {
       const outcome = await Promise.race([run().then(() => 'ok' as const), new Promise<'late'>((done) => (timer = clock.setTimer(READINESS_STEP_TIMEOUT_MS, () => done('late'))))]);
-      if (outcome === 'late') log.sink.write({ level: 'warn', scope: 'bg.hosts', msg: 'chatspace start step late', fields: { step: name, ms: clock.now() - began } });
+      if (outcome === 'late') log.sink.write({ level: 'warn', scope: 'bg.hosts', msg: 'chatspace start step late', fields: { stage: name, ms: clock.now() - began } });
     } catch (error) {
-      log.sink.write({ level: 'error', scope: 'bg.hosts', msg: 'chatspace start step failed', fields: { step: name, error: error instanceof Error ? error.name : typeof error } });
+      log.sink.write({ level: 'error', scope: 'bg.hosts', msg: 'chatspace start step failed', fields: { stage: name, error: error instanceof Error ? error.name : typeof error } });
     } finally {
       if (timer !== null) clock.clearTimer(timer);
     }
