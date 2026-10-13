@@ -1,0 +1,53 @@
+// The feature manifest, ChatSpace (R20, docs/project-unite/architecture.md
+// §1.4): what each feature needs on ChatSpace — the owner's switches of the
+// page, the capabilities of ChatSpace's contract report, where it is shown and
+// where its data come from — and the features only ChatSpace has: sending from
+// a preview through ChatSpace's own queue (X8), our navigation between chats,
+// the palette.
+//
+// A site module: imported by its subpath only (`@cg/contracts/features/chatspace`),
+// by ChatSpace's own composition roots and by the roots that serve every site
+// (the background's core, the extension pages). A Fansly bundle never carries it.
+//
+// The hub has already weighed the platform and what it serves into the page's
+// own `features[flag]`: nothing here repeats that. `clientNeeds` is only what
+// this client's own transport needs on top (routes.ts, CLIENT_FLAG_REQUIREMENTS).
+
+import { CLIENT_FLAG_REQUIREMENTS } from '../hub/routes';
+import type { SiteFeatures } from './common';
+import type { Requirement } from './types';
+
+type Req = Requirement;
+
+const NOTHING: Req = { flags: [], hostCapabilities: [] };
+/** Putting a result into ChatSpace's composer: the owner's `insertion` and the bridge that writes there. */
+const INSERT: Req = { flags: ['insertion'], hostCapabilities: ['insert'] };
+/** X8: the owner's `previewSend`, ChatSpace's send queue and a receipt profile of the build. */
+const PREVIEW_SEND: Req = { flags: ['previewSend'], hostCapabilities: ['previewSend', 'receipt'] };
+
+const FEATURES = {
+  // Drafts for the fan. No switch of their own on OnlyFans: the hub's master switch and the build's version decide.
+  reply: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' },
+  fix: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' },
+  hi: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview', 'newcomers'], source: 'hub' },
+  ping: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' },
+  'fresh-text': { base: { flags: ['freshText'], hostCapabilities: [], clientNeeds: CLIENT_FLAG_REQUIREMENTS.freshText }, actions: {}, surfaces: ['dock'], source: 'page' },
+  review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
+  recap: { base: { flags: ['recap'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded', 'fan-panel'], source: 'hub' },
+  coach: { base: { flags: ['coach'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['coach'], source: 'hub' },
+  spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview'], source: 'hub' },
+  // «Новые» come from the hub (`audience-new`); a greeting leaves from the card through X8.
+  newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: PREVIEW_SEND }, surfaces: ['newcomers', 'preview'], source: 'hub' },
+  'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub' },
+  sound: { base: { flags: ['sound'], hostCapabilities: [] }, actions: {}, surfaces: [] },
+
+  // ── only ChatSpace ──
+  'preview-send': { kind: 'host-action', base: PREVIEW_SEND, actions: { send: NOTHING }, surfaces: ['preview', 'newcomers'], source: 'page' },
+  navigation: { kind: 'host-action', base: { flags: ['navigation'], hostCapabilities: ['navigate'] }, actions: {}, surfaces: ['quick-jump'], source: 'page' },
+  // The window itself needs no switch; the chats it lists are opened by `navigation`.
+  palette: { kind: 'panel', base: NOTHING, actions: {}, surfaces: ['palette'], source: 'page' },
+} as const;
+
+export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES> = FEATURES;
+
+export type ChatSpaceFeatureKey = keyof typeof CHATSPACE_FEATURES;

@@ -2,7 +2,9 @@
 // identities, the host port, the MAIN ↔ isolated bridge, the tab/pages ↔
 // background protocol, operations, settings, errors and the CG registry,
 // i18n keys, telemetry and logs, the UI contract (vm) and the hub facade
-// with its DTOs (hub).
+// with its DTOs (hub). The feature manifest (features/*) is its subpaths
+// alone: the root is what the early isolated start imports, and every module
+// it re-exports costs that bundle bytes whether it is used there or not.
 // Types and schemas only (zod/mini, docs/protocols/README.md); depends on zod
 // only (§4). Each module is also its own `exports` subpath. The package is
 // side-effect free, so a bundle carries only the modules it uses: the early

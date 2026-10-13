@@ -14,7 +14,7 @@
 | `catalog.ts` | `ActionCatalog`, `HotkeyLabel` (подпись, `aria-keyshortcuts`, доставка, запасная клавиша), причины недоступности с ключом i18n и кодом CG |
 | `i18n.ts` | порт `I18n`: `t`, `plural`, `formatMoneyMills`, `formatAge`, `formatTime`, `formatDuration`; `Msg` — ключ с параметрами |
 | `theme.ts` | имена токенов `--cg-*` (ровно список ui-design §2.2), сигнал схемы, атрибут `data-scheme` |
-| `result.ts`, `dock.ts` | `ResultVM`, `PartVM`, `PreviewSendView` (девять состояний) и `previewSendStateOf` (попытка и preflight → состояние), `DockVM` |
+| `result.ts`, `dock.ts` | `ResultVM`, `PartVM`, `PreviewSendView` (девять состояний) и `previewSendStateOf` (попытка и preflight → состояние), `DockVM`; 1.15.0 — `ChipVM`, `DOCK_CHIP_GROUPS`, `DOCK_ICON_IDS` |
 | `analysis.ts` | `RecapPickerVM`, `RecapViewVM`, `ReviewVM`, `CoachVM` |
 | `spenders.ts`, `preview.ts`, `newcomers.ts` | доска и статистика, превью, «Новые» с бронью |
 | `panels.ts`, `pages.ts` | панель фана, палитра, быстрый переход, шпаргалка, тосты; popup, настройки по разделам, эхо промпта, журналы |
@@ -198,6 +198,19 @@
     есть модуль в состоянии `failed` (его чанк `bg/<сайт>.js` не загрузился или не стартовал),
     в готовности «Статуса» — предупреждение `settings.status.warning.hostModule`. Запросы этого
     сайта отвечают `CG-RUNTIME-UNREACHABLE`; UI показывает их как обычно.
+25. **Чипы полосы — данными (1.15.0, R20 F4).** `DockVM.chips` — чипы полосы в том
+    порядке, в каком они стоят: по группе (`DOCK_CHIP_GROUPS`: `reply` — Reply с капсулой
+    тонов и Split и квотой у угла; `draft`; `openers`; `analysis` — Review, Recap, Coach;
+    `windows` — Spenders и «Новые» в правом блоке), затем по приоритету манифеста фич
+    сайта. Строит контроллер дока из среза манифеста (`dockChips`); фичи, которой у сайта
+    нет, нет и чипа. У чипа — поля `DockActionVM` (для семи замороженных — те же, что в
+    `actions[id]`), группа, иконка узкой полосы (`DOCK_ICON_IDS`; null — слово на любой
+    ширине), слова (`label`, `hint` — ключи каталога) и действие клика (`action`; null —
+    действовать не на что). Полоса рисует только их и не знает фич: шов — перед первым
+    чипом каждой следующей группы, капсула — у группы `reply`, «Ещё» — для того, что узкая
+    полоса спрятала. Слот группы и иконку держит `ui/kit` (`kit/chips.ts`). `actions`
+    остаются для всех, кто читает действия по имени (клавиши, палитра, превью); модель без
+    `chips` рисует полосу без чипов.
 
 ## Сценарии
 

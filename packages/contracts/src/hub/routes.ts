@@ -84,28 +84,15 @@ export const HUB_FORBIDDEN_OPERATIONS = [
 ] as const;
 
 /**
- * §4.12: what each owner flag needs from the hub. A flag is usable on a page
- * only when the flag is on, the page's feature is `available`, and every
- * capability below is declared. `serverChecked: false` — a client-only switch
- * (the hub has no action to refuse); turning it off is not API protection.
- * Fresh text also needs `context-v1`: the hub refuses `liveTextContext`
- * without that request header (400 `capability_required`).
+ * What this client's OWN transport needs of the hub for a switch, on top of the hub's decision about the page
+ * (1.15.0, R20 F4). The hub has already weighed the platform and what it serves into `pages[].features[flag]`
+ * (its `CLIENT_FEATURE_REQUIREMENTS`), and the client does not repeat that table: a switch of a page is read from
+ * the page's own feature alone (core `domain/ops/flags.ts`). What is left is one need of the client's own calls:
+ * fresh text travels as `liveTextContext`, which the hub refuses without the `context-v1` request header (400
+ * `capability_required`). The feature manifest names it as `clientNeeds` of `fresh-text` (features/<site>.ts), and
+ * `admission` checks it there. A route's own capabilities are `HUB_ROUTES[route].capabilities`: the hub layer
+ * never calls a route the bootstrap did not declare.
  */
 export const CLIENT_FLAG_REQUIREMENTS = {
-  insertion: { capabilities: [], serverChecked: false },
-  navigation: { capabilities: [], serverChecked: false },
-  wsTap: { capabilities: [], serverChecked: false },
-  sound: { capabilities: [], serverChecked: false },
-  fanPanel: { capabilities: [], serverChecked: false },
-  previewSendMarkAiGenerated: { capabilities: [], serverChecked: false },
-  spenders: { capabilities: [], serverChecked: false },
-  freshText: { capabilities: ['context-v1', 'live-text-v1'], serverChecked: true },
-  splitAll: { capabilities: ['split-all-v1'], serverChecked: true },
-  recap: { capabilities: ['shared-recaps-v1', 'recap-profile-v1'], serverChecked: true },
-  review: { capabilities: [], serverChecked: true },
-  coach: { capabilities: [], serverChecked: true },
-  preview: { capabilities: ['archive-feed-v1'], serverChecked: true },
-  stats: { capabilities: ['spenders-stats-v1', 'awaiting-reply-v1'], serverChecked: true },
-  newcomers: { capabilities: ['audience-new-v1', 'preview-send-custody-v1'], serverChecked: true },
-  previewSend: { capabilities: ['preview-send-custody-v1'], serverChecked: true },
-} as const satisfies Record<ClientFeatureFlag, { readonly capabilities: readonly ClientHubCapability[]; readonly serverChecked: boolean }>;
+  freshText: ['context-v1'],
+} as const satisfies Readonly<Partial<Record<ClientFeatureFlag, readonly ClientHubCapability[]>>>;

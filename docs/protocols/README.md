@@ -20,7 +20,9 @@ X8 на любой сборке ChatSpace по профилю-метке хаб�
 1.15.0 — второй сайт, fansly.com (R20, этап 4 `docs/project-unite/plan.md`): одна минорная версия на весь этап, PR
 этапа дописывают в неё свои разделы; первым — P4a1: таблица сайтов `hosts`, пара хост↔платформа цели из неё,
 разговор маршрута и навигации; P4a2 — мост Fansly: модули сайта `bridge-fansly`, `bridge-messages-fansly`, `fansly`;
-P4a3 — протокол вкладки Fansly, отправитель `relay`, ключ `settings.ext` и коды Fansly).
+P4a3 — протокол вкладки Fansly, отправитель `relay`, ключ `settings.ext` и коды Fansly; F4 — манифест фич
+`features/*` (только подпути), чипы полосы данными `DockVM.chips`, в `CLIENT_FLAG_REQUIREMENTS` — только нужда
+транспорта клиента).
 Менять их можно только по правилу из [журнала изменений](../contracts-changelog.md).
 
 R01 делали четыре исполнителя, интегратор свёл их работу:
@@ -37,7 +39,8 @@ R01 делали четыре исполнителя, интегратор св�
 Каждый модуль — свой подпуть `exports` (`@cg/contracts/<модуль>`), корень
 `@cg/contracts` реэкспортирует всё, кроме `parity/exceptions` (его читает гейт
 паритета под чистой Node), модулей сайта Fansly (`fansly`, `bridge-fansly`,
-`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, 1.15.0) и `settings-ext` (1.15.0): их
+`bridge-messages-fansly`, `tab-messages-fansly`, `errors-fansly`, 1.15.0), `settings-ext` и манифеста фич
+`features/*` (1.15.0): их
 импортирует только тот, кому они нужны, по подпути, и ни бандл ChatSpace, ни ядро фона, которые берут корень, их не
 несут (R20 §1.8, §3.2). Пакет без побочных эффектов: в бандл попадают только модули, которыми он пользуется.
 
@@ -45,6 +48,7 @@ R01 делали четыре исполнителя, интегратор св�
 |---|---|---|
 | `primitives` | общие формы: id платформы и хоста, UUID, ссылки, эпохи, отпечатки, `actionToken`, время (epoch ms и ISO), `MoneyMills`, micro-USD, адрес хаба, IANA-зона, открытая лексема | §5 |
 | `features` | `FeatureId`, `Surface`, `Tone`; какие фичи берут свежий текст, какие делятся на части, какие можно отправить из превью | §5.5, D-14, D-15 |
+| `features/types`, `features/common`, `features/chatspace`, `features/fansly` | 1.15.0, только подпути, без zod (R20 F4): манифест фич — `FeatureCommon` (вид, чип, клавиша), `Requirement` (флаги страницы, возможности сайта, нужды транспорта клиента — всё AND), `FeatureOnHost` (`base` и требования действий `generate`/`insert`/`send`, поверхности, источник), `HotkeyActionId`; общее для обоих сайтов и по файлу на сайт — срез делает граф модулей. Файл сайта называет и то, чего в общих словарях ещё нет (`FANSLY_FLAGS_AHEAD`, `FANSLY_SURFACES_AHEAD`) | R20 §1.4 |
 | `hosts` | **лёгкий**, без zod (1.15.0): сайты `HOST_KINDS` и платформа каждого `HOST_PLATFORM` — одна таблица для проверок цели и маршрута; адреса, скрипты и поля сборки — в реестре хостов приложения (`apps/extension/src/hosts`), не здесь | R20 §1.2, §12 |
 | `ids` | `HostKind` (схема; список — из `hosts`), `Platform`, `Role`, `ChatRef`, `ChatKey`, `HostAccount`, `SessionIdentity`, `HubBinding`, `Target` (пара хост↔платформа — по `HOST_PLATFORM`), `GenerationIdentity`, `HostIdentity`, `DraftSnapshot`, `HumanCause`, `PartRef`; сужение открытых лексем | §5.1 |
 | `limits` | числовые пределы без схем: мост, планировщик операций, хранилища, X8, логи, телеметрия, отладка; пределы тела AI хаба (`AI_REQUEST_LIMITS`, `COACH_LIMITS`), входа, частей, свежего текста; `OP_TIMEOUTS` | §5.3, §7, §9 |

@@ -7,7 +7,10 @@ import { type CgErrorView } from '../errors';
 import { type FeatureId, type Tone } from '../features';
 import { type UiResultStyle } from '../settings';
 import { type IsoTimestamp } from '../primitives';
+// `import type` (as below for `Msg`): the chips' types add no run-time edge to this module — it is in the early isolated bundle's graph.
+import type { UiAction } from './actions';
 import { type ReasonVM, type HotkeyLabel } from './catalog';
+import type { Msg } from './i18n';
 import { type RefusalVM, type ResultVM } from './result';
 import { type TargetHandle } from './selectors';
 import { type RunningOpVM, type VmView } from './view';
@@ -51,6 +54,37 @@ export interface DockActionVM {
   readonly hotkey: HotkeyLabel | null;
   /** The «Recap готов» dot (UI-010); moves to «Ещё» on a narrow strip. */
   readonly badge: 'recap-ready' | null;
+}
+
+/**
+ * 1.15.0 (R20 F4). The groups of the bar's chips, in the bar's order (ui-design §3.1): Reply with the capsule of
+ * its options │ the draft's tools │ the openers │ what is known about the fan — and, at the right end, the windows.
+ * A seam stands before the first chip of a group. How a group is laid out is `ui/kit`'s; its test holds every
+ * value here to a row there.
+ */
+export const DOCK_CHIP_GROUPS = ['reply', 'draft', 'openers', 'analysis', 'windows'] as const;
+export type DockChipGroup = (typeof DOCK_CHIP_GROUPS)[number];
+
+/** 1.15.0 (R20 F4). The icons a chip may show on a narrow bar instead of its word; `ui/kit` draws each (its test holds the list to the kit's icon set). */
+export const DOCK_ICON_IDS = ['gauge', 'dossier', 'bulb', 'bill', 'userPlus'] as const;
+export type DockIconId = (typeof DOCK_ICON_IDS)[number];
+
+/**
+ * 1.15.0 (R20 F4). A chip of the bar as data: a feature of the site's manifest that has a chip there
+ * (`contracts/src/features`), with what the bar shows of it and what a click asks for. The state fields are the
+ * ones of `DockActionVM`; for one of the seven frozen actions they repeat `actions[id]`.
+ */
+export interface ChipVM extends DockActionVM {
+  /** The feature's key in the site's manifest: `reply`, `spenders`… */
+  readonly id: string;
+  readonly group: DockChipGroup;
+  /** Shown instead of the word on a narrow bar; null — the word stays at every width. */
+  readonly icon: DockIconId | null;
+  readonly label: Msg;
+  /** One sentence under the name in the hint (UI-004). */
+  readonly hint: Msg;
+  /** What a click asks for; null — nothing can be asked now (no chat to act on). */
+  readonly action: UiAction | null;
 }
 
 export interface DockVM {
@@ -102,6 +136,13 @@ export interface DockVM {
     readonly splitHotkey: HotkeyLabel | null;
   };
   readonly actions: Readonly<Record<DockActionId, DockActionVM>>;
+  /**
+   * 1.15.0 (R20 F4). The bar's chips in the order they stand: by group (`DOCK_CHIP_GROUPS`), then by the
+   * manifest's priority. Built from the site's slice of the feature manifest and its admission: a feature the
+   * site does not have gives no chip. The bar draws these and nothing else; a model without the field draws no
+   * chip (every producer of this version sets it).
+   */
+  readonly chips?: readonly ChipVM[];
   /** The draft result sheet (Reply, Fix, Hi, Ping); null — collapsed strip. */
   readonly result: ResultVM | null;
   /** Recap or Review open in the sheet; their content is the `recap.*` / `review` views (ui-design §9.1 п. 3). */
