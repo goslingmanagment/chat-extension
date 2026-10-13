@@ -231,6 +231,60 @@ ChatSpace не меняются.
   id (строка с буквами, число, пустая строка); событие `toast` реестра вкладки — те же. Тесты:
   `packages/contracts/test/schemas.test.ts`, `packages/contracts/test/protocols.test.ts`.
 
+### P4c — отправка приветствия Fansly по HTTP
+
+Новый модуль сайта `send-fansly` (только подпуть `@cg/contracts/send-fansly`, корень его не реэкспортирует) —
+`docs/project-unite/architecture.md` §8.6, А10; спецификация FS-NEW-3, FS-NEW-6, FS-NEW-7. X8 (`send`, `send-rules`,
+`send.journal`) не менялся: у него очередь ChatSpace и части генерации, здесь — один наш `POST /message` с текстом, который
+человек мог написать или исправить.
+
+- **Машина состояний данными:** `ready → claimed → routed → dispatched → intentWritten → requestStarted → receipted →
+  sent`, концы `refused` и `uncertain` (`FANSLY_SEND_STATES`, `FANSLY_SEND_TRANSITIONS`). У каждого конца — доказательство:
+  `FANSLY_REFUSAL_PROOFS` (`before-dispatch`, `not-enqueued`, `native-rejected` — 4xx, кроме 401, `resolved-not-sent` —
+  решение хаба), `FANSLY_SENT_PROOFS` (`echo`, `history` — с id своей квитанции, `resolved-sent`),
+  `FANSLY_UNCERTAIN_CAUSES` (`restart`, `network`, `server`, `unauthorized`, `rejected-200` — `200 {success:false}`,
+  `bad-receipt`, `relay`, `receipt-missing`); какое из них допускает каждое состояние — `*_FROM`. `isFanslySendStep`
+  отвергает всё, чего архитектура не называет: в `ready` не ведёт ничто, из `sent` и `refused` — ничто, из `uncertain` —
+  только поздние эхо или история с id своей квитанции либо решение хаба; до записи намерения `uncertain` невозможен, между
+  записью и `fetch` — только `restart`; `fetch` без записи намерения (`dispatched → requestStarted`) — не шаг.
+- **Вид попытки** `FanslySendViewSchema` и **запись журнала** `FanslySendJournalEntrySchema` — объединения по `state`:
+  у `receipted` — id сообщения, у `sent` — доказательство и id (без id — только решение хаба), у `refused` —
+  доказательство, код и статус только при `native-rejected` (4xx, кроме 401), у `uncertain` — `CG-SEND-UNCERTAIN`, причина
+  и id квитанции только при `receipt-missing`. Журнал — ключ `FANSLY_SEND_JOURNAL_KEY = 'fansly.send.journal'` (свой,
+  `STORAGE_KEYS` не менялся), `{v: 1, entries}`, только id, ревизии, отпечатки и состояния; строгий — текст и заголовки
+  сессии в него не лягут. Первая запись — в `routed`, до `dispatch`; билет есть с `dispatched`; вид допуска согласован с
+  группой. `FANSLY_SEND_RECOVERY` — что делает перезапуск: до намерения → `refused` (`not-enqueued`, CG-OP-INTERRUPTED),
+  после → `uncertain` (`restart`). `FANSLY_CUSTODY_REPORTS` / `fanslyCustodyReport` — что конец должен опеке хаба
+  (`failed: not_enqueued`, `failed: native_rejected` со статусом, `sent`; у `uncertain` — ничего), `reportPending` — пока
+  хаб не ответил. `FANSLY_SEND_OPEN_STATES` держат фана (ключ `fanslySendLockKey`), `isFanslyRetryableEnd` — новый клик
+  только после отказа, который клик может снять.
+- **Запрос приветствия «Новых»** `FanslyGreetingRequestSchema` и запрос вкладки `fansly.followers.send` (реестр Fansly):
+  `attemptId`, `passId`, креатор, фан, `groupId`, `text` (содержимое поля, обрезанное, 1–5000), `draftRevision` (в хаб —
+  `textRevision`, ≤ 2³¹−1), `historyRevision` (просмотренная ревизия истории), `admission` (FS-NEW-6: `own`, `ai` с
+  генерацией и вариантом, `ai-edited` с исходной генерацией) и `cause` — действие человека. Ответ — вид попытки или
+  ошибка сайта в теле.
+- **Ручная группа и тело брони Fansly (HF-3 хаба, b37075d8):** `ManualClaimGroupSchema` `{kind: 'manual',
+  textFingerprint}` (sha256 точного текста, строчный hex), `FanslyAiGreetingGroupSchema` (группа генерации из одной
+  части), `fanslyGreetingGroup` — группа по виду допуска (неизменённый AI — генерация, иначе ручная), `greetingGroupRef` —
+  как группу называет ответ хаба (`manual:<отпечаток>`). `FanslyGreetingClaimBodySchema` / `…OpSchema` — тело хаба,
+  суженное до приветствия Fansly: `purpose` только `greeting`, одна часть, `dispatch` всегда под бронью, отказ — 4xx, кроме
+  401. Тест держит, что каждое такое тело принимает схема хаба HF-3 (переписана в тест до перевендоринга SDK: вендоренный
+  6ee3d627 старше ручной группы).
+- **Типы для общего кода** — новый модуль `hub/claim-body` (только типы, `export type *` в `hub`): `ManualClaimGroup`,
+  `ClaimSendGroup`, `HubClaimBody`, `HubClaimOp` — тело хаба после HF-3, им фасад (P9d) сможет назвать тело Fansly.
+  `ClaimBodySchema` и `hub/newcomers.ts` не менялись: тело OnlyFans — только группы AI, другого хаб там не допускает.
+  Отдельный модуль потому, что любая правка `hub/newcomers.ts`, даже тип или комментарий, меняет имена идентификаторов
+  в минифицированной пробе реестра запросов вкладки (замер: длина та же, gzip 27 521 → 27 518 Б).
+- **Последняя сверка** (§8.6, шаг 2): `FanslySendTuple` (креатор, группа, фан, документ вкладки, транспорт, ревизии истории
+  и черновика) и `fanslyFinalCheck` — синхронно, по памяти, с остатком билета; `FanslySendReceiptSchema` и
+  `fanslyReceiptFits` — квитанция `POST /message` считается только для своей группы и своего креатора.
+- `limits.greetingSendPerMinute` bootstrap хаба (30 в минуту) клиент не читает: темп держит хаб (429
+  `preview_send_rate_limited`), как и `previewSendPerMinute` у X8; схема bootstrap не менялась.
+- Байты ChatSpace: ни одна строка реестра не сдвинулась — пробы контрактов те же до байта, закрепы F9a не переписаны.
+- Фикстуры: `test/fixtures/send-fansly.ts` (id Fansly в 17, 18 и 19 цифр; число вместо строки — отказ), запрос
+  `fansly.followers.send` в `protocols-fansly.ts`. Тесты: `packages/contracts/test/send-fansly.test.ts`,
+  `packages/contracts/test/fansly-protocol.test.ts`.
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

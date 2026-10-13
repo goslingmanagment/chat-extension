@@ -20,7 +20,8 @@
 //   to the hub (FS-NOTE-5).
 //
 // Families. `fansly.followers.*` — «Новые» by the background's pass (Б17,
-// FS-NEW-*); `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
+// FS-NEW-*) and its greeting send (`fansly.followers.send`, send-fansly.ts);
+// `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
 // `fansly.voice.*` — paid voice notes over the hub (HF-4, FS-VOI-*; the script
 // is the `voice-script` operation of the shared `op.start`);
 // `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
@@ -32,6 +33,7 @@ import * as z from 'zod/mini';
 import { CgAnyErrorWireSchema } from './errors-fansly';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
+import { FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 
@@ -282,6 +284,18 @@ export const FANSLY_TAB_REQUESTS = {
   },
   /** The window closed: the pass keeps its results and drafts; nothing new starts for this window. */
   'fansly.followers.close': { req: z.strictObject(PassRef), res: Ack, from: TAB, hosts: FANSLY },
+  /**
+   * «Отправить» on a card (1.15.0 P4c, FS-NEW-3, FS-NEW-6): one click, one attempt of the background's HTTP send
+   * with the hub's custody (send-fansly.ts); never repeated, by the window or the background. The answer is the
+   * attempt as it stands when the background stops waiting for it (`refused`, `uncertain`, `receipted`, `sent`);
+   * a failure before any attempt (no such pass, another account) is the payload's `ok: false`.
+   */
+  'fansly.followers.send': {
+    req: FanslyGreetingRequestSchema,
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), attempt: FanslySendViewSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
 
   // ── «Заметки» ──
   /** Group and `GET /account?ids=` through the pacer, one attempt; `force` — «Обновить» (FS-NOTE-3). */

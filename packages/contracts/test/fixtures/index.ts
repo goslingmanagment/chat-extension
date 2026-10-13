@@ -12,3 +12,4 @@ export * from './vm';
 export * from './coach';
 export * from './fansly';
 export * from './protocols-fansly';
+export * from './send-fansly';

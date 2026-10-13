@@ -6,6 +6,7 @@
 import type { FanslyTabEventType, FanslyTabRequestType } from '../../src/tab-messages-fansly';
 import type { RequestFixtures, Verdicts } from './protocols';
 import { FANSLY_IDS, ISO, T0, uuid } from './samples';
+import { FANSLY_GREETING_REQUEST_FIXTURES, FANSLY_SEND_VIEW_FIXTURES } from './send-fansly';
 
 const F = FANSLY_IDS;
 const ack = { valid: [{ recorded: true }, { recorded: false }], invalid: [{ recorded: 'yes' }, {}] } as const;
@@ -97,6 +98,13 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     },
   },
   'fansly.followers.close': { req: { valid: [passRef], invalid: [{}] }, res: ack },
+  'fansly.followers.send': {
+    req: FANSLY_GREETING_REQUEST_FIXTURES,
+    res: {
+      valid: [...FANSLY_SEND_VIEW_FIXTURES.valid.map((attempt) => ({ ok: true, attempt })), failure, sharedFailure],
+      invalid: [...FANSLY_SEND_VIEW_FIXTURES.invalid.slice(0, 4).map((attempt) => ({ ok: true, attempt })), unknownFailure, { ok: true }],
+    },
+  },
 
   'fansly.notes.read': {
     req: { valid: [{ ...noteTarget, groupId: F.group }, { ...noteTarget, groupId: null, force: true }], invalid: [{ ...noteTarget }, { fanRef: F.fan, groupId: F.group }] },

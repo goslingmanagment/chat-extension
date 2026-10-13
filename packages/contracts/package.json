@@ -21,6 +21,7 @@
     "./settings-ext": "./src/settings-ext.ts",
     "./send-rules": "./src/send-rules.ts",
     "./send": "./src/send.ts",
+    "./send-fansly": "./src/send-fansly.ts",
     "./host": "./src/host.ts",
     "./ops": "./src/ops.ts",
     "./telemetry": "./src/telemetry.ts",
