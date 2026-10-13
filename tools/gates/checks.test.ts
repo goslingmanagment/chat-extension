@@ -18,7 +18,11 @@ import {
   checkTabStorageListeners,
   checkUiTexts,
   deriveSdkMarkers,
+  isMainWorldSource,
+  ISOLATED_BUNDLES,
+  MAIN_WORLD_BUNDLES,
   missingSdkMarkerKinds,
+  onlyMonsterAllowed,
   SEND_PORT_FILE,
   type SdkMarker,
   type SourceFile,
@@ -32,12 +36,24 @@ describe('gate: onlymonster references', () => {
     const violations = checkOnlyMonsterReferences([
       file('packages/core/src/domain/x.ts', "// talks about chat.onlymonster.ai in prose\nexport const u = 'https://chat.onlymonster.ai/api';"),
       file('packages/ui/src/y.tsx', 'export const t = `wss://${host}.onlymonster.ai/`;'),
+      file('apps/extension/src/hosts/runtime/chatspace.ts', "export const M = ['https://chat.onlymonster.ai/*'];"),
+      file('packages/host-chatspace/src/isolated/host-contract.ts', "export const O = 'https://chat.onlymonster.ai';"),
       file('apps/extension/src/hosts.ts', "export const M = ['https://chat.onlymonster.ai/*'];"),
+      file('packages/host-chatspace/src/isolated/adapter.ts', "export const O = 'https://chat.onlymonster.ai';"),
     ]);
     expect(violations.map((violation) => [violation.path, violation.line])).toEqual([
       ['packages/core/src/domain/x.ts', 2],
       ['packages/ui/src/y.tsx', 1],
+      ['apps/extension/src/hosts.ts', 1],
+      ['packages/host-chatspace/src/isolated/adapter.ts', 1],
     ]);
+  });
+
+  it('the allowlist is the host registry and each site’s contract module from it', () => {
+    expect(onlyMonsterAllowed('apps/extension/src/hosts/index.ts')).toBe(true);
+    expect(onlyMonsterAllowed('packages/host-chatspace/src/isolated/host-contract.ts')).toBe(true);
+    expect(onlyMonsterAllowed('apps/extension/src/composition/background.ts')).toBe(false);
+    expect(onlyMonsterAllowed('packages/host-chatspace/src/isolated/host-contract.ts', [])).toBe(false);
   });
 
   it('sees through regex literals and escaped RegExp strings', () => {
@@ -356,5 +372,19 @@ describe('[X22] gate: MAIN-world guards', () => {
 
   it('the MAIN source of this repo is clean', () => {
     expect(checkMainWorldGuards(readTree(`${REPO_ROOT}packages/host-chatspace/src/main`, (path) => path.endsWith('.ts')).map((entry) => ({ ...entry, path: `packages/host-chatspace/src/main/${entry.path}` })))).toEqual([]);
+  });
+});
+
+describe('gates: the sites’ bundles and MAIN-world sources come from the host registry', () => {
+  it('ChatSpace: the bridge and the WS tap in the page’s world, chatspace.js the isolated start', () => {
+    expect(MAIN_WORLD_BUNDLES).toEqual(['content-scripts/chatspace-main.js', 'chatspace-ws.js']);
+    expect(ISOLATED_BUNDLES).toEqual(['content-scripts/chatspace.js']);
+  });
+
+  it('the MAIN-world source is the top level of host-chatspace/src/main, not its subfolders or other packages', () => {
+    expect(isMainWorldSource('packages/host-chatspace/src/main/bridge.ts')).toBe(true);
+    expect(isMainWorldSource('packages/host-chatspace/src/main/sub/x.ts')).toBe(false);
+    expect(isMainWorldSource('packages/host-chatspace/src/isolated/adapter.ts')).toBe(false);
+    expect(isMainWorldSource('packages/host-chatspace/src/main/bridge.ts', [])).toBe(false);
   });
 });

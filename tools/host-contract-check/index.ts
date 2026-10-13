@@ -1,4 +1,9 @@
-// `node tools/host-contract-check/index.ts [--dir <copy>] [--against <other copy>] [--json]`
+// `node tools/host-contract-check/index.ts [--host chatspace] [--dir <copy>] [--against <other copy>] [--json]`
+//
+// --host is a site of the host registry (apps/extension/src/hosts; default
+// chatspace): its entry names the contract module and the variable with the
+// root of its copies. The anchors below are ChatSpace's; another site brings
+// its own (docs/project-unite/plan.md P7h).
 //
 // Checks the ChatSpace host contract (packages/host-chatspace/src/isolated/
 // host-contract.ts) against a LOCAL copy of ChatSpace's bundles and prints
@@ -9,9 +14,10 @@
 // code and stay outside the repository (README.md of the copy).
 //
 // --dir is the folder with the copy's files (its `pretty/` folder). Without
-// it: the newest version folder under $CG_CHATSPACE_BUNDLES, the root of the
-// copies (docs/architecture.md §6.2 says where it lives; the path is not
-// repeated here — the sources archive carries no trace of the copy).
+// it: the newest version folder under the site's variable
+// (`contractCheck.bundlesRootEnv`; ChatSpace: $CG_CHATSPACE_BUNDLES), the root
+// of the copies (docs/architecture.md §6.2 says where it lives; the path is
+// not repeated here — the sources archive carries no trace of the copy).
 // Exit code: 0 — every anchor present, every role module found, the send
 // path's anchors only in the role modules and the telemetry tripwire quiet;
 // 1 — an anchor or a role module missing, or the send path outside the role
@@ -26,15 +32,23 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { HOSTS, hostOf } from '../../apps/extension/src/hosts/index.ts';
 import { fail } from '../lib/paths.ts';
 import { buildOf, checkAnchors, diffCopies, missingRoles, receiptProfile, sendPathOutsideRoles, type BundleFile } from './check.ts';
 import { TELEMETRY_BASELINE, telemetryCounts, telemetryTripwire } from './telemetry.ts';
 
-const { values } = parseArgs({ options: { dir: { type: 'string' }, against: { type: 'string' }, json: { type: 'boolean', default: false } } });
+const { values } = parseArgs({ options: { host: { type: 'string', default: 'chatspace' }, dir: { type: 'string' }, against: { type: 'string' }, json: { type: 'boolean', default: false } } });
+
+/** The sites whose anchors this tool knows (check.ts, telemetry.ts); another site's come with its own module. */
+const CHECKED_HOSTS: readonly string[] = ['chatspace'];
+const host = hostOf(values.host);
+if (host === undefined) fail(`host-contract-check: --host ${values.host} is not a site of the host registry (${HOSTS.map((item) => item.kind).join(', ')}).`);
+if (!CHECKED_HOSTS.includes(host.kind)) fail(`host-contract-check: no anchors for ${host.kind} yet (its contract: ${host.contractCheck.module}).`);
+const rootEnv = host.contractCheck.bundlesRootEnv;
 
 function newestCopy(): string {
-  const root = process.env['CG_CHATSPACE_BUNDLES'];
-  if (root === undefined || root === '') fail('host-contract-check: pass --dir <copy>, or set CG_CHATSPACE_BUNDLES to the root of the local bundle copies (docs/architecture.md §6.2).');
+  const root = process.env[rootEnv];
+  if (root === undefined || root === '') fail(`host-contract-check: pass --dir <copy>, or set ${rootEnv} to the root of the local bundle copies (docs/architecture.md §6.2).`);
   if (!existsSync(root)) fail(`host-contract-check: no bundle copies at ${root}.`);
   const versions = readdirSync(root)
     .filter((name) => /^\d+\.\d+\.\d+$/.test(name) && statSync(join(root, name)).isDirectory())

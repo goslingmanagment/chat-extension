@@ -18,11 +18,11 @@ import { routeSchemas } from '@kernel/sdk';
 import { createFakeBrowser, pageSender, tabSender, type FakeBrowser, type FakeContext } from '../../../../packages/platform/src/test-support/fake-browser.ts';
 import { composeBackground } from '../../src/composition/background.ts';
 import { startTabRuntime, type TabRuntimeEnv } from '../../src/composition/tab/runtime.ts';
-import { CHATSPACE_MATCHES } from '../../src/hosts.ts';
+import { CHATSPACE_MATCHES } from '../../src/hosts/runtime/index.ts';
 
 export const HUB_ORIGIN = WORLD.hubOrigin;
 export const PASSWORD = 'synthetic-password';
-/** A ChatSpace document: the release build's content scripts match only the real origin (named in hosts.ts alone). */
+/** A ChatSpace document: the release build's content scripts match only the real origin (named in the host registry alone). */
 export const CHATSPACE_ORIGIN = new URL(CHATSPACE_MATCHES[0] ?? '').origin;
 
 /** A tone the background's player was asked for (what would have rung). */

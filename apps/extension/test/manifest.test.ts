@@ -21,7 +21,7 @@ import {
   type BuildFlavor,
 } from '../build/manifest.ts';
 import { PAGE_CHUNK_GROUPS, PAGE_ENTRY_NAMES } from '../build/page-chunks.ts';
-import { LOOPBACK_MATCHES } from '../src/hosts.ts';
+import { HOSTS, LOOPBACK_MATCHES, scriptsOf } from '../src/hosts/index.ts';
 import { SITE_BASE, SITE_PAGES } from '../src/site.ts';
 
 /** tools/archive-check takes a JS file over this for a foreign bundle (`MAX_JS_BYTES`). */
@@ -153,6 +153,27 @@ describe('release manifest (§3)', () => {
     const text = JSON.stringify(release.manifest);
     for (const pattern of LOOPBACK_MATCHES) expect(text).not.toContain(pattern.replace('/*', ''));
     expect(text).not.toContain(TEST_GECKO_ID);
+  });
+
+  it('builds every script of every site in the host registry', () => {
+    for (const script of HOSTS.flatMap(scriptsOf)) expect(existsSync(join(release.dir, script.file)), script.file).toBe(true);
+  });
+
+  it('carries no build field of the host registry in any bundle: budgets, the contract check, archive markers, MAIN-world sources (architecture §1.2)', () => {
+    const fields = HOSTS.flatMap((host) => [
+      ...host.budgets.scripts.map((budget) => budget.label),
+      host.contractCheck.module,
+      host.contractCheck.bundlesRootEnv,
+      ...host.mainWorldSources,
+      ...[...host.archiveMarkers.code, ...host.archiveMarkers.libraries].map((marker) => marker.source),
+    ]);
+    const files = (dir: string): string[] => readdirSync(dir).flatMap((name) => (statSync(join(dir, name)).isDirectory() ? files(join(dir, name)) : [join(dir, name)]));
+    const bundles = files(release.dir).filter((file) => /\.(js|html|css|json)$/.test(file));
+    expect(bundles.length).toBeGreaterThan(10);
+    for (const bundle of bundles) {
+      const text = readFileSync(bundle, 'utf8');
+      for (const field of fields) expect(text.includes(field), `${field} in ${bundle}`).toBe(false);
+    }
   });
 });
 

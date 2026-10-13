@@ -44,7 +44,7 @@ import {
 import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
-import { CHATSPACE_MATCHES } from '../hosts';
+import { CHATSPACE_MATCHES } from '../hosts/runtime';
 import { SITE_PAGES } from '../site';
 
 export type PageName = ExtensionPage;
@@ -71,7 +71,7 @@ const TITLES: Readonly<Record<Exclude<PageName, 'popup'>, I18nKey>> = {
 /** How soon a page's own log records go to the background (`log.write`). */
 const LOG_FORWARD_DELAY_MS = 250;
 
-/** The ChatSpace origin of the manifest: the onboarding checks the host access to it (hosts.ts names it, nothing here does). */
+/** The ChatSpace origin of the manifest: the onboarding checks the host access to it (the hosts' runtime table names it, nothing here does). */
 function chatSpaceOrigin(): string {
   return new URL((CHATSPACE_MATCHES[0] ?? '').replace(/\*$/, '')).origin;
 }

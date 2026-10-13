@@ -50,6 +50,8 @@ describe('ESLint package graph (§4)', () => {
     // MAIN-world entry points are self-contained (§4, D-06)
     ['the MAIN entry imports platform', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import { extensionUrl } from '@cg/platform';\nexport const x = extensionUrl;", ['no-restricted-imports']],
     ['the WS tap entry imports contracts', 'apps/extension/src/entrypoints/chatspace-ws.ts', "import { BRIDGE_TAGS } from '@cg/contracts';\nexport const x = BRIDGE_TAGS;", ['no-restricted-imports']],
+    ['the MAIN entry imports the whole runtime table of the hosts', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import { CHATSPACE_MATCHES } from '../hosts/runtime';\nexport const x = CHATSPACE_MATCHES;", ['no-restricted-imports']],
+    ['the MAIN entry imports the host registry', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import { HOSTS } from '../hosts';\nexport const x = HOSTS;", ['no-restricted-imports']],
     ['the MAIN entry imports zod', 'apps/extension/src/entrypoints/chatspace-main.content.ts', "import * as z from 'zod/mini';\nexport const x = z;", ['no-restricted-imports']],
     // browser.* only through @cg/platform (D-01)
     ['an entry point imports wxt/browser', 'apps/extension/src/entrypoints/background.ts', "import { browser } from 'wxt/browser';\nexport const x = browser;", ['no-restricted-imports']],
@@ -75,9 +77,9 @@ describe('ESLint package graph (§4)', () => {
     ['the background composition root imports hub', 'apps/extension/src/composition/background.ts', "import { DEFAULT_HUB_ORIGIN } from '@cg/hub';\nexport const x = DEFAULT_HUB_ORIGIN;"],
     ['the background entry imports the background root', 'apps/extension/src/entrypoints/background.ts', "import { composeBackground } from '../composition/background';\nexport const x = composeBackground;"],
     [
-      'the MAIN entry imports the bridge, a WXT define helper and the hosts list',
+      'the MAIN entry imports the bridge, a WXT define helper and ChatSpace’s row of the hosts’ runtime table',
       'apps/extension/src/entrypoints/chatspace-main.content.ts',
-      "import { installMainBridge } from '@cg/host-chatspace/main';\nimport type { ContentScriptDefinition } from 'wxt';\nimport { defineContentScript } from 'wxt/utils/define-content-script';\nimport { CHATSPACE_MATCHES } from '../hosts';\nexport const x: ContentScriptDefinition = defineContentScript({ matches: [...CHATSPACE_MATCHES], main: installMainBridge });",
+      "import { installMainBridge } from '@cg/host-chatspace/main';\nimport type { ContentScriptDefinition } from 'wxt';\nimport { defineContentScript } from 'wxt/utils/define-content-script';\nimport { CHATSPACE_MATCHES } from '../hosts/runtime/chatspace';\nexport const x: ContentScriptDefinition = defineContentScript({ matches: [...CHATSPACE_MATCHES], main: installMainBridge });",
     ],
     ['the WS tap wraps win.WebSocket', 'packages/host-chatspace/src/main/ws-tap.ts', 'export const x = (win: Window & typeof globalThis) => { win.WebSocket = new Proxy(win.WebSocket, {}); };'],
     [
@@ -103,6 +105,9 @@ describe('dependency-cruiser package graph (§4)', () => {
       'background-root-only-from-background-entry: apps/extension/src/composition/pages.ts → apps/extension/src/composition/background.ts',
       'core-domain-pure: packages/core/src/domain/index.ts → packages/platform/src/index.ts',
       'host-main-self-contained: packages/host-chatspace/src/main/index.ts → packages/contracts/src/index.ts',
+      // The host registry is build data: neither a bundle root nor the runtime table reads it.
+      'host-registry-build-only: apps/extension/src/entrypoints/chatspace.content.ts → apps/extension/src/hosts/chatspace.ts',
+      'host-registry-build-only: apps/extension/src/hosts/runtime/index.ts → apps/extension/src/hosts/chatspace.ts',
       'hub-only-in-background: apps/extension/src/composition/tab.ts → packages/hub/src/index.ts',
       // Transitive: no single edge is wrong from these bundle roots, the graph below them is.
       'hub-unreachable-outside-background: apps/extension/lazy/entries/dock.ts → packages/hub/src/index.ts',

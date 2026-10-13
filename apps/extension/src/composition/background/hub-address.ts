@@ -8,7 +8,7 @@
 // origin (a test build also talks to the loopback fake hub). The facade checks
 // the scheme again at sign-in; this refusal comes earlier, with the save.
 
-import { isQuietHost } from '../../hosts';
+import { isQuietHost } from '../../hosts/runtime';
 
 export type HubAddressRefusal = 'signed in' | 'host platform' | 'https only';
 

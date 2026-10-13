@@ -102,7 +102,7 @@ mountOptions(root, { client, i18n, catalog, clipboard, theme: client.theme, syst
 | `window` | `location.hash`, события `hashchange`, `focus` / `visibilitychange`, `pagehide`; у popup ещё `close`. Раздел, выбранный на самой странице, — новая запись истории той же вкладки (`history.pushState`): «Назад» возвращает прежний раздел |
 | `openLink` | `createLinkOpener`: новая вкладка, только `https://` |
 | `env.version` | `extensionVersionOf`: версия из манифеста, прочитанная сразу |
-| `env.hostOrigin` | адрес ChatSpace из `apps/extension/src/hosts.ts` |
+| `env.hostOrigin` | адрес ChatSpace из рантайм-таблицы хостов (`apps/extension/src/hosts/runtime/chatspace.ts`) |
 | `env.links`, `helpUrl` | адреса «Что нового», «История версий» и «Как начать» — `apps/extension/src/site.ts`, рядом с фидом обновлений. Самих страниц сайта ещё нет (R19): до выпуска ссылки ведут на 404 |
 | `catalog` | `createActionCatalog` из `@cg/core/domain/hotkeys` — тот же каталог R17, что во вкладке: его подписи клавиш и отметки доставки важнее схемы |
 | `report` | сбои контроллера и отрисовки уходят в лог фона (`log.write`): класс ошибки и код, без текста |

@@ -4,7 +4,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { hubAddressRefusal, quietFetch } from '../src/composition/background/hub-address';
-import { CHATSPACE_MATCHES, HUB_HOST_PERMISSION, QUIET_DOMAINS, isQuietHost } from '../src/hosts';
+import { HUB_HOST_PERMISSION } from '../src/hosts/index.ts';
+import { CHATSPACE_MATCHES, RUNTIME_HOSTS, isQuietHost } from '../src/hosts/runtime/index.ts';
 
 const HUB = 'https://gosling-agency.ru';
 
@@ -27,7 +28,7 @@ describe('hub address changes', () => {
 
   it('[ST-042] the host platform is never a hub address, in a release and in a test build alike (quiet mode, X3)', () => {
     const chatSpace = new URL(CHATSPACE_MATCHES[0] ?? '').origin;
-    const domain = QUIET_DOMAINS[0] ?? '';
+    const domain = RUNTIME_HOSTS.chatspace.quietDomains[0] ?? '';
     const addresses = [chatSpace, `https://${domain}`, `https://api.${domain}`, `https://${domain}:8443`, `https://API.${domain.toUpperCase()}`, `https://${domain}.`, `http://chat.${domain}`];
     for (const next of addresses) {
       for (const testBuild of [false, true]) {

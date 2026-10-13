@@ -46,26 +46,35 @@
 
 ### 1.2 Реестр хостов
 
-`apps/extension/src/hosts/{index,chatspace,fansly}.ts` — данные, читаются при сборке, заменяют `hosts.ts`:
+`apps/extension/src/hosts/{index,types,chatspace,fansly}.ts` — данные, читаются при сборке, заменили `hosts.ts` (F2):
 ```ts
-interface HostDescriptor {
+interface HostDescriptor extends RuntimeHostRow {             // адреса — из строки рантайм-таблицы сайта
   kind: HostKind; platform: Platform;
-  matches: readonly string[];
-  quiet: boolean;                                               // ChatSpace: ни одного своего запроса к сайту
   scripts: { main: ScriptSpec; isolated: ScriptSpec; notice?: ScriptSpec; extra?: readonly ScriptSpec[] };
   permissions: { origins: readonly string[]; optional: boolean; api?: readonly OptionalApi[] };
-  lazy: { root: string; layers: readonly string[]; entries: readonly string[] };  // своя сборка ленивых чанков (§3.2)
-  background?: { chunk: string };                               // фоновый модуль сайта (§3.3)
-  // только для сборки и инструментов — в рантайм не попадает (проверяет граф сборки):
-  budgets: HostBudgets; contractCheck: { module: string; bundlesRoot: string }; archiveMarkers: readonly string[];
-  test: TestHostConfig;                                         // подмены тестовой сборки (§13)
+  lazy: { root: string; layers: readonly string[]; entries: readonly string[] };  // своя сборка ленивых чанков (§3.2), F2b
+  background?: { chunk: string };                               // фоновый модуль сайта (§3.3), F1
+  mainWorldSources: readonly string[];                          // папки кода мира страницы: гейт `guard`
+  budgets: { scripts: readonly { entry: string; label: string; gzipBytes: number }[] };   // строки `pnpm size`, по порядку
+  contractCheck: { module: string; bundlesRootEnv: string };   // модуль контракта; переменная с корнем копий бандлов
+  archiveMarkers: { code: readonly RegExp[]; libraries: readonly RegExp[] };  // чужой код, который не уходит никогда
+  test: TestHostConfig;                                         // подмены тестовой сборки (§13); пока `pageMatches` стенда
 }
+interface RuntimeHostRow { matches: readonly string[]; quietDomains: readonly string[] }  // [] — сайт не «тихий» (X4)
 type ScriptSpec = { entry: string; file: string; world: 'MAIN' | 'ISOLATED'; registration: 'manifest' | 'dynamic' | 'execute' };
 ```
 Из реестра выводятся: манифест и его проверка (`build/manifest.ts`), входы WXT, **сборки ленивых чанков по сайтам**, WAR по
-сайту, хосты RPC фона и звука, регистрация скриптов, онбординг страниц, гейты (`MAIN_WORLD_*`, `ISOLATED_BUNDLE`), строки
-бюджетов, `archive-check`, `host-contract-check --host`. Рантайму достаётся отдельная лёгкая таблица (вид, платформа,
-адреса). Код одного сайта никогда не импортирует запись другого.
+сайту, хосты RPC фона и звука, регистрация скриптов, онбординг страниц, гейты (`MAIN_WORLD_*`, `ISOLATED_BUNDLES`), строки
+бюджетов, `archive-check`, `host-contract-check --host`. Код одного сайта никогда не импортирует запись другого.
+
+Рантайму достаётся отдельная лёгкая таблица — `apps/extension/src/hosts/runtime/{index,<сайт>}.ts`: адреса сайта (`matches`,
+`quietDomains`), `isQuietHost`, loopback тестовой сборки; вид и платформа — из контрактов (`HostKind`, `Platform`, P4a1).
+Входы сайта читают только свою строку (`runtime/<сайт>.ts`), фон и страницы — всю таблицу; запись реестра берёт адреса из
+строки, а не наоборот. Поля сборки в бандлы не попадают: реестр не импортирует никто из того, что уходит в XPI, и сама
+таблица его не читает (правило `host-registry-build-only` в `.dependency-cruiser.cjs`); тест манифеста ищет поля сборки в
+собранных файлах. Разводка сайтов в корне композиции (хосты RPC, источники звука) пишется `satisfies PerHost<…>`: новая
+строка таблицы не проходит typecheck, пока корень её не учёл; байты ChatSpace при этом не меняются (выведение карт в рантайме
+стоило бы ≈ 240 Б фона).
 
 ### 1.3 Адаптер хоста
 
@@ -219,7 +228,8 @@ interface HostUiProfile {
   `lazy/chatspace/**`, ядро фона, `bg/chatspace.js` и набор файлов, которые грузит вкладка ChatSpace, транзитивно) с
   `main` идёт в **каждом** PR. Если дифф трогает только файлы Fansly, разница — ноль. Файлы Fansly — по принадлежности,
   а не по одной папке: `packages/host-fansly/**`, `packages/fansly-api/**`, `**/hosts/fansly/**`,
-  `apps/extension/src/hosts/fansly.ts`, `apps/extension/src/entrypoints/fansly*`, `apps/extension/lazy/fansly/**`,
+  `apps/extension/src/hosts/fansly.ts`, `apps/extension/src/hosts/runtime/fansly.ts`, `apps/extension/src/entrypoints/fansly*`,
+  `apps/extension/lazy/fansly/**`,
   `apps/extension/bg/fansly.ts`, `packages/contracts/src/**/*fansly*.ts` (в том числе `features/fansly.ts`,
   `errors-fansly.ts`, `bridge-*-fansly.ts`, `tab-messages-fansly.ts`, `send-fansly.ts`, `fansly.ts`), пакеты текстов Fansly.
   Остальные PR называют дельту по реестру байтов (§3.2). В бандлах ChatSpace нет данных `fansly-web` (маркерные строки).

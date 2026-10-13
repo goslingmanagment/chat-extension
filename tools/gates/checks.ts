@@ -5,6 +5,8 @@
 
 import ts from 'typescript';
 
+import { HOSTS, scriptsOf, type HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
+
 export interface SourceFile {
   /** Repo-relative POSIX path. */
   readonly path: string;
@@ -18,11 +20,13 @@ export interface Violation {
   readonly message: string;
 }
 
-/** Files allowed to name the ChatSpace origin: manifest/host matching and the host contract (§3). */
-export const ONLYMONSTER_ALLOWLIST: readonly string[] = [
-  'apps/extension/src/hosts.ts',
-  'packages/host-chatspace/src/isolated/host-contract.ts',
-];
+/** The host registry (apps/extension/src/hosts): its runtime rows and entries name the sites' addresses. */
+export const HOST_REGISTRY_DIR = 'apps/extension/src/hosts/';
+
+/** Files allowed to name the ChatSpace origin: the host registry and each site's host contract (§3). */
+export function onlyMonsterAllowed(path: string, hosts: readonly HostDescriptor[] = HOSTS): boolean {
+  return path.startsWith(HOST_REGISTRY_DIR) || hosts.some((host) => host.contractCheck.module === path);
+}
 
 /** Where `browser.*` / `chrome.*` may appear: packages/platform only (§3, §4, D-01). */
 export const BROWSER_API_ALLOWED: readonly RegExp[] = [/^packages\/platform\/src\//];
@@ -76,7 +80,7 @@ function namesOnlyMonster(text: string): boolean {
 export function checkOnlyMonsterReferences(files: readonly SourceFile[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
-    if (ONLYMONSTER_ALLOWLIST.includes(file.path)) continue;
+    if (onlyMonsterAllowed(file.path)) continue;
     const source = parse(file);
     walk(source, (node) => {
       if ((isTextNode(node) || ts.isRegularExpressionLiteral(node)) && namesOnlyMonster(node.text)) {
@@ -84,7 +88,7 @@ export function checkOnlyMonsterReferences(files: readonly SourceFile[]): Violat
           gate: 'onlymonster-reference',
           path: file.path,
           line: lineOf(source, node),
-          message: 'ChatSpace origin named outside apps/extension/src/hosts.ts and the host contract file (§3, X3).',
+          message: 'ChatSpace origin named outside the host registry (apps/extension/src/hosts) and the host contract file (§3, X3).',
         });
       }
     });
@@ -333,10 +337,11 @@ export function checkSdkCustody(
 }
 
 /**
- * Built MAIN-world bundles (bridge and WS tap). The manifest's MAIN content scripts must all be here (index.ts checks
- * it); a script the background registers in the MAIN world is added by hand.
+ * Built MAIN-world bundles: every site's scripts of the page's world in the host registry, the manifest's and the ones
+ * the background registers alike (ChatSpace: the bridge and the WS tap). The manifest's MAIN content scripts must all be
+ * here (index.ts checks it).
  */
-export const MAIN_WORLD_BUNDLES: readonly string[] = ['content-scripts/chatspace-main.js', 'chatspace-ws.js'];
+export const MAIN_WORLD_BUNDLES: readonly string[] = HOSTS.flatMap((host) => scriptsOf(host).filter((script) => script.world === 'MAIN').map((script) => script.file));
 
 /**
  * 8. The MAIN-world bundles stay self-contained (§4, D-06): no extension API
@@ -373,11 +378,11 @@ export function checkMainWorldBundles(files: readonly SourceFile[]): Violation[]
   return violations;
 }
 
-/** The isolated ChatSpace content script. */
-export const ISOLATED_BUNDLE = 'content-scripts/chatspace.js';
+/** Every site's isolated content script, the early bootstrap of its tabs (the host registry; ChatSpace: chatspace.js). */
+export const ISOLATED_BUNDLES: readonly string[] = HOSTS.map((host) => host.scripts.isolated.file);
 
 /**
- * 8b. The isolated ChatSpace content script starts without WXT's
+ * 8b. A site's isolated content script starts without WXT's
  * ContentScriptContext and entry wrapper (architecture.md §11,
  * apps/extension/build/isolated-entry.ts): the context touches the extension
  * API in the synchronous start at document_start and posts an event that
@@ -392,7 +397,7 @@ export function checkIsolatedStart(files: readonly SourceFile[]): Violation[] {
   ];
   const violations: Violation[] = [];
   for (const file of files) {
-    if (file.path !== ISOLATED_BUNDLE) continue;
+    if (!ISOLATED_BUNDLES.includes(file.path)) continue;
     for (const [pattern, what] of markers) {
       const match = pattern.exec(file.text);
       if (!match) continue;
@@ -403,8 +408,8 @@ export function checkIsolatedStart(files: readonly SourceFile[]): Violation[] {
   return violations;
 }
 
-/** Bundles that run in a ChatSpace tab's isolated world: the content script and every lazy chunk it loads. */
-const isTabBundle = (path: string): boolean => path === ISOLATED_BUNDLE || path.startsWith('lazy/');
+/** Bundles that run in a site's tab, isolated world: the content script and every lazy chunk it loads. */
+const isTabBundle = (path: string): boolean => ISOLATED_BUNDLES.includes(path) || path.startsWith('lazy/');
 
 /**
  * 8a. A ChatSpace tab listens to no storage change (architecture.md §14: the
@@ -446,8 +451,13 @@ export function checkStandHooks(files: readonly SourceFile[]): Violation[] {
   return violations;
 }
 
-/** MAIN-world source: the bridge, its runtime and the tap script (packages/host-chatspace/src/main, §4, D-06). */
-export const MAIN_WORLD_SOURCE = /^packages\/host-chatspace\/src\/main\/[^/]+\.ts$/;
+/**
+ * MAIN-world source: the modules of every site's `mainWorldSources` folder in the host registry (ChatSpace: the
+ * bridge, its runtime and the tap script in packages/host-chatspace/src/main, §4, D-06), not their subfolders.
+ */
+export function isMainWorldSource(path: string, hosts: readonly HostDescriptor[] = HOSTS): boolean {
+  return hosts.some((host) => host.mainWorldSources.some((dir) => path.startsWith(dir) && /^[^/]+\.ts$/.test(path.slice(dir.length))));
+}
 
 /**
  * Where the page or the browser takes a callback of ours, by the name of the call, and which argument the callback is.
@@ -489,7 +499,7 @@ const isGuardCall = (node: ts.Node): boolean => ts.isCallExpression(node) && ts.
 export function checkMainWorldGuards(files: readonly SourceFile[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
-    if (!MAIN_WORLD_SOURCE.test(file.path) || file.path.endsWith('.test.ts')) continue;
+    if (!isMainWorldSource(file.path) || file.path.endsWith('.test.ts')) continue;
     const source = parse(file);
     const guarded = new Set<string>();
     walk(source, (node) => {

@@ -15,6 +15,9 @@ const HOTKEYS = '^vendor/chatgoose-hotkeys/';
 const SDK = '^vendor/kernel-sdk/';
 const WXT_BROWSER = npm('@wxt-dev/browser');
 
+/** The host registry's entries and index: build data (docs/project-unite/architecture.md §1.2). Its runtime table is hosts/runtime/. */
+const HOST_REGISTRY = '^apps/extension/src/hosts/[^/]+\\.ts$';
+
 /** The background entry point and its composition root: the only modules that may import `hub` (§4, D-13). */
 const BACKGROUND_ENTRY = '^apps/extension/src/entrypoints/background\\.ts$';
 const BACKGROUND_ROOTS = '^apps/extension/src/(entrypoints|composition)/background\\.ts$';
@@ -124,10 +127,18 @@ module.exports = {
     },
     {
       name: 'main-world-entries-self-contained',
-      comment: 'The MAIN-world entry points bundle only host-chatspace/main, the WXT define helpers and the hosts list (§4, D-06).',
+      comment: 'The MAIN-world entry points bundle only host-chatspace/main, the WXT define helpers and ChatSpace\'s row of the hosts\' runtime table (§4, D-06).',
       severity: 'error',
       from: { path: '^apps/extension/src/entrypoints/chatspace-(main\\.content|ws)\\.ts$' },
-      to: { pathNot: [pkg('host-chatspace/src/main'), '^apps/extension/src/hosts\\.ts$', npm('wxt')] },
+      to: { pathNot: [pkg('host-chatspace/src/main'), '^apps/extension/src/hosts/runtime/chatspace\\.ts$', npm('wxt')] },
+    },
+    {
+      name: 'host-registry-build-only',
+      comment:
+        'The host registry (apps/extension/src/hosts/*.ts) is build data — budgets, the contract check, archive markers, the test config — for the manifest, the WXT config and the tools. Code that ships reads the runtime table (hosts/runtime/) instead, and the table never reads the registry: no build field reaches a bundle (docs/project-unite/architecture.md §1.2).',
+      severity: 'error',
+      from: { pathNot: HOST_REGISTRY },
+      to: { path: HOST_REGISTRY },
     },
     {
       name: 'sdk-only-in-hub',

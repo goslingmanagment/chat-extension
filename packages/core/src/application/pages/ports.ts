@@ -91,7 +91,7 @@ export interface PageEnv {
   /** The extension version of the manifest. */
   readonly version: string;
   readonly hotkeyPlatform: HotkeyPlatform;
-  /** The ChatSpace origin of the manifest (apps/extension/src/hosts.ts): the onboarding checks the host access. */
+  /** The ChatSpace origin of the manifest (the hosts' runtime table, apps/extension/src/hosts/runtime): the onboarding checks the host access. */
   readonly hostOrigin: string;
   readonly links: PageLinks;
   /** `navigator.languages`: what `ui.locale: 'system'` resolves against. */

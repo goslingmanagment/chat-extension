@@ -8,7 +8,7 @@ import type { ContentScriptDefinition } from 'wxt';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 
 import { composeTab } from '../composition/tab';
-import { CHATSPACE_MATCHES } from '../hosts';
+import { CHATSPACE_MATCHES } from '../hosts/runtime/chatspace';
 
 const definition: ContentScriptDefinition = defineContentScript({
   matches: [...CHATSPACE_MATCHES],

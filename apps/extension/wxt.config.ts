@@ -21,6 +21,7 @@ import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } f
 import { PAGE_ENTRY_NAMES, splitPageChunks, type PageBuildConfig } from './build/page-chunks.ts';
 import { SOURCE_DOTFILES, STAND_SOURCE_GLOBS } from './build/sources-archive.ts';
 import { buildLazyChunks, type LazyChunkInfo } from './lazy/vite.config.ts';
+import { HOSTS, scriptsOf } from './src/hosts/index.ts';
 
 const flavor: BuildFlavor = process.env['CG_TEST_HOSTS'] === '1' ? 'test' : 'release';
 const suffix = flavor === 'test' ? '-test' : '';
@@ -28,8 +29,13 @@ const artifacts = artifactNames('{{version}}', flavor);
 const repoRoot = resolve(import.meta.dirname, '../..');
 
 let lazyChunks: LazyChunkInfo[] = [];
-/** The entry points that run in the page's own world (chatspace-main: the bridge; chatspace-ws: the WS tap). */
-const MAIN_WORLD_ENTRY_NAMES = ['chatspace-main', 'chatspace-ws'];
+// The sites' entry points, from the host registry (src/hosts).
+/** The entry points that run in the page's own world (ChatSpace: chatspace-main, the bridge; chatspace-ws, the WS tap). */
+const MAIN_WORLD_ENTRY_NAMES = HOSTS.flatMap((host) => scriptsOf(host).filter((script) => script.world === 'MAIN').map((script) => script.entry));
+/** Each site's MAIN script at document_start: a TEST build's one also carries the sentry-gate e2e's positive control. */
+const BRIDGE_ENTRY_NAMES = HOSTS.map((host) => host.scripts.main.entry);
+/** Each site's isolated early bootstrap. */
+const ISOLATED_ENTRY_NAMES = HOSTS.map((host) => host.scripts.isolated.entry);
 
 export default defineConfig({
   srcDir: 'src',
@@ -70,13 +76,13 @@ export default defineConfig({
       // A TEST build's bridge also carries the sentry-gate e2e's positive control (loopback only).
       const mainWorld = entrypoints.filter((entry) => MAIN_WORLD_ENTRY_NAMES.includes(entry.name));
       const pathOf = (entry: { readonly inputPath: string }): string => entry.inputPath.replaceAll('\\', '/');
-      const bridge = mainWorld.find((entry) => entry.name === 'chatspace-main');
+      const bridge = mainWorld.find((entry) => BRIDGE_ENTRY_NAMES.includes(entry.name));
       if (mainWorld.length > 0) config.plugins = [...(config.plugins ?? []), mainWorldEntryPlugin(mainWorld.map(pathOf), flavor === 'test' && bridge !== undefined ? { probe: pathOf(bridge) } : {})];
-      // The isolated ChatSpace script starts without WXT's wrapper and its ContentScriptContext, which touches the
+      // A site's isolated script starts without WXT's wrapper and its ContentScriptContext, which touches the
       // extension API in the synchronous start and posts an event naming us to the page (build/isolated-entry.ts).
-      const isolated = entrypoints.find((entry) => entry.name === 'chatspace');
+      const isolated = entrypoints.find((entry) => ISOLATED_ENTRY_NAMES.includes(entry.name));
       if (isolated !== undefined) config.plugins = [...(config.plugins ?? []), isolatedEntryPlugin(pathOf(isolated))];
-      if (flavor !== 'test' || !entrypoints.some((entry) => entry.name === 'chatspace' || entry.name === 'chatspace-main')) return;
+      if (flavor !== 'test' || !entrypoints.some((entry) => ISOLATED_ENTRY_NAMES.includes(entry.name) || BRIDGE_ENTRY_NAMES.includes(entry.name))) return;
       config.plugins = [...(config.plugins ?? []), bundleTimingPlugin()];
     },
     // WXT never deletes older versions' archives. Drop this flavor's before

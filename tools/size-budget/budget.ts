@@ -1,9 +1,9 @@
 // Size budgets of architecture.md §11 (starting targets, re-approved after
-// the baseline): MAIN bridge ≤ 10 KiB gzip (decision X11: the boot and the
-// runtime ship as one document_start bundle; §11 started at 5 KiB for the
-// boot alone), the WS tap script ≤ 6 KiB (decision X25: 5 until the X8
-// fuse), isolated early bootstrap ≤ 30 KiB, first dock chunk with Preact ≤
-// 45 KiB, every other lazy chunk ≤ 30 KiB.
+// the baseline). Each site's scripts come with their own lines from the host
+// registry (apps/extension/src/hosts: ChatSpace's MAIN bridge ≤ 10 KiB gzip,
+// decision X11; its WS tap ≤ 6 KiB, X25; its isolated early bootstrap
+// ≤ 30 KiB); the lazy chunks: the first dock chunk with Preact ≤ 45 KiB,
+// every other lazy chunk ≤ 30 KiB.
 //
 // What «a lazy chunk» weighs is what loading it adds to the tab. The entries
 // every chat tab loads form layers (apps/extension/lazy/vite.config.ts,
@@ -16,6 +16,8 @@
 // counted in both.
 
 import { gzipSync } from 'node:zlib';
+
+import { HOSTS, scriptsOf, type HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
 
 export const KIB = 1024;
 
@@ -36,24 +38,31 @@ export interface BudgetLine {
   readonly ok: boolean;
 }
 
+/** The lazy chunks' budgets; the sites' scripts have theirs in the host registry. */
 export const BUDGETS = {
-  /** Boot + runtime, one bundle (X11). Its work at document_start stays ≤ 1 ms (e2e). */
-  mainBridge: 10 * KIB,
-  /**
-   * The tap script with the send port and the receipt observer (live.ts), registered only while `wsTap` is on.
-   * 5 KiB was met with 0.03 KiB to spare; the X8 fuse's checks live with the receipt observer and add about
-   * 0.9 KiB (decision X25). Nothing of them runs at document_start: the tap's own work there is the constructor wrap.
-   */
-  wsTap: 6 * KIB,
-  isolatedBootstrap: 30 * KIB,
   firstDockChunk: 45 * KIB,
   lazyChunk: 30 * KIB,
 } as const;
 
-export const MAIN_BRIDGE_FILE = 'content-scripts/chatspace-main.js';
-export const WS_TAP_FILE = 'chatspace-ws.js';
-export const ISOLATED_FILE = 'content-scripts/chatspace.js';
 export const DOCK_ENTRY = 'lazy/dock.js';
+
+/**
+ * The budget lines of the sites' scripts, in the registry's order, each by its built file. Every script a site
+ * declares has exactly one: a new script without its line fails here, not silently unmeasured.
+ */
+export function scriptBudgets(hosts: readonly HostDescriptor[] = HOSTS): Array<{ readonly label: string; readonly file: string; readonly limitBytes: number }> {
+  return hosts.flatMap((host) => {
+    for (const script of scriptsOf(host)) {
+      const count = host.budgets.scripts.filter((budget) => budget.entry === script.entry).length;
+      if (count !== 1) throw new Error(`size-budget: ${host.kind} script ${script.entry} has ${count} budget lines in the host registry, not one`);
+    }
+    return host.budgets.scripts.map((budget) => {
+      const script = scriptsOf(host).find((spec) => spec.entry === budget.entry);
+      if (script === undefined) throw new Error(`size-budget: ${host.kind} budgets ${budget.entry}, a script it does not declare`);
+      return { label: budget.label, file: script.file, limitBytes: budget.gzipBytes };
+    });
+  });
+}
 
 /** gzip -9 size, the unit of every budget line. */
 export function gzipSize(content: Uint8Array): number {
@@ -73,7 +82,7 @@ export function staticClosure(entry: string, chunks: readonly LazyChunk[]): stri
   return [...seen].sort();
 }
 
-export function computeBudgets(read: (file: string) => Uint8Array, chunks: readonly LazyChunk[]): BudgetLine[] {
+export function computeBudgets(read: (file: string) => Uint8Array, chunks: readonly LazyChunk[], hosts: readonly HostDescriptor[] = HOSTS): BudgetLine[] {
   const sizes = new Map<string, number>();
   const size = (file: string): number => {
     let value = sizes.get(file);
@@ -88,11 +97,7 @@ export function computeBudgets(read: (file: string) => Uint8Array, chunks: reado
     return { label, files, gzipBytes, limitBytes, ok: gzipBytes <= limitBytes };
   };
 
-  const lines = [
-    line('MAIN bridge: boot + runtime (chatspace-main)', [MAIN_BRIDGE_FILE], BUDGETS.mainBridge),
-    line('MAIN WS tap (chatspace-ws)', [WS_TAP_FILE], BUDGETS.wsTap),
-    line('isolated early bootstrap (chatspace)', [ISOLATED_FILE], BUDGETS.isolatedBootstrap),
-  ];
+  const lines = scriptBudgets(hosts).map((budget) => line(budget.label, [budget.file], budget.limitBytes));
   if (!chunks.some((chunk) => chunk.file === DOCK_ENTRY)) {
     throw new Error(`lazy chunk list has no ${DOCK_ENTRY}`);
   }

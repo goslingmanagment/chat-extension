@@ -2,7 +2,9 @@ import { randomBytes } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { BUDGETS, computeBudgets, staticClosure, type LazyChunk } from './budget.ts';
+import { CHATSPACE } from '../../apps/extension/src/hosts/chatspace.ts';
+import type { HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
+import { BUDGETS, computeBudgets, scriptBudgets, staticClosure, type LazyChunk } from './budget.ts';
 
 const chunks: LazyChunk[] = [
   { file: 'lazy/dock.js', kind: 'entry', name: 'dock', imports: ['lazy/chunks/preact.js'] },
@@ -70,7 +72,8 @@ describe('size budgets', () => {
   });
 
   it('[EX-007] the MAIN bridge line is the shipped document_start bundle — boot and runtime together — within 10 KiB (X11)', () => {
-    expect(BUDGETS.mainBridge).toBe(10 * 1024);
+    const mainBridge = scriptBudgets([CHATSPACE]).find((budget) => budget.file === 'content-scripts/chatspace-main.js')?.limitBytes;
+    expect(mainBridge).toBe(10 * 1024);
     const files = (main: number): Record<string, Uint8Array> => ({
       'content-scripts/chatspace-main.js': noise(main),
       'chatspace-ws.js': noise(500),
@@ -82,7 +85,46 @@ describe('size budgets', () => {
     });
     const line = (main: number) => computeBudgets((file) => files(main)[file] ?? new Uint8Array(), chunks).find((item) => item.files.includes('content-scripts/chatspace-main.js'));
     expect(line(9000)?.ok).toBe(true);
-    expect(line(9000)?.limitBytes).toBe(BUDGETS.mainBridge);
+    expect(line(9000)?.limitBytes).toBe(mainBridge);
     expect(line(11_000)?.ok).toBe(false);
+  });
+});
+
+describe('size budgets of the sites’ scripts (host registry)', () => {
+  const files: Record<string, Uint8Array> = { 'lazy/dock.js': noise(100) };
+  const dockOnly: LazyChunk[] = [{ file: 'lazy/dock.js', kind: 'entry', name: 'dock', imports: [] }];
+
+  it('ChatSpace’s three lines come first, in the size report’s order, with their files and ceilings', () => {
+    const lines = computeBudgets((file) => files[file] ?? noise(100), dockOnly);
+    expect(lines.slice(0, 3).map((line) => [line.label, line.files, line.limitBytes])).toEqual([
+      ['MAIN bridge: boot + runtime (chatspace-main)', ['content-scripts/chatspace-main.js'], 10 * 1024],
+      ['MAIN WS tap (chatspace-ws)', ['chatspace-ws.js'], 6 * 1024],
+      ['isolated early bootstrap (chatspace)', ['content-scripts/chatspace.js'], 30 * 1024],
+    ]);
+  });
+
+  it('a second site brings its own lines after ChatSpace’s and changes none of them', () => {
+    const second: HostDescriptor = {
+      ...CHATSPACE,
+      kind: 'fansly-web',
+      scripts: {
+        main: { entry: 'site-main', file: 'content-scripts/site-main.js', world: 'MAIN', registration: 'dynamic' },
+        isolated: { entry: 'site', file: 'content-scripts/site.js', world: 'ISOLATED', registration: 'dynamic' },
+      },
+      budgets: {
+        scripts: [
+          { entry: 'site-main', label: 'MAIN (site-main)', gzipBytes: 16 * 1024 },
+          { entry: 'site', label: 'isolated (site)', gzipBytes: 30 * 1024 },
+        ],
+      },
+    };
+    expect(scriptBudgets([CHATSPACE, second])).toEqual([...scriptBudgets([CHATSPACE]), { label: 'MAIN (site-main)', file: 'content-scripts/site-main.js', limitBytes: 16 * 1024 }, { label: 'isolated (site)', file: 'content-scripts/site.js', limitBytes: 30 * 1024 }]);
+  });
+
+  it('a script without its line, or a line without its script, fails instead of going unmeasured', () => {
+    const unbudgeted: HostDescriptor = { ...CHATSPACE, budgets: { scripts: CHATSPACE.budgets.scripts.filter((budget) => budget.entry !== 'chatspace-ws') } };
+    expect(() => scriptBudgets([unbudgeted])).toThrow(/chatspace-ws has 0 budget lines/);
+    const stray: HostDescriptor = { ...CHATSPACE, budgets: { scripts: [...CHATSPACE.budgets.scripts, { entry: 'gone', label: 'gone', gzipBytes: 1 }] } };
+    expect(() => scriptBudgets([stray])).toThrow(/budgets gone, a script it does not declare/);
   });
 });
