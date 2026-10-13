@@ -76,6 +76,15 @@ describe('[TL-013] [AI-140] hub error resolver: the AI stream', () => {
     expect(resolveHubError(http(502, null), ctx('aiFeatureStream', { beforeFirstFrame: true }))).toMatchObject({ code: 'CG-HUB-UNAVAILABLE', disposition: 'show' });
   });
 
+  it('[HF-9] a Fansly group and fan the hub does not pair (409 conversation_fan_mismatch): CG-CONTEXT-CHANGED, shown, never repeated as is', () => {
+    expect(resolveHubError(http(409, 'conversation_fan_mismatch'), ctx('aiFeatureStream', { beforeFirstFrame: true }))).toEqual({
+      code: 'CG-CONTEXT-CHANGED',
+      disposition: 'show',
+      retryAt: null,
+      httpStatus: 409,
+    });
+  });
+
   it('[AI-140] persona 409 refreshes the catalog', () => {
     expect(resolveHubError(http(409, 'persona_definition_changed'), ctx('aiFeatureStream'))).toMatchObject({
       code: 'CG-PERSONA-CHANGED',
