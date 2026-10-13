@@ -29,9 +29,9 @@ export function tableCells(line: string): string[] {
 }
 
 /** The text between a `## heading` and the next `## ` heading. */
-function section(markdown: string, heading: string): string {
+export function section(markdown: string, heading: string, doc = 'parity-map.md'): string {
   const start = markdown.indexOf(`\n## ${heading}`);
-  if (start < 0) throw new Error(`parity-map.md: section «${heading}» not found`);
+  if (start < 0) throw new Error(`${doc}: section «${heading}» not found`);
   const next = markdown.indexOf('\n## ', start + 1);
   return markdown.slice(start, next < 0 ? undefined : next);
 }

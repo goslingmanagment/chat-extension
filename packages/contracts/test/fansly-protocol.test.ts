@@ -23,7 +23,7 @@ function expectVerdicts(label: string, schema: { safeParse(value: unknown): { su
 
 const envelopeAccepts = (type: string): boolean => C.TabEnvelopeSchema.safeParse({ v: 1, kind: 'evt', type, payload: {} }).success;
 
-describe('[EX-015] [DB-029] the tab protocol of fansly.com (fansly-web, 1.15.0)', () => {
+describe('[EX-015] [DB-029] [host:fansly] the tab protocol of fansly.com (fansly-web, 1.15.0)', () => {
   it('has fixtures for exactly the registered request and event types', () => {
     expect(Object.keys(FANSLY_TAB_REQUEST_FIXTURES).sort()).toEqual([...T.FANSLY_TAB_REQUEST_TYPES].sort());
     expect(Object.keys(FANSLY_TAB_EVENT_FIXTURES).sort()).toEqual([...T.FANSLY_TAB_EVENT_TYPES].sort());
@@ -102,7 +102,7 @@ describe('[EX-015] [DB-029] the tab protocol of fansly.com (fansly-web, 1.15.0)'
   });
 });
 
-describe('[EX-015] the envelope and the sender rules (1.15.0)', () => {
+describe('[EX-015] [host:fansly] the envelope and the sender rules (1.15.0)', () => {
   it('a type is a word and up to two dotted words', () => {
     for (const type of ['toast', 'op.start', 'fansly.notes.read', 'fansly.followers.prioritize']) expect(envelopeAccepts(type), type).toBe(true);
     for (const type of ['a.b.c.d', 'Fansly.notes.read', 'fansly..read', 'fansly.notes.', '.op', 'op-start', `fansly.${'x'.repeat(40)}`]) expect(envelopeAccepts(type), type).toBe(false);
@@ -147,7 +147,7 @@ function fanslyHubAppendixRows(): { error: string; status: number; cg: string }[
   return [...ARCHITECTURE.slice(start, end).matchAll(/^\| `([a-z_]+)` \| (\d{3}) \| (CG-[A-Z0-9-]+) \|$/gm)].map((m) => ({ error: m[1] ?? '', status: Number(m[2]), cg: m[3] ?? '' }));
 }
 
-describe('[ER-001] [ER-002] [ER-004] the Fansly CG codes (errors-fansly.ts, Appendix A «Коды Fansly»)', () => {
+describe('[ER-001] [ER-002] [ER-004] [host:fansly] the Fansly CG codes (errors-fansly.ts, Appendix A «Коды Fansly»)', () => {
   const entries = Object.values(F.CG_FANSLY_REGISTRY);
 
   it('are exactly the Appendix A list, in its order, and follow its «Повтор» column', () => {
@@ -240,7 +240,7 @@ describe('[ER-001] [ER-002] [ER-004] the Fansly CG codes (errors-fansly.ts, Appe
   });
 });
 
-describe('[RB-012] `settings.ext` (FS-SET-1): its own key and version; settings v1 unchanged', () => {
+describe('[RB-012] [host:fansly] `settings.ext` (FS-SET-1): its own key and version; settings v1 unchanged', () => {
   it('is a separate storage key, and v1 still holds the depth up to 3000 only', () => {
     expect(C.STORAGE_KEYS.settingsExt).toBe('settings.ext');
     expect(C.STORAGE_KEYS.settings).toBe('settings');
@@ -269,7 +269,7 @@ describe('[RB-012] `settings.ext` (FS-SET-1): its own key and version; settings 
   });
 });
 
-describe('light modules and the package index', () => {
+describe('[host:fansly] light modules and the package index', () => {
   it('tab.register and the settings keys take the host kinds of hosts.ts itself, not a copy', () => {
     const read = (file: string): string => readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     for (const file of ['tab-protocol.ts', 'settings.ts']) {

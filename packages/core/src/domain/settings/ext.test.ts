@@ -11,7 +11,7 @@ import { applySettingsExtPatch, loadStoredSettingsExt } from './index';
 const FANSLY = 'fansly-web';
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-describe('[RB-012] reading settings.ext (fansly-web)', () => {
+describe('[RB-012] [host:fansly] reading settings.ext (fansly-web)', () => {
   it('nothing stored: the defaults, fresh', () => {
     expect(loadStoredSettingsExt(undefined)).toEqual({ kind: 'fresh', ext: DEFAULT_SETTINGS_EXT });
   });
@@ -50,7 +50,7 @@ describe('[RB-012] reading settings.ext (fansly-web)', () => {
   });
 });
 
-describe('[RB-011] writing settings.ext (fansly-web): only what the patch names', () => {
+describe('[RB-011] [host:fansly] writing settings.ext (fansly-web): only what the patch names', () => {
   it('a fresh store gets the named fields and its version, never the defaults', () => {
     const outcome = applySettingsExtPatch(undefined, { hosts: { [FANSLY]: { enabled: true } } });
     expect(outcome).toMatchObject({ ok: true, changed: true, stored: { v: 1, hosts: { [FANSLY]: { enabled: true } } } });

@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCoverage, renderCoverage, serializeCoverage, tagsOfTestFile, testKindOf, type TaggedFile } from './coverage-report.ts';
-import type { ManifestRow } from './derive.ts';
+import { buildCoverage, renderCoverage, serializeCoverage, tagsOfTestFile, testKindOf, type FanslyInput, type TaggedFile } from './coverage-report.ts';
+import type { CheckKind, HostPlan, ManifestRow } from './derive.ts';
 
-const row = (overrides: Partial<ManifestRow> & Pick<ManifestRow, 'id'>): ManifestRow => ({
-  function: 'f',
-  target: 'пилот',
-  module: 'core/x',
-  packages: ['R11'],
-  owner: 'R11',
-  milestones: ['M2'],
-  mark: null,
-  check: { kind: 'unit' },
-  ...overrides,
-});
+/** A row; `owner` and `check` are its ChatSpace plan, `fansly` its Fansly plan (shared, owned by P8b3, unless given). */
+const row = (overrides: Partial<Omit<ManifestRow, 'chatspace'>> & Pick<ManifestRow, 'id'> & { owner?: string; check?: HostPlan['check'] }): ManifestRow => {
+  const { owner = 'R11', check = { kind: 'unit' as CheckKind }, ...rest } = overrides;
+  return {
+    function: 'f',
+    target: 'пилот',
+    module: 'core/x',
+    packages: ['R11'],
+    milestones: ['M2'],
+    mark: null,
+    fansly: { owner: 'R20/P8b3', check: { kind: 'shared' } },
+    ...rest,
+    chatspace: { owner, check },
+  };
+};
+
+const NO_FANSLY: FanslyInput = { confirmations: [], prs: [], done: new Set() };
 
 describe('tags of a test file', () => {
   it('reads row ids from test titles — strings and templates, never comments', () => {
@@ -29,7 +35,7 @@ describe('tags of a test file', () => {
         it('not a tag: [abc-001], [AI-1], [AI-0001], [AI001], AI-005', () => undefined);
       });
     `;
-    expect(tagsOfTestFile('a.test.ts', source)).toEqual({ tags: ['AI-001', 'AI-002', 'AI-003', 'NEW-08', 'X8-01', 'ST-042', 'HK-012', 'UP-009'], skipped: [] });
+    expect(tagsOfTestFile('a.test.ts', source)).toEqual({ tags: ['AI-001', 'AI-002', 'AI-003', 'NEW-08', 'X8-01', 'ST-042', 'HK-012', 'UP-009'], skipped: [], hosts: [] });
   });
 
   it('a test that is switched off names nothing; a row it names is reported as skipped only', () => {
@@ -47,6 +53,17 @@ describe('tags of a test file', () => {
     const tags = tagsOfTestFile('a.test.ts', source);
     expect(tags.tags).toEqual(['AI-014', 'AI-016']);
     expect(tags.skipped).toEqual(['AI-010', 'AI-011', 'AI-012', 'AI-013', 'AI-015']);
+  });
+
+  it('reads host marks the same way: from titles of tests that run, once per file', () => {
+    const source = `
+      // [host:chatspace] a comment marks nothing
+      describe('[host:fansly] sound on Fansly', () => {
+        it('[SN-018] [host:fansly] relay', () => undefined);
+        it.skip('[host:onlyfans] off', () => undefined);
+      });
+    `;
+    expect(tagsOfTestFile('a.test.ts', source)).toEqual({ tags: ['SN-018'], skipped: [], hosts: ['fansly'] });
   });
 
   it('reads a .tsx file, and tells an e2e spec from a unit test by its name', () => {
@@ -68,14 +85,14 @@ describe('the coverage report', () => {
     row({ id: 'CS-001', target: 'даёт ChatSpace', owner: 'R02', milestones: ['M1'], check: { kind: 'e2e' } }),
   ];
   const files: TaggedFile[] = [
-    { path: 'packages/core/test/reply.test.ts', tags: ['AI-001', 'AI-002', 'AI-101', 'ZZ-999'], skipped: [] },
-    { path: 'packages/testing/e2e/specs/tab.e2e.ts', tags: ['AI-001', 'CS-001'], skipped: ['SP-001', 'AI-001'] },
+    { path: 'packages/core/test/reply.test.ts', tags: ['AI-001', 'AI-002', 'AI-101', 'ZZ-999'], skipped: [], hosts: [] },
+    { path: 'packages/testing/e2e/specs/tab.e2e.ts', tags: ['AI-001', 'CS-001'], skipped: ['SP-001', 'AI-001'], hosts: [] },
   ];
-  const report = buildCoverage(rows, files);
+  const report = buildCoverage(rows, files, NO_FANSLY);
 
   it('counts rows with a check of our own; negative and n/a rows stand aside', () => {
     expect(report.totals).toMatchObject({ all: 7, rows: 5, covered: 3, uncovered: 2, pilot: 4, pilotCovered: 2, pilotUncovered: 2, negative: 1, notApplicable: 1, taggedAnyway: 1, other: 2 });
-    expect(report.testFiles).toEqual({ unit: 1, e2e: 1 });
+    expect(report.testFiles).toEqual({ unit: 1, e2e: 1, chatspace: 1, fansly: 0, free: 1 });
     expect(report.rows.find((item) => item.id === 'AI-001')).toMatchObject({ covered: true, unit: ['packages/core/test/reply.test.ts'], e2e: ['packages/testing/e2e/specs/tab.e2e.ts'], pilot: true, planned: 'unit' });
     expect(report.rows.find((item) => item.id === 'SP-001')).toMatchObject({ covered: false, unit: [], e2e: [] });
   });
@@ -118,7 +135,7 @@ describe('the coverage report', () => {
     expect(text).toContain('Названы в тестах: **3 из 5** (60 %)');
     expect(text).toContain('| M2 | 3 | 2 | 1 | 67 % | 3 | 1 | 0 |');
     expect(text).toContain('| R12 | 1 | 0 | 1 | 0 % | 1 | 1 | 0 |');
-    expect(text).toContain('### M2 — 1');
+    expect(text).toContain('#### M2 — 1');
     expect(text).toContain('| AI-003 | f | R14 | M2 | снимок на стенде |');
     // A pipe in a row's name does not break the table.
     expect(text).toContain('| SP-001 | Доска \\| Spenders | R12 | M4 | юнит-тест |');
@@ -129,7 +146,7 @@ describe('the coverage report', () => {
   });
 
   it('is deterministic: the same input gives the same files, one manifest row per line of the JSON', () => {
-    const again = buildCoverage(rows, [...files].reverse());
+    const again = buildCoverage(rows, [...files].reverse(), NO_FANSLY);
     expect(serializeCoverage(again)).toBe(serializeCoverage(report));
     expect(renderCoverage(again)).toBe(renderCoverage(report));
     const json = serializeCoverage(report);
@@ -138,10 +155,76 @@ describe('the coverage report', () => {
   });
 
   it('without gaps says so plainly', () => {
-    const full = buildCoverage([row({ id: 'AI-001' })], [{ path: 'a.test.ts', tags: ['AI-001'], skipped: [] }]);
+    const full = buildCoverage([row({ id: 'AI-001' })], [{ path: 'a.test.ts', tags: ['AI-001'], skipped: [], hosts: [] }], NO_FANSLY);
     const text = renderCoverage(full);
     expect(text).toContain('Нет: каждая пилотная строка названа хотя бы в одном тесте.');
     expect(text).toContain('Нет: каждая метка в тестах — строка манифеста.');
     expect(text).not.toContain('выключенных тестах');
+  });
+});
+
+describe('the Fansly part of the report', () => {
+  const rows: ManifestRow[] = [
+    row({ id: 'AI-001', fansly: { owner: 'R20/P8b3', check: { kind: 'e2e', where: 'suite-fansly-tail' } } }),
+    row({ id: 'AI-002' }),
+    row({ id: 'AI-020', fansly: { owner: 'R20/P8b3', check: { kind: 'e2e', where: 'suite-fansly-tail' } } }),
+    row({ id: 'NF-011', fansly: { owner: 'R20/P10a', check: { kind: 'unit', where: 'hosts/fansly' } } }),
+    row({ id: 'REC-01', fansly: { owner: 'R20/HF-10', check: { kind: 'hub', where: 'HF-10' } } }),
+    row({ id: 'AI-101', target: 'убрано владельцем', owner: 'R02', check: { kind: 'negative', exception: 'NEG-HELP' }, fansly: { owner: 'R20/P8c', check: { kind: 'negative', exception: 'NEG-HELP' } } }),
+    row({ id: 'HK-036', fansly: { owner: 'R20/P17', check: { kind: 'after-pilot' } } }),
+    row({ id: 'UI-034', fansly: { check: { kind: 'n/a', reason: 'не касается Fansly' } } }),
+  ];
+  const files: TaggedFile[] = [
+    { path: 'packages/core/test/reply.test.ts', tags: ['AI-002', 'NF-011'], skipped: [], hosts: [] },
+    { path: 'packages/testing/e2e/specs/suite-preview.e2e.ts', tags: ['NF-011', 'AI-001'], skipped: [], hosts: [] },
+    { path: 'packages/testing/e2e/specs/suite-fansly-tail.e2e.ts', tags: ['AI-001', 'AI-020'], skipped: [], hosts: [] },
+    { path: 'packages/host-fansly/src/x.test.ts', tags: ['AI-001'], skipped: [], hosts: ['chatspace'] },
+  ];
+  const fansly: FanslyInput = { confirmations: [], prs: ['P8b3', 'P8c', 'HF-10', 'P10a', 'P17'], done: new Set(['P8b3', 'P10a']) };
+  const report = buildCoverage(rows, files, fansly);
+
+  it('closes rows on Fansly by host and level; a test of Fansly does not name a ChatSpace row', () => {
+    expect(report.rows.find((item) => item.id === 'AI-001')).toMatchObject({
+      unit: [],
+      e2e: ['packages/testing/e2e/specs/suite-preview.e2e.ts'],
+      fansly: { owner: 'R20/P8b3', planned: 'e2e', closed: true, by: ['packages/testing/e2e/specs/suite-fansly-tail.e2e.ts'] },
+    });
+    expect(report.rows.find((item) => item.id === 'NF-011')?.fansly).toEqual({ owner: 'R20/P10a', planned: 'unit', closed: false, by: [] });
+    expect(report.rows.find((item) => item.id === 'AI-101')?.fansly).toMatchObject({ closed: true, by: ['NEG-HELP'] });
+    expect(report.rows.find((item) => item.id === 'UI-034')?.fansly).toEqual({ planned: 'n/a', closed: false, by: [] });
+    expect(report.testFiles).toEqual({ unit: 2, e2e: 2, chatspace: 1, fansly: 2, free: 1 });
+  });
+
+  it('counts by check and by owning PR in the order of the plan, and the open rows of done PRs', () => {
+    expect(report.fansly).toMatchObject({ rows: 7, notConcerned: 1, required: 6, closed: 4, open: 2, afterPilot: 1, openOfDone: ['NF-011'] });
+    expect(report.fansly.byKind.map((line) => [line.name, line.rows, line.closed])).toEqual([
+      ['e2e', 2, 2],
+      ['stand-visual', 0, 0],
+      ['unit', 1, 0],
+      ['hub', 1, 0],
+      ['shared', 1, 1],
+      ['negative', 1, 1],
+      ['after-pilot', 1, 0],
+    ]);
+    expect(report.fansly.byPr.map((line) => [line.name, line.done, line.rows, line.open])).toEqual([
+      ['P8b3', true, 3, 0],
+      ['P8c', false, 1, 0],
+      ['HF-10', false, 1, 1],
+      ['P10a', true, 1, 1],
+      ['P17', false, 1, 1],
+    ]);
+    expect(report.hostProblems).toEqual(['packages/host-fansly/src/x.test.ts: a test of fansly code cannot carry [host:chatspace]']);
+  });
+
+  it('renders the Fansly section: totals, by check, by PR, the host marks in error', () => {
+    const text = renderCoverage(report);
+    expect(text).toContain('## Fansly (R20)');
+    expect(text).toContain('- Нужна проверка к пилоту: 6. Закрыто — **4** (67 %), открыто — **2**; после пилота — 1.');
+    expect(text).toContain('- PR-владельцев: 5, отмечены сделанными — 2 (P8b3, P10a).');
+    expect(text).toContain('- Строк сделанных PR, открытых на Fansly: **1** — NF-011.');
+    expect(text).toContain('| браузер · спек | 2 | 2 | 0 |');
+    expect(text).toContain('| P10a | ✓ | 1 | 0 | 1 |');
+    expect(text).toContain('## Метки хоста с ошибкой');
+    expect(text).not.toMatch(/\n\n\n/);
   });
 });
