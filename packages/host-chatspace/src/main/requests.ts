@@ -6,7 +6,7 @@ import { count, int, is, isDigest, isId, isToken, isUuid, orNull, shape, type Ch
 import { type Checkpoint } from './live';
 import { KNOWN_FAN_MESSAGES, MAX_PARTS, MAX_SNAPSHOT, MAX_STRING, MAX_VARIANTS, SEND_MAX_CHARS } from './protocol';
 
-const isChat = shape({ host: is('chatspace', 'fansly-web'), hostAccountId: isId, platformFanId: isId });
+const isChat = shape({ host: is('chatspace'), hostAccountId: isId, platformFanId: isId });
 
 /** HostIdentity (contracts HostIdentitySchema). */
 export interface Identity {
@@ -20,7 +20,7 @@ export interface Identity {
 }
 
 const isIdentity = shape({
-  host: is('chatspace', 'fansly-web'),
+  host: is('chatspace'),
   documentEpoch: isToken,
   hostLoginEpoch: isToken,
   hostAccountId: isId,
