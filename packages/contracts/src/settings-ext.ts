@@ -56,7 +56,7 @@ const intIn = (range: { readonly min: number; readonly max: number }) => z.int()
 export const FanslySettingsSchema = z.strictObject({
   /** «Fansly включён» (§4): the person's own switch, apart from the browser's permissions — leftover permissions never switch an «off» on. */
   enabled: z.boolean(),
-  /** «Fansly через вкладку» (E149, FS-NET-4): requests go through a relay frame in the model's tab. Off by default (X33). */
+  /** «Fansly через вкладку» (FS-NET-4): requests go through a relay frame in the model's tab. Off by default (X33). */
   viaTab: z.boolean(),
   notesView: z.enum(FANSLY_NOTES_VIEWS),
   /** The tones on Fansly (FS-SND-2, X26); whether a sound plays at all, the volume and the muted accounts are v1's, shared. */
