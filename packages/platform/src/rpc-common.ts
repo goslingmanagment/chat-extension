@@ -1,5 +1,6 @@
 // Shared pieces of the tab/pages ↔ background RPC (architecture.md §5.4,
-// §14): the result type, sender checks and envelope builders. Light: only the
+// §14; R20 architecture §8.5): the result type, sender checks (tabs, pages
+// and, 1.15.0, a site's relay frame) and envelope builders. Light: only the
 // light contract module (tab-protocol) and types, so the early isolated
 // bundle can carry the tab client.
 
@@ -68,9 +69,17 @@ export type TabHostKind = TabRegisterRequest['host'];
 /** Match patterns per host kind (ChatSpace; the loopback stand counts as ChatSpace in test builds). */
 export type TabHostMatches = Readonly<Partial<Record<TabHostKind, readonly string[]>>>;
 
+/**
+ * 1.15.0: the relay page of a site, per host kind (`fansly-relay.html`: a file at the extension's own base). A site
+ * without one has no relay; the composition root takes it from the host table.
+ */
+export type RelayPages = Readonly<Partial<Record<TabHostKind, string>>>;
+
 export type SenderVerdict =
   | { readonly ok: true; readonly kind: 'tab'; readonly host: TabHostKind; readonly tabId: number; readonly url: string }
   | { readonly ok: true; readonly kind: 'page'; readonly page: ExtensionPage; readonly tabId: number | null; readonly url: string }
+  /** 1.15.0: a site's relay frame in tab `tabId`; whether that tab holds a session of `host` is the background's own check. */
+  | { readonly ok: true; readonly kind: 'relay'; readonly host: TabHostKind; readonly tabId: number; readonly frameId: number; readonly url: string }
   | { readonly ok: false; readonly reason: RpcRejectReason };
 
 /** Why a message got no answer (counters for diagnostics; never the payload). */
@@ -79,6 +88,8 @@ export const RPC_REJECT_REASONS = [
   'subframe',
   'origin',
   'not-a-page',
+  /** 1.15.0: not a relay frame of a site, or no registered tab of that site holds it. */
+  'not-a-relay',
   'envelope',
   'unknown-type',
   'sender-kind',
@@ -134,4 +145,23 @@ export function verifyPageSender(sender: MessageSenderApi | undefined, runtimeId
   const page = EXTENSION_PAGES.find((candidate) => candidate === name);
   if (page === undefined) return { ok: false, reason: 'not-a-page' };
   return { ok: true, kind: 'page', page, tabId: typeof sender.tab?.id === 'number' ? sender.tab.id : null, url: url.href };
+}
+
+/**
+ * A site's relay frame (1.15.0; R20 architecture §8.5): same extension, a subframe (`frameId !== 0`) of a tab — the
+ * `frameId === 0` rule of a tab is not relaxed for it — at `<own base>/<relay page>` of exactly one site. The verdict
+ * names that site and the tab; the background then requires a registered tab session of that site in that tab.
+ */
+export function verifyRelaySender(sender: MessageSenderApi | undefined, runtimeId: string, ownBase: string, relayPages: RelayPages): SenderVerdict {
+  if (!sender || sender.id !== runtimeId) return { ok: false, reason: 'foreign-extension' };
+  const tabId = sender.tab?.id;
+  if (typeof tabId !== 'number' || typeof sender.frameId !== 'number' || sender.frameId === 0) return { ok: false, reason: 'not-a-relay' };
+  const url = parseUrl(sender.url);
+  const base = parseUrl(ownBase);
+  if (!url || !base || base.host === '' || url.protocol !== base.protocol || url.host !== base.host) return { ok: false, reason: 'not-a-relay' };
+  const file = url.pathname.slice(1);
+  const hosts = (Object.entries(relayPages) as [TabHostKind, string | undefined][]).filter(([, page]) => page !== undefined && page === file);
+  const host = hosts.length === 1 ? hosts[0]?.[0] : undefined;
+  if (host === undefined) return { ok: false, reason: 'not-a-relay' };
+  return { ok: true, kind: 'relay', host, tabId, frameId: sender.frameId, url: url.href };
 }

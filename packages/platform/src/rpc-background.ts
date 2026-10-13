@@ -1,7 +1,8 @@
 // Background side of the tab/pages ↔ background protocol (architecture.md
-// §5.4, §14; EX-015, NF-027): one `cg-tab` port per ChatSpace tab document,
-// `runtime.sendMessage` requests from the extension pages and `cg-page` ports
-// that only receive events.
+// §5.4, §14; EX-015, NF-027): one `cg-tab` port per site tab document,
+// `runtime.sendMessage` requests from the extension pages, `cg-page` ports
+// that only receive events and, 1.15.0 (R20 §8.5), `cg-relay` ports of a
+// site's relay frames.
 //
 // - Listeners are registered synchronously inside createBackgroundRpc, so a
 //   port or a message can wake the event page (§7 «Фон и выгрузка»); every
@@ -17,6 +18,17 @@
 // - Payloads are checked with the frozen schemas in both directions; a
 //   handler's own bug (an answer that fails its schema) is an error answer,
 //   never a malformed one.
+// - 1.15.0: a request type the shared registry does not know belongs to a
+//   site's own registry (tab-messages-fansly.ts), plugged by the site's
+//   background chunk (`site`). The core still checks the sender, the tab
+//   session, the site — a tab or a relay reaches only its own site's
+//   registry — and the envelope; the registry's rules, schemas and handler do
+//   the rest, as `dispatch` does for the shared one. A tab's or relay's
+//   request waits for its site to be plugged within `siteWaitMs`.
+// - A relay frame (`cg-relay`) is a subframe of a tab at the site's relay
+//   page; it is accepted only inside a tab that holds a registered session of
+//   that site, speaks for that session only, and goes when that tab's port
+//   goes. It sends only types its registry allows from `relay`.
 
 import { TabEnvelopeSchema, type ExtensionPage, type TabRegisterRequest, type TabSender } from '@cg/contracts/tab-protocol';
 import {
@@ -26,11 +38,12 @@ import {
   parseTabPayload,
   type TabEventPayload,
   type TabEventType,
+  type TabPayloadCheck,
   type TabRequestPayload,
   type TabRequestType,
   type TabResponsePayload,
 } from '@cg/contracts/tab-messages';
-import { PAGE_PORT_NAME, TAB_PORT_NAME } from '@cg/contracts/tab-protocol';
+import { PAGE_PORT_NAME, RELAY_PORT_NAME, TAB_PORT_NAME } from '@cg/contracts/tab-protocol';
 
 import { defaultBrowser, type BrowserApi, type MessageSenderApi, type PortApi } from './browser-api';
 import {
@@ -39,7 +52,9 @@ import {
   responseEnvelope,
   rpcError,
   verifyPageSender,
+  verifyRelaySender,
   verifyTabSender,
+  type RelayPages,
   type RpcRejectReason,
   type RpcResult,
   type TabHostKind,
@@ -60,6 +75,39 @@ export type RpcSenderContext =
 
 export type HandledRequestType = Exclude<TabRequestType, 'tab.register'>;
 
+/** 1.15.0: who sent a request of a site's registry — a tab of the site, a page, or the relay frame of a tab session. */
+export type SiteSenderContext =
+  | { readonly kind: 'tab'; readonly host: TabHostKind; readonly tabSessionId: string; readonly tabId: number; readonly url: string }
+  | { readonly kind: 'page'; readonly page: ExtensionPage; readonly tabId: number | null; readonly url: string }
+  | { readonly kind: 'relay'; readonly host: TabHostKind; readonly tabSessionId: string; readonly tabId: number; readonly frameId: number; readonly url: string };
+
+/**
+ * A site's own registry and its handler (1.15.0; R20 architecture §1.6, §3.3; contracts `tab-messages-fansly.ts`),
+ * plugged by the site's background chunk. The core has checked the sender, its tab session, its site and the
+ * envelope; the registry's sender rules, its schemas (both ways) and its handler are the site's.
+ */
+export interface SiteRpc {
+  readonly host: TabHostKind;
+  /** Every type of the registry starts with it (`fansly.`); no shared type does. A page's request is routed by it. */
+  readonly prefix: string;
+  isRequestType(type: string): boolean;
+  /** The registry's sender rules (`senderAllowed` of its spec); `host` — the tab's or the relay's site, null for a page. */
+  mayRequest(type: string, sender: TabSender, page: ExtensionPage | null, host: TabHostKind | null): boolean;
+  parse(kind: 'req' | 'res' | 'evt', type: string, payload: unknown): TabPayloadCheck;
+  /** Who an event of the registry goes to; null — not one of its events. */
+  eventTargets(type: string): readonly TabSender[] | null;
+  /** A shared CG code in a failure: a site's own failure travels in its payload (contracts errors-fansly.ts). */
+  handle(type: string, payload: unknown, sender: SiteSenderContext): RpcResult<unknown> | Promise<RpcResult<unknown>>;
+}
+
+/** A relay frame the background holds a port of (1.15.0). */
+export interface RelayInfo {
+  readonly host: TabHostKind;
+  readonly tabSessionId: string;
+  readonly tabId: number;
+  readonly frameId: number;
+}
+
 export type TabRequestHandler<T extends HandledRequestType> = (
   payload: TabRequestPayload<T>,
   sender: RpcSenderContext,
@@ -69,6 +117,10 @@ export interface BackgroundRpcOptions {
   readonly api?: BrowserApi;
   /** Match patterns of the host pages per host kind (ChatSpace; plus the loopback stand, as ChatSpace, in test builds). */
   readonly tabHosts: TabHostMatches;
+  /** 1.15.0: the relay page of each site that has one (`cg-relay`); none — no relay is accepted. */
+  readonly relayPages?: RelayPages;
+  /** 1.15.0: how long a tab's or relay's request of a site's registry waits for that site to be plugged (default 10 s). */
+  readonly siteWaitMs?: number;
   /** The readiness barrier: no request is handled before it settles. */
   readonly ready: Promise<unknown>;
   readonly contractsVersion: string;
@@ -86,7 +138,15 @@ export interface BackgroundRpc {
   handle<T extends HandledRequestType>(type: T, handler: TabRequestHandler<T>): void;
   /** Sends an event to every receiver its spec allows (or one tab session); answers how many got it. */
   emit<T extends TabEventType>(type: T, payload: TabEventPayload<T>, target?: { readonly tabSessionId: string }): number;
+  /** 1.15.0: plugs a site's registry (its chunk started); the answer unplugs it. One per site: a new one replaces the old. */
+  site(registry: SiteRpc): () => void;
+  /**
+   * 1.15.0: an event of a site's registry, checked against it, to the receivers it names among that site's tabs,
+   * their relay frames and the pages — or to one tab session (and its relay); answers how many got it.
+   */
+  emitSite(host: TabHostKind, type: string, payload: unknown, target?: { readonly tabSessionId: string }): number;
   tabs(): readonly TabSessionInfo[];
+  relays(): readonly RelayInfo[];
   pagePorts(): number;
   counters(): Readonly<Record<RpcRejectReason, number>>;
   dispose(): void;
@@ -99,6 +159,16 @@ interface TabPortState {
   readonly url: string;
   session: TabSessionInfo | null;
 }
+
+interface RelayPortState extends RelayInfo {
+  readonly port: PortApi;
+  readonly url: string;
+  /** The tab document it is framed in: it goes with it. */
+  readonly owner: TabPortState;
+}
+
+/** Above the background's readiness deadline (10 s, core READINESS_DEADLINE_MS), as a tab waits for `tab.register`. */
+export const DEFAULT_SITE_WAIT_MS = 10_000;
 
 type AnyHandler = (payload: unknown, sender: RpcSenderContext) => RpcResult<unknown> | Promise<RpcResult<unknown>>;
 
@@ -113,6 +183,10 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
   const handlers = new Map<string, AnyHandler>();
   const tabPorts = new Set<TabPortState>();
   const pagePorts = new Set<PortApi>();
+  const relayPorts = new Set<RelayPortState>();
+  const sites = new Map<TabHostKind, SiteRpc>();
+  const siteWaiters = new Map<TabHostKind, Set<() => void>>();
+  const siteWaitMs = options.siteWaitMs ?? DEFAULT_SITE_WAIT_MS;
   const counters = Object.fromEntries(RPC_REJECT_REASONS.map((reason) => [reason, 0])) as Record<RpcRejectReason, number>;
   let readyOk: Promise<boolean> | null = null;
   let disposed = false;
@@ -193,6 +267,85 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     return { ok: true, payload: { tabSessionId: state.session.tabSessionId, contractsVersion: options.contractsVersion, testBuild: options.testBuild } };
   }
 
+  /** The plugged registry of a site, waiting for its chunk to plug it (`siteWaitMs`); null — none came. */
+  function siteOf(host: TabHostKind): Promise<SiteRpc | null> {
+    const plugged = sites.get(host);
+    if (plugged) return Promise.resolve(plugged);
+    return new Promise((resolve) => {
+      const waiting = siteWaiters.get(host) ?? new Set<() => void>();
+      siteWaiters.set(host, waiting);
+      const done = (): void => {
+        clearTimeout(timer);
+        waiting.delete(done);
+        resolve(sites.get(host) ?? null);
+      };
+      const timer = setTimeout(done, siteWaitMs);
+      waiting.add(done);
+    });
+  }
+
+  /**
+   * A request of a site's registry: the site of the sender (a tab or a relay) or, for a page, the plugged site whose
+   * prefix the type carries. null — refused without an answer (unknown type, wrong sender), as for the shared registry.
+   */
+  async function dispatchSite(type: string, payload: unknown, sender: SiteSenderContext): Promise<RpcResult<unknown> | null> {
+    if (!(await whenReady())) {
+      reject('not-ready', type, sender.kind);
+      return rpcError('CG-UNKNOWN', 'background not ready');
+    }
+    const site = sender.kind === 'page' ? ([...sites.values()].find((candidate) => type.startsWith(candidate.prefix)) ?? null) : await siteOf(sender.host);
+    if (site === null || !type.startsWith(site.prefix) || !site.isRequestType(type)) {
+      reject('unknown-type', type, sender.kind);
+      return null;
+    }
+    if (!site.mayRequest(type, sender.kind, sender.kind === 'page' ? sender.page : null, sender.kind === 'page' ? null : sender.host)) {
+      reject('sender-kind', type, sender.kind);
+      return null;
+    }
+    const input = site.parse('req', type, payload);
+    if (!input.ok) {
+      reject('payload', type, sender.kind);
+      return rpcError('CG-UNKNOWN', `invalid ${type} request`);
+    }
+    let result: RpcResult<unknown>;
+    try {
+      result = await site.handle(type, input.payload, sender);
+    } catch {
+      reject('handler', type, sender.kind);
+      return rpcError('CG-UNKNOWN', `${type} handler failed`);
+    }
+    if (!result.ok) return result;
+    const output = site.parse('res', type, result.payload);
+    if (!output.ok) {
+      reject('response', type, sender.kind);
+      return rpcError('CG-UNKNOWN', `invalid ${type} response`);
+    }
+    return { ok: true, payload: output.payload };
+  }
+
+  function onRelayMessage(state: RelayPortState, raw: unknown): void {
+    const envelope = TabEnvelopeSchema.safeParse(raw);
+    // A relay speaks for the tab session it is framed in: it carries none of its own.
+    if (!envelope.success || envelope.data.kind !== 'req' || envelope.data.tabSessionId !== undefined) {
+      reject('envelope', null, 'relay');
+      return;
+    }
+    const { id, type, payload } = envelope.data;
+    if (!tabPorts.has(state.owner) || state.owner.session?.tabSessionId !== state.tabSessionId) {
+      reject('session', type, 'relay');
+      return;
+    }
+    // The shared registry has nothing a relay may send.
+    if (isTabRequestType(type)) {
+      reject('sender-kind', type, 'relay');
+      return;
+    }
+    const sender: SiteSenderContext = { kind: 'relay', host: state.host, tabSessionId: state.tabSessionId, tabId: state.tabId, frameId: state.frameId, url: state.url };
+    void dispatchSite(type, payload, sender).then((result) => {
+      if (result !== null && relayPorts.has(state)) post(state.port, responseEnvelope(id, type, result));
+    });
+  }
+
   function onTabMessage(state: TabPortState, raw: unknown): void {
     const envelope = TabEnvelopeSchema.safeParse(raw);
     if (!envelope.success || envelope.data.kind !== 'req') {
@@ -201,10 +354,20 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     }
     const { id, type, payload, tabSessionId } = envelope.data;
     if (!isTabRequestType(type)) {
-      reject('unknown-type', type, 'tab');
+      // 1.15.0: a type of the tab's own site, after the session check every request but `tab.register` passes.
+      const session = state.session;
+      if (!session || tabSessionId !== session.tabSessionId || session.tabId !== state.tabId) {
+        // A type no plugged site knows reads as unknown, as before sites had registries.
+        reject([...sites.values()].some((site) => site.isRequestType(type)) ? 'session' : 'unknown-type', type, 'tab');
+        return;
+      }
+      const sender: SiteSenderContext = { kind: 'tab', host: state.host, tabSessionId: session.tabSessionId, tabId: state.tabId, url: state.url };
+      void dispatchSite(type, payload, sender).then((result) => {
+        if (result !== null && tabPorts.has(state)) post(state.port, responseEnvelope(id, type, result));
+      });
       return;
     }
-    if (!mayRequest(type, 'tab', null)) {
+    if (!mayRequest(type, 'tab', null, state.host)) {
       reject('sender-kind', type, 'tab');
       return;
     }
@@ -242,8 +405,35 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       port.onMessage.addListener((message) => onTabMessage(state, message));
       port.onDisconnect.addListener(() => {
         tabPorts.delete(state);
+        // Its relay frames belong to this document: they go with it.
+        for (const relay of [...relayPorts]) {
+          if (relay.owner !== state) continue;
+          relayPorts.delete(relay);
+          relay.port.disconnect();
+        }
         if (state.session) options.onTabGone?.(state.session);
       });
+      return;
+    }
+    if (port.name === RELAY_PORT_NAME) {
+      const verdict = verifyRelaySender(port.sender, runtimeId, ownBase, options.relayPages ?? {});
+      if (!verdict.ok || verdict.kind !== 'relay') {
+        reject(verdict.ok ? 'not-a-relay' : verdict.reason, null, 'relay');
+        port.disconnect();
+        return;
+      }
+      // The newest registered document of that tab, of that site: the relay speaks for its session only.
+      const owner = [...tabPorts].filter((tab) => tab.tabId === verdict.tabId && tab.host === verdict.host && tab.session !== null).at(-1);
+      const tabSessionId = owner?.session?.tabSessionId;
+      if (owner === undefined || tabSessionId === undefined) {
+        reject('not-a-relay', null, 'relay');
+        port.disconnect();
+        return;
+      }
+      const state: RelayPortState = { port, host: verdict.host, tabId: verdict.tabId, frameId: verdict.frameId, url: verdict.url, tabSessionId, owner };
+      relayPorts.add(state);
+      port.onMessage.addListener((message) => onRelayMessage(state, message));
+      port.onDisconnect.addListener(() => relayPorts.delete(state));
       return;
     }
     if (port.name === PAGE_PORT_NAME) {
@@ -274,10 +464,15 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     }
     const { id, type, payload } = envelope.data;
     if (!isTabRequestType(type)) {
-      reject('unknown-type', type, 'page');
-      return undefined;
+      // 1.15.0: a type of a plugged site's registry, routed by its prefix.
+      if (![...sites.values()].some((site) => type.startsWith(site.prefix))) {
+        reject('unknown-type', type, 'page');
+        return undefined;
+      }
+      const sender: SiteSenderContext = { kind: 'page', page: verdict.page, tabId: verdict.tabId, url: verdict.url };
+      return dispatchSite(type, payload, sender).then((result) => (result === null ? undefined : responseEnvelope(id, type, result)));
     }
-    if (type === 'tab.register' || !mayRequest(type, 'page', verdict.page)) {
+    if (type === 'tab.register' || !mayRequest(type, 'page', verdict.page, null)) {
       reject('sender-kind', type, 'page');
       return undefined;
     }
@@ -314,8 +509,46 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       }
       return delivered;
     },
+    site(registry) {
+      sites.set(registry.host, registry);
+      for (const done of [...(siteWaiters.get(registry.host) ?? [])]) done();
+      return () => {
+        if (sites.get(registry.host) === registry) sites.delete(registry.host);
+      };
+    },
+    emitSite(host, type, payload, target) {
+      const site = sites.get(host);
+      const to = site?.eventTargets(type) ?? null;
+      const checked = site !== undefined && to !== null ? site.parse('evt', type, payload) : { ok: false as const };
+      if (to === null || !checked.ok) {
+        reject('response', type, 'unknown');
+        return 0;
+      }
+      const message = eventEnvelope(type, checked.payload);
+      let delivered = 0;
+      if (to.includes('tab')) {
+        for (const state of tabPorts) {
+          if (state.host !== host || !state.session) continue;
+          if (target && state.session.tabSessionId !== target.tabSessionId) continue;
+          if (post(state.port, message)) delivered += 1;
+        }
+      }
+      if (to.includes('relay')) {
+        for (const relay of relayPorts) {
+          if (relay.host !== host || (target && relay.tabSessionId !== target.tabSessionId)) continue;
+          if (post(relay.port, message)) delivered += 1;
+        }
+      }
+      if (to.includes('page') && !target) {
+        for (const port of pagePorts) if (post(port, message)) delivered += 1;
+      }
+      return delivered;
+    },
     tabs() {
       return [...tabPorts].flatMap((state) => (state.session ? [state.session] : []));
+    },
+    relays() {
+      return [...relayPorts].map(({ host, tabSessionId, tabId, frameId }) => ({ host, tabSessionId, tabId, frameId }));
     },
     pagePorts() {
       return pagePorts.size;
@@ -327,10 +560,15 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       disposed = true;
       api.runtime.onConnect.removeListener(onConnect);
       api.runtime.onMessage.removeListener(onMessage);
+      for (const relay of relayPorts) relay.port.disconnect();
       for (const state of tabPorts) state.port.disconnect();
       for (const port of pagePorts) port.disconnect();
+      relayPorts.clear();
       tabPorts.clear();
       pagePorts.clear();
+      sites.clear();
+      for (const waiting of siteWaiters.values()) for (const done of [...waiting]) done();
+      siteWaiters.clear();
     },
   };
 }

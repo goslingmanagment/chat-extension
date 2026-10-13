@@ -35,7 +35,9 @@ export {
   RPC_REJECT_REASONS,
   urlMatchesPattern,
   verifyPageSender,
+  verifyRelaySender,
   verifyTabSender,
+  type RelayPages,
   type RpcRejectReason,
   type RpcResult,
   type SenderVerdict,
@@ -45,10 +47,14 @@ export {
 } from './rpc-common';
 export {
   createBackgroundRpc,
+  DEFAULT_SITE_WAIT_MS,
   type BackgroundRpc,
   type BackgroundRpcOptions,
   type HandledRequestType,
+  type RelayInfo,
   type RpcSenderContext,
+  type SiteRpc,
+  type SiteSenderContext,
   type TabRequestHandler,
   type TabSessionInfo,
 } from './rpc-background';
