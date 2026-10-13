@@ -100,6 +100,12 @@ export const BackgroundToastSchema = z.strictObject({
   opId: z.optional(UuidSchema),
   feature: z.optional(FeatureIdSchema),
   chat: z.optional(ChatRefSchema),
+  /**
+   * 1.15.0 (R20 F6a): the conversation of that chat when it is not the fan — on Fansly the group id of the
+   * operation's target; «Открыть чат» opens that conversation. Only with `chat`. Absent — the conversation is the
+   * fan (ChatSpace, and every toast before 1.15.0).
+   */
+  conversationRef: z.optional(NativeIdSchema),
   fanLabel: z.nullable(displayText(256)),
 });
 export type BackgroundToast = z.infer<typeof BackgroundToastSchema>;

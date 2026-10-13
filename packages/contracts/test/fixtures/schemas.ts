@@ -156,6 +156,8 @@ export const toast = {
   chat,
   fanLabel: 'Fan Two',
 } as const;
+/** 1.15.0 (R20 F6a): «AI готово» of a Fansly chat names its conversation — the group, not the fan. */
+export const fanslyToast = { ...toast, toastId: uuid(22), chat: fanslyChat, conversationRef: FANSLY_IDS.group } as const;
 export const diagnostics = {
   generatedAt: ISO,
   extension: { version: '0.1.0', contractsVersion: '1.0.0', testBuild: false },
@@ -961,7 +963,12 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
 
   // ── tab protocol ──
   fixture('SpendersPeriod', C.SpendersPeriodSchema, ['mtd', 'lifetime'], ['year']),
-  fixture('BackgroundToast', C.BackgroundToastSchema, [toast, { toastId: uuid(21), kind: 'error', scope: 'hub', error: { code: 'CG-HUB-TIMEOUT' }, fanLabel: null }], [{ ...toast, kind: 'fatal' }]),
+  fixture(
+    'BackgroundToast',
+    C.BackgroundToastSchema,
+    [toast, { toastId: uuid(21), kind: 'error', scope: 'hub', error: { code: 'CG-HUB-TIMEOUT' }, fanLabel: null }, fanslyToast],
+    [{ ...toast, kind: 'fatal' }, { ...fanslyToast, conversationRef: 'group-3' }, { ...fanslyToast, conversationRef: 700000000000000003 }],
+  ),
   fixture(
     'DiagnosticsSnapshot',
     C.DiagnosticsSnapshotSchema,
