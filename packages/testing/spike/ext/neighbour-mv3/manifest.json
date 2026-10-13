@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "cg-spike-neighbour-mv3",
+  "version": "1.0",
+  "browser_specific_settings": { "gecko": { "id": "nb3@cg-spike.test" } },
+  "host_permissions": ["http://fansly.test/*", "http://apiv3.fansly.test/*"],
+  "background": { "scripts": ["nb-bg.js"] },
+  "content_scripts": [{ "matches": ["http://fansly.test/*"], "js": ["cs.js"], "run_at": "document_idle" }]
+}

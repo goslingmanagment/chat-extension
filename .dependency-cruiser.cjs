@@ -163,7 +163,7 @@ module.exports = {
     // Our own .d.ts files are not code. The vendored packages resolve to theirs
     // (`types` comes first in their `exports`): excluding those would hide every
     // SDK and hotkey-engine edge from the rules above.
-    exclude: { path: ['\\.test\\.tsx?$', '^(?!vendor/).*\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand)/'] },
+    exclude: { path: ['\\.test\\.tsx?$', '^(?!vendor/).*\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand|spike)/'] },
     tsPreCompilationDeps: true,
     combinedDependencies: false,
     enhancedResolveOptions: {

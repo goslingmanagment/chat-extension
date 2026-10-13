@@ -131,6 +131,8 @@ export default defineConfig(
       '.dev-profile/**',
       '.cache/**',
       'tests/fixtures/**',
+      // The P3a spike's probe code (docs/project-unite/spike.md): browser-run scripts and test extensions, never shipped.
+      'packages/testing/spike/**',
     ],
   },
   js.configs.recommended,
