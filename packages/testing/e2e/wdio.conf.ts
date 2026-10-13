@@ -20,7 +20,7 @@ import { routeSchemas } from '@kernel/sdk';
 import { startFakeHub, type FakeHubServer } from '../src/fake-hub/server';
 import { startStandServer, type StandServer } from '../src/stand-server';
 import { egressProxyPrefs, startEgressSink, type EgressSink } from '../src/stand/egress-sink';
-import { FIXTURE_BUILD_DIR } from '../src/stand/paths';
+import { FANSLY_FIXTURE_BUILD_DIR, FIXTURE_BUILD_DIR } from '../src/stand/paths';
 import { E2E_ADDON_UUID, E2E_RELEASE_ADDON_UUID, RELEASE_GECKO_ID, TEST_GECKO_ID } from './support/constants';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -96,10 +96,15 @@ export const config: WebdriverIO.Config = {
     if (!existsSync(join(FIXTURE_BUILD_DIR, 'index.html'))) {
       throw new Error('the ChatSpace fixture is not built: run `pnpm --filter @cg/testing build:stand` (pnpm e2e does it)');
     }
+    if (!existsSync(join(FANSLY_FIXTURE_BUILD_DIR, 'index.html'))) {
+      throw new Error('the Fansly stand is not built: run `pnpm --filter @cg/testing build:stand` (pnpm e2e does it)');
+    }
     egress = await startEgressSink();
     stand = await startStandServer({ egress });
     process.env['CG_STAND_ORIGIN'] = stand.origin;
     process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
+    // The Fansly stand: its own loopback name (http://localhost:<port>), never ChatSpace's 127.0.0.1.
+    process.env['CG_FANSLY_STAND_ORIGIN'] = stand.fansly.origin;
     // The fake hub: system clock, the pilot preset (switched on page by page, the owner's `"*"` row empty); specs
     // reset and script it through its control API. Every AI body is checked by the hub's own body schema, every
     // client/* request and model answer by the hub's own route schemas (the vendored SDK's): a request the real

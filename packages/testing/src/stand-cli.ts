@@ -6,8 +6,10 @@ import { STAND_IDS } from './stand/dataset';
 
 const port = Number(process.env['STAND_PORT'] ?? 5179);
 const apiPort = Number(process.env['STAND_API_PORT'] ?? port + 1);
-const stand = await startStandServer({ port, apiPort });
+const fanslyPort = Number(process.env['STAND_FANSLY_PORT'] ?? port + 2);
+const stand = await startStandServer({ port, apiPort, fanslyPort });
 console.log(`stand: ${stand.origin}/accounts/${STAND_IDS.accounts.a}/chats/${STAND_IDS.fans.a1} (API and socket on ${stand.apiOrigin})`);
+console.log(`stand: Fansly ${stand.fansly.origin}/messages`);
 console.log('stand: Ctrl+C to stop');
 const stop = (): void => {
   void stand.close().then(() => process.exit(0));

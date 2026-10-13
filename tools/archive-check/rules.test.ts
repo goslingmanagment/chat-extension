@@ -97,13 +97,22 @@ describe('archive check', () => {
       'packages/testing/e2e/support/fake-hub.ts',
       'packages/testing/fixture-chatspace/index.html',
       'packages/testing/fixture-chatspace/src/main.ts',
+      // The Fansly-like stand (R20 P6a), its build config and its DOM tests.
+      'packages/testing/fixture-fansly.vite.config.ts',
+      'packages/testing/fixture-fansly/index.html',
+      'packages/testing/fixture-fansly/src/composer.ts',
+      'packages/testing/src/fixture-fansly/composer.dom.test.ts',
     ]) {
       expect(rules(stand, 'sources', 'export {};'), stand).toEqual(['stand-in-sources']);
     }
     // For `tsc -b` in the archive: the fixture's tsconfig and its wire-protocol types stay.
     for (const kept of STAND_SOURCE_KEPT) expect(rules(kept, 'sources', '{}'), kept).toEqual([]);
-    expect(STAND_SOURCE_GLOBS).toEqual(expect.arrayContaining(['packages/testing/e2e/**', 'packages/testing/fixture-chatspace/src/!(protocol.ts)', 'packages/testing/fixture-chatspace/src/*/**']));
+    expect(STAND_SOURCE_KEPT).toEqual(expect.arrayContaining(['packages/testing/fixture-fansly/tsconfig.json', 'packages/testing/fixture-fansly/src/protocol.ts']));
+    expect(STAND_SOURCE_GLOBS).toEqual(
+      expect.arrayContaining(['packages/testing/e2e/**', 'packages/testing/fixture-chatspace/src/!(protocol.ts)', 'packages/testing/fixture-chatspace/src/*/**', 'packages/testing/fixture-fansly/src/!(protocol.ts)', 'packages/testing/src/fixture-fansly/**']),
+    );
     expect(isStandSource('packages/testing/fixture-chatspace/src/protocol.ts')).toBe(false);
+    expect(isStandSource('packages/testing/fixture-fansly/src/protocol.ts')).toBe(false);
     expect(rules('packages/testing/fixture-chatspace/src/ui/editor.ts', 'sources')).toEqual(['stand-in-sources', 'onlymonster-code']);
     // The fake hub stays: it names no host library.
     expect(rules('packages/testing/src/fake-hub/hub.ts', 'sources', 'export {};')).toEqual([]);
@@ -119,6 +128,8 @@ describe('archive check', () => {
         .map((problem) => problem.rule)
         .filter((rule) => rule === 'fixture-provenance');
     expect(provenance('packages/testing/fixture-chatspace/tsconfig.json')).toEqual([]);
+    expect(provenance('packages/testing/fixture-fansly/src/composer.ts', 'export {};')).toEqual([]);
+    expect(provenance('packages/testing/fixture-fansly/live-page.json')).toEqual(['fixture-provenance']);
     expect(provenance('packages/testing/stand/stand.js', '(function () {})();')).toEqual([]);
     expect(provenance('packages/testing/src/stand/api.ts', 'export {};')).toEqual([]);
     for (const saved of [

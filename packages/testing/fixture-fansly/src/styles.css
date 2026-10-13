@@ -1,0 +1,167 @@
+/* Fansly-like stand: our own sheet. Variables and sizes after fansly.com's
+   (S2 Q9: dark is :root, light is html.bright-theme; Roboto 16 px on html),
+   layout after the live measurements (fansly-web.md §7). Not Fansly's CSS. */
+
+:root {
+  --blue-1: #2699f7;
+  --font-1: #d6dce8;
+  --dark-blue-1: #637395;
+  --dark-1: #111215;
+  --dark-2: #191e26;
+  --dark-3: #1a1e26;
+  --dark-5: #16161a;
+  --dark-8: #0e0f12;
+  --modal-bg: #16161a;
+  --dropdown-bg-color: #16161a;
+  --input-bg: #0e0f12;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --red-1: #c35b5b;
+  --green-1: #40bb55;
+  --pure-white: #fff;
+  --button-radius: 0.5em;
+}
+
+html.bright-theme {
+  --font-1: rgb(20, 30, 40);
+  --dark-blue-1: rgba(86, 102, 120, 1);
+  --dark-1: #ffffff;
+  --dark-2: #f5f5f5;
+  --dark-3: #f0f2f4;
+  --dark-5: #f5f5f5;
+  --dark-8: #f0f2f4;
+  --modal-bg: #ffffff;
+  --dropdown-bg-color: #ffffff;
+  --input-bg: #ffffff;
+  --border-color: rgba(0, 0, 0, 0.05);
+  --red-1: #df4343;
+  --green-1: #27d644;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: 'Roboto', sans-serif;
+  font-size: 16px;
+  color: var(--font-1);
+  background: var(--dark-1);
+}
+
+app-root,
+.global-wrapper {
+  display: block;
+  height: 100%;
+}
+
+.flex-row { display: flex; flex-direction: row; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-1 { flex: 1; }
+.flex-align-center { align-items: center; }
+.width-100 { width: 100%; }
+.min-width-0 { min-width: 0; }
+.hidden { display: none !important; }
+.font-size-xs { font-size: 0.75em; }
+.font-size-sm { font-size: 0.875em; }
+.dark-blue-1 { color: var(--dark-blue-1); }
+.bold { font-weight: 700; }
+.pointer { cursor: pointer; }
+
+.site-wrapper { display: flex; flex-direction: column; height: 100%; }
+
+app-nav-bar-top { display: block; flex: 0 0 56px; border-bottom: 1px solid var(--border-color); }
+.nav-content-wrapper { display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 0 1em; }
+.nav-bar-item { color: inherit; text-decoration: none; }
+
+.content-wrapper { flex: 1; display: flex; min-height: 0; position: relative; z-index: 2; }
+app-home-route { display: block; padding: 2em; }
+
+app-messages-route { flex: 1; display: flex; position: relative; min-height: 0; }
+.page-content,
+.messages-wrapper { flex: 1; display: flex; min-height: 0; min-width: 0; }
+
+.messages-list-wrapper { flex: 0 0 40%; max-width: 498px; display: flex; flex-direction: column; overflow-y: hidden; border-right: 1px solid var(--border-color); }
+.messages-top-header { display: flex; align-items: center; height: 56px; padding: 0 1em; border-bottom: 1px solid var(--border-color); }
+.message-search { padding: 0.5em 1em; }
+.messages-nav-wrapper { padding: 0 1em 0.5em; }
+.message-list { flex: 1; overflow-y: auto; }
+.message-list a { display: block; color: inherit; text-decoration: none; }
+app-messaging-group.message { display: flex; height: 73px; box-sizing: border-box; padding: 0.5em 1em; gap: 0.75em; border-bottom: 1px solid var(--border-color); }
+.message-list a.selected app-messaging-group { background: var(--dark-3); }
+.message-time { margin-left: auto; font-size: 0.75em; color: var(--dark-blue-1); }
+.eclipse { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.badge { min-width: 1.25em; border-radius: 1em; background: var(--blue-1); color: #fff; text-align: center; font-size: 0.75em; }
+app-account-avatar { display: inline-block; width: 40px; height: 40px; border-radius: 50%; background: var(--dark-3); flex: 0 0 auto; }
+
+.messages-content-wrapper { flex: 1; display: flex; position: relative; overflow-y: hidden; min-width: 0; }
+app-messages-default-conversation-route { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+app-messages-conversation-route { flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+.message-content-header { flex: 0 0 auto; display: flex; align-items: center; height: 56px; box-sizing: border-box; padding: 0 1em; border-bottom: 1px solid var(--border-color); position: relative; z-index: 2; }
+.message-content-header .back-button { display: none; }
+.back-button-always { cursor: pointer; margin-right: 0.5em; }
+.message-content-header-avatar { margin-right: 0.5em; }
+.content-header-sub-row { gap: 0.25em; }
+.username-wrapper { color: inherit; text-decoration: none; }
+.user-name { margin-left: 0.25em; color: var(--dark-blue-1); font-size: 0.875em; }
+.more-dropdown { cursor: pointer; }
+.dropdown-list { display: none; }
+
+app-group-message-container.message-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 1; min-height: 0; }
+.message-content-list { flex: 1; align-items: flex-start; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; position: relative; }
+.message-collection-wrapper { display: flex; flex-direction: column; width: 100%; }
+app-group-message-collection.message-collection { display: flex; flex-direction: column; width: 100%; padding: 0.25em 0.5em; box-sizing: border-box; }
+app-group-message.message { display: flex; max-width: 70%; padding: 0.5em 0.75em; margin: 0.15em 0.5em; border-radius: 1em; background: var(--dark-3); }
+app-group-message.my-message { align-self: flex-end; background: var(--blue-1); color: #fff; }
+app-group-message.queued { opacity: 0.6; }
+.timestamp { margin: 0 1em 0.25em; font-size: 0.75em; color: var(--dark-blue-1); }
+.timestamp.my-message { align-self: flex-end; }
+
+.partner-is-typing { margin: 0 0.25em 0 0.75em; align-items: center; line-height: 1em; display: flex; flex-direction: row; height: 0; overflow: visible; z-index: 2; position: relative; }
+.partner-is-typing > .flex-row { transform: translateY(-110%); }
+.typing-avatar { width: 20px; height: 20px; margin-right: 0.5em; }
+
+app-group-message-input { flex: 0 0 auto; display: flex; position: relative; flex-direction: column; background-color: transparent; padding: 0.5em 0.25em; border-top: 1px solid var(--border-color); }
+.message-attachments { display: flex; flex-wrap: wrap; overflow-y: auto; }
+.message-attachments > div.attachment:empty { height: 0; }
+app-account-media-create-template.attachment { display: block; margin: 0.25em; padding: 0.25em 0.5em; border: 1px solid var(--border-color); border-radius: 0.5em; font-size: 0.875em; }
+.progress-bar { height: 4px; background: var(--dark-5); }
+.progress-bar-progress { height: 4px; background: var(--blue-1); }
+.no-dm-allowed { padding: 0.5em; }
+.message-composer { display: flex; align-items: center; }
+.collapsable-actions { display: flex; align-items: center; }
+.show-actions[hidden],
+.actions.actions-collapsed { display: none; }
+.actions { display: flex; align-items: center; }
+.input-addon,
+.show-actions { width: 2.5rem; height: 2.5rem; border-radius: 50%; border: none; background-color: var(--dark-3); color: inherit; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; margin-right: 0.5em; padding: 0; }
+.dropdown-title { width: 100%; height: 100%; border: none; background: none; color: inherit; padding: 0; }
+.recording-action { width: auto; padding: 0 0.75em; border-radius: 1.25em; color: var(--red-1); }
+.message-entry { flex: 1; display: flex; align-items: center; min-width: 0; }
+.message-input-container { flex: 1; display: flex; position: relative; background: var(--dark-3); border-radius: 1.25em; padding: 0.6em 1em; min-width: 0; }
+textarea.message-input { flex: 1; background-color: transparent; border: none; outline: none; line-height: 1.1em; font-size: 1em; resize: none; font-family: 'Roboto', sans-serif; color: inherit; max-height: 100px; padding: 0; border-radius: 0; }
+.message-input-container .label { position: absolute; left: 1em; top: 0.6em; pointer-events: none; color: var(--dark-blue-1); }
+.send-button { width: 44px; height: 44px; flex: 0 0 auto; border-radius: 50%; border: none; background: var(--blue-1); color: #fff; display: flex; align-items: center; justify-content: center; margin-left: 0.5em; cursor: pointer; }
+.send-button[disabled] { opacity: 0.5; cursor: default; }
+.error-container { min-height: 0; }
+
+app-group-media-offers.media-content { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+.modal-wrapper { position: fixed; inset: 0; z-index: 998; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.xdModal { position: absolute; inset: 0; pointer-events: none; }
+.xdModal.back-drop { background: rgba(0, 0, 0, 0.45); pointer-events: auto; }
+app-account-media-upload { position: relative; display: block; min-width: 360px; pointer-events: auto; background: var(--modal-bg); border-radius: 0.5em; }
+.modal-header,
+.modal-footer { display: flex; align-items: center; padding: 0.75em 1em; }
+.modal-header .title { flex: 1; font-weight: 700; }
+.modal-content { padding: 0 1em; }
+.media-container-wrapper { padding: 0.25em 0; }
+.btn { display: inline-flex; padding: 0.5em 1em; border-radius: var(--button-radius); cursor: pointer; }
+.btn.solid-blue { background: var(--blue-1); color: #fff; }
+.btn.disabled { opacity: 0.5; pointer-events: none; }
+.alert-wrapper { position: fixed; z-index: 9999; }
+app-account-card-overlay { display: block; }
+
+app-messaging-overlay { position: fixed; bottom: 0; right: 24px; z-index: 4; display: block; }
+app-messaging-overlay-group { display: flex; flex-direction: column; width: 440px; height: 420px; background: var(--dark-2); border: 1px solid var(--border-color); border-bottom: none; border-radius: 0.5em 0.5em 0 0; }
+
+.chatgoose-launcher { position: fixed; right: 16px; bottom: 96px; }

@@ -831,7 +831,9 @@ interface StartProofV1 {
      только якоря маршрута найдены, и включается снова, ограниченно, только если они пропали.
   2. **Работа.** `childList` без `subtree` на `div.content-wrapper`, `div.messages-content-wrapper`,
      `app-messages-conversation-route` (смена чата, галерея) и два узких — на `app-group-message-input` (его дети — ветки
-     поля: поле, запись голоса, «no-dm-allowed», `main:56262-56275`, `main:55759-55790`) и на `.message-content-header >
+     поля: `div.no-dm-allowed` при невыполненных правилах ЛС, когда `div.message-composer` скрыт классом `hidden`, и сам
+     `div.message-composer`; запись голоса меняет кнопку внутри `.actions`, поле не пересоздаёт, `main:56271`,
+     `main:55759-55790`, `fansly-web.md` §3) и на `.message-content-header >
      .flex-col > .flex-row` (тот, где `.back-button`): блок контакта стоит в нём под `ngIf` (`main:74512`, `main:74723`).
      Узкие переставляются при каждой смене маршрута.
   Перепривязка проверяет `isConnected` и эпоху поля и снимает старые слушатели. Поддеревья ленты и шапки целиком не
@@ -1320,12 +1322,23 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 
 - **`TestHostConfig`** (в реестре хостов, только тестовая сборка): адреса страницы, API и сокета, фильтры `webRequest`,
   relay, поддельный хаб, манифест, автоматическая выдача и отзыв прав (механизм доказывает P6a). Сборка выпуска проверяет,
-  что подмен и обходов loopback в ней нет.
+  что подмен и обходов loopback в ней нет. **Сделано в P6a:** у каждого стенда своё loopback-имя (`CHATSPACE_STAND_MATCHES`
+  — `127.0.0.1`, `FANSLY_STAND_MATCHES` — `localhost`, `hosts/runtime/index.ts`); стенд опционального сайта и в тестовой
+  сборке опционален — до записи Fansly (P7a0) тестовая сборка несёт его права отдельно (`FANSLY_STAND_PERMISSIONS`,
+  `pendingStandsOf`): `optional_host_permissions` `http://localhost/*` и `optional_permissions: ["webRequest"]`, при
+  установке не выдано ничего. Выдача и отзыв без человека — `packages/testing/e2e/support/permissions.ts`: хранилище прав
+  Firefox (`ExtensionPermissions` через chrome-контекст WebDriver, как переключатель менеджера дополнений; `onAdded`/
+  `onRemoved` приходят) и путь человека — `permissions.request` в доверенном клике с отвеченным вопросом
+  (`extensions.webextOptionalPermissionPrompts`), `permissions.remove` со страницы (`fansly-stand-permissions.e2e.ts`).
 - **Стенд Fansly** — `packages/testing/fixture-fansly/`: наше Angular-подобное приложение по структуре живого DOM, без кода
   Fansly, + `fixture-fansly.vite.config.ts` → `.cache/fixture-fansly`. У стенда **свой loopback-хост** (`localhost`; у
-  ChatSpace — `127.0.0.1`): адрес, который подходит двум хостам, фон отвергает (S1b G-10). Стенд повторяет: пересоздание
-  контейнера, поля и блока контакта при смене чата; пересоздание поля и блока контакта без смены адреса; галерею; модалку
-  загрузки; `body.modal-opened`; строку «печатает».
+  ChatSpace — `127.0.0.1`): адрес, который подходит двум хостам, фон отвергает (S1b G-10); сервер стенда отвечает только под
+  этим именем (421). Стенд повторяет: пересоздание контейнера, поля и блока контакта при смене чата; блок контакта по числу
+  участников и ветки поля (правила ЛС, запись голоса) без смены адреса, плюс пересоздание поля по команде; галерею; модалку
+  загрузки и `app-account-media-create-template`; `body.modal-opened`; строку «печатает»; правила низа 1 и 350 px и
+  `scrollTop = 0`; виртуальный инбокс; мини-чат; тему; метки старого. Список с источником каждого поведения — шапка
+  `fixture-fansly/src/main.ts`; управление тестами — `window.__fanslyStand` (`src/protocol.ts`). Свои запросы стенд делает
+  через интерфейс `backend.ts`: поддельный Fansly (P6b) подставляет туда XHR.
 - **Поддельный Fansly** — `src/fake-fansly/{api,socket,data,proxy,journal}.ts`. Его API — на loopback-адресе
   (`localhost`, `127.0.0.1`) или с TLS: CSP фона MV3 по умолчанию несёт `upgrade-insecure-requests`, и `fetch` фона на
   `http://` другого имени уходит на `https` и падает (P3a). Состав:

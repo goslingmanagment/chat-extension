@@ -16,8 +16,10 @@ import {
   TEST_HUB_MATCHES,
   lazySitesOf,
   pageMatchesOf,
+  pendingStandsOf,
   scriptsOf,
   type HostDescriptor,
+  type HostPermissions,
   type LazySite,
   type OptionalApi,
   type ScriptSpec,
@@ -46,21 +48,36 @@ export type BuildFlavor = 'release' | 'test';
 
 const unique = (items: readonly string[]): string[] => [...new Set(items)];
 
-/** Granted at install: every site that is not optional, then the hub; a test build adds the fake hub and the sites' stands. */
+/**
+ * Granted at install: every site that is not optional, then the hub; a test build adds the fake hub and the stands of
+ * those sites. An optional site's stand is optional in a test build too (optionalHostPermissions).
+ */
 export function hostPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
-  const required = hosts.filter((host) => !host.permissions.optional).flatMap((host) => host.permissions.origins);
-  const test = flavor === 'test' ? unique([...TEST_HUB_MATCHES, ...hosts.flatMap((host) => host.test.pageMatches)]) : [];
-  return [...required, HUB_HOST_PERMISSION, ...test];
+  const required = hosts.filter((host) => !host.permissions.optional);
+  const test = flavor === 'test' ? unique([...TEST_HUB_MATCHES, ...required.flatMap((host) => host.test.pageMatches)]) : [];
+  return [...required.flatMap((host) => host.permissions.origins), HUB_HOST_PERMISSION, ...test];
 }
 
-/** Asked for on a gesture: a custom hub address, then the optional sites' origins. */
-export function optionalHostPermissions(hosts: readonly HostDescriptor[] = HOSTS): string[] {
-  return [CUSTOM_HUB_OPTIONAL_PERMISSION, ...hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.origins)];
+/** The stands a test build asks for on request: the optional sites' own, then a stand still without its site (pendingStandsOf). */
+function optionalStands(flavor: BuildFlavor, hosts: readonly HostDescriptor[]): HostPermissions[] {
+  if (flavor !== 'test') return [];
+  const sites = hosts.filter((host) => host.permissions.optional).map((host): HostPermissions => ({ origins: host.test.pageMatches, optional: true }));
+  return [...sites, ...pendingStandsOf(hosts)];
 }
 
-/** The optional API permissions the optional sites ask for with their origins; [] — the manifest has none. */
-export function optionalPermissions(hosts: readonly HostDescriptor[] = HOSTS): OptionalApi[] {
-  return [...new Set(hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.api ?? []))];
+/**
+ * Asked for on a gesture: a custom hub address, then the optional sites' origins; a test build adds their stands —
+ * nothing of them granted at install, so the e2e grants and revokes them as a person would (R20 P6a).
+ */
+export function optionalHostPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
+  const sites = hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.origins);
+  return [CUSTOM_HUB_OPTIONAL_PERMISSION, ...unique([...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.origins)])];
+}
+
+/** The optional API permissions the optional sites (and, in a test build, a pending stand) ask for with their origins; [] — the manifest has none. */
+export function optionalPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): OptionalApi[] {
+  const sites = hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.api ?? []);
+  return [...new Set([...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.api ?? [])])];
 }
 
 /** The lazy builds of a flavor that ship files, each with the pages that may load them (its web resource entry). */
@@ -83,13 +100,13 @@ export function hostOfFile(file: string, hosts: readonly HostDescriptor[] = HOST
 /** The static part handed to WXT; entry points add background, content scripts and pages. */
 export function baseManifest(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): UserManifest {
   const test = flavor === 'test';
-  const optionalApi = optionalPermissions(hosts);
+  const optionalApi = optionalPermissions(flavor, hosts);
   return {
     name: test ? `${EXTENSION_NAME} (тест)` : EXTENSION_NAME,
     description: EXTENSION_DESCRIPTION,
     permissions: [...PERMISSIONS],
     host_permissions: hostPermissions(flavor, hosts),
-    optional_host_permissions: optionalHostPermissions(hosts),
+    optional_host_permissions: optionalHostPermissions(flavor, hosts),
     ...(optionalApi.length > 0 ? { optional_permissions: optionalApi } : {}),
     browser_specific_settings: {
       gecko: {
@@ -189,11 +206,15 @@ export function checkManifest(manifest: Record<string, unknown>, flavor: BuildFl
   if (!sameSet(manifest['permissions'], PERMISSIONS)) fail(`permissions must be exactly ${PERMISSIONS.join(', ')}`);
   const expectedHosts = hostPermissions(flavor, hosts);
   if (!sameSet(manifest['host_permissions'], expectedHosts)) fail(`host_permissions must be exactly ${expectedHosts.join(', ')}`);
-  const expectedOptionalHosts = optionalHostPermissions(hosts);
+  const expectedOptionalHosts = optionalHostPermissions(flavor, hosts);
   if (!sameSet(manifest['optional_host_permissions'], expectedOptionalHosts)) {
     fail(`optional_host_permissions must be exactly ${expectedOptionalHosts.join(', ')}`);
   }
-  const expectedOptionalApi = optionalPermissions(hosts);
+  // What is optional is never granted at install: an origin in both lists could never be asked for, nor revoked.
+  for (const origin of asArray(manifest['optional_host_permissions'])) {
+    if (asArray(manifest['host_permissions']).includes(origin)) fail(`${String(origin)} is both granted at install and optional`);
+  }
+  const expectedOptionalApi = optionalPermissions(flavor, hosts);
   if (expectedOptionalApi.length === 0 ? manifest['optional_permissions'] !== undefined : !sameSet(manifest['optional_permissions'], expectedOptionalApi)) {
     fail(expectedOptionalApi.length === 0 ? 'no optional_permissions: no site asks for an optional API' : `optional_permissions must be exactly ${expectedOptionalApi.join(', ')}`);
   }

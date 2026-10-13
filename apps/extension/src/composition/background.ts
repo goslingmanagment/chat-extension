@@ -111,7 +111,7 @@ import {
   type RpcResult,
 } from '@cg/platform';
 
-import { CHATSPACE_MATCHES, LOOPBACK_MATCHES, type PerHost } from '../hosts/runtime';
+import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, type PerHost } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
@@ -133,12 +133,12 @@ import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
 
 export function wsTapSpec(): DynamicMainScriptSpec {
-  // Release taps ChatSpace. A test build taps wherever its content scripts run — ChatSpace itself and the
-  // loopback stand (its manifest matches both): the owner's dev profile (`pnpm dev`, X9) is a test build on
+  // Release taps ChatSpace. A test build taps wherever its content scripts run — ChatSpace itself and its
+  // loopback stand (`127.0.0.1`, its manifest matches both; never the Fansly stand's `localhost`): the owner's dev profile (`pnpm dev`, X9) is a test build on
   // the real ChatSpace, and without the tap there it could exercise neither the incoming facts nor X8. Both
   // only while the bootstrap flag `wsTap` is on. The compile-time constant keeps loopback hosts out of the
   // release bundle. The file is ChatSpace's dynamic MAIN script of the host registry (test/hosts.test.ts pins it).
-  return { id: WS_TAP_SCRIPT_ID, js: ['chatspace-ws.js'], matches: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES };
+  return { id: WS_TAP_SCRIPT_ID, js: ['chatspace-ws.js'], matches: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES };
 }
 
 /**
@@ -305,8 +305,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   const rpc = createBackgroundRpc({
     api,
-    // The loopback stand counts as ChatSpace in a test build only (the constant keeps it out of release).
-    tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES } satisfies PerHost<readonly string[]>,
+    // ChatSpace's loopback stand counts as ChatSpace in a test build only (the constant keeps it out of release).
+    tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES } satisfies PerHost<readonly string[]>,
     ready: barrier.ready,
     contractsVersion: CONTRACTS_VERSION,
     testBuild,
@@ -501,7 +501,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const hostPermissions = createHostPermissions(api);
   /** Where the content scripts of a host kind run: without the permission nothing of ours runs there. */
   const hostOrigins: Readonly<Record<string, readonly string[]>> = {
-    chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...LOOPBACK_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
+    chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
   } satisfies PerHost<readonly string[]>;
   const sound = createBackgroundSound({
     clock: CLOCK,

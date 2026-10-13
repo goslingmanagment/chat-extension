@@ -119,7 +119,11 @@ export interface HostArchiveMarkers {
 
 /** What a TEST build changes for the site (architecture.md §13). A release build carries none of it. */
 export interface TestHostConfig {
-  /** Where the site's loopback stand is served: the site's scripts also run there, and its tabs are taken as the site's. */
+  /**
+   * Where the site's loopback stand is served: the site's scripts also run there, and its tabs are taken as the site's.
+   * One loopback name per site — an address two sites claim is refused by the background. Granted the way the site's
+   * own pages are: at install for a required site, on request for an optional one (build/manifest.ts).
+   */
   readonly pageMatches: readonly string[];
 }
 
