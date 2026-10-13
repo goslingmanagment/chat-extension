@@ -4,7 +4,10 @@
 // - The host comes from the path of the test file. Fansly: the specs
 //   `suite-fansly-*.e2e.ts` and `fansly-*.e2e.ts` (the perf probe),
 //   `packages/host-fansly/**`, `packages/fansly-api/**`, `**/hosts/fansly/**`,
-//   `**/bg/fansly/**`. ChatSpace: `packages/host-chatspace/**`,
+//   `**/bg/fansly/**` and the Fansly stand — its page
+//   (`packages/testing/fixture-fansly/**`, `packages/testing/src/fixture-fansly/**`)
+//   and the fake Fansly with its neighbour (`packages/testing/src/fake-fansly/**`).
+//   ChatSpace: `packages/host-chatspace/**`,
 //   `**/hosts/chatspace/**`, `**/bg/chatspace/**` and the ChatSpace stand's
 //   fixture (`packages/testing/fixture-chatspace/**`,
 //   `packages/testing/src/fixture/**`). A mark of the other site on such a
@@ -32,7 +35,16 @@ export const HOST_MARK = /\[host:([a-z0-9-]+)\]/g;
 export type TestLevel = 'unit' | 'browser';
 
 const SITE_PATHS: Readonly<Record<Host, readonly RegExp[]>> = {
-  fansly: [/(^|\/)(suite-)?fansly-[^/]*\.e2e\.tsx?$/, /^packages\/host-fansly\//, /^packages\/fansly-api\//, /(^|\/)hosts\/fansly\//, /(^|\/)bg\/fansly\//],
+  fansly: [
+    /(^|\/)(suite-)?fansly-[^/]*\.e2e\.tsx?$/,
+    /^packages\/host-fansly\//,
+    /^packages\/fansly-api\//,
+    /(^|\/)hosts\/fansly\//,
+    /(^|\/)bg\/fansly\//,
+    /^packages\/testing\/fixture-fansly\//,
+    /^packages\/testing\/src\/fixture-fansly\//,
+    /^packages\/testing\/src\/fake-fansly\//,
+  ],
   chatspace: [/^packages\/host-chatspace\//, /(^|\/)hosts\/chatspace\//, /(^|\/)bg\/chatspace\//, /^packages\/testing\/fixture-chatspace\//, /^packages\/testing\/src\/fixture\//],
 };
 
