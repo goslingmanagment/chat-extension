@@ -94,6 +94,8 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
     const entries = await fanslyStandServer.journal(journalStart);
     expect(entries.filter((entry) => entry.origin !== 'asset')).toEqual([]);
     await setFanslyNeighbor(null);
+    // No neighbour left polling for the next spec, and the world as a new stand has it.
+    await browser.url('about:blank');
     await fakeFansly().command({ op: 'reset' });
   });
 
@@ -106,7 +108,10 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
         const first = document.head.querySelector('script');
         return {
           boot: first?.getAttribute(part) === 'boot' && first.getAttribute('src') === src,
-          bridge: bridge === null ? null : { part: bridge.getAttribute(part), src: bridge.getAttribute('src'), version: bridge.getAttribute('data-fbuddy-version'), parent: bridge.parentElement?.localName },
+          bridge:
+            bridge === null
+              ? null
+              : { part: bridge.getAttribute(part), src: new URL(bridge.getAttribute('src') ?? '', location.href).pathname, version: bridge.getAttribute('data-fbuddy-version'), parent: bridge.parentElement?.localName },
           hookScripts: document.querySelectorAll(`script[${part}="hook"]`).length,
           hook: (window as unknown as Record<string, unknown>)['__FBUDDY_NETWORK_HOOK__'],
           xhrConstructor: native(window.XMLHttpRequest),
@@ -204,13 +209,17 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
     await waitFor(async () => (await neighborState()).guard.active, 'its guard');
     const since = await fake.mark();
     const watched = await browser.execute(() => {
-      // A listener-only watcher of the page's XHRs (the shape our tap must have).
+      // A listener-only watcher of the page's XHRs (the shape our tap must have): the events of each, by its address.
       const events: string[] = [];
       const Native = window.XMLHttpRequest;
       window.XMLHttpRequest = new Proxy(Native, {
         construct(target, args, newTarget) {
           const xhr = Reflect.construct(target, args, newTarget) as XMLHttpRequest;
-          for (const type of ['loadstart', 'load', 'error', 'abort', 'timeout']) xhr.addEventListener(type, () => events.push(type));
+          const info = (): string => {
+            const request = Reflect.get(xhr, '__fbuddyRequestInfo') as { method?: string; url?: string } | undefined;
+            return `${request?.method ?? '?'} ${request?.url === undefined ? '?' : new URL(request.url).pathname}`;
+          };
+          for (const type of ['loadstart', 'load', 'error', 'abort', 'timeout']) xhr.addEventListener(type, () => events.push(`${type} ${info()}`));
           return xhr;
         },
       });
@@ -224,7 +233,9 @@ describe('the Fansly stand next to the FBuddy-like neighbour', () => {
     await waitFor(async () => (await neighborState()).guard.restored === 1, 'the text written back');
     await browser.pause(300);
     expect((await fake.calls('page', since)).filter((entry) => entry.route === 'message.send')).toEqual([]);
-    expect(await browser.execute(() => (window as unknown as Record<string, string[]>)['__standXhrEvents'])).toEqual([]);
+    // The page's other requests (its typing announcement) had their events; the swallowed send none.
+    const events = await browser.execute(() => (window as unknown as Record<string, string[] | undefined>)['__standXhrEvents'] ?? []);
+    expect(events.filter((event) => event.endsWith(' POST /api/v1/message'))).toEqual([]);
     expect(await $(FANSLY_MAIN.field).getValue()).toBe('this is forbidden');
     expect(await callNeighbor('toasts')).toContain(GUARD_TOAST);
     // The field emptied the way a page script would; then a clean message, trusted.
