@@ -1,9 +1,12 @@
 // Mounts the Fansly-like stand page (fixture-fansly) into happy-dom for its DOM
-// tests: a fresh app per test, the backend answering on the next timer turn.
+// tests: a fresh app per test, the backend answering on the next timer turn —
+// or, over a fake Fansly started by the test (`mountServerStand`), by real XHR
+// requests and a real socket on loopback (R20 P6b).
 // Layout and trusted input are Firefox's: e2e/specs/fansly-stand.e2e.ts.
 
 import { createStandApp, type StandApp } from '../../fixture-fansly/src/app';
 import { installControl } from '../../fixture-fansly/src/control';
+import type { LiveOptions, ServerConfig } from '../../fixture-fansly/src/live';
 import { FANSLY_STAND_GLOBAL, type FanslyStandControl, type FanslyPageJournalEntry } from '../../fixture-fansly/src/protocol';
 
 export interface MountedStand {
@@ -30,6 +33,34 @@ export async function mountStand(path = '/messages'): Promise<MountedStand> {
   const control = (window as unknown as Record<string, FanslyStandControl>)[FANSLY_STAND_GLOBAL];
   if (control === undefined) throw new Error('no stand control');
   return { app, control, unmount: () => app.destroy() };
+}
+
+/**
+ * The page over a fake Fansly: `GET /account/me`, the socket, then the first navigation — resolved once the page is
+ * ready (or logged out). Its marks of delivery and reading go out at once unless a test sets the collecting delay.
+ */
+export async function mountServerStand(server: ServerConfig, path = '/messages', live: LiveOptions = { ackDelay: 0 }): Promise<MountedStand> {
+  history.replaceState(null, '', path);
+  document.body.replaceChildren();
+  document.documentElement.className = '';
+  const root = document.createElement('app-root');
+  document.body.append(root);
+  const app = createStandApp(root, { server, live });
+  const installed = installControl(app);
+  await new Promise<void>((resolve) => app.start(resolve));
+  installed.markReady();
+  const control = (window as unknown as Record<string, FanslyStandControl>)[FANSLY_STAND_GLOBAL];
+  if (control === undefined) throw new Error('no stand control');
+  return { app, control, unmount: () => app.destroy() };
+}
+
+/** Waits until the check holds (real requests and frames take real time). */
+export async function until(check: () => boolean, what: string, timeoutMs = 4000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error(`not in ${timeoutMs} ms: ${what}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 /** The main chat's anchors: only under `app-messages-conversation-route` (fansly.md §4). */

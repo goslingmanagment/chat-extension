@@ -105,6 +105,9 @@ export const config: WebdriverIO.Config = {
     process.env['CG_STAND_API_ORIGIN'] = stand.apiOrigin;
     // The Fansly stand: its own loopback name (http://localhost:<port>), never ChatSpace's 127.0.0.1.
     process.env['CG_FANSLY_STAND_ORIGIN'] = stand.fansly.origin;
+    // The fake Fansly the page asks (R20 P6b): its API and its socket, the same loopback name on ports of their own.
+    process.env['CG_FANSLY_API_ORIGIN'] = stand.fansly.fake.apiOrigin;
+    process.env['CG_FANSLY_SOCKET_URL'] = stand.fansly.fake.socketUrl;
     // The fake hub: system clock, the pilot preset (switched on page by page, the owner's `"*"` row empty); specs
     // reset and script it through its control API. Every AI body is checked by the hub's own body schema, every
     // client/* request and model answer by the hub's own route schemas (the vendored SDK's): a request the real

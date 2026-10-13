@@ -51,6 +51,8 @@ const STAND_SOURCE_DIRS: ReadonlyArray<readonly [string, RegExp, string]> = [
   // The M0 spike page is plain hand-written HTML, CSS and JS.
   ['packages/testing/stand/', /\.(?:html|css|js)$/, 'html, css, js'],
   ['packages/testing/src/stand/', /\.ts$/, 'ts'],
+  // The fake Fansly (R20 P6b): hand-written TypeScript; its answers are built from a synthetic world, never saved.
+  ['packages/testing/src/fake-fansly/', /\.ts$/, 'ts'],
 ];
 
 /**

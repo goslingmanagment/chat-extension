@@ -17,7 +17,7 @@ import type { Account } from './data';
 import { handler } from './events';
 import { record } from './journal';
 import type { ModalService } from './modal';
-import { NgIf, anchor, el, host, scope, setText, type Scope, type View } from './ng';
+import { NgIf, anchor, el, host, scope, setAttr, setText, type Scope, type View } from './ng';
 import type { Group, GroupService } from './store';
 
 const STATUS_TEXT: Readonly<Record<1 | 2 | 3, string>> = { 1: 'Active now', 2: 'Away', 3: 'Offline' };
@@ -29,6 +29,9 @@ interface HeaderView extends View {
 interface ContactView extends View {
   readonly statusIf: NgIf<View & { readonly text: HTMLElement }>;
   readonly dividerIf: NgIf<View>;
+  readonly link: HTMLAnchorElement;
+  readonly displayName: HTMLElement;
+  readonly userName: HTMLElement;
 }
 
 export interface ConversationHooks {
@@ -165,19 +168,20 @@ export class ConversationRoute {
       'click',
       handler(() => this.setGalleryAccount(this.partners()[0]?.id ?? '')),
     );
+    const displayName = el(s, 'span', { class: 'display-name' }, [partner?.displayName ?? '']);
+    const userName = el(s, 'span', { class: 'user-name' }, [`@${partner?.username ?? ''}`]);
+    const link = el(s, 'a', { class: 'username-wrapper', attrs: { href: `/${partner?.username ?? ''}` } }, [el(s, 'div', { class: 'icon-wrapper flex-row flex-align-center' }, [displayName]), userName]);
     const contact = el(s, 'div', { class: 'message-content-header-contact' }, [
-      el(s, 'app-account-username', {}, [
-        el(s, 'a', { class: 'username-wrapper', attrs: { href: `/${partner?.username ?? ''}` } }, [
-          el(s, 'div', { class: 'icon-wrapper flex-row flex-align-center' }, [el(s, 'span', { class: 'display-name' }, [partner?.displayName ?? ''])]),
-          el(s, 'span', { class: 'user-name' }, [`@${partner?.username ?? ''}`]),
-        ]),
-      ]),
+      el(s, 'app-account-username', {}, [link]),
       el(s, 'div', { class: 'flex-row flex-align-center content-header-sub-row' }, [statusIf.anchor, dividerIf.anchor, gallery]),
     ]);
     return {
       nodes: [contact],
       statusIf,
       dividerIf,
+      link,
+      displayName,
+      userName,
       destroy: () => {
         statusIf.destroy();
         dividerIf.destroy();
@@ -185,8 +189,15 @@ export class ConversationRoute {
     };
   }
 
-  /** The sub-row's status line: shown unless hidden (4), with a divider when online or away. */
+  /**
+   * The sub-row's status line: shown unless hidden (4), with a divider when online or away. The partner's names are
+   * bound too: an account the page did not have yet fills them in when it arrives (the account cache, main:24675-24681).
+   */
   private refreshContact(contact: ContactView): void {
+    const partner = this.partners()[0];
+    setText(contact.displayName, partner?.displayName ?? '');
+    setText(contact.userName, `@${partner?.username ?? ''}`);
+    setAttr(contact.link, 'href', `/${partner?.username ?? ''}`);
     const status = this.group?.status ?? 4;
     const line = contact.statusIf.update(status !== 4);
     if (line !== null && status !== 4) setText(line.text, STATUS_TEXT[status]);

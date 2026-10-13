@@ -1,6 +1,8 @@
 // Helpers for the Fansly-like stand in e2e (fixture-fansly, R20 P6a): its
 // origin (its own loopback name, `localhost`), opening a page and waiting for
-// the app, and the page's test-control API (window.__fanslyStand).
+// the app, the page's test-control API (window.__fanslyStand), and the fake
+// Fansly the page asks (R20 P6b): its commands and its journal by caller —
+// where «only FS-NET-1» and «no `/message/ack` of ours» are checked.
 
 import { request as httpRequest } from 'node:http';
 
@@ -8,6 +10,7 @@ import { browser } from '@wdio/globals';
 
 import { CONTROL_REQUEST_HEADER, type ServerJournalEntry, type ServerJournalPage } from '../../fixture-chatspace/src/protocol';
 import { FANSLY_STAND_GLOBAL, FANSLY_STAND_READY_ATTRIBUTE, type FanslyStandControl } from '../../fixture-fansly/src/protocol';
+import { fakeFanslyControl, type FakeFanslyControlClient } from '../../src/fake-fansly';
 import { FANSLY_STAND_JOURNAL_PATH } from '../../src/stand-server';
 
 export function fanslyStandOrigin(): string {
@@ -17,6 +20,13 @@ export function fanslyStandOrigin(): string {
 }
 
 export const fanslyStandUrl = (path: string): string => new URL(path, fanslyStandOrigin()).toString();
+
+/** The fake Fansly from the test process: commands (a fan writes, the socket closes, a 429…) and its journal. */
+export function fakeFansly(): FakeFanslyControlClient {
+  const origin = process.env['CG_FANSLY_API_ORIGIN'];
+  if (!origin) throw new Error('CG_FANSLY_API_ORIGIN not set (wdio onPrepare starts the stand)');
+  return fakeFanslyControl(origin);
+}
 
 export async function waitForFanslyStandReady(timeout = 15_000): Promise<void> {
   let state: string | null = null;

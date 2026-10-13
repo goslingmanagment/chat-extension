@@ -94,7 +94,9 @@ export class MessageContainer implements View {
         top: () => this.onScrollTop(),
       }),
       store.on(group.id, (event) => {
-        if (event === 'collection') {
+        // A deleted message: the collections are made anew (their views only ever grow).
+        if (event === 'removed') this.collections.update([]);
+        if (event === 'collection' || event === 'removed') {
           this.refreshUi();
           this.scrollToBottom();
         }

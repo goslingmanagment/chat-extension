@@ -1,9 +1,13 @@
 // The stand's synthetic world: a creator, 120 conversations, their histories.
 // Nothing here is real: ids are Fansly-shaped (18 digits, above 2^53, so a
 // `Number()` would round them) and always strings; a group's id is never its
-// fan's id (FS-ACC-1). Deterministic: every load gets the same world.
+// fan's id (FS-ACC-1). A message's id is a snowflake of its own time, as
+// Fansly's is: the id order is the time order across all conversations, and
+// the newest conversation of the inbox has the newest message id (the inbox
+// is listed by it). Deterministic: every load gets the same world.
 
 import type { FanslyStandIds } from './protocol';
+import { snowflakeAt } from './wire';
 
 export interface Account {
   readonly id: string;
@@ -25,6 +29,10 @@ export interface Message {
   /** Seconds, as Fansly's `createdAt`. */
   readonly createdAt: number;
   readonly attachments: readonly MessageAttachment[];
+  /** Fansly's message type (1 — a message, 2 — automated, 3 — the parent of a mass send); absent — 1. */
+  readonly type?: number;
+  /** The id of what made the message (a mass send's parent): deleting that parent deletes this one too (main:28943-28950). */
+  readonly correlationId?: string | null;
 }
 
 /** A conversation as the server side of the stand keeps it. */
@@ -56,9 +64,8 @@ export interface World {
 export const GROUP_COUNT = 120;
 const GROUP_BASE = 810_000_000_000_000_000n;
 const FAN_BASE = 920_000_000_000_000_000n;
-const MESSAGE_BASE = 830_000_000_000_000_000n;
 const MEDIA_BASE = 840_000_000_000_000_000n;
-/** 2026-10-01 00:00 UTC: the synthetic histories end before it. */
+/** 2026-10-04 00:00 UTC: the synthetic histories end before it. */
 const EPOCH_S = 1_791_072_000;
 
 const CREATOR: Account = { id: '700000000000000017', username: 'stand_creator', displayName: 'Stand Creator' };
@@ -69,7 +76,7 @@ const fanOf = (index: number): Account => ({ id: String(FAN_BASE + BigInt(index 
 const historyLength = (index: number): number => (index === 0 ? 90 : ((index * 7) % 23) + 3);
 
 export function createWorld(): World {
-  let nextMessage = MESSAGE_BASE;
+  let sequence = 0;
   const groups: ServerGroup[] = [];
   for (let index = 0; index < GROUP_COUNT; index += 1) {
     const id = groupId(index);
@@ -77,20 +84,23 @@ export function createWorld(): World {
     const length = historyLength(index);
     const history: Message[] = [];
     for (let k = 0; k < length; k += 1) {
-      nextMessage += 1n;
+      sequence += 1;
       const mine = k % 3 === 2;
+      const createdAt = EPOCH_S - index * 600 - (length - k) * 60;
       history.push({
-        id: String(nextMessage),
+        // Two messages of one second differ by the id's low bits.
+        id: snowflakeAt(createdAt * 1000, sequence),
         groupId: id,
         senderId: mine ? CREATOR.id : fan.id,
         content: mine ? `Stand reply ${k + 1} to fan ${index + 1}` : `Stand line ${k + 1} from fan ${index + 1}`,
-        createdAt: EPOCH_S - index * 600 - (length - k) * 60,
+        createdAt,
         attachments: [],
       });
     }
     groups.push({ id, partners: [fan], fan, dmRulesUnmet: false, status: index % 3 === 0 ? 1 : 3, unread: index % 4 === 1 ? 2 : 0, history });
   }
-  return { creator: CREATOR, groups, byId: new Map(groups.map((group) => [group.id, group])), nextMessage, nextMedia: MEDIA_BASE };
+  // New messages of the in-page world come after every seeded one.
+  return { creator: CREATOR, groups, byId: new Map(groups.map((group) => [group.id, group])), nextMessage: BigInt(snowflakeAt(EPOCH_S * 1000, 0)), nextMedia: MEDIA_BASE };
 }
 
 export function standIds(world: World): FanslyStandIds {
