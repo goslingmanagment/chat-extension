@@ -527,7 +527,7 @@ describe('what was added in 1.5.0: a lost port is not an update, a failed «Жд
 describe('an anchor ChatSpace creates later (1.10.0)', () => {
   it('[DB-031] [ST-025] `notYet` is an anchor state of its own; the bridge carries it in an optional list; three texts say it', () => {
     expect(C.ANCHOR_STATES).toEqual(['ok', 'missing', 'shape', 'notYet']);
-    expectTypeOf<C.HostContractReport['anchors'][C.AnchorId]>().toEqualTypeOf<'ok' | 'missing' | 'shape' | 'notYet'>();
+    expectTypeOf<C.ChatSpaceContractReport['anchors'][C.AnchorId]>().toEqualTypeOf<'ok' | 'missing' | 'shape' | 'notYet'>();
     expectTypeOf<C.ContractWire['notYet']>().toEqualTypeOf<C.AnchorId[] | undefined>();
     for (const key of ['send.reason.hostNotYet', 'settings.status.row.chatspaceNotYetNote', 'settings.status.row.contractNotYet'] as const) {
       expect(C.UI_TEXT_KEYS).toContain(key);

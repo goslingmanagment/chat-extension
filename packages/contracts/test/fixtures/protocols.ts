@@ -14,6 +14,7 @@ import {
   chat,
   checkpoint,
   contractReport,
+  siteContractReport,
   dispatchTicket,
   hostIdentity,
   deferredInsert,
@@ -344,11 +345,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
         // 1.15.0 (R20 F1): the sites' background modules.
         { ...diagnostics, hostModules: [{ host: 'chatspace', state: 'started' }] },
         { ...diagnostics, hostModules: [{ host: 'chatspace', state: 'failed' }, { host: 'fansly-web', state: 'idle' }] },
+        // 1.15.0 (R20 F7): each tab names its site; a tab of another site carries that site's report.
+        { ...diagnostics, tabs: [{ ...diagnostics.tabs[0], site: 'chatspace' }, { tabSessionId: uuid(5), site: 'fansly-web', host: siteContractReport, chatKey: null }] },
       ],
       invalid: [
         { ...diagnostics, sendFuse: { fuse: { ...fuseState.fuse, attemptId: 'a1' }, resetAt: null } },
         { ...diagnostics, hostModules: [{ host: 'chatspace', state: 'broken' }] },
         { ...diagnostics, hostModules: [{ host: 'onlyfans', state: 'started' }] },
+        { ...diagnostics, tabs: [{ ...diagnostics.tabs[0], site: 'onlyfans' }] },
         { ...diagnostics, extension: { version: '', contractsVersion: '1', testBuild: false } },
         { ...diagnostics, footprint: { cachesKB: -1, logsKB: 0 } },
         { ...diagnostics, extension: { ...diagnostics.extension, updated: { at: '2026-10-03T06:02:00Z', from: '0.4.2' } } },

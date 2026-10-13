@@ -165,6 +165,8 @@ export const DiagnosticsSnapshotSchema = z.strictObject({
     .array(
       z.strictObject({
         tabSessionId: UuidSchema,
+        /** 1.15.0 (R20 F7): the tab's site, as it registered (`tab.register`). Absent — a background before 1.15.0: ChatSpace. */
+        site: z.optional(HostKindSchema),
         host: z.nullable(HostContractReportSchema),
         chatKey: z.nullable(ChatKeySchema),
       }),

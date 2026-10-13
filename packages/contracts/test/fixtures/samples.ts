@@ -14,7 +14,7 @@ import {
   type DispatchTicket,
   type FreshnessCheckpoint,
   type HostAccount,
-  type HostContractReport,
+  type ChatSpaceContractReport,
   type HostIdentity,
   type HubBinding,
   type HumanCause,
@@ -29,9 +29,11 @@ import {
   type SendJournalEntry,
   type SessionIdentity,
   type SettingsV1,
+  type SiteContractReport,
   type StartOp,
   type Target,
 } from '../../src/index';
+import { FANSLY_ANCHOR_IDS } from '../../src/fansly';
 
 export const IDS = {
   acc: '1001',
@@ -183,12 +185,30 @@ export const journalEntry: SendJournalEntry = {
   updatedAt: T0 + 5,
 };
 
-export const contractReport: HostContractReport = {
+export const contractReport: ChatSpaceContractReport = {
   build: 'index-0000test',
   adapterVersion: '1.0.0',
   checkedAt: T0,
-  anchors: Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, 'ok'])) as HostContractReport['anchors'],
-  capabilities: Object.fromEntries(HOST_CAPABILITIES.map((capability) => [capability, { state: 'on' } satisfies CapabilityState])) as HostContractReport['capabilities'],
+  anchors: Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, 'ok'])) as ChatSpaceContractReport['anchors'],
+  capabilities: Object.fromEntries(HOST_CAPABILITIES.map((capability) => [capability, { state: 'on' } satisfies CapabilityState])) as ChatSpaceContractReport['capabilities'],
+};
+
+/**
+ * 1.15.0 (R20 F7): a report of a site other than ChatSpace — the shared capabilities and the site's own block, every
+ * anchor of the Fansly set named (architecture §7.12).
+ */
+export const siteContractReport: SiteContractReport = {
+  host: 'fansly-web',
+  build: 'main.2e6b96097a4bb73b',
+  adapterVersion: '1.0.0',
+  checkedAt: T0,
+  capabilities: { ...contractReport.capabilities, previewSend: { state: 'off' }, receipt: { state: 'off' }, chatList: { state: 'off' } },
+  extensions: {
+    'fansly-web': {
+      anchors: Object.fromEntries(FANSLY_ANCHOR_IDS.map((anchor) => [anchor, 'ok'])),
+      capabilities: { freshness: { state: 'on' }, follows: { state: 'on' }, headerSlot: { state: 'on' }, fileAttach: { state: 'on' }, vault: { state: 'off', reason: 'vaultUpload' }, relay: { state: 'off' } },
+    },
+  },
 };
 
 export const startReply: StartOp = {

@@ -63,9 +63,9 @@ R01 делали четыре исполнителя, интегратор св�
 | `send-rules` | **лёгкий**: X8 без схем — состояния попытки и переходы, `isRetryableEnd`, коды условий §6.7.4, `SEND_CUSTODY_REPORTS`, `servedContextCovers`, `localDeadline`; 1.11.0 — виды совпадения профиля, профиль-метка «любая сборка» (`isAnyBuildReceiptProfile`), причины и места предохранителя, `sendFuseHolds` (решение X25) | §6.2, §6.7 |
 | `send` | X8: точка свежести, запрос и билет отправки, preflight и commit, вид попытки, журнал, ключ блокировки, `PreviewSendPort`; 1.11.0 — предохранитель: `SendFuseFact`, `SendFuse`, `SendFuseState` | §5.2, §6.7 |
 | `send-fansly` | 1.15.0, только подпуть: отправка приветствия «Новых» Fansly по HTTP — машина состояний данными (`ready … sent`, `refused`, `uncertain`) с доказательствами концов и `isFanslySendStep`, вид попытки, журнал `fansly.send.journal` (только id), перезапуск и отчёты опеке, запрос приветствия (`fansly.followers.send`), ручная группа и тело брони Fansly (подмножество тела хаба HF-3), последняя сверка, квитанция `POST /message` | R20 §8.6, FS-NEW-3, FS-NEW-6 |
-| `host` | `HostPort`, возможности и якоря, отчёт контракта, маршрут (1.15.0: разговор маршрута `conversationRef`, его вид `conversationKind`, проверка `conversationFits`), composer, вставка (`InsertIntent` с токеном, `InsertWire` для MAIN) и навигация с квитанциями (1.15.0: разговор цели `target.conversationRef`), хвост переписки, окно чата, фан, строки списка, тема, точки монтирования, факты входящих и отправки человеком, хранилище `presence` | §5.2, §6 |
+| `host` | `HostPort`, возможности и якоря, отчёт контракта (1.15.0: разбор по `host` — без него или `chatspace` прежняя полная схема, другой сайт — свой обязательный блок `extensions[<сайт>]`; ожидаемый набор якорей сайта `HostContractShape`, у ChatSpace `CHATSPACE_CONTRACT`), маршрут (1.15.0: разговор маршрута `conversationRef`, его вид `conversationKind`, проверка `conversationFits`), composer, вставка (`InsertIntent` с токеном, `InsertWire` для MAIN) и навигация с квитанциями (1.15.0: разговор цели `target.conversationRef`), хвост переписки, окно чата, фан, строки списка, тема, точки монтирования, факты входящих и отправки человеком, хранилище `presence` | §5.2, §6 |
 | `ops` | `OpState` и переходы, `Phase`, `StartOp`, `Admission`, `OpView`, `OpResult`, Review, Coach, охват, `ServedContext`, `OP_TIMEOUTS` | §5.5, §7 |
-| `telemetry` | `AcceptanceEvent`, `ClientHealthV1`, `PERF_METRICS` с фиксированными границами, отчёт вкладки | §5.7, §9.6 |
+| `telemetry` | `AcceptanceEvent`, `ClientHealthV1` (1.15.0: окно на пару сайт и сборка), `PERF_METRICS` с фиксированными границами (1.15.0: плюс четыре метрики Fansly HF-13), отчёт вкладки | §5.7, §9.6, R20 §8.13 |
 | `logs` | `LogRecord`, уровни, поля под вымарывание | §5.7, §9.2 |
 | `bridge` | **лёгкий**: рукопожатие, `checkBridgeFrame`, списки типов, конверты, `MainProbe` | §5.3 |
 | `bridge-messages` | **тяжёлый**: схемы каждого запроса, ответа и события моста, формы `*Wire` | §5.3 |
@@ -246,6 +246,9 @@ R01 делали четыре исполнителя, интегратор св�
   `newcomers.claim`) фон передаёт его модулю; модуль, который не запустился, — ответ
   `CG-RUNTIME-UNREACHABLE`, ничего не отправляется, «Статус» предупреждает
   (`settings.status.warning.hostModule`).
+- `diagnostics.get` с 1.15.0 называет сайт каждой вкладки (`tabs[].site`, как она
+  зарегистрировалась): «Статус» ставит строку на каждый сайт в работе и читает отчёт
+  контракта вкладки по ожидаемому набору якорей её сайта (R20 F7).
 
 **Два реестра (1.15.0).** Общий (`tab-messages`) — всех сайтов и страниц. Свой реестр сайта
 (`tab-messages-fansly`): все его типы начинаются с `fansly.` и называют сайт в `hosts`. Ядро фона проверяет
@@ -287,6 +290,10 @@ R01 делали четыре исполнителя, интегратор св�
 6. **Метрики `client_health`:** 11 имён с фиксированными границами — девять из
    §5.7 и предложения плана хаба §4.8 (`requestOverheadMs`,
    `composerInputDelayMs`). Смена границ — новая `schemaVersion` метрики.
+   1.15.0 (R20 F7): плюс четыре Fansly из реестра хаба HF-13 (`frameParseMs`,
+   `xhrParseMs`, `snapshotMs`, `snapshotRoundTripMs`), всего 15 при пределе 16.
+   Окно — на пару (сайт, сборка): у каждого свой отчёт, и id отчёта несёт сайт и
+   сборку, иначе хаб счёл бы второй отчёт того же окна дублем.
 7. **X8:** таблица переходов `SEND_ATTEMPT_TRANSITIONS` по §6.7.7; новая попытка —
    только после `held` или `notEnqueued` и только по коду, который новый клик может
    снять (`isRetryableEnd`); `uncertain` переходит только в `sentObserved` по поздней
