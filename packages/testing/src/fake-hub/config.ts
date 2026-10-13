@@ -8,10 +8,15 @@
 // `clientBootstrapFlags`, from the `*` row ALONE. Presets reproduce the
 // scenarios' BOOTSTRAP_PILOT_PAGES, BOOTSTRAP_PILOT_ON and BOOTSTRAP_ALL_OFF
 // exactly (config.test.ts).
+//
+// What each flag needs of the hub is the HUB's table (`CLIENT_FEATURE_REQUIREMENTS`
+// there), repeated in the scenarios (`HUB_FEATURE_CAPABILITIES`) as it stands at
+// 6ee3d627 — the commit production runs and the SDK is vendored from. The
+// client does not carry that table (R20 F4: it reads the page's feature, and
+// only its own transport needs on top — `CLIENT_FLAG_REQUIREMENTS`).
 
 import {
   CLIENT_FEATURE_FLAG_NAMES,
-  CLIENT_FLAG_REQUIREMENTS,
   CLIENT_HUB_CAPABILITY_NAMES,
   hasCapability,
   narrowToken,
@@ -22,7 +27,7 @@ import {
   type HubPageRef,
 } from '@cg/contracts';
 
-import { BINDING_KEY_ONE, BINDING_KEY_VIP, PILOT_FLAGS_OFF, SCENARIO_DATA, WORLD } from '../scenarios/hub';
+import { BINDING_KEY_ONE, BINDING_KEY_VIP, HUB_FEATURE_CAPABILITIES, PILOT_FLAGS_OFF, SCENARIO_DATA, WORLD } from '../scenarios/hub';
 import { iso } from './clock';
 import { type BootstrapPresetName, type FakeHubConfigPatch } from './types';
 
@@ -183,7 +188,7 @@ export function featureVerdict(config: FakeHubConfig, page: FakePage, flag: stri
   if (!flagOn(config, page.pageLabel, flag)) return { available: false, reason: 'flag_off' };
   if (!bindable(config, page)) return { available: false, reason: 'binding_missing' };
   const known = narrowToken(CLIENT_FEATURE_FLAG_NAMES, flag);
-  if (known !== null && !CLIENT_FLAG_REQUIREMENTS[known].capabilities.every((capability) => hasCapability(config.capabilities, capability))) {
+  if (known !== null && !HUB_FEATURE_CAPABILITIES[known].every((capability) => hasCapability(config.capabilities, capability))) {
     return { available: false, reason: 'hub_not_ready' };
   }
   return { available: true };

@@ -13,6 +13,7 @@
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
+import type { AdmissionAction } from '@cg/contracts/features/types';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
@@ -22,7 +23,7 @@ import { type SettingsV1 } from '@cg/contracts/settings';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
-import { fanScriptOf, featureGate, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript } from '../../domain/features';
+import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, toneAfterStart, toneForRegenerate, type FanScript } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
@@ -497,10 +498,21 @@ export class AiWorkspace {
     if (composer === null || !composer.ready || chatKeyOf(composer.chat) !== chat.key || snapshot.mounts.dock.kind === 'none') {
       return { ...known, status: 'host-degraded', statusError: { code: 'CG-HOST-COMPOSER-MISSING' }, off: null, copyOnly: { reason: 'composer-missing', code: 'CG-HOST-COMPOSER-MISSING' } };
     }
-    // The owner's `insertion` switch of THIS page (its own feature, never the top-level `flags`).
-    const insertion = flagStateOf(bootstrap.value, page.pageId, 'insertion');
+    // Whether a draft may be put into the field on THIS page: the insert of Reply by the site's manifest — the
+    // owner's `insertion` switch of the page (its own feature, never the top-level `flags`). It closes nothing
+    // else: a generation is admitted on its own, and its parts can be copied.
+    const insertion = this.admitted(snapshot, ready, 'reply', 'insert');
     const copyOnly: PartBlock | null = insertion.usable ? null : { reason: 'feature-disabled', code: flagRefusal(insertion).code, view: flagReasonVm(insertion) };
     return { ...known, status: 'ready', statusError: null, off: null, copyOnly };
+  }
+
+  /**
+   * What the site's slice of the feature manifest says, on the page of the open chat, of a feature (`action: null`)
+   * or of one thing done with it — its generation, an insert, a send — in the shape of a switch: usable, or the
+   * reason in the hub's words. The site's own capabilities are read from its report.
+   */
+  admitted(host: Pick<HostSnapshot, 'contract'>, ready: Pick<ReadyTarget, 'bootstrap' | 'page'>, id: string, action: AdmissionAction | null): FlagState {
+    return admittedOn(this.ports.features, id, action, ready.bootstrap, ready.page, host.contract.capabilities);
   }
 
   /**
@@ -642,11 +654,9 @@ export class AiWorkspace {
     const { feature, surface } = request;
     const rule = policyOf(feature);
     if (situation.quotaZero) return failed('CG-QUOTA-DAILY', situation.quota === null ? {} : { retryAt: Date.parse(situation.quota.resetsAt) });
-    if (rule.flag !== null) {
-      // The feature's switch on this page; the hub's reason picks the code and goes into the technical line.
-      const state = flagStateOf(ready.bootstrap, ready.page.pageId, rule.flag);
-      if (!state.usable) return { kind: 'failed', error: flagRefusal(state) };
-    }
+    // What the feature needs on this page to be generated; the hub's reason picks the code and goes into the technical line.
+    const admitted = this.admitted(situation.host, ready, rule.dockAction, 'generate');
+    if (!admitted.usable) return { kind: 'failed', error: flagRefusal(admitted) };
 
     const original = request.regenerateOf;
     const source = original?.memo.fixSource ?? null;
@@ -675,7 +685,7 @@ export class AiWorkspace {
         if (rule.requiresDraft) return failed('CG-HOST-NOT-READY');
       }
     }
-    const limits = freshTextLimits(feature, surface, ready.bootstrap, ready.page.pageId);
+    const limits = freshTextLimits(feature, surface, ready.bootstrap, freshTextAdmitted(this.ports.features, ready.bootstrap, ready.page.pageId));
     let fresh: LiveTextTail | null = null;
     if (limits !== null) {
       try {
@@ -700,6 +710,7 @@ export class AiWorkspace {
       tone: original !== undefined ? toneForRegenerate(original.view) : this.tone(chat.key),
       draft,
       fresh,
+      freshText: limits !== null,
       ...(request.coachHistory === undefined ? {} : { coachHistory: request.coachHistory }),
       ...(autoRecap === undefined ? {} : { autoRecap }),
       ...(original === undefined ? {} : { regenerateOf: original.view.opId, splitWanted: original.memo.split }),

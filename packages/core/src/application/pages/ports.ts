@@ -5,6 +5,8 @@
 // adapters, which have exactly these shapes; nothing here names `browser.*`.
 
 import { type CgErrorWire, type SettingsRoute } from '@cg/contracts/errors';
+import type { FeatureSlice } from '@cg/contracts/features/types';
+import { type HostKind } from '@cg/contracts/hosts';
 import { type Locale } from '@cg/contracts/i18n/keys';
 import { type TabEventPayload, type TabEventType, type TabRequestPayload, type TabRequestType, type TabResponsePayload } from '@cg/contracts/tab-messages';
 import { type ExtensionPage } from '@cg/contracts/tab-protocol';
@@ -98,6 +100,8 @@ export interface PageEnv {
   readonly systemLanguages: () => readonly string[];
   /** IANA zone for the times the controller prints itself (the report); default — the runtime's. */
   readonly timeZone?: string;
+  /** A site's slice of the feature manifest (the composition root's table: the pages serve every site); null — none for the site. */
+  readonly features: (host: HostKind) => FeatureSlice | null;
 }
 
 /** The I18n the page renders with: the controller switches its language with `ui.locale` (I18-001). */

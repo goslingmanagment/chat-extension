@@ -5,8 +5,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, UiActionSchema, type DiagnosticsSnapshot, type OptionsVM, type SettingsSection, type StatusRowVM, type UiAction } from '@cg/contracts';
+import { FEATURES_COMMON } from '@cg/contracts/features/common';
+import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
 import { AUTOSAVE_DEBOUNCE_MS, RECHECK_MIN_INTERVAL_MS, routeOfHash } from '@cg/core/application/pages';
 
+import { SCENARIO_FEATURES } from '../scenarios/app-client';
 import { PAGES_HOST_ORIGIN, PAGES_NOW, PAGES_VERSION, hostReport, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
 
 let world: PagesWorld | null = null;
@@ -60,6 +63,30 @@ describe('popup view model', () => {
     expect(vm.chat).toMatchObject({ hostAccountLabel: 'OnlyMonster 1001', copyIds: { hostAccountId: '1001', creatorId: '3003' } });
     expect(vm.quota).toEqual({ remaining: 12, resetsAt: '2026-10-04T00:00:00Z', low: true });
     expect(vm.newcomersCount).toBe(3);
+  });
+
+  it('[R20-F4] [NEW-01] the count of «Новые» is asked of the hub only where the site’s manifest admits them and names the hub as their source', async () => {
+    const asked = (w: PagesWorld): boolean => w.background.calls.some((call) => call.type === 'newcomers.list');
+    // ChatSpace: the hub's `audience-new`, under the page's own `newcomers`.
+    const chatspace = await open({ page: 'popup' });
+    expect([asked(chatspace), chatspace.client.getSnapshot({ of: 'popup' }).newcomersCount]).toEqual([true, 3]);
+    chatspace.client.dispose();
+    // A site whose «Новые» are its own pass over the page's API (Fansly's entry): the hub has no list to count.
+    const pass = await open({ page: 'popup', features: () => ({ ...SCENARIO_FEATURES, newcomers: { ...FANSLY_FEATURES.newcomers, ...FEATURES_COMMON.newcomers } }) });
+    expect([asked(pass), pass.client.getSnapshot({ of: 'popup' }).newcomersCount]).toEqual([false, null]);
+    pass.client.dispose();
+    // A site that has no «Новые» at all, and a site the extension has no slice for.
+    const { newcomers: _newcomers, ...without } = SCENARIO_FEATURES;
+    for (const features of [() => without, () => null]) {
+      const w = await open({ page: 'popup', features });
+      expect([asked(w), w.client.getSnapshot({ of: 'popup' }).newcomersCount]).toEqual([false, null]);
+      w.client.dispose();
+    }
+    // And the page's own switch decides, as before: off for the page — nothing is asked.
+    const state = workingState();
+    state.bootstrap = { ...state.bootstrap, pages: state.bootstrap.pages.map((page) => ({ ...page, features: { ...page.features, newcomers: { available: false, reason: 'flag_off' } } })) };
+    const off = await open({ page: 'popup', state });
+    expect([asked(off), off.client.getSnapshot({ of: 'popup' }).newcomersCount]).toEqual([false, null]);
   });
 
   it('[PU-004] [AU-034] no chat open, two accounts loaded: the persona and page are of the account the route is on', async () => {

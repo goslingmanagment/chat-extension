@@ -44,6 +44,7 @@ import { ActionTokens, OpScheduler, type BackgroundSendPort } from '@cg/core/ser
 import { SendCoordinator } from '@cg/core/services/custody';
 
 import { MemoryStore, sequentialIds, type FakeClock } from './clock';
+import { featuresOf } from './features';
 import { FakeHub, hubError } from './fake-hub';
 
 export type HubCall = (route: HubRouteKey, request: unknown) => Promise<{ readonly status: number; readonly body: unknown; readonly retryAfterSec?: number }>;
@@ -115,6 +116,7 @@ export class BoardsBackground {
       persona: (pageId) => this.settings.personas.byPageId[String(pageId)] ?? null,
       debug: false,
       settingsLoaded: true,
+      features: featuresOf,
     });
     this.scheduler = new OpScheduler({
       clock: options.clock,

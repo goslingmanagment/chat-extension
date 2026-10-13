@@ -339,6 +339,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       if (receipt?.state === 'applied' && typeof receipt.ms === 'number') health?.record('insertMs', receipt.ms);
     }),
     host,
+    features: site.features,
     i18n,
     clock,
     ids: { uuid: () => win.crypto.randomUUID() },

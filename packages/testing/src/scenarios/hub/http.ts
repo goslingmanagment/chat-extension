@@ -7,6 +7,8 @@
 import {
   CLIENT_FEATURE_FLAG_NAMES,
   CLIENT_HUB_CAPABILITY_NAMES,
+  hasCapability,
+  narrowToken,
   type AudienceNewItem,
   type AudienceNewPage,
   type Bootstrap,
@@ -14,6 +16,7 @@ import {
   type ClaimBody,
   type ClaimState,
   type ClientFeatureFlag,
+  type ClientHubCapability,
   type FeedItem,
   type FeedPage,
   type HubErrorBody,
@@ -135,6 +138,54 @@ export const BOOTSTRAP_PILOT_PAGES: Bootstrap = {
   ...BOOTSTRAP_PILOT_ON,
   flags: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, false])),
 };
+
+/**
+ * The hub's `CLIENT_FEATURE_REQUIREMENTS[flag].capabilities` (hub apps/runtime/src/services/client-features.ts at
+ * 6ee3d627, the commit production runs and the SDK is vendored from): what the hub must serve before it offers a
+ * flag on a page; without it the page's feature reads `hub_not_ready`. It is the HUB's rule — the client does not
+ * carry this table (R20 F4: it reads the page's feature, and only its own transport needs on top,
+ * `CLIENT_FLAG_REQUIREMENTS`). Fresh text needs `live-text-v1` here: `context-v1` is the client's own need (a
+ * request header), not the hub's. A hub rule that changes is changed here.
+ */
+export const HUB_FEATURE_CAPABILITIES: Readonly<Record<ClientFeatureFlag, readonly ClientHubCapability[]>> = {
+  insertion: [],
+  navigation: [],
+  wsTap: [],
+  sound: [],
+  fanPanel: [],
+  previewSendMarkAiGenerated: [],
+  spenders: [],
+  review: [],
+  coach: [],
+  freshText: ['live-text-v1'],
+  splitAll: ['split-all-v1'],
+  recap: ['shared-recaps-v1', 'recap-profile-v1'],
+  preview: ['archive-feed-v1'],
+  stats: ['spenders-stats-v1', 'awaiting-reply-v1'],
+  newcomers: ['audience-new-v1', 'preview-send-custody-v1'],
+  previewSend: ['preview-send-custody-v1'],
+};
+
+/**
+ * The same sign-in on a hub that serves only `capabilities` (a hub older than the SDK, a production that lags
+ * `main`): the bootstrap as THAT hub computes it — it declares these capabilities, and every page feature that
+ * needs one it does not serve reads `hub_not_ready`. The hub never offers a feature it cannot serve, so a bootstrap
+ * whose `capabilities` were cut by hand while its pages still say «available» is not one a hub answers with.
+ */
+export function hubServing(bootstrap: Bootstrap, capabilities: readonly string[]): Bootstrap {
+  const served = (flag: string): boolean => {
+    const known = narrowToken(CLIENT_FEATURE_FLAG_NAMES, flag);
+    return known === null || HUB_FEATURE_CAPABILITIES[known].every((capability) => hasCapability(capabilities, capability));
+  };
+  return {
+    ...bootstrap,
+    capabilities: [...capabilities],
+    pages: bootstrap.pages.map((page) => ({
+      ...page,
+      features: Object.fromEntries(Object.entries(page.features).map(([flag, feature]) => [flag, feature.available && !served(flag) ? { available: false, reason: 'hub_not_ready' } : feature])),
+    })),
+  };
+}
 
 /**
  * A bootstrap in which the hub answers these features of its OnlyFans pages (all of them, or the ones named)

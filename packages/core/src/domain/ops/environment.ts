@@ -3,17 +3,21 @@
 // AI-126). Before a start: a sign-in, a binding of this sign-in, the page in
 // the current bootstrap at the same binding revision, a persona assigned to
 // the page, the owner's switches of that page (flags.ts): its master switch
-// and the feature's own. While running: an operation is canceled by itself
+// and what the feature needs on the chat's site — the admission of its
+// generation by the feature manifest (features/admission.ts). While running:
+// an operation is canceled by itself
 // only when its page's persona, the sign-in or the hub address changes —
 // never by a chat switch or a closed tab (AI-124, BG-006).
 
 import { type CgCode } from '@cg/contracts/errors';
-import { type FeatureId } from '@cg/contracts/features';
-import { type Bootstrap, type ClientFeatureFlag } from '@cg/contracts/hub';
+import type { FeatureSlice } from '@cg/contracts/features/types';
+import { type HostKind } from '@cg/contracts/hosts';
+import { type Bootstrap } from '@cg/contracts/hub';
 import { type SessionIdentity } from '@cg/contracts/ids';
 import { type StartOp } from '@cg/contracts/ops';
 
-import { flagRefusalCode, flagStateOf, pageSwitchedOff } from './flags';
+import { admittedOn, featureKeyOf } from '../features/admission';
+import { flagRefusalCode, pageSwitchedOff } from './flags';
 
 export interface PersonaChoice {
   readonly key: string;
@@ -29,19 +33,9 @@ export interface OpsEnvironment {
   readonly debug: boolean;
   /** The settings store loaded (RB-013: a failed load refuses with CG-STORAGE-READ; the tab keeps the person's input). */
   readonly settingsLoaded: boolean;
+  /** A site's slice of the feature manifest (the composition root's table); null — this background has none for the site. */
+  features(host: HostKind): FeatureSlice | null;
 }
-
-/** The owner switch a feature depends on (the hub checks the same, §4.12); null — none. */
-export const FEATURE_FLAGS: Readonly<Record<FeatureId, ClientFeatureFlag | null>> = {
-  reply: null,
-  fix: null,
-  hi: null,
-  ping: null,
-  review: 'review',
-  recap: 'recap',
-  'recap-short': 'recap',
-  coach: 'coach',
-};
 
 /** AI-121: the reason a start cannot run, or null. Checked before admission; nothing is spent on a refusal. */
 export function startPrecondition(env: OpsEnvironment, start: StartOp): CgCode | null {
@@ -60,12 +54,10 @@ export function startPrecondition(env: OpsEnvironment, start: StartOp): CgCode |
   if (env.persona(binding.pageId) === null) return 'CG-PERSONA-UNASSIGNED';
   // The owner's master switch is off for the page: the hub refuses every AI call of this client there (409).
   if (pageSwitchedOff(page)) return 'CG-FEATURE-DISABLED';
-  const flag = FEATURE_FLAGS[start.feature];
-  if (flag !== null) {
-    const state = flagStateOf(bootstrap, binding.pageId, flag);
-    if (!state.usable) return flagRefusalCode(state.reason);
-  }
-  return null;
+  // What the feature needs on the chat's site to be generated (the hub checks the same, §4.12); the site's own
+  // capabilities are the tab's to check.
+  const admitted = admittedOn(env.features(binding.host), featureKeyOf(start.feature), 'generate', bootstrap, page);
+  return admitted.usable ? null : flagRefusalCode(admitted.reason);
 }
 
 /** AI-122: «Чат ещё грузится» — the open chat's history is not in the host cache yet. */

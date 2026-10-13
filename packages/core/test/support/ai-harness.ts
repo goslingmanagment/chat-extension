@@ -31,6 +31,7 @@ import {
   type UiAction,
   type ViewSelector,
 } from '@cg/contracts';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import { createAiSurfaces, type AiSurfaces } from '@cg/core/application/ai';
 import { createI18n } from '@cg/core/domain/i18n';
 
@@ -38,6 +39,7 @@ import { FakeBackground, TAB } from './ai-background';
 import { MutableHost } from './ai-host';
 import { FakeClock, sequentialIds, settle } from './clock';
 import { type ScriptResponse, type ScriptStep } from './fake-hub';
+import { CHATSPACE } from './features';
 import { NOW_MS } from './world';
 
 export interface HarnessParts {
@@ -62,6 +64,8 @@ export interface HarnessOptions {
   readonly shared?: { readonly bg: FakeBackground; readonly clock: FakeClock; readonly tab: string };
   /** The manifest's version of the build under test; absent — the tab does not know it (only the hub's own word is read). */
   readonly extensionVersion?: string;
+  /** The site's slice of the feature manifest; absent — ChatSpace's. */
+  readonly features?: FeatureSlice;
 }
 
 export class FakeClipboard {
@@ -133,6 +137,7 @@ export function aiHarness(parts: HarnessParts, options: HarnessOptions = {}): Ha
     clock,
     ids: sequentialIds(tab === TAB ? 0x5000 : 0x6000),
     catalog: parts.catalog,
+    features: options.features ?? CHATSPACE,
     clipboard,
     toasts: { show: (toast) => toasts.push(toast) },
     journal: { write: (entry) => journal.push(entry) },

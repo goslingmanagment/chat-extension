@@ -6,15 +6,16 @@
 // for parts, the window from the settings (the deep one never above the
 // hub's `limits.deepMax`), three Hi variants in the dock and one in «Новые»,
 // the draft for Fix and for Coach's «приложить мой ответ», and fresh page
-// text only for the four draft features in the open chat while the owner's
-// switch is on and the hub declares `context-v1`. The result is checked
+// text only for the four draft features in the open chat while the page
+// admits it (the manifest's `fresh-text`: the owner's switch and the hub's
+// `context-v1`). The result is checked
 // against the frozen StartOp schema: a start the background would refuse is
 // never sent.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { hasCapability, type Bootstrap } from '@cg/contracts/hub';
+import { type Bootstrap } from '@cg/contracts/hub';
 import { type DraftSnapshot, type HumanCause, type Target } from '@cg/contracts/ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { StartOpSchema, type CoachTurn, type StartOp } from '@cg/contracts/ops';
@@ -22,7 +23,6 @@ import { type FreshnessCheckpoint } from '@cg/contracts/send';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type UserOptions } from '@cg/contracts/vm';
 
-import { flagUsable } from '../ops/flags';
 import { messageWindowFor, splitAllowed } from '../ops/request';
 import { policyOf } from './policy';
 
@@ -58,12 +58,12 @@ export interface FreshTextLimits {
 /**
  * D-14: whether this start may carry fresh page text, and how much. Only
  * Reply, Fix, Hi and Ping, only in the open chat (surface `dock`), only
- * with the `freshText` switch on for the page and the hub's `context-v1`.
- * null — the generation runs on the hub archive alone.
+ * where the page admits it — `admitted`, the admission of the manifest's
+ * `fresh-text` (`freshTextAdmitted`: the owner's `freshText` of the page and
+ * the hub's `context-v1`). null — the generation runs on the hub archive alone.
  */
-export function freshTextLimits(feature: FeatureId, surface: Surface, bootstrap: Bootstrap, pageId: number): FreshTextLimits | null {
-  if (surface !== 'dock' || !policyOf(feature).freshText) return null;
-  if (!flagUsable(bootstrap, pageId, 'freshText') || !hasCapability(bootstrap.capabilities, 'context-v1')) return null;
+export function freshTextLimits(feature: FeatureId, surface: Surface, bootstrap: Bootstrap, admitted: boolean): FreshTextLimits | null {
+  if (!admitted || surface !== 'dock' || !policyOf(feature).freshText) return null;
   const maxItems = Math.min(LIVE_TEXT_LIMITS.maxItems, bootstrap.limits.freshTextMaxItems);
   const maxChars = Math.min(LIVE_TEXT_LIMITS.maxChars, bootstrap.limits.freshTextMaxChars);
   return maxItems >= 1 && maxChars >= 1 ? { maxItems, maxChars } : null;
@@ -94,6 +94,8 @@ export interface StartPlanInput {
   readonly draft?: Pick<DraftSnapshot, 'plainText' | 'revision' | 'digest'> | null;
   /** The visible tail as the host gave it; dropped unless D-14 allows it. */
   readonly fresh?: LiveTextTail | null;
+  /** The page admits fresh page text (`freshTextAdmitted`); absent — it does not. */
+  readonly freshText?: boolean;
   readonly coachHistory?: readonly CoachTurn[];
   /** Previews: the freshness checkpoint of the Generate click (X8). */
   readonly checkpoint?: FreshnessCheckpoint;
@@ -148,7 +150,7 @@ export function planStart(input: StartPlanInput): StartPlan {
       ...(input.autoRecap === undefined ? {} : { autoRecap: { length: input.autoRecap, window: windowFor(input.autoRecap === 'full' ? 'recap' : 'recap-short', undefined, settings, bootstrap) } }),
     };
   }
-  const fresh = trimFreshTail(input.fresh, freshTextLimits(feature, surface, bootstrap, pageId));
+  const fresh = trimFreshTail(input.fresh, freshTextLimits(feature, surface, bootstrap, input.freshText === true));
   if (fresh !== null) start.fresh = fresh;
   if (input.checkpoint !== undefined && (surface === 'preview' || surface === 'newcomers')) start.checkpoint = input.checkpoint;
   if (input.regenerateOf !== undefined) start.regenerateOf = input.regenerateOf;

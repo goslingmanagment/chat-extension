@@ -17,9 +17,13 @@ const PROFILE = { adapterVersion: '0.3.0', modules: { notificationEntry: 'a', co
  * A bootstrap as the hub answers it for a pilot switched on page by page: the page's own features carry the
  * switches, the top-level `flags` (the owner's `"*"` row) are whatever the test says — and decide nothing.
  */
-function bootstrap(over: { off?: readonly string[]; star?: Record<string, boolean>; capabilities?: readonly string[]; profiles?: unknown[]; navSec?: number; pages?: number } = {}): Bootstrap {
+function bootstrap(over: { off?: readonly string[]; notServed?: readonly string[]; star?: Record<string, boolean>; capabilities?: readonly string[]; profiles?: unknown[]; navSec?: number; pages?: number } = {}): Bootstrap {
+  // `notServed` — the hub does not serve what the feature needs: the page's own feature says `hub_not_ready` (the hub's rule).
   const features = Object.fromEntries(
-    ['wsTap', 'previewSend', 'previewSendMarkAiGenerated'].map((flag) => [flag, (over.off ?? []).includes(flag) ? { available: false, reason: 'flag_off' } : { available: true }]),
+    ['wsTap', 'previewSend', 'previewSendMarkAiGenerated'].map((flag) => [
+      flag,
+      (over.off ?? []).includes(flag) ? { available: false, reason: 'flag_off' } : (over.notServed ?? []).includes(flag) ? { available: false, reason: 'hub_not_ready' } : { available: true },
+    ]),
   );
   return {
     flags: { wsTap: false, previewSend: false, previewSendMarkAiGenerated: false, ...over.star },
@@ -123,8 +127,9 @@ describe('the bootstrap → part B of the ChatSpace host port (the application�
     // A switch the page's own row has off is off, whatever the owner's `"*"` row says.
     expect(liveConfigOf(bootstrap({ off: ['previewSend'], star: { previewSend: true } })).previewSend).toBe(false);
     expect(liveConfigOf(bootstrap({ off: ['wsTap', 'previewSendMarkAiGenerated'], star: { wsTap: true, previewSendMarkAiGenerated: true }, profiles: [] }))).toMatchObject({ wsTap: false, markAiGenerated: false, receiptProfiles: [] });
-    // X8 also needs what the hub serves for it (`preview-send-custody-v1`).
-    expect(liveConfigOf(bootstrap({ capabilities: [] }))).toMatchObject({ wsTap: true, previewSend: false, markAiGenerated: true });
+    // X8 also needs what the hub serves for it (`preview-send-custody-v1`): a hub that does not serve it says so in
+    // the page's own feature (`hub_not_ready`) — the hub's rule, which the client does not repeat.
+    expect(liveConfigOf(bootstrap({ capabilities: [], notServed: ['previewSend'] }))).toMatchObject({ wsTap: true, previewSend: false, markAiGenerated: true });
     // No granted page, or pages that list no such feature: «off», never «on» — whatever `"*"` says.
     expect(liveConfigOf(bootstrap({ pages: 0, star: { wsTap: true, previewSend: true, previewSendMarkAiGenerated: true } }))).toMatchObject({ wsTap: false, previewSend: false, markAiGenerated: false });
     expect(liveConfigOf({ ...bootstrap(), pages: [{ pageId: 11, pageLabel: 'page-0', platform: 'onlyfans', features: {} }] } as unknown as Bootstrap)).toMatchObject({ wsTap: false, previewSend: false, markAiGenerated: false });

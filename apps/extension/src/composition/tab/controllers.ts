@@ -14,6 +14,7 @@
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { ChatRef } from '@cg/contracts/ids';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort } from '@cg/contracts/host';
@@ -54,6 +55,8 @@ export interface TabWorld {
   /** The background's client with `token.issue` behind the gate (client.ts). */
   readonly rpc: ControllerRpc;
   readonly host: HostPort;
+  /** The site's slice of the feature manifest (the adapter's `features`). */
+  readonly features: FeatureSlice;
   readonly i18n: I18n;
   readonly clock: TabClock;
   readonly ids: { uuid(): string };
@@ -92,6 +95,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     clock: world.clock,
     ids: world.ids,
     catalog,
+    features: world.features,
     clipboard: world.clipboard,
     toasts: world.toasts,
     extensionVersion: world.extensionVersion,
@@ -183,7 +187,7 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     preview: { open: (chat, shown) => open.preview(chat, shown) },
   });
   const quickJump = chunk.createQuickJumpController({ host, i18n, overlays, clock });
-  const cheatsheet = chunk.createCheatsheetController({ catalog });
+  const cheatsheet = chunk.createCheatsheetController({ catalog, features: world.features });
 
   /**
    * What no package answers for, because it lies between two of them:

@@ -102,6 +102,7 @@ export {
 } from './components/Button';
 export { TOOLTIP_GAP_PX, TooltipLayer, useTooltip, type TooltipBinding, type TooltipTriggerProps } from './components/Tooltip';
 export { CheckGlyph, GooseMark, ICON_NAMES, Icon, type IconName, type IconProps } from './components/Icon';
+export { DOCK_GROUP_SLOT, type DockIcon } from './chips';
 export { ACCENT_USES, Caret, Dot, ReadyBadge, Spinner, type AccentUse, type DotProps } from './components/Indicators';
 export { Menu, MenuAnchor, menuTriggerKeys, type MenuItem, type MenuProps } from './components/Menu';
 export {

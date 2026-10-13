@@ -3,10 +3,12 @@
 // is, which message window it reads, whether it takes a tone, Split, a
 // draft or fresh page text, how it is run again, and its timeouts. The
 // controllers and the request builder read this table; nothing else decides
-// these things.
+// these things. What a feature needs on a site — the owner's switches, the
+// site's capabilities — is not here: that is the feature manifest
+// (`@cg/contracts/features/*`), read by `admission` (./admission.ts). The
+// feature's key there is its `dockAction`.
 
 import { isFreshTextFeature, isSplitFeature, type FeatureId } from '@cg/contracts/features';
-import { type ClientFeatureFlag } from '@cg/contracts/hub';
 import { OP_TIMEOUTS, type OpTimeouts } from '@cg/contracts/limits';
 import { type OpResult } from '@cg/contracts/ops';
 
@@ -40,8 +42,6 @@ export interface FeaturePolicy {
   readonly streamShown: boolean;
   /** Parts of the result can be inserted into the composer. */
   readonly insertable: boolean;
-  /** The owner switch it depends on; null — none. */
-  readonly flag: ClientFeatureFlag | null;
   readonly timeouts: OpTimeouts;
 }
 
@@ -66,7 +66,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'regenerate',
     streamShown: true,
     insertable: true,
-    flag: null,
   }),
   fix: policy('fix', {
     place: 'draft-sheet',
@@ -79,7 +78,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'regenerate',
     streamShown: false,
     insertable: true,
-    flag: null,
   }),
   hi: policy('hi', {
     place: 'draft-sheet',
@@ -92,7 +90,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'regenerate',
     streamShown: true,
     insertable: true,
-    flag: null,
   }),
   ping: policy('ping', {
     place: 'draft-sheet',
@@ -105,7 +102,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'regenerate',
     streamShown: true,
     insertable: true,
-    flag: null,
   }),
   review: policy('review', {
     place: 'analysis-sheet',
@@ -118,7 +114,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'refresh',
     streamShown: true,
     insertable: false,
-    flag: 'review',
   }),
   recap: policy('recap', {
     place: 'analysis-sheet',
@@ -131,7 +126,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'refresh',
     streamShown: true,
     insertable: false,
-    flag: 'recap',
   }),
   'recap-short': policy('recap-short', {
     place: 'analysis-sheet',
@@ -144,7 +138,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'refresh',
     streamShown: true,
     insertable: false,
-    flag: 'recap',
   }),
   coach: policy('coach', {
     place: 'coach-panel',
@@ -157,7 +150,6 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     rerun: 'regenerate',
     streamShown: true,
     insertable: true,
-    flag: 'coach',
   }),
 };
 

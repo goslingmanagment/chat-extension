@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
+import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, UI_TEXT_KEYS, UiActionSchema, type Bootstrap, type DockVM, type HubFrame, type InsertReceipt, type LiveTextTail, type OpView, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
 import { BOARD_QUESTION_STEP_MS, BOARD_QUESTION_WAIT_MS, COPIED_MARK_MS, KEYS_FOOTER_RESULTS, SENT_REPORT_TRIES, readArtifactHandle, readTargetHandle, targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
@@ -15,6 +15,7 @@ import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff 
 import { CATALOG, OTHER_TAB, PERSONA_LABEL, TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
 import { settle } from './support/clock';
+import { CHATSPACE, FANSLY } from './support/features';
 import { type ScriptResponse } from './support/fake-hub';
 import { NOW_MS, WORLD, session, tokenN, uuid } from './support/world';
 
@@ -2942,5 +2943,87 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
     expect(shownParts.map((part) => `${part.text}:${part.insert}`)).toEqual(['hello there:done', 'welcome:idle']);
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 1 })).toMatchObject({ ok: true, outcome: 'done' });
     expect(h.fake.calls.inserts[0]).toMatchObject({ operationId: opId, part: { variant: 0, index: 1 }, target: previewChat, text: 'welcome' });
+  });
+});
+
+describe('[R20-F4] dock: the bar’s chips as data — the site’s slice of the feature manifest', () => {
+  const ORDER = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach', 'spenders', 'newcomers'];
+  const chipsOf = (h: Harness): NonNullable<DockVM['chips']> => h.dock().chips ?? [];
+  const chip = (h: Harness, id: string): NonNullable<DockVM['chips']>[number] => {
+    const found = chipsOf(h).find((item) => item.id === id);
+    if (found === undefined) throw new Error(`no chip ${id}`);
+    return found;
+  };
+
+  it('[UI-002] ChatSpace: the seven actions and the two windows, in the bar’s order, each in its group with its icon', async () => {
+    const h = await start();
+    expect(chipsOf(h).map((item) => item.id)).toEqual(ORDER);
+    expect(chipsOf(h).map((item) => `${item.group}:${item.icon ?? '-'}`)).toEqual(['reply:-', 'draft:-', 'openers:-', 'openers:-', 'analysis:gauge', 'analysis:dossier', 'analysis:bulb', 'windows:bill', 'windows:userPlus']);
+    // One of the seven carries the state of `actions` as it is: the same reason, key, underline and badge.
+    for (const id of DOCK_ACTION_IDS) expect(chip(h, id), id).toMatchObject(h.dock().actions[id]);
+    // Every word is a key of the catalog; every click is a UiAction of the contract.
+    for (const item of chipsOf(h)) {
+      for (const text of [item.label, item.hint]) expect(UI_TEXT_KEYS as readonly string[], `${item.id}: ${text.key}`).toContain(text.key);
+      expect(item.action !== null && UiActionSchema.safeParse(item.action).success, item.id).toBe(true);
+    }
+    expect(chipsOf(h).map((item) => item.label.key)).toEqual([...DOCK_ACTION_IDS.map((id) => `dock.action.${id}`), 'spenders.title', 'newcomers.title']);
+    expect(chipsOf(h).map((item) => item.hint.key)).toEqual(ORDER.map((id) => `dock.hint.${id}`));
+  });
+
+  it('[UI-002] what a click asks for is in the chip: a generation for the open chat; Recap opens its sheet, Coach its panel, a window opens', async () => {
+    const h = await start();
+    const handle = h.dock().targetHandle;
+    for (const id of ['reply', 'fix', 'hi', 'ping', 'review'] as const) expect(chip(h, id).action, id).toEqual({ type: 'Generate', targetHandle: handle, feature: id, options: {} });
+    expect(chip(h, 'recap').action).toEqual({ type: 'ShowAnalysis', view: 'recap', mode: 'sheet' });
+    expect(chip(h, 'coach').action).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: true } });
+    expect(chip(h, 'spenders').action).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } });
+    expect(chip(h, 'newcomers').action).toEqual({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
+  });
+
+  it('[UI-009] a window opens whatever the chat’s state is: its chip is on, with Spenders’ key, while every action is off; without a chat to act on a generation asks for nothing', async () => {
+    const h = await start({ session: null });
+    for (const id of DOCK_ACTION_IDS) expect(chip(h, id), id).toMatchObject({ enabled: false, hotkey: null, reason: { id: 'not-signed-in' } });
+    for (const id of ['reply', 'fix', 'hi', 'ping', 'review'] as const) expect(chip(h, id).action, id).toBeNull();
+    expect(chip(h, 'spenders')).toMatchObject({ enabled: true, busy: false, active: false, reason: null, badge: null, hotkey: { display: '⌘⇧M' } });
+    expect(chip(h, 'newcomers')).toMatchObject({ enabled: true, reason: null, hotkey: null });
+    // The owner's switch of a board does not dim its chip either: the board says itself why it is empty.
+    const off = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['spenders', 'newcomers']) });
+    expect([chip(off, 'spenders').enabled, chip(off, 'newcomers').enabled]).toEqual([true, true]);
+  });
+
+  it('[UI-027] `insertion` off does not close a generation: every chip stays on, the parts are copied', async () => {
+    const h = await start({ bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['insertion']) });
+    expect(h.dock().mode).toBe('copy-only');
+    // Exactly the chips of a page that inserts: the switch of the insert changes nothing in the bar.
+    const inserting = await start();
+    expect(inserting.dock().mode).toBe('insert');
+    expect(chipsOf(h).map((item) => [item.id, item.enabled, item.reason?.id ?? null])).toEqual(chipsOf(inserting).map((item) => [item.id, item.enabled, item.reason?.id ?? null]));
+    for (const id of ['reply', 'review', 'recap', 'coach'] as const) expect(chip(h, id).enabled, id).toBe(true);
+    await reply(h);
+    expect(partsOf(h)[0]?.insertBlocked?.id).toBe('feature-disabled');
+  });
+
+  it('a feature the site does not have gives no chip; its action is off as one the platform lacks, and a key for it starts nothing', async () => {
+    const { review: _review, spenders: _spenders, ...rest } = CHATSPACE;
+    const h = await start({ features: rest });
+    expect(chipsOf(h).map((item) => item.id)).toEqual(ORDER.filter((id) => id !== 'review' && id !== 'spenders'));
+    // The seven frozen actions are all still in the model, for whoever reads them by name.
+    expect(Object.keys(h.dock().actions)).toEqual([...DOCK_ACTION_IDS]);
+    expect(h.dock().actions.review).toMatchObject({ enabled: false, hotkey: null, reason: { id: 'feature-disabled', text: { key: 'dock.reason.platformUnsupported' } } });
+    expect(await h.generate('review')).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+    expect(h.bg.callsOf('op.start')).toEqual([]);
+    // The rest of the bar is as it was.
+    expect(h.dock().actions.reply.enabled).toBe(true);
+  });
+
+  it('Fansly’s slice on a page whose hub lists no `drafts`: the drafts are off with the switch’s reason, the analysis follows its own switches; 🎙 is its feature’s PR to draw', async () => {
+    const h = await start({ features: FANSLY });
+    expect(chipsOf(h).map((item) => item.id)).toEqual(ORDER);
+    for (const id of ['reply', 'fix', 'hi', 'ping'] as const) expect(chip(h, id), id).toMatchObject({ enabled: false, reason: { id: 'feature-disabled', text: { key: 'dock.reason.featureDisabled' } } });
+    for (const id of ['review', 'recap', 'coach'] as const) expect(chip(h, id).enabled, id).toBe(true);
+    // No insert of a draft is admitted without `drafts`: the parts could only be copied.
+    expect(h.dock().mode).toBe('copy-only');
+    expect(await h.generate('reply')).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
+    expect(h.bg.callsOf('op.start')).toEqual([]);
   });
 });

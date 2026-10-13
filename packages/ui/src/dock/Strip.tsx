@@ -7,6 +7,14 @@
 // `role="toolbar"`: one tab stop, arrows inside. What hides at which width is
 // CSS (container queries, styles.ts); the markup is the same at every width.
 //
+// The chips are data (`DockVM.chips`, R20 F4): which features have a chip on
+// this site, in which group and order, with which icon, what a click asks for
+// — the site's slice of the feature manifest, built by the dock's controller.
+// The bar knows the groups, not the features: Reply's group carries the
+// capsule and the quota, the windows stand in the right block, a seam stands
+// before the first chip of every next group, and what a narrow composer hides
+// goes into «Ещё».
+//
 // Actions are raised chips; options lie in a sunken capsule pressed against
 // Reply (decision X28, the Fansly extension's bar): the four tones as emoji —
 // one click runs Reply in that tone (AI-005), a click on the chosen one takes
@@ -17,12 +25,12 @@
 import { Fragment, type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
-import { type I18nKey } from '@cg/contracts/errors';
 import { type Tone } from '@cg/contracts/features';
-import { DOCK_ACTION_IDS, type DockActionId, type DockVM, type UiAction } from '@cg/contracts/vm';
+import { type ChipVM, type DockChipGroup, type DockVM, type UiAction } from '@cg/contracts/vm';
 
 import {
   CheckGlyph,
+  DOCK_GROUP_SLOT,
   Divider,
   Icon,
   Menu,
@@ -39,33 +47,30 @@ import {
   useI18n,
   useKit,
   useTooltip,
-  type IconName,
   type MenuItem,
 } from '../kit';
-import { QUOTA_RESET_TIME_ZONE, quotaSlot, stripAction } from './model';
+import { QUOTA_RESET_TIME_ZONE, quotaSlot } from './model';
 
-/** Review, Recap and Coach: icons on a composer narrower than 610 px, in «Ещё» with the windows below 500 (ui-design §3.3). */
-const TIER_TWO: readonly DockActionId[] = ['review', 'recap', 'coach'];
-/** On a narrow composer these chips are their icons alone, the word in the hint and in the name (ui-design §3.3). */
-const ICONS: Readonly<Record<'review' | 'recap' | 'coach' | BoardId, IconName>> = { review: 'gauge', recap: 'dossier', coach: 'bulb', spenders: 'bill', newcomers: 'userPlus' };
-/** A hairline seam stands before the first chip of a group: Reply and its options │ Fix │ Hi · Ping │ Review · Recap · Coach. */
-const GROUP_START: readonly DockActionId[] = ['fix', 'hi', 'review'];
+/** Reply's group: its chip is the bar's main one, with the capsule of its options after it and the quota at its corner. */
+const LEAD: DockChipGroup = 'reply';
+/** The windows that open from the bar stand in its right block, and give their place to the status while the chat loads. */
+const WINDOWS: DockChipGroup = 'windows';
+/** What «Ещё» stands for where no width hid anything: the chips a narrow composer hides first (ui-design §3.3). */
+const FOLDS_FIRST: DockChipGroup = 'analysis';
 /** The tones in the chatters' own language (the Fansly extension's capsule); the word is the cell's name and its hint. */
 const TONE_EMOJI: Readonly<Record<Tone, string>> = { casual: '😌', flirty: '😏', upsell: '💰', spicy: '🔥' };
 /** The kit's menus are at least this wide (ui-design §4.1). */
 const MENU_MIN_WIDTH_PX = 200;
+const NO_CHIPS: readonly ChipVM[] = [];
 
-type BoardId = 'spenders' | 'newcomers';
-/** The windows that open from the bar: the boards a chatter works from between chats. */
-const BOARDS: readonly BoardId[] = ['spenders', 'newcomers'];
-type MoreId = DockActionId | BoardId;
-type StopId = DockActionId | 'more' | `tone:${Tone}` | 'split' | BoardId;
+/** A chip by its feature's key, the capsule's cells, «Ещё». */
+type StopId = string;
 
 function visible(element: HTMLElement): boolean {
   return element.getClientRects().length > 0;
 }
 
-const isBoard = (id: string): id is BoardId => BOARDS.some((board) => board === id);
+const inWindows = (chip: ChipVM): boolean => chip.group === WINDOWS;
 
 /**
  * What is left of a low quota (UI-031): a small count at Reply's corner. It costs the bar no width, so it is there on
@@ -110,8 +115,13 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   const bar = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  /** What «Ещё» stands for: the chips a narrow composer hid (the three functions where nothing is laid out). */
-  const [moreIds, setMoreIds] = useState<readonly MoreId[]>(TIER_TWO);
+  const chips = vm.chips ?? NO_CHIPS;
+  const acts = chips.filter((chip) => !inWindows(chip));
+  const windows = chips.filter(inWindows);
+  /** What «Ещё» stands for where nothing is laid out, and where no width hid anything. */
+  const foldsFirst = (): readonly string[] => chips.filter((chip) => chip.group === FOLDS_FIRST).map((chip) => chip.id);
+  /** What «Ещё» stands for: the chips a narrow composer hid. */
+  const [moreIds, setMoreIds] = useState<readonly string[]>(foldsFirst);
   /** «Ещё» opens from its left edge; on a composer too narrow for that — from its right edge, inside the dock. */
   const [moreAlign, setMoreAlign] = useState<'start' | 'end'>('start');
   const [stop, setStop] = useState<StopId>('reply');
@@ -120,7 +130,9 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   const t = i18n.t.bind(i18n);
   const { tone, tones, locked, toneReason, splitReason, split } = vm.options;
   /** The bar's chips in DOM order: the tab stop is one of them, arrows walk the ones a width left visible. */
-  const STOPS: readonly StopId[] = DOCK_ACTION_IDS.flatMap((id): StopId[] => (id === 'reply' ? [id, ...tones.map((item): StopId => `tone:${item}`), 'split'] : [id])).concat('more', ...BOARDS);
+  const STOPS: readonly StopId[] = acts
+    .flatMap((chip): StopId[] => (chip.group === LEAD ? [chip.id, ...tones.map((item): StopId => `tone:${item}`), 'split'] : [chip.id]))
+    .concat('more', ...windows.map((chip) => chip.id));
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
   const stopOf = (target: EventTarget | null): StopId | null => {
@@ -133,11 +145,14 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     const laidOut = all.filter(visible);
     return laidOut.length > 0 ? laidOut : all;
   };
-  /** The chips of «Ещё» that are not on screen now; the three functions where no width hid anything (then «Ещё» itself is not on screen). */
-  const hiddenNow = (): readonly MoreId[] => {
-    const off = (selector: string): boolean => ![...(bar.current?.querySelectorAll<HTMLElement>(selector) ?? [])].some(visible);
-    const ids = [...(off('.cg-slot--two') ? TIER_TWO : []), ...(off('.cg-slot--boards') ? BOARDS : [])];
-    return ids.length > 0 && buttons().some(visible) ? ids : TIER_TWO;
+  /** The chips that are not on screen now; the ones that fold first where no width hid anything (then «Ещё» itself is not on screen). */
+  const hiddenNow = (): readonly string[] => {
+    const all = buttons();
+    const ids = chips.map((chip) => chip.id).filter((id) => {
+      const button = all[STOPS.indexOf(id)];
+      return button !== undefined && !visible(button);
+    });
+    return ids.length > 0 && all.some(visible) ? ids : foldsFirst();
   };
   const alignMore = (): void => {
     const button = moreRef.current?.getBoundingClientRect();
@@ -169,38 +184,37 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     });
   };
   const cancelKey = hotkeyText(deps.catalog.entry('cancel').hotkey)?.display ?? '';
-  const nameOf = (id: DockActionId): string => t(`dock.action.${id}`);
-  const whyOff = (id: DockActionId): string | null => {
-    const action = vm.actions[id];
-    if (action.enabled) return null;
-    return action.reason === null ? t('common.unknown') : i18n.text(action.reason.text);
+  const nameOf = (chip: ChipVM): string => i18n.text(chip.label);
+  const whyOff = (chip: ChipVM): string | null => {
+    if (chip.enabled) return null;
+    return chip.reason === null ? t('common.unknown') : i18n.text(chip.reason.text);
   };
   const stopProps = (id: StopId): { readonly tabIndex: 0 | -1 } => ({ tabIndex: stop === id ? 0 : -1 });
   /** A hint is the control's name (and its key) with one sentence under it: what the chip does (UI-004). */
-  const hinted = (title: string, hint: I18nKey): string => `${title}\n${t(hint)}`;
+  const hinted = (title: string, hint: string): string => `${title}\n${hint}`;
   const keyed = (name: string, keys: ReturnType<typeof hotkeyText>): string => (keys === null ? name : t('dock.action.tooltip', { action: name, hotkey: keys.display }));
-  const offText = (id: DockActionId, why: string): string => t('dock.action.unavailable', { action: nameOf(id), reason: why });
+  const offText = (chip: ChipVM, why: string): string => t('dock.action.unavailable', { action: nameOf(chip), reason: why });
 
-  const actionButton = (id: DockActionId): JSX.Element => {
-    const action = vm.actions[id];
-    const name = nameOf(id);
-    const off = whyOff(id);
-    let tooltip = action.busy ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(action.hotkey)), `dock.hint.${id}`);
-    if (action.badge !== null) tooltip = `${tooltip}\n${t('dock.badge.recapReady')}`;
-    const icon = id === 'review' || id === 'recap' || id === 'coach' ? ICONS[id] : null;
+  const chipButton = (chip: ChipVM): JSX.Element => {
+    const name = nameOf(chip);
+    const hint = i18n.text(chip.hint);
+    const off = whyOff(chip);
+    let tooltip = chip.busy ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
+    if (chip.badge !== null) tooltip = `${tooltip}\n${t('dock.badge.recapReady')}`;
     return (
       <StripButton
+        key={chip.id}
         label={name}
-        {...(id === 'reply' ? { class: 'cg-act--main' } : {})}
-        {...(icon === null ? {} : { class: 'cg-act--ico', iconable: true, leading: <Icon name={icon} size={14} /> })}
-        hotkey={action.enabled ? action.hotkey : null}
-        active={action.active}
-        busy={action.busy}
-        ready={action.badge !== null}
-        reason={off === null ? null : hints ? hinted(offText(id, off), `dock.hint.${id}`) : offText(id, off)}
+        {...(chip.group === LEAD ? { class: 'cg-act--main' } : {})}
+        {...(chip.icon === null ? {} : { class: 'cg-act--ico', iconable: true, leading: <Icon name={chip.icon} size={14} /> })}
+        hotkey={chip.enabled ? chip.hotkey : null}
+        active={chip.active}
+        busy={chip.busy}
+        ready={chip.badge !== null}
+        reason={off === null ? null : hints ? hinted(offText(chip, off), hint) : offText(chip, off)}
         tooltip={tooltip}
-        onClick={() => run(stripAction(id, vm))}
-        {...stopProps(id)}
+        onClick={() => run(chip.action)}
+        {...stopProps(chip.id)}
       />
     );
   };
@@ -219,7 +233,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   const toneButton = (id: Tone): JSX.Element => {
     const name = t(`dock.tone.${id}`);
     const value = t('dock.option.toneValue', { tone: name });
-    const title = hinted(`${TONE_EMOJI[id]} ${tone === id || !vm.actions.reply.enabled ? value : `${nameOf('reply')} · ${value}`}`, `dock.hint.tone.${id}`);
+    const title = hinted(`${TONE_EMOJI[id]} ${tone === id || !vm.actions.reply.enabled ? value : `${t('dock.action.reply')} · ${value}`}`, t(`dock.hint.tone.${id}`));
     // The last line of a hint: how to take the chosen tone off, or the key that walks the tones without running Reply (AI-008).
     const last = tone === id ? t('dock.hint.toneOff') : toneKeys === null ? null : t('dock.option.toneTooltip', { hotkey: toneKeys.display });
     return (
@@ -250,21 +264,18 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
           : t('dock.option.splitUnavailable', { reason: i18n.text(splitReason.text) });
   const splitKeys = hotkeyText(vm.options.splitHotkey);
 
-  // ── the windows ──
-  const boardName = (id: BoardId): string => t(id === 'spenders' ? 'spenders.title' : 'newcomers.title');
-  const boardKey = (id: BoardId): ReturnType<typeof hotkeyText> => (id === 'spenders' ? hotkeyText(deps.catalog.entry('spenders').hotkey) : null);
-  const openBoard = (id: BoardId): void => run({ type: 'Navigate', to: { kind: 'surface', surface: id, open: true } });
-
   // ── «Ещё»: whatever a narrow composer hid — Review, Recap, Coach, the two windows ──
-  const listed = moreIds.filter((id) => !isBoard(id) || !vm.statusWords);
-  const hidden = TIER_TWO.filter((id) => moreIds.includes(id));
-  const firstOff = hidden.find((id) => !vm.actions[id].enabled) ?? null;
+  const folded = chips.filter((chip) => moreIds.includes(chip.id));
+  // While the chat loads nothing can be opened from the bar: the windows are not offered in «Ещё» either.
+  const listed = folded.filter((chip) => !inWindows(chip) || !vm.statusWords);
+  const hidden = folded.filter((chip) => !inWindows(chip));
+  const firstOff = hidden.find((chip) => !chip.enabled) ?? null;
   // The windows open whatever the chat's state is: «Ещё» is off only while all it holds is functions that are off.
-  const moreOff = firstOff !== null && !listed.some(isBoard) && hidden.every((id) => !vm.actions[id].enabled) ? t('dock.action.moreUnavailable', { reason: whyOff(firstOff) ?? '' }) : null;
-  const moreItems: MenuItem[] = listed.map((id) => {
-    const keys = isBoard(id) ? boardKey(id) : hotkeyText(vm.actions[id].hotkey);
-    const off = isBoard(id) ? null : whyOff(id);
-    return { id, label: isBoard(id) ? boardName(id) : nameOf(id), ...(keys === null ? {} : { hint: keys.display }), reason: off === null || isBoard(id) ? null : offText(id, off) };
+  const moreOff = firstOff !== null && !listed.some(inWindows) && hidden.every((chip) => !chip.enabled) ? t('dock.action.moreUnavailable', { reason: whyOff(firstOff) ?? '' }) : null;
+  const moreItems: MenuItem[] = listed.map((chip) => {
+    const keys = hotkeyText(chip.hotkey);
+    const off = whyOff(chip);
+    return { id: chip.id, label: nameOf(chip), ...(keys === null ? {} : { hint: keys.display }), reason: off === null ? null : offText(chip, off) };
   });
   const openMore = (): void => {
     alignMore();
@@ -313,14 +324,15 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
       }}
     >
       <div class="cg-strip__acts">
-        {DOCK_ACTION_IDS.map((id) => (
-          <Fragment key={id}>
-            <span class={TIER_TWO.includes(id) ? 'cg-slot cg-slot--two' : id === 'reply' ? 'cg-slot cg-slot--reply' : 'cg-slot'}>
-              {GROUP_START.includes(id) ? <Divider /> : null}
-              {actionButton(id)}
-              {id === 'reply' && quotaText !== null ? <Quota count={quota === 'zero' ? 0 : remaining} text={quotaText} /> : null}
+        {acts.map((chip, index) => (
+          <Fragment key={chip.id}>
+            <span class={DOCK_GROUP_SLOT[chip.group]}>
+              {/* A hairline seam before the first chip of every next group: Reply and its options │ Fix │ Hi · Ping │ Review · Recap · Coach. */}
+              {index > 0 && acts[index - 1]?.group !== chip.group ? <Divider /> : null}
+              {chipButton(chip)}
+              {chip.group === LEAD && quotaText !== null ? <Quota count={quota === 'zero' ? 0 : remaining} text={quotaText} /> : null}
             </span>
-            {id !== 'reply' ? null : (
+            {chip.group !== LEAD ? null : (
               // The capsule of Reply's options: a click on a tone is Reply in that tone; behind the seam — Split.
               <span class="cg-tones">
                 <span class="cg-tones__track" role="group" aria-label={t('dock.option.tone')}>
@@ -333,7 +345,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
                   hotkey={vm.options.splitHotkey}
                   pressed={split}
                   reason={splitOff}
-                  tooltip={hinted(splitKeys === null ? t('dock.option.split') : t('dock.option.splitTooltip', { hotkey: splitKeys.display }), 'dock.hint.split')}
+                  tooltip={hinted(splitKeys === null ? t('dock.option.split') : t('dock.option.splitTooltip', { hotkey: splitKeys.display }), t('dock.hint.split'))}
                   leading={<CheckGlyph on={split} />}
                   onClick={() => run({ type: 'SetPreference', key: 'generation.split', value: !split })}
                   {...stopProps('split')}
@@ -348,11 +360,11 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
             <StripButton
               label={t('dock.action.more')}
               class="cg-more"
-              active={hidden.some((id) => vm.actions[id].active)}
-              busy={hidden.some((id) => vm.actions[id].busy)}
-              ready={hidden.some((id) => vm.actions[id].badge !== null)}
+              active={hidden.some((chip) => chip.active)}
+              busy={hidden.some((chip) => chip.busy)}
+              ready={hidden.some((chip) => chip.badge !== null)}
               reason={moreOff}
-              tooltip={listed.map((id) => (isBoard(id) ? boardName(id) : nameOf(id))).join(', ')}
+              tooltip={listed.map(nameOf).join(', ')}
               haspopup="menu"
               expanded={menuOpen}
               buttonRef={moreRef}
@@ -368,7 +380,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
               label={t('dock.action.more')}
               items={moreItems}
               align={moreAlign}
-              onSelect={(id) => (isBoard(id) ? openBoard(id) : run(stripAction(id as DockActionId, vm)))}
+              onSelect={(id) => run(chips.find((chip) => chip.id === id)?.action ?? null)}
               onClose={() => setMenuOpen(false)}
               returnFocusTo={() => moreRef.current}
             />
@@ -383,21 +395,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
             <span class="cg-short">{t('common.loading')}</span>
           </span>
         ) : null}
-        <span class="cg-slot cg-slot--boards">
-          {BOARDS.map((id) => (
-            <StripButton
-              key={id}
-              label={boardName(id)}
-              class="cg-act--ico"
-              iconable
-              leading={<Icon name={ICONS[id]} size={14} />}
-              hotkey={id === 'spenders' ? deps.catalog.entry('spenders').hotkey : null}
-              tooltip={hinted(keyed(boardName(id), boardKey(id)), `dock.hint.${id}`)}
-              onClick={() => openBoard(id)}
-              {...stopProps(id)}
-            />
-          ))}
-        </span>
+        {windows.length === 0 ? null : <span class={DOCK_GROUP_SLOT[WINDOWS]}>{windows.map(chipButton)}</span>}
         <span class="cg-slot cg-slot--persona">
           <Divider />
           {vm.status === 'not-signed-in' ? (

@@ -120,7 +120,8 @@ describe('status banners', () => {
     const base = dockVm('hub-down');
     const why = { id: 'runtime-unreachable', code: 'CG-RUNTIME-UNREACHABLE', text: { key: 'dock.reason.runtimeUnreachable' } } as const;
     const actions = Object.fromEntries(Object.entries(base.actions).map(([id, action]) => [id, { ...action, enabled: false, reason: why }])) as DockVM['actions'];
-    kit = mountDock(dockScenario({ ...base, statusError: error, view: { s: 'offline', error, retry, lastGoodAt: null }, actions, options: { ...base.options, toneReason: why, splitReason: why } }));
+    // Through the builder: the bar's chips are built from the actions the model ends up with.
+    kit = mountDock(dockScenario(dockVm('hub-down', { statusError: error, view: { s: 'offline', error, retry, lastGoodAt: null }, actions, options: { ...base.options, toneReason: why, splitReason: why } })));
     expect(kit.$('.cg-dock')?.getAttribute('data-cg-dock')).toBe('hub-down');
     const row = banner();
     expect(row?.getAttribute('role')).toBe('status');

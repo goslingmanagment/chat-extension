@@ -1,10 +1,13 @@
 // DockVM for the scenarios: the strip in each status with its reasons, the
 // quota slot, Tone/Split, and the sheet (a result, Recap/Review, a refusal).
+// The bar's chips are the ones the dock's controller would build for the same
+// actions: ChatSpace's slice of the feature manifest through core's `dockChips`.
 
 import {
   DOCK_ACTION_IDS,
   TONES,
   type CgCode,
+  type ChipVM,
   type DockActionId,
   type DockActionVM,
   type DockStatus,
@@ -13,10 +16,21 @@ import {
   type RunningOpVM,
   type VmView,
 } from '@cg/contracts';
+import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
+import { FEATURES_COMMON } from '@cg/contracts/features/common';
 
+import { dockChips, featureSlice } from '@cg/core/domain/features';
 import { createTranslator } from '@cg/core/domain/i18n';
 
-import { cgError, FANS, handles, hotkey, PERSONA, reason, views, type FanFixture, type ScenarioCtx } from './base';
+import { cgError, FANS, handles, hotkey, isHotkeyName, PERSONA, reason, views, type FanFixture, type ScenarioCtx } from './base';
+
+/** The site of the scenarios and of the stand is ChatSpace: its slice of the feature manifest. */
+export const SCENARIO_FEATURES = featureSlice(FEATURES_COMMON, CHATSPACE_FEATURES);
+
+/** The bar's chips for a dock's actions, as the controller builds them (core `dockChips`, domain/features/admission.ts). */
+export function dockChipsOf(ctx: ScenarioCtx, vm: Pick<DockVM, 'actions' | 'targetHandle'>): ChipVM[] {
+  return dockChips(SCENARIO_FEATURES, vm.actions, vm.targetHandle, (action) => (isHotkeyName(action) ? hotkey(ctx, action) : null));
+}
 
 export interface DockActionsOptions {
   /** Every action off with this reason (status, quota, loading). */
@@ -96,7 +110,7 @@ export function dock(ctx: ScenarioCtx, status: DockStatus = 'ready', options: Do
   const generating = actionsOptions?.busy !== undefined && actionsOptions.busy !== null;
   const optionReason = off ?? (generating ? reason('locked-during-generation') : null);
   const copyOnly = status === 'host-degraded' || status === 'blocked-fan';
-  return {
+  const vm: DockVM = {
     view: STATUS_VIEW[status](ctx, errorCode),
     visible: true,
     mode: copyOnly ? 'copy-only' : 'insert',
@@ -129,6 +143,8 @@ export function dock(ctx: ScenarioCtx, status: DockStatus = 'ready', options: Do
     debug: ctx.debug ? { renderTrace: false, contract: 'index-0000test · ok' } : null,
     ...patch,
   };
+  // The chips follow the actions the scenario ended up with, unless it names its own.
+  return patch.chips === undefined ? { ...vm, chips: dockChipsOf(ctx, vm) } : vm;
 }
 
 /** Why every AI action is off on a page the owner switched off: the existing reason id with the page's own words (1.3.0). */
@@ -152,7 +168,7 @@ export function dockPageOff(ctx: ScenarioCtx, options: DockOptions = {}): DockVM
 
 /** Outside a chat: no strip at all (UI-012). */
 export function dockOutsideChat(ctx: ScenarioCtx): DockVM {
-  return { ...dock(ctx), view: views.empty({ key: 'common.empty' }), visible: false, targetHandle: null };
+  return dock(ctx, 'ready', { view: views.empty({ key: 'common.empty' }), visible: false, targetHandle: null });
 }
 
 export function running(ctx: ScenarioCtx, fan: FanFixture, feature: RunningOpVM['feature'], secondsAgo: number, opId: string, inThisTab = true): RunningOpVM {

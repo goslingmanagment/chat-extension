@@ -402,7 +402,7 @@ describe('what the strip asks for', () => {
   });
 
   it('builds every action from the view model: with no target nothing is asked', async () => {
-    kit = mountDock(dockScenario({ ...dockVm(), targetHandle: null, actions: dockActions(ctx) }));
+    kit = mountDock(dockScenario(dockVm('ready', { targetHandle: null, actions: dockActions(ctx) })));
     await flush(() => button('Reply').click());
     await flush(() => button('Casual').click());
     expect(kit.client.dispatched).toEqual([]);
@@ -417,5 +417,75 @@ describe('what the strip asks for', () => {
     // The low-quota words name no zone: it is the chatter's own time.
     kit = mountDock(dockScenario(dockVm('ready', { quota: { remaining: 12, low: true, resetsAt } })));
     expect(described(kit.$('.cg-quota') as HTMLElement)).toBe('Осталось 12 генераций AI на сегодня. Обновится в 00:00');
+  });
+});
+
+describe('[R20-F4] the bar draws its chips from data (`DockVM.chips`)', () => {
+  const chipTexts = (): (string | null | undefined)[] => buttons().map((element) => element.querySelector('.cg-act__t')?.textContent);
+  const CAPSULE = ['Casual', 'Flirt', 'Sell', 'Spice', 'Split'];
+
+  it('[UI-002] the scenarios’ chips are the ones the dock’s controller builds for ChatSpace: the seven actions and the two windows', () => {
+    const vm = dockVm();
+    expect(vm.chips?.map((chip) => `${chip.group}:${chip.id}`)).toEqual(['reply:reply', 'draft:fix', 'openers:hi', 'openers:ping', 'analysis:review', 'analysis:recap', 'analysis:coach', 'windows:spenders', 'windows:newcomers']);
+    // Each of the seven carries the state of `actions`.
+    for (const id of DOCK_ACTION_IDS) expect(vm.chips?.find((chip) => chip.id === id), id).toMatchObject(vm.actions[id]);
+  });
+
+  it('a chip that is not in the data is not drawn — and nothing stands in its place; a seam opens each group that is left', () => {
+    const vm = dockVm();
+    const without = (ids: readonly string[]) => dockVm('ready', { chips: (vm.chips ?? []).filter((chip) => !ids.includes(chip.id)) });
+    kit = mountDock(dockScenario(without(['fix', 'recap', 'newcomers'])));
+    expect(chipTexts()).toEqual(['Reply', ...CAPSULE, 'Hi', 'Ping', 'Review', 'Coach', 'Ещё', 'Spenders']);
+    // The draft group is gone with its one chip: the seams are the openers' and the analysis'.
+    expect(kit.$$('.cg-strip__acts .cg-div + .cg-act').map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Review']);
+    expect(kit.$$('.cg-slot--two .cg-act').map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Review', 'Coach']);
+    kit.unmount();
+    // No window on this site: the right block has no slot for them.
+    kit = mountDock(dockScenario(without(['spenders', 'newcomers'])));
+    expect(kit.$('.cg-slot--boards')).toBeNull();
+    expect(chipTexts()).toEqual(['Reply', ...CAPSULE, 'Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Ещё']);
+    kit.unmount();
+    // Without Reply there is no capsule of its options and no main chip: they are Reply's group's.
+    kit = mountDock(dockScenario(without(['reply'])));
+    expect(chipTexts()).toEqual(['Fix', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Ещё', 'Spenders', 'Новые']);
+    expect(kit.$('.cg-tones')).toBeNull();
+    expect(kit.$('.cg-act--main')).toBeNull();
+    // The first chip of the bar has no seam before it, whichever group it is of.
+    expect(kit.$$('.cg-strip__acts .cg-div + .cg-act').map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Hi', 'Review']);
+  });
+
+  it('a model without chips draws none: the bar is its right block alone', () => {
+    const { chips: _chips, ...bare } = dockVm();
+    kit = mountDock(dockScenario(bare));
+    expect(chipTexts()).toEqual(['Ещё']);
+    expect(kit.$('.cg-strip')?.getAttribute('role')).toBe('toolbar');
+  });
+
+  it('a chip of another feature stands where its group and its place in the data put it, with its own words, icon and click — the bar has no branch for it', async () => {
+    const vm = dockVm();
+    const extra = { id: 'voice', group: 'draft', icon: null, label: { key: 'common.copy' }, hint: { key: 'dock.hint.fix' }, action: { type: 'Navigate', to: { kind: 'surface', surface: 'cheatsheet', open: true } }, enabled: true, busy: false, active: false, reason: null, hotkey: null, badge: null } as const;
+    const chips = (vm.chips ?? []).flatMap((chip) => (chip.id === 'fix' ? [chip, extra] : [chip]));
+    kit = mountDock(dockScenario(dockVm('ready', { chips })));
+    expect(chipTexts()).toEqual(['Reply', ...CAPSULE, 'Fix', 'Копировать', 'Hi', 'Ping', 'Review', 'Recap', 'Coach', 'Ещё', 'Spenders', 'Новые']);
+    // The same group as Fix: no seam between them, and the next group still opens with one.
+    expect(kit.$$('.cg-strip__acts .cg-div + .cg-act').map((element) => element.querySelector('.cg-act__t')?.textContent)).toEqual(['Fix', 'Hi', 'Review']);
+    expect(described(button('Копировать'))).toBe(`Копировать\n${HINT.fix}`);
+    await flush(() => button('Копировать').click());
+    expect(kit.client.dispatched).toEqual([extra.action]);
+    // Arrows walk it as any other chip: one tab stop for the whole bar.
+    button('Fix').focus();
+    await flush(() => button('Fix').dispatchEvent(keydown('ArrowRight')));
+    expect(kit.root.activeElement).toBe(button('Копировать'));
+  });
+
+  it('a click asks for what the chip says, and for nothing when the chip says nothing', async () => {
+    const vm = dockVm();
+    const cheatsheet = { type: 'Navigate', to: { kind: 'surface', surface: 'cheatsheet', open: true } } as const;
+    const chips = (vm.chips ?? []).map((chip) => (chip.id === 'ping' ? { ...chip, action: cheatsheet } : chip.id === 'hi' ? { ...chip, action: null } : chip));
+    kit = mountDock(dockScenario(dockVm('ready', { chips })));
+    await flush(() => button('Ping').click());
+    await flush(() => button('Hi').click());
+    await flush(() => button('Spenders').click());
+    expect(kit.client.dispatched).toEqual([cheatsheet, { type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } }]);
   });
 });

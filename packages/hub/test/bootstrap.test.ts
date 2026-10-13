@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 
 import { STORAGE_KEYS, isHubCallError, isHubCheckError, type Bootstrap, type CgCode, type HostAccount } from '@cg/contracts';
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, WORLD, pageFeaturesOff } from '@cg/testing/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, WORLD, hubServing, pageFeaturesOff } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -337,14 +337,15 @@ describe('[AU-023] [AU-024] [AU-025] binding a host account to a hub page', () =
 });
 
 describe('[HB-011] flags, page features and capabilities (§4.12)', () => {
-  it('[HB-011] a flag is usable only when the page\'s own feature is available and backed by every capability', async () => {
+  it('[HB-011] a flag is usable only when the page\'s own feature is available — the hub put what it serves into it', async () => {
     expect(flagState(BOOTSTRAP_PILOT_ON, 'stats', one.pageLabel)).toEqual({ usable: true, reason: null });
     expect(flagState(BOOTSTRAP_PILOT_ON, 'previewSend', one.pageLabel)).toEqual({ usable: false, reason: 'flag_off' });
     expect(flagState(BOOTSTRAP_PILOT_ON, 'stats', 'not-my-page')).toEqual({ usable: false, reason: 'not_granted' });
     expect(flagState(BOOTSTRAP_PILOT_ON, 'stats', WORLD.pages.fansly.pageLabel)).toEqual({ usable: false, reason: 'platform_unsupported' });
     // The owner's master switch: the page's own reason, as the hub put it.
     expect(flagState(BOOTSTRAP_ALL_OFF, 'coach', one.pageLabel)).toEqual({ usable: false, reason: 'disabled' });
-    const noCapability: Bootstrap = { ...BOOTSTRAP_PILOT_ON, capabilities: [] };
+    // A hub that serves no capability: the features that need one read `hub_not_ready` in its own bootstrap.
+    const noCapability: Bootstrap = hubServing(BOOTSTRAP_PILOT_ON, []);
     expect(flagState(noCapability, 'stats', one.pageLabel)).toEqual({ usable: false, reason: 'hub_not_ready' });
     expect(flagState(noCapability, 'insertion', null)).toEqual({ usable: true, reason: null });
     // A page that does not list the flag at all: off, as the hub reads a flag set nowhere.

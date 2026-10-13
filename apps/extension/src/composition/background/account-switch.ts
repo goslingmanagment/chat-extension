@@ -43,7 +43,7 @@ export function createAccountSwitch(deps: AccountSwitchDeps): AccountSwitch {
     const resolution = deps.resolveBinding(seen.account);
     if (resolution.state === 'bound') {
       const page = bootstrap.pages.find((candidate) => candidate.pageId === resolution.binding.pageId);
-      return page !== undefined && pageFlagState(bootstrap, page, flag).usable;
+      return page !== undefined && pageFlagState(page, flag).usable;
     }
     return resolution.state === 'refused' && resolution.check === 'bindingMissing' ? starFlag(bootstrap, flag) : false;
   };

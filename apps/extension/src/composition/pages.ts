@@ -45,6 +45,7 @@ import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
 import { CHATSPACE_MATCHES } from '../hosts/runtime';
+import { featuresOf } from './features';
 import { SITE_PAGES } from '../site';
 
 export type PageName = ExtensionPage;
@@ -131,6 +132,7 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
     hostOrigin: chatSpaceOrigin(),
     links: { whatsNew: SITE_PAGES.whatsNew, changelog: SITE_PAGES.changelog },
     systemLanguages: () => win.navigator.languages,
+    features: featuresOf,
   };
   const ports: PagePorts = {
     rpc,

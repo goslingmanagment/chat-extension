@@ -12,7 +12,8 @@
 //   where the site's own lazy build lies;
 // - `HostAppAdapter`, the application's half, in the site's `tab-app` chunk:
 //   what only the application calls — the bootstrap's switches of the site's
-//   host port (`configure`). Its code would weigh on every page at
+//   host port (`configure`) and the site's slice of the feature manifest
+//   (`features`, §1.4). Its code would weigh on every page at
 //   document_start for nothing: ChatSpace's `liveConfigOf` brings the flag
 //   rules of the bootstrap along, ≈ 2 KiB gzip, against the early bundle's
 //   ≈ 0.55 KiB of headroom (§3.2).
@@ -22,6 +23,7 @@
 // them through the structural types below, so it imports no site package.
 
 import type { CgCode } from '@cg/contracts/errors';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { HostPort, HostTheme, MountPoints } from '@cg/contracts/host';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { Bootstrap } from '@cg/contracts/hub';
@@ -158,4 +160,9 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
   liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | null): C;
   /** Applies it to the port; the tab applies only a value that differs from the last one. */
   configure(host: P, config: C): Promise<unknown>;
+  /**
+   * The site's slice of the feature manifest (§1.4): which features exist on this site and what each needs —
+   * the dock's chips, the cheatsheet's rows and every admission of the tab read it.
+   */
+  readonly features: FeatureSlice;
 }

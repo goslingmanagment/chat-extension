@@ -2,23 +2,26 @@
 // §4.1–§4.10, §8.1): the strip above ChatSpace's composer and the draft
 // sheet over it. It turns the workspace into a DockVM — status and banner,
 // persona, quota, Tone and Split, the seven actions with their reasons, the
+// bar's chips as data (the site's slice of the feature manifest: what has a
+// chip here, in which group, with which icon), the
 // result of Reply, Fix, Hi or Ping, a refused start with what runs now —
 // and takes the actions of the draft features and of every part: Generate,
 // «Ещё раз», cancel, hide, expand, tone, Split, insert, Fix's replace and
 // restore, the Б2 answer, copy.
 //
-// What the strip's buttons dispatch: `Generate { targetHandle, feature,
-// options: {} }` with the button's feature (`recap` for Recap, `coach` for
-// Coach). For Reply, Fix, Hi, Ping and Review that starts a generation (or
-// reopens the same one); for Recap and Coach it opens the sheet or the
-// panel and never generates by itself.
+// What the strip's chips ask for is in each chip (`ChipVM.action`): for
+// Reply, Fix, Hi, Ping and Review — `Generate { targetHandle, feature,
+// options: {} }`, which starts a generation (or reopens the same one); Recap
+// opens its sheet and Coach its panel and never generate by themselves; a
+// window (Spenders, «Новые») opens.
 
-import { TONES, type FeatureId } from '@cg/contracts/features';
+import { TONES } from '@cg/contracts/features';
 import { chatKeyOf } from '@cg/contracts/ids';
 import { type ActiveOpSummary } from '@cg/contracts/ops';
 import {
   DOCK_ACTION_IDS,
   type ActionReceipt,
+  type CatalogActionId,
   type DockActionId,
   type DockActionVM,
   type DockVM,
@@ -30,9 +33,9 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { featureGate, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
+import { dockChips, featureGate, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
 import { anchorGap } from '../../domain/host';
-import { flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
+import { flagUsable, isTerminalOpState } from '../../domain/ops';
 import { targetHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
 import { resultVm } from '../ai/result-vm';
@@ -43,8 +46,6 @@ import { flagReasonVm } from '../flag-reason';
 
 /** The keys footer is shown under the first results (ui-design §4.3). */
 export const KEYS_FOOTER_RESULTS = 5;
-
-const DOCK_FEATURE: Readonly<Record<DockActionId, FeatureId>> = { reply: 'reply', fix: 'fix', hi: 'hi', ping: 'ping', review: 'review', recap: 'recap', coach: 'coach' };
 
 export function runningVm(ws: AiWorkspace, summary: Pick<ActiveOpSummary, 'opId' | 'feature' | 'chat' | 'fanLabel' | 'startedAt' | 'inThisTab'>): RunningOpVM {
   return {
@@ -125,19 +126,18 @@ export function createDockController(ws: AiWorkspace): DockController {
     const busyAction = running === null ? null : running.view.surface === 'coach' ? 'coach' : policyOf(running.view.feature).dockAction;
     const recapReady = chat !== null && ready !== null && hasRecapCopy(ready);
     const entries = DOCK_ACTION_IDS.map((id): [DockActionId, DockActionVM] => {
-      const feature = DOCK_FEATURE[id];
-      const rule = policyOf(feature);
       let reason: ReasonVM | null = allOff;
       if (reason === null && ready !== null) {
-        // The feature's switch on THIS page; the hub's own reason picks the words («выключена», «хаб пока не умеет»…).
-        const flag = rule.flag === null ? null : flagStateOf(ready.bootstrap, ready.page.pageId, rule.flag);
-        if (flag !== null && !flag.usable) reason = flagReasonVm(flag);
+        // What the feature needs on THIS page to be generated; the hub's own reason picks the words («выключена», «хаб пока не умеет»…).
+        const admitted = ws.admitted(situation.host, ready, id, 'generate');
+        if (!admitted.usable) reason = flagReasonVm(admitted);
         // UI-008: while a generation runs in this chat only its own button works.
         else if (busyAction !== null && busyAction !== id) reason = catalog.reason('chat-busy');
         else if (busyAction === null && id !== 'recap' && id !== 'coach') {
           // Recap opens its sheet and Coach its panel: their gates sit on the build and ask buttons.
           const composer = situation.host.composer;
-          const gate = featureGate(feature, { platform: ready.target.binding.platform, window: situation.window, draftEmpty: composer === null ? null : composer.draft.provenance === 'empty' });
+          // A strip action is the AI feature of its own name (`DOCK_ACTION_IDS` are feature ids).
+          const gate = featureGate(id, { platform: ready.target.binding.platform, window: situation.window, draftEmpty: composer === null ? null : composer.draft.provenance === 'empty' });
           if (gate !== null) reason = catalog.reason(gate.reason);
         }
       }
@@ -191,6 +191,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       .map((record) => runningVm(ws, { opId: record.view.opId, feature: record.view.feature, chat: record.view.target.chat, fanLabel: null, startedAt: record.view.startedAt, inThisTab: true }));
     const contract = situation.host.contract;
     const broken = Object.values(contract.anchors).some(anchorGap);
+    const handle = chat !== null && situation.ready !== null ? chat.handle : null;
+    const actionVms = actions(situation, running, activeAction);
     return {
       view: viewOf(ws, situation),
       visible: chat !== null,
@@ -199,7 +201,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       statusError: situation.statusError === null ? null : errorVm(situation.statusError, ws.ports.i18n),
       // The owner switched ChatGoose off, or this build is too old for the hub: one line, in place of an error card after a click.
       notice: situation.pageOff === null || chat === null ? null : noticeOf(situation.pageOff),
-      targetHandle: chat !== null && situation.ready !== null ? chat.handle : null,
+      targetHandle: handle,
       persona: situation.persona?.status === 'ok' && situation.persona.label !== null && situation.pageName !== null ? { label: situation.persona.label, pageName: situation.pageName } : null,
       mark: situation.off !== null || situation.quotaZero ? 'faint' : 'normal',
       // UI-031: silence is the norm — the quota shows only when it is low or gone.
@@ -214,7 +216,9 @@ export function createDockController(ws: AiWorkspace): DockController {
         toneHotkey: catalog.entry('tone').hotkey,
         splitHotkey: catalog.entry('split').hotkey,
       },
-      actions: actions(situation, running, activeAction),
+      actions: actionVms,
+      // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
+      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action as CatalogActionId).hotkey),
       result,
       analysis: sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null,
       refusal: sheet?.kind === 'refusal' ? refusalVm(ws, sheet.refusal) : null,

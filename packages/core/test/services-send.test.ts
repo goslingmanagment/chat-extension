@@ -31,6 +31,7 @@ import { BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, resolveHubErrorReference } from 
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, type ClaimAnswer } from './support/fake-hub';
 import { ScenarioHub } from './support/scenario-hub';
+import { featuresOf } from './support/features';
 import { NOW_MS, WORLD, checkpointFor, persona, session, targetOf, uuid, withX8 } from './support/world';
 
 const TAB = uuid(0xa1);
@@ -117,7 +118,7 @@ function sendHarness(over: { clock?: FakeClock; store?: MemoryStore; hub?: FakeH
     tokens,
     sent,
     ops,
-    env: { session, bootstrap: withX8(BOOTSTRAP_PILOT_PAGES), persona: () => persona, debug: false, settingsLoaded: true },
+    env: { session, bootstrap: withX8(BOOTSTRAP_PILOT_PAGES), persona: () => persona, debug: false, settingsLoaded: true, features: featuresOf },
     opCheckpoint: checkpoint,
     coordinator: undefined as unknown as SendCoordinator,
     begin: (b = {}) => ({

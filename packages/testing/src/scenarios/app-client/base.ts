@@ -125,6 +125,8 @@ const WIN: Record<keyof typeof MAC, HotkeyLabel> = {
 
 export type HotkeyName = keyof typeof MAC;
 export const hotkey = (ctx: ScenarioCtx, name: HotkeyName): HotkeyLabel => (ctx.platform === 'mac' ? MAC : WIN)[name];
+/** Whether the scenarios print a key of this name (a scheme action of another client has none here). */
+export const isHotkeyName = (name: string): name is HotkeyName => Object.prototype.hasOwnProperty.call(MAC, name);
 
 export function reason(id: UnavailableReasonId, params?: I18nParams): ReasonVM {
   const entry = UNAVAILABLE_REASONS[id];

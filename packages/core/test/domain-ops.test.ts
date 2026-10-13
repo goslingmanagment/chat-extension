@@ -20,6 +20,7 @@ import {
   decideAdmission,
   digestHex,
   expiredDeadline,
+  flagStateOf,
   flagUsable,
   isActiveOpState,
   isNewerOpState,
@@ -54,8 +55,9 @@ import {
   type ActiveOpEntry,
   type OpsEnvironment,
 } from '@cg/core/domain/ops';
-import { BOOTSTRAP_PILOT_PAGES, NOW_MS as HUB_NOW_MS, SSE_SCENARIOS, WORLD as HUB_WORLD, contextFrame, meta, readStreamScenario, uuid as hubUuid, pageFeaturesOff } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, NOW_MS as HUB_NOW_MS, SSE_SCENARIOS, WORLD as HUB_WORLD, contextFrame, hubServing, meta, readStreamScenario, uuid as hubUuid, pageFeaturesOff } from '@cg/testing/hub';
 
+import { featuresOf, freshTextOn } from './support/features';
 import { NOW_MS, WORLD, binding, checkpointFor, persona, session, startOf, target, targetOf, uuid, withX8 } from './support/world';
 import { seeded } from './support/random';
 
@@ -315,6 +317,7 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
     persona: () => persona,
     debug: false,
     settingsLoaded: true,
+    features: featuresOf,
     ...over,
   });
 
@@ -339,11 +342,14 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
     expect(startPrecondition(env(), coach)).toBeNull();
   });
 
-  it('[AI-121] a flag is usable only when on, available on the page and its capabilities are declared', () => {
+  it('[AI-121] a flag is usable only when the page\'s own feature is available: the hub put the platform and what it serves into it', () => {
     expect(flagUsable(BOOTSTRAP_PILOT_PAGES, binding.pageId, 'coach')).toBe(true);
     expect(flagUsable(BOOTSTRAP_PILOT_PAGES, binding.pageId, 'previewSend')).toBe(false);
     expect(flagUsable(BOOTSTRAP_X8_ON, binding.pageId, 'previewSend')).toBe(true);
-    expect(flagUsable({ ...BOOTSTRAP_X8_ON, capabilities: [] }, binding.pageId, 'previewSend')).toBe(false);
+    // A hub that serves nothing of X8 answers `hub_not_ready` for the page's feature; the client reads that answer
+    // and keeps no table of the hub's requirements of its own (R20 F4).
+    expect(flagStateOf(hubServing(BOOTSTRAP_X8_ON, []), binding.pageId, 'previewSend')).toEqual({ usable: false, reason: 'hub_not_ready' });
+    expect(flagStateOf(hubServing(BOOTSTRAP_X8_ON, []), binding.pageId, 'coach')).toEqual({ usable: true, reason: null });
     expect(flagUsable(BOOTSTRAP_X8_ON, 999, 'coach')).toBe(false);
     expect(flagUsable(null, binding.pageId, 'coach')).toBe(false);
   });
@@ -371,7 +377,8 @@ describe('[AI-121] [AI-122] [AI-126] preconditions and the environment fence', (
 
 describe('[AI-134] windows and the default request (§8.4)', () => {
   const windows = { quick: 100, ping: 80, improve: 25, deep: 3000 };
-  const ctx = { opId: OP, persona, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false };
+  // `freshText` — the admission of the manifest's `fresh-text` on the page, as the scheduler sets it.
+  const ctx = { opId: OP, persona, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false, freshText: freshTextOn(BOOTSTRAP_PILOT_PAGES, binding.pageId) };
 
   it('[AI-134] each feature takes its settings window; deep never above the hub limit; short recap 300; Hi 25', () => {
     expect(messageWindowFor('reply', windows, 3000)).toBe(100);
@@ -446,8 +453,15 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     const fresh = { capturedAt: '2026-10-03T10:00:00.000Z', messages: [{ platformMessageId: '4006', direction: 'fan' as const, sentAt: '2026-10-03T09:59:00.000Z', text: 'hey' }] };
     const on = buildStreamRequest(startOf({ fresh }), ctx);
     expect(on.ok && on.request.body.liveTextContext?.items[0]).toEqual({ platformMessageId: '4006', direction: 'fan', occurredAt: '2026-10-03T09:59:00.000Z', text: 'hey' });
-    const off = buildStreamRequest(startOf({ fresh }), { ...ctx, bootstrap: pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']) });
+    expect(ctx.freshText).toBe(true);
+    const flagOff = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText']);
+    const off = buildStreamRequest(startOf({ fresh }), { ...ctx, bootstrap: flagOff, freshText: freshTextOn(flagOff, binding.pageId) });
     expect(off.ok && off.request.body.liveTextContext).toBeUndefined();
+    // The client's own need: without the hub's `context-v1` the request could not carry it, whatever the page's switch says.
+    const noHeader = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((capability) => capability !== 'context-v1') };
+    expect(freshTextOn(noHeader, binding.pageId)).toBe(false);
+    const bare = buildStreamRequest(startOf({ fresh }), { ...ctx, bootstrap: noHeader, freshText: freshTextOn(noHeader, binding.pageId) });
+    expect(bare.ok && bare.request.body.liveTextContext).toBeUndefined();
     const preview = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), ctx);
     expect(preview.ok && preview.request.body.knownFanMessageIds).toEqual([WORLD.messages.fanLatest, WORLD.messages.fanFirst]);
     const noCtx = buildStreamRequest(startOf({ surface: 'preview', target: targetOf('2003'), checkpoint: checkpointFor('2003') }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: [] } });

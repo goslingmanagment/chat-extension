@@ -16,6 +16,7 @@ import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff 
 import { AddressedHub } from './support/ai-background';
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { type ScriptResponse, type ScriptStep } from './support/fake-hub';
+import { featuresOf } from './support/features';
 import { NOW_MS, WORLD, chatOf, persona, session, startOf, targetOf, uuid } from './support/world';
 
 /** What the scheduler reads of a tab's presence, as a tab reports it. */
@@ -71,7 +72,7 @@ function harness(over: { store?: MemoryStore; clock?: FakeClock; firstId?: numbe
     presence,
     recaps,
     onEvent: null,
-    env: { session, bootstrap: over.bootstrap ?? BOOTSTRAP_PILOT_PAGES, persona: () => persona, debug: false, settingsLoaded: true },
+    env: { session, bootstrap: over.bootstrap ?? BOOTSTRAP_PILOT_PAGES, persona: () => persona, debug: false, settingsLoaded: true, features: featuresOf },
     scheduler: undefined as unknown as OpScheduler,
     start: (tab, start) => {
       const { actionToken } = tokens.issue(tab, 'generate', start.surface);
