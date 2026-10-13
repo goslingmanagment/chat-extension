@@ -615,18 +615,20 @@ HTTP-ответ не отменяет более новое событие со�
 ### 5.8 Снимок генерации и доказательство Hi
 
 По запросу `fx.generationSnapshot {groupId, feature, window, withText}` MAIN после ограниченного слива очереди разбора за
-один синхронный шаг отдаёт:
+один синхронный шаг отдаёт (`contracts/src/fansly.ts`, P4a2; `null` — MAIN не знает креатора, группу и фана чата):
 ```ts
 interface FanslySnapshot {
+  feature: FeatureId;                                            // для кого снимок: решает, можно ли хвост и доказательство
   identity: { creatorId: NativeId; groupId: NativeId; fanId: NativeId };
-  epochs: { document: string; socket: number; route: number };
-  completeness: 'complete' | 'unknown'; gap?: SnapshotGap;      // pending-parse, evicted, socket-loss, overflow, …
-  window: Array<{ id: NativeId; dir: 'fan' | 'model' }>;          // до min(60, окно функции); сообщения с медиа тоже
+  epochs: { document: string; socket: number; route: number };   // route — эпоха маршрута последнего fx.focus
+  completeness: 'complete' | 'unknown'; gap?: FanslyCoverageReason; // ровно при unknown: pending-parse, evicted, socket, gap, …
+  window: Array<{ id: NativeId; dir: 'fan' | 'model' }>;          // до min(60, окно функции), по порядку snowflake; медиа тоже
   knownFanMessageIds: NativeId[];                                // до 10 последних сообщений фана окна
-  deletedIds: NativeId[];                                        // удалённые в окне, которые видела вкладка
-  startProof?: StartProofV1;                                     // только Hi
-  tail?: LiveTextMessage[];                                      // только Reply, Fix, Hi, Ping; только с текстом
-  truncated: boolean;
+  deletedIds: NativeId[];                                        // удалённые в окне, которые видела вкладка; не в window
+  startProof?: StartProofV1;                                     // только Hi, этого же groupId
+  fanAvatarUrl?: string;                                         // только Hi: адрес аватара фана из ответов страницы (FX-018)
+  tail?: LiveTextMessage[];                                      // только Reply, Fix, Hi, Ping; только с текстом; id — из window
+  truncated: boolean;                                            // только при хвосте
 }
 interface StartProofV1 {
   v: 1; source: 'tab-short-page' | 'pass-empty-page'; groupId: NativeId;
@@ -639,6 +641,8 @@ interface StartProofV1 {
 }
 ```
 - Кадр ≤ 128 КиБ UTF-8; при переполнении первыми отбрасываются старые тексты, `truncated: true`.
+- Аватар для Hi (FX-018, X37) — только строка адреса CDN Fansly по правилу хаба (`fanslyAvatarUrlSchema`); MAIN берёт
+  её из ответов страницы (P7b), клиент адрес не загружает. Другого пути из MAIN в изолированный мир у неё нет.
 - Сообщения только с медиа — в окне проверки, но не в текстовом хвосте: хаб требует непустой текст
   (`packages/contracts/src/routes.ts:2300-2301` хаба). Пустой хвост при полном наблюдении — законный снимок (своя схема, не
   `LiveTextTail` с `min(1)`).
@@ -714,11 +718,12 @@ interface StartProofV1 {
 
 | Тип | Данные | Ответ |
 |---|---|---|
-| `probe` | — | версия, время установки, `socketSeen`, `accountMeSeen`, легаси |
-| `fx.state` | — | личность, эпохи, открытая группа (старт, перезапуск изолированного мира, после `fx.gap`) |
-| `fx.focus` | `{groupId \| null}` | — (MAIN шлёт `fx.chat` по этой группе) |
-| `fx.generationSnapshot` | `{groupId, feature, window, withText}` | `FanslySnapshot` |
-| `fx.windowMeta` | `{groupId}` | сводка окна (для `chatWindow`) |
+| `probe` | — | ответ загрузчика host-kit (`MainProbe`, как у ChatSpace: версия, `document_start`, время установки); `socketSeen`, `accountMeSeen` и легаси — в `fx.state` |
+| `fx.state` | — | личность, сокет (эпоха, подтверждён ли), открытая группа, контракт, номер последней пачки (старт, перезапуск изолированного мира, после `fx.gap`; возобновляет поток) |
+| `fx.focus` | `{groupId \| null, routeEpoch}` | `null` (MAIN шлёт `fx.chat` по этой группе с той же эпохой маршрута) |
+| `fx.generationSnapshot` | `{groupId, feature, window, withText}` | `FanslySnapshot` или `null` |
+| `fx.windowMeta` | `{groupId}` | сводка окна (для `chatWindow`) или `null` |
+| `fx.ack` | `{n}` | `null`; подтверждает все пачки до `n` включительно — и принятые, и отвергнутые |
 
 **События из MAIN (`FromMainFansly`, внутри `fx.batch`):**
 
@@ -732,14 +737,20 @@ interface StartProofV1 {
 | `fx.coverage` | `{groupIds \| 'all', state, reason}` | поток |
 | `fx.deleted` | `{groupId, ids}` (открытая группа) | поток |
 | `fx.vaultAdded` | `{seq}` — номер наблюдения; `albumId`/`mediaIds` из ответа не взять (§7.11, P3a) | поток |
-| `fx.gap` | причина | одно уведомление, вне кредитов |
 | `fx.contract` | сетевые якоря: `accountMe`, `socket`, `frames`, `xhr`; сигнал несовместимости тапа | состояние |
-| `fault` | место, счёт (X22) | — |
+| `fx.gap` | причина: `overflow` \| `memory` | вне пачки: одно уведомление, вне кредитов |
+| `fault` | место, счёт (X22) | вне пачки: его шлёт сам загрузчик |
 
 - Бюджет — ≤ 1 отправки на вызов слушателя. «На задачу» не обещаем: между слушателями нативного события исполняются
   микрозадачи, сброс в микрозадаче может случиться не один раз.
 - Схемы — в чанке `bridge-validation` сборки Fansly; схемы ChatSpace и их фикстуры не меняются. Имя `snapshot` занято
   запросом ChatSpace, поэтому у Fansly — `fx.state` и `fx.generationSnapshot`.
+- **Контракт (P4a2):** `contracts/src/bridge-fansly.ts` (списки, кредиты, пределы кадров, конверты) и
+  `bridge-messages-fansly.ts` (схемы); только подпути, корень `@cg/contracts` их не реэкспортирует. Пачка
+  `{n, events: [{t, p}]}`: `n` растёт на единицу в документе и после `fx.gap` не сбрасывается; пачка ≤ 64 КиБ и ≤ 512
+  событий, состояние — не больше одного раза; проверяется целиком — одно плохое событие теряет всю пачку, и
+  изолированный мир поступает как после `fx.gap` (подтверждает, всё `unknown`, `fx.state`). Ответ на снимок ≤ 128 КиБ;
+  остальные кадры — общие 256 КиБ (`fanslyFrameByteLimit`).
 
 ## 7. Изолированный мир Fansly (`packages/host-fansly/src/isolated`)
 
@@ -1240,8 +1251,8 @@ HF-8д, HF-9, HF-8в, HF-8б, HF-5, HF-4а, HF-3, HF-6, HF-7д0, HF-7а…д, HF
 | `ids.ts` | пара хост↔платформа — из `HOST_PLATFORM`, а не `chatspace ⇔ onlyfans` в refine |
 | `features/{types,common,chatspace,fansly}.ts` (новые) | манифест фич (§1.4): общее и по файлу на сайт, требования по действиям; срез — графом модулей при сборке; `HotkeyActionId` — строковое объединение |
 | `host.ts` | `RouteState.conversationRef?`, `conversationKind?: 'direct' \| 'group'` (проверка `conversationFits`: только маршрут чата, вид — с разговором, у группы `chat` = null, на OnlyFans разговор = фан); `NavigationIntent.target.conversationRef?` (только у цели-чата); `HostContractReport` — разбор по `host`: нет `host` или `'chatspace'` → прежняя полная схема `anchors`; `'fansly-web'` → обязательный блок `extensions['fansly-web']` с полным набором якорей и возможностей Fansly; `HostPort.freshness?`, `HostPort.fansly?`; `ChatWindow.fanScript?`, `newestAt?` |
-| `fansly.ts` (новый) | `FanslySnapshot`, `StartProofV1`, `FanslyPagePort`, `FanslyAnchorId`, `FanslyCapability` |
-| `bridge-fansly.ts`, `bridge-messages-fansly.ts` (новые) | реестр моста Fansly (§6), конверт `fx.batch`, `fx.gap` |
+| `fansly.ts` (новый, P4a2) | `FanslySnapshot` (с `fanAvatarUrl?` для Hi, FX-018), `StartProofV1`, `FanslyPagePort` (тип), `FanslyAnchorId`, `FanslyCapability`, пределы наблюдения, причины полноты, порядок id; только подпуть |
+| `bridge-fansly.ts`, `bridge-messages-fansly.ts` (новые, P4a2) | реестр моста Fansly (§6), конверт `fx.batch`, `fx.ack`, `fx.gap`, кредиты и пределы кадров; только подпути: корень `@cg/contracts` модули сайта не реэкспортирует |
 | `ops.ts` | `StartOp.proof?: CoverageProof` (снимок вкладки или доказательство прохода; хвост внутри); `checkpoint` не трогаем; `ServedContext.coverageCheck?`; новые причины `stale`; операции сайта — объединение на уровне типов |
 | `send-fansly.ts` (новый) | машина состояний HTTP-отправки, журнал, запрос приветствия «Новых», ручная группа |
 | `tab-protocol.ts` | `TypeSchema` — до двух точек; `RequestSpec.hosts?`; вид отправителя `relay`, порт `cg-relay` |
