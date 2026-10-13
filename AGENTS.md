@@ -18,21 +18,20 @@ hotkeys, sound) and the extension pages (popup, settings, sign-in, debug
 pages) work together on the ChatSpace-like stand against the fake hub.
 Contracts are frozen at 1.15.0 (`docs/protocols/README.md`); a change is
 additive, in its own `contract-change:` commit with fixtures and a line in
-`docs/contracts-changelog.md`. The SDK is vendored from hub `main` `6ee3d627`
-(2026-10-11, contract `03012453…`), the commit production runs since
-2026-10-11 22:28 UTC, so it meets the release rule (a release is vendored only
-from a deployed hub commit): every hub route written for this
-client is in it, and every hub call goes one way, through the SDK (the
-temporary RouteTransport is gone).
-The prod hub runs that contract and declares every capability this client
-reads; what a page gets is the owner's per-page switch
-(`chatExtensionFeatures`: on the owner's test page everything but
-`previewSend`, `docs/pilot-readiness.md` §2–§3). The hub layer still calls a
+`docs/contracts-changelog.md`. The SDK's source commit and contract hash live
+in `vendor/kernel-sdk/kernel-sdk.vendor.json`; all hub calls go through that
+SDK (the temporary RouteTransport is gone). A release uses a merged, deployed
+hub commit; `pnpm release preflight --online` checks production compatibility
+for that release. Dated checks are recorded in `docs/releases/`.
+What a page gets is the owner's per-page switch (`chatExtensionFeatures`,
+`docs/pilot-readiness.md` §2–§3). The hub layer still calls a
 route only when the bootstrap declares its capability, so on an older hub
 those features read `hub_not_ready` and the rest works. Still ahead: sending
 from the preview (X8, the owner's call), the owner's next live checks (X9)
-and the first release (the R19 tooling is built and CI runs on the owner's PC
-runners; nothing has been released yet: `docs/release.md`), Fansly (R20). What works and what is left: `README.md` «Что уже работает»; decisions
+and Fansly (R20). Releases and their verification are recorded in Git tags
+and `docs/releases/`; the checkout version is `apps/extension/package.json`.
+The procedure is `docs/release.md`; the served feed is checked at release time.
+What works and what is left: `README.md` «Что уже работает»; decisions
 taken without the owner: `docs/decisions.md` X12; what is proven end to end on
 the stand, what waits for the hub and the owner's smoke checklist:
 `docs/pilot-readiness.md`.
