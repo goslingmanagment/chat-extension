@@ -809,7 +809,7 @@ describe('[EX-015] [NF-027] a site’s own registry and the host rules (fansly-w
     const fansly = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
     fansly.port.postMessage(requestEnvelope(2, 'fansly.relay.head', relayHead, fansly.session));
     fansly.port.postMessage(requestEnvelope(3, 'fansly.nope.nope', {}, fansly.session));
-    // A page sends by runtime.sendMessage; the Fansly registry has nothing a page may send.
+    // A page sends by runtime.sendMessage; no site registry takes a page's request (none of its types is a page's).
     const options = createPageRpcClient({ api: w.fake.context(pageSender(w.fake, 'options')).api, validate: parseFanslyTabPayload, requestTimeoutMs: 50 });
     expect((await options.request('fansly.notes.read' as never, notesRead as never)).ok).toBe(false);
     await wait(60);
@@ -817,7 +817,7 @@ describe('[EX-015] [NF-027] a site’s own registry and the host rules (fansly-w
     expect(chatspace.answers).toEqual([]);
     expect(fansly.answers).toEqual([]);
     expect(handled).toEqual([]);
-    expect(w.rejects.sort()).toEqual(['sender-kind:fansly.notes.read:page', 'sender-kind:fansly.relay.head:tab', 'unknown-type:fansly.nope.nope:tab', 'unknown-type:fansly.notes.read:tab'].sort());
+    expect(w.rejects.sort()).toEqual(['sender-kind:fansly.relay.head:tab', 'unknown-type:fansly.nope.nope:tab', 'unknown-type:fansly.notes.read:page', 'unknown-type:fansly.notes.read:tab'].sort());
   });
 
   it('a request that comes before the site’s chunk plugs its registry waits for it; none comes — no answer', async () => {
@@ -886,7 +886,6 @@ describe('[NF-027] the relay frame (`cg-relay`, fansly-web, 1.15.0)', () => {
     const tab = await registeredTab(w.fake, fanslySender(w.fake), fanslyRegister);
     const relay = await rawPort(w.fake, relaySender(w.fake), 'cg-relay');
     expect(relay.closed()).toBe(false);
-    expect(w.rpc.relays()).toEqual([{ host: 'fansly-web', tabSessionId: tab.session, tabId: 12, frameId: 4 }]);
     relay.port.postMessage(requestEnvelope(1, 'fansly.relay.head', relayHead));
     // A session of its own, a shared type, a tab type of the site: none of these.
     relay.port.postMessage(requestEnvelope(2, 'fansly.relay.head', relayHead, tab.session));
@@ -918,6 +917,7 @@ describe('[NF-027] the relay frame (`cg-relay`, fansly-web, 1.15.0)', () => {
     await flush(20);
     expect(relay.closed()).toBe(true);
     expect(otherRelay.closed()).toBe(false);
-    expect(w.rpc.relays()).toEqual([{ host: 'fansly-web', tabSessionId: other.session, tabId: 13, frameId: 4 }]);
+    // The other tab's relay still gets its tab's events.
+    expect(w.rpc.emitSite('fansly-web', 'fansly.relay.abort', { requestId: uuidOf(331) })).toBe(1);
   });
 });

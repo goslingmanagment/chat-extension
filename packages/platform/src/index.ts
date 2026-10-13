@@ -51,7 +51,6 @@ export {
   type BackgroundRpc,
   type BackgroundRpcOptions,
   type HandledRequestType,
-  type RelayInfo,
   type RpcSenderContext,
   type SiteRpc,
   type SiteSenderContext,

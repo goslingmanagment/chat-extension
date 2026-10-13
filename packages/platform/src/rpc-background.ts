@@ -18,13 +18,13 @@
 // - Payloads are checked with the frozen schemas in both directions; a
 //   handler's own bug (an answer that fails its schema) is an error answer,
 //   never a malformed one.
-// - 1.15.0: a request type the shared registry does not know belongs to a
-//   site's own registry (tab-messages-fansly.ts), plugged by the site's
-//   background chunk (`site`). The core still checks the sender, the tab
-//   session, the site — a tab or a relay reaches only its own site's
-//   registry — and the envelope; the registry's rules, schemas and handler do
-//   the rest, as `dispatch` does for the shared one. A tab's or relay's
-//   request waits for its site to be plugged within `siteWaitMs`.
+// - 1.15.0: a request type the shared registry does not know, from a tab or
+//   a relay, belongs to its site's own registry (tab-messages-fansly.ts),
+//   plugged by the site's background chunk (`site`). The core still checks
+//   the sender, the tab session, the site — a tab or a relay reaches only its
+//   own site's registry — and the envelope; the registry's rules, schemas and
+//   handler do the rest, as for the shared one. Such a request waits for its
+//   site to be plugged within `siteWaitMs`. A page reaches no site registry.
 // - A relay frame (`cg-relay`) is a subframe of a tab at the site's relay
 //   page; it is accepted only inside a tab that holds a registered session of
 //   that site, speaks for that session only, and goes when that tab's port
@@ -75,10 +75,12 @@ export type RpcSenderContext =
 
 export type HandledRequestType = Exclude<TabRequestType, 'tab.register'>;
 
-/** 1.15.0: who sent a request of a site's registry — a tab of the site, a page, or the relay frame of a tab session. */
+/**
+ * 1.15.0: who sent a request of a site's registry — a tab of the site, or the relay frame of a tab session. A page
+ * reaches no site registry yet (none of its types is a page's); the PR that adds one routes pages here too.
+ */
 export type SiteSenderContext =
   | { readonly kind: 'tab'; readonly host: TabHostKind; readonly tabSessionId: string; readonly tabId: number; readonly url: string }
-  | { readonly kind: 'page'; readonly page: ExtensionPage; readonly tabId: number | null; readonly url: string }
   | { readonly kind: 'relay'; readonly host: TabHostKind; readonly tabSessionId: string; readonly tabId: number; readonly frameId: number; readonly url: string };
 
 /**
@@ -88,7 +90,7 @@ export type SiteSenderContext =
  */
 export interface SiteRpc {
   readonly host: TabHostKind;
-  /** Every type of the registry starts with it (`fansly.`); no shared type does. A page's request is routed by it. */
+  /** Every type of the registry starts with it (`fansly.`); no shared type does. */
   readonly prefix: string;
   isRequestType(type: string): boolean;
   /** The registry's sender rules (`senderAllowed` of its spec); `host` — the tab's or the relay's site, null for a page. */
@@ -98,14 +100,6 @@ export interface SiteRpc {
   eventTargets(type: string): readonly TabSender[] | null;
   /** A shared CG code in a failure: a site's own failure travels in its payload (contracts errors-fansly.ts). */
   handle(type: string, payload: unknown, sender: SiteSenderContext): RpcResult<unknown> | Promise<RpcResult<unknown>>;
-}
-
-/** A relay frame the background holds a port of (1.15.0). */
-export interface RelayInfo {
-  readonly host: TabHostKind;
-  readonly tabSessionId: string;
-  readonly tabId: number;
-  readonly frameId: number;
 }
 
 export type TabRequestHandler<T extends HandledRequestType> = (
@@ -146,7 +140,6 @@ export interface BackgroundRpc {
    */
   emitSite(host: TabHostKind, type: string, payload: unknown, target?: { readonly tabSessionId: string }): number;
   tabs(): readonly TabSessionInfo[];
-  relays(): readonly RelayInfo[];
   pagePorts(): number;
   counters(): Readonly<Record<RpcRejectReason, number>>;
   dispose(): void;
@@ -160,9 +153,12 @@ interface TabPortState {
   session: TabSessionInfo | null;
 }
 
-interface RelayPortState extends RelayInfo {
+interface RelayPortState {
   readonly port: PortApi;
-  readonly url: string;
+  readonly host: TabHostKind;
+  readonly tabSessionId: string;
+  /** What its requests carry to the site's handler. */
+  readonly sender: SiteSenderContext;
   /** The tab document it is framed in: it goes with it. */
   readonly owner: TabPortState;
 }
@@ -212,43 +208,69 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
   };
 
   /** Validated dispatch: payload in, handler, answer checked against its schema. */
-  async function dispatch(type: TabRequestType, payload: unknown, sender: RpcSenderContext): Promise<RpcResult<unknown>> {
-    if (!(await whenReady())) {
-      reject('not-ready', type, sender.kind);
-      return rpcError('CG-UNKNOWN', 'background not ready');
-    }
-    const input = parseTabPayload('req', type, payload);
+  /**
+   * Payload in, handler, answer checked against its schema — for either registry (`parse`: the shared
+   * parseTabPayload or a site's). An undefined handler: none is wired for the type.
+   */
+  async function run(
+    type: string,
+    parse: (kind: 'req' | 'res', type: string, payload: unknown) => TabPayloadCheck,
+    handler: ((payload: unknown) => RpcResult<unknown> | Promise<RpcResult<unknown>>) | undefined,
+    payload: unknown,
+    kind: TabSender,
+  ): Promise<RpcResult<unknown>> {
+    const input = parse('req', type, payload);
     if (!input.ok) {
-      reject('payload', type, sender.kind);
+      reject('payload', type, kind);
       return rpcError('CG-UNKNOWN', `invalid ${type} request`);
     }
-    const handler = handlers.get(type);
     if (!handler) {
-      reject('handler', type, sender.kind);
+      reject('handler', type, kind);
       return rpcError('CG-UNKNOWN', `no handler for ${type}`);
     }
     let result: RpcResult<unknown>;
     try {
-      result = await handler(input.payload, sender);
+      result = await handler(input.payload);
     } catch {
-      reject('handler', type, sender.kind);
+      reject('handler', type, kind);
       return rpcError('CG-UNKNOWN', `${type} handler failed`);
     }
     if (!result.ok) return result;
-    const output = parseTabPayload('res', type, result.payload);
+    const output = parse('res', type, result.payload);
     if (!output.ok) {
-      reject('response', type, sender.kind);
+      reject('response', type, kind);
       return rpcError('CG-UNKNOWN', `invalid ${type} response`);
     }
     return { ok: true, payload: output.payload };
   }
 
+  /** The readiness barrier before any request; false — it failed (answered CG-UNKNOWN). */
+  async function ready(type: string, kind: TabSender): Promise<boolean> {
+    if (await whenReady()) return true;
+    reject('not-ready', type, kind);
+    return false;
+  }
+
+  /** Validated dispatch of the shared registry. */
+  async function dispatch(type: TabRequestType, payload: unknown, sender: RpcSenderContext): Promise<RpcResult<unknown>> {
+    if (!(await ready(type, sender.kind))) return rpcError('CG-UNKNOWN', 'background not ready');
+    const handler = handlers.get(type);
+    return run(type, parseTabPayload, handler && ((input) => handler(input, sender)), payload, sender.kind);
+  }
+
+  /** An event to every receiver `to` names — of one site only when `host` is given — or to one tab session (and its relay). */
+  function deliver(message: unknown, to: readonly TabSender[], host: TabHostKind | null, target?: { readonly tabSessionId: string }): number {
+    let delivered = 0;
+    const wanted = (portHost: TabHostKind, tabSessionId: string): boolean => (host === null || portHost === host) && (!target || tabSessionId === target.tabSessionId);
+    if (includes(to, 'tab')) for (const state of tabPorts) if (state.session && wanted(state.host, state.session.tabSessionId) && post(state.port, message)) delivered += 1;
+    if (includes(to, 'relay')) for (const relay of relayPorts) if (wanted(relay.host, relay.tabSessionId) && post(relay.port, message)) delivered += 1;
+    if (includes(to, 'page') && !target) for (const port of pagePorts) if (post(port, message)) delivered += 1;
+    return delivered;
+  }
+
   /** null — refused without an answer (a host kind its origin does not belong to). */
   async function register(state: TabPortState, payload: unknown): Promise<RpcResult<unknown> | null> {
-    if (!(await whenReady())) {
-      reject('not-ready', 'tab.register', 'tab');
-      return rpcError('CG-UNKNOWN', 'background not ready');
-    }
+    if (!(await ready('tab.register', 'tab'))) return rpcError('CG-UNKNOWN', 'background not ready');
     const input = parseTabPayload('req', 'tab.register', payload);
     if (!input.ok) {
       reject('payload', 'tab.register', 'tab');
@@ -284,43 +306,19 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     });
   }
 
-  /**
-   * A request of a site's registry: the site of the sender (a tab or a relay) or, for a page, the plugged site whose
-   * prefix the type carries. null — refused without an answer (unknown type, wrong sender), as for the shared registry.
-   */
+  /** A request of the sender's site's registry (a tab or a relay). null — refused without an answer (unknown type, wrong sender), as for the shared registry. */
   async function dispatchSite(type: string, payload: unknown, sender: SiteSenderContext): Promise<RpcResult<unknown> | null> {
-    if (!(await whenReady())) {
-      reject('not-ready', type, sender.kind);
-      return rpcError('CG-UNKNOWN', 'background not ready');
-    }
-    const site = sender.kind === 'page' ? ([...sites.values()].find((candidate) => type.startsWith(candidate.prefix)) ?? null) : await siteOf(sender.host);
+    if (!(await ready(type, sender.kind))) return rpcError('CG-UNKNOWN', 'background not ready');
+    const site = await siteOf(sender.host);
     if (site === null || !type.startsWith(site.prefix) || !site.isRequestType(type)) {
       reject('unknown-type', type, sender.kind);
       return null;
     }
-    if (!site.mayRequest(type, sender.kind, sender.kind === 'page' ? sender.page : null, sender.kind === 'page' ? null : sender.host)) {
+    if (!site.mayRequest(type, sender.kind, null, sender.host)) {
       reject('sender-kind', type, sender.kind);
       return null;
     }
-    const input = site.parse('req', type, payload);
-    if (!input.ok) {
-      reject('payload', type, sender.kind);
-      return rpcError('CG-UNKNOWN', `invalid ${type} request`);
-    }
-    let result: RpcResult<unknown>;
-    try {
-      result = await site.handle(type, input.payload, sender);
-    } catch {
-      reject('handler', type, sender.kind);
-      return rpcError('CG-UNKNOWN', `${type} handler failed`);
-    }
-    if (!result.ok) return result;
-    const output = site.parse('res', type, result.payload);
-    if (!output.ok) {
-      reject('response', type, sender.kind);
-      return rpcError('CG-UNKNOWN', `invalid ${type} response`);
-    }
-    return { ok: true, payload: output.payload };
+    return run(type, (kind, t, p) => site.parse(kind, t, p), (input) => site.handle(type, input, sender), payload, sender.kind);
   }
 
   function onRelayMessage(state: RelayPortState, raw: unknown): void {
@@ -340,8 +338,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       reject('sender-kind', type, 'relay');
       return;
     }
-    const sender: SiteSenderContext = { kind: 'relay', host: state.host, tabSessionId: state.tabSessionId, tabId: state.tabId, frameId: state.frameId, url: state.url };
-    void dispatchSite(type, payload, sender).then((result) => {
+    void dispatchSite(type, payload, state.sender).then((result) => {
       if (result !== null && relayPorts.has(state)) post(state.port, responseEnvelope(id, type, result));
     });
   }
@@ -430,7 +427,8 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
         port.disconnect();
         return;
       }
-      const state: RelayPortState = { port, host: verdict.host, tabId: verdict.tabId, frameId: verdict.frameId, url: verdict.url, tabSessionId, owner };
+      const { host, tabId, frameId, url } = verdict;
+      const state: RelayPortState = { port, host, tabSessionId, owner, sender: { kind: 'relay', host, tabSessionId, tabId, frameId, url } };
       relayPorts.add(state);
       port.onMessage.addListener((message) => onRelayMessage(state, message));
       port.onDisconnect.addListener(() => relayPorts.delete(state));
@@ -463,14 +461,10 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       return undefined;
     }
     const { id, type, payload } = envelope.data;
+    // A site's registry has nothing a page may send yet (1.15.0): its types read as unknown here.
     if (!isTabRequestType(type)) {
-      // 1.15.0: a type of a plugged site's registry, routed by its prefix.
-      if (![...sites.values()].some((site) => type.startsWith(site.prefix))) {
-        reject('unknown-type', type, 'page');
-        return undefined;
-      }
-      const sender: SiteSenderContext = { kind: 'page', page: verdict.page, tabId: verdict.tabId, url: verdict.url };
-      return dispatchSite(type, payload, sender).then((result) => (result === null ? undefined : responseEnvelope(id, type, result)));
+      reject('unknown-type', type, 'page');
+      return undefined;
     }
     if (type === 'tab.register' || !mayRequest(type, 'page', verdict.page, null)) {
       reject('sender-kind', type, 'page');
@@ -494,20 +488,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
         reject('response', type, 'unknown');
         return 0;
       }
-      const to: readonly TabSender[] = TAB_EVENTS[type].to;
-      const message = eventEnvelope(type, checked.payload);
-      let delivered = 0;
-      if (includes(to, 'tab')) {
-        for (const state of tabPorts) {
-          if (!state.session) continue;
-          if (target && state.session.tabSessionId !== target.tabSessionId) continue;
-          if (post(state.port, message)) delivered += 1;
-        }
-      }
-      if (includes(to, 'page') && !target) {
-        for (const port of pagePorts) if (post(port, message)) delivered += 1;
-      }
-      return delivered;
+      return deliver(eventEnvelope(type, checked.payload), TAB_EVENTS[type].to, null, target);
     },
     site(registry) {
       sites.set(registry.host, registry);
@@ -524,31 +505,10 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
         reject('response', type, 'unknown');
         return 0;
       }
-      const message = eventEnvelope(type, checked.payload);
-      let delivered = 0;
-      if (to.includes('tab')) {
-        for (const state of tabPorts) {
-          if (state.host !== host || !state.session) continue;
-          if (target && state.session.tabSessionId !== target.tabSessionId) continue;
-          if (post(state.port, message)) delivered += 1;
-        }
-      }
-      if (to.includes('relay')) {
-        for (const relay of relayPorts) {
-          if (relay.host !== host || (target && relay.tabSessionId !== target.tabSessionId)) continue;
-          if (post(relay.port, message)) delivered += 1;
-        }
-      }
-      if (to.includes('page') && !target) {
-        for (const port of pagePorts) if (post(port, message)) delivered += 1;
-      }
-      return delivered;
+      return deliver(eventEnvelope(type, checked.payload), to, host, target);
     },
     tabs() {
       return [...tabPorts].flatMap((state) => (state.session ? [state.session] : []));
-    },
-    relays() {
-      return [...relayPorts].map(({ host, tabSessionId, tabId, frameId }) => ({ host, tabSessionId, tabId, frameId }));
     },
     pagePorts() {
       return pagePorts.size;
