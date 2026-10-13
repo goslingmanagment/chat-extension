@@ -135,6 +135,52 @@ ChatSpace не меняются.
 - Фикстуры `diagnostics.get`: верные — модуль запущен; один упал, другой не нужен; неверные — неизвестное
   состояние, не вид хоста в `host`.
 
+### P4a3 — протокол вкладки Fansly, `settings.ext`, коды Fansly
+
+- **Тип сообщения — до двух точек** (`TypeSchema` конверта, `tab-protocol`): `op.start` и `fansly.notes.read`; три и
+  больше, пустое слово, заглавная первая буква — отказ, как прежде.
+- **Правила отправителя — одна функция** `senderAllowed(spec, sender, page, host)` в `tab-protocol` (там же типы
+  `TabRequestSpec`, `TabEventSpec`); `mayRequest(type, sender, page, host = null)` — по ней. `RequestSpec.hosts?` —
+  запрос только из вкладки (или relay) этих сайтов; страниц не касается; вкладка неназванного сайта получает отказ.
+  В общем реестре `hosts: ['chatspace']` у X8 и «Новых» хаба: `send.begin`, `send.status`, `send.list`,
+  `send.report`, `send.fuse`, `send.fuseState`, `newcomers.list`, `newcomers.claim` — вкладка fansly.com их не шлёт
+  (приветствие Fansly — своя HTTP-отправка фона, «Новые» — свой проход). Схемы этих запросов не менялись.
+- **Отправитель `relay` и порт `cg-relay`** (`RELAY_PORT_NAME`): кадр relay «Fansly через вкладку» — страница
+  расширения в подкадре вкладки сайта с зарегистрированной сессией; говорит за эту сессию. В общем реестре ему не
+  разрешено ничего.
+- **Модуль `tab-messages-fansly`** (новый, только подпуть): реестр сайта, разбирается в чанке `bg/fansly` —
+  `fansly.followers.{scan,pause,resume,read,prioritize,exclude,history,close}` и событие `fansly.followers.changed`;
+  `fansly.notes.{read,create,edit,delete,name}`; `fansly.voice.{create,status,audio,attempts}`;
+  `fansly.vault.{checkpoint,resume,clear}`; `fansly.relay.{head,body,failure}` от relay и события
+  `fansly.relay.{fetch,abort}` к нему (только `https://apiv3.fansly.com/api/v1/`, с ожиданием аккаунта для последней
+  сверки кадра). У каждого запроса `hosts: ['fansly-web']`. Своя ошибка сайта — в теле ответа
+  (`{ok: false, error: CgAnyErrorWire}`). Первая редакция: PR каждой семьи (P9c, P10*, P11b, P12b*, P13a)
+  дописывает поля и типы добавочно.
+- **Модуль `errors-fansly`** (новый, только подпуть) и приложение А «Коды Fansly»: 34 кода `CG-FAN-*`, `CG-NOTE-*`,
+  `CG-VOICE-*`, `CG-VAULT-*`, `CG-FNEW-*`, реестр сайта (виды `fansly`, `note`, `voice`, `vault`, `newcomers`), ключи
+  текстов и форма каталога Fansly; `CgAnyCode`, `CgAnyErrorWireSchema`; `HUB_FANSLY_ERROR_CODES` — `voice_*`,
+  `gate_voice_*`, `idempotency_mismatch`, `artifact_expired` хаба → коды Fansly. Числовые коды старого не
+  заимствуются; списанные им CG-API-02/03/04, CG-AUTH-01/02 не занимаются (ER-083). Тексты ru и en — каталоги Fansly
+  `core/src/domain/hosts/fansly/i18n` (не каталоги ChatSpace); `docs/error-registry.md` — раздел «Коды Fansly».
+  `CG_CODES` и общий реестр не менялись.
+- **Карта ошибок хаба:** `conversation_fan_mismatch` (409, HF-9) → CG-CONTEXT-CHANGED, показать; общий код — путь
+  AI и вид операции общие. `HUB_ERROR_STATUSES` — плюс эта строка.
+- **Ключ `settings.ext`** (`STORAGE_KEYS.settingsExt`; схема — новый модуль `settings-ext`, только подпуть): своя
+  версия `v: 1`; вид с умолчаниями `{v, hosts: {'fansly-web': {enabled, viaTab, notesView, sound: {messagesTone,
+  subscribersTone}}}, windows: {deep: 3001…5000 | null}}`, патч (`windows.deep: null` — снять), ответ «сохранено с
+  ревизией». В хранилище — только то, что выбрал человек; поля, которых патч не называет, и поля других сборок
+  остаются как есть. Настройки v1 не менялись (`deep` ≤ 3000, фикстура `deep: 3001` недопустима по-прежнему).
+  Владелец — `createSettingsExtOwner` в `core/src/services/settings-owner.ts` рядом с владельцем v1, который не
+  менялся; подключают его к фону и RPC PR потребителей (P9a, P14b1, P4b2).
+- **Лёгкие копии списка сайтов** в `tab-protocol` и `settings` заменены импортом `HOST_KINDS` из `hosts` (лёгкий
+  модуль, байт ChatSpace не стоит).
+- Фикстуры: `test/fixtures/protocols-fansly.ts` — верные и неверные на каждый запрос, ответ и событие реестра Fansly,
+  на вид и патч `settings.ext`. Тесты: `packages/contracts/test/fansly-protocol.test.ts`,
+  `packages/core/src/services/settings-owner.test.ts` (владелец `settings.ext` и приёмка отката новое → старое →
+  смена темы → новое на настоящих владельцах), `packages/core/src/domain/settings/ext.test.ts`,
+  `packages/core/src/domain/hosts/fansly/i18n/i18n.test.ts`, `packages/platform/src/rpc.test.ts` (relay, правила
+  сайта, реестр сайта в фоне), `packages/core/src/domain/errors/hub-map.test.ts`.
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

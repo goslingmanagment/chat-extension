@@ -3362,8 +3362,74 @@ M2–M6 — не строгая очередь, а точки сборки. По
 - `password_change_required` хаб больше не выдаёт (Decision 370, `error-handling.md` §3),
   поэтому кода для ER-069 нет.
 
-**Фаза 2:** `CG-VOICE-*`, `CG-FANSLY-SESSION`, `CG-FANSLY-REQUEST`, `CG-UPLOAD-*`. Заводятся
-по конкретным исходам с сервера, после сверки смысла, без заимствования старых номеров.
+**Коды Fansly** (1.15.0, R20 P4a3; `docs/project-unite/architecture.md` §1.6, §12). Реестр сайта —
+`packages/contracts/src/errors-fansly.ts`, тексты (ru, en) — каталоги Fansly
+`packages/core/src/domain/hosts/fansly/i18n/`. Правила те же, что у общего реестра; поля записи — те же, вид — свой
+(`fansly`, `note`, `voice`, `vault`, `newcomers`). Общий реестр этих кодов не содержит, бандлы ChatSpace их не несут:
+реестр сайта сливается с общим только во вкладке Fansly, на страницах расширения и в `bg/fansly`. По проводу код Fansly
+идёт только в теле сообщения Fansly (`CgAnyErrorWire`); конверт, операции, отправки и тосты несут общие коды. Числовые
+коды старого Fansly-расширения не заимствуются — их смысл назван в колонке «Старое»; списанные им номера
+CG-API-02/03/04 и CG-AUTH-01/02 не занимаются никогда (ER-083). Сеть, тайм-аут и смена аккаунта или документа — общие
+CG-NETWORK, CG-TIMEOUT и CG-CONTEXT-CHANGED; занятый или уже поприветствованный фан и неясная отправка приветствия —
+общие CG-CLAIM-BUSY и CG-SEND-UNCERTAIN.
+
+| Код | Смысл | Повтор | Старое |
+|---|---|---|---|
+| CG-FAN-OFF | Fansly не включён в расширении или браузер забрал права на fansly.com | — | — |
+| CG-FAN-SESSION | нет сессии Fansly этой модели: её вкладка не открыта или ещё не обращалась к Fansly | клик | CG-FAN-01 |
+| CG-FAN-EXPIRED | сессия Fansly истекла: Fansly ответил 401 или 403 | клик | CG-FAN-02 |
+| CG-FAN-REQUEST | Fansly отказал: `success: false` при 200, иной 4xx или 5xx | клик | CG-FAN-03 |
+| CG-FAN-RATE-LIMIT | Fansly просит паузу (429): общее охлаждение креатора, срок — от пейсера | срок | CG-API-01 |
+| CG-FAN-TAB | «Fansly через вкладку» включён, а кадр во вкладке модели не поднялся или не ответил до опеки | клик | CG-FAN-04 |
+| CG-FAN-GROUP | чат с фаном на Fansly не найден: ни в хабе, ни в ответах страницы, ни поиском в инбоксе | клик | — |
+| CG-NOTE-READ | заметки фана не прочитались (одна попытка; «Обновить» читает снова) | чтение | — |
+| CG-NOTE-WRITE | Fansly не сохранил заметку — доказанный отказ, ничего не записано | клик | — |
+| CG-NOTE-UNCERTAIN | неизвестно, сохранилась ли заметка: снова — только после перечитывания | чтение | — |
+| CG-NOTE-TOO-LONG | текст длиннее предела (заголовок и имя — 1000, текст — 50 000 символов); не обрезается | — | — |
+| CG-VOICE-OFF | голосовые заметки выключены на хабе (`voice_disabled`) | — | CG-VOICE-01 |
+| CG-VOICE-NOT-ALLOWED | страница не подключена к войсам (`voice_not_allowlisted`, `gate_voice_disabled`) | — | CG-VOICE-02, CG-VOICE-12 |
+| CG-VOICE-NO-PROFILE | для страницы не настроен голос (`voice_no_profile`, `gate_voice_no_profile`) | — | CG-VOICE-03 |
+| CG-VOICE-SCRIPT | скрипт не прошёл проверку хаба: длина или голосовые теги (`voice_script_invalid`) | клик | CG-VOICE-04 |
+| CG-VOICE-SOURCE | источник скрипта больше не подходит (`voice_source_invalid`) | клик | CG-VOICE-05 |
+| CG-VOICE-QUOTA | дневной лимит символов войсов страницы исчерпан (`voice_quota_denied`) | — | CG-VOICE-06 |
+| CG-VOICE-ATTEMPT | этот запрос войса уже связан с другим скриптом (`idempotency_mismatch`) | клик | CG-VOICE-07 |
+| CG-VOICE-EXPIRED | аудио войса больше не хранится (`artifact_expired`) | клик | CG-VOICE-08 |
+| CG-VOICE-RETRIEVAL-OFF | получение войсов выключено на хабе (`voice_retrieval_disabled`) | — | CG-VOICE-09 |
+| CG-VOICE-PROVIDER | сервис озвучки недоступен, оплата не начата (`voice_provider_unavailable`, `gate_voice_provider_unavailable`) | клик | CG-VOICE-10 |
+| CG-VOICE-CORRUPT | аудиофайл войса повреждён: не сошлась контрольная сумма (`voice_artifact_corrupt`) | клик | CG-VOICE-11 |
+| CG-VOICE-UNCERTAIN | исход оплаченной озвучки неизвестен: новая не создаётся, попытка проверяется тем же запросом | никогда | — |
+| CG-VOICE-ATTACH | файл войса не передан в поле этого чата | клик | — |
+| CG-VOICE-ATTACH-UNKNOWN | неизвестно, прикрепился ли файл: сам он повторно не передаётся | клик | — |
+| CG-VAULT-NO-ALBUM | нет открытого альбома или формы загрузки Fansly | — | — |
+| CG-VAULT-UPLOAD | Fansly не принял файл — доказанный отказ | клик | — |
+| CG-VAULT-UNCERTAIN | неизвестно, загрузился ли файл: без ответа чаттера не перезаливается | клик | — |
+| CG-VAULT-STOPPED | загрузка остановлена на контрольной точке: сменились альбом, аккаунт или вкладка, отозваны права | клик | — |
+| CG-FNEW-PARTIAL | проверка «Новых» прошла не до конца — результат неполный (NF-025) | клик | — |
+| CG-FNEW-ACCOUNT | аккаунт вкладки сменился во время прохода — проход остановлен (NF-026) | клик | — |
+| CG-FNEW-DM-CLOSED | фану нельзя написать: платная ЛС или его ограничения (FS-NEW-2) | — | — |
+| CG-FNEW-HISTORY | история фана изменилась после проверки — подтвердите черновик (NF-018) | клик | — |
+| CG-FNEW-UNVERIFIED | история фана не проверена полностью — свой текст не отправить (FS-NEW-6) | клик | — |
+
+**Хаб → коды Fansly** (`HUB_FANSLY_ERROR_CODES`): ответы хаба на вызовы `bg/fansly` (войс: создание, статус, аудио) и
+на поток `voice-script` читаются сначала по этой таблице, потом по общим правилам (которые `voice_*` не читают).
+`gate_voice_unsupported_platform` и `gate_voice_identity_required` — наши ошибки, остаются CG-HUB-REQUEST по статусу 400.
+
+| Код хаба | Статус | Код Fansly |
+|---|---|---|
+| `voice_disabled` | 403 | CG-VOICE-OFF |
+| `voice_not_allowlisted` | 403 | CG-VOICE-NOT-ALLOWED |
+| `gate_voice_disabled` | 400 | CG-VOICE-NOT-ALLOWED |
+| `voice_no_profile` | 409 | CG-VOICE-NO-PROFILE |
+| `gate_voice_no_profile` | 400 | CG-VOICE-NO-PROFILE |
+| `voice_script_invalid` | 400 | CG-VOICE-SCRIPT |
+| `voice_source_invalid` | 400 | CG-VOICE-SOURCE |
+| `voice_quota_denied` | 429 | CG-VOICE-QUOTA |
+| `idempotency_mismatch` | 409 | CG-VOICE-ATTEMPT |
+| `artifact_expired` | 410 | CG-VOICE-EXPIRED |
+| `voice_retrieval_disabled` | 403 | CG-VOICE-RETRIEVAL-OFF |
+| `voice_provider_unavailable` | 503 | CG-VOICE-PROVIDER |
+| `gate_voice_provider_unavailable` | 400 | CG-VOICE-PROVIDER |
+| `voice_artifact_corrupt` | 500 | CG-VOICE-CORRUPT |
 
 **Колонка «chat-extension» в `hub/docs/error-handling.md`.**
 
@@ -3397,8 +3463,10 @@ M2–M6 — не строгая очередь, а точки сборки. По
 - `gate_draft_required`, `gate_min_messages`, `gate_hi_greeting_limit`, `gate_ping_active` →
   CG-GATE-DRAFT, CG-GATE-HISTORY, CG-GATE-HI, CG-GATE-PING;
 - `context_conflict` → CG-CONTEXT-CONFLICT;
+- `conversation_fan_mismatch` → CG-CONTEXT-CHANGED (R20 HF-9: группа и фан запроса Fansly — не пара по захвату
+  страницы; повтора как есть нет, вкладка заново определяет фана чата);
 - `internal_error` → CG-HUB-UNAVAILABLE;
-- `voice_*` → CG-VOICE-* (фаза 2).
+- `voice_*` и `gate_voice_*` → коды Fansly (таблица «Хаб → коды Fansly» выше); общие правила их не читают.
 
 **Старые коды → новые** (для поддержки при переходе). Таблица из приложения Г плана A
 пересобирается по этому реестру: код из столбца A заменяется кодом из первого столбца.
