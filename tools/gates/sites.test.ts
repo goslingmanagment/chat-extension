@@ -107,6 +107,8 @@ describe('whose path is whose (site-paths.cjs)', () => {
     'packages/testing/src/fixture-fansly/harness.ts',
     'packages/testing/e2e/specs/fansly-stand.e2e.ts',
     'packages/testing/src/fake-fansly/api.ts',
+    'packages/testing/src/fake-fansly/neighbor/guard.ts',
+    'packages/testing/fansly-neighbor.vite.config.ts',
     'packages/contracts/test/fixtures/fansly.ts',
     'apps/extension/test/hosts.test.ts',
     'packages/host-fansly/src/main/ws-tap.test.ts',
