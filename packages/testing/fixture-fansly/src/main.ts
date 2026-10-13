@@ -29,11 +29,13 @@
 //   main:73686-73690, :73822-73868);
 // - the mini-chat with its own container and composer outside the route (mini-chat.ts; main:59914, :61744-61745);
 // - `bright-theme` / `dark-theme` on `<html>` (theme.ts; main:52583-52597, styles:2, :257);
-// - the old extension's four marks (old-extension.ts; fansly-chat 2.10.x).
+// - the old extension's four marks (old-extension.ts; fansly-chat 2.10.x);
+// - for FBuddy's MAIN script, Angular's view registry with the root view in it (ng.ts `registerView`).
 // Its data come from the fake Fansly (R20 P6b, packages/testing/src/fake-fansly) when the stand server names one in
 // the page's `<meta>` tags: real XHR requests (http.ts, xhr-backend.ts) and a real socket (socket.ts), wired by
 // live.ts. Without it — a DOM test, `?stand-backend=local` — the page answers itself from its in-page world
-// (backend.ts). Not here yet: FBuddy (P6d), the vault route.
+// (backend.ts). FBuddy is not the page's: the stand server puts the FBuddy-like neighbour (R20 P6d,
+// src/fake-fansly/neighbor) in front of this script when a test asks. Not here yet: the vault route.
 
 import './styles.css';
 

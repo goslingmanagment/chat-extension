@@ -156,8 +156,11 @@ export class MessageContainer implements View {
     const s = this.s;
     const rendered = view.body.querySelectorAll(':scope > .flex-col > app-group-message').length;
     for (const message of run.messages.slice(rendered)) {
+      // The bubble's `div.actions.flex-row` row stands next to the text, as in the live DOM (dom-skeleton.json): where
+      // FBuddy adds its pin and translate entries.
       const bubble = el(s, 'app-group-message', { class: run.mine ? 'message my-message' : 'message', attrs: { apptheme: '' } }, [
         el(s, 'div', { class: 'message-reply-wrapper' }, [el(s, 'div', { class: 'message-text' }, [message.content])]),
+        el(s, 'div', { class: 'actions flex-row' }),
       ]);
       setClass(bubble, 'queued', message.queued);
       view.body.append(el(s, 'div', { class: 'flex-col width-100' }, [bubble]));

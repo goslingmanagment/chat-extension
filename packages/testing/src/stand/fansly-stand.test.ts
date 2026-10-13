@@ -1,7 +1,8 @@
 // The Fansly stand of the stand server on its own (no browser; R20 P6a): its
 // page is served under its own loopback NAME, `localhost`, on a port of its
 // own — never as ChatSpace's `127.0.0.1` — and its build lands where the
-// server serves it from.
+// server serves it from. On a test's word it puts the FBuddy-like neighbour
+// (R20 P6d) first in the page's head.
 
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
@@ -10,11 +11,14 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import neighborViteConfig, { FANSLY_NEIGHBOR_BUILD_DIR as NEIGHBOR_VITE_OUT_DIR, FANSLY_NEIGHBOR_ENTRY } from '../../fansly-neighbor.vite.config';
 import viteConfig, { FANSLY_FIXTURE_BUILD_DIR as VITE_OUT_DIR } from '../../fixture-fansly.vite.config';
 import { CONTROL_REQUEST_HEADER } from '../../fixture-chatspace/src/protocol';
 import { FANSLY_SERVER_META } from '../../fixture-fansly/src/server-protocol';
+import type { BootFacts } from '../fake-fansly/neighbor';
+import { DEFAULT_GUARD_WORDS, NEIGHBOR_CONFIG_ATTRIBUTE, NEIGHBOR_CONTROL_PATH, NEIGHBOR_SCRIPT_PATH } from '../fake-fansly/neighbor/protocol';
 import { FANSLY_STAND_HOSTNAME, FANSLY_STAND_JOURNAL_PATH, startStandServer, type StandServer } from '../stand-server';
-import { FANSLY_FIXTURE_BUILD_DIR, FANSLY_FIXTURE_SOURCE_DIR } from './paths';
+import { FANSLY_FIXTURE_BUILD_DIR, FANSLY_FIXTURE_SOURCE_DIR, FANSLY_NEIGHBOR_BUILD_DIR } from './paths';
 
 const fanslyDir = mkdtempSync(join(tmpdir(), 'cg-fansly-stand-'));
 writeFileSync(
@@ -25,11 +29,13 @@ writeFileSync(
 );
 mkdirSync(join(fanslyDir, 'assets'));
 writeFileSync(join(fanslyDir, 'assets', 'index-test.js'), 'export {};');
+const neighborDir = mkdtempSync(join(tmpdir(), 'cg-fansly-neighbor-'));
+writeFileSync(join(neighborDir, 'neighbor.js'), '/* neighbour test */');
 
 let stand: StandServer;
 
 beforeAll(async () => {
-  stand = await startStandServer({ fanslyDir });
+  stand = await startStandServer({ fanslyDir, neighborDir });
 });
 
 afterAll(async () => {
@@ -37,16 +43,22 @@ afterAll(async () => {
 });
 
 /** A GET to the Fansly stand's port over 127.0.0.1, under the Host name given (the browser sends the name it was told). */
-function get(path: string, host: string, headers: Record<string, string> = {}): Promise<{ status: number; type: string; body: string }> {
+function get(path: string, host: string, headers: Record<string, string> = {}, method = 'GET', body?: string): Promise<{ status: number; type: string; body: string }> {
   return new Promise((resolve, reject) => {
-    const call = request({ hostname: '127.0.0.1', port: stand.fansly.port, path, headers: { host, ...headers } }, (response) => {
+    const call = request({ hostname: '127.0.0.1', port: stand.fansly.port, path, method, headers: { host, ...headers } }, (response) => {
       const chunks: Buffer[] = [];
       response.on('data', (chunk: Buffer) => chunks.push(chunk));
       response.on('end', () => resolve({ status: response.statusCode ?? 0, type: String(response.headers['content-type'] ?? ''), body: Buffer.concat(chunks).toString('utf8') }));
     });
     call.on('error', reject);
-    call.end();
+    call.end(body);
   });
+}
+
+/** The neighbour's boot facts in a served page; null — no boot script. */
+function bootFacts(page: string): BootFacts | null {
+  const attribute = new RegExp(`${NEIGHBOR_CONFIG_ATTRIBUTE}="([^"]*)"`).exec(page)?.[1];
+  return attribute === undefined ? null : (JSON.parse(attribute.replace(/&lt;/g, '<').replace(/&quot;/g, '"').replace(/&amp;/g, '&')) as BootFacts);
 }
 
 describe('the Fansly stand on the stand server', () => {
@@ -132,5 +144,48 @@ describe('the Fansly stand on the stand server', () => {
     expect(VITE_OUT_DIR).toBe(FANSLY_FIXTURE_BUILD_DIR);
     expect(viteConfig.root).toBe(FANSLY_FIXTURE_SOURCE_DIR);
     expect(FANSLY_FIXTURE_BUILD_DIR).toMatch(/\/\.cache\/fixture-fansly\/$/);
+  });
+
+  it('builds the neighbour into one classic script where the server serves it from (R20 P6d)', () => {
+    expect(NEIGHBOR_VITE_OUT_DIR).toBe(FANSLY_NEIGHBOR_BUILD_DIR);
+    expect(FANSLY_NEIGHBOR_BUILD_DIR).toMatch(/\/\.cache\/fansly-neighbor\/$/);
+    expect(neighborViteConfig.build?.lib).toMatchObject({ entry: FANSLY_NEIGHBOR_ENTRY, formats: ['iife'] });
+  });
+});
+
+describe('the Fansly stand and the FBuddy-like neighbour (R20 P6d)', () => {
+  const host = (): string => `localhost:${stand.fansly.port}`;
+  const control = (config: unknown) => get(NEIGHBOR_CONTROL_PATH, host(), { [CONTROL_REQUEST_HEADER]: '1', 'content-type': 'application/json' }, 'POST', JSON.stringify(config));
+
+  it('serves its one script, and puts no neighbour on a page unless asked', async () => {
+    expect(await get(NEIGHBOR_SCRIPT_PATH, host(), { 'sec-fetch-dest': 'script' })).toMatchObject({ status: 200, type: 'text/javascript; charset=utf-8', body: '/* neighbour test */' });
+    expect(bootFacts((await get('/messages', host(), { 'sec-fetch-dest': 'document' })).body)).toBeNull();
+  });
+
+  it('a page’s own `?stand-neighbor=` puts the boot script first, told the mode and where the fake Fansly’s API is', async () => {
+    const page = (await get('/messages?stand-neighbor=after,guard,panel=mobile', host(), { 'sec-fetch-dest': 'document' })).body;
+    expect(page.indexOf(NEIGHBOR_SCRIPT_PATH)).toBeLessThan(page.indexOf('fansly stand test'));
+    expect(bootFacts(page)).toMatchObject({ config: { mode: 'after', guard: DEFAULT_GUARD_WORDS, panel: 'mobile' }, apiOrigin: stand.fansly.fake.apiOrigin });
+    // A page that answers itself has no API for it.
+    expect(bootFacts((await get('/messages?stand-neighbor=before&stand-backend=local', host(), { 'sec-fetch-dest': 'document' })).body)).toMatchObject({ config: { mode: 'before' }, apiOrigin: null });
+    // A typo is the test's error, loud.
+    const bad = await get('/messages?stand-neighbor=aftre', host(), { 'sec-fetch-dest': 'document' });
+    expect(bad.status).toBe(400);
+    expect(bad.body).toContain('aftre');
+  });
+
+  it('a test sets the default of every later page load over the control endpoint; a page’s own spec wins; null clears it', async () => {
+    try {
+      expect(JSON.parse((await control({ mode: 'reinject', reinjectMs: 500 })).body)).toMatchObject({ neighbor: { mode: 'reinject', reinjectMs: 500, timing: 'load' } });
+      expect(bootFacts((await get('/messages/810000000000000001', host(), { 'sec-fetch-dest': 'document' })).body)?.config).toMatchObject({ mode: 'reinject', reinjectMs: 500 });
+      expect(bootFacts((await get('/messages?stand-neighbor=off', host(), { 'sec-fetch-dest': 'document' })).body)).toBeNull();
+      expect(bootFacts((await get('/messages?stand-neighbor=legacy', host(), { 'sec-fetch-dest': 'document' })).body)?.config.mode).toBe('legacy');
+      // Without the control header it is not a control: a POST to the page is refused.
+      expect((await get(NEIGHBOR_CONTROL_PATH, host(), {}, 'POST', 'null')).status).toBe(405);
+      expect(stand.fansly.neighbor.current?.mode).toBe('reinject');
+    } finally {
+      expect(JSON.parse((await control(null)).body)).toEqual({ neighbor: null });
+    }
+    expect(bootFacts((await get('/messages', host(), { 'sec-fetch-dest': 'document' })).body)).toBeNull();
   });
 });

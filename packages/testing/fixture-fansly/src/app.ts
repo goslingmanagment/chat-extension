@@ -17,7 +17,7 @@ import { LiveSession, type LiveOptions, type ServerConfig } from './live';
 import { MessagesRoute } from './messages-route';
 import { MiniChat } from './mini-chat';
 import { ModalService } from './modal';
-import { el, host, scope } from './ng';
+import { el, host, registerView, scope } from './ng';
 import { OldExtensionMarks } from './old-extension';
 import { FANSLY_STAND_DEFAULT_LATENCY_MS } from './protocol';
 import { Router, type Route } from './router';
@@ -59,6 +59,8 @@ export interface StandAppOptions {
 }
 
 export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}): StandApp {
+  // The root view goes into Angular's view registry first thing, as bootstrap does.
+  registerView();
   const world = createWorld();
   const app = { latency: options.latency ?? FANSLY_STAND_DEFAULT_LATENCY_MS };
   const live = options.server === undefined ? null : new LiveSession(options.server, options.live);
