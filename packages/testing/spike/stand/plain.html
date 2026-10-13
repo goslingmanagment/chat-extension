@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>spike · plain</title>
+    <script>
+      (function () {
+        var html = document.documentElement;
+        html.dataset.order = (html.dataset.order || '') + 'page,';
+        window.__pageSaw = { ws: Function.prototype.toString.call(window.WebSocket), reg: window.__cgReg || null, at: performance.now() };
+      })();
+    </script>
+  </head>
+  <body>
+    <p>plain</p>
+    <script>
+      // Web-accessible resources seen from the page itself (no host permission involved): a fetch and a <script src>.
+      window.__war = function (url) {
+        return Promise.all([
+          fetch(url).then(
+            function (r) {
+              return 'fetch:' + r.status;
+            },
+            function (e) {
+              return 'fetch-error:' + e.name;
+            },
+          ),
+          new Promise(function (ok) {
+            var s = document.createElement('script');
+            s.src = url;
+            s.onload = function () {
+              ok('script:load');
+            };
+            s.onerror = function () {
+              ok('script:error');
+            };
+            document.head.appendChild(s);
+          }),
+        ]);
+      };
+    </script>
+  </body>
+</html>

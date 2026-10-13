@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "cg-spike-main",
+  "version": "1.0",
+  "browser_specific_settings": { "gecko": { "id": "main@cg-spike.test", "strict_min_version": "142.0" } },
+  "host_permissions": ["http://fansly.test/*", "http://apiv3.fansly.test/*", "ws://wsv3.fansly.test/*"],
+  "content_scripts": [
+    { "matches": ["http://fansly.test/*"], "js": ["fansly-main.js", "nav-main.js"], "world": "MAIN", "run_at": "document_start" },
+    { "matches": ["http://fansly.test/*"], "js": ["iso.js"], "run_at": "document_start" }
+  ]
+}

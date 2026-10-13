@@ -1,7 +1,8 @@
 // What the AMO sources archive leaves out besides docs, tests and build output:
 // the ChatSpace-like stand of R02 (its Vue + TipTap app, the stand server and
-// entry, the M0 spike page, the fixture's DOM tests) and the e2e harness that
-// drives Firefox against it. None of it is needed to rebuild the XPI.
+// entry, the M0 spike page, the fixture's DOM tests), the e2e harness that
+// drives Firefox against it and the R20 spike's probes (P3a). None of it is
+// needed to rebuild the XPI.
 // wxt.config.ts excludes these paths; tools/archive-check fails if any of them
 // is in the sources archive anyway, and if anything left in it imports or
 // references a file that is not there (`dangling-import`).
@@ -25,6 +26,7 @@ export const STAND_SOURCE_PATHS = [
   'packages/testing/src/stand-cli.ts',
   'packages/testing/src/fixture/',
   'packages/testing/e2e/',
+  'packages/testing/spike/',
 ] as const;
 
 /**

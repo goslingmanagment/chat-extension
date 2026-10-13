@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "cg-spike-lazy",
+  "version": "__VERSION__",
+  "browser_specific_settings": { "gecko": { "id": "lazy@cg-spike.test", "strict_min_version": "142.0" } },
+  "background": __BACKGROUND__,
+  "permissions": ["storage"]
+}
