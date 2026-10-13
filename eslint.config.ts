@@ -293,6 +293,16 @@ export default defineConfig(
     rules: restrict(APP_RESTRICTION),
   },
   {
+    // A site's background chunk (docs/project-unite/architecture.md §3.3): the hub, the SDK and the browser API are the
+    // core's, reached through the kit.
+    files: ['apps/extension/bg/**/*.ts'],
+    ignores: ['apps/extension/bg/vite.config.ts'],
+    rules: restrict(APP_RESTRICTION, HUB_BACKGROUND_ONLY, BACKGROUND_ROOT_IMPORT, {
+      group: CG.platform,
+      message: 'A site\'s background chunk reaches the browser only through the core\'s kit (architecture §3.3).',
+    }),
+  },
+  {
     files: MAIN_WORLD_ENTRIES,
     rules: restrict({
       regex: '^(?!@cg/host-chatspace/main$|wxt$|wxt/utils/define-[a-z-]+$|\\.\\./hosts/runtime/chatspace$)',
@@ -304,7 +314,7 @@ export default defineConfig(
     rules: { 'no-restricted-imports': 'off', 'no-restricted-globals': 'off', 'no-restricted-properties': 'off', 'no-console': 'off' },
   },
   {
-    files: ['tools/**/*.ts', 'tests/**/*.ts', 'packages/testing/**/*.ts', 'packages/*/test/**/*.ts', 'apps/extension/{build,test,lazy}/**/*.ts', '*.config.ts', 'apps/extension/wxt.config.ts'],
+    files: ['tools/**/*.ts', 'tests/**/*.ts', 'packages/testing/**/*.ts', 'packages/*/test/**/*.ts', 'apps/extension/{build,test,lazy}/**/*.ts', 'apps/extension/bg/vite.config.ts', '*.config.ts', 'apps/extension/wxt.config.ts'],
     languageOptions: { globals: globals.node },
   },
 );

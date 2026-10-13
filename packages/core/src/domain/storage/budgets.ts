@@ -18,6 +18,8 @@ export const SESSION_KEYS = {
   resultPrefix: 'result.',
   /** Revision of the settings, monotonic while the browser runs (§9.4 «с ревизией»). */
   settingsRevision: 'settings.revision',
+  /** The greeting leases of «Новые» this install holds (H-7): tokens and deadlines, no text. */
+  greetingLeases: 'newcomers.leases',
 } as const;
 
 /** storage.local keys of the background that are not part of the frozen `STORAGE_KEYS`. */

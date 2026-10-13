@@ -40,7 +40,8 @@ import {
 import { type BoardsRequestType, type RpcResult, type TabRpc } from '@cg/core/application/boards';
 import { hubErrorWire, resolveHubError } from '@cg/core/domain';
 import { type OpsEnvironment } from '@cg/core/domain/ops';
-import { ActionTokens, OpScheduler, SendCoordinator, type BackgroundSendPort } from '@cg/core/services';
+import { ActionTokens, OpScheduler, type BackgroundSendPort } from '@cg/core/services';
+import { SendCoordinator } from '@cg/core/services/custody';
 
 import { MemoryStore, sequentialIds, type FakeClock } from './clock';
 import { FakeHub, hubError } from './fake-hub';

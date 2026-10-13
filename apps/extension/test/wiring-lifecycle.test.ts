@@ -14,7 +14,8 @@
 
 import { DEFAULT_SETTINGS, STORAGE_KEYS, type LogRecord, type OpView, type SendJournalEntry, type SettingsState } from '@cg/contracts';
 import { account, journalEntry, opView } from '@cg/contracts/fixtures';
-import { OPS_STORE_KEY, createResultsStore, createSendJournal } from '@cg/core/services';
+import { OPS_STORE_KEY, createResultsStore } from '@cg/core/services';
+import { createSendJournal } from '@cg/core/services/custody';
 import { ChatExtensionHub } from '@cg/hub';
 import { createKeyValueStore } from '@cg/platform';
 import { callsTo } from '@cg/testing/fake-hub';

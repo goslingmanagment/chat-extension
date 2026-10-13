@@ -400,27 +400,46 @@ XHR Angular, а второй MAIN-скрипт — лишняя точка, ко
   владелец журнала запрещён; чанкам она доступна портом `BackgroundKit.nativeSends`. F1 записывает запас ядра до
   сигнального порога **числом** в реестр байтов; каждый P2v и P9a сверяется с ним; исчерпан — следующая служба
   выносится в чанк. Порог 800 КиБ заранее не поднимается; поднять его можно только отдельным решением с обоснованием.
-- **Контракт чанка сайта:**
+- **Контракт чанка сайта** (как построен в F1: `apps/extension/src/composition/background/host-module.ts`, только типы;
+  чанк — default-экспорт `apps/extension/bg/<сайт>.ts`):
 ```ts
-interface BackgroundHostModule { start(kit: BackgroundKit): Promise<BackgroundHostHandle> }   // идемпотентно
-interface BackgroundKit {        // порты ядра, только type-импорты контрактов
-  hub: HubFacadePort; settings: SettingsPort; storage: StoragePort; clock: Clock; log: LogSink;
-  telemetry: TelemetryPort; router: TabRouterPort; permissions: PermissionsPort; tabs: TabsPort;
+interface BackgroundHostModule { host: HostKind; start(kit: BackgroundKit): Promise<BackgroundHostHandle> }  // идемпотентно
+interface BackgroundKit {        // порты ядра; чанк импортирует только их типы
+  hub: HubPort;                  // фасад (claim, claimStatus), call = forCore, resolve, errorWire, session, bootstrap, page
+  storage: StoragePort;          // local / session в двух диалектах служб ядра
+  clock: Clock; ids: IdSource; log: LogPort;
+  telemetry: TelemetryPort;      // report (ai_acceptance), countCode (client_health)
+  router: TabRouterPort;         // события вкладкам, список сессий
+  ops: OpsPort;                  // forSend, view, environment — операции планировщика ядра
+  tokens: Pick<ActionTokens, 'redeem'>;
+  install: InstallPort;          // instanceId, owner
   nativeSends: NativeSendPort;   // регистрация ручных отправок и её журнал — у ядра
 }
 interface BackgroundHostHandle {
-  onTabMessage(msg: VerifiedTabMessage): Promise<unknown>;     // ядро уже проверило отправителя и конверт
-  onWebRequest(fact: WebRequestFact): void;                    // факты слушателей ядра (§8.2)
+  onTabMessage(msg: VerifiedTabMessage): Promise<HostAnswer>;  // ядро уже проверило отправителя, сессию и тело
+  onEvent(event: HostModuleEvent): Promise<void>;              // bootstrap, смена человека, «Очистить», ручная отправка
+  facts(): HostModuleFacts;                                    // диагностика: счёт и журнал без текста
   dispose(): Promise<void>;
 }
 ```
-  Чанк не создаёт вторых владельцев журнала, настроек, телеметрии и хаба. Ошибка импорта или старта — понятное состояние
-  сайта в «Статусе», ядро продолжает работать; повторный старт после сбоя восстанавливает сохранённые состояния.
+  Порты, которые нужны только Fansly, добавляются вместе с его службами, добавочно: `permissions`, `tabs` (вкладки
+  браузера, relay), `settings` (раздел сайта) и `onWebRequest(fact: WebRequestFact)` у ручки — с первыми слушателями
+  ядра (§8.2, P9a). Запросы своего сайта ядро передаёт модулю по таблице корня композиции (`HOST_REQUESTS`, у
+  ChatSpace — `send.*` и `newcomers.claim`). Чанк не создаёт вторых владельцев журнала, настроек, телеметрии и хаба:
+  граф держит `.dependency-cruiser.cjs` (`background-chunk-boundaries`, `background-chunk-through-the-kit`), а сборка
+  чанка проверяет, что в файл не попал ни один модуль ядра (`build/background-bundles.ts`). Ошибка импорта или
+  старта — состояние сайта `failed` в диагностике (`hostModules`) и предупреждение «Статуса», запросы сайта отвечают
+  `CG-RUNTIME-UNREACHABLE`, ядро продолжает работать; следующая попытка — со следующим поводом, не раньше чем через
+  10 с и не больше 5 раз за реалм, каждая по новому адресу; следующий старт фона пробует заново и восстанавливает
+  сохранённые состояния.
 - **Что в ядре:** слушатели `webRequest` на верхнем уровне (иначе событие не разбудит фон, S6 Q3), синхронизация прав и
   регистраций, приём `tab.register`, проверка отправителя и конверта сообщений сайта. Слушатели кладут шаблон и факты
   ответов в память и `storage.session` и чанк Fansly не тянут.
 - **Когда грузится чанк:** рукопожатие вкладки сайта (`runtime.onConnect`), выдача прав, старт фона при включённом сайте и
-  незавершённых работах (журналы отправок, попытки войсов, загрузка vault, долги регистраций).
+  незавершённых работах (журналы отправок, попытки войсов, загрузка vault, долги регистраций). Незавершённые работы —
+  ключи хранилища, которые корень композиции называет для сайта (`HOST_MODULE_SPECS`; у ChatSpace — журнал X8,
+  предохранитель и аренды приветствий): есть хоть один — модуль стартует шагом барьера готовности, как до F1 стартовали
+  эти службы. Ещё — первый запрос сайта (страница «Статус» спрашивает предохранитель).
 - Профиль только ChatSpace чанк Fansly не грузит и не разбирает никогда; профиль только Fansly не грузит `bg/chatspace`.
 
 ### 3.4 Тексты

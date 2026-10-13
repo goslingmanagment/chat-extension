@@ -4,7 +4,7 @@
 // background (apps/extension/test/wiring-background.test.ts).
 
 import { type ClaimState } from '@cg/contracts';
-import { GREETING_LEASES_KEY, GREETING_LEASES_MAX, GreetingLeases } from '@cg/core/services';
+import { GREETING_LEASES_KEY, GREETING_LEASES_MAX, GreetingLeases } from '@cg/core/services/custody';
 import { describe, expect, it } from 'vitest';
 
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds, settle } from './support/clock';

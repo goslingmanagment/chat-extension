@@ -46,8 +46,8 @@ export async function probeContracts(probes: readonly ContractsProbe[] = CONTRAC
     });
     const output = result.outputFiles[0];
     if (output === undefined) throw new Error(`size-budget: probe «${probe.label}» produced no output`);
-    const gzipBytes = gzipSize(output.contents);
-    lines.push({ label: probe.label, files: [], gzipBytes, limitBytes: probe.limitBytes, ok: gzipBytes <= probe.limitBytes });
+    const bytes = gzipSize(output.contents);
+    lines.push({ label: probe.label, files: [], bytes, unit: 'gzip', limitBytes: probe.limitBytes, ok: bytes <= probe.limitBytes });
   }
   return lines;
 }

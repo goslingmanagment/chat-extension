@@ -96,14 +96,25 @@ const SELF = /^(?:tools\/archive-check\/|apps\/extension\/src\/hosts\/[^/]+\.ts$
 /** A single minified file this large means someone bundled something foreign. */
 export const MAX_JS_BYTES = 400 * 1024;
 /**
- * The background is the one file that is larger by design: it alone carries
- * the vendored hub SDK (D-13) — the hub's whole route contract with its zod
- * schemas, about 450 KiB minified — next to the hub layer and the services
+ * The background core is the one file that is larger by design: it alone
+ * carries the vendored hub SDK (D-13) — the hub's whole route contract with its
+ * zod schemas, about 450 KiB minified — next to the hub layer and the services
  * (682 KiB when the M1 skeleton was wired). Its own ceiling keeps the
  * tripwire: a re-vendored SDK fits, a foreign bundle on top of it does not.
+ * It is a signal threshold, not a budget to fill: what only one site needs
+ * leaves the core for that site's chunk (docs/project-unite/architecture.md
+ * §3.3), and the number is raised only by a decision of its own.
  */
 export const MAX_BACKGROUND_JS_BYTES = 800 * 1024;
-const jsCeiling = (name: string): number => (name === 'background.js' ? MAX_BACKGROUND_JS_BYTES : MAX_JS_BYTES);
+
+/**
+ * The ceiling of one file of the XPI, by file: the background core's, each site's background chunk's (`bg/<site>.js`,
+ * its host registry `background.rawBytes`), and every other file's.
+ */
+export function jsCeilingOf(name: string, hosts: readonly HostDescriptor[] = HOSTS): number {
+  if (name === 'background.js') return MAX_BACKGROUND_JS_BYTES;
+  return hosts.find((host) => host.background?.file === name)?.background?.rawBytes ?? MAX_JS_BYTES;
+}
 
 export interface ArchiveCheckOptions {
   /** Defaults to REAL_ID_SHA256 (tests pass synthetic ids). */
@@ -119,7 +130,8 @@ export function checkArchive(
   options: ArchiveCheckOptions = {},
 ): ArchiveProblem[] {
   const realIdHashes = options.realIdHashes ?? REAL_ID_SHA256;
-  const markers = hostCodeMarkers(options.hosts);
+  const hosts = options.hosts ?? HOSTS;
+  const markers = hostCodeMarkers(hosts);
   const problems: ArchiveProblem[] = [];
   const add = (file: string, rule: string, detail: string): void => {
     problems.push({ archive, file, rule, detail });
@@ -128,8 +140,8 @@ export function checkArchive(
     for (const [pattern, what] of FORBIDDEN_FILES) if (pattern.test(entry.name)) add(entry.name, 'forbidden-file', what);
     if (IMAGE_FILE.test(entry.name) && !ALLOWED_IMAGES.test(entry.name)) add(entry.name, 'foreign-image', 'image outside our icons folder');
     if (kind === 'xpi' && entry.name.endsWith('.map')) add(entry.name, 'sourcemap', 'sourcemaps do not ship in the XPI');
-    if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > jsCeiling(entry.name)) {
-      add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${jsCeiling(entry.name)}`);
+    if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > jsCeilingOf(entry.name, hosts)) {
+      add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${jsCeilingOf(entry.name, hosts)}`);
     }
     if (kind === 'sources' && isStandSource(entry.name)) add(entry.name, 'stand-in-sources', 'the ChatSpace-like stand stays out of the AMO sources archive (apps/extension/build/sources-archive.ts)');
     for (const [dir, allowed, kinds] of STAND_SOURCE_DIRS) {
@@ -150,6 +162,14 @@ export function checkArchive(
   }
   if (kind === 'sources') problems.push(...danglingReferences(archive, entries));
   return problems;
+}
+
+/** Each site's background chunk must be in the XPI: the core would load it and not find it, and the site's services would never start. */
+export function missingBackgroundChunks(archive: string, entries: readonly ZipEntry[], hosts: readonly HostDescriptor[] = HOSTS): ArchiveProblem[] {
+  return hosts.flatMap((host) => {
+    const file = host.background?.file;
+    return file === undefined || entries.some((entry) => entry.name === file) ? [] : [{ archive, file, rule: 'missing-chunk', detail: `${host.kind}'s background chunk is not in the XPI` }];
+  });
 }
 
 // ── dangling imports in the sources archive ────────────────────────────────

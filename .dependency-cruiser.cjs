@@ -21,12 +21,30 @@ const HOST_REGISTRY = '^apps/extension/src/hosts/[^/]+\\.ts$';
 /** The background entry point and its composition root: the only modules that may import `hub` (§4, D-13). */
 const BACKGROUND_ENTRY = '^apps/extension/src/entrypoints/background\\.ts$';
 const BACKGROUND_ROOTS = '^apps/extension/src/(entrypoints|composition)/background\\.ts$';
+/** The background core: its entry point, its composition root and the root's own modules (docs/project-unite/architecture.md §3.3). */
+const BACKGROUND_CORE = '^apps/extension/src/(entrypoints/background\\.ts$|composition/background(\\.ts$|/))';
+/** The sites' background chunks: `bg/<site>.ts` and their own folders (bg/vite.config.ts is build code, not cruised). */
+const BACKGROUND_CHUNKS = { path: '^apps/extension/bg/' };
+/** The contract a chunk is started with: types only (composition/background/host-module.ts). */
+const BACKGROUND_KIT = '^apps/extension/src/composition/background/host-module\\.ts$';
+/**
+ * What only one site's background needs: never in the core's graph. Any site's chunk; ChatSpace's fan custody (the X8
+ * coordinator, its journal and fuse, the greeting leases — core/services/custody); Fansly's own code (its host
+ * folders, its API package, its tab protocol and schemas).
+ */
+const SITE_ONLY_BACKGROUND = [
+  '^apps/extension/bg/',
+  '^packages/core/src/services/(custody|send-coordinator|send-journal|send-fuse|greeting-leases)\\.ts$',
+  '(^|/)hosts/fansly(/|\\.ts$)',
+  '^packages/fansly-api/',
+  '^packages/contracts/src/.*fansly[^/]*\\.ts$',
+];
 /**
  * Every other bundle root: the content scripts, the WS tap, the extension pages
  * and the lazy chunks. Everything under entrypoints/ counts, so a new entry
  * point is covered before anyone remembers to list it.
  */
-const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/'], pathNot: BACKGROUND_ENTRY };
+const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/', '^apps/extension/bg/'], pathNot: BACKGROUND_ENTRY };
 
 /** `from` may depend only on paths matching `allowed` (plus itself). */
 function only(name, from, allowed, comment) {
@@ -126,6 +144,29 @@ module.exports = {
       to: { path: [pkg('hub'), SDK], reachable: true },
     },
     {
+      name: 'background-core-graph',
+      comment:
+        'The background core never reaches what only one site needs: a site\'s chunk, ChatSpace\'s fan custody (core/services/custody), Fansly\'s own code. Those run in the site\'s chunk bg/<site>.js, loaded by import(runtime.getURL(…)) — no static edge (docs/project-unite/architecture.md §3.3, §1.8).',
+      severity: 'error',
+      from: { path: BACKGROUND_CORE },
+      to: { path: SITE_ONLY_BACKGROUND, reachable: true },
+    },
+    {
+      name: 'background-chunk-boundaries',
+      comment:
+        'A site\'s background chunk imports contracts, core (domain and services), zod, the hotkey engine and the kit\'s types — the core\'s ports come through the kit, so the chunk makes no second owner of the hub, the settings, telemetry or the journals (docs/project-unite/architecture.md §3.3).',
+      severity: 'error',
+      from: BACKGROUND_CHUNKS,
+      to: { pathNot: ['^apps/extension/bg/', pkg('contracts'), pkg('core/src/domain'), pkg('core/src/services'), ZOD, HOTKEYS, BACKGROUND_KIT] },
+    },
+    {
+      name: 'background-chunk-through-the-kit',
+      comment: 'No site\'s chunk reaches the hub layer, the SDK, the browser API (platform) or the core\'s composition, however indirectly: they are the core\'s, reached through the kit (§3.3).',
+      severity: 'error',
+      from: BACKGROUND_CHUNKS,
+      to: { path: [pkg('hub'), SDK, pkg('platform'), BACKGROUND_ROOTS], reachable: true },
+    },
+    {
       name: 'main-world-entries-self-contained',
       comment: 'The MAIN-world entry points bundle only host-chatspace/main, the WXT define helpers and ChatSpace\'s row of the hosts\' runtime table (§4, D-06).',
       severity: 'error',
@@ -174,7 +215,8 @@ module.exports = {
     // Our own .d.ts files are not code. The vendored packages resolve to theirs
     // (`types` comes first in their `exports`): excluding those would hide every
     // SDK and hotkey-engine edge from the rules above.
-    exclude: { path: ['\\.test\\.tsx?$', '^(?!vendor/).*\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand|spike)/'] },
+    // The sites' background chunks build config is build code (it reads the host registry), like wxt.config.ts.
+    exclude: { path: ['\\.test\\.tsx?$', '^(?!vendor/).*\\.d\\.ts$', '(^|/)\\.tsbuild/', '(^|/)\\.output/', '(^|/)\\.wxt/', '^packages/testing/(e2e|stand|spike)/', '^apps/extension/bg/vite\\.config\\.ts$'] },
     tsPreCompilationDeps: true,
     combinedDependencies: false,
     enhancedResolveOptions: {

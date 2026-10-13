@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 import { CHATSPACE } from '../../apps/extension/src/hosts/chatspace.ts';
 import type { HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
-import { BUDGETS, computeBudgets, scriptBudgets, staticClosure, type LazyChunk } from './budget.ts';
+import { MAX_BACKGROUND_JS_BYTES } from '../archive-check/rules.ts';
+import { BACKGROUND_CORE, BUDGETS, backgroundBudgets, computeBudgets, scriptBudgets, staticClosure, type LazyChunk } from './budget.ts';
 
 const chunks: LazyChunk[] = [
   { file: 'lazy/dock.js', kind: 'entry', name: 'dock', imports: ['lazy/chunks/preact.js'] },
@@ -126,5 +127,21 @@ describe('size budgets of the sites’ scripts (host registry)', () => {
     expect(() => scriptBudgets([unbudgeted])).toThrow(/chatspace-ws has 0 budget lines/);
     const stray: HostDescriptor = { ...CHATSPACE, budgets: { scripts: [...CHATSPACE.budgets.scripts, { entry: 'gone', label: 'gone', gzipBytes: 1 }] } };
     expect(() => scriptBudgets([stray])).toThrow(/budgets gone, a script it does not declare/);
+  });
+
+  it('[R20 F1] the background is measured raw: the core under the 800 KiB signal threshold, each site’s chunk under its registry ceiling; a second site adds its own line', () => {
+    const chunk = CHATSPACE.background;
+    if (chunk === undefined) throw new Error('ChatSpace has a background chunk');
+    expect(backgroundBudgets([CHATSPACE])).toEqual([
+      { label: 'background core (background.js), raw', file: BACKGROUND_CORE, limitBytes: MAX_BACKGROUND_JS_BYTES },
+      { label: 'background chunk of chatspace (bg/chatspace.js), raw', file: chunk.file, limitBytes: chunk.rawBytes },
+    ]);
+    const files: Record<string, Uint8Array> = { 'lazy/dock.js': noise(10), [BACKGROUND_CORE]: new Uint8Array(MAX_BACKGROUND_JS_BYTES + 1), [chunk.file]: new Uint8Array(1000) };
+    const lines = computeBudgets((file) => files[file] ?? new Uint8Array(), [{ file: 'lazy/dock.js', kind: 'entry', name: 'dock', imports: [] }]);
+    // Raw, not gzip: a megabyte of zeros would be a few hundred bytes compressed.
+    expect(lines.find((line) => line.files[0] === BACKGROUND_CORE)).toMatchObject({ unit: 'raw', bytes: MAX_BACKGROUND_JS_BYTES + 1, ok: false });
+    expect(lines.find((line) => line.files[0] === chunk.file)).toMatchObject({ unit: 'raw', bytes: 1000, limitBytes: chunk.rawBytes, ok: true });
+    const second: HostDescriptor = { ...CHATSPACE, kind: 'fansly-web', background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 200 * 1024 } };
+    expect(backgroundBudgets([CHATSPACE, second])).toEqual([...backgroundBudgets([CHATSPACE]), { label: 'background chunk of fansly-web (bg/fansly.js), raw', file: 'bg/fansly.js', limitBytes: 200 * 1024 }]);
   });
 });

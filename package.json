@@ -9,7 +9,7 @@
   "scripts": {
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm webext-lint && pnpm size && pnpm gates && pnpm parity && pnpm archive-check",
     "typecheck": "tsc -b",
-    "lint": "eslint . && depcruise packages apps/extension/src apps/extension/lazy/entries --config .dependency-cruiser.cjs",
+    "lint": "eslint . && depcruise packages apps/extension/src apps/extension/lazy/entries apps/extension/bg --config .dependency-cruiser.cjs",
     "test": "vitest run",
     "build": "pnpm --filter @cg/extension build",
     "build:test": "pnpm --filter @cg/extension build:test",

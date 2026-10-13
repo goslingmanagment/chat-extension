@@ -7,7 +7,7 @@ import type { ZipEntry } from '../lib/zip.ts';
 import { isStandSource, STAND_SOURCE_GLOBS, STAND_SOURCE_KEPT } from '../../apps/extension/build/sources-archive.ts';
 import { CHATSPACE } from '../../apps/extension/src/hosts/chatspace.ts';
 import type { HostDescriptor } from '../../apps/extension/src/hosts/index.ts';
-import { checkArchive, compareWithBuild, danglingReferences, MAX_BACKGROUND_JS_BYTES, MAX_JS_BYTES, REAL_ID_SHA256, sha256 } from './rules.ts';
+import { checkArchive, compareWithBuild, danglingReferences, jsCeilingOf, MAX_BACKGROUND_JS_BYTES, MAX_JS_BYTES, missingBackgroundChunks, REAL_ID_SHA256, sha256 } from './rules.ts';
 
 const entry = (name: string, text = ''): ZipEntry => ({ name, data: Buffer.from(text) });
 /** A synthetic "real" id: tests never carry the owner's ids. */
@@ -32,6 +32,32 @@ describe('archive check', () => {
     expect(rules([sized('lazy/background.js', MAX_JS_BYTES + 1)])).toEqual(['oversized-js:lazy/background.js']);
     expect(rules([sized('background.js', MAX_BACKGROUND_JS_BYTES + 1)], 'sources')).toEqual([]);
     expect(MAX_BACKGROUND_JS_BYTES).toBeGreaterThan(MAX_JS_BYTES);
+  });
+
+  it('a site’s background chunk has its own ceiling, from the host registry; the core keeps the 800 KiB signal threshold (R20 F1)', () => {
+    const chunk = CHATSPACE.background;
+    if (chunk === undefined) throw new Error('ChatSpace has a background chunk');
+    expect(MAX_BACKGROUND_JS_BYTES).toBe(800 * 1024);
+    expect(jsCeilingOf('background.js')).toBe(MAX_BACKGROUND_JS_BYTES);
+    expect(jsCeilingOf(chunk.file)).toBe(chunk.rawBytes);
+    expect(jsCeilingOf('bg/other.js')).toBe(MAX_JS_BYTES);
+    const sized = (name: string, bytes: number): ZipEntry => ({ name, data: Buffer.alloc(bytes, 0x61) });
+    const rules = (entries: ZipEntry[]): string[] => checkArchive('x.zip', entries, 'xpi').map((problem) => `${problem.rule}:${problem.file}`);
+    expect(rules([sized(chunk.file, chunk.rawBytes)])).toEqual([]);
+    expect(rules([sized(chunk.file, chunk.rawBytes + 1)])).toEqual([`oversized-js:${chunk.file}`]);
+    // Another site's chunk is measured by its own entry.
+    const second: HostDescriptor = { ...CHATSPACE, kind: 'fansly-web', background: { source: 'bg/fansly.ts', file: 'bg/fansly.js', rawBytes: 200 * 1024 } };
+    expect(checkArchive('x.zip', [sized('bg/fansly.js', 200 * 1024)], 'xpi', { hosts: [CHATSPACE, second] })).toEqual([]);
+    expect(checkArchive('x.zip', [sized('bg/fansly.js', 200 * 1024 + 1)], 'xpi', { hosts: [CHATSPACE, second] }).map((problem) => problem.rule)).toEqual(['oversized-js']);
+  });
+
+  it('every site’s background chunk is in the XPI: a chunk the core cannot find leaves the site’s services down', () => {
+    const chunk = CHATSPACE.background?.file ?? '';
+    expect(missingBackgroundChunks('x.zip', [entry('background.js'), entry(chunk)])).toEqual([]);
+    expect(missingBackgroundChunks('x.zip', [entry('background.js')])).toEqual([{ archive: 'x.zip', file: chunk, rule: 'missing-chunk', detail: 'chatspace\'s background chunk is not in the XPI' }]);
+    const coreOnly: HostDescriptor = { ...CHATSPACE };
+    delete (coreOnly as { background?: unknown }).background;
+    expect(missingBackgroundChunks('x.zip', [entry('background.js')], [coreOnly])).toEqual([]);
   });
 
   it('flags OnlyMonster code, real data, fonts, foreign images and sourcemaps', () => {

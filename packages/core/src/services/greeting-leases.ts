@@ -33,10 +33,11 @@ import { type CgCode } from '@cg/contracts/errors';
 import { type ClaimState, type HubFacade } from '@cg/contracts/hub';
 
 import { leaseOfClaim, leasePolicy } from '../domain/newcomers/claim';
+import { SESSION_KEYS } from '../domain/storage';
 import { NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink, type TabEventSink } from './ports';
 
 /** storage.session: the lease tokens this install holds (ids and deadlines, nothing else). */
-export const GREETING_LEASES_KEY = 'newcomers.leases';
+export const GREETING_LEASES_KEY = SESSION_KEYS.greetingLeases;
 /** Leases kept at most: a person works on a handful of greetings at a time. */
 export const GREETING_LEASES_MAX = 100;
 

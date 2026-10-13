@@ -490,6 +490,8 @@ export function readinessOf(model: PagesModel, rows: readonly StatusRowVM[]): St
   const partial = chatspace?.level === 'warn' && (hostReportOf(model)?.tabs ?? 0) > 0;
   if (partial) warnings.push(msg('settings.status.warning.hostPartial'));
   if (staleTabsOf(model) > 0) warnings.push(msg('settings.status.warning.staleTabs'));
+  // A site's services in the background did not start (its chunk, R20 F1): its own requests answer «не отвечает».
+  if ((valueOf(model.diagnostics)?.hostModules ?? []).some((module) => module.state === 'failed')) warnings.push(msg('settings.status.warning.hostModule'));
   const count = needed.length - (partial ? 1 : 0);
   return count === 0 ? { s: 'ready', warnings } : { s: 'actions-needed', count, warnings };
 }

@@ -2,7 +2,7 @@
 // trips it, what it holds, how it is kept and lifted. It never sends.
 
 import { SEND_FUSE_UNCERTAIN_RUN, SendFuseStateSchema } from '@cg/contracts';
-import { SEND_FUSE_KEY, SendFuseKeeper } from '@cg/core/services';
+import { SEND_FUSE_KEY, SendFuseKeeper } from '@cg/core/services/custody';
 import { describe, expect, it } from 'vitest';
 
 import { EventLog, FakeClock, LogRecorder, MemoryStore } from './support/clock';

@@ -14,12 +14,14 @@ import { join, resolve } from 'node:path';
 import { defineConfig } from 'wxt';
 
 import { artifactNames, isFlavorArtifact } from './build/artifacts.ts';
+import { backgroundCorePlugin } from './build/background-bundles.ts';
 import { bundleTimingPlugin } from './build/bundle-timing.ts';
 import { isolatedEntryPlugin } from './build/isolated-entry.ts';
 import { mainWorldEntryPlugin } from './build/main-world-entry.ts';
 import { baseManifest, finalizeManifest, type BuildFlavor, type ManifestLike } from './build/manifest.ts';
 import { PAGE_ENTRY_NAMES, splitPageChunks, type PageBuildConfig } from './build/page-chunks.ts';
 import { SOURCE_DOTFILES, STAND_SOURCE_GLOBS } from './build/sources-archive.ts';
+import { buildBackgroundChunks } from './bg/vite.config.ts';
 import { buildLazyChunks, type LazyChunkInfo } from './lazy/vite.config.ts';
 import { HOSTS, scriptsOf } from './src/hosts/index.ts';
 
@@ -62,6 +64,8 @@ export default defineConfig({
     // After WXT cleaned the output dir, before entry points are built.
     'entrypoints:grouped': async (wxt) => {
       lazyChunks = await buildLazyChunks(wxt.config.outDir, flavor === 'test');
+      // The sites' background chunks (bg/<site>.js): only the event page loads them, so they are no web resource.
+      await buildBackgroundChunks(wxt.config.outDir, flavor === 'test');
     },
     'build:manifestGenerated': (_wxt, manifest) => {
       finalizeManifest(manifest as ManifestLike, { flavor, lazyFiles: lazyChunks.map((chunk) => chunk.file) });
@@ -72,6 +76,8 @@ export default defineConfig({
     'vite:build:extendConfig': (entrypoints, config) => {
       // The extension pages: their one shared bundle is cut into three files (build/page-chunks.ts).
       if (entrypoints.some((entry) => PAGE_ENTRY_NAMES.includes(entry.name))) splitPageChunks(config as PageBuildConfig);
+      // The background core holds nothing only one site needs (build/background-bundles.ts; architecture §3.3).
+      if (entrypoints.some((entry) => entry.name === 'background')) config.plugins = [...(config.plugins ?? []), backgroundCorePlugin()];
       // The MAIN-world scripts start without WXT's entry wrapper, which rethrows into the page (build/main-world-entry.ts).
       // A TEST build's bridge also carries the sentry-gate e2e's positive control (loopback only).
       const mainWorld = entrypoints.filter((entry) => MAIN_WORLD_ENTRY_NAMES.includes(entry.name));

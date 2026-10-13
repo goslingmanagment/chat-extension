@@ -4,7 +4,8 @@
 // hub — a report of what happened, never a send.
 
 import { ClaimOpSchema, type ClaimState, type OpView } from '@cg/contracts';
-import { NATIVE_SENDS_KEY, NATIVE_SENDS_MAX, NATIVE_SEND_KEEP_MS, NativeSendRegistrar, REPORT_RETRY_DELAYS_MS, nativeSendClaim } from '@cg/core/services';
+import { REPORT_RETRY_DELAYS_MS } from '@cg/core/domain/send';
+import { NATIVE_SENDS_KEY, NATIVE_SENDS_MAX, NATIVE_SEND_KEEP_MS, NativeSendRegistrar, nativeSendClaim } from '@cg/core/services';
 import { describe, expect, it } from 'vitest';
 
 import { FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';

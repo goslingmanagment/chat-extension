@@ -64,7 +64,9 @@ pnpm monorepo, TypeScript strict, Firefox MV3 (WXT), Preact.
 
 - `apps/extension` — entry points, the manifest, the three composition roots
   (`src/composition/{background,tab,pages}.ts`: wiring only), the lazy
-  chunks of the tab (`lazy/entries`) and the host registry (`src/hosts`: one
+  chunks of the tab (`lazy/entries`), the sites' background chunks (`bg/`:
+  what only one site needs in the background, loaded by the core —
+  `docs/project-unite/architecture.md` §3.3) and the host registry (`src/hosts`: one
   entry per site, build data for the manifest, the WXT entries, the gates and
   the tools; code that ships reads only its runtime table, `src/hosts/runtime`).
 - `packages/contracts` — types, zod schemas, the CG error registry, i18n

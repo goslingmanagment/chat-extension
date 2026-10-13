@@ -15,6 +15,12 @@ import { SEND_CUSTODY_REPORTS, isNativeRefusalStatus, localDeadline, type SendAt
 
 export type SendPurpose = (typeof SEND_PURPOSES)[number];
 
+/**
+ * Pauses between repeats of one report the hub did not answer (the same attemptId, never a dispatch); the last one
+ * repeats. The custody report of a preview send and the registration of a human send (native-send) share it.
+ */
+export const REPORT_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000] as const;
+
 export interface DispatchInput {
   readonly attemptId: string;
   readonly instanceId: string;

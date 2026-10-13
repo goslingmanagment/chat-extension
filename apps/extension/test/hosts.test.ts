@@ -11,7 +11,7 @@ import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { describe, expect, it } from 'vitest';
 
 import { baseManifest, checkManifest, finalizeManifest, hostPermissions, lazyChunkMatches, optionalHostPermissions, optionalPermissions, type BuildFlavor, type ManifestLike } from '../build/manifest.ts';
-import { wsTapSpec } from '../src/composition/background.ts';
+import { HOST_MODULE_SPECS, HOST_REQUESTS, wsTapSpec } from '../src/composition/background.ts';
 import { CHATSPACE } from '../src/hosts/chatspace.ts';
 import { HOSTS, hostOf, pageMatchesOf, scriptsOf, type HostDescriptor } from '../src/hosts/index.ts';
 import { RUNTIME_HOSTS, isQuietHost } from '../src/hosts/runtime/index.ts';
@@ -105,6 +105,18 @@ describe('the host registry', () => {
     const spec = wsTapSpec();
     expect(spec.js).toEqual(tap.map((script) => script.file));
     expect(spec.matches).toEqual(pageMatchesOf(CHATSPACE, false));
+  });
+
+  it('[R20-F1] the background loads each site’s chunk of the registry, and only those; each site with a chunk routes its own requests to it', () => {
+    const withChunk = HOSTS.filter((host) => host.background !== undefined);
+    expect(withChunk.map((host) => host.kind)).toEqual(['chatspace']);
+    expect(Object.fromEntries(Object.entries(HOST_MODULE_SPECS).map(([kind, spec]) => [kind, spec.chunk]))).toEqual(Object.fromEntries(withChunk.map((host) => [host.kind, host.background?.file])));
+    for (const host of withChunk) {
+      expect(host.background?.file).toMatch(/^bg\/[a-z-]+\.js$/);
+      expect(existsSync(fileURLToPath(new URL(`../${host.background?.source ?? ''}`, import.meta.url)))).toBe(true);
+    }
+    // ChatSpace's own requests: X8 and the greeting leases of «Новые» — nothing a second site shares.
+    expect([...HOST_REQUESTS.chatspace].sort()).toEqual(['newcomers.claim', 'send.begin', 'send.fuse', 'send.fuseReset', 'send.fuseState', 'send.list', 'send.report', 'send.status']);
   });
 });
 

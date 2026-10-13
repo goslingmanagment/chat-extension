@@ -1,5 +1,6 @@
 // The X8 attempt journal of R10's send coordinator on R07's send journal
-// (architecture.md §6.7.7 п. 3, §6.7.8, §9.4).
+// (architecture.md §6.7.7 п. 3, §6.7.8, §9.4). Part of the ChatSpace
+// background chunk (bg/chatspace.ts): the core never holds it.
 //
 // The coordinator persists through a key-value port: the whole list of its
 // journal entries under `send.journal`, rewritten at every move. R07's send
@@ -35,11 +36,15 @@
 import { type SendJournalEntry } from '@cg/contracts/send';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
 import { isNativeSendEntry } from '@cg/core/domain/send';
-import { type KeyValueStore as ThrowingStore, type SendJournal, type SendJournalUpdate } from '@cg/core/services';
-
-import { StorageCallError } from './ports';
+import { type KeyValueStore as ThrowingStore } from '@cg/core/services';
+import { type SendJournal, type SendJournalUpdate } from '@cg/core/services/custody';
 
 const KEY = STORAGE_KEYS.sendJournal;
+
+/** A write the journal did not take, as the core's throwing stores raise one (`StorageCallError`): its code only, never a value. */
+function storageError(code: string, key: string): Error {
+  return Object.assign(new Error(`${code} ${key}`), { name: 'StorageCallError', code, key });
+}
 
 const sameFacts = (a: SendJournalEntry, b: SendJournalEntry): boolean =>
   a.state === b.state && a.code === b.code && a.pendingId === b.pendingId && a.platformMessageId === b.platformMessageId;
@@ -73,7 +78,7 @@ export function sendJournalStoreOver(journal: SendJournal): ThrowingStore {
     },
 
     async set(key, value) {
-      if (key !== KEY || !Array.isArray(value)) throw new StorageCallError('CG-STORAGE-WRITE', key);
+      if (key !== KEY || !Array.isArray(value)) throw storageError('CG-STORAGE-WRITE', key);
       const entries = value as readonly SendJournalEntry[];
       for (const entry of entries) {
         const existing = journal.get(entry.attemptId);
@@ -87,7 +92,7 @@ export function sendJournalStoreOver(journal: SendJournal): ThrowingStore {
           // A finished attempt the journal no longer keeps (its own bound): nothing to hold, nothing to write.
           if (seen.has(entry.attemptId) && entry.state !== 'preparing') continue;
           const begun = await journal.begin(asPreparing(entry));
-          if (!begun.ok) throw new StorageCallError(begun.code, `${KEY} ${entry.attemptId}`);
+          if (!begun.ok) throw storageError(begun.code, `${KEY} ${entry.attemptId}`);
           seen.add(entry.attemptId);
           if (entry.state === 'preparing') continue;
         } else {
@@ -95,7 +100,7 @@ export function sendJournalStoreOver(journal: SendJournal): ThrowingStore {
           if (sameFacts(existing, entry)) continue;
         }
         const moved = await journal.advance(entry.attemptId, updateOf(entry));
-        if (!moved.ok) throw new StorageCallError(moved.code === 'CG-STORAGE-VERSION' ? moved.code : 'CG-STORAGE-WRITE', `${KEY} ${entry.attemptId}`);
+        if (!moved.ok) throw storageError(moved.code === 'CG-STORAGE-VERSION' ? moved.code : 'CG-STORAGE-WRITE', `${KEY} ${entry.attemptId}`);
       }
       // The coordinator dropped an attempt it had: an uncertain one was resolved by the hub.
       const kept = new Set(entries.map((entry) => entry.attemptId));

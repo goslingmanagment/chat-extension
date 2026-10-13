@@ -1,4 +1,4 @@
-// `pnpm size`: §11 bundle budgets on the release build. Exit 1 on any excess.
+// `pnpm size`: §11 bundle budgets on the release build (gzip -9; the background raw). Exit 1 on any excess.
 // Usage: node tools/size-budget/index.ts [--dir <extension output dir>]
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -22,9 +22,11 @@ try {
 const lines = [...computeBudgets((file) => readFileSync(join(dir, file)), chunks), ...(await probeContracts())];
 const kib = (bytes: number): string => `${(bytes / KIB).toFixed(2)} KiB`;
 for (const line of lines) {
-  console.log(`${line.ok ? 'ok  ' : 'OVER'}  ${line.label.padEnd(66)} ${kib(line.gzipBytes).padStart(11)} / ${kib(line.limitBytes)}`);
+  // A raw line says its headroom in bytes: the core's is the byte registry's number (architecture.md §3.2).
+  const headroom = line.unit === 'raw' ? `  (${line.limitBytes - line.bytes} B to spare)` : '';
+  console.log(`${line.ok ? 'ok  ' : 'OVER'}  ${line.label.padEnd(66)} ${kib(line.bytes).padStart(11)} / ${kib(line.limitBytes)}${headroom}`);
 }
 writeFileSync(`${OUTPUT_ROOT}size-report.json`, `${JSON.stringify(lines, null, 2)}\n`);
 const over = lines.filter((line) => !line.ok);
 if (over.length > 0) fail(`size-budget: ${over.length} budget(s) exceeded (architecture.md §11).`);
-console.log('size-budget: all budgets met (gzip -9).');
+console.log('size-budget: all budgets met (gzip -9; the background raw).');
