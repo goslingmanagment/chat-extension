@@ -967,7 +967,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     'BackgroundToast',
     C.BackgroundToastSchema,
     [toast, { toastId: uuid(21), kind: 'error', scope: 'hub', error: { code: 'CG-HUB-TIMEOUT' }, fanLabel: null }, fanslyToast],
-    [{ ...toast, kind: 'fatal' }, { ...fanslyToast, conversationRef: 'group-3' }, { ...fanslyToast, conversationRef: 700000000000000003 }],
+    [{ ...toast, kind: 'fatal' }, { ...fanslyToast, conversationRef: 'group-3' }, { ...fanslyToast, conversationRef: 7003 }],
   ),
   fixture(
     'DiagnosticsSnapshot',
