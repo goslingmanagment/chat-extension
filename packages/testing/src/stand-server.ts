@@ -8,8 +8,14 @@
 //   the UI galleries (`/kit-gallery/`, `/dock-gallery/`, `/boards-gallery/`, `/pages-gallery/`, built into .cache/*-gallery)
 //   and the collector of the page's Sentry (`/sentry/api/<project>/envelope/`, stand/sentry-inbox.ts);
 // - the API origin: the native API (`/api/...`, CORS for the page origin with
-//   preflights) and the socket (`/api/chat-space/ws`), with synthetic data.
-// A journal labels every call by who made it (protocol.ts CallOrigin).
+//   preflights) and the socket (`/api/chat-space/ws`), with synthetic data;
+// - the Fansly stand (R20 P6a): the Fansly-like page (packages/testing/
+//   fixture-fansly, built into .cache/fixture-fansly) on a loopback NAME of its
+//   own, `http://localhost:<port>` — ChatSpace's stand is `127.0.0.1`, and an
+//   address that two sites claim is refused by the background (architecture.md
+//   §13, S1b G-10); a request under any other name is refused here (421).
+// A journal labels every call by who made it (protocol.ts CallOrigin); the
+// Fansly stand keeps its own.
 
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -30,7 +36,7 @@ import {
 import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
-import { FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
+import { FANSLY_FIXTURE_BUILD_DIR, FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
 import { SENTRY_ENVELOPE_PATH, SentryInbox } from './stand/sentry-inbox';
 import { SocketHub } from './stand/socket-hub';
 import { StandState } from './stand/state';
@@ -46,6 +52,19 @@ export interface StandServerOptions {
   readonly fixtureDir?: string;
   /** How long a socket may stay silent before it is labelled foreign (ms). */
   readonly socketGraceMs?: number;
+  /** Fansly stand port; 0 = pick a free port. */
+  readonly fanslyPort?: number;
+  /** Built Fansly stand; defaults to .cache/fixture-fansly. */
+  readonly fanslyDir?: string;
+}
+
+/** The Fansly stand: its page, under its own loopback name. */
+export interface FanslyStandServer {
+  /** `http://localhost:<port>`. */
+  readonly origin: string;
+  readonly port: number;
+  /** Every call to the Fansly stand's origin, labelled like the ChatSpace stand's (assets, foreign). */
+  readonly journal: ServerJournal;
 }
 
 export interface StandServer {
@@ -60,8 +79,19 @@ export interface StandServer {
   readonly hub: SocketHub;
   /** What the page's Sentry sent (?stand-sentry=1). */
   readonly sentry: SentryInbox;
+  /** The Fansly stand (R20 P6a). */
+  readonly fansly: FanslyStandServer;
   close(): Promise<void>;
 }
+
+/**
+ * The Fansly stand's loopback name (docs/project-unite/architecture.md §13): the test build's Fansly stand
+ * permission (apps/extension/src/hosts/fansly.ts, `http://localhost/*`) names it, ChatSpace's (`127.0.0.1`) does not.
+ */
+export const FANSLY_STAND_HOSTNAME = 'localhost';
+
+/** The Fansly stand's journal for the test process (GET with the control header, `?since=`). */
+export const FANSLY_STAND_JOURNAL_PATH = '/__stand/journal';
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -161,11 +191,31 @@ async function serveFile(response: ServerResponse, file: string, csp: string | n
 
 const META_PATTERN = new RegExp(`(<meta name="${STAND_API_ORIGIN_META}" content=")[^"]*(")`);
 
-async function listen(server: Server, port: number): Promise<number> {
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+async function listen(server: Server, port: number, host = '127.0.0.1'): Promise<number> {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, host, () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
   const address = server.address();
   if (address === null || typeof address === 'string') throw new Error('stand server has no TCP address');
   return address.port;
+}
+
+/**
+ * The page under the name `localhost`: on 127.0.0.1, and on the same port of ::1 where the machine has IPv6 loopback
+ * (a browser may try `localhost` there first). Loopback only, never every interface.
+ */
+async function listenLocalhost(primary: Server, secondary: Server, port: number): Promise<number> {
+  const actual = await listen(primary, port);
+  try {
+    await listen(secondary, actual, '::1');
+  } catch {
+    // No IPv6 loopback (or the port is taken there): 127.0.0.1 alone serves the name.
+  }
+  return actual;
 }
 
 /** The gallery a normalized relative path belongs to (`kit-gallery/x.js` → `/kit-gallery/`), or null. */
@@ -275,12 +325,53 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     await handleApi(context, request, response, url, classified.origin, classified.replayOf);
   };
 
+  const fanslyDir = options.fanslyDir ?? FANSLY_FIXTURE_BUILD_DIR;
+  const fanslyJournal = new ServerJournal();
+  let fanslyHost = '';
+  const handleFansly = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    const path = url.pathname;
+    const method = request.method ?? 'GET';
+    const classified = classify(request, response, nativeIds);
+    let status: number;
+    const relative = normalize(path).replace(/^([/\\])+/, '');
+    if (headerText(request.headers.host) !== fanslyHost) {
+      // One stand address, one site: the Fansly stand answers under its own name only.
+      response.writeHead(421, { 'content-type': 'text/plain; charset=utf-8' }).end(`The Fansly stand answers at http://${fanslyHost} only.`);
+      status = 421;
+    } else if (path === FANSLY_STAND_JOURNAL_PATH && classified.origin === 'control') {
+      // The test process reads the journal; reading it is not journaled.
+      sendJson(response, 200, fanslyJournal.read(Number(url.searchParams.get('since') ?? 0)));
+      return;
+    } else if (relative.startsWith('..')) {
+      response.writeHead(400).end();
+      status = 400;
+    } else if (method !== 'GET' && method !== 'HEAD') {
+      response.writeHead(405).end();
+      status = 405;
+    } else if (path === '/favicon.ico') {
+      response.writeHead(204).end();
+      status = 204;
+    } else if (path.startsWith('/assets/')) {
+      status = await serveFile(response, join(fanslyDir, relative), null);
+    } else if (existsSync(join(fanslyDir, 'index.html'))) {
+      // History-mode app: every other path is its index.
+      status = await serveFile(response, join(fanslyDir, 'index.html'), null);
+    } else {
+      response.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }).end('The Fansly stand is not built: run `pnpm --filter @cg/testing build:stand`.');
+      status = 503;
+    }
+    fanslyJournal.record({ kind: 'http', origin: classified.origin, method, path: `${path}${url.search}`, status });
+  };
+
   const onError = (response: ServerResponse) => (error: unknown) => {
     if (!response.headersSent) sendJson(response, 500, { error: String(error) });
   };
   const pageServer: Server = createServer((request, response) => void handlePage(request, response).catch(onError(response)));
   const apiServer: Server = createServer((request, response) => void handleApiOrigin(request, response).catch(onError(response)));
-  for (const server of [pageServer, apiServer]) server.keepAliveTimeout = KEEP_ALIVE_MS;
+  const fanslyServers: Server[] = [0, 1].map(() => createServer((request, response) => void handleFansly(request, response).catch(onError(response))));
+  for (const server of [pageServer, apiServer, ...fanslyServers]) server.keepAliveTimeout = KEEP_ALIVE_MS;
+  for (const server of fanslyServers) server.on('upgrade', (_request, socket) => socket.destroy());
   pageServer.on('upgrade', (_request, socket) => socket.destroy());
   apiServer.on('upgrade', (request, socket, head) => {
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
@@ -290,8 +381,10 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
 
   const port = await listen(pageServer, options.port ?? 0);
   const apiPort = await listen(apiServer, options.apiPort ?? 0);
+  const fanslyPort = await listenLocalhost(fanslyServers[0] as Server, fanslyServers[1] as Server, options.fanslyPort ?? 0);
   pageOrigin = `http://127.0.0.1:${port}`;
   apiOrigin = `http://127.0.0.1:${apiPort}`;
+  fanslyHost = `${FANSLY_STAND_HOSTNAME}:${fanslyPort}`;
   return {
     origin: pageOrigin,
     apiOrigin,
@@ -301,11 +394,13 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     journal,
     hub,
     sentry,
+    fansly: { origin: `http://${fanslyHost}`, port: fanslyPort, journal: fanslyJournal },
     close: async () => {
       for (const response of context.hanging) response.destroy();
       await hub.close();
-      for (const server of [pageServer, apiServer]) server.closeAllConnections();
-      await Promise.all([pageServer, apiServer].map((server) => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))));
+      const listening = [pageServer, apiServer, ...fanslyServers].filter((server) => server.listening);
+      for (const server of listening) server.closeAllConnections();
+      await Promise.all(listening.map((server) => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))));
     },
   };
 }

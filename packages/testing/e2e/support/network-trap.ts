@@ -33,10 +33,11 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
  */
 export const FIREFOX_OWN_HOSTS: ReadonlySet<string> = new Set<string>([]);
 
-/** Origins an e2e may reach: the stand (page and API) and the fake hub (wdio onPrepare starts both). */
+/** Origins an e2e may reach: the stands (ChatSpace's page and API, Fansly's page) and the fake hub (wdio onPrepare starts them). */
 export function allowedE2eOrigins(): string[] {
   const hub = process.env['CG_FAKE_HUB_ORIGIN'];
-  return [standOrigin(), standApiOrigin(), ...(hub !== undefined && hub !== '' ? [hub] : [])];
+  const fansly = process.env['CG_FANSLY_STAND_ORIGIN'];
+  return [standOrigin(), standApiOrigin(), ...(fansly !== undefined && fansly !== '' ? [fansly] : []), ...(hub !== undefined && hub !== '' ? [hub] : [])];
 }
 
 /** How long the final sweep lets late requests (timers in a background page) arrive. */

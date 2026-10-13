@@ -1,8 +1,9 @@
 // What the AMO sources archive leaves out besides docs, tests and build output:
 // the ChatSpace-like stand of R02 (its Vue + TipTap app, the stand server and
-// entry, the M0 spike page, the fixture's DOM tests), the e2e harness that
-// drives Firefox against it and the R20 spike's probes (P3a). None of it is
-// needed to rebuild the XPI.
+// entry, the M0 spike page, the fixture's DOM tests), the Fansly-like stand of
+// R20 P6a (its page and DOM tests), the e2e harness that drives Firefox against
+// them and the R20 spike's probes (P3a). None of it is needed to rebuild the
+// XPI.
 // wxt.config.ts excludes these paths; tools/archive-check fails if any of them
 // is in the sources archive anyway, and if anything left in it imports or
 // references a file that is not there (`dangling-import`).
@@ -10,9 +11,9 @@
 // The archive's contract: `pnpm install --frozen-lockfile`, `pnpm typecheck`,
 // `pnpm lint` and `pnpm build` work in it, and the build gives the same XPI.
 // Tests are not in it (WXT drops every *.test.* / *.spec.* file), so neither
-// is `pnpm test` nor `pnpm e2e`. For `tsc -b` the fixture's tsconfig and its
+// is `pnpm test` nor `pnpm e2e`. For `tsc -b` each fixture's tsconfig and its
 // wire-protocol types (no app code, no host library) stay: the testing
-// project references that project.
+// project references those projects.
 //
 // Relative imports carry `.ts`: this file also runs under plain Node 26.
 
@@ -20,6 +21,9 @@
 export const STAND_SOURCE_PATHS = [
   'packages/testing/fixture-chatspace/',
   'packages/testing/fixture-chatspace.vite.config.ts',
+  'packages/testing/fixture-fansly/',
+  'packages/testing/fixture-fansly.vite.config.ts',
+  'packages/testing/src/fixture-fansly/',
   'packages/testing/stand/',
   'packages/testing/src/stand/',
   'packages/testing/src/stand-server.ts',
@@ -35,17 +39,18 @@ export const STAND_SOURCE_PATHS = [
  */
 export const SOURCE_DOTFILES: readonly string[] = ['.dependency-cruiser.cjs', '.npmrc', '.nvmrc'];
 
-/** Files inside STAND_SOURCE_PATHS that stay in the archive (see the header). */
-export const STAND_SOURCE_KEPT: readonly string[] = ['packages/testing/fixture-chatspace/tsconfig.json', 'packages/testing/fixture-chatspace/src/protocol.ts'];
+/** The stand apps: each keeps its tsconfig.json and src/protocol.ts in the archive. */
+const FIXTURES: readonly string[] = ['packages/testing/fixture-chatspace/', 'packages/testing/fixture-fansly/'];
 
-const FIXTURE = 'packages/testing/fixture-chatspace/';
+/** Files inside STAND_SOURCE_PATHS that stay in the archive (see the header). */
+export const STAND_SOURCE_KEPT: readonly string[] = FIXTURES.flatMap((fixture) => [`${fixture}tsconfig.json`, `${fixture}src/protocol.ts`]);
 
 /**
  * The same paths as WXT `excludeSources` globs (tinyglobby `ignore`, with
- * extglobs): the fixture folder goes except its kept files.
+ * extglobs): a fixture folder goes except its kept files.
  */
 export const STAND_SOURCE_GLOBS: readonly string[] = STAND_SOURCE_PATHS.flatMap((path) => {
-  if (path === FIXTURE) return [`${FIXTURE}!(tsconfig.json|src)`, `${FIXTURE}src/!(protocol.ts)`, `${FIXTURE}src/*/**`];
+  if (FIXTURES.includes(path)) return [`${path}!(tsconfig.json|src)`, `${path}src/!(protocol.ts)`, `${path}src/*/**`];
   return [path.endsWith('/') ? `${path}**` : path];
 });
 

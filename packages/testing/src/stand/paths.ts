@@ -11,6 +11,10 @@ export const SPIKE_STAND_DIR = fileURLToPath(new URL('../../stand/', import.meta
 export const FIXTURE_SOURCE_DIR = fileURLToPath(new URL('../../fixture-chatspace/', import.meta.url));
 /** Built fixture app (`pnpm --filter @cg/testing build:stand`). */
 export const FIXTURE_BUILD_DIR = `${REPO_ROOT}.cache/fixture-chatspace/`;
+/** Sources of the Fansly-like stand page (R20 P6a). */
+export const FANSLY_FIXTURE_SOURCE_DIR = fileURLToPath(new URL('../../fixture-fansly/', import.meta.url));
+/** Built Fansly stand (`pnpm --filter @cg/testing build:stand` builds both stands), served on its own loopback name. */
+export const FANSLY_FIXTURE_BUILD_DIR = `${REPO_ROOT}.cache/fixture-fansly/`;
 /** Sources of the ui/kit gallery page (R13). */
 export const KIT_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../kit/gallery/', import.meta.url));
 /** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /kit-gallery/. */

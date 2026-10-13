@@ -46,6 +46,8 @@ const STAND_LIBRARY_ALLOWED: readonly RegExp[] = [/^packages\/testing\/package\.
  */
 const STAND_SOURCE_DIRS: ReadonlyArray<readonly [string, RegExp, string]> = [
   [STAND_FIXTURE_DIR, /^packages\/testing\/fixture-chatspace\/(?:tsconfig\.json|.+\.(?:ts|html|css))$/, 'ts, html, css and its tsconfig.json'],
+  // The Fansly-like stand (R20 P6a): our own plain TypeScript page, the same kinds of files.
+  ['packages/testing/fixture-fansly/', /^packages\/testing\/fixture-fansly\/(?:tsconfig\.json|.+\.(?:ts|html|css))$/, 'ts, html, css and its tsconfig.json'],
   // The M0 spike page is plain hand-written HTML, CSS and JS.
   ['packages/testing/stand/', /\.(?:html|css|js)$/, 'html, css, js'],
   ['packages/testing/src/stand/', /\.ts$/, 'ts'],
@@ -143,7 +145,7 @@ export function checkArchive(
     if (kind === 'xpi' && /\.js$/.test(entry.name) && entry.data.length > jsCeilingOf(entry.name, hosts)) {
       add(entry.name, 'oversized-js', `${entry.data.length} bytes > ${jsCeilingOf(entry.name, hosts)}`);
     }
-    if (kind === 'sources' && isStandSource(entry.name)) add(entry.name, 'stand-in-sources', 'the ChatSpace-like stand stays out of the AMO sources archive (apps/extension/build/sources-archive.ts)');
+    if (kind === 'sources' && isStandSource(entry.name)) add(entry.name, 'stand-in-sources', 'the stands (ChatSpace-like and Fansly-like) stay out of the AMO sources archive (apps/extension/build/sources-archive.ts)');
     for (const [dir, allowed, kinds] of STAND_SOURCE_DIRS) {
       if (entry.name.startsWith(dir) && !allowed.test(entry.name)) add(entry.name, 'fixture-provenance', `${dir} holds hand-written sources only (${kinds})`);
     }
