@@ -12,6 +12,7 @@
 
 export * from './primitives';
 export * from './features';
+export * from './hosts';
 export * from './ids';
 export * from './limits';
 export * from './errors';
@@ -38,4 +39,4 @@ export * from './hub';
  * minor bump, a new meaning a major one; every bump has its entry in
  * docs/contracts-changelog.md (architecture.md §5).
  */
-export const CONTRACTS_VERSION = '1.14.0';
+export const CONTRACTS_VERSION = '1.15.0';

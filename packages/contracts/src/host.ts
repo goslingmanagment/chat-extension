@@ -7,6 +7,7 @@
 import * as z from 'zod/mini';
 
 import { CgCodeSchema } from './errors';
+import { HOST_PLATFORM } from './hosts';
 import {
   ChatRefSchema,
   DraftProvenanceSchema,
@@ -117,12 +118,51 @@ export const HostContractReportSchema = z.strictObject({
 export type HostContractReport = z.infer<typeof HostContractReportSchema>;
 
 export const ROUTE_NAMES = ['chat', 'accounts-overview', 'other'] as const;
-export const RouteStateSchema = z.strictObject({
-  epoch: CountSchema,
-  name: z.enum(ROUTE_NAMES),
-  account: z.nullable(HostAccountSchema),
-  chat: z.nullable(ChatRefSchema),
-});
+
+/** 1.15.0 (R20): `direct` — the creator and one fan; `group` — more than one fan: no fan of its own, no dock, no AI. */
+export const CONVERSATION_KINDS = ['direct', 'group'] as const;
+export const ConversationKindSchema = z.enum(CONVERSATION_KINDS);
+export type ConversationKind = z.infer<typeof ConversationKindSchema>;
+
+/**
+ * 1.15.0 (R20): the conversation of a route fits the route — only a chat route names one; its kind comes only with
+ * it; a group has no fan of its own (`chat` is null: no dock, no AI on one of its fans); on OnlyFans the conversation
+ * is the fan, as in Target. One check, not four: the contract probes count every check of this module in full (R20
+ * byte registry).
+ */
+export function conversationFits(route: {
+  readonly name: (typeof ROUTE_NAMES)[number];
+  readonly chat: ChatRef | null;
+  readonly conversationRef?: string | undefined;
+  readonly conversationKind?: ConversationKind | undefined;
+}): boolean {
+  const { chat, conversationRef: ref } = route;
+  return ref === undefined
+    ? route.conversationKind === undefined
+    : route.name === 'chat' && (route.conversationKind !== 'group' || chat === null) && (chat === null || HOST_PLATFORM[chat.host] !== 'onlyfans' || ref === chat.platformFanId);
+}
+
+/**
+ * The route of the host page. The `@__PURE__` mark (1.15.0): `.check()` is a method call, which a bundler keeps
+ * even where nothing parses the schema; the mark lets a bundle that never reads a route (the background) drop it
+ * (R20 byte registry).
+ */
+export const RouteStateSchema = /* @__PURE__ */ z
+  .strictObject({
+    epoch: CountSchema,
+    name: z.enum(ROUTE_NAMES),
+    account: z.nullable(HostAccountSchema),
+    chat: z.nullable(ChatRefSchema),
+    /**
+     * 1.15.0 (R20): the host's conversation of a chat route, as the address names it — on Fansly the group id of
+     * `/messages/<groupId>`, known before the fan is (`chat` comes once the page names the fan). Absent — the
+     * conversation is the chat's fan (ChatSpace: conversationRef = fanRef, as in Target).
+     */
+    conversationRef: z.optional(NativeIdSchema),
+    /** 1.15.0 (R20): direct or group, once the host knows the participants; absent — not known yet. */
+    conversationKind: z.optional(ConversationKindSchema),
+  })
+  .check(z.refine(conversationFits, { message: 'the conversation does not fit the route' }));
 export type RouteState = z.infer<typeof RouteStateSchema>;
 
 export const ComposerStateSchema = z.strictObject({
@@ -237,9 +277,10 @@ const THEN_INSERT_FITS = {
  * §6.9). HostPort.navigate redeems `cause` (`token.redeem`, kind `navigate`)
  * before the bridge call; a refused token is `failed` CG-NAV-FAILED. MAIN
  * compares the settled route's chat with `target` in the same synchronous
- * step as the deferred insert.
+ * step as the deferred insert. Marked pure as RouteStateSchema is (1.15.0):
+ * the background never parses a navigation.
  */
-export const NavigationIntentSchema = z
+export const NavigationIntentSchema = /* @__PURE__ */ z
   .strictObject({
     intentId: UuidSchema,
     cause: HumanCauseSchema,
@@ -247,11 +288,21 @@ export const NavigationIntentSchema = z
       hostAccountId: NativeIdSchema,
       /** null — open the account (Б13). */
       platformFanId: z.nullable(NativeIdSchema),
+      /**
+       * 1.15.0 (R20): the conversation of that fan when it is not the fan — on Fansly the group id, from the route or
+       * the fan's group resolution, never from the route of another chat. Absent — the conversation is the fan.
+       */
+      conversationRef: z.optional(NativeIdSchema),
     }),
     /** Covered by this navigation's cause; the wire form, deferred. */
     thenInsert: z.optional(InsertWireSchema),
   })
-  .check(z.refine((n) => thenInsertFits(n.thenInsert, n.target.hostAccountId, n.target.platformFanId), THEN_INSERT_FITS));
+  .check(
+    z.refine((n) => thenInsertFits(n.thenInsert, n.target.hostAccountId, n.target.platformFanId), THEN_INSERT_FITS),
+    z.refine((n) => n.target.conversationRef === undefined || n.target.platformFanId !== null, {
+      message: 'conversationRef needs a chat target, not an account',
+    }),
+  );
 export type NavigationIntent = z.infer<typeof NavigationIntentSchema>;
 
 export const NavigationReceiptSchema = z.discriminatedUnion('state', [

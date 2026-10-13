@@ -27,6 +27,11 @@ import {
   histogram,
   hostIdentity,
   deferredInsert,
+  FANSLY_IDS,
+  fanslyAccount,
+  fanslyBinding,
+  fanslyChat,
+  fanslyTarget,
   insertIntent,
   insertWire,
   journalEntry,
@@ -61,6 +66,8 @@ export const message = { platformMessageId: IDS.msg1, direction: 'fan', sentAt: 
 export const messages = (n: number) => Array.from({ length: n }, (_, i) => ({ ...message, platformMessageId: String(4000 + i + 1) }));
 export const composerState = { chat, instanceId: 'composer1', ready: true, hidden: false, draft: { revision: 4, provenance: 'empty' } } as const;
 export const routeState = { epoch: 5, name: 'chat', account, chat } as const;
+/** 1.15.0 (R20): a Fansly chat route — the group from the address, the fan from the page, a direct conversation. */
+export const fanslyRoute = { epoch: 8, name: 'chat', account: fanslyAccount, chat: fanslyChat, conversationRef: FANSLY_IDS.group, conversationKind: 'direct' } as const;
 export const fan = {
   chat,
   username: 'fan_two',
@@ -248,7 +255,8 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'Target',
     C.TargetSchema,
-    [target],
+    // 1.15.0: a Fansly chat binds to a Fansly page, and its conversation is the group, not the fan.
+    [target, fanslyTarget],
     [
       { ...target, fanRef: IDS.otherFan },
       { ...target, conversationRef: IDS.otherFan },
@@ -256,6 +264,10 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       // A binding resolved for another host account would send page Y's reply from account X.
       { ...target, binding: { ...binding, hostAccountId: '1099' } },
       { ...target, binding: { ...binding, host: 'fansly-web' } },
+      // 1.15.0: the host↔platform pair of HOST_PLATFORM holds for Fansly too.
+      { ...fanslyTarget, conversationRef: FANSLY_IDS.fan, binding: { ...fanslyBinding, platform: 'onlyfans' } },
+      { ...fanslyTarget, binding: { ...fanslyBinding, host: 'chatspace' } },
+      { ...fanslyTarget, fanRef: FANSLY_IDS.group },
     ],
   ),
   fixture(
@@ -479,7 +491,31 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...contractReport, receiptMatch: { kind: 'exact' } },
     ],
   ),
-  fixture('RouteState', C.RouteStateSchema, [routeState, { epoch: 0, name: 'other', account: null, chat: null }], [{ epoch: 5, name: 'inbox', account: null, chat: null }]),
+  fixture(
+    'RouteState',
+    C.RouteStateSchema,
+    [
+      routeState,
+      { epoch: 0, name: 'other', account: null, chat: null },
+      // 1.15.0 (R20): Fansly names the group from the address before it knows the fan, then the fan and the kind.
+      { epoch: 7, name: 'chat', account: fanslyAccount, chat: null, conversationRef: FANSLY_IDS.group },
+      { ...fanslyRoute },
+      { epoch: 9, name: 'chat', account: fanslyAccount, chat: null, conversationRef: FANSLY_IDS.otherGroup, conversationKind: 'group' },
+      // ChatSpace may name its conversation too: the fan.
+      { ...routeState, conversationRef: IDS.fan, conversationKind: 'direct' },
+    ],
+    [
+      { epoch: 5, name: 'inbox', account: null, chat: null },
+      { ...fanslyRoute, conversationRef: undefined },
+      { ...fanslyRoute, conversationKind: 'channel' },
+      { ...fanslyRoute, conversationRef: '0' },
+      { ...fanslyRoute, name: 'other' },
+      // A group has no fan of its own: no dock, no AI on one of its fans.
+      { ...fanslyRoute, conversationKind: 'group' },
+      { ...routeState, conversationRef: IDS.otherFan },
+    ],
+  ),
+  fixture('ConversationKind', C.ConversationKindSchema, ['direct', 'group'], ['dm', 'channel']),
   fixture('ComposerState', C.ComposerStateSchema, [composerState], [{ ...composerState, draft: { revision: 4, provenance: 'x' } }]),
   fixture(
     'InsertExpectation',
@@ -529,9 +565,14 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [
       { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: IDS.fan }, thenInsert: deferredInsert },
       { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: null } },
+      // 1.15.0 (R20): a Fansly chat is opened by its group; the fan still names it.
+      { intentId: uuid(9), cause, target: { hostAccountId: FANSLY_IDS.creator, platformFanId: FANSLY_IDS.fan, conversationRef: FANSLY_IDS.group } },
     ],
     [
       { intentId: uuid(9), target: { hostAccountId: IDS.acc, platformFanId: IDS.fan } },
+      // 1.15.0: a conversation is a chat's, never an account's; and it is a native id.
+      { intentId: uuid(9), cause, target: { hostAccountId: FANSLY_IDS.creator, platformFanId: null, conversationRef: FANSLY_IDS.group } },
+      { intentId: uuid(9), cause, target: { hostAccountId: FANSLY_IDS.creator, platformFanId: FANSLY_IDS.fan, conversationRef: 7 } },
       // thenInsert: deferred, into the navigation's own chat, never with an account-only target.
       { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: IDS.fan }, thenInsert: insertWire },
       { intentId: uuid(9), cause, target: { hostAccountId: IDS.acc, platformFanId: '2099' }, thenInsert: deferredInsert },
