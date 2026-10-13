@@ -9,6 +9,7 @@ import {
   type Bootstrap,
   type ChatRef,
   type FreshnessCheckpoint,
+  type HostAccount,
   type HubBinding,
   type HumanCause,
   type SessionIdentity,
@@ -28,6 +29,7 @@ export const WORLD = {
   instanceId: uuid(0x900),
   pages: {
     one: { pageId: 11, pageLabel: 'model-one', platformAccountId: '3003', hostAccountId: '1001', bindingRevision: 2 },
+    fansly: { pageId: 13, pageLabel: 'model-two-fansly', platformAccountId: '7007', bindingRevision: 1 },
   },
   fan: '2002',
   otherFan: '2003',
@@ -58,6 +60,37 @@ export const targetOf = (fan: string): Target => ({ binding, chat: chatOf(fan), 
 export const target = targetOf(WORLD.fan);
 export const otherTarget = targetOf(WORLD.otherFan);
 export const persona = { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId };
+
+/**
+ * R20: a Fansly chat of the world's Fansly page. On fansly.com the creator's id is the host account and the page's
+ * platform account; the conversation is the group of `/messages/<groupId>`, never the fan — the ids differ on purpose.
+ */
+export const FANSLY = { creator: WORLD.pages.fansly.platformAccountId, fan: '7102', group: '7203', otherGroup: '7204' } as const;
+export const fanslyAccount: HostAccount = { host: 'fansly-web', hostAccountId: FANSLY.creator, platform: 'fansly', platformAccountId: FANSLY.creator, username: 'model_two', displayName: 'Model Two' };
+export const fanslyBinding: HubBinding = {
+  ...binding,
+  host: 'fansly-web',
+  hostAccountId: FANSLY.creator,
+  platform: 'fansly',
+  platformAccountId: FANSLY.creator,
+  pageId: WORLD.pages.fansly.pageId,
+  pageLabel: WORLD.pages.fansly.pageLabel,
+  bindingRevision: WORLD.pages.fansly.bindingRevision,
+};
+export const fanslyChat: ChatRef = { host: 'fansly-web', hostAccountId: FANSLY.creator, platformFanId: FANSLY.fan };
+export const fanslyTarget: Target = { binding: fanslyBinding, chat: fanslyChat, fanRef: FANSLY.fan, conversationRef: FANSLY.group };
+
+/**
+ * The world's Fansly page switched on as its first OnlyFans page is, plus Fansly's own `drafts` (HF-12; the drafts of
+ * Fansly's slice ask it): the hub's own bootstrap answers a Fansly page `platform_unsupported` until R20's hub work, and
+ * these tests only follow the ids of a Fansly chat through shared code.
+ */
+export function withFanslyPage(base: Bootstrap): Bootstrap {
+  const one = base.pages.find((page) => page.pageId === WORLD.pages.one.pageId);
+  if (one === undefined) throw new Error('no first page in the bootstrap');
+  const features = { ...one.features, drafts: { available: true } as const };
+  return { ...base, pages: base.pages.map((page) => (page.pageId === WORLD.pages.fansly.pageId ? { ...page, features } : page)) };
+}
 
 /** A bootstrap with X8 on: every flag and page feature, and one verified receipt profile. */
 export function withX8(base: Bootstrap): Bootstrap {

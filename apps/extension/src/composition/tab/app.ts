@@ -412,7 +412,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     },
     i18n,
     clock,
-    chatHandle: (chat) => navigationChunk.chatHandle(chat),
+    chatHandle: (chat, conversationRef) => navigationChunk.chatHandle(chat, conversationRef),
     tab: {
       reload: () => win.location.reload(),
       reloadSurface: (surface) => surfaces?.reload(surface) ?? false,

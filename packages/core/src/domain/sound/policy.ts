@@ -8,6 +8,7 @@
 // is an outcome with a name; the options page shows the counters (SN-015).
 
 import { type IncomingFact } from '@cg/contracts/host';
+import { HOST_PLATFORM as SITE_PLATFORM } from '@cg/contracts/hosts';
 import { type HostKind, type Platform } from '@cg/contracts/ids';
 import { hostAccountKeyOf, type HostAccountKey, type SettingsV1 } from '@cg/contracts/settings';
 
@@ -68,8 +69,8 @@ export const SUBSCRIBER_THROTTLE_MS = 10_000;
  */
 export const LIVE_EDGE_MS = 15_000;
 
-/** The platform a host shows: ChatSpace is OnlyFans, fansly.com is Fansly. */
-export const HOST_PLATFORM: Readonly<Record<HostKind, Platform>> = { chatspace: 'onlyfans', 'fansly-web': 'fansly' };
+/** The platform a host shows — the contracts' one table of sites (`@cg/contracts/hosts`), typed as `Platform`. */
+export const HOST_PLATFORM: Readonly<Record<HostKind, Platform>> = SITE_PLATFORM;
 
 /** How a fact reached the arbiter, as far as «is this live» goes. */
 export type FactPhase = 'live' | 'first-snapshot' | 'reconnect';

@@ -48,7 +48,7 @@ import {
 import { errorView } from '../../domain/errors';
 import { admission, onPage } from '../../domain/features/admission';
 import { createI18n, createTranslator, resolveLocale, type LiveI18n, type Translator } from '../../domain/i18n';
-import { IDLE, accountKeyOf, boundPageOf, currentAccountOf, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
+import { IDLE, accountKeyOf, boundPageOf, currentAccountOf, isHostKind, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
 import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType } from './ports';
 import { hashOfRoute, routeOfHash } from './route';
 import { SettingsWriter, settingsWithPending, type WriteMode, type WriteOutcome } from './settings-writer';
@@ -912,7 +912,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     if (to.kind === 'account') {
       const key = accountKeyOfHandle(to.accountHandle);
       const [host, hostAccountId] = (key ?? '').split(':');
-      if (key === null || (host !== 'chatspace' && host !== 'fansly-web') || hostAccountId === undefined) return code('Navigate', 'CG-NAV-FAILED');
+      if (key === null || !isHostKind(host) || hostAccountId === undefined) return code('Navigate', 'CG-NAV-FAILED');
       return tabCommand('Navigate', { kind: 'account', host, hostAccountId });
     }
     if (to.kind === 'journal') {

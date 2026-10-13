@@ -330,7 +330,7 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       item(
         `running.${op.opId}`,
         text({ key: 'palette.item.running', params: { feature: i18n.t(`dock.action.${FEATURE_ACTION[op.feature]}`), fan: nameOf.get(op.target.chat.platformFanId) ?? i18n.t('common.unknown') } }),
-        { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(op.target.chat) } },
+        { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(op.target.chat, op.target.conversationRef) } },
         { runningSince: op.startedAt },
       ),
     );

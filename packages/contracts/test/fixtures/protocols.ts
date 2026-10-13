@@ -33,6 +33,7 @@ import {
   contractWireNotYet,
   diagnostics,
   fan,
+  fanslyToast,
   humanDraft,
   incomingFact,
   mainSend,
@@ -428,7 +429,7 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   'op.done': { valid: [{ view: opView }], invalid: [{ view: { ...opView, opId: 'x' } }] },
   'send.state': { valid: [{ view: sendView }], invalid: [{ view: { ...sendView, state: 'done' } }] },
   'send.fuse': { valid: [fuseState, { fuse: null, resetAt: T0 }], invalid: [{ fuse: { ...fuseState.fuse, build: 7 }, resetAt: null }, {}] },
-  toast: { valid: [{ toast }], invalid: [{ toast: { ...toast, toastId: 'x' } }] },
+  toast: { valid: [{ toast }, { toast: fanslyToast }], invalid: [{ toast: { ...toast, toastId: 'x' } }, { toast: { ...fanslyToast, conversationRef: '' } }] },
   'settings.changed': { valid: [settingsState], invalid: [{ ...settingsState, revision: 'r3' }] },
   'session.changed': {
     valid: [{ session, reason: 'sign-in' }, { session: null, reason: 'revoked' }],

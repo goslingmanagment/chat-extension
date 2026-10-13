@@ -202,7 +202,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     if (record.busy) return true;
     const binding = context.current().binding;
     const route = host.current().route.chat;
-    return binding !== null && route !== null && chatKeyOf(route) === chatKeyOf({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef });
+    return binding !== null && route !== null && chatKeyOf(route) === chatKeyOf({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef });
   }
 
   /**
@@ -661,7 +661,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
     // The person's click on this fan in «Новые»: the list's own switch on its page, not `navigation`.
-    const receipt = await navigator.open({ host: 'chatspace', hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers', ['newcomers']);
+    const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers', ['newcomers']);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
     return done(type, 'opened');

@@ -264,7 +264,8 @@ const hub = new ChatExtensionHub({
   обновление идёт рядом (хаб проверяет каждый вызов AI сам); если такого
   нет — ждёт обновления, но не дольше срока операции. Что он ждал или шёл по
   истёкшему, написано в журнале (`docs/pilot-readiness.md`, раздел 5, п. 17);
-- `buildStreamRequest(op, …)` + `stream(…)` — генерации; `promptEchoTicket` /
+- `stream(…)` — генерации (тело запроса собирает ядро: драйверы фич поверх
+  `core/src/domain/ops/request.ts`); `promptEchoTicket` /
   `promptEcho` — эхо промпта для `debug-prompt.html`;
 - `spendersBoard(…)` — `spenders.board` (до 1000 строк, кэш 10 мин общий для
   вкладок); `saveRecapProfile(…)` — сохранение досье по графику §7, сигнал

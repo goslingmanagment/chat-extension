@@ -4,6 +4,7 @@
 // a failed read keeps its error instead of posing as an empty answer.
 
 import { type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
+import { HOST_KINDS, type HostKind } from '@cg/contracts/hosts';
 import { type Bootstrap, type BootstrapPage, type PersonaCatalog, type PersonaCatalogItem } from '@cg/contracts/hub';
 import { type Locale } from '@cg/contracts/i18n/keys';
 import { type HostAccount, type HubBinding, type SessionIdentity } from '@cg/contracts/ids';
@@ -173,12 +174,15 @@ export interface OpenChat {
   readonly platformFanId: string;
 }
 
-/** `chatspace:<account>:<fan>` → its parts; null for anything else. */
+/** A site of the extension (`HOST_KINDS`): a key or a handle read back names no other. */
+export const isHostKind = (value: string | undefined): value is HostKind => (HOST_KINDS as readonly (string | undefined)[]).includes(value);
+
+/** `<host>:<account>:<fan>` → its parts; null for anything else. */
 export function parseChatKey(key: string | null): OpenChat | null {
   if (key === null) return null;
   const parts = key.split(':');
   const [host, hostAccountId, platformFanId] = parts;
-  if (parts.length !== 3 || (host !== 'chatspace' && host !== 'fansly-web') || hostAccountId === undefined || platformFanId === undefined) return null;
+  if (parts.length !== 3 || !isHostKind(host) || hostAccountId === undefined || platformFanId === undefined) return null;
   return { host, hostAccountId, platformFanId };
 }
 

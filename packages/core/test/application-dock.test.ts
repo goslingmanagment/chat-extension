@@ -14,6 +14,7 @@ import { BOOTSTRAP_PILOT_PAGES, meta, resolveHubErrorReference, pageFeaturesOff 
 
 import { CATALOG, OTHER_TAB, PERSONA_LABEL, TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { settle } from './support/clock';
 import { CHATSPACE, FANSLY } from './support/features';
 import { type ScriptResponse } from './support/fake-hub';
@@ -3025,5 +3026,15 @@ describe('[R20-F4] dock: the bar’s chips as data — the site’s slice of the
     expect(h.dock().mode).toBe('copy-only');
     expect(await h.generate('reply')).toMatchObject({ ok: false, code: 'CG-FEATURE-DISABLED' });
     expect(h.bg.callsOf('op.start')).toEqual([]);
+  });
+});
+
+describe('R20 F6a, ChatSpace: the dock on ChatSpace starts and asks the hub as before F6a', () => {
+  it('a Reply in the open chat: the start (its target names the fan as the conversation) and the hub body, byte for byte as recorded on main', async () => {
+    const h = await start();
+    await reply(h, 'hey you');
+    const recorded = { dockStart: JSON.stringify(h.bg.callsOf('op.start')), dockStreams: JSON.stringify(h.bg.hub.streams) };
+    expect(recorded.dockStart).toBe(CHATSPACE_RECORDED.dockStart);
+    expect(recorded.dockStreams).toBe(CHATSPACE_RECORDED.dockStreams);
   });
 });

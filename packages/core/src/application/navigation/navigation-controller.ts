@@ -37,20 +37,26 @@ export const LIST_FRESH_MS = 1000;
 const CHAT_HANDLE = 'nav.chat.';
 const ACCOUNT_HANDLE = 'nav.acc.';
 
-/** `nav.chat.<account>.<fan>`: the palette's and the quick jump's name for a chat; opaque to the UI. */
-export function chatHandle(chat: Pick<ChatRef, 'hostAccountId' | 'platformFanId'>): string {
-  return `${CHAT_HANDLE}${chat.hostAccountId}.${chat.platformFanId}`;
+/**
+ * `nav.chat.<account>.<fan>`: the palette's, the quick jump's and a toast's name for a chat; opaque to the UI. A chat
+ * whose conversation is not its fan (on Fansly the group id of an operation's target) is `nav.chat.<account>.<fan>.<conversation>`.
+ */
+export function chatHandle(chat: Pick<ChatRef, 'hostAccountId' | 'platformFanId'>, conversationRef?: string): string {
+  const conversation = conversationRef === undefined || conversationRef === chat.platformFanId ? '' : `.${conversationRef}`;
+  return `${CHAT_HANDLE}${chat.hostAccountId}.${chat.platformFanId}${conversation}`;
 }
 
 export function accountHandle(hostAccountId: string): string {
   return `${ACCOUNT_HANDLE}${hostAccountId}`;
 }
 
-export function parseChatHandle(handle: string): { readonly hostAccountId: string; readonly platformFanId: string } | null {
+export function parseChatHandle(handle: string): { readonly hostAccountId: string; readonly platformFanId: string; readonly conversationRef?: string } | null {
   if (!handle.startsWith(CHAT_HANDLE)) return null;
-  const [hostAccountId, platformFanId, extra] = handle.slice(CHAT_HANDLE.length).split('.');
+  const [hostAccountId, platformFanId, conversationRef, extra] = handle.slice(CHAT_HANDLE.length).split('.');
   if (hostAccountId === undefined || platformFanId === undefined || extra !== undefined) return null;
-  return NATIVE_ID_PATTERN.test(hostAccountId) && NATIVE_ID_PATTERN.test(platformFanId) ? { hostAccountId, platformFanId } : null;
+  if (!NATIVE_ID_PATTERN.test(hostAccountId) || !NATIVE_ID_PATTERN.test(platformFanId)) return null;
+  if (conversationRef === undefined) return { hostAccountId, platformFanId };
+  return NATIVE_ID_PATTERN.test(conversationRef) && conversationRef !== platformFanId ? { hostAccountId, platformFanId, conversationRef } : null;
 }
 
 export function parseAccountHandle(handle: string): string | null {
@@ -98,8 +104,11 @@ export interface NavigationControllerDeps {
 }
 
 export interface NavigationController extends SurfaceController {
-  /** Opens a chat (or an account, `platformFanId: null`) through ChatSpace's router; `cause` — a click unless said otherwise. */
-  open(target: { readonly hostAccountId: string; readonly platformFanId: string | null }, cause?: 'click' | 'key'): Promise<ActionReceipt>;
+  /**
+   * Opens a chat (or an account, `platformFanId: null`) through the host's router; `cause` — a click unless said
+   * otherwise. `conversationRef` — the chat's conversation when it is not the fan (a toast's, on Fansly).
+   */
+  open(target: { readonly hostAccountId: string; readonly platformFanId: string | null; readonly conversationRef?: string }, cause?: 'click' | 'key'): Promise<ActionReceipt>;
   /** The account whose chat list is on screen, or null. */
   currentAccountId(): string | null;
 }
@@ -149,10 +158,12 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     try {
       const issued = await deps.rpc.request('token.issue', { kind: 'navigate', surface: NAVIGATION_SURFACE });
       if (!issued.ok) return fail(issued.error.code);
+      const conversation = target.conversationRef;
       const receipt = await host.navigate({
         intentId: deps.ids.uuid(),
         cause: { kind: cause, actionToken: issued.payload.actionToken },
-        target: { hostAccountId: target.hostAccountId, platformFanId: target.platformFanId },
+        // The conversation only of a chat, and only when it is not the fan (on Fansly a toast's group).
+        target: { hostAccountId: target.hostAccountId, platformFanId: target.platformFanId, ...(conversation === undefined || conversation === target.platformFanId || target.platformFanId === null ? {} : { conversationRef: conversation }) },
       });
       if (receipt.state !== 'navigated') return fail(receipt.code);
       // The chat is on screen now: the windows that led to it close.

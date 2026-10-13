@@ -213,22 +213,6 @@ const UI = 'packages/ui/src';
  * a literal lowers the count or drops the entry in the same commit; the final gate (F9b) stands on an empty list.
  */
 export const SITE_LITERAL_DEBT: readonly SiteLiteralDebt[] = [
-  // F6a — the site and the conversation in shared code: `host: 'chatspace'` → `binding.host`.
-  { path: `${CORE}/application/newcomers/controller.ts`, value: 'chatspace', count: 2, pr: 'F6a', note: "`host: 'chatspace'` in the chat key and in `navigator.open` → `binding.host`" },
-  { path: `${CORE}/application/spenders/controller.ts`, value: 'chatspace', count: 1, pr: 'F6a', note: "`host: 'chatspace'` in `navigator.open` → `binding.host`" },
-  { path: `${CORE}/application/preview/controller.ts`, value: 'chatspace', count: 3, pr: 'F6a', note: "`host: 'chatspace'` in the chat key, the chat and `navigator.open` → `binding.host`" },
-  // F6a — the two host kinds spelled out where a chat key is parsed → `HOST_KINDS` of the contracts.
-  { path: `${CORE}/application/pages/model.ts`, value: 'chatspace', count: 1, pr: 'F6a', note: 'the two host kinds listed by hand when a chat key is parsed → `HOST_KINDS`' },
-  { path: `${CORE}/application/pages/model.ts`, value: 'fansly-web', count: 1, pr: 'F6a', note: 'the same list' },
-  { path: `${CORE}/application/pages/client.ts`, value: 'chatspace', count: 1, pr: 'F6a', note: 'the two host kinds listed by hand in «Navigate» → `HOST_KINDS`' },
-  { path: `${CORE}/application/pages/client.ts`, value: 'fansly-web', count: 1, pr: 'F6a', note: 'the same list' },
-  // F6a — a second copy of the contracts' table host → platform.
-  { path: `${CORE}/domain/sound/policy.ts`, value: 'chatspace', count: 1, pr: 'F6a', note: "its own `HOST_PLATFORM` → the contracts' (`@cg/contracts/hosts`)" },
-  { path: `${CORE}/domain/sound/policy.ts`, value: 'onlyfans', count: 1, pr: 'F6a', note: 'the same table' },
-  { path: `${CORE}/domain/sound/policy.ts`, value: 'fansly-web', count: 1, pr: 'F6a', note: 'the same table' },
-  { path: `${CORE}/domain/sound/policy.ts`, value: 'fansly', count: 1, pr: 'F6a', note: 'the same table' },
-  // F6a — ChatSpace's MAIN accepts both host kinds (frees bytes of MAIN).
-  { path: 'packages/host-chatspace/src/main/requests.ts', value: 'fansly-web', count: 2, pr: 'F6a', note: "`is('chatspace', 'fansly-web')` in the chat and identity checks → `'chatspace'` alone" },
   // F7 — telemetry and the host contract report by site.
   { path: `${CORE}/domain/telemetry/health.ts`, value: 'chatspace', count: 1, pr: 'F7', note: "`host: { kind: 'chatspace' }` in the health report → the window of (host, build)" },
   { path: `${CORE}/application/pages/view-status.ts`, value: 'chatspace', count: 8, pr: 'F7', note: 'the one required «ChatSpace» row of «Статус» → a row per site that has bindings' },

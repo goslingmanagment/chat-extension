@@ -11,10 +11,11 @@ import { applyOpDone, applyOpUpdate, mirrorFromView, type OpsEnvironment } from 
 import { ActionTokens, OPS_STORE_KEY, OpScheduler, RecapProfileSaver, SAVE_OUTCOMES_KEPT, deadlineStage, profileSaveDelay, type OpSchedulerDeps, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
 import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
-import { featuresOf } from './support/features';
-import { NOW_MS, WORLD, chatOf, checkpointFor, persona, session, startOf, targetOf, uuid } from './support/world';
+import { featuresOf, featuresOfBoth } from './support/features';
+import { FANSLY, NOW_MS, WORLD, chatOf, checkpointFor, fanslyChat, fanslyTarget, persona, session, startOf, targetOf, uuid, withFanslyPage } from './support/world';
 
 /** What the scheduler reads of a tab's presence, as a tab reports it. */
 type ShownTab = Pick<TabPresence, 'chat' | 'routeEpoch' | 'visible' | 'focused'>;
@@ -1059,5 +1060,33 @@ describe('[RB-018] the dossier save of a full recap (H-5)', () => {
     expect(saver.outcome(uuid(0x1000 + 5))).toBeNull();
     expect(saver.outcome(uuid(0x1000 + 6))).toBe('saved');
     expect(saver.outcome(uuid(0x1000 + SAVE_OUTCOMES_KEPT + 5))).toBe('saved');
+  });
+});
+
+describe('R20 F6a, ChatSpace: the background toast on ChatSpace is as before F6a', () => {
+  it('«AI готово · {фан}» when the owning tab shows another chat: byte for byte as recorded on main', async () => {
+    const h = harness();
+    const op = h.nextOp();
+    h.hub.streamScript.push(...forOp(scenario('reply-normal'), op));
+    h.presence.set(TAB, { chat: chatOf(WORLD.otherFan), routeEpoch: 3, visible: true, focused: true });
+    opIdOf(await h.start(TAB, startOf(), { fanLabel: 'Fan Two' }));
+    await h.clock.advance(1000);
+    const toast = JSON.stringify(h.events.of('toast'));
+    expect(toast).toBe(CHATSPACE_RECORDED.toast);
+  });
+});
+
+describe('R20 F6a, Fansly: the background toast names the operation\'s own conversation', () => {
+  it('«AI готово» of a Fansly operation carries its chat and its group: «Открыть чат» opens the group, not a guess from the fan', async () => {
+    const h = harness({ env: { bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES), features: featuresOfBoth } });
+    const op = h.nextOp();
+    h.hub.streamScript.push(...forOp(scenario('reply-normal'), op));
+    h.presence.set(TAB, { chat: chatOf(WORLD.otherFan), routeEpoch: 3, visible: true, focused: true });
+    opIdOf(await h.start(TAB, startOf({ target: fanslyTarget }), { fanLabel: 'Fan of Fansly' }));
+    await h.clock.advance(1000);
+    const toasts = h.events.of('toast');
+    expect(toasts.map((event) => event.payload.toast)).toMatchObject([{ kind: 'success', scope: 'op.ready', opId: op, chat: fanslyChat, conversationRef: FANSLY.group }]);
+    expect(TAB_EVENTS.toast.payload.safeParse(toasts[0]?.payload).success).toBe(true);
+    expect(h.hub.streams.map((request) => request.body)).toMatchObject([{ platform: 'fansly', conversationRef: FANSLY.group, fanRef: FANSLY.fan }]);
   });
 });

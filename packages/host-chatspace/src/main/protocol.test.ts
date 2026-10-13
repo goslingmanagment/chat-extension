@@ -128,6 +128,16 @@ describe('[EX-008] MAIN request checks agree with the contracts fixtures', () =>
     for (const payload of fixtures.invalid) expect([t, payload, check?.(payload)]).toEqual([t, payload, false]);
   });
 
+  it('R20 F6a, ChatSpace: an identity or a chat of another site is refused — ChatSpace MAIN serves ChatSpace alone', () => {
+    // The contracts' schemas are shared by both sites and take either kind of host; ChatSpace's isolated world only
+    // ever names its own, so MAIN takes `chatspace` alone (docs/project-unite/architecture.md §1.9).
+    const draft = BRIDGE_REQUEST_FIXTURES.readDraft.payload.valid[0] as { readonly expected: Record<string, unknown> };
+    const insert = BRIDGE_REQUEST_FIXTURES.insertGuarded.payload.valid[0] as { readonly intent: Record<string, unknown> & { readonly target: Record<string, unknown> } };
+    expect([PAYLOAD['readDraft']?.(draft), PAYLOAD['insertGuarded']?.(insert)]).toEqual([true, true]);
+    expect(PAYLOAD['readDraft']?.({ expected: { ...draft.expected, host: 'fansly-web' } })).toBe(false);
+    expect(PAYLOAD['insertGuarded']?.({ intent: { ...insert.intent, target: { ...insert.intent.target, host: 'fansly-web' } } })).toBe(false);
+  });
+
   it('[NEW-01] a navigation’s deferred insert must aim at the navigation’s own account and fan', () => {
     const then = (fan: string, acc = '1001') => ({
       intentId: '00000000-0000-4000-8000-000000000011',

@@ -152,12 +152,17 @@ export function buildDeferredInsert(input: DeferredInsertInput): IntentResult<In
   return InsertWireSchema.safeParse(wire).success ? { ok: true, intent: wire } : { ok: false, code: 'CG-INSERT-FAILED' };
 }
 
-/** «Открыть и вставить»: one human navigation to the exact chat with its deferred insert. */
-export function buildOpenAndInsert(input: { readonly intentId: string; readonly cause: HumanCause; readonly insert: InsertWire }): IntentResult<NavigationIntent> {
+/**
+ * «Открыть и вставить»: one human navigation to the exact chat with its deferred insert. `conversationRef` — the
+ * conversation of the operation's target (on Fansly the group id); the navigation names it only when it is not the fan.
+ */
+export function buildOpenAndInsert(input: { readonly intentId: string; readonly cause: HumanCause; readonly insert: InsertWire; readonly conversationRef?: string }): IntentResult<NavigationIntent> {
+  const { hostAccountId, platformFanId } = input.insert.target;
+  const conversationRef = input.conversationRef;
   const intent: NavigationIntent = {
     intentId: input.intentId,
     cause: input.cause,
-    target: { hostAccountId: input.insert.target.hostAccountId, platformFanId: input.insert.target.platformFanId },
+    target: { hostAccountId, platformFanId, ...(conversationRef === undefined || conversationRef === platformFanId ? {} : { conversationRef }) },
     thenInsert: input.insert,
   };
   return NavigationIntentSchema.safeParse(intent).success ? { ok: true, intent } : { ok: false, code: 'CG-NAV-FAILED' };

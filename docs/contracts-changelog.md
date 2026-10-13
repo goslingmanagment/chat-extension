@@ -218,6 +218,19 @@ ChatSpace не меняются.
   `previewSend`), `apps/extension/test/feature-slices.test.ts` (новая запись только в `features/fansly.ts` не меняет
   ни байта ChatSpace).
 
+### F6a — разговор тоста фона
+
+Не PR этапа 4, но в его открытую версию: общий код перестаёт подставлять фана вместо разговора
+(`docs/project-unite/architecture.md` §1.9), и «Открыть чат» тоста должно открыть разговор операции, а не угадывать
+его.
+
+- **`BackgroundToast.conversationRef?`** — разговор чата тоста, когда это не сам фан: на Fansly — `groupId` цели
+  операции. Только вместе с `chat`. Нет поля — разговор = фан: так у ChatSpace и у каждого тоста до 1.15.0; фон
+  ChatSpace поле не ставит, тост ChatSpace байт в байт прежний.
+- Фикстуры: верный тост Fansly (`fanslyToast`: `chat` Fansly, `conversationRef` = группа), неверные — разговор не
+  id (строка с буквами, число, пустая строка); событие `toast` реестра вкладки — те же. Тесты:
+  `packages/contracts/test/schemas.test.ts`, `packages/contracts/test/protocols.test.ts`.
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

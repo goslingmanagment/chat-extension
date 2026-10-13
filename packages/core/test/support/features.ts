@@ -16,5 +16,8 @@ export const FANSLY = featureSlice(FEATURES_COMMON, FANSLY_FEATURES);
 /** `OpsEnvironment.features` of a background that serves ChatSpace alone, as the extension does until Fansly is wired. */
 export const featuresOf = (host: HostKind): FeatureSlice | null => (host === 'chatspace' ? CHATSPACE : null);
 
+/** A background that serves both sites (R20 F6a's tests follow a Fansly chat through shared code before Fansly is wired). */
+export const featuresOfBoth = (host: HostKind): FeatureSlice => (host === 'chatspace' ? CHATSPACE : FANSLY);
+
 /** `StreamRequestContext.freshText` as the scheduler sets it: ChatSpace's `fresh-text` on the page. */
 export const freshTextOn = (bootstrap: Bootstrap, pageId: number): boolean => freshTextAdmitted(CHATSPACE, bootstrap, pageId);

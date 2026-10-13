@@ -1,5 +1,6 @@
 // The background's toast as this tab shows it (tab/toast-events.ts).
 
+import type { ChatRef } from '@cg/contracts/ids';
 import type { BackgroundToast } from '@cg/contracts/tab-messages';
 import { BackgroundToastSchema } from '@cg/contracts/tab-messages';
 import { describe, expect, it } from 'vitest';
@@ -9,7 +10,7 @@ import { toastOfTab, type ToastFacts } from './toast-events';
 const HERE = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
 const THERE = { ...HERE, platformFanId: '74001002' };
 
-const ready = (chat: typeof HERE, over: Partial<BackgroundToast> = {}): BackgroundToast =>
+const ready = (chat: ChatRef, over: Partial<BackgroundToast> = {}): BackgroundToast =>
   BackgroundToastSchema.parse({ toastId: '6b0f2c1e-7a35-4b55-9d0e-2f1c5a7e9b01', kind: 'success', scope: 'op.ready', opId: '6b0f2c1e-7a35-4b55-9d0e-2f1c5a7e9b02', feature: 'reply', chat, fanLabel: null, ...over });
 
 const facts = (over: Partial<ToastFacts> = {}): ToastFacts => ({ showing: () => HERE, visible: () => true, fanName: () => null, inPreview: () => false, ...over });
@@ -47,6 +48,16 @@ describe('the background toast as the tab shows it', () => {
     expect(saved).not.toBeNull();
     expect(saved?.chat).toBeUndefined();
     expect(BackgroundToastSchema.safeParse(saved).success).toBe(true);
+  });
+
+  it('R20 F6a: a toast of the open chat that keeps no «Открыть чат» keeps no conversation either; a toast of another chat keeps both', () => {
+    const FANSLY_HERE = { host: 'fansly-web' as const, hostAccountId: '700000000000000001', platformFanId: '700000000000000002' };
+    const group = '700000000000000003';
+    const saved = toastOfTab(ready(FANSLY_HERE, { scope: 'recap.profile', feature: 'recap', conversationRef: group }), facts({ showing: () => FANSLY_HERE }));
+    expect(saved).not.toBeNull();
+    expect([saved?.chat, saved?.conversationRef]).toEqual([undefined, undefined]);
+    expect(BackgroundToastSchema.safeParse(saved).success).toBe(true);
+    expect(toastOfTab(ready(FANSLY_HERE, { conversationRef: group }), facts())).toMatchObject({ chat: FANSLY_HERE, conversationRef: group });
   });
 
   it('a toast with no chat passes as it is', () => {

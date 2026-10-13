@@ -45,6 +45,7 @@ import { FakeToasts, cgError, ctxOf, dock, reason } from '@cg/testing/app-client
 import { FakeHostPort, contractReport, hostAccount, memory, openChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
 import { describe, expect, it } from 'vitest';
 
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { FakeClock, sequentialIds, settle } from './support/clock';
 import { WORLD, uuid } from './support/world';
 
@@ -399,7 +400,9 @@ describe('chat navigation', () => {
     expect(w.navigation.dispatch({ type: 'OpenSettings', route: { section: 'status' } })).toBeNull();
     expect(parseChatHandle(chatHandle(chat('2004')))).toEqual({ hostAccountId: ACC, platformFanId: '2004' });
     expect(parseAccountHandle(accountHandle('1002'))).toBe('1002');
-    for (const bad of ['nav.chat.1001', 'nav.chat.1001.2004.9', 'nav.chat.0.2004', 'nav.chat.abc.2004', 'x']) expect(parseChatHandle(bad)).toBeNull();
+    // R20 F6a: a third id is the chat's conversation when it is not the fan (a toast's on Fansly); never the fan itself, never a fourth.
+    expect(parseChatHandle('nav.chat.1001.2004.9')).toEqual({ hostAccountId: ACC, platformFanId: '2004', conversationRef: '9' });
+    for (const bad of ['nav.chat.1001', 'nav.chat.1001.2004.9.1', 'nav.chat.1001.2004.2004', 'nav.chat.1001.2004.x', 'nav.chat.0.2004', 'nav.chat.abc.2004', 'x']) expect(parseChatHandle(bad)).toBeNull();
     expect(parseAccountHandle('nav.acc.0')).toBeNull();
     // Our handles are valid handles of the UiAction contract.
     expect(UiActionSchema.safeParse({ type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(chat('2004')) } }).success).toBe(true);
@@ -998,4 +1001,15 @@ describe('the palette', () => {
 // openChat is the fake world's open chat: the navigation tests rely on it being 2002 of account 1001.
 it('the scripted world: the open chat is 2002 of account 1001', () => {
   expect(openChat).toEqual(chat('2002'));
+});
+
+describe('R20 F6a, ChatSpace: «Открыть чат» of a toast on ChatSpace names and opens the chat as before F6a', () => {
+  it('the handle of the toast\'s chat and the navigation it makes: byte for byte as recorded on main', async () => {
+    const w = world();
+    const handle = chatHandle(chat('2004'));
+    expect((await w.go({ type: 'Navigate', to: { kind: 'chat', targetHandle: handle } }))?.ok).toBe(true);
+    const recorded = { toastHandle: handle, toastNavigation: JSON.stringify(w.host.calls.navigations) };
+    expect(recorded.toastHandle).toBe(CHATSPACE_RECORDED.toastHandle);
+    expect(recorded.toastNavigation).toBe(CHATSPACE_RECORDED.toastNavigation);
+  });
 });

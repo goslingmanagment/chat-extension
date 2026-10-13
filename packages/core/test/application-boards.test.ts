@@ -19,6 +19,7 @@ import { DOCUMENT, FakeHostPort, HOST_IDS, contractReport, hostAccount, memory a
 import { NOW_MS, WORLD, contextFrame, meta, pageFeaturesOff } from '@cg/testing/hub';
 
 import { BoardsBackground } from './support/boards-background';
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { FakeClock, sequentialIds, settle } from './support/clock';
 import { type ScriptStep } from './support/fake-hub';
 
@@ -3697,5 +3698,27 @@ describe('the router contract of the controllers', () => {
     const reads = h.bg.requests.length;
     await h.advance(300_000);
     expect(h.bg.requests).toHaveLength(reads);
+  });
+});
+
+describe('R20 F6a, ChatSpace: a preview, a row and a card on ChatSpace start, read and navigate as before F6a', () => {
+  it('a preview Reply (start, hub body, its reads by chat), «Открыть и вставить», a Spenders row and a card of «Новые»: byte for byte as recorded on main', async () => {
+    const applied = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } } as const;
+    const { h, opId } = await withReply({ answers: { navigate: [applied] } });
+    expect(await h.dispatch({ type: 'OpenAndInsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: true, outcome: 'opened' });
+    await h.dispatch(open('spenders'));
+    expect(await h.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: spender('5001') } })).toMatchObject({ ok: true, outcome: 'opened' });
+    await h.dispatch(open('newcomers'));
+    expect(await h.dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: newcomer('2010') } })).toMatchObject({ ok: true, outcome: 'opened' });
+    const recorded = {
+      previewStart: JSON.stringify(h.bg.requests.filter((request) => request.type === 'op.start')),
+      previewStreams: JSON.stringify(h.bg.streams.streams),
+      previewOpLists: JSON.stringify(h.bg.requests.filter((request) => request.type === 'op.list')),
+      boardNavigations: JSON.stringify(h.host.calls.navigations),
+    };
+    expect(recorded.previewStart).toBe(CHATSPACE_RECORDED.previewStart);
+    expect(recorded.previewStreams).toBe(CHATSPACE_RECORDED.previewStreams);
+    expect(recorded.previewOpLists).toBe(CHATSPACE_RECORDED.previewOpLists);
+    expect(recorded.boardNavigations).toBe(CHATSPACE_RECORDED.boardNavigations);
   });
 });
