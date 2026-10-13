@@ -135,6 +135,10 @@ a boundary you need to cross is a design question, not a lint exception.
   `CG_E2E_VOLUME=<own name>` (the default is `cg-e2e-local`).
 - `pnpm parity:coverage` — rewrites `docs/parity/coverage.md`: which parity
   rows a test names. Name the row in the test title: `it('[ST-042] …')`.
+  On Fansly a test closes a row only on its host (its path, or `[host:fansly]`
+  in a title of shared code) and at its level; `pnpm parity` fails on an open
+  row of an R20 PR marked `✓` in `docs/project-unite/plan.md` — mark your own
+  PR there (`docs/project-unite/parity-matrix.md` §1).
 
 ## Where the truth is
 
