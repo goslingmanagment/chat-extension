@@ -32,6 +32,7 @@ import {
   type ViewSelector,
 } from '@cg/contracts';
 import type { FeatureSlice } from '@cg/contracts/features/types';
+import type { HostKind } from '@cg/contracts/hosts';
 import { createAiSurfaces, type AiSurfaces } from '@cg/core/application/ai';
 import { createI18n } from '@cg/core/domain/i18n';
 
@@ -66,6 +67,8 @@ export interface HarnessOptions {
   readonly extensionVersion?: string;
   /** The site's slice of the feature manifest; absent — ChatSpace's. */
   readonly features?: FeatureSlice;
+  /** The sites the background serves; absent — ChatSpace alone. */
+  readonly served?: (host: HostKind) => FeatureSlice | null;
 }
 
 export class FakeClipboard {
@@ -122,6 +125,7 @@ export function aiHarness(parts: HarnessParts, options: HarnessOptions = {}): Ha
       clock,
       ...(options.session === undefined ? {} : { session: options.session }),
       ...(options.settings === undefined ? {} : { settings: options.settings }),
+      ...(options.served === undefined ? {} : { features: options.served }),
     });
   options.background?.(bg);
   const tab = options.shared?.tab ?? TAB;

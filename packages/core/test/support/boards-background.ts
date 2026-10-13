@@ -61,6 +61,8 @@ export interface BackgroundOptions {
   readonly instanceId: string;
   /** Rows per «Новые» page the background asks the hub for. */
   readonly audiencePageSize?: number;
+  /** The sites the background serves; absent — ChatSpace alone (`featuresOf`). */
+  readonly features?: OpsEnvironment['features'];
 }
 
 type Handler<T extends BoardsRequestType> = (payload: TabRequestPayload<T>) => Promise<RpcResult<TabResponsePayload<T>>>;
@@ -116,7 +118,7 @@ export class BoardsBackground {
       persona: (pageId) => this.settings.personas.byPageId[String(pageId)] ?? null,
       debug: false,
       settingsLoaded: true,
-      features: featuresOf,
+      features: options.features ?? featuresOf,
     });
     this.scheduler = new OpScheduler({
       clock: options.clock,

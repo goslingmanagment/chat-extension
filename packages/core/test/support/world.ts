@@ -81,13 +81,15 @@ export const fanslyChat: ChatRef = { host: 'fansly-web', hostAccountId: FANSLY.c
 export const fanslyTarget: Target = { binding: fanslyBinding, chat: fanslyChat, fanRef: FANSLY.fan, conversationRef: FANSLY.group };
 
 /**
- * The world's Fansly page switched on as its first OnlyFans page is: the hub's own bootstrap answers a Fansly page
- * `platform_unsupported` until R20's hub work, and these tests only follow the ids of a Fansly chat through shared code.
+ * The world's Fansly page switched on as its first OnlyFans page is, plus Fansly's own `drafts` (HF-12; the drafts of
+ * Fansly's slice ask it): the hub's own bootstrap answers a Fansly page `platform_unsupported` until R20's hub work, and
+ * these tests only follow the ids of a Fansly chat through shared code.
  */
 export function withFanslyPage(base: Bootstrap): Bootstrap {
   const one = base.pages.find((page) => page.pageId === WORLD.pages.one.pageId);
   if (one === undefined) throw new Error('no first page in the bootstrap');
-  return { ...base, pages: base.pages.map((page) => (page.pageId === WORLD.pages.fansly.pageId ? { ...page, features: one.features } : page)) };
+  const features = { ...one.features, drafts: { available: true } as const };
+  return { ...base, pages: base.pages.map((page) => (page.pageId === WORLD.pages.fansly.pageId ? { ...page, features } : page)) };
 }
 
 /** A bootstrap with X8 on: every flag and page feature, and one verified receipt profile. */

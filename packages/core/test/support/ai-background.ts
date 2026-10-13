@@ -71,6 +71,8 @@ export interface BackgroundOptions {
   readonly clock?: FakeClock;
   readonly session?: SessionIdentity | null;
   readonly settings?: SettingsV1;
+  /** The sites the background serves; absent — ChatSpace alone (`featuresOf`). */
+  readonly features?: OpsEnvironment['features'];
 }
 
 class ContractViolation extends Error {}
@@ -101,6 +103,7 @@ export class AddressedHub extends FakeHub {
 export class FakeBackground {
   readonly clock: FakeClock;
   readonly hub: AddressedHub;
+  private readonly features: OpsEnvironment['features'];
   readonly scheduler: OpScheduler;
   readonly tokens: ActionTokens;
   readonly saver: RecapProfileSaver;
@@ -148,6 +151,7 @@ export class FakeBackground {
     this.ids = sequentialIds(0x100);
     this.session = options.session === undefined ? worldSession : options.session;
     this.bootstrap = options.bootstrap;
+    this.features = options.features ?? featuresOf;
     this.settings = { settings: options.settings ?? settingsWithPersona(), revision: 1, readOnly: false };
     this.tokens = new ActionTokens(this.clock, this.ids);
     const sink = {
@@ -181,7 +185,7 @@ export class FakeBackground {
       persona: (pageId) => this.settings.settings.personas.byPageId[String(pageId)] ?? null,
       debug: this.settings.settings.debug.enabled,
       settingsLoaded: true,
-      features: featuresOf,
+      features: this.features,
     };
   }
 

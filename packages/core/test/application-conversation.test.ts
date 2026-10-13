@@ -38,6 +38,7 @@ import { settingsWithPersona } from './support/ai-background';
 import { readyHarness } from './support/ai-harness';
 import { BoardsBackground } from './support/boards-background';
 import { FakeClock, sequentialIds, settle } from './support/clock';
+import { FANSLY as FANSLY_SLICE, featuresOfBoth } from './support/features';
 import { type ScriptStep } from './support/fake-hub';
 import { FANSLY, NOW_MS, WORLD, fanslyAccount, fanslyBinding, fanslyChat, fanslyTarget, session, uuid, withFanslyPage } from './support/world';
 
@@ -52,7 +53,8 @@ describe('R20 F6a, Fansly: the dock — the conversation comes from the route', 
     const fake = new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers: {}, timeline: [] });
     const h = await readyHarness(
       { baseHost: fake, memory, catalog: createFakeCatalog(ctxOf({ now: NOW_MS })), bootstrap: BOOTSTRAP, resolve: resolveHubErrorReference, meta: (feature) => meta(feature as Parameters<typeof meta>[0]) },
-      { settings: SETTINGS },
+      // The tab runs Fansly's slice of the feature manifest, the background serves both sites.
+      { settings: SETTINGS, features: FANSLY_SLICE, served: featuresOfBoth },
     );
     const window = memory.chatWindows[0];
     if (window === undefined) throw new Error('no chat window in the host world');
@@ -115,7 +117,7 @@ const directoryOf = (info: PreviewTargetInfo): PreviewDirectory => ({
 
 function boards(answers: HostAnswers = {}) {
   const clock = new FakeClock(NOW_MS);
-  const bg = new BoardsBackground({ clock, call: hubCall, session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId });
+  const bg = new BoardsBackground({ clock, call: hubCall, session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
   const host = new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers, timeline: [] }, NOW_MS);
   const ids = sequentialIds(0x9000);
   const surfaces = new Surfaces();

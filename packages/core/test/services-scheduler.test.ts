@@ -14,7 +14,7 @@ import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } 
 import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
-import { featuresOf } from './support/features';
+import { featuresOf, featuresOfBoth } from './support/features';
 import { FANSLY, NOW_MS, WORLD, chatOf, checkpointFor, fanslyChat, fanslyTarget, persona, session, startOf, targetOf, uuid, withFanslyPage } from './support/world';
 
 /** What the scheduler reads of a tab's presence, as a tab reports it. */
@@ -1078,7 +1078,7 @@ describe('R20 F6a, ChatSpace: the background toast on ChatSpace is as before F6a
 
 describe('R20 F6a, Fansly: the background toast names the operation\'s own conversation', () => {
   it('«AI готово» of a Fansly operation carries its chat and its group: «Открыть чат» opens the group, not a guess from the fan', async () => {
-    const h = harness({ env: { bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES) } });
+    const h = harness({ env: { bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES), features: featuresOfBoth } });
     const op = h.nextOp();
     h.hub.streamScript.push(...forOp(scenario('reply-normal'), op));
     h.presence.set(TAB, { chat: chatOf(WORLD.otherFan), routeEpoch: 3, visible: true, focused: true });
