@@ -52,3 +52,10 @@ they are not needed to build the XPI.
 The extension loads and evaluates no remote code. It talks to one server, the
 agency's own (`https://gosling-agency.ru`), and receives data and settings
 from it, never scripts.
+
+Two of its files load others of the same package with
+`import(runtime.getURL(…))` (web-ext lint names them «Unsafe call to import»):
+the content script loads its lazy chunks (`lazy/*.js`), and the background
+loads each site's background chunk (`bg/<site>.js`, built by
+`apps/extension/bg/vite.config.ts`). The address is always one of the
+extension's own files; nothing outside the XPI is imported.
