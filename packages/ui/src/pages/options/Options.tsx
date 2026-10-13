@@ -56,7 +56,8 @@ const ANCHORS: Partial<Record<CgCode, string>> = {
   'CG-HUB-TIMEOUT': 'hub',
   'CG-HUB-OUTDATED': 'hub',
   'CG-HUB-CAPABILITY': 'hub',
-  'CG-HOST-CONTRACT': 'chatspace',
+  // The site's row (R20 F7): `data-pg-anchor` of every site's row is `host`.
+  'CG-HOST-CONTRACT': 'host',
   'CG-SEND-OFF': 'preview-send',
   'CG-SEND-HOST': 'preview-send',
   'CG-SEND-RECEIPT': 'preview-send',

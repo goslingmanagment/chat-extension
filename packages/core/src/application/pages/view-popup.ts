@@ -1,8 +1,9 @@
 // The toolbar popup (architecture.md §9.9; ui-design §4.23; PU-001…PU-022):
 // what is connected, who is signed in, which chat is open and how much AI
 // quota is left — from what the background already knows. Nothing here asks
-// ChatSpace anything, and the popup never shows an endless spinner: a
-// background that does not answer is CG-RUNTIME-UNREACHABLE (PU-001).
+// a site anything, and the popup never shows an endless spinner: a
+// background that does not answer is CG-RUNTIME-UNREACHABLE (PU-001). The
+// report of the tab in front is read by its site's expected anchors (R20 F7).
 
 import { type CgErrorView } from '@cg/contracts/errors';
 import { type HostCapability } from '@cg/contracts/host';
@@ -12,14 +13,14 @@ import { formatMicroUsd } from '../../domain/debug';
 import { hotkeyOf } from './hotkeys';
 import { QUOTA_LOW, boundPageOf, boundPageTagOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
-import { hostGaps, hostReportOf, hubState, missingAnchors } from './view-status';
+import { hostGaps, hostReportOf, hubState, missingAnchors, siteOfReport } from './view-status';
 
 function hostPill(model: PagesModel): PopupVM['pills']['host'] {
   const host = hostReportOf(model);
   if (host === null) return 'unknown';
   if (host.tabs === 0) return 'closed';
   if (host.report === null) return 'unknown';
-  const gaps = hostGaps(host.report);
+  const gaps = hostGaps(host.report, siteOfReport(model, host.report)?.contract ?? null);
   if (gaps.anchors.length === 0 && gaps.broken.length === 0) return 'connected';
   return gaps.insert ? 'partial' : 'copy-only';
 }
@@ -45,7 +46,8 @@ function problemsOf(model: PagesModel, host: PopupVM['pills']['host']): CgErrorV
     // The code's own text ends in «Вставка работает через „Копировать“»: not so here — the insert works, so the line
     // names what was not found, in the words of the «Статус» row.
     const report = hostReportOf(model)?.report ?? null;
-    const body = report === null ? null : model.t.text('settings.status.row.chatspacePartialNote', { missing: missingAnchors(hostGaps(report)) });
+    const site = report === null ? null : siteOfReport(model, report);
+    const body = report === null || site === null ? null : model.t.text(site.texts.partialNote, { missing: missingAnchors(hostGaps(report, site.contract)) });
     problems.push(body === null ? codeError(model, 'CG-HOST-CONTRACT') : { ...codeError(model, 'CG-HOST-CONTRACT'), body });
   }
   // One line per code: the same problem seen twice is one problem.

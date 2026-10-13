@@ -10,11 +10,14 @@ import {
   INGEST_LIMITS,
   isHubCallError,
   type AcceptanceEvent,
+  type ClientHealthV1,
   type ProfileFromGenerationRequest,
 } from '@cg/contracts';
-import { HUB_SAMPLES, clientHealth, uuid as fixtureUuid } from '@cg/contracts/fixtures';
+import { HUB_SAMPLES, clientHealth, contractReport, siteContractReport, uuid as fixtureUuid } from '@cg/contracts/fixtures';
+import { TabHealthCollector } from '@cg/core/domain/telemetry';
+import { HealthReporter } from '@cg/core/services/telemetry';
 import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, SSE_SCENARIOS, WORLD, sseText, uuid } from '@cg/testing/hub';
-import { kernelOperations } from '@kernel/sdk';
+import { CLIENT_HEALTH_PERF_METRICS, clientHealthReportV1Schema, kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SDK_ALLOWED_OPERATIONS, errorWireOf, stableEventId } from '../src/index';
@@ -105,6 +108,47 @@ describe('[TL-009] [TL-012] ingest: acceptance always, client_health only under 
     expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(stableEventId('client_health|0.1.0|a|b')).toBe(a);
     expect(stableEventId('client_health|0.1.0|a|c')).not.toBe(a);
+  });
+
+  it('[TL-012] [TL-007] [NEW-03] [host:fansly] [host:chatspace] two windows of one period — two sites on two test adapters, or two builds — are two reports, and the hub keeps both by its own schema', async () => {
+    await signIn(h, { ...WORLD_PILOT, bootstrap: WITH_HEALTH });
+    const intake = hubHealthIntake();
+    h.hub.on('ingestObservations', (request) => json(200, intake.take((request.body as { events: { clientEventId: string; kind: string; payload: unknown }[] }).events)));
+    // Two tabs of two sites, each on its own test adapter's contract: one window each, closed by one tick.
+    const queued: ClientHealthV1[] = [];
+    const reporter = new HealthReporter({
+      scheduler: { now: () => NOW_MS, after: () => () => undefined },
+      submit: (event) => {
+        if (event.kind === 'client_health') queued.push(event);
+        return 'queued';
+      },
+      consent: () => true,
+      supported: () => true,
+      hostOpen: () => true,
+      client: () => ({ version: '0.3.0', browserMajor: 157, os: 'macos' }),
+      footprint: () => ({ cachesKB: 1, logsKB: 1 }),
+      disabled: () => [],
+    });
+    const chatspace = new TabHealthCollector(() => NOW_MS);
+    chatspace.record('insertMs', 40);
+    const site = new TabHealthCollector(() => NOW_MS);
+    for (const [metric, ms] of [['frameParseMs', 0.06], ['xhrParseMs', 1.2], ['snapshotMs', 4], ['snapshotRoundTripMs', 90]] as const) site.record(metric, ms);
+    reporter.mergeTab(fixtureUuid(0x2001), 'chatspace', chatspace.takeReport(contractReport, { cachesKB: 1, domNodes: 1 }));
+    reporter.mergeTab(fixtureUuid(0x2002), 'fansly-web', site.takeReport(siteContractReport, { cachesKB: 1, domNodes: 1 }));
+    // And a second ChatSpace build in the same period (a tab reloaded onto a new deploy).
+    reporter.mergeTab(fixtureUuid(0x2003), 'chatspace', new TabHealthCollector(() => NOW_MS).takeReport({ ...contractReport, build: 'index-NEWbuild1' }, { cachesKB: 1, domNodes: 1 }));
+    expect(reporter.tick()).toBe(true);
+    expect(queued.map((report) => [report.host.kind, report.host.build])).toEqual([
+      ['chatspace', contractReport.build],
+      ['fansly-web', siteContractReport.build],
+      ['chatspace', 'index-NEWbuild1'],
+    ]);
+    // One period: the same client, version and window — only the site and the build tell the reports apart.
+    expect(new Set(queued.map((report) => JSON.stringify([report.client.version, report.window])))).toHaveProperty('size', 1);
+    await expect(h.facade.ingest(queued)).resolves.toEqual({ accepted: 3, duplicates: 0, healthRefused: 0 });
+    expect(intake.state()).toEqual({ kept: 3, refused: 0, droppedHistograms: [] });
+    // A retry of the same batch is deduplicated, report by report.
+    await expect(h.facade.ingest(queued)).resolves.toEqual({ accepted: 0, duplicates: 3, healthRefused: 0 });
   });
 });
 
@@ -226,3 +270,50 @@ describe('[AU-029] routes this client never calls (§8.1 «Никогда»)', (
     expect(h.hub.of('spenderBatch')[0]).toMatchObject({ path: '/api/v2/spenders:batch', method: 'POST', headers: { authorization: `Bearer ${String(WORLD_PILOT.issued['token'])}`, 'x-client-version': 'chat-extension/0.2.0' } });
   });
 });
+
+/**
+ * The hub's `client_health` intake as merged (hub apps/runtime/src/services/client-health-intake.ts, `main`): a report
+ * the hub's own schema refuses (the vendored SDK's `clientHealthReportV1Schema`) is dropped and still answered as
+ * accepted; one client event id is one report; a histogram whose metric or bounds the registry does not know is left
+ * out of the rollups. The registry is the SDK's, plus Fansly's four of HF-13 (hub #577) until the SDK is re-vendored
+ * with them (P2v) — the numbers of hub `main`, held to ours by packages/contracts/test/vocabulary.test.ts.
+ */
+function hubHealthIntake() {
+  const hf13: Readonly<Record<string, readonly number[]>> = {
+    frameParseMs: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100],
+    xhrParseMs: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100],
+    snapshotMs: [0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 8, 16, 32, 50, 100, 250],
+    snapshotRoundTripMs: [1, 2, 5, 8, 16, 32, 50, 75, 100, 150, 250, 500, 1000, 2500, 5000],
+  };
+  const registry: Readonly<Record<string, readonly number[]>> = { ...Object.fromEntries(Object.entries(CLIENT_HEALTH_PERF_METRICS).map(([metric, entry]) => [metric, entry.bounds])), ...hf13 };
+  const kept = new Map<string, unknown>();
+  let refused = 0;
+  const droppedHistograms: string[] = [];
+  return {
+    take(events: readonly { clientEventId: string; kind: string; payload: unknown }[]): { accepted: number; duplicates: number } {
+      let accepted = 0;
+      let duplicates = 0;
+      for (const event of events) {
+        const parsed = clientHealthReportV1Schema.safeParse(event.payload);
+        if (event.kind !== 'client_health' || !parsed.success) {
+          refused += 1;
+          accepted += 1;
+          continue;
+        }
+        const id = event.clientEventId.toLowerCase();
+        if (kept.has(id)) {
+          duplicates += 1;
+          continue;
+        }
+        kept.set(id, parsed.data);
+        accepted += 1;
+        for (const histogram of parsed.data.perf) {
+          const bounds = registry[histogram.metric];
+          if (bounds === undefined || JSON.stringify(bounds) !== JSON.stringify(histogram.bounds)) droppedHistograms.push(histogram.metric);
+        }
+      }
+      return { accepted, duplicates };
+    },
+    state: () => ({ kept: kept.size, refused, droppedHistograms }),
+  };
+}

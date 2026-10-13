@@ -2,18 +2,21 @@
 // ST-020…ST-038): the readiness line, one row per thing a shift depends on,
 // and the report for the team lead. Every row says what is known and since
 // when; an unknown is «неизвестно», never a guess (DB-028). Nothing here
-// asks ChatSpace anything: the host rows come from what the tabs reported.
+// asks a site anything: the host rows come from what the tabs reported —
+// one row per site in use (R20 F7), each read by its site's expected anchors.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
-import { type HostContractReport } from '@cg/contracts/host';
+import { contractAnchorsOf, contractHostOf, type HostContractReport, type HostContractShape } from '@cg/contracts/host';
+import { type HostKind } from '@cg/contracts/hosts';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
 import { type SendFuse } from '@cg/contracts/send';
+import { type DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
 import { SEND_FUSE_UNCERTAIN_RUN, sendFuseHolds, type SendFuseReason } from '@cg/contracts/send-rules';
 import { type I18nPlainParams, type I18nTextKey } from '@cg/contracts/i18n/catalog';
 import { type I18n, type Msg, type RunningOpVM, type StatusBodyVM, type StatusRowVM, type UiAction } from '@cg/contracts/vm';
 
-import { anchorGap, anchorsNotYet, previewSendFused, previewSendWaitsForChat, receiptMatchOf } from '../../domain/host';
+import { anchorGap, anchorsNotYet, expectedAnchors, previewSendFused, previewSendWaitsForChat, receiptMatchOf, siteCapabilitiesOf } from '../../domain/host';
 import { flagStateOf, somePageFlagState, type FlagState } from '../../domain/ops/flags';
 import { flagReasonVm } from '../flag-reason';
 
@@ -34,10 +37,11 @@ import {
   type PagesModel,
   type SeenAccount,
 } from './model';
+import { type PageSite } from './ports';
 
+/** The rows' names; a site's row is named by its site (`PageSite.texts.title`). */
 const ROW_TITLE = {
   extension: 'settings.status.row.extension',
-  chatspace: 'settings.status.row.chatspace',
   hub: 'settings.status.row.hub',
   account: 'settings.status.row.account',
   binding: 'settings.status.row.binding',
@@ -51,10 +55,15 @@ const ROW_TITLE = {
   'preview-send': 'settings.status.row.previewSend',
   consent: 'settings.status.row.consent',
   support: 'settings.status.row.support',
-} as const satisfies Record<StatusRowVM['id'], string>;
+} as const satisfies Record<Exclude<StatusRowVM['id'], 'host'>, string>;
 
-function row(id: StatusRowVM['id'], level: StatusRowVM['level'], value: string | Msg, note: string | Msg | null = null, action: StatusRowVM['action'] = null): StatusRowVM {
+function row(id: Exclude<StatusRowVM['id'], 'host'>, level: StatusRowVM['level'], value: string | Msg, note: string | Msg | null = null, action: StatusRowVM['action'] = null): StatusRowVM {
   return { id, level, title: msg(ROW_TITLE[id]), value, note, action };
+}
+
+/** A site's row (R20 F7): one per site in use, named by its site. */
+function siteRowOf(site: PageSite, level: StatusRowVM['level'], value: string | Msg, note: string | Msg | null = null): StatusRowVM {
+  return { id: 'host', host: site.kind, level, title: msg(site.texts.title), value, note, action: null };
 }
 
 const goTo = (section: 'account' | 'accounts' | 'personas'): UiAction => ({ type: 'OpenSettings', route: { section } });
@@ -80,44 +89,67 @@ export const FEATURE_LABEL_KEYS = {
 } as const satisfies Record<FeatureId, string>;
 
 /**
- * Anchors of what the owner switches on separately — the WebSocket tap
- * (`wsTap`) and the receipt profile of the preview send (X8). While the
- * switch is off the host adapter reports them `missing` (§6.2: nothing of
- * that part is in the page), and that is the normal state of a shift, not a
- * ChatSpace that changed. What is wrong with them when the switch is on is
- * said by their capabilities: `incoming` is `degraded` when the tap cannot
- * read the frames, and the X8 row of «Статус» names a missing profile.
- */
-const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
-
-/**
- * What a host report lacks: anchors that are gone or changed (`missing`, `shape`) and capabilities the contract
- * check closed. An anchor ChatSpace has not created yet (`notYet`: the composer translator store before the page's
- * first chat composer) is no gap — the ChatSpace row says what it waits for instead.
+ * What a host report lacks, read by its site's expected anchors (`shape`, R20 F7; FS-CTR-1: an expected anchor the
+ * report does not name is `missing`; null — the site is not known here: the anchors the report names): anchors that
+ * are gone or changed (`missing`, `shape`) and capabilities the contract check closed. An anchor of a part the owner
+ * switches on separately (ChatSpace: the WebSocket tap, X8's receipt profile) is `missing` while its switch is off
+ * (§6.2: nothing of that part is in the page) — the normal state of a shift, not a site that changed; what is wrong
+ * with it while the switch is on its capabilities say (`incoming` degraded, the X8 row names a missing profile). An
+ * anchor the site has not created yet (`notYet`: ChatSpace's composer translator store before the page's first chat
+ * composer) is no gap — the site's row says what it waits for instead.
  *
  * `insert` — whether the dock writes a part into the field, by the dock's own rule (ai/workspace.ts): it is
  * copy-only without the `insert` capability and without the host's identity (the route and the account), and
  * nothing else of the report takes «Вставить» away. «Статус» and the popup say «через „Копировать“» by this
  * one fact, so a lost anchor of something else (the send queue, the chat list) is not called a lost insert.
  */
-export function hostGaps(report: HostContractReport): { readonly anchors: string[]; readonly broken: string[]; readonly insert: boolean } {
-  const anchors = Object.entries(report.anchors)
-    .filter(([anchor, state]) => anchorGap(state) && !SWITCHED_ANCHORS.includes(anchor))
+export function hostGaps(report: HostContractReport, shape: HostContractShape | null): { readonly anchors: string[]; readonly broken: string[]; readonly insert: boolean } {
+  const switched = shape?.switchedAnchors ?? [];
+  const anchors = expectedAnchors(report, shape)
+    .filter(([anchor, state]) => anchorGap(state) && !switched.includes(anchor))
     .map(([anchor]) => anchor);
-  const broken = Object.entries(report.capabilities)
+  const broken = [...Object.entries(report.capabilities), ...Object.entries(siteCapabilitiesOf(report))]
     .filter(([, capability]) => capability.state === 'contractBroken' || capability.state === 'degraded')
     .map(([name]) => name);
   const on = (capability: 'insert' | 'identity' | 'route'): boolean => report.capabilities[capability]?.state === 'on';
   return { anchors, broken, insert: on('insert') && on('identity') && on('route') };
 }
 
-/** The report of the tab the person most likely looks at: the one with an open chat, else the first that reported. */
-export function hostReportOf(model: PagesModel): { readonly tabs: number; readonly report: HostContractReport | null } | null {
+type DiagnosticsTab = DiagnosticsSnapshot['tabs'][number];
+
+/** The site of a tab: as it registered; a background before 1.15.0 names none — its report's, else the build's first site. */
+function siteOfTab(model: PagesModel, tab: DiagnosticsTab): HostKind | null {
+  return tab.site ?? (tab.host === null ? (model.env.sites[0]?.kind ?? null) : contractHostOf(tab.host));
+}
+
+/** The site of a report, as this build knows it; null — a site the build does not carry. */
+export function siteOfReport(model: PagesModel, report: HostContractReport): PageSite | null {
+  const kind = contractHostOf(report);
+  return model.env.sites.find((site) => site.kind === kind) ?? null;
+}
+
+/**
+ * The report of the tab the person most likely looks at — of one site, or of any: the one with an open chat, else
+ * the first that reported; and how many tabs (of the site) there are.
+ */
+export function hostReportOf(model: PagesModel, site?: HostKind): { readonly tabs: number; readonly report: HostContractReport | null } | null {
   const diagnostics = valueOf(model.diagnostics);
   if (diagnostics === null) return null;
-  const withChat = diagnostics.tabs.find((tab) => tab.chatKey !== null && tab.host !== null);
-  const any = diagnostics.tabs.find((tab) => tab.host !== null);
-  return { tabs: diagnostics.tabs.length, report: withChat?.host ?? any?.host ?? null };
+  const tabs = site === undefined ? diagnostics.tabs : diagnostics.tabs.filter((tab) => siteOfTab(model, tab) === site);
+  const withChat = tabs.find((tab) => tab.chatKey !== null && tab.host !== null);
+  const any = tabs.find((tab) => tab.host !== null);
+  return { tabs: tabs.length, report: withChat?.host ?? any?.host ?? null };
+}
+
+/**
+ * The sites «Статус» has a row for (R20 F7): each with an open tab or an account bound to a hub page; none in use —
+ * every site of the build (today that is ChatSpace alone, as it always was).
+ */
+export function statusSites(model: PagesModel): readonly PageSite[] {
+  const tabs = valueOf(model.diagnostics)?.tabs ?? [];
+  const bound = (valueOf(model.accounts) ?? []).filter((entry) => model.bindings.get(accountKeyOf(entry.account))?.ok === true);
+  const used = model.env.sites.filter((site) => tabs.some((tab) => siteOfTab(model, tab) === site.kind) || bound.some((entry) => entry.account.host === site.kind));
+  return used.length > 0 ? used : model.env.sites;
 }
 
 /** Codes that mean «the hub did not answer», as opposed to «the hub answered with a refusal». */
@@ -134,24 +166,26 @@ export function hubState(model: PagesModel): 'ok' | 'down' | 'unknown' {
   return 'unknown';
 }
 
-function chatspaceRow(model: PagesModel): StatusRowVM {
-  const host = hostReportOf(model);
-  if (host === null) return row('chatspace', 'unknown', msg('common.unknown'));
-  if (host.tabs === 0) return row('chatspace', 'warn', msg('settings.status.row.chatspaceClosed'), msg('settings.status.row.chatspaceClosedNote'));
-  if (host.report === null) return row('chatspace', 'unknown', msg('settings.status.row.chatspaceChecking'));
+/** A site's row: closed, being checked, connected, or partly checked — its report read by its own expected anchors. */
+function siteRow(model: PagesModel, site: PageSite): StatusRowVM {
+  const texts = site.texts;
+  const host = hostReportOf(model, site.kind);
+  if (host === null) return siteRowOf(site, 'unknown', msg('common.unknown'));
+  if (host.tabs === 0) return siteRowOf(site, 'warn', msg(texts.closed), msg(texts.closedNote));
+  if (host.report === null) return siteRowOf(site, 'unknown', msg(texts.checking));
   const build = host.report.build ?? '—';
-  const gaps = hostGaps(host.report);
+  const gaps = hostGaps(host.report, site.contract);
   const missing = [...gaps.anchors, ...gaps.broken];
   if (missing.length === 0) {
     // Connected. Before the page's first chat ChatSpace has not created what the preview send reads: said as a note.
-    const note = previewSendWaitsForChat(host.report) ? msg('settings.status.row.chatspaceNotYetNote') : msg('settings.status.row.chatspaceChecked', { time: { time: host.report.checkedAt } });
-    return row('chatspace', 'ok', msg('settings.status.row.chatspaceValue', { build }), note);
+    const note = previewSendWaitsForChat(host.report) ? msg(texts.notYetNote) : msg(texts.checked, { time: { time: host.report.checkedAt } });
+    return siteRowOf(site, 'ok', msg(texts.value, { build }), note);
   }
   // 1.5.0: «Вставка работает через „Копировать“» only when the dock really is copy-only.
-  return row('chatspace', 'warn', msg('settings.status.row.chatspacePartial', { build }), msg(gaps.insert ? 'settings.status.row.chatspacePartialNote' : 'settings.status.row.chatspaceCopyOnlyNote', { missing: missingAnchors(gaps) }));
+  return siteRowOf(site, 'warn', msg(texts.partial, { build }), msg(gaps.insert ? texts.partialNote : texts.copyOnlyNote, { missing: missingAnchors(gaps) }));
 }
 
-/** «Не найдено: …» of a partly checked ChatSpace: the anchors and the closed capabilities, each name once, the first eight. */
+/** «Не найдено: …» of a partly checked site: the anchors and the closed capabilities, each name once, the first eight. */
 export function missingAnchors(gaps: { readonly anchors: readonly string[]; readonly broken: readonly string[] }): string {
   return [...new Set([...gaps.anchors, ...gaps.broken])].slice(0, 8).join(', ');
 }
@@ -312,15 +346,17 @@ function contractRow(model: PagesModel): StatusRowVM | null {
   if (model.effective?.debug.enabled !== true) return null;
   const report = hostReportOf(model)?.report ?? null;
   if (report === null) return row('contract', 'unknown', msg('common.unknown'));
-  const gaps = hostGaps(report);
+  // The tab in front, of whichever site: read by that site's expected anchors.
+  const shape = siteOfReport(model, report)?.contract ?? null;
+  const gaps = hostGaps(report, shape);
   const value = msg('settings.status.row.contractValue', { adapter: report.adapterVersion, build: report.build ?? '—' });
-  const later = anchorsNotYet(report);
+  const later = anchorsNotYet(report, shape);
   // 1.11.0: the receipt profile that let X8 in, and how — a reviewed build or the hub's «any build» sentinel.
   const match = receiptMatchOf(report);
   const receipt: PlainNote | null = match === null ? null : { key: match.kind === 'anyBuild' ? 'settings.status.row.contractReceiptAnyBuild' : 'settings.status.row.contractReceiptExact', params: { profile: match.profile } };
   const note = (base: PlainNote): string | Msg => notes(model, base, receipt) ?? msg(base.key, base.params);
   if (gaps.anchors.length === 0 && later.length > 0) return row('contract', 'ok', value, note({ key: 'settings.status.row.contractNotYet', params: { anchors: later.join(', ') } }));
-  if (gaps.anchors.length === 0) return row('contract', 'ok', value, note({ key: 'settings.status.row.contractOk', params: { n: Object.keys(report.anchors).length } }));
+  if (gaps.anchors.length === 0) return row('contract', 'ok', value, note({ key: 'settings.status.row.contractOk', params: { n: shape?.anchors.length ?? Object.keys(contractAnchorsOf(report)).length } }));
   return row('contract', 'warn', value, note({ key: 'settings.status.row.contractMissing', params: { missing: gaps.anchors.join(', ') } }));
 }
 
@@ -452,7 +488,7 @@ export function statusRows(model: PagesModel): StatusRowVM[] {
   const schema = model.effective?.schemaVersion ?? null;
   const rows: (StatusRowVM | null)[] = [
     extensionRow(model),
-    chatspaceRow(model),
+    ...statusSites(model).map((site) => siteRow(model, site)),
     hubRow(model),
     accountRow(model),
     bindingRow(model),
@@ -470,8 +506,8 @@ export function statusRows(model: PagesModel): StatusRowVM[] {
   return rows.filter((entry): entry is StatusRowVM => entry !== null);
 }
 
-/** What a shift cannot start without (ST-021…ST-024): the hub and the sign-in, ChatSpace with a bound account, a persona. */
-const REQUIRED_ROWS: readonly StatusRowVM['id'][] = ['hub', 'account', 'chatspace', 'binding', 'persona'];
+/** What a shift cannot start without (ST-021…ST-024): the hub and the sign-in, the site with a bound account, a persona. */
+const REQUIRED_ROWS: readonly StatusRowVM['id'][] = ['hub', 'account', 'host', 'binding', 'persona'];
 
 export function readinessOf(model: PagesModel, rows: readonly StatusRowVM[]): StatusBodyVM['readiness'] {
   const required = rows.filter((entry) => REQUIRED_ROWS.includes(entry.id));
@@ -485,14 +521,13 @@ export function readinessOf(model: PagesModel, rows: readonly StatusRowVM[]): St
   // The preview send is switched on, but the fuse holds it off (decision X25).
   if (rows.find((entry) => entry.id === 'preview-send')?.action?.action.type === 'ResetSendFuse') warnings.push(msg('settings.status.warning.sendFused'));
   const needed = required.filter((entry) => entry.level === 'error' || entry.level === 'warn');
-  // A partly checked ChatSpace still works through «Копировать»: a warning, not a blocker.
-  const chatspace = required.find((entry) => entry.id === 'chatspace');
-  const partial = chatspace?.level === 'warn' && (hostReportOf(model)?.tabs ?? 0) > 0;
-  if (partial) warnings.push(msg('settings.status.warning.hostPartial'));
+  // A partly checked site still works through «Копировать»: a warning, not a blocker (one, however many sites).
+  const partial = required.filter((entry) => entry.id === 'host' && entry.level === 'warn' && entry.host !== undefined && (hostReportOf(model, entry.host)?.tabs ?? 0) > 0).length;
+  if (partial > 0) warnings.push(msg('settings.status.warning.hostPartial'));
   if (staleTabsOf(model) > 0) warnings.push(msg('settings.status.warning.staleTabs'));
   // A site's services in the background did not start (its chunk, R20 F1): its own requests answer «не отвечает».
   if ((valueOf(model.diagnostics)?.hostModules ?? []).some((module) => module.state === 'failed')) warnings.push(msg('settings.status.warning.hostModule'));
-  const count = needed.length - (partial ? 1 : 0);
+  const count = needed.length - partial;
   return count === 0 ? { s: 'ready', warnings } : { s: 'actions-needed', count, warnings };
 }
 

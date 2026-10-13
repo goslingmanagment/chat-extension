@@ -14,6 +14,7 @@
 // And ChatSpace's slice of the feature manifest (§1.4), which the application
 // reads through the adapter and never by a site's name.
 
+import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
 import { flagOnSomePage } from '@cg/core/domain/ops';
@@ -44,4 +45,5 @@ export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfi
   liveConfigOf,
   configure: (host, config) => host.configure(config),
   features: CHATSPACE_FEATURE_SLICE,
+  contract: CHATSPACE_CONTRACT,
 };

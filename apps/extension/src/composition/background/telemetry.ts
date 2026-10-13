@@ -1,12 +1,13 @@
 // What leaves the browser with the `technicalAndInteraction` consent
 // (architecture.md §9.6, D-22; R18's services over R07's storage and the hub
-// facade's ingest): the persistent queue, the `client_health` window and the
-// `ai_acceptance` events. Nothing is queued or sent without consent;
+// facade's ingest): the persistent queue, the `client_health` windows (one
+// per site and build, R20 F7) and the `ai_acceptance` events. Nothing is queued or sent without consent;
 // `client_health` exists only while bootstrap advertises
 // `client-health-perf-v1`. No text of a conversation, a draft or a model
 // answer is in any event.
 
 import { type HostContractReport } from '@cg/contracts/host';
+import { type HostKind } from '@cg/contracts/hosts';
 import { type IngestResult } from '@cg/contracts/hub';
 import { type OpView } from '@cg/contracts/ops';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
@@ -35,7 +36,8 @@ export interface BackgroundTelemetryDeps {
   readonly consent: () => boolean | null;
   /** Bootstrap advertises `client-health-perf-v1`. */
   readonly healthSupported: () => boolean;
-  readonly chatSpaceOpen: () => boolean;
+  /** A tab of this site is registered (its `client_health` windows are reported). */
+  readonly hostOpen: (site: HostKind) => boolean;
   readonly client: () => HealthClient;
   readonly footprint: () => HealthFootprint;
   /** Flags and page features that are off. */
@@ -56,9 +58,9 @@ export interface BackgroundTelemetry {
    * no generation link, no event (never guessed). True — queued.
    */
   report(kind: AcceptanceKind, view: OpView | null, opId: string, position: PartPosition, proof?: SentProof): boolean;
-  /** `health.report` of a tab. */
-  mergeTab(tabSessionId: string, report: TabHealthReport): void;
-  onHost(report: HostContractReport | null): void;
+  /** `health.report` of a tab of `site` (as it registered). */
+  mergeTab(tabSessionId: string, site: HostKind, report: TabHealthReport): void;
+  onHost(site: HostKind, report: HostContractReport | null): void;
   /** The sign-in changed: old bindings go; a sign-out drops the links and the window. */
   onSessionChanged(signedIn: boolean): void;
   /** Consent changed: a revoke purges the queue, the links and the window. */
@@ -85,7 +87,7 @@ export function createBackgroundTelemetry(deps: BackgroundTelemetryDeps): Backgr
     submit: (event) => queue.add(event),
     consent: () => deps.consent() === true,
     supported: deps.healthSupported,
-    chatSpaceOpen: deps.chatSpaceOpen,
+    hostOpen: deps.hostOpen,
     client: deps.client,
     footprint: deps.footprint,
     disabled: deps.disabled,
@@ -136,8 +138,8 @@ export function createBackgroundTelemetry(deps: BackgroundTelemetryDeps): Backgr
       }
       return acceptance.report(build(kind, opId, position, proof), { lifecycle: kind, opId }) === 'queued';
     },
-    mergeTab: (tabSessionId, report) => health.mergeTab(tabSessionId, report),
-    onHost: (report) => health.onHost(report),
+    mergeTab: (tabSessionId, site, report) => health.mergeTab(tabSessionId, site, report),
+    onHost: (site, report) => health.onHost(site, report),
     onSessionChanged(signedIn) {
       queue.onSessionChanged();
       if (!signedIn) {

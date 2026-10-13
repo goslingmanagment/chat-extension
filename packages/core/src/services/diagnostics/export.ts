@@ -19,7 +19,7 @@ import { type SettingsV1 } from '@cg/contracts/settings';
 import { HEALTH_CODE_PATTERN } from '@cg/contracts/telemetry';
 import { type DiagnosticsSnapshot } from '@cg/contracts/tab-messages';
 
-import { anchorGap, anchorsNotYet } from '../../domain/host';
+import { anchorGap, anchorsNotYet, expectedAnchors, receiptMatchOf } from '../../domain/host';
 import {
   REDACTED,
   formatRecordLine,
@@ -330,13 +330,16 @@ export function summaryLines(facts: DiagnosticsFacts): string[] {
   const contract = facts.tabs.map((tab) => {
     const host = tab.host;
     if (host === null) return 'no-report';
-    const missing = Object.entries(host.anchors).filter(([, state]) => anchorGap(state)).map(([anchor]) => anchor);
+    const missing = expectedAnchors(host, null)
+      .filter(([, state]) => anchorGap(state))
+      .map(([anchor]) => anchor);
     const later = anchorsNotYet(host);
     const head = missing.length === 0 ? `${host.build ?? '?'} ok` : `${host.build ?? '?'} missing ${missing.join(',')}`;
     // Anchors ChatSpace creates with the page's first chat: not missing, but not there either.
     const anchors = later.length === 0 ? head : `${head} notYet ${later.join(',')}`;
     // Decision X25: the receipt profile that let X8 in, and how — a reviewed build or the «any build» sentinel.
-    return host.receiptMatch === undefined ? anchors : `${anchors} receipt ${host.receiptMatch.profile}/${host.receiptMatch.kind}`;
+    const receipt = receiptMatchOf(host);
+    return receipt === null ? anchors : `${anchors} receipt ${receipt.profile}/${receipt.kind}`;
   });
   const fuse = facts.sendFuse?.fuse ?? null;
   const resetAt = facts.sendFuse?.resetAt ?? null;

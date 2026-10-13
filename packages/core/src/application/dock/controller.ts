@@ -34,7 +34,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { dockChips, featureGate, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
-import { anchorGap } from '../../domain/host';
+import { contractBroken } from '../../domain/host';
 import { flagUsable, isTerminalOpState } from '../../domain/ops';
 import { targetHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
@@ -190,7 +190,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       .filter((record) => record.own && !isTerminalOpState(record.view.state) && (chat === null || chatKeyOf(record.view.target.chat) !== chat.key))
       .map((record) => runningVm(ws, { opId: record.view.opId, feature: record.view.feature, chat: record.view.target.chat, fanLabel: null, startedAt: record.view.startedAt, inThisTab: true }));
     const contract = situation.host.contract;
-    const broken = Object.values(contract.anchors).some(anchorGap);
+    const broken = contractBroken(contract);
     const handle = chat !== null && situation.ready !== null ? chat.handle : null;
     const actionVms = actions(situation, running, activeAction);
     return {

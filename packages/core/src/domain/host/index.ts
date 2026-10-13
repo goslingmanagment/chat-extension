@@ -4,19 +4,38 @@
 // expected now — its composer translator store comes with the page's first
 // chat composer. A `notYet` anchor is no gap of the contract («Статус», the
 // popup, client_health), but what reads it stays off until it comes.
+//
+// 1.15.0 (R20 F7): a report is of a site (`contractHostOf`), its anchors are
+// where its site keeps them (`contractAnchorsOf`), and a reader that knows the
+// site's expected set (`HostContractShape`: the tab's adapter, the extension
+// pages' root) reads that set — an expected anchor the report does not name is
+// `missing`, never «nothing to check» (FS-CTR-1).
 
-import { type HostContractReport } from '@cg/contracts/host';
-
-type AnchorState = HostContractReport['anchors'][keyof HostContractReport['anchors']];
+import { contractAnchorsOf, type AnchorState, type CapabilityState, type ChatSpaceContractReport, type HostContractReport, type HostContractShape } from '@cg/contracts/host';
 
 /** A gap of the contract: the anchor is gone or changed its shape (or reads as nothing known). `ok` and `notYet` are not. */
 export function anchorGap(state: AnchorState | undefined): boolean {
   return state !== undefined && state !== 'ok' && state !== 'notYet';
 }
 
-/** The anchors ChatSpace has not created yet, in the report's order. */
-export function anchorsNotYet(report: HostContractReport): string[] {
-  return Object.entries(report.anchors)
+/** Some anchor the report names is gone or changed: the dock says so beside its marks, whichever the site. */
+export function contractBroken(report: HostContractReport): boolean {
+  return Object.values(contractAnchorsOf(report)).some(anchorGap);
+}
+
+/**
+ * The state of each anchor the site expects, in its order: an anchor the report does not name is `missing`. Without
+ * the site's set (`null`) — the anchors the report names, as they are.
+ */
+export function expectedAnchors(report: HostContractReport, shape: Pick<HostContractShape, 'anchors'> | null): [string, AnchorState][] {
+  const named = contractAnchorsOf(report);
+  if (shape === null) return Object.entries(named);
+  return shape.anchors.map((anchor) => [anchor, named[anchor] ?? 'missing']);
+}
+
+/** The anchors the site has not created yet, in the report's (or the expected set's) order. */
+export function anchorsNotYet(report: HostContractReport, shape: Pick<HostContractShape, 'anchors'> | null = null): string[] {
+  return expectedAnchors(report, shape)
     .filter(([, state]) => state === 'notYet')
     .map(([anchor]) => anchor);
 }
@@ -31,7 +50,7 @@ export function previewSendWaitsForChat(report: HostContractReport): boolean {
   const capability = report.capabilities.previewSend;
   const anchor = capability.reason;
   if (capability.state !== 'off' || capability.code !== 'CG-SEND-HOST' || anchor === undefined) return false;
-  return (report.anchors as Readonly<Record<string, AnchorState | undefined>>)[anchor] === 'notYet';
+  return contractAnchorsOf(report)[anchor] === 'notYet';
 }
 
 /**
@@ -42,7 +61,12 @@ export function previewSendFused(report: HostContractReport): boolean {
   return report.capabilities.previewSend.code === 'CG-SEND-FUSE';
 }
 
-/** Which receipt profile let X8 in on this tab, and how (contracts 1.11.0); null — none, or an adapter that does not say. */
-export function receiptMatchOf(report: HostContractReport): NonNullable<HostContractReport['receiptMatch']> | null {
-  return report.receiptMatch ?? null;
+/** A site's own capabilities beyond the shared ones (the block of its report); none for ChatSpace. */
+export function siteCapabilitiesOf(report: HostContractReport): Readonly<Record<string, CapabilityState>> {
+  return 'extensions' in report ? (report.extensions[report.host]?.capabilities ?? {}) : {};
+}
+
+/** Which receipt profile let X8 in on this tab, and how (contracts 1.11.0); null — none, an adapter that does not say, or a site without X8. */
+export function receiptMatchOf(report: HostContractReport): NonNullable<ChatSpaceContractReport['receiptMatch']> | null {
+  return ('receiptMatch' in report ? report.receiptMatch : undefined) ?? null;
 }

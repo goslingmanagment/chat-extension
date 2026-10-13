@@ -6,11 +6,12 @@
 
 import { type CgErrorWire, type SettingsRoute } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
+import { type HostContractShape } from '@cg/contracts/host';
 import { type HostKind } from '@cg/contracts/hosts';
 import { type Locale } from '@cg/contracts/i18n/keys';
 import { type TabEventPayload, type TabEventType, type TabRequestPayload, type TabRequestType, type TabResponsePayload } from '@cg/contracts/tab-messages';
 import { type ExtensionPage } from '@cg/contracts/tab-protocol';
-import { type ActionCatalog, type ColorScheme, type HotkeyPlatform, type ValueSignal } from '@cg/contracts/vm';
+import { type ActionCatalog, type ColorScheme, type HostStatusTexts, type HotkeyPlatform, type ValueSignal } from '@cg/contracts/vm';
 
 /** An answer of the background: the payload, or a CG error as code and facts (platform `RpcResult`). */
 export type PageAnswer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire };
@@ -87,6 +88,16 @@ export interface PageLinks {
   readonly changelog: string | null;
 }
 
+/**
+ * A site of this build as the extension pages speak of it (R20 F7): its kind, what its contract report must name
+ * (its expected anchors, read instead of the keys a report carries) and the words of its «Статус» row.
+ */
+export interface PageSite {
+  readonly kind: HostKind;
+  readonly contract: HostContractShape;
+  readonly texts: HostStatusTexts;
+}
+
 export interface PageEnv {
   /** Which page this controller serves: decides what is loaded and where «Настройки» goes. */
   readonly page: ExtensionPage;
@@ -102,6 +113,11 @@ export interface PageEnv {
   readonly timeZone?: string;
   /** A site's slice of the feature manifest (the composition root's table: the pages serve every site); null — none for the site. */
   readonly features: (host: HostKind) => FeatureSlice | null;
+  /**
+   * The sites of this build, in the hosts' runtime table's order (the composition root's table, R20 F7): «Статус» has
+   * a row for each in use, and a tab's report is read by its site's expected anchors.
+   */
+  readonly sites: readonly PageSite[];
 }
 
 /** The I18n the page renders with: the controller switches its language with `ui.locale` (I18-001). */

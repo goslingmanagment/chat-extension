@@ -37,7 +37,7 @@
 //   because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
@@ -120,9 +120,11 @@ export interface ChatSpaceHostPort extends HostPort {
   /** The identity writes are checked against now; null when there is none. */
   identity(): HostIdentity | null;
   /** «Проверить» (§6.2): re-reads MAIN's snapshot — page memory and DOM only, nothing of ChatSpace's network. */
-  recheck(): Promise<HostContractReport>;
+  recheck(): Promise<ChatSpaceContractReport>;
   /** The flags and the receipt profiles of the bootstrap; resolves with the report they lead to. */
-  configure(config: ChatSpaceLiveConfig): Promise<HostContractReport>;
+  configure(config: ChatSpaceLiveConfig): Promise<ChatSpaceContractReport>;
+  /** ChatSpace's report has ChatSpace's shape (contracts 1.15.0: the report is parsed by its site). */
+  probe(): ChatSpaceContractReport;
 }
 
 const keyOf = (chat: ChatRef): ChatKey => `${chat.host}:${chat.hostAccountId}:${chat.platformFanId}`;
@@ -197,7 +199,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
    * logged when it at least doubled the last, so a page that forges the event adds at most a few records per site.
    */
   const faults = new Map<string, number>();
-  let report: HostContractReport = compute();
+  let report: ChatSpaceContractReport = compute();
   const windows = new Map<ChatKey, ChatWindow | null>();
   const fans = new Map<ChatKey, HostFan | null>();
   const lists = new Map<string, { readonly items: readonly NavigationItem[]; readonly at: number }>();
@@ -219,7 +221,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     for (const listener of [...eventListeners]) listener(event);
   };
 
-  function compute(): HostContractReport {
+  function compute(): ChatSpaceContractReport {
     return buildContractReport({
       wire,
       dom: { composerFrame: mounts.frameAnchor(), draftKey, theme: theme.anchor() },

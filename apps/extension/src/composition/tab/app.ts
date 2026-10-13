@@ -22,7 +22,7 @@
 
 import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import type { HostContractReport, HostPort } from '@cg/contracts/host';
+import type { HostContractReport, HostContractShape, HostPort } from '@cg/contracts/host';
 import type { ChatRef } from '@cg/contracts/ids';
 import { DEFAULT_LOCALE, type Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
@@ -112,11 +112,13 @@ const UNKNOWN_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE, theme: 'host', de
 /** Rows of ChatSpace's cached chat list read for the name of a toast's fan. */
 const TOAST_NAME_ROWS = 200;
 
-/** Part B of the adapter (X8 and the WS tap) is off until the owner's flags switch it on: not a degraded contract. */
-const PART_B: readonly string[] = ['previewSend', 'incoming', 'receipt', 'sendObserve'];
-/** The host contract in one word, for the e2e report: every capability of part A is on, some are not, some broke. */
-function contractOf(report: HostContractReport): 'ok' | 'degraded' | 'broken' {
-  const states = Object.entries(report.capabilities).filter(([name]) => !PART_B.includes(name));
+/**
+ * The host contract in one word, for the e2e report: every capability is on, some are not, some broke — but for the
+ * parts the owner switches on separately (the site's `switchedCapabilities`; ChatSpace: X8 and the WS tap, its part
+ * B), which are off until the owner's flags switch them on: not a degraded contract.
+ */
+function contractOf(report: HostContractReport, shape: HostContractShape): 'ok' | 'degraded' | 'broken' {
+  const states = Object.entries(report.capabilities).filter(([name]) => !(shape.switchedCapabilities as readonly string[]).includes(name));
   if (states.some(([, capability]) => capability.state === 'contractBroken')) return 'broken';
   return states.some(([, capability]) => capability.state !== 'on') ? 'degraded' : 'ok';
 }
@@ -600,7 +602,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   });
   offs.push(() => contractLog.dispose());
   const reportContract = (report: HostContractReport): void => {
-    contractLog.report(contractFactsOf(report));
+    contractLog.report(contractFactsOf(report, site.contract));
     sendHealth();
   };
   offs.push(host.onContract(reportContract));
@@ -753,7 +755,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
           banner: dock.statusError?.code ?? null,
           // The one status line of a dock that is otherwise ready (the owner switched the page off): its code.
           notice: dock.notice?.code ?? null,
-          contract: contractOf(host.current().contract),
+          contract: contractOf(host.current().contract, site.contract),
           target: dock.targetHandle,
           actions: Object.fromEntries(Object.entries(dock.actions).map(([id, action]) => [id, action.enabled])),
           result:

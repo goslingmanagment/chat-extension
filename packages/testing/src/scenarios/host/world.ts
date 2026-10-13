@@ -11,7 +11,7 @@ import {
   type DraftSnapshot,
   type FreshnessCheckpoint,
   type HostAccount,
-  type HostContractReport,
+  type ChatSpaceContractReport,
   type HostIdentity,
   type HostSnapshot,
   type HumanCause,
@@ -53,13 +53,13 @@ export const hostAccount: HostAccount = {
 };
 
 /** Every anchor found, every capability on; `patch` turns some off. */
-export function contractReport(patch: Partial<Record<(typeof HOST_CAPABILITIES)[number], CapabilityState>> = {}): HostContractReport {
+export function contractReport(patch: Partial<Record<(typeof HOST_CAPABILITIES)[number], CapabilityState>> = {}): ChatSpaceContractReport {
   return {
     build: 'index-0000fake',
     adapterVersion: '1.0.0',
     checkedAt: HOST_T0,
-    anchors: Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, 'ok'])) as HostContractReport['anchors'],
-    capabilities: { ...(Object.fromEntries(HOST_CAPABILITIES.map((c) => [c, { state: 'on' }])) as HostContractReport['capabilities']), ...patch },
+    anchors: Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, 'ok'])) as ChatSpaceContractReport['anchors'],
+    capabilities: { ...(Object.fromEntries(HOST_CAPABILITIES.map((c) => [c, { state: 'on' }])) as ChatSpaceContractReport['capabilities']), ...patch },
   };
 }
 

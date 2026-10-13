@@ -1,4 +1,4 @@
-import { ANCHOR_IDS, HOST_CAPABILITIES, type HostContractReport } from '@cg/contracts/host';
+import { ANCHOR_IDS, HOST_CAPABILITIES, type ChatSpaceContractReport, type SiteContractReport } from '@cg/contracts/host';
 import { TELEMETRY_LIMITS } from '@cg/contracts/limits';
 import { AcceptanceEventSchema, ClientHealthV1Schema, PERF_METRICS, PERF_METRIC_NAMES, PerfHistogramSchema, TabHealthReportSchema } from '@cg/contracts/telemetry';
 import { describe, expect, it } from 'vitest';
@@ -207,14 +207,14 @@ describe('[NEW-03] client_health histograms', () => {
   });
 });
 
-function contract(overrides: Partial<{ anchors: Partial<Record<(typeof ANCHOR_IDS)[number], 'ok' | 'missing' | 'shape' | 'notYet'>>; off: readonly (typeof HOST_CAPABILITIES)[number][] }> = {}): HostContractReport {
+function contract(overrides: Partial<{ anchors: Partial<Record<(typeof ANCHOR_IDS)[number], 'ok' | 'missing' | 'shape' | 'notYet'>>; off: readonly (typeof HOST_CAPABILITIES)[number][] }> = {}): ChatSpaceContractReport {
   return {
     build: 'index-DEVowLko',
     adapterVersion: '1.0.0',
     checkedAt: T0,
     anchors: Object.fromEntries(ANCHOR_IDS.map((id) => [id, overrides.anchors?.[id] ?? 'ok'])),
     capabilities: Object.fromEntries(HOST_CAPABILITIES.map((c) => [c, overrides.off?.includes(c) === true ? { state: 'contractBroken', code: 'CG-HOST-CONTRACT' } : { state: 'on' }])),
-  } as HostContractReport;
+  } as ChatSpaceContractReport;
 }
 
 describe('[NEW-03] the client_health window', () => {
@@ -228,7 +228,7 @@ describe('[NEW-03] the client_health window', () => {
     window.count('free text is not a code');
     window.setHost(contract({ anchors: { fansMap: 'missing', mimic: 'shape' }, off: ['freshText'] }));
     window.setDisabled(['flag:previewSend', 'bad flag name']);
-    const report = window.build(T0 + TELEMETRY_LIMITS.healthWindowMs, CLIENT, { cachesKB: 120.4, logsKB: 900.6 });
+    const report = window.build(T0 + TELEMETRY_LIMITS.healthWindowMs, 'chatspace', CLIENT, { cachesKB: 120.4, logsKB: 900.6 });
     expect(ClientHealthV1Schema.safeParse(report).success).toBe(true);
     expect(report.window).toEqual({ from: '2026-10-03T12:00:00.000Z', to: '2026-10-03T12:15:00.000Z' });
     expect(report.counters).toMatchObject({
@@ -260,7 +260,7 @@ describe('[NEW-03] the client_health window', () => {
     background.recordPerf('panelOpenMs', 60);
     background.mergeTab(OP, delta);
     background.mergeTab(OP2, { ...delta, host: null, perf: [{ ...(delta.perf[0] ?? new Histogram('panelOpenMs').toWire()), schemaVersion: 9 }], footprint: { cachesKB: 50, domNodes: 10 } });
-    const report = background.build(T0 + 900_000, CLIENT, { cachesKB: 10, logsKB: 0 });
+    const report = background.build(T0 + 900_000, 'chatspace', CLIENT, { cachesKB: 10, logsKB: 0 });
     expect(report.perf.find((h) => h.metric === 'panelOpenMs')?.count).toBe(2);
     expect(report.counters).toMatchObject({ 'insert.prevented': 2, 'perf.rejected': 1, 'footprint.dom-nodes-max': 1800 });
     expect(report.footprint.cachesKB).toBe(360);
@@ -273,7 +273,7 @@ describe('[NEW-03] the client_health window', () => {
     for (let i = 0; i < 8; i += 1) capped.recordPerf('searchMs', i);
     capped.recordPerf('searchMs', -3);
     capped.recordPerf('boardOpenMs', -3);
-    const cappedReport = capped.build(T0, CLIENT, { cachesKB: 0, logsKB: 0 });
+    const cappedReport = capped.build(T0, 'chatspace', CLIENT, { cachesKB: 0, logsKB: 0 });
     expect(cappedReport.perf.map((h) => [h.metric, h.count])).toEqual([['searchMs', 5]]);
     expect(cappedReport.counters).toMatchObject({ 'perf.capped': 4, 'perf.invalid': 1 });
     const window = new HealthWindow(T0, 5);
@@ -281,7 +281,7 @@ describe('[NEW-03] the client_health window', () => {
     for (let i = 0; i < 300; i += 1) window.count(`c.${i}`, i + 1);
     window.count('huge', 5e9);
     window.setDisabled(Array.from({ length: 100 }, (_, i) => `flag:f${i}`));
-    const report = window.build(T0, { ...CLIENT, browserMajor: 0, version: '' }, { cachesKB: -5, logsKB: Number.NaN || 0 });
+    const report = window.build(T0, 'chatspace', { ...CLIENT, browserMajor: 0, version: '' }, { cachesKB: -5, logsKB: Number.NaN || 0 });
     expect(Object.keys(report.counters)).toHaveLength(TELEMETRY_LIMITS.healthMaxCounters);
     // The largest counters win the 200 places; the six P1 and safety counters are always there.
     expect(report.counters['c.299']).toBe(300);
@@ -305,16 +305,16 @@ describe('[NEW-03] the client_health window', () => {
   });
 
   it('[NEW-03] [DB-031] a store ChatSpace has not created yet (no chat opened since the page loaded) is no failure of the contract; once a composer was there, its absence is', () => {
-    const waiting = { ...contract({ anchors: { composerTranslator: 'notYet' } }), capabilities: { ...contract().capabilities, previewSend: { state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' } } } as HostContractReport;
+    const waiting = { ...contract({ anchors: { composerTranslator: 'notYet' } }), capabilities: { ...contract().capabilities, previewSend: { state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' } } } as ChatSpaceContractReport;
     expect(hostSummary(waiting)).toEqual({ build: 'index-DEVowLko', contractOk: true, missing: [], degraded: ['previewSend:off'] });
     expect(hostSummary(contract({ anchors: { composerTranslator: 'missing' } }))).toMatchObject({ contractOk: false, missing: ['composerTranslator'] });
   });
 
   it('[NEW-03] decision X25: X8 off by the fuse, and X8 let in on a build nobody reviewed, are said in machine tokens; either changes the signature', () => {
     const base = contract();
-    const fused = { ...base, capabilities: { ...base.capabilities, previewSend: { state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' } } } as HostContractReport;
+    const fused = { ...base, capabilities: { ...base.capabilities, previewSend: { state: 'off', reason: 'fuse', code: 'CG-SEND-FUSE' } } } as ChatSpaceContractReport;
     expect(hostSummary(fused).degraded).toEqual(['previewSend:off', 'previewSend:fuse']);
-    const anyBuild = { ...base, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } } as HostContractReport;
+    const anyBuild = { ...base, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } } as ChatSpaceContractReport;
     expect(hostSummary(anyBuild).degraded).toEqual(['receipt:any-build']);
     expect(hostSummary({ ...base, receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } }).degraded).toEqual([]);
     expect(hostSignature(hostSummary(anyBuild))).not.toBe(hostSignature(hostSummary(base)));
@@ -322,7 +322,28 @@ describe('[NEW-03] the client_health window', () => {
     // The tokens fit the health vocabulary and reach `disabled` of client_health.
     const window = new HealthWindow(T0);
     window.setHost(anyBuild);
-    expect(window.build(T0 + 1, { version: '0.1.0', browserMajor: 157, os: 'macos' }, { cachesKB: 0, logsKB: 0 }).disabled).toContain('receipt:any-build');
+    expect(window.build(T0 + 1, 'chatspace', { version: '0.1.0', browserMajor: 157, os: 'macos' }, { cachesKB: 0, logsKB: 0 }).disabled).toContain('receipt:any-build');
+  });
+
+  it('[R20 F7] a window reports for the site it was kept for; a site\'s report is read in its own block', () => {
+    const site: SiteContractReport = {
+      host: 'fansly-web',
+      build: 'main.2e6b96097a4bb73b',
+      adapterVersion: '1.0.0',
+      checkedAt: T0,
+      capabilities: contract().capabilities,
+      extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'shape', socket: 'missing', vaultUpload: 'notYet' }, capabilities: { freshness: { state: 'on' }, vault: { state: 'off', reason: 'vaultUpload' } } } },
+    };
+    expect(hostSummary(site)).toEqual({ build: 'main.2e6b96097a4bb73b', contractOk: false, missing: ['textarea:shape', 'socket'], degraded: ['vault:off'] });
+    const window = new HealthWindow(T0);
+    window.setHost(site);
+    window.recordPerf('frameParseMs', 0.07);
+    window.recordPerf('snapshotMs', 3.2);
+    const report = window.build(T0 + 1, 'fansly-web', CLIENT, { cachesKB: 0, logsKB: 0 });
+    expect(ClientHealthV1Schema.safeParse(report).success).toBe(true);
+    expect(report.host).toEqual({ kind: 'fansly-web', build: 'main.2e6b96097a4bb73b', contractOk: false, missing: ['textarea:shape', 'socket'] });
+    expect(report.perf.map((h) => [h.metric, h.count])).toEqual([['frameParseMs', 1], ['snapshotMs', 1]]);
+    expect(report.disabled).toEqual(['vault:off']);
   });
 
   it('[NEW-03] handlers are sampled 1 in 20', () => {

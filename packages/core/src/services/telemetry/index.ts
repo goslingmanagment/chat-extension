@@ -16,5 +16,5 @@ export {
   type TelemetryQueueDeps,
   type TelemetryQueueStats,
 } from './queue';
-export { HEALTH_TICK_MS, HealthReporter, type HealthReporterDeps, type HealthReporterStats, type HealthSendReason } from './health';
+export { HEALTH_TICK_MS, HEALTH_WINDOWS_MAX, HealthReporter, type HealthReporterDeps, type HealthReporterStats, type HealthSendReason, type HealthSlot } from './health';
 export { AcceptanceReporter, type AcceptanceCounts } from './acceptance';

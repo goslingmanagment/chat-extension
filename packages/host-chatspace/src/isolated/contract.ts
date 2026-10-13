@@ -25,7 +25,7 @@
 // stays off until it comes (CG-SEND-HOST, the anchor as the reason). A real
 // break of another send anchor is named first: opening a chat would not lift it.
 
-import type { AnchorId, CapabilityState, HostCapability, HostContractReport } from '@cg/contracts/host';
+import type { AnchorId, CapabilityState, ChatSpaceContractReport, HostCapability, HostContractReport } from '@cg/contracts/host';
 
 import type { ReceiptMatch } from './receipt-profile';
 
@@ -86,7 +86,7 @@ const ANCHORS: readonly AnchorId[] = [
 /** Anchors an X8 condition is read from (§6.2, §6.7.4): one that is not ok keeps the preview send off. */
 const SEND_ANCHORS: readonly AnchorId[] = ['accounts', 'pendingMessages', 'composerTranslator', 'mimic', 'userPermissions'];
 
-export function buildContractReport(input: ContractInput): HostContractReport {
+export function buildContractReport(input: ContractInput): ChatSpaceContractReport {
   const { wire, dom } = input;
   const live = input.live ?? { tap: false, previewSend: false, receipt: false };
   const anchor = (id: AnchorId): AnchorState => {

@@ -12,8 +12,9 @@
 //   where the site's own lazy build lies;
 // - `HostAppAdapter`, the application's half, in the site's `tab-app` chunk:
 //   what only the application calls — the bootstrap's switches of the site's
-//   host port (`configure`) and the site's slice of the feature manifest
-//   (`features`, §1.4). Its code would weigh on every page at
+//   host port (`configure`), the site's slice of the feature manifest
+//   (`features`, §1.4) and what the site's contract report must name
+//   (`contract`, R20 F7). Its code would weigh on every page at
 //   document_start for nothing: ChatSpace's `liveConfigOf` brings the flag
 //   rules of the bootstrap along, ≈ 2 KiB gzip, against the early bundle's
 //   ≈ 0.55 KiB of headroom (§3.2).
@@ -24,7 +25,7 @@
 
 import type { CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
-import type { HostPort, HostTheme, MountPoints } from '@cg/contracts/host';
+import type { HostContractShape, HostPort, HostTheme, MountPoints } from '@cg/contracts/host';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
@@ -165,4 +166,9 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * the dock's chips, the cheatsheet's rows and every admission of the tab read it.
    */
   readonly features: FeatureSlice;
+  /**
+   * What the site's contract report must name (R20 §7.12, F7): its expected anchors — one the report does not name is
+   * `missing` in the tab's log — and the parts the owner switches on separately, which are no break while off.
+   */
+  readonly contract: HostContractShape;
 }

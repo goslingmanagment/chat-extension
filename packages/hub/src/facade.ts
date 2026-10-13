@@ -811,9 +811,10 @@ export class ChatExtensionHub implements HubFacade {
    * `healthRefused` (CG-HUB-CAPABILITY, logged) — the caller drops them like
    * a refused batch, never retries them. The caller's queue keeps
    * `clientEventId` stable across retries (the hub deduplicates). A health
-   * report's id comes from its kind, version and window: one report per
-   * window — a second, different report of the same window is dropped by the
-   * hub as a duplicate.
+   * report's id comes from its kind, version, site, build and window: one
+   * report per window, and the background keeps a window per site and build
+   * (R20 F7) — without the site and the build in the id the hub would drop the
+   * second window of the same period as a duplicate.
    */
   async ingest(events: readonly (AcceptanceEvent | ClientHealthV1)[]): Promise<IngestOutcome> {
     await this.ready;
@@ -826,7 +827,7 @@ export class ChatExtensionHub implements HubFacade {
       } else {
         const { kind, ...payload } = event;
         // Stable for the same report: a retried batch is deduplicated by the hub (TL-009).
-        health.push({ clientEventId: stableEventId(`${kind}|${event.client.version}|${event.window.from}|${event.window.to}`), kind, observedAt: event.window.to, payload });
+        health.push({ clientEventId: stableEventId(JSON.stringify([kind, event.client.version, event.host.kind, event.host.build, event.window.from, event.window.to])), kind, observedAt: event.window.to, payload });
       }
     }
     const batchesOf = (group: readonly IngestEvent[]) => {

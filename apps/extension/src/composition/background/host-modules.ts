@@ -44,8 +44,8 @@ export interface HostModuleSpec {
 
 export interface HostModulesDeps {
   readonly specs: Readonly<Partial<Record<HostKind, HostModuleSpec>>>;
-  /** The kit every module is started with (built once by the core). */
-  readonly kit: BackgroundKit;
+  /** The kit a site's module is started with: the core's ports, its telemetry counted for that site (R20 F7). */
+  readonly kit: (host: HostKind) => BackgroundKit;
   /** `runtime.getURL`. */
   readonly url: (path: string) => string;
   /** `import(url)`; a test hands in the module itself. */
@@ -108,7 +108,7 @@ export function createHostModules(deps: HostModulesDeps): HostModules {
       const exported = loaded?.default;
       if (!isHostModule(exported, slot.host)) throw new TypeError(`${slot.spec.chunk} is not the background module of ${slot.host}`);
       stage = 'start';
-      const handle = await exported.start(deps.kit);
+      const handle = await exported.start(deps.kit(slot.host));
       slot.handle = handle;
       slot.state = 'started';
       deps.log.write({ level: 'info', scope: 'bg.hosts', msg: 'site module started', fields: { host: slot.host, attempt, ms: deps.now() - began } });

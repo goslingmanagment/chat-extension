@@ -3,7 +3,7 @@
 
 import type { ToMainType } from '@cg/contracts/bridge';
 import type { ComposerState, HostEvent, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
-import { HostContractReportSchema, InsertReceiptSchema, LiveTextTailSchema, NavigationReceiptSchema } from '@cg/contracts/host';
+import { ChatSpaceContractReportSchema, InsertReceiptSchema, LiveTextTailSchema, NavigationReceiptSchema } from '@cg/contracts/host';
 import { createRedactor, redactRecord } from '@cg/core/domain/logging';
 import { describe, expect, it } from 'vitest';
 
@@ -142,7 +142,7 @@ describe('[BG-002] state from MAIN', () => {
     expect(current.accounts).toEqual([account]);
     expect(host.listCachedAccounts()).toEqual([account]);
     expect(updates.at(-1)).toEqual(composer());
-    const report = HostContractReportSchema.parse(host.probe());
+    const report = ChatSpaceContractReportSchema.parse(host.probe());
     expect(report.capabilities.identity).toEqual({ state: 'on' });
     expect(report.capabilities.insert).toEqual({ state: 'on' });
     // Not configured, no tap script: the live side is off, each capability with its reason.

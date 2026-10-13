@@ -38,11 +38,11 @@
 //
 // Facts only: ids, digests, booleans. Never a message text.
 
-import type { HostContractReport, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
+import type { HostContractReport, HostContractShape, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { SendFuseFact, SendFuseState } from '@cg/contracts/send';
-import { anchorGap, anchorsNotYet } from '@cg/core/domain/host';
+import { anchorGap, anchorsNotYet, expectedAnchors, siteCapabilitiesOf } from '@cg/core/domain/host';
 
 import type { HostAppAdapter } from './adapter';
 import type { ControllerRpc } from './client';
@@ -69,20 +69,20 @@ export interface HostFacts {
 }
 
 /**
- * Anchors of what the owner switches on separately — the WebSocket tap (`wsTap`) and the receipt profile of the
- * preview send (X8). With the switch off the adapter reports them `missing` (§6.2: nothing of that part is in
- * the page): the normal state of a shift, not a ChatSpace that changed — the same rule «Статус» reads the
- * report by (core `hostGaps`). What is wrong with them while the switch is on is said by their capabilities.
- */
-const SWITCHED_ANCHORS: readonly string[] = ['wsFrames', 'receiptProfile'];
-
-/**
  * The host contract as the tab's log says it (DB-031): every anchor that is gone or changed, every capability that
  * is not `on` — and `ok` false, which makes the record a CG-HOST-CONTRACT of «ошибки за сегодня», only when an
- * anchor of ChatSpace itself is gone. An anchor ChatSpace has not created yet (`notYet`: the composer translator
- * store before the page's first chat) is listed apart and is no error: every reload has it until a chat is opened.
+ * anchor of the site itself is gone. The anchors read are the site's expected set (`shape`, the adapter's; R20 F7,
+ * FS-CTR-1): one the report does not name is `missing`, never «nothing to check». An anchor of a part the owner
+ * switches on separately (ChatSpace: the WebSocket tap, X8's receipt profile) is `missing` while its switch is off
+ * (§6.2: nothing of that part is in the page) — the normal state of a shift, not a site that changed, the same rule
+ * «Статус» reads the report by (core `hostGaps`); what is wrong with it while the switch is on its capabilities say.
+ * An anchor the site has not created yet (`notYet`: ChatSpace's composer translator store before the page's first
+ * chat) is listed apart and is no error: every reload has it until a chat is opened.
  */
-export function contractFactsOf(report: HostContractReport): {
+export function contractFactsOf(
+  report: HostContractReport,
+  shape: HostContractShape,
+): {
   readonly build: string | null;
   readonly adapterVersion: string;
   readonly ok: boolean;
@@ -90,14 +90,14 @@ export function contractFactsOf(report: HostContractReport): {
   readonly degraded: string[];
   readonly notYet?: string[];
 } {
-  const missing = Object.entries(report.anchors)
+  const missing = expectedAnchors(report, shape)
     .filter(([, state]) => anchorGap(state))
     .map(([anchor]) => anchor);
-  const later = anchorsNotYet(report);
-  const degraded = Object.entries(report.capabilities)
+  const later = anchorsNotYet(report, shape);
+  const degraded = [...Object.entries(report.capabilities), ...Object.entries(siteCapabilitiesOf(report))]
     .filter(([, capability]) => capability.state !== 'on')
     .map(([name]) => name);
-  return { build: report.build, adapterVersion: report.adapterVersion, ok: missing.every((anchor) => SWITCHED_ANCHORS.includes(anchor)), missing, degraded, ...(later.length === 0 ? {} : { notYet: later }) };
+  return { build: report.build, adapterVersion: report.adapterVersion, ok: missing.every((anchor) => shape.switchedAnchors.includes(anchor)), missing, degraded, ...(later.length === 0 ? {} : { notYet: later }) };
 }
 
 /**

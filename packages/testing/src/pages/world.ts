@@ -17,12 +17,14 @@ import {
   type ColorScheme,
   type ExtensionPage,
   type HostAccount,
-  type HostContractReport,
+  type ChatSpaceContractReport,
   type Locale,
   type OpView,
   type PromptSnapshotView,
   type ValueSignal,
 } from '@cg/contracts';
+import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
+import { CHATSPACE_STATUS_TEXTS } from '@cg/contracts/vm';
 import { createPagesClient, type PageEnv, type PagePorts, type PageTimers, type PagesClient } from '@cg/core/application/pages';
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
 import { type PageDeps } from '@cg/ui/pages';
@@ -36,6 +38,8 @@ export const PAGES_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'pr
 export const PAGES_VERSION = '0.4.3';
 /** The stand's ChatSpace origin: only a name for the host-access check, nothing is fetched. */
 export const PAGES_HOST_ORIGIN = 'https://chatspace.example.test';
+/** The sites of the release build as the pages' composition root names them (R20 F7). */
+export const PAGES_SITES: PageEnv['sites'] = [{ kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS }];
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 
@@ -45,15 +49,15 @@ function account(id: string, creator: string, username: string, displayName: str
   return { host: 'chatspace', hostAccountId: id, platform: 'onlyfans', platformAccountId: creator, username, displayName };
 }
 
-export function hostReport(now: number, broken: readonly string[] = []): HostContractReport {
+export function hostReport(now: number, broken: readonly string[] = []): ChatSpaceContractReport {
   return {
     build: 'index-0000test',
     adapterVersion: '1.0.0',
     checkedAt: now - 5 * MIN,
-    anchors: Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, broken.includes(anchor) ? 'missing' : 'ok'])) as HostContractReport['anchors'],
+    anchors: Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, broken.includes(anchor) ? 'missing' : 'ok'])) as ChatSpaceContractReport['anchors'],
     capabilities: Object.fromEntries(
       HOST_CAPABILITIES.map((capability) => [capability, broken.length > 0 && (capability === 'insert' || capability === 'previewSend') ? { state: 'contractBroken', reason: 'anchor missing' } : { state: 'on' }]),
-    ) as HostContractReport['capabilities'],
+    ) as ChatSpaceContractReport['capabilities'],
   };
 }
 
@@ -351,6 +355,8 @@ export interface PagesWorldOptions {
   readonly links?: PageEnv['links'];
   /** The sites' slices of the feature manifest; default — ChatSpace's for ChatSpace, none for any other site. */
   readonly features?: PageEnv['features'];
+  /** The sites of the build (R20 F7); default — ChatSpace alone, as the release build's. */
+  readonly sites?: PageEnv['sites'];
 }
 
 export interface PagesWorld {
@@ -435,6 +441,8 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     timeZone: 'Europe/Moscow',
     // The pages of the stand serve ChatSpace: its slice of the feature manifest.
     features: options.features ?? ((host) => (host === 'chatspace' ? SCENARIO_FEATURES : null)),
+    // The pages' composition root's table (apps/extension/src/composition/pages.ts `PAGE_SITES`), or a test's own.
+    sites: options.sites ?? PAGES_SITES,
   };
   const ports: PagePorts = {
     rpc: background,

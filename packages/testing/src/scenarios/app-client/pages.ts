@@ -54,7 +54,8 @@ export function popup(ctx: ScenarioCtx, view: VmView, patch: Partial<PopupVM> = 
 
 const STATUS_ROW_KEYS: Record<StatusRowVM['id'], I18nKey> = {
   extension: 'settings.status.row.extension',
-  chatspace: 'settings.status.row.chatspace',
+  // A site's row is named by its site (R20 F7): ChatSpace's here.
+  host: 'settings.status.row.chatspace',
   hub: 'settings.status.row.hub',
   account: 'settings.status.row.account',
   binding: 'settings.status.row.binding',
@@ -72,6 +73,7 @@ const STATUS_ROW_KEYS: Record<StatusRowVM['id'], I18nKey> = {
 
 const row = (id: StatusRowVM['id'], level: StatusRowVM['level'], value: string, note: string | null = null, action: StatusRowVM['action'] = null): StatusRowVM => ({
   id,
+  ...(id === 'host' ? { host: 'chatspace' as const } : {}),
   level,
   title: msg(STATUS_ROW_KEYS[id]),
   value,
@@ -89,7 +91,7 @@ export function optionsBody<S extends SettingsSection>(ctx: ScenarioCtx, section
       copyReport: button('settings.status.copyReport', { type: 'CopyReport', scope: 'status' }),
       rows: [
         row('extension', 'ok', '0.4.3'),
-        row('chatspace', variant === 'partial' ? 'unknown' : 'ok', 'index-0000test'),
+        row('host', variant === 'partial' ? 'unknown' : 'ok', 'index-0000test'),
         row('hub', 'ok', 'hub.example.test', '180 ms'),
         row('binding', 'ok', `OnlyMonster ${HOST_ACCOUNT_ID} → ${PERSONA.pageName}`, null, button('common.go', { type: 'OpenSettings', route: { section: 'accounts' } })),
         row('quota', 'warn', '12'),

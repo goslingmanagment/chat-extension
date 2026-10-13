@@ -1,4 +1,5 @@
-import { ANCHOR_IDS, HOST_CAPABILITIES, type HostContractReport } from '@cg/contracts/host';
+import { ANCHOR_IDS, HOST_CAPABILITIES, type HostContractReport, type SiteContractReport } from '@cg/contracts/host';
+import { type HostKind } from '@cg/contracts/hosts';
 import { type IngestResult } from '@cg/contracts/hub';
 import { TELEMETRY_LIMITS } from '@cg/contracts/limits';
 import { type LogRecord } from '@cg/contracts/logs';
@@ -11,6 +12,7 @@ import { type KeyValuePort, type Scheduler } from '../ports';
 import {
   AcceptanceReporter,
   HEALTH_QUEUE_MAX,
+  HEALTH_WINDOWS_MAX,
   HealthReporter,
   TELEMETRY_POLICY,
   TelemetryQueue,
@@ -112,7 +114,7 @@ function acceptance(n = 0): AcceptanceEvent {
 }
 
 function health(at = T0): ClientHealthV1 {
-  return new HealthWindow(at).build(at + 1000, CLIENT, { cachesKB: 1, logsKB: 1 });
+  return new HealthWindow(at).build(at + 1000, 'chatspace', CLIENT, { cachesKB: 1, logsKB: 1 });
 }
 
 function harness(options: { consent?: boolean | null; supported?: boolean; session?: TelemetryBinding | null } = {}) {
@@ -538,7 +540,7 @@ describe('[NEW-03] client_health delivery', () => {
   });
 });
 
-function contract(missing: readonly (typeof ANCHOR_IDS)[number][] = [], build = 'index-DEVowLko'): HostContractReport {
+function contract(missing: readonly (typeof ANCHOR_IDS)[number][] = [], build: string | null = 'index-DEVowLko'): HostContractReport {
   return {
     build,
     adapterVersion: '1.0.0',
@@ -548,9 +550,25 @@ function contract(missing: readonly (typeof ANCHOR_IDS)[number][] = [], build = 
   } as HostContractReport;
 }
 
+/** A report of the second site (R20 F7): its own block, a test's anchors. */
+function siteContract(missing: readonly string[] = [], build: string | null = 'main.2e6b96097a4bb73b'): HostContractReport {
+  return {
+    host: 'fansly-web',
+    build,
+    adapterVersion: '1.0.0',
+    checkedAt: T0,
+    capabilities: Object.fromEntries(HOST_CAPABILITIES.map((c) => [c, { state: 'on' }])) as SiteContractReport['capabilities'],
+    extensions: { 'fansly-web': { anchors: Object.fromEntries(['conversationRoute', 'textarea', 'socket'].map((id) => [id, missing.includes(id) ? 'missing' : 'ok'])), capabilities: { freshness: { state: 'on' } } } },
+  };
+}
+
+const CS: HostKind = 'chatspace';
+const FANSLY: HostKind = 'fansly-web';
+const TAB2 = '8e1b2d3f-4a5c-4d6e-9f70-8192a3b4c5d6';
+
 function reporterHarness(store?: KeyValuePort, c = clock()) {
   const queued: TelemetryEvent[] = [];
-  const state = { consent: true, supported: true, open: true, accept: true };
+  const state = { consent: true, supported: true, open: [CS] as HostKind[], accept: true };
   const reporter = new HealthReporter({
     scheduler: c.scheduler,
     submit: (event) => {
@@ -560,7 +578,7 @@ function reporterHarness(store?: KeyValuePort, c = clock()) {
     },
     consent: () => state.consent,
     supported: () => state.supported,
-    chatSpaceOpen: () => state.open,
+    hostOpen: (site) => state.open.includes(site),
     client: () => CLIENT,
     footprint: () => ({ cachesKB: 10, logsKB: 200 }),
     disabled: () => ['flag:previewSend'],
@@ -569,15 +587,18 @@ function reporterHarness(store?: KeyValuePort, c = clock()) {
   return { c, queued, state, reporter };
 }
 
+/** Nothing measured or counted in any window of the period. */
+const allEmpty = (reporter: HealthReporter): boolean => reporter.currentWindows().every((slot) => slot.window.isEmpty());
+
 describe('[NEW-03] [DB-031] the client_health reporter', () => {
   it('[NEW-03] every 15 minutes while ChatSpace is open: a valid report of the window, a fresh window after it', async () => {
     const h = reporterHarness();
-    h.reporter.recordPerf('insertMs', 40);
-    h.reporter.countCode('CG-HUB-UNAVAILABLE');
-    h.reporter.count('send.held');
     const tab = new TabHealthCollector(() => h.c.now);
     tab.record('routeToDockMs', 9);
-    h.reporter.mergeTab(TAB, tab.takeReport(contract(['fansMap']), { cachesKB: 300, domNodes: 900 }));
+    h.reporter.mergeTab(TAB, CS, tab.takeReport(contract(['fansMap']), { cachesKB: 300, domNodes: 900 }));
+    h.reporter.recordPerf(CS, 'insertMs', 40);
+    h.reporter.countCode(CS, 'CG-HUB-UNAVAILABLE');
+    h.reporter.count(CS, 'send.held');
     await h.c.tick(TELEMETRY_LIMITS.healthWindowMs);
     expect(h.reporter.tick()).toBe(true);
     const report = h.queued[0] as ClientHealthV1;
@@ -585,7 +606,7 @@ describe('[NEW-03] [DB-031] the client_health reporter', () => {
     expect(report.window).toEqual({ from: '2026-10-03T12:00:00.000Z', to: '2026-10-03T12:15:00.000Z' });
     expect(report.perf.map((p) => p.metric)).toEqual(['routeToDockMs', 'insertMs']);
     expect(report.counters).toMatchObject({ 'CG-HUB-UNAVAILABLE': 1, 'send.held': 1 });
-    expect(report.host).toMatchObject({ contractOk: false, missing: ['fansMap'] });
+    expect(report.host).toEqual({ kind: 'chatspace', build: 'index-DEVowLko', contractOk: false, missing: ['fansMap'] });
     expect(report.disabled).toEqual(['flag:previewSend']);
     expect(report.footprint).toEqual({ kind: 'owned-estimate', cachesKB: 310, logsKB: 200 });
     // The next window still names the contract, with nothing measured yet.
@@ -596,49 +617,147 @@ describe('[NEW-03] [DB-031] the client_health reporter', () => {
     expect(h.reporter.stats()).toMatchObject({ sent: 2, skipped: 0 });
   });
 
-  it('[NEW-03] nothing without consent, support, an open ChatSpace or anything to say', () => {
+  it('[NEW-03] nothing without consent, support, an open tab of the site or anything to say', () => {
     const h = reporterHarness();
     expect(h.reporter.tick()).toBe(false);
-    h.reporter.recordPerf('insertMs', 1);
-    h.state.open = false;
+    h.reporter.recordPerf(CS, 'insertMs', 1);
+    h.state.open = [FANSLY];
     expect(h.reporter.tick()).toBe(false);
-    h.state.open = true;
+    h.state.open = [CS];
     h.state.supported = false;
-    h.reporter.recordPerf('insertMs', 1);
+    h.reporter.recordPerf(CS, 'insertMs', 1);
     expect(h.reporter.tick()).toBe(false);
     h.state.supported = true;
     h.state.consent = false;
-    h.reporter.recordPerf('insertMs', 1);
-    h.reporter.count('x');
-    h.reporter.countCode('CG-NETWORK');
-    h.reporter.mergeTab(TAB, new TabHealthCollector(() => T0).takeReport(contract(), { cachesKB: 0, domNodes: 0 }));
-    h.reporter.onHost(contract());
-    expect(h.reporter.currentWindow().isEmpty()).toBe(true);
+    h.reporter.recordPerf(CS, 'insertMs', 1);
+    h.reporter.count(CS, 'x');
+    h.reporter.countCode(CS, 'CG-NETWORK');
+    h.reporter.mergeTab(TAB, CS, new TabHealthCollector(() => T0).takeReport(contract(), { cachesKB: 0, domNodes: 0 }));
+    h.reporter.onHost(CS, contract());
+    expect(h.reporter.currentWindows()).toEqual([]);
     h.state.consent = true;
-    h.reporter.recordPerf('insertMs', 1);
+    h.reporter.recordPerf(CS, 'insertMs', 1);
     h.state.accept = false;
     expect(h.reporter.tick()).toBe(false);
     expect(h.queued).toHaveLength(0);
-    expect(h.reporter.stats().skipped).toBe(4);
+    expect(h.reporter.stats().skipped).toBe(3);
+  });
+
+  it('[NEW-03] [TL-007] [host:fansly] [host:chatspace] a window per site and build: two tabs of two sites make two reports of one period, each its own site, build and metrics (HF-13)', async () => {
+    const h = reporterHarness();
+    h.state.open = [CS, FANSLY];
+    const chatspace = new TabHealthCollector(() => h.c.now);
+    chatspace.record('insertMs', 30);
+    const fansly = new TabHealthCollector(() => h.c.now);
+    fansly.record('frameParseMs', 0.04);
+    fansly.record('snapshotRoundTripMs', 40);
+    h.reporter.mergeTab(TAB, CS, chatspace.takeReport(contract(), { cachesKB: 100, domNodes: 50 }));
+    h.reporter.mergeTab(TAB2, FANSLY, fansly.takeReport(siteContract(['socket']), { cachesKB: 20, domNodes: 70 }));
+    // What a site's background chunk counts goes to the window of the build its tabs are on.
+    h.reporter.countCode(FANSLY, 'CG-HUB-TIMEOUT');
+    await h.c.tick(TELEMETRY_LIMITS.healthWindowMs);
+    expect(h.reporter.tick()).toBe(true);
+    const reports = h.queued as ClientHealthV1[];
+    expect(reports).toHaveLength(2);
+    for (const report of reports) expect(ClientHealthV1Schema.safeParse(report).success).toBe(true);
+    const [first, second] = reports;
+    expect(first?.host).toEqual({ kind: 'chatspace', build: 'index-DEVowLko', contractOk: true, missing: [] });
+    expect(first?.perf.map((p) => p.metric)).toEqual(['insertMs']);
+    expect(first?.counters['CG-HUB-TIMEOUT']).toBeUndefined();
+    expect(second?.host).toEqual({ kind: 'fansly-web', build: 'main.2e6b96097a4bb73b', contractOk: false, missing: ['socket'] });
+    expect(second?.perf.map((p) => p.metric)).toEqual(['frameParseMs', 'snapshotRoundTripMs']);
+    expect(second?.counters['CG-HUB-TIMEOUT']).toBe(1);
+    // One period: the same window, two reports (the hub layer's id names the site and the build).
+    expect(first?.window).toEqual(second?.window);
+    // A site whose tabs are gone reports nothing; the other goes on.
+    h.state.open = [FANSLY];
+    expect(h.reporter.tick()).toBe(true);
+    expect((h.queued[2] as ClientHealthV1).host.kind).toBe('fansly-web');
+    expect(h.queued).toHaveLength(3);
+  });
+
+  it('[R20 F7] a build of its own is a window of its own; the page\'s first report, before its build is read, is no broken contract', () => {
+    const h = reporterHarness();
+    // Every tab's first report: the bridge is not up, the build not read, the anchors not found.
+    h.reporter.mergeTab(TAB, CS, new TabHealthCollector(() => h.c.now).takeReport(contract(['app', 'router'], null), { cachesKB: 1, domNodes: 1 }));
+    const tab = new TabHealthCollector(() => h.c.now);
+    tab.record('insertMs', 12);
+    h.reporter.mergeTab(TAB, CS, tab.takeReport(contract(), { cachesKB: 2, domNodes: 2 }));
+    // A second tab on a newer ChatSpace build: its window is its own.
+    const newer = new TabHealthCollector(() => h.c.now);
+    newer.record('insertMs', 14);
+    h.reporter.mergeTab(TAB2, CS, newer.takeReport(contract(['fansMap'], 'index-NEW'), { cachesKB: 3, domNodes: 3 }));
+    // Its next report before its build is read (a reload) joins the build the site's tabs are on, without its contract.
+    h.reporter.mergeTab(TAB2, CS, new TabHealthCollector(() => h.c.now).takeReport(contract(['app'], null), { cachesKB: 4, domNodes: 4 }));
+    // The period closes (the tick takes over the early send the contract changes asked for).
+    h.reporter.tick();
+    const reports = h.queued as ClientHealthV1[];
+    expect(reports.map((report) => [report.host.build, report.host.contractOk, report.host.missing])).toEqual([
+      ['index-DEVowLko', true, []],
+      ['index-NEW', false, ['fansMap']],
+    ]);
+  });
+
+  it('[R20 F7] with no build of the site known, its contract stands for it; once one is, that window joins the build', () => {
+    const h = reporterHarness();
+    h.reporter.countCode(CS, 'CG-SEND-FUSE');
+    h.reporter.mergeTab(TAB, CS, new TabHealthCollector(() => h.c.now).takeReport(contract(['app'], null), { cachesKB: 1, domNodes: 1 }));
+    expect(h.reporter.currentWindows().map((slot) => [slot.site, slot.build])).toEqual([['chatspace', null]]);
+    h.reporter.mergeTab(TAB, CS, new TabHealthCollector(() => h.c.now).takeReport(contract(), { cachesKB: 1, domNodes: 1 }));
+    h.reporter.tick();
+    expect(h.queued).toHaveLength(1);
+    expect((h.queued[0] as ClientHealthV1).host).toMatchObject({ build: 'index-DEVowLko', contractOk: true });
+    expect((h.queued[0] as ClientHealthV1).counters['CG-SEND-FUSE']).toBe(1);
+    // A site whose build is never read (a page that changed beyond the adapter): its window of «no build» is reported.
+    const broken = reporterHarness();
+    broken.reporter.mergeTab(TAB, CS, new TabHealthCollector(() => broken.c.now).takeReport(contract(['app'], null), { cachesKB: 1, domNodes: 1 }));
+    broken.reporter.tick();
+    expect((broken.queued[0] as ClientHealthV1).host).toEqual({ kind: 'chatspace', build: null, contractOk: false, missing: ['app'] });
+  });
+
+  it('[R20 F7] a tab\'s word about another site\'s contract is not its contract: its numbers count, the contract does not', () => {
+    const h = reporterHarness();
+    const tab = new TabHealthCollector(() => h.c.now);
+    tab.record('insertMs', 3);
+    h.reporter.mergeTab(TAB, CS, tab.takeReport(siteContract(), { cachesKB: 1, domNodes: 1 }));
+    h.reporter.onHost(CS, siteContract());
+    expect(h.reporter.currentWindows().map((slot) => [slot.site, slot.build, slot.window.hostSummary])).toEqual([['chatspace', null, null]]);
+    h.reporter.tick();
+    expect((h.queued[0] as ClientHealthV1).counters['health.host-mismatch']).toBe(1);
+  });
+
+  it('[R20 F7] a contract change of one site sends the period early; the other site\'s does not count against it', async () => {
+    const h = reporterHarness();
+    h.state.open = [CS, FANSLY];
+    h.reporter.onHost(CS, contract());
+    h.reporter.onHost(FANSLY, siteContract());
+    expect(h.reporter.stats().earlyPending).toBe(false);
+    h.reporter.onHost(FANSLY, siteContract(['textarea']));
+    expect(h.reporter.stats().earlyPending).toBe(true);
+    await h.c.tick(0);
+    expect((h.queued as ClientHealthV1[]).map((report) => [report.host.kind, report.host.missing])).toEqual([
+      ['chatspace', []],
+      ['fansly-web', ['textarea']],
+    ]);
   });
 
   it('[DB-031] a changed host contract sends early, at most once per 60 s', async () => {
     const h = reporterHarness();
-    h.reporter.onHost(contract());
-    h.reporter.onHost(contract());
+    h.reporter.onHost(CS, contract());
+    h.reporter.onHost(CS, contract());
     expect(h.reporter.stats().earlyPending).toBe(false);
-    h.reporter.onHost(contract(['app']));
+    h.reporter.onHost(CS, contract(['app']));
     expect(h.reporter.stats().earlyPending).toBe(true);
     await h.c.tick(0);
     expect(h.queued).toHaveLength(1);
     expect((h.queued[0] as ClientHealthV1).host.missing).toEqual(['app']);
-    h.reporter.onHost(contract([], 'index-NEW'));
+    h.reporter.onHost(CS, contract([], 'index-NEW'));
     await h.c.tick(59_999);
     expect(h.queued).toHaveLength(1);
     await h.c.tick(1);
-    expect(h.queued).toHaveLength(2);
-    expect((h.queued[1] as ClientHealthV1).host.build).toBe('index-NEW');
-    h.reporter.onHost(contract(['app'], 'index-NEW'));
+    // The site is on the new build now: the old build's window, carried over with nothing new, is not reported again.
+    expect((h.queued as ClientHealthV1[]).slice(1).map((report) => report.host.build)).toEqual(['index-NEW']);
+    h.reporter.onHost(CS, contract(['app'], 'index-NEW'));
     h.reporter.reset();
     await h.c.tick(120_000);
     expect(h.queued).toHaveLength(2);
@@ -647,11 +766,11 @@ describe('[NEW-03] [DB-031] the client_health reporter', () => {
 
   it('[DB-031] the 15-minute tick takes over a pending early send: no second report seconds later', async () => {
     const h = reporterHarness();
-    h.reporter.onHost(contract());
-    h.reporter.recordPerf('insertMs', 5);
+    h.reporter.onHost(CS, contract());
+    h.reporter.recordPerf(CS, 'insertMs', 5);
     expect(h.reporter.tick()).toBe(true);
     await h.c.tick(30_000);
-    h.reporter.onHost(contract(['app']));
+    h.reporter.onHost(CS, contract(['app']));
     expect(h.reporter.stats().earlyPending).toBe(true);
     await h.c.tick(10_000);
     expect(h.reporter.tick()).toBe(true);
@@ -661,91 +780,122 @@ describe('[NEW-03] [DB-031] the client_health reporter', () => {
     expect(h.queued).toHaveLength(2);
   });
 
-  it('[NEW-03] the window survives an event-page unload through storage.session', async () => {
+  it('[NEW-03] the windows survive an event-page unload through storage.session', async () => {
     const kv = new MemoryKv();
     const h = reporterHarness(kv);
+    h.state.open = [CS, FANSLY];
     await h.reporter.start();
-    h.reporter.onHost(contract(['fansMap']));
-    h.reporter.recordPerf('insertMs', 40);
-    h.reporter.countCode('CG-INSERT-MISPLACED');
+    h.reporter.onHost(CS, contract(['fansMap']));
+    h.reporter.recordPerf(CS, 'insertMs', 40);
+    h.reporter.countCode(CS, 'CG-INSERT-MISPLACED');
     const tab = new TabHealthCollector(() => h.c.now);
     tab.record('routeToDockMs', 9);
-    h.reporter.mergeTab(TAB, tab.takeReport(contract(['fansMap']), { cachesKB: 300, domNodes: 900 }));
+    h.reporter.mergeTab(TAB, CS, tab.takeReport(contract(['fansMap']), { cachesKB: 300, domNodes: 900 }));
+    h.reporter.mergeTab(TAB2, FANSLY, new TabHealthCollector(() => h.c.now).takeReport(siteContract(), { cachesKB: 5, domNodes: 5 }));
     await h.reporter.saved();
     expect(h.reporter.stats().earlyPending).toBe(false);
 
-    // A new event page: one measurement before start(), then the stored window joins it.
+    // A new event page: one measurement before start(), then the stored windows join it.
     await h.c.tick(60_000);
     const woken = reporterHarness(kv, h.c);
-    woken.reporter.recordPerf('insertMs', 60);
+    woken.state.open = [CS, FANSLY];
+    woken.reporter.recordPerf(CS, 'insertMs', 60);
     await woken.reporter.start();
     await woken.reporter.start();
     expect(woken.reporter.stats().windowFrom).toBe(T0);
     await woken.c.tick(TELEMETRY_LIMITS.healthWindowMs - 60_000);
     expect(woken.reporter.tick()).toBe(true);
-    const report = woken.queued[0] as ClientHealthV1;
-    expect(ClientHealthV1Schema.safeParse(report).success).toBe(true);
-    expect(report.window.from).toBe('2026-10-03T12:00:00.000Z');
-    expect(report.perf.find((p) => p.metric === 'insertMs')?.count).toBe(2);
-    expect(report.perf.find((p) => p.metric === 'routeToDockMs')?.count).toBe(1);
-    expect(report.counters).toMatchObject({ 'CG-INSERT-MISPLACED': 1, 'p1.insert-misplaced': 1, 'footprint.dom-nodes-max': 900 });
-    expect(report.host.missing).toEqual(['fansMap']);
-    expect(report.footprint.cachesKB).toBe(310);
+    const [report, other] = woken.queued as ClientHealthV1[];
+    expect(report && ClientHealthV1Schema.safeParse(report).success).toBe(true);
+    expect(report?.window.from).toBe('2026-10-03T12:00:00.000Z');
+    expect(report?.perf.find((p) => p.metric === 'insertMs')?.count).toBe(2);
+    expect(report?.perf.find((p) => p.metric === 'routeToDockMs')?.count).toBe(1);
+    expect(report?.counters).toMatchObject({ 'CG-INSERT-MISPLACED': 1, 'p1.insert-misplaced': 1, 'footprint.dom-nodes-max': 900 });
+    expect(report?.host.missing).toEqual(['fansMap']);
+    expect(report?.footprint.cachesKB).toBe(310);
+    expect(other?.host).toMatchObject({ kind: 'fansly-web', build: 'main.2e6b96097a4bb73b', contractOk: true });
     // The time of the last report is stored too: the 60 s limit of early sends holds across a wake.
     await woken.reporter.saved();
     const again = reporterHarness(kv, woken.c);
     await again.reporter.start();
     expect(again.reporter.stats().lastSentAt).toBe(woken.c.now);
-    again.reporter.onHost(contract(['app']));
+    again.reporter.onHost(CS, contract(['app']));
     await again.c.tick(59_999);
     expect(again.queued).toHaveLength(0);
     await again.c.tick(1);
     expect(again.queued).toHaveLength(1);
-    // A reset (consent revoked, signed out) stores an empty window.
-    again.reporter.recordPerf('insertMs', 1);
+    // A reset (consent revoked, signed out) stores no window.
+    again.reporter.recordPerf(CS, 'insertMs', 1);
     again.reporter.reset();
     await again.reporter.saved();
     const empty = reporterHarness(kv, again.c);
     await empty.reporter.start();
-    expect(empty.reporter.currentWindow().isEmpty()).toBe(true);
+    expect(allEmpty(empty.reporter)).toBe(true);
   });
 
-  it('[NEW-03] a stored window that is not one is ignored; junk inside it is counted, never trusted', async () => {
+  it('[NEW-03] stored windows that are not ones are ignored; junk inside them is counted, never trusted', async () => {
     const kv = new MemoryKv();
-    for (const junk of [null, 'junk', { v: 1, window: { v: 2, from: T0 } }, { v: 1, window: { v: 1, from: -1 } }]) {
+    const window = { v: 1, from: T0 } as const;
+    for (const junk of [
+      null,
+      'junk',
+      { v: 1, window, lastSentAt: null, lastSignature: null },
+      { v: 2, from: -1, windows: [] },
+      { v: 2, from: T0, windows: 'x' },
+      { v: 2, from: T0, windows: [{ site: 'onlyfans', build: null, window }, { site: CS, build: 7, window }, { site: CS, build: null, window: { v: 2, from: T0 } }, null] },
+    ]) {
       kv.value = junk;
       const h = reporterHarness(kv);
       await h.reporter.start();
-      expect(h.reporter.currentWindow().isEmpty()).toBe(true);
+      expect(h.reporter.currentWindows(), JSON.stringify(junk)).toEqual([]);
     }
     kv.value = {
-      v: 1,
-      window: {
-        v: 1,
-        from: T0 - 1000,
-        perf: [{ metric: 'insertMs', unit: 'ms', schemaVersion: 99, bounds: [1], counts: [1, 0], count: 1, sum: 1, max: 1 }, 'x'],
-        counters: { 'CG-NETWORK': 2, 'bad name with spaces': 3, n: 'x' },
-        host: { build: 'x'.repeat(200), contractOk: true, missing: [], degraded: [] },
-        disabled: ['flag:recap', 5],
-        domNodesMax: -3,
-        tabCachesKB: { [TAB]: 12, 'bad tab id!': 5, other: -1 },
-      },
+      v: 2,
+      from: T0 - 1000,
+      windows: [
+        {
+          site: CS,
+          build: 'index-DEVowLko',
+          window: {
+            v: 1,
+            from: T0 - 1000,
+            perf: [{ metric: 'insertMs', unit: 'ms', schemaVersion: 99, bounds: [1], counts: [1, 0], count: 1, sum: 1, max: 1 }, 'x'],
+            counters: { 'CG-NETWORK': 2, 'bad name with spaces': 3, n: 'x' },
+            host: { build: 'x'.repeat(200), contractOk: true, missing: [], degraded: [] },
+            disabled: ['flag:recap', 5],
+            domNodesMax: -3,
+            tabCachesKB: { [TAB]: 12, 'bad tab id!': 5, other: -1 },
+          },
+        },
+      ],
+      builds: { chatspace: 'index-DEVowLko', onlyfans: 'x', 'fansly-web': 5 },
       lastSentAt: 'x',
-      lastSignature: 5,
+      signatures: { chatspace: 5 },
     };
     const h = reporterHarness(kv);
     await h.reporter.start();
-    const window = h.reporter.currentWindow().snapshot();
-    expect(window).toMatchObject({ from: T0 - 1000, perf: [], host: null, disabled: ['flag:recap'], domNodesMax: 0, tabCachesKB: { [TAB]: 12 } });
-    expect(window.counters).toEqual({ 'perf.rejected': 2, 'CG-NETWORK': 2, 'health.bad-counter': 3 });
+    const [slot] = h.reporter.currentWindows();
+    expect(slot).toMatchObject({ site: 'chatspace', build: 'index-DEVowLko' });
+    expect(slot?.window.snapshot()).toMatchObject({ from: T0 - 1000, perf: [], host: null, disabled: ['flag:recap'], domNodesMax: 0, tabCachesKB: { [TAB]: 12 } });
+    expect(slot?.window.snapshot().counters).toEqual({ 'perf.rejected': 2, 'CG-NETWORK': 2, 'health.bad-counter': 3 });
     expect(h.reporter.stats().lastSentAt).toBeNull();
+    // The stored build of the site is where its next measurement goes.
+    h.reporter.recordPerf(CS, 'insertMs', 1);
+    expect(h.reporter.currentWindows()).toHaveLength(1);
     // A store that fails to load or save never breaks the reporter.
     const broken: KeyValuePort = { load: () => Promise.reject(new Error('x')), save: () => Promise.reject(new Error('y')) };
     const b = reporterHarness(broken);
     await b.reporter.start();
-    b.reporter.recordPerf('insertMs', 1);
+    b.reporter.recordPerf(CS, 'insertMs', 1);
     await b.reporter.saved();
-    expect(b.reporter.currentWindow().isEmpty()).toBe(false);
+    expect(allEmpty(b.reporter)).toBe(false);
+  });
+
+  it('[R20 F7] at most HEALTH_WINDOWS_MAX windows a period: more builds join their site\'s window, counted', () => {
+    const h = reporterHarness();
+    for (let i = 0; i < HEALTH_WINDOWS_MAX + 3; i += 1) h.reporter.onHost(CS, contract([], `index-${String(i).padStart(8, '0')}`));
+    expect(h.reporter.currentWindows()).toHaveLength(HEALTH_WINDOWS_MAX);
+    expect(h.reporter.currentWindows().reduce((sum, slot) => sum + (slot.window.snapshot().counters['health.windows-capped'] ?? 0), 0)).toBe(3);
   });
 
   it('[NEW-03] a tab measures, samples handlers 1 in 20 and reports deltas', () => {

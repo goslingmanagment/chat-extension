@@ -3,7 +3,9 @@
 // and safety counters, the host contract result and what is turned off,
 // plus our own footprint as an estimate (never heap). Tabs measure and send
 // deltas (`health.report`); the background merges them into its window. No
-// text and no fan, chat or operation ids anywhere in it.
+// text and no fan, chat or operation ids anywhere in it. The background keeps
+// a window per pair (site, its build) — 1.15.0, R20 F7 — and a window names
+// its site only when it becomes a report (`build`).
 //
 // The cost of measuring is bounded: handlers are sampled 1 in 20 (rare
 // latency events are all kept by the caller), and each metric takes at most
@@ -12,7 +14,8 @@
 
 import { type CgCode } from '@cg/contracts/errors';
 import { CG_P1_CODES } from '@cg/contracts/errors/registry';
-import { ANCHOR_IDS, HOST_CAPABILITIES, type HostContractReport } from '@cg/contracts/host';
+import { HOST_CAPABILITIES, type HostContractReport } from '@cg/contracts/host';
+import { type HostKind } from '@cg/contracts/hosts';
 import { TELEMETRY_LIMITS } from '@cg/contracts/limits';
 import {
   HEALTH_CODE_PATTERN,
@@ -26,7 +29,7 @@ import {
   type TabHealthReport,
 } from '@cg/contracts/telemetry';
 
-import { anchorGap } from '../host';
+import { anchorGap, expectedAnchors, receiptMatchOf, siteCapabilitiesOf } from '../host';
 import { Histogram } from './histogram';
 
 export const HEALTH_SAMPLES_PER_METRIC_MAX = 20_000;
@@ -56,10 +59,14 @@ export interface HostSummary {
   readonly degraded: readonly string[];
 }
 
+/**
+ * What a report says, in machine tokens: the anchors it names that are gone or changed (the background reads the
+ * report as its site's schema took it: ChatSpace's names every anchor, a site's block what that site's adapter
+ * names), and every capability — shared or the site's own — that is not `on`.
+ */
 export function hostSummary(report: HostContractReport | null): HostSummary {
   if (report === null) return { build: null, contractOk: false, missing: ['no-report'], degraded: [] };
-  const missing = ANCHOR_IDS.flatMap((anchor) => {
-    const state = report.anchors[anchor];
+  const missing = expectedAnchors(report, null).flatMap(([anchor, state]) => {
     // `notYet` (ChatSpace creates the anchor with the page's first chat) is no failure; what it keeps off is in `degraded`.
     if (!anchorGap(state)) return [];
     return [state === 'shape' ? `${anchor}:shape` : anchor];
@@ -68,9 +75,10 @@ export function hostSummary(report: HostContractReport | null): HostSummary {
     const state = report.capabilities[capability];
     return state === undefined || state.state === 'on' ? [] : [`${capability}:${state.state}`];
   });
+  for (const [capability, state] of Object.entries(siteCapabilitiesOf(report))) if (state.state !== 'on') degraded.push(`${capability}:${state.state}`);
   // Decision X25: X8 off by the fuse, and X8 let in on a build nobody reviewed (the hub's «any build» sentinel).
   if (report.capabilities.previewSend?.code === 'CG-SEND-FUSE') degraded.push('previewSend:fuse');
-  if (report.receiptMatch?.kind === 'anyBuild') degraded.push('receipt:any-build');
+  if (receiptMatchOf(report)?.kind === 'anyBuild') degraded.push('receipt:any-build');
   return { build: report.build, contractOk: missing.length === 0, missing, degraded };
 }
 
@@ -213,7 +221,8 @@ export class HealthWindow {
     return sum;
   }
 
-  build(to: number, client: HealthClient, footprint: HealthFootprint): ClientHealthV1 {
+  /** The report of this window, for the site it was kept for (the window of a pair site × build). */
+  build(to: number, site: HostKind, client: HealthClient, footprint: HealthFootprint): ClientHealthV1 {
     const host = this.host ?? hostSummary(null);
     const counters: Record<string, number> = {};
     for (const name of [...P1_COUNTERS, ...SAFETY_COUNTERS]) counters[name] = this.counters.get(name) ?? 0;
@@ -239,7 +248,7 @@ export class HealthWindow {
         browserMajor: Math.max(1, Math.floor(client.browserMajor)),
         os: client.os,
       },
-      host: { kind: 'chatspace', build: host.build === null ? null : host.build.slice(0, 80), contractOk: host.contractOk, missing: boundedList(host.missing) },
+      host: { kind: site, build: host.build === null ? null : host.build.slice(0, 80), contractOk: host.contractOk, missing: boundedList(host.missing) },
       disabled: boundedList([...host.degraded, ...this.disabled]),
       perf,
       counters,

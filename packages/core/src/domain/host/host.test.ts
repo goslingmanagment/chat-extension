@@ -1,17 +1,17 @@
-import { ANCHOR_IDS, HOST_CAPABILITIES, type CapabilityState, type HostContractReport } from '@cg/contracts/host';
+import { ANCHOR_IDS, HOST_CAPABILITIES, type CapabilityState, type ChatSpaceContractReport, type SiteContractReport } from '@cg/contracts/host';
 import { describe, expect, it } from 'vitest';
 
-import { anchorGap, anchorsNotYet, previewSendWaitsForChat } from './index';
+import { anchorGap, anchorsNotYet, contractBroken, expectedAnchors, previewSendWaitsForChat, receiptMatchOf, siteCapabilitiesOf } from './index';
 
-type Anchors = HostContractReport['anchors'];
+type Anchors = ChatSpaceContractReport['anchors'];
 
-function report(anchors: Partial<Anchors> = {}, previewSend: CapabilityState = { state: 'on' }): HostContractReport {
+function report(anchors: Partial<Anchors> = {}, previewSend: CapabilityState = { state: 'on' }): ChatSpaceContractReport {
   return {
     build: 'index-0000test',
     adapterVersion: '0.3.0',
     checkedAt: 1,
     anchors: { ...(Object.fromEntries(ANCHOR_IDS.map((id) => [id, 'ok'])) as Anchors), ...anchors },
-    capabilities: { ...(Object.fromEntries(HOST_CAPABILITIES.map((name) => [name, { state: 'on' }])) as HostContractReport['capabilities']), previewSend },
+    capabilities: { ...(Object.fromEntries(HOST_CAPABILITIES.map((name) => [name, { state: 'on' }])) as ChatSpaceContractReport['capabilities']), previewSend },
   };
 }
 
@@ -32,5 +32,40 @@ describe('[DB-031] an anchor ChatSpace creates with the page’s first chat (con
     expect(previewSendWaitsForChat(report({ composerTranslator: 'notYet' }, { state: 'off', reason: 'flag', code: 'CG-SEND-OFF' }))).toBe(false);
     expect(previewSendWaitsForChat(report({ composerTranslator: 'notYet' }, { state: 'off', reason: 'receiptProfile', code: 'CG-SEND-RECEIPT' }))).toBe(false);
     expect(previewSendWaitsForChat(report())).toBe(false);
+  });
+});
+
+describe('[R20 F7] a report is read by its site', () => {
+  const site: SiteContractReport = {
+    host: 'fansly-web',
+    build: 'main.2e6b96097a4bb73b',
+    adapterVersion: '0.1.0',
+    checkedAt: 1,
+    capabilities: report().capabilities,
+    extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'shape', vaultUpload: 'notYet' }, capabilities: { vault: { state: 'off' } } } },
+  };
+
+  it('the expected anchors of the site are read, in its order: one the report does not name is missing; without the set — the anchors it names', () => {
+    const shape = { anchors: ['textarea', 'socket', 'conversationRoute', 'vaultUpload'] };
+    expect(expectedAnchors(site, shape)).toEqual([
+      ['textarea', 'shape'],
+      ['socket', 'missing'],
+      ['conversationRoute', 'ok'],
+      ['vaultUpload', 'notYet'],
+    ]);
+    expect(expectedAnchors(site, null).map(([anchor]) => anchor)).toEqual(['conversationRoute', 'textarea', 'vaultUpload']);
+    expect(anchorsNotYet(site, shape)).toEqual(['vaultUpload']);
+    // ChatSpace's report names every anchor of its own set: nothing is added, nothing lost.
+    expect(expectedAnchors(report({ fansMap: 'missing' }), { anchors: ANCHOR_IDS }).filter(([, state]) => state !== 'ok')).toEqual([['fansMap', 'missing']]);
+  });
+
+  it('a broken contract, a site\'s own capabilities and the receipt profile — each where its site keeps it', () => {
+    expect([contractBroken(report()), contractBroken(report({ composerTranslator: 'notYet' })), contractBroken(report({ mimic: 'shape' })), contractBroken(site)]).toEqual([false, false, true, true]);
+    expect(siteCapabilitiesOf(site)).toEqual({ vault: { state: 'off' } });
+    expect(siteCapabilitiesOf(report())).toEqual({});
+    expect(receiptMatchOf({ ...report(), receiptMatch: { profile: 'any-build', kind: 'anyBuild' } })).toEqual({ profile: 'any-build', kind: 'anyBuild' });
+    expect([receiptMatchOf(report()), receiptMatchOf(site)]).toEqual([null, null]);
+    // X8 waits for the first chat only where the site keeps that anchor.
+    expect(previewSendWaitsForChat(site)).toBe(false);
   });
 });
