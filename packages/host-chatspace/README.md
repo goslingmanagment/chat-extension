@@ -36,6 +36,12 @@ DOM, мост ChatSpace для вставки и — для отправки и�
 
 - `startChatSpaceHost({ win, redeem, drafts, … })` — одна точка запуска для корня композиции:
   менеджер монтирования и тема синхронно, мост и `HostPort` — после рукопожатия.
+- `startChatSpaceTab(env)` (`starter.ts`) — стартер для адаптера хоста вкладки (R20,
+  `docs/project-unite/architecture.md` §1.3): сначала убирает наши хосты мёртвого экземпляра
+  (`removeStaleHosts`), потом `startChatSpaceHost`. Вход `chatspace.content.ts` собирает из него
+  раннюю половину адаптера ChatSpace (`start`, `keyProbe` = `createKeyboardProbe`,
+  `keyPending` = `createKeyPendingMark`, `routeOfLocation`) и сам передаёт порт черновика
+  `drafts`: хост хранилище страницы не читает.
 - `createChatSpaceHostPort` — `HostPort` из контрактов: состояние из снимка и событий MAIN,
   синхронные чтения из кэша (ответ — и `null` «у ChatSpace этого пока нет», и неудача —
   стоит до события MAIN, геттер второй раз не спрашивает; серия одинаковых неудач — одна
@@ -273,7 +279,7 @@ AI-части (X8-02) обязан применить контроллер от�
 ```ts
 // MAIN, document_start:
 installMainBridge(window, { runtime: createMainRuntime });
-// изолированный мир, document_start (после removeStaleHosts):
+// изолированный мир, document_start (после removeStaleHosts; расширение зовёт startChatSpaceTab — он делает и то, и другое):
 const started = startChatSpaceHost({
   win: window,
   validation: () => /* import() ленивого чанка со схемами моста; в тестах — loadValidation */,

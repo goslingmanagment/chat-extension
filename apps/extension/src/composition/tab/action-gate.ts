@@ -51,7 +51,8 @@
 import type { CgErrorWire } from '@cg/contracts/errors';
 import type { Surface } from '@cg/contracts/features';
 import type { UiAction } from '@cg/contracts/vm';
-import type { MountManager } from '@cg/host-chatspace/isolated';
+
+import type { HostMounts } from './adapter';
 
 export type ActionKind = 'generate' | 'insert' | 'navigate' | 'send';
 
@@ -80,7 +81,7 @@ export type GestureRefusal =
 
 export interface GateEnv {
   readonly doc: Document;
-  readonly mounts: Pick<MountManager, 'dock' | 'registry' | 'points'>;
+  readonly mounts: Pick<HostMounts, 'dock' | 'registry' | 'points'>;
   /** Connected and really visible; the default asks the element (tests replace it: no layout there). */
   readonly visible?: (host: Element) => boolean;
 }

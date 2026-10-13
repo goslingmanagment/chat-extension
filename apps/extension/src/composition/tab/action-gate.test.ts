@@ -53,7 +53,7 @@ function world(): World {
         },
       } as Document,
       mounts: {
-        dock: { host: dock.host, root: dock.root, remove: () => dock.host.remove() },
+        dock: { host: dock.host, root: dock.root },
         registry,
         points: () => ({ dock: { kind: state.dockKind, composerInstanceId: null, width: 600 }, overlay: { ready: true, container: null } }),
       },

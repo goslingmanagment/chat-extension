@@ -168,6 +168,9 @@ export function createWorld(options: { readonly settings?: SettingsV1 | null; /*
       };
       const env = {
         win,
+        kind: 'chatspace',
+        // No composer on this page: no chunk is ever asked for.
+        lazy: () => Promise.reject(new Error('no lazy chunk in this world')),
         life: life.signal,
         abort: (reason: string) => life.abort(reason),
         host: {

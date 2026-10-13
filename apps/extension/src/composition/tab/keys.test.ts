@@ -1,12 +1,13 @@
 // The tab's keys from document_start (tab/keys.ts): the early dispatcher over
-// the real mount manager's registry, the keydown the gate needs, and the key
-// that waits for the lazy part (HK-024).
+// the real mount manager's registry and the ChatSpace adapter the build ships,
+// the keydown the gate needs, and the key that waits for the lazy part (HK-024).
 
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { hotkeyPlatformOf, type KeyCommand } from '@cg/core/domain/hotkeys';
 import { KEY_PENDING_ATTRIBUTE, createMountManager, type MountManager } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { CHATSPACE_ADAPTER } from '../../entrypoints/chatspace.content';
 import { startTabKeys, type TabKeys } from './keys';
 
 /** The scheme the dispatcher picked for this environment: ⌘ on Apple platforms, Ctrl elsewhere. */
@@ -76,7 +77,7 @@ function world(path = '/accounts/910101/chats/74001001'): World {
   const waiting: number[] = [];
   const heard: Event[] = [];
   const native: string[] = [];
-  const keys = startTabKeys({ win: window, mounts, onWaiting: () => void waiting.push(waiting.length + 1) });
+  const keys = startTabKeys({ win: window, mounts, site: CHATSPACE_ADAPTER, onWaiting: () => void waiting.push(waiting.length + 1) });
   keys.onKeydown((event) => void heard.push(event));
   const onNative = (event: Event): void => void native.push((event as KeyboardEvent).code);
   window.addEventListener('keydown', onNative, true);
