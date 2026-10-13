@@ -8,7 +8,7 @@
 //
 // Sender rules (the background checks before it parses a payload):
 // - always: `sender.id === runtime.id` and `sender.frameId === 0`;
-// - a tab: its origin is the ChatSpace origin of apps/extension/src/hosts.ts
+// - a tab: its origin is the ChatSpace origin of the runtime host table (apps/extension/src/hosts/runtime)
 //   (test builds add the loopback stand), and every request after
 //   `tab.register` carries the registered tab session, which the background
 //   matches against `sender.tab.id` and the document — a tab cannot claim

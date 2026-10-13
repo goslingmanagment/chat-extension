@@ -7,6 +7,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { describe, expect, it } from 'vitest';
 
 import { baseManifest, checkManifest, finalizeManifest, hostPermissions, lazyChunkMatches, optionalHostPermissions, optionalPermissions, type BuildFlavor, type ManifestLike } from '../build/manifest.ts';
@@ -71,6 +72,10 @@ describe('the host registry', () => {
       expect({ matches: host.matches, quietDomains: host.quietDomains }).toEqual(row);
     }
     expect(CHATSPACE.permissions).toEqual({ origins: ['https://chat.onlymonster.ai/*'], optional: false });
+  });
+
+  it('each site names the platform the contracts pair it with (HOST_PLATFORM, P4a1)', () => {
+    for (const host of [...HOSTS, SECOND]) expect(host.platform).toBe(HOST_PLATFORM[host.kind]);
   });
 
   it('every script has its WXT entry point; entries and files are unique across the sites', () => {
