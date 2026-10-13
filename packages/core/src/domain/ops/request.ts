@@ -62,6 +62,8 @@ export interface StreamRequestContext {
   readonly persona: PersonaChoice;
   readonly bootstrap: Bootstrap;
   readonly debug: boolean;
+  /** D-14: the page admits fresh page text — the manifest's `fresh-text` (`freshTextAdmitted`). */
+  readonly freshText: boolean;
 }
 
 export type BuildResult = { readonly ok: true; readonly request: HubStreamRequest } | { readonly ok: false; readonly issues: string };
@@ -79,11 +81,6 @@ export function splitAllowed(feature: FeatureId, bootstrap: Bootstrap, pageId: n
   if (mode === 'always') return true;
   if (mode === 'split-all-v1') return flagUsable(bootstrap, pageId, 'splitAll');
   return false;
-}
-
-/** Whether fresh page text may go with this start (D-14: flag freshText + hub context-v1). */
-export function freshTextAllowed(start: StartOp, bootstrap: Bootstrap): boolean {
-  return start.fresh !== undefined && flagUsable(bootstrap, start.target.binding.pageId, 'freshText') && hasCapability(bootstrap.capabilities, 'context-v1');
 }
 
 /** The default request of a start (R11 drivers may build their own over the same rules). */
@@ -125,7 +122,8 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   if (contextV1 && start.checkpoint !== undefined && start.checkpoint.knownFanMessageIds.length > 0) {
     body.knownFanMessageIds = [...start.checkpoint.knownFanMessageIds];
   }
-  if (start.fresh !== undefined && freshTextAllowed(start, ctx.bootstrap)) body.liveTextContext = liveTextOf(start.fresh);
+  // D-14: fresh page text goes only where the page admits it (the owner's `freshText` and the hub's `context-v1`).
+  if (start.fresh !== undefined && ctx.freshText) body.liveTextContext = liveTextOf(start.fresh);
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

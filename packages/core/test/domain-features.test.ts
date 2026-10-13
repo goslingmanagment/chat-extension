@@ -29,6 +29,7 @@ import {
   TONE_ORDER,
   fanScriptOf,
   featureGate,
+  featureKeyOf,
   freshTextLimits,
   hiVariantCount,
   hubFeatureOf,
@@ -49,6 +50,8 @@ import {
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_PAGES, pageFeaturesOff } from '@cg/testing/hub';
 
+import { CHATSPACE, freshTextOn } from './support/features';
+
 import { WORLD, causeOf, chatOf, checkpointFor, persona, startOf, target, tokenN, uuid } from './support/world';
 
 const PAGE_ID = WORLD.pages.one.pageId;
@@ -68,6 +71,8 @@ const plan = (over: Partial<StartPlanInput> = {}): StartPlanInput => ({
   settings: DEFAULT_SETTINGS,
   bootstrap: BOOTSTRAP_PILOT_PAGES,
   tone: null,
+  // What the tab's workspace hands in: the admission of the manifest's `fresh-text` on the page of the start.
+  freshText: freshTextOn(over.bootstrap ?? BOOTSTRAP_PILOT_PAGES, PAGE_ID),
   ...over,
 });
 
@@ -92,7 +97,7 @@ const windowOf = (over: Partial<ChatWindow> = {}): ChatWindow => ({
   ...over,
 });
 
-const ctx = { opId: uuid(0x100), persona, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false };
+const ctx = { opId: uuid(0x100), persona, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false, freshText: freshTextOn(BOOTSTRAP_PILOT_PAGES, PAGE_ID) };
 
 describe('[RU-001] feature policies', () => {
   it('has one row per feature, consistent with the contracts vocabulary', () => {
@@ -118,7 +123,9 @@ describe('[RU-001] feature policies', () => {
     expect(FEATURE_IDS.filter((f) => !FEATURE_POLICIES[f].streamShown)).toEqual(['fix']);
     expect(FEATURE_IDS.filter((f) => !FEATURE_POLICIES[f].insertable)).toEqual(['review', 'recap', 'recap-short']);
     expect(FEATURE_IDS.filter((f) => FEATURE_POLICIES[f].minMessages > 0)).toEqual(['review', 'recap']);
-    expect(FEATURE_IDS.map((f) => FEATURE_POLICIES[f].flag)).toEqual([null, null, null, null, 'review', 'recap', 'recap', 'coach']);
+    // The owner's switch of a feature is the feature manifest's (its key there is the feature's `dockAction`).
+    expect(FEATURE_IDS.map((f) => CHATSPACE[featureKeyOf(f)]?.base.flags)).toEqual([[], [], [], [], ['review'], ['recap'], ['recap'], ['coach']]);
+    expect(FEATURE_IDS.map(featureKeyOf)).toEqual(FEATURE_IDS.map((f) => FEATURE_POLICIES[f].dockAction));
   });
 
   it('Help is removed: its key is still named, with the reason', () => {
@@ -339,17 +346,20 @@ describe('the plan from a click to a StartOp', () => {
     const noContext: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'context-v1') };
     expect(planned({ fresh, bootstrap: flagOff }).fresh).toBeUndefined();
     expect(planned({ fresh, bootstrap: noContext }).fresh).toBeUndefined();
-    expect(freshTextLimits('reply', 'dock', BOOTSTRAP_ALL_OFF, PAGE_ID)).toBeNull();
+    expect(freshTextLimits('reply', 'dock', BOOTSTRAP_ALL_OFF, freshTextOn(BOOTSTRAP_ALL_OFF, PAGE_ID))).toBeNull();
+    expect([freshTextOn(BOOTSTRAP_PILOT_PAGES, PAGE_ID), freshTextOn(flagOff, PAGE_ID), freshTextOn(noContext, PAGE_ID)]).toEqual([true, false, false]);
+    // A page that does not admit it gets no fresh text, whatever else the bootstrap says.
+    expect(freshTextLimits('reply', 'dock', BOOTSTRAP_PILOT_PAGES, false)).toBeNull();
   });
 
   it('the tail is cut to N of the bootstrap and to its characters', () => {
-    expect(freshTextLimits('reply', 'dock', BOOTSTRAP_PILOT_PAGES, PAGE_ID)).toEqual({ maxItems: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxItems, maxChars: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxChars });
+    expect(freshTextLimits('reply', 'dock', BOOTSTRAP_PILOT_PAGES, true)).toEqual({ maxItems: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxItems, maxChars: BOOTSTRAP_PILOT_PAGES.limits.freshTextMaxChars });
     const small: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: 2, freshTextMaxChars: 4 } };
     const fresh = tail([['fan', 'first'], ['model', 'second'], ['fan', 'third']]);
     const cut = planned({ fresh, bootstrap: small }).fresh;
     expect(cut?.messages.map((m) => m.text)).toEqual(['seco', 'thir']);
     const huge: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, freshTextMaxItems: 500, freshTextMaxChars: 90_000 } };
-    expect(freshTextLimits('reply', 'dock', huge, PAGE_ID)).toEqual({ maxItems: 60, maxChars: 5000 });
+    expect(freshTextLimits('reply', 'dock', huge, true)).toEqual({ maxItems: 60, maxChars: 5000 });
     expect(trimFreshTail(null, { maxItems: 60, maxChars: 5000 })).toBeNull();
     expect(trimFreshTail(fresh, null)).toBeNull();
   });

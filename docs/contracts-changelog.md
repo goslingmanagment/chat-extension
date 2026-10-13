@@ -181,6 +181,43 @@ ChatSpace не меняются.
   `packages/core/src/domain/hosts/fansly/i18n/i18n.test.ts`, `packages/platform/src/rpc.test.ts` (relay, правила
   сайта, реестр сайта в фоне), `packages/core/src/domain/errors/hub-map.test.ts`.
 
+### F4 — манифест фич и допуск по действиям
+
+Не PR этапа 4, но в его открытую версию (`docs/project-unite/architecture.md` §1.4, §1.5, §11.1): что фича есть на
+каждом сайте и что ей там нужно — данными, по файлу на сайт; чипы полосы — данными; в клиентской таблице флагов —
+только нужда транспорта клиента.
+
+- **Модули манифеста** (новые, только подпути — корень `@cg/contracts` их не реэкспортирует: его импортирует ранний
+  изолированный бандл): `features/types` — `FeatureCommon` (`kind`, `chip?: {group, priority, icon}`, `hotkey?`),
+  `Requirement` (`flags`, `hostCapabilities`, `clientNeeds?` — всё AND; параметры — словари, которые может назвать
+  файл сайта), `FeatureOnHost` (`base`, `actions` по `ADMISSION_ACTIONS` = `generate`, `insert`, `send` — нет ключа,
+  нет действия; `surfaces`, `source?` = `hub` | `host-pass` | `page`), `FeatureEntry`, `FeatureSlice`, словари
+  `FEATURE_KINDS` и `HOTKEY_ACTION_IDS` (= `HotkeyAction` вендоренной схемы `@chatgoose/hotkeys`; контрактам доступен
+  только zod, полноту держит тест `core/src/domain/hotkeys`); `features/common` — `FEATURES_COMMON`: семь действий
+  полосы, `fresh-text`, `spenders`, `newcomers`, `fan-panel`, `sound`; `features/chatspace` — `CHATSPACE_FEATURES`
+  (плюс `preview-send`, `navigation`, `palette`); `features/fansly` — `FANSLY_FEATURES` (плюс `voice`, `notes`,
+  `notes-fill`, `registration`, `vault`, `via-tab`) и имена, которых в общих словарях ещё нет: `FANSLY_FLAGS_AHEAD`
+  (`drafts`, `voice`, `notes`, `notesFill`, `vault`, `registration` — флаги HF-12 и HF-2; в `CLIENT_FEATURE_FLAG_NAMES`
+  их переносит P4b3) и `FANSLY_SURFACES_AHEAD` (`header-slot`, `voice`, `notes`, `vault`). Схем нет: манифест —
+  данные, границу как `unknown` не пересекает.
+- **`CLIENT_FLAG_REQUIREMENTS`** (`hub/routes.ts`) — только нужда транспорта самого клиента: `{freshText:
+  ['context-v1']}` (хаб отказывает `liveTextContext` без этого заголовка). Остальное было копией таблицы хаба
+  `CLIENT_FEATURE_REQUIREMENTS`, которую хаб уже вложил в `pages[].features[flag]`; поле `serverChecked` ушло вместе с
+  ней (его никто не читал). Смысл флага страницы не изменился: таблица флагов ChatSpace на нынешнем хабе та же —
+  держит `packages/testing/src/fake-hub/flag-table.test.ts`.
+- **`vm/dock.ts`:** `DOCK_CHIP_GROUPS` (`reply`, `draft`, `openers`, `analysis`, `windows` — в порядке полосы),
+  `DOCK_ICON_IDS` (`gauge`, `dossier`, `bulb`, `bill`, `userPlus` — иконки kit), `ChipVM` (поля `DockActionVM` и `id`,
+  `group`, `icon`, `label`, `hint`, `action: UiAction | null`) и необязательное `DockVM.chips` — чипы полосы в порядке
+  групп и приоритетов. `actions` для замороженных семи остаётся. Модель без `chips` (производитель до 1.15.0) полоса
+  рисует без чипов. Слоты групп и иконки держит `ui/kit` (`kit/chips.ts`, его тест — по каждому значению).
+- Фикстуры: `test/fixtures/features.ts` — верные и неверные требование, файл сайта и чип (неверные отвергает
+  компилятор: у манифеста нет схемы). Тесты: `packages/contracts/test/features.test.ts` (словари, по файлу на сайт,
+  полные записи `reply`, `newcomers`, `preview-send`, `voice`, `notes-fill` для обоих сайтов),
+  `packages/core/test/domain-admission.test.ts` и `domain-admission-fansly.test.ts` (допуск и отрицательные фикстуры:
+  выключенный `insertion` не закрывает генерацию; приветствие из «Новых» ChatSpace требует `newcomers` и
+  `previewSend`), `apps/extension/test/feature-slices.test.ts` (новая запись только в `features/fansly.ts` не меняет
+  ни байта ChatSpace).
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

@@ -6,6 +6,7 @@
 // browser.*, the DOM, the network or storage.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort } from '@cg/contracts/host';
 import { type LogRecord } from '@cg/contracts/logs';
 import { type TabEventPayload, type TabEventType, type TabRequestPayload, type TabRequestType, type TabResponsePayload } from '@cg/contracts/tab-messages';
@@ -73,6 +74,8 @@ export interface AiPorts {
   readonly clock: TimerClock;
   readonly ids: IdPort;
   readonly catalog: ActionCatalog;
+  /** The site's slice of the feature manifest (the application's half of the site's adapter): what exists here and what each thing needs. */
+  readonly features: FeatureSlice;
   readonly clipboard: ClipboardPort;
   readonly toasts?: ToastSink;
   readonly journal?: JournalSink;

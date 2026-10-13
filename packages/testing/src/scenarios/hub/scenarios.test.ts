@@ -1,7 +1,6 @@
 import {
   BootstrapSchema,
   CLIENT_FEATURE_FLAG_NAMES,
-  CLIENT_FLAG_REQUIREMENTS,
   HUB_ERROR_STATUSES,
   HUB_ROUTE_KEYS,
   HUB_ROUTE_SCHEMAS,
@@ -28,7 +27,7 @@ import {
 } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { BOARD_TOTAL, BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, PILOT_FLAGS_OFF } from './http';
+import { BOARD_TOTAL, BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_FEATURE_CAPABILITIES, PILOT_FLAGS_OFF } from './http';
 import { readStreamScenario, resolveHubErrorReference, sseText } from './reference';
 import { SSE_SCENARIOS } from './sse';
 import { HUB_ROUTE_PATHS, type HttpExchange, type HttpScenario } from './types';
@@ -55,12 +54,12 @@ function parseSse(text: string): unknown[] {
     });
 }
 
-/** A flag works on a page only with the flag on, the page feature available and every capability declared (§4.12). */
+/** A flag works on a page only with the flag on, the page feature available and every capability the HUB asks for it declared (§4.12; the hub's table, as the fake hub repeats it). */
 function usable(bootstrap: Bootstrap, page: BootstrapPage, flag: ClientFeatureFlag): boolean {
   return (
     isFlagOn(bootstrap.flags, flag) &&
     page.features[flag]?.available === true &&
-    CLIENT_FLAG_REQUIREMENTS[flag].capabilities.every((capability) => hasCapability(bootstrap.capabilities, capability))
+    HUB_FEATURE_CAPABILITIES[flag].every((capability) => hasCapability(bootstrap.capabilities, capability))
   );
 }
 

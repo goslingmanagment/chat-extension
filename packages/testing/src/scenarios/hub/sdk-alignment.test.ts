@@ -48,15 +48,20 @@ import {
   type SpendersStats,
   type StartOp,
 } from '@cg/contracts';
-import { AI_FEATURE_DRIVERS, FEATURE_POLICIES } from '@cg/core/domain/features';
+import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
+import { FEATURES_COMMON } from '@cg/contracts/features/common';
+import { AI_FEATURE_DRIVERS, FEATURE_POLICIES, featureSlice, freshTextAdmitted } from '@cg/core/domain/features';
 import { kernelOperations, routeSchemas, type KernelOperationResponse } from '@kernel/sdk';
 import { describe, expect, it } from 'vitest';
 
 import { streamBodyRefusal } from '../../fake-hub/ai-rules';
-import { BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, pageFeaturesOff } from './http';
+import { BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, HTTP_SCENARIOS, hubServing, pageFeaturesOff } from './http';
 import { SSE_SCENARIOS } from './sse';
 import { HUB_ROUTE_PATHS } from './types';
 import { WORLD, uuid } from './world';
+
+/** The site of the scenarios is ChatSpace: its slice of the feature manifest. */
+const CHATSPACE = featureSlice(FEATURES_COMMON, CHATSPACE_FEATURES);
 
 type Assignable<From extends To, To> = [From, To];
 export type SdkResponsesFitOurDtos = [
@@ -310,7 +315,7 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
   const HUBS: readonly (readonly [string, Bootstrap])[] = [
     ['the pilot, page by page', BOOTSTRAP_PILOT_PAGES],
     ['the pilot through "*"', BOOTSTRAP_PILOT_ON],
-    ['a hub that declares no capability', { ...BOOTSTRAP_PILOT_PAGES, capabilities: [] }],
+    ['a hub that declares no capability', hubServing(BOOTSTRAP_PILOT_PAGES, [])],
     ['fresh text and split-all off on the page', pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['freshText', 'splitAll'])],
     ['a small deep window', { ...BOOTSTRAP_PILOT_PAGES, limits: { ...BOOTSTRAP_PILOT_PAGES.limits, deepMax: 1500 } }],
   ];
@@ -320,7 +325,9 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
     for (const [what, op] of startsOf(feature)) {
       for (const [hub, bootstrap] of HUBS) {
         for (const debug of [false, true]) {
-          const result = AI_FEATURE_DRIVERS[feature].build(op, { opId: uuid(0x100), persona: { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId }, bootstrap, debug });
+          // `freshText` as the scheduler sets it: the admission of the manifest's `fresh-text` on the page of the start.
+          const freshText = freshTextAdmitted(CHATSPACE, bootstrap, op.target.binding.pageId);
+          const result = AI_FEATURE_DRIVERS[feature].build(op, { opId: uuid(0x100), persona: { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId }, bootstrap, debug, freshText });
           const name = `${feature} · ${what} · ${hub}${debug ? ' · debug' : ''}`;
           if (!result.ok) throw new Error(`${name}: the driver refused its own start (${result.issues})`);
           built.push({ name, request: result.request });

@@ -10,12 +10,16 @@
 // every account of the tab, so each part is on while its switch is usable on
 // at least one granted page (tab/host-facts.ts says where the page's own value
 // is applied).
+//
+// And ChatSpace's slice of the feature manifest (§1.4), which the application
+// reads through the adapter and never by a site's name.
 
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
 import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 
+import { CHATSPACE_FEATURE_SLICE } from '../../../features/chatspace';
 import type { HostAppAdapter } from '../../adapter';
 
 const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] };
@@ -39,4 +43,5 @@ export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | 
 export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfig> = {
   liveConfigOf,
   configure: (host, config) => host.configure(config),
+  features: CHATSPACE_FEATURE_SLICE,
 };

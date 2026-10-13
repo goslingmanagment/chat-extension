@@ -209,8 +209,15 @@ describe('hub error map vs Appendix A «Колонка chat-extension»', () => 
 });
 
 describe('hub routes, flags and the feature map', () => {
-  it('flag requirements and route capabilities use the known vocabularies', () => {
-    expect(Object.keys(C.CLIENT_FLAG_REQUIREMENTS).sort()).toEqual([...C.CLIENT_FEATURE_FLAG_NAMES].sort());
+  it('the client\'s own transport needs and route capabilities use the known vocabularies', () => {
+    // 1.15.0 (R20 F4): the table keeps only what this client's own transport needs on top of the hub's decision
+    // about the page — one need: fresh text goes as `liveTextContext`, which the hub refuses without the
+    // `context-v1` request header. What the HUB needs to offer a flag is the hub's table, in the page's feature.
+    expect(C.CLIENT_FLAG_REQUIREMENTS).toEqual({ freshText: ['context-v1'] });
+    for (const [flag, needs] of Object.entries(C.CLIENT_FLAG_REQUIREMENTS)) {
+      expect(C.CLIENT_FEATURE_FLAG_NAMES).toContain(flag);
+      for (const need of needs) expect(C.CLIENT_HUB_CAPABILITY_NAMES).toContain(need);
+    }
     for (const key of C.HUB_ROUTE_KEYS) {
       const spec = C.HUB_ROUTES[key];
       for (const capability of spec.capabilities) expect(C.CLIENT_HUB_CAPABILITY_NAMES).toContain(capability);

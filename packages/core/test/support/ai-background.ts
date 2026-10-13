@@ -39,6 +39,7 @@ import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './clock';
 import { FakeHub } from './fake-hub';
 import { type AbortSignalLike } from '@cg/contracts/hub';
+import { featuresOf } from './features';
 import { WORLD, session as worldSession, uuid } from './world';
 
 export const TAB = uuid(0xa1);
@@ -180,6 +181,7 @@ export class FakeBackground {
       persona: (pageId) => this.settings.settings.personas.byPageId[String(pageId)] ?? null,
       debug: this.settings.settings.debug.enabled,
       settingsLoaded: true,
+      features: featuresOf,
     };
   }
 

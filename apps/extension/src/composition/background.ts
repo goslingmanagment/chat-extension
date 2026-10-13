@@ -128,6 +128,7 @@ import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
+import { featuresOf } from './features';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -425,6 +426,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       persona: (pageId) => (ours ? (current.personas.byPageId[String(pageId)] ?? null) : null),
       debug: current.debug.enabled,
       settingsLoaded: settingsRead(),
+      // What a feature needs on the chat's site: the site's slice of the feature manifest (./features).
+      features: featuresOf,
     };
   };
 
@@ -1117,7 +1120,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // §8.3: an expired bootstrap blocks a new insert or navigation until it is read again; results stay.
     // Without a hub layer (its start step failed) there is no sign-in to insert a result of; ChatSpace's own
     // list still navigates. Whose switch a navigation asks is its surface's: ours (`navigation`) or a board's own.
-    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, surface, hubInstance, wireOf);
+    // An insert is admitted by the feature manifest of the site the tab is on.
+    const site = hostOfTab(sender.tabSessionId);
+    const siteFeatures = site === null ? null : featuresOf(site);
+    const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, surface, hubInstance, wireOf, siteFeatures);
     if (refusal !== null) {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
       return { ok: false, error: refusal };

@@ -3,9 +3,14 @@
 // delivery table and the cheatsheet. Test titles carry the parity rows.
 
 import { CATALOG_ACTION_IDS, DOCK_ACTION_IDS, UI_ACTION_TYPES, type HotkeyDelivery } from '@cg/contracts';
-import { FORBIDDEN_CODES, HOTKEYS, HOTKEY_SCHEME_VERSION, hotkeysForClient } from '@chatgoose/hotkeys';
-import { describe, expect, it } from 'vitest';
+import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
+import { FEATURES_COMMON } from '@cg/contracts/features/common';
+import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
+import { HOTKEY_ACTION_IDS, type HotkeyActionId } from '@cg/contracts/features/types';
+import { FORBIDDEN_CODES, HOTKEYS, HOTKEY_SCHEME_VERSION, hotkeysForClient, servesClient, type HotkeyAction, type HotkeyClient } from '@chatgoose/hotkeys';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
+import { featureSlice } from '../features';
 import { EN, RU } from '../i18n';
 import {
   CHATSPACE_KEYS,
@@ -656,5 +661,61 @@ describe('the action catalog', () => {
     expect(nav[2]).toEqual({ label: { key: 'cheatsheet.row.nextUnread' }, hotkey: { display: 'Alt+U', aria: 'Alt+U', delivery: 'unverified', fallback: null }, note: { key: 'dock.reason.hotkeyReserved' } });
     const windows = reserved.find((group) => group.id === 'windows')?.rows ?? [];
     expect(windows[3]).toEqual({ label: { key: 'palette.item.settings' }, hotkey: null, note: { key: 'dock.reason.hotkeyReserved' } });
+  });
+});
+
+describe('[R20-F4] the keys and the feature manifest', () => {
+  const SLICES = { chatspace: featureSlice(FEATURES_COMMON, CHATSPACE_FEATURES), fansly: featureSlice(FEATURES_COMMON, FANSLY_FEATURES) };
+  /** The client of the vendored scheme a site's keys run as (the site's profile says it, F5). */
+  const CLIENTS: Readonly<Record<keyof typeof SLICES, HotkeyClient>> = { chatspace: 'extension', fansly: 'fansly' };
+
+  it('`HotkeyActionId` of the contracts is the vendored scheme’s `HotkeyAction`, name for name (contracts import only zod, so the union is repeated there)', () => {
+    expectTypeOf<HotkeyActionId>().toEqualTypeOf<HotkeyAction>();
+    expect([...HOTKEY_ACTION_IDS]).toEqual(HOTKEYS.map((def) => def.action));
+  });
+
+  it('a feature’s key is a row of the scheme that is live in its site’s client; no two features of a site share one', () => {
+    for (const [site, slice] of Object.entries(SLICES) as [keyof typeof SLICES, (typeof SLICES)[keyof typeof SLICES]][]) {
+      const keys = Object.entries(slice).flatMap(([id, entry]) => (entry.hotkey === undefined ? [] : [{ id, action: entry.hotkey }]));
+      expect(new Set(keys.map((key) => key.action)).size, site).toBe(keys.length);
+      for (const { id, action } of keys) {
+        const def = HOTKEYS.find((row) => row.action === action);
+        expect(def !== undefined && servesClient(def, CLIENTS[site]), `${site}: ${id} → ${action}`).toBe(true);
+      }
+    }
+    // The key of a dock action is the scheme action of its own name — the row the catalog prints.
+    for (const id of DOCK_ACTION_IDS) expect(SLICES.chatspace[id]?.hotkey, id).toBe(id);
+    expect(SLICES.chatspace['spenders']?.hotkey).toBe('spenders');
+    // Notes are Fansly's: its key is a row of the `fansly` client alone, and ChatSpace has neither the feature nor the key.
+    expect(SLICES.fansly['notes']?.hotkey).toBe('notes');
+    expect(Object.values(SLICES.chatspace).map((entry) => entry.hotkey)).not.toContain('notes');
+    expect(hotkeysForClient('extension').map((def) => def.action)).not.toContain('notes');
+  });
+
+  it('[HK-034] ChatSpace has every feature the cheatsheet lists: with its slice the cheatsheet is the one it always was', () => {
+    for (const platform of ['mac', 'win'] as const) {
+      const catalog = createActionCatalog(platform);
+      expect(cheatsheetGroups(catalog, SLICES.chatspace)).toEqual(cheatsheetGroups(catalog));
+      expect(cheatsheetView(catalog, SLICES.chatspace)).toEqual(cheatsheetView(catalog));
+    }
+  });
+
+  it('[HK-034] a row of a feature the site does not have is not drawn: no palette, no navigation between chats, no «Отправить» on Fansly; the rest stays', () => {
+    const catalog = createActionCatalog('mac');
+    const all = cheatsheetGroups(catalog);
+    const fansly = cheatsheetGroups(catalog, SLICES.fansly);
+    const labels = (groups: typeof all, id: string): string[] => (groups.find((group) => group.id === id)?.rows ?? []).map((row) => row.label.key);
+    expect(fansly.map((group) => group.id)).toEqual(['ai', 'windows', 'before', 'result', 'navigation', 'preview']);
+    expect(labels(fansly, 'ai')).toEqual(labels(all, 'ai'));
+    expect(labels(fansly, 'windows')).toEqual(['cheatsheet.row.spenders', 'cheatsheet.row.self', 'palette.item.settings']);
+    expect(labels(fansly, 'navigation')).toEqual(['cheatsheet.row.fanPanel']);
+    expect(labels(fansly, 'preview')).toEqual(['dock.action.reply', 'dock.action.fix', 'dock.action.hi', 'dock.action.ping', 'send.openAndInsert']);
+    expect(labels(fansly, 'before')).toEqual(labels(all, 'before'));
+    expect(labels(fansly, 'result')).toEqual(labels(all, 'result'));
+    // A slice without the dock's actions keeps the keys of no feature — Help's «пока убран» among them — and drops a group left empty.
+    const bare = cheatsheetGroups(catalog, featureSlice(FEATURES_COMMON, {}));
+    expect(bare.map((group) => group.id)).toEqual(['ai', 'windows', 'before', 'result', 'preview']);
+    expect(labels(bare, 'ai')).toEqual(['cheatsheet.row.help']);
+    expect(labels(bare, 'preview')).toEqual(['send.openAndInsert']);
   });
 });

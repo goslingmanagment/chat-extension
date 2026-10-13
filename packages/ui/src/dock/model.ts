@@ -1,11 +1,12 @@
 // Pure rules of the dock (ui-design §3.3, §4.1, §4.2, §4.8, §4.10): no DOM,
 // no Preact. What the strip and the sheet decide from a DockVM: which dot an
-// error carries, how header meta reads, what a strip button dispatches, and
-// when two view models differ only by streamed text.
+// error carries, how header meta reads, and when two view models differ only
+// by streamed text. What a chip of the strip asks for is in the chip
+// (`ChipVM.action`, built by the dock's controller).
 
 import { type CgErrorTone, type CgErrorView, type I18nKey } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
-import { type DockActionId, type DockVM, type I18n, type Msg, type ResultVM, type UiAction } from '@cg/contracts/vm';
+import { type DockActionId, type DockVM, type I18n, type Msg, type ResultVM } from '@cg/contracts/vm';
 
 /** Structural equality of plain view-model data; `skip` names a key ignored at every depth. */
 export function deepEqual(a: unknown, b: unknown, skip?: string): boolean {
@@ -110,15 +111,6 @@ export function metaTexts(i18n: I18n, result: Pick<ResultVM, 'meta' | 'toneUsed'
 /** A banner's or a card's error with another explanation (the banner texts of ui-design §4.10). */
 export function withBody(error: CgErrorView, body: string): CgErrorView {
   return { ...error, body };
-}
-
-/** What a strip button asks for (docs/protocols/ui-contract.md п. 13). */
-export function stripAction(id: DockActionId, vm: DockVM): UiAction | null {
-  if (id === 'coach') return { type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: !vm.actions.coach.active } };
-  // Recap never generates from the strip: the sheet shows what is saved or the picker.
-  if (id === 'recap') return { type: 'ShowAnalysis', view: 'recap', mode: 'sheet' };
-  if (vm.targetHandle === null) return null;
-  return { type: 'Generate', targetHandle: vm.targetHandle, feature: id, options: {} };
 }
 
 export const msgOf = (key: I18nKey, params?: Msg['params']): Msg => (params === undefined ? { key } : { key, params });

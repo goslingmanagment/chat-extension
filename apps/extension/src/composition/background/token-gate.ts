@@ -6,8 +6,11 @@
 // - `generate` and `send` are checked by the requests they authorize: the
 //   hub layer opens a stream or asks for `dispatch` only on a fresh
 //   bootstrap, and reads it again first when it expired;
-// - `insert` writes a result of this sign-in into ChatSpace: it needs the
-//   sign-in, a fresh bootstrap and the owner's `insertion` switch;
+// - `insert` writes a result of this sign-in into the site's field: it needs
+//   the sign-in, a fresh bootstrap and the admission of an insert by the
+//   feature manifest of the tab's site (R20 §1.4; on ChatSpace — the owner's
+//   `insertion` switch): some feature of the site whose result can be
+//   inserted — a draft, a Coach answer — must admit it;
 // - `navigate` needs no hub while nobody is signed in or no bootstrap was
 //   ever read (ChatSpace's own list, §6.9); with one, the bootstrap must be
 //   fresh and the owner's switch of what navigates counts (below).
@@ -30,14 +33,16 @@
 // null)`; the top-level `flags` are the owner's `"*"` row alone and decide
 // nothing). The page's own value is applied where the page is known — by
 // the tab's controllers, before they ask for the token: the dock is
-// copy-only on a page without `insertion`, a navigation of ours asks the
+// copy-only on a page that does not admit an insert, a navigation of ours asks the
 // `navigation` switch of the account it goes into, and a board asks its own
 // switch (and `insertion` for the insert half) on the page it shows
 // (docs/protocols/hub.md «Флаги: решает страница»).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
+import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
+import { admission, admissionState } from '@cg/core/domain/features';
 
 export type TokenKind = 'generate' | 'insert' | 'navigate' | 'send';
 
@@ -62,34 +67,50 @@ export const NAVIGATE_SWITCHES: Readonly<Record<Surface, readonly ClientFeatureF
 };
 
 type State = ReturnType<TokenGateHub['flagState']>;
+/** One thing the gate asks: a switch, or an admission. Asked again after an expired bootstrap was read. */
+type Ask = () => State;
 
-/** The first usable switch, else the first one's refusal (its reason is what the person is told). */
-function stateOf(hub: TokenGateHub, flags: readonly ClientFeatureFlag[]): State {
-  const states = flags.map((flag) => hub.flagState(flag, null));
-  return states.find((state) => state.usable) ?? states[0] ?? { usable: false, reason: 'flag_off' };
+/**
+ * What an insert token asks: the insert of each feature of the site that has one, by the site's slice of the feature
+ * manifest. The switches are the hub layer's (a fresh bootstrap, on some granted page); what the feature's own calls
+ * need of the hub is those calls' to check, and the site's capabilities are the tab's. No slice — the extension
+ * has no such site, and nothing of it is inserted.
+ */
+function insertAsks(hub: TokenGateHub, features: FeatureSlice | null): Ask[] {
+  const facts = { flag: (flag: string) => hub.flagState(flag as ClientFeatureFlag, null), serves: () => true };
+  return Object.entries(features ?? {})
+    .filter(([, entry]) => entry.actions.insert !== undefined)
+    .map(([id]) => () => admissionState(admission(features, id, 'insert', facts)));
 }
 
-/** A refusal a fresh bootstrap may lift: it expired, or was never read. */
-const stale = (hub: TokenGateHub, flags: readonly ClientFeatureFlag[]): boolean =>
-  flags.some((flag) => {
-    const state = hub.flagState(flag, null);
-    return !state.usable && (state.reason === 'bootstrap_expired' || state.reason === 'hub_not_ready');
-  });
+/** The first one usable, else the first one's refusal (its reason is what the person is told). */
+function stateOf(asks: readonly Ask[]): { readonly state: State; readonly stale: boolean } {
+  const states = asks.map((ask) => ask());
+  return {
+    state: states.find((state) => state.usable) ?? states[0] ?? { usable: false, reason: 'platform_unsupported' },
+    // A refusal a fresh bootstrap may lift: it expired, or was never read.
+    stale: states.some((state) => !state.usable && (state.reason === 'bootstrap_expired' || state.reason === 'hub_not_ready')),
+  };
+}
 
-/** Why a token of `kind` for `surface` may not be issued now, or null. `errorOf` — the wire form of what the hub layer rejected with. */
-export async function tokenRefusal(kind: TokenKind, surface: Surface, hub: TokenGateHub, errorOf: (error: unknown) => CgErrorWire): Promise<CgErrorWire | null> {
+/**
+ * Why a token of `kind` for `surface` may not be issued now, or null. `errorOf` — the wire form of what the hub layer
+ * rejected with; `features` — the slice of the feature manifest of the site the asking tab is on.
+ */
+export async function tokenRefusal(kind: TokenKind, surface: Surface, hub: TokenGateHub, errorOf: (error: unknown) => CgErrorWire, features: FeatureSlice | null): Promise<CgErrorWire | null> {
   if (kind === 'generate' || kind === 'send') return null;
   if (hub.session() === null) return kind === 'navigate' ? null : { code: 'CG-AUTH-REQUIRED' };
   if (kind === 'navigate' && hub.cachedBootstrap() === null) return null;
-  const flags: readonly ClientFeatureFlag[] = kind === 'insert' ? ['insertion'] : NAVIGATE_SWITCHES[surface];
-  let state = stateOf(hub, flags);
-  if (!state.usable && stale(hub, flags)) {
+  const asks: readonly Ask[] = kind === 'insert' ? insertAsks(hub, features) : NAVIGATE_SWITCHES[surface].map((flag) => () => hub.flagState(flag, null));
+  let verdict = stateOf(asks);
+  if (!verdict.state.usable && verdict.stale) {
     try {
       await hub.bootstrap();
     } catch (error) {
       return errorOf(error);
     }
-    state = stateOf(hub, flags);
+    verdict = stateOf(asks);
   }
+  const { state } = verdict;
   return state.usable ? null : { code: 'CG-FEATURE-DISABLED', ...(state.reason === null ? {} : { detail: state.reason }) };
 }

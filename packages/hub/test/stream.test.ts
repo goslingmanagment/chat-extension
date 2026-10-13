@@ -13,6 +13,7 @@ import {
   NOW_MS,
   SSE_SCENARIOS,
   WORLD,
+  hubServing,
   meta,
   pageFeaturesOff,
   readStreamScenario,
@@ -336,7 +337,7 @@ describe('[AI-140] [AU-028] the stream is a sensitive action: checked before any
   it('[AI-140] a hub older than the SDK: what its bootstrap does not declare is never announced — refused locally (CG-HUB-CAPABILITY), nothing sent; a capability this build does not know changes nothing', async () => {
     h = makeHarness({ paths: HUB_ROUTE_PATHS, env: testEnv({ debug: true }) });
     // Prod lags main: the bootstrap declares neither `context-v1` nor `split-all-v1`, and one token of a later hub.
-    await signIn(h, { ...WORLD_PILOT, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: ['shared-recaps-v1', 'recap-profile-v1', 'some-later-capability-v9'] } });
+    await signIn(h, { ...WORLD_PILOT, bootstrap: hubServing(BOOTSTRAP_PILOT_PAGES, ['shared-recaps-v1', 'recap-profile-v1', 'some-later-capability-v9']) });
     expect(h.facade.streamCapabilities()).toEqual(['debug-input-v1']);
     for (const capability of ['context-v1', 'split-all-v1'] as const) {
       const refused = await run(h, { ...reply, capabilities: [capability] });

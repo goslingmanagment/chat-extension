@@ -76,6 +76,7 @@ import {
   type StreamTimes,
 } from '../domain/ops';
 import { coachTurnSteps, recapStepVerdict } from '../domain/coach';
+import { freshTextAdmitted } from '../domain/features/admission';
 import { type ActionTokens } from './tokens';
 import { type TabPresence } from './presence';
 import { AbortSwitch, NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogSink, type TabEventSink, type TimerHandle } from './ports';
@@ -513,6 +514,7 @@ export class OpScheduler {
       persona: { key: run.tag.personaKey, definitionId: run.tag.personaDefinitionId },
       bootstrap: env.bootstrap,
       debug: env.debug,
+      freshText: freshTextAdmitted(env.features(start.target.binding.host), env.bootstrap, start.target.binding.pageId),
     });
     if (!built.ok) {
       this.log.write({ level: 'error', scope: 'bg.ops', msg: 'request refused before the hub', code: 'CG-HUB-REQUEST', fields: { issues: built.issues }, ctx: { opId: run.view.opId } });

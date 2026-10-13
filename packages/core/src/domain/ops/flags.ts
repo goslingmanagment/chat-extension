@@ -6,6 +6,13 @@
 // pilots one page switches that page on and leaves `"*"` empty, and then
 // every top-level flag reads false while the page works.
 //
+// The page's feature is the hub's whole answer: the platform, the master
+// switch, the flag, the binding and what the hub serves are already in it
+// (the hub's own table, `CLIENT_FEATURE_REQUIREMENTS`). The client does not
+// repeat that table (R20 F4); what a FEATURE needs beyond its switches — a
+// capability of the site, a need of this client's own transport — is the
+// feature manifest's, read by `admission` (domain/features/admission.ts).
+//
 // So one rule, one place:
 // - whatever belongs to a page (an action of the dock, an insert, the fresh
 //   text, Review, Coach, Recap, a board, a preview send, navigation inside
@@ -20,7 +27,7 @@
 // 409 `client_feature_disabled` with the same reasons.
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
-import { CLIENT_FEATURE_FLAG_NAMES, CLIENT_FLAG_REQUIREMENTS, hasCapability, isFlagOn, type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
+import { CLIENT_FEATURE_FLAG_NAMES, isFlagOn, type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 
 export interface FlagState {
   readonly usable: boolean;
@@ -30,7 +37,8 @@ export interface FlagState {
    * `binding_missing`; `hub_not_ready` — the hub does not serve what the
    * feature needs (or this client's transport cannot carry it);
    * `not_granted` — the page is not in the bootstrap; `client_outdated`.
-   * The hub layer adds `bootstrap_expired`. null — usable.
+   * The hub layer adds `bootstrap_expired`, an admission `host_degraded` —
+   * the site's page cannot do it now. null — usable.
    */
   readonly reason: string | null;
 }
@@ -41,38 +49,35 @@ const off = (reason: string): FlagState => ({ usable: false, reason });
 const own = <T>(record: Readonly<Record<string, T>>, key: string): T | undefined => (Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined);
 
 /**
- * A switch on one page: the page's own feature decides, then the
- * capabilities this client needs for it (they may be stricter than the
- * hub's: fresh text also needs `context-v1`). The top-level `flags` are
- * not asked.
+ * A switch on one page: the page's own feature decides, and nothing else — the hub put the platform and what it
+ * serves into it. The top-level `flags` are not asked. `flag` is a name of the hub's vocabulary; a name the page
+ * does not list (an older hub, a switch the hub has not shipped yet) is off.
  */
-export function pageFlagState(bootstrap: Bootstrap, page: BootstrapPage | null | undefined, flag: ClientFeatureFlag): FlagState {
+export function pageFlagState(page: BootstrapPage | null | undefined, flag: string): FlagState {
   if (page === null || page === undefined) return off('not_granted');
   const feature = own(page.features, flag);
   // A page that does not list the flag at all (an older hub): off, as the hub reads a flag set nowhere.
   if (feature === undefined) return off('flag_off');
-  if (feature.available !== true) return off(feature.reason ?? 'flag_off');
-  return CLIENT_FLAG_REQUIREMENTS[flag].capabilities.every((capability) => hasCapability(bootstrap.capabilities, capability)) ? USABLE : off('hub_not_ready');
+  return feature.available === true ? USABLE : off(feature.reason ?? 'flag_off');
 }
 
 /** The same for a page named by its hub id; no bootstrap — `hub_not_ready`. */
 export function flagStateOf(bootstrap: Bootstrap | null, pageId: number, flag: ClientFeatureFlag): FlagState {
   if (bootstrap === null) return off('hub_not_ready');
   return pageFlagState(
-    bootstrap,
     bootstrap.pages.find((page) => page.pageId === pageId),
     flag,
   );
 }
 
-/** A switch is usable on a page (§4.12): the page's feature is `available` and every capability it needs is declared. */
+/** A switch is usable on a page (§4.12): the page's own feature is `available`. */
 export function flagUsable(bootstrap: Bootstrap | null, pageId: number, flag: ClientFeatureFlag): boolean {
   return flagStateOf(bootstrap, pageId, flag).usable;
 }
 
 /** For what is not bound to one page: the switch is usable on at least one granted page. */
 export function flagOnSomePage(bootstrap: Bootstrap | null, flag: ClientFeatureFlag): boolean {
-  return bootstrap !== null && bootstrap.pages.some((page) => pageFlagState(bootstrap, page, flag).usable);
+  return bootstrap !== null && bootstrap.pages.some((page) => pageFlagState(page, flag).usable);
 }
 
 /** Every known switch as «usable on at least one granted page»: what a diagnostics report or a health report calls on and off. */
@@ -95,7 +100,7 @@ export function somePageFlagState(bootstrap: Bootstrap, flag: ClientFeatureFlag)
   let best: FlagState = off('not_granted');
   let rank = -1;
   for (const page of bootstrap.pages) {
-    const state = pageFlagState(bootstrap, page, flag);
+    const state = pageFlagState(page, flag);
     if (state.usable) return USABLE;
     const reached = (state.reason === null ? undefined : own(REASON_RANK, state.reason)) ?? 0;
     if (reached > rank) {
@@ -170,12 +175,13 @@ export function clientOutdated(bootstrap: Bootstrap, page: BootstrapPage | null 
   return pageBlanketReason(page) === 'client_outdated' || (typeof extensionVersion === 'string' && belowMinVersion(bootstrap, extensionVersion));
 }
 
-/** The code a refused page feature reads as: the same reading as the hub's own 409 (`HUB_ERROR_RULES`), plus the capability check of this client. */
+/** The code a refused page feature reads as: the same reading as the hub's own 409 (`HUB_ERROR_RULES`), plus what an admission adds — a need of this client's transport, a capability of the site. */
 const REASON_CODES: Readonly<Record<string, CgCode>> = {
   binding_missing: 'CG-BINDING-MISSING',
   client_outdated: 'CG-HUB-OUTDATED',
   not_granted: 'CG-BINDING-NOT-GRANTED',
   hub_not_ready: 'CG-HUB-CAPABILITY',
+  host_degraded: 'CG-HOST-CONTRACT',
 };
 
 export function flagRefusalCode(reason: string | null): CgCode {
@@ -183,6 +189,6 @@ export function flagRefusalCode(reason: string | null): CgCode {
 }
 
 /** A refused page feature as an error: its code, and the hub's reason for the technical line. */
-export function flagRefusal(state: FlagState): CgErrorWire {
+export function flagRefusal(state: Pick<FlagState, 'reason'>): CgErrorWire {
   return state.reason === null ? { code: 'CG-FEATURE-DISABLED' } : { code: flagRefusalCode(state.reason), detail: state.reason };
 }

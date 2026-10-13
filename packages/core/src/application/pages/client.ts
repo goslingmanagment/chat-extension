@@ -46,8 +46,8 @@ import {
 } from '@cg/contracts/vm';
 
 import { errorView } from '../../domain/errors';
+import { admission, onPage } from '../../domain/features/admission';
 import { createI18n, createTranslator, resolveLocale, type LiveI18n, type Translator } from '../../domain/i18n';
-import { flagUsable } from '../../domain/ops/flags';
 import { IDLE, accountKeyOf, boundPageOf, currentAccountOf, valueOf, type BindingSlot, type JournalData, type PagesModel, type SeenAccount, type SessionEnd, type Slot } from './model';
 import { type OptionsLocation, type PageAnswer, type PageEnv, type PagePorts, type PageRequestType } from './ports';
 import { hashOfRoute, routeOfHash } from './route';
@@ -542,13 +542,18 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     const generation = sessionGeneration;
     const current = currentAccountOf(model());
     const bound = current === null ? null : boundPageOf(model(), current.account);
-    if (bound === null) return;
+    if (current === null || bound === null) return;
     const pageId = bound.binding.pageId;
     const debug = effectiveSettings()?.debug.enabled === true;
     const date = new Intl.DateTimeFormat('en-CA', { timeZone: AI_USAGE_LIMITS.defaultTimeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(clock.now()));
+    // «Новые» of the page the open chat's account is bound to: the feature of the site's manifest decides — the
+    // page's own switch — and only a site whose «Новые» are the hub's list has one to count here.
+    const slice = env.features(current.account.host);
+    const read = valueOf(bootstrap);
+    const page = read?.pages.find((candidate) => candidate.pageId === pageId);
+    const listed = slice?.['newcomers']?.source === 'hub' && admission(slice, 'newcomers', null, onPage(read, page)).state === 'on';
     const [audience, usage] = await Promise.all([
-      // «Новые» of the page the open chat's account is bound to: the page's own switch decides.
-      flagUsable(valueOf(bootstrap), pageId, 'newcomers') ? ask('newcomers.list', { pageId, windowHours: POPUP_NEWCOMERS_WINDOW_HOURS, cursor: null }) : Promise.resolve(null),
+      listed ? ask('newcomers.list', { pageId, windowHours: POPUP_NEWCOMERS_WINDOW_HOURS, cursor: null }) : Promise.resolve(null),
       debug ? ask('usage.get', { pageId, date, days: 1 }) : Promise.resolve(null),
     ]);
     if (disposed || generation !== sessionGeneration) return;

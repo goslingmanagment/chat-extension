@@ -13,7 +13,7 @@ import { COACH_RECAP_FRESH_MS } from '@cg/core/domain/coach';
 import { createTranslator } from '@cg/core/domain/i18n';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, HOST_IDS, hostIso, memory, openChat, previewChat, startSnapshot } from '@cg/testing/host';
-import { BOOTSTRAP_PILOT_PAGES, contextFrame, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_PAGES, contextFrame, hubServing, meta, resolveHubErrorReference, pageFeaturesOff } from '@cg/testing/hub';
 
 import { settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
@@ -1216,7 +1216,8 @@ describe('coach: the archive it reads', () => {
     expect(await h.dispatch(h.coach().freshness.refresh.action)).toMatchObject({ ok: false, code: 'CG-HUB-UNAVAILABLE' });
     expect(h.coach().freshness).toMatchObject({ asOf: null, lag: null, refresh: { enabled: true } });
 
-    const noFeed: Bootstrap = { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((capability) => capability !== 'archive-feed-v1') };
+    // A hub that does not serve the feed says so in the page's own feature (`preview`: `hub_not_ready`).
+    const noFeed: Bootstrap = hubServing(BOOTSTRAP_PILOT_PAGES, BOOTSTRAP_PILOT_PAGES.capabilities.filter((capability) => capability !== 'archive-feed-v1'));
     const other = await start({ bootstrap: noFeed });
     expect(other.coach().freshness.refresh).toMatchObject({ enabled: false });
     expect(other.coach().freshness.refresh.reason?.id).toBe('feature-disabled');

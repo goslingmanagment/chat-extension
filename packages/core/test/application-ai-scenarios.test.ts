@@ -152,7 +152,7 @@ describe('[RU-001] the drivers the scheduler runs', () => {
     ...(feature === 'coach' ? { coach: { question: 'q', history: [] } } : {}),
     ...over,
   });
-  const ctx = { opId: '00000000-0000-4000-8000-000000000100', session, persona: { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId }, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false };
+  const ctx = { opId: '00000000-0000-4000-8000-000000000100', session, persona: { key: WORLD.persona.key, definitionId: WORLD.persona.definitionId }, bootstrap: BOOTSTRAP_PILOT_PAGES, debug: false, freshText: true };
   const build = (start: StartOp): ReturnType<(typeof AI_FEATURE_DRIVERS)[FeatureId]['build']> => AI_FEATURE_DRIVERS[start.feature].build(start, ctx);
 
   it('there is one driver per feature, and each streams the hub feature of §8.4', () => {

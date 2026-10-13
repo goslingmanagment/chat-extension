@@ -7,7 +7,6 @@ import {
   BOOTSTRAP_PROTOCOL,
   BootstrapSchema,
   CLIENT_FEATURE_FLAG_NAMES,
-  CLIENT_FLAG_REQUIREMENTS,
   NATIVE_ID_PATTERN,
   hostBindingKey,
   narrowPlatform,
@@ -26,14 +25,14 @@ export type { FlagState };
 
 /**
  * §4.12, by the one rule of `@cg/core/domain/ops` (flags.ts): a flag on a page is the PAGE's own feature
- * (`pages[].features[flag]`) plus the capabilities it needs — the top-level `flags` carry the owner's `"*"`
- * row alone and decide nothing here. `pageLabel: null` asks about no page in particular: usable on at
- * least one granted page (the caller then applies the page's own value to what it acts on).
+ * (`pages[].features[flag]`) — the hub put the platform and what it serves into it; the top-level `flags`
+ * carry the owner's `"*"` row alone and decide nothing here. `pageLabel: null` asks about no page in
+ * particular: usable on at least one granted page (the caller then applies the page's own value to what it
+ * acts on). A route's own capabilities are checked where the route is called (`HUB_ROUTES`).
  */
 export function flagState(bootstrap: Bootstrap, flag: ClientFeatureFlag, pageLabel: string | null): FlagState {
   if (pageLabel === null) return somePageFlagState(bootstrap, flag);
   return pageFlagState(
-    bootstrap,
     bootstrap.pages.find((candidate) => candidate.pageLabel === pageLabel),
     flag,
   );
@@ -135,10 +134,15 @@ export const COMPAT_LIMITS: BootstrapLimits = {
   previewSendReceiptProfiles: [],
 };
 
-/** A flag works without new hub routes: it needs no capability (and is not part of X8). */
+/**
+ * The switches that work without new hub routes: the ones the hub's own table (`CLIENT_FEATURE_REQUIREMENTS`)
+ * asks no capability for, X8 aside. The compat bootstrap stands in for the hub, so the hub's rule is repeated here.
+ */
+const COMPAT_FLAGS: readonly ClientFeatureFlag[] = ['insertion', 'navigation', 'wsTap', 'sound', 'fanPanel', 'spenders', 'review', 'coach'];
+
+/** A flag works without new hub routes: it needs no capability of the hub (and is not part of X8). */
 export function compatFlagAvailable(flag: ClientFeatureFlag): boolean {
-  if (flag === 'previewSend' || flag === 'previewSendMarkAiGenerated') return false;
-  return CLIENT_FLAG_REQUIREMENTS[flag].capabilities.length === 0;
+  return COMPAT_FLAGS.includes(flag);
 }
 
 /** A page of `GET /pages` (the SDK's `assignedPageSchema`), the fields the compat bootstrap reads. */

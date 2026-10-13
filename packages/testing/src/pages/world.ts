@@ -27,7 +27,7 @@ import { createPagesClient, type PageEnv, type PagePorts, type PageTimers, type 
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
 import { type PageDeps } from '@cg/ui/pages';
 
-import { NOW, createFakeCatalog, ctxOf, iso, uuid } from '../scenarios/app-client';
+import { NOW, SCENARIO_FEATURES, createFakeCatalog, ctxOf, iso, uuid } from '../scenarios/app-client';
 import { FakePageBackground, type BackgroundState, type SeenAccountFixture } from './background';
 
 export const PAGES_NOW = NOW;
@@ -349,6 +349,8 @@ export interface PagesWorldOptions {
   readonly timers?: PageTimers;
   readonly systemLanguages?: readonly string[];
   readonly links?: PageEnv['links'];
+  /** The sites' slices of the feature manifest; default — ChatSpace's for ChatSpace, none for any other site. */
+  readonly features?: PageEnv['features'];
 }
 
 export interface PagesWorld {
@@ -431,6 +433,8 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     links: options.links ?? { whatsNew: 'https://ext.example.test/chat-extension/whats-new.html', changelog: 'https://ext.example.test/chat-extension/changelog.html' },
     systemLanguages: () => options.systemLanguages ?? [language],
     timeZone: 'Europe/Moscow',
+    // The pages of the stand serve ChatSpace: its slice of the feature manifest.
+    features: options.features ?? ((host) => (host === 'chatspace' ? SCENARIO_FEATURES : null)),
   };
   const ports: PagePorts = {
     rpc: background,

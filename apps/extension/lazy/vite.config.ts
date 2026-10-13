@@ -38,7 +38,7 @@ import { writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { build as vite, defineConfig, type InlineConfig, type Rolldown } from 'vite';
+import { build as vite, defineConfig, type InlineConfig, type PluginOption, type Rolldown } from 'vite';
 
 import { HOSTS, lazySitesOf, type HostLazyBuild, type LazySite } from '../src/hosts/index.ts';
 import { LAZY_ENTRIES, LAZY_LAYERS, type LazyEntryName } from './entries/names.ts';
@@ -67,6 +67,8 @@ export interface LazyBuildOptions {
   readonly extensionOutDir: string;
   /** Module id → the chunk of its layer (see layerPlan); absent — the bundler cuts everything by itself. */
   readonly layers?: ReadonlyMap<string, string>;
+  /** Plugins of a test of the build (test/feature-slices.test.ts rewrites one source for one build); the extension passes none. */
+  readonly plugins?: readonly PluginOption[];
 }
 
 const inputOf = (build: HostLazyBuild, names: readonly string[]): Record<string, string> =>
@@ -88,6 +90,7 @@ export function createLazyConfig(build: HostLazyBuild, options: LazyBuildOptions
     mode: 'production',
     logLevel: 'warn',
     publicDir: false,
+    ...(options.plugins === undefined ? {} : { plugins: [...options.plugins] }),
     oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
     build: {
       outDir: join(options.extensionOutDir, build.root),
@@ -139,10 +142,10 @@ export const KERNEL_CHUNK = 'kernel';
  * loads before it or without it goes to the kernel, every other module to the
  * first layer that has it. undefined — the site has no layers.
  */
-export async function layerPlan(build: HostLazyBuild): Promise<Map<string, string> | undefined> {
+export async function layerPlan(build: HostLazyBuild, plugins?: readonly PluginOption[]): Promise<Map<string, string> | undefined> {
   const [dockLayer] = build.layers;
   if (dockLayer === undefined) return undefined;
-  const config = createLazyConfig(build, { extensionOutDir: resolve(LAZY_ROOT, '../.output/lazy-plan') }, build.layers);
+  const config = createLazyConfig(build, { extensionOutDir: resolve(LAZY_ROOT, '../.output/lazy-plan'), ...(plugins === undefined ? {} : { plugins }) }, build.layers);
   const chunks = chunksOf(await vite({ ...config, logLevel: 'error', build: { ...config.build, write: false } }));
   const byFile = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
   const modulesOf = (entry: string): Set<string> => {
@@ -189,10 +192,10 @@ function describeOutput(chunks: readonly Rolldown.OutputChunk[], site: LazySite)
   });
 }
 
-/** One site's build into `<extensionOutDir>/<root>/`, cut by its plan. Returns its files. */
-export async function buildLazySite(extensionOutDir: string, site: LazySite): Promise<LazyChunkInfo[]> {
-  const layers = await layerPlan(site.build);
-  const result = await vite(createLazyConfig(site.build, { extensionOutDir, ...(layers === undefined ? {} : { layers }) }));
+/** One site's build into `<extensionOutDir>/<root>/`, cut by its plan. Returns its files. `plugins` — a test's own (LazyBuildOptions). */
+export async function buildLazySite(extensionOutDir: string, site: LazySite, plugins?: readonly PluginOption[]): Promise<LazyChunkInfo[]> {
+  const layers = await layerPlan(site.build, plugins);
+  const result = await vite(createLazyConfig(site.build, { extensionOutDir, ...(layers === undefined ? {} : { layers }), ...(plugins === undefined ? {} : { plugins }) }));
   const outputs = (Array.isArray(result) ? result : [result]) as Rolldown.RolldownOutput[];
   const assets: LazyChunkInfo[] = outputs
     .flatMap((output) => output.output)

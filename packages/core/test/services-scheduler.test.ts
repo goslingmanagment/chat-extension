@@ -13,6 +13,7 @@ import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } 
 
 import { EventLog, FakeClock, LogRecorder, MemoryStore, sequentialIds } from './support/clock';
 import { FakeHub, hubError, type ScriptResponse, type ScriptStep } from './support/fake-hub';
+import { featuresOf } from './support/features';
 import { NOW_MS, WORLD, chatOf, checkpointFor, persona, session, startOf, targetOf, uuid } from './support/world';
 
 /** What the scheduler reads of a tab's presence, as a tab reports it. */
@@ -94,7 +95,7 @@ function harness(over: { env?: Partial<OpsEnvironment>; store?: MemoryStore; clo
     tokens,
     presence,
     hooks: counters,
-    env: { session, bootstrap: BOOTSTRAP_PILOT_PAGES, persona: () => persona, debug: false, settingsLoaded: true, ...over.env },
+    env: { session, bootstrap: BOOTSTRAP_PILOT_PAGES, persona: () => persona, debug: false, settingsLoaded: true, features: featuresOf, ...over.env },
     scheduler: undefined as unknown as OpScheduler,
     start: (tab, start, opts) => {
       const { actionToken } = tokens.issue(tab, 'generate', start.surface);

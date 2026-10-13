@@ -19,6 +19,7 @@ import { BOOTSTRAP_PILOT_PAGES, WORLD, pageFeaturesOff } from '@cg/testing/hub';
 import { describe, expect, it } from 'vitest';
 
 import { tokenRefusal, type TokenGateHub, type TokenKind } from '../src/composition/background/token-gate.ts';
+import { CHATSPACE_FEATURE_SLICE as FEATURES } from '../src/composition/features/chatspace.ts';
 
 const ONE = WORLD.pages.one;
 const VIP = WORLD.pages.vip;
@@ -69,7 +70,7 @@ function tabOn(bootstrap: Bootstrap, page: Page) {
     request: async (type: string, payload: { kind: TokenKind; surface: Surface }) => {
       if (type !== 'token.issue') throw new Error(`unexpected ${type}`);
       asked.push(payload);
-      const refusal = await tokenRefusal(payload.kind, payload.surface, hub, () => ({ code: 'CG-HUB-UNAVAILABLE' }));
+      const refusal = await tokenRefusal(payload.kind, payload.surface, hub, () => ({ code: 'CG-HUB-UNAVAILABLE' }), FEATURES);
       return refusal === null ? { ok: true, payload: { actionToken: 'tok_0000000000000001', expiresAt: 0 } } : { ok: false, error: refusal };
     },
   };
@@ -89,7 +90,7 @@ function tabOn(bootstrap: Bootstrap, page: Page) {
     context,
     open: (surface: Surface, boards: readonly BoardSwitch[]) => navigator.open(chat, surface, boards),
     /** Our own navigation into this account (a key, the palette): the background's half of its gate. */
-    ours: () => tokenRefusal('navigate', 'overlay', hub, () => ({ code: 'CG-HUB-UNAVAILABLE' })),
+    ours: () => tokenRefusal('navigate', 'overlay', hub, () => ({ code: 'CG-HUB-UNAVAILABLE' }), FEATURES),
     chat,
     navigator,
   };
@@ -175,8 +176,8 @@ describe('[SP-035] a click on a fan in a board is the board’s own switch on it
     const bootstrap = pageFeaturesOff(BOOTSTRAP_PILOT_PAGES, ['spenders', 'preview', 'newcomers']);
     const hub: TokenGateHub = { session: () => session, cachedBootstrap: () => bootstrap, flagState: (flag, pageLabel) => flagState(bootstrap, flag, pageLabel), bootstrap: () => Promise.resolve(bootstrap) };
     const wire = () => ({ code: 'CG-HUB-UNAVAILABLE' }) as const;
-    expect(await tokenRefusal('navigate', 'preview', hub, wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
-    expect(await tokenRefusal('navigate', 'newcomers', hub, wire)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
-    expect(await tokenRefusal('navigate', 'overlay', hub, wire)).toBeNull();
+    expect(await tokenRefusal('navigate', 'preview', hub, wire, FEATURES)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+    expect(await tokenRefusal('navigate', 'newcomers', hub, wire, FEATURES)).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'flag_off' });
+    expect(await tokenRefusal('navigate', 'overlay', hub, wire, FEATURES)).toBeNull();
   });
 });
