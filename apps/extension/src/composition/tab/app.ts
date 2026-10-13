@@ -22,7 +22,7 @@
 
 import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import type { HostContractReport } from '@cg/contracts/host';
+import type { HostContractReport, HostPort } from '@cg/contracts/host';
 import type { ChatRef } from '@cg/contracts/ids';
 import { DEFAULT_LOCALE, type Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
@@ -35,7 +35,6 @@ import { createShellController } from '@cg/core/application/shell';
 import { toastKindOf, viewOfCode } from '@cg/core/domain/errors';
 import { createLiveI18n, resolveLocale, translatorOf } from '@cg/core/domain/i18n/live';
 import { createLogForwarder, createLogger, installErrorCapture, logEvent, logHostContract } from '@cg/core/domain/logging';
-import type { ChatSpaceHostPort, HostDiagnostic, MountDiagnostic, MountManager, ThemeReader, TokenRedeemer } from '@cg/host-chatspace/isolated';
 import type { TabRpcClient } from '@cg/platform';
 
 import type * as AiChunk from '../../../lazy/entries/ai';
@@ -50,6 +49,7 @@ import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
+import type { HostAppAdapter, HostDiagnostic, HostMounts, HostThemeSource, TokenRedeemer } from './adapter';
 import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { createContractLog } from './contract-log';
@@ -64,13 +64,13 @@ import { Value } from './values';
 
 export type { TabActionTokens } from './action-gate';
 
-export interface TabAppEnv {
+export interface TabAppEnv<P extends HostPort = HostPort> {
   readonly win: Window;
   readonly life: AbortSignal;
   readonly rpc: TabRpcClient;
-  readonly host: ChatSpaceHostPort;
-  readonly mounts: MountManager;
-  readonly theme: ThemeReader;
+  readonly host: P;
+  readonly mounts: HostMounts;
+  readonly theme: HostThemeSource;
   /** The early key dispatcher and what it reads (tab/keys.ts). */
   readonly keys: TabKeys;
   /** A lazy chunk by its entry name (one retry, EX-009). */
@@ -83,7 +83,7 @@ export interface TabAppEnv {
   readonly lateInjection: boolean;
   readonly staleHosts: number;
   readonly setNavInsertTimeoutMs: (ms: number) => void;
-  readonly takeDiagnostics: (listener: (diagnostic: HostDiagnostic | MountDiagnostic) => void) => (HostDiagnostic | MountDiagnostic)[];
+  readonly takeDiagnostics: (listener: (diagnostic: HostDiagnostic) => void) => HostDiagnostic[];
   /** `newcomers.drafts` of storage.local; null — drafts live until the tab reloads. */
   readonly drafts: DraftStore | null;
   /** Test builds only. */
@@ -124,7 +124,8 @@ function contractOf(report: HostContractReport): 'ok' | 'degraded' | 'broken' {
 /** Overlays the boards' controllers answer for: they are loaded with the first action that opens one. */
 const BOARD_SURFACES: readonly string[] = ['spenders', 'newcomers', 'fan-panel'];
 
-export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
+/** The application of a site's tab; `site` is the application's half of the site's adapter (tab/adapter.ts). */
+export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site: HostAppAdapter<P, C>): Promise<TabApp> {
   const { win, rpc, host, mounts, keys, probe } = env;
   const doc = win.document;
   const offs: (() => void)[] = [];
@@ -178,9 +179,9 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   const capture = installErrorCapture(win, logger, { ownOrigin: env.ownOrigin, everythingIsOurs: false }, () => Date.now());
   offs.push(capture.uninstall);
   logEvent(logger, 'tabStarted', { fields: { lateInjection: env.lateInjection, staleHosts: env.staleHosts, contractsVersion: env.contractsVersion } });
-  const onDiagnostic = (diagnostic: HostDiagnostic | MountDiagnostic): void => {
-    const code = 'code' in diagnostic ? diagnostic.code : undefined;
-    const detail = 'detail' in diagnostic ? diagnostic.detail : 'count' in diagnostic && diagnostic.count !== undefined ? { count: diagnostic.count } : undefined;
+  const onDiagnostic = (diagnostic: HostDiagnostic): void => {
+    const { code, count } = diagnostic;
+    const detail = diagnostic.detail ?? (count === undefined ? undefined : { count });
     logger.info('tab.host', diagnostic.event, { ...(code === undefined ? {} : { code }), ...(detail === undefined ? {} : { fields: detail }) });
   };
   for (const diagnostic of env.takeDiagnostics(onDiagnostic)) onDiagnostic(diagnostic);
@@ -557,8 +558,8 @@ export async function startTabApp(env: TabAppEnv): Promise<TabApp> {
   // is on screen the recap controller reads what the hub holds for each chat opened under it (tab/recap-tab.ts).
   offs.push(followRecapTab({ overlays: keys.overlays, router, recap: () => ai.recap }));
 
-  // ── the bootstrap: the host adapter's part B, and what a sign-out takes away ──
-  const facts = forwardHostFacts({ host, rpc: world.rpc, setNavInsertTimeoutMs: env.setNavInsertTimeoutMs, onFailure: (what) => logger.warn('tab.host', 'the host adapter did not take its configuration', { fields: { what } }) });
+  // ── the bootstrap: what it switches in the site's host port, and what a sign-out takes away ──
+  const facts = forwardHostFacts({ host, site, rpc: world.rpc, setNavInsertTimeoutMs: env.setNavInsertTimeoutMs, onFailure: (what) => logger.warn('tab.host', 'the host adapter did not take its configuration', { fields: { what } }) });
   offs.push(() => facts.dispose());
   let signedIn: number | null | undefined = undefined;
   const onEnvironment = (): void => {

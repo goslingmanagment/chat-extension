@@ -18,9 +18,11 @@
 //   the page writes the text first and answers a frame later, and the
 //   person's Send may be seen in between — a send whose insert is not known
 //   yet would be dropped for good;
-// - the owner's switches and the receipt profiles of the bootstrap configure
-//   the adapter's part B (the tap, X8, the AI mark), and its limit sets the
-//   deadline of «Открыть и вставить». The adapter serves every account of
+// - what the bootstrap switches in the site's host port goes to it through
+//   the application's half of the site's adapter (tab/adapter.ts; ChatSpace:
+//   the owner's switches and the receipt profiles configure its part B — the
+//   tap, X8, the AI mark — tab/hosts/chatspace/app.ts), and its limit sets
+//   the deadline of «Открыть и вставить». The port serves every account of
 //   the tab, so each part is on while the switch is usable on at least one
 //   granted page — its capability report says «the tap is on in this tab»,
 //   not «on for this page». The page's own value is applied wherever what
@@ -36,14 +38,13 @@
 //
 // Facts only: ids, digests, booleans. Never a message text.
 
-import type { HostContractReport, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
+import type { HostContractReport, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { SendFuseFact, SendFuseState } from '@cg/contracts/send';
 import { anchorGap, anchorsNotYet } from '@cg/core/domain/host';
-import { flagOnSomePage } from '@cg/core/domain/ops';
-import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 
+import type { HostAppAdapter } from './adapter';
 import type { ControllerRpc } from './client';
 
 /** Inserts of the boards remembered for a later send; the oldest go. */
@@ -99,24 +100,6 @@ export function contractFactsOf(report: HostContractReport): {
   return { build: report.build, adapterVersion: report.adapterVersion, ok: missing.every((anchor) => SWITCHED_ANCHORS.includes(anchor)), missing, degraded, ...(later.length === 0 ? {} : { notYet: later }) };
 }
 
-const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] };
-
-/** Part B of the adapter as the bootstrap sets it (§6.2, §6.7, §6.8), with the browser's X8 fuse (decision X25; null — not read yet). */
-export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | null = null): ChatSpaceLiveConfig {
-  if (bootstrap === null) return LIVE_OFF;
-  // Never the top-level `flags` (the owner's `"*"` row alone): a page switched on by itself must work.
-  return {
-    wsTap: flagOnSomePage(bootstrap, 'wsTap'),
-    // On for at least one page of this sign-in; the preview checks its own page before a send, and the hub
-    // checks the page's own flag again on every dispatch.
-    previewSend: flagOnSomePage(bootstrap, 'previewSend'),
-    markAiGenerated: flagOnSomePage(bootstrap, 'previewSendMarkAiGenerated'),
-    receiptProfiles: bootstrap.limits.previewSendReceiptProfiles,
-    // A fuse that never tripped and was never reset tells the adapter nothing: the configuration stays as it was.
-    ...(fuse === null || (fuse.fuse === null && fuse.resetAt === null) ? {} : { fuse }),
-  };
-}
-
 /**
  * What the adapter is told for what the tab knows of the sign-in and of its bootstrap; `undefined` — nothing yet.
  * Nobody signed in is knowledge: the owner's flags went with the sign-in, part B is off. A sign-in whose
@@ -132,11 +115,18 @@ export function knownBootstrap(
   return bootstrap.s === 'ready' ? bootstrap.value : undefined;
 }
 
-export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; readonly rpc: ControllerRpc; readonly setNavInsertTimeoutMs: (ms: number) => void; readonly onFailure: (what: string) => void }): HostFacts {
-  const { host, rpc } = deps;
+export function forwardHostFacts<P extends HostPort, C>(deps: {
+  readonly host: P;
+  /** The application's half of the site's adapter: what the bootstrap switches in the port. */
+  readonly site: HostAppAdapter<P, C>;
+  readonly rpc: ControllerRpc;
+  readonly setNavInsertTimeoutMs: (ms: number) => void;
+  readonly onFailure: (what: string) => void;
+}): HostFacts {
+  const { host, site, rpc } = deps;
   const inserts = new Map<string, { readonly opId: string; readonly part: PartRef }>();
   let configured = '';
-  /** The bootstrap last configured; undefined — none yet (the adapter keeps what it has). */
+  /** The bootstrap last configured; undefined — none yet (the port keeps what it has). */
   let bootstrapNow: Bootstrap | null | undefined;
   /** The browser's X8 fuse as the background last said (decision X25); null — not read yet. */
   let fuse: SendFuseState | null = null;
@@ -147,11 +137,11 @@ export function forwardHostFacts(deps: { readonly host: ChatSpaceHostPort; reado
 
   const apply = (): void => {
     if (bootstrapNow === undefined) return;
-    const config = liveConfigOf(bootstrapNow, fuse);
+    const config = site.liveConfigOf(bootstrapNow, fuse);
     const key = JSON.stringify(config);
     if (key === configured) return;
     configured = key;
-    host.configure(config).catch(() => deps.onFailure('configure'));
+    site.configure(host, config).catch(() => deps.onFailure('configure'));
   };
   const fuseIs = (next: SendFuseState): void => {
     fuse = next;
@@ -253,7 +243,7 @@ const wroteNothing = (receipt: InsertReceipt | null): boolean => receipt === nul
  * stays: only the page's own word that the sent draft descends from it makes a `sent`, and that word comes only
  * if the write did run.
  */
-export function boardsHostOver(host: ChatSpaceHostPort, inserts: Pick<HostFacts, 'noteInsert' | 'forgetInsert'>): ChatSpaceHostPort {
+export function boardsHostOver<P extends HostPort>(host: P, inserts: Pick<HostFacts, 'noteInsert' | 'forgetInsert'>): P {
   return new Proxy(host, {
     get(target, property) {
       if (property === 'navigate') {

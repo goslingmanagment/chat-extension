@@ -7,7 +7,8 @@ import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/
 import { describe, expect, it } from 'vitest';
 
 import type { ControllerRpc } from './client';
-import { SENT_REPORT_TRIES, boardsHostOver, contractFactsOf, forwardHostFacts, knownBootstrap, liveConfigOf } from './host-facts';
+import { SENT_REPORT_TRIES, boardsHostOver, contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
+import { CHATSPACE_APP, liveConfigOf } from './hosts/chatspace/app';
 
 const CHAT = { host: 'chatspace' as const, hostAccountId: '910101', platformFanId: '74001001' };
 const PROFILE = { adapterVersion: '0.3.0', modules: { notificationEntry: 'a', composables: 'b', onlyfans: 'c', accounts: 'd', inbox: 'e' } };
@@ -75,7 +76,7 @@ function world(state = 'ready') {
       return () => eventListeners.delete(type);
     },
   } as unknown as ControllerRpc;
-  const facts = forwardHostFacts({ host, rpc, setNavInsertTimeoutMs: (ms) => void timeouts.push(ms), onFailure: (what) => void failures.push(what) });
+  const facts = forwardHostFacts({ host, site: CHATSPACE_APP, rpc, setNavInsertTimeoutMs: (ms) => void timeouts.push(ms), onFailure: (what) => void failures.push(what) });
   const setState = (next: string): void => {
     port.state = next;
     for (const heard of [...stateListeners]) heard(next);
@@ -111,7 +112,7 @@ const humanSend = (over: { platformMessageId?: string | null; insertIntentId?: s
   } as never,
 });
 
-describe('the bootstrap → part B of the host adapter', () => {
+describe('the bootstrap → part B of the ChatSpace host port (the application’s half of the ChatSpace adapter)', () => {
   it('nobody signed in: the tap, X8 and the AI mark are off, no receipt profile', () => {
     expect(liveConfigOf(null)).toEqual({ wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [] });
   });

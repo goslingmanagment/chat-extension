@@ -1,8 +1,10 @@
 // The tab's keys from document_start (architecture.md §9.1; HK-022…HK-029):
 // the one early dispatcher of R17 — `keydown`/`keyup` in capture on `window`,
-// registered in the synchronous start of the isolated bundle, before
-// ChatSpace's own listeners exist — over R09's registry of our closed roots,
-// and the state it reads: our open overlays and the route.
+// registered in the synchronous start of the isolated bundle, before the
+// site's own listeners exist — over R09's registry of our closed roots, and
+// the state it reads: our open overlays and the route. What it reads of the
+// page — whose the focus is, the route by the address, the dock host's mark
+// of a waiting key — is the site adapter's (tab/adapter.ts).
 //
 // Until the lazy part of the tab is loaded there is nobody to run a command:
 // the dispatcher keeps the newest key, the dock host carries
@@ -28,7 +30,8 @@
 import { createEarlyKeyDispatcher, createEarlyNotices, createTabKeyState, type EarlyKeyDispatcher, type EarlyNotice, type EarlyNotices, type TabKeyState } from '@cg/core/application/hotkeys';
 import { createOverlayState, mirrorDismissible, type OverlayState } from '@cg/core/application/navigation';
 import { hotkeyPlatformOf, type HotkeyPlatform } from '@cg/core/domain/hotkeys';
-import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, type MountManager } from '@cg/host-chatspace/isolated';
+
+import type { HostAdapter, HostMounts } from './adapter';
 
 /** The trusted keydown of a key the dispatcher kept, and when it was pressed (epoch ms). */
 export interface KeptKeydown {
@@ -60,13 +63,15 @@ export interface TabKeys {
 
 export interface TabKeysEnv {
   readonly win: Window;
-  readonly mounts: Pick<MountManager, 'dock' | 'registry' | 'setDismissibleOpen'>;
+  readonly mounts: Pick<HostMounts, 'dock' | 'registry' | 'setDismissibleOpen'>;
+  /** The page side of the dispatcher: whose the focus is, the address's route, the dock host's waiting mark. */
+  readonly site: Pick<HostAdapter, 'keyProbe' | 'keyPending' | 'routeOfLocation'>;
   /** A key waits for the lazy part: load it now. */
   readonly onWaiting: () => void;
 }
 
 export function startTabKeys(env: TabKeysEnv): TabKeys {
-  const { win, mounts } = env;
+  const { win, mounts, site } = env;
   const doc = win.document;
   const platform = hotkeyPlatformOf(win.navigator.platform);
 
@@ -100,7 +105,7 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
   // ── the kept key ───────────────────────────────────────────────────────────
   let kept: KeptKeydown | null = null;
   let handed: KeptKeydown | null = null;
-  const pending = createKeyPendingMark(mounts.dock.host);
+  const pending = site.keyPending(mounts.dock.host);
   const notices = createEarlyNotices({
     onWaiting(waiting) {
       pending(waiting);
@@ -119,14 +124,14 @@ export function startTabKeys(env: TabKeysEnv): TabKeys {
   };
 
   const overlays = createOverlayState();
-  const state = createTabKeyState({ overlays, route: () => routeOfLocation(win.location) });
+  const state = createTabKeyState({ overlays, route: () => site.routeOfLocation(win.location) });
   let handlerMs: ((ms: number) => void) | null = null;
   // Registered after `onKeydown` above, on the same target and phase: it runs second.
   const dispatcher = createEarlyKeyDispatcher({
     platform,
     window: win,
     document: { source: doc, hidden: () => doc.hidden, focused: () => doc.hasFocus() },
-    ownership: createKeyboardProbe(doc, mounts.registry),
+    ownership: site.keyProbe(doc, mounts.registry),
     state,
     timers: { setTimer: (ms, fn) => win.setTimeout(fn, ms), clearTimer: (handle) => win.clearTimeout(handle as number) },
     now: () => Date.now(),

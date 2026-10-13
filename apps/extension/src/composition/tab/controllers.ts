@@ -16,12 +16,12 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ChatRef } from '@cg/contracts/ids';
 import type { SendAttemptView } from '@cg/contracts/send';
+import type { HostPort } from '@cg/contracts/host';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { toastKindOf } from '@cg/core/domain/errors';
 import type { Logger } from '@cg/core/domain/logging';
-import type { ChatSpaceHostPort } from '@cg/host-chatspace/isolated';
 
 import type * as AiChunk from '../../../lazy/entries/ai';
 import type * as AnalysisChunk from '../../../lazy/entries/ai-analysis';
@@ -53,7 +53,7 @@ export interface TabWorld {
   readonly win: Window;
   /** The background's client with `token.issue` behind the gate (client.ts). */
   readonly rpc: ControllerRpc;
-  readonly host: ChatSpaceHostPort;
+  readonly host: HostPort;
   readonly i18n: I18n;
   readonly clock: TabClock;
   readonly ids: { uuid(): string };

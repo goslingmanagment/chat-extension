@@ -8,8 +8,10 @@ import { STORAGE_KEYS } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { BEFORE_THE_DOCK, LAZY_ENTRIES, LAZY_LAYERS } from '../lazy/entries/names.ts';
+import { LAZY_DIR } from '../lazy/vite.config.ts';
 import { importWithRetry, lazyPath, LAZY_RETRY_DELAY_MS } from '../src/composition/tab/lazy.ts';
 import { LAZY, NEWCOMER_DRAFTS_KEY } from '../src/composition/tab/runtime.ts';
+import { CHATSPACE_ADAPTER } from '../src/entrypoints/chatspace.content.ts';
 
 const URL_OF_CHUNK = 'moz-extension://00000000-0000-4000-8000-000000000001/lazy/dock.js';
 
@@ -75,9 +77,12 @@ describe('the lazy entries of the tab', () => {
       expect(source).toBe(`entries/${name}.ts`);
       expect(existsSync(fileURLToPath(new URL(`../lazy/${source}`, import.meta.url)))).toBe(true);
     }
-    expect(lazyPath('dock')).toBe('lazy/dock.js');
+    expect(lazyPath(CHATSPACE_ADAPTER.lazy.root, 'dock')).toBe('lazy/dock.js');
+    // ChatSpace's adapter names its build: the folder the lazy build writes.
+    expect(CHATSPACE_ADAPTER.lazy.root).toBe(LAZY_DIR);
     // The two chunks the early bundle loads itself are entries of the build.
-    expect(Object.values(LAZY)).toEqual([lazyPath('tab-protocol'), lazyPath('tab-app')]);
+    expect(Object.values(LAZY)).toEqual(['tab-protocol', 'tab-app']);
+    for (const entry of Object.values(LAZY)) expect(Object.keys(LAZY_ENTRIES)).toContain(entry);
   });
 
   it('[EX-009] the layers are the entries every chat tab loads, in the order their budgets stack: the dock first, then what loads before any other chunk', () => {

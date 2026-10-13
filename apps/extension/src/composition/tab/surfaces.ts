@@ -21,12 +21,12 @@
 import type { MountDeps, MountSurfaceKind } from '@cg/contracts/vm';
 import type { OverlayState } from '@cg/core/application/navigation';
 import type { OverlayKind } from '@cg/core/domain/hotkeys';
-import type { MountManager, OverlayLayer } from '@cg/host-chatspace/isolated';
 
 import type * as DockChunk from '../../../lazy/entries/dock';
 import type * as AnalysisPartChunk from '../../../lazy/entries/dock-analysis';
 import type * as DebugPartChunk from '../../../lazy/entries/dock-debug';
 import type { LazyEntryName } from '../../../lazy/entries/names';
+import type { HostMounts, OverlayLayer } from './adapter';
 
 type Surface = DockChunk.SurfaceDefinition;
 
@@ -60,7 +60,7 @@ export const OVERLAY_MOUNTS: Readonly<Partial<Record<OverlayKind, OverlaySpec>>>
 };
 
 export interface SurfaceMountsEnv {
-  readonly mounts: MountManager;
+  readonly mounts: HostMounts;
   readonly deps: MountDeps;
   /** What the side panels (layer `panel`) are mounted with: `deps` with their own geometry (tab/panel-geometry.ts). `deps` when absent. */
   readonly panelDeps?: MountDeps;
@@ -92,7 +92,7 @@ export interface SurfaceMounts {
 const HOST_FONT_PROPERTIES = ['font-family', '-moz-osx-font-smoothing'] as const;
 
 /** The closed root of an overlay layer, its host dressed in ChatSpace's font (see the head of this file). */
-export function overlayRoot(mounts: Pick<MountManager, 'dock' | 'overlay'>, layer: OverlayLayer): ShadowRoot {
+export function overlayRoot(mounts: Pick<HostMounts, 'dock' | 'overlay'>, layer: OverlayLayer): ShadowRoot {
   const { host, root } = mounts.overlay(layer);
   const doc = host.ownerDocument;
   const beside = mounts.dock.host.parentElement;

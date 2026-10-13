@@ -12,21 +12,26 @@
 // on the whole of ChatSpace) — and never before either (EX-011).
 
 import { CONTRACTS_VERSION } from '@cg/contracts';
+import type { HostKind } from '@cg/contracts/hosts';
 import type { HostAccount } from '@cg/contracts/ids';
 import { TabRegisterResponseSchema } from '@cg/contracts/tab-protocol';
-import type { HostDiagnostic, MountDiagnostic, StartedChatSpaceHost, TokenRedeemer } from '@cg/host-chatspace/isolated';
 import { createTabRpcClient, defaultBrowser, extensionUrl, extensionVersionOf, isExtensionContextAlive, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
 
-import type * as TabAppChunk from '../../../lazy/entries/tab-app';
+import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as TabProtocolChunk from '../../../lazy/entries/tab-protocol';
-import type { TabApp } from './app';
+import type { HostDiagnostic, StartedHost, TokenRedeemer } from './adapter';
+import type { TabApp, TabAppEnv } from './app';
 import type { DraftStore } from './controllers';
 import type { TabKeys } from './keys';
-import { importWithRetry, lazyPath } from './lazy';
 import type { TabProbe } from './probe';
 
-/** The two chunks the early bundle loads itself; the application loads the rest (tab/app.ts). */
-export const LAZY = { protocol: lazyPath('tab-protocol'), app: lazyPath('tab-app') } as const;
+/** The two chunks of the site's build the early bundle loads itself; the application loads the rest (tab/app.ts). */
+export const LAZY = { protocol: 'tab-protocol', app: 'tab-app' } as const satisfies Readonly<Record<string, LazyEntryName>>;
+
+/** The site's application chunk (`tab-app` of its build): the shared application with the site's half of the adapter. */
+export interface TabAppChunk {
+  startTabApp(env: TabAppEnv): Promise<TabApp>;
+}
 
 /** Presence reports are coalesced: a burst of route, focus and account events is one request. */
 const PRESENCE_DELAY_MS = 200;
@@ -43,9 +48,13 @@ export const KEEPALIVE_MS = 10_000;
 
 export interface TabRuntimeEnv {
   readonly win: Window;
+  /** The site: the tab registers as its tab. */
+  readonly kind: HostKind;
+  /** A chunk of the site's own lazy build by its entry name, one retry (EX-009). */
+  readonly lazy: <T>(entry: LazyEntryName) => Promise<T>;
   readonly life: AbortSignal;
   readonly abort: (reason: string) => void;
-  readonly host: StartedChatSpaceHost;
+  readonly host: StartedHost;
   /** The early key dispatcher and what it reads (tab/keys.ts). */
   readonly keys: TabKeys;
   readonly lateInjection: boolean;
@@ -53,7 +62,7 @@ export interface TabRuntimeEnv {
   readonly probe: TabProbe | null;
   readonly setNavInsertTimeoutMs: (ms: number) => void;
   /** Hands over what the host reported so far and where the rest goes. */
-  readonly takeDiagnostics: (listener: (diagnostic: HostDiagnostic | MountDiagnostic) => void) => (HostDiagnostic | MountDiagnostic)[];
+  readonly takeDiagnostics: (listener: (diagnostic: HostDiagnostic) => void) => HostDiagnostic[];
   /** Tests only: the browser API of the tab's context (the real `browser` otherwise). */
   readonly api?: BrowserApi;
   /** Tests only: the keepalive period (KEEPALIVE_MS otherwise). */
@@ -64,11 +73,6 @@ export interface TabRuntime {
   redeem: TokenRedeemer;
   /** Loads the application now, composer or not: a key of ours waits for it (HK-024). */
   wake(): void;
-}
-
-/** Loads a lazy chunk; one retry under `?retry` (EX-009). */
-export function loadLazy<T>(path: string): Promise<T> {
-  return importWithRetry<T>(extensionUrl(path), (url) => import(/* @vite-ignore */ url));
 }
 
 /** `STORAGE_KEYS.newcomersDrafts`, spelled out: the contracts' settings module is schemas the early bundle must not carry (§11). */
@@ -144,7 +148,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   const api = probe === null ? env.api : probe.api(env.api ?? defaultBrowser());
   const rpc = createTabRpcClient({
     validate,
-    register: { host: 'chatspace', lateInjection: env.lateInjection, contractsVersion: CONTRACTS_VERSION },
+    register: { host: env.kind, lateInjection: env.lateInjection, contractsVersion: CONTRACTS_VERSION },
     ...(api === undefined ? {} : { api }),
   });
   life.addEventListener('abort', () => rpc.close());
@@ -233,7 +237,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   const ensureApp = (): Promise<TabApp> =>
     (app ??= (async () => {
       const loadStarted = performance.now();
-      const [protocol, chunk, port] = await Promise.all([loadLazy<typeof TabProtocolChunk>(LAZY.protocol), loadLazy<typeof TabAppChunk>(LAZY.app), host.host]);
+      const [protocol, chunk, port] = await Promise.all([env.lazy<typeof TabProtocolChunk>(LAZY.protocol), env.lazy<TabAppChunk>(LAZY.app), host.host]);
       registry = protocol.parseTabPayload;
       const started = await chunk.startTabApp({
         win,
@@ -243,7 +247,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         mounts: host.mounts,
         theme: host.theme,
         keys: env.keys,
-        lazy: (entry) => loadLazy(lazyPath(entry)),
+        lazy: env.lazy,
         drafts: draftStoreOf(env.api, win),
         ownOrigin: extensionUrl('').replace(/\/$/, ''),
         extensionVersion: extensionVersionOf(env.api),

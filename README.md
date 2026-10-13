@@ -224,6 +224,16 @@ pnpm install --frozen-lockfile
 
 Как собрана вкладка:
 
+- **Адаптер хоста** (R20, `docs/project-unite/architecture.md` §1.3). Общий
+  корень вкладки сайт не называет: вход сайта собирает адаптер хоста и передаёт
+  его в `composeTab(env, adapter)` (`composition/tab/adapter.ts`). Ранняя
+  половина адаптера лежит в изолированном скрипте сайта: запуск хоста (мост,
+  монтирование, тема, `HostPort`), проба клавиш, маршрут по адресу и где
+  лежит ленивая сборка сайта. Половина приложения — в его чанке `tab-app`:
+  что bootstrap включает в порте хоста (у ChatSpace — часть B,
+  `composition/tab/hosts/chatspace/app.ts`). Ранний адаптер ChatSpace
+  собирается в `entrypoints/chatspace.content.ts` из стартера
+  `@cg/host-chatspace` (`isolated/starter.ts`).
 - **Порядок загрузки.** С первым кадром моста — схемы моста (`bridge-validation`).
   С первым полем ввода или нашей клавишей — протокол, приложение, тексты, док,
   контроллеры AI и навигация. Сразу после появления дока — Recap, Review, Coach
