@@ -128,7 +128,7 @@ describe('[EX-008] MAIN request checks agree with the contracts fixtures', () =>
     for (const payload of fixtures.invalid) expect([t, payload, check?.(payload)]).toEqual([t, payload, false]);
   });
 
-  it('[host:chatspace] R20 F6a: an identity or a chat of another site is refused — ChatSpace MAIN serves ChatSpace alone', () => {
+  it('R20 F6a, ChatSpace: an identity or a chat of another site is refused — ChatSpace MAIN serves ChatSpace alone', () => {
     // The contracts' schemas are shared by both sites and take either kind of host; ChatSpace's isolated world only
     // ever names its own, so MAIN takes `chatspace` alone (docs/project-unite/architecture.md §1.9).
     const draft = BRIDGE_REQUEST_FIXTURES.readDraft.payload.valid[0] as { readonly expected: Record<string, unknown> };

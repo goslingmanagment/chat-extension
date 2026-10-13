@@ -1063,7 +1063,7 @@ describe('[RB-018] the dossier save of a full recap (H-5)', () => {
   });
 });
 
-describe('[host:chatspace] R20 F6a: the background toast on ChatSpace is as before F6a', () => {
+describe('R20 F6a, ChatSpace: the background toast on ChatSpace is as before F6a', () => {
   it('«AI готово · {фан}» when the owning tab shows another chat: byte for byte as recorded on main', async () => {
     const h = harness();
     const op = h.nextOp();
@@ -1076,7 +1076,7 @@ describe('[host:chatspace] R20 F6a: the background toast on ChatSpace is as befo
   });
 });
 
-describe('[host:fansly] R20 F6a: the background toast names the operation\'s own conversation', () => {
+describe('R20 F6a, Fansly: the background toast names the operation\'s own conversation', () => {
   it('«AI готово» of a Fansly operation carries its chat and its group: «Открыть чат» opens the group, not a guess from the fan', async () => {
     const h = harness({ env: { bootstrap: withFanslyPage(BOOTSTRAP_PILOT_PAGES) } });
     const op = h.nextOp();

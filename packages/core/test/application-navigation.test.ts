@@ -1003,7 +1003,7 @@ it('the scripted world: the open chat is 2002 of account 1001', () => {
   expect(openChat).toEqual(chat('2002'));
 });
 
-describe('[host:chatspace] R20 F6a: «Открыть чат» of a toast on ChatSpace names and opens the chat as before F6a', () => {
+describe('R20 F6a, ChatSpace: «Открыть чат» of a toast on ChatSpace names and opens the chat as before F6a', () => {
   it('the handle of the toast\'s chat and the navigation it makes: byte for byte as recorded on main', async () => {
     const w = world();
     const handle = chatHandle(chat('2004'));

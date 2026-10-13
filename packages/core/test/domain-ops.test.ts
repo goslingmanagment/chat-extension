@@ -221,7 +221,7 @@ describe('[AI-128] request identity and the result cache', () => {
   const identity = (over: Parameters<typeof startOf>[0] = {}, archiveHead: string | null = null) =>
     requestIdentityOf({ session, start: startOf(over), persona, archiveHead });
 
-  it('[host:fansly] R20 F6a: the conversation is part of the key when it is not the fan — the same fan in another group is another request', () => {
+  it('R20 F6a, Fansly: the conversation is part of the key when it is not the fan — the same fan in another group is another request', () => {
     const inGroup = identity({ target: fanslyTarget });
     expect(inGroup).toMatchObject({ host: 'fansly-web', fanRef: FANSLY.fan, conversationRef: FANSLY.group });
     expect(requestKeyOf(inGroup)).not.toBe(requestKeyOf(identity({ target: { ...fanslyTarget, conversationRef: FANSLY.otherGroup } })));
@@ -229,7 +229,7 @@ describe('[AI-128] request identity and the result cache', () => {
     expect(identity()).not.toHaveProperty('conversationRef');
   });
 
-  it('[host:chatspace] R20 F6a: the key of a ChatSpace request is byte for byte the one recorded on main (the conversation is the fan)', () => {
+  it('R20 F6a, ChatSpace: the key of a ChatSpace request is byte for byte the one recorded on main (the conversation is the fan)', () => {
     const key = requestKeyOf(identity({ checkpoint: checkpointFor(WORLD.fan) }, '4006'));
     expect(key).toBe(CHATSPACE_RECORDED.requestKey);
   });

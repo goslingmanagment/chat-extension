@@ -5,8 +5,8 @@
 // «Открыть чат для проверки») — never as a ChatSpace literal and never as «the
 // conversation is the fan». A Fansly chat has a group id that is not the fan's
 // id on purpose: every surface must carry both, each in its own place. What
-// ChatSpace sends stays byte for byte as recorded on main (the `[host:chatspace]
-// R20 F6a` tests next to each surface's own tests).
+// ChatSpace sends stays byte for byte as recorded on main (the «R20 F6a,
+// ChatSpace» tests next to each surface's own tests, support/chatspace-recorded.ts).
 
 import { describe, expect, it } from 'vitest';
 
@@ -47,7 +47,7 @@ const SETTINGS: SettingsV1 = settingsWithPersona({
   personas: { scope: { hubOrigin: WORLD.hubOrigin, userId: WORLD.user.userId }, byPageId: { [String(WORLD.pages.one.pageId)]: PERSONA, [String(WORLD.pages.fansly.pageId)]: PERSONA } },
 });
 
-describe('[host:fansly] R20 F6a: the dock — the conversation comes from the route', () => {
+describe('R20 F6a, Fansly: the dock — the conversation comes from the route', () => {
   it('a Reply in a Fansly chat starts on the group as the conversation and the fan as the fan, and the hub gets both', async () => {
     const fake = new FakeHostPort({ start: startSnapshot, memory, checkpoint: null, answers: {}, timeline: [] });
     const h = await readyHarness(
@@ -143,7 +143,7 @@ async function dispatchTo(controller: { dispatch(action: UiAction): Promise<Acti
   return answered;
 }
 
-describe('[host:fansly] R20 F6a: a preview — the conversation comes from the list that resolved the fan', () => {
+describe('R20 F6a, Fansly: a preview — the conversation comes from the list that resolved the fan', () => {
   function preview(directories: { spenders?: PreviewDirectory; palette?: PreviewDirectory }, answers: HostAnswers = {}) {
     const world = boards(answers);
     const controller: PreviewController = createPreviewController({
@@ -226,7 +226,7 @@ describe('[host:fansly] R20 F6a: a preview — the conversation comes from the l
   });
 });
 
-describe('[host:fansly] R20 F6a: a board row or card opens the fan of the binding\'s site', () => {
+describe('R20 F6a, Fansly: a board row or card opens the fan of the binding\'s site', () => {
   it('a Spenders row and a card of «Новые» open the chat on the Fansly host of the binding, not ChatSpace', async () => {
     const world = boards();
     const navigator = recordingNavigator();
@@ -252,7 +252,7 @@ describe('[host:fansly] R20 F6a: a board row or card opens the fan of the bindin
   });
 });
 
-describe('[host:fansly] R20 F6a: «Открыть и вставить» and a toast\'s «Открыть чат» open the operation\'s own conversation', () => {
+describe('R20 F6a, Fansly: «Открыть и вставить» and a toast\'s «Открыть чат» open the operation\'s own conversation', () => {
   it('buildOpenAndInsert names the target\'s group beside the fan, and nothing when the conversation is the fan', () => {
     const insert = {
       intentId: uuid(0x31),

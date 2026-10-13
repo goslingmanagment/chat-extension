@@ -3701,7 +3701,7 @@ describe('the router contract of the controllers', () => {
   });
 });
 
-describe('[host:chatspace] R20 F6a: a preview, a row and a card on ChatSpace start, read and navigate as before F6a', () => {
+describe('R20 F6a, ChatSpace: a preview, a row and a card on ChatSpace start, read and navigate as before F6a', () => {
   it('a preview Reply (start, hub body, its reads by chat), «Открыть и вставить», a Spenders row and a card of «Новые»: byte for byte as recorded on main', async () => {
     const applied = { state: 'navigated', routeEpoch: 6, insert: { state: 'applied', draftRevision: 1, draftDigest: 'feedbeef0000aaaa', ms: 12 } } as const;
     const { h, opId } = await withReply({ answers: { navigate: [applied] } });

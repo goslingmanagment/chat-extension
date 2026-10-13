@@ -3029,7 +3029,7 @@ describe('[R20-F4] dock: the bar’s chips as data — the site’s slice of the
   });
 });
 
-describe('[host:chatspace] R20 F6a: the dock on ChatSpace starts and asks the hub as before F6a', () => {
+describe('R20 F6a, ChatSpace: the dock on ChatSpace starts and asks the hub as before F6a', () => {
   it('a Reply in the open chat: the start (its target names the fan as the conversation) and the hub body, byte for byte as recorded on main', async () => {
     const h = await start();
     await reply(h, 'hey you');
