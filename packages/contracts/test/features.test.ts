@@ -7,18 +7,20 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { FANSLY_CAPABILITIES } from '../src/fansly';
 import { CHATSPACE_FEATURES, type ChatSpaceFeatureKey } from '../src/features/chatspace';
 import { FEATURES_COMMON, type CommonFeatureKey } from '../src/features/common';
-import { FANSLY_FEATURES, FANSLY_FLAGS_AHEAD, FANSLY_SURFACES_AHEAD, type FanslyFeatureKey } from '../src/features/fansly';
+import { FANSLY_FEATURES, FANSLY_SURFACES_AHEAD, type FanslyFeatureKey } from '../src/features/fansly';
 import * as F from '../src/features/types';
 import * as C from '../src/index';
 import { DOCK_CHIP_SAMPLES, REQUIREMENT_SAMPLES, SITE_FILE_SAMPLES } from './fixtures/features';
 
 type Entry = F.FeatureOnHost<string, string, string> & Partial<F.FeatureCommon>;
+/** Fansly's own switches (hub HF-12, HF-4б, HF-2): in the shared vocabulary since P4b3, named by Fansly's file alone. */
+const FANSLY_FLAGS = ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration'] as const satisfies readonly C.ClientFeatureFlag[];
 const SITES: readonly { readonly site: string; readonly file: Readonly<Record<string, Entry>>; readonly flags: readonly string[]; readonly capabilities: readonly string[]; readonly surfaces: readonly string[] }[] = [
   { site: 'chatspace', file: CHATSPACE_FEATURES, flags: C.CLIENT_FEATURE_FLAG_NAMES, capabilities: C.HOST_CAPABILITIES, surfaces: C.MOUNT_SURFACES },
   {
     site: 'fansly',
     file: FANSLY_FEATURES,
-    flags: [...C.CLIENT_FEATURE_FLAG_NAMES, ...FANSLY_FLAGS_AHEAD],
+    flags: C.CLIENT_FEATURE_FLAG_NAMES,
     capabilities: [...C.HOST_CAPABILITIES, ...FANSLY_CAPABILITIES],
     surfaces: [...C.MOUNT_SURFACES, ...FANSLY_SURFACES_AHEAD],
   },
@@ -87,15 +89,18 @@ describe('the feature manifest: vocabularies', () => {
     });
   }
 
-  it('the names Fansly is ahead with are not in the shared vocabularies yet (P4b3 and the panels’ PRs move them there)', () => {
-    for (const flag of FANSLY_FLAGS_AHEAD) expect(C.CLIENT_FEATURE_FLAG_NAMES as readonly string[]).not.toContain(flag);
+  it('Fansly’s own switches are in the shared vocabulary since P4b3, its surfaces still ahead of it (the panels’ PRs move them there)', () => {
+    for (const flag of FANSLY_FLAGS) expect(C.CLIENT_FEATURE_FLAG_NAMES, flag).toContain(flag);
     for (const surface of FANSLY_SURFACES_AHEAD) expect(C.MOUNT_SURFACES as readonly string[]).not.toContain(surface);
+    // Each of the six is asked by a Fansly entry: the drafts, the voice, the notes and their fill, the vault, «Регистрация».
+    const asked = new Set(Object.values(FANSLY_FEATURES as Readonly<Record<string, Entry>>).flatMap((entry) => requirementsOf(entry).flatMap((requirement) => requirement.flags)));
+    for (const flag of FANSLY_FLAGS) expect(asked.has(flag), flag).toBe(true);
   });
 });
 
 describe('the feature manifest: one file per site', () => {
   it('the manifest is its subpaths alone: the root — what the early isolated start imports — carries none of it', () => {
-    for (const name of ['FEATURES_COMMON', 'CHATSPACE_FEATURES', 'FANSLY_FEATURES', 'FANSLY_FLAGS_AHEAD', 'FANSLY_SURFACES_AHEAD', ...Object.keys(F)]) expect(name in C, name).toBe(false);
+    for (const name of ['FEATURES_COMMON', 'CHATSPACE_FEATURES', 'FANSLY_FEATURES', 'FANSLY_SURFACES_AHEAD', ...Object.keys(F)]) expect(name in C, name).toBe(false);
     // The chips' vocabularies are the dock view model's and come with it.
     expect([C.DOCK_CHIP_GROUPS.length, C.DOCK_ICON_IDS.length]).toEqual([5, 5]);
   });
@@ -111,7 +116,7 @@ describe('the feature manifest: one file per site', () => {
 
   it('ChatSpace’s file names nothing of Fansly: no switch, capability or surface the shared vocabularies do not have', () => {
     const text = JSON.stringify(CHATSPACE_FEATURES);
-    for (const name of [...FANSLY_FLAGS_AHEAD, ...FANSLY_SURFACES_AHEAD, 'fileAttach', 'headerSlot', 'relay', 'host-pass']) expect(text, name).not.toContain(`"${name}"`);
+    for (const name of [...FANSLY_FLAGS, ...FANSLY_SURFACES_AHEAD, 'fileAttach', 'headerSlot', 'relay', 'host-pass']) expect(text, name).not.toContain(`"${name}"`);
   });
 });
 

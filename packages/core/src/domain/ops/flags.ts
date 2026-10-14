@@ -35,7 +35,9 @@ export interface FlagState {
    * Why not, in the hub's own words (an open token): `disabled` — the
    * owner's master switch is off; `flag_off`; `platform_unsupported`;
    * `binding_missing`; `hub_not_ready` — the hub does not serve what the
-   * feature needs (or this client's transport cannot carry it);
+   * feature needs (or this client's transport cannot carry it); `lane_off`
+   * (1.15.0) — the hub's own lane the feature runs on (the voice notes) does
+   * not serve the page now, though everything else holds;
    * `not_granted` — the page is not in the bootstrap; `client_outdated`.
    * The hub layer adds `bootstrap_expired`, an admission `host_degraded` —
    * the site's page cannot do it now. null — usable.
@@ -87,9 +89,11 @@ export function flagsOnSomePage(bootstrap: Bootstrap | null): Record<ClientFeatu
 
 /**
  * How far a page got in the hub's own order of checks (platform → master switch → flag → binding → what the
- * hub serves): the further, the closer the switch is to being usable there.
+ * hub serves → the hub's lane the feature runs on): the further, the closer the switch is to being usable there.
+ * `lane_off` (1.15.0, hub HF-4б) is the bootstrap's last word: it is said only of a feature everything else
+ * admitted.
  */
-const REASON_RANK: Readonly<Record<string, number>> = { platform_unsupported: 1, disabled: 2, flag_off: 3, binding_missing: 4, hub_not_ready: 5 };
+const REASON_RANK: Readonly<Record<string, number>> = { platform_unsupported: 1, disabled: 2, flag_off: 3, binding_missing: 4, hub_not_ready: 5, lane_off: 6 };
 
 /**
  * The same with the reason nothing is usable: the reason of the page that got
@@ -123,10 +127,15 @@ export function starFlag(bootstrap: Bootstrap | null, flag: ClientFeatureFlag): 
 /**
  * The one reason every feature a page lists is unavailable for, or null: a blanket answer of the hub about the
  * whole page (its features disagree, or one is available — no blanket reason).
+ *
+ * Only the features the page's platform has are asked. Since hub HF-2 (R20; contracts 1.15.0) a page lists every
+ * switch of the vocabulary, and one its platform does not have reads `platform_unsupported` before anything else —
+ * Fansly's own six on an OnlyFans page, ChatSpace's own on a Fansly page — whatever the master switch says; counted,
+ * they would hide the master switch on every page.
  */
 export function pageBlanketReason(page: BootstrapPage | null | undefined): string | null {
   if (page === null || page === undefined) return null;
-  const features = Object.values(page.features);
+  const features = Object.values(page.features).filter((feature) => feature.reason !== 'platform_unsupported');
   const first = features[0];
   if (first === undefined || first.available === true || first.reason === undefined) return null;
   return features.every((feature) => feature.available !== true && feature.reason === first.reason) ? first.reason : null;

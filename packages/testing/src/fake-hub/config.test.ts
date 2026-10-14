@@ -8,7 +8,7 @@
 import { BootstrapSchema, CLIENT_FEATURE_FLAG_NAMES } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, NOW_MS, WORLD } from '../scenarios/hub';
+import { BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, BOOTSTRAP_PILOT_PAGES, NOW_MS, WORLD, existsOnOnlyFans } from '../scenarios/hub';
 import { FAKE_PAGES, bootstrapOf, featureVerdict, flagOn, patchConfig, presetConfig, type FakePage } from './config';
 import { createFakeHub } from './hub';
 import { hubCall } from './kit';
@@ -43,9 +43,15 @@ describe('fake hub config: presets', () => {
   it('master-off keeps the pilot flags but serves every feature as disabled and every flag false', () => {
     const boot = bootstrapOf(presetConfig('master-off'), FAKE_PAGES, chatter, NOW_MS);
     expect(Object.values(boot.flags).every((on) => !on)).toBe(true);
-    expect(boot.pages.filter((page) => page.platform === 'onlyfans').flatMap((page) => Object.values(page.features))).toEqual(
-      Array.from({ length: CLIENT_FEATURE_FLAG_NAMES.length * 2 }, () => ({ available: false, reason: 'disabled' })),
-    );
+    // Fansly's own switches (contracts 1.15.0, P4b3) are not on an OnlyFans page at all: the platform is the first check.
+    const onlyFans = boot.pages.filter((page) => page.platform === 'onlyfans');
+    expect(onlyFans).toHaveLength(2);
+    for (const page of onlyFans) {
+      expect(page.features).toEqual(
+        Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: false, reason: existsOnOnlyFans(flag) ? 'disabled' : 'platform_unsupported' }])),
+      );
+    }
+    expect(CLIENT_FEATURE_FLAG_NAMES.filter((flag) => !existsOnOnlyFans(flag))).toEqual(['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration']);
   });
 
   it('the bootstrap route serves the preset for the caller, through the contract schema', async () => {

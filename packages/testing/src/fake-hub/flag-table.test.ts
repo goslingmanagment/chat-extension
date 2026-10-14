@@ -11,6 +11,10 @@
 //
 // The fake hub computes a page's feature the way the hub does (config.ts `featureVerdict`, the hub's own table),
 // which is the whole point: the capabilities are already in the page's answer.
+//
+// Contracts 1.15.0 (R20 P4b3) put Fansly's own six switches into the shared vocabulary. The table below is
+// ChatSpace's: the sixteen switches it had, the only ones that exist on an OnlyFans page — each reads exactly as it
+// did; Fansly's six read `platform_unsupported` on every ChatSpace page of every hub, and no ChatSpace feature asks one.
 
 import {
   CLIENT_FEATURE_FLAG_NAMES,
@@ -35,8 +39,13 @@ import type { BootstrapPresetName } from './types';
 
 // ── the rule as it was on main before F4 (f5a360f) ─────────────────────────
 
+/** Fansly's own switches (contracts 1.15.0, P4b3): on an OnlyFans page none of them exists (hub HF-2). */
+const FANSLY_FLAGS = ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration'] as const satisfies readonly ClientFeatureFlag[];
+/** The switches ChatSpace had before F4 — and still the only ones an OnlyFans page has. */
+type ChatSpaceFlag = Exclude<ClientFeatureFlag, (typeof FANSLY_FLAGS)[number]>;
+
 /** `CLIENT_FLAG_REQUIREMENTS[flag].capabilities` of contracts/src/hub/routes.ts before F4, word for word. */
-const BEFORE_FLAG_CAPABILITIES: Readonly<Record<ClientFeatureFlag, readonly ClientHubCapability[]>> = {
+const BEFORE_FLAG_CAPABILITIES: Readonly<Record<ChatSpaceFlag, readonly ClientHubCapability[]>> = {
   insertion: [],
   navigation: [],
   wsTap: [],
@@ -55,11 +64,14 @@ const BEFORE_FLAG_CAPABILITIES: Readonly<Record<ClientFeatureFlag, readonly Clie
   previewSend: ['preview-send-custody-v1'],
 };
 
+/** ChatSpace's switches, in the vocabulary's order. */
+const CHATSPACE_FLAGS: readonly ChatSpaceFlag[] = CLIENT_FEATURE_FLAG_NAMES.filter((flag): flag is ChatSpaceFlag => flag in BEFORE_FLAG_CAPABILITIES);
+
 /** `FEATURE_FLAGS` of core/src/domain/ops/environment.ts before F4 (and `FEATURE_POLICIES[feature].flag`, its double). */
-const BEFORE_FEATURE_FLAGS: Readonly<Record<FeatureId, ClientFeatureFlag | null>> = { reply: null, fix: null, hi: null, ping: null, review: 'review', recap: 'recap', 'recap-short': 'recap', coach: 'coach' };
+const BEFORE_FEATURE_FLAGS: Readonly<Record<FeatureId, ChatSpaceFlag | null>> = { reply: null, fix: null, hi: null, ping: null, review: 'review', recap: 'recap', 'recap-short': 'recap', coach: 'coach' };
 
 /** `pageFlagState` of core/src/domain/ops/flags.ts before F4. */
-function before(bootstrap: Bootstrap, page: BootstrapPage | undefined, flag: ClientFeatureFlag): FlagState {
+function before(bootstrap: Bootstrap, page: BootstrapPage | undefined, flag: ChatSpaceFlag): FlagState {
   if (page === undefined) return { usable: false, reason: 'not_granted' };
   const feature = Object.prototype.hasOwnProperty.call(page.features, flag) ? page.features[flag] : undefined;
   if (feature === undefined) return { usable: false, reason: 'flag_off' };
@@ -114,9 +126,12 @@ describe('[R20-F4] the ChatSpace table of switches on today’s hub is the same 
     expect(HUBS.find((hub) => hub.name === 'pilot-on · as the preset · as the preset')?.bootstrap).toEqual(BOOTSTRAP_PILOT_ON);
     expect(HUBS.find((hub) => hub.name === 'all-off · as the preset · as the preset')?.bootstrap).toEqual(BOOTSTRAP_ALL_OFF);
     // The fake hub's rule is the hub's table: the client's old copy named the same capabilities, plus its own `context-v1`.
-    for (const flag of CLIENT_FEATURE_FLAG_NAMES) expect(BEFORE_FLAG_CAPABILITIES[flag].filter((capability) => !(flag === 'freshText' && capability === 'context-v1')), flag).toEqual(HUB_FEATURE_CAPABILITIES[flag]);
+    for (const flag of CHATSPACE_FLAGS) expect(BEFORE_FLAG_CAPABILITIES[flag].filter((capability) => !(flag === 'freshText' && capability === 'context-v1')), flag).toEqual(HUB_FEATURE_CAPABILITIES[flag]);
+    // The vocabulary is ChatSpace's sixteen and Fansly's six, and the hub's OnlyFans column names exactly the sixteen.
+    expect([...CHATSPACE_FLAGS, ...FANSLY_FLAGS].sort()).toEqual([...CLIENT_FEATURE_FLAG_NAMES].sort());
+    expect(Object.keys(HUB_FEATURE_CAPABILITIES).sort()).toEqual([...CHATSPACE_FLAGS].sort());
     // And the table is not trivially all-off or all-on: the hubs disagree with each other on every switch but X8's mark.
-    for (const flag of CLIENT_FEATURE_FLAG_NAMES) {
+    for (const flag of CHATSPACE_FLAGS) {
       const seen = new Set(HUBS.flatMap((hub) => hub.bootstrap.pages.map((page) => state(pageFlagState(page, flag)))));
       expect(seen.has('on') && seen.size > 1, `${flag}: ${[...seen].join(', ')}`).toBe(true);
     }
@@ -126,7 +141,7 @@ describe('[R20-F4] the ChatSpace table of switches on today’s hub is the same 
     let rows = 0;
     for (const { name, bootstrap } of HUBS) {
       for (const page of bootstrap.pages) {
-        for (const flag of CLIENT_FEATURE_FLAG_NAMES) {
+        for (const flag of CHATSPACE_FLAGS) {
           // Fresh text is the one switch the client adds a need of its own to; its row is the next test's.
           if (flag === 'freshText') continue;
           expect(pageFlagState(page, flag), `${name} · ${page.pageLabel} · ${flag}`).toEqual(before(bootstrap, page, flag));
@@ -135,7 +150,22 @@ describe('[R20-F4] the ChatSpace table of switches on today’s hub is the same 
         }
       }
     }
-    expect(rows).toBe(HUBS.length * FAKE_PAGES.length * (CLIENT_FEATURE_FLAG_NAMES.length - 1));
+    expect(rows).toBe(HUBS.length * FAKE_PAGES.length * (CHATSPACE_FLAGS.length - 1));
+  });
+
+  it('[R20-P4b3] Fansly’s own switches are not on a ChatSpace page in any hub, and no ChatSpace feature asks one', () => {
+    for (const { name, bootstrap } of HUBS) {
+      for (const page of bootstrap.pages) {
+        for (const flag of FANSLY_FLAGS) expect(pageFlagState(page, flag), `${name} · ${page.pageLabel} · ${flag}`).toEqual({ usable: false, reason: 'platform_unsupported' });
+      }
+    }
+    // Even an owner who writes them into the pilot pages' rows and into `"*"` switches nothing on there.
+    const eager = patchConfig(presetConfig('pilot-pages'), { flags: { drafts: true, voice: true }, ...pilotPageFlags({ drafts: true, voice: true, notesFill: true, notes: true, vault: true, registration: true }) });
+    for (const page of bootstrapOf(eager, FAKE_PAGES, chatter, NOW_MS).pages) {
+      for (const flag of FANSLY_FLAGS) expect(pageFlagState(page, flag).reason, `${page.pageLabel} · ${flag}`).toBe('platform_unsupported');
+    }
+    const asked = Object.values(CHATSPACE).flatMap((entry) => [entry.base, ...Object.values(entry.actions)].flatMap((requirement) => requirement.flags));
+    for (const flag of FANSLY_FLAGS) expect(asked, flag).not.toContain(flag);
   });
 
   it('fresh page text is admitted exactly where the old rule let it through: the page’s `freshText` and the client’s own `context-v1`', () => {
@@ -177,7 +207,7 @@ describe('[R20-F4] the ChatSpace table of switches on today’s hub is the same 
     const both = (a: FlagState, b: FlagState): FlagState => (a.usable ? b : a);
     for (const { name, bootstrap } of HUBS) {
       for (const page of bootstrap.pages) {
-        const was = (flag: ClientFeatureFlag): FlagState => before(bootstrap, page, flag);
+        const was = (flag: ChatSpaceFlag): FlagState => before(bootstrap, page, flag);
         const now = (id: string, action: 'generate' | 'insert' | 'send' | null): FlagState => admissionState(admission(CHATSPACE, id, action, onPage(bootstrap, page)));
         const where = `${name} · ${page.pageLabel}`;
         // The dock is copy-only by `insertion` alone, whatever a draft's generation reads.

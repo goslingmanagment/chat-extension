@@ -6,11 +6,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { FEATURE_IDS, type Bootstrap, type BootstrapPage } from '@cg/contracts';
+import { CLIENT_FEATURE_UNAVAILABLE_REASONS, FEATURE_IDS, type Bootstrap, type BootstrapPage } from '@cg/contracts';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
 import type { AdmissionAction } from '@cg/contracts/features/types';
 import { FEATURE_POLICIES, admission, dockChips, featureKeyOf, featurePresent, featureSlice, onPage, type FeatureAdmission } from '@cg/core/domain/features';
+import { flagRefusal, pageFlagState, somePageFlagState } from '@cg/core/domain/ops';
 import { BOOTSTRAP_PILOT_PAGES } from '@cg/testing/hub';
 
 import { FANSLY } from './support/features';
@@ -66,5 +67,37 @@ describe('[RU-001] [host:fansly] the feature policies on Fansly: the common part
     expect(chips.map((chip) => `${chip.group}:${chip.id}`)).toEqual(['reply:reply', 'draft:fix', 'openers:hi', 'openers:ping', 'analysis:review', 'analysis:recap', 'analysis:coach', 'windows:spenders', 'windows:newcomers']);
     // The manifest places 🎙 after Fix; it is drawn once its feature brings its words and its action.
     expect(FANSLY['voice']?.chip).toEqual({ group: 'draft', priority: 20, icon: null });
+  });
+});
+
+describe('[host:fansly] the voice lane’s `lane_off` (contracts 1.15.0, P4b3; hub HF-4б)', () => {
+  /** A Fansly page whose `voice` reads as the hub answers it: available (null), or unavailable for this reason. */
+  const voicePage = (pageId: number, reason: string | null): BootstrapPage => ({
+    ...fanslyPage([]).page,
+    pageId,
+    features: { voice: reason === null ? { available: true } : { available: false, reason } },
+  });
+  const over = (pages: readonly BootstrapPage[]): Bootstrap => ({ ...BOOTSTRAP_PILOT_PAGES, pages: [...pages] });
+
+  it('is a reason the client knows, and the page’s own: 🎙 is off on a page whose voice lane does not serve it', () => {
+    expect(CLIENT_FEATURE_UNAVAILABLE_REASONS).toContain('lane_off');
+    const page = voicePage(41, 'lane_off');
+    expect(pageFlagState(page, 'voice')).toEqual({ usable: false, reason: 'lane_off' });
+    for (const action of [null, 'generate', 'insert'] as const) {
+      expect(admission(FANSLY, 'voice', action, onPage(over([page]), page, { fileAttach: { state: 'on' } })), String(action)).toEqual({ state: 'off', reason: 'lane_off' });
+    }
+    // Until the voice's own PRs give it words of their own, a refusal reads «выключено», with the hub's word kept.
+    expect(flagRefusal({ reason: 'lane_off' })).toEqual({ code: 'CG-FEATURE-DISABLED', detail: 'lane_off' });
+  });
+
+  it('ranks after `hub_not_ready`: the lane is the hub’s last check, so a page whose lane is off got the furthest', () => {
+    const reasons = ['platform_unsupported', 'disabled', 'flag_off', 'binding_missing', 'hub_not_ready', 'lane_off'];
+    for (let i = 0; i < reasons.length; i += 1) {
+      const pages = reasons.slice(0, i + 1).map((reason, index) => voicePage(100 + index, reason));
+      for (const order of [pages, [...pages].reverse()]) expect(somePageFlagState(over(order), 'voice'), reasons[i]).toEqual({ usable: false, reason: reasons[i] });
+    }
+    // A page where it is usable wins over any reason; no page at all is `not_granted`.
+    expect(somePageFlagState(over([voicePage(1, 'lane_off'), voicePage(2, null)]), 'voice')).toEqual({ usable: true, reason: null });
+    expect(somePageFlagState(over([]), 'voice')).toEqual({ usable: false, reason: 'not_granted' });
   });
 });

@@ -23,7 +23,8 @@
 // FS-NEW-*) and its greeting send (`fansly.followers.send`, send-fansly.ts);
 // `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
 // `fansly.voice.*` — paid voice notes over the hub (HF-4, FS-VOI-*; the script
-// is the `voice-script` operation of the shared `op.start`);
+// is the site's `voice-script` operation, ops-fansly.ts, admitted by the shared
+// scheduler — its start is not a shared `StartOp`);
 // `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
 // через вкладку» (FS-NET-4, port `cg-relay`). A family's own PR (P10*, P11b,
 // P12b*, P13a, P9c) may add fields and types to it, additively.

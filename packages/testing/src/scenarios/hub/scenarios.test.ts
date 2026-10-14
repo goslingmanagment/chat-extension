@@ -27,7 +27,7 @@ import {
 } from '@cg/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { BOARD_TOTAL, BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_FEATURE_CAPABILITIES, PILOT_FLAGS_OFF } from './http';
+import { BOARD_TOTAL, BOOTSTRAP_ALL_OFF, BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_FEATURE_CAPABILITIES, PILOT_FLAGS_OFF, existsOnOnlyFans } from './http';
 import { readStreamScenario, resolveHubErrorReference, sseText } from './reference';
 import { SSE_SCENARIOS } from './sse';
 import { HUB_ROUTE_PATHS, type HttpExchange, type HttpScenario } from './types';
@@ -59,7 +59,7 @@ function usable(bootstrap: Bootstrap, page: BootstrapPage, flag: ClientFeatureFl
   return (
     isFlagOn(bootstrap.flags, flag) &&
     page.features[flag]?.available === true &&
-    HUB_FEATURE_CAPABILITIES[flag].every((capability) => hasCapability(bootstrap.capabilities, capability))
+    (HUB_FEATURE_CAPABILITIES[flag] ?? []).every((capability) => hasCapability(bootstrap.capabilities, capability))
   );
 }
 
@@ -166,7 +166,9 @@ describe('fake hub: HTTP scenarios', () => {
     const ofPages = BOOTSTRAP_PILOT_ON.pages.filter((page) => narrowPlatform(page.platform) === 'onlyfans');
     expect(ofPages.map((page) => page.pageLabel)).toEqual([WORLD.pages.one.pageLabel, WORLD.pages.vip.pageLabel]);
     for (const page of ofPages) {
-      for (const flag of CLIENT_FEATURE_FLAG_NAMES) expect(usable(BOOTSTRAP_PILOT_ON, page, flag), `${page.pageLabel} ${flag}`).toBe(!PILOT_FLAGS_OFF.includes(flag));
+      // Fansly's own switches (contracts 1.15.0, P4b3) are not on an OnlyFans page at all (hub HF-2).
+      for (const flag of CLIENT_FEATURE_FLAG_NAMES) expect(usable(BOOTSTRAP_PILOT_ON, page, flag), `${page.pageLabel} ${flag}`).toBe(existsOnOnlyFans(flag) && !PILOT_FLAGS_OFF.includes(flag));
+      for (const flag of ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration']) expect(page.features[flag], `${page.pageLabel} ${flag}`).toEqual({ available: false, reason: 'platform_unsupported' });
     }
     const fansly = BOOTSTRAP_PILOT_ON.pages.find((page) => page.platform === 'fansly');
     expect(fansly?.features['insertion']?.reason).toBe('platform_unsupported');

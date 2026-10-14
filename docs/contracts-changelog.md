@@ -534,6 +534,74 @@ ChatSpace не меняются.
   общий контроллер, политика второго сайта), `apps/extension/test/feature-slices.test.ts` (политика второго сайта не
   меняет ни байта ChatSpace).
 
+### P4b3 — операции сайта и флаги
+
+Операции среза Fansly и его флаги (`docs/project-unite/architecture.md` §1.4, §1.6, §8.8, §8.9, §11.1, §12; хаб HF-2,
+HF-3, HF-4а, HF-4б, HF-12 и `fan-notes-fill` — все выложены в `bd3eec06`, из которого вендорен SDK). Запросы, флаги и
+допуски ChatSpace не меняются: таблица флагов ChatSpace на нынешнем хабе та же (`flag-table.test.ts` держит свои
+шестнадцать флагов, как до F4).
+
+- **Флаги Fansly — в общем словаре.** `CLIENT_FEATURE_FLAG_NAMES` += `drafts`, `voice`, `notesFill`, `notes`, `vault`,
+  `registration` (порядок SDK). Где флаг есть, решает хаб (HF-2): на странице OnlyFans эти шесть читаются
+  `platform_unsupported`, строку `"*"` страница Fansly не наследует. `FANSLY_FLAGS_AHEAD` (F4) убран, файл манифеста Fansly
+  называет флаги из общего словаря; файл ChatSpace их назвать не может — его флаги `ChatSpaceFeatureFlag`, общий
+  словарь без этих шести (проверяет компилятор, фикстура F4 та же).
+- **Возможности** `manual-greeting-v1` (ручная группа приветствия, HF-3) и `voice-notes-v1` (маршруты войсов для узкого
+  токена, HF-4б) — в `CLIENT_HUB_CAPABILITY_NAMES`; это возможности bootstrap, не заголовка AI (`AI_STREAM_CAPABILITIES`
+  прежний). `CLIENT_FLAG_REQUIREMENTS` прежний (`{freshText: ['context-v1']}`): что хаб требует их для `newcomers` и
+  `voice` на Fansly, уже в функции страницы; маршрут войса назовёт `voice` и `voice-notes-v1` в `HUB_ROUTES`, когда его
+  вызовет слой хаба, а ручная группа спросит `manual-greeting-v1` нуждой своего запроса.
+- **Причина `lane_off`** — в `CLIENT_FEATURE_UNAVAILABLE_REASONS`. Её говорит только bootstrap, последней: линия хаба, на
+  которой живёт функция (войсы: выключатель, синтез, список страниц, голосовой профиль), страницу сейчас не обслуживает.
+  В `core/src/domain/ops/flags.ts` она стоит после `hub_not_ready` (`REASON_RANK`): «войсы этой страницы выключены на
+  линии» сообщает больше, чем «хаб не готов» на другой. Отказ по ней пока читается «выключено»
+  (`CG-FEATURE-DISABLED`, слово хаба — в технической строке); свои слова и 🎙 только при usable `voice` — PR панели войсов.
+- **Главный выключатель читается снова** (`core/src/domain/ops/flags.ts`, `pageBlanketReason`). Хаб с HF-2 (прод
+  `bd3eec06`) перечисляет на странице все флаги своего словаря и отвечает по флагу чужой платформы
+  `platform_unsupported` раньше главного выключателя: на странице OnlyFans шесть флагов Fansly — не `disabled`, и
+  клиент переставал видеть выключенный главный выключатель (`pageSwitchedOff`: строка «ChatGoose выключен владельцем»
+  в доке, отказ старта до запроса, отказ слоя хаба до потока) — оставался 409 хаба после клика. Общий ответ страницы
+  теперь читается только по функциям, которые есть на её платформе. Нашёл это поддельный хаб, который теперь
+  отвечает как хаб после HF-2 (ниже).
+- **Операции среза Fansly** (`SiteOpId` = `voice-script` | `notes-fill`, `OpFeature` = `FeatureId | SiteOpId` в
+  `features`; `SiteStartOp`, `SiteOpResult`, `AnyStartOp`, `AnyOpResult` в `ops`) — объединение только типами: общие
+  `FEATURE_IDS`, `HUB_FEATURE_MAP`, `StartOpSchema`, `OpViewSchema`, `OpResultSchema` прежние и операцию сайта не
+  принимают, бандл ChatSpace её не несёт. Рантайм — **новый модуль сайта `ops-fansly`** (только подпуть): `FANSLY_OPS`;
+  старт скрипта войса (`VoiceScriptStartSchema`: цель Fansly, действие человека, непустой черновик, тон пресета или
+  `null`, окно, `regenerateOf?`, `force?`) и «Заполнить из чата» (`NotesFillStartSchema`: только метки анкеты —
+  значения заметок вкладку не покидают, FS-NOTE-5, FX-015); результат (`voice-script` — непустой текст ≤ 5000, как
+  берёт `fansly.voice.create`; `note-fields` — каждая спрошенная метка один раз со значением в одну строку ≤ 2000 или
+  `''`); данные драйвера `FANSLY_OP_DRIVERS` — функция хаба (`voice-script`, `fan-notes-fill`), запись манифеста,
+  чей `generate` допускает операцию (`voice`, `notes-fill`: флаги страницы `voice`, `notesFill`), тип результата и
+  тайм-ауты §7 (скрипт — как черновик, заполнение — как полный Recap). Схемы модуля дают ровно типы `ops` (тест
+  проверяет в обе стороны). Сборка запроса и разбор ответа — код драйвера (P12a, P11c), не данные.
+- **Хаб, тело и запрос потока** (`hub/ai`): `HUB_AI_FEATURES` += `voice-script`, `fan-notes-fill`; `HUB_FEATURE_MAP`
+  прежний (это карта общих фич). Тело — `noteFields` (`NoteFieldsSchema`, `NoteFieldLabelSchema`, пределы
+  `NOTE_FILL_LIMITS` в `limits` — числа SDK): 1–30 меток, ≤ 60 символов, без перевода строки, `:`, `<`, `>`, `&`, без
+  повтора без учёта регистра; уходят обрезанными (хаб обрезает сам, поэтому метка с пробелом по краю у нас — отказ);
+  `noteValues` (режим слияния хаба) в теле нет. `HUB_FEATURE_ONLY_FIELDS`: `replyTone` и `draftText` — ещё и у
+  `voice-script`, `noteFields` — только у `fan-notes-fill`; свежий текст — по-прежнему только у четырёх черновиков.
+  `HubStreamRequestSchema` повторяет правила обработчика хаба для двух функций: только страница Fansly и с фаном
+  (`fanRef`), у скрипта — непустой черновик (`gate_draft_required`), у заполнения — метки.
+- **Поддельный хаб:** столбец OnlyFans его таблицы (`HUB_FEATURE_CAPABILITIES`) стал частичным, как у хаба после HF-2:
+  флаг, которого в столбце нет, на странице OnlyFans не существует — `platform_unsupported` раньше главного
+  выключателя (`existsOnOnlyFans`, `featureVerdict`, пресеты сценариев). Столбец Fansly, тела и правила обработчика для
+  двух функций — P6c1 и P6c4; тесты потока поддельного хаба перебирают функции общих фич.
+- Фикстуры (`test/fixtures/ops-fansly.ts`): метки анкеты (верные — до 30 меток по 60 символов, любые знаки кроме
+  пяти; неверные — пусто, 31, 61 символ, повтор без учёта регистра, `:`, перевод строки, U+2028, `<`, `&`, пробел по
+  краю, пустая и пробельная метка), старты (верные — скрипт с тоном и без, повтор, заполнение; неверные — цель
+  ChatSpace, без черновика и с пустым, чужой тон, пустые и негодные метки, значения заметок, чужие поля, окно вне
+  границ, общая фича, поле общего старта), результаты, тела и запросы (неверные — страница OnlyFans, без фана, без
+  черновика и с пробельным, без меток, метки у Reply, `noteValues`, тон и черновик у заполнения, свежий текст и
+  варианты у скрипта); `HubAiFeature`, `NoteFieldLabel`, `NoteFields`, `AiFeatureStreamBody`, `HubStreamRequest` в
+  `HUB_SCHEMA_FIXTURES`. Тесты: `packages/contracts/test/ops-fansly.test.ts`, `features.test.ts`, `hub.test.ts`,
+  `schemas.test.ts`, `packages/core/test/domain-admission-fansly.test.ts` (`lane_off`: допуск 🎙, ранг, отказ),
+  `packages/hub/test/stream.test.ts` (эхо промпта операции сайта), `packages/testing/src/fake-hub/{flag-table,config,
+  ai}.test.ts`, `packages/testing/src/scenarios/hub/scenarios.test.ts`, `sdk-alignment-fansly.test.ts` (словари флагов и
+  причин равны SDK, функции хаба — его `aiUsageFeatures`, пределы меток — его, метки и тела двух функций — по его схеме
+  тела).
+- Байты: BYTES_PLACEHOLDER
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

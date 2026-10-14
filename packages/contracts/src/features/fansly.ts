@@ -14,6 +14,11 @@
 // switch `drafts`; «Новые» come from a pass of the background, not from the
 // hub's `audience-new`, and a greeting leaves under `newcomers` alone — there
 // is no `previewSend` here.
+//
+// Fansly's own switches (`drafts`, `voice`, `notesFill`, `notes`, `vault`,
+// `registration`; HF-12, HF-4б, HF-2) are in the shared vocabulary since P4b3
+// (`CLIENT_FEATURE_FLAG_NAMES`); only Fansly's file names them. A page that
+// does not list one reads `flag_off`, as a switch set nowhere does.
 
 import type { FanslyCapability } from '../fansly';
 import type { HostCapability } from '../host';
@@ -23,12 +28,8 @@ import type { MountSurfaceKind } from '../vm/selectors';
 import type { SiteFeatures } from './common';
 import type { Requirement } from './types';
 
-/**
- * Switches of a Fansly page the hub ships with HF-12 and HF-2: named here ahead of `CLIENT_FEATURE_FLAG_NAMES`
- * (P4b3 moves them there). Until the hub lists one for a page it reads `flag_off`, as a switch set nowhere does.
- */
-export const FANSLY_FLAGS_AHEAD = ['drafts', 'voice', 'notes', 'notesFill', 'vault', 'registration'] as const;
-export type FanslyFeatureFlag = ClientFeatureFlag | (typeof FANSLY_FLAGS_AHEAD)[number];
+/** The switches a Fansly entry may name: the shared vocabulary (since P4b3 it has Fansly's own six). */
+export type FanslyFeatureFlag = ClientFeatureFlag;
 
 /** Surfaces only Fansly has, named ahead of `MOUNT_SURFACES` (the PRs of each panel add them): the slot in the chat's header and the three panels. */
 export const FANSLY_SURFACES_AHEAD = ['header-slot', 'voice', 'notes', 'vault'] as const;
