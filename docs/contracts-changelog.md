@@ -387,6 +387,30 @@ ChatSpace не меняются.
   `packages/testing/src/kit/profile.test.tsx` (монтирование), `apps/extension/test/feature-slices.test.ts` (профиль
   второго сайта не меняет ни байта ChatSpace).
 
+### F6b — чтения по разговору
+
+Не PR этапа 4, но в его открытую версию: чтения хаба по разговору ключуются по таблице
+`docs/project-unite/architecture.md` §11.1 (HF-10 хаба, выложен в `bd3eec06`, SDK — P2v). Рекап и лента — разговор и
+фан; карточка, досье, бронь и опека — только фан.
+
+- **Возможность `conversation-recaps-v1`** в `CLIENT_HUB_CAPABILITY_NAMES` (на проводе — открытая лексема, как
+  остальные). Хаб с ней принимает `conversationRef` в трёх местах; без неё — 400 на незнакомый ключ, поэтому слой хаба
+  шлёт поле только такому хабу, а без возможности чтение разговора, который не фан, отказывается у себя
+  (`CG-HUB-CAPABILITY`, запроса нет).
+- **Запросы к хабу:** `SharedRecapsQuery.conversationRef?`, `FeedQuery.conversationRef?`,
+  `ProfileFromGenerationRequest.conversationRef?` — разговор, когда это не фан (на Fansly — `groupId`); повторяют схемы
+  SDK (`clientConversationRefSchema` — тот же `^[1-9]\d{0,29}$`). Ответ ленты: `FeedPage.target.conversationRef?` —
+  хаб повторяет разговор запроса, нет поля — запрос его не называл. `DossierQuery` прежний (только фан).
+- **`CHAT_IS_FAN`** (`ids`): чат платформы — это её фан (OnlyFans: id чата = id фана) или у чата свой id (Fansly:
+  группа); та же таблица у хаба — `clientConversationsHaveOwnIds`. Фасад читает по ней досье: где чат — фан, как
+  прежде (`pageConversationProfile`), где нет — по фану (`pageFanProfile`): id фана там не называет разговора.
+- **Протокол вкладки:** `recap.status`, `recap.read`, `recap.save`, `feed.read` — `conversationRef?`, разговор фана,
+  когда это не сам фан. Нет поля — разговор = фан, как у ChatSpace до 1.15.0; ChatSpace его не ставит. `fan.card`,
+  `fan.dossier` и `newcomers.claim` — только фан (поле им — отказ схемы).
+- Фикстуры: верные — группа Fansly отдельно от фана в каждом из семи мест (`FANSLY_IDS`), неверные — разговор не id
+  (пустая строка, число, буквы, `'0'`), разговор у карточки и досье. Тесты: `packages/contracts/test/schemas.test.ts`,
+  `packages/contracts/test/protocols.test.ts`, `packages/contracts/test/vocabulary.test.ts` («R20 F6b»).
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

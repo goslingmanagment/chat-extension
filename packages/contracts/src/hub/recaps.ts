@@ -51,11 +51,16 @@ export type RecapStatus = z.infer<typeof RecapStatusSchema>;
 
 // ── H-13 shared recaps ─────────────────────────────────────────────────────
 
-/** Path `pageLabel` + `fanRef`, query `personaDefinitionId`. */
+/**
+ * Path `pageLabel` + `fanRef`, query `personaDefinitionId` and, 1.15.0 (R20 F6b, hub HF-10), `conversationRef`: the
+ * conversation apart from the fan (on Fansly the group). Only to a hub with `conversation-recaps-v1`, and only when
+ * the conversation is not the fan: absent, the recaps are the fan's own, as on ChatSpace before 1.15.0.
+ */
 export const SharedRecapsQuerySchema = z.strictObject({
   pageLabel: PageLabelSchema,
   fanRef: NativeIdSchema,
   personaDefinitionId: z.optional(PersonaDefinitionIdSchema),
+  conversationRef: z.optional(NativeIdSchema),
 });
 export type SharedRecapsQuery = z.infer<typeof SharedRecapsQuerySchema>;
 
@@ -91,6 +96,12 @@ export const ProfileFromGenerationRequestSchema = z.strictObject({
   generationRef: GenerationRefSchema,
   /** Tells "in flight" from "unknown" on the hub. */
   clientRequestId: z.optional(UuidSchema),
+  /**
+   * 1.15.0 (R20 F6b, hub HF-10): the conversation the generation was made in, when it is not the fan (on Fansly the
+   * group); the hub finds that conversation's generation of this fan. Only with `conversation-recaps-v1`. The dossier
+   * is still the fan's (the path).
+   */
+  conversationRef: z.optional(NativeIdSchema),
 });
 export type ProfileFromGenerationRequest = z.infer<typeof ProfileFromGenerationRequestSchema>;
 
@@ -119,6 +130,11 @@ export type ProfileSaveOutcome = z.infer<typeof ProfileSaveOutcomeSchema>;
 
 // ── Dossier read (`pageConversationProfile`, `pageFanProfile`) ─────────────
 
+/**
+ * The dossier is the fan's (R20 F6b, docs/project-unite/architecture.md §11.1): the query names the fan only. Where a
+ * chat is its fan (`CHAT_IS_FAN`, OnlyFans) the facade reads it by that conversation (`pageConversationProfile`), as
+ * always; elsewhere by the fan (`pageFanProfile`).
+ */
 export const DossierQuerySchema = z.strictObject({ pageLabel: PageLabelSchema, fanRef: NativeIdSchema });
 export type DossierQuery = z.infer<typeof DossierQuerySchema>;
 

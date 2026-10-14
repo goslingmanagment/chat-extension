@@ -25,13 +25,19 @@ export type FeedSender = (typeof FEED_SENDERS)[number];
 export const PING_SEGMENTS = ['active', 'segment-a', 'segment-b', 'unknown'] as const;
 export type PingSegment = (typeof PING_SEGMENTS)[number];
 
-/** Path `pageLabel` + `fanRef`; query `cursor`, `limit`, `summaryWindow`. A fanRef is the OF fan id (= chat id). */
+/**
+ * Path `pageLabel` + `fanRef`; query `cursor`, `limit`, `summaryWindow`. A fanRef is the OF fan id (= chat id).
+ * 1.15.0 (R20 F6b, hub HF-10): `conversationRef` — the conversation apart from the fan (on Fansly the group), only to
+ * a hub with `conversation-recaps-v1` and only when it is not the fan. The feed reads that conversation, and its
+ * cursor is bound to it: a walk keeps the conversation of its first page.
+ */
 export const FeedQuerySchema = z.strictObject({
   pageLabel: PageLabelSchema,
   fanRef: NativeIdSchema,
   cursor: z.optional(HubCursorSchema),
   limit: z.optional(z.int().check(z.gte(1), z.lte(FEED_LIMITS.maxLimit))),
   summaryWindow: z.optional(z.int().check(z.gte(FEED_LIMITS.summaryWindowMin), z.lte(FEED_LIMITS.summaryWindowMax))),
+  conversationRef: z.optional(NativeIdSchema),
 });
 export type FeedQuery = z.infer<typeof FeedQuerySchema>;
 
@@ -62,7 +68,8 @@ export const FeedSummarySchema = z.object({
 export type FeedSummary = z.infer<typeof FeedSummarySchema>;
 
 export const FeedPageSchema = z.object({
-  target: z.object({ pageLabel: z.string(), fanRef: NativeIdSchema }),
+  /** 1.15.0 (R20 F6b): `conversationRef` repeats the request's; absent when it named none. */
+  target: z.object({ pageLabel: z.string(), fanRef: NativeIdSchema, conversationRef: z.optional(NativeIdSchema) }),
   /** The reader that served the page, same switch as the generation: archive | union. */
   source: OpenTokenSchema,
   /** Opaque snapshot id; heads compare equal only on one snapshot. */

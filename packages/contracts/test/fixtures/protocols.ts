@@ -6,6 +6,7 @@ import type { FromMainType, TabEventType, TabRequestType, ToMainType } from '../
 import {
   ACTION_TOKEN,
   DIGEST,
+  FANSLY_IDS,
   IDS,
   ISO,
   T0,
@@ -66,6 +67,8 @@ const settingsState = { settings: DEFAULT_SETTINGS, revision: 3, readOnly: false
 const ack = { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] } as const;
 const empty = { valid: [{}], invalid: [{ extra: 1 }] } as const;
 const pageFan = { pageId: 11, fanRef: IDS.fan } as const;
+/** 1.15.0 (R20 F6b): a Fansly fan and the group of the read, apart from each other. */
+const fanslyPageGroup = { pageId: 13, fanRef: FANSLY_IDS.fan, conversationRef: FANSLY_IDS.group } as const;
 const sendListItem = { opId: uuid(2), purpose: 'greeting', group: sendBegin.group, partIndex: 0, view: { attemptId: uuid(5), state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }, updatedAt: T0 } as const;
 /** 1.11.0: what trips the X8 fuse, and the fuse the background keeps (decision X25). */
 const fuseFact = { attemptId: uuid(5), reason: 'text', where: 'echo', sentChars: 21, seenChars: 9 } as const;
@@ -245,11 +248,20 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: { valid: [{ fuse: null, resetAt: T0 + 60_000 }], invalid: [{ fuse: null, resetAt: 'now' }] },
   },
   'recap.status': {
-    req: { valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }], invalid: [pageFan] },
+    req: {
+      valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }, { ...fanslyPageGroup, personaDefinitionId: 'pdef_0123456789abcdef' }],
+      invalid: [pageFan, { ...fanslyPageGroup, conversationRef: '', personaDefinitionId: 'pdef_0123456789abcdef' }],
+    },
     res: dto(H.recapStatus, { ...H.recapStatus, extra: 1 }),
   },
   'recap.read': {
-    req: { valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }], invalid: [{ ...pageFan, fanRef: 2002, personaDefinitionId: 'pdef_0123456789abcdef' }] },
+    req: {
+      valid: [{ ...pageFan, personaDefinitionId: 'pdef_0123456789abcdef' }, { ...fanslyPageGroup, personaDefinitionId: 'pdef_0123456789abcdef' }],
+      invalid: [
+        { ...pageFan, fanRef: 2002, personaDefinitionId: 'pdef_0123456789abcdef' },
+        { ...fanslyPageGroup, conversationRef: Number(FANSLY_IDS.group), personaDefinitionId: 'pdef_0123456789abcdef' },
+      ],
+    },
     res: dto(H.sharedRecaps, { ...H.sharedRecaps, fullSavedToProfile: 'no' }),
   },
   'recap.save': {
@@ -257,8 +269,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
       valid: [
         { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200' },
         { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200', opId: '00000000-0000-4000-8000-000000000100' },
+        { ...fanslyPageGroup, generationRef: '00000000-0000-4000-8000-000000000200', opId: '00000000-0000-4000-8000-000000000100' },
       ],
-      invalid: [pageFan, { ...pageFan, generationRef: 'not-a-ref' }, { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200', text: 'never the recap text' }],
+      invalid: [
+        pageFan,
+        { ...pageFan, generationRef: 'not-a-ref' },
+        { ...pageFan, generationRef: '00000000-0000-4000-8000-000000000200', text: 'never the recap text' },
+        { ...fanslyPageGroup, conversationRef: 'group', generationRef: '00000000-0000-4000-8000-000000000200' },
+      ],
     },
     res: {
       valid: [{ state: 'saved', savedAt: '2026-10-03T10:00:00.000Z' }, { state: 'not-ready', savedAt: null }, { state: 'rejected', savedAt: null }],
@@ -279,17 +297,17 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'feed.read': {
     req: {
-      valid: [{ ...pageFan, cursor: null, limit: 50 }, { ...pageFan, cursor: null, limit: 50, summaryWindow: 200 }],
-      invalid: [{ ...pageFan, cursor: '', limit: 50 }, { ...pageFan, cursor: null, limit: 50, summaryWindow: 4 }],
+      valid: [{ ...pageFan, cursor: null, limit: 50 }, { ...pageFan, cursor: null, limit: 50, summaryWindow: 200 }, { ...fanslyPageGroup, cursor: 'c1', limit: 50 }],
+      invalid: [{ ...pageFan, cursor: '', limit: 50 }, { ...pageFan, cursor: null, limit: 50, summaryWindow: 4 }, { ...fanslyPageGroup, conversationRef: '0', cursor: null, limit: 50 }],
     },
     res: dto(H.feedPage, { ...H.feedPage, items: [{ ...H.feedItem, deleted: null }] }),
   },
   'fan.card': {
-    req: { valid: [{ ...pageFan, period: '30d' }], invalid: [pageFan, { ...pageFan, period: 'year' }] },
+    req: { valid: [{ ...pageFan, period: '30d' }], invalid: [pageFan, { ...pageFan, period: 'year' }, { ...fanslyPageGroup, period: '30d' }] },
     res: dto(H.spenderDetail, { ...H.spenderDetail, fan: null }),
   },
   'fan.dossier': {
-    req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
+    req: { valid: [pageFan], invalid: [{ pageId: 11 }, fanslyPageGroup] },
     res: { valid: [{ dossier: H.dossier }, { dossier: null }], invalid: [{}, { dossier: { ...H.dossier, fan: null } }] },
   },
   'newcomers.list': {

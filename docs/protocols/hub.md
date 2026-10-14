@@ -8,7 +8,7 @@
 
 | Модуль | Что внутри |
 |---|---|
-| `wire` | дата `YYYY-MM-DD`, `pageLabel`, курсор, тело ошибки хаба (`definitionId` и ключ персоны — в `primitives`, их делят настройки и запросы вкладки); известные значения открытых словарей (16 флагов, 12 возможностей, причины недоступности с `client_outdated`, возможности заголовка AI); `isFlagOn`, `hasCapability`, `narrowToken`; ключ привязки `onlymonster:<id>` |
+| `wire` | дата `YYYY-MM-DD`, `pageLabel`, курсор, тело ошибки хаба (`definitionId` и ключ персоны — в `primitives`, их делят настройки и запросы вкладки); известные значения открытых словарей (16 флагов, 13 возможностей — с 1.15.0 и `conversation-recaps-v1`, причины недоступности с `client_outdated`, возможности заголовка AI); `isFlagOn`, `hasCapability`, `narrowToken`; ключ привязки `onlymonster:<id>` |
 | `auth` | вход (`authIssueDeviceTokenWithPassword` + `client` из H-3 и его эхо), отзыв, `me`, `health` с `compatibleClientSdks` |
 | `bootstrap` | H-2a: страницы, привязки, флаги, пределы, возможности |
 | `ai` | каталог персон, карта наших фич в фичи хаба, тело и запрос потока (H-4b/H-4c), все кадры SSE, маркеры Split |
@@ -158,6 +158,26 @@
     `bd3eec06` (R20 P2v), он новее HF-3: тело Fansly сверяется с настоящей схемой
     хаба `clientFanClaim` в `packages/testing/src/scenarios/hub/sdk-alignment.test.ts`
     (переписанная в тест контракта копия схемы убрана).
+
+18. **1.15.0 (R20 F6b): чтения по разговору — HF-10 хаба.** На Fansly чат — группа со
+    своим id, и чтения «по разговору» ключуются по таблице
+    `docs/project-unite/architecture.md` §11.1. Рекапы (`clientConversationRecaps`),
+    сохранение досье из генерации (`clientFanProfileFromGeneration`) и лента
+    (`clientConversationFeed`) называют разговор отдельно от фана —
+    `conversationRef` (фан остаётся в пути). Поле уходит, только когда разговор не
+    фан (на ChatSpace его нет никогда: запросы ChatSpace байт в байт прежние, с
+    возможностью хаба и без неё), и только хабу с `conversation-recaps-v1`: тела и
+    query строгие, старый хаб ответил бы 400. Без возможности такое чтение отказано
+    слоем хаба (`CG-HUB-CAPABILITY`), запроса нет — ленту фана вместо ленты группы
+    клиент не читает. Ответ ленты, чей `target.conversationRef` не тот, что в
+    запросе, — нарушение контракта. Строка статуса (`aiRecapStatus`) всегда несла
+    `conversationRef`: теперь это разговор (на ChatSpace — по-прежнему фан).
+    Карточка (`spenderDetail`), досье, бронь и опека — фан: досье читается по
+    `CHAT_IS_FAN` платформы страницы — где чат и есть фан (OnlyFans), как прежде
+    (`pageConversationProfile`), иначе по фану (`pageFanProfile`), потому что id фана
+    там не называет разговора. На OnlyFans хаб принимает разговор, равный фану, и
+    отвечает тем же; другой — 409 `conversation_fan_mismatch` (`CG-CONTEXT-CHANGED`);
+    на Fansly без разговора — 400. Поддельный хаб повторяет эти правила.
 
 ## Флаги: решает страница
 

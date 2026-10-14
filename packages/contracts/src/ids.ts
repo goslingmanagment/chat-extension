@@ -43,6 +43,14 @@ export function narrowPlatform(token: string): Platform | null {
   return (KNOWN_PLATFORMS as readonly string[]).includes(token) ? (token as Platform) : null;
 }
 
+/**
+ * 1.15.0 (R20 F6b): whether a chat of the platform IS its fan — the chat id is the fan id (OnlyFans) — or has an id
+ * of its own (Fansly: a group). The hub keeps the same fact in one table (`clientConversationsHaveOwnIds`, HF-10);
+ * `Target` pins the OnlyFans equality. Where a chat is not its fan, the fan's id names no conversation: what is the
+ * fan's (the dossier, docs/project-unite/architecture.md §11.1) is read by the fan.
+ */
+export const CHAT_IS_FAN: Readonly<Record<Platform, boolean>> = { onlyfans: true, fansly: false };
+
 /** HOST_PLATFORM of hosts.ts, typed: every host serves a platform this client knows. */
 const PLATFORM_OF_HOST: Readonly<Record<HostKind, Platform>> = HOST_PLATFORM;
 
