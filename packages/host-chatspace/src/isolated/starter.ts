@@ -8,7 +8,8 @@
 // e2e harness starts it; ChatSpace's own draft key still comes through the
 // `drafts` port — the host never reads the page's storage itself (§4, §6.1).
 
-import { removeStaleHosts } from './mount';
+import { removeStaleHosts } from '@cg/host-kit/isolated/hosts';
+
 import { startChatSpaceHost, type StartChatSpaceHostOptions, type StartedChatSpaceHost } from './start';
 
 export type ChatSpaceStartEnv = Pick<StartChatSpaceHostOptions, 'win' | 'redeem' | 'validation' | 'drafts' | 'navInsertTimeoutMs' | 'onDiagnostic'>;

@@ -1,35 +1,12 @@
-// Literal copies of @cg/contracts constants and of the host contract
-// (isolated/host-contract.ts). MAIN must not import anything, so the values are
-// repeated here and pinned to their sources by protocol.test.ts.
+// ChatSpace's own literal copies of @cg/contracts constants and of the host
+// contract (isolated/host-contract.ts). MAIN must not import anything but the
+// shared page mechanics (@cg/host-kit: the boot and its own literals —
+// versions, tags, envelope kinds, transport errors — in its main/protocol.ts),
+// so the values are repeated here and pinned to their sources by
+// protocol.test.ts.
 
-export const PROTOCOL_VERSION = 1;
-/** contracts BRIDGE_TAG_KEY: the handshake message's key for its tag. */
-export const TAG_KEY = 'tag';
-export const TAG_MAIN_READY = 'main-ready';
-export const TAG_ISO_HELLO = 'iso-hello';
-export const TAG_CONNECT = 'connect';
-/** Page-visible names never name the extension (decision X22). */
-export const WS_TAP_KEY = 'wsTap';
-/** Symbol.for key of the boot's one-shot hook for a runtime from a later MAIN script (bridge.ts). */
-export const RUNTIME_KEY = 'mainRuntime';
-
-/** Envelope kinds (contracts BridgeRequestSchema / BridgeResponseSchema / BridgeEventSchema). */
-export const KIND_REQ = 'req';
-export const KIND_RES = 'res';
-export const KIND_EVT = 'evt';
-/** The event that carries a guarded failure's count (guard.ts; contracts FROM_MAIN.fault). */
-export const EVT_FAULT = 'fault';
 /** The event that trips the X8 fuse after a send (receipt.ts; contracts FROM_MAIN.previewSendFuse, decision X25). */
 export const EVT_FUSE = 'previewSendFuse';
-
-/** contracts BRIDGE_ERRORS. */
-export const ERR_UNKNOWN_REQUEST = 'unknown-request';
-export const ERR_BAD_REQUEST = 'bad-request';
-export const ERR_NOT_READY = 'not-ready';
-export const ERR_IDENTITY = 'identity-mismatch';
-export const ERR_STALE_DOCUMENT = 'stale-document';
-export const ERR_DISABLED = 'disabled';
-export const ERR_INTERNAL = 'internal';
 
 /**
  * Requests the live port answers (live.ts): the freshness checkpoint, the X8
@@ -39,9 +16,6 @@ export const ERR_INTERNAL = 'internal';
  * `held`, a checkpoint null, both flags read back as off.
  */
 export const LIVE_REQUESTS: readonly string[] = ['checkpoint', 'previewSendPreflight', 'previewSendCommit', 'flags'];
-
-/** contracts BRIDGE_WRITE_REQUESTS: deduplicated by request id. */
-export const WRITE_REQUESTS: readonly string[] = ['insertGuarded', 'navigate', 'previewSendCommit'];
 
 // ── Host contract (isolated/host-contract.ts) ───────────────────────────────────
 
@@ -87,17 +61,6 @@ export const PLATFORM = 'onlyfans';
 
 /** §6.1: after DOMContentLoaded every 100 ms until 15 s, then every 2 s until 60 s, then give up (CG-HOST-NOT-READY). */
 export const APP_SEARCH = { fastMs: 100, fastUntilMs: 15_000, slowMs: 2000, slowUntilMs: 60_000 } as const;
-/** §5.3: UI events at most 50 per second per type; extra ones coalesce (the latest wins). */
-export const UI_EVENT_GAP_MS = 20;
-/**
- * Events that carry a state: one equal to the last sent is not repeated. The
- * others (`accounts`, `chatCache`) are signals — «read again» — and always go out.
- */
-export const STATE_EVENTS: readonly string[] = ['route', 'composer', 'contract'];
-/** A hidden tab gets no animation frames: a timer stands in for «one frame». */
-export const FRAME_FALLBACK_MS = 100;
-/** Write results kept for deduplication by request id. */
-export const WRITE_MEMORY = 64;
 /** How long a composer without its editor yet is watched for TipTap (a narrow observer, never on body). */
 export const EDITOR_WATCH_MS = 15_000;
 

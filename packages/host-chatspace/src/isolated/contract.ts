@@ -25,7 +25,7 @@
 // stays off until it comes (CG-SEND-HOST, the anchor as the reason). A real
 // break of another send anchor is named first: opening a chat would not lift it.
 
-import type { AnchorId, CapabilityState, ChatSpaceContractReport, HostCapability, HostContractReport } from '@cg/contracts/host';
+import type { AnchorId, CapabilityState, ChatSpaceContractReport, HostCapability } from '@cg/contracts/host';
 
 import type { ReceiptMatch } from './receipt-profile';
 
@@ -163,9 +163,4 @@ export function buildContractReport(input: ContractInput): ChatSpaceContractRepo
     capabilities,
     ...(match ? { receiptMatch: { profile: match.profile, kind: match.kind } } : {}),
   };
-}
-
-/** The same report but for `checkedAt`: whether listeners must hear about it. */
-export function sameReport(a: HostContractReport, b: HostContractReport): boolean {
-  return JSON.stringify({ ...a, checkedAt: 0 }) === JSON.stringify({ ...b, checkedAt: 0 });
 }

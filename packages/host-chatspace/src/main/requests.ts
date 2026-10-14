@@ -2,7 +2,7 @@
 // by hand (check.ts). Kept apart from the envelope check so the boot bundle
 // carries none of them.
 
-import { count, int, is, isDigest, isId, isToken, isUuid, orNull, shape, type Check, type Plain } from './check';
+import { count, int, is, isDigest, isId, isToken, isUuid, orNull, shape, type Check, type Plain } from '@cg/host-kit/main/check';
 import { type Checkpoint } from './live';
 import { KNOWN_FAN_MESSAGES, MAX_PARTS, MAX_SNAPSHOT, MAX_STRING, MAX_VARIANTS, SEND_MAX_CHARS } from './protocol';
 

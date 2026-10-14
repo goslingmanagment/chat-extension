@@ -23,11 +23,13 @@
 // the editor watch, DOMContentLoaded — goes through the boot's `guard`
 // (guard.ts): a failure of ours never stops ChatSpace's own work.
 
-import { type MainContext, type MainRuntime } from './bridge';
-import { isPlain, type Plain } from './check';
-import { createComposers, digest, normalize, rejected, type Composer, type Composers, type Receipt } from './composer';
+import { type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
+import { isPlain, type Plain } from '@cg/host-kit/main/check';
+import { createComposers, rejected, type Composer, type Composers, type Receipt } from './composer';
+import { digest, normalize } from '@cg/host-kit/common/digest';
 import { type LiveHost, type LivePort, type WsTapHandle } from './live';
 import { chatRef, createReader, findApp, hasChatRoute, readRoute, type ActionListener, type App, type PageStore, type Reader, type Route } from './page';
+import { ERR_BAD_REQUEST, ERR_DISABLED, ERR_IDENTITY, ERR_NOT_READY, ERR_UNKNOWN_REQUEST, WS_TAP_KEY } from '@cg/host-kit/main/protocol';
 import {
   APP_SEARCH,
   CG_CANCELED,
@@ -37,11 +39,6 @@ import {
   CG_NAV_FAILED,
   CG_NAV_TIMEOUT,
   EDITOR_WATCH_MS,
-  ERR_BAD_REQUEST,
-  ERR_DISABLED,
-  ERR_IDENTITY,
-  ERR_NOT_READY,
-  ERR_UNKNOWN_REQUEST,
   KEY_ACCOUNTS,
   KEY_CHAT_LIST,
   KEY_FANS,
@@ -56,7 +53,6 @@ import {
   STORE_CACHE,
   STORE_QUEUE,
   STORE_TABS,
-  WS_TAP_KEY,
 } from './protocol';
 import { PAYLOAD, type Identity, type InsertWire, type NavigationWire } from './requests';
 import { QUEUE_SEND, queueShape } from './send-port';

@@ -1,7 +1,7 @@
-// Entry of the MAIN prototype bundle: the host-kit boot (the ChatSpace bridge, byte for byte, as P5 moves it)
+// Entry of the MAIN prototype bundle: the host-kit boot (the ChatSpace bridge, byte for byte, as P5 moved it)
 // with the Fansly runtime attached at once, so both Proxies stand before the first page script.
 
-import { installMainBridge } from '../../../host-chatspace/src/main/bridge';
+import { installMainBridge } from '../../../host-kit/src/main/bridge';
 import { createFanslyRuntime } from './runtime';
 
 declare const __SPIKE__: boolean;

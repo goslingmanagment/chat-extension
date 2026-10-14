@@ -1,10 +1,11 @@
 // Hand-written checks of the MAIN bridge (§5.3, D-06): MAIN carries no zod,
 // so it checks every request against the contracts' shapes by hand — exact
 // key sets, id and token formats, ranges. This file holds the building blocks
-// (the boot's envelope check is in bridge.ts, the runtime's payload checks in
-// requests.ts); protocol.test.ts runs the contracts fixtures
-// (BRIDGE_REQUEST_FIXTURES) through both. The builders are called with
-// `@__PURE__`, so a bundle that needs one check does not carry them all.
+// (the boot's envelope check is in bridge.ts, a host's payload checks in its
+// own MAIN package — ChatSpace: host-chatspace/src/main/requests.ts, whose
+// protocol.test.ts runs the contracts fixtures, BRIDGE_REQUEST_FIXTURES,
+// through them). The builders are called with `@__PURE__`, so a bundle that
+// needs one check does not carry them all.
 //
 // A shape is a tiny spec `{ key: check }` with exact keys; a key ending in
 // `?` is optional (absent, never undefined).

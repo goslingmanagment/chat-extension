@@ -9,7 +9,7 @@
 // (§6.7.11). `wsTap: false` is the «выключись» command of §6.8 п. 10.
 
 import { type LiveHost, type LivePort, type Tap } from './live';
-import { ERR_DISABLED } from './protocol';
+import { ERR_DISABLED } from '@cg/host-kit/main/protocol';
 import { createReceipts } from './receipt';
 import { type SendRequest } from './requests';
 import { createSendPort } from './send-port';

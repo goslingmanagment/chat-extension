@@ -12,8 +12,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { FakeSocket, fakeLive, fakeQueue, frames, scriptedFetch, type FakeQueue, type FetchCall } from '../testing/fake-live';
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakePage } from '../testing/fake-page';
-import { type MainContext, type MainRuntime } from './bridge';
-import { faultCounter, guardWith } from './guard';
+import { type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
+import { faultCounter, guardWith } from '@cg/host-kit/main/guard';
 import { createMainRuntime } from './runtime';
 import { installWsTap } from './ws-tap';
 

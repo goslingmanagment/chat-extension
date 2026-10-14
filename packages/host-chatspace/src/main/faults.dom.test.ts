@@ -6,7 +6,7 @@
 // side as a `fault` frame, counted by site at 1, 2, 4, 8….
 //
 // - The boot's own guards (its listeners, the frames and timers it lends, the
-//   event channel) are driven with a scripted runtime.
+//   event channel) are tested with the boot (@cg/host-kit, main/faults.dom.test.ts).
 // - The runtime runs on the real boot over the ChatSpace-shaped page
 //   (testing/fake-page.ts). Its context's `guard` is wrapped so that an armed
 //   site throws inside the callback before its body: a callback handed to the
@@ -16,12 +16,11 @@
 //   are: the very same value, and no fault of ours is counted for them.
 // The tap script's side is faults-tap.test.ts.
 
-import { BridgeEventSchema } from '@cg/contracts/bridge-messages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fakeQueue } from '../testing/fake-live';
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakePage } from '../testing/fake-page';
-import { installMainBridge, type MainBridgeHandle, type MainContext, type MainRuntime, type MainRuntimeFactory } from './bridge';
+import { installMainBridge, type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
 import { createMainRuntime } from './runtime';
 
 const ACC = '1001';
@@ -100,129 +99,6 @@ afterEach(() => {
   page = null;
   // Whatever a test did, nothing of ours reached the page.
   expect(seen).toEqual([]);
-});
-
-/** The boot with a scripted runtime, connected to a fake port. */
-function boot(runtime?: MainRuntimeFactory): { main: MainBridgeHandle; frames: Frame[]; port: ReturnType<typeof fakePort>['port']; deliver: (data: unknown, ports?: unknown[]) => void; context: () => MainContext } {
-  const { win, deliver } = pageWindow();
-  let context: MainContext | null = null;
-  const main = installMainBridge(win, {
-    runtime: (ctx) => {
-      context = ctx;
-      return runtime ? runtime(ctx) : { handle: () => null, dispose: () => undefined };
-    },
-  });
-  cleanups.push(() => main.dispose());
-  const { port, frames } = fakePort();
-  deliver({ tag: 'connect', v: 1, nonce: 'n1' }, [port]);
-  return { main, frames, port, deliver, context: () => context as unknown as MainContext };
-}
-
-const request = (id: number, t: string, payload: unknown = {}) => ({ data: { v: 1, kind: 'req', id, t, documentEpoch: null, seq: id, payload } });
-
-describe('[X22] the boot’s own guards: a failure of ours stays in MAIN and goes out as a `fault`', () => {
-  it('a timer, a frame and an event builder that throw: each is counted by site, nothing escapes', async () => {
-    const { frames, context } = boot();
-    const ctx = context();
-    ctx.setTimer(() => {
-      throw new Error('timer body');
-    }, 0);
-    ctx.frame(() => {
-      throw new Error('frame body');
-    });
-    ctx.emit('route', () => {
-      throw new Error('builder');
-    });
-    await settle(20);
-    expect(faultsOf(frames)).toEqual(expect.arrayContaining([['timer', 1], ['frame', 1], ['emit', 1]]));
-    // Every fault frame is what the isolated side accepts.
-    for (const frame of frames.filter((item) => item.t === 'fault')) expect(BridgeEventSchema.safeParse(frame).success).toBe(true);
-    // The channel still works: the next event of the type is built afresh.
-    ctx.emit('route', () => ({ ok: true }));
-    await settle(30);
-    expect(frames.some((frame) => frame.t === 'route')).toBe(true);
-  });
-
-  it('a site that keeps failing reports at 1, 2, 4, 8… — never once per call', async () => {
-    const { frames, context } = boot();
-    for (let i = 0; i < 9; i += 1) context().guard('route', () => {
-      throw new Error('again');
-    })();
-    await settle();
-    expect(faultsOf(frames)).toEqual([['route', 1], ['route', 2], ['route', 4], ['route', 8]]);
-  });
-
-  it('a runtime that throws on a request: the answer is `internal`, the failure a `handle` fault', async () => {
-    const { frames, port } = boot(() => ({
-      handle: () => {
-        throw new Error('runtime');
-      },
-      dispose: () => undefined,
-    }));
-    port.onmessage?.(request(1, 'listAccounts'));
-    await settle();
-    expect(frames.find((frame) => frame.kind === 'res')).toMatchObject({ id: 1, ok: false, err: 'internal' });
-    expect(faultsOf(frames)).toEqual([['handle', 1]]);
-  });
-
-  it('an answer the port cannot carry is dropped and counted (`send`); a port that fails drops its frames, never throws', async () => {
-    const { frames, port } = boot(() => ({ handle: () => ({ fn: () => 1 }), dispose: () => undefined }));
-    port.onmessage?.(request(1, 'listAccounts'));
-    await settle();
-    // structuredClone refused the function: no answer went, the failure did.
-    expect(frames.filter((frame) => frame.kind === 'res')).toEqual([]);
-    expect(faultsOf(frames)).toEqual([['send', 1]]);
-    port.broken = true;
-    port.onmessage?.(request(2, 'listAccounts'));
-    await settle();
-    port.broken = false;
-    // The report of the second failure (count 2) went to the same broken port and was dropped with it.
-    port.onmessage?.(request(3, 'listAccounts'));
-    await settle();
-    expect(faultsOf(frames)).toEqual([['send', 1], ['send', 4]]);
-  });
-
-  it('a message the browser hands over broken: the port listener and the handshake listener keep it', async () => {
-    const { frames, port } = boot();
-    port.onmessage?.({
-      get data(): unknown {
-        throw new Error('broken event');
-      },
-    });
-    await settle();
-    expect(faultsOf(frames)).toEqual([['port', 1]]);
-    // The handshake listener, before any port: a message whose data cannot be read.
-    const { win, deliver } = pageWindow();
-    const main = installMainBridge(win);
-    cleanups.push(() => main.dispose());
-    const hostile = new Proxy(
-      {},
-      {
-        get() {
-          throw new Error('hostile');
-        },
-      },
-    );
-    expect(() => deliver(hostile)).not.toThrow();
-    // It still connects afterwards.
-    const later = fakePort();
-    deliver({ tag: 'connect', v: 1, nonce: 'n2' }, [later.port]);
-    expect(main.isConnected()).toBe(true);
-  });
-
-  it('a runtime factory that throws leaves the boot without a runtime (not ready), never the page with an error', () => {
-    const { win } = pageWindow();
-    let main: MainBridgeHandle | null = null;
-    expect(() => {
-      main = installMainBridge(win, {
-        runtime: () => {
-          throw new Error('factory');
-        },
-      });
-    }).not.toThrow();
-    cleanups.push(() => (main)?.dispose());
-    expect((main as MainBridgeHandle | null)?.attach(() => ({ handle: () => null, dispose: () => undefined }))).toBe(true);
-  });
 });
 
 // ── The runtime over the ChatSpace-shaped page ─────────────────────────────

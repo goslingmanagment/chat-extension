@@ -70,22 +70,40 @@ const BANNED_GLOBAL_PROPERTIES = ['window', 'globalThis', 'self'].flatMap((objec
 );
 
 /**
- * §4 «host-chatspace не ходит в сеть»: the host code receives the page window
- * as a parameter (`win.fetch`), so network and storage are banned as a property
- * of ANY object there, not only of window/globalThis/self.
+ * §4 «host-chatspace не ходит в сеть», and the same for the shared mechanics of the page (host-kit): the host code
+ * receives the page window as a parameter (`win.fetch`), so network and storage are banned as a property of ANY
+ * object there, not only of window/globalThis/self.
  */
 const HOST_NETWORK = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon', 'localStorage', 'sessionStorage'];
 const hostNetworkProperties = (allow: readonly string[] = []) =>
   HOST_NETWORK.filter((property) => !allow.includes(property)).map((property) => ({
     property,
-    message: `\`.${property}\` is not allowed in host-chatspace: the host never goes to the network or page storage (§4, X3).`,
+    message: `\`.${property}\` is not allowed in a package of the page (host-chatspace, host-kit): the host never goes to the network or page storage (§4, X3).`,
   }));
 const hostBannedGlobals = (allow: readonly string[] = []) => [
   ...BANNED_GLOBALS.filter((global) => !allow.includes(global.name)),
   ...['EventSource', 'sessionStorage']
     .filter((name) => !allow.includes(name))
-    .map((name) => ({ name, message: `\`${name}\` is not allowed in host-chatspace (§4, X3).` })),
+    .map((name) => ({ name, message: `\`${name}\` is not allowed in a package of the page (host-chatspace, host-kit) (§4, X3).` })),
 ];
+
+/**
+ * Code that runs in the page's own world (§4, D-06; docs/project-unite/architecture.md §1.1): a self-contained
+ * bundle, so it imports only what `allowed` names — a regular expression source for the start of a specifier.
+ */
+const mainWorldRules = (allowed: string, message: string): Linter.RulesRecord => ({
+  'no-restricted-imports': ['error', { patterns: [{ regex: `^(?!${allowed})`, message }] }],
+  'no-restricted-globals': ['error', ...hostBannedGlobals()],
+  'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
+  // MAIN runs in the page's world: a promise of ours left to reject is the page's `unhandledrejection` (its Sentry
+  // reports it with our frames; decision X22). `void` does not count as handling one there: catch it, or hand it
+  // to a two-handler `then` whose handlers cannot throw. Callbacks the page calls go through `guard` (tools/gates).
+  '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+});
+/** What an isolated adapter of the page never imports (§4): the browser, the hub, the UI, the MAIN code next to it. */
+const ISOLATED_BANNED = flat(CG.platform, CG.hub, CG.ui, CG.testing, CG.extension, BROWSER_API, PREACT, SDK, NODE, '../main', '../main/*');
+/** Every site's own packages: the shared mechanics of the page know no site (docs/project-unite/architecture.md §1.1). */
+const SITE_PACKAGES = ['@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-fansly', '@cg/host-fansly/*', '@cg/fansly-api', '@cg/fansly-api/*'];
 
 /** The background is the only place that may use the hub facade and the SDK (§4, D-13). */
 const BACKGROUND_FILES = ['apps/extension/src/entrypoints/background.ts', 'apps/extension/src/composition/background.ts'];
@@ -208,25 +226,21 @@ export default defineConfig(
   {
     files: ['packages/host-chatspace/src/main/**/*.ts'],
     ignores: ['**/*.test.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^(?!\\./)',
-              message: 'The MAIN bridge is a self-contained bundle: only same-folder imports (§4).',
-            },
-          ],
-        },
-      ],
-      'no-restricted-globals': ['error', ...hostBannedGlobals()],
-      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
-      // MAIN runs in the page's world: a promise of ours left to reject is the page's `unhandledrejection` (its Sentry
-      // reports it with our frames; decision X22). `void` does not count as handling one there: catch it, or hand it
-      // to a two-handler `then` whose handlers cannot throw. Callbacks the page calls go through `guard` (tools/gates).
-      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
-    },
+    rules: mainWorldRules(
+      '\\./|@cg/host-kit/(?:main|common)/',
+      'The MAIN bridge is a self-contained bundle: only same-folder imports and the MAIN part of @cg/host-kit — its boot and what both worlds share (§4; docs/project-unite/architecture.md §1.1).',
+    ),
+  },
+  {
+    // The shared mechanics of the page (R20 P5): what a MAIN bundle of any site carries imports nothing at all.
+    files: ['packages/host-kit/src/main/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: mainWorldRules('\\./|\\.\\./common/', '`host-kit/main` — the MAIN boot of every site — is self-contained: only its own folder and host-kit/common (docs/project-unite/architecture.md §1.1).'),
+  },
+  {
+    files: ['packages/host-kit/src/common/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: mainWorldRules('\\./', '`host-kit/common` is what both worlds of the page share: the MAIN bundles carry it, so it imports nothing (docs/project-unite/architecture.md §1.1).'),
   },
   {
     files: [WS_TAP_FILE],
@@ -255,20 +269,27 @@ export default defineConfig(
           message: '`host-chatspace/isolated` may import only @cg/core/domain/text from core (§4).',
         },
         {
-        group: flat(
-          CG.platform,
-          CG.hub,
-          CG.ui,
-          CG.testing,
-          CG.extension,
-          BROWSER_API,
-          PREACT,
-          SDK,
-          NODE,
-          '../main',
-          '../main/*',
-        ),
-        message: '`host-chatspace/isolated` imports only @cg/contracts and @cg/core/domain/text; no token, no network (§4).',
+          group: ISOLATED_BANNED,
+          message: '`host-chatspace/isolated` imports only @cg/host-kit, @cg/contracts and @cg/core/domain/text; no token, no network (§4).',
+        },
+      ),
+      'no-restricted-globals': ['error', ...hostBannedGlobals()],
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
+    },
+  },
+  {
+    // The isolated half of the shared mechanics of the page (R20 P5): as the ChatSpace adapter it was moved out of —
+    // and no site's package.
+    files: ['packages/host-kit/src/isolated/**/*.ts'],
+    rules: {
+      ...restrict(
+        {
+          regex: '^@cg/core(/(domain|services|application))?$',
+          message: '`host-kit/isolated` may import only @cg/core/domain/text from core (docs/project-unite/architecture.md §1.1).',
+        },
+        {
+          group: flat(ISOLATED_BANNED, SITE_PACKAGES),
+          message: '`host-kit/isolated` imports only @cg/contracts and @cg/core/domain/text, and knows no site; no token, no network (docs/project-unite/architecture.md §1.1).',
         },
       ),
       'no-restricted-globals': ['error', ...hostBannedGlobals()],

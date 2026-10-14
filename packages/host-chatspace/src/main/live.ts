@@ -15,8 +15,8 @@
 // The page sees the handle too (MAIN is untrusted, §14): at worst it takes
 // the port first, and the bridge stays without one — the same as no tap.
 
-import { type Plain } from './check';
-import { type Guard } from './guard';
+import { type Plain } from '@cg/host-kit/main/check';
+import { type Guard } from '@cg/host-kit/main/guard';
 
 // Page objects are described with function-valued properties: they are
 // ChatSpace's, and we only ever call them on their own object.

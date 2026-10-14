@@ -79,7 +79,8 @@ ChatSpace (док, оверлеи, доски, хоткеи, звук, брон�
 | `packages/core` | вся логика без DOM, `browser.*` и сети: `domain` (чистые функции), `services` (службы фона), `application` (контроллеры вкладки и страниц) |
 | `packages/platform` | единственное место, где трогается `browser.*` |
 | `packages/hub` | слой хаба поверх вендоренного SDK; только в фоне |
-| `packages/host-chatspace` | мост в мире страницы ChatSpace и адаптер хоста |
+| `packages/host-kit` | общая механика страницы для любого сайта: загрузчик и мост MAIN, `guard`, клиент моста, наши закрытые хосты и слои, keep-bottom, щуп клавиш (R20 P5). Сайта не знает |
+| `packages/host-chatspace` | рантайм и тап ChatSpace в мире страницы и адаптер хоста поверх `host-kit` |
 | `packages/ui` | интерфейс на Preact: кит, док, оверлеи, доски, страницы |
 | `packages/testing` | стенд ChatSpace, поддельный хаб, e2e. В расширение не попадает |
 | `vendor/` | вендоренные `@kernel/sdk` и `@chatgoose/hotkeys` |

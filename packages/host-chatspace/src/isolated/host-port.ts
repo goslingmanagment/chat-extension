@@ -45,7 +45,8 @@ import { PREVIEW_SEND_CONDITION_CODES, sendFuseHolds, type PreviewSendConditionC
 import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
-import { buildContractReport, sameReport, type ContractWireInput } from './contract';
+import { buildContractReport, type ContractWireInput } from './contract';
+import { sameReport } from '@cg/host-kit/isolated/report';
 import { readStoredDraft, storedDraftAgrees, type DraftStorage } from './draft-store';
 import { ADAPTER_VERSION } from './host-contract';
 import type { MountManager } from './mount';

@@ -18,6 +18,7 @@ import {
   checkTabStorageListeners,
   checkUiTexts,
   deriveSdkMarkers,
+  HOST_KIT_MAIN_SOURCES,
   isMainWorldSource,
   ISOLATED_BUNDLES,
   MAIN_WORLD_BUNDLES,
@@ -124,7 +125,7 @@ describe('gate: send queue scope', () => {
   it('allows the method only in the MAIN send port', () => {
     const violations = checkSendQueueReferences([
       file(SEND_PORT_FILE, 'store.enqueue(item);'),
-      file('packages/host-chatspace/src/main/bridge.ts', "store['enqueue'](x); store.enqueue(y); // enqueue in a comment is fine"),
+      file('packages/host-chatspace/src/main/runtime.ts', "store['enqueue'](x); store.enqueue(y); // enqueue in a comment is fine"),
     ]);
     expect(violations).toHaveLength(2);
     expect(gates(violations)).toEqual(['send-queue-scope', 'send-queue-scope']);
@@ -361,9 +362,23 @@ describe('[X22] gate: MAIN-world guards', () => {
       ),
       // Another folder and tests are not MAIN.
       file('packages/host-chatspace/src/isolated/x.ts', 'store.$onAction(() => undefined);'),
+      file('packages/host-kit/src/isolated/x.ts', 'win.addEventListener("message", onWindowMessage, true);'),
       main('x.test', 'store.$onAction(() => undefined);'),
     ]);
     expect(violations).toEqual([]);
+  });
+
+  it('[host:chatspace] [host:fansly] the MAIN part of host-kit — the boot every site carries, and what both worlds share — is held to the same rule', () => {
+    const violations = checkMainWorldGuards([
+      file('packages/host-kit/src/main/x.ts', 'listen("message", onWindowMessage, true);\nport.onmessage = onPortMessage;'),
+      file('packages/host-kit/src/common/y.ts', 'queueMicrotask(flush);'),
+      file('packages/host-kit/src/main/ok.ts', "const onWindowMessage = guard('handshake', () => undefined);\nlisten('message', onWindowMessage, true);"),
+    ]);
+    expect(violations.map((violation) => [violation.path, violation.line])).toEqual([
+      ['packages/host-kit/src/main/x.ts', 1],
+      ['packages/host-kit/src/main/x.ts', 2],
+      ['packages/host-kit/src/common/y.ts', 1],
+    ]);
   });
 
   it('a `let` bound to a guard can be reassigned: it does not count', () => {
@@ -371,7 +386,11 @@ describe('[X22] gate: MAIN-world guards', () => {
   });
 
   it('the MAIN source of this repo is clean', () => {
-    expect(checkMainWorldGuards(readTree(`${REPO_ROOT}packages/host-chatspace/src/main`, (path) => path.endsWith('.ts')).map((entry) => ({ ...entry, path: `packages/host-chatspace/src/main/${entry.path}` })))).toEqual([]);
+    for (const dir of ['packages/host-chatspace/src/main', ...HOST_KIT_MAIN_SOURCES.map((source) => source.replace(/\/$/, ''))]) {
+      const files = readTree(`${REPO_ROOT}${dir}`, (path) => path.endsWith('.ts')).map((entry) => ({ ...entry, path: `${dir}/${entry.path}` }));
+      expect(files.length, dir).toBeGreaterThan(0);
+      expect(checkMainWorldGuards(files), dir).toEqual([]);
+    }
   });
 });
 
@@ -382,9 +401,18 @@ describe('gates: the sites’ bundles and MAIN-world sources come from the host 
   });
 
   it('the MAIN-world source is the top level of host-chatspace/src/main, not its subfolders or other packages', () => {
-    expect(isMainWorldSource('packages/host-chatspace/src/main/bridge.ts')).toBe(true);
+    expect(isMainWorldSource('packages/host-chatspace/src/main/runtime.ts')).toBe(true);
     expect(isMainWorldSource('packages/host-chatspace/src/main/sub/x.ts')).toBe(false);
     expect(isMainWorldSource('packages/host-chatspace/src/isolated/adapter.ts')).toBe(false);
-    expect(isMainWorldSource('packages/host-chatspace/src/main/bridge.ts', [])).toBe(false);
+    expect(isMainWorldSource('packages/host-chatspace/src/main/runtime.ts', [])).toBe(false);
+  });
+
+  it('…and the MAIN part of host-kit, whatever the registry lists: the boot and `common`, not the isolated mechanics', () => {
+    expect(HOST_KIT_MAIN_SOURCES).toEqual(['packages/host-kit/src/main/', 'packages/host-kit/src/common/']);
+    expect(isMainWorldSource('packages/host-kit/src/main/bridge.ts')).toBe(true);
+    expect(isMainWorldSource('packages/host-kit/src/main/bridge.ts', [])).toBe(true);
+    expect(isMainWorldSource('packages/host-kit/src/common/digest.ts', [])).toBe(true);
+    expect(isMainWorldSource('packages/host-kit/src/isolated/bridge-client.ts')).toBe(false);
+    expect(isMainWorldSource('packages/host-kit/src/main/sub/x.ts')).toBe(false);
   });
 });

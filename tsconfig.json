@@ -8,6 +8,7 @@
     { "path": "packages/platform" },
     { "path": "packages/hub" },
     { "path": "packages/hub/test" },
+    { "path": "packages/host-kit" },
     { "path": "packages/host-chatspace" },
     { "path": "packages/ui" },
     { "path": "packages/testing" },

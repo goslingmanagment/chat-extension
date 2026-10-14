@@ -38,7 +38,7 @@
 // hub's `dispatch`, the lease, the subscription the hub confirms (1–3, 9, 15)
 // — are checked before MAIN is asked.
 
-import { idOf, isPlain, type Plain } from './check';
+import { idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 import { type LiveHost, type PageStore, type Tap } from './live';
 import {
   CG_SEND_ACTIVE_CHAT,

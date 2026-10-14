@@ -1,6 +1,8 @@
-// The MAIN bridge boot (architecture.md §5.3, §11): a dependency-free bundle in
-// the page's own world at document_start. On install (≤ 1 ms) it only
-// captures natives, mints the document epoch and starts the handshake:
+// The MAIN bridge boot (architecture.md §5.3, §11), the same for every site
+// (R20 P5: moved here from host-chatspace byte for byte, docs/project-unite/
+// architecture.md §6): dependency-free code in the page's own world at
+// document_start. On install (≤ 1 ms) it only captures natives, mints the
+// document epoch and starts the handshake:
 // 1. MAIN posts {tag: 'main-ready', v} and listens for 'iso-hello';
 // 2. the isolated script posts 'iso-hello' and listens for 'main-ready';
 // 3. whoever comes second, the isolated side sends port2 with {tag: 'connect', v, nonce};
@@ -11,13 +13,17 @@
 // latest wins; an unchanged state — route, composer, contract — is not
 // repeated, a signal — accounts, chatCache — always goes out; freshness and
 // receipt events bypass the throttle). It answers `probe` itself;
-// everything else goes to the runtime (runtime.ts) once one is
-// attached — before that the answer is `not-ready`. The runtime reads and
-// writes ChatSpace and does nothing before DOMContentLoaded, so the work at
-// document_start stays the boot's (≤ 1 ms, §11). The extension ships both in
-// one bundle (`installMainBridge(win, { runtime: createMainRuntime })`,
-// ≤ 10 KiB, decision X11); a second MAIN script calling `attachMainRuntime()`
-// stays possible but unused.
+// everything else goes to the site's runtime (ChatSpace: host-chatspace/src/
+// main/runtime.ts) once one is attached — before that the answer is
+// `not-ready`. The runtime reads and writes the site and does nothing before
+// DOMContentLoaded, so the work at document_start stays the boot's (≤ 1 ms,
+// §11). The extension ships both in one bundle (ChatSpace:
+// `installMainBridge(win, { runtime: createMainRuntime })`, ≤ 10 KiB,
+// decision X11); a second MAIN script calling `attachMainRuntime()` stays
+// possible but unused.
+//
+// The write list, the state events and the tap's key it reads are still the
+// first host's registry by value (protocol.ts says why).
 //
 // The page sees all of this and can post anything on the port, so the
 // isolated side checks every frame from MAIN; MAIN checks every request by
@@ -27,7 +33,7 @@
 // listeners, the frames and timers it lends the runtime and the event channel
 // are guarded by construction — a builder, a `stringify` or a `postMessage`
 // that fails drops its frame and is counted — and the runtime gets the same
-// `guard` for the callbacks it hands ChatSpace. A count goes out as the
+// `guard` for the callbacks it hands the site. A count goes out as the
 // `fault` event (1, 2, 4, 8… per site).
 
 import { count, int, is, isPlain, isToken, orNull, shape, type Plain } from './check';
