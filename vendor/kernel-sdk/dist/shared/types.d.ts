@@ -71,7 +71,7 @@ export declare const creatableUserRoles: readonly ["owner", "team_lead", "chatte
 export type CreatableUserRole = (typeof creatableUserRoles)[number];
 export declare const fanFlagTypes: readonly ["whale", "vip", "risky"];
 export type FanFlagType = (typeof fanFlagTypes)[number];
-export declare const aiUsageFeatures: readonly ["fast-reply", "improve-draft", "help-me", "fan-summary", "chat-review", "scan", "ping", "hi-greeting", "coach-chat", "voice-script"];
+export declare const aiUsageFeatures: readonly ["fast-reply", "improve-draft", "help-me", "fan-summary", "chat-review", "scan", "ping", "hi-greeting", "coach-chat", "voice-script", "fan-notes-fill"];
 export type AiUsageFeature = (typeof aiUsageFeatures)[number];
 /** Ledger-only features: rows the hub writes for its own system lanes
  * (`user_id` NULL). They live in the DB enum `ai_usage_feature` but never on
@@ -79,7 +79,7 @@ export type AiUsageFeature = (typeof aiUsageFeatures)[number];
  * only {@link aiUsageFeatures}. `media-describe` is the AI media describer
  * (one background call per chat image, docs/runbooks/ai-media-describe.md). */
 export declare const aiUsageLedgerOnlyFeatures: readonly ["media-describe"];
-export declare const aiUsageLedgerFeatures: readonly ["fast-reply", "improve-draft", "help-me", "fan-summary", "chat-review", "scan", "ping", "hi-greeting", "coach-chat", "voice-script", "media-describe"];
+export declare const aiUsageLedgerFeatures: readonly ["fast-reply", "improve-draft", "help-me", "fan-summary", "chat-review", "scan", "ping", "hi-greeting", "coach-chat", "voice-script", "fan-notes-fill", "media-describe"];
 export type AiUsageLedgerFeature = (typeof aiUsageLedgerFeatures)[number];
 export declare const FANSLY_CLIENT_CHECK_ROUTES: readonly ["message", "group", "account", "earnings", "messagingGroups", "subscribers", "media"];
 export type FanslyClientCheckRoute = (typeof FANSLY_CLIENT_CHECK_ROUTES)[number];

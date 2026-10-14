@@ -319,7 +319,13 @@ export function subscribeSyncEvents(options, input) {
  * token yet behaves exactly as without it), and the SDK writes the header in
  * this order.
  */
-export const AI_STREAM_CAPABILITIES = ["debug-input-v1", "context-v1", "split-all-v1"];
+export const AI_STREAM_CAPABILITIES = [
+    "debug-input-v1", "context-v1", "split-all-v1",
+    // chat-extension R20 HF-8в: the `coverageCheck` answers in the context frame.
+    "coverage-check-v1",
+    // chat-extension R20 HF-5: Hi on Fansly is admitted by the body's `startProof`.
+    "hi-start-proof-v1",
+];
 /** The header value for `streamAiFeature`: the union of `capabilities` and
  * (`debugPromptEcho` → `debug-input-v1`), deduplicated, in the order of
  * AI_STREAM_CAPABILITIES, joined by ", ". Nothing to advertise → no header. */

@@ -140,8 +140,9 @@ export const BOOTSTRAP_PILOT_PAGES: Bootstrap = {
 };
 
 /**
- * The hub's `CLIENT_FEATURE_REQUIREMENTS[flag].capabilities` (hub apps/runtime/src/services/client-features.ts at
- * 6ee3d627, the commit production runs and the SDK is vendored from): what the hub must serve before it offers a
+ * The hub's `CLIENT_FEATURE_REQUIREMENTS[flag].onlyfans.capabilities` (hub apps/runtime/src/services/client-features.ts
+ * at bd3eec06, the commit production runs and the SDK is vendored from; the OnlyFans column is the same as at 6ee3d627,
+ * before R20 HF-2 made the table per platform): what the hub must serve before it offers a
  * flag on a page; without it the page's feature reads `hub_not_ready`. It is the HUB's rule — the client does not
  * carry this table (R20 F4: it reads the page's feature, and only its own transport needs on top,
  * `CLIENT_FLAG_REQUIREMENTS`). Fresh text needs `live-text-v1` here: `context-v1` is the client's own need (a

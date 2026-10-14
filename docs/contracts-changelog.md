@@ -322,6 +322,46 @@ ChatSpace не меняются.
   возможностями, метрика с чужими границами, вид сайта — платформа. Тесты: `packages/contracts/test/schemas.test.ts`,
   `packages/contracts/test/vocabulary.test.ts` («the host contract report by site», «client_health histograms»).
 
+### P2v — SDK из выложенного хаба `bd3eec06`
+
+`@kernel/sdk` перевендорен скриптом хаба `scripts/vendor-sdk.mjs` из `main` хаба `bd3eec06` (#607) — коммита, который
+стоит в проде с 2026-10-14 00:55 UTC (прод отдаёт контракт `9137410d…`); был `6ee3d627` (`03012453…`). Это «SDK для
+выпуска» (`docs/project-unite/plan.md` §0): коммит слит и выложен. Схемы, типы, сообщения, коды CG и ключи i18n
+`@cg/contracts` не менялись, версия та же. Хоткеи не перевендорены: их пакет с `0a96105d` не менялся.
+
+- **Что принёс SDK (всё добавочно, всё для Fansly; PR хаба R20 HF-2…HF-13 и `fan-notes-fill`):** в теле AI —
+  `coverageCheck`, `startProof`, `personalMessageCount`, `fanAvatarUrl`, `noteFields`, `noteValues`, `messageCount` до
+  5000; в кадре `context_v1` — `coverageCheck`, `live.matched`, `pair`; `conversationRef` в чтении рекапов, сохранении
+  досье из генерации и ленте (и в `target` ответа ленты); ручная группа `{kind: 'manual', textFingerprint}` в теле брони
+  и `limits.greetingSendPerMinute`; имена флагов (`drafts`, `voice`, `notesFill`, `notes`, `vault`, `registration`),
+  возможностей (`manual-greeting-v1`, `coverage-check-v1`, `conversation-recaps-v1`, `hi-start-proof-v1`,
+  `voice-notes-v1`) и причина `lane_off`; четыре метрики HF-13 в `CLIENT_HEALTH_PERF_METRICS`; операции войсов в узком
+  токене; `fan-notes-fill` в `aiUsageFeatures`.
+- **ChatSpace не меняется.** Ни одна операция, схема или поле, которые расширение вызывает или читает на ChatSpace, не
+  поменяли формы; типы собрались без правок. Свои списки имён (`CLIENT_FEATURE_FLAG_NAMES`,
+  `CLIENT_HUB_CAPABILITY_NAMES`, `CLIENT_FEATURE_UNAVAILABLE_REASONS`, `AI_STREAM_CAPABILITIES`) прежние — их расширяют
+  P4b1–P4b4; заголовок `x-kernel-ai-capabilities` строится из нашего `AI_STREAM_CAPABILITIES` (три имени), поэтому
+  `coverage-check-v1` и `hi-start-proof-v1` ChatSpace не объявляет. Правила обработчика хаба для тел ChatSpace те же
+  (`packages/testing/src/fake-hub/ai-rules.ts`): новые отказы касаются только полей и функций Fansly и придут с
+  поддельным хабом Fansly (P6c1, P6c2, P6c4). Столбец OnlyFans таблицы требований хаба (`HUB_FEATURE_CAPABILITIES`)
+  тот же.
+- **Тесты по настоящему SDK вместо переписанных чисел.** Тело брони Fansly (P4c) сверяется с настоящей схемой хаба
+  `clientFanClaim` в `packages/testing/src/scenarios/hub/sdk-alignment.test.ts`: копия схемы HF-3 из
+  `send-fansly.test.ts` убрана. Метрики HF-13 (F7): набор `PERF_METRICS` равен `CLIENT_HEALTH_PERF_METRICS` SDK, имя в
+  имя, с границами и версией; числа хаба из `vocabulary.test.ts` и приём `client_health` в
+  `packages/hub/test/ingest-and-guards.test.ts` больше не повторяются руками. Поддельный хаб с настоящей схемой тела
+  отказывает `messageCount` 5001 (граница хаба теперь 5000; наш контракт по-прежнему держит 3000 до P4b2).
+- **Байты.** Растёт только фон: ядро `background.js` 775 937 → 782 380 Б (+6 443 raw — схемы новых полей в
+  `routeSchemas` SDK, по которым он проверяет ответы); **запас ядра до сигнального порога 800 КиБ — 36 820 Б** (после
+  F7 был 43 263). `bg/chatspace.js` и остальные 45 файлов ChatSpace — байт в байт прежние (закрепы
+  `tools/gates/chatspace-bytes.json` переписаны `pnpm gates:bytes` только в строке `background.js`).
+- **Реестр замороженных SDK хаба.** Строки расширения в `client-sdk-registry.ts` нет ни для прежнего SDK, ни для нового.
+  Прежний хеш `03012453…` хаб держит в `compatibleClientSdks` только потому, что из того же `6ee3d627` вендорен SDK
+  Fansly-расширения 2.8.1 и 2.9.0 (тот же `dist`, но zod 4.4.3, у нас 4.6.5 — другой бандл); новый `9137410d…` прод
+  отдаёт как свой. Записать SDK расширения можно только вместе с полосой расширения в наборе совместимости хаба
+  (`tests/helpers/client-sdk-compat.ts`: «chat-extension has no lane on purpose… Register its SDK only together with
+  that lane») — это отдельный PR хаба.
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

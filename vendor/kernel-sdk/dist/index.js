@@ -18,8 +18,13 @@ export { KERNEL_CONTRACT_HASH, KERNEL_SDK_VERSION } from "./meta";
 export { CLIENT_COVERAGE_LEVELS, CLIENT_FEATURE_FLAG_NAMES, CLIENT_FEATURE_UNAVAILABLE_REASONS, CLIENT_GENERATION_NOT_ELIGIBLE_REASONS, CLIENT_HUB_CAPABILITY_NAMES, CLIENT_KNOWN_PLATFORMS, CLIENT_KNOWN_ROLES, CLIENT_NUMERIC_ID_PATTERN, CLIENT_RECAP_TRANSCRIPT_COVERAGES, } from "./contracts/index";
 // The AI context frame's known values (routes.ts, `context_v1`): its open
 // tokens narrow to these, and `knownFanMessageIds` takes at most the MAX.
+// AI_COVERAGE_CHECK_*: the caps and answers of the body's `coverageCheck`.
+// AI_START_PROOF_*: the caps of the body's `startProof` (Hi on Fansly);
+// AI_HI_GREETING_REFUSAL_REASONS: the reasons of its gate's refusal.
 // AI_LIVE_TEXT_*: the caps of the body's `liveTextContext` (fresh text).
-export { AI_CONTEXT_LIVE_STATUSES, AI_CONTEXT_SOURCES, AI_FAN_LANGUAGE_EVIDENCE, AI_KNOWN_FAN_MESSAGE_IDS_MAX, AI_KNOWN_FAN_MESSAGE_STATES, AI_LIVE_TEXT_MAX_CHARS, AI_LIVE_TEXT_MAX_ITEMS, } from "./contracts/index";
+// AI_NOTE_FIELD*: the caps of the body's `noteFields` (fan-notes-fill);
+// AI_NOTE_VALUE_MAX_CHARS: the cap of each of its `noteValues`.
+export { AI_CONTEXT_LIVE_STATUSES, AI_CONTEXT_PAIR_STATES, AI_CONTEXT_SOURCES, AI_COVERAGE_CHECK_DELETED_MAX, AI_COVERAGE_CHECK_DELETED_STATES, AI_COVERAGE_CHECK_DIRECTIONS, AI_COVERAGE_CHECK_WINDOW_MAX, AI_COVERAGE_CHECK_WINDOW_STATES, AI_FAN_LANGUAGE_EVIDENCE, AI_HI_GREETING_REFUSAL_REASONS, AI_KNOWN_FAN_MESSAGE_IDS_MAX, AI_KNOWN_FAN_MESSAGE_STATES, AI_LIVE_TEXT_MAX_CHARS, AI_LIVE_TEXT_MAX_ITEMS, AI_NOTE_FIELD_LABEL_MAX_CHARS, AI_NOTE_FIELDS_MAX, AI_NOTE_VALUE_MAX_CHARS, AI_START_PROOF_AUTOMATED_IDS_MAX, AI_START_PROOF_PASS_PERSONAL_WINDOW, AI_START_PROOF_SOURCES, } from "./contracts/index";
 // The chat extension's health report (routes-client.ts). No route carries it:
 // it rides one ingest batch of its own once the bootstrap lists
 // client-health-perf-v1, and its histograms use these fixed bucket bounds.
@@ -39,8 +44,9 @@ export { CLIENT_FEED_DEFAULT_LIMIT, CLIENT_FEED_MAX_LIMIT, CLIENT_FEED_PING_SEGM
 // The greeting lease and send custody (routes-client.ts, clientFanClaim): the
 // states of its three automata, closed on the wire, and the known values of
 // its open tokens (the greeting's source; the purpose and state of a
-// resolved send).
-export { CLIENT_CLAIM_ACTIONS, CLIENT_CLAIM_MAX_PARTS, CLIENT_CLAIM_MAX_VARIANTS, CLIENT_CUSTODY_STATES, CLIENT_GREETING_SOURCES, CLIENT_GREETING_STATES, CLIENT_LEASE_HOLDERS, CLIENT_LEASE_STATES, CLIENT_SEND_FAILURE_REASONS, CLIENT_SEND_PURPOSES, } from "./contracts/index";
+// resolved send); a manual group's fingerprint and how its ref reads
+// (manual-greeting-v1).
+export { CLIENT_CLAIM_ACTIONS, CLIENT_CLAIM_MAX_PARTS, CLIENT_CLAIM_MAX_VARIANTS, CLIENT_CUSTODY_STATES, CLIENT_GREETING_SOURCES, CLIENT_GREETING_STATES, CLIENT_LEASE_HOLDERS, CLIENT_LEASE_STATES, CLIENT_MANUAL_GROUP_REF_PREFIX, CLIENT_SEND_FAILURE_REASONS, CLIENT_SEND_PURPOSES, CLIENT_TEXT_FINGERPRINT_PATTERN, } from "./contracts/index";
 // The "new subscribers" list (routes-client.ts, clientAudienceNew): its
 // limits and the known values of its open tokens and refusal reasons.
 export { CLIENT_AUDIENCE_NEW_COVERAGE_REASONS, CLIENT_AUDIENCE_NEW_DEFAULT_LIMIT, CLIENT_AUDIENCE_NEW_DEFAULT_WINDOW_HOURS, CLIENT_AUDIENCE_NEW_KINDS, CLIENT_AUDIENCE_NEW_MAX_LIMIT, CLIENT_AUDIENCE_NEW_MAX_WINDOW_HOURS, CLIENT_AUDIENCE_NEW_REFUSAL_REASONS, CLIENT_AUDIENCE_NEW_STATUS_SOURCES, CLIENT_AUDIENCE_NEW_SUBSCRIBED_AT_SOURCES, CLIENT_AUDIENCE_NEW_SUBSCRIPTION_STATUSES, } from "./contracts/index";

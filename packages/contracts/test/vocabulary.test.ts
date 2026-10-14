@@ -254,15 +254,10 @@ describe('client_health histograms', () => {
     }
   });
 
-  it('[R20 F7] names Fansly\'s four of HF-13 with the hub\'s own bounds (hub #577, CLIENT_HEALTH_PERF_METRICS)', () => {
-    // The hub's registry as merged in f8aa7209a; the vendored SDK carries it from the re-vendor after (P2v), and
-    // packages/testing's sdk-alignment test then holds every metric to the SDK's own table.
-    expect(Object.fromEntries(['frameParseMs', 'xhrParseMs', 'snapshotMs', 'snapshotRoundTripMs'].map((metric) => [metric, C.PERF_METRICS[metric as C.PerfMetric]]))).toEqual({
-      frameParseMs: { schemaVersion: 1, bounds: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100] },
-      xhrParseMs: { schemaVersion: 1, bounds: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100] },
-      snapshotMs: { schemaVersion: 1, bounds: [0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 8, 16, 32, 50, 100, 250] },
-      snapshotRoundTripMs: { schemaVersion: 1, bounds: [1, 2, 5, 8, 16, 32, 50, 75, 100, 150, 250, 500, 1000, 2500, 5000] },
-    });
+  it('[R20 F7] names Fansly\'s four of HF-13; each budget is an edge of its buckets', () => {
+    // Their bounds are the hub's (hub #577, `CLIENT_HEALTH_PERF_METRICS`): since the SDK is vendored past it (R20 P2v),
+    // packages/testing's sdk-alignment test holds every metric of ours to the vendored SDK's table, these four included.
+    for (const metric of ['frameParseMs', 'xhrParseMs', 'snapshotMs', 'snapshotRoundTripMs']) expect(C.PERF_METRIC_NAMES).toContain(metric);
     // Each budget is an edge (architecture §8.13): 0.1 ms a frame, 2 ms a response, 5 ms the snapshot's step.
     expect(C.PERF_METRICS.frameParseMs.bounds).toContain(0.1);
     expect(C.PERF_METRICS.xhrParseMs.bounds).toContain(2);

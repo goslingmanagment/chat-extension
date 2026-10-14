@@ -833,6 +833,7 @@ export declare const voiceNoteParamsSchema: z.ZodObject<{
 export declare const voiceNoteCreateBodySchema: z.ZodObject<{
     clientRequestId: z.ZodString;
     conversationRef: z.ZodString;
+    fanRef: z.ZodOptional<z.ZodString>;
     sourceGenerationRef: z.ZodString;
     script: z.ZodString;
 }, z.core.$strip>;
@@ -3426,6 +3427,7 @@ export declare const aiUsageEventInputSchema: z.ZodObject<{
         "hi-greeting": "hi-greeting";
         "coach-chat": "coach-chat";
         "voice-script": "voice-script";
+        "fan-notes-fill": "fan-notes-fill";
     }>;
     model: z.ZodString;
     inputTokens: z.ZodNumber;
@@ -3452,6 +3454,7 @@ export declare const aiUsageBatchBodySchema: z.ZodObject<{
             "hi-greeting": "hi-greeting";
             "coach-chat": "coach-chat";
             "voice-script": "voice-script";
+            "fan-notes-fill": "fan-notes-fill";
         }>;
         model: z.ZodString;
         inputTokens: z.ZodNumber;
@@ -3585,6 +3588,7 @@ export declare const aiGatewayStreamBodySchema: z.ZodObject<{
         "hi-greeting": "hi-greeting";
         "coach-chat": "coach-chat";
         "voice-script": "voice-script";
+        "fan-notes-fill": "fan-notes-fill";
     }>;
     pageLabel: z.ZodString;
     platform: z.ZodEnum<{
@@ -3664,6 +3668,7 @@ export declare const aiGatewayStreamFrameSchema: z.ZodDiscriminatedUnion<[z.ZodO
         "hi-greeting": "hi-greeting";
         "coach-chat": "coach-chat";
         "voice-script": "voice-script";
+        "fan-notes-fill": "fan-notes-fill";
     }>;
     pageLabel: z.ZodString;
     model: z.ZodString;
@@ -3723,6 +3728,20 @@ export declare const AI_CONTEXT_SOURCES: readonly ["archive", "union", "live_uni
 export declare const AI_KNOWN_FAN_MESSAGE_STATES: readonly ["included", "absent", "deleted", "unknown"];
 export declare const AI_CONTEXT_LIVE_STATUSES: readonly ["not_sent", "disabled", "shadow", "served", "rejected"];
 export declare const AI_FAN_LANGUAGE_EVIDENCE: readonly ["latin", "cyrillic", "mixed", "unknown"];
+/** chat-extension R20 HF-9: the frame's `pair`. A pair the hub knows to be
+ *  another fan's chat is never served: the request is refused with 409
+ *  `conversation_fan_mismatch` before any context loads. */
+export declare const AI_CONTEXT_PAIR_STATES: readonly ["verified", "unverified"];
+/** How many ids `coverageCheck.window` may name. */
+export declare const AI_COVERAGE_CHECK_WINDOW_MAX = 60;
+/** How many ids `coverageCheck.deletedIds` may name. */
+export declare const AI_COVERAGE_CHECK_DELETED_MAX = 60;
+/** Who sent a message of `coverageCheck.window`, as the tab saw it. */
+export declare const AI_COVERAGE_CHECK_DIRECTIONS: readonly ["fan", "model"];
+/** The answers to an id of `coverageCheck.window`. */
+export declare const AI_COVERAGE_CHECK_WINDOW_STATES: readonly ["included", "direction_mismatch", "outside_window", "deleted", "absent", "unknown"];
+/** The answers to an id of `coverageCheck.deletedIds`. */
+export declare const AI_COVERAGE_CHECK_DELETED_STATES: readonly ["deleted", "still_served", "absent", "unknown"];
 export declare const aiFeatureContextFrameSchema: z.ZodObject<{
     type: z.ZodLiteral<"context_v1">;
     generationRef: z.ZodString;
@@ -3746,12 +3765,24 @@ export declare const aiFeatureContextFrameSchema: z.ZodObject<{
         id: z.ZodString;
         state: z.ZodString;
     }, z.core.$strip>>>;
+    coverageCheck: z.ZodOptional<z.ZodObject<{
+        window: z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            state: z.ZodString;
+        }, z.core.$strip>>;
+        deleted: z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            state: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
     live: z.ZodObject<{
         status: z.ZodString;
         accepted: z.ZodNumber;
         rejected: z.ZodNumber;
+        matched: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strip>;
     fanLanguageEvidence: z.ZodOptional<z.ZodString>;
+    pair: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export declare const aiFeatureStreamFrameSchema: z.ZodUnion<readonly [z.ZodDiscriminatedUnion<[z.ZodObject<{
     type: z.ZodLiteral<"meta">;
@@ -3768,6 +3799,7 @@ export declare const aiFeatureStreamFrameSchema: z.ZodUnion<readonly [z.ZodDiscr
         "hi-greeting": "hi-greeting";
         "coach-chat": "coach-chat";
         "voice-script": "voice-script";
+        "fan-notes-fill": "fan-notes-fill";
     }>;
     pageLabel: z.ZodString;
     model: z.ZodString;
@@ -3864,12 +3896,24 @@ export declare const aiFeatureStreamFrameSchema: z.ZodUnion<readonly [z.ZodDiscr
         id: z.ZodString;
         state: z.ZodString;
     }, z.core.$strip>>>;
+    coverageCheck: z.ZodOptional<z.ZodObject<{
+        window: z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            state: z.ZodString;
+        }, z.core.$strip>>;
+        deleted: z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            state: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
     live: z.ZodObject<{
         status: z.ZodString;
         accepted: z.ZodNumber;
         rejected: z.ZodNumber;
+        matched: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strip>;
     fanLanguageEvidence: z.ZodOptional<z.ZodString>;
+    pair: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>]>;
 export declare const aiPersonaSchema: z.ZodObject<{
     key: z.ZodString;
@@ -3997,6 +4041,13 @@ export declare const AI_FEATURE_STREAM_BODY_LIMIT_BYTES: number;
 export declare const AI_LIVE_TEXT_MAX_ITEMS = 60;
 /** Per item, in UTF-16 code units. */
 export declare const AI_LIVE_TEXT_MAX_CHARS = 5000;
+export declare const AI_NOTE_FIELDS_MAX = 30;
+/** Per label, after trimming, in UTF-16 code units. */
+export declare const AI_NOTE_FIELD_LABEL_MAX_CHARS = 60;
+export declare const aiNoteFieldsSchema: z.ZodArray<z.ZodString>;
+/** Per value, after trimming, in UTF-16 code units. */
+export declare const AI_NOTE_VALUE_MAX_CHARS = 2000;
+export declare const aiNoteValuesSchema: z.ZodArray<z.ZodString>;
 export declare const aiLiveTextContextSchema: z.ZodObject<{
     capturedAt: z.ZodString;
     items: z.ZodArray<z.ZodObject<{
@@ -4008,6 +4059,39 @@ export declare const aiLiveTextContextSchema: z.ZodObject<{
         occurredAt: z.ZodString;
         text: z.ZodString;
     }, z.core.$strict>>;
+}, z.core.$strict>;
+export declare const aiCoverageCheckSchema: z.ZodObject<{
+    window: z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        dir: z.ZodEnum<{
+            fan: "fan";
+            model: "model";
+        }>;
+    }, z.core.$strict>>;
+    deletedIds: z.ZodArray<z.ZodString>;
+}, z.core.$strict>;
+/** Who proved the start. */
+export declare const AI_START_PROOF_SOURCES: readonly ["tab-short-page", "pass-empty-page"];
+/** How many ids `startProof.automatedIds` may name: the newest ones. */
+export declare const AI_START_PROOF_AUTOMATED_IDS_MAX = 120;
+/** A pass counts personal messages among the last 30 of the history it walked. */
+export declare const AI_START_PROOF_PASS_PERSONAL_WINDOW = 30;
+/** `reason` of a `gate_hi_greeting_limit` refusal on the start-proof lane:
+ *  `history_unproven` (no proof, or one the hub's history contradicts) and
+ *  `too_many_personal` (the proof counts more personal messages than Hi
+ *  allows). Open on the wire: a client reads an unknown reason as a refusal. */
+export declare const AI_HI_GREETING_REFUSAL_REASONS: readonly ["history_unproven", "too_many_personal"];
+export declare const aiStartProofV1Schema: z.ZodObject<{
+    v: z.ZodLiteral<1>;
+    source: z.ZodEnum<{
+        "tab-short-page": "tab-short-page";
+        "pass-empty-page": "pass-empty-page";
+    }>;
+    groupId: z.ZodString;
+    startWitnessId: z.ZodNullable<z.ZodString>;
+    coveredCount: z.ZodNumber;
+    personalCount: z.ZodNumber;
+    automatedIds: z.ZodArray<z.ZodString>;
 }, z.core.$strict>;
 export declare const aiFeatureStreamBodySchema: z.ZodObject<{
     clientRequestId: z.ZodString;
@@ -4051,7 +4135,33 @@ export declare const aiFeatureStreamBodySchema: z.ZodObject<{
     summaryMode: z.ZodOptional<z.ZodLiteral<"short">>;
     variantCount: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<1>, z.ZodLiteral<3>]>>;
     greetingMode: z.ZodOptional<z.ZodLiteral<"new-follower">>;
+    noteFields: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    noteValues: z.ZodOptional<z.ZodArray<z.ZodString>>;
     knownFanMessageIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    coverageCheck: z.ZodOptional<z.ZodObject<{
+        window: z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            dir: z.ZodEnum<{
+                fan: "fan";
+                model: "model";
+            }>;
+        }, z.core.$strict>>;
+        deletedIds: z.ZodArray<z.ZodString>;
+    }, z.core.$strict>>;
+    startProof: z.ZodOptional<z.ZodObject<{
+        v: z.ZodLiteral<1>;
+        source: z.ZodEnum<{
+            "tab-short-page": "tab-short-page";
+            "pass-empty-page": "pass-empty-page";
+        }>;
+        groupId: z.ZodString;
+        startWitnessId: z.ZodNullable<z.ZodString>;
+        coveredCount: z.ZodNumber;
+        personalCount: z.ZodNumber;
+        automatedIds: z.ZodArray<z.ZodString>;
+    }, z.core.$strict>>;
+    personalMessageCount: z.ZodOptional<z.ZodNumber>;
+    fanAvatarUrl: z.ZodOptional<z.ZodString>;
     liveTextContext: z.ZodOptional<z.ZodObject<{
         capturedAt: z.ZodString;
         items: z.ZodArray<z.ZodObject<{
@@ -4207,6 +4317,7 @@ export declare const aiUsageTopFeatureSchema: z.ZodObject<{
         "hi-greeting": "hi-greeting";
         "coach-chat": "coach-chat";
         "voice-script": "voice-script";
+        "fan-notes-fill": "fan-notes-fill";
     }>;
     requestCount: z.ZodNumber;
     sharePct: z.ZodNumber;
@@ -4223,6 +4334,7 @@ export declare const aiUsageFeatureBreakdownSchema: z.ZodObject<{
         "hi-greeting": "hi-greeting";
         "coach-chat": "coach-chat";
         "voice-script": "voice-script";
+        "fan-notes-fill": "fan-notes-fill";
     }>;
     requestCount: z.ZodNumber;
     sharePct: z.ZodNumber;
@@ -4300,6 +4412,7 @@ export declare const adminChatterUsageRowSchema: z.ZodObject<{
             "hi-greeting": "hi-greeting";
             "coach-chat": "coach-chat";
             "voice-script": "voice-script";
+            "fan-notes-fill": "fan-notes-fill";
         }>;
         requestCount: z.ZodNumber;
         sharePct: z.ZodNumber;
@@ -4316,6 +4429,7 @@ export declare const adminChatterUsageRowSchema: z.ZodObject<{
             "hi-greeting": "hi-greeting";
             "coach-chat": "coach-chat";
             "voice-script": "voice-script";
+            "fan-notes-fill": "fan-notes-fill";
         }>;
         requestCount: z.ZodNumber;
         sharePct: z.ZodNumber;
@@ -4382,6 +4496,7 @@ export declare const adminChatterUsageResponseSchema: z.ZodObject<{
                 "hi-greeting": "hi-greeting";
                 "coach-chat": "coach-chat";
                 "voice-script": "voice-script";
+                "fan-notes-fill": "fan-notes-fill";
             }>;
             requestCount: z.ZodNumber;
             sharePct: z.ZodNumber;
@@ -4398,6 +4513,7 @@ export declare const adminChatterUsageResponseSchema: z.ZodObject<{
                 "hi-greeting": "hi-greeting";
                 "coach-chat": "coach-chat";
                 "voice-script": "voice-script";
+                "fan-notes-fill": "fan-notes-fill";
             }>;
             requestCount: z.ZodNumber;
             sharePct: z.ZodNumber;
@@ -4470,6 +4586,7 @@ export declare const authMyUsageResponseSchema: z.ZodObject<{
                 "hi-greeting": "hi-greeting";
                 "coach-chat": "coach-chat";
                 "voice-script": "voice-script";
+                "fan-notes-fill": "fan-notes-fill";
             }>;
             requestCount: z.ZodNumber;
             sharePct: z.ZodNumber;
@@ -4486,6 +4603,7 @@ export declare const authMyUsageResponseSchema: z.ZodObject<{
                 "hi-greeting": "hi-greeting";
                 "coach-chat": "coach-chat";
                 "voice-script": "voice-script";
+                "fan-notes-fill": "fan-notes-fill";
             }>;
             requestCount: z.ZodNumber;
             sharePct: z.ZodNumber;
@@ -12968,6 +13086,7 @@ declare const baseRouteSchemas: {
                     "hi-greeting": "hi-greeting";
                     "coach-chat": "coach-chat";
                     "voice-script": "voice-script";
+                    "fan-notes-fill": "fan-notes-fill";
                 }>;
                 model: z.ZodString;
                 inputTokens: z.ZodNumber;
@@ -13074,6 +13193,7 @@ declare const baseRouteSchemas: {
                 "hi-greeting": "hi-greeting";
                 "coach-chat": "coach-chat";
                 "voice-script": "voice-script";
+                "fan-notes-fill": "fan-notes-fill";
             }>;
             pageLabel: z.ZodString;
             platform: z.ZodEnum<{
@@ -16562,6 +16682,7 @@ declare const baseRouteSchemas: {
         readonly body: z.ZodObject<{
             clientRequestId: z.ZodString;
             conversationRef: z.ZodString;
+            fanRef: z.ZodOptional<z.ZodString>;
             sourceGenerationRef: z.ZodString;
             script: z.ZodString;
         }, z.core.$strip>;
@@ -16689,6 +16810,13 @@ declare const baseRouteSchemas: {
                 reason: z.ZodOptional<z.ZodString>;
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
         };
     };
     readonly voiceNoteAudio: {
@@ -16720,6 +16848,13 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -23850,7 +23985,33 @@ declare const baseRouteSchemas: {
             summaryMode: z.ZodOptional<z.ZodLiteral<"short">>;
             variantCount: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<1>, z.ZodLiteral<3>]>>;
             greetingMode: z.ZodOptional<z.ZodLiteral<"new-follower">>;
+            noteFields: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            noteValues: z.ZodOptional<z.ZodArray<z.ZodString>>;
             knownFanMessageIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            coverageCheck: z.ZodOptional<z.ZodObject<{
+                window: z.ZodArray<z.ZodObject<{
+                    id: z.ZodString;
+                    dir: z.ZodEnum<{
+                        fan: "fan";
+                        model: "model";
+                    }>;
+                }, z.core.$strict>>;
+                deletedIds: z.ZodArray<z.ZodString>;
+            }, z.core.$strict>>;
+            startProof: z.ZodOptional<z.ZodObject<{
+                v: z.ZodLiteral<1>;
+                source: z.ZodEnum<{
+                    "tab-short-page": "tab-short-page";
+                    "pass-empty-page": "pass-empty-page";
+                }>;
+                groupId: z.ZodString;
+                startWitnessId: z.ZodNullable<z.ZodString>;
+                coveredCount: z.ZodNumber;
+                personalCount: z.ZodNumber;
+                automatedIds: z.ZodArray<z.ZodString>;
+            }, z.core.$strict>>;
+            personalMessageCount: z.ZodOptional<z.ZodNumber>;
+            fanAvatarUrl: z.ZodOptional<z.ZodString>;
             liveTextContext: z.ZodOptional<z.ZodObject<{
                 capturedAt: z.ZodString;
                 items: z.ZodArray<z.ZodObject<{
@@ -24125,6 +24286,7 @@ declare const baseRouteSchemas: {
                             "hi-greeting": "hi-greeting";
                             "coach-chat": "coach-chat";
                             "voice-script": "voice-script";
+                            "fan-notes-fill": "fan-notes-fill";
                         }>;
                         requestCount: z.ZodNumber;
                         sharePct: z.ZodNumber;
@@ -24141,6 +24303,7 @@ declare const baseRouteSchemas: {
                             "hi-greeting": "hi-greeting";
                             "coach-chat": "coach-chat";
                             "voice-script": "voice-script";
+                            "fan-notes-fill": "fan-notes-fill";
                         }>;
                         requestCount: z.ZodNumber;
                         sharePct: z.ZodNumber;
@@ -25483,6 +25646,7 @@ declare const baseRouteSchemas: {
                             "hi-greeting": "hi-greeting";
                             "coach-chat": "coach-chat";
                             "voice-script": "voice-script";
+                            "fan-notes-fill": "fan-notes-fill";
                         }>;
                         requestCount: z.ZodNumber;
                         sharePct: z.ZodNumber;
@@ -25499,6 +25663,7 @@ declare const baseRouteSchemas: {
                             "hi-greeting": "hi-greeting";
                             "coach-chat": "coach-chat";
                             "voice-script": "voice-script";
+                            "fan-notes-fill": "fan-notes-fill";
                         }>;
                         requestCount: z.ZodNumber;
                         sharePct: z.ZodNumber;
@@ -33395,6 +33560,8 @@ export type AiFeatureDebugPromptBlock = z.infer<typeof aiFeatureDebugPromptBlock
 export type AiFeatureDebugInputFrame = z.infer<typeof aiFeatureDebugInputFrameSchema>;
 export type AiFeatureContextFrame = z.infer<typeof aiFeatureContextFrameSchema>;
 export type AiLiveTextContext = z.infer<typeof aiLiveTextContextSchema>;
+export type AiCoverageCheck = z.infer<typeof aiCoverageCheckSchema>;
+export type AiStartProofV1 = z.infer<typeof aiStartProofV1Schema>;
 export type AiGatewayStreamBody = z.infer<typeof aiGatewayStreamBodySchema>;
 export type AiGatewayUsage = z.infer<typeof aiGatewayUsageSchema>;
 export type AiGatewayQuota = z.infer<typeof aiGatewayQuotaSchema>;
