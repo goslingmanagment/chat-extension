@@ -14,6 +14,7 @@
 | `catalog.ts` | `ActionCatalog`, `HotkeyLabel` (подпись, `aria-keyshortcuts`, доставка, запасная клавиша), причины недоступности с ключом i18n и кодом CG |
 | `i18n.ts` | порт `I18n`: `t`, `plural`, `formatMoneyMills`, `formatAge`, `formatTime`, `formatDuration`; `Msg` — ключ с параметрами |
 | `theme.ts` | имена токенов `--cg-*` (ровно список ui-design §2.2), сигнал схемы, атрибут `data-scheme` |
+| `host-profile.ts` | 1.15.0 (R20 F5): `HostUiProfile` — профиль сайта для интерфейса: палитра `--color-om-*` (`ValueSignal`, нет — палитра страницы по наследованию), вариант дока (`DOCK_VARIANTS`, атрибут `data-dock-variant`), лист варианта, целые фразы с именем сайта; приходит в `MountDeps.profile` |
 | `result.ts`, `dock.ts` | `ResultVM`, `PartVM`, `PreviewSendView` (девять состояний) и `previewSendStateOf` (попытка и preflight → состояние), `DockVM`; 1.15.0 — `ChipVM`, `DOCK_CHIP_GROUPS`, `DOCK_ICON_IDS` |
 | `analysis.ts` | `RecapPickerVM`, `RecapViewVM`, `ReviewVM`, `CoachVM` |
 | `spenders.ts`, `preview.ts`, `newcomers.ts` | доска и статистика, превью, «Новые» с бронью |
@@ -216,6 +217,17 @@
     сайты сборки, сегодня это ChatSpace). Слова строки — набор сайта (`HostStatusTexts`), у ChatSpace прежние. UI
     ставит строку сайта в главную колонку, `data-pg-row` у неё — вид сайта (`chatspace`), `data-pg-anchor` —
     `host`: туда ведёт `CG-HOST-CONTRACT`.
+27. **Профиль сайта (1.15.0, R20 F5).** Вкладка сайта монтирует каждую поверхность с
+    `MountDeps.profile` (`HostUiProfile`, его отдаёт половина приложения адаптера сайта).
+    Монтирование kit ставит на хост `data-dock-variant` (вариант дока сайта) рядом с
+    `data-scheme`; палитру сайта, если она есть, — правилом `:host` с тройками
+    `--color-om-*` в одном общем листе `cg-host-palette` (новое значение переписывает лист во
+    всех наших корнях сразу); лист варианта — после листов поверхности. Всё уходит с
+    последней поверхностью корня. Поверхность профиль не читает: её правила ключуются на
+    `:host([data-dock-variant="…"])` в листе сайта, тексты с именем сайта берут целые фразы
+    профиля (`phrases`, с F9b). У ChatSpace палитры и листа нет — переменные страницы
+    доходят по наследованию, вид прежний; на хосте появляется только имя варианта.
+    Страницы расширения профиля не получают.
 
 ## Сценарии
 
