@@ -29,19 +29,23 @@ import {
   hostIdentity,
   deferredInsert,
   FANSLY_IDS,
+  COVERAGE_MSG,
   fanslyAccount,
   fanslyBinding,
   fanslyChat,
+  fanslyStartReply,
   fanslyTarget,
   insertIntent,
   insertWire,
   journalEntry,
   logRecord,
   opView,
+  passProof,
   previewSendRequest,
   sendView,
   session,
   startReply,
+  tabProof,
   target,
   uuid,
 } from './samples';
@@ -707,6 +711,57 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     [{ question: '', answer: 'x' }, { question: repeat('q', 2001), answer: 'x' }],
   ),
   fixture('OpDraft', C.OpDraftSchema, [{ text: 'my draft', revision: 4, digest: DIGEST }], [{ text: '', revision: 4, digest: DIGEST }]),
+  // 1.15.0 (R20 HF-8в): the window check — ids and sides only, the hub's limits, the hub's id form.
+  fixture(
+    'CoverageWindowEntry',
+    C.CoverageWindowEntrySchema,
+    [{ id: COVERAGE_MSG.m1, dir: 'fan' }, { id: '1', dir: 'model' }],
+    [{ id: COVERAGE_MSG.m1, dir: 'creator' }, { id: 101, dir: 'fan' }, { id: `0${COVERAGE_MSG.m1}`, dir: 'fan' }, { id: COVERAGE_MSG.m1, dir: 'fan', text: 'hi' }],
+  ),
+  fixture(
+    'CoverageWindow',
+    C.CoverageWindowSchema,
+    [[], tabProof.window, Array.from({ length: 60 }, (_unused, i) => ({ id: String(700_000 + i), dir: 'fan' }))],
+    [Array.from({ length: 61 }, (_unused, i) => ({ id: String(700_000 + i), dir: 'fan' }))],
+  ),
+  fixture(
+    'CoverageDeletedIds',
+    C.CoverageDeletedIdsSchema,
+    [[], [COVERAGE_MSG.deleted], Array.from({ length: 60 }, (_unused, i) => String(800_000 + i))],
+    [Array.from({ length: 61 }, (_unused, i) => String(800_000 + i)), ['0800'], [800_001]],
+  ),
+  fixture(
+    'CoverageProof',
+    C.CoverageProofSchema,
+    [
+      tabProof,
+      // Recap, Review, Coach: the window check without a text.
+      { ...tabProof, tail: undefined },
+      // Old texts dropped to fit the frame; an observation the tab cannot vouch for; an empty chat.
+      { ...tabProof, truncated: true },
+      { ...tabProof, completeness: 'unknown' },
+      { ...tabProof, window: [], knownFanMessageIds: [], deletedIds: [], tail: [] },
+      passProof,
+      { ...passProof, completeness: 'unknown', window: [], knownFanMessageIds: [] },
+    ],
+    [
+      // One id named twice across the lists, or twice in one.
+      { ...tabProof, deletedIds: [COVERAGE_MSG.m2] },
+      { ...tabProof, window: [...tabProof.window, { id: COVERAGE_MSG.m1, dir: 'model' }] },
+      { ...tabProof, knownFanMessageIds: [COVERAGE_MSG.m3, COVERAGE_MSG.m3] },
+      // Every id of the check comes from the window: a fan id outside it, a model message called the fan's, a text outside it, a text on the other side.
+      { ...tabProof, knownFanMessageIds: ['700000000000000999'] },
+      { ...tabProof, knownFanMessageIds: [COVERAGE_MSG.m2] },
+      { ...tabProof, tail: [{ platformMessageId: '700000000000000999', direction: 'fan', sentAt: ISO, text: 'x' }] },
+      { ...tabProof, tail: [{ platformMessageId: COVERAGE_MSG.m3, direction: 'model', sentAt: ISO, text: 'x' }] },
+      // Only a tail is truncated; a pass carries no text; the hub's limits.
+      { ...tabProof, tail: undefined, truncated: true },
+      { ...passProof, tail: [] },
+      { ...tabProof, window: Array.from({ length: 61 }, (_unused, i) => ({ id: String(700_000 + i), dir: 'fan' })), knownFanMessageIds: [], tail: [], deletedIds: [] },
+      { ...tabProof, completeness: 'partial' },
+      { ...tabProof, kind: 'snapshot' },
+    ],
+  ),
   fixture(
     'StartOp',
     C.StartOpSchema,
@@ -727,6 +782,11 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       // 1.2.0: a composite Coach turn — the recap first, then the question, under one admission (AI-096).
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 3000 } } },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { preset: 'situation', history: [], autoRecap: { length: 'short', window: 300 } } },
+      // 1.15.0 (R20 §9.1): Fansly — the proof instead of `fresh` and `checkpoint`; a Recap's without a text; a pass's in «Новые».
+      fanslyStartReply,
+      { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: { ...tabProof, tail: undefined } },
+      { feature: 'hi', surface: 'newcomers', target: fanslyTarget, cause, tone: null, split: true, window: 25, variantCount: 1, proof: passProof },
+      { feature: 'reply', surface: 'preview', target: fanslyTarget, cause, tone: 'casual', split: false, window: 100, proof: tabProof },
     ],
     [
       { ...startReply, surface: 'preview' },
@@ -745,6 +805,14 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'long', window: 3000 } } },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 4 } } },
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: 'full' } },
+      // 1.15.0: a start proves its freshness one way; the proof is the target conversation's; page text only for a
+      // draft function (D-14); a pass's proof only in «Новые»; the proof's own rules hold inside a start too.
+      { ...fanslyStartReply, fresh: startReply.fresh },
+      { ...fanslyStartReply, surface: 'preview', checkpoint: { ...checkpoint, hostAccountId: FANSLY_IDS.creator, platformFanId: FANSLY_IDS.fan } },
+      { ...fanslyStartReply, proof: { ...tabProof, conversationRef: FANSLY_IDS.otherGroup } },
+      { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: tabProof },
+      { ...fanslyStartReply, proof: passProof },
+      { ...fanslyStartReply, proof: { ...tabProof, deletedIds: [COVERAGE_MSG.m1] } },
     ],
   ),
   fixture('ActiveOpSummary', C.ActiveOpSummarySchema, [activeOp], [{ ...activeOp, fanLabel: undefined }]),
@@ -794,9 +862,29 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
         live: { status: 'served', accepted: 3, rejected: 1 },
       },
       { source: null, servedHead: null, live: { status: null, accepted: 0, rejected: 0 } },
+      // 1.15.0 (R20 HF-8в): the answers to a window check, a state this build does not know narrowed to null.
+      {
+        source: 'live_union',
+        servedHead: { messageRef: COVERAGE_MSG.m3, at: ISO },
+        live: { status: 'served', accepted: 2, rejected: 0 },
+        coverageCheck: {
+          window: [
+            { id: COVERAGE_MSG.m3, state: 'included' },
+            { id: COVERAGE_MSG.m2, state: 'direction_mismatch' },
+            { id: COVERAGE_MSG.m1, state: null },
+          ],
+          deleted: [{ id: COVERAGE_MSG.deleted, state: 'still_served' }],
+        },
+      },
+      { source: 'live_union', servedHead: null, live: { status: 'not_sent', accepted: 0, rejected: 0 }, coverageCheck: { window: [], deleted: [] } },
     ],
     [
       { source: 'live-overlay', servedHead: null, live: { status: 'served', accepted: 0, rejected: 0 } },
+      // Narrowed or nothing: a raw hub token, a window-only state in the deleted list, an id that is no id, no list.
+      { source: 'live_union', servedHead: null, live: { status: 'served', accepted: 0, rejected: 0 }, coverageCheck: { window: [{ id: COVERAGE_MSG.m1, state: 'future_state' }], deleted: [] } },
+      { source: 'live_union', servedHead: null, live: { status: 'served', accepted: 0, rejected: 0 }, coverageCheck: { window: [], deleted: [{ id: COVERAGE_MSG.deleted, state: 'outside_window' }] } },
+      { source: 'live_union', servedHead: null, live: { status: 'served', accepted: 0, rejected: 0 }, coverageCheck: { window: [{ id: 'msg-1', state: 'included' }], deleted: [] } },
+      { source: 'live_union', servedHead: null, live: { status: 'served', accepted: 0, rejected: 0 }, coverageCheck: { window: [] } },
       { source: 'archive', servedHead: null },
       { source: 'archive', servedHead: null, live: { status: 'served', accepted: -1, rejected: 0 } },
     ],
@@ -819,8 +907,13 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { ...opView, state: 'failed', result: undefined, error: { code: 'CG-STREAM-TRUNCATED' } },
       // 1.2.0: the recap step of a composite Coach turn names the answer step that took the slot.
       { ...opView, feature: 'recap', surface: 'coach', toneUsed: null, text: '**Recap**', result: { kind: 'recap', markdown: '**Recap**', coverage, shared: { generationRef: uuid(6) } }, continuedBy: uuid(7) },
+      // 1.15.0 (R20 spec §3.5): the window check's verdicts mark a result too.
+      { ...opView, stale: { reason: 'fan-wrote', at: ISO } },
+      { ...opView, target: fanslyTarget, stale: { reason: 'unverified', at: null } },
+      { ...opView, target: fanslyTarget, stale: { reason: 'window-miss', at: null } },
+      { ...opView, target: fanslyTarget, stale: { reason: 'deleted-served', at: null } },
     ],
-    [{ ...opView, state: 'queued' }, { ...opView, continuedBy: 'the-answer-step' }],
+    [{ ...opView, state: 'queued' }, { ...opView, continuedBy: 'the-answer-step' }, { ...opView, stale: { reason: 'miss', at: null } }],
   ),
 
   // ── telemetry ──

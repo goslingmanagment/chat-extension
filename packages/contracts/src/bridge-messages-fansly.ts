@@ -22,7 +22,7 @@ import {
 } from './bridge-fansly';
 import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotSchema } from './fansly';
 import { FeatureIdSchema, isFreshTextFeature } from './features';
-import { ANCHOR_STATES, ConversationKindSchema } from './host';
+import { ANCHOR_STATES, ConversationKindSchema, type FanScript } from './host';
 import { CountSchema, DigestSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema } from './primitives';
 
 const EmptySchema = z.strictObject({});
@@ -61,9 +61,10 @@ export type FanslyIdentityWire = z.infer<typeof FanslyIdentityWireSchema>;
 
 /**
  * What the fan's own lines among the texts MAIN holds say about the fan's script — the language gate's FanScript
- * (AI-087, core `fanScriptOf`): Cyrillic in any of them — `cyrillic`; fan lines without — `other`; none — `unknown`.
+ * (AI-087, core `fanScriptOf`; the word is host.ts's since P4b1, the window of `ChatWindow`): Cyrillic in any of them —
+ * `cyrillic`; fan lines without — `other`; none — `unknown`.
  */
-export const FANSLY_FAN_SCRIPTS = ['cyrillic', 'other', 'unknown'] as const;
+export const FANSLY_FAN_SCRIPTS = ['cyrillic', 'other', 'unknown'] as const satisfies readonly FanScript[];
 
 /** What MAIN holds about a chat's recent messages (§5.5, §5.6), with no text: for `chatWindow`, the dock and Hi's precheck. */
 export const FanslyChatWindowSchema = z.strictObject({

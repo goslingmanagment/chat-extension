@@ -96,6 +96,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * hub.md` п. 18).
    */
   'conversation-recaps-v1',
+  /** 1.15.0 (R20 HF-8в): the hub answers the body's window check in the context frame. */
+  'coverage-check-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
@@ -111,8 +113,12 @@ export const CLIENT_FEATURE_UNAVAILABLE_REASONS = [
 ] as const;
 export type ClientFeatureUnavailableReason = (typeof CLIENT_FEATURE_UNAVAILABLE_REASONS)[number];
 
-/** Capabilities that travel only in the AI request header `x-kernel-ai-capabilities` (comma list). */
-export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1'] as const;
+/**
+ * Capabilities that travel only in the AI request header `x-kernel-ai-capabilities` (comma list), in the SDK's order.
+ * 1.15.0 (R20 HF-8в): `coverage-check-v1` — a request with `coverageCheck` says it (with `context-v1`: the answer rides
+ * in the context frame); only a request built from a proof does, so ChatSpace never says it.
+ */
+export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1'] as const;
 export const AiStreamCapabilitySchema = z.enum(AI_STREAM_CAPABILITIES);
 export type AiStreamCapability = z.infer<typeof AiStreamCapabilitySchema>;
 

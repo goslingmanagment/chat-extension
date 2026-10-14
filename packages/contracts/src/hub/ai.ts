@@ -7,7 +7,8 @@
 import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
-import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS } from '../limits';
+import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS } from '../limits';
+import { CoverageDeletedIdsSchema, CoverageWindowSchema, coverageIdsOnce } from '../ops';
 import {
   CountSchema,
   IsoTimestampSchema,
@@ -104,6 +105,16 @@ export const LiveTextContextSchema = z.strictObject({
 export type LiveTextContext = z.infer<typeof LiveTextContextSchema>;
 
 /**
+ * 1.15.0 (R20 HF-8в) `coverageCheck`: the window check of a start's proof (`CoverageProof`) as the hub takes it
+ * (`aiCoverageCheckSchema`): ids only, never a text; every id once across both lists — the hub answers a repeat with
+ * 400. Sent only with `coverage-check-v1` and `context-v1`: the answer rides in the context frame.
+ */
+export const CoverageCheckBodySchema = z
+  .strictObject({ window: CoverageWindowSchema, deletedIds: CoverageDeletedIdsSchema })
+  .check(z.refine((c) => coverageIdsOnce(c.window, c.deletedIds), { message: 'coverageCheck ids repeat' }));
+export type CoverageCheckBody = z.infer<typeof CoverageCheckBodySchema>;
+
+/**
  * The body this client sends (a strict subset of the hub's body: no model or
  * effort override, no Fansly `clientContext` until R20, no deprecated
  * `greetingMode`). On OnlyFans conversationRef = fanRef = the fan id.
@@ -146,6 +157,8 @@ export const AiFeatureStreamBodySchema = z.strictObject({
       ),
   ),
   liveTextContext: z.optional(LiveTextContextSchema),
+  /** 1.15.0 (R20 HF-8в): the window check — only from a start's proof, under `coverage-check-v1`. */
+  coverageCheck: z.optional(CoverageCheckBodySchema),
 });
 export type AiFeatureStreamBody = z.infer<typeof AiFeatureStreamBodySchema>;
 
@@ -166,6 +179,10 @@ export const HubStreamRequestSchema = z
     z.refine(featureOnlyFieldsHold, { message: 'a feature-only field is set on another feature' }),
     z.refine((r) => r.body.liveTextContext === undefined || r.capabilities.includes('context-v1'), {
       message: 'liveTextContext needs the context-v1 header (else 400 capability_required)',
+    }),
+    // 1.15.0: a hub before HF-8в refuses the field (its body is strict); one after answers it only to both tokens.
+    z.refine((r) => r.body.coverageCheck === undefined || (r.capabilities.includes('coverage-check-v1') && r.capabilities.includes('context-v1')), {
+      message: 'coverageCheck needs coverage-check-v1 and context-v1',
     }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
     z.refine((r) => r.body.summaryMode === undefined || r.feature === 'fan-summary', { message: 'summaryMode is fan-summary only' }),
@@ -285,6 +302,16 @@ export const ContextFrameSchema = z.object({
   coverage: OpenTokenSchema,
   /** One answer per id of the body's `knownFanMessageIds`: included | absent | deleted | unknown. */
   knownFanMessages: z.optional(z.array(z.object({ id: z.string(), state: OpenTokenSchema })).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax))),
+  /**
+   * 1.15.0 (R20 HF-8в): one answer per id of the body's `coverageCheck`, each list in the body's order — only to a
+   * request with `coverage-check-v1`. States are the hub's open tokens; `narrowCoverageCheck` (ops.ts) reads them.
+   */
+  coverageCheck: z.optional(
+    z.object({
+      window: z.array(z.object({ id: z.string(), state: OpenTokenSchema })).check(z.maxLength(COVERAGE_CHECK_LIMITS.windowMax)),
+      deleted: z.array(z.object({ id: z.string(), state: OpenTokenSchema })).check(z.maxLength(COVERAGE_CHECK_LIMITS.deletedMax)),
+    }),
+  ),
   live: z.object({ status: OpenTokenSchema, accepted: CountSchema, rejected: CountSchema }),
   fanLanguageEvidence: z.optional(OpenTokenSchema),
 });

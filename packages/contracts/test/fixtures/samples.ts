@@ -11,6 +11,7 @@ import {
   type CapabilityState,
   type ChatRef,
   type ClientHealthV1,
+  type CoverageProof,
   type DispatchTicket,
   type FreshnessCheckpoint,
   type HostAccount,
@@ -224,6 +225,51 @@ export const startReply: StartOp = {
     messages: [{ platformMessageId: IDS.msg1, direction: 'fan', sentAt: ISO, text: 'hey' }],
   },
 };
+
+/** R20 (1.15.0): message ids of a Fansly chat as the hub's coverage-check matrix writes them (its `hubCases`); one the tab saw deleted. */
+export const COVERAGE_MSG = {
+  m1: '700000000000000101',
+  m2: '700000000000000102',
+  m3: '700000000000000103',
+  deleted: '700000000000000201',
+} as const;
+
+/**
+ * A tab's snapshot proof of a Fansly reply (R20 §9.1): the check window of three, the fan's two newest first, one
+ * message the tab saw deleted, the texts of the window — the media-only first one has none.
+ */
+export const tabProof: CoverageProof = {
+  kind: 'tab-snapshot',
+  conversationRef: FANSLY_IDS.group,
+  completeness: 'complete',
+  takenAt: ISO,
+  window: [
+    { id: COVERAGE_MSG.m1, dir: 'fan' },
+    { id: COVERAGE_MSG.m2, dir: 'model' },
+    { id: COVERAGE_MSG.m3, dir: 'fan' },
+  ],
+  knownFanMessageIds: [COVERAGE_MSG.m3, COVERAGE_MSG.m1],
+  deletedIds: [COVERAGE_MSG.deleted],
+  tail: [
+    { platformMessageId: COVERAGE_MSG.m2, direction: 'model', sentAt: ISO, text: 'hi there' },
+    { platformMessageId: COVERAGE_MSG.m3, direction: 'fan', sentAt: ISO, text: 'hey' },
+  ],
+  truncated: false,
+};
+
+/** The proof of the «Новые» pass (FS-NEW-7): the history it checked, no text. */
+export const passProof: CoverageProof = {
+  kind: 'host-pass',
+  conversationRef: FANSLY_IDS.group,
+  completeness: 'complete',
+  takenAt: ISO,
+  window: [{ id: COVERAGE_MSG.m1, dir: 'fan' }],
+  knownFanMessageIds: [COVERAGE_MSG.m1],
+  deletedIds: [],
+};
+
+/** Reply on Fansly: its freshness is the proof (no `fresh`, no checkpoint), its tail inside. */
+export const fanslyStartReply: StartOp = { feature: 'reply', surface: 'dock', target: fanslyTarget, cause, tone: 'flirty', split: false, window: 100, proof: tabProof };
 
 export const activeOp: ActiveOpSummary = {
   opId: uuid(2),

@@ -29,6 +29,7 @@
     "./bridge": "./src/bridge.ts",
     "./bridge-messages": "./src/bridge-messages.ts",
     "./fansly": "./src/fansly.ts",
+    "./fansly-host": "./src/fansly-host.ts",
     "./bridge-fansly": "./src/bridge-fansly.ts",
     "./bridge-messages-fansly": "./src/bridge-messages-fansly.ts",
     "./tab-protocol": "./src/tab-protocol.ts",
