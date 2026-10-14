@@ -37,6 +37,8 @@ describe('the Fansly stand: the conversation route', () => {
     const instances = stand.control.composers().filter((composer) => composer.place === 'main');
     expect(instances).toHaveLength(1);
     expect(instances[0]?.groupId).toBe(b);
+    // The page that answers itself counts no requests: `idle()` is the fake Fansly's page's signal, and says true here.
+    expect(stand.control.idle()).toBe(true);
   });
 
   it('an uncached group: the old container and contact block go at once, the new ones after `GET /group/<id>/`', async () => {

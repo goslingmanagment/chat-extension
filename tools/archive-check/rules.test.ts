@@ -105,6 +105,9 @@ describe('archive check', () => {
       // The fake Fansly (R20 P6b): it imports the stand page's wire, which the archive leaves out.
       'packages/testing/src/fake-fansly/api.ts',
       'packages/testing/src/fake-fansly/journal.test.ts',
+      // Its FBuddy-like neighbour (R20 P6d) and the neighbour's build config.
+      'packages/testing/src/fake-fansly/neighbor/network-hook.ts',
+      'packages/testing/fansly-neighbor.vite.config.ts',
     ]) {
       expect(rules(stand, 'sources', 'export {};'), stand).toEqual(['stand-in-sources']);
     }

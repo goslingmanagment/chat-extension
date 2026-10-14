@@ -15,6 +15,8 @@ export const FIXTURE_BUILD_DIR = `${REPO_ROOT}.cache/fixture-chatspace/`;
 export const FANSLY_FIXTURE_SOURCE_DIR = fileURLToPath(new URL('../../fixture-fansly/', import.meta.url));
 /** Built Fansly stand (`pnpm --filter @cg/testing build:stand` builds both stands), served on its own loopback name. */
 export const FANSLY_FIXTURE_BUILD_DIR = `${REPO_ROOT}.cache/fixture-fansly/`;
+/** The FBuddy-like neighbour's one script (R20 P6d, `build:stand` too), served at /neighbor/neighbor.js of the Fansly stand. */
+export const FANSLY_NEIGHBOR_BUILD_DIR = `${REPO_ROOT}.cache/fansly-neighbor/`;
 /** Sources of the ui/kit gallery page (R13). */
 export const KIT_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../kit/gallery/', import.meta.url));
 /** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /kit-gallery/. */

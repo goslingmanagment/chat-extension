@@ -20,6 +20,7 @@
     "e2e",
     "fixture-chatspace.vite.config.ts",
     "fixture-fansly.vite.config.ts",
+    "fansly-neighbor.vite.config.ts",
     "kit-gallery.vite.config.ts",
     "dock-gallery.vite.config.ts",
     "boards-gallery.vite.config.ts",

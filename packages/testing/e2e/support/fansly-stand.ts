@@ -2,7 +2,8 @@
 // origin (its own loopback name, `localhost`), opening a page and waiting for
 // the app, the page's test-control API (window.__fanslyStand), and the fake
 // Fansly the page asks (R20 P6b): its commands and its journal by caller —
-// where «only FS-NET-1» and «no `/message/ack` of ours» are checked.
+// where «only FS-NET-1» and «no `/message/ack` of ours» are checked — and the
+// page's own «settled» signal for a test that compares journals.
 
 import { request as httpRequest } from 'node:http';
 
@@ -42,6 +43,37 @@ export async function waitForFanslyStandReady(timeout = 15_000): Promise<void> {
     throw new Error(`the Fansly stand is not ready in ${timeout} ms (${FANSLY_STAND_READY_ATTRIBUTE}=${String(state)})`);
   }
   if (state === 'failed') throw new Error('the Fansly stand failed to boot (its journal has boot-failed)');
+}
+
+/**
+ * Waits until the stand page has settled — `window.__fanslyStand.idle()`: its socket verified, no request of its own
+ * in flight, its unread reading over, no read mark waiting or going out — and has stayed so for `stableMs`. The
+ * moment to mark a journal and the moment to read one: the page sends its marks later and in chunks 200 ms apart, so
+ * a window cut by a pause lands in a different place of that series every run. Watched inside the page, so no flip
+ * between two WebDriver calls is missed. A page whose request never ends (a neighbour's guard swallowed it) never
+ * settles: this throws.
+ */
+export async function waitForFanslyStandIdle(timeout = 15_000, stableMs = 300): Promise<void> {
+  const settled = await browser.execute(
+    async (global: string, stable: number, limit: number) => {
+      const control = (window as unknown as Record<string, { idle?: () => boolean } | undefined>)[global];
+      const started = performance.now();
+      let since: number | null = null;
+      for (;;) {
+        const now = performance.now();
+        if (control?.idle?.() === true) {
+          since ??= now;
+          if (now - since >= stable) return true;
+        } else since = null;
+        if (now - started > limit) return false;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    },
+    FANSLY_STAND_GLOBAL,
+    stableMs,
+    timeout,
+  );
+  if (!settled) throw new Error(`the Fansly stand page did not settle in ${timeout} ms (a request in flight, marks to send, or no verified socket)`);
 }
 
 export async function openFanslyStand(path: string): Promise<void> {

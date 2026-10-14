@@ -88,6 +88,8 @@ interface RouteAnswer {
   readonly headers?: Record<string, string>;
   /** The answer waits this long. */
   readonly delayMs?: number;
+  /** What the journal keeps of the call besides its route and status (ids and counts, never a text). */
+  readonly journal?: Readonly<Record<string, unknown>>;
   /** Runs before the answer is written / after it (the socket echo of a send, the receipt of an ack). */
   readonly before?: () => void;
   readonly after?: () => void;
@@ -250,8 +252,9 @@ const ROUTES: readonly Route[] = [
       const type = typeof ack?.type === 'number' ? ack.type : 0;
       if (ids.length === 0 || type < 1 || type > 4) return bad('messageIds and type');
       world.ack(world.creatorId, ids, type);
-      // Every socket of the account hears of it (GroupService 4/2, 7 009 a day on production, S2 Q1.4).
-      return { response: {}, after: () => void hub.emit([ackFrame({ type, userId: world.creatorId, messageIds: ids })], '4/2 own') };
+      // Every socket of the account hears of it (GroupService 4/2, 7 009 a day on production, S2 Q1.4). The journal
+      // keeps WHAT was marked: the page sends its marks in chunks, so the number of calls says nothing by itself.
+      return { response: {}, journal: { ackType: type, messageIds: ids }, after: () => void hub.emit([ackFrame({ type, userId: world.creatorId, messageIds: ids })], '4/2 own') };
     },
   },
   { name: 'message.typing', method: 'POST', path: /^\/message\/typing$/, run: ({ body }) => (typeof asRecord(body)?.['groupId'] === 'string' ? { response: {} } : bad('groupId')) },
@@ -445,10 +448,10 @@ export async function handleFanslyApi(state: FanslyState, hub: FanslySocketHub, 
   if (answer.delayMs !== undefined && answer.delayMs > 0) await delay(answer.delayMs);
   if (outcome !== null) {
     // The request took effect; only its answer is replaced.
-    log(await writeOutcome(state, response, outcome), { outcome: outcome.kind, effect: true });
+    log(await writeOutcome(state, response, outcome), { ...answer.journal, outcome: outcome.kind, effect: true });
   } else {
     sendJson(response, 200, { success: true, ...(answer.response !== undefined ? { response: answer.response } : {}) }, answer.headers);
-    log(200);
+    log(200, answer.journal);
   }
   answer.after?.();
 }

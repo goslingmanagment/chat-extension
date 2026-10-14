@@ -67,6 +67,8 @@ export class XhrBackend implements StandBackend {
   private readonly ackQueue = new Map<number, string[]>();
   private readonly acked = new Set<string>();
   private ackTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Runs of `readUnread` between their first chunk and their last (the gaps between chunks included). */
+  private unreadReads = 0;
   private stopped = false;
 
   constructor(options: XhrBackendOptions) {
@@ -241,14 +243,27 @@ export class XhrBackend implements StandBackend {
     return this.unreadIds.get(groupId)?.size ?? this.unreadCounts.get(groupId) ?? 0;
   }
 
+  /**
+   * Something of the page's own is still to be asked, though no request may be in flight this instant: unread chunks
+   * still being read, read marks waiting for their collecting delay, or their chunks going out 200 ms apart. For the
+   * stand's `idle()` (a test waits for the page to settle; nothing of Fansly's).
+   */
+  get busy(): boolean {
+    return this.unreadReads > 0 || this.ackTimer !== null || this.ackQueue.size > 0;
+  }
+
   /** `getUnreadInChunks`: every unread message, a chunk at a time, older and older. */
   readUnread(): void {
     this.unreadIds.clear();
+    this.unreadReads += 1;
     let before = '0';
     let read = 0;
     let gap = 500;
     const next = (): void => {
-      if (this.stopped) return;
+      if (this.stopped) {
+        this.unreadReads -= 1;
+        return;
+      }
       this.http.request<WireUnreadPage>('GET', `/message/unread?limit=${UNREAD_CHUNK}&offset=0&before=${before}`, null, (error, response) => {
         if (error !== null || response === null) {
           setTimeout(next, 1000);
@@ -264,6 +279,7 @@ export class XhrBackend implements StandBackend {
         read += UNREAD_CHUNK;
         const done = response.total > 0 ? read >= response.total : response.messageInteractions.length < UNREAD_CHUNK;
         if (done || read > UNREAD_MAX) {
+          this.unreadReads -= 1;
           this.onUnread();
           return;
         }

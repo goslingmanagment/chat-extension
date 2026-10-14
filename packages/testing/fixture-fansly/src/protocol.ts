@@ -228,6 +228,14 @@ export interface FanslyStandControl {
   recreateField(): void;
   /** The page's socket; null with the `local` backend. */
   socket(): SocketView | null;
+  /**
+   * The page has settled (`server` only; `local` always says true): its socket is verified, none of its requests is
+   * in flight, its unread reading is over, and no read mark waits for its collecting delay or is going out in chunks.
+   * A test waits for it before it marks a journal and before it reads one: the page sends its marks 1–3 s later and
+   * 25 at a time, 200 ms apart, so «no request in flight» alone is not «done». A request that never ends (one a
+   * neighbour's guard swallowed) keeps the page from ever being idle.
+   */
+  idle(): boolean;
   /** A message-like notification names these messages: the page asks for them by id (`GET /messages?ids=`). `server` only. */
   notify(messageIds: string[]): void;
   /**

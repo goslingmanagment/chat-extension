@@ -43,7 +43,10 @@ PR-владелец из таблиц ниже. Что матрица измен
   [справочнику](../research/fansly.md). Это не проверка отправки/прикрепления и не замена Firefox-стенда.
   Повторных smoke у владельца нет (X34); способы старого проверяются на стенде, приёмка вживую — пилот с наблюдением (P16d).
 - **FBuddy стоит у всех чаттеров** (X34): PR, который трогает тап, наблюдатель XHR, док, вставку, отправку или шапку,
-  проверяет себя и рядом с «соседом» стенда (P6d), в режимах по умолчанию `off` и `after`.
+  проверяет себя и рядом с «соседом» стенда (P6d), в режимах по умолчанию `off` и `after`. Включается адресом страницы
+  стенда (`?stand-neighbor=after`, `after,guard`, `before,panel=mobile`…) или умолчанием стенда для всех следующих
+  загрузок (`setFanslyNeighbor`), в e2e — `e2e/support/fansly-neighbor.ts`; эталон без нас —
+  `fansly-stand-neighbor.e2e.ts`.
 - **Тест закрывает строку паритета только на своём хосте и своём уровне.** Хост теста — по пути файла: Fansly — спеки
   `suite-fansly-*` и `fansly-*` (`perf/fansly-perf-probe`), `packages/host-fansly/**`, `packages/fansly-api/**`,
   `**/hosts/fansly/**`, `**/bg/fansly/**` и стенд Fansly (`packages/testing/fixture-fansly/**`,
@@ -218,7 +221,7 @@ ChatSpace проходят без изменений, кроме мест из �
 | P6c2 | поддельный хаб: правила Hi (HF-5) — доказательство, порог, `history_unproven`; поведение без возможности | `fake-hub/ai-rules.ts` | P6c1, P4b4 |
 | P6c3 | поддельный хаб: опека HF-3 — ручная группа, лимит, допуски Fansly без `previewSend`, `registerNativeSend`, `preview-reply` → 409 | `fake-hub/claims.ts` | P6c1, P4c |
 | P6c4 | поддельный хаб: `voice-script` и `createVoiceNote` по HF-4а, `fan-notes-fill`, глубина HF-6, флаг `drafts` (HF-12); `aiNameFan` метит по `conversationRef` | `fake-hub/{ai,ai-rules}.ts` | P6c1, P4b2, P4b3 |
-| P6d | сосед (FBuddy) по S5 §6: режимы `off`, `after`, `before`, `reinject`, `legacy`, флаги `+guard`, `panel=desktop\|mobile\|off`, `generic`; хуки прототипа XHR и подмена `fetch`, постинг тел ответов в `window`, фильтр слов, узлы в шапке и поле, слой в `<body>`, стили `contain: size` и двухстрочное поле, запись заголовка раз в 10 с, клавиша перевода ⌘⇧L, заметка «FBuddy Notes», свои запросы с 429 | `packages/testing/src/fake-fansly/neighbor/*` | P6a |
+| P6d ✓ | сосед (FBuddy) по S5 §6: режимы `off`, `after`, `before`, `reinject`, `legacy`, флаги `+guard`, `panel=desktop\|mobile\|off`, `generic`; хуки прототипа XHR и подмена `fetch`, постинг тел ответов в `window`, фильтр слов, узлы в шапке и поле, слой в `<body>`, стили `contain: size` и двухстрочное поле, запись заголовка раз в 10 с, клавиша перевода ⌘⇧L, заметка «FBuddy Notes», свои запросы с 429 | `packages/testing/src/fake-fansly/neighbor/*` | P6a |
 
 ### Этап 7. `host-fansly` и подключение сайта
 

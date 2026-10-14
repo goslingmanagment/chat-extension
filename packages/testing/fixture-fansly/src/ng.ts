@@ -58,6 +58,23 @@ export function append(parent: Node, children: readonly Child[]): void {
   }
 }
 
+/**
+ * Angular's registry of live views (`TRACKED_LVIEWS`, a module-level `Map<number, LView>`; an LView holds its own id
+ * at index 19). The stand registers its root view at boot, so what looks for the registry — FBuddy's MAIN script
+ * patches `Map.prototype.set` until it sees such an entry (S5 §2.3; the stand's neighbour, R20 P6d) — finds one.
+ */
+const trackedViews = new Map<number, unknown[]>();
+const VIEW_ID_SLOT = 19;
+let viewIds = 0;
+
+export function registerView(): number {
+  viewIds += 1;
+  const view: unknown[] = new Array<unknown>(VIEW_ID_SLOT + 1).fill(null);
+  view[VIEW_ID_SLOT] = viewIds;
+  trackedViews.set(viewIds, view);
+  return viewIds;
+}
+
 /** An `*ngIf` anchor: Angular leaves an empty comment where the template had the directive. */
 export const anchor = (): Comment => document.createComment('');
 

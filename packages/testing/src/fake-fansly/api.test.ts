@@ -232,8 +232,12 @@ describe('the fake Fansly API: what the page asks', () => {
     await socket.next((frame) => frame.startsWith('{"t":1'));
     const unread = (await call<WireUnreadPage>(fake, 'GET', bypass('/message/unread?limit=100&offset=0&before=0'))).response as WireUnreadPage;
     const some = unread.messageInteractions.slice(0, 3).map((item) => item.messageId);
+    const since = fake.journal.next;
     const acked = await call(fake, 'POST', bypass('/message/ack'), { body: { messageIds: some, type: 2 } });
     expect(acked.json).toEqual({ success: true, response: {} });
+    // The journal keeps WHAT was marked — the ids and the kind of mark: the page sends its marks in chunks, so a
+    // test compares the marks, not the number of calls.
+    expect(fake.journal.calls('page', since).map((entry) => [entry.route, entry.status, entry.detail?.['ackType'], entry.detail?.['messageIds']])).toEqual([['message.ack', 200, 2, some]]);
     const receipt = serviceEvent(await socket.next(isEvent(SERVICE.group, EVENT.group.ack)));
     expect(receipt?.event['ackCommand']).toEqual({ type: 2, userId: ids.creator, messageIds: some });
     const after = (await call<WireUnreadPage>(fake, 'GET', bypass('/message/unread?limit=100&offset=0&before=0'))).response as WireUnreadPage;

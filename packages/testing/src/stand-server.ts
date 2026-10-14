@@ -17,6 +17,11 @@
 //   page is told where the fake Fansly is (R20 P6b, src/fake-fansly: its API,
 //   its socket and its session token, in `<meta>` tags of the served page) and
 //   asks it by XHR and a socket of its own, as fansly.com asks apiv3 and wsv3.
+//   On a test's word it also gets the FBuddy-like neighbour (R20 P6d,
+//   src/fake-fansly/neighbor): `?stand-neighbor=<spec>` on the page's address,
+//   or a default set with POST /__stand/neighbor (the control header), puts
+//   the neighbour's boot script first in the page's `<head>`; its one script
+//   is served at /neighbor/neighbor.js.
 // A journal labels every call by who made it (protocol.ts CallOrigin); the
 // Fansly stand's page origin keeps its own, and the fake Fansly its own.
 
@@ -25,6 +30,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 
+import { FANSLY_STAND_PARAMS } from '../fixture-fansly/src/protocol';
 import { FANSLY_SERVER_META } from '../fixture-fansly/src/server-protocol';
 
 import {
@@ -39,11 +45,13 @@ import {
   type CallOrigin,
 } from '../fixture-chatspace/src/protocol';
 import { startFakeFansly, type FakeFansly } from './fake-fansly';
+import { NEIGHBOR_CONTROL_PATH, NEIGHBOR_SCRIPT_PATH, neighborConfig, type NeighborConfig } from './fake-fansly/neighbor/protocol';
+import { neighborFor, withNeighbor } from './fake-fansly/neighbor/serve';
 import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
 import { LOOPBACK_NAME, closeServers, listen, listenLocalhost } from './stand/listen';
-import { FANSLY_FIXTURE_BUILD_DIR, FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
+import { FANSLY_FIXTURE_BUILD_DIR, FANSLY_NEIGHBOR_BUILD_DIR, FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
 import { SENTRY_ENVELOPE_PATH, SentryInbox } from './stand/sentry-inbox';
 import { SocketHub } from './stand/socket-hub';
 import { StandState } from './stand/state';
@@ -63,6 +71,8 @@ export interface StandServerOptions {
   readonly fanslyPort?: number;
   /** Built Fansly stand; defaults to .cache/fixture-fansly. */
   readonly fanslyDir?: string;
+  /** Built neighbour (`neighbor.js`); defaults to .cache/fansly-neighbor. */
+  readonly neighborDir?: string;
   /** The fake Fansly's API, socket and proxy ports; 0 = pick a free port. */
   readonly fanslyApiPort?: number;
   readonly fanslySocketPort?: number;
@@ -78,6 +88,14 @@ export interface FanslyStandServer {
   readonly journal: ServerJournal;
   /** The fake Fansly (R20 P6b): its API origin, socket address, proxy, world, scripts and its own journal by caller. */
   readonly fake: FakeFansly;
+  /** The FBuddy-like neighbour (R20 P6d) of every later page load that names none itself. */
+  readonly neighbor: FanslyNeighborSetting;
+}
+
+/** The stand's default neighbour: null — none (the default); a page's own `?stand-neighbor=` overrides it. */
+export interface FanslyNeighborSetting {
+  readonly current: NeighborConfig | null;
+  set(config: Partial<NeighborConfig> | null): void;
 }
 
 export interface StandServer {
@@ -326,6 +344,16 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
   const fanslyJournal = new ServerJournal();
   let fanslyHost = '';
   let fake: FakeFansly | null = null;
+  const neighborDir = options.neighborDir ?? FANSLY_NEIGHBOR_BUILD_DIR;
+  let standingNeighbor: NeighborConfig | null = null;
+  const neighbor: FanslyNeighborSetting = {
+    get current() {
+      return standingNeighbor;
+    },
+    set: (config) => {
+      standingNeighbor = config === null ? null : neighborConfig(config);
+    },
+  };
   const handleFansly = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     const path = url.pathname;
@@ -341,6 +369,16 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       // The test process reads the journal; reading it is not journaled.
       sendJson(response, 200, fanslyJournal.read(Number(url.searchParams.get('since') ?? 0)));
       return;
+    } else if (path === NEIGHBOR_CONTROL_PATH && classified.origin === 'control') {
+      // The test process sets the default neighbour: a config (partial — defaults fill it) or null.
+      if (method === 'POST') {
+        const chunks: Buffer[] = [];
+        for await (const chunk of request) chunks.push(chunk as Buffer);
+        const text = Buffer.concat(chunks).toString('utf8').trim();
+        neighbor.set(text === '' ? null : (JSON.parse(text) as Partial<NeighborConfig> | null));
+      }
+      sendJson(response, 200, { neighbor: neighbor.current });
+      return;
     } else if (relative.startsWith('..')) {
       response.writeHead(400).end();
       status = 400;
@@ -352,9 +390,24 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       status = 204;
     } else if (path.startsWith('/assets/')) {
       status = await serveFile(response, join(fanslyDir, relative), null);
+    } else if (path === NEIGHBOR_SCRIPT_PATH) {
+      status = await serveFile(response, join(neighborDir, 'neighbor.js'), null);
     } else if (existsSync(join(fanslyDir, 'index.html'))) {
-      // History-mode app: every other path is its index, told where the fake Fansly is.
-      status = await serveFile(response, join(fanslyDir, 'index.html'), null, (text) => (fake === null ? text : withFanslyServer(text, fake)));
+      // History-mode app: every other path is its index, told where the fake Fansly is — and, if a test asked, with
+      // the neighbour's boot script first in its head (a bad `?stand-neighbor=` spec is the test's error: 400).
+      let pageNeighbor: NeighborConfig | null;
+      try {
+        pageNeighbor = neighborFor(url, standingNeighbor);
+      } catch (error) {
+        response.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }).end(String(error));
+        fanslyJournal.record({ kind: 'http', origin: classified.origin, method, path: `${path}${url.search}`, status: 400 });
+        return;
+      }
+      const apiOrigin = fake === null || url.searchParams.get(FANSLY_STAND_PARAMS.backend) === 'local' ? null : fake.apiOrigin;
+      status = await serveFile(response, join(fanslyDir, 'index.html'), null, (text) => {
+        const served = fake === null ? text : withFanslyServer(text, fake);
+        return pageNeighbor === null ? served : withNeighbor(served, { config: pageNeighbor, apiOrigin });
+      });
     } else {
       response.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }).end('The Fansly stand is not built: run `pnpm --filter @cg/testing build:stand`.');
       status = 503;
@@ -402,7 +455,7 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     journal,
     hub,
     sentry,
-    fansly: { origin: fanslyOrigin, port: fanslyPort, journal: fanslyJournal, fake: fakeFansly },
+    fansly: { origin: fanslyOrigin, port: fanslyPort, journal: fanslyJournal, fake: fakeFansly, neighbor },
     close: async () => {
       for (const response of context.hanging) response.destroy();
       await hub.close();
