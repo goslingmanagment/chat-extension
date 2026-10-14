@@ -158,7 +158,7 @@ describe('fake hub: HTTP scenarios', () => {
     });
   }
 
-  it('bootstrap all-off: nothing is usable; pilot-on: every pilot flag on both OF pages, Fansly skipped', () => {
+  it('bootstrap all-off: nothing is usable; pilot-on: every pilot flag on both OF pages, Fansly off — the `*` row never reaches it (R20 HF-2)', () => {
     expect(BootstrapSchema.parse(BOOTSTRAP_ALL_OFF).configRevision).toBe(0);
     for (const page of BOOTSTRAP_ALL_OFF.pages) {
       for (const flag of CLIENT_FEATURE_FLAG_NAMES) expect(usable(BOOTSTRAP_ALL_OFF, page, flag), `${page.pageLabel} ${flag}`).toBe(false);
@@ -171,7 +171,8 @@ describe('fake hub: HTTP scenarios', () => {
       for (const flag of ['drafts', 'voice', 'notesFill', 'notes', 'vault', 'registration']) expect(page.features[flag], `${page.pageLabel} ${flag}`).toEqual({ available: false, reason: 'platform_unsupported' });
     }
     const fansly = BOOTSTRAP_PILOT_ON.pages.find((page) => page.platform === 'fansly');
-    expect(fansly?.features['insertion']?.reason).toBe('platform_unsupported');
+    expect(fansly?.features['insertion']?.reason).toBe('flag_off');
+    expect(fansly?.features['navigation']?.reason).toBe('platform_unsupported');
     expect(BOOTSTRAP_PILOT_ON.bindingsByHost[hostBindingKey('chatspace', WORLD.pages.vip.hostAccountId)]).toBe(WORLD.pages.vip.pageId);
   });
 

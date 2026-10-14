@@ -80,7 +80,9 @@ describe('[R20-F4] admission: absent, off, on', () => {
     }
     // The master switch, a page of another platform, a page that is not granted, no bootstrap at all.
     expect(ask('coach', 'generate', BOOTSTRAP_ALL_OFF)).toEqual(off('disabled'));
-    expect(admission(CHATSPACE, 'coach', 'generate', onPage(ALL_ON, pageOf(ALL_ON, WORLD.pages.fansly.pageId)))).toEqual(off('platform_unsupported'));
+    // A Fansly page: a switch Fansly does not have is `platform_unsupported`; one it has waits for the page's own row (R20 HF-2).
+    expect(admission(CHATSPACE, 'navigation', null, onPage(ALL_ON, pageOf(ALL_ON, WORLD.pages.fansly.pageId)))).toEqual(off('platform_unsupported'));
+    expect(admission(CHATSPACE, 'coach', 'generate', onPage(ALL_ON, pageOf(ALL_ON, WORLD.pages.fansly.pageId)))).toEqual(off('flag_off'));
     expect(admission(CHATSPACE, 'coach', 'generate', onPage(ALL_ON, undefined))).toEqual(off('not_granted'));
     expect(admission(CHATSPACE, 'coach', 'generate', onPage(null, undefined))).toEqual(off('hub_not_ready'));
     // A switch the page does not list at all (an older hub, a switch the hub has not shipped): off, as a flag set nowhere.
@@ -104,8 +106,10 @@ describe('[R20-F4] admission: absent, off, on', () => {
     const mixed: BootstrapPage = { ...one, features: { ...one.features, coach: { available: false, reason: 'flag_off' } } };
     expect([pageBlanketReason(mixed), pageSwitchedOff(mixed)]).toEqual([null, false]);
     const fansly = pageOf(BOOTSTRAP_ALL_OFF, WORLD.pages.fansly.pageId) as BootstrapPage;
-    expect(Object.values(fansly.features).every((feature) => feature.reason === 'platform_unsupported')).toBe(true);
-    expect([pageBlanketReason(fansly), pageSwitchedOff(fansly)]).toEqual([null, false]);
+    expect([fansly.features['drafts'], fansly.features['navigation']]).toEqual([{ available: false, reason: 'disabled' }, { available: false, reason: 'platform_unsupported' }]);
+    expect([pageBlanketReason(fansly), pageSwitchedOff(fansly)]).toEqual(['disabled', true]);
+    const beforeHf2: BootstrapPage = { ...fansly, features: Object.fromEntries(Object.keys(fansly.features).map((flag) => [flag, { available: false, reason: 'platform_unsupported' }])) };
+    expect([pageBlanketReason(beforeHf2), pageSwitchedOff(beforeHf2)]).toEqual([null, false]);
   });
 
   it('in the shape of a switch: usable, or the reason; a feature the site does not have reads as one its platform lacks', () => {

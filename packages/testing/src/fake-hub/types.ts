@@ -87,6 +87,8 @@ export interface FakeHubConfigPatch {
    * Features not named keep their synthetic answer; `{}` restores them all.
    */
   readonly aiTexts?: Readonly<Record<string, string>>;
+  /** Pages the hub's voice-notes lane does not serve (R20 HF-4б): their `voice` reads `lane_off` in the bootstrap. `[]` — it serves every page. */
+  readonly voiceLaneOff?: readonly string[];
 }
 
 /**
@@ -142,8 +144,27 @@ export type FakeHubCommand =
   | { readonly op: 'desktopHold'; readonly pageLabel: string; readonly fanRef: string; readonly held: boolean }
   /** The desktop's new-follower command for this fan succeeded: the greeting is confirmed outside this client (source `desktop-outbox`). */
   | { readonly op: 'desktopGreeting'; readonly pageLabel: string; readonly fanRef: string }
-  /** A fan message lands in the archive (the feed's head moves, a new snapshot). */
+  /** A fan message lands in the archive (the feed's head moves, a new snapshot). On Fansly `fanRef` names the conversation's archive: the group. */
   | { readonly op: 'archiveMessage'; readonly pageLabel: string; readonly fanRef: string; readonly sender?: 'fan' | 'model'; readonly messageId?: string }
+  /**
+   * R20 P6c1: a conversation's archive becomes exactly these messages, oldest first (a new archive generation): what
+   * the AI's reader reads, and beside it what the hub holds without reading (`held`) or tombstoned (`deleted`).
+   * `lookupFails` — the hub's lookup of the ids outside the served window fails there (the window check answers
+   * `unknown`).
+   */
+  | {
+      readonly op: 'archiveConversation';
+      readonly pageLabel: string;
+      readonly conversationRef: string;
+      readonly messages: readonly { readonly id: string; readonly sender: 'fan' | 'model'; readonly state?: 'held' | 'deleted' }[];
+      readonly lookupFails?: boolean;
+    }
+  /**
+   * R20 P6c1 (hub HF-9): the page's capture of a chat (`page_dm_threads`) names its fan — or, `fanRef: null`, a fan it
+   * does not know. The pair a request names is checked against it: another fan's group is 409
+   * `conversation_fan_mismatch`, a group without a known fan is served `unverified`.
+   */
+  | { readonly op: 'thread'; readonly pageLabel: string; readonly conversationRef: string; readonly fanRef: string | null }
   /** The pages granted to a user (by username or userId), replacing the current grant: `me`, bootstrap and every page route follow it (404 outside it). */
   | { readonly op: 'grantPages'; readonly username?: string; readonly userId?: number; readonly pages: readonly string[] }
   /**

@@ -154,14 +154,16 @@ describe('[R20-F4] the ChatSpace table of switches on today’s hub is the same 
   });
 
   it('[R20-P4b3] Fansly’s own switches are not on a ChatSpace page in any hub, and no ChatSpace feature asks one', () => {
+    // P6c1 gives Fansly its own features; this regression covers ChatSpace's OnlyFans pages.
     for (const { name, bootstrap } of HUBS) {
-      for (const page of bootstrap.pages) {
+      expect(bootstrap.pages.filter((page) => page.platform === 'onlyfans')).toHaveLength(2);
+      for (const page of bootstrap.pages.filter((candidate) => candidate.platform === 'onlyfans')) {
         for (const flag of FANSLY_FLAGS) expect(pageFlagState(page, flag), `${name} · ${page.pageLabel} · ${flag}`).toEqual({ usable: false, reason: 'platform_unsupported' });
       }
     }
     // Even an owner who writes them into the pilot pages' rows and into `"*"` switches nothing on there.
     const eager = patchConfig(presetConfig('pilot-pages'), { flags: { drafts: true, voice: true }, ...pilotPageFlags({ drafts: true, voice: true, notesFill: true, notes: true, vault: true, registration: true }) });
-    for (const page of bootstrapOf(eager, FAKE_PAGES, chatter, NOW_MS).pages) {
+    for (const page of bootstrapOf(eager, FAKE_PAGES, chatter, NOW_MS).pages.filter((candidate) => candidate.platform === 'onlyfans')) {
       for (const flag of FANSLY_FLAGS) expect(pageFlagState(page, flag).reason, `${page.pageLabel} · ${flag}`).toBe('platform_unsupported');
     }
     const asked = Object.values(CHATSPACE).flatMap((entry) => [entry.base, ...Object.values(entry.actions)].flatMap((requirement) => requirement.flags));

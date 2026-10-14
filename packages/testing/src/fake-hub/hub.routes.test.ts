@@ -340,11 +340,11 @@ describe('fake hub routes: the model’s own checks', () => {
     expect((await hub.fetch(`${hub.origin}/api/v1/pages`)).status).toBe(401);
   });
 
-  it('an owner flag off refuses its route with client_feature_disabled and the reason; Fansly is platform_unsupported', async () => {
+  it('an owner flag off refuses its route with client_feature_disabled and the reason; a Fansly page without its own row is flag_off (R20 HF-2)', async () => {
     hub.control({ op: 'config', patch: { pageFlags: { [PAGE]: { stats: false } } } });
     await refused('clientSpenderStats', { pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }, 409, 'client_feature_disabled', 'flag_off');
     await ok('clientSpenderStats', { pageLabel: WORLD.pages.vip.pageLabel, windowDays: 30, timeZone: 'UTC' });
-    await refused('clientConversationFeed', { pageLabel: WORLD.pages.fansly.pageLabel, fanRef: WORLD.fan }, 409, 'client_feature_disabled', 'platform_unsupported');
+    await refused('clientConversationFeed', { pageLabel: WORLD.pages.fansly.pageLabel, fanRef: WORLD.fan }, 409, 'client_feature_disabled', 'flag_off');
     hub.control({ op: 'config', patch: { master: false } });
     await refused('clientAudienceNew', { pageLabel: PAGE, windowHours: 48 }, 409, 'client_feature_disabled', 'disabled');
   });

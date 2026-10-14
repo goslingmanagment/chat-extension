@@ -43,6 +43,18 @@ const isSpenderSeeds: FieldCheck = (value) =>
       Object.entries(seed as Record<string, unknown>).every(([key, field]) => field === undefined || SEED_FIELDS[key]?.(field) === true),
   );
 
+const isNativeId: FieldCheck = (value) => typeof value === 'string' && /^[1-9]\d{0,29}$/.test(value);
+/** `archiveConversation.messages`: an id, a side, and at most a state — nothing else. */
+const isConversationSeed: FieldCheck = (value) =>
+  Array.isArray(value) &&
+  value.every(
+    (message) =>
+      isObject(message) &&
+      isNativeId((message as Record<string, unknown>)['id']) &&
+      oneOf('fan', 'model')((message as Record<string, unknown>)['sender']) &&
+      Object.entries(message as Record<string, unknown>).every(([key, field]) => key === 'id' || key === 'sender' || (key === 'state' && (field === undefined || oneOf('held', 'deleted')(field)))),
+  );
+
 const MATCH = oneOf('exact', 'route');
 const UNSCRIPTED = oneOf('fail', 'model');
 const PAGE_FAN = { pageLabel: isString, fanRef: isString };
@@ -67,6 +79,8 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   desktopHold: { ...PAGE_FAN, held: isBoolean },
   desktopGreeting: PAGE_FAN,
   archiveMessage: { ...PAGE_FAN, sender: oneOf('fan', 'model'), messageId: isString },
+  archiveConversation: { pageLabel: isString, conversationRef: isNativeId, messages: isConversationSeed, lookupFails: isBoolean },
+  thread: { pageLabel: isString, conversationRef: isNativeId, fanRef: either(isNativeId, oneOf(null)) },
   archiveRebuild: PAGE_FAN,
   grantPages: { username: isString, userId: isNumber, pages: isStringArray },
   pageAccount: { pageLabel: isString, platformAccountId: either(isString, oneOf(null)) },
@@ -88,6 +102,8 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   desktopHold: ['pageLabel', 'fanRef', 'held'],
   desktopGreeting: ['pageLabel', 'fanRef'],
   archiveMessage: ['pageLabel', 'fanRef'],
+  archiveConversation: ['pageLabel', 'conversationRef', 'messages'],
+  thread: ['pageLabel', 'conversationRef', 'fanRef'],
   archiveRebuild: ['pageLabel', 'fanRef'],
   grantPages: ['pages'],
   pageAccount: ['pageLabel', 'platformAccountId'],
@@ -112,6 +128,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'aiChunkDelayMs',
   'aiNameFan',
   'aiTexts',
+  'voiceLaneOff',
 ]);
 
 const isOp = (op: unknown): op is FakeHubCommand['op'] => typeof op === 'string' && Object.hasOwn(FIELDS, op);

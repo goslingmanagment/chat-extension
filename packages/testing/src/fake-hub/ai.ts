@@ -4,11 +4,14 @@
 // done, each only when its capability or mode asks for it), Split markers
 // only where the hub would honour `preferSplit`, and the record of every
 // generation (H-5 eligibility, shared recaps, own AI spend). The text is
-// synthetic and fixed; it never lands in the journal.
+// synthetic and fixed; it never lands in the journal. On Fansly (R20 P6c1)
+// the context frame also names the checked pair (HF-9) and answers the
+// body's window check (HF-8в).
 
 import { SPLIT_MARKERS, type ContextFrame, type HubFrame, type HubStreamRequest, type PersonaCatalogItem } from '@cg/contracts';
 
 import { WORLD } from '../scenarios/hub';
+import { type CoverageCheckAnswer } from './ai-rules';
 import { type FakeSseStep } from './types';
 
 export interface Generation {
@@ -48,6 +51,10 @@ export interface ModelStreamFacts {
   readonly nameFan?: boolean;
   /** The whole answer per feature, in place of the synthetic one (the `aiTexts` knob). */
   readonly texts?: Readonly<Record<string, string>>;
+  /** R20 HF-9: the checked pair of a Fansly request (`pair` of the frame); absent when no pair was checked. */
+  readonly pair?: 'verified' | 'unverified';
+  /** R20 HF-8в: the answer to the body's window check; absent unless the request advertised `coverage-check-v1` and sent one. */
+  readonly coverageCheck?: CoverageCheckAnswer;
 }
 
 const TEXTS: Readonly<Record<string, { readonly single: string; readonly split: string }>> = {
@@ -141,10 +148,12 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
       window: { requested, served: Math.min(requested, facts.archive.total) },
       coverage: facts.archive.total === 0 ? 'unknown' : 'complete',
       ...(body.knownFanMessageIds === undefined ? {} : { knownFanMessages: body.knownFanMessageIds.map((id) => ({ id, state: facts.archive.state(id) })) }),
+      ...(facts.coverageCheck === undefined ? {} : { coverageCheck: { window: [...facts.coverageCheck.window], deleted: [...facts.coverageCheck.deleted] } }),
       live: { status: liveStatus, accepted: liveStatus === 'served' ? (live?.items.length ?? 0) : 0, rejected: 0 },
       fanLanguageEvidence: 'latin',
     };
-    steps.push(frame(context));
+    // `pair` (R20 HF-9) is a key of the hub's frame our mirror does not name yet (it is not strict: later keys pass).
+    steps.push(frame(facts.pair === undefined ? context : ({ ...context, pair: facts.pair } as ContextFrame)));
   }
   if (debug) steps.push(frame({ type: 'reasoning_delta', text: 'synthetic reasoning' }));
   const written = facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
