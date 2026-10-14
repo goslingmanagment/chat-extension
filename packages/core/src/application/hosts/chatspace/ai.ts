@@ -15,12 +15,15 @@
 //
 // It rides with ChatSpace's application half of the adapter
 // (apps/extension/src/composition/tab/hosts/chatspace/app.ts) in ChatSpace's
-// `tab-app` chunk: the shared `ai` layer carries only the calls.
+// `tab-app` chunk: the shared `ai` layer carries only the calls. It imports
+// nothing of the shared feature table on purpose — a module goes to the first
+// lazy layer that needs it, and the table would follow it into `tab-app`.
 
 import type { LiveTextTail } from '@cg/contracts/host';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 
-import { HI_MAX_PERSONAL_MESSAGES } from '../../../domain/features';
+/** AI-031: Hi is for a conversation with at most this many messages — of either side, as the hub counts them (`gate_hi_greeting_limit`). */
+export const HI_MAX_MESSAGES = 10;
 
 export const CHATSPACE_AI: AiHostPolicy<LiveTextTail, null> = {
   /**
@@ -36,7 +39,7 @@ export const CHATSPACE_AI: AiHostPolicy<LiveTextTail, null> = {
    *
    * AI-036 (the owner's ruling В4): a manual Ping is never blocked on OnlyFans — the hub's segment is a hint.
    */
-  preflight: (feature, window) => (feature === 'hi' && window.loaded > HI_MAX_PERSONAL_MESSAGES ? 'hi-gate' : null),
+  preflight: (feature, window) => (feature === 'hi' && window.loaded > HI_MAX_MESSAGES ? 'hi-gate' : null),
   proof: (host, ask) => (ask.fresh === null ? null : host.readVisibleTail(ask.identity, ask.fresh.maxItems)),
   fields: (fresh) => ({ fresh }),
   fingerprint: () => null,
