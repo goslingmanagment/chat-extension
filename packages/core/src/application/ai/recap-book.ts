@@ -44,7 +44,11 @@ export interface RecapBookDeps {
   openChat(): ChatKey | null;
 }
 
-const idOf = (key: RecapSlotKey): string => [key.hubOrigin, key.pageId, key.fanRef, key.personaDefinitionId].join('\u0000');
+const idOf = (key: RecapSlotKey): string => [key.hubOrigin, key.pageId, key.fanRef, key.conversationRef, key.personaDefinitionId].join('\u0000');
+
+/** What a request about the key names: the page, the fan and — R20 F6b, only when it is not the fan — the conversation. */
+const asked = (key: RecapSlotKey): { readonly pageId: number; readonly fanRef: string; readonly conversationRef?: string } =>
+  key.conversationRef === undefined ? { pageId: key.pageId, fanRef: key.fanRef } : { pageId: key.pageId, fanRef: key.fanRef, conversationRef: key.conversationRef };
 
 export class RecapBook {
   readonly slots = new RecapSlots();
@@ -130,8 +134,8 @@ export class RecapBook {
     if (personaDefinitionId === null) return null;
     const copy = copyOfResult(view, { newLocalId: () => ids.uuid(), now: clock.now() });
     if (copy === null) return null;
-    const binding = view.target.binding;
-    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef: view.target.fanRef, personaDefinitionId }, copy);
+    const { binding, fanRef, conversationRef } = view.target;
+    const stored = this.remember({ hubOrigin: binding.hubOrigin, pageId: binding.pageId, fanRef, ...(conversationRef === fanRef ? {} : { conversationRef }), personaDefinitionId }, copy);
     // The background's saver is on it for the tab that owns the operation; its toast ends the wait.
     if (stored.length === 'full' && record.own && !this.saves.has(stored.id)) this.saves.set(stored.id, saveStarted(clock.now()));
     this.deps.changed();
@@ -153,7 +157,7 @@ export class RecapBook {
     if (known !== undefined && (known.state === 'loading' || (!force && known.state === 'ready' && now - known.at < SHARED_RECAPS_TTL_MS))) return;
     this.reads.set(id, { state: 'loading', error: null, at: now });
     this.deps.changed();
-    void rpc.request('recap.read', { pageId: key.pageId, fanRef: key.fanRef, personaDefinitionId: key.personaDefinitionId }).then((answer) => {
+    void rpc.request('recap.read', { ...asked(key), personaDefinitionId: key.personaDefinitionId }).then((answer) => {
       // The sign-in changed meanwhile: this answer belongs to nobody.
       if (this.reads.get(id)?.at !== now) return;
       if (!answer.ok) {
@@ -214,7 +218,7 @@ export class RecapBook {
   async readStatus(key: RecapSlotKey): Promise<{ readonly ok: true; readonly status: RecapStatus } | { readonly ok: false }> {
     const { clock, rpc } = this.deps.ports;
     const id = idOf(key);
-    const answer = await rpc.request('recap.status', { pageId: key.pageId, fanRef: key.fanRef, personaDefinitionId: key.personaDefinitionId });
+    const answer = await rpc.request('recap.status', { ...asked(key), personaDefinitionId: key.personaDefinitionId });
     this.statuses.set(id, answer.ok ? { status: answer.payload, at: clock.now(), failed: false } : { status: null, at: clock.now(), failed: true });
     this.deps.changed();
     return answer.ok ? { ok: true, status: answer.payload } : { ok: false };
@@ -276,7 +280,7 @@ export class RecapBook {
     const current = restart ? undefined : this.saves.get(id);
     const state: RecapSaveState = current !== undefined && current.s === 'saving' ? { ...current, nextAt: null } : saveStarted(clock.now());
     this.setSave(id, state);
-    const answer = await rpc.request('recap.save', { pageId: key.pageId, fanRef: key.fanRef, generationRef: id, ...(copy.opId === null ? {} : { opId: copy.opId }) });
+    const answer = await rpc.request('recap.save', { ...asked(key), generationRef: id, ...(copy.opId === null ? {} : { opId: copy.opId }) });
     const next = saveAnswered(state, answer.ok ? answer.payload.state : 'error', clock.now(), answer.ok ? answer.payload.savedAt : null);
     if (next.s === 'saved') this.markSaved(id, next.at);
     else this.setSave(id, next);

@@ -5,13 +5,16 @@
 // then every 3 minutes up to 30 minutes, while the owning tab is open. The
 // end is «Сохранено в хаб» or CG-RECAP-SAVE. A transport failure is not
 // repeated by itself. The latest recap of a chat owns the save: a newer one
-// replaces the pending schedule of an older one.
+// replaces the pending schedule of an older one. The write names the
+// conversation the recap was made in when it is not the fan (R20 F6b, hub
+// HF-10: on Fansly the group); the dossier itself is the fan's.
 
 import { HUB_FACADE_TIMING, type HubFacade } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { type OpView } from '@cg/contracts/ops';
 import { type BackgroundToast } from '@cg/contracts/tab-messages';
 
+import { conversationOf } from '../domain/ops/conversation';
 import { NO_LOG, type Clock, type IdSource, type LogSink, type TabEventSink, type TimerHandle } from './ports';
 
 export interface ProfileSaverDeps {
@@ -84,6 +87,8 @@ export class RecapProfileSaver {
         fanRef: view.target.fanRef,
         generationRef: ref,
         clientRequestId: view.opId,
+        // R20 F6b: the conversation the recap was made in, when it is not the fan (on Fansly the group).
+        ...conversationOf(view.target.fanRef, view.target.conversationRef),
       });
       state = answer.state;
     } catch {

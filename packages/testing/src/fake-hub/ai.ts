@@ -17,6 +17,8 @@ export interface Generation {
   readonly feature: string;
   readonly pageLabel: string;
   readonly fanRef: string;
+  /** The request's conversation (on Fansly the group; on OnlyFans the fan). */
+  readonly conversationRef: string;
   readonly userId: number;
   readonly summaryMode: 'short' | null;
   readonly messageCount: number | null;

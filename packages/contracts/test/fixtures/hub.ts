@@ -7,7 +7,7 @@
 import type * as z from 'zod/mini';
 
 import * as C from '../../src/index';
-import { IDS, ISO, ISO_LATER, uuid } from './samples';
+import { FANSLY_IDS, IDS, ISO, ISO_LATER, uuid } from './samples';
 
 const fixture = (name: string, schema: z.ZodMiniType, valid: readonly unknown[], invalid: readonly unknown[]) => ({ name, schema, valid, invalid });
 
@@ -657,14 +657,35 @@ export const HUB_SCHEMA_FIXTURES = [
     { pageLabel: PAGE, conversationRef: IDS.fan, personaDefinitionId: 'short' },
   ]),
   fixture('RecapStatus', C.RecapStatusSchema, [recapStatus, { full: null, short: null }], [{ full: { ...recapSlot, transcriptCoverage: 'all' }, short: null }]),
-  fixture('SharedRecapsQuery', C.SharedRecapsQuerySchema, [{ pageLabel: PAGE, fanRef: IDS.fan }, { pageLabel: PAGE, fanRef: IDS.fan, personaDefinitionId: PDEF }], [
-    { pageLabel: PAGE, fanRef: '0' },
-  ]),
+  fixture(
+    'SharedRecapsQuery',
+    C.SharedRecapsQuerySchema,
+    [
+      { pageLabel: PAGE, fanRef: IDS.fan },
+      { pageLabel: PAGE, fanRef: IDS.fan, personaDefinitionId: PDEF },
+      // 1.15.0 (R20 F6b): a Fansly group apart from its fan.
+      { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, personaDefinitionId: PDEF, conversationRef: FANSLY_IDS.group },
+    ],
+    [
+      { pageLabel: PAGE, fanRef: '0' },
+      { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, conversationRef: '' },
+      { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, conversationRef: Number(FANSLY_IDS.group) },
+    ],
+  ),
   fixture('RecapBody', C.RecapBodySchema, [recapBody], [{ ...recapBody, text: undefined }]),
   fixture('SharedRecaps', C.SharedRecapsSchema, [sharedRecaps, { full: null, short: null, fullSavedToProfile: false }], [{ full: null, short: null }]),
-  fixture('ProfileFromGenerationRequest', C.ProfileFromGenerationRequestSchema, [{ pageLabel: PAGE, fanRef: IDS.fan, generationRef: GEN, clientRequestId: uuid(2) }], [
-    { pageLabel: PAGE, fanRef: IDS.fan, generationRef: '' },
-  ]),
+  fixture(
+    'ProfileFromGenerationRequest',
+    C.ProfileFromGenerationRequestSchema,
+    [
+      { pageLabel: PAGE, fanRef: IDS.fan, generationRef: GEN, clientRequestId: uuid(2) },
+      { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, generationRef: GEN, clientRequestId: uuid(2), conversationRef: FANSLY_IDS.group },
+    ],
+    [
+      { pageLabel: PAGE, fanRef: IDS.fan, generationRef: '' },
+      { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, generationRef: GEN, conversationRef: 'group' },
+    ],
+  ),
   fixture('ProfileFromGenerationResponse', C.ProfileFromGenerationResponseSchema, [profileResponse, { ...profileResponse, outcome: 'existing' }], [
     { ...profileResponse, outcome: 'saved' },
   ]),
@@ -746,10 +767,20 @@ export const HUB_SCHEMA_FIXTURES = [
   ]),
 
   // ── feed ──
-  fixture('FeedQuery', C.FeedQuerySchema, [{ pageLabel: PAGE, fanRef: IDS.fan }, { pageLabel: PAGE, fanRef: IDS.fan, cursor: 'cur-older-1', limit: 100, summaryWindow: 1500 }], [
-    { pageLabel: PAGE, fanRef: IDS.fan, summaryWindow: 3000 },
-    { pageLabel: PAGE, fanRef: IDS.fan, limit: 101 },
-  ]),
+  fixture(
+    'FeedQuery',
+    C.FeedQuerySchema,
+    [
+      { pageLabel: PAGE, fanRef: IDS.fan },
+      { pageLabel: PAGE, fanRef: IDS.fan, cursor: 'cur-older-1', limit: 100, summaryWindow: 1500 },
+      { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, cursor: 'cur-older-1', limit: 50, conversationRef: FANSLY_IDS.group },
+    ],
+    [
+      { pageLabel: PAGE, fanRef: IDS.fan, summaryWindow: 3000 },
+      { pageLabel: PAGE, fanRef: IDS.fan, limit: 101 },
+      { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, conversationRef: '0' },
+    ],
+  ),
   fixture('FeedItem', C.FeedItemSchema, [feedItem, { ...feedItem, at: null, sender: 'some-new-sender', automatic: true, deleted: true }], [
     { ...feedItem, attachmentLabels: ['x'.repeat(81)] },
     { ...feedItem, tipMills: 1.25 },
@@ -757,10 +788,20 @@ export const HUB_SCHEMA_FIXTURES = [
   fixture('FeedSummary', C.FeedSummarySchema, [feedPage.summary, { ...feedPage.summary, pingSegment: 'unknown', fanSilenceDays: null }], [
     { ...feedPage.summary, window: { requested: 100 } },
   ]),
-  fixture('FeedPage', C.FeedPageSchema, [feedPage, { ...feedPage, head: null, nextOlderCursor: null, items: [], summary: null, coverage: 'unknown' }], [
-    { ...feedPage, items: Array.from({ length: 101 }, () => feedItem) },
-    { ...feedPage, target: { pageLabel: PAGE, fanRef: 'fan_two' } },
-  ]),
+  fixture(
+    'FeedPage',
+    C.FeedPageSchema,
+    [
+      feedPage,
+      { ...feedPage, head: null, nextOlderCursor: null, items: [], summary: null, coverage: 'unknown' },
+      { ...feedPage, target: { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, conversationRef: FANSLY_IDS.group } },
+    ],
+    [
+      { ...feedPage, items: Array.from({ length: 101 }, () => feedItem) },
+      { ...feedPage, target: { pageLabel: PAGE, fanRef: 'fan_two' } },
+      { ...feedPage, target: { pageLabel: PAGE, fanRef: FANSLY_IDS.fan, conversationRef: 'group' } },
+    ],
+  ),
 
   // ── newcomers, claim, custody ──
   fixture('ClaimGroup', C.ClaimGroupSchema, [group, { ...group, variant: 2, partCount: 10 }], [{ ...group, variant: 3 }, { ...group, partCount: 0 }, { ...group, generationRef: 'gen-1' }]),

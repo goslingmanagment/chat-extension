@@ -12,6 +12,7 @@
 
 import {
   CHAT_EXTENSION_CLIENT,
+  CHAT_IS_FAN,
   DeviceTokenIssueRequestSchema,
   HUB_CLIENT_CHECK_CODES,
   HUB_FACADE_TIMING,
@@ -21,6 +22,7 @@ import {
   INGEST_LIMITS,
   IngestBatchSchema,
   hasCapability,
+  narrowPlatform,
   type AbortSignalLike,
   type AcceptanceEvent,
   type AiQuotaSnapshot,
@@ -37,6 +39,7 @@ import {
   type ClaimState,
   type ClientFeatureFlag,
   type ClientHealthV1,
+  type ClientHubCapability,
   type DeviceTokenIssueResponse,
   type Dossier,
   type DossierQuery,
@@ -174,6 +177,15 @@ export function errorWireOf(error: unknown): CgErrorWire | null {
     return hubErrorWire(error.resolution, failureDetail(error.failure));
   }
   return null;
+}
+
+/**
+ * R20 F6b (hub HF-10): a read by conversation that names one — the conversation is not the fan — needs a hub that
+ * takes the field (`conversation-recaps-v1`): an older hub answers the strict query or body 400. Without it the read
+ * is refused here (CG-HUB-CAPABILITY) and nothing is sent: the fan's own read is never taken for the group's.
+ */
+function byConversation(request: { readonly conversationRef?: string | undefined }): { readonly needs?: readonly ClientHubCapability[] } {
+  return request.conversationRef === undefined ? {} : { needs: ['conversation-recaps-v1'] };
 }
 
 export class ChatExtensionHub implements HubFacade {
@@ -647,12 +659,26 @@ export class ChatExtensionHub implements HubFacade {
   }
 
   async recaps(query: SharedRecapsQuery): Promise<SharedRecaps> {
-    return (await this.client('clientConversationRecaps', query, query.pageLabel)) as SharedRecaps;
+    return (await this.client('clientConversationRecaps', query, query.pageLabel, byConversation(query))) as SharedRecaps;
   }
 
-  /** The dossier of a conversation (`pageConversationProfile`; on OnlyFans the conversation is the fan); null for a fan the hub does not know. */
+  /**
+   * The fan's dossier (R20 F6b, architecture §11.1: the dossier is the fan's); null for a fan the hub does not know.
+   * Where a chat is its fan (`CHAT_IS_FAN`: OnlyFans) it is read by that conversation (`pageConversationProfile`), as
+   * ChatSpace always has; where a chat has an id of its own (Fansly) the fan's id names no conversation, and it is
+   * read by the fan (`pageFanProfile`).
+   */
   async dossier(query: DossierQuery): Promise<Dossier | null> {
+    if (!(await this.chatIsFan(query.pageLabel))) return this.fanDossier(query);
     return this.profileRead('pageConversationProfile', query, { pageLabel: query.pageLabel, conversationId: query.fanRef });
+  }
+
+  /** Whether a chat of the page's platform is its fan; a page or a platform this sign-in does not know reads as before (the read then refuses it). */
+  private async chatIsFan(pageLabel: string): Promise<boolean> {
+    await this.ready;
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    const platform = narrowPlatform(pageOf(entry.bootstrap, pageLabel)?.platform ?? '');
+    return platform === null || CHAT_IS_FAN[platform];
   }
 
   /** The same document looked up by the fan (`pageFanProfile`), for the fan panel's dossier pointer (AI-071). */
@@ -678,7 +704,7 @@ export class ChatExtensionHub implements HubFacade {
   /** One H-5 link write; `signal` (the tab) cancels it in flight. */
   private async profileWrite(request: ProfileFromGenerationRequest, signal: AbortSignalLike | undefined): Promise<ProfileSaveOutcome> {
     try {
-      const response = await this.client('clientFanProfileFromGeneration', request, request.pageLabel, { signal });
+      const response = await this.client('clientFanProfileFromGeneration', request, request.pageLabel, { signal, ...byConversation(request) });
       return { state: 'saved', response: response as Extract<ProfileSaveOutcome, { state: 'saved' }>['response'] };
     } catch (error) {
       if (!(error instanceof FacadeCallError) || error.failure.kind !== 'http') throw error;
@@ -774,7 +800,12 @@ export class ChatExtensionHub implements HubFacade {
   // ── feed, «Новые», claim and custody (H-7, H-9) ──────────────────────────
 
   async feed(query: FeedQuery): Promise<FeedPage> {
-    return (await this.client('clientConversationFeed', query, query.pageLabel)) as FeedPage;
+    const page = (await this.client('clientConversationFeed', query, query.pageLabel, byConversation(query))) as FeedPage;
+    // R20 F6b: a page of another conversation than the one asked for is never shown as this one's.
+    if (query.conversationRef !== undefined && page.target.conversationRef !== query.conversationRef) {
+      throw this.ctx.failure('clientConversationFeed', transportFailure('contract'), this.ctx.connection('clientConversationFeed'));
+    }
+    return page;
   }
 
   async audienceNew(query: AudienceNewQuery): Promise<AudienceNewPage> {
@@ -903,12 +934,19 @@ export class ChatExtensionHub implements HubFacade {
     route: ClientFamilyKey,
     request: unknown,
     pageLabel: string,
-    options: { readonly flags?: readonly ClientFeatureFlag[]; readonly fresh?: boolean; readonly facts?: CallFacts; readonly signal?: AbortSignalLike | undefined } = {},
+    options: {
+      readonly flags?: readonly ClientFeatureFlag[];
+      readonly fresh?: boolean;
+      readonly facts?: CallFacts;
+      readonly signal?: AbortSignalLike | undefined;
+      /** What this request needs of the hub beyond its route (a field only a newer hub takes). */
+      readonly needs?: readonly ClientHubCapability[];
+    } = {},
   ): Promise<unknown> {
     await this.ready;
     const connection = this.ctx.connection(route);
     const entry = options.fresh === true ? await this.bootstrapService.fresh() : (this.bootstrapService.cached() ?? (await this.bootstrapService.fresh()));
-    const missing = HUB_ROUTES[route].capabilities.filter((capability) => !hasCapability(entry.bootstrap.capabilities, capability));
+    const missing = [...HUB_ROUTES[route].capabilities, ...(options.needs ?? [])].filter((capability) => !hasCapability(entry.bootstrap.capabilities, capability));
     if (missing.length > 0) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, missing.join(','));
     if (pageOf(entry.bootstrap, pageLabel) === null) throw new FacadeCheckError('pageNotGranted', route, connection.epoch);
     const routeFlag = HUB_ROUTES[route].flag;

@@ -12,6 +12,7 @@
 // checks (deployed, page granted, flag) → model. Every call is journaled.
 
 import {
+  CHAT_IS_FAN,
   HUB_ERROR_STATUSES,
   HUB_FEATURE_ONLY_FIELDS,
   HUB_ROUTE_SCHEMAS,
@@ -548,6 +549,10 @@ export class FakeHub {
       const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body) : null;
       if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, undefined, undefined, [rule.message]);
     }
+    // R20 F6b: a hub before HF-10 has no `conversationRef` in these strict queries and bodies — an unknown key, 400.
+    if (CONVERSATION_ROUTES.includes(route) && namesConversation(facade.request) && !s.config.capabilities.includes('conversation-recaps-v1')) {
+      return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['conversationRef: an unknown key on a hub without conversation-recaps-v1']);
+    }
     const real = isClientRoute(route) ? this.options.routeSchemas?.[route] : undefined;
     if (real !== undefined) {
       // As the hub's server does: its route's own params, querystring and body schemas, before our contract's mirror.
@@ -791,7 +796,7 @@ export class FakeHub {
         return this.modelAi(request as HubStreamRequest, need(principal), need(page));
       case 'aiRecapStatus': {
         const query = request as RecapStatusQuery;
-        return { kind: 'json', status: 200, body: s.data.recapStatus(need(page).pageLabel, query.fanRef ?? query.conversationRef, query.personaDefinitionId, now) };
+        return { kind: 'json', status: 200, body: s.data.recapStatus(need(page).pageLabel, query.fanRef ?? query.conversationRef, query.personaDefinitionId, now, query.conversationRef) };
       }
       case 'pageConversationProfile':
       case 'pageFanProfile':
@@ -811,12 +816,20 @@ export class FakeHub {
       }
       case 'clientConversationRecaps': {
         const query = request as SharedRecapsQuery;
-        return { kind: 'json', status: 200, body: s.data.sharedRecaps(need(page).pageLabel, query.fanRef, query.personaDefinitionId) };
+        const conversation = conversationOf(need(page), query);
+        if (typeof conversation !== 'string') return conversation;
+        return { kind: 'json', status: 200, body: s.data.sharedRecaps(need(page).pageLabel, query.fanRef, query.personaDefinitionId, conversation) };
       }
-      case 'clientFanProfileFromGeneration':
-        return this.profileFromGeneration(request as ProfileFromGenerationRequest, need(principal));
-      case 'clientConversationFeed':
-        return read(s.data.feed(need(page), request as FeedQuery, now, need(principal).user.userId));
+      case 'clientFanProfileFromGeneration': {
+        const conversation = conversationOf(need(page), request as ProfileFromGenerationRequest);
+        if (typeof conversation !== 'string') return conversation;
+        return this.profileFromGeneration(request as ProfileFromGenerationRequest, need(principal), conversation);
+      }
+      case 'clientConversationFeed': {
+        const conversation = conversationOf(need(page), request as FeedQuery);
+        if (typeof conversation !== 'string') return conversation;
+        return read(s.data.feed(need(page), request as FeedQuery, now, need(principal).user.userId, conversation));
+      }
       case 'clientSpenderStats':
         return read(s.data.stats(need(page), request as StatsQuery, now));
       case 'clientSpenderAwaitingReply':
@@ -902,6 +915,7 @@ export class FakeHub {
       feature: request.feature,
       pageLabel: request.body.pageLabel,
       fanRef: request.body.fanRef ?? request.body.conversationRef,
+      conversationRef: request.body.conversationRef,
       userId: principal.user.userId,
       summaryMode: request.body.summaryMode ?? null,
       messageCount: request.body.messageCount ?? null,
@@ -930,7 +944,7 @@ export class FakeHub {
       personaDefinitionId: generation.personaDefinitionId,
       coverage: { transcriptCoverage: total <= requested ? 'full-history' : 'window', requestedCount: requested, keptCount: Math.min(requested, total) },
       text: generation.text,
-    });
+    }, generation.conversationRef);
   }
 
   private recordUsage(request: HubStreamRequest, principal: Principal, outcome: 'completed' | 'failed' | 'cancelled' | 'quota-denied'): void {
@@ -948,7 +962,7 @@ export class FakeHub {
   }
 
   /** H-5: an idempotent link write from a finished full fan-summary of the same user, page and fan. */
-  private profileFromGeneration(request: ProfileFromGenerationRequest, principal: Principal): Outcome {
+  private profileFromGeneration(request: ProfileFromGenerationRequest, principal: Principal, conversation: string): Outcome {
     const s = this.state;
     const now = this.clock.now();
     const generation = s.generations.get(request.generationRef);
@@ -958,6 +972,8 @@ export class FakeHub {
       return inFlight ? refusal('generation_not_ready') : refusal('not_found');
     }
     if (generation.userId !== principal.user.userId || generation.pageLabel !== request.pageLabel || generation.fanRef !== request.fanRef) return refusal('not_found');
+    // R20 F6b (hub HF-10, `generationIsOfConversation`): a generation of the fan's own form, or of this conversation.
+    if (generation.conversationRef !== generation.fanRef && generation.conversationRef !== conversation) return refusal('not_found');
     if (generation.outcome === 'open') return refusal('generation_not_ready');
     if (generation.outcome !== 'done') return refusal('generation_not_eligible', 'not_completed');
     if (generation.feature !== 'fan-summary' || generation.summaryMode !== null) return refusal('generation_not_eligible', 'not_full_summary');
@@ -979,6 +995,25 @@ export class FakeHub {
       return json(400, { error: 'bad_request', message: `fake hub control: ${error instanceof Error ? error.message : String(error)}`, statusCode: 400 });
     }
   }
+}
+
+/** The client reads keyed by conversation (R20 F6b, hub HF-10). */
+const CONVERSATION_ROUTES: readonly HubRouteKey[] = ['clientConversationRecaps', 'clientConversationFeed', 'clientFanProfileFromGeneration'];
+
+function namesConversation(request: unknown): boolean {
+  return typeof request === 'object' && request !== null && (request as { conversationRef?: unknown }).conversationRef !== undefined;
+}
+
+/**
+ * The hub's resolver of a read by conversation (HF-10 `services/client-conversation.ts`), before anything is read:
+ * where a chat is its fan (OnlyFans) the conversation is the fan — absent or equal changes nothing, another is 409
+ * `conversation_fan_mismatch`; where a chat has an id of its own (Fansly) it is required (400 without it). The fake
+ * knows no threads, so a group is served as the hub serves an unverified pair.
+ */
+function conversationOf(page: FakePage, request: { readonly fanRef: string; readonly conversationRef?: string | undefined }): string | Outcome {
+  const { fanRef, conversationRef } = request;
+  if (CHAT_IS_FAN[page.platform]) return conversationRef === undefined || conversationRef === fanRef ? fanRef : { kind: 'refuse', refusal: { error: 'conversation_fan_mismatch' } };
+  return conversationRef ?? { kind: 'refuse', refusal: { error: 'bad_request' } };
 }
 
 /** A fake hub for one test file (in-process mode). */

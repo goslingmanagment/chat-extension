@@ -89,6 +89,13 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'preview-send-custody-v1',
   'client-health-perf-v1',
   'ai-usage-v1',
+  /**
+   * 1.15.0 (R20 F6b, hub HF-10): the recaps read, the dossier save from a generation and the archive feed take
+   * `conversationRef` — the conversation apart from the fan. The query strings and bodies are strict: a hub without
+   * it answers the field 400, so the hub layer sends it only to a hub that lists this capability (`docs/protocols/
+   * hub.md` п. 18).
+   */
+  'conversation-recaps-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

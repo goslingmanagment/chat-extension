@@ -3722,3 +3722,16 @@ describe('R20 F6a, ChatSpace: a preview, a row and a card on ChatSpace start, re
     expect(recorded.boardNavigations).toBe(CHATSPACE_RECORDED.boardNavigations);
   });
 });
+
+describe('R20 F6b, ChatSpace: a preview and the fan panel on ChatSpace read the hub as before F6b', () => {
+  it('a preview’s feed (the first page and an older one) and the fan panel’s card, dossier and archive: byte for byte as recorded on main', async () => {
+    const h = await harness();
+    const online = h.boards.palette.online();
+    await h.dispatch({ type: 'OpenPreview', targetHandle: online[0]!.handle });
+    await h.dispatch({ type: 'LoadOlder', targetHandle: online[0]!.handle });
+    await h.dispatch(open('fan-panel'));
+    const reads = h.bg.requests.filter((request) => ['feed.read', 'fan.card', 'fan.dossier'].includes(request.type));
+    // The cursor is the hub's own token: named, the rest compared as is.
+    expect(JSON.stringify(reads).replace(/"cursor":"[^"]+"/g, '"cursor":"<cursor>"')).toBe(CHATSPACE_RECORDED.boardReads);
+  });
+});

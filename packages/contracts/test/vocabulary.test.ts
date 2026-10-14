@@ -62,6 +62,18 @@ describe('sites (1.15.0, R20)', () => {
       }
   });
 
+  it('R20 F6b: a chat is its fan on OnlyFans alone (CHAT_IS_FAN), the rule Target pins; every known platform says which', () => {
+    expect(C.CHAT_IS_FAN).toEqual({ onlyfans: true, fansly: false });
+    expect(Object.keys(C.CHAT_IS_FAN).sort()).toEqual([...C.KNOWN_PLATFORMS].sort());
+    for (const host of C.HOST_KINDS) {
+      const platform = C.HOST_PLATFORM[host];
+      const chat = { host, hostAccountId: '1001', platformFanId: '2002' };
+      const binding = { hubOrigin: 'https://hub.example.test', principalId: 7, loginEpoch: 3, host, hostAccountId: '1001', platform, platformAccountId: '3003', pageId: 11, pageLabel: 'page', bindingRevision: 1 };
+      // A conversation apart from the fan is a Target only where a chat is not its fan.
+      expect(C.TargetSchema.safeParse({ binding, chat, fanRef: '2002', conversationRef: '2003' }).success, host).toBe(!C.CHAT_IS_FAN[platform]);
+    }
+  });
+
   it('a route names its conversation only where it fits (conversationFits)', () => {
     const fansly = { host: 'fansly-web', hostAccountId: '700000000000000001', platformFanId: '700000000000000002' } as const;
     const chatspace = { host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } as const;

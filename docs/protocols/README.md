@@ -218,7 +218,10 @@ R01 делали четыре исполнителя, интегратор св�
   `spenders.queue`, `feed.read`, `fan.card`, `fan.dossier`, `newcomers.list`,
   `newcomers.claim`, `usage.get`); `spenders.board` — `SpendersBoard`, сборка фона
   до 1000 строк вместе с корзинами-полками (`tiers`); `spenders.stats` — только
-  окно 30 дней, единственное в v1 хаба.
+  окно 30 дней, единственное в v1 хаба. С 1.15.0 (R20 F6b) `recap.status`,
+  `recap.read`, `recap.save` и `feed.read` называют разговор фана, когда это не
+  сам фан (`conversationRef?`, на Fansly — группа); `fan.card`, `fan.dossier` и
+  `newcomers.claim` — только фан ([hub.md](hub.md) п. 18).
 - Источники моделей видов, которых нет у хаба напрямую: `quota.get` и
   `quota.changed` (квота из последнего `meta`), `accounts.seen` (хранилище
   `presence`, его пополняет `tab.presence.accounts`; `openTabs` — вкладки, загрузившие

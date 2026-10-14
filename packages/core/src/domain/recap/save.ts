@@ -64,10 +64,19 @@ export function saveSchedule(): number[] {
 /**
  * What the background asks the hub for a tab's `recap.save`: the same
  * idempotent link write as its own saver's (H-5), by the generation — never
- * the text. `pageLabel` is the bootstrap page of the request's `pageId`.
+ * the text. `pageLabel` is the bootstrap page of the request's `pageId`. The
+ * conversation the generation was made in goes along when it is not the fan
+ * (R20 F6b: on Fansly the group); on ChatSpace the request is as it was.
  */
 export function profileRequestOf(request: TabRequestPayload<'recap.save'>, pageLabel: string): ProfileFromGenerationRequest {
-  return { pageLabel, fanRef: request.fanRef, generationRef: request.generationRef, ...(request.opId === undefined ? {} : { clientRequestId: request.opId }) };
+  const { fanRef, conversationRef } = request;
+  return {
+    pageLabel,
+    fanRef,
+    generationRef: request.generationRef,
+    ...(request.opId === undefined ? {} : { clientRequestId: request.opId }),
+    ...(conversationRef === undefined || conversationRef === fanRef ? {} : { conversationRef }),
+  };
 }
 
 /** The hub's answer as the tab gets it; `savedAt` is when the dossier version was created. */

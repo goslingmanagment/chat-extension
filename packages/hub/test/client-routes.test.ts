@@ -7,7 +7,7 @@
 
 import { CLAIM_REVISION_MAX, CLIENT_FEATURE_FLAG_NAMES, HUB_ROUTE_KEYS, HUB_ROUTES, isHubCallError, isHubCheckError, type ClaimOp } from '@cg/contracts';
 import { HUB_SAMPLES } from '@cg/contracts/fixtures';
-import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, uuid, type HttpExchange, pageFeaturesOff } from '@cg/testing/hub';
+import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW_MS, PAGE, WORLD, hubServing, uuid, type HttpExchange, pageFeaturesOff } from '@cg/testing/hub';
 import { kernelOperations } from '@kernel/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -305,6 +305,101 @@ describe('[HB-006] one transport: every client/* route goes through the vendored
     h.hub.on('clientSpenderStats', () => json(201, HUB_SAMPLES.stats));
     const undeclared = await h.facade.spendersStats({ pageLabel: PAGE, windowDays: 30, timeZone: 'UTC' }).catch((reason: unknown) => reason);
     expect(isHubCallError(undeclared) && undeclared.failure).toEqual({ kind: 'transport', failure: 'contract' });
+  });
+});
+
+describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', () => {
+  const FANSLY_PAGE = WORLD.pages.fansly.pageLabel;
+  /** A Fansly fan and the group of the read: two ids, never one for the other. */
+  const FAN = '700000000000000002';
+  const GROUP = '700000000000000003';
+  const OTHER_GROUP = '700000000000000004';
+  const PERSONA = WORLD.persona.definitionId;
+  /** The Fansly page with its recap and preview admitted, as R20 HF-2 will: only the hub's answers decide here. */
+  const FANSLY_ON = {
+    ...BOOTSTRAP_ALL_ON,
+    pages: BOOTSTRAP_ALL_ON.pages.map((page) => (page.platform === 'fansly' ? { ...page, features: Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, { available: true }])) } : page)),
+  };
+  const fanslyFeed = (conversationRef: string | undefined) => ({ ...HUB_SAMPLES.feedPage, target: { pageLabel: FANSLY_PAGE, fanRef: FAN, ...(conversationRef === undefined ? {} : { conversationRef }) } });
+
+  async function signedIn(bootstrap: unknown): Promise<Harness> {
+    const made = makeHarness({ paths: HUB_ROUTE_PATHS });
+    await signIn(made, signInWorld(SIGN_IN, bootstrap, WORLD.user.username));
+    await flush(20);
+    return made;
+  }
+
+  it('the recaps, the feed and the dossier save of a Fansly group name the group apart from the fan; the fan stays in the path', async () => {
+    const f = await signedIn(FANSLY_ON);
+    try {
+      f.hub.on('clientConversationRecaps', () => json(200, HUB_SAMPLES.sharedRecaps));
+      await f.facade.recaps({ pageLabel: FANSLY_PAGE, fanRef: FAN, personaDefinitionId: PERSONA, conversationRef: GROUP });
+      expect(f.hub.of('clientConversationRecaps')[0]).toMatchObject({ path: `/api/v1/client/pages/${FANSLY_PAGE}/conversations/${FAN}/recaps`, query: { personaDefinitionId: PERSONA, conversationRef: GROUP } });
+
+      f.hub.on('clientConversationFeed', () => json(200, fanslyFeed(GROUP)));
+      await expect(f.facade.feed({ pageLabel: FANSLY_PAGE, fanRef: FAN, conversationRef: GROUP, limit: 50 })).resolves.toMatchObject({ target: { fanRef: FAN, conversationRef: GROUP } });
+      expect(f.hub.of('clientConversationFeed')[0]).toMatchObject({ path: `/api/v1/client/pages/${FANSLY_PAGE}/conversations/${FAN}/feed`, query: { limit: '50', conversationRef: GROUP } });
+
+      f.hub.on('clientFanProfileFromGeneration', () => json(200, HUB_SAMPLES.profileResponse));
+      await f.facade.profileFromGeneration({ pageLabel: FANSLY_PAGE, fanRef: FAN, generationRef: uuid(0x200), clientRequestId: uuid(0x100), conversationRef: GROUP });
+      expect(f.hub.of('clientFanProfileFromGeneration')[0]).toMatchObject({
+        method: 'POST',
+        path: `/api/v1/client/pages/${FANSLY_PAGE}/fans/${FAN}/profile/from-generation`,
+        body: { generationRef: uuid(0x200), clientRequestId: uuid(0x100), conversationRef: GROUP },
+      });
+    } finally {
+      f.facade.dispose();
+    }
+  });
+
+  it('a feed page of another group than the one asked for, or of none, is a broken answer — never shown as this chat\'s', async () => {
+    const f = await signedIn(FANSLY_ON);
+    try {
+      for (const answered of [OTHER_GROUP, undefined]) {
+        f.hub.on('clientConversationFeed', () => json(200, fanslyFeed(answered)));
+        const error = await f.facade.feed({ pageLabel: FANSLY_PAGE, fanRef: FAN, conversationRef: GROUP, limit: 50 }).catch((reason: unknown) => reason);
+        expect(isHubCallError(error) && error.failure, String(answered)).toEqual({ kind: 'transport', failure: 'contract' });
+      }
+    } finally {
+      f.facade.dispose();
+    }
+  });
+
+  it('the dossier is the fan\'s: on Fansly it is read by the fan, on OnlyFans by its conversation as always', async () => {
+    const f = await signedIn(FANSLY_ON);
+    try {
+      f.hub.on('pageFanProfile', () => json(200, HUB_SAMPLES.dossier)).on('pageConversationProfile', () => json(200, HUB_SAMPLES.dossier));
+      await expect(f.facade.dossier({ pageLabel: FANSLY_PAGE, fanRef: FAN })).resolves.toEqual(HUB_SAMPLES.dossier);
+      expect(f.hub.of('pageFanProfile').map((request) => request.path)).toEqual([`/api/v1/pages/${FANSLY_PAGE}/fans/${FAN}/profile`]);
+      expect(f.hub.of('pageConversationProfile')).toEqual([]);
+      await f.facade.dossier({ pageLabel: PAGE, fanRef: WORLD.fan });
+      expect(f.hub.of('pageConversationProfile').map((request) => request.path)).toEqual([`/api/v1/pages/${PAGE}/conversations/${WORLD.fan}/profile`]);
+      expect(f.hub.of('pageFanProfile')).toHaveLength(1);
+    } finally {
+      f.facade.dispose();
+    }
+  });
+
+  it('a hub without `conversation-recaps-v1`: a read that names a conversation is refused before any request (CG-HUB-CAPABILITY); one that names none goes as it always did', async () => {
+    const older = hubServing(FANSLY_ON, FANSLY_ON.capabilities.filter((capability) => capability !== 'conversation-recaps-v1'));
+    const f = await signedIn(older);
+    try {
+      const named = [
+        f.facade.recaps({ pageLabel: FANSLY_PAGE, fanRef: FAN, personaDefinitionId: PERSONA, conversationRef: GROUP }),
+        f.facade.feed({ pageLabel: FANSLY_PAGE, fanRef: FAN, conversationRef: GROUP, limit: 50 }),
+        f.facade.saveRecapProfile({ pageLabel: FANSLY_PAGE, fanRef: FAN, generationRef: uuid(0x200), conversationRef: GROUP }, new AbortController().signal),
+      ];
+      for (const refusal of await Promise.all(named.map((call) => call.catch((reason: unknown) => reason)))) {
+        expect(isHubCheckError(refusal) && refusal.code).toBe('CG-HUB-CAPABILITY');
+      }
+      for (const route of ['clientConversationRecaps', 'clientConversationFeed', 'clientFanProfileFromGeneration'] as const) expect([route, f.hub.of(route)]).toEqual([route, []]);
+
+      f.hub.on('clientConversationRecaps', () => json(200, HUB_SAMPLES.sharedRecaps));
+      await f.facade.recaps({ pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: PERSONA });
+      expect(f.hub.of('clientConversationRecaps')[0]?.query).toEqual({ personaDefinitionId: PERSONA });
+    } finally {
+      f.facade.dispose();
+    }
   });
 });
 

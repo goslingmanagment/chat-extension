@@ -54,6 +54,12 @@ const Ack = z.strictObject({ recorded: z.boolean() });
 
 /** A hub page + fan the tab asks about; the background re-checks the page is in the tab's binding. */
 const PageFan = { pageId: HubIntIdSchema, fanRef: NativeIdSchema };
+/**
+ * 1.15.0 (R20 F6b): a read by conversation (the recaps and their status, the dossier save from a generation, the
+ * archive feed) names the conversation of the fan when it is not the fan — on Fansly the group. Absent — the
+ * conversation is the fan, as on ChatSpace before 1.15.0. The card, the dossier and the lease are the fan's alone.
+ */
+const PageFanConversation = { ...PageFan, conversationRef: z.optional(NativeIdSchema) };
 
 /** Attempts one `send.list` answer carries. */
 export const SEND_LIST_MAX = 100;
@@ -425,8 +431,8 @@ export const TAB_REQUESTS = {
   'send.fuseReset': { req: Empty, res: SendFuseStateSchema, from: PAGE, pages: ['options'] },
 
   // ── recaps ──
-  'recap.status': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: RecapStatusSchema, from: ANY },
-  'recap.read': { req: z.strictObject({ ...PageFan, personaDefinitionId: PersonaDefinitionIdSchema }), res: SharedRecapsSchema, from: ANY },
+  'recap.status': { req: z.strictObject({ ...PageFanConversation, personaDefinitionId: PersonaDefinitionIdSchema }), res: RecapStatusSchema, from: ANY },
+  'recap.read': { req: z.strictObject({ ...PageFanConversation, personaDefinitionId: PersonaDefinitionIdSchema }), res: SharedRecapsSchema, from: ANY },
   /**
    * 1.2.0 — «Сохранить ещё раз» (CG-RECAP-SAVE, UiAction RetryRecapSave) and
    * the late save of a full recap opened from the hub (AI-068): one
@@ -436,7 +442,7 @@ export const TAB_REQUESTS = {
    * `clientRequestId` when the tab knows the operation.
    */
   'recap.save': {
-    req: z.strictObject({ ...PageFan, generationRef: GenerationRefSchema, opId: z.optional(UuidSchema) }),
+    req: z.strictObject({ ...PageFanConversation, generationRef: GenerationRefSchema, opId: z.optional(UuidSchema) }),
     res: z.strictObject({ state: z.enum(['saved', 'not-ready', 'rejected']), savedAt: z.nullable(IsoTimestampSchema) }),
     from: TAB,
   },
@@ -461,7 +467,7 @@ export const TAB_REQUESTS = {
   },
   'feed.read': {
     req: z.strictObject({
-      ...PageFan,
+      ...PageFanConversation,
       cursor: CursorSchema,
       limit: z.int().check(z.gte(1), z.lte(FEED_LIMITS.maxLimit)),
       /** The Ping chip's window (settings `generation.windows.ping`); the hub's default 100 when absent. */

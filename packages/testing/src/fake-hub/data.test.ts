@@ -9,7 +9,8 @@ import { HUB_ROUTE_SCHEMAS, type HubRouteKey } from '@cg/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { PAGE, SCENARIO_DATA, WORLD, uuid } from '../scenarios/hub';
-import { CursorSigner, localDate, zonedMidnight } from './data';
+import { FAKE_PAGES, PILOT_CAPABILITIES } from './config';
+import { CursorSigner, DataModel, localDate, zonedMidnight } from './data';
 import { createFakeHub, type FakeHub } from './hub';
 import { hubCall } from './kit';
 
@@ -286,5 +287,75 @@ describe('fake hub data: ingest, dossier, health, me', () => {
       [WORLD.pages.vip.pageLabel, 'onlyfans'],
       [WORLD.pages.fansly.pageLabel, 'fansly'],
     ]);
+  });
+});
+
+describe('fake hub data: reads by conversation (R20 F6b, hub HF-10)', () => {
+  const PERSONA = WORLD.persona.definitionId;
+
+  it('OnlyFans: a conversation equal to the fan changes nothing; another is 409 conversation_fan_mismatch', async () => {
+    const plain = await get<{ target: Record<string, unknown>; items: unknown[] }>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 5 });
+    const same = await get<{ target: Record<string, unknown>; items: unknown[] }>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 5, conversationRef: WORLD.fan });
+    expect(same.items).toEqual(plain.items);
+    expect(plain.target).toEqual({ pageLabel: PAGE, fanRef: WORLD.fan });
+    expect(same.target).toEqual({ pageLabel: PAGE, fanRef: WORLD.fan, conversationRef: WORLD.fan });
+    expect(await get('clientConversationRecaps', { pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: PERSONA, conversationRef: WORLD.fan })).toEqual(
+      await get('clientConversationRecaps', { pageLabel: PAGE, fanRef: WORLD.fan, personaDefinitionId: PERSONA }),
+    );
+    for (const route of ['clientConversationFeed', 'clientConversationRecaps'] as const) {
+      expect(await refused(route, { pageLabel: PAGE, fanRef: WORLD.fan, conversationRef: WORLD.otherFan })).toEqual({ status: 409, error: 'conversation_fan_mismatch' });
+    }
+    expect(await refused('clientFanProfileFromGeneration', { pageLabel: PAGE, fanRef: WORLD.fan, generationRef: uuid(0x200), conversationRef: WORLD.otherFan })).toEqual({ status: 409, error: 'conversation_fan_mismatch' });
+    // One cursor serves both spellings of the fan's own chat.
+    const first = await get<{ nextOlderCursor: string }>('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, limit: 5 });
+    await get('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, cursor: first.nextOlderCursor, conversationRef: WORLD.fan });
+  });
+
+  it('a hub without conversation-recaps-v1 answers the field 400 (an unknown key of its strict query or body), and the rest as before', async () => {
+    hub.control({ op: 'config', patch: { capabilities: PILOT_CAPABILITIES.filter((capability) => capability !== 'conversation-recaps-v1') } });
+    for (const [route, request] of [
+      ['clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan, conversationRef: WORLD.fan }],
+      ['clientConversationRecaps', { pageLabel: PAGE, fanRef: WORLD.fan, conversationRef: WORLD.fan }],
+      ['clientFanProfileFromGeneration', { pageLabel: PAGE, fanRef: WORLD.fan, generationRef: uuid(0x200), conversationRef: WORLD.fan }],
+    ] as const) {
+      expect(await refused(route, request), route).toEqual({ status: 400, error: 'bad_request' });
+    }
+    await get('clientConversationFeed', { pageLabel: PAGE, fanRef: WORLD.fan });
+  });
+
+  it('two chats and two fans: recaps, the feed and its cursor are the group\'s about its fan; another group\'s or another fan\'s never cross', () => {
+    const signer = new CursorSigner('s1');
+    const data = new DataModel(signer, Date.parse('2026-10-03T10:00:00.000Z'));
+    const fansly = FAKE_PAGES.find((page) => page.platform === 'fansly');
+    if (fansly === undefined) throw new Error('no Fansly page');
+    const a = { fan: '7102', group: '7203' };
+    const b = { fan: '7105', group: '7204' };
+    const recap = (ref: string) => ({ generationRef: ref, generatedAt: '2026-10-03T09:00:00.000Z', personaDefinitionId: PERSONA, coverage: { transcriptCoverage: 'full-history', requestedCount: 3000, keptCount: 3 }, text: ref });
+    data.storeRecap(fansly.pageLabel, a.fan, 'full', recap(uuid(0xa1)), a.group);
+    data.storeRecap(fansly.pageLabel, b.fan, 'full', recap(uuid(0xb1)), b.group);
+    expect(data.sharedRecaps(fansly.pageLabel, a.fan, PERSONA, a.group).full?.generationRef).toBe(uuid(0xa1));
+    expect(data.sharedRecaps(fansly.pageLabel, b.fan, PERSONA, b.group).full?.generationRef).toBe(uuid(0xb1));
+    // The first group asked about the second fan, or the fan's own form of another fan: nothing.
+    expect(data.sharedRecaps(fansly.pageLabel, b.fan, PERSONA, a.group).full).toBeNull();
+    expect(data.sharedRecaps(fansly.pageLabel, a.fan, PERSONA, b.group).full).toBeNull();
+    // A recap in the fan's own (legacy) form is read with the group, the fresher of the two wins.
+    data.storeRecap(fansly.pageLabel, a.fan, 'short', { ...recap(uuid(0xa2)), generatedAt: '2026-10-03T09:30:00.000Z' });
+    expect(data.sharedRecaps(fansly.pageLabel, a.fan, PERSONA, a.group)).toMatchObject({ full: { generationRef: uuid(0xa1) }, short: { generationRef: uuid(0xa2) } });
+
+    const feedOf = (chat: { fan: string; group: string }, cursor?: string) => {
+      const read = data.feed(fansly, { pageLabel: fansly.pageLabel, fanRef: chat.fan, conversationRef: chat.group, limit: 2, ...(cursor === undefined ? {} : { cursor }) }, Date.now(), 7, chat.group);
+      if (!read.ok) throw new Error(read.refusal.error);
+      return read.body;
+    };
+    const pageA = feedOf(a);
+    const pageB = feedOf(b);
+    expect(pageA.target).toEqual({ pageLabel: fansly.pageLabel, fanRef: a.fan, conversationRef: a.group });
+    expect(pageA.items.map((item) => item.messageId).every((id) => id.startsWith(a.group))).toBe(true);
+    expect(pageB.items.map((item) => item.messageId).every((id) => id.startsWith(b.group))).toBe(true);
+    expect(pageA.nextOlderCursor).not.toBeNull();
+    expect(feedOf(a, pageA.nextOlderCursor ?? '').items).toHaveLength(1);
+    // The cursor of one group is refused for the other.
+    const crossed = data.feed(fansly, { pageLabel: fansly.pageLabel, fanRef: b.fan, conversationRef: b.group, cursor: pageA.nextOlderCursor ?? '' }, Date.now(), 7, b.group);
+    expect(crossed).toEqual({ ok: false, refusal: { error: 'bad_request', reason: 'cursor_invalid' } });
   });
 });

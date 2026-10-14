@@ -317,7 +317,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     setArchive(chat.key, { state: 'loading', asOf: before?.asOf ?? null, head: before?.head ?? null });
     ws.bump();
     // The head of the hub archive: database only on the hub, so nothing is marked read.
-    const answer = await rpc.request('feed.read', { pageId: ready.page.pageId, fanRef: ready.target.fanRef, cursor: null, limit: 1 });
+    // R20 F6b: the head of the chat's own conversation — on Fansly the group of the route, apart from the fan.
+    const { fanRef, conversationRef } = ready.target;
+    const answer = await rpc.request('feed.read', { pageId: ready.page.pageId, fanRef, cursor: null, limit: 1, ...(conversationRef === fanRef ? {} : { conversationRef }) });
     if (!answer.ok) {
       setArchive(chat.key, { state: 'error', asOf: before?.asOf ?? null, head: before?.head ?? null });
       ws.bump();

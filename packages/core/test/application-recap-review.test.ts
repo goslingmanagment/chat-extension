@@ -18,6 +18,7 @@ import { BOOTSTRAP_PILOT_PAGES, contextFrame, meta, resolveHubErrorReference, pa
 import { OTHER_TAB, settingsWithPersona } from './support/ai-background';
 import { delta, doneStep, readyHarness, type Harness, type HarnessOptions, type HarnessParts } from './support/ai-harness';
 import { type ScriptResponse } from './support/fake-hub';
+import { CHATSPACE_RECORDED } from './support/chatspace-recorded';
 import { NOW_MS, WORLD, uuid } from './support/world';
 
 function parts(): HarnessParts {
@@ -1160,3 +1161,18 @@ describe('persona change: nothing of the old persona comes back', () => {
   });
 });
 
+
+describe('R20 F6b, ChatSpace: the recap reads of a ChatSpace chat are as before F6b', () => {
+  it('the status, the shared recaps, the tab’s and the background’s dossier saves: byte for byte as recorded on main', async () => {
+    const h = await start({ background: (bg) => (bg.recapStatus = { full: null, short: null }) });
+    await h.clock.advance(RECAP_STATUS.settleMs);
+    h.bg.hub.profileScript.push({ state: 'rejected', reason: 'generation_not_found' });
+    await openRecap(h);
+    h.script(recapStream(FULL_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.clock.advance(1_000);
+    expect(await h.dispatch({ type: 'RetryRecapSave', length: 'full' })).toMatchObject({ ok: true, type: 'RetryRecapSave' });
+    const recorded = JSON.stringify({ status: h.bg.callsOf('recap.status'), read: h.bg.callsOf('recap.read'), save: h.bg.callsOf('recap.save'), background: h.bg.hub.profiles });
+    expect(recorded).toBe(CHATSPACE_RECORDED.recapReads);
+  });
+});
