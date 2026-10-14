@@ -100,8 +100,15 @@ export type AnchorId = z.infer<typeof AnchorIdSchema>;
  * store), and keeps it until the page reloads. What needs it stays off until then; it is no break of the contract.
  */
 export const ANCHOR_STATES = ['ok', 'missing', 'shape', 'notYet'] as const;
+export type AnchorState = (typeof ANCHOR_STATES)[number];
 
-export const HostContractReportSchema = z.strictObject({
+/**
+ * ChatSpace's report: the full schema it has had since 1.0.0 — every anchor of ANCHOR_IDS named, one missing key
+ * and the report is refused. `host` (1.15.0, R20 F7) is absent in every report of an adapter before 1.15.0, and
+ * ChatSpace's adapter need not name it: a report without `host` is ChatSpace's.
+ */
+export const ChatSpaceContractReportSchema = /* @__PURE__ */ z.strictObject({
+  host: z.optional(z.literal('chatspace')),
   /** Fingerprint of the host build (the hashed name of its entry module): a diagnostic signal, not the check itself. */
   build: z.nullable(displayText(80)),
   adapterVersion: boundedText(32),
@@ -115,7 +122,89 @@ export const HostContractReportSchema = z.strictObject({
    */
   receiptMatch: z.optional(z.strictObject({ profile: boundedText(64), kind: z.enum(RECEIPT_MATCH_KINDS) })),
 });
+export type ChatSpaceContractReport = z.infer<typeof ChatSpaceContractReportSchema>;
+
+/** The sites whose report is not ChatSpace's shape: their anchors and own capabilities are in a block of their own. */
+export const SITE_REPORT_HOSTS = ['fansly-web'] as const satisfies readonly Exclude<HostKind, 'chatspace'>[];
+
+/** A name of a site's own anchor or capability (its contract module lists them, R20 §7.12): a short machine token. */
+const SiteContractNameSchema = /* @__PURE__ */ z.string().check(z.regex(/^[A-Za-z][A-Za-z0-9]{0,63}$/));
+/** A block names a bounded number of anchors (32) and of capabilities (16). */
+const atMost = (max: number) => z.refine<Readonly<Record<string, unknown>>>((named) => Object.keys(named).length <= max, { message: 'too many names' });
+
+/**
+ * 1.15.0 (R20 F7): a site's own block of its report (`extensions[<site>]`) — the state of each of its anchors and of
+ * each capability it has beyond HOST_CAPABILITIES. Which anchors the block must name is the site's (its expected
+ * set, `HostContractShape`): whoever reads the report reads that set, and an anchor the block does not name is
+ * `missing` there — never «nothing to check» (FS-CTR-1).
+ */
+export const SiteContractBlockSchema = /* @__PURE__ */ z.strictObject({
+  anchors: z.record(SiteContractNameSchema, z.enum(ANCHOR_STATES)).check(atMost(32)),
+  capabilities: z.record(SiteContractNameSchema, CapabilityStateSchema).check(atMost(16)),
+});
+export type SiteContractBlock = z.infer<typeof SiteContractBlockSchema>;
+
+/**
+ * 1.15.0 (R20 F7): the report of a site other than ChatSpace — the build, the shared capabilities, every one named,
+ * and its own block `extensions[<its host>]`, required; no ChatSpace anchors and no X8 receipt profile.
+ */
+export const SiteContractReportSchema = /* @__PURE__ */ z
+  .strictObject({
+    host: z.enum(SITE_REPORT_HOSTS),
+    build: z.nullable(displayText(80)),
+    adapterVersion: boundedText(32),
+    checkedAt: EpochMsSchema,
+    capabilities: z.record(HostCapabilitySchema, CapabilityStateSchema),
+    extensions: z.partialRecord(HostKindSchema, SiteContractBlockSchema),
+  })
+  .check(
+    z.refine((report) => report.extensions[report.host] !== undefined && Object.keys(report.extensions).length === 1, {
+      message: "a site's report carries its own block, and no other",
+    }),
+  );
+export type SiteContractReport = z.infer<typeof SiteContractReportSchema>;
+
+/**
+ * The host contract report (§6.2), parsed by `host` (1.15.0, R20 F7): no `host` or `'chatspace'` — ChatSpace's full
+ * schema, as before; another site — its own shape with its block.
+ */
+export const HostContractReportSchema = /* @__PURE__ */ z.union([ChatSpaceContractReportSchema, SiteContractReportSchema]);
 export type HostContractReport = z.infer<typeof HostContractReportSchema>;
+
+/** The site a report is of: a report that names none is ChatSpace's (every adapter before 1.15.0). */
+export function contractHostOf(report: HostContractReport): HostKind {
+  return report.host ?? 'chatspace';
+}
+
+/** The anchors a report names, whichever its site: ChatSpace's at the top, another site's in its own block. */
+export function contractAnchorsOf(report: HostContractReport): Readonly<Record<string, AnchorState>> {
+  return 'anchors' in report ? report.anchors : (report.extensions[report.host]?.anchors ?? {});
+}
+
+/**
+ * What a site's report must name (1.15.0, R20 F7; architecture §7.12, FS-CTR-1): the contract facts of the tab's
+ * log, «Статус» and the popup read this set, never the keys a report happens to carry — an expected anchor the
+ * report does not name is `missing`. The site's adapter and the extension pages' composition root hand it over.
+ */
+export interface HostContractShape {
+  /** Every anchor of the site. */
+  readonly anchors: readonly string[];
+  /** Anchors of a part the owner switches on separately: `missing` while its switch is off is the normal state of a shift, not a break. */
+  readonly switchedAnchors: readonly string[];
+  /** The capabilities of those parts: not `on` while switched off is no degraded contract. */
+  readonly switchedCapabilities: readonly HostCapability[];
+}
+
+/**
+ * ChatSpace's: every anchor of ANCHOR_IDS. Part B of its adapter (§6.2, §6.7, §6.8) — the WebSocket tap (`wsFrames`)
+ * and X8's receipt profile — is the owner's switch: without it the adapter reports both anchors `missing` (nothing of
+ * that part is in the page) and the capabilities of the tap and X8 off.
+ */
+export const CHATSPACE_CONTRACT: HostContractShape = {
+  anchors: ANCHOR_IDS,
+  switchedAnchors: ['wsFrames', 'receiptProfile'],
+  switchedCapabilities: ['previewSend', 'incoming', 'receipt', 'sendObserve'],
+};
 
 export const ROUTE_NAMES = ['chat', 'accounts-overview', 'other'] as const;
 

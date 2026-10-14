@@ -4,13 +4,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, UiActionSchema, type DiagnosticsSnapshot, type OptionsVM, type SettingsSection, type StatusRowVM, type UiAction } from '@cg/contracts';
+import { CHATSPACE_STATUS_TEXTS, DEFAULT_SETTINGS, SETTINGS_SECTIONS, UiActionSchema, type DiagnosticsSnapshot, type HostKind, type OptionsVM, type SettingsSection, type StatusRowVM, type UiAction } from '@cg/contracts';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
-import { AUTOSAVE_DEBOUNCE_MS, RECHECK_MIN_INTERVAL_MS, routeOfHash } from '@cg/core/application/pages';
+import { AUTOSAVE_DEBOUNCE_MS, RECHECK_MIN_INTERVAL_MS, routeOfHash, type PageSite } from '@cg/core/application/pages';
 
 import { SCENARIO_FEATURES } from '../scenarios/app-client';
-import { PAGES_HOST_ORIGIN, PAGES_NOW, PAGES_VERSION, hostReport, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
+import { PAGES_HOST_ORIGIN, PAGES_NOW, PAGES_SITES, PAGES_VERSION, hostReport, pagesWorld, sameTitleState, settle, signedOutState, troubledState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
 
 let world: PagesWorld | null = null;
 let clock = PAGES_NOW;
@@ -23,7 +23,8 @@ async function open(options: PagesWorldOptions = {}): Promise<PagesWorld> {
 }
 
 const options = <S extends SettingsSection>(w: PagesWorld, section: S): Readonly<OptionsVM<S>> => w.client.getSnapshot({ of: 'options', section });
-const row = (w: PagesWorld, id: StatusRowVM['id']): StatusRowVM | undefined => options(w, 'status').body?.rows.find((entry) => entry.id === id);
+/** A row by its id, or a site's row by its site (R20 F7: one `host` row per site). */
+const row = (w: PagesWorld, id: StatusRowVM['id'] | HostKind): StatusRowVM | undefined => options(w, 'status').body?.rows.find((entry) => entry.id === id || (entry.id === 'host' && entry.host === id));
 const text = (w: PagesWorld, value: StatusRowVM['value'] | null | undefined): string => (value === null || value === undefined ? '' : typeof value === 'string' ? value : w.i18n.text(value));
 
 /**
@@ -544,6 +545,53 @@ describe('options: «Статус»', () => {
     expect(row(w, 'contract')).toBeUndefined();
     await w.client.dispatch({ type: 'SetPreference', key: 'debug.enabled', value: true });
     expect(text(w, row(w, 'contract')?.note)).toBe('Не найдено: composerBridge.');
+  });
+
+  it('[R20 F7] a row per site in use, each read by its own expected anchors; none in use — every site of the build', async () => {
+    // A second site of a test build: its own anchors and words (any text of the catalog will do for a test).
+    const second: PageSite = {
+      kind: 'fansly-web',
+      contract: { anchors: ['conversationRoute', 'textarea', 'socket'], switchedAnchors: [], switchedCapabilities: [] },
+      texts: { ...CHATSPACE_STATUS_TEXTS, title: 'settings.status.row.extension' },
+    };
+    const sites = [...PAGES_SITES, second];
+    const base = hostReport(PAGES_NOW);
+    const siteReport = {
+      host: 'fansly-web',
+      build: 'main.2e6b96097a4bb73b',
+      adapterVersion: '0.1.0',
+      checkedAt: PAGES_NOW - 60_000,
+      capabilities: base.capabilities,
+      // The block leaves `socket` out: it is missing, not «nothing to check» (FS-CTR-1).
+      extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'ok' }, capabilities: {} } },
+    } as const;
+    const state = workingState();
+    state.diagnostics = { ...state.diagnostics, tabs: [...state.diagnostics.tabs, { tabSessionId: '00000000-0000-4000-8000-000000000905', site: 'fansly-web', host: siteReport, chatKey: null }] };
+    let w = await open({ state, sites });
+    const hostRows = options(w, 'status').body?.rows.filter((entry) => entry.id === 'host') ?? [];
+    expect(hostRows.map((entry) => [entry.host, entry.level])).toEqual([
+      ['chatspace', 'ok'],
+      ['fansly-web', 'warn'],
+    ]);
+    expect(text(w, row(w, 'fansly-web')?.value)).toBe('Сборка main.2e6b96097a4bb73b, проверен частично');
+    expect(text(w, row(w, 'fansly-web')?.note)).toBe('Не найдено: socket. Вставка работает.');
+    expect(text(w, row(w, 'chatspace')?.value)).toBe('Сборка index-0000test, подключён');
+    // A partly checked site still works through «Копировать»: a warning, not a blocker.
+    expect(options(w, 'status').body?.readiness).toMatchObject({ s: 'ready', warnings: expect.arrayContaining([{ key: 'settings.status.warning.hostPartial' }]) as unknown });
+    world?.client.dispose();
+    // The second site with no tab and no bound account: no row of it.
+    w = await open({ state: workingState(), sites });
+    expect((options(w, 'status').body?.rows ?? []).filter((entry) => entry.id === 'host').map((entry) => entry.host)).toEqual(['chatspace']);
+    world?.client.dispose();
+    // Nothing in use at all: every site of the build has its row («не открыт»).
+    const idle = workingState();
+    idle.diagnostics = { ...idle.diagnostics, tabs: [] };
+    idle.accounts = [];
+    w = await open({ state: idle, sites });
+    expect((options(w, 'status').body?.rows ?? []).filter((entry) => entry.id === 'host').map((entry) => [entry.host, entry.level])).toEqual([
+      ['chatspace', 'warn'],
+      ['fansly-web', 'warn'],
+    ]);
   });
 
   it('[ST-025] [PU-006] «Вставка работает через „Копировать“» is said only where the dock really is copy-only: a lost anchor of something else leaves «Вставка работает», in «Статус» and in the popup', async () => {

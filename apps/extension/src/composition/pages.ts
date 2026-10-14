@@ -20,12 +20,13 @@
 //   opens in a new tab on a click and only when it is https.
 
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
+import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { DEFAULT_SETTINGS } from '@cg/contracts/settings';
 import { parseTabPayload } from '@cg/contracts/tab-messages';
 import type { I18nKey } from '@cg/contracts/errors';
-import type { JournalKind, Unmount } from '@cg/contracts/vm';
-import { createPagesClient, type PageEnv, type PagePorts, type PagesClient } from '@cg/core/application/pages';
+import { CHATSPACE_STATUS_TEXTS, type JournalKind, type Unmount } from '@cg/contracts/vm';
+import { createPagesClient, type PageEnv, type PagePorts, type PageSite, type PagesClient } from '@cg/core/application/pages';
 import { createActionCatalog, hotkeyPlatformOf } from '@cg/core/domain/hotkeys';
 import { createI18n, resolveLocale } from '@cg/core/domain/i18n';
 import { createLogForwarder, createLogger } from '@cg/core/domain/logging';
@@ -44,7 +45,7 @@ import {
 import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
-import { CHATSPACE_MATCHES } from '../hosts/runtime';
+import { CHATSPACE_MATCHES, type PerHost } from '../hosts/runtime';
 import { featuresOf } from './features';
 import { SITE_PAGES } from '../site';
 
@@ -71,6 +72,15 @@ const TITLES: Readonly<Record<Exclude<PageName, 'popup'>, I18nKey>> = {
 
 /** How soon a page's own log records go to the background (`log.write`). */
 const LOG_FORWARD_DELAY_MS = 250;
+
+/**
+ * The sites as the pages speak of them (R20 F7), one per row of the hosts' runtime table and in its order: a new row
+ * does not typecheck until its site is here — its expected anchors (its contract module's) and the words of its
+ * «Статус» row.
+ */
+const PAGE_SITES = {
+  chatspace: { kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
+} as const satisfies PerHost<PageSite>;
 
 /** The ChatSpace origin of the manifest: the onboarding checks the host access to it (the hosts' runtime table names it, nothing here does). */
 function chatSpaceOrigin(): string {
@@ -133,6 +143,7 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
     links: { whatsNew: SITE_PAGES.whatsNew, changelog: SITE_PAGES.changelog },
     systemLanguages: () => win.navigator.languages,
     features: featuresOf,
+    sites: Object.values(PAGE_SITES),
   };
   const ports: PagePorts = {
     rpc,

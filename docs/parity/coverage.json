@@ -3,9 +3,9 @@
   "testFiles": {
     "unit": 253,
     "e2e": 40,
-    "chatspace": 61,
-    "fansly": 15,
-    "free": 218
+    "chatspace": 63,
+    "fansly": 17,
+    "free": 216
   },
   "totals": {
     "name": "всего",
@@ -353,8 +353,8 @@
     "rows": 718,
     "notConcerned": 110,
     "required": 712,
-    "closed": 465,
-    "open": 247,
+    "closed": 468,
+    "open": 244,
     "afterPilot": 6,
     "byKind": [
       {
@@ -372,8 +372,8 @@
       {
         "name": "unit",
         "rows": 128,
-        "closed": 4,
-        "open": 124
+        "closed": 7,
+        "open": 121
       },
       {
         "name": "hub",
@@ -460,9 +460,9 @@
       {
         "name": "F7",
         "rows": 13,
-        "closed": 11,
-        "open": 2,
-        "done": false
+        "closed": 13,
+        "open": 0,
+        "done": true
       },
       {
         "name": "F9a",
@@ -544,8 +544,8 @@
       {
         "name": "P7h",
         "rows": 2,
-        "closed": 0,
-        "open": 2,
+        "closed": 1,
+        "open": 1,
         "done": false
       },
       {
@@ -1436,19 +1436,19 @@
     {"id":"DB-028","function":"«Неизвестно» вместо догадок","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/debug/debug.test.ts","packages/core/test/domain-ops.test.ts","packages/core/test/services-scheduler.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14b2","planned":"shared","closed":true,"by":["packages/core/src/domain/debug/debug.test.ts","packages/core/test/domain-ops.test.ts","packages/core/test/services-scheduler.test.ts"]}},
     {"id":"DB-029","function":"Проверка сообщений между частями","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/services/diagnostics/diagnostics.test.ts","packages/core/test/domain-send.test.ts","packages/core/test/services-scheduler.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P4a3","planned":"shared","closed":true,"by":["packages/contracts/test/fansly-protocol.test.ts","packages/core/src/services/diagnostics/diagnostics.test.ts","packages/core/test/domain-send.test.ts","packages/core/test/services-scheduler.test.ts"]}},
     {"id":"DB-030","function":"Инструменты разработки десктопа","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["packages/testing/src/negative/contracts.test.ts"],"e2e":[],"covered":true,"fansly":{"planned":"n/a","closed":false,"by":[]}},
-    {"id":"DB-031","function":"Проверка контракта хоста","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/host-facts.test.ts","packages/contracts/test/vm.test.ts","packages/core/src/domain/host/host.test.ts","packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/core/test/application-boards.test.ts","packages/host-chatspace/src/isolated/contract.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/isolated/live.dom.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/pages/controller.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-degrade.e2e.ts","packages/testing/e2e/specs/x8-send.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7h","planned":"unit","closed":false,"by":[]}},
+    {"id":"DB-031","function":"Проверка контракта хоста","target":"пилот","owner":"R09","milestones":["M1"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/host-facts.test.ts","packages/contracts/test/vm.test.ts","packages/core/src/domain/host/host.test.ts","packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/core/test/application-boards.test.ts","packages/host-chatspace/src/isolated/contract.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/isolated/live.dom.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/pages/controller.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-degrade.e2e.ts","packages/testing/e2e/specs/x8-send.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7h","planned":"unit","closed":true,"by":["packages/core/src/services/telemetry/telemetry.test.ts"]}},
     {"id":"TL-001","function":"`ai_acceptance · shown`","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts"],"e2e":["packages/testing/e2e/specs/suite-human-send.e2e.ts"],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/domain/telemetry/telemetry.test.ts"]}},
     {"id":"TL-002","function":"`ai_acceptance · copied`","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/domain/telemetry/telemetry.test.ts"]}},
     {"id":"TL-003","function":"`ai_acceptance · inserted`","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts"],"e2e":["packages/testing/e2e/specs/suite-human-send.e2e.ts"],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/domain/telemetry/telemetry.test.ts"]}},
     {"id":"TL-004","function":"`ai_acceptance · sent` (+ `edited`)","target":"пилот","owner":"R09","milestones":["M2"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/host-facts.test.ts","apps/extension/test/background-stores.test.ts","apps/extension/test/wiring-background.test.ts","packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/send-journal.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-dock.test.ts","packages/core/test/services-send.test.ts","packages/host-chatspace/src/isolated/live.dom.test.ts","packages/host-chatspace/src/main/live.dom.test.ts","packages/host-chatspace/src/main/receipt.test.ts"],"e2e":["packages/testing/e2e/specs/suite-human-send.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts","packages/testing/e2e/specs/x8-send.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7f","planned":"e2e","closed":false,"by":[]}},
     {"id":"TL-005","function":"События черновиков Coach","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/domain/telemetry/telemetry.test.ts"]}},
     {"id":"TL-006","function":"Пробелы телеметрии","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/domain/telemetry/telemetry.test.ts"]}},
-    {"id":"TL-007","function":"Содержимое события","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"unit","closed":false,"by":[]}},
+    {"id":"TL-007","function":"Содержимое события","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"unit","closed":true,"by":["packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"]}},
     {"id":"TL-008","function":"Корреляция событий","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"]}},
     {"id":"TL-009","function":"Очередь телеметрии","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"]}},
     {"id":"TL-010","function":"Отправка на старте","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"]}},
     {"id":"TL-011","function":"Статистика очереди","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/services/telemetry/telemetry.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["packages/core/src/services/telemetry/telemetry.test.ts"]}},
-    {"id":"TL-012","function":"Событие привязано к получателю","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["apps/extension/test/wiring-background.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"]}},
+    {"id":"TL-012","function":"Событие привязано к получателю","target":"пилот","owner":"R18","milestones":["M2"],"planned":"unit","pilot":true,"unit":["apps/extension/test/wiring-background.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts","packages/testing/src/scenarios/hub/sdk-alignment.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"shared","closed":true,"by":["apps/extension/test/wiring-background.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts","packages/testing/src/scenarios/hub/sdk-alignment.test.ts"]}},
     {"id":"TL-013","function":"Квота: снимок и исчерпание","target":"пилот","owner":"R08","milestones":["M2"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/errors/errors.test.ts","packages/core/src/domain/errors/hub-map.test.ts","packages/hub/test/ingest-and-guards.test.ts","packages/hub/test/stream.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P14b2","planned":"shared","closed":true,"by":["packages/core/src/domain/errors/errors.test.ts","packages/core/src/domain/errors/hub-map.test.ts","packages/hub/test/ingest-and-guards.test.ts","packages/hub/test/stream.test.ts"]}},
     {"id":"TL-014","function":"Старые usage-события","target":"не нужно","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["apps/extension/src/composition/tab/health.test.ts","packages/testing/src/negative/hub-boundary.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"negative","closed":true,"by":["NEG-HUB-OWNS-AI"]}},
     {"id":"TL-015","function":"Жатва локальных данных в хаб","target":"убрано владельцем","owner":"R02","milestones":[],"planned":"negative","pilot":false,"unit":["apps/extension/test/wiring-pages.test.ts","packages/testing/src/negative/hub-boundary.test.ts"],"e2e":["packages/testing/e2e/specs/pages-wiring.e2e.ts"],"covered":true,"fansly":{"planned":"n/a","closed":false,"by":[]}},
@@ -1600,7 +1600,7 @@
     {"id":"FX-018","function":"Аватар фана для Hi","target":"Fansly","owner":"R20","milestones":["F"],"planned":"n/a","pilot":false,"unit":[],"e2e":[],"covered":false,"fansly":{"owner":"R20/P8c","planned":"e2e","closed":false,"by":[]}},
     {"id":"NEW-01","function":"«Открыть и вставить» — отложенная вставка со сроком и отменой (А7)","target":"пилот","owner":"R09","milestones":["M4"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/client.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-dock.test.ts","packages/core/test/domain-insert.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/main/protocol.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/dock/strip.test.tsx","packages/testing/src/pages/controller.test.ts"],"e2e":["packages/testing/e2e/specs/dock-gallery-widths.e2e.ts","packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts","packages/testing/e2e/specs/visual-wired.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7e","planned":"e2e","closed":false,"by":[]}},
     {"id":"NEW-02","function":"индикатор «архив хаба отстаёт от страницы на K сообщений» для Coach, Recap и Review (Б6, AI-070)","target":"пилот","owner":"R11","milestones":["M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-coach.test.ts","packages/core/test/application-recap-review.test.ts","packages/core/test/domain-coach-recap.test.ts","packages/hub/test/client-routes.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8c","planned":"e2e","closed":false,"by":[]}},
-    {"id":"NEW-03","function":"полевые замеры в `client_health` (А6) — гистограммы, процентили на сервере","target":"пилот","owner":"R18","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"unit","closed":false,"by":[]}},
+    {"id":"NEW-03","function":"полевые замеры в `client_health` (А6) — гистограммы, процентили на сервере","target":"пилот","owner":"R18","milestones":["M6"],"planned":"unit","pilot":true,"unit":["packages/core/src/domain/telemetry/telemetry.test.ts","packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/F7","planned":"unit","closed":true,"by":["packages/core/src/services/telemetry/telemetry.test.ts","packages/hub/test/ingest-and-guards.test.ts"]}},
     {"id":"NEW-04","function":"Split во всех фичах с текстом фану (Б7); Recap и Review — без Split","target":"пилот","owner":"R11","milestones":["M2","M3"],"planned":"unit","pilot":true,"unit":["packages/core/test/application-ai-scenarios.test.ts","packages/core/test/domain-features.test.ts","packages/core/test/domain-output.test.ts"],"e2e":[],"covered":true,"fansly":{"owner":"R20/P8c","planned":"shared","closed":true,"by":["packages/core/test/application-ai-scenarios.test.ts","packages/core/test/domain-features.test.ts","packages/core/test/domain-output.test.ts"]}},
     {"id":"NEW-05","function":"согласие перед заменой человеческого черновика; «Заменить мой черновик» и «Вернуть мой текст» после Fix (Б2), оба с CAS по ревизии из транзакций редактора","target":"пилот","owner":"R09","milestones":["M2"],"planned":"e2e","pilot":true,"unit":["apps/extension/src/composition/tab/client.test.ts","packages/core/test/application-boards.test.ts","packages/core/test/application-dock.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts","packages/testing/src/dock/result.test.tsx"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-dock.e2e.ts","packages/testing/e2e/specs/suite-preview.e2e.ts","packages/testing/e2e/specs/visual-wired.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7e","planned":"e2e","closed":false,"by":[]}},
     {"id":"NEW-06","function":"сверка вставки по ключу черновика цели; P1 — только при точном свидетельстве","target":"пилот","owner":"R09","milestones":["M2"],"planned":"e2e","pilot":true,"unit":["packages/host-chatspace/src/isolated/contract.test.ts","packages/host-chatspace/src/isolated/host-port.dom.test.ts","packages/host-chatspace/src/main/runtime.dom.test.ts"],"e2e":["packages/testing/e2e/specs/host-adapter.e2e.ts","packages/testing/e2e/specs/suite-switches.e2e.ts"],"covered":true,"fansly":{"owner":"R20/P7e","planned":"e2e","closed":false,"by":[]}},

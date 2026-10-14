@@ -1,4 +1,4 @@
-import { ANCHOR_IDS, HOST_CAPABILITIES, type HostContractReport } from '@cg/contracts/host';
+import { ANCHOR_IDS, HOST_CAPABILITIES, contractAnchorsOf, type ChatSpaceContractReport } from '@cg/contracts/host';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { LogRecordFromUiSchema, LogRecordSchema, type LogRecord } from '@cg/contracts/logs';
 import { OpDebugViewSchema } from '@cg/contracts/ops';
@@ -36,14 +36,14 @@ const TAB = '7d0a1c2e-3f4b-4c5d-8e6f-708192a3b4c5';
 const OP = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const FAN_TEXT = 'hey babe, are you there tonight';
 
-function contract(missing: readonly (typeof ANCHOR_IDS)[number][] = []): HostContractReport {
+function contract(missing: readonly (typeof ANCHOR_IDS)[number][] = []): ChatSpaceContractReport {
   return {
     build: 'index-DEVowLko',
     adapterVersion: '1.0.0',
     checkedAt: T0,
     anchors: Object.fromEntries(ANCHOR_IDS.map((id) => [id, missing.includes(id) ? 'missing' : 'ok'])),
     capabilities: Object.fromEntries(HOST_CAPABILITIES.map((c) => [c, { state: 'on' }])),
-  } as HostContractReport;
+  } as ChatSpaceContractReport;
 }
 
 const telemetryStats: TelemetryQueueStats = {
@@ -129,7 +129,7 @@ describe('[LG-021] [LG-022] [LG-023] [LG-024] [LG-025] the export file', () => {
     const bundle = JSON.parse(file.body) as ExportBundle;
     expect(bundle).toMatchObject({ kind: 'chatgoose-diagnostics', v: 1, extension: { version: '0.1.0' }, os: 'macos', locale: 'ru', signIn: { signedIn: true, role: 'chatter' } });
     expect(bundle.hub.flags).toEqual({ previewSend: false, recap: true });
-    expect(bundle.tabs[0]?.host?.anchors.fansMap).toBe('missing');
+    expect(contractAnchorsOf(bundle.tabs[0]?.host ?? contract())['fansMap']).toBe('missing');
     expect(bundle.counters.today).toEqual([
       { code: 'CG-HUB-TIMEOUT', count: 3 },
       { code: 'CG-INSERT-MISPLACED', count: 1 },
@@ -391,7 +391,7 @@ describe('[DB-029] what crosses a runtime boundary passes its contract schema', 
     expect(OpDebugViewSchema.safeParse(builder.view()).success).toBe(true);
     const window = new HealthWindow(T0);
     window.recordPerf('ttfcMs', 1200);
-    expect(ClientHealthV1Schema.safeParse(window.build(T0 + 1, { version: '0.1.0', browserMajor: 157, os: 'linux' }, { cachesKB: 0, logsKB: 0 })).success).toBe(true);
+    expect(ClientHealthV1Schema.safeParse(window.build(T0 + 1, 'chatspace', { version: '0.1.0', browserMajor: 157, os: 'linux' }, { cachesKB: 0, logsKB: 0 })).success).toBe(true);
     expect(TabHealthReportSchema.safeParse(new TabHealthCollector(() => T0).takeReport(null, { cachesKB: 0, domNodes: 0 })).success).toBe(true);
     const tracker = new AcceptanceTracker({ now: () => T0, uuid: () => '00000000-0000-4000-8000-000000000001' });
     tracker.link({ opId: OP, generationRef: OP, feature: 'hi', surface: 'newcomers', pageLabel: 'lora-of' });

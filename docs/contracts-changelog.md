@@ -285,6 +285,43 @@ ChatSpace не меняются.
   `fansly.followers.send` в `protocols-fansly.ts`. Тесты: `packages/contracts/test/send-fansly.test.ts`,
   `packages/contracts/test/fansly-protocol.test.ts`.
 
+### F7 — телеметрия и отчёт контракта по сайтам
+
+Не PR этапа 4, но в его открытую версию (`docs/project-unite/plan.md` F7; архитектура §1.9, §7.12, §8.13, §12): окно
+`client_health` — на пару (сайт, сборка), отчёт контракта разбирается по сайту, «Статус» — строка на сайт. Старые
+фикстуры проходят без изменений, кроме двух мест, названных ниже (`STATUS_ROW_IDS`, тип выборки якорей в тесте).
+
+- **`HostContractReport` — разбор по `host`.** `ChatSpaceContractReportSchema` — прежняя полная схема: каждый якорь
+  `ANCHOR_IDS` назван (без одного или без всех — отказ), `host` необязателен и только `'chatspace'`; отчёт без
+  `host` — отчёт ChatSpace (любой адаптер до 1.15.0), адаптер ChatSpace его не ставит. `SiteContractReportSchema` —
+  отчёт другого сайта (`SITE_REPORT_HOSTS` = все виды, кроме ChatSpace): сборка, все общие возможности
+  `HOST_CAPABILITIES` и обязательный блок своего сайта `extensions[<сайт>]` — и только он
+  (`SiteContractBlockSchema`: состояние каждого своего якоря, ≤ 32, и своих возможностей сверх общих, ≤ 16; имена —
+  машинные лексемы); ни якорей ChatSpace, ни профиля квитанции X8. `HostContractReportSchema` — объединение двух.
+  Какие якоря обязан назвать блок, знает сайт, а не схема: читатели берут **ожидаемый** набор — `HostContractShape`
+  (`anchors`, `switchedAnchors`, `switchedCapabilities`), и якорь, которого отчёт не назвал, у них `missing`
+  (FS-CTR-1). Набор ChatSpace — `CHATSPACE_CONTRACT` (все `ANCHOR_IDS`; часть B — тап и профиль квитанции X8 —
+  переключает владелец). Помощники `contractHostOf` (нет `host` — ChatSpace) и `contractAnchorsOf` (якоря ChatSpace
+  сверху, другого сайта — в его блоке). Набор Fansly и строгая ветка его блока — P4b1.
+- **Метрики HF-13** в `PERF_METRICS`: `frameParseMs`, `xhrParseMs`, `snapshotMs`, `snapshotRoundTripMs` — имена и
+  границы реестра хаба `CLIENT_HEALTH_PERF_METRICS` (hub #577, `f8aa7209a`), `schemaVersion` 1; у каждой граница на
+  своём бюджете (0,1 мс кадр, 2 мс ответ, 5 мс шаг снимка). Всего 15 при пределе отчёта 16. Вендоренный SDK этих
+  четырёх ещё не знает (до перевендоринга P2v): тест сверяет их с числами хаба, остальные одиннадцать — с SDK.
+- **`DiagnosticsSnapshot.tabs[].site?`** — сайт вкладки, как она зарегистрировалась (`tab.register`). Нет поля — фон
+  до 1.15.0: ChatSpace.
+- **«Статус»: `STATUS_ROW_IDS` — `host` вместо `chatspace`**, по строке на сайт в работе; `StatusRowVM.host?` называет
+  сайт строки. Слова строки — набор `HostStatusTexts` сайта (заголовок, «не открыт», «проверяется», «подключён»,
+  «проверен частично» с пояснениями); у ChatSpace — `CHATSPACE_STATUS_TEXTS`, прежние ключи. Новых ключей i18n нет.
+  Это не добавочная правка модели вида, а замена значения: модель вида — договор ядра и UI одной сборки, наружу не
+  уходит; DOM строки прежний (`data-pg-row` строки сайта — вид сайта, у ChatSpace — `chatspace`).
+- Фикстуры: верные — отчёт с `host: 'chatspace'`, отчёт сайта с полным блоком и с неполным (схема якорей сайта не
+  знает — неполнота читается как `missing`), гистограммы четырёх метрик HF-13, окно `client_health` сайта
+  `fansly-web`, отчёт вкладки с отчётом сайта, вкладки диагностики с сайтом; неверные — ChatSpace без одного якоря и
+  без всех (с `host` и без), форма ChatSpace под чужим именем, блок сайта в отчёте ChatSpace, отчёт сайта без блока,
+  с чужим блоком или двумя, без `host`, с якорями ChatSpace или профилем X8, блок с не-лексемой, с 33 якорями или 17
+  возможностями, метрика с чужими границами, вид сайта — платформа. Тесты: `packages/contracts/test/schemas.test.ts`,
+  `packages/contracts/test/vocabulary.test.ts` («the host contract report by site», «client_health histograms»).
+
 ## 1.14.0 — 2026-10-11 (язык по умолчанию — русский; замечание владельца, решение X29)
 
 Схемы, сообщения, коды CG и ключи i18n не менялись: новых полей и имён нет. Меняется одно

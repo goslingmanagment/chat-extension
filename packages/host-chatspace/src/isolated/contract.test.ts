@@ -1,4 +1,4 @@
-import { ANCHOR_IDS, HOST_CAPABILITIES, HostContractReportSchema } from '@cg/contracts/host';
+import { ANCHOR_IDS, HOST_CAPABILITIES, ChatSpaceContractReportSchema } from '@cg/contracts/host';
 import { describe, expect, it } from 'vitest';
 
 import { buildContractReport, sameReport, type ContractInput } from './contract';
@@ -15,7 +15,7 @@ const input = (over: Partial<ContractInput> = {}): ContractInput => ({
 
 describe('[DB-031] the host contract check (§6.2)', () => {
   it('reports every anchor and capability, valid against the contract', () => {
-    const report = HostContractReportSchema.parse(buildContractReport(input()));
+    const report = ChatSpaceContractReportSchema.parse(buildContractReport(input()));
     expect(Object.keys(report.anchors).sort()).toEqual([...ANCHOR_IDS].sort());
     expect(Object.keys(report.capabilities).sort()).toEqual([...HOST_CAPABILITIES].sort());
     expect(report.build).toBe('index-0000fake');
@@ -31,7 +31,7 @@ describe('[DB-031] the host contract check (§6.2)', () => {
 
   it('[X8-06] the live capabilities: the tap, the flag, every anchor a condition is read from, and the receipt profile (§6.2)', () => {
     const live = { tap: true, previewSend: true, receipt: true };
-    const all = HostContractReportSchema.parse(buildContractReport(input({ live })));
+    const all = ChatSpaceContractReportSchema.parse(buildContractReport(input({ live })));
     for (const name of ['incoming', 'sendObserve', 'receipt', 'previewSend'] as const) expect([name, all.capabilities[name]]).toEqual([name, { state: 'on' }]);
     expect(all.anchors.receiptProfile).toBe('ok');
 
@@ -70,7 +70,7 @@ describe('[DB-031] the host contract check (§6.2)', () => {
 
   it('[X8-06] [DB-031] a store ChatSpace has not created yet (`notYet`): no break, but X8 stays off with CG-SEND-HOST and the anchor as its reason; a real break is named first', () => {
     const live = { tap: true, previewSend: true, receipt: true };
-    const report = HostContractReportSchema.parse(buildContractReport(input({ live, wire: { build: null, missing: [], shape: [], notYet: ['composerTranslator'] } })));
+    const report = ChatSpaceContractReportSchema.parse(buildContractReport(input({ live, wire: { build: null, missing: [], shape: [], notYet: ['composerTranslator'] } })));
     expect(report.anchors.composerTranslator).toBe('notYet');
     expect(report.capabilities.previewSend).toEqual({ state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' });
     // Nothing else reads it: the dock, the insert, the facts of the tap are as before.
@@ -89,7 +89,7 @@ describe('[DB-031] the host contract check (§6.2)', () => {
   it('[X8-06] decision X25: the fuse keeps X8 off right after the flag (CG-SEND-FUSE), before an anchor or the tap is named; the report names the profile that let X8 in, and how', () => {
     const live = { tap: true, previewSend: true, receipt: true, receiptMatch: { profile: 'any-build', kind: 'anyBuild' as const } };
     const of = (over: Partial<ContractInput>) => buildContractReport(input({ live, ...over }));
-    const on = HostContractReportSchema.parse(of({}));
+    const on = ChatSpaceContractReportSchema.parse(of({}));
     expect(on.capabilities.previewSend).toEqual({ state: 'on' });
     expect(on.receiptMatch).toEqual({ profile: 'any-build', kind: 'anyBuild' });
     // Tripped: off with its own code; the rest of the live side is untouched.

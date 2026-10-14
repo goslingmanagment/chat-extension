@@ -536,7 +536,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     },
     consent: () => (consent.status() === 'unknown' ? null : consent.granted()),
     healthSupported: () => hasCapability(capabilities(), 'client-health-perf-v1'),
-    chatSpaceOpen: () => rpc.tabs().length > 0,
+    // «This site's tab is open» (R20 F7): a site's windows are reported while one of its tabs is registered.
+    hostOpen: (site) => rpc.tabs().some((tab) => tab.request.host === site),
     client: () => ({ version: env.extensionVersion, browserMajor: env.browserMajor ?? 0, os: env.os }),
     footprint: () => ({ cachesKB: Math.round(results.stats().bytes / 1024), logsKB: Math.round((logging.logs.stats().bytes + logging.countersBytes()) / 1024) }),
     // What is off for this install: the switches usable on none of its pages (never the top-level `"*"` flags).
@@ -553,7 +554,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // ── the sites' background modules (docs/project-unite/architecture.md §3.3) ──
   // The ports of the core a site's chunk is started with: one owner of each thing stays here.
-  const kit: BackgroundKit = {
+  const kit: Omit<BackgroundKit, 'telemetry'> = {
     hub: {
       // The facade is read at each call: it exists once the settings are read.
       facade: { claim: (op) => hub().claim(op), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
@@ -568,16 +569,20 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     clock: CLOCK,
     ids: IDS,
     log: { sink: coreLog, service: serviceLog },
-    telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(code) },
     router: { events, tabs: () => rpc.tabs().map((tab) => tab.tabSessionId) },
     ops: { forSend: (opId) => scheduler.forSend(opId), view: (opId) => scheduler.view(opId), environment },
     tokens,
     install: { instanceId: () => instanceId, owner: () => ownerOf(hubInstance?.session() ?? null) },
     nativeSends: { register: (view, part, platformMessageId) => nativeSends.register(view, part, platformMessageId) },
   };
+  /** The kit of a site's module: what it counts goes to its site's `client_health` window (R20 F7). */
+  const kitOf = (host: HostKind): BackgroundKit => ({
+    ...kit,
+    telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
+  });
   const hostModules = createHostModules({
     specs: HOST_MODULE_SPECS,
-    kit,
+    kit: kitOf,
     url: (path) => api.runtime.getURL(path),
     async load(url) {
       let address = url;
@@ -655,7 +660,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         flags: hubInstance?.cachedBootstrap() ? flagsOnSomePage(hubInstance.cachedBootstrap()?.bootstrap ?? null) : {},
         sdk: status?.sdk ?? { vendoredHash: VENDORED_CONTRACT_HASH, hubHash: null, compatible: null },
       },
-      tabs: rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: shown.get(tab.tabSessionId) ?? null })),
+      tabs: rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, site: tab.request.host, host: hostReports.get(tab.tabSessionId) ?? null, chatKey: shown.get(tab.tabSessionId) ?? null })),
       settings: settingsRead() ? current : null,
       counters: logging.counters.snapshot(now),
       logs: logging.logs.stats(),
@@ -1076,7 +1081,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('health.report', ({ report }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
     hostReports.set(sender.tabSessionId, report.host);
-    telemetry.mergeTab(sender.tabSessionId, report);
+    // The tab's site is its registration's, never the report's word (R20 F7: a window per site and build).
+    const site = hostOfTab(sender.tabSessionId);
+    if (site !== null) telemetry.mergeTab(sender.tabSessionId, site, report);
     return ok({ recorded: consent.granted() });
   });
 

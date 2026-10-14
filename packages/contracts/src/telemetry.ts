@@ -101,6 +101,18 @@ export const PERF_METRICS = {
   eventLatencyMs: { schemaVersion: 1, bounds: [8, 16, 24, 32, 50, 75, 100, 150, 250, 500, 1000] },
   /** Input delay in ChatSpace's composer with the extension on (≤ baseline + 5 ms). */
   composerInputDelayMs: { schemaVersion: 1, bounds: [1, 2, 4, 8, 16, 32, 50, 100, 250] },
+  // 1.15.0 (R20 F7): Fansly's four, reported from a `fansly-web` tab — the hub's registry since HF-13 (hub #577,
+  // `CLIENT_HEALTH_PERF_METRICS`), the same names and bounds. Each set has an edge at its budget (architecture §8.13,
+  // plan §4): a frame ≤ 0.1 ms on average, a response ≤ 2 ms a task, the snapshot's step ≤ 5 ms; past it, a 60 Hz
+  // frame (16 ms) and a long task (50 ms).
+  /** One socket frame of the page parsed by MAIN's tap (≤ 0.1 ms on average). */
+  frameParseMs: { schemaVersion: 1, bounds: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100] },
+  /** One XHR response of the page parsed by MAIN's observer: one task, deferred or not (≤ 2 ms). */
+  xhrParseMs: { schemaVersion: 1, bounds: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100] },
+  /** The generation snapshot's one synchronous step in MAIN (≤ 5 ms). */
+  snapshotMs: { schemaVersion: 1, bounds: [0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 8, 16, 32, 50, 100, 250] },
+  /** Click → the generation request ready, the snapshot's round trip through the page included. */
+  snapshotRoundTripMs: { schemaVersion: 1, bounds: [1, 2, 5, 8, 16, 32, 50, 75, 100, 150, 250, 500, 1000, 2500, 5000] },
 } as const satisfies Record<string, { readonly schemaVersion: number; readonly bounds: readonly number[] }>;
 
 export type PerfMetric = keyof typeof PERF_METRICS;

@@ -213,11 +213,6 @@ const UI = 'packages/ui/src';
  * a literal lowers the count or drops the entry in the same commit; the final gate (F9b) stands on an empty list.
  */
 export const SITE_LITERAL_DEBT: readonly SiteLiteralDebt[] = [
-  // F7 — telemetry and the host contract report by site.
-  { path: `${CORE}/domain/telemetry/health.ts`, value: 'chatspace', count: 1, pr: 'F7', note: "`host: { kind: 'chatspace' }` in the health report → the window of (host, build)" },
-  { path: `${CORE}/application/pages/view-status.ts`, value: 'chatspace', count: 8, pr: 'F7', note: 'the one required «ChatSpace» row of «Статус» → a row per site that has bindings' },
-  { path: `${UI}/pages/options/Status.tsx`, value: 'chatspace', count: 1, pr: 'F7', note: 'the «ChatSpace» row among the rows of the shift → the sites’ rows' },
-  { path: `${UI}/pages/options/Options.tsx`, value: 'chatspace', count: 1, pr: 'F7', note: "the «ChatSpace» row as the place of CG-HOST-CONTRACT → the row of the error's site" },
   // F10 — the policy of AI by site: the pre-check is the site's port.
   { path: `${CORE}/domain/features/gates.ts`, value: 'fansly', count: 1, pr: 'F10', note: "`platform === 'fansly'` in `pingGate` → the pre-check port of `AiHostPolicy`" },
   // F9b — what no earlier PR of the plan owns: the final gate removes it or hands it on.

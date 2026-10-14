@@ -4,9 +4,10 @@
 
 import { readFileSync } from 'node:fs';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import * as C from '../src/index';
+import { contractReport, siteContractReport } from './fixtures/samples';
 
 /** CG codes of the Appendix A table in docs/architecture.md, in order. */
 function appendixACodes(): string[] {
@@ -251,5 +252,49 @@ describe('client_health histograms', () => {
     for (const metric of ['panelOpenMs', 'insertMs', 'ttfcMs', 'firstChunkPaintMs', 'routeToDockMs', 'handlerMs', 'boardOpenMs', 'searchMs', 'eventLatencyMs']) {
       expect(C.PERF_METRIC_NAMES).toContain(metric);
     }
+  });
+
+  it('[R20 F7] names Fansly\'s four of HF-13 with the hub\'s own bounds (hub #577, CLIENT_HEALTH_PERF_METRICS)', () => {
+    // The hub's registry as merged in f8aa7209a; the vendored SDK carries it from the re-vendor after (P2v), and
+    // packages/testing's sdk-alignment test then holds every metric to the SDK's own table.
+    expect(Object.fromEntries(['frameParseMs', 'xhrParseMs', 'snapshotMs', 'snapshotRoundTripMs'].map((metric) => [metric, C.PERF_METRICS[metric as C.PerfMetric]]))).toEqual({
+      frameParseMs: { schemaVersion: 1, bounds: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100] },
+      xhrParseMs: { schemaVersion: 1, bounds: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 16, 50, 100] },
+      snapshotMs: { schemaVersion: 1, bounds: [0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 8, 16, 32, 50, 100, 250] },
+      snapshotRoundTripMs: { schemaVersion: 1, bounds: [1, 2, 5, 8, 16, 32, 50, 75, 100, 150, 250, 500, 1000, 2500, 5000] },
+    });
+    // Each budget is an edge (architecture §8.13): 0.1 ms a frame, 2 ms a response, 5 ms the snapshot's step.
+    expect(C.PERF_METRICS.frameParseMs.bounds).toContain(0.1);
+    expect(C.PERF_METRICS.xhrParseMs.bounds).toContain(2);
+    expect(C.PERF_METRICS.snapshotMs.bounds).toContain(5);
+    // The registry has 15 and a report carries at most 16, as the hub's schema.
+    expect(C.PERF_METRIC_NAMES).toHaveLength(15);
+  });
+});
+
+describe('the host contract report by site (1.15.0, R20 F7)', () => {
+  it('every site but ChatSpace reports in its own shape', () => {
+    expect([...C.SITE_REPORT_HOSTS].sort()).toEqual(C.HOST_KINDS.filter((host) => host !== 'chatspace').sort());
+    expectTypeOf<(typeof C.SITE_REPORT_HOSTS)[number]>().toEqualTypeOf<Exclude<C.HostKind, 'chatspace'>>();
+  });
+
+  it('a report names its site — none is ChatSpace — and its anchors where its site keeps them', () => {
+    expect(C.contractHostOf(contractReport)).toBe('chatspace');
+    expect(C.contractHostOf({ ...contractReport, host: 'chatspace' })).toBe('chatspace');
+    expect(C.contractHostOf(siteContractReport)).toBe('fansly-web');
+    expect(C.contractAnchorsOf(contractReport)).toBe(contractReport.anchors);
+    expect(C.contractAnchorsOf(siteContractReport)).toBe(siteContractReport.extensions['fansly-web']?.anchors);
+  });
+
+  it("ChatSpace's expected set is every anchor of the report, part B its owner's switches", () => {
+    expect(C.CHATSPACE_CONTRACT.anchors).toEqual(C.ANCHOR_IDS);
+    expect(C.CHATSPACE_CONTRACT.switchedAnchors.every((anchor) => (C.ANCHOR_IDS as readonly string[]).includes(anchor))).toBe(true);
+    expect([...C.CHATSPACE_CONTRACT.switchedCapabilities].sort()).toEqual(['incoming', 'previewSend', 'receipt', 'sendObserve']);
+  });
+
+  it('«Статус» has one `host` row a site, and ChatSpace\'s words are its texts', () => {
+    expect(C.STATUS_ROW_IDS).toContain('host');
+    expect(C.STATUS_ROW_IDS as readonly string[]).not.toContain('chatspace');
+    for (const key of Object.values(C.CHATSPACE_STATUS_TEXTS)) expect(C.UI_TEXT_KEYS).toContain(key);
   });
 });

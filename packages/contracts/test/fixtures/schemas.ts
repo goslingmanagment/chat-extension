@@ -22,6 +22,7 @@ import {
   checkpoint,
   clientHealth,
   contractReport,
+  siteContractReport,
   customSettings,
   dispatchTicket,
   histogram,
@@ -480,18 +481,65 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     C.HostContractReportSchema,
     // 1.10.0: an anchor ChatSpace creates later is `notYet`, not `missing`.
     // 1.11.0: which receipt profile let X8 in, and how — a reviewed build or the hub's «any build» sentinel.
+    // 1.15.0 (R20 F7): parsed by `host` — none or 'chatspace' is ChatSpace's full schema; another site has its block.
     [
       contractReport,
       { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'notYet' } },
       { ...contractReport, receiptMatch: { profile: 'chatspace-0.202.0', kind: 'exact' } },
       { ...contractReport, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } },
+      { ...contractReport, host: 'chatspace' },
+      siteContractReport,
+      // The schema does not know a site's anchors: an anchor its block leaves out is read as `missing` (FS-CTR-1).
+      { ...siteContractReport, extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'shape' }, capabilities: {} } } },
     ],
     [
       { ...contractReport, anchors: { app: 'ok' } },
+      // ChatSpace without one anchor, and without all of them: refused, with `host` or without.
+      { ...contractReport, anchors: Object.fromEntries(Object.entries(contractReport.anchors).filter(([anchor]) => anchor !== 'theme')) },
+      { ...contractReport, host: 'chatspace', anchors: Object.fromEntries(Object.entries(contractReport.anchors).filter(([anchor]) => anchor !== 'receiptProfile')) },
+      { ...contractReport, anchors: {} },
+      { ...contractReport, host: 'chatspace', anchors: {} },
       { ...contractReport, anchors: { ...contractReport.anchors, composerTranslator: 'later' } },
       { ...contractReport, receiptMatch: { profile: 'any-build', kind: 'any' } },
       { ...contractReport, receiptMatch: { kind: 'exact' } },
+      // ChatSpace's shape under another site's name, and a site's block in ChatSpace's report.
+      { ...contractReport, host: 'fansly-web' },
+      { ...contractReport, host: 'chatspace', extensions: siteContractReport.extensions },
+      { ...contractReport, host: 'onlyfans' },
+      // A site's report: without its block, with another's or two, without `host`, with ChatSpace's anchors or X8's profile.
+      { ...siteContractReport, extensions: {} },
+      { ...siteContractReport, extensions: { chatspace: siteContractReport.extensions['fansly-web'] } },
+      { ...siteContractReport, extensions: { ...siteContractReport.extensions, chatspace: siteContractReport.extensions['fansly-web'] } },
+      { ...siteContractReport, host: undefined },
+      { ...siteContractReport, anchors: contractReport.anchors },
+      { ...siteContractReport, receiptMatch: { profile: 'any-build', kind: 'anyBuild' } },
+      // The block: names are machine tokens, at most 32 anchors and 16 capabilities, the states those of every anchor.
+      { ...siteContractReport, extensions: { 'fansly-web': { anchors: { 'has space': 'ok' }, capabilities: {} } } },
+      { ...siteContractReport, extensions: { 'fansly-web': { anchors: Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`anchor${i}`, 'ok'])), capabilities: {} } } },
+      { ...siteContractReport, extensions: { 'fansly-web': { anchors: {}, capabilities: Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`capability${i}`, { state: 'on' }])) } } },
+      { ...siteContractReport, extensions: { 'fansly-web': { anchors: { textarea: 'later' }, capabilities: {} } } },
+      { ...siteContractReport, extensions: { 'fansly-web': { anchors: {} } } },
+      // The shared capabilities are named, every one, on every site.
+      { ...siteContractReport, capabilities: { identity: { state: 'on' } } },
     ],
+  ),
+  fixture(
+    'ChatSpaceContractReport',
+    C.ChatSpaceContractReportSchema,
+    [contractReport, { ...contractReport, host: 'chatspace' }],
+    [{ ...contractReport, anchors: {} }, { ...contractReport, host: 'fansly-web' }, siteContractReport],
+  ),
+  fixture(
+    'SiteContractBlock',
+    C.SiteContractBlockSchema,
+    [siteContractReport.extensions['fansly-web'], { anchors: {}, capabilities: {} }],
+    [{ anchors: { '1st': 'ok' }, capabilities: {} }, { anchors: { textarea: 'ok' } }, { anchors: {}, capabilities: { vault: { state: 'gone' } } }],
+  ),
+  fixture(
+    'SiteContractReport',
+    C.SiteContractReportSchema,
+    [siteContractReport],
+    [contractReport, { ...siteContractReport, host: 'chatspace' }, { ...siteContractReport, extensions: {} }],
   ),
   fixture(
     'RouteState',
@@ -814,8 +862,11 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'PerfHistogram',
     C.PerfHistogramSchema,
-    [histogram('insertMs', [5, 120, 4000]), histogram('handlerMs', [])],
+    // 1.15.0 (R20 F7): Fansly's four of HF-13 (hub #577), with the hub's own bounds.
+    [histogram('insertMs', [5, 120, 4000]), histogram('handlerMs', []), histogram('frameParseMs', [0.004, 0.08, 0.3]), histogram('xhrParseMs', [1.5]), histogram('snapshotMs', [4.2]), histogram('snapshotRoundTripMs', [40, 6000])],
     [
+      { ...histogram('snapshotMs', [4.2]), bounds: [...C.PERF_METRICS.frameParseMs.bounds] },
+      { ...histogram('frameParseMs', [0.05]), metric: 'parseMs' },
       { ...histogram('insertMs', [5]), bounds: [1, 2, 3] },
       { ...histogram('insertMs', [5]), counts: [1] },
       { ...histogram('insertMs', [5]), count: 2 },
@@ -826,14 +877,21 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
   fixture(
     'ClientHealthV1',
     C.ClientHealthV1Schema,
-    [clientHealth],
+    // 1.15.0 (R20 F7): a window of another site, with its metrics.
+    [clientHealth, { ...clientHealth, host: { kind: 'fansly-web', build: 'main.2e6b96097a4bb73b', contractOk: true, missing: [] }, perf: [histogram('frameParseMs', [0.05]), histogram('snapshotRoundTripMs', [40])] }],
     [
+      { ...clientHealth, host: { ...clientHealth.host, kind: 'fansly' } },
       { ...clientHealth, perf: [histogram('insertMs', [1]), histogram('insertMs', [2])] },
       { ...clientHealth, counters: { 'has space': 1 } },
       { ...clientHealth, footprint: { kind: 'heap', cachesKB: 1, logsKB: 1 } },
     ],
   ),
-  fixture('TabHealthReport', C.TabHealthReportSchema, [tabHealth, { ...tabHealth, host: null, perf: [] }], [{ ...tabHealth, footprint: { cachesKB: 1 } }]),
+  fixture(
+    'TabHealthReport',
+    C.TabHealthReportSchema,
+    [tabHealth, { ...tabHealth, host: null, perf: [] }, { ...tabHealth, host: siteContractReport, perf: [histogram('xhrParseMs', [0.4])] }],
+    [{ ...tabHealth, footprint: { cachesKB: 1 } }, { ...tabHealth, host: { ...contractReport, anchors: {} } }],
+  ),
 
   // ── logs ──
   fixture('LogLevel', C.LogLevelSchema, ['warn'], ['trace']),

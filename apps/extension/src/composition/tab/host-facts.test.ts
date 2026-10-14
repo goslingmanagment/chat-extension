@@ -1,6 +1,6 @@
 // What the page tells the tab and the tab passes on (tab/host-facts.ts).
 
-import type { HostContractReport, HostEvent, InsertIntent, InsertReceipt, NavigationIntent, NavigationReceipt } from '@cg/contracts/host';
+import { ANCHOR_IDS, type HostContractReport, type HostContractShape, type HostEvent, type InsertIntent, type InsertReceipt, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
@@ -427,22 +427,48 @@ describe('what the adapter is told while the tab learns who is signed in', () =>
 
 describe('the host contract in the tab’s log', () => {
   const report = (anchors: Record<string, string>, capabilities: Record<string, { state: string }> = {}): HostContractReport =>
-    ({ build: 'index-abc', adapterVersion: '0.3.0', checkedAt: 1, anchors: { app: 'ok', router: 'ok', ...anchors }, capabilities: { insert: { state: 'on' }, ...capabilities } }) as unknown as HostContractReport;
+    ({ build: 'index-abc', adapterVersion: '0.3.0', checkedAt: 1, anchors: { ...Object.fromEntries(ANCHOR_IDS.map((anchor) => [anchor, 'ok'])), ...anchors }, capabilities: { insert: { state: 'on' }, ...capabilities } }) as unknown as HostContractReport;
+  const facts = (value: HostContractReport) => contractFactsOf(value, CHATSPACE_APP.contract);
 
   it('[DB-031] the tap and the preview send switched off are not a ChatSpace that changed: the record lists them and carries no error', () => {
-    const off = contractFactsOf(report({ wsFrames: 'missing', receiptProfile: 'missing' }, { previewSend: { state: 'off' }, incoming: { state: 'off' } }));
+    const off = facts(report({ wsFrames: 'missing', receiptProfile: 'missing' }, { previewSend: { state: 'off' }, incoming: { state: 'off' } }));
     expect(off).toEqual({ build: 'index-abc', adapterVersion: '0.3.0', ok: true, missing: ['wsFrames', 'receiptProfile'], degraded: ['previewSend', 'incoming'] });
-    expect(contractFactsOf(report({})).ok).toBe(true);
+    expect(facts(report({})).ok).toBe(true);
   });
 
   it('[ER-049] [DB-031] an anchor of ChatSpace itself that is gone is CG-HOST-CONTRACT, with or without the switched ones', () => {
-    expect(contractFactsOf(report({ pendingMessages: 'missing' }))).toMatchObject({ ok: false, missing: ['pendingMessages'] });
-    expect(contractFactsOf(report({ wsFrames: 'missing', composerBridge: 'changed' }))).toMatchObject({ ok: false, missing: ['wsFrames', 'composerBridge'] });
+    expect(facts(report({ pendingMessages: 'missing' }))).toMatchObject({ ok: false, missing: ['pendingMessages'] });
+    expect(facts(report({ wsFrames: 'missing', composerBridge: 'changed' }))).toMatchObject({ ok: false, missing: ['composerBridge', 'wsFrames'] });
   });
 
   it('[DB-031] a store ChatSpace has not created yet (no chat opened since the reload) is listed apart and is no error; the same store absent after a composer is', () => {
-    const waiting = contractFactsOf(report({ composerTranslator: 'notYet' }, { previewSend: { state: 'off' } }));
+    const waiting = facts(report({ composerTranslator: 'notYet' }, { previewSend: { state: 'off' } }));
     expect(waiting).toEqual({ build: 'index-abc', adapterVersion: '0.3.0', ok: true, missing: [], degraded: ['previewSend'], notYet: ['composerTranslator'] });
-    expect(contractFactsOf(report({ composerTranslator: 'missing' }))).toMatchObject({ ok: false, missing: ['composerTranslator'] });
+    expect(facts(report({ composerTranslator: 'missing' }))).toMatchObject({ ok: false, missing: ['composerTranslator'] });
+  });
+
+  it('[R20 F7] the site\'s expected anchors are read, not the keys a report carries: an expected anchor it does not name is missing', () => {
+    const named = Object.fromEntries(ANCHOR_IDS.filter((anchor) => anchor !== 'mimic').map((anchor) => [anchor, 'ok']));
+    const short = { build: 'index-abc', adapterVersion: '0.3.0', checkedAt: 1, anchors: { ...named, stranger: 'missing' }, capabilities: { insert: { state: 'on' } } } as unknown as HostContractReport;
+    expect(facts(short)).toMatchObject({ ok: false, missing: ['mimic'] });
+  });
+
+  it('[R20 F7] two test adapters, two sites: each report is read by its own site\'s set, the second one in its own block', () => {
+    // A second site's adapter: its anchors are its own, its switched part its own.
+    const second: HostContractShape = { anchors: ['conversationRoute', 'textarea', 'socket', 'vaultUpload'], switchedAnchors: ['vaultUpload'], switchedCapabilities: [] };
+    const site = {
+      host: 'fansly-web',
+      build: 'main.2e6b96097a4bb73b',
+      adapterVersion: '0.1.0',
+      checkedAt: 1,
+      capabilities: { insert: { state: 'on' }, previewSend: { state: 'off' } },
+      extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'shape', vaultUpload: 'missing' }, capabilities: { freshness: { state: 'degraded' } } } },
+    } as unknown as HostContractReport;
+    expect(contractFactsOf(site, second)).toEqual({ build: 'main.2e6b96097a4bb73b', adapterVersion: '0.1.0', ok: false, missing: ['textarea', 'socket', 'vaultUpload'], degraded: ['previewSend', 'freshness'] });
+    // ChatSpace's set reads ChatSpace's report, whatever another site's says.
+    expect(facts(report({}))).toMatchObject({ ok: true, missing: [] });
+    // Only switched anchors missing: no error.
+    const quiet = { ...site, extensions: { 'fansly-web': { anchors: { conversationRoute: 'ok', textarea: 'ok', socket: 'ok' }, capabilities: {} } } } as unknown as HostContractReport;
+    expect(contractFactsOf(quiet, second)).toMatchObject({ ok: true, missing: ['vaultUpload'] });
   });
 });

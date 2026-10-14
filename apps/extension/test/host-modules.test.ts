@@ -12,6 +12,8 @@ import { MAX_ATTEMPTS, RETRY_AFTER_MS, createHostModules, type HostModuleSpec } 
 
 const SPEC: HostModuleSpec = { chunk: 'bg/chatspace.js', pending: { local: ['send.journal'], session: [] } };
 const KIT = { marker: 'the core kit' } as unknown as BackgroundKit;
+/** The kit is made per site (R20 F7: what a module counts goes to its site's client_health window). */
+const kitOf = (host: string): BackgroundKit => ({ ...KIT, site: host }) as unknown as BackgroundKit;
 const FUSE_STATE: VerifiedTabMessage = { type: 'send.fuseState', payload: {}, sender: { kind: 'page' } };
 
 interface FakeHandle extends BackgroundHostHandle {
@@ -42,7 +44,7 @@ function world(script: Array<'ok' | 'missing' | 'not-a-module' | 'other-host' | 
   const logs: LogEntry[] = [];
   const modules = createHostModules({
     specs: { chatspace: SPEC },
-    kit: KIT,
+    kit: kitOf,
     url: (path) => `moz-extension://uuid/${path}`,
     load(url) {
       loads.push(url);
@@ -79,7 +81,7 @@ function world(script: Array<'ok' | 'missing' | 'not-a-module' | 'other-host' | 
 }
 
 describe('the sites’ background modules (R20 F1)', () => {
-  it('one load and one start per realm: callers at the same time share them; the module gets the core’s kit; its address is the chunk’s own', async () => {
+  it('one load and one start per realm: callers at the same time share them; the module gets the core’s kit for its site; its address is the chunk’s own', async () => {
     const w = world(['ok']);
     expect(w.modules.states()).toEqual([{ host: 'chatspace', state: 'idle' }]);
     const [a, b] = await Promise.all([w.modules.ensure('chatspace'), w.modules.ensure('chatspace')]);
@@ -87,7 +89,7 @@ describe('the sites’ background modules (R20 F1)', () => {
     expect(a).toBe(b);
     expect(await w.modules.ensure('chatspace')).toBe(a);
     expect(w.loads).toEqual(['moz-extension://uuid/bg/chatspace.js']);
-    expect(w.kits).toEqual([KIT]);
+    expect(w.kits).toEqual([kitOf('chatspace')]);
     expect(w.modules.states()).toEqual([{ host: 'chatspace', state: 'started' }]);
     expect(w.logs.map((entry) => [entry.level, entry.msg, entry.fields?.['attempt']])).toEqual([['info', 'site module started', 1]]);
     // A site without a chunk has no module.

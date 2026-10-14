@@ -21,6 +21,7 @@ export {
   type PagePorts,
   type PageRequestType,
   type PageRpc,
+  type PageSite,
   type PageTimers,
   type PageWindow,
 } from './ports';

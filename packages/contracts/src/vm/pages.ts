@@ -4,6 +4,8 @@
 // sign-in screen replaces the settings while no one is signed in (ST-011).
 
 import { type CgCode, type CgErrorView, type SettingsSection } from '../errors';
+import { type HostKind } from '../hosts';
+import { type UiTextKey } from '../i18n/keys';
 import { type Role } from '../ids';
 import { type LogLevel } from '../logs';
 import { type IsoTimestamp } from '../primitives';
@@ -83,9 +85,13 @@ export interface SignInVM {
   readonly error: CgErrorView | null;
 }
 
+/**
+ * 1.15.0 (R20 F7): `host` replaces `chatspace` — one row per site in use (a tab open, an account bound; none in use —
+ * every site of the build), each naming its site in `StatusRowVM.host`.
+ */
 export const STATUS_ROW_IDS = [
   'extension',
-  'chatspace',
+  'host',
   'hub',
   'account',
   'binding',
@@ -104,6 +110,8 @@ export type StatusRowId = (typeof STATUS_ROW_IDS)[number];
 
 export interface StatusRowVM {
   readonly id: StatusRowId;
+  /** 1.15.0 (R20 F7): the site of a `host` row; absent on every other row. */
+  readonly host?: HostKind;
   /** Dot: ink — fine, ring — warning, red — error. */
   readonly level: 'ok' | 'warn' | 'error' | 'unknown';
   readonly title: Msg;
@@ -111,6 +119,44 @@ export interface StatusRowVM {
   readonly note: string | Msg | null;
   readonly action: ActionButtonVM | null;
 }
+
+/**
+ * 1.15.0 (R20 F7): the words of a site's `host` row of «Статус» and of the popup's line about it, each the site's own
+ * text — until the phrases of the site profile take them over (F9b). The extension pages' composition root hands
+ * each site's set to the controller with the site.
+ */
+export interface HostStatusTexts {
+  /** The row's name: the site. */
+  readonly title: UiTextKey;
+  /** No tab of the site is open; and what to do. */
+  readonly closed: UiTextKey;
+  readonly closedNote: UiTextKey;
+  /** A tab is open, its report is not in yet. */
+  readonly checking: UiTextKey;
+  /** `{build}` — connected; `{time}` — when its contract was checked. */
+  readonly value: UiTextKey;
+  readonly checked: UiTextKey;
+  /** Connected, but the preview send waits for the page's first chat (an anchor the site creates later). */
+  readonly notYetNote: UiTextKey;
+  /** `{build}` — partly checked; `{missing}` — what was not found, with the insert working or copy only. */
+  readonly partial: UiTextKey;
+  readonly partialNote: UiTextKey;
+  readonly copyOnlyNote: UiTextKey;
+}
+
+/** ChatSpace's words, as «Статус» has said them since 1.0.0. */
+export const CHATSPACE_STATUS_TEXTS: HostStatusTexts = {
+  title: 'settings.status.row.chatspace',
+  closed: 'settings.status.row.chatspaceClosed',
+  closedNote: 'settings.status.row.chatspaceClosedNote',
+  checking: 'settings.status.row.chatspaceChecking',
+  value: 'settings.status.row.chatspaceValue',
+  checked: 'settings.status.row.chatspaceChecked',
+  notYetNote: 'settings.status.row.chatspaceNotYetNote',
+  partial: 'settings.status.row.chatspacePartial',
+  partialNote: 'settings.status.row.chatspacePartialNote',
+  copyOnlyNote: 'settings.status.row.chatspaceCopyOnlyNote',
+};
 
 export interface StatusBodyVM {
   readonly section: 'status';

@@ -13,6 +13,9 @@ import { Button, useI18n } from '../../kit';
 import { LostArt, TrioArt } from '../brand/art';
 import { Card, Columns, LevelDot, useAct, useText } from '../shared';
 
+/** A row's own name in the page: its id, a site's row its site (one row per site, R20 F7). */
+const rowKey = (row: StatusRowVM): string => row.host ?? row.id;
+
 function Row({ row }: { readonly row: StatusRowVM }): JSX.Element {
   const i18n = useI18n();
   const text = useText();
@@ -20,7 +23,7 @@ function Row({ row }: { readonly row: StatusRowVM }): JSX.Element {
   const action = row.action;
   const copies = action?.action.type === 'CopyReport';
   return (
-    <div class="pg-row" data-pg-row={row.id} data-pg-anchor={row.id} data-pg-level={row.level}>
+    <div class="pg-row" data-pg-row={rowKey(row)} data-pg-anchor={row.id} data-pg-level={row.level}>
       <LevelDot level={row.level} />
       <span class="pg-row__k">{text(row.title)}</span>
       <span class="pg-row__v">
@@ -42,7 +45,7 @@ function Row({ row }: { readonly row: StatusRowVM }): JSX.Element {
 }
 
 /** What a shift stands on: the main column. */
-const SHIFT_ROWS: ReadonlySet<StatusRowId> = new Set(['chatspace', 'hub', 'account', 'binding', 'persona', 'quota']);
+const SHIFT_ROWS: ReadonlySet<StatusRowId> = new Set(['host', 'hub', 'account', 'binding', 'persona', 'quota']);
 /** What the team lead asks for: the quiet column's first card. */
 const SUPPORT_ROWS: ReadonlySet<StatusRowId> = new Set(['extension', 'last-error', 'support']);
 
@@ -85,7 +88,7 @@ export function StatusSection({ body, checklist }: { readonly body: StatusBodyVM
         main={
           <section class="pg-card" aria-label={i18n.t('settings.section.status')}>
             {shift.map((row) => (
-              <Row key={row.id} row={row} />
+              <Row key={rowKey(row)} row={row} />
             ))}
           </section>
         }
@@ -93,14 +96,14 @@ export function StatusSection({ body, checklist }: { readonly body: StatusBodyVM
           <>
             <Card>
               {support.map((row) => (
-                <Row key={row.id} row={row} />
+                <Row key={rowKey(row)} row={row} />
               ))}
               <p class="pg-note">{i18n.text(body.note)}</p>
             </Card>
             {service.length === 0 ? null : (
               <section class="pg-card pg-card--rows">
                 {service.map((row) => (
-                  <Row key={row.id} row={row} />
+                  <Row key={rowKey(row)} row={row} />
                 ))}
               </section>
             )}

@@ -7,7 +7,7 @@ import type { ToMainType } from '@cg/contracts/bridge';
 import { MainSendRequestSchema } from '@cg/contracts/bridge-messages';
 import { checkpoint, dispatchTicket, previewSendRequest, uuid } from '@cg/contracts/fixtures';
 import type { ComposerState, HostEvent, HostTheme, MountPoints } from '@cg/contracts/host';
-import { CoverageEventSchema, HostContractReportSchema, HumanSendFactSchema, IncomingFactSchema } from '@cg/contracts/host';
+import { CoverageEventSchema, ChatSpaceContractReportSchema, HumanSendFactSchema, IncomingFactSchema } from '@cg/contracts/host';
 import type { PreviewSendRequest, SendAttemptView } from '@cg/contracts/send';
 import { PreviewSendCommitSchema, PreviewSendPreflightSchema } from '@cg/contracts/send';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -133,7 +133,7 @@ describe('[X8-06] the preview send capability (§6.2, §6.7.11)', () => {
     expect(host.probe().capabilities.incoming).toEqual({ state: 'on' });
     expect(bridge.calls.some((call) => call.t === 'flags')).toBe(false);
 
-    const report = HostContractReportSchema.parse(await host.configure(CONFIG));
+    const report = ChatSpaceContractReportSchema.parse(await host.configure(CONFIG));
     expect(report.adapterVersion).toBe(ADAPTER_VERSION);
     expect(report.capabilities.previewSend).toEqual({ state: 'on' });
     expect(report.capabilities.receipt).toEqual({ state: 'on' });
@@ -181,7 +181,7 @@ describe('[X8-06] the preview send capability (§6.2, §6.7.11)', () => {
     loadModules({ notificationEntry: 'N1N1N1N1', composables: 'N2N2N2N2+N3N3N3N3', onlyfans: 'N4N4N4N4+N5N5N5N5', accounts: 'N6N6N6N6', inbox: 'N7N7N7N7' });
     const { host, diagnostics } = await start({}, { configure: { ...CONFIG, receiptProfiles: [PROFILE, SENTINEL] } });
     expect(host.previewSend).not.toBeNull();
-    const report = HostContractReportSchema.parse(host.probe());
+    const report = ChatSpaceContractReportSchema.parse(host.probe());
     expect(report.capabilities.previewSend).toEqual({ state: 'on' });
     expect(report.capabilities.receipt).toEqual({ state: 'on' });
     expect(report.receiptMatch).toEqual({ profile: 'any-build', kind: 'anyBuild' });
